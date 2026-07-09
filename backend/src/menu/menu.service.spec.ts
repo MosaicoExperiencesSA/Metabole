@@ -55,6 +55,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       },
     };
     prisma.engineDecision = { findFirst: jest.fn().mockResolvedValue(null) };
+    prisma.subscription = { findFirst: jest.fn().mockResolvedValue({ id: 'sub1', status: 'active' }) };
     const config = {
       getNumber: jest.fn((key: string) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[key]),
@@ -78,6 +79,12 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     const created = await service.deliverIfEligible('u1');
     expect(created).toEqual([todayIso, daysFromToday(1)]);
     expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('SENZA abbonamento attivo il menu non si genera (gating bonifico)', async () => {
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    expect(await service.deliverIfEligible('u1')).toEqual([]);
+    expect(prisma.menuDay.upsert).not.toHaveBeenCalled();
   });
 
   it('periodo di pausa attivo: erogazione sospesa', async () => {

@@ -85,6 +85,17 @@ Milestone 8 — Chat (completata):
 - **Notifiche**: nuovo messaggio → avviso allo staff destinatario; risposta dello staff → avviso alla cliente.
 - 192 unit test totali
 
+Milestone 9 — CRM, commercio e contabilità (completata):
+
+- **Flusso bonifico**: `POST /me/subscribe` (gating al consenso dati sanitari) → email con gli **estremi bancari** (da `config_param: bank_transfer_details`) e causale → la cliente carica la **contabile** (`POST /me/payments/:id/receipt`, cifrata AES-256) → l'operatore (admin/commerciale) verifica (`GET /admin/payments?status=receipt_uploaded`, download contabile) e **approva o rifiuta**. **Solo all'approvazione**: abbonamento attivo, income a ledger, **provvigioni** coach/nutrizionista (percentuali da config), CRM → `paid`, **ricevuta via email** e notifica. Il **menu si genera solo con abbonamento attivo**.
+- **Ordini integratori** (`GET /products`, `POST /me/orders`): stesso flusso bonifico.
+- **CRM** (`GET/POST/PATCH /crm/leads`): ogni transizione salva **data + responsabile** (`stage_dates`); `lead_in` automatico alla registrazione, `paid` all'approvazione.
+- **Eventi economici automatici** (niente doppio inserimento): pagamento approvato → income + provvigioni; **visita completata → compenso nutrizionista + expense** (importo da config).
+- **Dashboard**: `GET /dashboards/sales` (stage, conversione, incasso mese), `/dashboards/accounting` (entrate/uscite per categoria), `/dashboards/compensation` (compensi per staff/periodo); `GET /ledger` con filtri.
+- Prezzi sempre in **centesimi**. Seed: 3 piani + 2 prodotti demo (prezzi da confermare), estremi bancari segnaposto da configurare in `admin/config`.
+- **Stripe (carta)**: `POST /me/subscribe` con `method: "card"` → sessione **Stripe Checkout** (`checkoutUrl`); `POST /payments/webhook` con **firma verificata** (`STRIPE_WEBHOOK_SECRET`, rawBody) e **idempotente** → alla conferma, stessa catena del bonifico (attivazione, income, provvigioni, CRM, ricevuta). Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (solo pannello Render).
+- 212 unit test totali
+
 ## Sviluppo locale
 
 Requisiti: Node 22+, un database PostgreSQL (anche Neon dev branch).

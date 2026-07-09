@@ -59,6 +59,12 @@ export class MenuService {
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile?.planStartDate) return []; // senza data di inizio niente menu
 
+    // Il piano alimentare si genera SOLO con abbonamento attivo (approvazione bonifico).
+    const activeSubscription = await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
+    });
+    if (!activeSubscription) return [];
+
     // Periodo senza dieta attivo: erogazione sospesa (il monitoraggio continua).
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return [];

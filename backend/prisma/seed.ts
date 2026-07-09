@@ -107,6 +107,30 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
+  {
+    key: 'bank_transfer_details',
+    value: 'Intestatario: Metabole (DA CONFIGURARE)\nIBAN: IT00 X000 0000 0000 0000 0000 000 (DA CONFIGURARE)\nBanca: (DA CONFIGURARE)',
+    type: 'string',
+    description: 'Estremi bancari inviati via email per i pagamenti con bonifico',
+  },
+  {
+    key: 'commission_coach_percent',
+    value: '10',
+    type: 'number',
+    description: 'Provvigione della coach sugli acquisti approvati (%)',
+  },
+  {
+    key: 'commission_nutritionist_percent',
+    value: '15',
+    type: 'number',
+    description: 'Provvigione della nutrizionista sugli acquisti approvati (%)',
+  },
+  {
+    key: 'visit_compensation_amount_cents',
+    value: '4000',
+    type: 'number',
+    description: 'Compenso per visita completata (centesimi)',
+  },
 ];
 
 async function seedPermissions(): Promise<void> {
@@ -366,6 +390,29 @@ async function seedProtocols(): Promise<void> {
   console.log(`Seed: ${protocols.length} protocolli della specifica creati (approved).`);
 }
 
+/** Piani e prodotti demo: SOLO se le tabelle sono vuote (prezzi da rivedere in admin). */
+async function seedCommerce(): Promise<void> {
+  if ((await prisma.plan.count()) === 0) {
+    await prisma.plan.createMany({
+      data: [
+        { name: 'Percorso Metabole 3 mesi', priceCents: 29700, period: '3m', features: ['Menu adattivo', 'Coach dedicata', 'Prima visita inclusa'] },
+        { name: 'Percorso Metabole 6 mesi', priceCents: 49700, period: '6m', features: ['Menu adattivo', 'Coach dedicata', 'Prima visita inclusa', 'Controlli in televisita'] },
+        { name: 'Percorso Metabole 12 mesi', priceCents: 79700, period: '12m', features: ['Menu adattivo', 'Coach dedicata', 'Prima visita inclusa', 'Controlli in televisita', 'Priorità in chat'] },
+      ],
+    });
+    console.log('Seed: 3 piani demo creati (prezzi da confermare in admin).');
+  }
+  if ((await prisma.product.count()) === 0) {
+    await prisma.product.createMany({
+      data: [
+        { name: 'Integratore multivitaminico Metabole', priceCents: 2490, description: 'Demo: sostituire col catalogo reale' },
+        { name: 'Omega 3 Metabole', priceCents: 1990, description: 'Demo: sostituire col catalogo reale' },
+      ],
+    });
+    console.log('Seed: 2 prodotti demo creati.');
+  }
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -377,6 +424,7 @@ async function main(): Promise<void> {
   await seedPermissions();
   await seedDemoCatalog();
   await seedProtocols();
+  await seedCommerce();
   const count = await prisma.configParam.count();
   const permCount = await prisma.rolePagePermission.count();
   console.log(

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { FinanceService } from '../commerce/finance.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -19,6 +20,7 @@ export class VisitsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly finance: FinanceService,
   ) {}
 
   /** Scheda staff + verifica che la cliente sia in carico (il capo vede tutte). */
@@ -176,6 +178,13 @@ export class VisitsService {
         objectiveReconfirmed = true;
       }
     }
+
+    // Evento economico automatico: compenso visita + uscita a ledger (spec sez. 8).
+    await this.finance.creditVisitCompensation({
+      id: visitId,
+      clientId: visit.clientId,
+      nutritionistId: visit.nutritionistId,
+    });
 
     await this.audit.log({
       action: 'health.visit.complete',

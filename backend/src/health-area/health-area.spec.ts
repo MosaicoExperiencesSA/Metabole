@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
+import { FinanceService } from '../commerce/finance.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClinicalNotesService } from './clinical-notes.service';
@@ -81,6 +82,7 @@ describe('Area sanitaria', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('chiave-file-test') } },
+        { provide: FinanceService, useValue: { creditVisitCompensation: jest.fn() } },
       ],
     }).compile();
     visits = moduleRef.get(VisitsService);

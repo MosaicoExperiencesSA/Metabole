@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
+import { CrmService } from '../commerce/crm.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
@@ -51,6 +52,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: MailService, useValue: mail },
         { provide: AuditService, useValue: audit },
+        { provide: CrmService, useValue: { ensureLead: jest.fn() } },
         {
           provide: JwtService,
           useValue: { signAsync: jest.fn().mockResolvedValue('signed.jwt.token') },

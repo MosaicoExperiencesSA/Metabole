@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { CrmService } from '../commerce/crm.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
@@ -30,6 +31,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly mail: MailService,
     private readonly audit: AuditService,
+    private readonly crm: CrmService,
   ) {}
 
   // ---------- Registrazione ----------
@@ -58,6 +60,7 @@ export class AuthService {
     });
 
     await this.issueEmailVerification(user.id, normalized);
+    await this.crm.ensureLead(user.id, normalized); // CRM: lead_in automatico
     const tokens = await this.issueTokenPair(user);
     return { user: this.toPublicUser(user), ...tokens };
   }

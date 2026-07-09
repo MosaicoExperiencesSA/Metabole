@@ -167,6 +167,47 @@ enum ChatCounterpart {
   nutritionist
 }
 
+enum PaymentMethod {
+  bank_transfer
+  card
+}
+
+enum PaymentStatus {
+  pending
+  receipt_uploaded
+  approved
+  rejected
+}
+
+enum SubscriptionStatus {
+  pending
+  active
+  cancelled
+  expired
+}
+
+enum OrderStatus {
+  pending
+  paid
+  cancelled
+}
+
+enum CrmStage {
+  lead_in
+  worked
+  paid
+  coach_assigned
+  coach_call
+  nutritionist_assigned
+  first_visit
+  follow_up
+}
+
+enum LedgerType {
+  income
+  expense
+}
+
 enum MealSlot {
   breakfast
   morning_snack
@@ -212,6 +253,10 @@ model User {
   documents       Document[]
   clinicalNotes   ClinicalNote[]
   chatThreads     ChatThread[]
+  subscriptions   Subscription[]
+  payments        Payment[]
+  orders          Order[]
+  crmRecord       CrmRecord?
 
   @@index([role])
   @@map("user")
@@ -242,6 +287,9 @@ model Staff {
   visits                Visit[]         @relation("VisitNutritionist")
   reviewedDocuments     Document[]      @relation("DocumentReviewer")
   clinicalNotes         ClinicalNote[]  @relation("NoteAuthor")
+  approvedPayments      Payment[]       @relation("PaymentApprover")
+  ownedLeads            CrmRecord[]     @relation("LeadOwner")
+  compensations         StaffCompensation[] @relation("CompensationStaff")
 
   @@map("staff")
 }
@@ -322,6 +370,152 @@ model Escalation {
   @@index([clientId])
   @@index([status])
   @@map("escalation")
+}
+
+// --- CRM, commercio, contabilità (milestone 9) ---
+
+// Piano di abbonamento (prezzi in CENTESIMI: niente virgole mobili sui soldi).
+model Plan {
+  id          String   @id @default(uuid())
+  name        String
+  priceCents  Int      @map("price_cents")
+  period      String // es. 3m | 6m | 12m
+  mealsPerDay Int?     @map("meals_per_day")
+  features    String[] @default([])
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@map("plan")
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  clientId  String             @map("client_id")
+  client    User               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  planId    String             @map("plan_id")
+  plan      Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status    SubscriptionStatus @default(pending)
+  startDate DateTime?          @map("start_date")
+  endDate   DateTime?          @map("end_date")
+  pspRef    String?            @map("psp_ref")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  payments Payment[]
+
+  @@index([clientId, status])
+  @@map("subscription")
+}
+
+// Pagamento con flusso bonifico: pending → receipt_uploaded → approved|rejected.
+// L'abbonamento (e menu/provvigioni) si attiva SOLO all'approvazione dell'operatore.
+model Payment {
+  id             String        @id @default(uuid())
+  clientId       String        @map("client_id")
+  client         User          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subscriptionId String?       @map("subscription_id")
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  orderId        String?       @unique @map("order_id")
+  order          Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  amountCents    Int           @map("amount_cents")
+  description    String
+  method         PaymentMethod @default(bank_transfer)
+  status         PaymentStatus @default(pending)
+  receiptData    Bytes?        @map("receipt_data") // contabile cifrata AES-256-GCM
+  receiptMime    String?       @map("receipt_mime")
+  receiptName    String?       @map("receipt_name")
+  approvedById   String?       @map("approved_by_id")
+  approvedBy     Staff?        @relation("PaymentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt     DateTime?     @map("approved_at")
+  rejectReason   String?       @map("reject_reason")
+  pspRef         String?       @map("psp_ref")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([clientId, createdAt])
+  @@map("payment")
+}
+
+// Integratori (spec): catalogo minimo.
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  priceCents  Int      @map("price_cents")
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("product")
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  clientId   String      @map("client_id")
+  client     User        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status     OrderStatus @default(pending)
+  totalCents Int         @map("total_cents")
+  items      Json // [{productId, name, priceCents, qty}]
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  payment Payment?
+
+  @@index([clientId])
+  @@map("order")
+}
+
+// CRM: ogni transizione di stage salva data + responsabile (spec sez. 8).
+model CrmRecord {
+  id         String   @id @default(uuid())
+  clientId   String?  @unique @map("client_id")
+  client     User?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  email      String?
+  name       String?
+  stage      CrmStage @default(lead_in)
+  stageDates Json     @default("{}") @map("stage_dates") // {stage: {at, byUserId}}
+  ownerId    String?  @map("owner_id")
+  owner      Staff?   @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  valueCents Int?     @map("value_cents")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([stage])
+  @@map("crm_record")
+}
+
+// Contabilità: eventi economici automatici, niente doppio inserimento.
+model LedgerEntry {
+  id        String     @id @default(uuid())
+  type      LedgerType
+  amountCents Int      @map("amount_cents")
+  category  String // subscription | order | sales_commission | visit_compensation | ...
+  date      DateTime   @default(now())
+  ref       String? // payment/visit id
+  clientId  String?    @map("client_id")
+  staffId   String?    @map("staff_id")
+  note      String?
+
+  @@index([type, date])
+  @@index([category, date])
+  @@map("ledger_entry")
+}
+
+// Compensi/provvigioni dello staff, aggregati per periodo (YYYY-MM).
+model StaffCompensation {
+  id      String @id @default(uuid())
+  staffId String @map("staff_id")
+  staff   Staff  @relation("CompensationStaff", fields: [staffId], references: [id], onDelete: Cascade)
+  period  String // YYYY-MM
+  amountCents Int @default(0) @map("amount_cents")
+  items   Json   @default("[]") // [{at, kind, amountCents, ref}]
+
+  @@unique([staffId, period])
+  @@map("staff_compensation")
 }
 
 // --- Chat (milestone 8) ---

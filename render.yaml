@@ -35,6 +35,10 @@ services:
         sync: false # inserire a mano: API key Brevo
       - key: MAIL_FROM
         sync: false # inserire a mano: mittente verificato su Brevo
+      - key: STRIPE_SECRET_KEY
+        sync: false # inserire a mano: chiave segreta Stripe (sk_test_... / sk_live_...)
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false # inserire a mano: signing secret del webhook Stripe (whsec_...)
       - key: JWT_ACCESS_SECRET
         generateValue: true # generata da Render, mai committata
       - key: FILE_ENCRYPTION_KEY

@@ -82,6 +82,44 @@ export class MailService {
     });
   }
 
+  /** Estremi per il bonifico (flusso: richiesta → email → contabile → approvazione). */
+  async sendBankTransferInstructions(
+    to: string,
+    input: { description: string; amountCents: number; bankDetails: string; reference: string },
+  ): Promise<boolean> {
+    const amount = (input.amountCents / 100).toFixed(2).replace('.', ',');
+    return this.send({
+      to,
+      subject: `Metabole — estremi per il bonifico (${input.description})`,
+      html: `<p>Grazie per il tuo acquisto: <strong>${input.description}</strong>.</p>
+<p>Importo: <strong>€ ${amount}</strong></p>
+<p>Estremi per il bonifico:</p>
+<pre style="background:#f4f6f5;padding:12px;border-radius:8px">${input.bankDetails}</pre>
+<p>Causale da indicare: <strong>${input.reference}</strong></p>
+<p>Appena effettuato il bonifico, carica la contabile nell'app: un nostro operatore la verificherà e il tuo percorso si attiverà subito dopo l'approvazione.</p>`,
+    });
+  }
+
+  /** Ricevuta: inviata a OGNI acquisto approvato. */
+  async sendPaymentReceipt(
+    to: string,
+    input: { description: string; amountCents: number; paymentId: string; date: Date },
+  ): Promise<boolean> {
+    const amount = (input.amountCents / 100).toFixed(2).replace('.', ',');
+    return this.send({
+      to,
+      subject: 'Metabole — ricevuta di pagamento',
+      html: `<p>Il tuo pagamento è stato confermato. 🎉</p>
+<table style="border-collapse:collapse">
+<tr><td style="padding:4px 12px 4px 0"><strong>Descrizione</strong></td><td>${input.description}</td></tr>
+<tr><td style="padding:4px 12px 4px 0"><strong>Importo</strong></td><td>€ ${amount}</td></tr>
+<tr><td style="padding:4px 12px 4px 0"><strong>Data</strong></td><td>${input.date.toLocaleDateString('it-IT')}</td></tr>
+<tr><td style="padding:4px 12px 4px 0"><strong>Riferimento</strong></td><td>${input.paymentId}</td></tr>
+</table>
+<p>Conserva questa email come ricevuta. Il tuo percorso è attivo: ti aspettiamo nell'app!</p>`,
+    });
+  }
+
   async sendPasswordReset(to: string, token: string): Promise<boolean> {
     const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole-backend.onrender.com';
     const link = `${appUrl}/reset-password?token=${token}`;
