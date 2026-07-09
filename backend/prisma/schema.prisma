@@ -113,6 +113,12 @@ enum DietStatus {
   rejected
 }
 
+enum ProtocolStatus {
+  pending
+  approved
+  rejected
+}
+
 enum MealSlot {
   breakfast
   morning_snack
@@ -151,6 +157,7 @@ model User {
   menuDays        MenuDay[]
   recipeRatings   RecipeRating[]
   shoppingLists   ShoppingList[]
+  engineDecisions EngineDecision[]
 
   @@index([role])
   @@map("user")
@@ -176,6 +183,8 @@ model Staff {
   escalations           Escalation[]    @relation("EscalationAssignee")
   authoredDiets         Diet[]          @relation("DietAuthor")
   approvedDiets         Diet[]          @relation("DietApprover")
+  authoredProtocols     Protocol[]      @relation("ProtocolAuthor")
+  validatedProtocols    Protocol[]      @relation("ProtocolValidator")
 
   @@map("staff")
 }
@@ -256,6 +265,55 @@ model Escalation {
   @@index([clientId])
   @@index([status])
   @@map("escalation")
+}
+
+// --- Motore a regole (milestone 5) ---
+
+// Protocollo/regola: condizioni sui 5 segnali → azione (menu/tono/timing).
+// Il motore usa SOLO regole approved (validazione a monte, spec 7.3).
+model Protocol {
+  id            String         @id @default(uuid())
+  name          String
+  type          String // menu_correction | threshold | library | ...
+  definition    Json // { priority, conditions: [{field, op, value}], action: {menu, tone, timing, levelDelta, flag} }
+  thresholds    Json?
+  appliesTo     String?        @map("applies_to") // es. "senza condizioni cliniche"
+  status        ProtocolStatus @default(pending)
+  authorId      String?        @map("author_id")
+  author        Staff?         @relation("ProtocolAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  validatedById String?        @map("validated_by_id")
+  validatedBy   Staff?         @relation("ProtocolValidator", fields: [validatedById], references: [id], onDelete: SetNull)
+  validatedAt   DateTime?      @map("validated_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  decisions EngineDecision[]
+
+  @@index([status])
+  @@map("protocol")
+}
+
+// Decisione del motore: loggata e SPIEGABILE (snapshot input + regola applicata).
+model EngineDecision {
+  id               String    @id @default(uuid())
+  clientId         String    @map("client_id")
+  client           User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date             DateTime  @db.Date
+  inputs           Json // snapshot dei 5 segnali al momento della decisione
+  ruleId           String?   @map("rule_id")
+  rule             Protocol? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  action           Json // {menu, tone, timing, level, note}
+  flaggedForReview Boolean   @default(false) @map("flagged_for_review")
+  flagReason       String?   @map("flag_reason")
+  reviewedById     String?   @map("reviewed_by_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  reviewOutcome    String?   @map("review_outcome") // confirmed | corrected
+  reviewNote       String?   @map("review_note")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([clientId, date])
+  @@index([flaggedForReview, reviewedAt])
+  @@map("engine_decision")
 }
 
 // --- Diete, ricette, menu (milestone 4) ---

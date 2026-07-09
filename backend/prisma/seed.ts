@@ -101,6 +101,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Obiettivo giornaliero passi',
   },
+  {
+    key: 'low_energy_chronic_threshold',
+    value: '2.5',
+    type: 'number',
+    description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
+  },
 ];
 
 async function seedPermissions(): Promise<void> {
@@ -237,6 +243,129 @@ async function seedDemoCatalog(): Promise<void> {
   console.log('Seed: dieta demo "Equilibrio Mediterraneo" creata (catalogo era vuoto).');
 }
 
+/**
+ * Le 5 regole della tabella decisionale della specifica (sez. 7.2),
+ * seminate come protocolli APPROVED (sono la libreria di partenza validata).
+ * Create solo se non esistono protocolli: le nutrizioniste le evolveranno.
+ */
+async function seedProtocols(): Promise<void> {
+  const count = await prisma.protocol.count();
+  if (count > 0) return;
+
+  const protocols = [
+    {
+      name: 'Calo troppo rapido con energia bassa',
+      type: 'threshold',
+      appliesTo: 'senza condizioni cliniche',
+      definition: {
+        priority: 10,
+        conditions: [
+          { field: 'rapidLoss', op: 'is_true' },
+          { field: 'energyAvg', op: 'lte', value: 3 },
+        ],
+        action: {
+          menu: 'increase_calories',
+          tone: 'gentle',
+          timing: 'morning',
+          levelDelta: -1,
+          flagForReview: true,
+          note: 'Alza le calorie e rallenta: verifica del nutrizionista.',
+        },
+      },
+    },
+    {
+      name: 'Stallo con umore basso e vita intensa',
+      type: 'menu_correction',
+      appliesTo: 'senza condizioni cliniche',
+      definition: {
+        priority: 20,
+        conditions: [
+          { field: 'stallDays', op: 'gte', value: 6 },
+          { field: 'moodAvg', op: 'lte', value: 2.5 },
+          { field: 'busyLifestyle', op: 'is_true' },
+        ],
+        action: {
+          menu: 'practical',
+          tone: 'supportive',
+          timing: 'evening',
+          note: 'Non stringere: menu pratici, messaggio di sostegno, correzione rimandata.',
+        },
+      },
+    },
+    {
+      name: 'Stallo con serenità e tempo per cucinare',
+      type: 'menu_correction',
+      appliesTo: 'senza condizioni cliniche',
+      definition: {
+        priority: 30,
+        conditions: [
+          { field: 'stallDays', op: 'gte', value: 6 },
+          { field: 'moodAvg', op: 'gte', value: 3.5 },
+          { field: 'cookingTime', op: 'in', value: ['some', 'love_cooking'] },
+        ],
+        action: {
+          menu: 'correction',
+          tone: 'encouraging',
+          timing: 'morning',
+          levelDelta: 1,
+          note: 'Variante di correzione: più proteica / minor carico.',
+        },
+      },
+    },
+    {
+      name: 'In calo con evento in agenda',
+      type: 'library',
+      appliesTo: 'senza condizioni cliniche',
+      definition: {
+        priority: 40,
+        conditions: [
+          { field: 'direction', op: 'eq', value: 'down' },
+          { field: 'upcomingEvent', op: 'is_true' },
+        ],
+        action: {
+          menu: 'lighten_before_event',
+          tone: 'neutral',
+          timing: 'morning',
+          levelDelta: -1,
+          note: 'Alleggerire prima, libertà il giorno dell\'evento, rientro dopo.',
+        },
+      },
+    },
+    {
+      name: 'Aderente, umore alto, obiettivo vicino',
+      type: 'library',
+      appliesTo: 'senza condizioni cliniche',
+      definition: {
+        priority: 50,
+        conditions: [
+          { field: 'adherenceLast7', op: 'gte', value: 0.8 },
+          { field: 'moodAvg', op: 'gte', value: 4 },
+          { field: 'progressPercent', op: 'gte', value: 75 },
+        ],
+        action: {
+          menu: 'celebrate_step',
+          tone: 'celebratory',
+          timing: 'morning',
+          note: 'Celebra il traguardo vicino e proponi lo step successivo.',
+        },
+      },
+    },
+  ];
+  for (const p of protocols) {
+    await prisma.protocol.create({
+      data: {
+        name: p.name,
+        type: p.type,
+        appliesTo: p.appliesTo,
+        definition: p.definition as never,
+        status: 'approved',
+        validatedAt: new Date(),
+      },
+    });
+  }
+  console.log(`Seed: ${protocols.length} protocolli della specifica creati (approved).`);
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -247,6 +376,7 @@ async function main(): Promise<void> {
   }
   await seedPermissions();
   await seedDemoCatalog();
+  await seedProtocols();
   const count = await prisma.configParam.count();
   const permCount = await prisma.rolePagePermission.count();
   console.log(

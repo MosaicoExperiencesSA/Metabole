@@ -48,6 +48,16 @@ Milestone 4 — Diete e menu (completata):
 - Seed: dieta demo "Equilibrio Mediterraneo" (10 ricette, 2 giornate) solo se il catalogo è vuoto.
 - 107 unit test totali
 
+Milestone 5 — Il motore intelligente (completata):
+
+- **Governance in 3 fasi (spec 7.3)**: validazione a monte (`GET/POST /protocols`, `POST /protocols/:id/validate` — mai il proprio protocollo), esecuzione solo dentro protocolli `approved`, controllo a campione (`GET /engine/decisions?flagged=true`, `POST /engine/decisions/:id/confirm|correct`).
+- **Motore deterministico** (`POST /engine/run`, singola cliente o batch per il cron): raccoglie i 5 segnali (Corpo su media mobile, Testa dagli ultimi check-in, Vita dal profilo, Agenda — placeholder fino al calendario —, Gusto dalle valutazioni), valuta le regole per priorità e decide **menu, tono e timing**. Idempotente per giorno.
+- **Ogni decisione è loggata e spiegabile**: snapshot dei segnali, regola applicata, spiegazione leggibile, audit.
+- **Guardrail (spec 7.4)**: screening sanitario → il motore non decide in autonomia; calo troppo rapido con energia non alta → alza calorie + escalation; energia bassa cronica (soglia `low_energy_chronic_threshold` in config) → escalation. Tutti i casi finiscono flagged al nutrizionista.
+- **Seed**: le 5 regole della tabella decisionale della specifica (7.2) come protocolli approvati di partenza.
+- Regole in `definition` jsonb: `{priority, conditions:[{field,op,value}], action:{menu,tone,timing,levelDelta,flagForReview}}` — nuove regole si scrivono dal backoffice, senza toccare il codice. L'AI generativa arriverà solo come layer di supporto, mai come decisore.
+- 130 unit test totali
+
 ## Sviluppo locale
 
 Requisiti: Node 22+, un database PostgreSQL (anche Neon dev branch).
