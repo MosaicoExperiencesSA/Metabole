@@ -1,0 +1,90 @@
+// Metabole — schema Prisma
+// Milestone 1 (Fondamenta): utenti, parametri motore, audit log.
+// Riferimento: docs Metabole_Specifica_Backend_Sviluppatore.md (sez. 5, 13, Appendice A)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Enum ---
+
+enum Role {
+  client
+  coach
+  nutritionist
+  head_nutritionist
+  sales
+  admin
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum ConfigParamType {
+  number
+  string
+  boolean
+  json
+}
+
+// --- Modelli ---
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique
+  passwordHash    String     @map("password_hash")
+  role            Role       @default(client)
+  locale          String     @default("it")
+  status          UserStatus @default(active)
+  emailVerifiedAt DateTime?  @map("email_verified_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  auditLogs       AuditLog[]
+  configChanges   ConfigParam[] @relation("ConfigUpdatedBy")
+
+  @@index([role])
+  @@map("user")
+}
+
+// Soglie e parametri del motore, configurabili a runtime (mai hardcodati).
+// Valori iniziali: Appendice A della specifica.
+model ConfigParam {
+  key         String          @id
+  value       String
+  type        ConfigParamType @default(number)
+  description String?
+  updatedById String?         @map("updated_by_id")
+  updatedBy   User?           @relation("ConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("config_param")
+}
+
+// Audit log: ogni accesso/azione su dati sanitari e ogni decisione del motore.
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @map("actor_id")
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String // es. "user.login", "config_param.update", "health_data.read"
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
+}

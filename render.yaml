@@ -1,0 +1,23 @@
+# Render Blueprint — Metabole backend
+# New → Blueprint → collegare questo repo: Render configura tutto da qui.
+# Dopo il primo deploy inserire a mano nel pannello Environment:
+#   DATABASE_URL  → connection string POOLED di Neon (region Francoforte)
+#   BREVO_API_KEY → da Brevo, Settings → API Keys
+services:
+  - type: web
+    name: metabole-backend
+    runtime: node
+    region: frankfurt
+    plan: starter
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy && npx prisma db seed
+    startCommand: node dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # inserire a mano: Neon pooled connection string
+      - key: BREVO_API_KEY
+        sync: false # inserire a mano: API key Brevo
