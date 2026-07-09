@@ -68,6 +68,15 @@ Milestone 6 — Ciclo di vita e notifiche (completata):
 - **Cron giornaliero**: `POST /internal/cron/daily` protetto da `CRON_SECRET` (condiviso via envVarGroup) esegue motore batch + notifiche; nel blueprint c'è il cron Render alle 05:00 UTC.
 - 149 unit test totali
 
+Milestone 7 — Area sanitaria (completata):
+
+- **Visite** (`POST /visits`, `/visits/:id/start|complete`, `GET /agenda`, `GET /me/visits`): **la prima visita è sempre in presenza** (il modulo rifiuta la televisita se è la prima — vincolo normativo); televisita solo per i controlli, con stanza video generata all'avvio (provider WebRTC da integrare); alla chiusura note riservate e **riconferma dell'obiettivo** in `Objective.history`.
+- **Documenti sanitari** (`POST/GET /me/documents`, `GET /documents/:id/content`, review con flags): contenuto **cifrato AES-256-GCM** (chiave `FILE_ENCRYPTION_KEY` generata da Render), max 10 MB, solo PDF/JPEG/PNG/HEIC. Accesso: cliente e staff sanitario del paziente. **La coach, il commerciale e l'admin non li vedono mai.** Ogni download è in audit.
+- **Note cliniche** (`GET/POST /clients/:id/notes`): riservate al nutrizionista assegnato e al capo; ogni lettura tracciata.
+- **RBAC a livello di risorsa**: un nutrizionista opera solo sui propri pazienti; il capo su tutti.
+- Storage: nel database (UE) dietro un'astrazione che permetterà la migrazione a bucket S3 senza cambiare le API.
+- 166 unit test totali
+
 ## Sviluppo locale
 
 Requisiti: Node 22+, un database PostgreSQL (anche Neon dev branch).

@@ -139,6 +139,28 @@ enum NotificationChannel {
   push
 }
 
+enum VisitType {
+  in_person
+  televisit
+}
+
+enum VisitStatus {
+  scheduled
+  done
+  cancelled
+}
+
+enum DocumentType {
+  blood_test
+  photo
+  other
+}
+
+enum DocumentStatus {
+  pending
+  reviewed
+}
+
 enum MealSlot {
   breakfast
   morning_snack
@@ -180,6 +202,9 @@ model User {
   engineDecisions EngineDecision[]
   events          Event[]
   notifications   Notification[]
+  visits          Visit[]
+  documents       Document[]
+  clinicalNotes   ClinicalNote[]
 
   @@index([role])
   @@map("user")
@@ -207,6 +232,9 @@ model Staff {
   approvedDiets         Diet[]          @relation("DietApprover")
   authoredProtocols     Protocol[]      @relation("ProtocolAuthor")
   validatedProtocols    Protocol[]      @relation("ProtocolValidator")
+  visits                Visit[]         @relation("VisitNutritionist")
+  reviewedDocuments     Document[]      @relation("DocumentReviewer")
+  clinicalNotes         ClinicalNote[]  @relation("NoteAuthor")
 
   @@map("staff")
 }
@@ -287,6 +315,67 @@ model Escalation {
   @@index([clientId])
   @@index([status])
   @@map("escalation")
+}
+
+// --- Area sanitaria (milestone 7) ---
+
+// Visite: la PRIMA è sempre in presenza (vincolo imposto dal modulo, spec sez. 11);
+// la televisita è ammessa solo per i controlli successivi.
+model Visit {
+  id             String      @id @default(uuid())
+  clientId       String      @map("client_id")
+  client         User        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  nutritionistId String      @map("nutritionist_id")
+  nutritionist   Staff       @relation("VisitNutritionist", fields: [nutritionistId], references: [id], onDelete: Restrict)
+  type           VisitType
+  datetime       DateTime
+  status         VisitStatus @default(scheduled)
+  notes          String? // RISERVATE: solo nutrizionista e capo
+  videoRoomId    String?     @map("video_room_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  @@index([clientId, datetime])
+  @@index([nutritionistId, datetime])
+  @@map("visit")
+}
+
+// Documenti sanitari: contenuto cifrato AES-256-GCM nel database (storage UE).
+// L'astrazione permetterà la migrazione a bucket S3 senza cambiare le API.
+model Document {
+  id           String         @id @default(uuid())
+  clientId     String         @map("client_id")
+  client       User           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type         DocumentType
+  fileName     String         @map("file_name")
+  mimeType     String         @map("mime_type")
+  sizeBytes    Int            @map("size_bytes")
+  data         Bytes // iv (12B) + authTag (16B) + ciphertext
+  status       DocumentStatus @default(pending)
+  flags        String[]       @default([]) // es. "valore fuori range"
+  reviewedById String?        @map("reviewed_by_id")
+  reviewedBy   Staff?         @relation("DocumentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewNote   String?        @map("review_note")
+  uploadedAt   DateTime       @default(now()) @map("uploaded_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@index([clientId, uploadedAt])
+  @@index([status])
+  @@map("document")
+}
+
+// Note cliniche: accesso RISERVATO a nutrizionista assegnato e capo. Mai coach, mai admin.
+model ClinicalNote {
+  id             String   @id @default(uuid())
+  clientId       String   @map("client_id")
+  client         User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  nutritionistId String   @map("nutritionist_id")
+  nutritionist   Staff    @relation("NoteAuthor", fields: [nutritionistId], references: [id], onDelete: Restrict)
+  text           String
+  date           DateTime @default(now())
+
+  @@index([clientId, date])
+  @@map("clinical_note")
 }
 
 // --- Calendario e notifiche (milestone 6) ---

@@ -7,6 +7,7 @@ import { CalendarModule } from './calendar/calendar.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { CronModule } from './cron/cron.module';
 import { EngineModule } from './engine/engine.module';
+import { HealthAreaModule } from './health-area/health-area.module';
 import { MenuModule } from './menu/menu.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -40,6 +41,7 @@ import { UsersModule } from './users/users.module';
     EngineModule,
     NotificationsModule,
     CronModule,
+    HealthAreaModule,
     HealthModule,
   ],
   providers: [
