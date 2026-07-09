@@ -97,6 +97,14 @@ enum EscalationStatus {
   resolved
 }
 
+enum Mood {
+  great
+  good
+  ok
+  hard
+  stressed
+}
+
 // --- Modelli ---
 
 model User {
@@ -119,6 +127,11 @@ model User {
   clientProfile   ClientProfile?
   objectives      Objective[]
   escalations     Escalation[]
+  measurements    Measurement[]
+  checkins        DailyCheckin[]
+  waterLogs       WaterLog[]
+  stepLogs        StepLog[]
+  milestones      Milestone[]
 
   @@index([role])
   @@map("user")
@@ -222,6 +235,87 @@ model Escalation {
   @@index([clientId])
   @@index([status])
   @@map("escalation")
+}
+
+// --- Segnali (milestone 3): il carburante del motore ---
+
+// Segnale "Corpo": misure inserite ~ogni 2 giorni. Una per giorno.
+model Measurement {
+  id       String   @id @default(uuid())
+  clientId String   @map("client_id")
+  client   User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  weightKg Float    @map("weight_kg")
+  waistCm  Float?   @map("waist_cm")
+  hipsCm   Float?   @map("hips_cm")
+  thighsCm Float?   @map("thighs_cm")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, date])
+  @@index([clientId, date])
+  @@map("measurement")
+}
+
+// Segnale "Testa": check-in giornaliero (umore obbligatorio, il resto opzionale 1–5).
+model DailyCheckin {
+  id       String   @id @default(uuid())
+  clientId String   @map("client_id")
+  client   User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  mood     Mood
+  energy   Int?
+  hunger   Int?
+  stress   Int?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, date])
+  @@index([clientId, date])
+  @@map("daily_checkin")
+}
+
+model WaterLog {
+  id       String   @id @default(uuid())
+  clientId String   @map("client_id")
+  client   User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  glasses  Int
+  goal     Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, date])
+  @@map("water_log")
+}
+
+model StepLog {
+  id       String   @id @default(uuid())
+  clientId String   @map("client_id")
+  client   User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  steps    Int
+  goal     Int
+  source   String?  // manual | healthkit | google_fit (futuro)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, date])
+  @@map("step_log")
+}
+
+// Traguardi raggiunti (celebrazioni): prima misura, -1/-3/-5 kg, metà strada, obiettivo.
+model Milestone {
+  id         String   @id @default(uuid())
+  clientId   String   @map("client_id")
+  client     User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type       String // first_measurement | lost_1kg | lost_3kg | lost_5kg | halfway | goal_reached
+  label      String
+  achievedAt DateTime @default(now()) @map("achieved_at")
+
+  @@unique([clientId, type])
+  @@index([clientId])
+  @@map("milestone")
 }
 
 // Refresh token (rotazione): salvato solo l'hash, mai il token in chiaro.

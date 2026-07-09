@@ -29,7 +29,14 @@ Backoffice — permessi e impersonazione:
 
 - **Matrice permessi** ruolo × sezione (18 sezioni da specifica): `GET/PATCH /api/v1/admin/permissions` (audit su ogni modifica, anti-lockout sull'admin) e `GET /api/v1/me/permissions` per costruire menu e viste del frontend. Default dal seed: la coach non vede i documenti sanitari, il commerciale non vede i clienti, l'admin non accede alle note cliniche.
 - **Impersonazione admin** (`POST /api/v1/admin/impersonate`): token a vita breve (30m, configurabile) per assistere una cliente o un membro dello staff; mai su altri admin, nessun refresh token, claim `impersonatedBy` e tutto tracciato in audit. È la versione sicura della "master password".
-- 61 unit test totali
+Milestone 3 — Segnali (completata):
+
+- **Misure** (`GET/POST /me/measurements`): peso/vita/fianchi/cosce, una per giorno (upsert), mai nel futuro. **Guardrail calo rapido**: oltre `max_weight_change_alert_kg_week` sulla tendenza delle ultime 2 settimane → escalation automatica al nutrizionista (una sola aperta per volta).
+- **Check-in giornaliero** (`GET/POST /me/checkins`): umore scala 5 + energia/fame/stress opzionali (1–5), uno per giorno. `GET /me/today` per il popup "una volta al giorno" (check-in, misura, acqua, passi del giorno).
+- **Acqua e passi** (`POST /me/water`, `POST /me/steps`): obiettivi da `config_param` (8 bicchieri, 8000 passi).
+- **Progressi** (`GET /me/progress`): tutto su **media mobile** (finestra da config, mai il singolo dato) — % verso obiettivo, kg persi/rimanenti, ritmo settimanale, direzione, **proiezione della data obiettivo**, giorni di stallo (soglia coach da config), flag calo rapido, serie per il grafico.
+- **Traguardi** (`GET /me/milestones`): automatici — prima misura, -1/-3/-5 kg, metà strada, obiettivo raggiunto.
+- 89 unit test totali
 
 ## Sviluppo locale
 
