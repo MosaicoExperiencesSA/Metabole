@@ -13,7 +13,9 @@ services:
     plan: starter
     rootDir: backend
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build
-    preDeployCommand: npx prisma migrate deploy && npx prisma db seed
+    # Retry sul lock delle migrazioni: due deploy ravvicinati (push + variabile/blueprint)
+    # possono contendersi l'advisory lock; il secondo tentativo dopo 20s risolve.
+    preDeployCommand: (npx prisma migrate deploy || (echo 'Lock occupato, riprovo tra 20s…' && sleep 20 && npx prisma migrate deploy)) && npx prisma db seed
     startCommand: node dist/main.js
     healthCheckPath: /health
     envVars:
