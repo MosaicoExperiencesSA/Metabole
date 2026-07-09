@@ -35,6 +35,11 @@ enum ConfigParamType {
   json
 }
 
+enum ActionTokenType {
+  email_verification
+  password_reset
+}
+
 // --- Modelli ---
 
 model User {
@@ -51,9 +56,40 @@ model User {
 
   auditLogs       AuditLog[]
   configChanges   ConfigParam[] @relation("ConfigUpdatedBy")
+  refreshTokens   RefreshToken[]
+  actionTokens    ActionToken[]
 
   @@index([role])
   @@map("user")
+}
+
+// Refresh token (rotazione): salvato solo l'hash, mai il token in chiaro.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_token")
+}
+
+// Token monouso per verifica email e reset password (salvato hashato).
+model ActionToken {
+  id        String          @id @default(uuid())
+  userId    String          @map("user_id")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      ActionTokenType
+  tokenHash String          @unique @map("token_hash")
+  expiresAt DateTime        @map("expires_at")
+  usedAt    DateTime?       @map("used_at")
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  @@index([userId, type])
+  @@map("action_token")
 }
 
 // Soglie e parametri del motore, configurabili a runtime (mai hardcodati).

@@ -1,8 +1,10 @@
 # Render Blueprint — Metabole backend
 # New → Blueprint → collegare questo repo: Render configura tutto da qui.
-# Dopo il primo deploy inserire a mano nel pannello Environment:
+# Variabili da inserire a mano nel pannello Environment:
 #   DATABASE_URL  → connection string POOLED di Neon (region Francoforte)
 #   BREVO_API_KEY → da Brevo, Settings → API Keys
+#   MAIL_FROM     → mittente verificato su Brevo, es. Metabole <no-reply@dominio.it>
+# JWT_ACCESS_SECRET viene generata automaticamente da Render (generateValue).
 services:
   - type: web
     name: metabole-backend
@@ -21,3 +23,13 @@ services:
         sync: false # inserire a mano: Neon pooled connection string
       - key: BREVO_API_KEY
         sync: false # inserire a mano: API key Brevo
+      - key: MAIL_FROM
+        sync: false # inserire a mano: mittente verificato su Brevo
+      - key: JWT_ACCESS_SECRET
+        generateValue: true # generata da Render, mai committata
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: REFRESH_TTL_DAYS
+        value: "30"
+      - key: APP_URL
+        value: https://metabole-backend.onrender.com

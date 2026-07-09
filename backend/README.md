@@ -5,11 +5,16 @@ Specifica di riferimento: [`../Metabole_Specifica_Backend_Sviluppatore.md`](../M
 
 ## Stato
 
-Scaffold iniziale (milestone 1 — Fondamenta, in corso):
+Milestone 1 — Fondamenta (completata):
 
 - `GET /health` — stato applicazione + database (`{ status, database, timestamp, version }`)
-- Schema Prisma: `user` (enum ruoli RBAC), `config_param` (soglie del motore configurabili a runtime), `audit_log`
-- Migrazione SQL iniziale versionata + seed con le 14 soglie dell'Appendice A
+- Schema Prisma: `user`, `config_param`, `audit_log`, `refresh_token`, `action_token`
+- **Auth JWT** (`/api/v1/auth/*`): register, login, refresh con rotazione del refresh token (opaco, salvato hashato), logout, verifica email, reset password (token monouso, nessuna enumerazione utenti). Password con argon2.
+- **RBAC**: guardia JWT globale (`@Public()` per le rotte aperte) + `@Roles(...)` sui sei ruoli
+- **Utenti**: `GET /api/v1/me` · admin: `GET/POST /api/v1/admin/users`, `PATCH /api/v1/admin/users/:id` (sospensione/cambio ruolo revocano le sessioni)
+- **Audit log**: eventi auth e azioni admin registrati; consultabile da `GET /api/v1/admin/audit-logs`
+- **Email transazionali** (Brevo): verifica email e reset password; senza API key valida logga invece di inviare
+- 25 unit test (auth, RBAC, users, audit, health)
 
 ## Sviluppo locale
 
