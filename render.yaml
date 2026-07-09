@@ -10,7 +10,7 @@ services:
     region: frankfurt
     plan: starter
     rootDir: backend
-    buildCommand: npm ci && npx prisma generate && npm run build
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
     preDeployCommand: npx prisma migrate deploy && npx prisma db seed
     startCommand: node dist/main.js
     healthCheckPath: /health
