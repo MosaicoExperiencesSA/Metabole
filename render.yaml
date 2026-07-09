@@ -20,7 +20,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false # inserire a mano: Neon pooled connection string
+        sync: false # inserire a mano: Neon POOLED connection string (runtime)
+      - key: DIRECT_DATABASE_URL
+        sync: false # inserire a mano: Neon DIRECT connection string (senza -pooler; usata solo da migrate/seed)
       - key: BREVO_API_KEY
         sync: false # inserire a mano: API key Brevo
       - key: MAIL_FROM
