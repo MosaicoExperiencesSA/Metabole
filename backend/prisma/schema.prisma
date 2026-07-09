@@ -268,6 +268,21 @@ model ConfigParam {
   @@map("config_param")
 }
 
+// Matrice permessi del backoffice: ruolo × sezione → vede / gestisce.
+// I default arrivano dal seed (specifica sez. 4); l'admin li modifica a runtime.
+model RolePagePermission {
+  role        Role
+  pageKey     String   @map("page_key")
+  canView     Boolean  @default(false) @map("can_view")
+  canManage   Boolean  @default(false) @map("can_manage")
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@id([role, pageKey])
+  @@map("role_page_permission")
+}
+
 // Audit log: ogni accesso/azione su dati sanitari e ogni decisione del motore.
 model AuditLog {
   id         String   @id @default(uuid())

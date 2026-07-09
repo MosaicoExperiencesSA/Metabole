@@ -24,7 +24,12 @@ Milestone 2 — Onboarding + profilo (completata):
 - **Profilo** (`/api/v1/me/profile|objective|theme`): lettura/modifica con rivalidazione del ritmo; ogni modifica dell'obiettivo torna `proposed` (riconferma coach+nutrizionista) e traccia la history
 - **Parametri motore**: `GET/PATCH /api/v1/admin/config` con cache 60s e audit delle modifiche
 - Nuove tabelle: `staff`, `client_profile`, `objective`, `escalation`
-- 48 unit test totali
+
+Backoffice — permessi e impersonazione:
+
+- **Matrice permessi** ruolo × sezione (18 sezioni da specifica): `GET/PATCH /api/v1/admin/permissions` (audit su ogni modifica, anti-lockout sull'admin) e `GET /api/v1/me/permissions` per costruire menu e viste del frontend. Default dal seed: la coach non vede i documenti sanitari, il commerciale non vede i clienti, l'admin non accede alle note cliniche.
+- **Impersonazione admin** (`POST /api/v1/admin/impersonate`): token a vita breve (30m, configurabile) per assistere una cliente o un membro dello staff; mai su altri admin, nessun refresh token, claim `impersonatedBy` e tutto tracciato in audit. È la versione sicura della "master password".
+- 61 unit test totali
 
 ## Sviluppo locale
 

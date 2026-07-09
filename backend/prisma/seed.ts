@@ -4,6 +4,8 @@
  * (aggiorna solo la descrizione).
  */
 import { PrismaClient, ConfigParamType } from '@prisma/client';
+import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS } from '../src/permissions/pages';
+import { ROLES } from '../src/common/roles';
 
 const prisma = new PrismaClient();
 
@@ -101,6 +103,25 @@ const CONFIG_PARAMS: SeedParam[] = [
   },
 ];
 
+async function seedPermissions(): Promise<void> {
+  // Crea solo le combinazioni mancanti: le modifiche dell'admin non vengono mai sovrascritte.
+  for (const role of ROLES) {
+    for (const pageKey of BACKOFFICE_PAGES) {
+      const def = DEFAULT_PERMISSIONS[role]?.[pageKey];
+      await prisma.rolePagePermission.upsert({
+        where: { role_pageKey: { role, pageKey } },
+        create: {
+          role,
+          pageKey,
+          canView: def?.view ?? false,
+          canManage: def?.manage ?? false,
+        },
+        update: {}, // mai sovrascrivere scelte fatte a runtime
+      });
+    }
+  }
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -109,8 +130,12 @@ async function main(): Promise<void> {
       update: { description: param.description }, // non tocca value: l'admin può averlo cambiato
     });
   }
+  await seedPermissions();
   const count = await prisma.configParam.count();
-  console.log(`Seed completato: ${CONFIG_PARAMS.length} parametri processati, ${count} presenti in config_param.`);
+  const permCount = await prisma.rolePagePermission.count();
+  console.log(
+    `Seed completato: ${CONFIG_PARAMS.length} parametri processati (${count} in config_param), ${permCount} permessi ruolo×pagina.`,
+  );
 }
 
 main()

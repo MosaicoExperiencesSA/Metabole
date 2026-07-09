@@ -246,6 +246,51 @@ export class AuthService {
     });
   }
 
+  // ---------- Impersonazione (la "master password" sicura) ----------
+
+  /**
+   * L'admin ottiene un access token a vita breve per operare come un altro
+   * utente (assistenza). Regole: mai su altri admin, mai su se stessi,
+   * solo utenti attivi. Nessun refresh token. Tutto tracciato in audit.
+   */
+  async impersonate(adminId: string, targetUserId: string, ip?: string) {
+    if (adminId === targetUserId) {
+      throw new BadRequestException('Non puoi impersonare te stesso.');
+    }
+    const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!target || target.status !== 'active' || target.deletedAt) {
+      throw new BadRequestException('Utente non impersonabile: inesistente o non attivo.');
+    }
+    if (target.role === 'admin') {
+      throw new BadRequestException('Gli account admin non sono impersonabili.');
+    }
+
+    const ttl = this.config.get<string>('IMPERSONATION_TTL') ?? '30m';
+    const accessToken = await this.jwtService.signAsync(
+      {
+        sub: target.id,
+        email: target.email,
+        role: target.role,
+        impersonatedBy: adminId,
+      },
+      { expiresIn: ttl as never },
+    );
+    await this.audit.log({
+      action: 'admin.impersonate',
+      actorId: adminId,
+      entityType: 'user',
+      entityId: target.id,
+      metadata: { targetRole: target.role, ttl },
+      ipAddress: ip,
+    });
+    return {
+      accessToken,
+      expiresIn: ttl,
+      impersonating: { id: target.id, email: target.email, role: target.role },
+      note: 'Token di sola sessione: nessun refresh token. Ogni azione resta tracciata.',
+    };
+  }
+
   // ---------- Interni ----------
 
   private async issueTokenPair(user: {

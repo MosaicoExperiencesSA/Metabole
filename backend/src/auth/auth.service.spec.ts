@@ -174,6 +174,58 @@ describe('AuthService', () => {
     });
   });
 
+  describe('impersonate (master password sicura)', () => {
+    const sign = () => (service as any).jwtService.signAsync as jest.Mock;
+
+    it('admin ottiene un token per un utente attivo, con audit', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u2',
+        email: 'cliente@b.it',
+        role: 'client',
+        status: 'active',
+        deletedAt: null,
+      });
+      const result = await service.impersonate('admin-1', 'u2');
+      expect(result.accessToken).toBe('signed.jwt.token');
+      expect(result.impersonating.id).toBe('u2');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'admin.impersonate', actorId: 'admin-1' }),
+      );
+    });
+
+    it('il token contiene impersonatedBy', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u2',
+        email: 'cliente@b.it',
+        role: 'client',
+        status: 'active',
+        deletedAt: null,
+      });
+      const moduleJwt = (service as any).jwtService;
+      await service.impersonate('admin-1', 'u2');
+      expect(moduleJwt.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ impersonatedBy: 'admin-1', sub: 'u2' }),
+        expect.anything(),
+      );
+    });
+
+    it('non si può impersonare un altro admin', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u3',
+        role: 'admin',
+        status: 'active',
+        deletedAt: null,
+      });
+      await expect(service.impersonate('admin-1', 'u3')).rejects.toThrow(BadRequestException);
+    });
+
+    it('non si può impersonare se stessi né utenti sospesi', async () => {
+      await expect(service.impersonate('admin-1', 'admin-1')).rejects.toThrow(BadRequestException);
+      prisma.user.findUnique.mockResolvedValue({ id: 'u4', role: 'client', status: 'suspended', deletedAt: null });
+      await expect(service.impersonate('admin-1', 'u4')).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('verifica email e reset password', () => {
     it('verifica email con token valido', async () => {
       prisma.actionToken.findUnique.mockResolvedValue({

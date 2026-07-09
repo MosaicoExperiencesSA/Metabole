@@ -9,6 +9,7 @@ import { ConfigParamsModule } from './config-params/config-params.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { PermissionsModule } from './permissions/permissions.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
@@ -22,6 +23,7 @@ import { UsersModule } from './users/users.module';
     ConfigParamsModule,
     AuthModule,
     UsersModule,
+    PermissionsModule,
     OnboardingModule,
     ProfileModule,
     HealthModule,
