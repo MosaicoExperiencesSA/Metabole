@@ -119,6 +119,26 @@ enum ProtocolStatus {
   rejected
 }
 
+enum EventType {
+  wedding
+  baptism
+  dinner
+  monthly_cheat
+  vacation
+  other
+}
+
+enum EventMode {
+  single_event
+  pause_period
+}
+
+enum NotificationChannel {
+  inapp
+  email
+  push
+}
+
 enum MealSlot {
   breakfast
   morning_snack
@@ -158,6 +178,8 @@ model User {
   recipeRatings   RecipeRating[]
   shoppingLists   ShoppingList[]
   engineDecisions EngineDecision[]
+  events          Event[]
+  notifications   Notification[]
 
   @@index([role])
   @@map("user")
@@ -265,6 +287,47 @@ model Escalation {
   @@index([clientId])
   @@index([status])
   @@map("escalation")
+}
+
+// --- Calendario e notifiche (milestone 6) ---
+
+// Segnale "Agenda": eventi singoli e periodi senza dieta.
+// I periodi di pausa sospendono l'erogazione ma il monitoraggio continua:
+// oltre pause_deviation_trigger scatta il mini-piano (spec sez. 5/8).
+model Event {
+  id             String    @id @default(uuid())
+  clientId       String    @map("client_id")
+  client         User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type           EventType
+  label          String?
+  startDate      DateTime  @map("start_date") @db.Date
+  endDate        DateTime  @map("end_date") @db.Date
+  mode           EventMode
+  planPhaseState String?   @map("plan_phase_state") // before | during | after | mini_plan_active
+  startWeightKg  Float?    @map("start_weight_kg") // peso all'inizio della pausa (per il mini-piano)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([clientId, startDate])
+  @@map("event")
+}
+
+// Notifiche personalizzate (spec sez. 9). userId = destinatario (cliente o staff).
+model Notification {
+  id           String              @id @default(uuid())
+  userId       String              @map("user_id")
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String // checkin_reminder | measurement_reminder | rating_request | pre_event | mini_plan | stall_coach_alert | no_checkin_coach_alert | ...
+  payload      Json?
+  channel      NotificationChannel @default(inapp)
+  scheduledFor DateTime            @map("scheduled_for")
+  sentAt       DateTime?           @map("sent_at")
+  readAt       DateTime?           @map("read_at")
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  @@index([userId, readAt])
+  @@index([userId, type, scheduledFor])
+  @@map("notification")
 }
 
 // --- Motore a regole (milestone 5) ---

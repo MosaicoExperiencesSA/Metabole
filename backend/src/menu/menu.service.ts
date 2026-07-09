@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../signals/signals.service';
@@ -25,6 +26,7 @@ export class MenuService {
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    private readonly events: EventsService,
   ) {}
 
   /** Menu visibile della cliente; prova a erogare i giorni successivi se ha diritto. */
@@ -57,6 +59,10 @@ export class MenuService {
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile?.planStartDate) return []; // senza data di inizio niente menu
 
+    // Periodo senza dieta attivo: erogazione sospesa (il monitoraggio continua).
+    const pause = await this.events.activePausePeriod(clientId);
+    if (pause) return [];
+
     const today = toDateOnly();
     const start = toDateOnly(profile.planStartDate.toISOString());
     const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
@@ -86,10 +92,28 @@ export class MenuService {
     const diet = await this.pickDiet(profile);
     if (!diet) return [];
 
-    const templates = await this.prisma.dietDayTemplate.findMany({
-      where: { dietId: diet.id, level: 1 },
+    // Il motore (M5) può aver deciso una variazione di livello per questa cliente.
+    const decision = await this.prisma.engineDecision.findFirst({
+      where: { clientId, flaggedForReview: false, date: { gte: new Date(today.getTime() - 2 * 86_400_000) } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const levelDelta = (decision?.action as { levelDelta?: number } | null)?.levelDelta ?? 0;
+    const desiredLevel = Math.max(1, 1 + levelDelta);
+    const sourceRuleId = decision?.ruleId ?? null;
+
+    let templates = await this.prisma.dietDayTemplate.findMany({
+      where: { dietId: diet.id, level: desiredLevel },
       orderBy: { dayIndex: 'asc' },
     });
+    let level = desiredLevel;
+    if (templates.length === 0 && desiredLevel !== 1) {
+      // La dieta non ha quel livello: si resta sul livello base.
+      templates = await this.prisma.dietDayTemplate.findMany({
+        where: { dietId: diet.id, level: 1 },
+        orderBy: { dayIndex: 'asc' },
+      });
+      level = 1;
+    }
     if (templates.length === 0) return [];
 
     const created: string[] = [];
@@ -105,9 +129,10 @@ export class MenuService {
           clientId,
           date,
           dietId: diet.id,
-          level: 1,
+          level,
           meals: meals as never,
           visibleFrom: last ? today : visibleFrom,
+          sourceRuleId,
         },
         update: {}, // mai sovrascrivere un giorno già erogato
       });

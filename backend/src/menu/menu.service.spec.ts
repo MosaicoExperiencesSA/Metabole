@@ -54,17 +54,21 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         update: jest.fn(),
       },
     };
+    prisma.engineDecision = { findFirst: jest.fn().mockResolvedValue(null) };
     const config = {
       getNumber: jest.fn((key: string) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[key]),
       ),
     };
+    const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
+    (globalThis as any).__eventsMock = events;
     const moduleRef = await Test.createTestingModule({
       providers: [
         MenuService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigParamsService, useValue: config },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: require('../calendar/events.service').EventsService, useValue: events },
       ],
     }).compile();
     service = moduleRef.get(MenuService);
@@ -74,6 +78,40 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     const created = await service.deliverIfEligible('u1');
     expect(created).toEqual([todayIso, daysFromToday(1)]);
     expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('periodo di pausa attivo: erogazione sospesa', async () => {
+    ((globalThis as any).__eventsMock.activePausePeriod as jest.Mock).mockResolvedValue({ id: 'ev-pausa' });
+    expect(await service.deliverIfEligible('u1')).toEqual([]);
+  });
+
+  it('la decisione del motore guida livello e source_rule_id', async () => {
+    prisma.engineDecision.findFirst.mockResolvedValue({
+      ruleId: 'p3',
+      action: { levelDelta: 1 },
+      date: new Date(),
+    });
+    prisma.dietDayTemplate.findMany
+      .mockResolvedValueOnce([template(1)]) // livello 2 esiste
+      .mockResolvedValue([template(1), template(2)]);
+    await service.deliverIfEligible('u1');
+    const call = prisma.menuDay.upsert.mock.calls[0][0];
+    expect(call.create.level).toBe(2);
+    expect(call.create.sourceRuleId).toBe('p3');
+  });
+
+  it('livello richiesto inesistente: si ripiega sul livello 1', async () => {
+    prisma.engineDecision.findFirst.mockResolvedValue({
+      ruleId: 'p3',
+      action: { levelDelta: 1 },
+      date: new Date(),
+    });
+    prisma.dietDayTemplate.findMany
+      .mockResolvedValueOnce([]) // livello 2 non esiste
+      .mockResolvedValue([template(1), template(2)]); // fallback livello 1
+    await service.deliverIfEligible('u1');
+    const call = prisma.menuDay.upsert.mock.calls[0][0];
+    expect(call.create.level).toBe(1);
   });
 
   it('niente menu senza plan_start_date', async () => {

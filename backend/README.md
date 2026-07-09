@@ -58,6 +58,16 @@ Milestone 5 — Il motore intelligente (completata):
 - Regole in `definition` jsonb: `{priority, conditions:[{field,op,value}], action:{menu,tone,timing,levelDelta,flagForReview}}` — nuove regole si scrivono dal backoffice, senza toccare il codice. L'AI generativa arriverà solo come layer di supporto, mai come decisore.
 - 130 unit test totali
 
+Milestone 6 — Ciclo di vita e notifiche (completata):
+
+- **Calendario** (`GET/POST/DELETE /me/events`, `GET /me/events/:id/plan`): eventi singoli e periodi senza dieta (max 30 giorni) con piano in tre fasi — "anticipare, non punire". La pausa fotografa il peso di partenza.
+- **Segnale Agenda vero nel motore**: `upcomingEvent` (evento nei 7 giorni) e `pausePeriodActive` ora arrivano dal calendario; la regola "in calo + evento in agenda" può scattare davvero.
+- **Pause nel menu**: durante un periodo senza dieta l'erogazione si sospende (il monitoraggio no); oltre `pause_deviation_trigger` scatta il **mini-piano** (notifica + fase evento aggiornata).
+- **Motore → menu**: la decisione del giorno guida il livello (`levelDelta`, con ripiego sul livello base) e firma il giorno erogato con `source_rule_id`.
+- **Notifiche** (`GET /me/notifications`, `PATCH .../read`): promemoria check-in e misure, countdown pre-evento, mini-piano, **alert alla coach** su stallo e assenza di check-in (soglie da config). Mai due notifiche dello stesso tipo nello stesso giorno.
+- **Cron giornaliero**: `POST /internal/cron/daily` protetto da `CRON_SECRET` (condiviso via envVarGroup) esegue motore batch + notifiche; nel blueprint c'è il cron Render alle 05:00 UTC.
+- 149 unit test totali
+
 ## Sviluppo locale
 
 Requisiti: Node 22+, un database PostgreSQL (anche Neon dev branch).

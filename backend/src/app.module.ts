@@ -3,9 +3,12 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { CronModule } from './cron/cron.module';
 import { EngineModule } from './engine/engine.module';
 import { MenuModule } from './menu/menu.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { ConfigParamsModule } from './config-params/config-params.module';
@@ -32,8 +35,11 @@ import { UsersModule } from './users/users.module';
     ProfileModule,
     SignalsModule,
     CatalogModule,
+    CalendarModule,
     MenuModule,
     EngineModule,
+    NotificationsModule,
+    CronModule,
     HealthModule,
   ],
   providers: [

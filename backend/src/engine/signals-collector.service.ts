@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProgressService } from '../signals/progress.service';
@@ -24,6 +25,7 @@ export class SignalsCollectorService {
     private readonly prisma: PrismaService,
     private readonly progress: ProgressService,
     private readonly configParams: ConfigParamsService,
+    private readonly events: EventsService,
   ) {}
 
   async collect(clientId: string): Promise<{ signals: EngineSignals; screeningFlag: boolean }> {
@@ -33,7 +35,7 @@ export class SignalsCollectorService {
     const today = toDateOnly();
     const sevenDaysAgo = new Date(today.getTime() - 7 * 86_400_000);
 
-    const [progressData, checkins, ratings, lowEnergyThreshold] = await Promise.all([
+    const [progressData, checkins, ratings, lowEnergyThreshold, upcomingEvent, activePause] = await Promise.all([
       this.progress.getProgress(clientId).catch(() => null),
       this.prisma.dailyCheckin.findMany({
         where: { clientId, date: { gte: sevenDaysAgo } },
@@ -44,6 +46,8 @@ export class SignalsCollectorService {
         select: { stars: true },
       }),
       this.configParams.getNumber('low_energy_chronic_threshold', 2.5),
+      this.events.hasUpcomingEvent(clientId, 7),
+      this.events.activePausePeriod(clientId),
     ]);
 
     type Checkin = { mood: string; energy: number | null; stress: number | null };
@@ -85,8 +89,8 @@ export class SignalsCollectorService {
         lifestyle.work === 'travel' ||
         lifestyle.weekdayLunch === 'out' ||
         lifestyle.weekdayLunch === 'on_the_go',
-      upcomingEvent: false, // arriverà col calendario (M6)
-      pausePeriodActive: false, // idem
+      upcomingEvent, // segnale Agenda: evento singolo nei prossimi 7 giorni
+      pausePeriodActive: Boolean(activePause),
       avgRating: avg(stars),
       adherenceLast7: Math.round((checkins.length / 7) * 100) / 100,
     };

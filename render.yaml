@@ -5,6 +5,12 @@
 #   BREVO_API_KEY → da Brevo, Settings → API Keys
 #   MAIL_FROM     → mittente verificato su Brevo, es. Metabole <no-reply@dominio.it>
 # JWT_ACCESS_SECRET viene generata automaticamente da Render (generateValue).
+envVarGroups:
+  - name: metabole-shared
+    envVars:
+      - key: CRON_SECRET
+        generateValue: true # condiviso tra web service e cron job
+
 services:
   - type: web
     name: metabole-backend
@@ -37,3 +43,16 @@ services:
         value: "30"
       - key: APP_URL
         value: https://metabole-backend.onrender.com
+      - fromGroup: metabole-shared
+
+  # Cron giornaliero: motore + notifiche, ogni mattina alle 05:00 UTC (07:00 CEST).
+  - type: cron
+    name: metabole-cron-daily
+    runtime: node
+    region: frankfurt
+    schedule: '0 5 * * *'
+    rootDir: backend
+    buildCommand: 'echo cron pronto'
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/daily'
+    envVars:
+      - fromGroup: metabole-shared

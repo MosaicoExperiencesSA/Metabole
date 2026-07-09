@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { CalendarModule } from '../calendar/calendar.module';
 import { MenuController } from './menu.controller';
 import { MenuService } from './menu.service';
 
 @Module({
+  imports: [CalendarModule],
   controllers: [MenuController],
   providers: [MenuService],
   exports: [MenuService],
