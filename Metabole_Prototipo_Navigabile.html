@@ -17,9 +17,9 @@
   .prog>span{display:block;height:100%;background:#12A386;border-radius:4px}
   .pbody{flex:1;overflow:auto;padding:6px 15px}
   .bottombar{flex:none;padding:10px 16px}
-  .tabbar{display:flex;align-items:flex-start;gap:2px;background:#fff;border-top:1px solid #ECE7DE;padding:9px 8px 3px;flex:none}
-  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 1px;font-size:9px;color:#9aa;cursor:pointer}
-  .tab i{font-size:21px}
+  .tabbar{position:absolute;left:50%;transform:translateX(-50%);bottom:15px;display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #ECE7DE;border-radius:28px;padding:6px 8px;box-shadow:0 10px 26px rgba(16,64,58,.16);z-index:8}
+  .tab{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .tab i{font-size:22px}
   .homeind{height:5px;width:120px;background:#0B302B;opacity:.28;border-radius:5px;margin:3px auto 8px;flex:none}
   .h1{font-size:17px;font-weight:600}
   .sub{font-size:12px;color:#7C8C88}
@@ -144,7 +144,7 @@
     +'<div class="sec">Ti serve una mano adesso?</div><div class="card"><div style="display:flex;gap:7px"><span class="chip" data-open="fame" style="flex:1;justify-content:center;padding:8px 2px;font-size:11px;white-space:nowrap">Ho fame</span><span class="chip" data-open="fuori" style="flex:1;justify-content:center;padding:8px 2px;font-size:11px;white-space:nowrap">Mangio fuori</span><span class="chip" data-open="sost" style="flex:1;justify-content:center;padding:8px 2px;font-size:11px;white-space:nowrap">Sostituisci</span></div></div>'
     +'<div class="sec">La spinta di oggi</div><div class="card" style="display:flex;gap:10px;align-items:center">'+bdg('ti-sparkles',32,'#12A386','#fff')+'<div style="font-size:12.5px;line-height:1.5">"Il peso oggi non conta: stai andando bene. Al resto penso io."</div></div>'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 2px 8px"><span class="sec" style="margin:0">I pasti di oggi <span class="sub" style="font-weight:400">· 5 pasti</span></span><span class="chip" data-open="spesa" style="padding:4px 10px;font-size:11px"><i class="ti ti-basket" style="font-size:13px"></i> Lista spesa</span></div>'
-    +'<div class="carousel" id="homeScroll">'+MEALS.oggi.map(mealCard).join('')+'</div>'
+    +'<div class="carousel" id="homeScroll">'+MEALS.oggi.map(function(m){return '<div class="meal" style="border:1.5px solid #BFE0D2;border-radius:16px;background:#fff;box-shadow:0 4px 12px rgba(16,64,58,.08);display:flex;overflow:hidden"><div style="width:98px;background:'+m[5]+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+m[4]+'" style="font-size:40px;color:'+m[6]+'"></i></div><div style="padding:14px;flex:1;min-width:0"><span class="tag" style="background:'+m[5]+';color:'+m[6]+'">'+m[0]+' · '+m[3]+'</span><div style="font-size:15px;font-weight:600;margin:6px 0 3px">'+m[1]+'</div><div style="display:flex;justify-content:space-between;align-items:center"><span class="sub" style="font-size:12px">'+m[2]+' kcal · 15 min</span>'+(m[7]?'<span class="btn c" data-nav="ricetta" style="padding:6px 12px">Ricetta</span>':'')+'</div></div></div>';}).join('')+'</div><div id="homeDots" style="display:flex;justify-content:center;gap:5px;margin:9px 0 2px"></div>'
     +'<div class="sec">La tua coach</div><div class="card" style="display:flex;align-items:center;gap:10px"><span style="width:40px;height:40px;border-radius:50%;background:#DCEBE3;color:#0E7C66;display:inline-flex;align-items:center;justify-content:center;font-weight:600;flex:none">SC</span><div style="flex:1"><div style="font-size:13px;font-weight:600">Sara C.</div><div class="sub" style="font-size:11px">Prossima visita: 22 lug · televisita</div></div><span class="btn" data-open="coach" style="padding:6px 11px">Scrivi</span></div>'
     +'<div class="sec">I tuoi traguardi</div><div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px"><span class="chip" style="background:#DCF0D8;border-color:#DCF0D8;color:#3B6D11"><i class="ti ti-check" style="font-size:13px"></i> 1ª settimana</span><span class="chip" style="background:#DCF0D8;border-color:#DCF0D8;color:#3B6D11"><i class="ti ti-check" style="font-size:13px"></i> -3 kg</span><span class="chip" style="opacity:.7"><i class="ti ti-flag" style="font-size:13px"></i> -5 kg</span></div><div class="sub" style="font-size:12px">Prossimo traguardo: <b style="color:#16302C">-5 kg</b> · ti mancano 1,4 kg. Ci sei quasi!</div></div>'
     +'<div class="sec">Eventi gestiti</div><div class="card" data-nav="calendario" style="background:#FBEEE7;border:1px solid #F3D6C7;box-shadow:none;display:flex;align-items:center;gap:10px;cursor:pointer">'+bdg('ti-heart',32,'#E8825A','#fff')+'<div style="flex:1"><div style="font-size:13px;font-weight:600;color:#7A3418">Matrimonio tra 4 giorni</div><div style="font-size:11px;color:#A5674C">Ti preparo per arrivare serena</div></div><i class="ti ti-chevron-right" style="color:#C08363"></i></div>'
@@ -154,10 +154,9 @@
     var dt=d.map(function(m,i){return '<span class="opt'+(i===0?' on':'')+'" data-slide="'+i+'">'+m[0]+'</span>';}).join('');
     var storico=[['Menu mediterraneo','Lun 6 lug',true,'-0,4 kg'],['Sgarro gestito','Sab 4 lug',true,'stabile'],['Menu proteico','Gio 2 lug',false,'+0,2 kg']];
     var sto=storico.map(function(s){return '<div class="card" style="display:flex;align-items:center;gap:10px;padding:11px 13px;margin-bottom:8px">'+thumb(s[2])+'<div style="flex:1"><div style="font-size:13px;font-weight:600">'+s[0]+'</div><div class="sub" style="font-size:11px">'+s[1]+'</div></div><span style="font-size:11px;color:'+(s[2]?'#3B6D11':'#993C1D')+';font-weight:600;text-align:right">'+(s[2]?'Vantaggio':'Nessun calo')+'<div class="sub" style="font-size:10px;font-weight:400">'+s[3]+'</div></span></div>';}).join('');
-    return '<div style="padding:15px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:11px">'+bdg('ti-chef-hat',32,'#F3E8DC','#B8863B')+'<div><div class="h1">Il mio menu</div><div class="sub">Piano 5 pasti · scorri la giornata</div></div></div>'
+    return '<div style="padding:15px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:11px">'+bdg('ti-chef-hat',32,'#F3E8DC','#B8863B')+'<div><div class="h1">Il mio menu</div><div class="sub">Piano 5 pasti · la tua giornata</div></div></div>'
       +'<div class="opts" style="margin-bottom:9px"><span class="opt'+(state.menuDay==='oggi'?' on':'')+'" data-day="oggi">Oggi</span><span class="opt'+(state.menuDay==='domani'?' on':'')+'" data-day="domani">Domani</span></div>'
-      +'<div class="opts daytabs" style="margin-bottom:10px">'+dt+'</div>'
-      +'<div class="carousel" id="mealScroll">'+d.map(mealCard).join('')+'</div>'
+      +d.map(function(m){return '<div class="card" style="display:flex;padding:0;overflow:hidden;margin-bottom:10px"><div style="width:84px;background:'+m[5]+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+m[4]+'" style="font-size:32px;color:'+m[6]+'"></i></div><div style="padding:12px;flex:1;min-width:0"><span class="tag" style="background:'+m[5]+';color:'+m[6]+'">'+m[0]+' · '+m[3]+'</span><div style="font-size:14px;font-weight:600;margin:5px 0 3px">'+m[1]+'</div><div style="display:flex;justify-content:space-between;align-items:center"><span class="sub" style="font-size:11px">'+m[2]+' kcal</span>'+(m[7]?'<span class="btn c" data-nav="ricetta" style="padding:5px 11px">Ricetta</span>':'')+'</div></div></div>';}).join('')
       +'<div style="font-size:13px;font-weight:600;margin:14px 2px 8px">Storico menu</div>'+sto
       +'</div>';
   };
@@ -236,10 +235,10 @@
         +'<div class="pbody">'+st.c()+'</div>'
         +'<div class="bottombar"><button class="cta" id="cta">'+st.btn+'</button></div>';
     } else {
-      inner.innerHTML='<div class="pbody">'+(S[state.screen]||S.home)()+'</div><div class="tabbar" id="tb"></div>'+(state.checkinDone?'':POPUP());
+      inner.innerHTML='<div class="pbody" style="padding-bottom:84px">'+(S[state.screen]||S.home)()+'</div><div class="tabbar" id="tb"></div>'+(state.checkinDone?'':POPUP());
       document.getElementById('tb').innerHTML=ORDER.map(function(k){var n=NAV[k],on=k===state.screen;
-        if(k==='home'){return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer" data-nav="home"><span style="width:52px;height:52px;border-radius:50%;background:#12A386;color:#fff;display:flex;align-items:center;justify-content:center;margin-top:-20px;box-shadow:0 7px 16px rgba(18,163,134,.45);border:3px solid #fff"><i class="ti ti-home" style="font-size:24px"></i></span><span style="font-size:9px;color:#12A386;font-weight:600;margin-top:2px">Home</span></div>';}
-        return '<div class="tab" data-nav="'+k+'"><i class="ti '+n[0]+'" style="color:'+n[2]+'"></i><span style="'+(on?'color:'+n[2]+';font-weight:600':'')+'">'+n[1]+'</span></div>';
+        if(k==='home'){return '<div class="tab" data-nav="home" style="background:#12A386;color:#fff"><i class="ti ti-home"></i></div>';}
+        return '<div class="tab" data-nav="'+k+'" style="'+(on?'background:'+n[3]+';':'')+'color:'+n[2]+'"><i class="ti '+n[0]+'"></i></div>';
       }).join('');
     }
     wire();
@@ -266,6 +265,8 @@
     root.querySelectorAll('.opts').forEach(function(g){var multi=g.getAttribute('data-multi')==='1';g.querySelectorAll('.opt').forEach(function(o){o.addEventListener('click',function(){ if(multi){o.classList.toggle('on');return;} g.querySelectorAll('.opt').forEach(function(x){x.classList.remove('on');});o.classList.add('on');var sh=o.getAttribute('data-show');if(sh){var p=g.getAttribute('data-panel');root.querySelectorAll('.mpanel').forEach(function(mp){if(mp.id&&mp.id.charAt(0)===p)mp.style.display='none';});var t=document.getElementById(sh);if(t)t.style.display='';}});});});
     var sc=document.getElementById('mealScroll');
     if(sc){root.querySelectorAll('[data-slide]').forEach(function(el){el.addEventListener('click',function(){var i=+el.getAttribute('data-slide');sc.scrollTo({left:i*sc.clientWidth,behavior:'smooth'});});});sc.addEventListener('scroll',function(){var i=Math.round(sc.scrollLeft/sc.clientWidth);root.querySelectorAll('.daytabs .opt').forEach(function(x,idx){x.classList.toggle('on',idx===i);});});}
+    var hs=document.getElementById('homeScroll'),hd=document.getElementById('homeDots');
+    if(hs&&hd){var hn=hs.children.length;var hdot=function(a){var s='';for(var q=0;q<hn;q++){s+='<span style="width:6px;height:6px;border-radius:50%;background:'+(q===a?'#12A386':'#D6DED9')+'"></span>';}hd.innerHTML=s;};hdot(0);hs.addEventListener('scroll',function(){hdot(Math.round(hs.scrollLeft/hs.clientWidth));});}
     var stars=root.querySelectorAll('.stars i');
     stars.forEach(function(s){s.addEventListener('click',function(){var n=+s.getAttribute('data-s');stars.forEach(function(x){x.style.color=+x.getAttribute('data-s')<=n?'#d8b24a':'#d8d3c6';});var m=document.getElementById('rateMsg');if(m){m.style.display='';m.textContent=n>=4?'Ti è piaciuta: te la riproporrò più spesso.':(n<=2?'Capito, la eviterò quasi del tutto.':'Valutazione salvata.');m.style.color=n<=2?'#993C1D':'#0E7C66';}});});
   }
