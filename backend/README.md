@@ -38,6 +38,16 @@ Milestone 3 — Segnali (completata):
 - **Traguardi** (`GET /me/milestones`): automatici — prima misura, -1/-3/-5 kg, metà strada, obiettivo raggiunto.
 - 89 unit test totali
 
+Milestone 4 — Diete e menu (completata):
+
+- **Catalogo diete** (`/api/v1/diets`, `/head/diets`, `/catalog`): il nutrizionista crea bozze, template giornata e invia in revisione; **solo il capo approva o rifiuta, mai una propria dieta**; ogni modifica riporta in bozza e azzera l'approvazione. Il motore eroga solo diete `approved`.
+- **Ricette** (`/api/v1/recipes`): kcal, ingredienti, metodi di cottura, tag, macro; lettura anche per le clienti.
+- **Erogazione menu** (`GET /me/menu`): visibile da `plan_start_date - 2` (config), **2 giorni alla volta** (config); i successivi si sbloccano **solo dopo il check-in del giorno**; rotazione dei template; snapshot dei pasti nel giorno erogato, mai sovrascritto. Scelta dieta deterministica sul profilo (dal M5 deciderà il motore, `source_rule_id`).
+- **Valutazioni** (`POST /me/ratings`, `GET /me/ratings/pending`): segnale Gusto, 1–5 stelle + tag, una per pasto/giorno; i pasti non valutati vengono riproposti all'apertura.
+- **Lista spesa** (`GET /me/shopping-list`, `PATCH .../items`): ingredienti aggregati dei giorni erogati, spunte persistenti.
+- Seed: dieta demo "Equilibrio Mediterraneo" (10 ricette, 2 giornate) solo se il catalogo è vuoto.
+- 107 unit test totali
+
 ## Sviluppo locale
 
 Requisiti: Node 22+, un database PostgreSQL (anche Neon dev branch).

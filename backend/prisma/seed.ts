@@ -122,6 +122,121 @@ async function seedPermissions(): Promise<void> {
   }
 }
 
+/**
+ * Dieta demo "Equilibrio Mediterraneo" (onnivora, 5 pasti, 2 giornate):
+ * creata SOLO se il catalogo è vuoto, per collaudare l'erogazione del menu.
+ * Le diete vere le inseriranno le nutrizioniste dal backoffice.
+ */
+async function seedDemoCatalog(): Promise<void> {
+  const dietCount = await prisma.diet.count();
+  if (dietCount > 0) return;
+
+  const r = (
+    name: string,
+    mealSlot: string,
+    kcal: number,
+    ingredients: { name: string; qty?: number; unit?: string }[],
+    tags: string[] = [],
+  ) => ({ name, regime: 'omnivore' as const, mealSlot: mealSlot as never, kcal, ingredients: ingredients as never, tags });
+
+  const recipes = await Promise.all(
+    [
+      r('Yogurt greco con miele e noci', 'breakfast', 320, [
+        { name: 'Yogurt greco', qty: 170, unit: 'g' },
+        { name: 'Miele', qty: 10, unit: 'g' },
+        { name: 'Noci', qty: 20, unit: 'g' },
+      ]),
+      r('Porridge di avena e frutti rossi', 'breakfast', 340, [
+        { name: 'Fiocchi di avena', qty: 50, unit: 'g' },
+        { name: 'Latte parzialmente scremato', qty: 200, unit: 'ml' },
+        { name: 'Frutti rossi', qty: 80, unit: 'g' },
+      ]),
+      r('Frutta fresca e mandorle', 'morning_snack', 150, [
+        { name: 'Mela', qty: 1, unit: 'pz' },
+        { name: 'Mandorle', qty: 15, unit: 'g' },
+      ]),
+      r('Pane integrale e ricotta', 'morning_snack', 160, [
+        { name: 'Pane integrale', qty: 40, unit: 'g' },
+        { name: 'Ricotta', qty: 50, unit: 'g' },
+      ]),
+      r('Insalata di farro con verdure e feta', 'lunch', 520, [
+        { name: 'Farro', qty: 80, unit: 'g' },
+        { name: 'Zucchine', qty: 100, unit: 'g' },
+        { name: 'Pomodorini', qty: 100, unit: 'g' },
+        { name: 'Feta', qty: 50, unit: 'g' },
+        { name: 'Olio extravergine', qty: 10, unit: 'g' },
+      ], ['da portare']),
+      r('Petto di pollo alla griglia con quinoa', 'lunch', 540, [
+        { name: 'Petto di pollo', qty: 150, unit: 'g' },
+        { name: 'Quinoa', qty: 70, unit: 'g' },
+        { name: 'Spinaci', qty: 100, unit: 'g' },
+        { name: 'Olio extravergine', qty: 10, unit: 'g' },
+      ]),
+      r('Yogurt e cioccolato fondente', 'afternoon_snack', 140, [
+        { name: 'Yogurt bianco', qty: 125, unit: 'g' },
+        { name: 'Cioccolato fondente 70%', qty: 10, unit: 'g' },
+      ]),
+      r('Hummus con carote', 'afternoon_snack', 150, [
+        { name: 'Hummus', qty: 50, unit: 'g' },
+        { name: 'Carote', qty: 150, unit: 'g' },
+      ]),
+      r('Orata al forno con patate e broccoli', 'dinner', 480, [
+        { name: 'Orata', qty: 200, unit: 'g' },
+        { name: 'Patate', qty: 150, unit: 'g' },
+        { name: 'Broccoli', qty: 150, unit: 'g' },
+        { name: 'Olio extravergine', qty: 10, unit: 'g' },
+      ]),
+      r('Frittata di verdure con insalata', 'dinner', 450, [
+        { name: 'Uova', qty: 2, unit: 'pz' },
+        { name: 'Zucchine', qty: 100, unit: 'g' },
+        { name: 'Insalata mista', qty: 80, unit: 'g' },
+        { name: 'Pane integrale', qty: 40, unit: 'g' },
+      ]),
+    ].map((data) => prisma.recipe.create({ data })),
+  );
+  const byName = new Map(recipes.map((rec) => [rec.name, rec.id]));
+  const m = (slot: string, name: string) => ({ slot, recipeId: byName.get(name) });
+
+  await prisma.diet.create({
+    data: {
+      name: 'Equilibrio Mediterraneo',
+      regime: 'omnivore',
+      style: 'mediterranean',
+      mealsPerDay: 5,
+      levels: [{ level: 1, kcal: 1550 }] as never,
+      status: 'approved',
+      approvedAt: new Date(),
+      dayTemplates: {
+        create: [
+          {
+            level: 1,
+            dayIndex: 1,
+            meals: [
+              m('breakfast', 'Yogurt greco con miele e noci'),
+              m('morning_snack', 'Frutta fresca e mandorle'),
+              m('lunch', 'Insalata di farro con verdure e feta'),
+              m('afternoon_snack', 'Yogurt e cioccolato fondente'),
+              m('dinner', 'Orata al forno con patate e broccoli'),
+            ] as never,
+          },
+          {
+            level: 1,
+            dayIndex: 2,
+            meals: [
+              m('breakfast', 'Porridge di avena e frutti rossi'),
+              m('morning_snack', 'Pane integrale e ricotta'),
+              m('lunch', 'Petto di pollo alla griglia con quinoa'),
+              m('afternoon_snack', 'Hummus con carote'),
+              m('dinner', 'Frittata di verdure con insalata'),
+            ] as never,
+          },
+        ],
+      },
+    },
+  });
+  console.log('Seed: dieta demo "Equilibrio Mediterraneo" creata (catalogo era vuoto).');
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -131,6 +246,7 @@ async function main(): Promise<void> {
     });
   }
   await seedPermissions();
+  await seedDemoCatalog();
   const count = await prisma.configParam.count();
   const permCount = await prisma.rolePagePermission.count();
   console.log(

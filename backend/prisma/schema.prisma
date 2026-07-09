@@ -105,6 +105,21 @@ enum Mood {
   stressed
 }
 
+enum DietStatus {
+  draft
+  in_review
+  approved
+  rejected
+}
+
+enum MealSlot {
+  breakfast
+  morning_snack
+  lunch
+  afternoon_snack
+  dinner
+}
+
 // --- Modelli ---
 
 model User {
@@ -132,6 +147,9 @@ model User {
   waterLogs       WaterLog[]
   stepLogs        StepLog[]
   milestones      Milestone[]
+  menuDays        MenuDay[]
+  recipeRatings   RecipeRating[]
+  shoppingLists   ShoppingList[]
 
   @@index([role])
   @@map("user")
@@ -155,6 +173,8 @@ model Staff {
   clientsAsCoach        ClientProfile[] @relation("AssignedCoach")
   clientsAsNutritionist ClientProfile[] @relation("AssignedNutritionist")
   escalations           Escalation[]    @relation("EscalationAssignee")
+  authoredDiets         Diet[]          @relation("DietAuthor")
+  approvedDiets         Diet[]          @relation("DietApprover")
 
   @@map("staff")
 }
@@ -235,6 +255,121 @@ model Escalation {
   @@index([clientId])
   @@index([status])
   @@map("escalation")
+}
+
+// --- Diete, ricette, menu (milestone 4) ---
+
+// Dieta del catalogo: proposta da un nutrizionista, approvata dal capo.
+model Diet {
+  id           String     @id @default(uuid())
+  name         String
+  regime       Regime
+  style        DietStyle
+  mealsPerDay  Int        @map("meals_per_day")
+  levels       Json? // es. [{level:1, kcal:1400}, {level:2, kcal:1600}]
+  options      Json? // integratori, digiuno intermittente…
+  authorId     String?    @map("author_id")
+  author       Staff?     @relation("DietAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  status       DietStatus @default(draft)
+  approvedById String?    @map("approved_by_id")
+  approvedBy   Staff?     @relation("DietApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?  @map("approved_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  dayTemplates DietDayTemplate[]
+  menuDays     MenuDay[]
+
+  @@index([status])
+  @@index([regime, mealsPerDay, status])
+  @@map("diet")
+}
+
+model Recipe {
+  id             String   @id @default(uuid())
+  name           String
+  regime         Regime
+  mealSlot       MealSlot @map("meal_slot")
+  kcal           Int
+  ingredients    Json // [{name, qty, unit}]
+  cookingMethods Json?    @map("cooking_methods") // [{type: veloce|forno|meal_prep, steps: []}]
+  tags           String[] @default([])
+  macros         Json? // {protein_g, carbs_g, fat_g}
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  ratings RecipeRating[]
+
+  @@index([regime, mealSlot, active])
+  @@map("recipe")
+}
+
+// Struttura di una giornata per dieta+livello (rotazione su dayIndex).
+model DietDayTemplate {
+  id       String @id @default(uuid())
+  dietId   String @map("diet_id")
+  diet     Diet   @relation(fields: [dietId], references: [id], onDelete: Cascade)
+  level    Int
+  dayIndex Int    @map("day_index") // 1..N, il menu ruota su N giornate
+  meals    Json // [{slot, recipeId}]
+
+  @@unique([dietId, level, dayIndex])
+  @@map("diet_day_template")
+}
+
+// Giornata di menu erogata alla cliente (2 giorni alla volta).
+model MenuDay {
+  id           String   @id @default(uuid())
+  clientId     String   @map("client_id")
+  client       User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date         DateTime @db.Date
+  dietId       String   @map("diet_id")
+  diet         Diet     @relation(fields: [dietId], references: [id], onDelete: Restrict)
+  level        Int      @default(1)
+  meals        Json // snapshot [{slot, recipeId, name, kcal}]
+  status       String   @default("planned")
+  visibleFrom  DateTime @map("visible_from") @db.Date
+  sourceRuleId String?  @map("source_rule_id") // valorizzato dal motore (M5)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, date])
+  @@index([clientId, date])
+  @@map("menu_day")
+}
+
+// Segnale "Gusto": valutazione di una ricetta consumata.
+model RecipeRating {
+  id       String   @id @default(uuid())
+  clientId String   @map("client_id")
+  client   User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  recipeId String   @map("recipe_id")
+  recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  stars    Int // 1–5
+  tags     String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, recipeId, date])
+  @@index([recipeId])
+  @@map("recipe_rating")
+}
+
+// Lista spesa per un intervallo di menu (con spunte persistenti).
+model ShoppingList {
+  id       String   @id @default(uuid())
+  clientId String   @map("client_id")
+  client   User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  dateFrom DateTime @map("date_from") @db.Date
+  dateTo   DateTime @map("date_to") @db.Date
+  items    Json // [{name, qty, unit, checked}]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, dateFrom, dateTo])
+  @@map("shopping_list")
 }
 
 // --- Segnali (milestone 3): il carburante del motore ---
