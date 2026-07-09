@@ -14,7 +14,17 @@ Milestone 1 — Fondamenta (completata):
 - **Utenti**: `GET /api/v1/me` · admin: `GET/POST /api/v1/admin/users`, `PATCH /api/v1/admin/users/:id` (sospensione/cambio ruolo revocano le sessioni)
 - **Audit log**: eventi auth e azioni admin registrati; consultabile da `GET /api/v1/admin/audit-logs`
 - **Email transazionali** (Brevo): verifica email e reset password; senza API key valida logga invece di inviare
-- 25 unit test (auth, RBAC, users, audit, health)
+
+Milestone 2 — Onboarding + profilo (completata):
+
+- **Questionario** (`/api/v1/onboarding/*`): `GET questions` (schema 15 pagine dal prototipo), `POST answers` (validazione completa, consenso dati sanitari obbligatorio), `GET result` (percorso consigliato + team + prima visita in presenza)
+- **Screening sanitario**: patologie/farmaci dichiarati → `screening_flag` + escalation automatica al nutrizionista assegnato
+- **Obiettivo sostenibile**: validazione del ritmo con soglie da `config_param` (sostenibile ≤0.7, ambizioso ≤1.0 kg/sett; azione su obiettivo irreale configurabile: warn / block_propose_date / require_nutritionist)
+- **Assegnazione team**: coach e nutrizionista attivi meno carichi; riassegnazione admin via `POST /api/v1/admin/assignments`
+- **Profilo** (`/api/v1/me/profile|objective|theme`): lettura/modifica con rivalidazione del ritmo; ogni modifica dell'obiettivo torna `proposed` (riconferma coach+nutrizionista) e traccia la history
+- **Parametri motore**: `GET/PATCH /api/v1/admin/config` con cache 60s e audit delle modifiche
+- Nuove tabelle: `staff`, `client_profile`, `objective`, `escalation`
+- 48 unit test totali
 
 ## Sviluppo locale
 

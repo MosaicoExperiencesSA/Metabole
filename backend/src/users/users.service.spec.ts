@@ -6,10 +6,7 @@ import { UsersService } from './users.service';
 
 describe('UsersService (admin)', () => {
   let service: UsersService;
-  let prisma: {
-    user: Record<string, jest.Mock>;
-    refreshToken: Record<string, jest.Mock>;
-  };
+  let prisma: Record<string, Record<string, jest.Mock>>;
   let audit: { log: jest.Mock };
 
   beforeEach(async () => {
@@ -23,6 +20,8 @@ describe('UsersService (admin)', () => {
         update: jest.fn(),
       },
       refreshToken: { updateMany: jest.fn() },
+      staff: { create: jest.fn().mockResolvedValue({ id: 'st1' }) },
+      clientProfile: { findUnique: jest.fn(), update: jest.fn() },
     };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
 
@@ -53,6 +52,19 @@ describe('UsersService (admin)', () => {
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'admin.user.create', actorId: 'admin-1' }),
     );
+    // Per i ruoli staff viene creata anche la scheda Staff
+    expect(prisma.staff.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ displayName: 'coach' }),
+      }),
+    );
+  });
+
+  it('per i clienti NON crea la scheda Staff', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({ id: 'u9', email: 'c@b.it', role: 'client' });
+    await service.create({ email: 'c@b.it', password: 'password123', role: 'client' }, 'admin-1');
+    expect(prisma.staff.create).not.toHaveBeenCalled();
   });
 
   it('rifiuta email duplicata', async () => {

@@ -1,0 +1,147 @@
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
+class LifestyleDto {
+  @IsOptional()
+  @IsIn(['sedentary', 'standing', 'shifts', 'travel'])
+  work?: string;
+
+  @IsOptional()
+  @IsIn(['very_little', 'some', 'love_cooking'])
+  cookingTime?: string;
+
+  @IsOptional()
+  @IsIn(['home', 'canteen', 'out', 'on_the_go'])
+  weekdayLunch?: string;
+}
+
+class HealthDto {
+  @IsIn(['no', 'yes', 'tell_in_visit'])
+  hasConditions!: string;
+
+  @IsIn(['no', 'yes'])
+  takesMedications!: string;
+}
+
+class ObjectiveInputDto {
+  @IsNumber()
+  @Min(1)
+  @Max(20)
+  weightToLoseKg!: number;
+
+  @IsInt()
+  @Min(3)
+  @Max(52)
+  weeks!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(40)
+  waistToLoseCm?: number;
+}
+
+export class SubmitAnswersDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name!: string;
+
+  @IsInt()
+  @Min(18)
+  @Max(100)
+  age!: number;
+
+  @IsIn(['female', 'male'])
+  sex!: 'female' | 'male';
+
+  @IsInt()
+  @Min(120)
+  @Max(230)
+  heightCm!: number;
+
+  @IsNumber()
+  @Min(35)
+  @Max(250)
+  startWeightKg!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(40)
+  @Max(200)
+  startWaistCm?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(40)
+  @Max(200)
+  startHipsCm?: number;
+
+  @IsIn(['omnivore', 'vegetarian', 'vegan'])
+  regime!: string;
+
+  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible'])
+  dietStyle!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  intolerances?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  dislikedFoods?: string[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LifestyleDto)
+  lifestyle?: LifestyleDto;
+
+  @IsIn([3, 4, 5])
+  mealsPerDay!: number;
+
+  @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'])
+  pathType!: string;
+
+  @ValidateNested()
+  @Type(() => HealthDto)
+  health!: HealthDto;
+
+  @ValidateNested()
+  @Type(() => ObjectiveInputDto)
+  objective!: ObjectiveInputDto;
+
+  @IsIn(['daily', 'when_needed', 'on_request'])
+  coachStyle!: string;
+
+  @IsIn(['follows', 'needs_push', 'perseveres', 'quits'])
+  character!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(9)
+  themeColor?: string;
+
+  @IsOptional()
+  @IsObject()
+  consents?: Record<string, unknown>;
+
+  /** Accettazione esplicita del trattamento dei dati sanitari (GDPR art. 9). */
+  @IsBoolean()
+  healthDataConsent!: boolean;
+}

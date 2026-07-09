@@ -55,8 +55,21 @@ export class UsersService {
     return user;
   }
 
+  private static readonly STAFF_ROLES: Role[] = [
+    'coach',
+    'nutritionist',
+    'head_nutritionist',
+    'sales',
+  ];
+
   async create(
-    data: { email: string; password: string; role: Role; locale?: string },
+    data: {
+      email: string;
+      password: string;
+      role: Role;
+      locale?: string;
+      displayName?: string;
+    },
     actorId: string,
   ) {
     const email = data.email.trim().toLowerCase();
@@ -68,6 +81,17 @@ export class UsersService {
       data: { email, passwordHash, role: data.role, locale: data.locale ?? 'it' },
       select: PUBLIC_USER_SELECT,
     });
+
+    // Per i ruoli di staff crea anche la scheda Staff (assegnazioni, agenda, team).
+    if (UsersService.STAFF_ROLES.includes(data.role)) {
+      await this.prisma.staff.create({
+        data: {
+          userId: user.id,
+          displayName: data.displayName ?? email.split('@')[0],
+        },
+      });
+    }
+
     await this.audit.log({
       action: 'admin.user.create',
       actorId,
@@ -76,6 +100,55 @@ export class UsersService {
       metadata: { role: data.role },
     });
     return user;
+  }
+
+  /** Assegna (o riassegna) coach e/o nutrizionista a una cliente. */
+  async assign(
+    data: { clientId: string; coachId?: string; nutritionistId?: string },
+    actorId: string,
+  ) {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: data.clientId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        'Profilo cliente non trovato: la cliente deve completare il questionario.',
+      );
+    }
+    if (data.coachId) await this.assertStaffRole(data.coachId, 'coach');
+    if (data.nutritionistId) {
+      await this.assertStaffRole(data.nutritionistId, 'nutritionist');
+    }
+
+    const updated = await this.prisma.clientProfile.update({
+      where: { userId: data.clientId },
+      data: {
+        ...(data.coachId ? { assignedCoachId: data.coachId } : {}),
+        ...(data.nutritionistId ? { assignedNutritionistId: data.nutritionistId } : {}),
+      },
+      include: {
+        assignedCoach: { select: { id: true, displayName: true } },
+        assignedNutritionist: { select: { id: true, displayName: true } },
+      },
+    });
+    await this.audit.log({
+      action: 'admin.assignment.update',
+      actorId,
+      entityType: 'client_profile',
+      entityId: profile.id,
+      metadata: { coachId: data.coachId, nutritionistId: data.nutritionistId },
+    });
+    return updated;
+  }
+
+  private async assertStaffRole(staffId: string, role: Role): Promise<void> {
+    const staff = await this.prisma.staff.findUnique({
+      where: { id: staffId },
+      include: { user: { select: { role: true, status: true } } },
+    });
+    if (!staff || !staff.active || staff.user.status !== 'active' || staff.user.role !== role) {
+      throw new NotFoundException(`Staff ${role} non valido o non attivo: ${staffId}`);
+    }
   }
 
   async update(

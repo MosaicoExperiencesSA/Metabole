@@ -40,6 +40,63 @@ enum ActionTokenType {
   password_reset
 }
 
+enum Sex {
+  female
+  male
+}
+
+enum Regime {
+  omnivore
+  vegetarian
+  vegan
+}
+
+enum DietStyle {
+  mediterranean
+  protein
+  low_carb
+  flexible
+}
+
+enum PathType {
+  classic3
+  five
+  supplements
+  intermittent_fasting
+}
+
+enum CoachStyle {
+  daily
+  when_needed
+  on_request
+}
+
+enum Character {
+  follows
+  needs_push
+  perseveres
+  quits
+}
+
+enum ObjectiveStatus {
+  proposed
+  confirmed
+  achieved
+  revised
+}
+
+enum EscalationSource {
+  screening
+  coach
+  engine
+}
+
+enum EscalationStatus {
+  open
+  in_progress
+  resolved
+}
+
 // --- Modelli ---
 
 model User {
@@ -58,9 +115,113 @@ model User {
   configChanges   ConfigParam[] @relation("ConfigUpdatedBy")
   refreshTokens   RefreshToken[]
   actionTokens    ActionToken[]
+  staff           Staff?
+  clientProfile   ClientProfile?
+  objectives      Objective[]
+  escalations     Escalation[]
 
   @@index([role])
   @@map("user")
+}
+
+// Scheda dello staff (coach, nutrizionisti, capo, commerciali).
+model Staff {
+  id                  String   @id @default(uuid())
+  userId              String   @unique @map("user_id")
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName         String   @map("display_name")
+  specialties         String[] @default([])
+  bio                 String?
+  headNutritionistId  String?  @map("head_nutritionist_id")
+  headNutritionist    Staff?   @relation("NutritionistTeam", fields: [headNutritionistId], references: [id], onDelete: SetNull)
+  teamMembers         Staff[]  @relation("NutritionistTeam")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  clientsAsCoach        ClientProfile[] @relation("AssignedCoach")
+  clientsAsNutritionist ClientProfile[] @relation("AssignedNutritionist")
+  escalations           Escalation[]    @relation("EscalationAssignee")
+
+  @@map("staff")
+}
+
+// Profilo della cliente: compilato dal questionario di onboarding (15 pagine).
+model ClientProfile {
+  id                     String     @id @default(uuid())
+  userId                 String     @unique @map("user_id")
+  user                   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                   String?
+  age                    Int?
+  sex                    Sex?
+  heightCm               Int?       @map("height_cm")
+  startWeightKg          Float?     @map("start_weight_kg")
+  startWaistCm           Float?     @map("start_waist_cm")
+  startHipsCm            Float?     @map("start_hips_cm")
+  regime                 Regime?
+  dietStyle              DietStyle? @map("diet_style")
+  mealsPerDay            Int?       @map("meals_per_day")
+  pathType               PathType?  @map("path_type")
+  coachStyle             CoachStyle? @map("coach_style")
+  character              Character?
+  intolerances           String[]   @default([])
+  dislikedFoods          String[]   @default([]) @map("disliked_foods")
+  lifestyle              Json?      // lavoro, tempo per cucinare, pranzo feriali (segnale "Vita")
+  themeColor             String?    @map("theme_color")
+  planStartDate          DateTime?  @map("plan_start_date")
+  assignedCoachId        String?    @map("assigned_coach_id")
+  assignedCoach          Staff?     @relation("AssignedCoach", fields: [assignedCoachId], references: [id], onDelete: SetNull)
+  assignedNutritionistId String?    @map("assigned_nutritionist_id")
+  assignedNutritionist   Staff?     @relation("AssignedNutritionist", fields: [assignedNutritionistId], references: [id], onDelete: SetNull)
+  consents               Json?      // versioni dei consensi accettati
+  screeningFlag          Boolean    @default(false) @map("screening_flag")
+  onboardingAnswers      Json?      @map("onboarding_answers") // snapshot grezzo delle risposte
+  onboardingCompletedAt  DateTime?  @map("onboarding_completed_at")
+  createdAt              DateTime   @default(now()) @map("created_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
+
+  @@index([assignedCoachId])
+  @@index([assignedNutritionistId])
+  @@map("client_profile")
+}
+
+// Obiettivo della cliente: creato nel questionario, confermato da coach+nutrizionista,
+// riconfermato dopo ogni visita (history).
+model Objective {
+  id                       String          @id @default(uuid())
+  clientId                 String          @map("client_id")
+  client                   User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  targetWeightKg           Float?          @map("target_weight_kg")
+  targetWaistCm            Float?          @map("target_waist_cm")
+  targetHipsCm             Float?          @map("target_hips_cm")
+  targetDate               DateTime?       @map("target_date")
+  status                   ObjectiveStatus @default(proposed)
+  confirmedByCoachAt       DateTime?       @map("confirmed_by_coach_at")
+  confirmedByNutritionistAt DateTime?      @map("confirmed_by_nutritionist_at")
+  history                  Json?           // riconferme/revisioni dopo ogni visita
+  createdAt                DateTime        @default(now()) @map("created_at")
+  updatedAt                DateTime        @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@map("objective")
+}
+
+// Presa in carico dei casi da supervisionare (screening, alert coach, motore).
+model Escalation {
+  id           String           @id @default(uuid())
+  clientId     String           @map("client_id")
+  client       User             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reason       String
+  source       EscalationSource
+  assignedToId String?          @map("assigned_to_id")
+  assignedTo   Staff?           @relation("EscalationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  status       EscalationStatus @default(open)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([status])
+  @@map("escalation")
 }
 
 // Refresh token (rotazione): salvato solo l'hash, mai il token in chiaro.

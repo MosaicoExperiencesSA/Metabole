@@ -5,9 +5,12 @@ import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { ConfigParamsModule } from './config-params/config-params.module';
 import { HealthModule } from './health/health.module';
 import { MailModule } from './mail/mail.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -16,8 +19,11 @@ import { UsersModule } from './users/users.module';
     PrismaModule,
     AuditModule,
     MailModule,
+    ConfigParamsModule,
     AuthModule,
     UsersModule,
+    OnboardingModule,
+    ProfileModule,
     HealthModule,
   ],
   providers: [
