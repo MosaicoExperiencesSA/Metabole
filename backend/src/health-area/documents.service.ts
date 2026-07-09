@@ -60,7 +60,8 @@ export class DocumentsService {
         fileName: input.fileName,
         mimeType: input.mimeType,
         sizeBytes: plain.length,
-        data: encryptBuffer(plain, this.key),
+        // Uint8Array puro: il tipo Bytes del client Prisma non accetta Buffer direttamente.
+        data: new Uint8Array(encryptBuffer(plain, this.key)),
       },
       select: { id: true, type: true, fileName: true, sizeBytes: true, status: true, uploadedAt: true },
     });
