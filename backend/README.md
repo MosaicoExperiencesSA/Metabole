@@ -77,6 +77,14 @@ Milestone 7 — Area sanitaria (completata):
 - Storage: nel database (UE) dietro un'astrazione che permetterà la migrazione a bucket S3 senza cambiare le API.
 - 166 unit test totali
 
+Milestone 8 — Chat (completata):
+
+- **Thread per controparte** (`GET /me/threads`): assistente AI, coach e nutrizionista (creati al primo accesso). `GET/POST /threads/:id/messages` con accesso verificato thread per thread.
+- **Assistente AI di primo filtro, deterministico** (spec sez. 5 — l'AI generativa arriverà in M10): **temi sensibili** (condotte alimentari a rischio, sintomi fisici, gravidanza, farmaci) → risposta di presa in carico + **escalation e alert immediato alla nutrizionista**; **FAQ** (menu, lista spesa, misure, acqua, obiettivo, eventi, valutazioni) → risposta immediata dalla libreria; **tutto il resto** → inoltro automatico nel thread della coach (o della nutrizionista per i temi clinici) con notifica.
+- **RBAC chat**: la coach entra solo nei thread coach delle proprie clienti, la nutrizionista nei propri, il capo supervisiona i thread sanitari; ogni escalation sensibile è in audit.
+- **Notifiche**: nuovo messaggio → avviso allo staff destinatario; risposta dello staff → avviso alla cliente.
+- 192 unit test totali
+
 ## Sviluppo locale
 
 Requisiti: Node 22+, un database PostgreSQL (anche Neon dev branch).

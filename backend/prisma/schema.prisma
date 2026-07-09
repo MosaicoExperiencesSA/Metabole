@@ -161,6 +161,12 @@ enum DocumentStatus {
   reviewed
 }
 
+enum ChatCounterpart {
+  ai
+  coach
+  nutritionist
+}
+
 enum MealSlot {
   breakfast
   morning_snack
@@ -205,6 +211,7 @@ model User {
   visits          Visit[]
   documents       Document[]
   clinicalNotes   ClinicalNote[]
+  chatThreads     ChatThread[]
 
   @@index([role])
   @@map("user")
@@ -315,6 +322,40 @@ model Escalation {
   @@index([clientId])
   @@index([status])
   @@map("escalation")
+}
+
+// --- Chat (milestone 8) ---
+
+// Un thread per controparte (AI, coach, nutrizionista) per ogni cliente.
+model ChatThread {
+  id            String          @id @default(uuid())
+  clientId      String          @map("client_id")
+  client        User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  counterpart   ChatCounterpart
+  lastMessageAt DateTime?       @map("last_message_at")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  messages Message[]
+
+  @@unique([clientId, counterpart])
+  @@map("chat_thread")
+}
+
+// senderRole: client | coach | nutritionist | head_nutritionist | ai
+// meta: instradamento/filtro (es. {matchedFaq}, {routedTo}, {escalated}, {forwardedFrom}).
+model Message {
+  id           String     @id @default(uuid())
+  threadId     String     @map("thread_id")
+  thread       ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderRole   String     @map("sender_role")
+  senderUserId String?    @map("sender_user_id")
+  body         String
+  meta         Json?
+  sentAt       DateTime   @default(now()) @map("sent_at")
+
+  @@index([threadId, sentAt])
+  @@map("message")
 }
 
 // --- Area sanitaria (milestone 7) ---
