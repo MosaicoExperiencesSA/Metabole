@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metabole — Prototipo (versione definitiva)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+  body{margin:0;background:#EFEAE0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#16302C;padding:24px 0}
+  .mw{display:flex;justify-content:center}
+  .phone{width:304px;height:634px;display:flex;flex-direction:column;background:#FAF8F3;border:11px solid #0B0F0E;border-radius:52px;overflow:hidden;position:relative;box-shadow:0 20px 46px rgba(16,64,58,.24)}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:9}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:13px 26px 4px;font-size:11px;color:#16302C;font-weight:600;flex:none}
+  #inner{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+  .ftop{padding:6px 16px 4px;flex:none}
+  .prog{height:5px;background:#E7E1D5;border-radius:4px;overflow:hidden}
+  .prog>span{display:block;height:100%;background:#12A386;border-radius:4px}
+  .pbody{flex:1;overflow:auto;padding:6px 15px}
+  .bottombar{flex:none;padding:10px 16px}
+  .tabbar{display:flex;align-items:flex-start;gap:2px;background:#fff;border-top:1px solid #ECE7DE;padding:9px 8px 3px;flex:none}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 1px;font-size:9px;color:#9aa;cursor:pointer}
+  .tab i{font-size:21px}
+  .homeind{height:5px;width:120px;background:#0B302B;opacity:.28;border-radius:5px;margin:3px auto 8px;flex:none}
+  .h1{font-size:17px;font-weight:600}
+  .sub{font-size:12px;color:#7C8C88}
+  .lab{font-size:12px;color:#5F6E6B;margin:12px 0 6px;font-weight:500}
+  .sec{font-size:13px;font-weight:600;margin:6px 2px 8px}
+  .card{background:#fff;border-radius:16px;padding:13px;box-shadow:0 2px 6px rgba(16,64,58,.06);margin-bottom:11px}
+  .bdg{border-radius:12px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .cta{width:100%;background:#12A386;color:#fff;border:none;border-radius:24px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 14px rgba(18,163,134,.3)}
+  .ghost{width:100%;background:#fff;color:#10403A;border:1px solid #E2DFD6;border-radius:24px;padding:11px;font-size:14px;cursor:pointer;margin-top:8px}
+  .btn{background:#12A386;color:#fff;border:none;border-radius:20px;padding:7px 13px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .btn.c{background:#E8825A}
+  .inp{width:100%;border:1px solid #ECE7DE;border-radius:12px;padding:10px 12px;font-size:14px;outline:none;box-sizing:border-box;background:#fff}
+  .chip{border:1px solid #E2DFD6;background:#fff;border-radius:20px;padding:7px 11px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .opts{display:flex;gap:6px;flex-wrap:wrap}
+  .opts .opt{border:1px solid #E2DFD6;background:#fff;border-radius:20px;padding:7px 12px;font-size:13px;cursor:pointer}
+  .opts .opt.on{background:#12A386;color:#fff;border-color:#12A386}
+  .carousel{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:11px;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .meal{min-width:100%;box-sizing:border-box;scroll-snap-align:start;margin:0;padding:0;overflow:hidden}
+  .wd{white-space:nowrap;overflow-x:auto;margin:7px 0;padding-bottom:2px}
+  .bar{height:9px;background:#EEF3F0;border-radius:6px;overflow:hidden}
+  .bar>span{display:block;height:100%;border-radius:6px}
+  .stars i{color:#d8d3c6;font-size:22px;cursor:pointer}
+  .back{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#7C8C88;cursor:pointer;margin-bottom:8px}
+  .tag{font-size:10px;padding:3px 8px;border-radius:20px}
+  .link{font-size:12px;color:#12A386;text-decoration:underline;cursor:pointer;display:inline-block;margin-top:10px}
+  .sheet{position:absolute;inset:0;background:rgba(11,15,14,.45);display:flex;align-items:flex-end;z-index:30}
+  .sheetc{width:100%;background:#fff;border-radius:22px 22px 0 0;padding:16px;max-height:88%;overflow:auto;box-shadow:0 -6px 20px rgba(0,0,0,.18)}
+  .grab{width:40px;height:4px;background:#E2DED4;border-radius:3px;margin:0 auto 12px}
+</style>
+</head>
+<body>
+<div class="mw"><div class="phone"><div class="island"></div><div class="statusbar"><span>9:41</span><span><i class="ti ti-wifi" style="font-size:13px"></i> <i class="ti ti-battery-3" style="font-size:14px"></i></span></div><div id="inner"></div><div class="homeind"></div></div></div>
+<script>
+(function(){
+  var state={phase:'flow',step:0,screen:'home',menuDay:'oggi',checkinDone:false};
+  var water=5, wgoal=8;
+  var NAV={home:['ti-home','Home','#12A386','#DCEBE3'],menu:['ti-chef-hat','Menu','#B8863B','#F3E8DC'],obiettivo:['ti-target','Obiettivo','#3A6EA5','#E7EEF6'],assistente:['ti-sparkles','AI','#6C5AB7','#ECE7F7'],calendario:['ti-calendar-heart','Agenda','#E8825A','#FBEEE7']};
+  var ORDER=['menu','obiettivo','home','assistente','calendario'];
+  var OBJ=[['Peso','kg',72,68.4,66,'#12A386','#0E7C66'],['Vita','cm',80,76.5,72,'#E8825A','#B4491F'],['Fianchi','cm',99,97,94,'#3A6EA5','#274E7A']];
+  var CHARTS=[['Peso','kg',[72,71.3,70.6,70,69.4,69,68.7,68.4],'#12A386'],['Vita','cm',[80,79.4,78.6,78,77.5,77.1,76.8,76.5],'#E8825A'],['Fianchi','cm',[99,98.6,98.2,97.8,97.5,97.2,97,97],'#3A6EA5']];
+  function bdg(icon,size,bg,fg){return '<span class="bdg" style="width:'+size+'px;height:'+size+'px;background:'+bg+';color:'+fg+'"><i class="ti '+icon+'" style="font-size:'+Math.round(size*0.53)+'px"></i></span>';}
+  function ring(pct,color,size){var off=Math.round(264*pct/100);return '<div style="position:relative;width:'+size+'px;height:'+size+'px;flex:none;margin:0 auto"><svg width="'+size+'" height="'+size+'" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#EEF2F0" stroke-width="12"></circle><circle cx="50" cy="50" r="42" fill="none" stroke="'+color+'" stroke-width="12" stroke-linecap="round" stroke-dasharray="'+off+' 264" transform="rotate(-90 50 50)"></circle></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><b style="font-size:'+Math.round(size*0.24)+'px">'+pct+'%</b></div></div>';}
+  function pctOf(o){return Math.round((o[2]-o[3])/(o[2]-o[4])*100);}
+  function d1(n){return n.toFixed(1).replace(".",",");}
+  function thumb(up){return '<span style="width:30px;height:30px;border-radius:50%;background:'+(up?'#DCF0D8':'#F7DAD6')+';color:'+(up?'#3B6D11':'#993C1D')+';display:inline-flex;align-items:center;justify-content:center;flex:none"><i class="ti '+(up?'ti-thumb-up':'ti-thumb-down')+'" style="font-size:15px"></i></span>';}
+  function chartSVG(vals,color){var w=250,h=64,mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),r=(mx-mn)||1;var pts=vals.map(function(v,i){return (i/(vals.length-1)*w).toFixed(1)+','+(h-((v-mn)/r)*h*0.85-5).toFixed(1);}).join(' ');var dots=vals.map(function(v,i){return '<circle cx="'+(i/(vals.length-1)*w).toFixed(1)+'" cy="'+(h-((v-mn)/r)*h*0.85-5).toFixed(1)+'" r="3" fill="'+color+'"/>';}).join('');return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="66" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+dots+'</svg>';}
+  function drops(){var s='';for(var i=0;i<wgoal;i++){s+='<i class="ti ti-droplet" style="font-size:17px;color:'+(i<water?'#3AA6DE':'#D6E6F0')+';margin-right:2px"></i>';}return s;}
+  function qh(t,s){return '<div class="h1">'+t+'</div>'+(s?'<div class="sub" style="margin-bottom:4px">'+s+'</div>':'');}
+  function qc(opts,multi){return '<div class="opts"'+(multi?' data-multi="1"':'')+' style="margin-bottom:2px">'+opts.map(function(o,i){return '<button class="opt'+(!multi&&i===0?' on':'')+'">'+o+'</button>';}).join('')+'</div>';}
+  function qf(l,ph){return '<div class="lab">'+l+'</div><input class="inp" placeholder="'+ph+'">';}
+  var MEALS={
+    oggi:[['Colazione','Yogurt, avena e frutta',320,'Veloce','ti-coffee','#F3E8DC','#B8863B'],['Spuntino','Frutta secca e frutto',150,'Al volo','ti-apple','#F3F9E8','#4D7C0F'],['Pranzo','Farro, pollo e verdure',480,'Da portare','ti-salad','#DCEBE3','#12A386','r'],['Merenda','Yogurt greco',120,'Leggera','ti-cup','#EFEAF9','#6C5AB7'],['Cena','Orata, patate e insalata',430,'Leggera','ti-fish','#DCEBE3','#0E7C66']],
+    domani:[['Colazione','Pancake proteici',350,'Sfizio sano','ti-coffee','#F3E8DC','#B8863B'],['Spuntino','Un frutto',80,'Al volo','ti-apple','#F3F9E8','#4D7C0F'],['Pranzo','Vellutata e legumi',400,'Comfort','ti-bowl-spoon','#DCEBE3','#12A386'],['Merenda','Cioccolato fondente',90,'Sfizio','ti-cup','#EFEAF9','#6C5AB7'],['Cena','Pizza integrale',520,'Giorno libero','ti-pizza','#FBEEE7','#E8825A']]
+  };
+  function mealCard(m){return '<div class="meal card"><div style="height:96px;background:'+m[5]+';display:flex;align-items:center;justify-content:center;position:relative"><i class="ti '+m[4]+'" style="font-size:36px;color:'+m[6]+'"></i><span style="position:absolute;top:9px;left:11px;background:#10403A;color:#DCEAE6;font-size:10px;padding:3px 8px;border-radius:20px">'+m[0]+'</span></div><div style="padding:13px"><div class="sub" style="font-size:11px">'+m[0]+'</div><div style="font-size:14px;font-weight:600;margin:2px 0 8px">'+m[1]+'</div><div style="display:flex;justify-content:space-between;align-items:center"><span class="sub">'+m[2]+' kcal · '+m[3]+'</span>'+(m[7]?'<span class="btn c" data-nav="ricetta">Ricetta</span>':'')+'</div></div></div>';}
+
+  var today=new Date();today.setHours(0,0,0,0);
+  var start=new Date(today);start.setDate(start.getDate()+5);
+  function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  function fmt(d){return d.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});}
+  function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
+  function dBetween(a,b){return Math.round((b-a)/86400000);}
+  function calcObj(){var kg=+document.getElementById('okg').value,wk=+document.getElementById('owk').value;document.getElementById('okgo').textContent=kg+' kg';document.getElementById('owko').textContent=wk+' sett.';var rate=kg/wk,ov=document.getElementById('over');var col,bg,txt;if(rate<=0.7){col='#3B6D11';bg='#DCF0D8';txt='Sostenibile · circa '+rate.toFixed(1).replace('.',',')+' kg a settimana';}else if(rate<=1){col='#8A5A0B';bg='#FBF0D6';txt='Ambizioso, al limite · '+rate.toFixed(1).replace('.',',')+' kg/sett';}else{var rw=Math.ceil(kg/0.7);col='#993C1D';bg='#F7DAD6';txt='Troppo veloce. Ti propongo circa '+rw+' settimane.';}ov.style.background=bg;ov.style.color=col;ov.textContent=txt;}
+
+  var SURVEY=[
+    {btn:'Continua',c:function(){return qh('Chi sei','Partiamo dalle basi.')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div>'+qf('Nome','Giulia')+'</div><div>'+qf('Età','34')+'</div><div>'+qf('Altezza (cm)','168')+'</div><div><div class="lab">Sesso</div>'+qc(['Donna','Uomo'])+'</div></div>';}},
+    {btn:'Continua',c:function(){return qh('Il tuo punto di partenza','Le aggiornerai ogni 2 giorni.')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div>'+qf('Peso (kg)','68')+'</div><div>'+qf('Vita (cm)','80')+'</div><div>'+qf('Fianchi (cm)','99')+'</div></div>';}},
+    {btn:'Continua',c:function(){return qh('Il tuo regime alimentare','Su cosa costruiamo i menu.')+qc(['Onnivoro','Vegetariano','Vegano']);}},
+    {btn:'Continua',c:function(){return qh('Stile che preferisci','')+qc(['Mediterranea','Proteica','Low-carb','Flessibile']);}},
+    {btn:'Continua',c:function(){return qh('Intolleranze o allergie','Puoi sceglierne più di una.')+qc(['Nessuna','Glutine','Lattosio','Frutta secca','Altro'],1);}},
+    {btn:'Continua',c:function(){return qh('Cibi che non ami','Li terrò alla larga dai tuoi menu.')+qf('','Es. pesce, legumi, funghi…');}},
+    {btn:'Continua',c:function(){return qh('La tua vita e il lavoro','Così i menu diventano fattibili.')+'<div class="lab">Che lavoro fai?</div>'+qc(['Sedentario','In piedi','Turni','Viaggio spesso'])+'<div class="lab">Tempo per cucinare</div>'+qc(['Pochissimo','Un po\'','Mi piace cucinare'])+'<div class="lab">Dove pranzi nei feriali</div>'+qc(['Da casa','Mensa','Fuori','Al volo']);}},
+    {btn:'Continua',c:function(){return qh('Quanti pasti riesci a fare?','Alcuni percorsi ne prevedono 5-6.')+qc(['3 pasti','4 pasti','5-6 pasti']);}},
+    {btn:'Continua',c:function(){return qh('Che percorso preferisci?','')+qc(['3 pasti classico','5 pasti','Con integratori','Digiuno intermittente']);}},
+    {btn:'Continua',c:function(){return qh('La tua salute','Serve per la tua sicurezza.')+'<div class="lab">Hai patologie in corso?</div>'+qc(['No','Sì','Lo dico in visita'])+'<div class="lab">Assumi farmaci?</div>'+qc(['No','Sì'])+'<div style="display:flex;align-items:flex-start;gap:8px;background:#EAF6F1;border-radius:10px;padding:9px 11px;font-size:12px;color:#0E7C66;margin-top:12px"><i class="ti ti-shield-check" style="font-size:16px"></i> Se segnali una condizione, ti prende in carico il nutrizionista.</div>';}},
+    {btn:'Continua',c:function(){return qh('Il tuo obiettivo','Con calma e in modo sostenibile.')+'<div class="card" style="margin-top:8px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><label style="font-size:12px;color:#5F6E6B;flex:1">Peso da perdere</label><input id="okg" type="range" min="1" max="20" value="6" style="width:110px"><span id="okgo" style="font-size:13px;font-weight:600;min-width:40px;text-align:right">6 kg</span></div><div style="display:flex;align-items:center;gap:10px"><label style="font-size:12px;color:#5F6E6B;flex:1">Entro</label><input id="owk" type="range" min="3" max="52" value="18" style="width:110px"><span id="owko" style="font-size:13px;font-weight:600;min-width:60px;text-align:right">18 sett.</span></div><div id="over" style="border-radius:10px;padding:9px 11px;margin-top:12px;font-size:12.5px"></div></div>'+qf('Vita da perdere (cm)','8');}},
+    {btn:'Continua',c:function(){return qh('Periodi senza dieta','Vacanze e feste in cui non vuoi seguire la dieta.')+'<div class="card" style="display:flex;align-items:center;justify-content:space-between;margin-top:8px"><div><div style="font-size:13px;font-weight:600">Natale</div><div class="sub" style="font-size:11px">23 dic – 2 gen</div></div><span class="tag" style="background:#DCF0D8;color:#3B6D11">Attivo</span></div><button class="opt" style="width:100%;text-align:center"><i class="ti ti-plus" style="font-size:13px;vertical-align:-2px"></i> Aggiungi periodo</button><div class="sub" style="font-size:11px;margin-top:10px">In quei giorni non ti do la dieta, ma se il peso sale ti mando un mini-piano.</div>';}},
+    {btn:'Continua',c:function(){return qh('Come vuoi essere seguita?','Dalla tua coach.')+qc(['Ogni giorno','Quando serve','Solo su richiesta']);}},
+    {btn:'Continua',c:function(){return qh('Che tipo sei?','Così taro la coach e l\'AI sul tuo carattere.')+qc(['Seguo bene','Vado spronata','Persevero da sola','Tendo a mollare']);}},
+    {btn:'Vedi il mio percorso',c:function(){return qh('Scegli il colore della tua app','')+'<div class="opts" id="cols" style="gap:12px;margin-top:6px">'+['#12A386','#2563EB','#E8825A','#7F77DD','#D4537E','#B8863B'].map(function(cc,i){return '<span class="sw" data-c="'+cc+'" style="width:38px;height:38px;border-radius:50%;background:'+cc+';cursor:pointer;border:3px solid '+(i===0?'#0B302B':'transparent')+'"></span>';}).join('')+'</div>';}}
+  ];
+
+  var F=[
+    {btn:'Inizia',c:function(){return '<div style="text-align:center;padding-top:40px"><span class="bdg" style="width:74px;height:74px;background:#12A386;color:#fff;margin:0 auto 18px;border-radius:22px"><i class="ti ti-leaf" style="font-size:40px"></i></span><div style="font-size:26px;font-weight:600;letter-spacing:.5px">Metabole</div><div class="sub" style="font-size:14px;margin-top:8px;padding:0 10px">Non una dieta: il tuo percorso, giorno per giorno, con coach e nutrizionista.</div></div>';}},
+    {btn:'Registrati',c:function(){return '<div class="h1">Crea il tuo account</div><div class="sub" style="margin-bottom:16px">Bastano pochi secondi.</div><input class="inp" placeholder="Nome" style="margin-bottom:10px"><input class="inp" placeholder="Email" style="margin-bottom:10px"><input class="inp" type="password" placeholder="Password"><div style="display:flex;gap:8px;margin-top:14px"><button class="ghost" style="margin:0"><i class="ti ti-brand-apple" style="font-size:15px;vertical-align:-2px"></i> Apple</button><button class="ghost" style="margin:0"><i class="ti ti-brand-google" style="font-size:15px;vertical-align:-2px"></i> Google</button></div>';}},
+    {btn:'Inizia il test',c:function(){return '<div class="h1">Facciamo conoscenza</div><div class="sub" style="margin-bottom:16px">Un breve test per capire obiettivo, abitudini, lavoro e carattere.</div>'
+      +[['ti-target','Obiettivo (peso, vita, fianchi) ed entro quando'],['ti-briefcase','Vita e lavoro: quanti pasti, tempo per cucinare'],['ti-salad','Regime e gusti: onnivoro, vegetariano, vegano'],['ti-mood-smile','Carattere: come vuoi essere seguita']].map(function(r){return '<div class="card" style="display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:8px">'+bdg(r[0],34,'#DCEBE3','#0E7C66')+'<span style="font-size:12.5px">'+r[1]+'</span></div>';}).join('');}}
+  ].concat(SURVEY).concat([
+    {btn:'Continua',c:function(){return '<div style="text-align:center;margin:2px 0 12px"><span class="bdg" style="width:52px;height:52px;background:#DCF0D8;color:#3B6D11;margin:0 auto 8px;border-radius:16px"><i class="ti ti-check" style="font-size:28px"></i></span><div class="h1">Il tuo percorso è pronto</div><div class="sub">Costruito sulle tue risposte.</div></div>'
+      +'<div class="card"><div class="sub" style="font-size:11px">Percorso consigliato</div><div style="font-size:15px;font-weight:600;margin-bottom:8px">Equilibrio Mediterraneo · liv. 2</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+['5 pasti','Da portare','Sostenibile','-6 kg / -8 cm'].map(function(t){return '<span class="tag" style="background:#DCEBE3;color:#0E7C66">'+t+'</span>';}).join('')+'</div></div>'
+      +'<div style="display:flex;gap:10px;margin-bottom:11px"><div class="card" style="flex:1;margin:0"><div class="sub" style="font-size:10px">Coach</div><div style="font-size:13px;font-weight:600;margin-top:3px">Sara C.</div></div><div class="card" style="flex:1;margin:0"><div class="sub" style="font-size:10px">Nutrizionista</div><div style="font-size:13px;font-weight:600;margin-top:3px">Dott.ssa Marini</div></div></div>'
+      +'<div class="card" style="background:#EAF6F1;box-shadow:none;display:flex;align-items:center;gap:9px"><i class="ti ti-calendar-check" style="color:#0E7C66;font-size:18px"></i><span style="font-size:12px;color:#0E7C66">Prima visita in presenza: giovedì 16 luglio</span></div>';}},
+    {btn:'Continua',c:function(){return '<div class="h1">Scegli il tuo piano</div><div class="sub" style="margin-bottom:14px">Puoi cambiarlo quando vuoi.</div>'
+      +'<div class="card" style="display:flex;align-items:center;gap:10px"><div style="flex:1"><div style="font-size:14px;font-weight:600">Piano mensile · 5 pasti</div><div class="sub" style="font-size:11px">Coach + nutrizionista</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:600">€ 99</div><div class="sub" style="font-size:10px">/mese</div></div></div>'
+      +'<div class="card" style="border:2px solid #12A386;display:flex;align-items:center;gap:10px"><div style="flex:1"><span class="tag" style="background:#DCF0D8;color:#3B6D11">Più scelto · -10%</span><div style="font-size:14px;font-weight:600;margin-top:5px">Percorso 3 mesi</div><div class="sub" style="font-size:11px">Risultati più solidi</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:600">€ 267</div><i class="ti ti-circle-check" style="color:#12A386;font-size:20px"></i></div></div>';}},
+    {btn:'Paga e attiva',c:function(){return '<div class="h1">Riepilogo</div><div class="sub" style="margin-bottom:14px">Ancora un passo.</div>'
+      +'<div class="card" style="display:flex;justify-content:space-between"><span style="font-size:13px">Percorso 3 mesi</span><b style="font-size:14px">€ 267</b></div>'
+      +'<div class="card"><div class="sub" style="font-size:11px;margin-bottom:8px">Metodo di pagamento</div><div style="display:flex;align-items:center;gap:9px"><i class="ti ti-credit-card" style="font-size:20px;color:#3A6EA5"></i><span style="font-size:13px">•••• •••• •••• 4242</span></div></div>'
+      +'<div class="sub" style="font-size:11px;display:flex;align-items:center;gap:6px"><i class="ti ti-lock" style="font-size:14px"></i> Pagamento sicuro e crittografato.</div>';}},
+    {btn:'Conferma data',c:function(){return '<div class="h1">Quando vuoi iniziare?</div><div class="sub" style="margin-bottom:14px">Scegli il giorno in cui parte il tuo piano.</div>'
+      +'<div class="card"><div class="sub" style="font-size:11px;margin-bottom:6px">Data di inizio</div><input class="inp" type="date" id="startDate" value="'+iso(start)+'"></div>'
+      +'<div class="card" id="dateInfo" style="background:#EAF6F1;box-shadow:none"></div>';}},
+    {btn:'Vai alla home',go:'home',c:function(){var vis=addDays(start,-2);var dv=dBetween(today,vis);var pr=dv<=0;
+      return '<div style="text-align:center;padding-top:8px"><span class="bdg" style="width:60px;height:60px;background:#DCF0D8;color:#3B6D11;margin:0 auto 12px;border-radius:18px"><i class="ti ti-circle-check" style="font-size:34px"></i></span><div class="h1" style="font-size:19px">Tutto pronto, Giulia!</div><div class="sub" style="margin-bottom:14px">Il tuo piano inizia '+fmt(start)+'.</div></div>'
+      +(pr?'<div class="card" style="background:#DCF0D8;box-shadow:none;text-align:center"><i class="ti ti-lock-open" style="font-size:22px;color:#3B6D11"></i><div style="font-size:14px;font-weight:600;color:#3B6D11;margin-top:5px">Il menu è già visibile!</div></div>'
+        :'<div class="card" style="text-align:center"><div class="sub" style="font-size:11px">Il menu si sblocca tra</div><div style="font-size:32px;font-weight:600;color:#12A386;line-height:1.1;margin:4px 0">'+dv+' <span style="font-size:14px;color:#7C8C88">giorni</span></div><div class="sub" style="font-size:11px"><i class="ti ti-lock" style="font-size:12px;vertical-align:-1px"></i> visibile dal '+fmt(vis)+' (2 giorni prima)</div></div>')
+      +'<span class="link" id="simUnlock">Simula: sono passati i giorni → sblocca il menu</span>';}},
+    {btn:'Apri il menu',go:'menu',c:function(){return '<div style="text-align:center;padding-top:6px"><span class="bdg" style="width:56px;height:56px;background:#12A386;color:#fff;margin:0 auto 12px;border-radius:18px"><i class="ti ti-lock-open" style="font-size:28px"></i></span><div class="h1" style="font-size:19px">Il tuo menu è pronto!</div><div class="sub" style="margin-bottom:14px">Ecco i primi due giorni. Il resto dopo i check-in.</div></div>'
+      +[['Oggi','Colazione · yogurt','Pranzo · farro e pollo','Cena · orata'],['Domani','Colazione · pancake','Pranzo · vellutata','Cena · pizza integrale']].map(function(d){return '<div class="card"><div style="font-weight:600;font-size:13px;margin-bottom:6px">'+d[0]+'</div><div class="sub" style="font-size:12px;line-height:1.8">'+d[1]+'<br>'+d[2]+'<br>'+d[3]+'</div></div>';}).join('')
+      +'<div class="card" style="background:#F1EFEA;box-shadow:none;display:flex;align-items:center;gap:9px;opacity:.85"><i class="ti ti-lock" style="color:#9aa"></i><span class="sub" style="font-size:12px">Giorni 3-4 · dopo il check-in</span></div>';}}
+  ]);
+
+  var S={};
+  S.home=function(){
+    var rings=OBJ.map(function(o,i){var sz=i===0?76:54;return '<div>'+ring(pctOf(o),o[5],sz)+'<div style="font-weight:600;font-size:'+(i===0?13:11)+'px;margin-top:5px;color:'+o[6]+'">'+o[0]+'</div></div>';}).join('');
+    return '<div style="padding:15px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin:2px 0 13px"><div><div class="h1">Ciao, Giulia</div><div class="sub">Mercoledì 8 luglio · giorno 12</div></div><div style="display:flex;gap:7px"><span class="bdg" data-open="coach" style="width:34px;height:34px;background:#fff;color:#12A386;cursor:pointer"><i class="ti ti-message-2" style="font-size:18px"></i></span><span class="bdg" data-nav="negozio" style="width:34px;height:34px;background:#fff;color:#6C5AB7;cursor:pointer"><i class="ti ti-shopping-bag" style="font-size:18px"></i></span><span class="bdg" style="width:34px;height:34px;background:#fff;color:#10403A"><i class="ti ti-bell" style="font-size:18px"></i></span></div></div>'
+    +'<div class="sec">I tuoi obiettivi</div><div class="card"><div style="display:flex;justify-content:space-around;align-items:flex-end;text-align:center">'+rings+'</div><div style="margin-top:10px;background:#EAF6F1;border-radius:10px;padding:8px 11px;font-size:12px;color:#0E7C66;display:flex;align-items:center;gap:7px"><i class="ti ti-rosette-discount-check" style="font-size:16px"></i> In linea per l\'obiettivo del 24 nov</div></div>'
+    +'<div class="sec">Movimento e acqua</div><div style="display:flex;gap:11px;margin-bottom:11px">'
+      +'<div class="card" style="flex:1 1 0;min-width:0;margin:0">'+bdg('ti-walk',28,'#F3F9E8','#4D7C0F')+'<div style="font-size:15px;font-weight:600;margin-top:8px">6.200<span class="sub" style="font-size:11px"> / 8.000</span></div><div style="height:6px;background:#EEF3F0;border-radius:5px;margin-top:6px;overflow:hidden"><span style="display:block;height:100%;width:78%;background:#639922"></span></div><div class="sub" style="font-size:10px;margin-top:6px">Cammina 20 min</div></div>'
+      +'<div class="card" style="flex:1 1 0;min-width:0;margin:0">'+bdg('ti-droplet',28,'#E6F1FB','#185FA5')+'<div style="font-size:15px;font-weight:600;margin-top:8px"><span id="wc">'+water+'</span><span class="sub" style="font-size:11px"> / '+wgoal+'</span></div><div id="wd" class="wd">'+drops()+'</div><span class="chip" id="wbtn" style="padding:4px 10px;font-size:11px;border-color:#B5D4F4;color:#185FA5"><i class="ti ti-plus" style="font-size:12px"></i> Bevi</span></div></div>'
+    +'<div class="sec">Ti serve una mano adesso?</div><div class="card"><div style="display:flex;gap:7px"><span class="chip" data-open="fame" style="flex:1;justify-content:center;padding:8px 2px;font-size:11px;white-space:nowrap">Ho fame</span><span class="chip" data-open="fuori" style="flex:1;justify-content:center;padding:8px 2px;font-size:11px;white-space:nowrap">Mangio fuori</span><span class="chip" data-open="sost" style="flex:1;justify-content:center;padding:8px 2px;font-size:11px;white-space:nowrap">Sostituisci</span></div></div>'
+    +'<div class="sec">La spinta di oggi</div><div class="card" style="display:flex;gap:10px;align-items:center">'+bdg('ti-sparkles',32,'#12A386','#fff')+'<div style="font-size:12.5px;line-height:1.5">"Il peso oggi non conta: stai andando bene. Al resto penso io."</div></div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 2px 8px"><span class="sec" style="margin:0">I pasti di oggi <span class="sub" style="font-weight:400">· 5 pasti</span></span><span class="chip" data-open="spesa" style="padding:4px 10px;font-size:11px"><i class="ti ti-basket" style="font-size:13px"></i> Lista spesa</span></div>'
+    +'<div class="carousel" id="homeScroll">'+MEALS.oggi.map(mealCard).join('')+'</div>'
+    +'<div class="sec">La tua coach</div><div class="card" style="display:flex;align-items:center;gap:10px"><span style="width:40px;height:40px;border-radius:50%;background:#DCEBE3;color:#0E7C66;display:inline-flex;align-items:center;justify-content:center;font-weight:600;flex:none">SC</span><div style="flex:1"><div style="font-size:13px;font-weight:600">Sara C.</div><div class="sub" style="font-size:11px">Prossima visita: 22 lug · televisita</div></div><span class="btn" data-open="coach" style="padding:6px 11px">Scrivi</span></div>'
+    +'<div class="sec">I tuoi traguardi</div><div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px"><span class="chip" style="background:#DCF0D8;border-color:#DCF0D8;color:#3B6D11"><i class="ti ti-check" style="font-size:13px"></i> 1ª settimana</span><span class="chip" style="background:#DCF0D8;border-color:#DCF0D8;color:#3B6D11"><i class="ti ti-check" style="font-size:13px"></i> -3 kg</span><span class="chip" style="opacity:.7"><i class="ti ti-flag" style="font-size:13px"></i> -5 kg</span></div><div class="sub" style="font-size:12px">Prossimo traguardo: <b style="color:#16302C">-5 kg</b> · ti mancano 1,4 kg. Ci sei quasi!</div></div>'
+    +'<div class="sec">Eventi gestiti</div><div class="card" data-nav="calendario" style="background:#FBEEE7;border:1px solid #F3D6C7;box-shadow:none;display:flex;align-items:center;gap:10px;cursor:pointer">'+bdg('ti-heart',32,'#E8825A','#fff')+'<div style="flex:1"><div style="font-size:13px;font-weight:600;color:#7A3418">Matrimonio tra 4 giorni</div><div style="font-size:11px;color:#A5674C">Ti preparo per arrivare serena</div></div><i class="ti ti-chevron-right" style="color:#C08363"></i></div>'
+    +'</div>';};
+  S.menu=function(){
+    var d=MEALS[state.menuDay];
+    var dt=d.map(function(m,i){return '<span class="opt'+(i===0?' on':'')+'" data-slide="'+i+'">'+m[0]+'</span>';}).join('');
+    var storico=[['Menu mediterraneo','Lun 6 lug',true,'-0,4 kg'],['Sgarro gestito','Sab 4 lug',true,'stabile'],['Menu proteico','Gio 2 lug',false,'+0,2 kg']];
+    var sto=storico.map(function(s){return '<div class="card" style="display:flex;align-items:center;gap:10px;padding:11px 13px;margin-bottom:8px">'+thumb(s[2])+'<div style="flex:1"><div style="font-size:13px;font-weight:600">'+s[0]+'</div><div class="sub" style="font-size:11px">'+s[1]+'</div></div><span style="font-size:11px;color:'+(s[2]?'#3B6D11':'#993C1D')+';font-weight:600;text-align:right">'+(s[2]?'Vantaggio':'Nessun calo')+'<div class="sub" style="font-size:10px;font-weight:400">'+s[3]+'</div></span></div>';}).join('');
+    return '<div style="padding:15px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:11px">'+bdg('ti-chef-hat',32,'#F3E8DC','#B8863B')+'<div><div class="h1">Il mio menu</div><div class="sub">Piano 5 pasti · scorri la giornata</div></div></div>'
+      +'<div class="opts" style="margin-bottom:9px"><span class="opt'+(state.menuDay==='oggi'?' on':'')+'" data-day="oggi">Oggi</span><span class="opt'+(state.menuDay==='domani'?' on':'')+'" data-day="domani">Domani</span></div>'
+      +'<div class="opts daytabs" style="margin-bottom:10px">'+dt+'</div>'
+      +'<div class="carousel" id="mealScroll">'+d.map(mealCard).join('')+'</div>'
+      +'<div style="font-size:13px;font-weight:600;margin:14px 2px 8px">Storico menu</div>'+sto
+      +'</div>';
+  };
+  S.ricetta=function(){return '<div style="padding:15px"><span class="back" data-nav="menu"><i class="ti ti-chevron-left"></i> Menu</span>'
+    +'<div class="h1">Farro, pollo e verdure</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px"><span class="tag" style="background:#F2EFE8;color:#5F6E6B">480 kcal</span><span class="tag" style="background:#F2EFE8;color:#5F6E6B">15 min</span><span class="tag" style="background:#DCEBE3;color:#0E7C66">Da portare</span></div>'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+bdg('ti-tools-kitchen-2',28,'#DCEBE3','#0E7C66')+'<b style="font-size:13px">Come si cucina</b></div><div class="opts" data-panel="m" style="margin-bottom:10px"><span class="opt on" data-show="m1">Veloce</span><span class="opt" data-show="m2">Al forno</span><span class="opt" data-show="m3">Meal prep</span></div>'
+    +'<ol id="m1" class="mpanel" style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7"><li>Lessa il farro.</li><li>Salta il pollo.</li><li>Aggiungi le verdure.</li><li>Condisci.</li></ol>'
+    +'<ol id="m2" class="mpanel" style="display:none;margin:0;padding-left:18px;font-size:12.5px;line-height:1.7"><li>Cuoci il farro.</li><li>In teglia pollo e verdure.</li><li>Forno 200° 18 min.</li></ol>'
+    +'<ol id="m3" class="mpanel" style="display:none;margin:0;padding-left:18px;font-size:12.5px;line-height:1.7"><li>La sera prima cuoci tutto.</li><li>Nel contenitore.</li><li>Condisci al momento.</li></ol></div>'
+    +'<div class="card"><b style="font-size:13px">Hai cucinato questo piatto?</b><div class="sub" style="margin:2px 0 8px">La valutazione insegna cosa proporti</div><div class="stars" style="display:flex;gap:7px"><i class="ti ti-star" data-s="1"></i><i class="ti ti-star" data-s="2"></i><i class="ti ti-star" data-s="3"></i><i class="ti ti-star" data-s="4"></i><i class="ti ti-star" data-s="5"></i></div><div id="rateMsg" class="sub" style="margin-top:8px;display:none"></div></div></div>';};
+  S.obiettivo=function(){
+    var bars=OBJ.map(function(o){var pct=pctOf(o);return '<div style="margin-bottom:13px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><b>'+o[0]+'</b><span class="sub">-'+d1(o[2]-o[3])+' di -'+d1(o[2]-o[4])+' '+o[1]+' · <b style="color:'+o[5]+'">'+pct+'%</b></span></div><div class="bar"><span style="width:'+pct+'%;background:'+o[5]+'"></span></div></div>';}).join('');
+    var charts=CHARTS.map(function(c){var delta=d1(c[2][0]-c[2][c[2].length-1]);return '<div class="meal card"><div style="padding:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13px">Andamento '+c[0].toLowerCase()+'</b><span style="font-size:11px;color:'+c[3]+';font-weight:600">-'+delta+' '+c[1]+'</span></div>'+chartSVG(c[2],c[3])+'<div style="display:flex;justify-content:space-between;font-size:10px;color:#9aa;margin-top:4px"><span>3 sett. fa</span><span>oggi</span></div></div></div>';}).join('');
+    return '<div style="padding:15px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">'+bdg('ti-target',32,'#E7EEF6','#3A6EA5')+'<div><div class="h1">Il mio obiettivo</div><div class="sub">Inserisci le misure e segui i progressi</div></div></div>'
+      +'<div class="card"><b style="font-size:13px;display:block;margin-bottom:10px">Misure di oggi</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+        +'<div><div class="sub" style="font-size:10px;margin-bottom:3px">Peso (kg)</div><input class="inp" value="68,4"></div>'
+        +'<div><div class="sub" style="font-size:10px;margin-bottom:3px">Vita (cm)</div><input class="inp" value="76,5"></div>'
+        +'<div><div class="sub" style="font-size:10px;margin-bottom:3px">Fianchi (cm)</div><input class="inp" value="97"></div>'
+        +'<div style="display:flex;align-items:flex-end"><button class="btn" style="width:100%;padding:9px;justify-content:center"><i class="ti ti-send" style="font-size:13px"></i> Invia</button></div>'
+      +'</div></div>'
+      +'<div style="font-size:13px;font-weight:600;margin:4px 2px 8px">Andamento · scorri i grafici</div><div class="carousel" id="chartScroll">'+charts+'</div>'
+      +'<div class="card"><b style="font-size:13px;display:block;margin-bottom:12px">Verso il tuo obiettivo</b>'+bars+'</div></div>';};
+  S.assistente=function(){return '<div style="padding:15px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">'+bdg('ti-sparkles',32,'#ECE7F7','#6C5AB7')+'<div class="h1">Assistente AI</div></div>'
+    +'<div style="display:flex;flex-direction:column;gap:9px">'
+    +'<div style="align-self:flex-start;max-width:85%;background:#fff;border-radius:16px;padding:10px 12px;font-size:12.5px;box-shadow:0 2px 6px rgba(16,64,58,.06)">Energia bassa e turno lungo oggi: vuoi che ti alleggerisca il pranzo?</div>'
+    +'<div style="align-self:flex-end;max-width:85%;background:#12A386;color:#fff;border-radius:16px;padding:10px 12px;font-size:12.5px">Sì, e stasera non ho tempo</div>'
+    +'<div style="align-self:flex-start;max-width:85%;background:#fff;border-radius:16px;padding:10px 12px;font-size:12.5px;box-shadow:0 2px 6px rgba(16,64,58,.06)">Fatto. Cena in 10 minuti e pranzo da portare. <span class="sub">Protocollo validato dalla nutrizionista.</span></div></div>'
+    +'<div style="display:flex;gap:8px;margin-top:13px"><input class="inp" placeholder="Scrivi…" style="flex:1;border-radius:22px"><span class="btn" style="padding:10px 13px"><i class="ti ti-send"></i></span></div></div>';};
+  S.calendario=function(){return '<div style="padding:15px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">'+bdg('ti-calendar-heart',32,'#FBEEE7','#E8825A')+'<div><div class="h1">Agenda</div><div class="sub">I tuoi giorni speciali</div></div></div>'
+    +'<div class="card"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+bdg('ti-heart',32,'#E8825A','#fff')+'<div><b style="font-size:14px">Matrimonio</b><div class="sub">Sabato · tra 4 giorni</div></div></div>'
+    +'<div class="opts" data-panel="p" style="margin-bottom:12px"><span class="opt on" data-show="p1">Prima</span><span class="opt" data-show="p2">Il giorno</span><span class="opt" data-show="p3">Dopo</span></div>'
+    +'<div id="p1" class="mpanel"><b style="font-size:13px">Ci arriviamo leggeri</b><div style="font-size:12.5px;line-height:1.7;color:#3a4b48;margin-top:6px">Menu sgonfianti, più acqua, nessun digiuno.</div></div>'
+    +'<div id="p2" class="mpanel" style="display:none"><b style="font-size:13px">Oggi si vive</b><div style="font-size:12.5px;line-height:1.7;color:#3a4b48;margin-top:6px">Goditi il pranzo, senza sensi di colpa.</div></div>'
+    +'<div id="p3" class="mpanel" style="display:none"><b style="font-size:13px">Rientro morbido</b><div style="font-size:12.5px;line-height:1.7;color:#3a4b48;margin-top:6px">Un giorno leggero, riprendi il check-in.</div></div></div>'
+    +'<div class="card" style="background:#DCEBE3;box-shadow:none;display:flex;align-items:center;gap:9px"><i class="ti ti-shield-check" style="color:#0E7C66"></i><span style="font-size:12px;color:#0E7C66">I tuoi risultati restano protetti.</span></div></div>';};
+  S.negozio=function(){
+    var integ=[['Omega 3','Benessere e sazietà','€ 24','ti-pill','#DCEBE3','#0E7C66'],['Proteine veg','Post-allenamento','€ 32','ti-bottle','#EFEAF9','#6C5AB7']];
+    var ic=integ.map(function(p){return '<div class="card" style="display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:9px">'+bdg(p[3],40,p[4],p[5])+'<div style="flex:1"><div style="font-size:13px;font-weight:600">'+p[0]+'</div><div class="sub" style="font-size:11px">'+p[1]+'</div></div><div style="text-align:right"><div style="font-weight:600;font-size:14px">'+p[2]+'</div><span class="btn" style="padding:4px 10px;font-size:11px;margin-top:4px"><i class="ti ti-plus" style="font-size:12px"></i> Aggiungi</span></div></div>';}).join('');
+    return '<div style="padding:15px"><span class="back" data-nav="home"><i class="ti ti-chevron-left"></i> Home</span>'
+      +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">'+bdg('ti-shopping-bag',32,'#EFEAF9','#6C5AB7')+'<div><div class="h1">Negozio</div><div class="sub">Piani e integratori</div></div></div>'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:8px">Piani</div>'
+      +'<div class="card" style="border:2px solid #12A386;display:flex;align-items:center;gap:10px"><div style="flex:1"><span class="tag" style="background:#DCF0D8;color:#3B6D11">Più scelto</span><div style="font-size:14px;font-weight:600;margin-top:5px">Percorso 3 mesi</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:600">€ 267</div><span class="btn" style="padding:5px 11px;margin-top:5px">Acquista</span></div></div>'
+      +'<div style="font-size:13px;font-weight:600;margin:14px 0 8px">Integratori</div>'+ic
+      +'</div>';};
+
+  var SHEETS={
+    fame:{t:'Ho fame adesso',b:'Bevi un bicchiere d\'acqua e prendi un frutto o dei semi: spesso la fame passa in 15 minuti. Se ti capita spesso di pomeriggio, lo segnalo a Sara e anticipiamo lo spuntino.',cta:'Chiedi a Sara'},
+    fuori:{t:'Mangio fuori',b:'Scegli una proteina con verdure, evita bevande zuccherate e concediti un piccolo piacere senza sensi di colpa. Domani ti preparo un rientro morbido, tranquilla.',cta:'Ok, grazie'},
+    sost:{t:'Sostituisci un ingrediente',b:'Non hai un ingrediente o non ti piace? Alternativa equivalente: al posto del farro, quinoa o orzo. Vuoi che aggiorni la ricetta di oggi?',cta:'Aggiorna ricetta'}
+  };
+  function openHelp(k){var s=SHEETS[k];openSheet('<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">'+bdg('ti-sparkles',30,'#12A386','#fff')+'<b style="font-size:15px">'+s.t+'</b></div><div style="font-size:13px;line-height:1.6;color:#2E3E3B;margin-bottom:14px">'+s.b+'</div><button class="btn" data-close style="width:100%;justify-content:center;padding:11px">'+s.cta+'</button>');}
+  function openCoach(){openSheet('<div style="display:flex;align-items:center;gap:9px;margin-bottom:4px"><span style="width:36px;height:36px;border-radius:50%;background:#DCEBE3;color:#0E7C66;display:inline-flex;align-items:center;justify-content:center;font-weight:600">SC</span><div><b style="font-size:15px">Sara — la tua coach</b><div class="sub" style="font-size:11px">Domande sanitarie? Ti giro alla nutrizionista.</div></div></div><div style="display:flex;flex-direction:column;gap:8px;margin:12px 0">'
+    +'<div style="align-self:flex-start;max-width:82%;background:#F4F1EA;border-radius:14px;padding:9px 11px;font-size:12.5px">Ciao Giulia! Come procede questa settimana?</div>'
+    +'<div style="align-self:flex-end;max-width:82%;background:#12A386;color:#fff;border-radius:14px;padding:9px 11px;font-size:12.5px">Bene, un po\' di fame il pomeriggio</div>'
+    +'<div style="align-self:flex-start;max-width:82%;background:#F4F1EA;border-radius:14px;padding:9px 11px;font-size:12.5px">Perfetto, anticipiamo lo spuntino. Ci vediamo in televisita il 22!</div></div>'
+    +'<div style="display:flex;gap:8px"><input class="inp" style="flex:1;border-radius:22px" placeholder="Scrivi a Sara…"><span class="btn" data-close style="padding:10px 12px"><i class="ti ti-send"></i></span></div>');}
+  function openSpesa(){var items=['Farro','Petto di pollo','Yogurt greco','Avena','Frutta fresca','Zucchine','Pomodorini','Orata','Patate'];
+    openSheet('<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">'+bdg('ti-basket',30,'#DCEBE3','#0E7C66')+'<div><b style="font-size:15px">Lista della spesa</b><div class="sub" style="font-size:11px">Per i prossimi 2 giorni</div></div></div>'
+      +items.map(function(it){return '<div class="spitem" style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #F0ECE3;cursor:pointer"><span class="ck" style="width:22px;height:22px;border-radius:7px;border:2px solid #CFE0D8;display:inline-flex;align-items:center;justify-content:center;flex:none"></span><span style="font-size:13px">'+it+'</span></div>';}).join('')
+      +'<button class="btn" data-close style="width:100%;justify-content:center;padding:11px;margin-top:14px">Chiudi</button>');}
+
+  var inner=document.getElementById('inner');
+  function POPUP(){return '<div id="checkin" style="position:absolute;inset:0;background:rgba(11,15,14,.45);display:flex;align-items:flex-end;z-index:20"><div style="width:100%;background:#fff;border-radius:22px 22px 0 0;padding:16px 16px 20px;box-shadow:0 -6px 20px rgba(0,0,0,.18)"><div style="width:40px;height:4px;background:#E2DED4;border-radius:3px;margin:0 auto 12px"></div><b style="font-size:16px">Come ti senti oggi?</b><div class="sub" style="margin:3px 0 14px">Un check-in veloce prima di iniziare la giornata.</div><div class="mood" style="display:flex;justify-content:space-between">'+[['😍','Alla grande','#E4F3DC','#3B6D11'],['😄','Bene','#EAF3D9','#4D7C0F'],['😐','Media','#FBF0D6','#8A5A0B'],['😣','Dura','#FBE6DC','#B4491F'],['🤯','Stress','#F7DAD6','#993C1D']].map(function(e){return '<div class="mbtn" style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer"><span style="width:44px;height:44px;border-radius:14px;background:'+e[2]+';display:flex;align-items:center;justify-content:center;font-size:24px">'+e[0]+'</span><span style="font-size:9px;color:'+e[3]+'">'+e[1]+'</span></div>';}).join('')+'</div><div data-skip style="text-align:center;margin-top:14px;cursor:pointer"><span class="sub">Salta per oggi</span></div></div></div>';}
+  function renderDateInfo(){var di=document.getElementById('dateInfo');if(!di)return;var vis=addDays(start,-2);di.innerHTML='<div style="display:flex;align-items:flex-start;gap:9px"><i class="ti ti-eye" style="color:#0E7C66;font-size:18px"></i><div><div style="font-size:12.5px;color:#0E7C66;font-weight:600">Menu visibile dal '+fmt(vis)+'</div><div class="sub" style="font-size:11px;margin-top:2px">Si sblocca 2 giorni prima dell\'inizio.</div></div></div>';}
+  function openSheet(html){var d=document.createElement('div');d.className='sheet';d.id='ov';d.innerHTML='<div class="sheetc"><div class="grab"></div>'+html+'</div>';inner.appendChild(d);
+    d.addEventListener('click',function(e){if(e.target===d)closeSheet();});
+    d.querySelectorAll('[data-close]').forEach(function(b){b.addEventListener('click',closeSheet);});
+    d.querySelectorAll('.spitem').forEach(function(it){it.addEventListener('click',function(){var ck=it.querySelector('.ck');var on=ck.getAttribute('data-on')==='1';ck.setAttribute('data-on',on?'0':'1');ck.style.background=on?'transparent':'#12A386';ck.style.borderColor=on?'#CFE0D8':'#12A386';ck.innerHTML=on?'':'<i class="ti ti-check" style="font-size:14px;color:#fff"></i>';it.style.opacity=on?'1':'.6';});});
+  }
+  function closeSheet(){var o=document.getElementById('ov');if(o)o.remove();}
+
+  function render(){
+    if(state.phase==='flow'){
+      var st=F[state.step];
+      inner.innerHTML='<div class="ftop"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span id="bk" class="back" style="margin:0;visibility:'+(state.step===0?'hidden':'visible')+'"><i class="ti ti-chevron-left"></i> Indietro</span><span class="sub" style="font-size:11px">Passo '+(state.step+1)+' di '+F.length+'</span></div><div class="prog"><span style="width:'+Math.round((state.step+1)/F.length*100)+'%"></span></div></div>'
+        +'<div class="pbody">'+st.c()+'</div>'
+        +'<div class="bottombar"><button class="cta" id="cta">'+st.btn+'</button></div>';
+    } else {
+      inner.innerHTML='<div class="pbody">'+(S[state.screen]||S.home)()+'</div><div class="tabbar" id="tb"></div>'+(state.checkinDone?'':POPUP());
+      document.getElementById('tb').innerHTML=ORDER.map(function(k){var n=NAV[k],on=k===state.screen;
+        if(k==='home'){return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer" data-nav="home"><span style="width:52px;height:52px;border-radius:50%;background:#12A386;color:#fff;display:flex;align-items:center;justify-content:center;margin-top:-20px;box-shadow:0 7px 16px rgba(18,163,134,.45);border:3px solid #fff"><i class="ti ti-home" style="font-size:24px"></i></span><span style="font-size:9px;color:#12A386;font-weight:600;margin-top:2px">Home</span></div>';}
+        return '<div class="tab" data-nav="'+k+'"><i class="ti '+n[0]+'" style="color:'+n[2]+'"></i><span style="'+(on?'color:'+n[2]+';font-weight:600':'')+'">'+n[1]+'</span></div>';
+      }).join('');
+    }
+    wire();
+  }
+  function wire(){
+    var root=document.querySelector('.phone');
+    var ci=document.getElementById('checkin');
+    if(ci)ci.querySelectorAll('.mbtn,[data-skip]').forEach(function(b){b.addEventListener('click',function(){state.checkinDone=true;render();});});
+    var cta=document.getElementById('cta');
+    if(cta)cta.addEventListener('click',function(){ var st=F[state.step]; if(st.go){state.phase='app';state.screen=st.go;render();return;} if(state.step<F.length-1){state.step++;render();} });
+    var bk=document.getElementById('bk');
+    if(bk)bk.addEventListener('click',function(){ if(state.phase==='flow'&&state.step>0){state.step--;render();} });
+    var sd=document.getElementById('startDate');
+    if(sd){renderDateInfo();sd.addEventListener('change',function(){var p=sd.value.split('-');start=new Date(+p[0],+p[1]-1,+p[2]);renderDateInfo();});}
+    var su=document.getElementById('simUnlock');
+    if(su)su.addEventListener('click',function(){state.step=F.length-1;render();});
+    if(document.getElementById('okg')){document.getElementById('okg').addEventListener('input',calcObj);document.getElementById('owk').addEventListener('input',calcObj);calcObj();}
+    var cols=document.getElementById('cols');if(cols)cols.querySelectorAll('.sw').forEach(function(s){s.addEventListener('click',function(){cols.querySelectorAll('.sw').forEach(function(x){x.style.borderColor='transparent';});s.style.borderColor='#0B302B';});});
+    root.querySelectorAll('[data-nav]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();state.screen=el.getAttribute('data-nav');render();});});
+    root.querySelectorAll('[data-open]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();var k=el.getAttribute('data-open');if(k==='coach')openCoach();else if(k==='spesa')openSpesa();else openHelp(k);});});
+    var wb=document.getElementById('wbtn');
+    if(wb)wb.addEventListener('click',function(){if(water<wgoal)water++;var wd=document.getElementById('wd');if(wd)wd.innerHTML=drops();var wc=document.getElementById('wc');if(wc)wc.textContent=water;});
+    root.querySelectorAll('[data-day]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();state.menuDay=el.getAttribute('data-day');render();});});
+    root.querySelectorAll('.opts').forEach(function(g){var multi=g.getAttribute('data-multi')==='1';g.querySelectorAll('.opt').forEach(function(o){o.addEventListener('click',function(){ if(multi){o.classList.toggle('on');return;} g.querySelectorAll('.opt').forEach(function(x){x.classList.remove('on');});o.classList.add('on');var sh=o.getAttribute('data-show');if(sh){var p=g.getAttribute('data-panel');root.querySelectorAll('.mpanel').forEach(function(mp){if(mp.id&&mp.id.charAt(0)===p)mp.style.display='none';});var t=document.getElementById(sh);if(t)t.style.display='';}});});});
+    var sc=document.getElementById('mealScroll');
+    if(sc){root.querySelectorAll('[data-slide]').forEach(function(el){el.addEventListener('click',function(){var i=+el.getAttribute('data-slide');sc.scrollTo({left:i*sc.clientWidth,behavior:'smooth'});});});sc.addEventListener('scroll',function(){var i=Math.round(sc.scrollLeft/sc.clientWidth);root.querySelectorAll('.daytabs .opt').forEach(function(x,idx){x.classList.toggle('on',idx===i);});});}
+    var stars=root.querySelectorAll('.stars i');
+    stars.forEach(function(s){s.addEventListener('click',function(){var n=+s.getAttribute('data-s');stars.forEach(function(x){x.style.color=+x.getAttribute('data-s')<=n?'#d8b24a':'#d8d3c6';});var m=document.getElementById('rateMsg');if(m){m.style.display='';m.textContent=n>=4?'Ti è piaciuta: te la riproporrò più spesso.':(n<=2?'Capito, la eviterò quasi del tutto.':'Valutazione salvata.');m.style.color=n<=2?'#993C1D':'#0E7C66';}});});
+  }
+  render();
+})();
+</script>
+</body>
+</html>

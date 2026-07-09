@@ -1,0 +1,21 @@
+# Dipendenze / build
+node_modules/
+dist/
+build/
+coverage/
+
+# Ambiente / segreti
+.env
+.env.*
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Log
+*.log
+npm-debug.log*
