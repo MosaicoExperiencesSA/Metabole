@@ -3,6 +3,7 @@
  * Idempotente: upsert per chiave, non sovrascrive valori modificati dall'admin
  * (aggiorna solo la descrizione).
  */
+import * as argon2 from 'argon2';
 import { PrismaClient, ConfigParamType } from '@prisma/client';
 import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS } from '../src/permissions/pages';
 import { ROLES } from '../src/common/roles';
@@ -450,6 +451,7 @@ async function main(): Promise<void> {
     console.log('Seed: estremi bonifico impostati sui dati reali (erano segnaposto).');
   }
 
+  await ensureAdminFromEnv();
   await seedPermissions();
   await seedDemoCatalog();
   await seedProtocols();
@@ -459,6 +461,44 @@ async function main(): Promise<void> {
   console.log(
     `Seed completato: ${CONFIG_PARAMS.length} parametri processati (${count} in config_param), ${permCount} permessi ruolo×pagina.`,
   );
+}
+
+/**
+ * Admin principale da variabili d'ambiente (impostate nel pannello Render,
+ * mai nel repo né in chat):
+ *   ADMIN_EMAIL    → email dell'admin (default: simone.salogni@gmail.com)
+ *   ADMIN_PASSWORD → password iniziale (min. 8 caratteri)
+ * - Se l'account non esiste e ADMIN_PASSWORD è impostata → lo crea (admin, email
+ *   già verificata) con quella password (salvata solo come hash argon2).
+ * - Se esiste ma non è admin → lo promuove ad admin.
+ * - Se esiste già → NON tocca la password (la gestisce l'admin dal backoffice).
+ * Idempotente: non ricrea né sovrascrive un account esistente.
+ */
+async function ensureAdminFromEnv(): Promise<void> {
+  const email = (process.env.ADMIN_EMAIL ?? 'simone.salogni@gmail.com').trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    if (existing.role !== 'admin') {
+      await prisma.user.update({ where: { id: existing.id }, data: { role: 'admin' } });
+      console.log(`Seed: ${email} promosso ad admin.`);
+    }
+    return;
+  }
+
+  if (!password || password.length < 8) {
+    console.log(
+      `Seed: admin ${email} NON creato — imposta ADMIN_PASSWORD (min. 8 caratteri) nelle variabili di Render.`,
+    );
+    return;
+  }
+
+  const passwordHash = await argon2.hash(password);
+  await prisma.user.create({
+    data: { email, passwordHash, role: 'admin', locale: 'it', emailVerifiedAt: new Date() },
+  });
+  console.log(`Seed: creato admin ${email}.`);
 }
 
 main()

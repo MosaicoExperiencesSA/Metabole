@@ -39,6 +39,12 @@ services:
         sync: false # inserire a mano: chiave segreta Stripe (sk_test_... / sk_live_...)
       - key: STRIPE_WEBHOOK_SECRET
         sync: false # inserire a mano: signing secret del webhook Stripe (whsec_...)
+      - key: ADMIN_EMAIL
+        sync: false # inserire a mano: email dell'admin principale (es. simone.salogni@gmail.com)
+      - key: ADMIN_PASSWORD
+        sync: false # inserire a mano: password iniziale admin (min. 8 caratteri); usata dal seed solo alla creazione
+      - key: CORS_ORIGINS
+        sync: false # inserire a mano: origini frontend consentite (es. https://metabole-backoffice.vercel.app)
       - key: JWT_ACCESS_SECRET
         generateValue: true # generata da Render, mai committata
       - key: FILE_ENCRYPTION_KEY
