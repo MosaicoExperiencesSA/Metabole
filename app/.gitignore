@@ -1,0 +1,18 @@
+node_modules
+dist
+dist-ssr
+*.local
+
+# Capacitor native (generati con `npx cap add`)
+android
+ios
+
+# build / cache
+.vite
+.DS_Store
+*.log
+
+# artefatti tsc -b
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
