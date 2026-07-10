@@ -7,13 +7,17 @@ import type { OnboardingResult, Page, Questions } from '../onboarding/types';
 
 type Answers = Record<string, unknown>;
 
-/** Le 5 sezioni nell'ordine del prototipo, con colore, voce e pagine (chiavi backend). */
+/**
+ * Le 5 sezioni nell'ordine corretto (Metabole_Sequenza_Schermate.md):
+ * Mente → Vita → Agenda → Gusto → Corpo (il corpo/obiettivo è volutamente l'ultimo).
+ * NB: 'meals' non è nel documento ma il backend richiede mealsPerDay → lo teniamo in Vita.
+ */
 const SECTIONS = [
-  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Procediamo con le domande sul corpo', note: 'Peso, misure e obiettivo. Niente giudizi: mi servono solo per partire.', color: '#12A386', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
-  { key: 'testa', tab: 'Testa', name: 'La testa', intro: 'Ora motivazione e carattere', note: 'Come vuoi essere seguita e che tipo sei.', color: '#6C5AB7', voice: 'intro_testa', pages: ['coach_style', 'character'] },
+  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Ora motivazione e carattere', note: 'Come vuoi essere seguita e che tipo sei.', color: '#6C5AB7', voice: 'intro_testa', pages: ['coach_style', 'character'] },
   { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', color: '#2E7BB5', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
   { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', color: '#E8825A', voice: 'intro_agenda', pages: ['pause_periods'] },
   { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', color: '#B8863B', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
+  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Procediamo con le domande sul corpo', note: 'Peso, misure e obiettivo. Niente giudizi: mi servono solo per partire.', color: '#12A386', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
 ] as const;
 
 const SECTAB = SECTIONS.map((s) => ({ key: s.key, tab: s.tab }));
@@ -220,7 +224,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     );
   }
 
-  const curSecKey = cur.t === 'page' ? cur.sec.key : cur.t === 'theme' ? 'gusto' : null;
+  const curSecKey = cur.t === 'page' ? cur.sec.key : cur.t === 'theme' ? 'corpo' : null;
 
   return (
     <div className="app-frame">
