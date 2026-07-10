@@ -473,11 +473,30 @@ model CrmRecord {
   ownerId    String?  @map("owner_id")
   owner      Staff?   @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   valueCents Int?     @map("value_cents")
+  reminders  CrmReminder[]
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([stage])
   @@map("crm_record")
+}
+
+// Calendario CRM: promemoria/appuntamenti, opzionalmente legati a un lead/cliente.
+model CrmReminder {
+  id          String     @id @default(uuid())
+  crmRecordId String?    @map("crm_record_id")
+  crmRecord   CrmRecord? @relation(fields: [crmRecordId], references: [id], onDelete: SetNull)
+  title       String
+  dueAt       DateTime   @map("due_at")
+  note        String?
+  done        Boolean    @default(false)
+  createdById String?    @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@index([dueAt])
+  @@index([crmRecordId])
+  @@map("crm_reminder")
 }
 
 // Stati della pipeline commerciale/clienti, gestibili dall'admin (condivisi).
