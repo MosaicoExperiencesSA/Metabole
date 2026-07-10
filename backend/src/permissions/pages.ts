@@ -16,13 +16,19 @@ export const BACKOFFICE_PAGES = [
   'chat',
   'health_documents',
   'crm_leads',
+  'lead_acceptance',
   'accounting',
+  'purchases',
+  'discounts',
+  'commissions',
   'compensation',
   'users',
   'assignments',
   'engine_config',
   'audit_logs',
   'permissions',
+  'email_templates',
+  'email_log',
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -43,6 +49,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     dashboard: { view: true },
     clients: { view: true },
     crm_leads: { view: true, manage: true }, // pipeline: la coach sposta i clienti tra gli stati
+    lead_acceptance: { view: true, manage: true }, // casella dei lead da accettare
     escalations: { view: true, manage: true },
     chat: { view: true, manage: true },
     visits_agenda: { view: true },
@@ -72,11 +79,14 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     health_documents: { view: true, manage: true },
     assignments: { view: true },
     engine_config: { view: true },
+    lead_acceptance: { view: true },
   },
   sales: {
     dashboard: { view: true },
     crm_leads: { view: true, manage: true },
+    lead_acceptance: { view: true },
     accounting: { view: true }, // dashboard incassi/conversioni
+    purchases: { view: true },
   },
   admin: {
     dashboard: { view: true, manage: true },
@@ -90,12 +100,18 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     chat: { view: true },
     // health_documents: nessun accesso di default (note cliniche riservate)
     crm_leads: { view: true, manage: true },
+    lead_acceptance: { view: true },
     accounting: { view: true, manage: true },
+    purchases: { view: true, manage: true },
+    discounts: { view: true, manage: true },
+    commissions: { view: true, manage: true },
     compensation: { view: true, manage: true },
     users: { view: true, manage: true },
     assignments: { view: true, manage: true },
     engine_config: { view: true, manage: true },
     audit_logs: { view: true },
     permissions: { view: true, manage: true },
+    email_templates: { view: true, manage: true },
+    email_log: { view: true, manage: true },
   },
 };

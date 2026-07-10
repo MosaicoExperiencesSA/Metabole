@@ -27,13 +27,19 @@ export const PAGE_LABEL: Record<string, string> = {
   chat: 'Chat',
   health_documents: 'Documenti sanitari',
   crm_leads: 'CRM / Lead',
-  accounting: 'Contabilità',
+  lead_acceptance: 'Lead da accettare',
+  accounting: 'Bonifici & contabilità',
+  purchases: 'Acquisti',
+  discounts: 'Buoni sconto',
+  commissions: 'Provvigioni',
   compensation: 'Compensi staff',
   users: 'Utenti',
   assignments: 'Assegnazioni',
   engine_config: 'Parametri motore',
   audit_logs: 'Log attività',
   permissions: 'Permessi',
+  email_templates: 'Modelli email',
+  email_log: 'Log email',
 };
 
 export function pageLabel(key: string): string {

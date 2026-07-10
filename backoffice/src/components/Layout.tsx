@@ -30,7 +30,7 @@ const NAV: NavSection[] = [
       { key: 'crm_leads', label: 'Gestione lead', to: '/crm/gestione', icon: 'ti-list-details' },
       { key: 'crm_leads', label: 'Inserimento lead', to: '/crm/inserimento', icon: 'ti-user-plus' },
       { key: 'crm_leads', label: 'Pipeline', to: '/crm/pipeline', icon: 'ti-layout-kanban' },
-      { key: 'crm_leads', label: 'Lead da accettare', to: '/crm/da-accettare', icon: 'ti-user-check' },
+      { key: 'lead_acceptance', label: 'Lead da accettare', to: '/crm/da-accettare', icon: 'ti-user-check' },
       { key: 'crm_leads', label: 'Calendario', to: '/crm/calendario', icon: 'ti-calendar-event' },
     ],
   },
@@ -44,10 +44,10 @@ const NAV: NavSection[] = [
   {
     group: 'Pagamenti',
     items: [
-      { key: 'accounting', label: 'Acquisti', to: '/acquisti', icon: 'ti-shopping-cart' },
-      { key: 'accounting', label: 'Buoni sconto', to: '/buoni-sconto', icon: 'ti-ticket' },
+      { key: 'purchases', label: 'Acquisti', to: '/acquisti', icon: 'ti-shopping-cart' },
+      { key: 'discounts', label: 'Buoni sconto', to: '/buoni-sconto', icon: 'ti-ticket' },
       { key: 'accounting', label: 'Bonifici & contabilità', to: '/pagamenti', icon: 'ti-cash' },
-      { key: 'compensation', label: 'Provvigioni', to: '/provvigioni', icon: 'ti-percentage' },
+      { key: 'commissions', label: 'Provvigioni', to: '/provvigioni', icon: 'ti-percentage' },
       { key: 'compensation', label: 'Compensi staff', to: '/compensi', icon: 'ti-coin' },
     ],
   },
@@ -61,8 +61,8 @@ const NAV: NavSection[] = [
   {
     group: 'Comunicazioni',
     items: [
-      { key: 'permissions', label: 'Modelli email', to: '/email-modelli', icon: 'ti-mail-cog' },
-      { key: 'permissions', label: 'Log email', to: '/email-log', icon: 'ti-mail-check' },
+      { key: 'email_templates', label: 'Modelli email', to: '/email-modelli', icon: 'ti-mail-cog' },
+      { key: 'email_log', label: 'Log email', to: '/email-log', icon: 'ti-mail-check' },
     ],
   },
   {

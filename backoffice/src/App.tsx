@@ -59,20 +59,20 @@ export default function App() {
       <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_leads"><LeadForm /></Protected>} />
       <Route path="/crm/pipeline" element={<Protected title="Pipeline" pageKey="crm_leads"><Pipeline /></Protected>} />
       <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_leads"><Calendar /></Protected>} />
-      <Route path="/crm/da-accettare" element={<Protected title="Lead da accettare" pageKey="crm_leads"><LeadDaAccettare /></Protected>} />
+      <Route path="/crm/da-accettare" element={<Protected title="Lead da accettare" pageKey="lead_acceptance"><LeadDaAccettare /></Protected>} />
       <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Placeholder title="Agenda visite" icon="ti-calendar" /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Placeholder title="Segnalazioni" icon="ti-alert-triangle" /></Protected>} />
-      <Route path="/acquisti" element={<Protected title="Acquisti" pageKey="accounting"><Acquisti /></Protected>} />
-      <Route path="/buoni-sconto" element={<Protected title="Buoni sconto" pageKey="accounting"><BuoniSconto /></Protected>} />
+      <Route path="/acquisti" element={<Protected title="Acquisti" pageKey="purchases"><Acquisti /></Protected>} />
+      <Route path="/buoni-sconto" element={<Protected title="Buoni sconto" pageKey="discounts"><BuoniSconto /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
-      <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="compensation"><Provvigioni /></Protected>} />
+      <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Placeholder title="Compensi staff" icon="ti-coin" /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Placeholder title="Catalogo diete" icon="ti-salad" /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Placeholder title="Protocolli motore" icon="ti-cpu" /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />
       <Route path="/log" element={<Protected title="Log attività" pageKey="audit_logs"><Placeholder title="Log attività" icon="ti-history" /></Protected>} />
-      <Route path="/email-modelli" element={<Protected title="Modelli email" pageKey="permissions"><ModelliEmail /></Protected>} />
-      <Route path="/email-log" element={<Protected title="Log email" pageKey="permissions"><LogEmail /></Protected>} />
+      <Route path="/email-modelli" element={<Protected title="Modelli email" pageKey="email_templates"><ModelliEmail /></Protected>} />
+      <Route path="/email-log" element={<Protected title="Log email" pageKey="email_log"><LogEmail /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
