@@ -10,7 +10,12 @@ export class CreateUserDto {
   password!: string;
 
   @IsIn(ROLES as readonly string[])
-  role!: Role;
+  role!: Role; // ruolo di sistema (o ruolo di base del ruolo personalizzato)
+
+  /** Chiave del ruolo personalizzato, se l'utente ne ha uno. */
+  @IsOptional()
+  @IsString()
+  customRoleKey?: string;
 
   @IsOptional()
   @IsIn(['it', 'en', 'fr', 'de', 'es'])

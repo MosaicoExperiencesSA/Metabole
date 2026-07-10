@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Placeholder } from './pages/Placeholder';
 import { Permissions } from './pages/Permissions';
+import { Roles } from './pages/Roles';
 import { Users } from './pages/Users';
 import type { ReactNode } from 'react';
 
@@ -34,6 +35,7 @@ export default function App() {
 
       <Route path="/" element={<Protected title="Dashboard"><Dashboard /></Protected>} />
       <Route path="/utenti" element={<Protected title="Utenti" pageKey="users"><Users /></Protected>} />
+      <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="permissions"><Roles /></Protected>} />
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
 
       {/* Sezioni in arrivo (stesse API già pronte lato backend) */}

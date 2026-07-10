@@ -274,6 +274,7 @@ export class AuthService {
         sub: target.id,
         email: target.email,
         role: target.role,
+        customRoleKey: target.customRoleKey ?? null,
         impersonatedBy: adminId,
       },
       { expiresIn: ttl as never },
@@ -300,11 +301,13 @@ export class AuthService {
     id: string;
     email: string;
     role: Role | string;
+    customRoleKey?: string | null;
   }): Promise<TokenPair> {
     const payload: AuthUser = {
       sub: user.id,
       email: user.email,
       role: user.role as Role,
+      customRoleKey: user.customRoleKey ?? null,
     };
     const accessToken = await this.jwtService.signAsync(payload);
 
@@ -324,6 +327,7 @@ export class AuthService {
     id: string;
     email: string;
     role: string;
+    customRoleKey?: string | null;
     locale: string;
     emailVerifiedAt: Date | null;
   }) {
@@ -331,6 +335,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      customRoleKey: user.customRoleKey ?? null,
       locale: user.locale,
       emailVerified: Boolean(user.emailVerifiedAt),
     };

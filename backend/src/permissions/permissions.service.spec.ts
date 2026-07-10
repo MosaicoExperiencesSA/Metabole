@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RolesService } from '../roles/roles.service';
 import { DEFAULT_PERMISSIONS } from './pages';
 import { PermissionsService } from './permissions.service';
 
@@ -45,11 +46,17 @@ describe('PermissionsService', () => {
       },
     };
     audit = { log: jest.fn() };
+    const roles = {
+      // sistema + un ruolo personalizzato di prova
+      validKeys: jest.fn().mockResolvedValue(new Set(['coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin', 'client', 'segreteria'])),
+      listAll: jest.fn().mockResolvedValue([]),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         PermissionsService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: audit },
+        { provide: RolesService, useValue: roles },
       ],
     }).compile();
     service = moduleRef.get(PermissionsService);

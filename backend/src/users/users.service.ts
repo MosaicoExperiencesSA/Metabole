@@ -12,6 +12,8 @@ const PUBLIC_USER_SELECT = {
   id: true,
   email: true,
   role: true,
+  customRoleKey: true,
+  customRole: { select: { key: true, label: true, color: true, baseRole: true } },
   locale: true,
   status: true,
   emailVerifiedAt: true,
@@ -71,6 +73,7 @@ export class UsersService {
       email: string;
       password: string;
       role: Role;
+      customRoleKey?: string | null;
       locale?: string;
       displayName?: string;
     },
@@ -80,14 +83,18 @@ export class UsersService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email già registrata');
 
+    // Ruolo personalizzato: l'utente prende il ruolo di SISTEMA di base (per i
+    // permessi reali) e in più la chiave del ruolo custom (etichetta + menu).
+    const { systemRole, customRoleKey } = await this.resolveRole(data.role, data.customRoleKey);
+
     const passwordHash = await argon2.hash(data.password);
     const user = await this.prisma.user.create({
-      data: { email, passwordHash, role: data.role, locale: data.locale ?? 'it' },
+      data: { email, passwordHash, role: systemRole, customRoleKey, locale: data.locale ?? 'it' },
       select: PUBLIC_USER_SELECT,
     });
 
     // Per i ruoli di staff crea anche la scheda Staff (assegnazioni, agenda, team).
-    if (UsersService.STAFF_ROLES.includes(data.role)) {
+    if (UsersService.STAFF_ROLES.includes(systemRole)) {
       await this.prisma.staff.create({
         data: {
           userId: user.id,
@@ -101,9 +108,22 @@ export class UsersService {
       actorId,
       entityType: 'user',
       entityId: user.id,
-      metadata: { role: data.role },
+      metadata: { role: systemRole, customRoleKey },
     });
     return user;
+  }
+
+  /** Traduce (ruolo di sistema | ruolo personalizzato) in { systemRole, customRoleKey }. */
+  private async resolveRole(
+    role: Role,
+    customRoleKey?: string | null,
+  ): Promise<{ systemRole: Role; customRoleKey: string | null }> {
+    if (customRoleKey) {
+      const cr = await this.prisma.customRole.findUnique({ where: { key: customRoleKey } });
+      if (!cr) throw new NotFoundException('Ruolo personalizzato non trovato');
+      return { systemRole: cr.baseRole as Role, customRoleKey: cr.key };
+    }
+    return { systemRole: role, customRoleKey: null };
   }
 
   /** Assegna (o riassegna) coach e/o nutrizionista a una cliente. */
@@ -157,16 +177,27 @@ export class UsersService {
 
   async update(
     id: string,
-    data: { role?: Role; status?: 'active' | 'suspended'; locale?: string },
+    data: { role?: Role; customRoleKey?: string | null; status?: 'active' | 'suspended'; locale?: string },
     actorId: string,
   ) {
-    await this.getById(id); // 404 se non esiste
+    const current = await this.getById(id); // 404 se non esiste
+
+    // Se cambia il ruolo (di sistema o personalizzato) ricalcolo i due campi.
+    const roleChange =
+      data.role !== undefined || data.customRoleKey !== undefined
+        ? await this.resolveRole((data.role ?? current.role) as Role, data.customRoleKey)
+        : null;
+
     const user = await this.prisma.user.update({
       where: { id },
-      data,
+      data: {
+        ...(data.status !== undefined ? { status: data.status } : {}),
+        ...(data.locale !== undefined ? { locale: data.locale } : {}),
+        ...(roleChange ? { role: roleChange.systemRole, customRoleKey: roleChange.customRoleKey } : {}),
+      },
       select: PUBLIC_USER_SELECT,
     });
-    if (data.status === 'suspended' || data.role) {
+    if (data.status === 'suspended' || roleChange) {
       // Cambi di ruolo o sospensione: revoca le sessioni attive.
       await this.prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },

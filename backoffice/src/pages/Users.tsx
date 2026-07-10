@@ -3,20 +3,31 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, RoleChip, Spinner, StatusChip } from '../components/ui';
 import { ROLE_LABEL, STAFF_ROLES, type Role } from '../lib/labels';
+import { fetchRoles, type RoleInfo } from '../lib/roles';
 
 interface User {
   id: string;
   email: string;
   role: Role;
+  customRoleKey: string | null;
+  customRole: { key: string; label: string; color: string | null; baseRole: Role } | null;
   status: string;
   locale: string;
   createdAt: string;
+}
+
+/** Traduce la scelta di un ruolo (chiave) nel payload {role, customRoleKey}. */
+function rolePayload(selectedKey: string, roles: RoleInfo[]): { role: Role; customRoleKey: string | null } {
+  const info = roles.find((r) => r.key === selectedKey);
+  if (!info || info.isSystem) return { role: selectedKey as Role, customRoleKey: null };
+  return { role: info.baseRole, customRoleKey: info.key };
 }
 
 export function Users() {
   const { user: me, can, impersonate } = useAuth();
   const canManage = can('users', 'manage');
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -28,8 +39,12 @@ export function Users() {
     setError(null);
     try {
       const query = roleFilter ? `?role=${roleFilter}` : '?scope=staff';
-      const res = await api<{ items: User[] }>(`/admin/users${query}`);
+      const [res, roleList] = await Promise.all([
+        api<{ items: User[] }>(`/admin/users${query}`),
+        roles.length ? Promise.resolve(roles) : fetchRoles(),
+      ]);
       setUsers(res.items);
+      if (!roles.length) setRoles(roleList);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
     } finally {
@@ -42,10 +57,15 @@ export function Users() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleFilter]);
 
-  async function changeRole(u: User, role: Role) {
+  function effectiveKey(u: User): string {
+    return u.customRole?.key ?? u.role;
+  }
+
+  async function changeRole(u: User, selectedKey: string) {
     try {
-      await api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ role }) });
-      setNotice(`Ruolo di ${u.email} aggiornato a ${ROLE_LABEL[role]}.`);
+      await api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify(rolePayload(selectedKey, roles)) });
+      const label = roles.find((r) => r.key === selectedKey)?.label ?? selectedKey;
+      setNotice(`Ruolo di ${u.email} aggiornato a ${label}.`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Modifica non riuscita.');
@@ -100,7 +120,7 @@ export function Users() {
         {loading ? (
           <Spinner />
         ) : users.length === 0 ? (
-          <div className="empty">Nessun utente per questo filtro.</div>
+          <div className="empty">Nessun membro dello staff per questo filtro.</div>
         ) : (
           <table className="grid">
             <thead>
@@ -125,16 +145,27 @@ export function Users() {
                       {canManage && !isSelf ? (
                         <select
                           className="select"
-                          style={{ width: 175, padding: '6px 10px' }}
-                          value={u.role}
-                          onChange={(e) => changeRole(u, e.target.value as Role)}
+                          style={{ width: 185, padding: '6px 10px' }}
+                          value={effectiveKey(u)}
+                          onChange={(e) => changeRole(u, e.target.value)}
                         >
-                          {STAFF_ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {ROLE_LABEL[r]}
-                            </option>
-                          ))}
+                          <optgroup label="Ruoli di sistema">
+                            {roles.filter((r) => r.isSystem).map((r) => (
+                              <option key={r.key} value={r.key}>{r.label}</option>
+                            ))}
+                          </optgroup>
+                          {roles.some((r) => !r.isSystem) && (
+                            <optgroup label="Personalizzati">
+                              {roles.filter((r) => !r.isSystem).map((r) => (
+                                <option key={r.key} value={r.key}>{r.label}</option>
+                              ))}
+                            </optgroup>
+                          )}
                         </select>
+                      ) : u.customRole ? (
+                        <span className="chip" style={{ background: (u.customRole.color ?? '#6c5ab7') + '22', color: u.customRole.color ?? '#6c5ab7' }}>
+                          {u.customRole.label}
+                        </span>
                       ) : (
                         <RoleChip role={u.role} />
                       )}
@@ -167,6 +198,7 @@ export function Users() {
 
       {showCreate && (
         <CreateStaffModal
+          roles={roles}
           onClose={() => setShowCreate(false)}
           onCreated={(email) => {
             setShowCreate(false);
@@ -179,10 +211,10 @@ export function Users() {
   );
 }
 
-function CreateStaffModal({ onClose, onCreated }: { onClose: () => void; onCreated: (email: string) => void }) {
+function CreateStaffModal({ roles, onClose, onCreated }: { roles: RoleInfo[]; onClose: () => void; onCreated: (email: string) => void }) {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<Role>('coach');
+  const [roleKey, setRoleKey] = useState<string>('coach');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -195,9 +227,10 @@ function CreateStaffModal({ onClose, onCreated }: { onClose: () => void; onCreat
     }
     setBusy(true);
     try {
+      const { role, customRoleKey } = rolePayload(roleKey, roles);
       await api('/admin/users', {
         method: 'POST',
-        body: JSON.stringify({ email: email.trim(), password, role, displayName: displayName.trim() || undefined }),
+        body: JSON.stringify({ email: email.trim(), password, role, customRoleKey: customRoleKey ?? undefined, displayName: displayName.trim() || undefined }),
       });
       onCreated(email.trim());
     } catch (err) {
@@ -221,12 +254,19 @@ function CreateStaffModal({ onClose, onCreated }: { onClose: () => void; onCreat
       </div>
       <div className="field">
         <label>Ruolo</label>
-        <select className="select" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-          {STAFF_ROLES.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABEL[r]}
-            </option>
-          ))}
+        <select className="select" value={roleKey} onChange={(e) => setRoleKey(e.target.value)}>
+          <optgroup label="Ruoli di sistema">
+            {roles.filter((r) => r.isSystem).map((r) => (
+              <option key={r.key} value={r.key}>{r.label}</option>
+            ))}
+          </optgroup>
+          {roles.some((r) => !r.isSystem) && (
+            <optgroup label="Personalizzati">
+              {roles.filter((r) => !r.isSystem).map((r) => (
+                <option key={r.key} value={r.key}>{r.label}</option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </div>
       <div className="field">

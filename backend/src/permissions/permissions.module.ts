@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { RolesModule } from '../roles/roles.module';
 import {
   AdminPermissionsController,
   MePermissionsController,
@@ -6,6 +7,7 @@ import {
 import { PermissionsService } from './permissions.service';
 
 @Module({
+  imports: [RolesModule],
   controllers: [AdminPermissionsController, MePermissionsController],
   providers: [PermissionsService],
   exports: [PermissionsService],

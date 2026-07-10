@@ -1,14 +1,13 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
-import { Role, ROLES } from '../common/roles';
 import { PermissionsService } from './permissions.service';
 
 class UpdatePermissionDto {
-  @IsIn(ROLES as readonly string[])
-  role!: Role;
+  @IsString()
+  role!: string; // ruolo di sistema o chiave di un ruolo personalizzato (validato nel service)
 
   @IsString()
   pageKey!: string;
@@ -42,9 +41,10 @@ export class AdminPermissionsController {
 export class MePermissionsController {
   constructor(private readonly permissions: PermissionsService) {}
 
-  /** Il frontend costruisce menu e viste del backoffice da questa risposta. */
+  /** Il frontend costruisce menu e viste del backoffice dal ruolo EFFETTIVO. */
   @Get()
   mine(@CurrentUser() user: AuthUser) {
-    return this.permissions.getForRole(user.role);
+    const effectiveRole = user.customRoleKey ?? user.role;
+    return this.permissions.getForRole(effectiveRole);
   }
 }

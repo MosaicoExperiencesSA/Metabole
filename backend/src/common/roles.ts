@@ -12,3 +12,20 @@ export const ROLES = [
 ] as const;
 
 export type Role = (typeof ROLES)[number];
+
+/** Ruoli assegnabili allo staff (il cliente si registra da sé, non si assegna). */
+export const STAFF_ROLES: Role[] = ['coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin'];
+
+/** Etichette leggibili dei ruoli di sistema (per liste e matrice permessi). */
+export const SYSTEM_ROLE_LABELS: Record<Role, string> = {
+  client: 'Cliente',
+  coach: 'Coach',
+  nutritionist: 'Nutrizionista',
+  head_nutritionist: 'Capo nutrizionista',
+  sales: 'Commerciale',
+  admin: 'Admin',
+};
+
+export function isSystemRole(value: string): value is Role {
+  return (ROLES as readonly string[]).includes(value);
+}

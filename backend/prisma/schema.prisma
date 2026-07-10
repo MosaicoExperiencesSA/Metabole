@@ -223,6 +223,8 @@ model User {
   email           String     @unique
   passwordHash    String     @map("password_hash")
   role            Role       @default(client)
+  customRoleKey   String?    @map("custom_role_key") // ruolo personalizzato (etichetta+menu); il ruolo di sistema resta in `role`
+  customRole      CustomRole? @relation(fields: [customRoleKey], references: [key], onDelete: SetNull)
   locale          String     @default("it")
   status          UserStatus @default(active)
   emailVerifiedAt DateTime?  @map("email_verified_at")
@@ -946,8 +948,24 @@ model ConfigParam {
 
 // Matrice permessi del backoffice: ruolo × sezione → vede / gestisce.
 // I default arrivano dal seed (specifica sez. 4); l'admin li modifica a runtime.
+// Ruoli personalizzati: etichetta + colore + ruolo di sistema di base (da cui
+// ereditano i permessi reali). Aggiunti/rimossi dall'admin dal backoffice.
+model CustomRole {
+  key         String   @id
+  label       String
+  color       String?
+  baseRole    Role     @map("base_role")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+
+  @@map("custom_role")
+}
+
 model RolePagePermission {
-  role        Role
+  role        String // ruolo di sistema o chiave di un ruolo personalizzato
   pageKey     String   @map("page_key")
   canView     Boolean  @default(false) @map("can_view")
   canManage   Boolean  @default(false) @map("can_manage")

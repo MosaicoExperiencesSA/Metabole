@@ -33,6 +33,7 @@ const NAV: { group: string; items: { key: string; label: string; to: string; ico
     group: 'Amministrazione',
     items: [
       { key: 'users', label: 'Utenti', to: '/utenti', icon: 'ti-id-badge-2' },
+      { key: 'permissions', label: 'Ruoli', to: '/ruoli', icon: 'ti-shield-half' },
       { key: 'permissions', label: 'Permessi', to: '/permessi', icon: 'ti-lock-cog' },
       { key: 'engine_config', label: 'Parametri', to: '/parametri', icon: 'ti-adjustments' },
       { key: 'audit_logs', label: 'Log attività', to: '/log', icon: 'ti-history' },
