@@ -35,6 +35,17 @@ function isFilled(v: unknown): boolean {
   return true;
 }
 
+/** Messaggio d'errore per un campo numerico fuori dall'intervallo consentito. */
+function fieldIssue(f: Field, v: unknown): string | null {
+  if (f.type !== 'number' || !isFilled(v)) return null;
+  const n = Number(v);
+  const name = f.label ?? 'Valore';
+  if (Number.isNaN(n)) return `${name}: valore non valido`;
+  if (f.min != null && n < f.min) return `${name}: minimo ${f.min}`;
+  if (f.max != null && n > f.max) return `${name}: massimo ${f.max}`;
+  return null;
+}
+
 function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) if (v !== undefined && v !== null && v !== '') out[k] = v;
@@ -145,7 +156,12 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   }
 
   const activePage = cur && (cur.t === 'page' || cur.t === 'theme') ? cur.page : null;
-  const pageValid = !activePage || activePage.fields.every((f) => !f.required || isFilled(answers[f.key]));
+  // Controllo intervalli (min/max) per dare un messaggio chiaro qui, non un errore del backend alla fine.
+  const rangeIssue = activePage
+    ? activePage.fields.map((f) => (isFilled(answers[f.key]) ? fieldIssue(f, answers[f.key]) : null)).find(Boolean) ?? null
+    : null;
+  const requiredMissing = activePage ? activePage.fields.some((f) => f.required && !isFilled(answers[f.key])) : false;
+  const pageValid = !rangeIssue && !requiredMissing;
 
   function next() {
     if (activePage && !pageValid) return;
@@ -310,6 +326,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                   .map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)
               )}
             </div>
+            {rangeIssue && <p className="field-issue">{rangeIssue}</p>}
             <div className="onb-nav">
               <button className="btn ghost" onClick={back}>Indietro</button>
               <button className="btn" onClick={next} disabled={!pageValid}>Avanti</button>

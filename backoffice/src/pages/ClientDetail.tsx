@@ -33,6 +33,10 @@ const L: Record<string, Record<string, string>> = {
   pathType: { classic3: '3 pasti', five: '5 pasti', supplements: 'Con integratori', intermittent_fasting: 'Digiuno intermittente' },
   coachStyle: { daily: 'Contatto quotidiano', when_needed: 'Quando serve', on_request: 'Su richiesta' },
   character: { follows: 'Segue bene', needs_push: 'Va spronata', perseveres: 'Persevera', quits: 'Molla facilmente' },
+  work: { sedentary: 'Sedentario', standing: 'In piedi', shifts: 'Turni', travel: 'Viaggia spesso' },
+  cookingTime: { very_little: 'Pochissimo', some: "Un po'", love_cooking: 'Ama cucinare' },
+  weekdayLunch: { home: 'Da casa', canteen: 'Mensa', out: 'Fuori', on_the_go: 'Al volo' },
+  yesno: { no: 'No', yes: 'Sì', tell_in_visit: 'Lo dirà in visita' },
   payStatus: { pending: 'In attesa', receipt_uploaded: 'Contabile caricata', approved: 'Approvato', rejected: 'Rifiutato' },
   subStatus: { pending: 'In attesa', active: 'Attivo', paused: 'In pausa', expired: 'Scaduto', cancelled: 'Annullato' },
   method: { bank_transfer: 'Bonifico', card: 'Carta' },
@@ -337,18 +341,48 @@ export function ClientDetail() {
           <p className="muted">La cliente non ha ancora completato il questionario.</p>
         ) : (
           <>
+            <Row label="Nome" value={p.name ?? '—'} />
             <Row label="Età" value={p.age ?? '—'} />
             <Row label="Sesso" value={lab('sex', p.sex)} />
             <Row label="Altezza" value={p.heightCm ? `${p.heightCm} cm` : '—'} />
             <Row label="Peso di partenza" value={p.startWeightKg ? `${p.startWeightKg} kg` : '—'} />
+            <Row label="Vita" value={p.startWaistCm ? `${p.startWaistCm} cm` : '—'} />
+            <Row label="Fianchi" value={p.startHipsCm ? `${p.startHipsCm} cm` : '—'} />
             <Row label="Regime" value={lab('regime', p.regime)} />
             <Row label="Stile alimentare" value={lab('dietStyle', p.dietStyle)} />
             <Row label="Pasti al giorno" value={p.mealsPerDay ?? '—'} />
             <Row label="Percorso" value={lab('pathType', p.pathType)} />
+            <Row label="Lavoro" value={lab('work', p.lifestyle?.work)} />
+            <Row label="Tempo per cucinare" value={lab('cookingTime', p.lifestyle?.cookingTime)} />
+            <Row label="Pranzo nei feriali" value={lab('weekdayLunch', p.lifestyle?.weekdayLunch)} />
             <Row label="Stile coach" value={lab('coachStyle', p.coachStyle)} />
             <Row label="Carattere" value={lab('character', p.character)} />
             <Row label="Intolleranze" value={p.intolerances?.length ? p.intolerances.join(', ') : 'Nessuna'} />
             <Row label="Cibi non graditi" value={p.dislikedFoods?.length ? p.dislikedFoods.join(', ') : 'Nessuno'} />
+            <Row label="Patologie" value={lab('yesno', p.onboardingAnswers?.health?.hasConditions)} />
+            <Row label="Farmaci" value={lab('yesno', p.onboardingAnswers?.health?.takesMedications)} />
+            <Row
+              label="Periodi senza dieta"
+              value={
+                Array.isArray(p.consents?.pausePeriods) && p.consents.pausePeriods.length
+                  ? p.consents.pausePeriods.map((r: { start?: string; end?: string }) => `${date(r.start) } – ${date(r.end)}`).join(' · ')
+                  : 'Nessuno'
+              }
+            />
+            <Row
+              label="Colore app"
+              value={
+                p.themeColor ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 16, height: 16, borderRadius: 4, background: p.themeColor, border: '1px solid var(--line)' }} />
+                    {p.themeColor}
+                  </span>
+                ) : (
+                  '—'
+                )
+              }
+            />
+            <Row label="Percorso supervisionato" value={p.screeningFlag ? 'Sì (screening sanitario)' : 'No'} />
             <Row label="Data inizio piano" value={date(p.planStartDate)} />
           </>
         )}

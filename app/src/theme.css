@@ -196,6 +196,8 @@ p { line-height: 1.5; }
 /* griglia a due colonne (Chi sei / Punto di partenza) */
 .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+.field-issue { color: #b3261e; font-size: 13px; font-weight: 600; margin: 8px 0 0; }
+
 /* obiettivo con slider */
 .obj-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .obj-row label { font-size: 13px; color: var(--muted); flex: 1; }
