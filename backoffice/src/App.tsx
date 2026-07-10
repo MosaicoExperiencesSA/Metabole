@@ -9,6 +9,7 @@ import { Calendar } from './pages/Calendar';
 import { ClientDetail } from './pages/ClientDetail';
 import { LeadForm } from './pages/LeadForm';
 import { LeadsTable } from './pages/LeadsTable';
+import { Parametri } from './pages/Parametri';
 import { Payments } from './pages/Payments';
 import { Permissions } from './pages/Permissions';
 import { Pipeline } from './pages/Pipeline';
@@ -58,7 +59,7 @@ export default function App() {
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Placeholder title="Compensi staff" icon="ti-coin" /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Placeholder title="Catalogo diete" icon="ti-salad" /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Placeholder title="Protocolli motore" icon="ti-cpu" /></Protected>} />
-      <Route path="/parametri" element={<Protected title="Parametri motore" pageKey="engine_config"><Placeholder title="Parametri motore" icon="ti-adjustments" note="Qui potrai modificare le soglie del motore e gli estremi del bonifico." /></Protected>} />
+      <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />
       <Route path="/log" element={<Protected title="Log attività" pageKey="audit_logs"><Placeholder title="Log attività" icon="ti-history" /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
