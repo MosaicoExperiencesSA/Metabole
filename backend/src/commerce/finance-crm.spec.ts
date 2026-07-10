@@ -24,7 +24,12 @@ describe('FinanceService (eventi economici automatici)', () => {
         findMany: jest.fn(),
       },
       clientProfile: {
-        findUnique: jest.fn().mockResolvedValue({ assignedCoachId: 'staff-c', assignedNutritionistId: 'staff-n' }),
+        findUnique: jest.fn().mockResolvedValue({
+          assignedCoachId: 'staff-c',
+          assignedNutritionistId: 'staff-n',
+          assignedCoach: { managerId: 'staff-mc' },
+          assignedNutritionist: { managerId: 'staff-hn' },
+        }),
       },
     };
     const moduleRef = await Test.createTestingModule({
@@ -36,7 +41,13 @@ describe('FinanceService (eventi economici automatici)', () => {
           useValue: {
             getNumber: jest.fn((key: string) =>
               Promise.resolve(
-                ({ commission_coach_percent: 10, commission_nutritionist_percent: 15, visit_compensation_amount_cents: 4000 } as Record<string, number>)[key],
+                ({
+                  commission_coach_percent: 10,
+                  commission_manager_coach_percent: 3,
+                  commission_nutritionist_percent: 15,
+                  commission_head_nutritionist_percent: 5,
+                  visit_compensation_amount_cents: 4000,
+                } as Record<string, number>)[key],
               ),
             ),
           },
@@ -46,17 +57,33 @@ describe('FinanceService (eventi economici automatici)', () => {
     service = moduleRef.get(FinanceService);
   });
 
-  it('provvigioni: 10% coach + 15% nutrizionista, aggregate per periodo + expense a ledger', async () => {
+  it('provvigioni a catena: coach 10% + manager 3% + nutrizionista 15% + capo 5%, expense a ledger', async () => {
     await service.generateCommissions({ id: 'pay-1', clientId: 'c1', amountCents: 29700 });
     const upserts = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create);
     expect(upserts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ staffId: 'staff-c', amountCents: 2970 }),
+        expect.objectContaining({ staffId: 'staff-mc', amountCents: 891 }),
         expect.objectContaining({ staffId: 'staff-n', amountCents: 4455 }),
+        expect.objectContaining({ staffId: 'staff-hn', amountCents: 1485 }),
       ]),
     );
     const ledger = prisma.ledgerEntry.create.mock.calls.map((c: any) => c[0].data);
     expect(ledger.every((l: any) => l.type === 'expense' && l.category === 'sales_commission')).toBe(true);
+  });
+
+  it('provvigioni: senza responsabile paga solo coach e nutrizionista', async () => {
+    prisma.clientProfile.findUnique.mockResolvedValueOnce({
+      assignedCoachId: 'staff-c',
+      assignedNutritionistId: 'staff-n',
+      assignedCoach: { managerId: null },
+      assignedNutritionist: { managerId: null },
+    });
+    await service.generateCommissions({ id: 'pay-2', clientId: 'c1', amountCents: 10000 });
+    const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
+    expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-n']));
+    expect(staffIds).not.toContain('staff-mc');
+    expect(staffIds).not.toContain('staff-hn');
   });
 
   it('compenso visita: 40€ alla nutrizionista con expense a ledger', async () => {

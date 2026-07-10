@@ -14,6 +14,7 @@ interface User {
   status: string;
   locale: string;
   createdAt: string;
+  staff: { id: string; displayName: string; managerId: string | null } | null;
 }
 
 /** Traduce la scelta di un ruolo (chiave) nel payload {role, customRoleKey}. */
@@ -67,6 +68,16 @@ export function Users() {
       const label = roles.find((r) => r.key === selectedKey)?.label ?? selectedKey;
       setNotice(`Ruolo di ${u.email} aggiornato a ${label}.`);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Modifica non riuscita.');
+    }
+  }
+
+  async function changeManager(u: User, managerStaffId: string) {
+    try {
+      await api(`/admin/users/${u.id}/manager`, { method: 'PATCH', body: JSON.stringify({ managerId: managerStaffId || null }) });
+      setUsers((us) => us.map((x) => (x.id === u.id && x.staff ? { ...x, staff: { ...x.staff, managerId: managerStaffId || null } } : x)));
+      setNotice(`Responsabile di ${u.email} aggiornato.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Modifica non riuscita.');
     }
@@ -127,6 +138,7 @@ export function Users() {
               <tr>
                 <th>Email</th>
                 <th>Ruolo</th>
+                <th>Responsabile</th>
                 <th>Stato</th>
                 <th>Lingua</th>
                 <th style={{ textAlign: 'right' }}>Azioni</th>
@@ -168,6 +180,26 @@ export function Users() {
                         </span>
                       ) : (
                         <RoleChip role={u.role} />
+                      )}
+                    </td>
+                    <td>
+                      {canManage && u.staff ? (
+                        <select
+                          className="select"
+                          style={{ width: 170, padding: '6px 10px' }}
+                          value={u.staff.managerId ?? ''}
+                          onChange={(e) => changeManager(u, e.target.value)}
+                          title="Responsabile diretto (manager coach / capo nutrizionista)"
+                        >
+                          <option value="">— nessuno —</option>
+                          {users.filter((x) => x.staff && x.staff.id !== u.staff!.id).map((x) => (
+                            <option key={x.staff!.id} value={x.staff!.id}>{x.staff!.displayName}</option>
+                          ))}
+                        </select>
+                      ) : u.staff?.managerId ? (
+                        <span className="muted">{users.find((x) => x.staff?.id === u.staff!.managerId)?.staff?.displayName ?? '—'}</span>
+                      ) : (
+                        <span className="muted">—</span>
                       )}
                     </td>
                     <td>

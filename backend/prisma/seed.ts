@@ -137,10 +137,22 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Provvigione della coach sugli acquisti approvati (%)',
   },
   {
+    key: 'commission_manager_coach_percent',
+    value: '3',
+    type: 'number',
+    description: 'Provvigione della manager coach (responsabile della coach assegnata) sugli acquisti approvati (%)',
+  },
+  {
     key: 'commission_nutritionist_percent',
     value: '15',
     type: 'number',
     description: 'Provvigione della nutrizionista sugli acquisti approvati (%)',
+  },
+  {
+    key: 'commission_head_nutritionist_percent',
+    value: '5',
+    type: 'number',
+    description: 'Provvigione del capo nutrizionista (responsabile della nutrizionista assegnata) sugli acquisti approvati (%)',
   },
   {
     key: 'visit_compensation_amount_cents',

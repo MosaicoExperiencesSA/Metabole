@@ -64,39 +64,48 @@ export class FinanceService {
     });
   }
 
-  /** Provvigioni all'approvazione di un pagamento (percentuali da config). */
+  /**
+   * Provvigioni all'approvazione di un pagamento (percentuali da config).
+   * La catena: una quota alla coach + una alla sua responsabile (manager coach),
+   * una quota alla nutrizionista + una al suo capo (capo nutrizionista).
+   * Il "responsabile" di ogni membro è Staff.managerId (impostato dall'admin).
+   */
   async generateCommissions(payment: { id: string; clientId: string; amountCents: number }) {
-    const [coachPct, nutriPct, profile] = await Promise.all([
+    const [coachPct, managerCoachPct, nutriPct, headNutriPct, profile] = await Promise.all([
       this.configParams.getNumber('commission_coach_percent', 10),
+      this.configParams.getNumber('commission_manager_coach_percent', 0),
       this.configParams.getNumber('commission_nutritionist_percent', 15),
+      this.configParams.getNumber('commission_head_nutritionist_percent', 0),
       this.prisma.clientProfile.findUnique({
         where: { userId: payment.clientId },
-        select: { assignedCoachId: true, assignedNutritionistId: true },
+        select: {
+          assignedCoachId: true,
+          assignedNutritionistId: true,
+          assignedCoach: { select: { managerId: true } },
+          assignedNutritionist: { select: { managerId: true } },
+        },
       }),
     ]);
+    if (!profile) return;
+
     const jobs: Promise<unknown>[] = [];
-    if (profile?.assignedCoachId && coachPct > 0) {
+    const pay = (staffId: string | null | undefined, pct: number | null | undefined) => {
+      if (!staffId || !pct || pct <= 0) return;
       jobs.push(
         this.creditStaff({
-          staffId: profile.assignedCoachId,
-          amountCents: Math.round((payment.amountCents * coachPct) / 100),
+          staffId,
+          amountCents: Math.round((payment.amountCents * pct) / 100),
           kind: 'sales_commission',
           ref: payment.id,
           clientId: payment.clientId,
         }),
       );
-    }
-    if (profile?.assignedNutritionistId && nutriPct > 0) {
-      jobs.push(
-        this.creditStaff({
-          staffId: profile.assignedNutritionistId,
-          amountCents: Math.round((payment.amountCents * nutriPct) / 100),
-          kind: 'sales_commission',
-          ref: payment.id,
-          clientId: payment.clientId,
-        }),
-      );
-    }
+    };
+
+    pay(profile.assignedCoachId, coachPct);
+    pay(profile.assignedCoach?.managerId, managerCoachPct);
+    pay(profile.assignedNutritionistId, nutriPct);
+    pay(profile.assignedNutritionist?.managerId, headNutriPct);
     await Promise.all(jobs);
   }
 

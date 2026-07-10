@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -19,6 +20,7 @@ const PUBLIC_USER_SELECT = {
   emailVerifiedAt: true,
   createdAt: true,
   updatedAt: true,
+  staff: { select: { id: true, displayName: true, managerId: true } },
 } as const;
 
 @Injectable()
@@ -80,6 +82,28 @@ export class UsersService {
     const prefs = { ...((u.prefs as Record<string, unknown> | null) ?? {}), dashboardShortcuts: clean };
     await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
     return { dashboardShortcuts: clean };
+  }
+
+  /** Imposta (o rimuove) il responsabile diretto di un membro dello staff. */
+  async setManager(userId: string, managerStaffId: string | null, actorId: string) {
+    const staff = await this.prisma.staff.findUnique({ where: { userId }, select: { id: true } });
+    if (!staff) throw new BadRequestException('Questo utente non è un membro dello staff.');
+    if (managerStaffId) {
+      if (managerStaffId === staff.id) {
+        throw new BadRequestException('Una persona non può essere responsabile di sé stessa.');
+      }
+      const manager = await this.prisma.staff.findUnique({ where: { id: managerStaffId }, select: { id: true } });
+      if (!manager) throw new NotFoundException('Responsabile non trovato.');
+    }
+    await this.prisma.staff.update({ where: { id: staff.id }, data: { managerId: managerStaffId } });
+    await this.audit.log({
+      action: 'admin.staff.manager',
+      actorId,
+      entityType: 'staff',
+      entityId: staff.id,
+      metadata: { managerId: managerStaffId },
+    });
+    return this.getById(userId);
   }
 
   private static readonly STAFF_ROLES: Role[] = [

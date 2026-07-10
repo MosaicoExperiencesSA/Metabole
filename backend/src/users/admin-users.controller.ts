@@ -7,6 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { IsOptional, IsString } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -14,6 +15,12 @@ import { Role } from '../common/roles';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+
+class SetManagerDto {
+  @IsOptional()
+  @IsString()
+  managerId?: string | null;
+}
 
 @Controller('admin/users')
 @Roles('admin')
@@ -52,5 +59,15 @@ export class AdminUsersController {
     @CurrentUser() actor: AuthUser,
   ) {
     return this.users.update(id, dto, actor.sub);
+  }
+
+  /** Imposta il responsabile diretto (manager coach / capo nutrizionista). */
+  @Patch(':id/manager')
+  setManager(
+    @Param('id') id: string,
+    @Body() dto: SetManagerDto,
+    @CurrentUser() actor: AuthUser,
+  ) {
+    return this.users.setManager(id, dto.managerId ?? null, actor.sub);
   }
 }

@@ -266,6 +266,11 @@ model Staff {
   headNutritionistId  String?  @map("head_nutritionist_id")
   headNutritionist    Staff?   @relation("NutritionistTeam", fields: [headNutritionistId], references: [id], onDelete: SetNull)
   teamMembers         Staff[]  @relation("NutritionistTeam")
+  // Responsabile diretto (un livello sopra) per le provvigioni di catena:
+  // per una coach è la manager coach, per un nutrizionista il capo nutrizionista.
+  managerId           String?  @map("manager_id")
+  manager             Staff?   @relation("StaffManager", fields: [managerId], references: [id], onDelete: SetNull)
+  reports             Staff[]  @relation("StaffManager")
   active              Boolean  @default(true)
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
