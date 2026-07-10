@@ -490,6 +490,7 @@ async function main(): Promise<void> {
   await seedProtocols();
   await seedCommerce();
   await backfillPaidClientsIntoCrm();
+  await backfillCoachRefCodes();
   await seedEmailTemplates();
   const count = await prisma.configParam.count();
   const permCount = await prisma.rolePagePermission.count();
@@ -527,6 +528,23 @@ async function backfillPaidClientsIntoCrm(): Promise<void> {
     created++;
   }
   if (created) console.log(`Seed: inseriti ${created} clienti paganti nel CRM (backfill).`);
+}
+
+/** Genera un ref code per le coach che non ne hanno uno. */
+async function backfillCoachRefCodes(): Promise<void> {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const code = () => Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+  const coaches = await prisma.staff.findMany({ where: { refCode: null, user: { role: 'coach' } }, select: { id: true } });
+  for (const c of coaches) {
+    let ref = code();
+    for (let i = 0; i < 8; i++) {
+      const exists = await prisma.staff.findUnique({ where: { refCode: ref } });
+      if (!exists) break;
+      ref = code();
+    }
+    await prisma.staff.update({ where: { id: c.id }, data: { refCode: ref } });
+  }
+  if (coaches.length) console.log(`Seed: generati ${coaches.length} ref code coach.`);
 }
 
 /**

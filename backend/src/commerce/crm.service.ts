@@ -74,6 +74,7 @@ export class CrmService {
       orderBy: { updatedAt: 'desc' },
       include: {
         owner: { select: { displayName: true } },
+        assignedCoach: { select: { id: true, displayName: true } },
         client: {
           select: {
             email: true,

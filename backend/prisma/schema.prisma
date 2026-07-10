@@ -264,6 +264,7 @@ model Staff {
   displayName         String   @map("display_name")
   specialties         String[] @default([])
   bio                 String?
+  refCode             String?  @unique @map("ref_code") // codice di riferimento della coach
   headNutritionistId  String?  @map("head_nutritionist_id")
   headNutritionist    Staff?   @relation("NutritionistTeam", fields: [headNutritionistId], references: [id], onDelete: SetNull)
   teamMembers         Staff[]  @relation("NutritionistTeam")
@@ -288,6 +289,8 @@ model Staff {
   clinicalNotes         ClinicalNote[]  @relation("NoteAuthor")
   approvedPayments      Payment[]       @relation("PaymentApprover")
   ownedLeads            CrmRecord[]     @relation("LeadOwner")
+  coachLeads            CrmRecord[]     @relation("LeadCoach")
+  assignedLeads         CrmRecord[]     @relation("LeadAssigner")
   compensations         StaffCompensation[] @relation("CompensationStaff")
   authoredClientNotes   ClientNote[]        @relation("ClientNoteAuthor")
 
@@ -484,11 +487,19 @@ model CrmRecord {
   ownerId    String?  @map("owner_id")
   owner      Staff?   @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   valueCents Int?     @map("value_cents")
+  // Assegnazione alla coach con accettazione (2 giorni), oppure diretta via ref code.
+  assignedCoachId  String?   @map("assigned_coach_id")
+  assignedCoach    Staff?    @relation("LeadCoach", fields: [assignedCoachId], references: [id], onDelete: SetNull)
+  assignmentStatus String?   @map("assignment_status") // pending | accepted
+  assignedAt       DateTime? @map("assigned_at")
+  assignedById     String?   @map("assigned_by_id")
+  assignedBy       Staff?    @relation("LeadAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
   reminders  CrmReminder[]
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([stage])
+  @@index([assignedCoachId, assignmentStatus])
   @@map("crm_record")
 }
 

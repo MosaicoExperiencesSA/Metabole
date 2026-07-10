@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
+import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { EngineService } from '../engine/engine.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CronController } from './cron.controller';
@@ -19,6 +20,7 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: EngineService, useValue: engine },
         { provide: NotificationsService, useValue: notifications },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: LeadAssignmentService, useValue: { expireStale: jest.fn().mockResolvedValue({ expired: 0 }) } },
       ],
     }).compile();
     controller = moduleRef.get(CronController);

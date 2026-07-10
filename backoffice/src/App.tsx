@@ -9,6 +9,7 @@ import { Acquisti } from './pages/Acquisti';
 import { BuoniSconto } from './pages/BuoniSconto';
 import { Calendar } from './pages/Calendar';
 import { ClientDetail } from './pages/ClientDetail';
+import { LeadDaAccettare } from './pages/LeadDaAccettare';
 import { LeadForm } from './pages/LeadForm';
 import { LeadsTable } from './pages/LeadsTable';
 import { LogEmail } from './pages/LogEmail';
@@ -58,6 +59,7 @@ export default function App() {
       <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_leads"><LeadForm /></Protected>} />
       <Route path="/crm/pipeline" element={<Protected title="Pipeline" pageKey="crm_leads"><Pipeline /></Protected>} />
       <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_leads"><Calendar /></Protected>} />
+      <Route path="/crm/da-accettare" element={<Protected title="Lead da accettare" pageKey="crm_leads"><LeadDaAccettare /></Protected>} />
       <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Placeholder title="Agenda visite" icon="ti-calendar" /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Placeholder title="Segnalazioni" icon="ti-alert-triangle" /></Protected>} />
       <Route path="/acquisti" element={<Protected title="Acquisti" pageKey="accounting"><Acquisti /></Protected>} />

@@ -30,6 +30,7 @@ const NAV: NavSection[] = [
       { key: 'crm_leads', label: 'Gestione lead', to: '/crm/gestione', icon: 'ti-list-details' },
       { key: 'crm_leads', label: 'Inserimento lead', to: '/crm/inserimento', icon: 'ti-user-plus' },
       { key: 'crm_leads', label: 'Pipeline', to: '/crm/pipeline', icon: 'ti-layout-kanban' },
+      { key: 'crm_leads', label: 'Lead da accettare', to: '/crm/da-accettare', icon: 'ti-user-check' },
       { key: 'crm_leads', label: 'Calendario', to: '/crm/calendario', icon: 'ti-calendar-event' },
     ],
   },

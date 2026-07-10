@@ -107,6 +107,22 @@ export class NotificationsService {
     return true;
   }
 
+  /** Notifica diretta (eventi, es. assegnazione lead): niente dedup giornaliero. */
+  async notify(input: { userId: string; type: string; title: string; body: string; payload?: Record<string, unknown> }): Promise<void> {
+    const recipient = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { id: true } });
+    if (!recipient) return;
+    await this.prisma.notification.create({
+      data: {
+        userId: input.userId,
+        type: input.type,
+        payload: { title: input.title, body: input.body, ...(input.payload ?? {}) } as never,
+        channel: 'inapp',
+        scheduledFor: new Date(),
+        sentAt: new Date(),
+      },
+    });
+  }
+
   async listForUser(userId: string, unreadOnly = false) {
     return this.prisma.notification.findMany({
       where: { userId, ...(unreadOnly ? { readAt: null } : {}) },

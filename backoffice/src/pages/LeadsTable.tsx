@@ -19,8 +19,12 @@ interface Lead {
   valueCents: number | null;
   createdAt: string;
   owner: { displayName: string } | null;
+  assignedCoachId: string | null;
+  assignedCoach: { id: string; displayName: string } | null;
+  assignmentStatus: string | null; // pending | accepted
   client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null } | null;
 }
+interface Coach { id: string; displayName: string }
 
 function euro(cents: number | null): string {
   return cents == null ? '—' : '€ ' + (cents / 100).toFixed(2).replace('.', ',');
@@ -33,9 +37,22 @@ export function LeadsTable() {
   const { impersonate } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
+  const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+
+  async function assignCoach(l: Lead, coachStaffId: string) {
+    if (!coachStaffId) return;
+    setError(null);
+    try {
+      await api(`/crm/leads/${l.id}/assign-coach`, { method: 'POST', body: JSON.stringify({ coachStaffId }) });
+      const coach = coaches.find((c) => c.id === coachStaffId) ?? null;
+      setLeads((ls) => ls.map((x) => (x.id === l.id ? { ...x, assignedCoachId: coachStaffId, assignmentStatus: 'pending', assignedCoach: coach } : x)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Assegnazione non riuscita.');
+    }
+  }
 
   async function doImpersonate(l: Lead) {
     if (!l.clientId) return;
@@ -53,6 +70,7 @@ export function LeadsTable() {
       const [ls, st] = await Promise.all([api<Lead[]>('/crm/leads'), api<Stage[]>('/crm/stages')]);
       setLeads(ls);
       setStages(st);
+      try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
     } finally {
@@ -139,7 +157,23 @@ export function LeadsTable() {
                         {!st && <option value={l.stage}>{l.stage} (stato rimosso)</option>}
                       </select>
                     </td>
-                    <td className="muted">{l.client?.clientProfile?.assignedCoach?.displayName ?? '—'}</td>
+                    <td>
+                      <select
+                        className="select"
+                        style={{ width: 150, padding: '6px 10px' }}
+                        value={l.assignedCoachId ?? ''}
+                        onChange={(e) => assignCoach(l, e.target.value)}
+                        title="Assegna la coach (dovrà accettare entro 2 giorni)"
+                      >
+                        <option value="">— assegna —</option>
+                        {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+                        {l.assignedCoachId && !coaches.some((c) => c.id === l.assignedCoachId) && (
+                          <option value={l.assignedCoachId}>{l.assignedCoach?.displayName ?? 'Coach'}</option>
+                        )}
+                      </select>
+                      {l.assignmentStatus === 'pending' && <div><span className="chip amber" style={{ fontSize: 10, marginTop: 3 }}>in attesa</span></div>}
+                      {l.assignmentStatus === 'accepted' && <div><span className="chip" style={{ fontSize: 10, marginTop: 3 }}>accettato</span></div>}
+                    </td>
                     <td className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</td>
                     <td>{euro(l.valueCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>

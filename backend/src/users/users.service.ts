@@ -22,7 +22,7 @@ const PUBLIC_USER_SELECT = {
   emailVerifiedAt: true,
   createdAt: true,
   updatedAt: true,
-  staff: { select: { id: true, displayName: true, managerId: true } },
+  staff: { select: { id: true, displayName: true, managerId: true, refCode: true } },
 } as const;
 
 @Injectable()

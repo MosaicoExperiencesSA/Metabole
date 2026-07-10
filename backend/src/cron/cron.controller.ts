@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AuditService } from '../audit/audit.service';
+import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { Public } from '../common/decorators/public.decorator';
 import { EngineService } from '../engine/engine.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -25,6 +26,7 @@ export class CronController {
     private readonly engine: EngineService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
+    private readonly leadAssignment: LeadAssignmentService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -41,10 +43,11 @@ export class CronController {
     this.assertSecret(secret);
     const engine = await this.engine.runBatch();
     const notifications = await this.notifications.generateDailyBatch();
+    const leadAssignments = await this.leadAssignment.expireStale();
     await this.audit.log({
       action: 'cron.daily',
-      metadata: { engine, notifications } as Record<string, unknown>,
+      metadata: { engine, notifications, leadAssignments } as Record<string, unknown>,
     });
-    return { engine, notifications };
+    return { engine, notifications, leadAssignments };
   }
 }

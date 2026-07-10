@@ -14,7 +14,7 @@ interface User {
   status: string;
   locale: string;
   createdAt: string;
-  staff: { id: string; displayName: string; managerId: string | null } | null;
+  staff: { id: string; displayName: string; managerId: string | null; refCode: string | null } | null;
 }
 
 /** Traduce la scelta di un ruolo (chiave) nel payload {role, customRoleKey}. */
@@ -70,6 +70,16 @@ export function Users() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Modifica non riuscita.');
+    }
+  }
+
+  async function generateRefCode(u: User) {
+    try {
+      const r = await api<{ refCode: string }>(`/crm/coaches/${u.id}/refcode`, { method: 'POST' });
+      setUsers((us) => us.map((x) => (x.id === u.id && x.staff ? { ...x, staff: { ...x.staff, refCode: r.refCode } } : x)));
+      setNotice(`Ref code di ${u.email}: ${r.refCode}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generazione non riuscita.');
     }
   }
 
@@ -139,6 +149,7 @@ export function Users() {
                 <th>Email</th>
                 <th>Ruolo</th>
                 <th>Responsabile</th>
+                <th>Ref code</th>
                 <th>Stato</th>
                 <th>Lingua</th>
                 <th style={{ textAlign: 'right' }}>Azioni</th>
@@ -198,6 +209,20 @@ export function Users() {
                         </select>
                       ) : u.staff?.managerId ? (
                         <span className="muted">{users.find((x) => x.staff?.id === u.staff!.managerId)?.staff?.displayName ?? '—'}</span>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {u.role === 'coach' && u.staff ? (
+                        <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                          {u.staff.refCode ? <code style={{ fontSize: 12 }}>{u.staff.refCode}</code> : <span className="muted" style={{ fontSize: 12 }}>—</span>}
+                          {canManage && (
+                            <button className="btn ghost sm" onClick={() => generateRefCode(u)} title={u.staff.refCode ? 'Rigenera codice' : 'Genera codice'}>
+                              {u.staff.refCode ? '↻' : 'Genera'}
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <span className="muted">—</span>
                       )}
