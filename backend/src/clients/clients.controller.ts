@@ -1,15 +1,15 @@
-import { Body, Controller, Get, HttpCode, Ip, Param, Post, Put } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { Body, Controller, Get, HttpCode, Ip, Param, Post } from '@nestjs/common';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ClientsService } from './clients.service';
 
-class SaveNoteDto {
-  @IsOptional()
+class AddNoteDto {
   @IsString()
+  @MinLength(1)
   @MaxLength(5000)
-  body?: string;
+  body!: string;
 }
 
 /** Scheda cliente (staff che gestisce i clienti). */
@@ -23,11 +23,11 @@ export class ClientsController {
     return this.clients.getDetail(id, user.sub);
   }
 
-  /** Salva la nota libera dello staff sul cliente. */
-  @HttpCode(200)
-  @Put(':id/note')
-  saveNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SaveNoteDto) {
-    return this.clients.saveNote(id, user.sub, dto.body ?? '');
+  /** Aggiunge una nota al log dello staff sul cliente. */
+  @HttpCode(201)
+  @Post(':id/note')
+  addNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddNoteDto) {
+    return this.clients.addNote(id, user.sub, dto.body);
   }
 
   /** Invio email di reset password alla cliente: solo admin. */

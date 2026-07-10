@@ -172,6 +172,22 @@ a {
 .card + .card {
   margin-top: 18px;
 }
+/* Riga di due moduli affiancati con la stessa spaziatura verticale delle card. */
+.card-row {
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.card-row > .card {
+  flex: 1;
+  min-width: 280px;
+  margin-top: 0;
+}
+.card-row + .card {
+  margin-top: 18px;
+}
 .card h2 {
   font-size: 16px;
   margin: 0 0 4px;

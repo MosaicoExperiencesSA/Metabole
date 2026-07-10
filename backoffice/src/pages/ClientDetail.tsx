@@ -15,7 +15,7 @@ interface Detail {
   subscription: any | null;
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string; approvedAt: string | null }[];
   crm: { stage: string; valueCents: number | null } | null;
-  note: { body: string; updatedAt: string; updatedBy: string | null } | null;
+  notes: { id: string; body: string; createdAt: string; author: string | null }[];
 }
 
 const L: Record<string, Record<string, string>> = {
@@ -32,6 +32,8 @@ const L: Record<string, Record<string, string>> = {
 const lab = (group: string, v: string | null | undefined) => (v ? L[group]?.[v] ?? v : '—');
 const euro = (c: number | null | undefined) => (c == null ? '—' : '€ ' + (c / 100).toFixed(2).replace('.', ','));
 const date = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
+const dateTime = (s: string | null | undefined) =>
+  s ? new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 // Umore: etichetta + colore chip.
 const MOOD: Record<string, { label: string; chip: string }> = {
@@ -62,9 +64,9 @@ export function ClientDetail() {
   const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
-  // Nota dello staff
-  const [noteText, setNoteText] = useState('');
-  const [noteMeta, setNoteMeta] = useState<{ updatedAt: string; updatedBy: string | null } | null>(null);
+  // Note dello staff (log)
+  const [notes, setNotes] = useState<Detail['notes']>([]);
+  const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
@@ -73,8 +75,7 @@ export function ClientDetail() {
       try {
         const data = await api<Detail>(`/admin/clients/${id}`);
         setD(data);
-        setNoteText(data.note?.body ?? '');
-        setNoteMeta(data.note ? { updatedAt: data.note.updatedAt, updatedBy: data.note.updatedBy } : null);
+        setNotes(data.notes ?? []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
       } finally {
@@ -98,18 +99,20 @@ export function ClientDetail() {
     }
   }
 
-  async function saveNote() {
+  async function addNote() {
+    const body = newNote.trim();
+    if (!body) return;
     setSavingNote(true);
     setNotice(null);
     setError(null);
     try {
-      const saved = await api<{ body: string; updatedAt: string; updatedBy: string | null }>(`/admin/clients/${id}/note`, {
-        method: 'PUT',
-        body: JSON.stringify({ body: noteText }),
+      const created = await api<Detail['notes'][number]>(`/admin/clients/${id}/note`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
       });
-      setD((cur) => (cur ? { ...cur, note: { body: saved.body, updatedAt: saved.updatedAt, updatedBy: saved.updatedBy } } : cur));
-      setNoteMeta({ updatedAt: saved.updatedAt, updatedBy: saved.updatedBy });
-      setNotice('Nota salvata.');
+      setNotes((ns) => [created, ...ns]);
+      setNewNote('');
+      setNotice('Nota aggiunta.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Salvataggio della nota non riuscito.');
     } finally {
@@ -124,7 +127,6 @@ export function ClientDetail() {
   const first = d.measurements[d.measurements.length - 1];
   const last = d.measurements[0];
   const lost = first && last ? Math.round((first.weightKg - last.weightKg) * 10) / 10 : null;
-  const noteDirty = noteText !== (d.note?.body ?? '');
 
   return (
     <>
@@ -157,27 +159,43 @@ export function ClientDetail() {
         </div>
       </div>
 
-      {/* Nota dello staff */}
+      {/* Note dello staff: editor a sinistra, log a destra */}
       <div className="card">
-        <div className="spread" style={{ marginBottom: 10 }}>
-          <h2 style={{ margin: 0 }}>Note</h2>
-          {noteMeta && (
-            <span className="muted" style={{ fontSize: 12 }}>
-              Ultima modifica {noteMeta.updatedBy ? `da ${noteMeta.updatedBy} ` : ''}il {date(noteMeta.updatedAt)}
-            </span>
-          )}
-        </div>
-        <textarea
-          className="input"
-          style={{ width: '100%', minHeight: 90, resize: 'vertical' }}
-          placeholder="Annotazioni sulla cliente: preferenze, note di percorso, promemoria…"
-          value={noteText}
-          onChange={(e) => setNoteText(e.target.value)}
-        />
-        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
-          <button className="btn" onClick={saveNote} disabled={savingNote || !noteDirty}>
-            <i className="ti ti-device-floppy" /> {savingNote ? 'Salvataggio…' : 'Salva nota'}
-          </button>
+        <h2 style={{ marginTop: 0 }}>Note</h2>
+        <div className="row" style={{ gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {/* Sinistra: nuova nota */}
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <textarea
+              className="input"
+              style={{ width: '100%', minHeight: 120, resize: 'vertical' }}
+              placeholder="Scrivi una nota sulla cliente: preferenze, note di percorso, promemoria…"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+            />
+            <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
+              <button className="btn" onClick={addNote} disabled={savingNote || !newNote.trim()}>
+                <i className="ti ti-device-floppy" /> {savingNote ? 'Salvataggio…' : 'Salva nota'}
+              </button>
+            </div>
+          </div>
+          {/* Destra: storico (log) */}
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Storico note</div>
+            {notes.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13, margin: 0 }}>Nessuna nota ancora.</p>
+            ) : (
+              <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {notes.map((n) => (
+                  <div key={n.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px' }}>
+                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{n.body}</div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                      {n.author ?? 'Staff'} · {dateTime(n.createdAt)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -271,8 +289,8 @@ export function ClientDetail() {
       </div>
 
       {/* Acqua e Passi affiancati */}
-      <div className="row" style={{ gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div className="card" style={{ padding: 0, flex: 1, minWidth: 280 }}>
+      <div className="card-row">
+        <div className="card" style={{ padding: 0 }}>
           <div style={{ padding: '18px 20px 4px' }}>
             <h2 style={{ margin: 0 }}>Acqua bevuta</h2>
           </div>
@@ -297,7 +315,7 @@ export function ClientDetail() {
           )}
         </div>
 
-        <div className="card" style={{ padding: 0, flex: 1, minWidth: 280 }}>
+        <div className="card" style={{ padding: 0 }}>
           <div style={{ padding: '18px 20px 4px' }}>
             <h2 style={{ margin: 0 }}>Passi</h2>
           </div>
