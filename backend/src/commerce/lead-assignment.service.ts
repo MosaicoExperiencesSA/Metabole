@@ -197,4 +197,42 @@ export class LeadAssignmentService {
     if (!coach || coach.user.role !== 'coach') return null;
     return { coachStaffId: coach.id, coachUserId: coach.user.id };
   }
+
+  /**
+   * Auto-assegna una cliente alla coach del ref code al momento della registrazione.
+   * A differenza dell'assegnazione manuale (che resta "pending" con finestra di 2 giorni),
+   * il ref code è una scelta esplicita della cliente: l'assegnazione è immediata e già accettata.
+   * Non blocca mai la registrazione: se qualcosa non torna, ritorna false silenziosamente.
+   */
+  async autoAssignByRefCode(clientId: string, code: string): Promise<boolean> {
+    const resolved = await this.resolveByRefCode(code);
+    if (!resolved) return false;
+    const record = await this.prisma.crmRecord.findUnique({
+      where: { clientId },
+      select: { id: true },
+    });
+    if (!record) return false;
+    await this.prisma.crmRecord.update({
+      where: { id: record.id },
+      data: {
+        assignedCoachId: resolved.coachStaffId,
+        assignmentStatus: 'accepted',
+        assignedAt: new Date(),
+        assignedById: null, // auto-assegnazione via codice, non da un manager
+      },
+    });
+    // Se il profilo cliente esiste già, propaghiamo la coach; altrimenti verrà
+    // impostata all'onboarding (updateMany su 0 righe è sicuro).
+    await this.prisma.clientProfile.updateMany({
+      where: { userId: clientId },
+      data: { assignedCoachId: resolved.coachStaffId },
+    });
+    await this.audit.log({
+      action: 'lead.assign.refcode',
+      entityType: 'crm_record',
+      entityId: record.id,
+      metadata: { coachStaffId: resolved.coachStaffId, code: code.trim().toUpperCase() },
+    });
+    return true;
+  }
 }

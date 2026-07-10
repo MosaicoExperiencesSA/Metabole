@@ -10,6 +10,7 @@ import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { CrmService } from '../commerce/crm.service';
+import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
@@ -32,14 +33,29 @@ export class AuthService {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly crm: CrmService,
+    private readonly leadAssignment: LeadAssignmentService,
   ) {}
 
   // ---------- Registrazione ----------
 
-  async register(email: string, password: string, locale?: string, ip?: string) {
+  async register(
+    email: string,
+    password: string,
+    locale?: string,
+    ip?: string,
+    refCode?: string,
+  ) {
     const normalized = email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email: normalized } });
     if (existing) throw new ConflictException('Email già registrata');
+
+    // Se è indicato un codice invito, lo validiamo PRIMA di creare l'utente,
+    // così un codice errato dà un errore chiaro invece di un account "orfano".
+    const trimmedRef = refCode?.trim();
+    if (trimmedRef) {
+      const resolved = await this.leadAssignment.resolveByRefCode(trimmedRef);
+      if (!resolved) throw new BadRequestException('Codice invito non valido');
+    }
 
     const passwordHash = await argon2.hash(password);
     const user = await this.prisma.user.create({
@@ -61,6 +77,10 @@ export class AuthService {
 
     await this.issueEmailVerification(user.id, normalized, user.locale);
     await this.crm.ensureLead(user.id, normalized); // CRM: lead_in automatico
+    // Codice invito valido → auto-assegna la cliente alla coach (assegnazione immediata).
+    if (trimmedRef) {
+      await this.leadAssignment.autoAssignByRefCode(user.id, trimmedRef);
+    }
     const tokens = await this.issueTokenPair(user);
     return { user: this.toPublicUser(user), ...tokens };
   }

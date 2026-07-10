@@ -20,7 +20,7 @@ interface AuthValue {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, refCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }
@@ -59,8 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyAuth(res);
   }
 
-  async function register(email: string, password: string) {
-    const res = await apiPublic<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) });
+  async function register(email: string, password: string, refCode?: string) {
+    const body: Record<string, string> = { email, password };
+    if (refCode && refCode.trim()) body.refCode = refCode.trim().toUpperCase();
+    const res = await apiPublic<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(body) });
     applyAuth(res);
   }
 

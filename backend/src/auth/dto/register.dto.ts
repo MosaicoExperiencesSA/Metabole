@@ -11,4 +11,9 @@ export class RegisterDto {
   @IsOptional()
   @IsIn(['it', 'en', 'fr', 'de', 'es'])
   locale?: string;
+
+  // Codice invito della coach (facoltativo): auto-assegna la cliente.
+  @IsOptional()
+  @IsString()
+  refCode?: string;
 }

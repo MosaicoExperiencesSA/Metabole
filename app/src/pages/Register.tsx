@@ -8,6 +8,7 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [refCode, setRefCode] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -20,7 +21,7 @@ export default function Register() {
     }
     setBusy(true);
     try {
-      await register(email.trim(), password);
+      await register(email.trim(), password, refCode);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Registrazione non riuscita');
     } finally {
@@ -76,6 +77,20 @@ export default function Register() {
               onChange={(e) => setConfirm(e.target.value)}
               minLength={8}
               required
+            />
+          </div>
+          <div className="field">
+            <label>Codice invito (facoltativo)</label>
+            <input
+              className="input"
+              type="text"
+              autoCapitalize="characters"
+              autoComplete="off"
+              placeholder="Es. AB12CD"
+              value={refCode}
+              onChange={(e) => setRefCode(e.target.value.toUpperCase())}
+              maxLength={6}
+              style={{ letterSpacing: '2px', textTransform: 'uppercase' }}
             />
           </div>
           <button className="btn" type="submit" disabled={busy}>
