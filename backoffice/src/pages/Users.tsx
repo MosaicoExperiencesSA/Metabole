@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, RoleChip, Spinner, StatusChip } from '../components/ui';
-import { ALL_ROLES, ROLE_LABEL, STAFF_ROLES, type Role } from '../lib/labels';
+import { ROLE_LABEL, STAFF_ROLES, type Role } from '../lib/labels';
 
 interface User {
   id: string;
@@ -27,7 +27,8 @@ export function Users() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api<{ items: User[] }>(`/admin/users${roleFilter ? `?role=${roleFilter}` : ''}`);
+      const query = roleFilter ? `?role=${roleFilter}` : '?scope=staff';
+      const res = await api<{ items: User[] }>(`/admin/users${query}`);
       setUsers(res.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -78,7 +79,7 @@ export function Users() {
         <div className="row">
           <select className="select" style={{ width: 200 }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as Role | '')}>
             <option value="">Tutti i ruoli</option>
-            {ALL_ROLES.map((r) => (
+            {STAFF_ROLES.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABEL[r]}
               </option>
@@ -128,7 +129,7 @@ export function Users() {
                           value={u.role}
                           onChange={(e) => changeRole(u, e.target.value as Role)}
                         >
-                          {ALL_ROLES.map((r) => (
+                          {STAFF_ROLES.map((r) => (
                             <option key={r} value={r}>
                               {ROLE_LABEL[r]}
                             </option>

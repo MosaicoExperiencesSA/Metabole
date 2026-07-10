@@ -26,12 +26,16 @@ export class UsersService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(params: { role?: Role; page?: number; limit?: number }) {
+  async list(params: { role?: Role; staffOnly?: boolean; page?: number; limit?: number }) {
     const take = Math.min(Math.max(params.limit ?? 50, 1), 200);
     const skip = (Math.max(params.page ?? 1, 1) - 1) * take;
     const where = {
       deletedAt: null,
-      ...(params.role ? { role: params.role } : {}),
+      ...(params.role
+        ? { role: params.role }
+        : params.staffOnly
+          ? { role: { not: 'client' as Role } } // solo staff/tecnici; i clienti hanno la loro sezione
+          : {}),
     };
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({

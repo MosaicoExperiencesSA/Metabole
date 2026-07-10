@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import {
   api,
+  getAccessToken,
   setAccessToken,
   setRefreshToken,
   getRefreshToken,
@@ -44,8 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [impersonating, setImpersonating] = useState<{ email: string; role: Role } | null>(null);
-  // Sessione admin messa da parte durante l'impersonazione, per tornare indietro.
-  const [adminSession, setAdminSession] = useState<{ refresh: string } | null>(null);
+  // Sessione admin messa da parte durante l'impersonazione, per tornare indietro
+  // (access + refresh: così il ritorno non dipende dal rinnovo del token).
+  const [adminSession, setAdminSession] = useState<{ access: string | null; refresh: string | null } | null>(null);
 
   async function loadSession() {
     const [me, perms] = await Promise.all([
@@ -98,15 +100,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function impersonate(userId: string, email: string) {
-    // Mette da parte la sessione admin e assume il token di impersonazione.
-    const adminRefresh = getRefreshToken();
+    // Chiama l'endpoint con il token ADMIN corrente, poi mette da parte l'intera
+    // sessione admin (access + refresh) e assume il token di impersonazione.
     const res = await api<{ accessToken: string; user?: { role: Role } }>(
       '/admin/impersonate',
       { method: 'POST', body: JSON.stringify({ userId }) },
     );
-    if (adminRefresh) setAdminSession({ refresh: adminRefresh });
+    setAdminSession({ access: getAccessToken(), refresh: getRefreshToken() });
+    // Durante l'impersonazione niente refresh token in memoria: così un eventuale
+    // 401 non rinnova per errore la sessione admin (che va preservata intatta).
+    setRefreshToken(null);
     setAccessToken(res.accessToken);
-    // Il token di impersonazione non ha refresh token: quando scade si torna admin.
     const me = await api<AuthUser>('/me');
     setImpersonating({ email, role: me.role });
     setUser(me);
@@ -119,8 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function stopImpersonation() {
     if (!adminSession) return;
+    // Ripristina esattamente la sessione admin di prima (access + refresh).
+    setAccessToken(adminSession.access);
     setRefreshToken(adminSession.refresh);
-    setAccessToken(null);
     setImpersonating(null);
     setAdminSession(null);
     try {

@@ -23,11 +23,13 @@ export class AdminUsersController {
   @Get()
   list(
     @Query('role') role?: Role,
+    @Query('scope') scope?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50',
   ) {
     return this.users.list({
       role,
+      staffOnly: scope === 'staff', // la tabella Utenti mostra solo lo staff, non i clienti
       page: parseInt(page, 10) || 1,
       limit: parseInt(limit, 10) || 50,
     });
