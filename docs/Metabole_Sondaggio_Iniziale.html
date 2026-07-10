@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metabole — Sondaggio iniziale</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+  body{margin:0;background:#EFEAE0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#16302C;padding:24px 0}
+  .mw{display:flex;justify-content:center}
+  .phone{width:304px;height:634px;display:flex;flex-direction:column;background:#FAF8F3;border:11px solid #0B0F0E;border-radius:52px;overflow:hidden;position:relative;box-shadow:0 20px 46px rgba(16,64,58,.24)}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:9}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:13px 26px 4px;font-size:11px;color:#16302C;font-weight:600;flex:none}
+  #inner{flex:1;display:flex;flex-direction:column;min-height:0}
+  .ftop{padding:6px 16px 4px;flex:none}
+  .prog{height:5px;background:#E7E1D5;border-radius:4px;overflow:hidden}
+  .prog>span{display:block;height:100%;background:#12A386;border-radius:4px;transition:width .2s}
+  .pbody{flex:1;overflow:auto;padding:8px 16px}
+  .bottombar{flex:none;padding:10px 16px}
+  .homeind{height:5px;width:120px;background:#0B302B;opacity:.28;border-radius:5px;margin:3px auto 8px;flex:none}
+  .h1{font-size:19px;font-weight:600;margin-bottom:3px}
+  .sub{font-size:12px;color:#7C8C88}
+  .lab{font-size:12px;color:#5F6E6B;margin:12px 0 6px;font-weight:500}
+  .card{background:#fff;border-radius:16px;padding:13px;box-shadow:0 2px 6px rgba(16,64,58,.06);margin-bottom:11px}
+  .inp{width:100%;border:1px solid #ECE7DE;border-radius:12px;padding:10px 12px;font-size:14px;outline:none;box-sizing:border-box;background:#fff}
+  .cta{width:100%;background:#12A386;color:#fff;border:none;border-radius:24px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 14px rgba(18,163,134,.3)}
+  .back{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#7C8C88;cursor:pointer}
+  .opts{display:flex;gap:7px;flex-wrap:wrap}
+  .opt{border:1px solid #E2DFD6;background:#fff;border-radius:20px;padding:8px 13px;font-size:13px;cursor:pointer}
+  .opt.on{background:#12A386;color:#fff;border-color:#12A386}
+  .bdg{border-radius:12px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .tag{font-size:11px;padding:3px 9px;border-radius:20px}
+</style>
+</head>
+<body>
+<div class="mw"><div class="phone"><div class="island"></div><div class="statusbar"><span>9:41</span><span><i class="ti ti-wifi" style="font-size:13px"></i> <i class="ti ti-battery-3" style="font-size:14px"></i></span></div><div id="inner"><div class="ftop"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span id="bk" class="back"><i class="ti ti-chevron-left"></i> Indietro</span><span id="stp" class="sub" style="font-size:11px"></span></div><div class="prog"><span id="pg"></span></div></div><div class="pbody" id="pb"></div><div class="bottombar"><button class="cta" id="cta">Continua</button></div></div><div class="homeind"></div></div></div>
+<script>
+(function(){
+  function head(t,s){return '<div class="h1">'+t+'</div>'+(s?'<div class="sub" style="margin-bottom:6px">'+s+'</div>':'');}
+  function chips(g,opts,multi){return '<div class="opts" data-g="'+g+'"'+(multi?' data-multi="1"':'')+'>'+opts.map(function(o,i){return '<button class="opt'+(!multi&&i===0?' on':'')+'">'+o+'</button>';}).join('')+'</div>';}
+  function field(l,ph){return '<div class="lab">'+l+'</div><input class="inp" placeholder="'+ph+'">';}
+
+  var P=[
+    {t:'Chi sei',h:function(){return head('Chi sei','Partiamo dalle basi.')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div>'+field('Nome','Giulia')+'</div><div>'+field('Età','34')+'</div><div>'+field('Altezza (cm)','168')+'</div><div><div class="lab">Sesso</div>'+chips('sesso',['Donna','Uomo'])+'</div></div>';}},
+    {t:'Punto di partenza',h:function(){return head('Il tuo punto di partenza','Le aggiornerai ogni 2 giorni.')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div>'+field('Peso (kg)','68')+'</div><div>'+field('Vita (cm)','80')+'</div><div>'+field('Fianchi (cm)','99')+'</div></div>';}},
+    {t:'Regime',h:function(){return head('Il tuo regime alimentare','Su cosa costruiamo i menu.')+chips('regime',['Onnivoro','Vegetariano','Vegano']);}},
+    {t:'Stile',h:function(){return head('Stile che preferisci','')+chips('stile',['Mediterranea','Proteica','Low-carb','Flessibile']);}},
+    {t:'Intolleranze',h:function(){return head('Intolleranze o allergie','Puoi sceglierne più di una.')+chips('intoll',['Nessuna','Glutine','Lattosio','Frutta secca','Altro'],1);}},
+    {t:'Gusti',h:function(){return head('Cibi che non ami','Li terrò alla larga dai tuoi menu.')+field('','Es. pesce, legumi, funghi…');}},
+    {t:'Vita e lavoro',h:function(){return head('La tua vita e il lavoro','Così i menu diventano fattibili.')+'<div class="lab">Che lavoro fai?</div>'+chips('lavoro',['Sedentario','In piedi','Turni','Viaggio spesso'])+'<div class="lab">Tempo per cucinare</div>'+chips('tempo',['Pochissimo','Un po\'','Mi piace cucinare'])+'<div class="lab">Dove pranzi nei feriali</div>'+chips('pranzo',['Da casa','Mensa','Fuori','Al volo']);}},
+    {t:'Pasti',h:function(){return head('Quanti pasti riesci a fare?','Alcuni percorsi ne prevedono 5-6.')+chips('pasti',['3 pasti','4 pasti','5-6 pasti']);}},
+    {t:'Percorso',h:function(){return head('Che percorso preferisci?','')+chips('perc',['3 pasti classico','5 pasti','Con integratori','Digiuno intermittente']);}},
+    {t:'Salute',h:function(){return head('La tua salute','Serve per la tua sicurezza.')+'<div class="lab">Hai patologie in corso?</div>'+chips('patol',['No','Sì','Lo dico in visita'])+'<div class="lab">Assumi farmaci?</div>'+chips('farm',['No','Sì'])+'<div style="display:flex;align-items:flex-start;gap:8px;background:#EAF6F1;border-radius:10px;padding:9px 11px;font-size:12px;color:#0E7C66;margin-top:12px"><i class="ti ti-shield-check" style="font-size:16px"></i> Se segnali una condizione, ti prende in carico il nutrizionista.</div>';}},
+    {t:'Obiettivo',h:function(){return head('Il tuo obiettivo','Con calma e in modo sostenibile.')+'<div class="card" style="margin-top:8px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><label style="font-size:12px;color:#5F6E6B;flex:1">Peso da perdere</label><input id="okg" type="range" min="1" max="20" value="6" style="width:110px"><span id="okgo" style="font-size:13px;font-weight:600;min-width:40px;text-align:right">6 kg</span></div><div style="display:flex;align-items:center;gap:10px"><label style="font-size:12px;color:#5F6E6B;flex:1">Entro</label><input id="owk" type="range" min="3" max="52" value="18" style="width:110px"><span id="owko" style="font-size:13px;font-weight:600;min-width:60px;text-align:right">18 sett.</span></div><div id="over" style="border-radius:10px;padding:9px 11px;margin-top:12px;font-size:12.5px"></div></div>'+field('Vita da perdere (cm)','8');}},
+    {t:'Periodi liberi',h:function(){return head('Periodi senza dieta','Vacanze e feste in cui non vuoi seguire la dieta.')+'<div class="card" style="display:flex;align-items:center;justify-content:space-between;margin-top:8px"><div><div style="font-size:13px;font-weight:600">Natale</div><div class="sub" style="font-size:11px">23 dic – 2 gen</div></div><span class="tag" style="background:#DCF0D8;color:#3B6D11">Attivo</span></div><button class="opt" style="width:100%;justify-content:center;text-align:center"><i class="ti ti-plus" style="font-size:13px;vertical-align:-2px"></i> Aggiungi periodo</button><div class="sub" style="font-size:11px;margin-top:10px">In quei giorni non ti do la dieta, ma se il peso sale ti mando un mini-piano.</div>';}},
+    {t:'Coach',h:function(){return head('Come vuoi essere seguita?','Dalla tua coach.')+chips('coach',['Ogni giorno','Quando serve','Solo su richiesta']);}},
+    {t:'Carattere',h:function(){return head('Che tipo sei?','Così taro la coach e l\'AI sul tuo carattere.')+chips('car',['Seguo bene','Vado spronata','Persevero da sola','Tendo a mollare']);}},
+    {t:'Colore',h:function(){return head('Scegli il colore della tua app','')+'<div class="opts" id="cols" style="gap:12px;margin-top:6px">'+['#12A386','#2563EB','#E8825A','#7F77DD','#D4537E','#B8863B'].map(function(c,i){return '<span class="sw" data-c="'+c+'" style="width:38px;height:38px;border-radius:50%;background:'+c+';cursor:pointer;border:3px solid '+(i===0?'#0B302B':'transparent')+'"></span>';}).join('')+'</div>';}},
+    {t:'Risultato',res:true,h:function(){return '<div style="text-align:center;margin:6px 0 14px"><span class="bdg" style="width:56px;height:56px;background:#DCF0D8;color:#3B6D11;margin:0 auto 10px;border-radius:18px"><i class="ti ti-check" style="font-size:32px"></i></span><div class="h1" style="font-size:20px">Il tuo percorso è pronto</div><div class="sub">Costruito sulle tue risposte</div></div>'
+      +'<div class="card"><div class="sub" style="font-size:11px">Percorso consigliato</div><div style="font-size:15px;font-weight:600;margin-bottom:8px">Equilibrio Mediterraneo · liv. 2</div><div class="opts">'+['5 pasti','Da portare','Sostenibile','-6 kg / -8 cm'].map(function(t){return '<span class="tag" style="background:#DCEBE3;color:#0E7C66">'+t+'</span>';}).join('')+'</div></div>'
+      +'<div style="display:flex;gap:10px;margin-bottom:11px"><div class="card" style="flex:1;margin:0"><div class="sub" style="font-size:10px">Coach</div><div style="font-size:13px;font-weight:600;margin-top:3px">Sara C.</div></div><div class="card" style="flex:1;margin:0"><div class="sub" style="font-size:10px">Nutrizionista</div><div style="font-size:13px;font-weight:600;margin-top:3px">Dott.ssa Marini</div></div></div>'
+      +'<div class="card" style="background:#EAF6F1;box-shadow:none;display:flex;align-items:center;gap:9px"><i class="ti ti-calendar-check" style="color:#0E7C66;font-size:18px"></i><span style="font-size:12px;color:#0E7C66">Prima visita in presenza: giovedì 16 luglio</span></div>';}}
+  ];
+
+  var i=0;
+  var pb=document.getElementById('pb'),pg=document.getElementById('pg'),stp=document.getElementById('stp'),bk=document.getElementById('bk'),cta=document.getElementById('cta');
+  function calcObj(){var kg=+document.getElementById('okg').value,wk=+document.getElementById('owk').value;document.getElementById('okgo').textContent=kg+' kg';document.getElementById('owko').textContent=wk+' sett.';var rate=kg/wk,ov=document.getElementById('over');var col,bg,txt;if(rate<=0.7){col='#3B6D11';bg='#DCF0D8';txt='Sostenibile · circa '+rate.toFixed(1).replace('.',',')+' kg a settimana';}else if(rate<=1){col='#8A5A0B';bg='#FBF0D6';txt='Ambizioso, al limite · '+rate.toFixed(1).replace('.',',')+' kg/sett';}else{var rw=Math.ceil(kg/0.7);col='#993C1D';bg='#F7DAD6';txt='Troppo veloce. Ti propongo circa '+rw+' settimane.';}ov.style.background=bg;ov.style.color=col;ov.textContent=txt;}
+  function render(){
+    var p=P[i];pb.innerHTML=p.h();pg.style.width=Math.round((i+1)/P.length*100)+'%';stp.textContent='Passo '+(i+1)+' di '+P.length;bk.style.visibility=i===0?'hidden':'visible';cta.textContent=p.res?'Inizia il percorso':(i===P.length-2?'Vedi il mio percorso':'Continua');
+    pb.querySelectorAll('.opts').forEach(function(g){var multi=g.getAttribute('data-multi')==='1';g.querySelectorAll('.opt').forEach(function(o){o.addEventListener('click',function(){if(multi){o.classList.toggle('on');}else{g.querySelectorAll('.opt').forEach(function(x){x.classList.remove('on');});o.classList.add('on');}});});});
+    var cols=document.getElementById('cols');if(cols)cols.querySelectorAll('.sw').forEach(function(s){s.addEventListener('click',function(){cols.querySelectorAll('.sw').forEach(function(x){x.style.borderColor='transparent';});s.style.borderColor='#0B302B';});});
+    if(document.getElementById('okg')){document.getElementById('okg').addEventListener('input',calcObj);document.getElementById('owk').addEventListener('input',calcObj);calcObj();}
+  }
+  cta.addEventListener('click',function(){if(i<P.length-1){i++;render();}});
+  bk.addEventListener('click',function(){if(i>0){i--;render();}});
+  render();
+})();
+</script>
+</body>
+</html>

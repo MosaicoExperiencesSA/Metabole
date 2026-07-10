@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metabole · Widget mascotte</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+:root{--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;--voice:Georgia,"Times New Roman",serif}
+*{box-sizing:border-box}
+body{margin:0;background:#EFEDE6;color:#25302c;font-family:var(--sans);display:flex;justify-content:center;padding:24px 16px}
+.wrap{width:100%;max-width:400px;display:flex;flex-direction:column;gap:18px}
+h1{font-size:20px;font-weight:500;margin:0 0 2px}
+.sub{font-size:13px;color:#6E6C66;margin:0}
+select,button{font-family:var(--sans);font-size:13px;border:1px solid #d8d3c7;background:#fff;border-radius:10px;padding:8px 10px;color:#25302c;cursor:pointer}
+button:hover{background:#f6f4ee}
+@keyframes mFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes mSlow{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes mBounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-14px)}55%{transform:translateY(0)}70%{transform:translateY(-6px)}}
+@keyframes mShk{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-6px) rotate(-3deg)}50%{transform:translateX(6px) rotate(3deg)}75%{transform:translateX(-5px) rotate(-2deg)}}
+@keyframes mBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+@keyframes mBlink{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}
+@keyframes mTear{0%{transform:translateY(0);opacity:0}15%{opacity:.95}80%{opacity:.95}100%{transform:translateY(38px);opacity:0}}
+@keyframes mSway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}
+@keyframes mSpin{to{transform:rotate(360deg)}}
+@keyframes mTwk{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:1;transform:scale(1)}}
+@keyframes fFall{0%{transform:translateY(-10px) rotate(0);opacity:0}12%{opacity:1}100%{transform:translateY(140px) rotate(320deg);opacity:0}}
+@keyframes fRise{0%{transform:translateY(0) scale(.6);opacity:0}25%{opacity:.9}100%{transform:translateY(-90px) scale(1.2);opacity:0}}
+@keyframes fFlash{0%,100%{opacity:0}50%{opacity:.5}}
+.mFloat{animation:mFloat 3.2s ease-in-out infinite}
+.mFloat.bounce{animation:mBounce 1.15s ease-in-out infinite}
+.mFloat.slow{animation:mSlow 4.4s ease-in-out infinite}
+.mShake.on{animation:mShk .4s ease-in-out infinite}
+.mBreathe{transform-box:fill-box;transform-origin:50% 92%;animation:mBreathe 3.6s ease-in-out infinite}
+.mEye{transform-box:fill-box;transform-origin:center;animation:mBlink 4.2s infinite}
+.mDizzy{transform-box:fill-box;transform-origin:center;animation:mSpin 1.8s linear infinite}
+.mSprout{transform-box:fill-box;transform-origin:50% 100%;animation:mSway 3s ease-in-out infinite}
+.mTear{animation:mTear 2.4s ease-in infinite}
+.mTwk{transform-box:fill-box;animation:mTwk 2.2s ease-in-out infinite}
+.fCon{position:absolute;top:-4%;width:7px;height:11px;border-radius:2px;animation:fFall linear infinite}
+.fSteam{position:absolute;width:15px;height:15px;border-radius:50%;background:rgba(255,255,255,.7);animation:fRise ease-out infinite}
+.fHeart{position:absolute;width:13px;height:13px;background:#FF6E8A;clip-path:polygon(50% 18%,61% 5%,78% 5%,90% 20%,90% 36%,50% 78%,10% 36%,10% 20%,22% 5%,39% 5%);animation:fRise ease-out infinite}
+.fZzz{position:absolute;color:rgba(255,255,255,.9);font-weight:500;animation:fRise ease-out infinite}
+.tile{position:relative;overflow:hidden;color:#fff;box-sizing:border-box}
+.chip{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.22);border-radius:20px;padding:3px 9px;font-size:12px;font-weight:500}
+.tLbl{font-size:12px;color:#6E6C66;margin:0 0 6px}
+.frase{font-family:var(--voice);line-height:1.3}
+.mini{background:rgba(255,255,255,.18);border-radius:10px;padding:8px 4px;text-align:center;flex:1;min-width:0}
+.cta{background:rgba(255,255,255,.92);color:#173a33;border:none;border-radius:12px;padding:10px;font-size:14px;font-weight:500;width:100%;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Metabole · widget mascotte</h1>
+    <p class="sub">Tre formati — quadrato, rettangolare, largo — con stato, frase del giorno e prossimo menu.</p>
+  </div>
+
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select id="selState" style="flex:1;min-width:150px"></select>
+    <button id="btnFrase"><i class="ti ti-refresh" style="font-size:14px;vertical-align:-2px"></i> Nuova frase</button>
+  </div>
+
+  <div>
+    <p class="tLbl">Quadrata</p>
+    <div style="display:flex;justify-content:center">
+      <div class="tile tSq" style="width:158px;height:158px;border-radius:30px;padding:12px;display:flex;flex-direction:column;align-items:center">
+        <div class="fx" style="position:absolute;inset:0;pointer-events:none;z-index:2"></div>
+        <div style="width:100%;display:flex;justify-content:flex-end;z-index:3"><span class="chip"><i class="ti ti-flame" style="font-size:13px"></i> <b>5</b></span></div>
+        <div class="mHost" style="margin-top:-6px;z-index:2"></div>
+        <p class="frase" style="margin:auto 0 0;font-size:11.5px;text-align:center;z-index:3"></p>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="tLbl">Rettangolare</p>
+    <div class="tile tRect" style="width:100%;height:134px;border-radius:26px;padding:14px;display:flex;align-items:center;gap:10px">
+      <div class="fx" style="position:absolute;inset:0;pointer-events:none;z-index:2"></div>
+      <div class="mHost" style="flex:none;z-index:2"></div>
+      <div style="flex:none;width:118px;z-index:3">
+        <p class="stateHead" style="margin:0 0 4px;font-size:15px;font-weight:500;white-space:pre-line;line-height:1.15"></p>
+        <p class="frase" style="margin:0;font-size:11px;opacity:.95"></p>
+      </div>
+      <div style="flex:1;display:flex;gap:6px;z-index:3;min-width:0">
+        <div class="mini"><i class="ti ti-droplet" style="font-size:16px"></i><div style="font-size:12.5px;font-weight:500;margin-top:2px">5/8</div><div style="font-size:10.5px;opacity:.85">acqua</div></div>
+        <div class="mini"><i class="ti ti-walk" style="font-size:16px"></i><div style="font-size:12.5px;font-weight:500;margin-top:2px">4.200</div><div style="font-size:10.5px;opacity:.85">passi</div></div>
+        <div class="mini"><i class="ti ti-ruler-2" style="font-size:16px"></i><div style="font-size:12.5px;font-weight:500;margin-top:2px">oggi</div><div style="font-size:10.5px;opacity:.85">misure</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="tLbl">Larga a tutto schermo</p>
+    <div class="tile tLarge" style="width:100%;border-radius:28px;padding:16px">
+      <div class="fx" style="position:absolute;inset:0;pointer-events:none;z-index:2"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;z-index:3;position:relative">
+        <span style="font-size:15px;font-weight:500">Metabole</span>
+        <span class="chip"><i class="ti ti-flame" style="font-size:13px"></i> <b>5</b> giorni</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:8px 0 10px;z-index:3;position:relative">
+        <div class="mHost" style="flex:none"></div>
+        <p class="stateHead" style="margin:0;flex:none;width:96px;font-size:17px;font-weight:500;white-space:pre-line;line-height:1.15"></p>
+        <div style="flex:1;display:flex;gap:6px;min-width:0">
+          <div class="mini"><i class="ti ti-droplet" style="font-size:17px"></i><div style="font-size:13px;font-weight:500;margin-top:2px">5/8</div><div style="font-size:11px;opacity:.85">acqua</div></div>
+          <div class="mini"><i class="ti ti-walk" style="font-size:17px"></i><div style="font-size:13px;font-weight:500;margin-top:2px">4.200</div><div style="font-size:11px;opacity:.85">passi</div></div>
+          <div class="mini"><i class="ti ti-ruler-2" style="font-size:17px"></i><div style="font-size:13px;font-weight:500;margin-top:2px">oggi</div><div style="font-size:11px;opacity:.85">misure</div></div>
+        </div>
+      </div>
+      <p class="frase" style="margin:2px 0 12px;font-size:14px;text-align:center;z-index:3;position:relative"></p>
+      <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.16);border-radius:14px;padding:9px;margin-bottom:12px;z-index:3;position:relative">
+        <div style="width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;flex:none"><i class="ti ti-tools-kitchen-2" style="font-size:23px;color:#12A386"></i></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;opacity:.85">Prossimo pasto · Pranzo 13:00</div>
+          <div style="font-size:14.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Orata al forno con verdure</div>
+          <div style="font-size:11px;opacity:.85">520 kcal · mediterranea</div>
+        </div>
+        <i class="ti ti-chevron-right" style="font-size:20px;opacity:.85"></i>
+      </div>
+      <button class="cta" style="z-index:3;position:relative">Apri Metabole</button>
+    </div>
+  </div>
+
+</div>
+<script>
+(function(){
+  var mSmile="M104 156 Q120 166 136 156",mBig="M102 152 Q120 174 138 152",mFlat="M106 158 L134 158",
+      mFrown="M104 164 Q120 150 136 164",mOpen="M104 152 Q120 176 136 152 Q120 162 104 152Z",
+      mSquig="M104 158 q6 -7 12 0 q6 7 12 0 q6 -7 12 0",mGrit="M106 154 Q120 160 134 154 L134 162 Q120 156 106 162 Z";
+  var brA=["M80 106 L100 116","M140 116 L160 106"],brS=["M80 114 L100 106","M140 106 L160 114"],brW=["M80 110 Q90 105 100 109","M140 109 Q150 105 160 110"];
+  function M(w){return '<svg viewBox="0 0 240 250" style="width:'+w+'px;display:block" aria-hidden="true">'
+    +'<defs>'
+    +'<linearGradient id="v5B" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93E7C8"/><stop offset="1" stop-color="#33B190"/></linearGradient>'
+    +'<linearGradient id="v5Be" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ECFCF4"/><stop offset="1" stop-color="#CBF2E3"/></linearGradient>'
+    +'<linearGradient id="v5L" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9EF7C"/><stop offset="1" stop-color="#54BD66"/></linearGradient>'
+    +'<radialGradient id="v5G" cx="50%" cy="45%" r="55%"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+    +'</defs>'
+    +'<ellipse cx="120" cy="228" rx="50" ry="9" fill="rgba(0,0,0,.14)"/><circle cx="120" cy="120" r="96" fill="url(#v5G)"/>'
+    +'<g class="mFloat"><g class="mShake"><g class="mBreathe">'
+    +'<g class="mSprout"><path d="M117 66 C112 44 96 40 92 46 C100 60 112 64 117 66Z" fill="url(#v5L)"/><path d="M123 66 C128 44 144 40 148 46 C140 60 128 64 123 66Z" fill="url(#v5L)"/><rect x="116" y="58" width="8" height="20" rx="4" fill="#3FA98C"/></g>'
+    +'<ellipse cx="50" cy="168" rx="14" ry="22" fill="#57C0A2"/><ellipse cx="190" cy="168" rx="14" ry="22" fill="#57C0A2"/>'
+    +'<path d="M120 70 C172 70 200 112 200 156 C200 208 162 226 120 226 C78 226 40 208 40 156 C40 112 68 70 120 70Z" fill="url(#v5B)"/>'
+    +'<ellipse cx="105" cy="104" rx="40" ry="24" fill="#fff" opacity=".22"/><ellipse cx="120" cy="162" rx="50" ry="54" fill="url(#v5Be)"/>'
+    +'<ellipse cx="98" cy="224" rx="16" ry="10" fill="#4FB495"/><ellipse cx="142" cy="224" rx="16" ry="10" fill="#4FB495"/>'
+    +'<ellipse class="mCheek mCheekL" cx="86" cy="150" rx="12" ry="7.5" fill="#FF9DB0" opacity=".7"/><ellipse class="mCheek mCheekR" cx="154" cy="150" rx="12" ry="7.5" fill="#FF9DB0" opacity=".7"/>'
+    +'<g class="mEyesOpen"><g class="mEye"><ellipse cx="100" cy="128" rx="16" ry="19" fill="#25384A"/><circle cx="94" cy="121" r="6" fill="#fff"/><circle cx="105" cy="133" r="3" fill="#fff" opacity=".8"/></g><g class="mEye" style="animation-delay:.12s"><ellipse cx="140" cy="128" rx="16" ry="19" fill="#25384A"/><circle cx="134" cy="121" r="6" fill="#fff"/><circle cx="145" cy="133" r="3" fill="#fff" opacity=".8"/></g></g>'
+    +'<g class="mEyesHappy" style="display:none"><path d="M84 132 Q100 112 116 132" stroke="#25384A" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M124 132 Q140 112 156 132" stroke="#25384A" stroke-width="6" stroke-linecap="round" fill="none"/></g>'
+    +'<g class="mEyesSleep" style="display:none"><path d="M84 126 Q100 136 116 126" stroke="#25384A" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M124 126 Q140 136 156 126" stroke="#25384A" stroke-width="5" stroke-linecap="round" fill="none"/></g>'
+    +'<g class="mEyesDizzy" style="display:none"><path class="mDizzy" d="M100 121 a7 7 0 1 1 -7 7 a4.5 4.5 0 1 1 4.5 -4.5 a2.4 2.4 0 1 1 -2.4 2.4" stroke="#25384A" stroke-width="3" fill="none"/><path class="mDizzy" style="animation-direction:reverse" d="M140 121 a7 7 0 1 1 -7 7 a4.5 4.5 0 1 1 4.5 -4.5 a2.4 2.4 0 1 1 -2.4 2.4" stroke="#25384A" stroke-width="3" fill="none"/></g>'
+    +'<g class="mBrows" style="display:none"><path class="mBrowL" d="" stroke="#25384A" stroke-width="5" stroke-linecap="round" fill="none"/><path class="mBrowR" d="" stroke="#25384A" stroke-width="5" stroke-linecap="round" fill="none"/></g>'
+    +'<path class="mMouth" d="" stroke="#25384A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
+    +'<path class="mTear" d="M150 138 q7 10 0 16 q-7 -6 0 -16Z" fill="#CFEDFF" style="display:none"/>'
+    +'<path class="mSweat" d="M64 122 q6 9 0 14 q-6 -5 0 -14Z" fill="#CFEDFF" style="display:none"/>'
+    +'</g></g></g>'
+    +'<path class="mTwk" d="M56 92 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3Z" fill="#FFE39A" style="transform-origin:56px 102px;animation-delay:.3s"/>'
+    +'</svg>';}
+  var hosts=document.querySelectorAll(".mHost");var ws=[96,72,92];
+  hosts.forEach(function(h,i){h.innerHTML=M(ws[i]);});
+
+  var S={
+    buongiorno:{cat:"Momenti & eventi",lab:"Buongiorno",bg:"#2AA7C4",head:"Buongiorno,\nAntonio!",mouth:mBig,eyes:"happy",cheek:1,spark:1,fl:"bounce"},
+    buonanotte:{cat:"Momenti & eventi",lab:"Buonanotte",bg:"#2E2A5A",head:"Buonanotte,\nAntonio",mouth:mSmile,eyes:"sleep",cheek:1,zzz:1,fl:"slow"},
+    evento:{cat:"Momenti & eventi",lab:"Evento gestito",bg:"#E8825A",head:"Evento gestito!\nOggi divertiti",mouth:mBig,eyes:"happy",cheek:1,spark:1,fl:"float"},
+    inrotta:{cat:"Percorso ok",lab:"In rotta",bg:"#12A386",head:"5 giorni in rotta!",mouth:mBig,eyes:"happy",cheek:1,spark:1,fl:"bounce"},
+    peso:{cat:"Percorso ok",lab:"Peso perso",bg:"#0E9E6E",head:"Hai perso 2,4 kg!",mouth:mOpen,eyes:"happy",cheek:1,spark:1,hearts:1,fl:"bounce"},
+    vicino:{cat:"Percorso ok",lab:"Quasi all'obiettivo",bg:"#12A386",head:"Mancano 3 giorni\nall'obiettivo",mouth:mBig,eyes:"happy",cheek:1,spark:1,fl:"bounce"},
+    calo:{cat:"Percorso ok",lab:"Misure in calo",bg:"#2FA84F",head:"Le misure\nscendono!",mouth:mSmile,eyes:"happy",cheek:1,spark:1,fl:"float"},
+    traguardo:{cat:"Percorso ok",lab:"Traguardo",bg:"#12A386",head:"Traguardo\nraggiunto!",mouth:mOpen,eyes:"happy",cheek:1,spark:1,confetti:1,fl:"bounce"},
+    umBenissimo:{cat:"Umore",lab:"Benissimo",bg:"#2FA84F",head:"Mi sento\nbenissimo!",mouth:mBig,eyes:"happy",cheek:1,hearts:1,fl:"bounce"},
+    umBene:{cat:"Umore",lab:"Bene",bg:"#12A386",head:"Mi sento bene",mouth:mSmile,eyes:"happy",cheek:1,fl:"float"},
+    umCosi:{cat:"Umore",lab:"Così così",bg:"#C9A227",head:"Giornata\ncosì così",mouth:mFlat,eyes:"open",cheek:0,fl:"float"},
+    umGiu:{cat:"Umore",lab:"Giù",bg:"#D8663C",head:"Oggi mi\nsento giù",mouth:mFrown,eyes:"open",brow:brW,cheek:0,fl:"slow"},
+    umStress:{cat:"Umore",lab:"Sopraffatto",bg:"#C0392B",head:"Troppo\nstress oggi",mouth:mSquig,eyes:"dizzy",cheek:0,steam:1,fl:"float",shake:1},
+    alMisure:{cat:"Allerta",lab:"Misure",bg:"#C08A34",head:"Non hai messo\nle misure",mouth:mSmile,eyes:"open",brow:brW,cheek:1,fl:"float"},
+    alAcqua:{cat:"Allerta",lab:"Acqua",bg:"#2AA7C4",head:"Stai bevendo\npoco",mouth:mSmile,eyes:"open",brow:brW,cheek:1,fl:"float"},
+    alPassi:{cat:"Allerta",lab:"Passi",bg:"#D8663C",head:"Pochi passi\noggi",mouth:mFlat,eyes:"open",brow:brW,cheek:0,sweat:1,fl:"float"},
+    avPiano:{cat:"Avviso",lab:"Piano in scadenza",bg:"#2E7BB5",head:"Il piano scade\ntra 5 giorni",mouth:mFlat,eyes:"open",cheek:0,fl:"float"},
+    avVisita:{cat:"Avviso",lab:"Visita domani",bg:"#2E7BB5",head:"Domani la\nvisita",mouth:mSmile,eyes:"open",cheek:1,fl:"float"},
+    saApp:{cat:"Super allerta",lab:"App chiusa 3gg",bg:"#8E2B22",head:"3 giorni che\nnon ci vediamo",mouth:mFrown,eyes:"open",brow:brS,cheek:0,tear:1,fl:"slow"},
+    saMisure:{cat:"Super allerta",lab:"Misure ferme 5gg",bg:"#B02A1E",head:"5 giorni\nsenza misure!",mouth:mGrit,eyes:"open",brow:brA,cheekRed:1,steam:1,flash:1,fl:"",shake:1},
+    saVisita:{cat:"Super allerta",lab:"Visita saltata",bg:"#8E1F16",head:"Hai saltato\nla visita!",mouth:mGrit,eyes:"open",brow:brA,cheekRed:1,steam:1,flash:1,fl:"",shake:1}
+  };
+  var frasi=["Non è una dieta, è il tuo nuovo stile.","Un passo alla volta è comunque un passo avanti.","I piccoli gesti di oggi sono i risultati di domani.","Bevi, respira, muoviti: il resto viene.","Sii gentile con te: stai già facendo tanto.","La costanza batte la perfezione."];
+  var cols=["#FFD166","#FF9DB0","#7BD1A0","#BFE9FF","#fff"];
+  var qa=function(s){return document.querySelectorAll(s);};
+  function eachSet(sel,fn){qa(sel).forEach(fn);}
+  function effects(s){
+    qa(".fx").forEach(function(fx){
+      fx.innerHTML="";
+      function spawn(cls,n,b){for(var i=0;i<n;i++){var d=document.createElement("div");d.className=cls;b(d,i);fx.appendChild(d);}}
+      if(s.confetti)spawn("fCon",12,function(d,i){d.style.left=(5+Math.random()*90)+"%";d.style.background=cols[i%5];d.style.animationDuration=(1.5+Math.random()*1.4)+"s";d.style.animationDelay=(Math.random()*1.8)+"s";});
+      if(s.hearts)spawn("fHeart",6,function(d){d.style.left=(30+Math.random()*40)+"%";d.style.bottom=(28+Math.random()*22)+"%";d.style.animationDuration=(1.9+Math.random())+"s";d.style.animationDelay=(Math.random()*1.6)+"s";});
+      if(s.steam)spawn("fSteam",4,function(d){d.style.left=(40+Math.random()*20)+"%";d.style.bottom=(44+Math.random()*8)+"%";d.style.animationDuration=(1.2+Math.random()*.8)+"s";d.style.animationDelay=(Math.random()*1.2)+"s";});
+      if(s.zzz)spawn("fZzz",3,function(d,i){d.textContent="z";d.style.fontSize=(12+i*4)+"px";d.style.left=(56+i*6)+"%";d.style.bottom=(46+i*4)+"%";d.style.animationDuration=(2.3+Math.random())+"s";d.style.animationDelay=(i*.6)+"s";});
+    });
+  }
+  function set(k){
+    var s=S[k];
+    qa(".tile").forEach(function(t){t.style.background=s.bg;});
+    eachSet(".stateHead",function(e){e.textContent=s.head;});
+    eachSet(".mFloat",function(e){e.className="mFloat"+(s.fl&&s.fl!=="float"?" "+s.fl:"");});
+    eachSet(".mShake",function(e){e.className="mShake"+(s.shake?" on":"");});
+    eachSet(".mMouth",function(e){e.setAttribute("d",s.mouth);e.setAttribute("fill",s.mouth.indexOf("Z")>-1?"#25384A":"none");});
+    ["Open","Happy","Sleep","Dizzy"].forEach(function(m){eachSet(".mEyes"+m,function(e){e.style.display=(s.eyes===m.toLowerCase())?"":"none";});});
+    eachSet(".mBrows",function(e){e.style.display=s.brow?"":"none";});
+    if(s.brow){eachSet(".mBrowL",function(e){e.setAttribute("d",s.brow[0]);});eachSet(".mBrowR",function(e){e.setAttribute("d",s.brow[1]);});}
+    var showCheek=s.cheek||s.cheekRed,cc=s.cheekRed?"#E24B4A":"#FF9DB0";
+    eachSet(".mCheek",function(e){e.style.display=showCheek?"":"none";e.setAttribute("fill",cc);});
+    eachSet(".mTear",function(e){e.style.display=s.tear?"":"none";});
+    eachSet(".mSweat",function(e){e.style.display=s.sweat?"":"none";});
+    eachSet(".mTwk",function(e){e.style.display=s.spark?"":"none";});
+    effects(s);
+  }
+  var sel=document.getElementById("selState"),groups={};
+  Object.keys(S).forEach(function(k){var c=S[k].cat;(groups[c]=groups[c]||[]).push(k);});
+  Object.keys(groups).forEach(function(c){var og=document.createElement("optgroup");og.label=c;groups[c].forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=S[k].lab;og.appendChild(o);});sel.appendChild(og);});
+  sel.onchange=function(){set(sel.value);};
+  var fi=0;function frase(){eachSet(".frase",function(e){e.textContent="“"+frasi[fi]+"”";});}
+  document.getElementById("btnFrase").onclick=function(){fi=(fi+1)%frasi.length;frase();};
+  frase();set("buongiorno");sel.value="buongiorno";
+})();
+</script>
+</body>
+</html>
