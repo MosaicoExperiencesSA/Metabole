@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 
 interface Stage {
@@ -18,7 +19,7 @@ interface Lead {
   valueCents: number | null;
   createdAt: string;
   owner: { displayName: string } | null;
-  client: { email: string; clientProfile: { name: string | null } | null } | null;
+  client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null } | null;
 }
 
 function euro(cents: number | null): string {
@@ -29,11 +30,22 @@ function displayName(l: Lead): string {
 }
 
 export function LeadsTable() {
+  const { impersonate } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+
+  async function doImpersonate(l: Lead) {
+    if (!l.clientId) return;
+    setError(null);
+    try {
+      await impersonate(l.clientId, l.client?.email ?? l.email ?? '');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impersonazione non riuscita.');
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -91,9 +103,11 @@ export function LeadsTable() {
                 <th>Nome</th>
                 <th>Email</th>
                 <th>Stato</th>
-                <th>Responsabile</th>
+                <th>Coach</th>
+                <th>Nutrizionista</th>
                 <th>Valore</th>
                 <th>Creato</th>
+                <th style={{ textAlign: 'right' }}>Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -125,9 +139,19 @@ export function LeadsTable() {
                         {!st && <option value={l.stage}>{l.stage} (stato rimosso)</option>}
                       </select>
                     </td>
-                    <td className="muted">{l.owner?.displayName ?? '—'}</td>
+                    <td className="muted">{l.client?.clientProfile?.assignedCoach?.displayName ?? '—'}</td>
+                    <td className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</td>
                     <td>{euro(l.valueCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {l.clientId ? (
+                        <button className="btn ghost sm" onClick={() => doImpersonate(l)} title="Entra nell'app come questa cliente">
+                          <i className="ti ti-eye" /> Entra come
+                        </button>
+                      ) : (
+                        <span className="chip amber" style={{ fontSize: 10 }}>solo lead</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

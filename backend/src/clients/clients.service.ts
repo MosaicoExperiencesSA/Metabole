@@ -25,7 +25,7 @@ export class ClientsService {
       throw new ForbiddenException('Questa scheda è disponibile solo per i clienti.');
     }
 
-    const [profile, objective, measurements, checkins, waterLogs, stepLogs, subscription, payments, crm, notes] = await Promise.all([
+    const [profile, objective, measurements, checkins, waterLogs, stepLogs, subscription, payments, crm, notes, pending] = await Promise.all([
       this.prisma.clientProfile.findUnique({
         where: { userId },
         include: {
@@ -71,6 +71,11 @@ export class ClientsService {
         take: 200,
         select: { id: true, body: true, createdAt: true, author: { select: { displayName: true } } },
       }),
+      this.prisma.pendingCommission.findMany({
+        where: { clientId: userId, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, role: true, amountCents: true, createdAt: true },
+      }),
     ]);
 
     await this.audit.log({ action: 'client.detail.view', actorId, entityType: 'user', entityId: userId });
@@ -91,6 +96,12 @@ export class ClientsService {
         body: n.body,
         createdAt: n.createdAt,
         author: n.author?.displayName ?? null,
+      })),
+      pendingCommissions: (pending as { id: string; role: string; amountCents: number; createdAt: Date }[]).map((p) => ({
+        id: p.id,
+        role: p.role,
+        amountCents: p.amountCents,
+        createdAt: p.createdAt,
       })),
     };
   }

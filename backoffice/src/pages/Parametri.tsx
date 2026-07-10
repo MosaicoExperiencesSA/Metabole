@@ -134,39 +134,38 @@ export function Parametri() {
             const m = metaFor(p);
             const dirty = (draft[p.key] ?? '') !== p.value;
             const set = (v: string) => setDraft((d) => ({ ...d, [p.key]: v }));
+            const unitText = m.kind === 'euro' ? '€' : m.unit ?? '';
             return (
               <div key={p.key} style={{ padding: '12px 0', borderBottom: '1px solid var(--line)' }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
                     <b style={{ fontSize: 14 }}>{m.label}</b>
                     {m.help && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{m.help}</div>}
                   </div>
+                  {/* Controllo allineato in colonna: campo (larghezza fissa) · unità · Salva */}
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 'none' }}>
-                    {m.kind === 'textarea' ? null : m.kind === 'toggle' ? (
-                      <Toggle on={(draft[p.key] ?? 'false') === 'true'} onChange={(on) => set(on ? 'true' : 'false')} />
-                    ) : m.kind === 'select' ? (
-                      <select className="select" value={draft[p.key] ?? ''} onChange={(e) => set(e.target.value)} style={{ minWidth: 220 }}>
-                        {m.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                    ) : m.kind === 'euro' ? (
-                      <div className="row" style={{ gap: 6 }}>
-                        <span className="muted">€</span>
+                    <div style={{ width: 190, display: 'flex', justifyContent: 'flex-end' }}>
+                      {m.kind === 'textarea' ? null : m.kind === 'toggle' ? (
+                        <Toggle on={(draft[p.key] ?? 'false') === 'true'} onChange={(on) => set(on ? 'true' : 'false')} />
+                      ) : m.kind === 'select' ? (
+                        <select className="select" value={draft[p.key] ?? ''} onChange={(e) => set(e.target.value)} style={{ width: '100%' }}>
+                          {m.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      ) : m.kind === 'euro' ? (
                         <input
-                          className="input" type="number" step="0.01" min="0" style={{ width: 120 }}
+                          className="input" type="number" step="0.01" min="0" style={{ width: '100%' }}
                           value={(Number(draft[p.key] ?? '0') / 100).toString()}
                           onChange={(e) => set(String(Math.round((parseFloat(e.target.value) || 0) * 100)))}
                         />
-                      </div>
-                    ) : (
-                      <div className="row" style={{ gap: 6 }}>
+                      ) : (
                         <input
-                          className="input" type={m.kind === 'number' ? 'number' : 'text'} step="any" style={{ width: 140 }}
+                          className="input" type={m.kind === 'number' ? 'number' : 'text'} step="any" style={{ width: '100%' }}
                           value={draft[p.key] ?? ''} onChange={(e) => set(e.target.value)}
                         />
-                        {m.unit && <span className="muted" style={{ fontSize: 12 }}>{m.unit}</span>}
-                      </div>
-                    )}
-                    <button className="btn sm" onClick={() => save(p)} disabled={!dirty || savingKey === p.key}>
+                      )}
+                    </div>
+                    <span className="muted" style={{ width: 64, fontSize: 12 }}>{unitText}</span>
+                    <button className="btn sm" style={{ width: 74, justifyContent: 'center' }} onClick={() => save(p)} disabled={!dirty || savingKey === p.key}>
                       {savingKey === p.key ? '…' : 'Salva'}
                     </button>
                   </div>

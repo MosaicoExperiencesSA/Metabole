@@ -38,19 +38,31 @@ export class CrmService {
   async autoAdvance(clientId: string, stage: string, byUserId: string, valueCents?: number): Promise<void> {
     try {
       const record = await this.prisma.crmRecord.findUnique({ where: { clientId } });
-      if (!record) return;
       const stageDates = {
-        ...((record.stageDates as Record<string, unknown>) ?? {}),
+        ...((record?.stageDates as Record<string, unknown>) ?? {}),
         [stage]: { at: new Date().toISOString(), byUserId },
       };
-      await this.prisma.crmRecord.update({
-        where: { clientId },
-        data: {
-          stage: stage as never,
-          stageDates: stageDates as never,
-          ...(valueCents !== undefined ? { valueCents } : {}),
-        },
-      });
+      if (record) {
+        await this.prisma.crmRecord.update({
+          where: { clientId },
+          data: {
+            stage: stage as never,
+            stageDates: stageDates as never,
+            ...(valueCents !== undefined ? { valueCents } : {}),
+          },
+        });
+      } else {
+        // Cliente che paga senza essere passata dai lead: la inserisco nel CRM,
+        // così compare nella tabella clienti/lead come chi arriva dalla pipeline.
+        await this.prisma.crmRecord.create({
+          data: {
+            clientId,
+            stage: stage as never,
+            stageDates: stageDates as never,
+            ...(valueCents !== undefined ? { valueCents } : {}),
+          },
+        });
+      }
     } catch {
       /* mai bloccare il flusso principale */
     }
@@ -62,7 +74,18 @@ export class CrmService {
       orderBy: { updatedAt: 'desc' },
       include: {
         owner: { select: { displayName: true } },
-        client: { select: { email: true, clientProfile: { select: { name: true } } } },
+        client: {
+          select: {
+            email: true,
+            clientProfile: {
+              select: {
+                name: true,
+                assignedCoach: { select: { displayName: true } },
+                assignedNutritionist: { select: { displayName: true } },
+              },
+            },
+          },
+        },
       },
       take: 200,
     });

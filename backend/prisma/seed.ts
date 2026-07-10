@@ -469,11 +469,43 @@ async function main(): Promise<void> {
   await seedDemoCatalog();
   await seedProtocols();
   await seedCommerce();
+  await backfillPaidClientsIntoCrm();
   const count = await prisma.configParam.count();
   const permCount = await prisma.rolePagePermission.count();
   console.log(
     `Seed completato: ${CONFIG_PARAMS.length} parametri processati (${count} in config_param), ${permCount} permessi ruolo×pagina.`,
   );
+}
+
+/**
+ * Backfill: clienti con un pagamento approvato ma senza record CRM vengono
+ * inseriti nel CRM (stage 'paid'), così compaiono nella tabella clienti/lead
+ * come chi arriva dalla pipeline. Idempotente.
+ */
+async function backfillPaidClientsIntoCrm(): Promise<void> {
+  const paid = await prisma.payment.findMany({
+    where: { status: 'approved' },
+    select: { clientId: true, amountCents: true, approvedAt: true, createdAt: true },
+    orderBy: { approvedAt: 'desc' },
+  });
+  const seen = new Set<string>();
+  let created = 0;
+  for (const p of paid) {
+    if (seen.has(p.clientId)) continue;
+    seen.add(p.clientId);
+    const existing = await prisma.crmRecord.findUnique({ where: { clientId: p.clientId } });
+    if (existing) continue;
+    await prisma.crmRecord.create({
+      data: {
+        clientId: p.clientId,
+        stage: 'paid',
+        stageDates: { paid: { at: (p.approvedAt ?? p.createdAt).toISOString(), byUserId: null } } as never,
+        valueCents: p.amountCents,
+      },
+    });
+    created++;
+  }
+  if (created) console.log(`Seed: inseriti ${created} clienti paganti nel CRM (backfill).`);
 }
 
 /**

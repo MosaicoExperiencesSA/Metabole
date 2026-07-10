@@ -23,6 +23,14 @@ describe('FinanceService (eventi economici automatici)', () => {
         upsert: jest.fn(),
         findMany: jest.fn(),
       },
+      pendingCommission: {
+        create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(),
+      },
+      staff: {
+        findUnique: jest.fn().mockResolvedValue({ managerId: 'staff-hn' }),
+      },
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({
           assignedCoachId: 'staff-c',
@@ -84,6 +92,40 @@ describe('FinanceService (eventi economici automatici)', () => {
     expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-n']));
     expect(staffIds).not.toContain('staff-mc');
     expect(staffIds).not.toContain('staff-hn');
+  });
+
+  it('accantona: nutrizionista non assegnato → provvigioni in sospeso, non pagate subito', async () => {
+    prisma.clientProfile.findUnique.mockResolvedValueOnce({
+      assignedCoachId: 'staff-c',
+      assignedNutritionistId: null,
+      assignedCoach: { managerId: 'staff-mc' },
+      assignedNutritionist: null,
+    });
+    await service.generateCommissions({ id: 'pay-3', clientId: 'c1', amountCents: 10000 });
+    // coach + manager pagati subito
+    const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
+    expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-mc']));
+    // nutrizionista + capo accantonati (15% e 5% di 10000)
+    const pendings = prisma.pendingCommission.create.mock.calls.map((c: any) => c[0].data);
+    expect(pendings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: 'nutritionist', amountCents: 1500, clientId: 'c1', paymentId: 'pay-3' }),
+        expect.objectContaining({ role: 'head_nutritionist', amountCents: 500 }),
+      ]),
+    );
+  });
+
+  it('risolve: all\'assegnazione del nutrizionista paga gli accantonamenti', async () => {
+    prisma.pendingCommission.findMany.mockResolvedValueOnce([
+      { id: 'pc1', role: 'nutritionist', amountCents: 1500, paymentId: 'pay-3' },
+      { id: 'pc2', role: 'head_nutritionist', amountCents: 500, paymentId: 'pay-3' },
+    ]);
+    prisma.staff.findUnique.mockResolvedValueOnce({ managerId: 'staff-hn' });
+    await service.resolvePendingForAssignment('c1', 'nutritionist', 'staff-n');
+    const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
+    expect(staffIds).toEqual(expect.arrayContaining(['staff-n', 'staff-hn']));
+    const paid = prisma.pendingCommission.update.mock.calls.map((c: any) => c[0].data.status);
+    expect(paid.every((s: string) => s === 'paid')).toBe(true);
   });
 
   it('compenso visita: 40€ alla nutrizionista con expense a ledger', async () => {
