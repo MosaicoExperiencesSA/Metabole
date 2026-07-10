@@ -7,6 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -24,12 +25,14 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // anti-abuso registrazioni
   @Public()
   @Post('register')
   register(@Body() dto: RegisterDto, @Ip() ip: string) {
     return this.auth.register(dto.email, dto.password, dto.locale, ip);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } }) // anti brute-force
   @Public()
   @HttpCode(200)
   @Post('login')
@@ -70,6 +73,7 @@ export class AuthController {
 
   @Public()
   @HttpCode(202)
+  @Throttle({ default: { limit: 5, ttl: 900_000 } }) // anti-abuso reset
   @Post('password-reset')
   async requestReset(@Body() dto: PasswordResetRequestDto, @Ip() ip: string) {
     await this.auth.requestPasswordReset(dto.email, ip);

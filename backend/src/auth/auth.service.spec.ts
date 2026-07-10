@@ -83,7 +83,7 @@ describe('AuthService', () => {
           data: expect.objectContaining({ email: 'test@example.com', role: 'client' }),
         }),
       );
-      expect(mail.sendEmailVerification).toHaveBeenCalledWith('test@example.com', expect.any(String));
+      expect(mail.sendEmailVerification).toHaveBeenCalledWith('test@example.com', expect.any(String), 'it');
       expect(result.accessToken).toBe('signed.jwt.token');
       expect(result.refreshToken).toHaveLength(96); // 48 byte hex
       expect(result.user.email).toBe('test@example.com');

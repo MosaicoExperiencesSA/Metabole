@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18nService } from '../i18n/i18n.service';
 
 interface SendMailInput {
   to: string;
@@ -8,7 +9,7 @@ interface SendMailInput {
 }
 
 /**
- * Email transazionali via Brevo (API HTTP v3).
+ * Email transazionali via Brevo (API HTTP v3), localizzate (i18n, spec sez. 12).
  * Se BREVO_API_KEY manca o è un segnaposto, il contenuto viene loggato
  * invece che inviato (utile in dev): l'operazione chiamante non fallisce mai.
  */
@@ -16,7 +17,10 @@ interface SendMailInput {
 export class MailService {
   private readonly logger = new Logger(MailService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly i18n: I18nService,
+  ) {}
 
   private get apiKey(): string | null {
     const key = this.config.get<string>('BREVO_API_KEY');
@@ -69,16 +73,13 @@ export class MailService {
     }
   }
 
-  async sendEmailVerification(to: string, token: string): Promise<boolean> {
+  async sendEmailVerification(to: string, token: string, locale?: string | null): Promise<boolean> {
     const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole-backend.onrender.com';
     const link = `${appUrl}/api/v1/auth/verify-email?token=${token}`;
     return this.send({
       to,
-      subject: 'Metabole — conferma la tua email',
-      html: `<p>Benvenuta/o in Metabole!</p>
-<p>Per confermare il tuo indirizzo email clicca qui: <a href="${link}">conferma email</a></p>
-<p>Oppure usa questo codice nell'app: <code>${token}</code></p>
-<p>Il link scade tra 48 ore. Se non ti sei registrata/o tu, ignora questa email.</p>`,
+      subject: this.i18n.text(locale, 'mail.verify.subject'),
+      html: this.i18n.text(locale, 'mail.verify.body', { link, token }),
     });
   }
 
@@ -86,17 +87,18 @@ export class MailService {
   async sendBankTransferInstructions(
     to: string,
     input: { description: string; amountCents: number; bankDetails: string; reference: string },
+    locale?: string | null,
   ): Promise<boolean> {
     const amount = (input.amountCents / 100).toFixed(2).replace('.', ',');
     return this.send({
       to,
-      subject: `Metabole — estremi per il bonifico (${input.description})`,
-      html: `<p>Grazie per il tuo acquisto: <strong>${input.description}</strong>.</p>
-<p>Importo: <strong>€ ${amount}</strong></p>
-<p>Estremi per il bonifico:</p>
-<pre style="background:#f4f6f5;padding:12px;border-radius:8px">${input.bankDetails}</pre>
-<p>Causale da indicare: <strong>${input.reference}</strong></p>
-<p>Appena effettuato il bonifico, carica la contabile nell'app: un nostro operatore la verificherà e il tuo percorso si attiverà subito dopo l'approvazione.</p>`,
+      subject: this.i18n.text(locale, 'mail.bank.subject', { description: input.description }),
+      html: this.i18n.text(locale, 'mail.bank.body', {
+        description: input.description,
+        amount,
+        bankDetails: input.bankDetails,
+        reference: input.reference,
+      }),
     });
   }
 
@@ -104,31 +106,43 @@ export class MailService {
   async sendPaymentReceipt(
     to: string,
     input: { description: string; amountCents: number; paymentId: string; date: Date },
+    locale?: string | null,
   ): Promise<boolean> {
     const amount = (input.amountCents / 100).toFixed(2).replace('.', ',');
+    const loc = this.i18n.normalize(locale);
     return this.send({
       to,
-      subject: 'Metabole — ricevuta di pagamento',
-      html: `<p>Il tuo pagamento è stato confermato. 🎉</p>
-<table style="border-collapse:collapse">
-<tr><td style="padding:4px 12px 4px 0"><strong>Descrizione</strong></td><td>${input.description}</td></tr>
-<tr><td style="padding:4px 12px 4px 0"><strong>Importo</strong></td><td>€ ${amount}</td></tr>
-<tr><td style="padding:4px 12px 4px 0"><strong>Data</strong></td><td>${input.date.toLocaleDateString('it-IT')}</td></tr>
-<tr><td style="padding:4px 12px 4px 0"><strong>Riferimento</strong></td><td>${input.paymentId}</td></tr>
-</table>
-<p>Conserva questa email come ricevuta. Il tuo percorso è attivo: ti aspettiamo nell'app!</p>`,
+      subject: this.i18n.text(locale, 'mail.receipt.subject'),
+      html: this.i18n.text(locale, 'mail.receipt.body', {
+        description: input.description,
+        amount,
+        date: input.date.toLocaleDateString(loc === 'en' ? 'en-GB' : 'it-IT'),
+        paymentId: input.paymentId,
+      }),
     });
   }
 
-  async sendPasswordReset(to: string, token: string): Promise<boolean> {
+  async sendPasswordReset(to: string, token: string, locale?: string | null): Promise<boolean> {
     const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole-backend.onrender.com';
     const link = `${appUrl}/reset-password?token=${token}`;
     return this.send({
       to,
-      subject: 'Metabole — reimposta la password',
-      html: `<p>Hai chiesto di reimpostare la password del tuo account Metabole.</p>
-<p>Usa questo codice: <code>${token}</code> (oppure il link: <a href="${link}">reimposta password</a>)</p>
-<p>Il codice scade tra 1 ora. Se non l'hai richiesto tu, ignora questa email: la password resta invariata.</p>`,
+      subject: this.i18n.text(locale, 'mail.reset.subject'),
+      html: this.i18n.text(locale, 'mail.reset.body', { link, token }),
+    });
+  }
+
+  /** Copia email di una notifica in-app (solo se la cliente l'ha attivata). */
+  async sendNotificationEmail(
+    to: string,
+    locale: string | null | undefined,
+    title: string,
+    body: string,
+  ): Promise<boolean> {
+    return this.send({
+      to,
+      subject: this.i18n.text(locale, 'mail.notification.subject', { title }),
+      html: this.i18n.text(locale, 'mail.notification.body', { title, body }),
     });
   }
 }

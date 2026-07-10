@@ -25,6 +25,7 @@ import {
 } from 'class-validator';
 import { Headers, HttpCode as HttpCodeDecorator, RawBodyRequest, Req } from '@nestjs/common';
 import { Request } from 'express';
+import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -189,6 +190,7 @@ export class AdminPaymentsController {
 }
 
 /** Webhook Stripe (spec: POST /payments/webhook). Firma verificata, idempotente. */
+@SkipThrottle() // la firma Stripe è la protezione; niente rate limit sui webhook
 @Controller('payments')
 export class StripeWebhookController {
   constructor(

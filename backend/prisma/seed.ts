@@ -108,6 +108,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'ai_composer_enabled',
+    value: 'false',
+    type: 'string',
+    description: 'Layer AI di supporto: se "true" (e AI_API_KEY configurata su Render) i testi delle notifiche vengono riformulati da Claude; il tono resta deciso dal motore',
+  },
+  {
     key: 'bank_transfer_details',
     value: 'Intestatario: Metabole (DA CONFIGURARE)\nIBAN: IT00 X000 0000 0000 0000 0000 000 (DA CONFIGURARE)\nBanca: (DA CONFIGURARE)',
     type: 'string',

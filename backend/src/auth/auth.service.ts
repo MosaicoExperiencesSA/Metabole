@@ -59,7 +59,7 @@ export class AuthService {
       ipAddress: ip,
     });
 
-    await this.issueEmailVerification(user.id, normalized);
+    await this.issueEmailVerification(user.id, normalized, user.locale);
     await this.crm.ensureLead(user.id, normalized); // CRM: lead_in automatico
     const tokens = await this.issueTokenPair(user);
     return { user: this.toPublicUser(user), ...tokens };
@@ -140,7 +140,7 @@ export class AuthService {
 
   // ---------- Verifica email ----------
 
-  async issueEmailVerification(userId: string, email: string): Promise<void> {
+  async issueEmailVerification(userId: string, email: string, locale?: string | null): Promise<void> {
     const token = randomBytes(32).toString('hex');
     const ttlHours = 48;
     await this.prisma.actionToken.create({
@@ -151,7 +151,7 @@ export class AuthService {
         expiresAt: new Date(Date.now() + ttlHours * 3600_000),
       },
     });
-    await this.mail.sendEmailVerification(email, token);
+    await this.mail.sendEmailVerification(email, token, locale);
   }
 
   async verifyEmail(token: string): Promise<{ verified: boolean }> {
@@ -209,7 +209,7 @@ export class AuthService {
       entityId: user.id,
       ipAddress: ip,
     });
-    await this.mail.sendPasswordReset(normalized, token);
+    await this.mail.sendPasswordReset(normalized, token, user.locale);
   }
 
   async confirmPasswordReset(token: string, newPassword: string, ip?: string): Promise<void> {

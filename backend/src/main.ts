@@ -1,9 +1,22 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { rawBody: true }); // rawBody: firma webhook Stripe
+  // bodyParser disattivato e ri-registrato con limiti espliciti (upload contabili/documenti
+  // in base64 fino a ~5MB) mantenendo rawBody per la firma dei webhook Stripe.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+    bodyParser: false,
+  });
+  app.useBodyParser('json', { limit: '12mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
+
+  // Hardening OWASP: security header di base (l'API non serve HTML).
+  app.use(helmet({ contentSecurityPolicy: false }));
+
   app.setGlobalPrefix('api/v1', { exclude: ['health'] });
   app.useGlobalPipes(
     new ValidationPipe({

@@ -33,7 +33,10 @@ export class ProfileService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     await this.getProfile(userId); // 404 se manca
-    const { lifestyle, consents, planStartDate, ...rest } = dto;
+    const { lifestyle, consents, planStartDate, locale, ...rest } = dto;
+    if (locale) {
+      await this.prisma.user.update({ where: { id: userId }, data: { locale } });
+    }
     const profile = await this.prisma.clientProfile.update({
       where: { userId },
       data: {

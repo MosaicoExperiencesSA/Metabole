@@ -72,7 +72,7 @@ export class CommerceService {
     // Gating dell'acquisto al consenso dati sanitari (spec sez. 11).
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { consents: true, name: true },
+      select: { consents: true, name: true, user: { select: { locale: true } } },
     });
     const consents = (profile?.consents ?? {}) as { healthDataConsent?: { accepted?: boolean } };
     if (!consents.healthDataConsent?.accepted) {
@@ -130,12 +130,16 @@ export class CommerceService {
       'IBAN: da configurare in admin/config (bank_transfer_details)',
     );
     const reference = `${profile?.name ?? clientEmail} — ${payment.id.slice(0, 8).toUpperCase()}`;
-    await this.mail.sendBankTransferInstructions(clientEmail, {
-      description: payment.description,
-      amountCents: payment.amountCents,
-      bankDetails,
-      reference,
-    });
+    await this.mail.sendBankTransferInstructions(
+      clientEmail,
+      {
+        description: payment.description,
+        amountCents: payment.amountCents,
+        bankDetails,
+        reference,
+      },
+      profile?.user?.locale,
+    );
     return { subscription, payment: this.publicPayment(payment), transferReference: reference };
   }
 
@@ -168,12 +172,20 @@ export class CommerceService {
     });
     const bankDetails = await this.configParams.getString('bank_transfer_details', 'IBAN: da configurare');
     const reference = `Ordine ${order.id.slice(0, 8).toUpperCase()}`;
-    await this.mail.sendBankTransferInstructions(clientEmail, {
-      description: payment.description,
-      amountCents: totalCents,
-      bankDetails,
-      reference,
+    const buyer = await this.prisma.user.findUnique({
+      where: { id: clientId },
+      select: { locale: true },
     });
+    await this.mail.sendBankTransferInstructions(
+      clientEmail,
+      {
+        description: payment.description,
+        amountCents: totalCents,
+        bankDetails,
+        reference,
+      },
+      buyer?.locale,
+    );
     return { order, payment: this.publicPayment(payment), transferReference: reference };
   }
 
@@ -261,7 +273,7 @@ export class CommerceService {
     const staff = await this.prisma.staff.findUnique({ where: { userId: operator.sub } });
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { subscription: { include: { plan: true } }, client: { select: { email: true } } },
+      include: { subscription: { include: { plan: true } }, client: { select: { email: true, locale: true } } },
     });
     if (!payment) throw new NotFoundException('Pagamento non trovato');
     if (payment.status !== 'receipt_uploaded') {
@@ -294,7 +306,7 @@ export class CommerceService {
 
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { subscription: { include: { plan: true } }, client: { select: { email: true } } },
+      include: { subscription: { include: { plan: true } }, client: { select: { email: true, locale: true } } },
     });
     if (!payment) return { handled: false, reason: 'pagamento sconosciuto' };
     if (payment.status === 'approved') {
@@ -323,7 +335,7 @@ export class CommerceService {
       amountCents: number;
       description: string;
       subscription: { plan: { period: string } } | null;
-      client: { email: string };
+      client: { email: string; locale?: string | null };
     },
     byUserId: string,
     methodLabel: string,
@@ -357,19 +369,21 @@ export class CommerceService {
     });
     await this.crm.autoAdvance(payment.clientId, 'paid', byUserId, payment.amountCents);
 
-    await this.mail.sendPaymentReceipt(payment.client.email, {
-      description: payment.description,
-      amountCents: payment.amountCents,
-      paymentId: payment.id,
-      date: new Date(),
-    });
+    await this.mail.sendPaymentReceipt(
+      payment.client.email,
+      {
+        description: payment.description,
+        amountCents: payment.amountCents,
+        paymentId: payment.id,
+        date: new Date(),
+      },
+      payment.client.locale,
+    );
     await this.notifications.notifyOncePerDay({
       userId: payment.clientId,
       type: 'payment_approved',
-      title: 'Pagamento confermato! 🎉',
-      body: payment.subscriptionId
-        ? `Il tuo pagamento con ${methodLabel} è confermato: il percorso è attivo e il menu è in arrivo.`
-        : `Il tuo pagamento con ${methodLabel} è confermato: l'ordine è in preparazione.`,
+      messageKey: payment.subscriptionId ? 'payment_approved_subscription' : 'payment_approved_order',
+      payload: { method: methodLabel },
     });
     await this.audit.log({
       action: 'commerce.payment.approve',
@@ -383,7 +397,7 @@ export class CommerceService {
   async rejectPayment(operator: AuthUser, paymentId: string, reason: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { client: { select: { email: true } } },
+      include: { client: { select: { email: true, locale: true } } },
     });
     if (!payment) throw new NotFoundException('Pagamento non trovato');
     if (payment.status !== 'receipt_uploaded') {
@@ -396,8 +410,8 @@ export class CommerceService {
     await this.notifications.notifyOncePerDay({
       userId: payment.clientId,
       type: 'payment_rejected',
-      title: 'Contabile da ricontrollare',
-      body: `La contabile caricata non è verificabile: ${reason}. Puoi caricarne una nuova dall'app.`,
+      messageKey: 'payment_rejected',
+      params: { reason },
     });
     await this.audit.log({
       action: 'commerce.payment.reject',

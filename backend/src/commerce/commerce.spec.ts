@@ -50,6 +50,7 @@ describe('CommerceService (flusso bonifico)', () => {
         update: jest.fn(),
       },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-op' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ locale: 'it' }) },
     };
     mail = {
       sendBankTransferInstructions: jest.fn().mockResolvedValue(true),
@@ -90,6 +91,7 @@ describe('CommerceService (flusso bonifico)', () => {
       expect(mail.sendBankTransferInstructions).toHaveBeenCalledWith(
         'giulia@test.it',
         expect.objectContaining({ amountCents: 29700, bankDetails: 'IBAN IT00 TEST' }),
+        undefined, // locale non presente nel mock del profilo → default it
       );
       // niente attivazioni premature
       expect(finance.recordIncome).not.toHaveBeenCalled();
@@ -173,6 +175,7 @@ describe('CommerceService (flusso bonifico)', () => {
       expect(mail.sendPaymentReceipt).toHaveBeenCalledWith(
         'giulia@test.it',
         expect.objectContaining({ amountCents: 29700 }),
+        undefined,
       );
       expect(notifications.notifyOncePerDay).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'payment_approved' }),

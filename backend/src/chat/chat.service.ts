@@ -149,8 +149,7 @@ export class ChatService {
       await this.notifications.notifyOncePerDay({
         userId: thread.clientId,
         type: `chat_reply_${thread.counterpart}`,
-        title: 'Nuovo messaggio in chat',
-        body: 'Hai una risposta nel tuo thread: apri la chat per leggerla. 💬',
+        messageKey: 'chat_reply',
       });
     }
     return { message };
@@ -180,7 +179,7 @@ export class ChatService {
           },
         });
       }
-      await this.notifyCounterpartStaff(clientId, 'nutritionist', 'chat_sensitive_alert', 'Messaggio sensibile in chat', 'Il filtro AI ha rilevato un tema sensibile: apri la chat della cliente appena puoi.');
+      await this.notifyCounterpartStaff(clientId, 'nutritionist', 'chat_sensitive_alert', 'chat_sensitive_alert');
       await this.audit.log({
         action: 'chat.sensitive_escalation',
         actorId: clientId,
@@ -227,8 +226,7 @@ export class ChatService {
     clientId: string,
     counterpart: Counterpart,
     type = `chat_message_${counterpart}`,
-    title = 'Nuovo messaggio in chat',
-    bodyText = 'Una tua cliente ti ha scritto: apri la chat per rispondere. 💬',
+    messageKey = 'chat_message_staff',
   ) {
     if (counterpart === 'ai') return;
     const profile = await this.prisma.clientProfile.findUnique({
@@ -244,8 +242,7 @@ export class ChatService {
     await this.notifications.notifyOncePerDay({
       userId: staffUserId,
       type,
-      title,
-      body: bodyText,
+      messageKey,
       payload: { clientId },
     });
   }

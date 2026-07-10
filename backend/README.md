@@ -96,6 +96,16 @@ Milestone 9 — CRM, commercio e contabilità (completata):
 - **Stripe (carta)**: `POST /me/subscribe` con `method: "card"` → sessione **Stripe Checkout** (`checkoutUrl`); `POST /payments/webhook` con **firma verificata** (`STRIPE_WEBHOOK_SECRET`, rawBody) e **idempotente** → alla conferma, stessa catena del bonifico (attivazione, income, provvigioni, CRM, ricevuta). Env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (solo pannello Render).
 - 212 unit test totali
 
+Milestone 10 — Rifinitura (completata):
+
+- **i18n (spec sez. 12)**: catalogo messaggi **italiano + inglese** (`src/i18n/messages.ts`), `locale` per utente (in registrazione o `PATCH /me/profile`), fallback sempre sull'italiano. Notifiche ed email transazionali arrivano nella lingua dell'utente. Il test del catalogo garantisce che ogni chiave esista in entrambe le lingue.
+- **Notifiche intelligenti complete (spec sez. 9)**: messaggio quotidiano del **motore** con tono e timing decisi dalle regole (`engine_daily`, payload con `tone`/`timing`/`decisionId`), richiesta valutazione ricette in sospeso, promemoria **visita di domani** (a cliente e nutrizionista), incoraggiamento a **misure migliorate**, oltre a check-in/misure/pre-evento/mini-piano/alert coach già attivi. Testi con **varianti** scelte in modo deterministico (utente+giorno) per non essere ripetitivi.
+- **Preferenze notifiche** (`GET/PATCH /me/notifications/prefs`): opt-out per tipo + **email opzionale** (default spenta; solo per visite, pagamenti e pre-evento). Le preferenze vengono rispettate da ogni notifica.
+- **Layer AI di supporto (spec 7.2)**: `MessageComposerService` — il testo parte sempre dai template; se `AI_API_KEY` è configurata su Render **e** `ai_composer_enabled=true` in config, il corpo viene riformulato da Claude **mantenendo il tono deciso dal motore** (l'AI non decide mai); qualsiasi errore → fallback silenzioso al template; tracciabilità nel payload (`composer: template|ai`).
+- **Hardening OWASP**: `helmet` (security header), **rate limiting** globale (120 req/min per IP, `THROTTLE_LIMIT` per regolarlo) con limiti stretti su login (10/min), registrazione (5/min) e reset password (5/15min); cron e webhook Stripe esclusi (protetti da segreto/firma). **Limite body 12 MB** esplicito (upload contabili/documenti base64) con `rawBody` preservato per la firma Stripe — verificato a runtime.
+- **Load test locale** (`test/load/load-app.ts`, stack API reale con database stubbato, 50 connessioni × 10s, autocannon): `/health` ≈ 2.900 req/s (p99 45ms), `/api/v1/plans` ≈ 3.600 req/s (p99 28ms), rotta protetta con token invalido ≈ 3.100 req/s (p99 39ms). Rate limiter verificato: 120 passano, dalla 121ª in poi 429.
+- 231 unit test totali
+
 ## Sviluppo locale
 
 Requisiti: Node 22+, un database PostgreSQL (anche Neon dev branch).

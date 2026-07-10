@@ -7,6 +7,7 @@ coverage/
 # Ambiente / segreti
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 

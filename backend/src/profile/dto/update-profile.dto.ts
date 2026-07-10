@@ -35,6 +35,11 @@ export class UpdateProfileDto {
   @MaxLength(80)
   name?: string;
 
+  /** Lingua dell'utente (i18n): notifiche ed email arrivano in questa lingua. */
+  @IsOptional()
+  @IsIn(['it', 'en'])
+  locale?: string;
+
   @IsOptional()
   @IsInt()
   @Min(18)

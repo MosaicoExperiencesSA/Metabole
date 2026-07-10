@@ -6,6 +6,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AuditService } from '../audit/audit.service';
 import { Public } from '../common/decorators/public.decorator';
 import { EngineService } from '../engine/engine.service';
@@ -16,6 +17,7 @@ import { NotificationsService } from '../notifications/notifications.service';
  * vengono generate senza intervento umano. Protetto da segreto condiviso
  * (header x-cron-secret = env CRON_SECRET), non dal JWT.
  */
+@SkipThrottle() // protetto dal segreto condiviso, non dal rate limit
 @Controller('internal/cron')
 export class CronController {
   constructor(

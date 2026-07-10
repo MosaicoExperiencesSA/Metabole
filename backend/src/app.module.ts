@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { CalendarModule } from './calendar/calendar.module';
@@ -10,6 +11,7 @@ import { CommerceModule } from './commerce/commerce.module';
 import { CronModule } from './cron/cron.module';
 import { EngineModule } from './engine/engine.module';
 import { HealthAreaModule } from './health-area/health-area.module';
+import { I18nModule } from './i18n/i18n.module';
 import { MenuModule } from './menu/menu.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -27,8 +29,14 @@ import { UsersModule } from './users/users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Rate limiting globale (hardening OWASP); limiti più stretti sugli endpoint auth.
+    // THROTTLE_LIMIT sovrascrivibile via env (default 120 richieste/minuto per IP).
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: Number(process.env.THROTTLE_LIMIT ?? 120) }],
+    }),
     PrismaModule,
     AuditModule,
+    I18nModule,
     MailModule,
     ConfigParamsModule,
     AuthModule,
@@ -49,7 +57,8 @@ import { UsersModule } from './users/users.module';
     HealthModule,
   ],
   providers: [
-    // Ordine importante: prima autenticazione, poi RBAC.
+    // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

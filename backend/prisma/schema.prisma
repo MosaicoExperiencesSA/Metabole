@@ -322,6 +322,7 @@ model ClientProfile {
   assignedNutritionistId String?    @map("assigned_nutritionist_id")
   assignedNutritionist   Staff?     @relation("AssignedNutritionist", fields: [assignedNutritionistId], references: [id], onDelete: SetNull)
   consents               Json?      // versioni dei consensi accettati
+  notificationPrefs      Json?      @map("notification_prefs") // opt-out per tipo + email opzionale
   screeningFlag          Boolean    @default(false) @map("screening_flag")
   onboardingAnswers      Json?      @map("onboarding_answers") // snapshot grezzo delle risposte
   onboardingCompletedAt  DateTime?  @map("onboarding_completed_at")
