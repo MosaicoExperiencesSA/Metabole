@@ -116,6 +116,15 @@ export class ClientsService {
     return { id: created.id, body: created.body, createdAt: created.createdAt, author: created.author?.displayName ?? null };
   }
 
+  /** Elimina una nota dal log (solo admin, controllato dal controller). */
+  async deleteNote(userId: string, noteId: string, actorId: string) {
+    const note = await this.prisma.clientNote.findUnique({ where: { id: noteId }, select: { id: true, clientId: true } });
+    if (!note || note.clientId !== userId) throw new NotFoundException('Nota non trovata.');
+    await this.prisma.clientNote.delete({ where: { id: noteId } });
+    await this.audit.log({ action: 'client.note.delete', actorId, entityType: 'user', entityId: userId, metadata: { noteId } });
+    return { removed: noteId };
+  }
+
   /** Invia alla cliente l'email per reimpostare la password (nessuna password gestita dallo staff). */
   async sendPasswordReset(userId: string, actorId: string, ip?: string) {
     const user = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null } });

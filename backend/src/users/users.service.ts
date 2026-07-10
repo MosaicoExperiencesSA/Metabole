@@ -61,6 +61,27 @@ export class UsersService {
     return user;
   }
 
+  /** Preferenze UI dell'utente (es. scorciatoie dashboard scelte). */
+  async getPreferences(userId: string) {
+    const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });
+    if (!u) throw new NotFoundException('Utente non trovato');
+    const prefs = (u.prefs as Record<string, unknown> | null) ?? {};
+    const raw = prefs.dashboardShortcuts;
+    const dashboardShortcuts = Array.isArray(raw)
+      ? raw.filter((x): x is string => typeof x === 'string')
+      : null; // null = mai personalizzate (il frontend userà i valori predefiniti)
+    return { dashboardShortcuts };
+  }
+
+  async setDashboardShortcuts(userId: string, keys: string[]) {
+    const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });
+    if (!u) throw new NotFoundException('Utente non trovato');
+    const clean = Array.from(new Set(keys.filter((k) => typeof k === 'string'))).slice(0, 40);
+    const prefs = { ...((u.prefs as Record<string, unknown> | null) ?? {}), dashboardShortcuts: clean };
+    await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
+    return { dashboardShortcuts: clean };
+  }
+
   private static readonly STAFF_ROLES: Role[] = [
     'coach',
     'nutritionist',

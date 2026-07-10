@@ -120,6 +120,18 @@ export function ClientDetail() {
     }
   }
 
+  async function deleteNote(noteId: string) {
+    if (!confirm('Eliminare questa nota? L\'operazione non è reversibile.')) return;
+    setError(null);
+    try {
+      await api(`/admin/clients/${id}/note/${noteId}`, { method: 'DELETE' });
+      setNotes((ns) => ns.filter((n) => n.id !== noteId));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Solo un admin può eliminare le note.');
+      else setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+    }
+  }
+
   if (loading) return <Spinner />;
   if (!d) return <Banner kind="err">{error ?? 'Errore'}</Banner>;
 
@@ -186,8 +198,17 @@ export function ClientDetail() {
             ) : (
               <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {notes.map((n) => (
-                  <div key={n.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px' }}>
-                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{n.body}</div>
+                  <div key={n.id} style={{ position: 'relative', border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px' }}>
+                    {isAdmin && (
+                      <button
+                        onClick={() => deleteNote(n.id)}
+                        title="Elimina nota"
+                        style={{ position: 'absolute', top: 4, right: 4, border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}
+                      >
+                        <i className="ti ti-x" />
+                      </button>
+                    )}
+                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', paddingRight: isAdmin ? 20 : 0 }}>{n.body}</div>
                     <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                       {n.author ?? 'Staff'} · {dateTime(n.createdAt)}
                     </div>

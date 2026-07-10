@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Ip, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Post } from '@nestjs/common';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -28,6 +28,14 @@ export class ClientsController {
   @Post(':id/note')
   addNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddNoteDto) {
     return this.clients.addNote(id, user.sub, dto.body);
+  }
+
+  /** Elimina una nota dal log: solo admin. */
+  @Roles('admin')
+  @HttpCode(200)
+  @Delete(':id/note/:noteId')
+  deleteNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('noteId') noteId: string) {
+    return this.clients.deleteNote(id, noteId, user.sub);
   }
 
   /** Invio email di reset password alla cliente: solo admin. */
