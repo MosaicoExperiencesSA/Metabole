@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metabole — Flusso di attivazione</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+  body{margin:0;background:#EFEAE0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#16302C;padding:24px 0}
+  .mw{display:flex;justify-content:center}
+  .phone{width:304px;height:634px;display:flex;flex-direction:column;background:#FAF8F3;border:11px solid #0B0F0E;border-radius:52px;overflow:hidden;position:relative;box-shadow:0 20px 46px rgba(16,64,58,.24)}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:9}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:13px 26px 4px;font-size:11px;color:#16302C;font-weight:600;flex:none}
+  .ftop{padding:6px 16px 4px;flex:none}
+  .prog{height:5px;background:#E7E1D5;border-radius:4px;overflow:hidden}
+  .prog>span{display:block;height:100%;background:#12A386;border-radius:4px;transition:width .25s}
+  .pbody{flex:1;overflow:auto;padding:6px 16px}
+  .bottombar{flex:none;padding:10px 16px}
+  .homeind{height:5px;width:120px;background:#0B302B;opacity:.28;border-radius:5px;margin:2px auto 8px;flex:none}
+  .h1{font-size:19px;font-weight:600;margin-bottom:4px}
+  .sub{font-size:12px;color:#7C8C88}
+  .card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 2px 6px rgba(16,64,58,.06);margin-bottom:11px}
+  .bdg{border-radius:14px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .cta{width:100%;background:#12A386;color:#fff;border:none;border-radius:24px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 14px rgba(18,163,134,.3)}
+  .ghost{width:100%;background:#fff;color:#10403A;border:1px solid #E2DFD6;border-radius:24px;padding:11px;font-size:14px;cursor:pointer;margin-top:8px}
+  .inp{width:100%;border:1px solid #ECE7DE;border-radius:12px;padding:11px 12px;font-size:14px;outline:none;box-sizing:border-box;background:#fff}
+  .back{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#7C8C88;cursor:pointer}
+  .tag{font-size:11px;padding:3px 9px;border-radius:20px}
+  .link{font-size:12px;color:#12A386;text-decoration:underline;cursor:pointer;display:inline-block;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="mw"><div class="phone"><div class="island"></div><div class="statusbar"><span>9:41</span><span><i class="ti ti-wifi" style="font-size:13px"></i> <i class="ti ti-battery-3" style="font-size:14px"></i></span></div><div class="ftop"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span id="bk" class="back"><i class="ti ti-chevron-left"></i> Indietro</span><span id="stp" class="sub" style="font-size:11px"></span></div><div class="prog"><span id="pg"></span></div></div><div class="pbody" id="pb"></div><div class="bottombar" id="bb"></div><div class="homeind"></div></div></div>
+<script>
+(function(){
+  function bdg(icon,size,bg,fg){return '<span class="bdg" style="width:'+size+'px;height:'+size+'px;background:'+bg+';color:'+fg+'"><i class="ti '+icon+'" style="font-size:'+Math.round(size*0.52)+'px"></i></span>';}
+  var today=new Date();today.setHours(0,0,0,0);
+  var start=new Date(today);start.setDate(start.getDate()+5);
+  function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  function fmt(d){return d.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});}
+  function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
+  function daysBetween(a,b){return Math.round((b-a)/86400000);}
+
+  var steps=[
+    {btn:'Inizia',c:function(){return '<div style="text-align:center;padding-top:40px"><span class="bdg" style="width:74px;height:74px;background:#12A386;color:#fff;margin:0 auto 18px;border-radius:22px"><i class="ti ti-leaf" style="font-size:40px"></i></span><div style="font-size:26px;font-weight:600;letter-spacing:.5px">Metabole</div><div class="sub" style="font-size:14px;margin-top:8px;padding:0 10px">Non una dieta: il tuo percorso, giorno per giorno, con coach e nutrizionista.</div></div>';}},
+    {btn:'Registrati',c:function(){return '<div class="h1">Crea il tuo account</div><div class="sub" style="margin-bottom:16px">Bastano pochi secondi.</div><input class="inp" placeholder="Nome" style="margin-bottom:10px"><input class="inp" placeholder="Email" style="margin-bottom:10px"><input class="inp" type="password" placeholder="Password"><div style="display:flex;gap:8px;margin-top:14px"><button class="ghost" style="margin:0"><i class="ti ti-brand-apple" style="font-size:15px;vertical-align:-2px"></i> Apple</button><button class="ghost" style="margin:0"><i class="ti ti-brand-google" style="font-size:15px;vertical-align:-2px"></i> Google</button></div>';}},
+    {btn:'Fai il test',c:function(){return '<div class="h1">Facciamo conoscenza</div><div class="sub" style="margin-bottom:16px">Un breve test per capire obiettivo, abitudini, lavoro e carattere: così il percorso parte già su misura.</div>'
+      +[['ti-target','Il tuo obiettivo (peso, vita, fianchi) ed entro quando'],['ti-briefcase','Vita e lavoro: quanti pasti, tempo per cucinare'],['ti-salad','Regime e gusti: onnivoro, vegetariano, vegano'],['ti-mood-smile','Carattere: come vuoi essere seguita']].map(function(r){return '<div class="card" style="display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:8px">'+bdg(r[0],34,'#DCEBE3','#0E7C66')+'<span style="font-size:12.5px">'+r[1]+'</span></div>';}).join('');}},
+    {btn:'Continua',c:function(){return '<div class="h1">Il tuo percorso è pronto</div><div class="sub" style="margin-bottom:14px">Costruito sulle tue risposte.</div>'
+      +'<div class="card"><div class="sub" style="font-size:11px">Percorso consigliato</div><div style="font-size:15px;font-weight:600;margin-bottom:8px">Equilibrio Mediterraneo · liv. 2</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+['5 pasti','Menu da portare','Ritmo sostenibile'].map(function(t){return '<span class="tag" style="background:#DCEBE3;color:#0E7C66">'+t+'</span>';}).join('')+'</div></div>'
+      +'<div style="display:flex;gap:10px;margin-bottom:11px"><div class="card" style="flex:1;margin:0"><div class="sub" style="font-size:10px">Coach</div><div style="font-size:13px;font-weight:600;margin-top:3px">Sara C.</div></div><div class="card" style="flex:1;margin:0"><div class="sub" style="font-size:10px">Nutrizionista</div><div style="font-size:13px;font-weight:600;margin-top:3px">Dott.ssa Marini</div></div></div>'
+      +'<div class="card" style="background:#EAF6F1;box-shadow:none;display:flex;align-items:center;gap:9px"><i class="ti ti-calendar-check" style="color:#0E7C66;font-size:18px"></i><span style="font-size:12px;color:#0E7C66">Prima visita in presenza: giovedì 16 luglio</span></div>';}},
+    {btn:'Continua',c:function(){return '<div class="h1">Scegli il tuo piano</div><div class="sub" style="margin-bottom:14px">Puoi cambiarlo quando vuoi.</div>'
+      +'<div class="card" style="display:flex;align-items:center;gap:10px"><div style="flex:1"><div style="font-size:14px;font-weight:600">Piano mensile · 5 pasti</div><div class="sub" style="font-size:11px">Coach + nutrizionista</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:600">€ 99</div><div class="sub" style="font-size:10px">/mese</div></div></div>'
+      +'<div class="card" style="border:2px solid #12A386;display:flex;align-items:center;gap:10px"><div style="flex:1"><span class="tag" style="background:#DCF0D8;color:#3B6D11">Più scelto · -10%</span><div style="font-size:14px;font-weight:600;margin-top:5px">Percorso 3 mesi</div><div class="sub" style="font-size:11px">Risultati più solidi</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:600">€ 267</div><i class="ti ti-circle-check" style="color:#12A386;font-size:20px"></i></div></div>';}},
+    {btn:'Paga e attiva',c:function(){return '<div class="h1">Riepilogo</div><div class="sub" style="margin-bottom:14px">Ancora un passo.</div>'
+      +'<div class="card" style="display:flex;justify-content:space-between"><span style="font-size:13px">Percorso 3 mesi</span><b style="font-size:14px">€ 267</b></div>'
+      +'<div class="card"><div class="sub" style="font-size:11px;margin-bottom:8px">Metodo di pagamento</div><div style="display:flex;align-items:center;gap:9px"><i class="ti ti-credit-card" style="font-size:20px;color:#3A6EA5"></i><span style="font-size:13px">•••• •••• •••• 4242</span></div></div>'
+      +'<div class="sub" style="font-size:11px;display:flex;align-items:center;gap:6px"><i class="ti ti-lock" style="font-size:14px"></i> Pagamento sicuro e crittografato.</div>';}},
+    {btn:'Conferma data',c:function(){return '<div class="h1">Quando vuoi iniziare?</div><div class="sub" style="margin-bottom:14px">Scegli il giorno in cui parte il tuo piano.</div>'
+      +'<div class="card"><div class="sub" style="font-size:11px;margin-bottom:6px">Data di inizio</div><input class="inp" type="date" id="startDate" value="'+iso(start)+'"></div>'
+      +'<div class="card" id="dateInfo" style="background:#EAF6F1;box-shadow:none"></div>';}},
+    {btn:'Vai alla home',c:function(){var vis=addDays(start,-2);var dv=daysBetween(today,vis);var pronto=dv<=0;
+      return '<div style="text-align:center;padding-top:8px"><span class="bdg" style="width:64px;height:64px;background:#DCF0D8;color:#3B6D11;margin:0 auto 14px;border-radius:20px"><i class="ti ti-circle-check" style="font-size:36px"></i></span><div class="h1" style="font-size:20px">Tutto pronto, Giulia!</div><div class="sub" style="margin-bottom:16px">Il tuo piano inizia '+fmt(start)+'.</div></div>'
+      +(pronto?'<div class="card" style="background:#DCF0D8;box-shadow:none;text-align:center"><i class="ti ti-lock-open" style="font-size:22px;color:#3B6D11"></i><div style="font-size:14px;font-weight:600;color:#3B6D11;margin-top:5px">Il menu è già visibile!</div></div>'
+        :'<div class="card" style="text-align:center"><div class="sub" style="font-size:11px">Il menu si sblocca tra</div><div style="font-size:34px;font-weight:600;color:#12A386;line-height:1.1;margin:4px 0">'+dv+' <span style="font-size:15px;color:#7C8C88">giorni</span></div><div class="sub" style="font-size:11px"><i class="ti ti-lock" style="font-size:12px;vertical-align:-1px"></i> visibile dal '+fmt(vis)+' (2 giorni prima)</div></div>')
+      +'<div class="card"><div class="sub" style="font-size:11px;margin-bottom:8px">Nel frattempo</div>'+[['ti-calendar-check','Prima visita con la nutrizionista'],['ti-photo','Carica le tue foto iniziali'],['ti-basket','Prepara la spesa consigliata']].map(function(r){return '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;font-size:12.5px"><i class="ti '+r[0]+'" style="font-size:16px;color:#0E7C66"></i>'+r[1]+'</div>';}).join('')+'</div>'
+      +'<span class="link" id="simUnlock">Simula: sono passati i giorni → sblocca il menu</span>';}},
+    {btn:'Apri il menu',c:function(){return '<div style="text-align:center;padding-top:6px"><span class="bdg" style="width:60px;height:60px;background:#12A386;color:#fff;margin:0 auto 12px;border-radius:18px"><i class="ti ti-lock-open" style="font-size:30px"></i></span><div class="h1" style="font-size:20px">Il tuo menu è pronto!</div><div class="sub" style="margin-bottom:14px">Ecco i primi due giorni. Il resto si sblocca dopo i tuoi check-in.</div></div>'
+      +[['Oggi','Colazione · yogurt e avena','Pranzo · farro e pollo','Cena · orata e verdure'],['Domani','Colazione · pancake','Pranzo · vellutata','Cena · pizza integrale']].map(function(d){return '<div class="card"><div style="font-weight:600;font-size:13px;margin-bottom:6px">'+d[0]+'</div><div class="sub" style="font-size:12px;line-height:1.8">'+d[1]+'<br>'+d[2]+'<br>'+d[3]+'</div></div>';}).join('')
+      +'<div class="card" style="background:#F1EFEA;box-shadow:none;display:flex;align-items:center;gap:9px;opacity:.8"><i class="ti ti-lock" style="color:#9aa"></i><span class="sub" style="font-size:12px">Giorni 3-4 · si sbloccano dopo il check-in</span></div>';}}
+  ];
+
+  var i=0;
+  var pb=document.getElementById('pb'),bb=document.getElementById('bb'),pg=document.getElementById('pg'),stp=document.getElementById('stp'),bk=document.getElementById('bk');
+  function renderDateInfo(){var di=document.getElementById('dateInfo');if(!di)return;var vis=addDays(start,-2);di.innerHTML='<div style="display:flex;align-items:flex-start;gap:9px"><i class="ti ti-eye" style="color:#0E7C66;font-size:18px"></i><div><div style="font-size:12.5px;color:#0E7C66;font-weight:600">Menu visibile dal '+fmt(vis)+'</div><div class="sub" style="font-size:11px;margin-top:2px">Si sblocca 2 giorni prima dell\'inizio, così arrivi preparata.</div></div></div>';}
+  function render(){
+    pb.innerHTML=steps[i].c();
+    bb.innerHTML='<button class="cta" id="cta">'+steps[i].btn+'</button>';
+    pg.style.width=Math.round((i+1)/steps.length*100)+'%';
+    stp.textContent='Passo '+(i+1)+' di '+steps.length;
+    bk.style.visibility=i===0?'hidden':'visible';
+    document.getElementById('cta').addEventListener('click',function(){ if(i<steps.length-1){i++;render();} });
+    var sd=document.getElementById('startDate');
+    if(sd){renderDateInfo();sd.addEventListener('change',function(){var p=sd.value.split('-');start=new Date(+p[0],+p[1]-1,+p[2]);renderDateInfo();});}
+    var su=document.getElementById('simUnlock');
+    if(su){su.addEventListener('click',function(){i=steps.length-1;render();});}
+  }
+  bk.addEventListener('click',function(){if(i>0){i--;render();}});
+  render();
+})();
+</script>
+</body>
+</html>

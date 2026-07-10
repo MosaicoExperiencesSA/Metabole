@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metabole — Prototipo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+  :root{--teal:#12A386;--deep:#10403A;--coral:#E8825A}
+  *{box-sizing:border-box}
+  body{margin:0;background:#FAF8F3;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#16302C;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 18px}
+  .logo{width:66px;height:66px;border-radius:20px;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(18,163,134,.3)}
+  h1{font-size:34px;font-weight:700;margin:16px 0 4px;letter-spacing:.5px}
+  .sub{color:#7C8C88;font-size:15px;text-align:center;max-width:460px;line-height:1.5}
+  .cards{width:100%;max-width:520px;margin-top:28px;display:flex;flex-direction:column;gap:14px}
+  a.card{display:flex;align-items:center;gap:14px;background:#fff;border:0.5px solid #ECE7DE;border-radius:18px;padding:16px 18px;text-decoration:none;color:inherit;box-shadow:0 2px 8px rgba(16,64,58,.06);transition:transform .12s,box-shadow .12s}
+  a.card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(16,64,58,.12)}
+  a.card.primary{border:2px solid var(--teal)}
+  .ic{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex:none}
+  .card b{font-size:16px;font-weight:600;display:block}
+  .card span{font-size:13px;color:#7C8C88}
+  .foot{margin-top:34px;font-size:12px;color:#9aa;text-align:center;max-width:480px;line-height:1.6}
+  .badge{display:inline-block;background:#DCEBE3;color:#0E7C66;font-size:11px;padding:3px 10px;border-radius:20px;margin-top:10px}
+</style>
+</head>
+<body>
+  <div class="logo"><i class="ti ti-leaf" style="font-size:36px"></i></div>
+  <h1>Metabole</h1>
+  <div class="sub">Non una dieta: un percorso di dimagrimento giorno per giorno, con un motore intelligente, coach e nutrizionista.</div>
+  <div class="badge">Prototipo cliccabile · demo</div>
+
+  <div class="cards">
+    <a class="card primary" href="Metabole_Prototipo_Navigabile.html">
+      <span class="ic" style="background:#DCEBE3;color:#0E7C66"><i class="ti ti-device-mobile" style="font-size:24px"></i></span>
+      <span><b>App completa</b><span>Dal primo avvio all'app operativa: attivazione, questionario e dashboard.</span></span>
+    </a>
+    <a class="card" href="Metabole_Flusso_Attivazione.html">
+      <span class="ic" style="background:#EAF6F1;color:#12A386"><i class="ti ti-rocket" style="font-size:22px"></i></span>
+      <span><b>Flusso di attivazione</b><span>Download → account → piano → data di inizio → sblocco menu.</span></span>
+    </a>
+    <a class="card" href="Metabole_Sondaggio_Iniziale.html">
+      <span class="ic" style="background:#EFEAF9;color:#6C5AB7"><i class="ti ti-clipboard-list" style="font-size:22px"></i></span>
+      <span><b>Questionario iniziale</b><span>Le domande che profilano obiettivo, gusti, salute e carattere.</span></span>
+    </a>
+    <a class="card" href="Metabole_Widget_Mascotte.html">
+      <span class="ic" style="background:#FBEEE7;color:#E8825A"><i class="ti ti-mood-smile" style="font-size:24px"></i></span>
+      <span><b>Widget mascotte</b><span>La mascotte Coach nei 3 formati, con stati, frase del giorno e prossimo menu.</span></span>
+    </a>
+  </div>
+
+  <div class="foot">Prototipo dimostrativo. Aprilo preferibilmente da desktop. La documentazione tecnica e strategica è nel repository.</div>
+</body>
+</html>
