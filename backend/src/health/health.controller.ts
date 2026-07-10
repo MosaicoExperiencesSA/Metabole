@@ -1,4 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -13,6 +14,16 @@ export interface HealthStatus {
 @Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Diagnostica temporanea (M10): conta gli hop di proxy per tarare trust proxy. */
+  @Get('proxy-check')
+  proxyCheck(@Req() req: Request) {
+    return {
+      ip: req.ip,
+      ips: req.ips,
+      xForwardedFor: req.headers['x-forwarded-for'] ?? null,
+    };
+  }
 
   @Get()
   async check(): Promise<HealthStatus> {
