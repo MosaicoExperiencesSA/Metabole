@@ -5,7 +5,11 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 
 interface Detail {
-  user: { id: string; email: string; status: string; locale: string; emailVerifiedAt: string | null; createdAt: string };
+  user: {
+    id: string; email: string; status: string; locale: string; emailVerifiedAt: string | null; createdAt: string;
+    firstName: string | null; lastName: string | null;
+    addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null;
+  };
   profile: any | null;
   objective: any | null;
   measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null }[];
@@ -76,6 +80,7 @@ export function ClientDetail() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Note dello staff (log)
   const [notes, setNotes] = useState<Detail['notes']>([]);
@@ -178,6 +183,22 @@ export function ClientDetail() {
     }
   }
 
+  async function deleteClient() {
+    const label = d?.user.email ?? 'questo cliente';
+    if (!confirm(`Eliminare DEFINITIVAMENTE ${label} e TUTTO ciò che gli è collegato (questionario, misure, acquisti, note…)?\n\nL'operazione non è reversibile.`)) return;
+    if (!confirm('Confermi di nuovo: elimino tutto in modo definitivo?')) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api(`/admin/clients/${id}`, { method: 'DELETE' });
+      navigate(-1);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Solo un admin può eliminare un cliente.');
+      else setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+      setDeleting(false);
+    }
+  }
+
   async function addNote() {
     const body = newNote.trim();
     if (!body) return;
@@ -215,6 +236,10 @@ export function ClientDetail() {
   if (!d) return <Banner kind="err">{error ?? 'Errore'}</Banner>;
 
   const p = d.profile;
+  const fullName = [d.user.firstName, d.user.lastName].filter(Boolean).join(' ');
+  const fullAddress = [d.user.addressLine, [d.user.postalCode, d.user.city].filter(Boolean).join(' ').trim(), d.user.province]
+    .filter(Boolean)
+    .join(', ');
   const first = d.measurements[d.measurements.length - 1];
   const last = d.measurements[0];
   const lost = first && last ? Math.round((first.weightKg - last.weightKg) * 10) / 10 : null;
@@ -233,7 +258,10 @@ export function ClientDetail() {
         <div className="spread">
           <div>
             <h2 style={{ color: '#fff', fontSize: 22, margin: 0 }}>{p?.name ?? d.user.email}</h2>
+            {fullName && <p style={{ margin: '2px 0 0', fontSize: 15, fontWeight: 600 }}>{fullName}</p>}
             <p style={{ margin: '4px 0 0', opacity: 0.9 }}>{d.user.email}</p>
+            {d.user.phone && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-phone" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {d.user.phone}</p>}
+            {fullAddress && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-map-pin" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {fullAddress}</p>}
             <div className="row" style={{ gap: 8, marginTop: 10 }}>
               <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
                 {d.user.status === 'active' ? 'Attivo' : 'Sospeso'}
@@ -242,11 +270,18 @@ export function ClientDetail() {
               {d.crm && <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>CRM: {d.crm.stage}</span>}
             </div>
           </div>
-          {isAdmin && (
-            <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
-              <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
-            </button>
-          )}
+          <div className="row" style={{ gap: 8 }}>
+            {isAdmin && (
+              <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
+              </button>
+            )}
+            {isAdmin && (
+              <button className="btn ghost" onClick={deleteClient} disabled={deleting} style={{ background: 'rgba(255,255,255,.9)', color: '#b3261e' }}>
+                <i className="ti ti-trash" /> {deleting ? 'Elimino…' : 'Elimina'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

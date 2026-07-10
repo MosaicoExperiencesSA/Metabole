@@ -45,4 +45,12 @@ export class ClientsController {
   resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
     return this.clients.sendPasswordReset(id, user.sub, ip);
   }
+
+  /** Eliminazione definitiva del cliente/lead e di tutto il collegato: SOLO admin. */
+  @Roles('admin')
+  @HttpCode(200)
+  @Delete(':id')
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clients.hardDelete(id, user.sub);
+  }
 }

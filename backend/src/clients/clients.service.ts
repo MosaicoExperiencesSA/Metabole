@@ -18,7 +18,10 @@ export class ClientsService {
   async getDetail(userId: string, actorId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
-      select: { id: true, email: true, role: true, status: true, locale: true, emailVerifiedAt: true, createdAt: true },
+      select: {
+        id: true, email: true, role: true, status: true, locale: true, emailVerifiedAt: true, createdAt: true,
+        firstName: true, lastName: true, addressLine: true, postalCode: true, city: true, province: true, phone: true,
+      },
     });
     if (!user) throw new NotFoundException('Utente non trovato.');
     if (user.role !== 'client') {
@@ -143,5 +146,34 @@ export class ClientsService {
     await this.auth.requestPasswordReset(user.email, ip);
     await this.audit.log({ action: 'client.password_reset.trigger', actorId, entityType: 'user', entityId: userId });
     return { sent: true, email: user.email };
+  }
+
+  /**
+   * Eliminazione DEFINITIVA di un cliente/lead e di tutto ciò che gli è collegato.
+   * Solo admin. Il lead (CrmRecord) è in SetNull, quindi va cancellato esplicitamente;
+   * tutto il resto (profilo, misure, check-in, acquisti, ecc.) va a cascata via schema.
+   */
+  async hardDelete(userId: string, actorId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, role: true },
+    });
+    if (!user) throw new NotFoundException('Cliente non trovato.');
+    if (user.role !== 'client') {
+      throw new BadRequestException('Si possono eliminare solo i clienti, non lo staff.');
+    }
+    // Audit PRIMA della cancellazione (dopo, l'utente non esiste più).
+    await this.audit.log({
+      action: 'client.hard_delete',
+      actorId,
+      entityType: 'user',
+      entityId: userId,
+      metadata: { email: user.email },
+    });
+    await this.prisma.$transaction([
+      this.prisma.crmRecord.deleteMany({ where: { clientId: userId } }),
+      this.prisma.user.delete({ where: { id: userId } }),
+    ]);
+    return { deleted: true };
   }
 }
