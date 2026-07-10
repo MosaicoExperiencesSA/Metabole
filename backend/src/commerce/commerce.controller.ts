@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -199,6 +200,12 @@ export class AdminPurchasesController {
   createManual(@CurrentUser() user: AuthUser, @Body() dto: CreateManualPurchaseDto) {
     return this.commerce.createManualPurchase(user, dto);
   }
+
+  @Roles('admin')
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.commerce.deletePurchase(id, user.sub);
+  }
 }
 
 /** Operatore: verifica contabili e approva (admin + commerciale). */
@@ -285,6 +292,12 @@ export class FinanceController {
   @Get('admin/commissions')
   commissions() {
     return this.finance.listCommissions();
+  }
+
+  @Roles('admin')
+  @Delete('admin/commissions/:id')
+  deleteCommission(@Param('id') id: string, @CurrentUser() actor: AuthUser) {
+    return this.finance.deleteCommission(id, actor.sub);
   }
 
   @Roles('admin')

@@ -1,6 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+// Client di transazione (il client Prisma locale in sandbox non lo tipizza:
+// su Render è correttamente tipizzato). Usiamo un alias per evitare implicit any.
+type PrismaTx = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 /**
  * Eventi economici automatici (spec sez. 8): niente doppio inserimento.
@@ -12,6 +17,7 @@ export class FinanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
+    private readonly audit: AuditService,
   ) {}
 
   private period(date = new Date()): string {
@@ -243,5 +249,40 @@ export class FinanceService {
       client: (e.clientId && clientMap.get(e.clientId)) || '—',
       product: (e.ref && payMap.get(e.ref)) || '—',
     }));
+  }
+
+  /**
+   * Elimina una singola provvigione: rimuove la voce di ledger E scala il
+   * compenso aggregato dello staff nel periodo (coerenza contabile).
+   */
+  async deleteCommission(ledgerId: string, actorId: string) {
+    const entry = (await this.prisma.ledgerEntry.findUnique({ where: { id: ledgerId } })) as
+      | { id: string; category: string; amountCents: number; staffId: string | null; ref: string | null; date: Date }
+      | null;
+    if (!entry || entry.category !== 'sales_commission') {
+      throw new NotFoundException('Provvigione non trovata.');
+    }
+    const period = entry.date.toISOString().slice(0, 7);
+
+    await this.prisma.$transaction(async (tx: PrismaTx) => {
+      await tx.ledgerEntry.delete({ where: { id: ledgerId } });
+      if (entry.staffId) {
+        const comp = (await tx.staffCompensation.findUnique({
+          where: { staffId_period: { staffId: entry.staffId, period } },
+        })) as { amountCents: number; items: unknown } | null;
+        if (comp) {
+          const items = (Array.isArray(comp.items) ? comp.items : []) as { kind?: string; amountCents?: number; ref?: string }[];
+          const idx = items.findIndex((it) => it.kind === 'sales_commission' && it.amountCents === entry.amountCents && it.ref === entry.ref);
+          if (idx >= 0) items.splice(idx, 1);
+          await tx.staffCompensation.update({
+            where: { staffId_period: { staffId: entry.staffId, period } },
+            data: { amountCents: Math.max(0, comp.amountCents - entry.amountCents), items: items as never },
+          });
+        }
+      }
+    });
+
+    await this.audit.log({ action: 'finance.commission.delete', actorId, entityType: 'ledger_entry', entityId: ledgerId });
+    return { removed: ledgerId };
   }
 }

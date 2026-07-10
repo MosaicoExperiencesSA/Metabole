@@ -76,6 +76,23 @@ export function Acquisti() {
     }
   }
 
+  async function deletePurchase(p: Purchase) {
+    if (!confirm(`Eliminare l'acquisto di ${clientName(p)} da ${euro(p.amountCents)}?\nVerranno annullati provvigioni, incasso, buono sconto e l'abbonamento collegato.`)) return;
+    setError(null);
+    setNotice(null);
+    setBusyId(p.id);
+    try {
+      await api(`/admin/purchases/${p.id}`, { method: 'DELETE' });
+      setRows((rs) => rs.filter((x) => x.id !== p.id));
+      setNotice('Acquisto eliminato.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Solo un admin può eliminare gli acquisti.');
+      else setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (loading) return <Spinner />;
 
   return (
@@ -124,6 +141,16 @@ export function Acquisti() {
                     <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => downloadReceipt(p)} title="Scarica la ricevuta PDF">
                       <i className="ti ti-download" /> Ricevuta
                     </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => deletePurchase(p)}
+                        disabled={busyId === p.id}
+                        title="Elimina acquisto"
+                        style={{ border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4, marginLeft: 6, verticalAlign: 'middle' }}
+                      >
+                        <i className="ti ti-x" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -21,6 +21,9 @@ import { StripeService } from './stripe.service';
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
 
+// Client di transazione (il client Prisma locale in sandbox non lo tipizza).
+type PrismaTx = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+
 /**
  * Commercio col flusso BONIFICO (richiesta di Simone, 9/7/2026):
  * richiesta → email con estremi → upload contabile → APPROVAZIONE operatore →
@@ -576,5 +579,68 @@ export class CommerceService {
       mimeType: 'application/pdf',
       contentBase64: buffer.toString('base64'),
     };
+  }
+
+  /**
+   * Elimina un acquisto ANNULLANDONE gli effetti: provvigioni (ledger +
+   * compensi aggregati), incasso, accantonamenti, utilizzo del buono sconto,
+   * e annulla l'abbonamento collegato. Solo admin (controllato dal controller).
+   */
+  async deletePurchase(paymentId: string, actorId: string) {
+    const payment = (await this.prisma.payment.findUnique({ where: { id: paymentId } })) as
+      | { id: string; subscriptionId: string | null; discountCodeId: string | null; clientId: string }
+      | null;
+    if (!payment) throw new NotFoundException('Acquisto non trovato');
+
+    await this.prisma.$transaction(async (tx: PrismaTx) => {
+      // 1) Storno delle provvigioni pagate su questo acquisto (ledger + compensi).
+      const commissions = (await tx.ledgerEntry.findMany({
+        where: { category: 'sales_commission', ref: paymentId },
+      })) as { id: string; amountCents: number; staffId: string | null; ref: string | null; date: Date }[];
+      for (const c of commissions) {
+        await tx.ledgerEntry.delete({ where: { id: c.id } });
+        if (c.staffId) {
+          const period = c.date.toISOString().slice(0, 7);
+          const comp = (await tx.staffCompensation.findUnique({
+            where: { staffId_period: { staffId: c.staffId, period } },
+          })) as { amountCents: number; items: unknown } | null;
+          if (comp) {
+            const items = (Array.isArray(comp.items) ? comp.items : []) as { kind?: string; amountCents?: number; ref?: string }[];
+            const idx = items.findIndex((it) => it.kind === 'sales_commission' && it.amountCents === c.amountCents && it.ref === c.ref);
+            if (idx >= 0) items.splice(idx, 1);
+            await tx.staffCompensation.update({
+              where: { staffId_period: { staffId: c.staffId, period } },
+              data: { amountCents: Math.max(0, comp.amountCents - c.amountCents), items: items as never },
+            });
+          }
+        }
+      }
+
+      // 2) Storno dell'incasso a ledger.
+      await tx.ledgerEntry.deleteMany({ where: { ref: paymentId, category: { in: ['subscription', 'order'] } } });
+
+      // 3) Provvigioni accantonate legate all'acquisto.
+      await tx.pendingCommission.deleteMany({ where: { paymentId } });
+
+      // 4) Storno dell'utilizzo del buono sconto.
+      if (payment.discountCodeId) {
+        const used = await tx.discountRedemption.count({ where: { paymentId } });
+        if (used > 0) {
+          await tx.discountRedemption.deleteMany({ where: { paymentId } });
+          await tx.discountCode.update({ where: { id: payment.discountCodeId }, data: { usedCount: { decrement: used } } });
+        }
+      }
+
+      // 5) Annulla l'abbonamento collegato.
+      if (payment.subscriptionId) {
+        await tx.subscription.update({ where: { id: payment.subscriptionId }, data: { status: 'cancelled' as never } });
+      }
+
+      // 6) Elimina il pagamento.
+      await tx.payment.delete({ where: { id: paymentId } });
+    });
+
+    await this.audit.log({ action: 'commerce.purchase.delete', actorId, entityType: 'payment', entityId: paymentId });
+    return { removed: paymentId };
   }
 }

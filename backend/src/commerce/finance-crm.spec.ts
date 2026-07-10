@@ -60,6 +60,7 @@ describe('FinanceService (eventi economici automatici)', () => {
             ),
           },
         },
+        { provide: AuditService, useValue: { log: jest.fn() } },
       ],
     }).compile();
     service = moduleRef.get(FinanceService);

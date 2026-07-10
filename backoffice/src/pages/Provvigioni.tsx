@@ -39,6 +39,17 @@ export function Provvigioni() {
     })();
   }, []);
 
+  async function deleteRow(r: Commission) {
+    if (!confirm(`Eliminare questa provvigione di ${euro(r.amountCents)} a ${r.recipient}?\nVerrà scalata anche dai compensi dello staff.`)) return;
+    setError(null);
+    try {
+      await api(`/admin/commissions/${r.id}`, { method: 'DELETE' });
+      setRows((rs) => rs.filter((x) => x.id !== r.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+    }
+  }
+
   const recipients = useMemo(() => Array.from(new Set(rows.map((r) => r.recipient))).sort(), [rows]);
 
   const filtered = useMemo(() => {
@@ -97,6 +108,7 @@ export function Provvigioni() {
                 <th>Prodotto</th>
                 <th>Ricevente</th>
                 <th style={{ textAlign: 'right' }}>Importo</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -107,6 +119,15 @@ export function Provvigioni() {
                   <td className="muted">{r.product}</td>
                   <td>{r.recipient}</td>
                   <td style={{ textAlign: 'right' }}><b>{euro(r.amountCents)}</b></td>
+                  <td style={{ textAlign: 'right', width: 36 }}>
+                    <button
+                      onClick={() => deleteRow(r)}
+                      title="Elimina provvigione"
+                      style={{ border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}
+                    >
+                      <i className="ti ti-x" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
