@@ -42,6 +42,7 @@ const euro = (c: number | null | undefined) => (c == null ? '—' : '€ ' + (c 
 const date = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
 const dateTime = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const kg = (n: number | null | undefined) => (n == null ? '—' : `${n} kg`);
 
 // Umore: etichetta + colore chip.
 const MOOD: Record<string, { label: string; chip: string }> = {
@@ -80,6 +81,32 @@ export function ClientDetail() {
   // Team: liste coach/nutrizionisti per l'assegnazione (solo admin)
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
   const [nutritionists, setNutritionists] = useState<{ id: string; name: string }[]>([]);
+
+  // Report mensile
+  interface Report { periodLabel: string; lostThisMonthKg: number | null; lostTotalKg: number | null; currentWeightKg: number | null; targetWeightKg: number | null; checkins: number; measurements: number }
+  const [report, setReport] = useState<Report | null>(null);
+  const [sendingReport, setSendingReport] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try { setReport(await api<Report>(`/admin/reports/${id}`)); } catch { /* report opzionale */ }
+    })();
+  }, [id]);
+
+  async function sendReport() {
+    if (!confirm('Inviare il report mensile alla cliente via email?')) return;
+    setSendingReport(true);
+    setNotice(null);
+    setError(null);
+    try {
+      await api(`/admin/reports/${id}/send`, { method: 'POST' });
+      setNotice('Report mensile inviato alla cliente.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invio del report non riuscito.');
+    } finally {
+      setSendingReport(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -361,6 +388,34 @@ export function ClientDetail() {
           </table>
         )}
       </div>
+
+      {/* Report mensile */}
+      {report && (
+        <div className="card">
+          <div className="spread" style={{ marginBottom: 8 }}>
+            <h2 style={{ margin: 0 }}>Report mensile</h2>
+            <button className="btn" onClick={sendReport} disabled={sendingReport}>
+              <i className="ti ti-mail" /> {sendingReport ? 'Invio…' : 'Invia al cliente'}
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Periodo: {report.periodLabel} · inviato via email con PDF allegato.</p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {([
+              ['Perso questo mese', kg(report.lostThisMonthKg)],
+              ['Perso dall’inizio', kg(report.lostTotalKg)],
+              ['Peso attuale', kg(report.currentWeightKg)],
+              ['Obiettivo', kg(report.targetWeightKg)],
+              ['Check-in nel mese', String(report.checkins)],
+              ['Pesate nel mese', String(report.measurements)],
+            ] as [string, string][]).map(([label, value]) => (
+              <div key={label} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px', minWidth: 120 }}>
+                <div className="muted" style={{ fontSize: 11 }}>{label}</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Umori (check-in) */}
       <div className="card" style={{ padding: 0 }}>

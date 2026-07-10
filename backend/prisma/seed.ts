@@ -170,6 +170,7 @@ const EMAIL_TEMPLATES = [
   { key: 'payment_receipt', name: 'Ricevuta di pagamento', subject: 'Metabole — ricevuta di pagamento', bodyHtml: '<p>Grazie! Abbiamo registrato il tuo pagamento.</p><p><b>{{description}}</b><br/>Importo: € {{amount}}<br/>Data: {{date}}</p><p>Trovi la ricevuta in allegato a questa email.</p>' },
   { key: 'notification', name: 'Notifica generica', subject: 'Metabole — {{title}}', bodyHtml: '<p><b>{{title}}</b></p><p>{{body}}</p>' },
   { key: 'client_assigned_nutritionist', name: 'Cliente assegnata (al nutrizionista)', subject: 'Metabole — nuova cliente assegnata', bodyHtml: '<p>Ciao,</p><p>ti è stata assegnata una nuova cliente: <b>{{clientName}}</b>.</p><p>La trovi nel tuo elenco clienti su Metabole.</p>' },
+  { key: 'monthly_report', name: 'Report mensile (al cliente)', subject: 'Metabole — il tuo report di {{period}}', bodyHtml: '<p>Ciao {{name}},</p><p>ecco il tuo report di <b>{{period}}</b>.</p><ul><li>Perso questo mese: <b>{{lostThisMonth}}</b></li><li>Perso dall\'inizio: <b>{{lostTotal}}</b></li><li>Peso attuale: {{currentWeight}}</li><li>Obiettivo: {{target}}</li><li>Check-in registrati: {{checkins}}</li></ul><p>{{trend}}</p><p>Trovi il report completo in allegato.</p>' },
 ];
 
 async function seedEmailTemplates(): Promise<void> {

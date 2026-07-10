@@ -19,6 +19,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { ConfigParamsModule } from './config-params/config-params.module';
 import { HealthModule } from './health/health.module';
+import { ReportsModule } from './reports/reports.module';
 import { MailModule } from './mail/mail.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { PermissionsModule } from './permissions/permissions.module';
@@ -58,6 +59,7 @@ import { UsersModule } from './users/users.module';
     ChatModule,
     ClientsModule,
     CommerceModule,
+    ReportsModule,
     HealthModule,
   ],
   providers: [

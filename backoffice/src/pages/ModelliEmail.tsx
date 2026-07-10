@@ -19,6 +19,7 @@ const PLACEHOLDERS: Record<string, string[]> = {
   payment_receipt: ['description', 'amount', 'date', 'paymentId'],
   notification: ['title', 'body'],
   client_assigned_nutritionist: ['clientName'],
+  monthly_report: ['name', 'period', 'lostThisMonth', 'lostTotal', 'currentWeight', 'target', 'checkins', 'trend'],
 };
 
 export function ModelliEmail() {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
+import { ReportsService } from '../reports/reports.service';
 import { EngineService } from '../engine/engine.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CronController } from './cron.controller';
@@ -21,6 +22,7 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: NotificationsService, useValue: notifications },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: LeadAssignmentService, useValue: { expireStale: jest.fn().mockResolvedValue({ expired: 0 }) } },
+        { provide: ReportsService, useValue: { sendMonthlyBatch: jest.fn().mockResolvedValue({ sent: 0 }) } },
       ],
     }).compile();
     controller = moduleRef.get(CronController);

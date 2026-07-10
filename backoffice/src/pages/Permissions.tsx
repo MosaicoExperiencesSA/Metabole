@@ -68,6 +68,8 @@ export function Permissions() {
   if (loading) return <Spinner />;
   if (!data) return <Banner kind="err">{error ?? 'Errore'}</Banner>;
 
+  const orderedPages = [...data.pages].sort((a, b) => pageLabel(a).localeCompare(pageLabel(b), 'it'));
+
   return (
     <>
       <Banner kind="info">
@@ -90,7 +92,7 @@ export function Permissions() {
             </tr>
           </thead>
           <tbody>
-            {data.pages.map((pageKey) => (
+            {orderedPages.map((pageKey) => (
               <tr key={pageKey}>
                 <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600 }}>{pageLabel(pageKey)}</td>
                 {data.roles.map((r) => {

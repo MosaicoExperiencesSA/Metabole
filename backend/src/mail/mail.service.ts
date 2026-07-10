@@ -180,6 +180,32 @@ export class MailService {
     return this.send({ to, subject, html, templateKey: 'notification' });
   }
 
+  /** Report mensile alla cliente (con PDF allegato). */
+  async sendMonthlyReport(
+    to: string,
+    vars: Record<string, string>,
+    locale?: string | null,
+    attachments?: Attachment[],
+  ): Promise<boolean> {
+    const defaultHtml =
+      `<p>Ciao ${vars.name},</p>` +
+      `<p>ecco il tuo report di <b>${vars.period}</b>.</p>` +
+      `<ul>` +
+      `<li>Perso questo mese: <b>${vars.lostThisMonth}</b></li>` +
+      `<li>Perso dall'inizio: <b>${vars.lostTotal}</b></li>` +
+      `<li>Peso attuale: ${vars.currentWeight}</li>` +
+      `<li>Obiettivo: ${vars.target}</li>` +
+      `<li>Check-in registrati: ${vars.checkins}</li>` +
+      `</ul>` +
+      `<p>${vars.trend}</p>` +
+      `<p>Trovi il report completo in allegato.</p>`;
+    const { subject, html } = await this.resolve('monthly_report', {
+      subject: `Metabole — il tuo report di ${vars.period}`,
+      html: defaultHtml,
+    }, vars);
+    return this.send({ to, subject, html, templateKey: 'monthly_report', attachments });
+  }
+
   /** Avviso al nutrizionista quando gli viene assegnata una cliente. */
   async sendClientAssignedToNutritionist(to: string, clientName: string, locale?: string | null): Promise<boolean> {
     const vars = { clientName };
