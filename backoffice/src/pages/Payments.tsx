@@ -256,13 +256,27 @@ export function Payments() {
             {receipt.mime.startsWith('image/') ? (
               <img src={receipt.url} alt="Contabile" style={{ maxWidth: '100%', borderRadius: 10, border: '1px solid var(--line)' }} />
             ) : (
-              <iframe src={receipt.url} title="Contabile" style={{ width: '100%', height: '60vh', border: '1px solid var(--line)', borderRadius: 10 }} />
+              <>
+                <object data={receipt.url} type="application/pdf" style={{ width: '100%', height: '60vh', border: '1px solid var(--line)', borderRadius: 10 }}>
+                  <div className="empty" style={{ padding: 24 }}>
+                    Anteprima PDF non disponibile in questo browser.
+                  </div>
+                </object>
+                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  Se l'anteprima non compare, apri il file in una nuova scheda o scaricalo.
+                </p>
+              </>
             )}
           </div>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <a className="btn ghost" href={receipt.url} download={receipt.name}>
-              <i className="ti ti-download" /> Scarica
-            </a>
+          <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <div className="row" style={{ gap: 8 }}>
+              <a className="btn ghost" href={receipt.url} target="_blank" rel="noreferrer">
+                <i className="ti ti-external-link" /> Apri in nuova scheda
+              </a>
+              <a className="btn ghost" href={receipt.url} download={receipt.name}>
+                <i className="ti ti-download" /> Scarica
+              </a>
+            </div>
             <button className="btn ghost" onClick={closeReceipt}>Chiudi</button>
           </div>
         </Modal>

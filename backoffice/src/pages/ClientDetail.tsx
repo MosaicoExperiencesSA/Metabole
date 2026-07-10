@@ -9,9 +9,13 @@ interface Detail {
   profile: any | null;
   objective: any | null;
   measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null }[];
+  checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
+  waterLogs: { id: string; date: string; glasses: number; goal: number }[];
+  stepLogs: { id: string; date: string; steps: number; goal: number }[];
   subscription: any | null;
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string; approvedAt: string | null }[];
   crm: { stage: string; valueCents: number | null } | null;
+  note: { body: string; updatedAt: string; updatedBy: string | null } | null;
 }
 
 const L: Record<string, Record<string, string>> = {
@@ -28,6 +32,15 @@ const L: Record<string, Record<string, string>> = {
 const lab = (group: string, v: string | null | undefined) => (v ? L[group]?.[v] ?? v : '—');
 const euro = (c: number | null | undefined) => (c == null ? '—' : '€ ' + (c / 100).toFixed(2).replace('.', ','));
 const date = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
+
+// Umore: etichetta + colore chip.
+const MOOD: Record<string, { label: string; chip: string }> = {
+  great: { label: 'Alla grande', chip: '' },
+  good: { label: 'Bene', chip: '' },
+  ok: { label: 'Così così', chip: 'gray' },
+  hard: { label: 'Faticoso', chip: 'amber' },
+  stressed: { label: 'Stressata', chip: 'red' },
+};
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -49,11 +62,19 @@ export function ClientDetail() {
   const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
+  // Nota dello staff
+  const [noteText, setNoteText] = useState('');
+  const [noteMeta, setNoteMeta] = useState<{ updatedAt: string; updatedBy: string | null } | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        setD(await api<Detail>(`/admin/clients/${id}`));
+        const data = await api<Detail>(`/admin/clients/${id}`);
+        setD(data);
+        setNoteText(data.note?.body ?? '');
+        setNoteMeta(data.note ? { updatedAt: data.note.updatedAt, updatedBy: data.note.updatedBy } : null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
       } finally {
@@ -77,6 +98,25 @@ export function ClientDetail() {
     }
   }
 
+  async function saveNote() {
+    setSavingNote(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const saved = await api<{ body: string; updatedAt: string; updatedBy: string | null }>(`/admin/clients/${id}/note`, {
+        method: 'PUT',
+        body: JSON.stringify({ body: noteText }),
+      });
+      setD((cur) => (cur ? { ...cur, note: { body: saved.body, updatedAt: saved.updatedAt, updatedBy: saved.updatedBy } } : cur));
+      setNoteMeta({ updatedAt: saved.updatedAt, updatedBy: saved.updatedBy });
+      setNotice('Nota salvata.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Salvataggio della nota non riuscito.');
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
   if (loading) return <Spinner />;
   if (!d) return <Banner kind="err">{error ?? 'Errore'}</Banner>;
 
@@ -84,6 +124,7 @@ export function ClientDetail() {
   const first = d.measurements[d.measurements.length - 1];
   const last = d.measurements[0];
   const lost = first && last ? Math.round((first.weightKg - last.weightKg) * 10) / 10 : null;
+  const noteDirty = noteText !== (d.note?.body ?? '');
 
   return (
     <>
@@ -113,6 +154,30 @@ export function ClientDetail() {
               <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Nota dello staff */}
+      <div className="card">
+        <div className="spread" style={{ marginBottom: 10 }}>
+          <h2 style={{ margin: 0 }}>Note</h2>
+          {noteMeta && (
+            <span className="muted" style={{ fontSize: 12 }}>
+              Ultima modifica {noteMeta.updatedBy ? `da ${noteMeta.updatedBy} ` : ''}il {date(noteMeta.updatedAt)}
+            </span>
+          )}
+        </div>
+        <textarea
+          className="input"
+          style={{ width: '100%', minHeight: 90, resize: 'vertical' }}
+          placeholder="Annotazioni sulla cliente: preferenze, note di percorso, promemoria…"
+          value={noteText}
+          onChange={(e) => setNoteText(e.target.value)}
+        />
+        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
+          <button className="btn" onClick={saveNote} disabled={savingNote || !noteDirty}>
+            <i className="ti ti-device-floppy" /> {savingNote ? 'Salvataggio…' : 'Salva nota'}
+          </button>
         </div>
       </div>
 
@@ -175,6 +240,87 @@ export function ClientDetail() {
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Umori (check-in) */}
+      <div className="card" style={{ padding: 0 }}>
+        <div style={{ padding: '18px 20px 4px' }}>
+          <h2 style={{ margin: 0 }}>Umori e check-in</h2>
+        </div>
+        {d.checkins.length === 0 ? (
+          <div className="empty">Nessun check-in registrato.</div>
+        ) : (
+          <table className="grid">
+            <thead><tr><th>Data</th><th>Umore</th><th>Energia</th><th>Fame</th><th>Stress</th></tr></thead>
+            <tbody>
+              {d.checkins.map((c) => {
+                const m = MOOD[c.mood];
+                return (
+                  <tr key={c.id}>
+                    <td>{date(c.date)}</td>
+                    <td><span className={`chip ${m?.chip ?? 'gray'}`}>{m?.label ?? c.mood}</span></td>
+                    <td className="muted">{c.energy != null ? `${c.energy}/5` : '—'}</td>
+                    <td className="muted">{c.hunger != null ? `${c.hunger}/5` : '—'}</td>
+                    <td className="muted">{c.stress != null ? `${c.stress}/5` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Acqua e Passi affiancati */}
+      <div className="row" style={{ gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div className="card" style={{ padding: 0, flex: 1, minWidth: 280 }}>
+          <div style={{ padding: '18px 20px 4px' }}>
+            <h2 style={{ margin: 0 }}>Acqua bevuta</h2>
+          </div>
+          {d.waterLogs.length === 0 ? (
+            <div className="empty">Nessuna registrazione.</div>
+          ) : (
+            <table className="grid">
+              <thead><tr><th>Data</th><th>Bicchieri</th><th>Obiettivo</th></tr></thead>
+              <tbody>
+                {d.waterLogs.map((w) => (
+                  <tr key={w.id}>
+                    <td>{date(w.date)}</td>
+                    <td>
+                      <b>{w.glasses}</b>
+                      {w.glasses >= w.goal && w.goal > 0 && <span className="chip" style={{ marginLeft: 8, fontSize: 10 }}>✓</span>}
+                    </td>
+                    <td className="muted">{w.goal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="card" style={{ padding: 0, flex: 1, minWidth: 280 }}>
+          <div style={{ padding: '18px 20px 4px' }}>
+            <h2 style={{ margin: 0 }}>Passi</h2>
+          </div>
+          {d.stepLogs.length === 0 ? (
+            <div className="empty">Nessuna registrazione.</div>
+          ) : (
+            <table className="grid">
+              <thead><tr><th>Data</th><th>Passi</th><th>Obiettivo</th></tr></thead>
+              <tbody>
+                {d.stepLogs.map((s) => (
+                  <tr key={s.id}>
+                    <td>{date(s.date)}</td>
+                    <td>
+                      <b>{s.steps.toLocaleString('it-IT')}</b>
+                      {s.steps >= s.goal && s.goal > 0 && <span className="chip" style={{ marginLeft: 8, fontSize: 10 }}>✓</span>}
+                    </td>
+                    <td className="muted">{s.goal.toLocaleString('it-IT')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* Acquisti */}

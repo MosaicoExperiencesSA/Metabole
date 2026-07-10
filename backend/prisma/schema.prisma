@@ -248,6 +248,7 @@ model User {
   payments        Payment[]
   orders          Order[]
   crmRecord       CrmRecord?
+  staffNote       ClientNote?
 
   @@index([role])
   @@map("user")
@@ -281,6 +282,7 @@ model Staff {
   approvedPayments      Payment[]       @relation("PaymentApprover")
   ownedLeads            CrmRecord[]     @relation("LeadOwner")
   compensations         StaffCompensation[] @relation("CompensationStaff")
+  editedClientNotes     ClientNote[]        @relation("ClientNoteEditor")
 
   @@map("staff")
 }
@@ -910,6 +912,20 @@ model StepLog {
 
   @@unique([clientId, date])
   @@map("step_log")
+}
+
+// Nota libera dello staff sul cliente (una per cliente, modificabile). Non è
+// una nota clinica riservata: è visibile a chi gestisce il cliente (coach ecc.).
+model ClientNote {
+  clientId    String   @id @map("client_id")
+  client      User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  body        String   @default("")
+  updatedById String?  @map("updated_by_id")
+  updatedBy   Staff?   @relation("ClientNoteEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("client_note")
 }
 
 // Traguardi raggiunti (celebrazioni): prima misura, -1/-3/-5 kg, metà strada, obiettivo.
