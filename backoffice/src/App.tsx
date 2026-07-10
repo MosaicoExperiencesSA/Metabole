@@ -9,6 +9,7 @@ import { Calendar } from './pages/Calendar';
 import { ClientDetail } from './pages/ClientDetail';
 import { LeadForm } from './pages/LeadForm';
 import { LeadsTable } from './pages/LeadsTable';
+import { Payments } from './pages/Payments';
 import { Permissions } from './pages/Permissions';
 import { Pipeline } from './pages/Pipeline';
 import { Roles } from './pages/Roles';
@@ -53,7 +54,7 @@ export default function App() {
       <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_leads"><Calendar /></Protected>} />
       <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Placeholder title="Agenda visite" icon="ti-calendar" /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Placeholder title="Segnalazioni" icon="ti-alert-triangle" /></Protected>} />
-      <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Placeholder title="Bonifici & contabilità" icon="ti-cash" /></Protected>} />
+      <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Placeholder title="Compensi staff" icon="ti-coin" /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Placeholder title="Catalogo diete" icon="ti-salad" /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Placeholder title="Protocolli motore" icon="ti-cpu" /></Protected>} />
