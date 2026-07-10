@@ -95,6 +95,7 @@ export function LeadsTable() {
                 <th>Nutrizionista</th>
                 <th>Valore</th>
                 <th>Creato</th>
+                <th style={{ textAlign: 'right' }}>Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -130,6 +131,15 @@ export function LeadsTable() {
                     <td className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</td>
                     <td>{euro(l.valueCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {l.clientId ? (
+                        <Link className="btn ghost sm" to={`/clienti/${l.clientId}`}>
+                          <i className="ti ti-user" /> Apri scheda
+                        </Link>
+                      ) : (
+                        <span className="chip amber" style={{ fontSize: 10 }}>solo lead</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
