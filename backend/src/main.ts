@@ -26,6 +26,23 @@ async function bootstrap(): Promise<void> {
   // Hardening OWASP: security header di base (l'API non serve HTML).
   app.use(helmet({ contentSecurityPolicy: false }));
 
+  // CORS: il frontend (app cliente e backoffice) vive su un dominio diverso
+  // (Vercel) e deve poter chiamare le API. Origini consentite da CORS_ORIGINS
+  // (lista separata da virgole nel pannello Render); in sviluppo si accettano
+  // i localhost tipici. Nessuna origine wildcard con credenziali.
+  const corsOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const devOrigins = [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/];
+  app.enableCors({
+    origin: corsOrigins.length > 0 ? [...corsOrigins, ...devOrigins] : devOrigins,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86_400,
+  });
+
   app.setGlobalPrefix('api/v1', { exclude: ['health'] });
   app.useGlobalPipes(
     new ValidationPipe({

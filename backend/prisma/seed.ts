@@ -9,6 +9,16 @@ import { ROLES } from '../src/common/roles';
 
 const prisma = new PrismaClient();
 
+// Estremi reali del conto (Wise, Mosaico Experiences SA). Non sono un segreto:
+// vengono inviati alla cliente via email a ogni acquisto con bonifico.
+// Restano modificabili dall'admin dal backoffice (config_param).
+const BANK_TRANSFER_DETAILS = [
+  'Intestatario: MOSAICO EXPERIENCES SA',
+  'IBAN: BE67 9051 6266 7387',
+  'Swift/BIC: TRWIBEB1XXX',
+  'Banca: Wise, Rue du Trône 100, 3rd floor, Brussels, 1050, Belgium',
+].join('\n');
+
 type SeedParam = {
   key: string;
   value: string;
@@ -115,9 +125,9 @@ const CONFIG_PARAMS: SeedParam[] = [
   },
   {
     key: 'bank_transfer_details',
-    value: 'Intestatario: Metabole (DA CONFIGURARE)\nIBAN: IT00 X000 0000 0000 0000 0000 000 (DA CONFIGURARE)\nBanca: (DA CONFIGURARE)',
+    value: BANK_TRANSFER_DETAILS,
     type: 'string',
-    description: 'Estremi bancari inviati via email per i pagamenti con bonifico',
+    description: 'Estremi bancari inviati via email per i pagamenti con bonifico (modificabili dal backoffice)',
   },
   {
     key: 'commission_coach_percent',
@@ -427,6 +437,19 @@ async function main(): Promise<void> {
       update: { description: param.description }, // non tocca value: l'admin può averlo cambiato
     });
   }
+
+  // Migrazione una-tantum: se gli estremi del bonifico sono ancora il segnaposto
+  // (mai configurati dall'admin) li imposta ai dati reali. Non tocca un valore
+  // già personalizzato dal backoffice.
+  const bank = await prisma.configParam.findUnique({ where: { key: 'bank_transfer_details' } });
+  if (bank && bank.value.includes('DA CONFIGURARE')) {
+    await prisma.configParam.update({
+      where: { key: 'bank_transfer_details' },
+      data: { value: BANK_TRANSFER_DETAILS },
+    });
+    console.log('Seed: estremi bonifico impostati sui dati reali (erano segnaposto).');
+  }
+
   await seedPermissions();
   await seedDemoCatalog();
   await seedProtocols();
