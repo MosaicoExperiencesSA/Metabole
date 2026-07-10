@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 
 interface Stage {
@@ -29,11 +30,22 @@ function displayName(l: Lead): string {
 }
 
 export function LeadsTable() {
+  const { impersonate } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+
+  async function doImpersonate(l: Lead) {
+    if (!l.clientId) return;
+    setError(null);
+    try {
+      await impersonate(l.clientId, l.client?.email ?? l.email ?? '');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impersonazione non riuscita.');
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -133,9 +145,9 @@ export function LeadsTable() {
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {l.clientId ? (
-                        <Link className="btn ghost sm" to={`/clienti/${l.clientId}`}>
-                          <i className="ti ti-user" /> Apri scheda
-                        </Link>
+                        <button className="btn ghost sm" onClick={() => doImpersonate(l)} title="Entra nell'app come questa cliente">
+                          <i className="ti ti-eye" /> Entra come
+                        </button>
                       ) : (
                         <span className="chip amber" style={{ fontSize: 10 }}>solo lead</span>
                       )}
