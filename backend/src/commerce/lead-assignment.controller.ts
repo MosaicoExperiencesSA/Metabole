@@ -35,8 +35,8 @@ export class LeadAssignmentController {
     return this.svc.listCoaches();
   }
 
-  /** Lead in attesa di accettazione per la coach corrente. */
-  @Roles('coach')
+  /** Lead in attesa di accettazione per la coach corrente (vuoto per chi non è coach). */
+  @Roles('coach', 'sales', 'head_nutritionist', 'admin')
   @Get('my-assignments')
   mine(@CurrentUser() user: AuthUser) {
     return this.svc.myPending(user.sub);
