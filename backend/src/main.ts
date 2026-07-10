@@ -14,13 +14,14 @@ async function bootstrap(): Promise<void> {
   app.useBodyParser('json', { limit: '12mb' });
   app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
 
-  // Dietro il proxy di Render ci sono PIÙ salti interni: con un solo hop
-  // fidato req.ip restava un IP interno variabile e il rate limiter non
-  // accumulava mai (verificato in produzione con gli header X-RateLimit).
-  // Render normalizza X-Forwarded-For al suo edge, quindi fidarsi dell'intera
-  // catena è la configurazione raccomandata: req.ip = vero IP della cliente
-  // (vale per il throttler e per gli IP nell'audit log).
-  app.set('trust proxy', true);
+  // Catena proxy in produzione (misurata via /health/proxy-check):
+  //   cliente → Cloudflare → Render → app
+  // In X-Forwarded-For il vero IP della cliente è il 2° da destra; l'ultimo è
+  // l'edge Cloudflare (che ruota) e un eventuale valore falsificato dal client
+  // finisce più a sinistra. Fidarsi di ESATTAMENTE 2 hop (Render + Cloudflare)
+  // dà req.ip = IP reale della cliente e rende il rate limiter NON aggirabile
+  // con header X-Forwarded-For falsi. Vale anche per gli IP nell'audit log.
+  app.set('trust proxy', 2);
 
   // Hardening OWASP: security header di base (l'API non serve HTML).
   app.use(helmet({ contentSecurityPolicy: false }));
