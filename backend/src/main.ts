@@ -14,10 +14,13 @@ async function bootstrap(): Promise<void> {
   app.useBodyParser('json', { limit: '12mb' });
   app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
 
-  // Dietro il proxy di Render: senza questo req.ip è l'IP interno del load
-  // balancer (diverso a ogni richiesta) → il rate limiter non accumula mai
-  // e l'audit log registra IP interni. Un solo hop fidato = niente spoofing.
-  app.set('trust proxy', 1);
+  // Dietro il proxy di Render ci sono PIÙ salti interni: con un solo hop
+  // fidato req.ip restava un IP interno variabile e il rate limiter non
+  // accumulava mai (verificato in produzione con gli header X-RateLimit).
+  // Render normalizza X-Forwarded-For al suo edge, quindi fidarsi dell'intera
+  // catena è la configurazione raccomandata: req.ip = vero IP della cliente
+  // (vale per il throttler e per gli IP nell'audit log).
+  app.set('trust proxy', true);
 
   // Hardening OWASP: security header di base (l'API non serve HTML).
   app.use(helmet({ contentSecurityPolicy: false }));
