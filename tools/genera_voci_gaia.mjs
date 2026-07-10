@@ -11,11 +11,14 @@
 // Output: scrive gli MP3 in ./audio e in ./docs/audio (per il sito GitHub Pages),
 // con i nomi-chiave usati dal prototipo (benvenuto, facciamo, intro_*, colore).
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE_ID = process.env.VOICE_ID || 'Xb7hH8MSUJpSbSDYk0k2'; // Alice (multilingua)
 const MODEL = process.env.MODEL_ID || 'eleven_multilingual_v2';
+// FORCE=1 rigenera anche le clip già esistenti. ONLY="key1,key2" genera solo quelle chiavi.
+const FORCE = process.env.FORCE === '1';
+const ONLY = (process.env.ONLY || '').split(',').map(s => s.trim()).filter(Boolean);
 
 if (!API_KEY) {
   console.error('Manca ELEVENLABS_API_KEY. Esempio:\n  ELEVENLABS_API_KEY=xxxx node tools/genera_voci_gaia.mjs');
@@ -28,25 +31,34 @@ const PHRASES = {
   registrazione: "Presentati, così saprò dove e come inviarti tutto quello che serve per la gestione dell'app. Considera che i percorsi sono personalizzati e potrebbero richiedere l'invio di prodotti al tuo indirizzo o di schede via email.",
   facciamo: "Per settare e personalizzare la tua app ho bisogno di qualche indicazione su cinque punti: la mente, la vita, l'agenda, il gusto e il corpo.",
   intro_testa: "Per prima cosa, cosa c'è nella tua mente? L'equilibrio mentale è il primo passo per ritrovare la forma fisica corretta. Rispondi pure alle prossime domande.",
-  intro_vita: "Ora la tua vita reale: lavoro, tempi e abitudini. Così il piano sarà davvero sostenibile per te.",
+  intro_vita: "Ora è importante capire le tue abitudini nella vita reale: lavoro, tempo e abitudini. Così posso predisporre un piano adeguato alle tue esigenze.",
   intro_agenda: "Parliamo della tua agenda: feste, cene, viaggi. Non sono ideali per fare diete, ma questi momenti piacevoli si gestiscono: basta pianificarli.",
   intro_gusto: "E il gusto: cosa ami e cosa eviti. Mangiare bene deve piacerti, o non dura.",
   intro_corpo: "Bene, ora so tutto di te, tranne quali sono i tuoi obiettivi: peso e misure sono obiettivi, senza giudizi. Dimmi dove sei e dove vuoi arrivare.",
-  colore: "Ultimo tocco: scegli il colore che ti rappresenta. Personalizzerò tutta l'app con la tinta che preferisci, e potrai cambiarla quando vuoi.",
-  percorso: "Il tuo percorso personalizzato è pronto, costruito su tutte le tue risposte.",
+  colore: "Anche i colori sono importanti: seleziona quello che ti piace di più e trasformerò la app secondo la tua scelta.",
+  percorso: "Giulia, il tuo percorso personalizzato è pronto. È settato secondo le indicazioni del nutrizionista e personalizzato sulle informazioni che hai fornito. La tua coach si chiama Sara e il tuo nutrizionista è la dottoressa Marini. Sei pronta a partire?",
+  elaboro: "Dammi un momento: sto confrontando i protocolli, consulto il nutrizionista e cucio il tuo percorso su misura.",
+  piano: "Resta la cosa più sfidante da completare. Ti consiglio il piano da tre mesi: risparmi e sono sicura di portarti all'obiettivo. Se preferisci andare un mese alla volta, scegli il percorso da un mese. Esegui il pagamento e saremo online: io, la tua coach e il nutrizionista, al tuo fianco.",
+  datainizio: "Bene, un obiettivo non è tale senza una data di partenza. Quando vuoi iniziare?",
+  attesa: "Tra pochi giorni parte il tuo percorso. Non preoccuparti: ti indicherò io cosa fare, come la lista della spesa. Un consiglio: installami sul telefono come widget, toccando il pulsante qui sotto.",
 
   // Domande del test (chiave = q_ + titolo "slugificato")
-  q_chi_sei: "Partiamo dalle basi.",
-  q_il_tuo_punto_di_partenza: "Le aggiornerai ogni 2 giorni.",
-  q_il_tuo_regime_alimentare: "Su cosa costruiamo i menu.",
-  q_intolleranze_o_allergie: "Puoi sceglierne più di una.",
-  q_cibi_che_non_ami: "Li terrò alla larga dai tuoi menu.",
-  q_la_tua_vita_e_il_lavoro: "Così i menu diventano fattibili.",
-  q_la_tua_salute: "Serve per la tua sicurezza.",
-  q_il_tuo_obiettivo: "Con calma e in modo sostenibile.",
-  q_periodi_senza_dieta: "Vacanze, feste, eventi o semplicemente momenti di pausa.",
-  q_come_vuoi_essere_seguita: "Avrai anche un'assistente umana, oltre a me. Con che frequenza vuoi essere seguita?",
-  q_che_tipo_sei: "Così individuo la coach più idonea al tuo carattere e taro la AI affinché ti segua secondo le tue necessità.",
+  q_come_vuoi_essere_chiamata: "Come vuoi che ti chiami? Scrivi qui il tuo nome.",
+  q17_resto: "Perfetto! Ora inseriscimi la tua età, il tuo sesso e la tua altezza.",
+  q_il_tuo_punto_di_partenza: "Inseriscimi le tue misure di partenza. Ricordati che dovrai aggiornarle ogni due giorni. Se non sai come prenderle, guarda il video toccando il pulsante.",
+  q_il_tuo_regime_alimentare: "La base del tuo menu: qual è il tuo regime alimentare? Onnivoro, vegetariano o vegano?",
+  q_stile_che_preferisci: "Scegli la dieta che preferisci: mediterranea, proteica, low-carb o flessibile?",
+  q_intolleranze_o_allergie: "Un punto molto importante: le tue allergie o intolleranze. È importante che le conosca, così posso evitarti i cibi che potrebbero farti male.",
+  q_cibi_che_non_ami: "Mangiare non deve essere uno stress: elencami i cibi che proprio non riesci a mangiare.",
+  q_la_tua_vita_e_il_lavoro: "Parliamo del tuo lavoro. Il tuo lavoro è: sedentario, in piedi, a turni, o viaggi spesso?",
+  q8_tempo: "Bene. E quanto tempo hai per cucinare: pochissimo, un po', o ti piace cucinare?",
+  q8_dove: "E dove pranzi nei giorni feriali: da casa, in mensa, fuori, o al volo?",
+  q_che_percorso_preferisci: "Quale percorso preferisci: tre pasti classico, cinque pasti, con integratori, o digiuno intermittente?",
+  q_la_tua_salute: "Altro punto importante: le patologie di cui soffri e le medicine che prendi. Indicale con cura.",
+  q_il_tuo_obiettivo: "Siamo arrivati al passo più importante: qual è il tuo obiettivo? Dimmi quanti chili vuoi perdere, quanti centimetri su fianchi e vita e soprattutto entro quando. Se è sostenibile, organizzerò al meglio il tuo percorso per fartelo raggiungere senza indugio.",
+  q_periodi_senza_dieta: "Aggiungi tutte le feste, gli eventi, le vacanze o semplicemente i momenti di pausa: così pianifichiamo insieme la strategia migliore per fartele godere appieno, senza rimpianti.",
+  q_come_vuoi_essere_seguita: "Oltre a me sarai seguita anche da un coach umano, che ti affiancherà nel tuo percorso. Per assegnarti l'assistente più adatta devo capire alcune cose, così non sarò né invadente né superficiale. Con che frequenza vuoi essere seguita dalla tua coach: ogni giorno, quando serve, o su tua richiesta?",
+  q_quale_caratteristica_ti_contraddistingue: "Quando prendi un impegno, quale caratteristica ti contraddistingue? Segui bene, vai spronata, perseveri da sola, o tendi a mollare?",
   q_generic: "Rispondi con calma, non c'è fretta.",
 
   // Saluti del coach nell'app (buongiorno al mattino, ecc.)
@@ -84,6 +96,8 @@ async function tts(key, text) {
 const entries = Object.entries(PHRASES);
 console.log(`Genero ${entries.length} clip con voce ${VOICE_ID} (${MODEL})...`);
 for (const [key, text] of entries) {
+  if (ONLY.length && !ONLY.includes(key)) continue;
+  if (!FORCE && OUT_DIRS.every(d => existsSync(`${d}/${key}.mp3`))) { console.log(`· ${key}.mp3 già presente, salto`); continue; }
   try { await tts(key, text); } catch (e) { console.error(`✗ ${key}: ${e.message}`); }
   await sleep(400); // gentile con i rate limit
 }
