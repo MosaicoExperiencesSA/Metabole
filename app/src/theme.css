@@ -248,6 +248,9 @@ p { line-height: 1.5; }
 @keyframes cmSway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
 @keyframes cmBlink { 0%, 90%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.08); } }
 @keyframes cmTalk { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.9); } }
+.gaia-tap { position: relative; display: inline-block; cursor: pointer; }
+.gaia-muted { position: absolute; right: 2px; bottom: 2px; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 1px solid var(--line); color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.gaia-muted i { font-size: 14px; }
 .gaia-ctrls { display: flex; gap: 8px; }
 .gaia-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--teal-dark); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .gaia-btn i { font-size: 17px; }

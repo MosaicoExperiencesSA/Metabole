@@ -20,6 +20,8 @@ const PUBLIC_USER_SELECT = {
   locale: true,
   status: true,
   emailVerifiedAt: true,
+  firstName: true,
+  lastName: true,
   createdAt: true,
   updatedAt: true,
   staff: { select: { id: true, displayName: true, managerId: true, refCode: true } },

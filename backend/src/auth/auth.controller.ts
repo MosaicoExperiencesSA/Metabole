@@ -29,7 +29,7 @@ export class AuthController {
   @Public()
   @Post('register')
   register(@Body() dto: RegisterDto, @Ip() ip: string) {
-    return this.auth.register(dto.email, dto.password, dto.locale, ip, dto.refCode);
+    return this.auth.register(dto, ip);
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } }) // anti brute-force

@@ -8,6 +8,20 @@ export interface User {
   locale: string;
   status: string;
   emailVerifiedAt: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+}
+
+export interface RegisterPayload {
+  firstName: string;
+  lastName: string;
+  addressLine?: string;
+  postalCode?: string;
+  city?: string;
+  province?: string;
+  email: string;
+  password: string;
+  refCode?: string;
 }
 
 interface AuthResponse {
@@ -20,7 +34,7 @@ interface AuthValue {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, refCode?: string) => Promise<void>;
+  register: (data: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }
@@ -59,9 +73,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyAuth(res);
   }
 
-  async function register(email: string, password: string, refCode?: string) {
-    const body: Record<string, string> = { email, password };
-    if (refCode && refCode.trim()) body.refCode = refCode.trim().toUpperCase();
+  async function register(data: RegisterPayload) {
+    const body: Record<string, string> = {
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      email: data.email.trim(),
+      password: data.password,
+    };
+    if (data.addressLine?.trim()) body.addressLine = data.addressLine.trim();
+    if (data.postalCode?.trim()) body.postalCode = data.postalCode.trim();
+    if (data.city?.trim()) body.city = data.city.trim();
+    if (data.province?.trim()) body.province = data.province.trim().toUpperCase();
+    if (data.refCode?.trim()) body.refCode = data.refCode.trim().toUpperCase();
     const res = await apiPublic<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(body) });
     applyAuth(res);
   }

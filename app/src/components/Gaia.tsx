@@ -106,10 +106,25 @@ export default function Gaia({
     setMutedState(next);
   }
 
+  // Tap sulla mascotte: se sta parlando la silenzia; se è muta la riattiva e ripete la frase.
+  function handleTap() {
+    if (muted) {
+      setMuted(false);
+      setMutedState(false);
+      if (clip) play(clip);
+    } else {
+      setMuted(true);
+      setMutedState(true);
+    }
+  }
+
   return (
     <div className="gaia-wrap">
-      <div onClick={() => clip && play(clip)} style={{ cursor: clip ? 'pointer' : 'default' }} role="button" aria-label="Riascolta Gaia">
+      <div className="gaia-tap" onClick={handleTap} role="button" aria-label={muted ? 'Riattiva la voce di Gaia' : 'Silenzia Gaia'}>
         <Mascot size={size} eyes={eyes} mouth={mouth} cheek={cheek} talking={speaking} />
+        {muted && (
+          <span className="gaia-muted" aria-hidden><i className="ti ti-volume-off" /></span>
+        )}
       </div>
       {controls && (
         <div className="gaia-ctrls">

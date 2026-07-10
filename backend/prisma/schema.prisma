@@ -222,6 +222,12 @@ model User {
   updatedAt       DateTime   @updatedAt @map("updated_at")
   deletedAt       DateTime?  @map("deleted_at")
   prefs           Json?      @map("prefs") // preferenze UI (es. scorciatoie dashboard)
+  firstName       String?    @map("first_name")
+  lastName        String?    @map("last_name")
+  addressLine     String?    @map("address_line") // via e numero civico
+  postalCode      String?    @map("postal_code")  // CAP
+  city            String?
+  province        String?
 
   auditLogs       AuditLog[]
   configChanges   ConfigParam[] @relation("ConfigUpdatedBy")

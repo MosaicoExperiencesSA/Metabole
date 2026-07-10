@@ -84,7 +84,7 @@ describe('AuthService', () => {
       prisma.refreshToken.create.mockResolvedValue({});
       prisma.actionToken.create.mockResolvedValue({});
 
-      const result = await service.register('Test@Example.COM', 'password123');
+      const result = await service.register({ email: 'Test@Example.COM', password: 'password123', firstName: 'Test', lastName: 'User' });
 
       expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -100,7 +100,7 @@ describe('AuthService', () => {
 
     it('rifiuta email già registrata', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
-      await expect(service.register('a@b.it', 'password123')).rejects.toThrow(ConflictException);
+      await expect(service.register({ email: 'a@b.it', password: 'password123', firstName: 'A', lastName: 'B' })).rejects.toThrow(ConflictException);
     });
   });
 

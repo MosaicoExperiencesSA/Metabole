@@ -15,6 +15,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './dto/register.dto';
 
 export interface TokenPair {
   accessToken: string;
@@ -38,32 +39,32 @@ export class AuthService {
 
   // ---------- Registrazione ----------
 
-  async register(
-    email: string,
-    password: string,
-    locale?: string,
-    ip?: string,
-    refCode?: string,
-  ) {
-    const normalized = email.trim().toLowerCase();
+  async register(dto: RegisterDto, ip?: string) {
+    const normalized = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email: normalized } });
     if (existing) throw new ConflictException('Email già registrata');
 
     // Se è indicato un codice invito, lo validiamo PRIMA di creare l'utente,
     // così un codice errato dà un errore chiaro invece di un account "orfano".
-    const trimmedRef = refCode?.trim();
+    const trimmedRef = dto.refCode?.trim();
     if (trimmedRef) {
       const resolved = await this.leadAssignment.resolveByRefCode(trimmedRef);
       if (!resolved) throw new BadRequestException('Codice invito non valido');
     }
 
-    const passwordHash = await argon2.hash(password);
+    const passwordHash = await argon2.hash(dto.password);
     const user = await this.prisma.user.create({
       data: {
         email: normalized,
         passwordHash,
         role: 'client',
-        locale: locale ?? 'it',
+        locale: dto.locale ?? 'it',
+        firstName: dto.firstName?.trim() || null,
+        lastName: dto.lastName?.trim() || null,
+        addressLine: dto.addressLine?.trim() || null,
+        postalCode: dto.postalCode?.trim() || null,
+        city: dto.city?.trim() || null,
+        province: dto.province?.trim() || null,
       },
     });
 
@@ -350,6 +351,8 @@ export class AuthService {
     customRoleKey?: string | null;
     locale: string;
     emailVerifiedAt: Date | null;
+    firstName?: string | null;
+    lastName?: string | null;
   }) {
     return {
       id: user.id,
@@ -358,6 +361,8 @@ export class AuthService {
       customRoleKey: user.customRoleKey ?? null,
       locale: user.locale,
       emailVerified: Boolean(user.emailVerifiedAt),
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
     };
   }
 }

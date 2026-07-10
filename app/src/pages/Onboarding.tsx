@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { clipForPage, isMuted, setMuted } from '../audio/gaia';
+import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import FieldInput from '../onboarding/Field';
 import type { Field, OnboardingResult, Page, Questions } from '../onboarding/types';
@@ -86,12 +87,20 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardingResult | null>(null);
   const [muted, setMutedState] = useState(isMuted());
+  const { user } = useAuth();
+  const nameKnown = Boolean(user?.firstName);
 
   useEffect(() => {
     api<Questions>('/onboarding/questions')
       .then(setQuestions)
       .catch(() => setLoadErr('Non riesco a caricare il questionario. Riprova tra poco.'));
   }, []);
+
+  // Il nome è già stato preso in registrazione: lo pre-compiliamo e non lo richiediamo di nuovo.
+  useEffect(() => {
+    if (user?.firstName) setAnswer('name', user.firstName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.firstName]);
 
   const flow: Item[] = useMemo(() => {
     if (!questions) return [];
@@ -296,7 +305,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               {cur.t === 'page' && cur.page.key === 'objective' ? (
                 <ObjectiveBlock page={cur.page} answers={answers} setAnswer={setAnswer} />
               ) : (
-                cur.page.fields.map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)
+                cur.page.fields
+                  .filter((f) => !(cur.page.key === 'identity' && f.key === 'name' && nameKnown))
+                  .map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)
               )}
             </div>
             <div className="onb-nav">
