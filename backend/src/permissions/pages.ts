@@ -42,6 +42,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   coach: {
     dashboard: { view: true },
     clients: { view: true },
+    crm_leads: { view: true, manage: true }, // pipeline: la coach sposta i clienti tra gli stati
     escalations: { view: true, manage: true },
     chat: { view: true, manage: true },
     visits_agenda: { view: true },

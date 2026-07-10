@@ -3,6 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from './crm.service';
+import { PipelineService } from './pipeline.service';
 import { FinanceService } from './finance.service';
 
 describe('FinanceService (eventi economici automatici)', () => {
@@ -97,11 +98,21 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
       },
       ledgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 89100 } }) },
     };
+    const pipeline = {
+      stageKeys: jest.fn().mockResolvedValue(new Set(['lead_in', 'worked', 'paid', 'coach_assigned', 'coach_call', 'nutritionist_assigned', 'first_visit', 'follow_up'])),
+      listStages: jest.fn().mockResolvedValue([
+        { key: 'lead_in', order: 0 },
+        { key: 'worked', order: 1 },
+        { key: 'paid', order: 2 },
+        { key: 'first_visit', order: 6 },
+      ]),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         CrmService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: PipelineService, useValue: pipeline },
       ],
     }).compile();
     service = moduleRef.get(CrmService);

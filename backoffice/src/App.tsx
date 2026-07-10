@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Placeholder } from './pages/Placeholder';
 import { Permissions } from './pages/Permissions';
+import { Pipeline } from './pages/Pipeline';
 import { Roles } from './pages/Roles';
 import { Users } from './pages/Users';
 import type { ReactNode } from 'react';
@@ -40,7 +41,7 @@ export default function App() {
 
       {/* Sezioni in arrivo (stesse API già pronte lato backend) */}
       <Route path="/clienti" element={<Protected title="Clienti" pageKey="clients"><Placeholder title="Clienti" icon="ti-users" /></Protected>} />
-      <Route path="/crm" element={<Protected title="CRM / Lead" pageKey="crm_leads"><Placeholder title="CRM / Lead" icon="ti-user-plus" /></Protected>} />
+      <Route path="/crm" element={<Protected title="Clienti / Lead" pageKey="crm_leads"><Pipeline /></Protected>} />
       <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Placeholder title="Agenda visite" icon="ti-calendar" /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Placeholder title="Segnalazioni" icon="ti-alert-triangle" /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Placeholder title="Bonifici & contabilità" icon="ti-cash" /></Protected>} />

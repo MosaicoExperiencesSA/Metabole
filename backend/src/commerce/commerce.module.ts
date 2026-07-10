@@ -11,6 +11,8 @@ import {
 import { CommerceService } from './commerce.service';
 import { CrmService } from './crm.service';
 import { FinanceService } from './finance.service';
+import { PipelineController } from './pipeline.controller';
+import { PipelineService } from './pipeline.service';
 import { StripeService } from './stripe.service';
 
 @Module({
@@ -21,9 +23,10 @@ import { StripeService } from './stripe.service';
     AdminPaymentsController,
     StripeWebhookController,
     CrmController,
+    PipelineController,
     FinanceController,
   ],
-  providers: [CommerceService, CrmService, FinanceService, StripeService],
+  providers: [CommerceService, CrmService, FinanceService, PipelineService, StripeService],
   exports: [CommerceService, CrmService, FinanceService, StripeService],
 })
 export class CommerceModule {}

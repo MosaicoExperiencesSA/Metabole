@@ -9,8 +9,7 @@ const NAV: { group: string; items: { key: string; label: string; to: string; ico
     group: 'Operatività',
     items: [
       { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
-      { key: 'clients', label: 'Clienti', to: '/clienti', icon: 'ti-users' },
-      { key: 'crm_leads', label: 'CRM / Lead', to: '/crm', icon: 'ti-user-plus' },
+      { key: 'crm_leads', label: 'Clienti / Lead', to: '/crm', icon: 'ti-layout-kanban' },
       { key: 'visits_agenda', label: 'Agenda visite', to: '/agenda', icon: 'ti-calendar' },
       { key: 'escalations', label: 'Segnalazioni', to: '/segnalazioni', icon: 'ti-alert-triangle' },
     ],

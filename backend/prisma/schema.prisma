@@ -192,17 +192,6 @@ enum OrderStatus {
   cancelled
 }
 
-enum CrmStage {
-  lead_in
-  worked
-  paid
-  coach_assigned
-  coach_call
-  nutritionist_assigned
-  first_visit
-  follow_up
-}
-
 enum LedgerType {
   income
   expense
@@ -479,7 +468,7 @@ model CrmRecord {
   client     User?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
   email      String?
   name       String?
-  stage      CrmStage @default(lead_in)
+  stage      String   @default("lead_in") // chiave di pipeline_stage (gestita da admin)
   stageDates Json     @default("{}") @map("stage_dates") // {stage: {at, byUserId}}
   ownerId    String?  @map("owner_id")
   owner      Staff?   @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
@@ -489,6 +478,22 @@ model CrmRecord {
 
   @@index([stage])
   @@map("crm_record")
+}
+
+// Stati della pipeline commerciale/clienti, gestibili dall'admin (condivisi).
+// La KEY è stabile (usata dall'automazione: lead_in alla registrazione, paid
+// all'approvazione pagamento); label/color/order/visibilità sono personalizzabili.
+model PipelineStage {
+  key       String   @id
+  label     String
+  color     String?
+  order     Int      @default(0)
+  isSystem  Boolean  @default(false) @map("is_system") // key referenziata dall'automazione: non eliminabile
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([order])
+  @@map("pipeline_stage")
 }
 
 // Contabilità: eventi economici automatici, niente doppio inserimento.

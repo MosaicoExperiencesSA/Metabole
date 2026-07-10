@@ -452,6 +452,7 @@ async function main(): Promise<void> {
   }
 
   await ensureAdminFromEnv();
+  await seedPipelineStages();
   await seedPermissions();
   await seedDemoCatalog();
   await seedProtocols();
@@ -495,6 +496,33 @@ async function ensureAdminFromEnv(): Promise<void> {
     data: { email, passwordHash, role: 'admin', locale: 'it', emailVerifiedAt: new Date() },
   });
   console.log(`Seed: creato admin ${email}${usable ? '' : ' (password da impostare via reset)'}.`);
+}
+
+/**
+ * Stati predefiniti della pipeline CRM (chiavi stabili = ciclo di vita della
+ * specifica). Create-only: l'admin può rinominare/riordinare/aggiungere dal
+ * backoffice senza che il seed sovrascriva. lead_in e paid sono "di sistema"
+ * (referenziati dall'automazione: registrazione e approvazione pagamento).
+ */
+async function seedPipelineStages(): Promise<void> {
+  const stages = [
+    { key: 'lead_in', label: 'Nuovo contatto', color: '#7c8c88', order: 0, isSystem: true },
+    { key: 'worked', label: 'Lavorato', color: '#3a6ea5', order: 1, isSystem: false },
+    { key: 'paid', label: 'Pagato', color: '#0e7c66', order: 2, isSystem: true },
+    { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 3, isSystem: false },
+    { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 4, isSystem: false },
+    { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 5, isSystem: false },
+    { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 6, isSystem: false },
+    { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 7, isSystem: false },
+  ];
+  for (const s of stages) {
+    await prisma.pipelineStage.upsert({
+      where: { key: s.key },
+      create: s,
+      update: { isSystem: s.isSystem }, // non tocca label/color/order scelti dall'admin
+    });
+  }
+  console.log(`Seed: ${stages.length} stati pipeline verificati.`);
 }
 
 main()

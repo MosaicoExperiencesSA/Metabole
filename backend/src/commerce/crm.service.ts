@@ -1,27 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-
-const STAGES = [
-  'lead_in',
-  'worked',
-  'paid',
-  'coach_assigned',
-  'coach_call',
-  'nutritionist_assigned',
-  'first_visit',
-  'follow_up',
-] as const;
+import { PipelineService } from './pipeline.service';
 
 /**
  * CRM (spec sez. 8): ogni transizione salva DATA + RESPONSABILE in stage_dates.
  * lead_in nasce automaticamente alla registrazione; paid all'approvazione bonifico.
+ * Gli STATI sono gestiti dall'admin (PipelineService), non più fissi nel codice.
  */
 @Injectable()
 export class CrmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly pipeline: PipelineService,
   ) {}
 
   /** Registrazione → lead automatico (non blocca mai il flusso chiamante). */
@@ -96,8 +88,9 @@ export class CrmService {
 
   /** Avanzamento manuale del commerciale: data + responsabile sempre registrati. */
   async advance(byUserId: string, recordId: string, input: { stage: string; ownerStaffId?: string; valueCents?: number }) {
-    if (!STAGES.includes(input.stage as never)) {
-      throw new NotFoundException(`Stage sconosciuto: ${input.stage}`);
+    const stageKeys = await this.pipeline.stageKeys();
+    if (!stageKeys.has(input.stage)) {
+      throw new NotFoundException(`Stato sconosciuto: ${input.stage}`);
     }
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
     if (!record) throw new NotFoundException('Lead non trovato');
@@ -126,7 +119,7 @@ export class CrmService {
 
   /** Dashboard commerciale: conteggi per stage + conversione + incasso mese. */
   async salesDashboard() {
-    const [byStage, monthIncome] = await Promise.all([
+    const [byStage, monthIncome, stages] = await Promise.all([
       this.prisma.crmRecord.groupBy({ by: ['stage'], _count: { _all: true } }),
       this.prisma.ledgerEntry.aggregate({
         where: {
@@ -135,12 +128,15 @@ export class CrmService {
         },
         _sum: { amountCents: true },
       }),
+      this.pipeline.listStages(),
     ]);
     type Row = { stage: string; _count: { _all: number } };
+    const orderOf = new Map(stages.map((s) => [s.key, s.order]));
+    const paidOrder = orderOf.get('paid') ?? Number.MAX_SAFE_INTEGER;
     const counts = Object.fromEntries((byStage as Row[]).map((r) => [r.stage, r._count._all]));
     const leads = (byStage as Row[]).reduce((a, r) => a + r._count._all, 0);
     const paidPlus = (byStage as Row[])
-      .filter((r) => STAGES.indexOf(r.stage as never) >= STAGES.indexOf('paid'))
+      .filter((r) => (orderOf.get(r.stage) ?? -1) >= paidOrder)
       .reduce((a, r) => a + r._count._all, 0);
     return {
       totalLeads: leads,
