@@ -1,66 +1,79 @@
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { api } from './api/client';
 import { useAuth } from './auth/AuthContext';
 import TabBar from './components/TabBar';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
+import Onboarding from './pages/Onboarding';
 import Placeholder from './pages/Placeholder';
 
-/** Guscio autenticato: schermata + tab bar in basso. */
-function Shell({ children }: { children: React.ReactNode }) {
+function Centered() {
   return (
     <div className="app-frame">
-      <div className="screen">{children}</div>
+      <div className="center">
+        <div className="spin" />
+      </div>
+    </div>
+  );
+}
+
+/** Guscio autenticato: schermata + tab bar in basso. */
+function Shell() {
+  return (
+    <div className="app-frame">
+      <div className="screen">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/menu" element={<Placeholder title="Menu & Diario" icon="ti-salad" />} />
+          <Route path="/calendario" element={<Placeholder title="Calendario" icon="ti-calendar-heart" />} />
+          <Route path="/obiettivo" element={<Placeholder title="Obiettivo" icon="ti-target-arrow" />} />
+          <Route path="/negozio" element={<Placeholder title="Negozio" icon="ti-shopping-bag" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
       <TabBar />
     </div>
   );
 }
 
-/** Protegge le rotte private: se non loggato, torna al login. */
-function Private({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="app-frame">
-        <div className="center">
-          <div className="spin" />
-        </div>
-      </div>
-    );
-  }
-  if (!user) return <Navigate to="/login" replace />;
-  return <Shell>{children}</Shell>;
-}
+/** Area autenticata: controlla se l'onboarding è stato completato. */
+function AuthedApp() {
+  const [status, setStatus] = useState<'loading' | 'todo' | 'done'>('loading');
 
-/** Se già loggato, le rotte pubbliche rimandano alla home. */
-function PublicOnly({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="app-frame">
-        <div className="center">
-          <div className="spin" />
-        </div>
-      </div>
-    );
-  }
-  if (user) return <Navigate to="/" replace />;
-  return children;
+  useEffect(() => {
+    let alive = true;
+    api('/onboarding/result')
+      .then(() => alive && setStatus('done'))
+      .catch(() => {
+        // 404 = onboarding non completato; qualsiasi altro errore → comunque mostriamo l'onboarding
+        if (alive) setStatus('todo');
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (status === 'loading') return <Centered />;
+  if (status === 'todo') return <Onboarding onDone={() => setStatus('done')} />;
+  return <Shell />;
 }
 
 export default function App() {
-  return (
-    <Routes>
-      <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
-      <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+  const { user, loading } = useAuth();
 
-      <Route path="/" element={<Private><Home /></Private>} />
-      <Route path="/menu" element={<Private><Placeholder title="Menu & Diario" icon="ti-salad" /></Private>} />
-      <Route path="/calendario" element={<Private><Placeholder title="Calendario" icon="ti-calendar-heart" /></Private>} />
-      <Route path="/obiettivo" element={<Private><Placeholder title="Obiettivo" icon="ti-target-arrow" /></Private>} />
-      <Route path="/negozio" element={<Private><Placeholder title="Negozio" icon="ti-shopping-bag" /></Private>} />
+  if (loading) return <Centered />;
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  return <AuthedApp />;
 }
