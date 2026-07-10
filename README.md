@@ -9,9 +9,13 @@ Web app di dimagrimento "stile di vita": percorso continuativo in cui un **motor
 - `CLAUDE.md` — contesto per lo sviluppo con Claude Code.
 
 **Prototipo cliccabile** (aprire gli `.html` nel browser)
-- `Metabole_Prototipo_Navigabile.html` — flusso completo end-to-end (attivazione → app).
+- `Metabole_Prototipo_Navigabile.html` — flusso completo end-to-end (attivazione → app), con la mascotte Coach in Home (stato per ora del giorno) e come guida nel sondaggio.
+- `Metabole_Widget_Mascotte.html` — widget mascotte animata nei 3 formati (quadrato, rettangolare, largo): 21 stati, frase del giorno, anteprima prossimo menu.
 - `Metabole_Flusso_Attivazione.html` — solo il flusso di attivazione.
 - `Metabole_Sondaggio_Iniziale.html` — il questionario iniziale.
+
+**Design del Coach AI**
+- `Metabole_Coach_AI_e_Sondaggio.md` — mascotte/coach: i 21 stati, l'andamento nella giornata, le soglie (`config_param`), l'onboarding del widget, e il sondaggio diviso nei 5 settori con mascotte-guida.
 
 **Documenti strategici**
 - `Metabole_Piano_Prodotto_Business.docx` — piano prodotto + business.
