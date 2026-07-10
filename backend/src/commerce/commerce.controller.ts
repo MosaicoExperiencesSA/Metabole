@@ -210,9 +210,9 @@ export class StripeWebhookController {
   }
 }
 
-/** CRM (commerciale + admin). */
+/** CRM (commerciale, coach, capo, admin). */
 @Controller('crm/leads')
-@Roles('sales', 'admin')
+@Roles('coach', 'sales', 'head_nutritionist', 'admin')
 export class CrmController {
   constructor(private readonly crm: CrmService) {}
 

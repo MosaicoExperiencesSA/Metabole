@@ -1,15 +1,41 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 
-/** Voci del menu: sezione backoffice ↔ pageKey dei permessi ↔ rotta ↔ icona. */
-const NAV: { group: string; items: { key: string; label: string; to: string; icon: string }[] }[] = [
+interface NavItem {
+  key: string; // pageKey dei permessi
+  label: string;
+  to: string;
+  icon: string;
+}
+interface NavSection {
+  group: string;
+  icon?: string;
+  collapsible?: boolean;
+  items: NavItem[];
+}
+
+/** Voci del menu: sezione ↔ pageKey dei permessi ↔ rotta ↔ icona. */
+const NAV: NavSection[] = [
   {
-    group: 'Operatività',
+    group: 'Generale',
+    items: [{ key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' }],
+  },
+  {
+    group: 'CRM',
+    icon: 'ti-address-book',
+    collapsible: true,
     items: [
-      { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
-      { key: 'crm_leads', label: 'Clienti / Lead', to: '/crm', icon: 'ti-layout-kanban' },
+      { key: 'crm_leads', label: 'Gestione lead', to: '/crm/gestione', icon: 'ti-list-details' },
+      { key: 'crm_leads', label: 'Inserimento lead', to: '/crm/inserimento', icon: 'ti-user-plus' },
+      { key: 'crm_leads', label: 'Pipeline', to: '/crm/pipeline', icon: 'ti-layout-kanban' },
+      { key: 'crm_leads', label: 'Calendario', to: '/crm/calendario', icon: 'ti-calendar-event' },
+    ],
+  },
+  {
+    group: 'Percorso cliente',
+    items: [
       { key: 'visits_agenda', label: 'Agenda visite', to: '/agenda', icon: 'ti-calendar' },
       { key: 'escalations', label: 'Segnalazioni', to: '/segnalazioni', icon: 'ti-alert-triangle' },
     ],
@@ -43,10 +69,27 @@ const NAV: { group: string; items: { key: string; label: string; to: string; ico
 export function Layout({ title, children }: { title: string; children: ReactNode }) {
   const { user, permissions, can, logout, impersonating, stopImpersonation } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   async function handleLogout() {
     await logout();
     navigate('/login');
+  }
+
+  function link(it: NavItem, nested = false) {
+    return (
+      <NavLink
+        key={it.to}
+        to={it.to}
+        end={it.to === '/'}
+        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        style={nested ? { paddingLeft: 26, fontSize: 13.5 } : undefined}
+      >
+        <i className={`ti ${it.icon}`} />
+        {it.label}
+      </NavLink>
+    );
   }
 
   return (
@@ -65,20 +108,30 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         {NAV.map((section) => {
           const visible = section.items.filter((it) => it.key === 'dashboard' || can(it.key));
           if (visible.length === 0) return null;
+
+          if (section.collapsible) {
+            const hasActive = visible.some((it) => location.pathname.startsWith(it.to));
+            const isOpen = collapsed[section.group] ?? hasActive ?? true;
+            return (
+              <div key={section.group}>
+                <button
+                  className="nav-item"
+                  style={{ fontWeight: 700, marginTop: 8 }}
+                  onClick={() => setCollapsed((c) => ({ ...c, [section.group]: !(c[section.group] ?? hasActive) }))}
+                >
+                  {section.icon && <i className={`ti ${section.icon}`} />}
+                  {section.group}
+                  <i className={`ti ti-chevron-${isOpen ? 'down' : 'right'}`} style={{ marginLeft: 'auto', fontSize: 15 }} />
+                </button>
+                {isOpen && visible.map((it) => link(it, true))}
+              </div>
+            );
+          }
+
           return (
             <div key={section.group}>
               <div className="nav-sep">{section.group}</div>
-              {visible.map((it) => (
-                <NavLink
-                  key={it.key}
-                  to={it.to}
-                  end={it.to === '/'}
-                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                >
-                  <i className={`ti ${it.icon}`} />
-                  {it.label}
-                </NavLink>
-              ))}
+              {visible.map((it) => link(it))}
             </div>
           );
         })}

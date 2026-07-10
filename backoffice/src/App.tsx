@@ -5,6 +5,8 @@ import { Spinner } from './components/ui';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Placeholder } from './pages/Placeholder';
+import { LeadForm } from './pages/LeadForm';
+import { LeadsTable } from './pages/LeadsTable';
 import { Permissions } from './pages/Permissions';
 import { Pipeline } from './pages/Pipeline';
 import { Roles } from './pages/Roles';
@@ -41,7 +43,11 @@ export default function App() {
 
       {/* Sezioni in arrivo (stesse API già pronte lato backend) */}
       <Route path="/clienti" element={<Protected title="Clienti" pageKey="clients"><Placeholder title="Clienti" icon="ti-users" /></Protected>} />
-      <Route path="/crm" element={<Protected title="Clienti / Lead" pageKey="crm_leads"><Pipeline /></Protected>} />
+      <Route path="/crm" element={<Navigate to="/crm/gestione" replace />} />
+      <Route path="/crm/gestione" element={<Protected title="Gestione lead" pageKey="crm_leads"><LeadsTable /></Protected>} />
+      <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_leads"><LeadForm /></Protected>} />
+      <Route path="/crm/pipeline" element={<Protected title="Pipeline" pageKey="crm_leads"><Pipeline /></Protected>} />
+      <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_leads"><Placeholder title="Calendario CRM" icon="ti-calendar-event" note="Qui potrai segnare promemoria e appuntamenti legati a clienti e lead (richiami, scadenze, note). La costruiamo come prossimo passo." /></Protected>} />
       <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Placeholder title="Agenda visite" icon="ti-calendar" /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Placeholder title="Segnalazioni" icon="ti-alert-triangle" /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Placeholder title="Bonifici & contabilità" icon="ti-cash" /></Protected>} />
