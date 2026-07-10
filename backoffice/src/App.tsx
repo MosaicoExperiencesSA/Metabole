@@ -11,6 +11,8 @@ import { Calendar } from './pages/Calendar';
 import { ClientDetail } from './pages/ClientDetail';
 import { LeadForm } from './pages/LeadForm';
 import { LeadsTable } from './pages/LeadsTable';
+import { LogEmail } from './pages/LogEmail';
+import { ModelliEmail } from './pages/ModelliEmail';
 import { Parametri } from './pages/Parametri';
 import { Payments } from './pages/Payments';
 import { Permissions } from './pages/Permissions';
@@ -67,6 +69,8 @@ export default function App() {
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Placeholder title="Protocolli motore" icon="ti-cpu" /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />
       <Route path="/log" element={<Protected title="Log attività" pageKey="audit_logs"><Placeholder title="Log attività" icon="ti-history" /></Protected>} />
+      <Route path="/email-modelli" element={<Protected title="Modelli email" pageKey="permissions"><ModelliEmail /></Protected>} />
+      <Route path="/email-log" element={<Protected title="Log email" pageKey="permissions"><LogEmail /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

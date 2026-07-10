@@ -174,11 +174,10 @@ describe('CommerceService (flusso bonifico)', () => {
         expect.objectContaining({ amountCents: 29700 }),
       );
       expect(crm.autoAdvance).toHaveBeenCalledWith('client-1', 'paid', 'op-user', 29700);
-      expect(mail.sendPaymentReceipt).toHaveBeenCalledWith(
-        'giulia@test.it',
-        expect.objectContaining({ amountCents: 29700 }),
-        undefined,
-      );
+      expect(mail.sendPaymentReceipt).toHaveBeenCalled();
+      const receiptCall = (mail.sendPaymentReceipt as jest.Mock).mock.calls[0];
+      expect(receiptCall[0]).toBe('giulia@test.it');
+      expect(receiptCall[1]).toEqual(expect.objectContaining({ amountCents: 29700 }));
       expect(notifications.notifyOncePerDay).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'payment_approved' }),
       );

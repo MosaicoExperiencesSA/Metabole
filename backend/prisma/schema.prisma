@@ -1049,6 +1049,35 @@ model DiscountRedemption {
   @@map("discount_redemption")
 }
 
+// Modello email modificabile dall'admin. subject/bodyHtml usano segnaposto {{var}}.
+// Se manca o è disattivato, si usa il testo predefinito (i18n).
+model EmailTemplate {
+  key         String   @id // es. payment_receipt, password_reset, ...
+  name        String
+  subject     String
+  bodyHtml    String   @map("body_html")
+  active      Boolean  @default(true)
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("email_template")
+}
+
+// Log di ogni email tentata (per verificare gli invii).
+model EmailLog {
+  id          String   @id @default(uuid())
+  to          String
+  templateKey String?  @map("template_key")
+  subject     String
+  status      String // sent | failed | skipped
+  error       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("email_log")
+}
+
 // Matrice permessi del backoffice: ruolo × sezione → vede / gestisce.
 // I default arrivano dal seed (specifica sez. 4); l'admin li modifica a runtime.
 // Ruoli personalizzati: etichetta + colore + ruolo di sistema di base (da cui

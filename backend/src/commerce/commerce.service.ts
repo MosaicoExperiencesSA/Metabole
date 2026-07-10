@@ -386,6 +386,7 @@ export class CommerceService {
       await this.discounts.redeem(payment.discountCodeId, payment.clientId, payment.id, payment.discountCents ?? 0);
     }
 
+    const receipt = await this.generateReceiptPdf(payment.id).catch(() => null);
     await this.mail.sendPaymentReceipt(
       payment.client.email,
       {
@@ -395,6 +396,7 @@ export class CommerceService {
         date: new Date(),
       },
       payment.client.locale,
+      receipt ? [{ name: receipt.fileName, content: receipt.contentBase64 }] : undefined,
     );
     await this.notifications.notifyOncePerDay({
       userId: payment.clientId,

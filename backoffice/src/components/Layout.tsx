@@ -58,6 +58,13 @@ const NAV: NavSection[] = [
     ],
   },
   {
+    group: 'Comunicazioni',
+    items: [
+      { key: 'permissions', label: 'Modelli email', to: '/email-modelli', icon: 'ti-mail-cog' },
+      { key: 'permissions', label: 'Log email', to: '/email-log', icon: 'ti-mail-check' },
+    ],
+  },
+  {
     group: 'Amministrazione',
     items: [
       { key: 'users', label: 'Utenti', to: '/utenti', icon: 'ti-id-badge-2' },

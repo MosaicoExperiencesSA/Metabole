@@ -162,6 +162,26 @@ const CONFIG_PARAMS: SeedParam[] = [
   },
 ];
 
+// Modelli email predefiniti (modificabili dall'admin). {{var}} = segnaposto.
+const EMAIL_TEMPLATES = [
+  { key: 'email_verification', name: 'Conferma email (registrazione)', subject: 'Metabole — conferma la tua email', bodyHtml: '<p>Benvenuta/o in Metabole!</p><p>Per confermare il tuo indirizzo clicca qui: <a href="{{link}}">conferma email</a></p><p>Oppure usa questo codice nell\'app: <code>{{token}}</code></p><p>Il link scade tra 48 ore. Se non ti sei registrata/o tu, ignora questa email.</p>' },
+  { key: 'password_reset', name: 'Reset password', subject: 'Metabole — reimposta la password', bodyHtml: '<p>Hai chiesto di reimpostare la password del tuo account Metabole.</p><p>Clicca qui per procedere: <a href="{{link}}">reimposta password</a></p><p>Se non sei stata/o tu, ignora questa email.</p>' },
+  { key: 'bank_transfer', name: 'Estremi per il bonifico', subject: 'Metabole — estremi per il bonifico ({{description}})', bodyHtml: '<p>Per completare l\'acquisto <b>{{description}}</b> (€ {{amount}}) esegui un bonifico con questi estremi:</p><pre>{{bankDetails}}</pre><p>Causale: <b>{{reference}}</b></p><p>Poi carica la contabile dall\'app per l\'approvazione.</p>' },
+  { key: 'payment_receipt', name: 'Ricevuta di pagamento', subject: 'Metabole — ricevuta di pagamento', bodyHtml: '<p>Grazie! Abbiamo registrato il tuo pagamento.</p><p><b>{{description}}</b><br/>Importo: € {{amount}}<br/>Data: {{date}}</p><p>Trovi la ricevuta in allegato a questa email.</p>' },
+  { key: 'notification', name: 'Notifica generica', subject: 'Metabole — {{title}}', bodyHtml: '<p><b>{{title}}</b></p><p>{{body}}</p>' },
+  { key: 'client_assigned_nutritionist', name: 'Cliente assegnata (al nutrizionista)', subject: 'Metabole — nuova cliente assegnata', bodyHtml: '<p>Ciao,</p><p>ti è stata assegnata una nuova cliente: <b>{{clientName}}</b>.</p><p>La trovi nel tuo elenco clienti su Metabole.</p>' },
+];
+
+async function seedEmailTemplates(): Promise<void> {
+  for (const t of EMAIL_TEMPLATES) {
+    await prisma.emailTemplate.upsert({
+      where: { key: t.key },
+      create: t,
+      update: { name: t.name }, // non tocca subject/body: l'admin può averli modificati
+    });
+  }
+}
+
 async function seedPermissions(): Promise<void> {
   // Crea solo le combinazioni mancanti: le modifiche dell'admin non vengono mai sovrascritte.
   for (const role of ROLES) {
@@ -470,6 +490,7 @@ async function main(): Promise<void> {
   await seedProtocols();
   await seedCommerce();
   await backfillPaidClientsIntoCrm();
+  await seedEmailTemplates();
   const count = await prisma.configParam.count();
   const permCount = await prisma.rolePagePermission.count();
   console.log(

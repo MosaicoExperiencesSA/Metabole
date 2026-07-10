@@ -8,6 +8,7 @@ import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
 import { Role } from '../common/roles';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const PUBLIC_USER_SELECT = {
@@ -30,6 +31,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly finance: FinanceService,
+    private readonly mail: MailService,
   ) {}
 
   async list(params: { role?: Role; staffOnly?: boolean; page?: number; limit?: number }) {
@@ -227,7 +229,22 @@ export class UsersService {
 
     // Paga eventuali provvigioni accantonate su questa cliente per il ruolo assegnato.
     if (data.coachId) await this.finance.resolvePendingForAssignment(data.clientId, 'coach', data.coachId);
-    if (data.nutritionistId) await this.finance.resolvePendingForAssignment(data.clientId, 'nutritionist', data.nutritionistId);
+    if (data.nutritionistId) {
+      await this.finance.resolvePendingForAssignment(data.clientId, 'nutritionist', data.nutritionistId);
+      // Avvisa il nutrizionista della nuova cliente assegnata.
+      try {
+        const nutri = await this.prisma.staff.findUnique({
+          where: { id: data.nutritionistId },
+          select: { user: { select: { email: true, locale: true } } },
+        });
+        if (nutri?.user?.email) {
+          const clientName = profile.name ?? 'una nuova cliente';
+          await this.mail.sendClientAssignedToNutritionist(nutri.user.email, clientName, nutri.user.locale);
+        }
+      } catch {
+        /* l'email non deve bloccare l'assegnazione */
+      }
+    }
 
     return updated;
   }

@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 
@@ -32,6 +33,7 @@ describe('UsersService (admin)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: audit },
         { provide: FinanceService, useValue: { resolvePendingForAssignment: jest.fn() } },
+        { provide: MailService, useValue: { sendClientAssignedToNutritionist: jest.fn() } },
       ],
     }).compile();
     service = moduleRef.get(UsersService);
