@@ -32,7 +32,28 @@ const PHRASES = {
   intro_gusto: "E il gusto: cosa ami e cosa eviti. Mangiare bene deve piacerti, o non dura.",
   intro_corpo: "Bene, ora so tutto di te, tranne quali sono i tuoi obiettivi: peso e misure sono obiettivi, senza giudizi. Dimmi dove sei e dove vuoi arrivare.",
   colore: "Ultimo tocco: scegli il colore che ti rappresenta. Personalizzerò tutta l'app con la tinta che preferisci, e potrai cambiarla quando vuoi.",
-  percorso: "Il tuo percorso personalizzato è pronto, costruito su tutte le tue risposte."
+  percorso: "Il tuo percorso personalizzato è pronto, costruito su tutte le tue risposte.",
+
+  // Domande del test (chiave = q_ + titolo "slugificato")
+  q_chi_sei: "Partiamo dalle basi.",
+  q_il_tuo_punto_di_partenza: "Le aggiornerai ogni 2 giorni.",
+  q_il_tuo_regime_alimentare: "Su cosa costruiamo i menu.",
+  q_intolleranze_o_allergie: "Puoi sceglierne più di una.",
+  q_cibi_che_non_ami: "Li terrò alla larga dai tuoi menu.",
+  q_la_tua_vita_e_il_lavoro: "Così i menu diventano fattibili.",
+  q_la_tua_salute: "Serve per la tua sicurezza.",
+  q_il_tuo_obiettivo: "Con calma e in modo sostenibile.",
+  q_periodi_senza_dieta: "Vacanze, feste, eventi o semplicemente momenti di pausa.",
+  q_come_vuoi_essere_seguita: "Avrai anche un'assistente umana, oltre a me. Con che frequenza vuoi essere seguita?",
+  q_che_tipo_sei: "Così individuo la coach più idonea al tuo carattere e taro la AI affinché ti segua secondo le tue necessità.",
+  q_generic: "Rispondi con calma, non c'è fretta.",
+
+  // Saluti del coach nell'app (buongiorno al mattino, ecc.)
+  coach_buongiorno: "Buongiorno! Un nuovo giorno, un passo alla volta.",
+  coach_inrotta: "Sei in rotta, continua così!",
+  coach_acqua: "Ricordati di bere un po' d'acqua.",
+  coach_passi: "Muoviti un po', ti aspetto per una camminata.",
+  coach_buonanotte: "Buonanotte, riposa. Domani si ricomincia."
 };
 
 // Impostazioni voce: calda, naturale, ritmo morbido
