@@ -16,7 +16,15 @@ interface Detail {
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string; approvedAt: string | null }[];
   crm: { stage: string; valueCents: number | null } | null;
   notes: { id: string; body: string; createdAt: string; author: string | null }[];
+  pendingCommissions: { id: string; role: string; amountCents: number; createdAt: string }[];
 }
+
+const COMM_ROLE: Record<string, string> = {
+  coach: 'Coach',
+  manager_coach: 'Manager coach',
+  nutritionist: 'Nutrizionista',
+  head_nutritionist: 'Capo nutrizionista',
+};
 
 const L: Record<string, Record<string, string>> = {
   sex: { female: 'Donna', male: 'Uomo' },
@@ -361,6 +369,30 @@ export function ClientDetail() {
           )}
         </div>
       </div>
+
+      {/* Provvigioni accantonate */}
+      {d.pendingCommissions.length > 0 && (
+        <div className="card" style={{ padding: 0 }}>
+          <div style={{ padding: '18px 20px 4px' }}>
+            <h2 style={{ margin: 0 }}>Provvigioni accantonate</h2>
+            <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>
+              In attesa dell'assegnazione del ruolo: verranno pagate automaticamente quando assegni coach/nutrizionista.
+            </p>
+          </div>
+          <table className="grid">
+            <thead><tr><th>Ruolo</th><th>Importo</th><th>Dal</th></tr></thead>
+            <tbody>
+              {d.pendingCommissions.map((pc) => (
+                <tr key={pc.id}>
+                  <td>{COMM_ROLE[pc.role] ?? pc.role}</td>
+                  <td><b>{euro(pc.amountCents)}</b></td>
+                  <td className="muted">{date(pc.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Acquisti */}
       <div className="card" style={{ padding: 0 }}>

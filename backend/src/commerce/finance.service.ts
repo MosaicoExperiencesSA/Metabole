@@ -88,25 +88,67 @@ export class FinanceService {
     ]);
     if (!profile) return;
 
-    const jobs: Promise<unknown>[] = [];
-    const pay = (staffId: string | null | undefined, pct: number | null | undefined) => {
-      if (!staffId || !pct || pct <= 0) return;
-      jobs.push(
-        this.creditStaff({
-          staffId,
-          amountCents: Math.round((payment.amountCents * pct) / 100),
-          kind: 'sales_commission',
-          ref: payment.id,
-          clientId: payment.clientId,
-        }),
-      );
-    };
+    await this.settleSide(payment, 'coach', profile.assignedCoachId, profile.assignedCoach?.managerId, coachPct, managerCoachPct);
+    await this.settleSide(payment, 'nutritionist', profile.assignedNutritionistId, profile.assignedNutritionist?.managerId, nutriPct, headNutriPct);
+  }
 
-    pay(profile.assignedCoachId, coachPct);
-    pay(profile.assignedCoach?.managerId, managerCoachPct);
-    pay(profile.assignedNutritionistId, nutriPct);
-    pay(profile.assignedNutritionist?.managerId, headNutriPct);
-    await Promise.all(jobs);
+  /**
+   * Regola una "metà" della catena (coaching o nutrizione):
+   * - se lo staff è assegnato → paga subito (e paga il responsabile se c'è);
+   * - se NON è assegnato → accantona le quote, pagate poi all'assegnazione.
+   */
+  private async settleSide(
+    payment: { id: string; clientId: string; amountCents: number },
+    group: 'coach' | 'nutritionist',
+    primaryStaffId: string | null | undefined,
+    managerStaffId: string | null | undefined,
+    primaryPct: number,
+    managerPct: number,
+  ) {
+    const [primaryRole, managerRole] = group === 'coach' ? ['coach', 'manager_coach'] : ['nutritionist', 'head_nutritionist'];
+    const amount = (pct: number) => Math.round((payment.amountCents * pct) / 100);
+
+    if (primaryStaffId) {
+      // Assegnato: paga subito la quota base e (se presente il responsabile) la sua.
+      if (primaryPct > 0) {
+        await this.creditStaff({ staffId: primaryStaffId, amountCents: amount(primaryPct), kind: 'sales_commission', ref: payment.id, clientId: payment.clientId });
+      }
+      if (managerStaffId && managerPct > 0) {
+        await this.creditStaff({ staffId: managerStaffId, amountCents: amount(managerPct), kind: 'sales_commission', ref: payment.id, clientId: payment.clientId });
+      }
+      return;
+    }
+
+    // Non assegnato: accantona (pagheremo all'assegnazione dal backoffice).
+    const pendings: { paymentId: string; clientId: string; role: string; amountCents: number }[] = [];
+    if (primaryPct > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: primaryRole, amountCents: amount(primaryPct) });
+    if (managerPct > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: managerRole, amountCents: amount(managerPct) });
+    for (const data of pendings) {
+      await this.prisma.pendingCommission.create({ data });
+    }
+  }
+
+  /**
+   * Assegnato coach/nutrizionista → paga le provvigioni accantonate del cliente:
+   * la quota base va allo staff appena assegnato, la quota "responsabile" al suo
+   * manager (se impostato), altrimenti quella quota viene annullata.
+   */
+  async resolvePendingForAssignment(clientId: string, group: 'coach' | 'nutritionist', staffId: string) {
+    const [primaryRole, managerRole] = group === 'coach' ? ['coach', 'manager_coach'] : ['nutritionist', 'head_nutritionist'];
+    const pendings = await this.prisma.pendingCommission.findMany({
+      where: { clientId, status: 'pending', role: { in: [primaryRole, managerRole] } },
+    });
+    if (!pendings.length) return;
+    const staff = await this.prisma.staff.findUnique({ where: { id: staffId }, select: { managerId: true } });
+    for (const p of pendings as { id: string; role: string; amountCents: number; paymentId: string }[]) {
+      const target = p.role === primaryRole ? staffId : staff?.managerId ?? null;
+      if (target && p.amountCents > 0) {
+        await this.creditStaff({ staffId: target, amountCents: p.amountCents, kind: 'sales_commission', ref: p.paymentId, clientId });
+        await this.prisma.pendingCommission.update({ where: { id: p.id }, data: { status: 'paid', resolvedStaffId: target, resolvedAt: new Date() } });
+      } else {
+        await this.prisma.pendingCommission.update({ where: { id: p.id }, data: { status: 'cancelled', resolvedAt: new Date() } });
+      }
+    }
   }
 
   /** Compenso visita (chiamato al complete della visita). */

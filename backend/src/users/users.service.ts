@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
+import { FinanceService } from '../commerce/finance.service';
 import { Role } from '../common/roles';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -28,6 +29,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly finance: FinanceService,
   ) {}
 
   async list(params: { role?: Role; staffOnly?: boolean; page?: number; limit?: number }) {
@@ -207,6 +209,11 @@ export class UsersService {
       entityId: profile.id,
       metadata: { coachId: data.coachId, nutritionistId: data.nutritionistId },
     });
+
+    // Paga eventuali provvigioni accantonate su questa cliente per il ruolo assegnato.
+    if (data.coachId) await this.finance.resolvePendingForAssignment(data.clientId, 'coach', data.coachId);
+    if (data.nutritionistId) await this.finance.resolvePendingForAssignment(data.clientId, 'nutritionist', data.nutritionistId);
+
     return updated;
   }
 

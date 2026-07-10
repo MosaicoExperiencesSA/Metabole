@@ -994,6 +994,24 @@ model ConfigParam {
   @@map("config_param")
 }
 
+// Provvigione accantonata: creata quando al pagamento manca lo staff assegnato
+// (es. cliente che paga la visita prima di avere il nutrizionista). Viene pagata
+// quando lo staff viene assegnato dal backoffice (o annullata se non dovuta).
+model PendingCommission {
+  id              String    @id @default(uuid())
+  paymentId       String    @map("payment_id")
+  clientId        String    @map("client_id")
+  role            String // coach | manager_coach | nutritionist | head_nutritionist
+  amountCents     Int       @map("amount_cents")
+  status          String    @default("pending") // pending | paid | cancelled
+  resolvedStaffId String?   @map("resolved_staff_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  @@index([clientId, status])
+  @@map("pending_commission")
+}
+
 // Matrice permessi del backoffice: ruolo × sezione → vede / gestisce.
 // I default arrivano dal seed (specifica sez. 4); l'admin li modifica a runtime.
 // Ruoli personalizzati: etichetta + colore + ruolo di sistema di base (da cui
