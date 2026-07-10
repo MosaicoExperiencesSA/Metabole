@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Placeholder } from './pages/Placeholder';
 import { Calendar } from './pages/Calendar';
+import { ClientDetail } from './pages/ClientDetail';
 import { LeadForm } from './pages/LeadForm';
 import { LeadsTable } from './pages/LeadsTable';
 import { Permissions } from './pages/Permissions';
@@ -43,7 +44,8 @@ export default function App() {
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
 
       {/* Sezioni in arrivo (stesse API già pronte lato backend) */}
-      <Route path="/clienti" element={<Protected title="Clienti" pageKey="clients"><Placeholder title="Clienti" icon="ti-users" /></Protected>} />
+      <Route path="/clienti" element={<Protected title="Clienti" pageKey="clients"><Placeholder title="Clienti" icon="ti-users" note="Apri la scheda di un cliente dalla Pipeline o da Gestione lead." /></Protected>} />
+      <Route path="/clienti/:id" element={<Protected title="Scheda cliente" pageKey="clients"><ClientDetail /></Protected>} />
       <Route path="/crm" element={<Navigate to="/crm/gestione" replace />} />
       <Route path="/crm/gestione" element={<Protected title="Gestione lead" pageKey="crm_leads"><LeadsTable /></Protected>} />
       <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_leads"><LeadForm /></Protected>} />

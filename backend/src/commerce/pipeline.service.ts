@@ -56,6 +56,7 @@ export class PipelineService {
     const now = Date.now();
     type Rec = {
       id: string;
+      clientId: string | null;
       stage: string;
       name: string | null;
       email: string | null;
@@ -69,6 +70,7 @@ export class PipelineService {
       const daysInStage = enteredAt ? Math.floor((now - new Date(enteredAt).getTime()) / 86_400_000) : null;
       return {
         id: r.id,
+        clientId: r.clientId,
         stage: r.stage,
         name: r.client?.clientProfile?.name ?? r.name ?? r.client?.email ?? r.email ?? 'Senza nome',
         email: r.client?.email ?? r.email ?? null,

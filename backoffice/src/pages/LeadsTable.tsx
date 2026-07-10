@@ -11,6 +11,7 @@ interface Stage {
 }
 interface Lead {
   id: string;
+  clientId: string | null;
   email: string | null;
   name: string | null;
   stage: string;
@@ -101,7 +102,13 @@ export function LeadsTable() {
                 return (
                   <tr key={l.id}>
                     <td>
-                      <b>{displayName(l)}</b>
+                      {l.clientId ? (
+                        <Link to={`/clienti/${l.clientId}`} style={{ fontWeight: 700, textDecoration: 'none' }}>
+                          {displayName(l)}
+                        </Link>
+                      ) : (
+                        <b>{displayName(l)}</b>
+                      )}
                       {!l.client && <span className="chip amber" style={{ marginLeft: 8, fontSize: 10 }}>lead</span>}
                     </td>
                     <td className="muted">{l.client?.email ?? l.email ?? '—'}</td>

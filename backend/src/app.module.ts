@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { ChatModule } from './chat/chat.module';
+import { ClientsModule } from './clients/clients.module';
 import { CommerceModule } from './commerce/commerce.module';
 import { CronModule } from './cron/cron.module';
 import { EngineModule } from './engine/engine.module';
@@ -55,6 +56,7 @@ import { UsersModule } from './users/users.module';
     CronModule,
     HealthAreaModule,
     ChatModule,
+    ClientsModule,
     CommerceModule,
     HealthModule,
   ],

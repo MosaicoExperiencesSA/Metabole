@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
@@ -12,6 +13,7 @@ interface Stage {
 }
 interface Card {
   id: string;
+  clientId: string | null;
   stage: string;
   name: string;
   email: string | null;
@@ -35,6 +37,7 @@ function euro(cents: number | null): string | null {
 
 export function Pipeline() {
   const { can } = useAuth();
+  const navigate = useNavigate();
   const canManageStages = can('permissions', 'manage'); // gestione stati = admin (come permessi)
   const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,7 +146,17 @@ export function Pipeline() {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                    <b style={{ fontSize: 14 }}>{c.name}</b>
+                    {c.clientId ? (
+                      <b
+                        style={{ fontSize: 14, color: 'var(--teal-dark)', cursor: 'pointer' }}
+                        title="Apri la scheda cliente"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/clienti/${c.clientId}`); }}
+                      >
+                        {c.name}
+                      </b>
+                    ) : (
+                      <b style={{ fontSize: 14 }}>{c.name}</b>
+                    )}
                     {!c.isClient && <span className="chip amber" style={{ fontSize: 10 }}>lead</span>}
                   </div>
                   {c.email && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{c.email}</div>}
