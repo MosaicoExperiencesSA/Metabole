@@ -487,18 +487,14 @@ async function ensureAdminFromEnv(): Promise<void> {
     return;
   }
 
-  if (!password || password.length < 8) {
-    console.log(
-      `Seed: admin ${email} NON creato — imposta ADMIN_PASSWORD (min. 8 caratteri) nelle variabili di Render.`,
-    );
-    return;
-  }
-
-  const passwordHash = await argon2.hash(password);
+  // Crea comunque l'account admin: con ADMIN_PASSWORD se fornita (≥8),
+  // altrimenti con una password non valida da impostare con "Password dimenticata".
+  const usable = Boolean(password && password.length >= 8);
+  const passwordHash = usable ? await argon2.hash(password as string) : 'SET_VIA_PASSWORD_RESET';
   await prisma.user.create({
     data: { email, passwordHash, role: 'admin', locale: 'it', emailVerifiedAt: new Date() },
   });
-  console.log(`Seed: creato admin ${email}.`);
+  console.log(`Seed: creato admin ${email}${usable ? '' : ' (password da impostare via reset)'}.`);
 }
 
 main()
