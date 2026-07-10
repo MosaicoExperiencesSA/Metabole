@@ -212,16 +212,41 @@ p { line-height: 1.5; }
 .result-name { font-size: 20px; font-weight: 800; color: var(--teal-dark); }
 .result-tags { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
 
-/* ---------- Mascotte Gaia ---------- */
+/* ---------- Mascotte Gaia (SVG identico al prototipo) ---------- */
 .gaia-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.gaia { animation: gaiaFloat 3.4s ease-in-out infinite; }
-.gaia svg { display: block; filter: drop-shadow(0 8px 16px rgba(16, 64, 58, 0.18)); }
-@keyframes gaiaFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-.gaia-eyes { animation: gaiaBlink 4.2s infinite; transform-origin: center; transform-box: fill-box; }
-@keyframes gaiaBlink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-.gaia-mouth { transform-origin: center; transform-box: fill-box; }
-.gaia.talking .gaia-mouth { animation: gaiaTalk 0.32s ease-in-out infinite; }
-@keyframes gaiaTalk { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(2.1); } }
+.gaia { display: block; filter: drop-shadow(0 8px 16px rgba(16, 64, 58, 0.18)); }
+.cmFloat { animation: cmFloat 3.2s ease-in-out infinite; }
+.cmBreathe { transform-box: fill-box; transform-origin: 50% 92%; animation: cmBreathe 3.6s ease-in-out infinite; }
+.cmSprout { transform-box: fill-box; transform-origin: 50% 100%; animation: cmSway 3s ease-in-out infinite; }
+.cmEye { transform-box: fill-box; animation: cmBlink 4.2s infinite; }
+.gaia.talking .cmMouth { transform-box: fill-box; transform-origin: center; animation: cmTalk 0.3s ease-in-out infinite; }
+@keyframes cmFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes cmBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+@keyframes cmSway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes cmBlink { 0%, 90%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.08); } }
+@keyframes cmTalk { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.9); } }
 .gaia-ctrls { display: flex; gap: 8px; }
 .gaia-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: #fff; color: var(--teal-dark); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .gaia-btn i { font-size: 17px; }
+
+/* aree overview: pallino colore invece dell'icona */
+.area-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; }
+
+/* intro di sezione (pannello colorato) */
+.sec-intro { display: flex; flex-direction: column; color: #fff; }
+.sec-top { font-size: 12px; opacity: 0.85; }
+.sec-dots { display: flex; justify-content: center; gap: 5px; margin-top: 12px; }
+.sec-dot { height: 8px; width: 8px; border-radius: 5px; background: rgba(255, 255, 255, 0.35); transition: width 0.2s; }
+.sec-dot.on { width: 22px; background: #fff; }
+.sec-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.sec-name { font-size: 13px; opacity: 0.9; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; }
+.sec-headline { font-size: 22px; font-weight: 700; line-height: 1.25; margin-top: 6px; padding: 0 6px; }
+.sec-note { font-size: 13px; opacity: 0.92; margin-top: 10px; padding: 0 10px; line-height: 1.5; }
+
+/* barra sezioni in cima alle domande */
+.secbar { display: flex; gap: 5px; margin-bottom: 6px; }
+.secbar span { flex: 1; height: 5px; border-radius: 5px; background: var(--line); }
+.secbar span.on { background: var(--teal); }
+.seclbl { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.seclbl span { font-size: 11px; color: var(--muted); }
+.seclbl span.active { color: var(--teal); font-weight: 700; }

@@ -1,21 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api } from '../api/client';
-import { ApiError } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { clipForPage } from '../audio/gaia';
 import Gaia from '../components/Gaia';
 import FieldInput from '../onboarding/Field';
 import type { OnboardingResult, Page, Questions } from '../onboarding/types';
 
-type Phase = 'welcome' | 'overview' | 'pages' | 'consent' | 'submitting' | 'result';
 type Answers = Record<string, unknown>;
 
-const AREAS = [
-  { icon: 'ti-brain', label: 'La mente' },
-  { icon: 'ti-briefcase', label: 'La vita' },
-  { icon: 'ti-calendar-heart', label: "L'agenda" },
-  { icon: 'ti-tools-kitchen-2', label: 'Il gusto' },
-  { icon: 'ti-activity-heart', label: 'Il corpo' },
-];
+/** Le 5 sezioni nell'ordine del prototipo, con colore, voce e pagine (chiavi backend). */
+const SECTIONS = [
+  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Procediamo con le domande sul corpo', note: 'Peso, misure e obiettivo. Niente giudizi: mi servono solo per partire.', color: '#12A386', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
+  { key: 'testa', tab: 'Testa', name: 'La testa', intro: 'Ora motivazione e carattere', note: 'Come vuoi essere seguita e che tipo sei.', color: '#6C5AB7', voice: 'intro_testa', pages: ['coach_style', 'character'] },
+  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', color: '#2E7BB5', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
+  { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', color: '#E8825A', voice: 'intro_agenda', pages: ['pause_periods'] },
+  { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', color: '#B8863B', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
+] as const;
+
+const SECTAB = SECTIONS.map((s) => ({ key: s.key, tab: s.tab }));
+
+type Section = (typeof SECTIONS)[number];
+type Item =
+  | { t: 'welcome' }
+  | { t: 'overview' }
+  | { t: 'section'; sec: Section; n: number }
+  | { t: 'page'; page: Page; sec: Section }
+  | { t: 'theme'; page: Page }
+  | { t: 'consent' };
 
 function isFilled(v: unknown): boolean {
   if (v === undefined || v === null || v === '') return false;
@@ -32,10 +42,10 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
 export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [questions, setQuestions] = useState<Questions | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>('welcome');
-  const [pageIndex, setPageIndex] = useState(0);
+  const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Answers>({});
   const [consent, setConsent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardingResult | null>(null);
 
@@ -45,42 +55,59 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       .catch(() => setLoadErr('Non riesco a caricare il questionario. Riprova tra poco.'));
   }, []);
 
-  const pages: Page[] = questions?.pages ?? [];
-  const page = pages[pageIndex];
+  const flow: Item[] = useMemo(() => {
+    if (!questions) return [];
+    const byKey: Record<string, Page> = Object.fromEntries(questions.pages.map((p) => [p.key, p]));
+    const items: Item[] = [{ t: 'welcome' }, { t: 'overview' }];
+    SECTIONS.forEach((sec, si) => {
+      items.push({ t: 'section', sec, n: si + 1 });
+      sec.pages.forEach((pk) => {
+        const p = byKey[pk];
+        if (p) items.push({ t: 'page', page: p, sec });
+      });
+    });
+    if (byKey['theme']) items.push({ t: 'theme', page: byKey['theme'] });
+    items.push({ t: 'consent' });
+    return items;
+  }, [questions]);
 
-  // Applica in tempo reale il colore scelto per l'app.
+  const cur = flow[idx];
+
+  // Applica in tempo reale il colore scelto.
   useEffect(() => {
     const c = answers.themeColor as string | undefined;
     if (c) document.documentElement.style.setProperty('--teal', c);
   }, [answers.themeColor]);
 
   const clip = useMemo(() => {
-    if (phase === 'welcome') return 'benvenuto';
-    if (phase === 'overview') return 'facciamo';
-    if (phase === 'pages' && page) return clipForPage(page);
-    if (phase === 'result') return 'percorso';
+    if (result) return 'percorso';
+    if (!cur) return undefined;
+    if (cur.t === 'welcome') return 'benvenuto';
+    if (cur.t === 'overview') return 'facciamo';
+    if (cur.t === 'section') return cur.sec.voice;
+    if (cur.t === 'page') return clipForPage(cur.page);
+    if (cur.t === 'theme') return 'colore';
     return undefined;
-  }, [phase, page]);
+  }, [cur, result]);
 
   function setAnswer(key: string, value: unknown) {
     setAnswers((a) => ({ ...a, [key]: value }));
   }
 
-  const pageValid = !page || page.fields.every((f) => !f.required || isFilled(answers[f.key]));
+  const activePage = cur && (cur.t === 'page' || cur.t === 'theme') ? cur.page : null;
+  const pageValid = !activePage || activePage.fields.every((f) => !f.required || isFilled(answers[f.key]));
 
   function next() {
-    if (phase === 'pages' && !pageValid) return;
-    if (pageIndex >= pages.length - 1) setPhase('consent');
-    else setPageIndex((i) => i + 1);
+    if (activePage && !pageValid) return;
+    if (idx < flow.length - 1) setIdx((i) => i + 1);
   }
   function back() {
-    if (pageIndex <= 0) setPhase('overview');
-    else setPageIndex((i) => i - 1);
+    if (idx > 0) setIdx((i) => i - 1);
   }
 
   async function submit() {
     setSubmitErr(null);
-    setPhase('submitting');
+    setSubmitting(true);
     const a = answers;
     const dto: Record<string, unknown> = {
       name: a.name,
@@ -114,10 +141,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     try {
       const res = await api<OnboardingResult>('/onboarding/answers', { method: 'POST', body: JSON.stringify(dto) });
       setResult(res);
-      setPhase('result');
     } catch (e) {
       setSubmitErr(e instanceof ApiError ? e.message : 'Qualcosa non ha funzionato. Riprova.');
-      setPhase('consent');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -126,116 +153,30 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   if (loadErr) {
     return (
       <div className="app-frame">
-        <div className="screen no-tabbar center">
-          <div className="banner err">{loadErr}</div>
-        </div>
+        <div className="screen no-tabbar center"><div className="banner err">{loadErr}</div></div>
       </div>
     );
   }
-  if (!questions) {
+  if (!questions || !cur) {
     return (
       <div className="app-frame">
-        <div className="screen no-tabbar center">
-          <div className="spin" />
-        </div>
+        <div className="screen no-tabbar center"><div className="spin" /></div>
       </div>
     );
   }
 
-  return (
-    <div className="app-frame">
-      <div className="screen no-tabbar onb">
-        {phase === 'pages' && (
-          <div className="progress">
-            <div className="progress-bar" style={{ width: `${((pageIndex + 1) / pages.length) * 100}%` }} />
-          </div>
-        )}
-
-        <div className="onb-gaia">
-          <Gaia clip={clip} size={phase === 'welcome' || phase === 'result' ? 132 : 92} />
-        </div>
-
-        {phase === 'welcome' && (
-          <div className="onb-body">
-            <h1>Ciao, sono Gaia 🌿</h1>
-            <p className="muted">
-              Sono la tua assistente. Ti farò qualche domanda per costruire il tuo percorso, su misura per te.
-              Tocca il pulsante per riascoltarmi quando vuoi.
-            </p>
-            <button className="btn" onClick={() => setPhase('overview')}>Iniziamo</button>
-          </div>
-        )}
-
-        {phase === 'overview' && (
-          <div className="onb-body">
-            <h1>Cinque aree, poche domande</h1>
-            <p className="muted">Mi bastano cinque punti per capirti davvero:</p>
-            <div className="areas">
-              {AREAS.map((ar) => (
-                <div className="area" key={ar.label}>
-                  <i className={`ti ${ar.icon}`} />
-                  <span>{ar.label}</span>
-                </div>
-              ))}
-            </div>
-            <button className="btn" onClick={() => { setPhase('pages'); setPageIndex(0); }}>Vai</button>
-          </div>
-        )}
-
-        {phase === 'pages' && page && (
-          <div className="onb-body">
-            <div className="step-count">Passo {pageIndex + 1} di {pages.length}</div>
-            <h1>{page.title}</h1>
-            {page.subtitle && <p className="muted">{page.subtitle}</p>}
-            <div className="onb-fields">
-              {page.fields.map((f) => (
-                <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />
-              ))}
-            </div>
-            <div className="onb-nav">
-              <button className="btn ghost" onClick={back}>Indietro</button>
-              <button className="btn" onClick={next} disabled={!pageValid}>
-                {pageIndex >= pages.length - 1 ? 'Quasi fatto' : 'Avanti'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {phase === 'consent' && (
-          <div className="onb-body">
-            <h1>Un ultimo passo</h1>
-            <p className="muted">
-              Per costruire un percorso sicuro trattiamo alcuni dati sulla tua salute. Sono visibili solo a te
-              e al tuo nutrizionista. Devi darci il consenso per continuare.
-            </p>
-            {submitErr && <div className="banner err">{submitErr}</div>}
-            <label className="consent">
-              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              <span>Acconsento al trattamento dei miei dati sanitari (GDPR art. 9).</span>
-            </label>
-            <div className="onb-nav">
-              <button className="btn ghost" onClick={() => setPhase('pages')}>Indietro</button>
-              <button className="btn" onClick={submit} disabled={!consent}>Crea il mio percorso</button>
-            </div>
-          </div>
-        )}
-
-        {phase === 'submitting' && (
-          <div className="onb-body center">
-            <div className="spin" />
-            <p className="muted" style={{ marginTop: 14 }}>Sto preparando il tuo percorso…</p>
-          </div>
-        )}
-
-        {phase === 'result' && result && (
+  // Schermata finale: percorso pronto.
+  if (result) {
+    return (
+      <div className="app-frame">
+        <div className="screen no-tabbar onb">
+          <div className="onb-gaia"><Gaia clip={clip} size={132} /></div>
           <div className="onb-body">
             <h1>Il tuo percorso è pronto! 🎉</h1>
             <div className="card result-card">
               <div className="result-name">{result.path.name}</div>
               {result.path.tags.length > 0 && (
-                <div className="result-tags">
-                  {result.path.tags.map((t) => <span className="chip" key={t}>{t}</span>)}
-                </div>
+                <div className="result-tags">{result.path.tags.map((t) => <span className="chip" key={t}>{t}</span>)}</div>
               )}
             </div>
             <div className="card">
@@ -250,6 +191,137 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               <p className="muted" style={{ margin: 0 }}>{result.firstVisit.note}</p>
             </div>
             <button className="btn" onClick={onDone}>Entra nell'app</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Intro di sezione: pannello colorato a tutto schermo.
+  if (cur.t === 'section') {
+    return (
+      <div className="app-frame">
+        <div className="screen no-tabbar sec-intro" style={{ background: cur.sec.color }}>
+          <div className="sec-top">Sezione {cur.n} di 5</div>
+          <div className="sec-dots">
+            {SECTIONS.map((s, i) => (
+              <span key={s.key} className={i === cur.n - 1 ? 'sec-dot on' : 'sec-dot'} />
+            ))}
+          </div>
+          <div className="sec-center">
+            <Gaia clip={clip} size={140} controls={false} />
+            <div className="sec-name">{cur.sec.name}</div>
+            <div className="sec-headline">{cur.sec.intro}</div>
+            <div className="sec-note">{cur.sec.note}</div>
+          </div>
+          <button className="btn" style={{ background: '#fff', color: cur.sec.color }} onClick={next}>Iniziamo</button>
+        </div>
+      </div>
+    );
+  }
+
+  const curSecKey = cur.t === 'page' ? cur.sec.key : cur.t === 'theme' ? 'gusto' : null;
+
+  return (
+    <div className="app-frame">
+      <div className="screen no-tabbar onb">
+        <div className="progress">
+          <div className="progress-bar" style={{ width: `${((idx + 1) / flow.length) * 100}%` }} />
+        </div>
+
+        {curSecKey && (
+          <>
+            <div className="secbar">
+              {SECTAB.map((s) => {
+                const passed = SECTIONS.findIndex((x) => x.key === s.key) <= SECTIONS.findIndex((x) => x.key === curSecKey);
+                return <span key={s.key} className={passed ? 'on' : ''} />;
+              })}
+            </div>
+            <div className="seclbl">
+              {SECTAB.map((s) => <span key={s.key} className={s.key === curSecKey ? 'active' : ''}>{s.tab}</span>)}
+            </div>
+          </>
+        )}
+
+        <div className="onb-gaia"><Gaia clip={clip} size={cur.t === 'welcome' ? 128 : 88} /></div>
+
+        {cur.t === 'welcome' && (
+          <div className="onb-body">
+            <h1>Ciao, sono Gaia 🌿</h1>
+            <p className="muted">
+              Sono la tua assistente. Ti guiderò passo passo nella configurazione del tuo percorso, cucito su di te.
+              Tocca l'altoparlante per riascoltarmi quando vuoi.
+            </p>
+            <button className="btn" onClick={next}>Iniziamo</button>
+          </div>
+        )}
+
+        {cur.t === 'overview' && (
+          <div className="onb-body">
+            <h1>Cinque aree, poche domande</h1>
+            <p className="muted">Mi bastano cinque punti per capirti davvero:</p>
+            <div className="areas">
+              {SECTIONS.map((s) => (
+                <div className="area" key={s.key}>
+                  <span className="area-dot" style={{ background: s.color }} />
+                  <span>{s.name}</span>
+                </div>
+              ))}
+            </div>
+            <button className="btn" onClick={next}>Vai</button>
+          </div>
+        )}
+
+        {cur.t === 'page' && (
+          <div className="onb-body">
+            <h1>{cur.page.title}</h1>
+            {cur.page.subtitle && <p className="muted">{cur.page.subtitle}</p>}
+            <div className="onb-fields">
+              {cur.page.fields.map((f) => (
+                <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />
+              ))}
+            </div>
+            <div className="onb-nav">
+              <button className="btn ghost" onClick={back}>Indietro</button>
+              <button className="btn" onClick={next} disabled={!pageValid}>Avanti</button>
+            </div>
+          </div>
+        )}
+
+        {cur.t === 'theme' && (
+          <div className="onb-body">
+            <h1>{cur.page.title}</h1>
+            {cur.page.subtitle && <p className="muted">{cur.page.subtitle}</p>}
+            <div className="onb-fields">
+              {cur.page.fields.map((f) => (
+                <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />
+              ))}
+            </div>
+            <div className="onb-nav">
+              <button className="btn ghost" onClick={back}>Indietro</button>
+              <button className="btn" onClick={next}>Avanti</button>
+            </div>
+          </div>
+        )}
+
+        {cur.t === 'consent' && (
+          <div className="onb-body">
+            <h1>Un ultimo passo</h1>
+            <p className="muted">
+              Per costruire un percorso sicuro trattiamo alcuni dati sulla tua salute. Sono visibili solo a te
+              e al tuo nutrizionista. Serve il tuo consenso per continuare.
+            </p>
+            {submitErr && <div className="banner err">{submitErr}</div>}
+            <label className="consent">
+              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+              <span>Acconsento al trattamento dei miei dati sanitari (GDPR art. 9).</span>
+            </label>
+            <div className="onb-nav">
+              <button className="btn ghost" onClick={back} disabled={submitting}>Indietro</button>
+              <button className="btn" onClick={submit} disabled={!consent || submitting}>
+                {submitting ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Crea il mio percorso'}
+              </button>
+            </div>
           </div>
         )}
       </div>

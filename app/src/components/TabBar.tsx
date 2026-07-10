@@ -4,7 +4,7 @@ const TABS = [
   { to: '/', icon: 'ti-home', label: 'Home', end: true },
   { to: '/menu', icon: 'ti-salad', label: 'Menu', end: false },
   { to: '/calendario', icon: 'ti-calendar-heart', label: 'Calendario', end: false },
-  { to: '/obiettivo', icon: 'ti-target-arrow', label: 'Obiettivo', end: false },
+  { to: '/obiettivo', icon: 'ti-target', label: 'Obiettivo', end: false },
   { to: '/negozio', icon: 'ti-shopping-bag', label: 'Negozio', end: false },
 ];
 

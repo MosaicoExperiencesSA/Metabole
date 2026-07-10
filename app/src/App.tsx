@@ -28,7 +28,7 @@ function Shell() {
           <Route path="/" element={<Home />} />
           <Route path="/menu" element={<Placeholder title="Menu & Diario" icon="ti-salad" />} />
           <Route path="/calendario" element={<Placeholder title="Calendario" icon="ti-calendar-heart" />} />
-          <Route path="/obiettivo" element={<Placeholder title="Obiettivo" icon="ti-target-arrow" />} />
+          <Route path="/obiettivo" element={<Placeholder title="Obiettivo" icon="ti-target" />} />
           <Route path="/negozio" element={<Placeholder title="Negozio" icon="ti-shopping-bag" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
