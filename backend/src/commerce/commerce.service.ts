@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -21,8 +22,8 @@ import { StripeService } from './stripe.service';
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
 
-// Client di transazione (il client Prisma locale in sandbox non lo tipizza).
-type PrismaTx = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+// Client di transazione: tipo canonico di Prisma.
+type PrismaTx = Prisma.TransactionClient;
 
 /**
  * Commercio col flusso BONIFICO (richiesta di Simone, 9/7/2026):

@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-// Client di transazione (il client Prisma locale in sandbox non lo tipizza:
-// su Render è correttamente tipizzato). Usiamo un alias per evitare implicit any.
-type PrismaTx = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+// Client di transazione: tipo canonico di Prisma (evita implicit any in sandbox).
+type PrismaTx = Prisma.TransactionClient;
 
 /**
  * Eventi economici automatici (spec sez. 8): niente doppio inserimento.
