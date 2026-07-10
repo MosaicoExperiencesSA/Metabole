@@ -62,7 +62,18 @@ export class CrmService {
       orderBy: { updatedAt: 'desc' },
       include: {
         owner: { select: { displayName: true } },
-        client: { select: { email: true, clientProfile: { select: { name: true } } } },
+        client: {
+          select: {
+            email: true,
+            clientProfile: {
+              select: {
+                name: true,
+                assignedCoach: { select: { displayName: true } },
+                assignedNutritionist: { select: { displayName: true } },
+              },
+            },
+          },
+        },
       },
       take: 200,
     });

@@ -173,9 +173,13 @@ export class UsersService {
     return { systemRole: role, customRoleKey: null };
   }
 
-  /** Assegna (o riassegna) coach e/o nutrizionista a una cliente. */
+  /**
+   * Assegna, riassegna o RIMUOVE coach e/o nutrizionista di una cliente.
+   * Per ciascun campo: una stringa assegna quello staff, null/"" lo rimuove,
+   * assente lo lascia invariato.
+   */
   async assign(
-    data: { clientId: string; coachId?: string; nutritionistId?: string },
+    data: { clientId: string; coachId?: string | null; nutritionistId?: string | null },
     actorId: string,
   ) {
     const profile = await this.prisma.clientProfile.findUnique({
@@ -186,17 +190,28 @@ export class UsersService {
         'Profilo cliente non trovato: la cliente deve completare il questionario.',
       );
     }
-    if (data.coachId) await this.assertStaffRole(data.coachId, 'coach');
-    if (data.nutritionistId) {
-      await this.assertStaffRole(data.nutritionistId, 'nutritionist');
+
+    const patch: { assignedCoachId?: string | null; assignedNutritionistId?: string | null } = {};
+    if (data.coachId !== undefined) {
+      if (data.coachId) {
+        await this.assertStaffRole(data.coachId, 'coach');
+        patch.assignedCoachId = data.coachId;
+      } else {
+        patch.assignedCoachId = null;
+      }
+    }
+    if (data.nutritionistId !== undefined) {
+      if (data.nutritionistId) {
+        await this.assertStaffRole(data.nutritionistId, 'nutritionist');
+        patch.assignedNutritionistId = data.nutritionistId;
+      } else {
+        patch.assignedNutritionistId = null;
+      }
     }
 
     const updated = await this.prisma.clientProfile.update({
       where: { userId: data.clientId },
-      data: {
-        ...(data.coachId ? { assignedCoachId: data.coachId } : {}),
-        ...(data.nutritionistId ? { assignedNutritionistId: data.nutritionistId } : {}),
-      },
+      data: patch,
       include: {
         assignedCoach: { select: { id: true, displayName: true } },
         assignedNutritionist: { select: { id: true, displayName: true } },

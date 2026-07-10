@@ -18,7 +18,7 @@ interface Lead {
   valueCents: number | null;
   createdAt: string;
   owner: { displayName: string } | null;
-  client: { email: string; clientProfile: { name: string | null } | null } | null;
+  client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null } | null;
 }
 
 function euro(cents: number | null): string {
@@ -92,6 +92,8 @@ export function LeadsTable() {
                 <th>Email</th>
                 <th>Stato</th>
                 <th>Responsabile</th>
+                <th>Coach</th>
+                <th>Nutrizionista</th>
                 <th>Valore</th>
                 <th>Creato</th>
               </tr>
@@ -126,6 +128,8 @@ export function LeadsTable() {
                       </select>
                     </td>
                     <td className="muted">{l.owner?.displayName ?? '—'}</td>
+                    <td className="muted">{l.client?.clientProfile?.assignedCoach?.displayName ?? '—'}</td>
+                    <td className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</td>
                     <td>{euro(l.valueCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
                   </tr>

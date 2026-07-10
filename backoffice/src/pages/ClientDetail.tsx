@@ -77,6 +77,10 @@ export function ClientDetail() {
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
 
+  // Team: liste coach/nutrizionisti per l'assegnazione (solo admin)
+  const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
+  const [nutritionists, setNutritionists] = useState<{ id: string; name: string }[]>([]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -91,6 +95,42 @@ export function ClientDetail() {
       }
     })();
   }, [id]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        type StaffUser = { staff: { id: string; displayName: string } | null };
+        const [c, n] = await Promise.all([
+          api<{ items: StaffUser[] }>('/admin/users?role=coach'),
+          api<{ items: StaffUser[] }>('/admin/users?role=nutritionist'),
+        ]);
+        const opts = (list: StaffUser[]) => list.filter((u) => u.staff).map((u) => ({ id: u.staff!.id, name: u.staff!.displayName }));
+        setCoaches(opts(c.items));
+        setNutritionists(opts(n.items));
+      } catch {
+        /* le liste sono opzionali: se non si caricano, resta la vista in sola lettura */
+      }
+    })();
+  }, [isAdmin]);
+
+  async function assignTeam(kind: 'coach' | 'nutritionist', staffId: string) {
+    setError(null);
+    setNotice(null);
+    try {
+      const body: Record<string, string | null> = { clientId: id! };
+      if (kind === 'coach') body.coachId = staffId || null;
+      else body.nutritionistId = staffId || null;
+      await api('/admin/assignments', { method: 'POST', body: JSON.stringify(body) });
+      const data = await api<Detail>(`/admin/clients/${id}`); // ricarico: aggiorna team e accantonate
+      setD(data);
+      setNotes(data.notes ?? []);
+      setNotice('Team aggiornato.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Solo un admin può cambiare le assegnazioni.');
+      else setError(err instanceof Error ? err.message : 'Assegnazione non riuscita.');
+    }
+  }
 
   async function resetPassword() {
     if (!confirm('Inviare alla cliente l\'email per reimpostare la password?')) return;
@@ -179,6 +219,41 @@ export function ClientDetail() {
         </div>
       </div>
 
+      {/* Team assegnato: coach e nutrizionista (l'admin può cambiare/rimuovere) */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Team assegnato</h2>
+        <div className="row" style={{ gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Coach</div>
+            {isAdmin ? (
+              <select className="select" style={{ width: '100%' }} value={p?.assignedCoachId ?? ''} onChange={(e) => assignTeam('coach', e.target.value)}>
+                <option value="">— nessuna (rimuovi) —</option>
+                {coaches.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                {p?.assignedCoachId && !coaches.some((o) => o.id === p.assignedCoachId) && (
+                  <option value={p.assignedCoachId}>{p.assignedCoach?.displayName ?? 'Assegnata'}</option>
+                )}
+              </select>
+            ) : (
+              <b>{p?.assignedCoach?.displayName ?? '—'}</b>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Nutrizionista</div>
+            {isAdmin ? (
+              <select className="select" style={{ width: '100%' }} value={p?.assignedNutritionistId ?? ''} onChange={(e) => assignTeam('nutritionist', e.target.value)}>
+                <option value="">— nessuno (rimuovi) —</option>
+                {nutritionists.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                {p?.assignedNutritionistId && !nutritionists.some((o) => o.id === p.assignedNutritionistId) && (
+                  <option value={p.assignedNutritionistId}>{p.assignedNutritionist?.displayName ?? 'Assegnato'}</option>
+                )}
+              </select>
+            ) : (
+              <b>{p?.assignedNutritionist?.displayName ?? '—'}</b>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Note dello staff: editor a sinistra, log a destra */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Note</h2>
@@ -248,8 +323,6 @@ export function ClientDetail() {
             <Row label="Intolleranze" value={p.intolerances?.length ? p.intolerances.join(', ') : 'Nessuna'} />
             <Row label="Cibi non graditi" value={p.dislikedFoods?.length ? p.dislikedFoods.join(', ') : 'Nessuno'} />
             <Row label="Data inizio piano" value={date(p.planStartDate)} />
-            <Row label="Coach assegnata" value={p.assignedCoach?.displayName ?? '—'} />
-            <Row label="Nutrizionista" value={p.assignedNutritionist?.displayName ?? '—'} />
           </>
         )}
       </div>
