@@ -91,7 +91,6 @@ export function LeadsTable() {
                 <th>Nome</th>
                 <th>Email</th>
                 <th>Stato</th>
-                <th>Responsabile</th>
                 <th>Coach</th>
                 <th>Nutrizionista</th>
                 <th>Valore</th>
@@ -127,7 +126,6 @@ export function LeadsTable() {
                         {!st && <option value={l.stage}>{l.stage} (stato rimosso)</option>}
                       </select>
                     </td>
-                    <td className="muted">{l.owner?.displayName ?? '—'}</td>
                     <td className="muted">{l.client?.clientProfile?.assignedCoach?.displayName ?? '—'}</td>
                     <td className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</td>
                     <td>{euro(l.valueCents)}</td>
