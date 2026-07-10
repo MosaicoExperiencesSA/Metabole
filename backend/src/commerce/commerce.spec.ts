@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CommerceService } from './commerce.service';
 import { CrmService } from './crm.service';
+import { DiscountsService } from './discounts.service';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 
@@ -70,6 +71,7 @@ describe('CommerceService (flusso bonifico)', () => {
         { provide: NotificationsService, useValue: notifications },
         { provide: FinanceService, useValue: finance },
         { provide: CrmService, useValue: crm },
+        { provide: DiscountsService, useValue: { validate: jest.fn(), redeem: jest.fn() } },
         {
           provide: StripeService,
           useValue: {

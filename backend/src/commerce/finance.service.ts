@@ -208,4 +208,40 @@ export class FinanceService {
       take: 200,
     });
   }
+
+  /**
+   * Elenco delle provvigioni pagate (ledger, categoria sales_commission),
+   * con destinatario, cliente e prodotto risolti. I filtri fini (cliente,
+   * prodotto, ricevente, importo) li applica il frontend sull'elenco.
+   */
+  async listCommissions() {
+    const entries = await this.prisma.ledgerEntry.findMany({
+      where: { type: 'expense' as never, category: 'sales_commission' },
+      orderBy: { date: 'desc' },
+      take: 1000,
+    });
+    type Entry = { id: string; date: Date; amountCents: number; ref: string | null; clientId: string | null; staffId: string | null };
+    const list = entries as Entry[];
+    const uniq = (xs: (string | null)[]) => Array.from(new Set(xs.filter((x): x is string => Boolean(x))));
+
+    const [staff, clients, payments] = await Promise.all([
+      this.prisma.staff.findMany({ where: { id: { in: uniq(list.map((e) => e.staffId)) } }, select: { id: true, displayName: true } }),
+      this.prisma.user.findMany({ where: { id: { in: uniq(list.map((e) => e.clientId)) } }, select: { id: true, email: true, clientProfile: { select: { name: true } } } }),
+      this.prisma.payment.findMany({ where: { id: { in: uniq(list.map((e) => e.ref)) } }, select: { id: true, description: true } }),
+    ]);
+    const staffMap = new Map((staff as { id: string; displayName: string }[]).map((s) => [s.id, s.displayName]));
+    const clientMap = new Map((clients as { id: string; email: string; clientProfile: { name: string | null } | null }[]).map((c) => [c.id, c.clientProfile?.name ?? c.email]));
+    const payMap = new Map((payments as { id: string; description: string }[]).map((p) => [p.id, p.description]));
+
+    return list.map((e) => ({
+      id: e.id,
+      date: e.date,
+      amountCents: e.amountCents,
+      recipientId: e.staffId,
+      recipient: (e.staffId && staffMap.get(e.staffId)) || '—',
+      clientId: e.clientId,
+      client: (e.clientId && clientMap.get(e.clientId)) || '—',
+      product: (e.ref && payMap.get(e.ref)) || '—',
+    }));
+  }
 }

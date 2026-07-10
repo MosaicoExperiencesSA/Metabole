@@ -168,6 +168,7 @@ enum ChatCounterpart {
 }
 
 enum PaymentMethod {
+  manual // acquisto inserito a mano dall'operatore
   bank_transfer
   card
 }
@@ -432,6 +433,8 @@ model Payment {
   approvedAt     DateTime?     @map("approved_at")
   rejectReason   String?       @map("reject_reason")
   pspRef         String?       @map("psp_ref")
+  discountCodeId String?       @map("discount_code_id")
+  discountCents  Int?          @map("discount_cents")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
@@ -1010,6 +1013,40 @@ model PendingCommission {
 
   @@index([clientId, status])
   @@map("pending_commission")
+}
+
+// Buono sconto: percentuale o importo fisso, con tetto di utilizzi totali e per
+// cliente. Il cliente lo inserisce al momento dell'acquisto.
+model DiscountCode {
+  id           String    @id @default(uuid())
+  code         String    @unique // codice inserito dal cliente (maiuscolo)
+  type         String // percent | fixed
+  value        Int // percent (es. 10) oppure importo in centesimi
+  maxTotalUses Int?      @map("max_total_uses") // null = illimitato
+  maxPerClient Int       @default(1) @map("max_per_client")
+  usedCount    Int       @default(0) @map("used_count")
+  active       Boolean   @default(true)
+  expiresAt    DateTime? @map("expires_at")
+  createdById  String?   @map("created_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  redemptions DiscountRedemption[]
+
+  @@map("discount_code")
+}
+
+model DiscountRedemption {
+  id          String       @id @default(uuid())
+  codeId      String       @map("code_id")
+  code        DiscountCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  clientId    String       @map("client_id")
+  paymentId   String?      @map("payment_id")
+  amountCents Int          @map("amount_cents") // sconto applicato
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@index([codeId, clientId])
+  @@map("discount_redemption")
 }
 
 // Matrice permessi del backoffice: ruolo × sezione → vede / gestisce.

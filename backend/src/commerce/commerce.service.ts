@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import PDFDocument from 'pdfkit';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -13,6 +14,7 @@ import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from './crm.service';
+import { DiscountsService } from './discounts.service';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 
@@ -39,6 +41,7 @@ export class CommerceService {
     private readonly crm: CrmService,
     private readonly stripe: StripeService,
     private readonly audit: AuditService,
+    private readonly discounts: DiscountsService,
   ) {
     this.receiptKey = deriveKey(this.config.get<string>('FILE_ENCRYPTION_KEY') ?? 'dev-only-file-key');
   }
@@ -336,9 +339,12 @@ export class CommerceService {
       description: string;
       subscription: { plan: { period: string } } | null;
       client: { email: string; locale?: string | null };
+      discountCodeId?: string | null;
+      discountCents?: number | null;
     },
     byUserId: string,
     methodLabel: string,
+    options?: { skipCommissions?: boolean },
   ) {
     // Attivazione abbonamento (durata dal periodo del piano: es. "3m").
     if (payment.subscriptionId && payment.subscription) {
@@ -362,12 +368,19 @@ export class CommerceService {
       clientId: payment.clientId,
       note: payment.description,
     });
-    await this.finance.generateCommissions({
-      id: payment.id,
-      clientId: payment.clientId,
-      amountCents: payment.amountCents,
-    });
+    if (!options?.skipCommissions) {
+      await this.finance.generateCommissions({
+        id: payment.id,
+        clientId: payment.clientId,
+        amountCents: payment.amountCents,
+      });
+    }
     await this.crm.autoAdvance(payment.clientId, 'paid', byUserId, payment.amountCents);
+
+    // Riscatto del buono sconto (se applicato): incrementa gli utilizzi.
+    if (payment.discountCodeId) {
+      await this.discounts.redeem(payment.discountCodeId, payment.clientId, payment.id, payment.discountCents ?? 0);
+    }
 
     await this.mail.sendPaymentReceipt(
       payment.client.email,
@@ -427,5 +440,141 @@ export class CommerceService {
   private publicPayment(payment: Record<string, unknown>) {
     const { receiptData, ...rest } = payment;
     return { ...rest, hasReceipt: Boolean(receiptData) };
+  }
+
+  // ---------- Acquisti (operatore) ----------
+
+  /**
+   * Acquisto inserito a mano dall'operatore: attiva sempre il piano; genera le
+   * provvigioni solo se richiesto. Utile per omaggi, regolarizzazioni, vendite
+   * fuori piattaforma.
+   */
+  async createManualPurchase(operator: AuthUser, input: { clientId: string; planId: string; generateCommissions: boolean; discountCode?: string | null }) {
+    const plan = await this.prisma.plan.findFirst({ where: { id: input.planId } });
+    if (!plan) throw new NotFoundException('Piano non trovato');
+    const client = await this.prisma.user.findFirst({
+      where: { id: input.clientId, role: 'client', deletedAt: null },
+      select: { id: true, email: true, locale: true },
+    });
+    if (!client) throw new NotFoundException('Cliente non trovato');
+
+    // Buono sconto (facoltativo).
+    let amountCents = plan.priceCents;
+    let discount: { codeId: string; discountCents: number } | null = null;
+    if (input.discountCode && input.discountCode.trim()) {
+      const d = await this.discounts.validate(input.discountCode, client.id, plan.priceCents);
+      discount = { codeId: d.codeId, discountCents: d.discountCents };
+      amountCents = d.finalCents;
+    }
+
+    const staff = await this.prisma.staff.findUnique({ where: { userId: operator.sub }, select: { id: true } });
+    const subscription = await this.prisma.subscription.create({
+      data: { clientId: client.id, planId: plan.id, status: 'pending' },
+    });
+    const payment = await this.prisma.payment.create({
+      data: {
+        clientId: client.id,
+        subscriptionId: subscription.id,
+        amountCents,
+        description: `Abbonamento ${plan.name}`,
+        method: 'manual' as never,
+        status: 'approved',
+        approvedById: staff?.id,
+        approvedAt: new Date(),
+        discountCodeId: discount?.codeId ?? null,
+        discountCents: discount?.discountCents ?? null,
+      },
+    });
+
+    await this.finalizeApproval(
+      {
+        id: payment.id,
+        clientId: client.id,
+        subscriptionId: subscription.id,
+        orderId: null,
+        amountCents: payment.amountCents,
+        description: payment.description,
+        subscription: { plan: { period: plan.period } },
+        client: { email: client.email, locale: client.locale },
+        discountCodeId: discount?.codeId ?? null,
+        discountCents: discount?.discountCents ?? null,
+      },
+      operator.sub,
+      'manuale',
+      { skipCommissions: !input.generateCommissions },
+    );
+    await this.audit.log({
+      action: 'commerce.purchase.manual',
+      actorId: operator.sub,
+      entityType: 'payment',
+      entityId: payment.id,
+      metadata: { planId: plan.id, amountCents: plan.priceCents, generateCommissions: input.generateCommissions },
+    });
+    return this.publicPayment(payment);
+  }
+
+  /** Ricevuta PDF di un pagamento (numero, data, cliente, prodotto, importo). */
+  async generateReceiptPdf(paymentId: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } } },
+    });
+    if (!payment) throw new NotFoundException('Pagamento non trovato');
+
+    const p = payment as unknown as {
+      id: string; amountCents: number; description: string; method: string; status: string;
+      createdAt: Date; approvedAt: Date | null;
+      client: { email: string; clientProfile: { name: string | null } | null } | null;
+    };
+    const date = p.approvedAt ?? p.createdAt;
+    const number = `RIC-${date.getUTCFullYear()}-${p.id.slice(0, 8).toUpperCase()}`;
+    const clientName = p.client?.clientProfile?.name ?? p.client?.email ?? 'Cliente';
+    const methodLabel = p.method === 'card' ? 'Carta' : p.method === 'manual' ? 'Manuale' : 'Bonifico';
+    const statusLabel = p.status === 'approved' ? 'Pagato' : p.status === 'rejected' ? 'Rifiutato' : 'In attesa';
+    const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
+
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 56 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fillColor('#10403a').fontSize(24).text('Metabole', { continued: false });
+      doc.moveDown(0.2);
+      doc.fillColor('#7c8c88').fontSize(11).text('Ricevuta di pagamento');
+      doc.moveDown(1.2);
+
+      doc.fillColor('#111').fontSize(11);
+      const row = (label: string, value: string) => {
+        doc.font('Helvetica-Bold').text(label, { continued: true }).font('Helvetica').text('   ' + value);
+        doc.moveDown(0.5);
+      };
+      row('Numero ricevuta:', number);
+      row('Data:', date.toLocaleDateString('it-IT'));
+      row('Cliente:', clientName);
+      if (p.client?.email) row('Email:', p.client.email);
+      row('Descrizione:', p.description);
+      row('Metodo:', methodLabel);
+      row('Stato:', statusLabel);
+
+      doc.moveDown(0.8);
+      doc.moveTo(56, doc.y).lineTo(539, doc.y).strokeColor('#e6e2d8').stroke();
+      doc.moveDown(0.8);
+      doc.font('Helvetica-Bold').fillColor('#10403a').fontSize(16).text('Totale: ' + euro(p.amountCents), { align: 'right' });
+
+      doc.moveDown(3);
+      doc.font('Helvetica').fillColor('#9aa39f').fontSize(9).text(
+        'Documento generato automaticamente da Metabole. Non costituisce fattura fiscale.',
+        { align: 'center' },
+      );
+      doc.end();
+    });
+
+    return {
+      fileName: `${number}.pdf`,
+      mimeType: 'application/pdf',
+      contentBase64: buffer.toString('base64'),
+    };
   }
 }

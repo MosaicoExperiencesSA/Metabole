@@ -12,6 +12,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBase64,
+  IsBoolean,
   IsEmail,
   IsIn,
   IsInt,
@@ -160,6 +161,46 @@ export class MyCommerceController {
   }
 }
 
+class CreateManualPurchaseDto {
+  @IsUUID()
+  clientId!: string;
+
+  @IsUUID()
+  planId!: string;
+
+  @IsBoolean()
+  generateCommissions!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  discountCode?: string | null;
+}
+
+/** Acquisti: elenco completo, ricevuta PDF, inserimento manuale (operatore). */
+@Controller('admin/purchases')
+@Roles('admin', 'sales')
+export class AdminPurchasesController {
+  constructor(private readonly commerce: CommerceService) {}
+
+  @Get()
+  list(@Query('status') status?: string) {
+    return this.commerce.listPayments(status);
+  }
+
+  @Get(':id/receipt-pdf')
+  receiptPdf(@Param('id') id: string) {
+    return this.commerce.generateReceiptPdf(id);
+  }
+
+  @Roles('admin')
+  @HttpCode(201)
+  @Post()
+  createManual(@CurrentUser() user: AuthUser, @Body() dto: CreateManualPurchaseDto) {
+    return this.commerce.createManualPurchase(user, dto);
+  }
+}
+
 /** Operatore: verifica contabili e approva (admin + commerciale). */
 @Controller('admin/payments')
 @Roles('admin', 'sales')
@@ -239,6 +280,12 @@ export class FinanceController {
     private readonly finance: FinanceService,
     private readonly crm: CrmService,
   ) {}
+
+  @Roles('admin')
+  @Get('admin/commissions')
+  commissions() {
+    return this.finance.listCommissions();
+  }
 
   @Roles('admin')
   @Get('ledger')

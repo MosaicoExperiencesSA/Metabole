@@ -43,7 +43,10 @@ const NAV: NavSection[] = [
   {
     group: 'Pagamenti',
     items: [
+      { key: 'accounting', label: 'Acquisti', to: '/acquisti', icon: 'ti-shopping-cart' },
+      { key: 'accounting', label: 'Buoni sconto', to: '/buoni-sconto', icon: 'ti-ticket' },
       { key: 'accounting', label: 'Bonifici & contabilità', to: '/pagamenti', icon: 'ti-cash' },
+      { key: 'compensation', label: 'Provvigioni', to: '/provvigioni', icon: 'ti-percentage' },
       { key: 'compensation', label: 'Compensi staff', to: '/compensi', icon: 'ti-coin' },
     ],
   },
