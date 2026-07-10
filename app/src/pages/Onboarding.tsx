@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { clipForPage } from '../audio/gaia';
+import { clipForPage, isMuted, setMuted } from '../audio/gaia';
 import Gaia from '../components/Gaia';
 import FieldInput from '../onboarding/Field';
-import type { OnboardingResult, Page, Questions } from '../onboarding/types';
+import type { Field, OnboardingResult, Page, Questions } from '../onboarding/types';
 
 type Answers = Record<string, unknown>;
 
@@ -20,11 +20,8 @@ const SECTIONS = [
   { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Procediamo con le domande sul corpo', note: 'Peso, misure e obiettivo. Niente giudizi: mi servono solo per partire.', color: '#12A386', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
 ] as const;
 
-const SECTAB = SECTIONS.map((s) => ({ key: s.key, tab: s.tab }));
-
 type Section = (typeof SECTIONS)[number];
 type Item =
-  | { t: 'welcome' }
   | { t: 'overview' }
   | { t: 'section'; sec: Section; n: number }
   | { t: 'page'; page: Page; sec: Section }
@@ -43,6 +40,42 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
   return Object.keys(out).length ? (out as T) : undefined;
 }
 
+/** Obiettivo con slider e banner di sostenibilità (come nel prototipo). */
+function ObjectiveBlock({ page, answers, setAnswer }: { page: Page; answers: Answers; setAnswer: (k: string, v: unknown) => void }) {
+  useEffect(() => {
+    if (answers.weightToLoseKg == null || answers.weightToLoseKg === '') setAnswer('weightToLoseKg', 6);
+    if (answers.weeks == null || answers.weeks === '') setAnswer('weeks', 18);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const kg = Number(answers.weightToLoseKg ?? 6);
+  const wk = Number(answers.weeks ?? 18);
+  const rate = kg / wk;
+  let banner: { bg: string; color: string; text: string };
+  if (rate <= 0.7) banner = { bg: '#DCF0D8', color: '#3B6D11', text: `Sostenibile · circa ${rate.toFixed(1).replace('.', ',')} kg a settimana` };
+  else if (rate <= 1) banner = { bg: '#FBF0D6', color: '#8A5A0B', text: `Ambizioso, al limite · ${rate.toFixed(1).replace('.', ',')} kg/sett` };
+  else banner = { bg: '#F7DAD6', color: '#993C1D', text: `Troppo veloce. Ti propongo circa ${Math.ceil(kg / 0.7)} settimane.` };
+
+  const waist = page.fields.find((f) => f.key === 'waistToLoseCm');
+  return (
+    <>
+      <div className="card">
+        <div className="obj-row">
+          <label>Peso da perdere</label>
+          <input type="range" min={1} max={20} value={kg} onChange={(e) => setAnswer('weightToLoseKg', Number(e.target.value))} />
+          <span className="obj-val">{kg} kg</span>
+        </div>
+        <div className="obj-row">
+          <label>Entro</label>
+          <input type="range" min={3} max={52} value={wk} onChange={(e) => setAnswer('weeks', Number(e.target.value))} />
+          <span className="obj-val">{wk} sett.</span>
+        </div>
+        <div className="obj-banner" style={{ background: banner.bg, color: banner.color }}>{banner.text}</div>
+      </div>
+      {waist && <FieldInput field={waist as Field} value={answers[waist.key]} onChange={setAnswer} />}
+    </>
+  );
+}
+
 export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [questions, setQuestions] = useState<Questions | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -52,6 +85,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardingResult | null>(null);
+  const [muted, setMutedState] = useState(isMuted());
 
   useEffect(() => {
     api<Questions>('/onboarding/questions')
@@ -62,7 +96,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const flow: Item[] = useMemo(() => {
     if (!questions) return [];
     const byKey: Record<string, Page> = Object.fromEntries(questions.pages.map((p) => [p.key, p]));
-    const items: Item[] = [{ t: 'welcome' }, { t: 'overview' }];
+    const items: Item[] = [{ t: 'overview' }];
     SECTIONS.forEach((sec, si) => {
       items.push({ t: 'section', sec, n: si + 1 });
       sec.pages.forEach((pk) => {
@@ -77,7 +111,6 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
   const cur = flow[idx];
 
-  // Applica in tempo reale il colore scelto.
   useEffect(() => {
     const c = answers.themeColor as string | undefined;
     if (c) document.documentElement.style.setProperty('--teal', c);
@@ -86,7 +119,6 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const clip = useMemo(() => {
     if (result) return 'percorso';
     if (!cur) return undefined;
-    if (cur.t === 'welcome') return 'benvenuto';
     if (cur.t === 'overview') return 'facciamo';
     if (cur.t === 'section') return cur.sec.voice;
     if (cur.t === 'page') return clipForPage(cur.page);
@@ -96,6 +128,11 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
   function setAnswer(key: string, value: unknown) {
     setAnswers((a) => ({ ...a, [key]: value }));
+  }
+  function toggleMute() {
+    const n = !muted;
+    setMuted(n);
+    setMutedState(n);
   }
 
   const activePage = cur && (cur.t === 'page' || cur.t === 'theme') ? cur.page : null;
@@ -152,36 +189,31 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     }
   }
 
+  const MuteBtn = () => (
+    <button className="voice-toggle" onClick={toggleMute} aria-label={muted ? 'Riattiva la voce' : 'Silenzia Gaia'}>
+      <i className={`ti ${muted ? 'ti-volume-off' : 'ti-volume-2'}`} />
+    </button>
+  );
+
   // ---------- Render ----------
 
   if (loadErr) {
-    return (
-      <div className="app-frame">
-        <div className="screen no-tabbar center"><div className="banner err">{loadErr}</div></div>
-      </div>
-    );
+    return <div className="app-frame"><div className="screen no-tabbar center"><div className="banner err">{loadErr}</div></div></div>;
   }
   if (!questions || !cur) {
-    return (
-      <div className="app-frame">
-        <div className="screen no-tabbar center"><div className="spin" /></div>
-      </div>
-    );
+    return <div className="app-frame"><div className="screen no-tabbar center"><div className="spin" /></div></div>;
   }
 
-  // Schermata finale: percorso pronto.
   if (result) {
     return (
       <div className="app-frame">
         <div className="screen no-tabbar onb">
-          <div className="onb-gaia"><Gaia clip={clip} size={132} /></div>
+          <div className="onb-gaia"><Gaia clip={clip} size={132} controls={false} /></div>
           <div className="onb-body">
             <h1>Il tuo percorso è pronto! 🎉</h1>
             <div className="card result-card">
               <div className="result-name">{result.path.name}</div>
-              {result.path.tags.length > 0 && (
-                <div className="result-tags">{result.path.tags.map((t) => <span className="chip" key={t}>{t}</span>)}</div>
-              )}
+              {result.path.tags.length > 0 && <div className="result-tags">{result.path.tags.map((t) => <span className="chip" key={t}>{t}</span>)}</div>}
             </div>
             <div className="card">
               <h2>Il tuo team</h2>
@@ -190,10 +222,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 Nutrizionista: <b>{result.team.nutritionist?.displayName ?? 'in assegnazione'}</b>
               </p>
             </div>
-            <div className="card">
-              <h2>Prima visita</h2>
-              <p className="muted" style={{ margin: 0 }}>{result.firstVisit.note}</p>
-            </div>
+            <div className="card"><h2>Prima visita</h2><p className="muted" style={{ margin: 0 }}>{result.firstVisit.note}</p></div>
             <button className="btn" onClick={onDone}>Entra nell'app</button>
           </div>
         </div>
@@ -201,17 +230,12 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     );
   }
 
-  // Intro di sezione: pannello colorato a tutto schermo.
   if (cur.t === 'section') {
     return (
       <div className="app-frame">
         <div className="screen no-tabbar sec-intro" style={{ background: cur.sec.color }}>
           <div className="sec-top">Sezione {cur.n} di 5</div>
-          <div className="sec-dots">
-            {SECTIONS.map((s, i) => (
-              <span key={s.key} className={i === cur.n - 1 ? 'sec-dot on' : 'sec-dot'} />
-            ))}
-          </div>
+          <div className="sec-dots">{SECTIONS.map((s, i) => <span key={s.key} className={i === cur.n - 1 ? 'sec-dot on' : 'sec-dot'} />)}</div>
           <div className="sec-center">
             <Gaia clip={clip} size={140} controls={false} />
             <div className="sec-name">{cur.sec.name}</div>
@@ -229,41 +253,26 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   return (
     <div className="app-frame">
       <div className="screen no-tabbar onb">
-        <div className="progress">
-          <div className="progress-bar" style={{ width: `${((idx + 1) / flow.length) * 100}%` }} />
-        </div>
+        <MuteBtn />
+        <div className="progress"><div className="progress-bar" style={{ width: `${((idx + 1) / flow.length) * 100}%` }} /></div>
 
         {curSecKey && (
           <>
             <div className="secbar">
-              {SECTAB.map((s) => {
+              {SECTIONS.map((s) => {
                 const passed = SECTIONS.findIndex((x) => x.key === s.key) <= SECTIONS.findIndex((x) => x.key === curSecKey);
                 return <span key={s.key} className={passed ? 'on' : ''} />;
               })}
             </div>
-            <div className="seclbl">
-              {SECTAB.map((s) => <span key={s.key} className={s.key === curSecKey ? 'active' : ''}>{s.tab}</span>)}
-            </div>
+            <div className="seclbl">{SECTIONS.map((s) => <span key={s.key} className={s.key === curSecKey ? 'active' : ''}>{s.tab}</span>)}</div>
           </>
-        )}
-
-        <div className="onb-gaia"><Gaia clip={clip} size={cur.t === 'welcome' ? 128 : 88} /></div>
-
-        {cur.t === 'welcome' && (
-          <div className="onb-body">
-            <h1>Ciao, sono Gaia 🌿</h1>
-            <p className="muted">
-              Sono la tua assistente. Ti guiderò passo passo nella configurazione del tuo percorso, cucito su di te.
-              Tocca l'altoparlante per riascoltarmi quando vuoi.
-            </p>
-            <button className="btn" onClick={next}>Iniziamo</button>
-          </div>
         )}
 
         {cur.t === 'overview' && (
           <div className="onb-body">
-            <h1>Cinque aree, poche domande</h1>
-            <p className="muted">Mi bastano cinque punti per capirti davvero:</p>
+            <div className="onb-gaia"><Gaia clip={clip} size={116} controls={false} /></div>
+            <h1>Facciamo conoscenza</h1>
+            <p className="muted">Poche domande, divise in cinque aree, per costruire il tuo percorso:</p>
             <div className="areas">
               {SECTIONS.map((s) => (
                 <div className="area" key={s.key}>
@@ -272,38 +281,27 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 </div>
               ))}
             </div>
-            <button className="btn" onClick={next}>Vai</button>
+            <button className="btn" onClick={next}>Iniziamo il test</button>
           </div>
         )}
 
-        {cur.t === 'page' && (
+        {(cur.t === 'page' || cur.t === 'theme') && (
           <div className="onb-body">
+            <div className="qbubble">
+              <Gaia clip={clip} size={62} controls={false} />
+              <div className="bubble">{cur.page.subtitle || "Rispondi con calma, non c'è fretta."}</div>
+            </div>
             <h1>{cur.page.title}</h1>
-            {cur.page.subtitle && <p className="muted">{cur.page.subtitle}</p>}
-            <div className="onb-fields">
-              {cur.page.fields.map((f) => (
-                <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />
-              ))}
+            <div className={`onb-fields${cur.page.key === 'baseline' ? ' fields-grid' : ''}`}>
+              {cur.t === 'page' && cur.page.key === 'objective' ? (
+                <ObjectiveBlock page={cur.page} answers={answers} setAnswer={setAnswer} />
+              ) : (
+                cur.page.fields.map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)
+              )}
             </div>
             <div className="onb-nav">
               <button className="btn ghost" onClick={back}>Indietro</button>
               <button className="btn" onClick={next} disabled={!pageValid}>Avanti</button>
-            </div>
-          </div>
-        )}
-
-        {cur.t === 'theme' && (
-          <div className="onb-body">
-            <h1>{cur.page.title}</h1>
-            {cur.page.subtitle && <p className="muted">{cur.page.subtitle}</p>}
-            <div className="onb-fields">
-              {cur.page.fields.map((f) => (
-                <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />
-              ))}
-            </div>
-            <div className="onb-nav">
-              <button className="btn ghost" onClick={back}>Indietro</button>
-              <button className="btn" onClick={next}>Avanti</button>
             </div>
           </div>
         )}

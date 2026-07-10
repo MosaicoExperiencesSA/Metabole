@@ -108,7 +108,9 @@ export default function Gaia({
 
   return (
     <div className="gaia-wrap">
-      <Mascot size={size} eyes={eyes} mouth={mouth} cheek={cheek} talking={speaking} />
+      <div onClick={() => clip && play(clip)} style={{ cursor: clip ? 'pointer' : 'default' }} role="button" aria-label="Riascolta Gaia">
+        <Mascot size={size} eyes={eyes} mouth={mouth} cheek={cheek} talking={speaking} />
+      </div>
       {controls && (
         <div className="gaia-ctrls">
           <button className="gaia-btn" onClick={() => clip && play(clip)} aria-label="Riascolta Gaia" title="Riascolta">

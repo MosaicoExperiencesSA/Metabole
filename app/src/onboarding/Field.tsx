@@ -46,17 +46,18 @@ export default function FieldInput({ field, value, onChange }: Props) {
     return (
       <div className="field">
         {label && <label>{label}</label>}
-        <div className="opt-grid">
+        <div className="opt-list">
           {opts.map((opt, i) => {
             const active = value === opt;
             return (
               <button
                 type="button"
                 key={String(opt)}
-                className={`opt${active ? ' active' : ''}`}
+                className={`opt${active ? ' on' : ''}`}
                 onClick={() => onChange(field.key, opt)}
               >
-                {field.labels?.[i] ?? String(opt)}
+                <span className="opt-ind">{active && <i className="ti ti-check" />}</span>
+                <span>{field.labels?.[i] ?? String(opt)}</span>
               </button>
             );
           })}
@@ -81,17 +82,18 @@ export default function FieldInput({ field, value, onChange }: Props) {
     return (
       <div className="field">
         {label && <label>{label}</label>}
-        <div className="opt-grid">
+        <div className="opt-list multi">
           {opts.map((opt, i) => {
             const active = arr.includes(String(opt));
             return (
               <button
                 type="button"
                 key={String(opt)}
-                className={`opt${active ? ' active' : ''}`}
+                className={`opt${active ? ' on' : ''}`}
                 onClick={() => toggle(String(opt))}
               >
-                {field.labels?.[i] ?? String(opt)}
+                <span className="opt-ind">{active && <i className="ti ti-check" />}</span>
+                <span>{field.labels?.[i] ?? String(opt)}</span>
               </button>
             );
           })}
