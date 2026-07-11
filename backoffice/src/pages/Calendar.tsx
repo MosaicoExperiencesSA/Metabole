@@ -21,6 +21,13 @@ interface LeadOption {
 
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 
+// Tipo di promemoria da registrare: telefonata, messaggio, mail (o generico).
+const KIND: Record<string, { label: string; icon: string }> = {
+  call: { label: 'Telefonata', icon: 'ti-phone' },
+  message: { label: 'Messaggio', icon: 'ti-brand-whatsapp' },
+  mail: { label: 'Email', icon: 'ti-mail' },
+};
+
 export function Calendar() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,6 +140,7 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
   const [title, setTitle] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [note, setNote] = useState('');
+  const [kind, setKind] = useState('');
   const [crmRecordId, setCrmRecordId] = useState('');
   const [leads, setLeads] = useState<LeadOption[]>([]);
   const [busy, setBusy] = useState(false);
@@ -158,9 +166,10 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
     if (!dueAt) { setError('Scegli data e ora.'); return; }
     setBusy(true);
     try {
+      const finalTitle = kind ? `${KIND[kind].label} · ${title.trim()}` : title.trim();
       await api('/crm/reminders', {
         method: 'POST',
-        body: JSON.stringify({ title: title.trim(), dueAt: new Date(dueAt).toISOString(), note: note.trim() || undefined, crmRecordId: crmRecordId || undefined }),
+        body: JSON.stringify({ title: finalTitle, dueAt: new Date(dueAt).toISOString(), note: note.trim() || undefined, crmRecordId: crmRecordId || undefined }),
       });
       onCreated();
     } catch (err) {
@@ -173,6 +182,25 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
   return (
     <Modal title="Nuovo promemoria" onClose={onClose}>
       {error && <Banner kind="err">{error}</Banner>}
+      <div className="field">
+        <label>Tipo (facoltativo)</label>
+        <div className="row" style={{ gap: 8 }}>
+          {Object.entries(KIND).map(([k, v]) => {
+            const on = kind === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                className={`btn ${on ? '' : 'ghost'} sm`}
+                onClick={() => { setKind(on ? '' : k); if (!on && !title.trim()) setTitle(v.label); }}
+                title={`Registra: ${v.label}`}
+              >
+                <i className={`ti ${v.icon}`} /> {v.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="field">
         <label>Titolo</label>
         <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Richiamare per il rinnovo" autoFocus />
