@@ -60,6 +60,29 @@ export class CommerceService {
     return this.prisma.product.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
 
+  // ---------- Metodi di pagamento abilitati (Parametri) ----------
+
+  /** Quali metodi di pagamento sono attivi (configurabili dai Parametri del backoffice). */
+  async enabledPaymentMethods(): Promise<{ card: boolean; bank_transfer: boolean }> {
+    const [card, bank] = await Promise.all([
+      this.configParams.getBool('payment_method_card_enabled', true),
+      this.configParams.getBool('payment_method_bank_enabled', true),
+    ]);
+    return { card, bank_transfer: bank };
+  }
+
+  /** Blocca l'uso di un metodo disattivato dal backoffice. */
+  private async assertMethodEnabled(method: 'card' | 'bank_transfer') {
+    const enabled = await this.enabledPaymentMethods();
+    if (!enabled[method]) {
+      throw new BadRequestException(
+        method === 'card'
+          ? 'Il pagamento con carta non è al momento disponibile. Usa il bonifico.'
+          : 'Il pagamento con bonifico non è al momento disponibile. Usa la carta.',
+      );
+    }
+  }
+
   // ---------- Gestione negozio (admin) ----------
 
   listAllPlans() {
@@ -122,6 +145,7 @@ export class CommerceService {
     clientEmail: string,
     method: 'bank_transfer' | 'card' = 'bank_transfer',
   ) {
+    await this.assertMethodEnabled(method === 'card' ? 'card' : 'bank_transfer');
     const plan = await this.prisma.plan.findFirst({ where: { id: planId, active: true } });
     if (!plan) throw new NotFoundException('Piano non trovato');
 
@@ -256,6 +280,7 @@ export class CommerceService {
     input: { planId?: string; items?: { productId: string; qty: number }[]; method: 'card' | 'bank_transfer'; discountCode?: string },
   ) {
     const method: 'card' | 'bank_transfer' = input.method === 'card' ? 'card' : 'bank_transfer';
+    await this.assertMethodEnabled(method);
     let subtotal = 0;
 
     let plan: { id: string; name: string; priceCents: number } | null = null;

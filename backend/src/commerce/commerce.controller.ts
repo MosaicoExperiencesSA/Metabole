@@ -143,6 +143,13 @@ export class CatalogCommerceController {
   products() {
     return this.commerce.listProducts();
   }
+
+  /** Metodi di pagamento abilitati dal backoffice (per il checkout dell'app). */
+  @Public()
+  @Get('payment-methods')
+  paymentMethods() {
+    return this.commerce.enabledPaymentMethods();
+  }
 }
 
 /** Lato cliente. */

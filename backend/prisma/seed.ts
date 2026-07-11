@@ -131,6 +131,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Estremi bancari inviati via email per i pagamenti con bonifico (modificabili dal backoffice)',
   },
   {
+    key: 'payment_method_card_enabled',
+    value: 'true',
+    type: 'boolean',
+    description: 'Abilita il pagamento con carta (Stripe) nel checkout dell\'app',
+  },
+  {
+    key: 'payment_method_bank_enabled',
+    value: 'true',
+    type: 'boolean',
+    description: 'Abilita il pagamento con bonifico nel checkout dell\'app',
+  },
+  {
     key: 'commission_coach_percent',
     value: '10',
     type: 'number',

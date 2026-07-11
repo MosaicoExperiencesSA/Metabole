@@ -40,6 +40,11 @@ export class ConfigParamsService {
     return parsed;
   }
 
+  async getBool(key: string, fallback?: boolean): Promise<boolean> {
+    const raw = await this.getString(key, fallback === undefined ? undefined : String(fallback));
+    return raw === 'true' || raw === '1';
+  }
+
   async list() {
     return this.prisma.configParam.findMany({ orderBy: { key: 'asc' } });
   }

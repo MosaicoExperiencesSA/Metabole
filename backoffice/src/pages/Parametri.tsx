@@ -23,6 +23,9 @@ interface Meta {
 
 // Etichette e raggruppamento leggibili per ogni parametro.
 const META: Record<string, Meta> = {
+  payment_method_card_enabled: { label: 'Pagamento con carta (Stripe)', group: 'Pagamenti', kind: 'toggle', help: 'Se attivo, le clienti possono pagare con carta al checkout dell’app.' },
+  payment_method_bank_enabled: { label: 'Pagamento con bonifico', group: 'Pagamenti', kind: 'toggle', help: 'Se attivo, le clienti possono pagare con bonifico (estremi via email).' },
+
   bank_transfer_details: { label: 'Estremi del bonifico', group: 'Bonifico', kind: 'textarea', help: 'Testo inviato via email alla cliente per pagare con bonifico (intestatario, IBAN, BIC…).' },
 
   commission_coach_percent: { label: 'Provvigione coach', group: 'Provvigioni e compensi', kind: 'number', unit: '%', help: 'Percentuale alla coach assegnata alla cliente.' },
@@ -60,7 +63,7 @@ const META: Record<string, Meta> = {
   ai_composer_enabled: { label: 'Layer AI per le notifiche', group: 'AI', kind: 'toggle', help: 'Se attivo (e con AI_API_KEY su Render) i testi delle notifiche vengono riformulati da Claude; il tono resta deciso dal motore.' },
 };
 
-const GROUP_ORDER = ['Bonifico', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'AI', 'Altro'];
+const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'AI', 'Altro'];
 
 const metaFor = (p: Param): Meta =>
   META[p.key] ?? { label: p.key, group: 'Altro', kind: 'text', help: p.description ?? undefined };

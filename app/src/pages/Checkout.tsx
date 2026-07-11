@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useCart } from '../cart/CartContext';
@@ -11,9 +11,20 @@ export default function Checkout() {
   const [code, setCode] = useState('');
   const [applied, setApplied] = useState<{ code: string; discountCents: number; finalCents: number } | null>(null);
   const [method, setMethod] = useState<'card' | 'bank_transfer'>('card');
+  const [methods, setMethods] = useState<{ card: boolean; bank_transfer: boolean }>({ card: true, bank_transfer: true });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+
+  // Mostra solo i metodi abilitati dal backoffice (Parametri).
+  useEffect(() => {
+    api<{ card: boolean; bank_transfer: boolean }>('/payment-methods')
+      .then((m) => {
+        setMethods(m);
+        setMethod((cur) => (m[cur] ? cur : m.card ? 'card' : 'bank_transfer'));
+      })
+      .catch(() => {});
+  }, []);
 
   const subtotal = cart.subtotalCents;
   const total = applied ? applied.finalCents : subtotal;
@@ -123,17 +134,24 @@ export default function Checkout() {
         {applied && <div className="muted" style={{ marginTop: 8, color: '#0e7c66', fontWeight: 600 }}>Buono applicato: −{euro(applied.discountCents)}</div>}
       </div>
 
-      {/* Metodo */}
+      {/* Metodo — solo quelli abilitati dal backoffice */}
       <div className="sec">Come vuoi pagare?</div>
       <div className="opt-list">
-        <button type="button" className={`opt${method === 'card' ? ' on' : ''}`} onClick={() => setMethod('card')}>
-          <span className="opt-ind">{method === 'card' && <i className="ti ti-check" />}</span>
-          <span><b>Carta</b> · pagamento sicuro con Stripe</span>
-        </button>
-        <button type="button" className={`opt${method === 'bank_transfer' ? ' on' : ''}`} onClick={() => setMethod('bank_transfer')}>
-          <span className="opt-ind">{method === 'bank_transfer' && <i className="ti ti-check" />}</span>
-          <span><b>Bonifico</b> · estremi via email</span>
-        </button>
+        {methods.card && (
+          <button type="button" className={`opt${method === 'card' ? ' on' : ''}`} onClick={() => setMethod('card')}>
+            <span className="opt-ind">{method === 'card' && <i className="ti ti-check" />}</span>
+            <span><b>Carta</b> · pagamento sicuro con Stripe</span>
+          </button>
+        )}
+        {methods.bank_transfer && (
+          <button type="button" className={`opt${method === 'bank_transfer' ? ' on' : ''}`} onClick={() => setMethod('bank_transfer')}>
+            <span className="opt-ind">{method === 'bank_transfer' && <i className="ti ti-check" />}</span>
+            <span><b>Bonifico</b> · estremi via email</span>
+          </button>
+        )}
+        {!methods.card && !methods.bank_transfer && (
+          <div className="card"><p className="muted" style={{ margin: 0, fontSize: 13 }}>Nessun metodo di pagamento è attivo al momento. Riprova più tardi.</p></div>
+        )}
       </div>
 
       {/* Totale */}
@@ -145,7 +163,7 @@ export default function Checkout() {
 
       {err && <div className="banner err" style={{ marginTop: 12 }}>{err}</div>}
 
-      <button className="btn" style={{ marginTop: 14 }} onClick={pay} disabled={busy}>
+      <button className="btn" style={{ marginTop: 14 }} onClick={pay} disabled={busy || (!methods.card && !methods.bank_transfer)}>
         {busy ? 'Attendi…' : method === 'card' ? `Paga ${euro(total)}` : 'Ricevi gli estremi'}
       </button>
     </div>
