@@ -41,6 +41,8 @@ describe('AuthService', () => {
       },
       $transaction: jest.fn().mockResolvedValue([]),
     };
+    // login usa findFirst (OR email/secondaryEmail): stesso mock di findUnique.
+    prisma.user.findFirst = prisma.user.findUnique;
     mail = {
       sendEmailVerification: jest.fn().mockResolvedValue(true),
       sendPasswordReset: jest.fn().mockResolvedValue(true),

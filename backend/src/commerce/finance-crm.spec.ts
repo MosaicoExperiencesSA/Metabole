@@ -39,6 +39,10 @@ describe('FinanceService (eventi economici automatici)', () => {
           assignedNutritionist: { managerId: 'staff-hn' },
         }),
       },
+      // Nessun ordine collegato → base provvigioni = amountCents del pagamento.
+      payment: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
     };
     const moduleRef = await Test.createTestingModule({
       providers: [

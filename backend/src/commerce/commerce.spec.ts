@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
+import { PdfService } from '../pdf/pdf.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { MailService } from '../mail/mail.service';
@@ -66,7 +67,7 @@ describe('CommerceService (flusso bonifico)', () => {
         CommerceService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('chiave-file-test') } },
-        { provide: ConfigParamsService, useValue: { getString: jest.fn().mockResolvedValue('IBAN IT00 TEST'), getNumber: jest.fn() } },
+        { provide: ConfigParamsService, useValue: { getString: jest.fn().mockResolvedValue('IBAN IT00 TEST'), getNumber: jest.fn(), getBool: jest.fn().mockResolvedValue(true) } },
         { provide: MailService, useValue: mail },
         { provide: NotificationsService, useValue: notifications },
         { provide: FinanceService, useValue: finance },
@@ -80,6 +81,7 @@ describe('CommerceService (flusso bonifico)', () => {
           },
         },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: PdfService, useValue: { renderTemplatePdf: jest.fn().mockResolvedValue(Buffer.from('pdf')) } },
       ],
     }).compile();
     service = moduleRef.get(CommerceService);
