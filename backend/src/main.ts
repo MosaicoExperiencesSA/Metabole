@@ -35,8 +35,11 @@ async function bootstrap(): Promise<void> {
     .map((o) => o.trim())
     .filter(Boolean);
   const devOrigins = [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/];
+  // App nativa (Capacitor): la webview gira da queste origini interne.
+  // Android con androidScheme 'https' → https://localhost ; iOS → capacitor://localhost.
+  const nativeOrigins = ['https://localhost', 'capacitor://localhost'];
   app.enableCors({
-    origin: corsOrigins.length > 0 ? [...corsOrigins, ...devOrigins] : devOrigins,
+    origin: [...corsOrigins, ...devOrigins, ...nativeOrigins],
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
