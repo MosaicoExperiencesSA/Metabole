@@ -38,6 +38,7 @@ const METHODS: Record<string, string[]> = {
 
 function StarRating() {
   const [rating, setRating] = useState(0);
+  const msg = rating >= 4 ? 'Ti è piaciuta: te la riproporrò più spesso.' : rating > 0 && rating <= 2 ? 'Capito, la eviterò quasi del tutto.' : 'Valutazione salvata.';
   return (
     <div className="card">
       <b style={{ fontSize: 13 }}>Hai cucinato questo piatto?</b>
@@ -47,7 +48,7 @@ function StarRating() {
           <i key={n} className="ti ti-star-filled" style={{ color: n <= rating ? '#F2B705' : '#E2DED4', cursor: 'pointer' }} onClick={() => setRating(n)} />
         ))}
       </div>
-      {rating > 0 && <div className="muted" style={{ marginTop: 8 }}>Grazie! Ne terrò conto per i prossimi menu.</div>}
+      {rating > 0 && <div style={{ marginTop: 8, fontSize: 12, color: rating <= 2 ? '#993C1D' : '#0E7C66' }}>{msg}</div>}
     </div>
   );
 }
