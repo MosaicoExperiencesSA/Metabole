@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
 import CheckinPopup from '../components/CheckinPopup';
+import ChatSheet from '../components/ChatSheet';
 
 interface Today {
   checkinDone: boolean;
@@ -53,26 +54,6 @@ function coachOfDay(name: string): { bg: string; head: string } {
   if (h < 17) return { bg: '#2AA7C4', head: `Bevi un po', ${name}` };
   if (h < 21) return { bg: '#D8663C', head: 'Muoviti un po\'!' };
   return { bg: '#2E2A5A', head: `Buonanotte, ${name}` };
-}
-
-function CoachChat() {
-  return (
-    <>
-      <div className="row" style={{ alignItems: 'center', gap: 9, marginBottom: 4 }}>
-        <span className="sara-av">SC</span>
-        <div><b style={{ fontSize: 15 }}>Sara — la tua coach</b><div className="muted" style={{ fontSize: 11 }}>Domande sanitarie? Ti giro alla nutrizionista.</div></div>
-      </div>
-      <div className="chat-col">
-        <div className="bubble-in">Ciao! Come procede questa settimana?</div>
-        <div className="bubble-out">Bene, un po' di fame il pomeriggio</div>
-        <div className="bubble-in">Perfetto, anticipiamo lo spuntino. Ci vediamo in televisita il 22!</div>
-      </div>
-      <div className="chat-input">
-        <input className="input" style={{ borderRadius: 22 }} placeholder="Scrivi a Sara…" />
-        <button className="btn" style={{ width: 'auto', padding: '10px 13px' }}><i className="ti ti-send" /></button>
-      </div>
-    </>
-  );
 }
 
 function SpesaList() {
@@ -226,7 +207,7 @@ export default function Home() {
       {today && !today.checkinDone && !dismissed && (
         <CheckinPopup onMood={submitMood} onSkip={() => setDismissed(true)} busy={checkinBusy} />
       )}
-      {sheet === 'coach' && <Sheet onClose={() => setSheet(null)}><CoachChat /></Sheet>}
+      {sheet === 'coach' && <Sheet onClose={() => setSheet(null)}><ChatSheet /></Sheet>}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
       {sheet && HELP[sheet] && (
         <Sheet onClose={() => setSheet(null)}>
