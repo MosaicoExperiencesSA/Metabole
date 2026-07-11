@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post } from '@nestjs/common';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ClientsService } from './clients.service';
+import { UpdateClientDto } from './dto/update-client.dto';
 
 class AddNoteDto {
   @IsString()
@@ -44,6 +45,13 @@ export class ClientsController {
   @Post(':id/reset-password')
   resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
     return this.clients.sendPasswordReset(id, user.sub, ip);
+  }
+
+  /** Modifica anagrafica e questionario del cliente (chi ha accesso alla scheda). */
+  @HttpCode(200)
+  @Patch(':id')
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateClientDto) {
+    return this.clients.updateClient(id, user.sub, dto);
   }
 
   /** Eliminazione definitiva del cliente/lead e di tutto il collegato: SOLO admin. */

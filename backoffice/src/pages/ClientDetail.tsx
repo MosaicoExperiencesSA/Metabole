@@ -70,6 +70,47 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+const fldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' };
+
+/** Form di modifica della scheda (anagrafica + questionario). */
+function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void }) {
+  const up = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const T = (k: string, label: string, type = 'text') => (
+    <label style={fldStyle}><span>{label}</span><input className="input" type={type} value={form[k] ?? ''} onChange={(e) => up(k, e.target.value)} /></label>
+  );
+  const S = (k: string, label: string, opts: [string, string][]) => (
+    <label style={fldStyle}>
+      <span>{label}</span>
+      <select className="select" value={form[k] ?? ''} onChange={(e) => up(k, e.target.value)}>
+        <option value="">—</option>
+        {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </label>
+  );
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Modifica scheda</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {T('firstName', 'Nome')}{T('lastName', 'Cognome')}
+        {T('phone', 'Telefono')}{T('addressLine', 'Via e n. civico')}
+        {T('postalCode', 'CAP')}{T('city', 'Città')}
+        {T('province', 'Provincia')}{T('name', 'Nome nel percorso')}
+        {T('age', 'Età', 'number')}{S('sex', 'Sesso', [['female', 'Donna'], ['male', 'Uomo']])}
+        {T('heightCm', 'Altezza (cm)', 'number')}{T('startWeightKg', 'Peso (kg)', 'number')}
+        {T('startWaistCm', 'Vita (cm)', 'number')}{T('startHipsCm', 'Fianchi (cm)', 'number')}
+        {S('regime', 'Regime', [['omnivore', 'Onnivora'], ['vegetarian', 'Vegetariana'], ['vegan', 'Vegana']])}
+        {S('dietStyle', 'Stile', [['mediterranean', 'Mediterranea'], ['protein', 'Proteica'], ['low_carb', 'Low carb'], ['flexible', 'Flessibile']])}
+        {S('mealsPerDay', 'Pasti', [['3', '3'], ['4', '4'], ['5', '5']])}
+        {S('pathType', 'Percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['supplements', 'Con integratori'], ['intermittent_fasting', 'Digiuno interm.']])}
+        {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
+        {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
+        {T('intolerances', 'Intolleranze (virgola)')}{T('dislikedFoods', 'Cibi non graditi (virgola)')}
+        {T('themeColor', 'Colore app')}
+      </div>
+    </div>
+  );
+}
+
 export function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -81,6 +122,9 @@ export function ClientDetail() {
   const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
 
   // Note dello staff (log)
   const [notes, setNotes] = useState<Detail['notes']>([]);
@@ -199,6 +243,58 @@ export function ClientDetail() {
     }
   }
 
+  function startEdit() {
+    if (!d) return;
+    const u = d.user;
+    const pr = d.profile ?? {};
+    setForm({
+      firstName: u.firstName ?? '', lastName: u.lastName ?? '', phone: u.phone ?? '',
+      addressLine: u.addressLine ?? '', postalCode: u.postalCode ?? '', city: u.city ?? '', province: u.province ?? '',
+      name: pr.name ?? '', age: pr.age ?? '', sex: pr.sex ?? '', heightCm: pr.heightCm ?? '',
+      startWeightKg: pr.startWeightKg ?? '', startWaistCm: pr.startWaistCm ?? '', startHipsCm: pr.startHipsCm ?? '',
+      regime: pr.regime ?? '', dietStyle: pr.dietStyle ?? '', mealsPerDay: pr.mealsPerDay ? String(pr.mealsPerDay) : '',
+      pathType: pr.pathType ?? '', coachStyle: pr.coachStyle ?? '', character: pr.character ?? '',
+      intolerances: (pr.intolerances ?? []).join(', '), dislikedFoods: (pr.dislikedFoods ?? []).join(', '),
+      themeColor: pr.themeColor ?? '',
+    });
+    setEditing(true);
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const f = form;
+    const num = (v: string) => (v === '' || v == null ? undefined : Number(v));
+    const list = (v: string) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []);
+    const dto: Record<string, unknown> = {
+      firstName: f.firstName, lastName: f.lastName, phone: f.phone,
+      addressLine: f.addressLine, postalCode: f.postalCode, city: f.city, province: f.province,
+      name: f.name,
+      sex: f.sex || undefined, regime: f.regime || undefined, dietStyle: f.dietStyle || undefined,
+      pathType: f.pathType || undefined, coachStyle: f.coachStyle || undefined, character: f.character || undefined,
+      themeColor: f.themeColor || undefined,
+      intolerances: list(f.intolerances), dislikedFoods: list(f.dislikedFoods),
+    };
+    const age = num(f.age); if (age !== undefined) dto.age = age;
+    const h = num(f.heightCm); if (h !== undefined) dto.heightCm = h;
+    const w = num(f.startWeightKg); if (w !== undefined) dto.startWeightKg = w;
+    const wa = num(f.startWaistCm); if (wa !== undefined) dto.startWaistCm = wa;
+    const hi = num(f.startHipsCm); if (hi !== undefined) dto.startHipsCm = hi;
+    if (f.mealsPerDay) dto.mealsPerDay = Number(f.mealsPerDay);
+    try {
+      await api(`/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(dto) });
+      const data = await api<Detail>(`/admin/clients/${id}`);
+      setD(data);
+      setNotes(data.notes ?? []);
+      setEditing(false);
+      setNotice('Scheda aggiornata.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Salvataggio non riuscito.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function addNote() {
     const body = newNote.trim();
     if (!body) return;
@@ -271,12 +367,24 @@ export function ClientDetail() {
             </div>
           </div>
           <div className="row" style={{ gap: 8 }}>
-            {isAdmin && (
+            {!editing ? (
+              <button className="btn ghost" onClick={startEdit} style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-edit" /> Modifica
+              </button>
+            ) : (
+              <>
+                <button className="btn" onClick={save} disabled={saving} style={{ background: '#fff', color: '#0e7c66' }}>
+                  <i className="ti ti-device-floppy" /> {saving ? 'Salvo…' : 'Salva'}
+                </button>
+                <button className="btn ghost" onClick={() => setEditing(false)} disabled={saving} style={{ background: 'rgba(255,255,255,.9)' }}>Annulla</button>
+              </>
+            )}
+            {isAdmin && !editing && (
               <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
                 <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
               </button>
             )}
-            {isAdmin && (
+            {isAdmin && !editing && (
               <button className="btn ghost" onClick={deleteClient} disabled={deleting} style={{ background: 'rgba(255,255,255,.9)', color: '#b3261e' }}>
                 <i className="ti ti-trash" /> {deleting ? 'Elimino…' : 'Elimina'}
               </button>
@@ -369,7 +477,10 @@ export function ClientDetail() {
         </div>
       </div>
 
+      {editing && <EditCard form={form} setForm={setForm} />}
+
       {/* Questionario / profilo */}
+      {!editing && (
       <div className="card">
         <h2>Questionario</h2>
         {!p ? (
@@ -422,6 +533,7 @@ export function ClientDetail() {
           </>
         )}
       </div>
+      )}
 
       {/* Obiettivo */}
       {d.objective && (

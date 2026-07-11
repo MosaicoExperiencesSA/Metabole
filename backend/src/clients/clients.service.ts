@@ -2,6 +2,10 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateClientDto } from './dto/update-client.dto';
+
+const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const;
+const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'mealsPerDay', 'pathType', 'coachStyle', 'character', 'intolerances', 'dislikedFoods', 'themeColor'] as const;
 
 /**
  * Scheda cliente per lo staff: aggrega anagrafica, questionario, obiettivo,
@@ -175,5 +179,33 @@ export class ClientsService {
       this.prisma.user.delete({ where: { id: userId } }),
     ]);
     return { deleted: true };
+  }
+
+  /** Aggiorna anagrafica (User) e questionario (ClientProfile) di un cliente. */
+  async updateClient(userId: string, actorId: string, dto: UpdateClientDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
+    if (!user) throw new NotFoundException('Cliente non trovato.');
+    if (user.role !== 'client') throw new BadRequestException('Modificabile solo per i clienti.');
+
+    const d = dto as Record<string, unknown>;
+    const userData: Record<string, unknown> = {};
+    for (const k of USER_FIELDS) if (d[k] !== undefined) userData[k] = d[k] === '' ? null : d[k];
+    const profileData: Record<string, unknown> = {};
+    for (const k of PROFILE_FIELDS) if (d[k] !== undefined) profileData[k] = d[k] === '' ? null : d[k];
+
+    const ops: unknown[] = [];
+    if (Object.keys(userData).length) ops.push(this.prisma.user.update({ where: { id: userId }, data: userData as never }));
+    if (Object.keys(profileData).length) {
+      ops.push(
+        this.prisma.clientProfile.upsert({
+          where: { userId },
+          update: profileData as never,
+          create: { userId, ...profileData } as never,
+        }),
+      );
+    }
+    if (ops.length) await this.prisma.$transaction(ops as never);
+    await this.audit.log({ action: 'client.update', actorId, entityType: 'user', entityId: userId });
+    return { updated: true };
   }
 }
