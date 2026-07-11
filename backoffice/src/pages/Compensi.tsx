@@ -17,7 +17,7 @@ const ROLE: Record<string, string> = {
   manager_coach: 'Manager coach',
   nutritionist: 'Nutrizionista',
   head_nutritionist: 'Capo nutrizionista',
-  sales: 'Commerciale',
+  sales: 'Resp. Coach Team',
   admin: 'Admin',
 };
 

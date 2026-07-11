@@ -69,6 +69,41 @@ export class UsersService {
     return user;
   }
 
+  /** Dati anagrafici modificabili dalla cliente nel proprio Profilo (app). */
+  async getMyProfile(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: {
+        email: true, firstName: true, lastName: true,
+        addressLine: true, postalCode: true, city: true, province: true, phone: true,
+        clientProfile: { select: { name: true } },
+      },
+    });
+    if (!user) throw new NotFoundException('Utente non trovato');
+    const { clientProfile, ...rest } = user;
+    return { ...rest, nickname: clientProfile?.name ?? null };
+  }
+
+  /** La cliente aggiorna i propri dati (mai l'email: quella ha un flusso a parte con verifica). */
+  async updateMyProfile(
+    userId: string,
+    dto: { firstName?: string; lastName?: string; nickname?: string; addressLine?: string; postalCode?: string; city?: string; province?: string; phone?: string },
+  ) {
+    const userData: Record<string, string | null> = {};
+    for (const k of ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const) {
+      if (dto[k] !== undefined) userData[k] = dto[k]!.trim() || null;
+    }
+    if (Object.keys(userData).length) {
+      await this.prisma.user.update({ where: { id: userId }, data: userData });
+    }
+    if (dto.nickname !== undefined) {
+      // Il nickname vive sul profilo cliente (updateMany: sicuro se il profilo non esiste ancora).
+      await this.prisma.clientProfile.updateMany({ where: { userId }, data: { name: dto.nickname.trim() || null } });
+    }
+    await this.audit.log({ action: 'me.profile.update', actorId: userId, entityType: 'user', entityId: userId });
+    return this.getMyProfile(userId);
+  }
+
   /** Preferenze UI dell'utente (es. scorciatoie dashboard scelte). */
   async getPreferences(userId: string) {
     const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });

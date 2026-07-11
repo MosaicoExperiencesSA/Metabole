@@ -8,6 +8,10 @@ import { useAuth } from '../auth/AuthContext';
  * possibilità di scaricare la ricevuta PDF dei pagamenti confermati.
  */
 
+interface MyProfile {
+  email: string; firstName: string | null; lastName: string | null; nickname: string | null;
+  addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null;
+}
 interface Plan { name: string; period: string; priceCents: number; }
 interface Subscription { id: string; status: string; startDate: string | null; endDate: string | null; plan: Plan | null; }
 interface Payment { id: string; description: string; amountCents: number; method: string; status: string; createdAt: string; }
@@ -42,15 +46,46 @@ export default function Profilo() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  // Sezione "I miei dati"
+  const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [form, setForm] = useState<Partial<MyProfile>>({});
+  const [editing, setEditing] = useState(false);
+  const [savingData, setSavingData] = useState(false);
+  const [dataMsg, setDataMsg] = useState<string | null>(null);
+
   useEffect(() => {
     Promise.all([
       api<Subscription | null>('/me/subscription').catch(() => null),
       api<Payment[]>('/me/payments').catch(() => [] as Payment[]),
-    ]).then(([s, p]) => {
+      api<MyProfile>('/me/profile').catch(() => null),
+    ]).then(([s, p, pr]) => {
       setSub(s);
       setPayments(Array.isArray(p) ? p : []);
+      if (pr) { setProfile(pr); setForm(pr); }
     }).finally(() => setLoading(false));
   }, []);
+
+  async function saveData() {
+    setSavingData(true);
+    setDataMsg(null);
+    setErr(null);
+    try {
+      const body = {
+        firstName: form.firstName ?? '', lastName: form.lastName ?? '', nickname: form.nickname ?? '',
+        addressLine: form.addressLine ?? '', postalCode: form.postalCode ?? '', city: form.city ?? '',
+        province: form.province ?? '', phone: form.phone ?? '',
+      };
+      const updated = await api<MyProfile>('/me/profile', { method: 'PATCH', body: JSON.stringify(body) });
+      setProfile(updated);
+      setForm(updated);
+      setEditing(false);
+      setDataMsg('Dati aggiornati.');
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setSavingData(false);
+    }
+  }
 
   async function downloadReceipt(id: string) {
     setBusyId(id);
@@ -87,6 +122,49 @@ export default function Profilo() {
           <div className="muted">{user?.email}</div>
         </div>
       </div>
+
+      {/* I miei dati */}
+      <div className="row-between" style={{ margin: '4px 2px 8px' }}>
+        <span className="sec" style={{ margin: 0 }}>I miei dati</span>
+        {profile && !editing && <button className="btn-recipe" style={{ padding: '4px 12px' }} onClick={() => { setEditing(true); setDataMsg(null); }}><i className="ti ti-pencil" /> Modifica</button>}
+      </div>
+      {dataMsg && <div className="banner ok" style={{ marginBottom: 10 }}>{dataMsg}</div>}
+      {profile && (
+        <div className="card">
+          {!editing ? (
+            <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+              <div><span className="muted">Nome:</span> <b>{[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}</b></div>
+              <div><span className="muted">Nickname:</span> <b>{profile.nickname || '—'}</b></div>
+              <div><span className="muted">Indirizzo:</span> <b>{[profile.addressLine, profile.postalCode, profile.city, profile.province].filter(Boolean).join(', ') || '—'}</b></div>
+              <div><span className="muted">Telefono:</span> <b>{profile.phone || '—'}</b></div>
+              <div style={{ paddingTop: 6, borderTop: '1px solid var(--line)', marginTop: 4 }}>
+                <span className="muted">Email:</span> <b>{profile.email}</b>
+                <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Per cambiare email userai una verifica via link (in arrivo).</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div className="row" style={{ gap: 8 }}>
+                <input className="input" style={{ flex: 1 }} placeholder="Nome" value={form.firstName ?? ''} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
+                <input className="input" style={{ flex: 1 }} placeholder="Cognome" value={form.lastName ?? ''} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
+              </div>
+              <input className="input" placeholder="Nickname" value={form.nickname ?? ''} onChange={(e) => setForm((f) => ({ ...f, nickname: e.target.value }))} />
+              <input className="input" placeholder="Via e numero" value={form.addressLine ?? ''} onChange={(e) => setForm((f) => ({ ...f, addressLine: e.target.value }))} />
+              <div className="row" style={{ gap: 8 }}>
+                <input className="input" style={{ width: 90 }} placeholder="CAP" value={form.postalCode ?? ''} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} />
+                <input className="input" style={{ flex: 1 }} placeholder="Città" value={form.city ?? ''} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
+                <input className="input" style={{ width: 70 }} placeholder="Prov." value={form.province ?? ''} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} />
+              </div>
+              <input className="input" placeholder="Telefono" value={form.phone ?? ''} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              <div className="muted" style={{ fontSize: 11 }}>L'email ({profile.email}) non si cambia da qui: servirà una verifica via link.</div>
+              <div className="row" style={{ gap: 8, marginTop: 4 }}>
+                <button className="btn" style={{ flex: 1 }} onClick={saveData} disabled={savingData}>{savingData ? 'Salvo…' : 'Salva'}</button>
+                <button className="btn ghost" style={{ flex: 1 }} onClick={() => { setEditing(false); setForm(profile); setErr(null); }}>Annulla</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Piano attivo */}
       <div className="sec" style={{ marginTop: 4 }}>Il mio piano</div>

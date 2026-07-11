@@ -91,6 +91,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     lead_acceptance: { view: true },
     accounting: { view: true }, // dashboard incassi/conversioni
     purchases: { view: true },
+    assign_coach: { view: true, manage: true }, // Resp. Coach Team: assegna le coach
   },
   admin: {
     dashboard: { view: true, manage: true },
