@@ -60,6 +60,55 @@ export class CommerceService {
     return this.prisma.product.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
 
+  // ---------- Gestione negozio (admin) ----------
+
+  listAllPlans() {
+    return this.prisma.plan.findMany({ orderBy: { priceCents: 'asc' } });
+  }
+  listAllProducts() {
+    return this.prisma.product.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean }) {
+    const product = await this.prisma.product.create({ data: { ...dto, active: dto.active ?? true } });
+    await this.audit.log({ action: 'shop.product.create', actorId, entityType: 'product', entityId: product.id });
+    return product;
+  }
+  async updateProduct(actorId: string, id: string, dto: Record<string, unknown>) {
+    const product = await this.prisma.product.update({ where: { id }, data: dto as never });
+    await this.audit.log({ action: 'shop.product.update', actorId, entityType: 'product', entityId: id });
+    return product;
+  }
+  async deleteProduct(actorId: string, id: string) {
+    try {
+      await this.prisma.product.delete({ where: { id } });
+    } catch {
+      throw new BadRequestException('Prodotto non eliminabile: ha ordini collegati. Disattivalo invece.');
+    }
+    await this.audit.log({ action: 'shop.product.delete', actorId, entityType: 'product', entityId: id });
+    return { deleted: true };
+  }
+
+  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean }) {
+    const plan = await this.prisma.plan.create({ data: { ...dto, features: dto.features ?? [], active: dto.active ?? true } });
+    await this.audit.log({ action: 'shop.plan.create', actorId, entityType: 'plan', entityId: plan.id });
+    return plan;
+  }
+  async updatePlan(actorId: string, id: string, dto: Record<string, unknown>) {
+    const plan = await this.prisma.plan.update({ where: { id }, data: dto as never });
+    await this.audit.log({ action: 'shop.plan.update', actorId, entityType: 'plan', entityId: id });
+    return plan;
+  }
+  async deletePlan(actorId: string, id: string) {
+    try {
+      await this.prisma.plan.delete({ where: { id } });
+    } catch {
+      throw new BadRequestException('Piano non eliminabile: ha abbonamenti collegati. Disattivalo invece.');
+    }
+    await this.audit.log({ action: 'shop.plan.delete', actorId, entityType: 'plan', entityId: id });
+    return { deleted: true };
+  }
+
   // ---------- Acquisto (bonifico) ----------
 
   /**

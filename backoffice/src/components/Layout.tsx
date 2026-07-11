@@ -44,6 +44,7 @@ const NAV: NavSection[] = [
   {
     group: 'Pagamenti',
     items: [
+      { key: 'shop', label: 'Negozio', to: '/negozio', icon: 'ti-building-store' },
       { key: 'purchases', label: 'Acquisti', to: '/acquisti', icon: 'ti-shopping-cart' },
       { key: 'discounts', label: 'Buoni sconto', to: '/buoni-sconto', icon: 'ti-ticket' },
       { key: 'accounting', label: 'Bonifici & contabilità', to: '/pagamenti', icon: 'ti-cash' },

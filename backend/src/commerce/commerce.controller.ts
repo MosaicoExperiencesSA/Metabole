@@ -33,6 +33,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { CommerceService } from './commerce.service';
+import { CreatePlanDto, CreateProductDto, UpdatePlanDto, UpdateProductDto } from './dto/shop-admin.dto';
 import { CrmService } from './crm.service';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
@@ -327,5 +328,48 @@ export class FinanceController {
   @Get('dashboards/compensation')
   compensation(@Query('period') period?: string) {
     return this.finance.compensationDashboard(period);
+  }
+}
+
+/** Gestione negozio (admin): piani e prodotti/integratori. */
+@Controller('admin/shop')
+@Roles('admin')
+export class AdminShopController {
+  constructor(private readonly commerce: CommerceService) {}
+
+  @Get('plans')
+  plans() {
+    return this.commerce.listAllPlans();
+  }
+  @Post('plans')
+  createPlan(@CurrentUser() u: AuthUser, @Body() dto: CreatePlanDto) {
+    return this.commerce.createPlan(u.sub, dto);
+  }
+  @Patch('plans/:id')
+  updatePlan(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdatePlanDto) {
+    return this.commerce.updatePlan(u.sub, id, { ...dto } as Record<string, unknown>);
+  }
+  @HttpCode(200)
+  @Delete('plans/:id')
+  deletePlan(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+    return this.commerce.deletePlan(u.sub, id);
+  }
+
+  @Get('products')
+  products() {
+    return this.commerce.listAllProducts();
+  }
+  @Post('products')
+  createProduct(@CurrentUser() u: AuthUser, @Body() dto: CreateProductDto) {
+    return this.commerce.createProduct(u.sub, dto);
+  }
+  @Patch('products/:id')
+  updateProduct(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() dto: UpdateProductDto) {
+    return this.commerce.updateProduct(u.sub, id, { ...dto } as Record<string, unknown>);
+  }
+  @HttpCode(200)
+  @Delete('products/:id')
+  deleteProduct(@CurrentUser() u: AuthUser, @Param('id') id: string) {
+    return this.commerce.deleteProduct(u.sub, id);
   }
 }

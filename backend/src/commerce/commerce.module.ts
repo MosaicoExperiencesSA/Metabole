@@ -3,6 +3,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import {
   AdminPaymentsController,
   AdminPurchasesController,
+  AdminShopController,
   CatalogCommerceController,
   CrmController,
   FinanceController,
@@ -29,6 +30,7 @@ import { StripeService } from './stripe.service';
     MyCommerceController,
     AdminPaymentsController,
     AdminPurchasesController,
+    AdminShopController,
     StripeWebhookController,
     CrmController,
     PipelineController,

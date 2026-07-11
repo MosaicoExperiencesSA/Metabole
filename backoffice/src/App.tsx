@@ -12,6 +12,7 @@ import { ClientDetail } from './pages/ClientDetail';
 import { Clienti } from './pages/Clienti';
 import { Compensi } from './pages/Compensi';
 import { Diete } from './pages/Diete';
+import { GestioneNegozio } from './pages/GestioneNegozio';
 import { Protocolli } from './pages/Protocolli';
 import { Agenda } from './pages/Agenda';
 import { Segnalazioni } from './pages/Segnalazioni';
@@ -69,6 +70,7 @@ export default function App() {
       <Route path="/crm/da-accettare" element={<Protected title="Lead da accettare" pageKey="lead_acceptance"><LeadDaAccettare /></Protected>} />
       <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Agenda /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Segnalazioni /></Protected>} />
+      <Route path="/negozio" element={<Protected title="Negozio" pageKey="shop"><GestioneNegozio /></Protected>} />
       <Route path="/acquisti" element={<Protected title="Acquisti" pageKey="purchases"><Acquisti /></Protected>} />
       <Route path="/buoni-sconto" element={<Protected title="Buoni sconto" pageKey="discounts"><BuoniSconto /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />

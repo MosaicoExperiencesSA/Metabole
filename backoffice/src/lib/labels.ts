@@ -30,6 +30,7 @@ export const PAGE_LABEL: Record<string, string> = {
   lead_acceptance: 'Lead da accettare',
   accounting: 'Bonifici & contabilità',
   purchases: 'Acquisti',
+  shop: 'Negozio',
   discounts: 'Buoni sconto',
   commissions: 'Provvigioni',
   compensation: 'Compensi staff',
