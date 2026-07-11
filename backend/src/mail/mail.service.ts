@@ -43,7 +43,7 @@ export class MailService {
   }
 
   private get sender(): { name: string; email: string } {
-    const raw = this.config.get<string>('MAIL_FROM') ?? 'Metabole <no-reply@metabole.app>';
+    const raw = this.config.get<string>('MAIL_FROM') ?? 'Metabole <no-reply@metabole.eu>';
     const match = raw.match(/^(.*)<(.+)>$/);
     if (match) return { name: match[1].trim() || 'Metabole', email: match[2].trim() };
     return { name: 'Metabole', email: raw.trim() };
