@@ -24,6 +24,12 @@ export class ClientsController {
     return this.clients.getDetail(id, user.sub);
   }
 
+  /** Cronologia delle modifiche al profilo (chi e quando). */
+  @Get(':id/audit')
+  changeLog(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clients.changeLog(id, user.sub);
+  }
+
   /** Aggiunge una nota al log dello staff sul cliente. */
   @HttpCode(201)
   @Post(':id/note')

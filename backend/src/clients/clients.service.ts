@@ -208,4 +208,48 @@ export class ClientsService {
     await this.audit.log({ action: 'client.update', actorId, entityType: 'user', entityId: userId });
     return { updated: true };
   }
+
+  /**
+   * Cronologia delle modifiche al profilo del cliente (chi e quando):
+   * anagrafica, assegnazioni coach/nutrizionista, cambio email, reset password.
+   * Raccoglie le voci di audit collegate a userId, profilo e record CRM.
+   */
+  async changeLog(userId: string, actorId: string) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId }, select: { id: true } });
+    if (!user) throw new NotFoundException('Utente non trovato.');
+    const [profile, crm] = await Promise.all([
+      this.prisma.clientProfile.findUnique({ where: { userId }, select: { id: true } }),
+      this.prisma.crmRecord.findUnique({ where: { clientId: userId }, select: { id: true } }),
+    ]);
+    const ids = [userId, profile?.id, crm?.id].filter((x): x is string => Boolean(x));
+    const CHANGE_ACTIONS = [
+      'client.update', 'me.profile.update',
+      'admin.assignment.update', 'crm.nutritionist.assign',
+      'crm.lead.assign', 'crm.lead.accept', 'crm.lead.reject',
+      'auth.email_change_requested', 'auth.email_change_confirmed',
+      'auth.email_primary_swapped', 'auth.email_secondary_removed',
+      'client.password_reset.trigger',
+    ];
+    const rows = await this.prisma.auditLog.findMany({
+      where: { entityId: { in: ids }, action: { in: CHANGE_ACTIONS } },
+      orderBy: { createdAt: 'desc' },
+      take: 150,
+      include: { actor: { select: { email: true, firstName: true, lastName: true, role: true } } },
+    });
+    type Row = {
+      id: string; action: string; createdAt: Date; actorId: string | null; metadata: unknown;
+      actor: { email: string; firstName: string | null; lastName: string | null; role: string } | null;
+    };
+    await this.audit.log({ action: 'client.changelog.view', actorId, entityType: 'user', entityId: userId });
+    return (rows as Row[]).map((r) => ({
+      id: r.id,
+      action: r.action,
+      at: r.createdAt,
+      metadata: r.metadata ?? null,
+      self: r.actorId === userId,
+      actor: r.actor
+        ? { name: [r.actor.firstName, r.actor.lastName].filter(Boolean).join(' ') || r.actor.email, email: r.actor.email, role: r.actor.role }
+        : null,
+    }));
+  }
 }

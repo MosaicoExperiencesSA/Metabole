@@ -23,6 +23,30 @@ interface Detail {
   pendingCommissions: { id: string; role: string; amountCents: number; createdAt: string }[];
 }
 
+interface ChangeLogRow {
+  id: string;
+  action: string;
+  at: string;
+  self: boolean;
+  metadata: Record<string, unknown> | null;
+  actor: { name: string; email: string; role: string } | null;
+}
+
+const CHANGE_ACTION_LABEL: Record<string, string> = {
+  'client.update': 'Modifica scheda',
+  'me.profile.update': 'Modifica dati (dal cliente)',
+  'admin.assignment.update': 'Assegnazione coach / nutrizionista',
+  'crm.nutritionist.assign': 'Assegnazione nutrizionista',
+  'crm.lead.assign': 'Assegnazione coach',
+  'crm.lead.accept': 'Coach ha accettato',
+  'crm.lead.reject': 'Coach ha rifiutato',
+  'auth.email_change_requested': 'Richiesta cambio email',
+  'auth.email_change_confirmed': 'Email confermata',
+  'auth.email_primary_swapped': 'Email principale cambiata',
+  'auth.email_secondary_removed': 'Email secondaria rimossa',
+  'client.password_reset.trigger': 'Invio reset password',
+};
+
 const COMM_ROLE: Record<string, string> = {
   coach: 'Coach',
   manager_coach: 'Manager coach',
@@ -130,6 +154,25 @@ export function ClientDetail() {
   const [notes, setNotes] = useState<Detail['notes']>([]);
   const [newNote, setNewNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+
+  // Log modifiche (audit del profilo)
+  const [logOpen, setLogOpen] = useState(false);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logRows, setLogRows] = useState<ChangeLogRow[]>([]);
+  const [logErr, setLogErr] = useState<string | null>(null);
+
+  async function openLog() {
+    setLogOpen(true);
+    setLogLoading(true);
+    setLogErr(null);
+    try {
+      setLogRows(await api<ChangeLogRow[]>(`/admin/clients/${id}/audit`));
+    } catch (err) {
+      setLogErr(err instanceof ApiError ? err.message : 'Caricamento non riuscito.');
+    } finally {
+      setLogLoading(false);
+    }
+  }
 
   // Team: liste coach/nutrizionisti per l'assegnazione (solo admin)
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
@@ -378,6 +421,11 @@ export function ClientDetail() {
                 </button>
                 <button className="btn ghost" onClick={() => setEditing(false)} disabled={saving} style={{ background: 'rgba(255,255,255,.9)' }}>Annulla</button>
               </>
+            )}
+            {!editing && (
+              <button className="btn ghost" onClick={openLog} style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-history" /> Log modifiche
+              </button>
             )}
             {isAdmin && !editing && (
               <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
@@ -734,6 +782,43 @@ export function ClientDetail() {
           </table>
         )}
       </div>
+
+      {/* Popup: Log modifiche */}
+      {logOpen && (
+        <div className="overlay" onClick={() => setLogOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560, maxHeight: '80vh', overflowY: 'auto' }}>
+            <div className="spread" style={{ marginBottom: 12 }}>
+              <h2 style={{ margin: 0 }}><i className="ti ti-history" /> Log modifiche</h2>
+              <button className="btn ghost sm" onClick={() => setLogOpen(false)}><i className="ti ti-x" /> Chiudi</button>
+            </div>
+            {logErr && <Banner kind="err">{logErr}</Banner>}
+            {logLoading ? (
+              <Spinner />
+            ) : logRows.length === 0 ? (
+              <div className="empty">Nessuna modifica registrata per questo cliente.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {logRows.map((r) => {
+                  const meta = r.metadata ?? {};
+                  const newEmail = typeof meta.newEmail === 'string' ? meta.newEmail : null;
+                  return (
+                    <div key={r.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
+                      <div className="spread" style={{ alignItems: 'baseline' }}>
+                        <b style={{ fontSize: 14 }}>{CHANGE_ACTION_LABEL[r.action] ?? r.action}</b>
+                        <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(r.at).toLocaleString('it-IT')}</span>
+                      </div>
+                      <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                        {r.self ? 'Modificato dal cliente' : r.actor ? <>Da <b>{r.actor.name}</b> ({r.actor.role})</> : 'Da sistema'}
+                        {newEmail && <> · nuova email: <b>{newEmail}</b></>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
