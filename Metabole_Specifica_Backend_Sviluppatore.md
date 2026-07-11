@@ -115,6 +115,13 @@ Entità principali (campi essenziali; aggiungere `id`, `created_at`, `updated_at
 - **DietDay/Template**: struttura giornata per una dieta+livello: elenco `meal_slot → recipe_id`.
 - **MenuDay** (erogato al cliente): `client_id`, `date`, `diet_id`, `level`, `meals[]` (slot→recipe), `status`, `visible_from` (2 giorni prima dell'inizio piano), `source_rule_id`. **Erogazione 2 giorni alla volta**.
 - **RecipeRating**: `client_id`, `recipe_id`, `stars` (1–5), `tags[]`, `date`. (Segnale "Gusto".)
+
+> **Ricetta vs Consiglio (UI menu/anteprima).** Nel prototipo i pulsanti "Ricetta"/"Consiglio" e i loro
+> contenuti sono un **esempio statico**. In produzione ogni `meal_slot` risolve una `Recipe` reale: se la
+> ricetta ha `cooking_methods`/passaggi (piatto da cucinare) il frontend mostra **"Ricetta"** (ingredienti +
+> preparazione); se è un piatto da comporre senza preparazione, mostra **"Consiglio"** (una nota/tip
+> associata alla ricetta, es. "yogurt + noci"). Il contenuto va gestito da dashboard (nutrizionista) e
+> assegnato dal motore vicino a ogni menu, così ogni piatto porta con sé la sua ricetta o il suo consiglio.
 - **ShoppingList**: `client_id`, `date_range`, `items[]` (nome, checked).
 
 ### Calendario / eventi

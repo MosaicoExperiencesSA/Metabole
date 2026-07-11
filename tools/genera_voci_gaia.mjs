@@ -51,7 +51,7 @@ const PHRASES = {
   percorso: "Giulia, il tuo percorso personalizzato è pronto. È settato secondo le indicazioni del nutrizionista e personalizzato sulle informazioni che hai fornito. La tua coach si chiama Sara e il tuo nutrizionista è la dottoressa Marini. Sei pronta a partire?",
   elaboro: "Dammi un momento: sto confrontando i protocolli, consulto il nutrizionista e cucio il tuo percorso su misura.",
   coachvideo: "Ti presento Sara, la coach che ti seguirà. Guarda il suo messaggio: ci sarà lei, davvero, al tuo fianco ogni giorno.",
-  anteprima: "Ecco un assaggio del tuo menu di un giorno, cucito sulle tue risposte. Su ogni piatto tocca come mangiarlo meglio per idee e piccole ricette.",
+  anteprima: "Ecco un assaggio del tuo menu di un giorno, cucito sulle tue risposte. Dove c'è una ricetta la trovi col pulsante; sugli altri piatti trovi un consiglio per mangiarli meglio.",
   piano: "Resta la cosa più sfidante da completare. Ti consiglio il piano da tre mesi: risparmi e sono sicura di portarti all'obiettivo. Se preferisci andare un mese alla volta, scegli il percorso da un mese. Esegui il pagamento e saremo online: io, la tua coach e il nutrizionista, al tuo fianco.",
   datainizio: "Bene, un obiettivo non è tale senza una data di partenza. Quando vuoi iniziare?",
   fatturazione: "Inserisci i dati per la fatturazione. Troverai la ricevuta via email una volta completato il pagamento del tuo piano.",
