@@ -4,6 +4,7 @@ import { clipForPage, isMuted, setMuted } from '../audio/gaia';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import FieldInput from '../onboarding/Field';
+import PlanFlow from './PlanFlow';
 import type { Field, OnboardingResult, Page, Questions } from '../onboarding/types';
 
 type Answers = Record<string, unknown>;
@@ -229,31 +230,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     return <div className="app-frame"><div className="screen no-tabbar center"><div className="spin" /></div></div>;
   }
 
-  if (result) {
-    return (
-      <div className="app-frame">
-        <div className="screen no-tabbar onb">
-          <div className="onb-gaia"><Gaia clip={clip} size={132} controls={false} /></div>
-          <div className="onb-body">
-            <h1>Il tuo percorso è pronto! 🎉</h1>
-            <div className="card result-card">
-              <div className="result-name">{result.path.name}</div>
-              {result.path.tags.length > 0 && <div className="result-tags">{result.path.tags.map((t) => <span className="chip" key={t}>{t}</span>)}</div>}
-            </div>
-            <div className="card">
-              <h2>Il tuo team</h2>
-              <p className="muted" style={{ margin: 0 }}>
-                Coach: <b>{result.team.coach?.displayName ?? 'in assegnazione'}</b><br />
-                Nutrizionista: <b>{result.team.nutritionist?.displayName ?? 'in assegnazione'}</b>
-              </p>
-            </div>
-            <div className="card"><h2>Prima visita</h2><p className="muted" style={{ margin: 0 }}>{result.firstVisit.note}</p></div>
-            <button className="btn" onClick={onDone}>Entra nell'app</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Percorso pronto → coda commerciale (piano, pagamento demo, data, conferme).
+  if (result) return <PlanFlow result={result} onDone={onDone} />;
 
   if (cur.t === 'section') {
     return (

@@ -291,6 +291,11 @@ p { line-height: 1.5; }
 /* stelle valutazione */
 .stars { display: flex; gap: 7px; font-size: 26px; }
 
+/* coda commerciale (piano/pagamento) */
+.plan-card { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.plan-card.sel { border: 2px solid var(--teal); }
+.big-badge { width: 60px; height: 60px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 32px; }
+
 /* obiettivo con slider */
 .obj-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .obj-row label { font-size: 13px; color: var(--muted); flex: 1; }
