@@ -63,6 +63,26 @@ class CreateOrderDto {
   items!: OrderItemDto[];
 }
 
+class CheckoutDto {
+  @IsOptional()
+  @IsUUID()
+  planId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items?: OrderItemDto[];
+
+  @IsIn(['card', 'bank_transfer'])
+  method!: 'card' | 'bank_transfer';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  discountCode?: string;
+}
+
 class UploadReceiptDto {
   @IsString()
   @MinLength(1)
@@ -134,6 +154,17 @@ export class MyCommerceController {
   @Post('subscribe')
   subscribe(@CurrentUser() user: AuthUser, @Body() dto: SubscribeDto) {
     return this.commerce.subscribe(user.sub, dto.planId, user.email, dto.method ?? 'bank_transfer');
+  }
+
+  /** Checkout unificato del carrello (piano + prodotti + sconto, carta o bonifico). */
+  @Post('checkout')
+  checkout(@CurrentUser() user: AuthUser, @Body() dto: CheckoutDto) {
+    return this.commerce.checkout(user.sub, user.email, {
+      planId: dto.planId,
+      items: dto.items,
+      method: dto.method,
+      discountCode: dto.discountCode,
+    });
   }
 
   @Get('subscription')

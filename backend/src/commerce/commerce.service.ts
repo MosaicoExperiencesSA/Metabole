@@ -245,6 +245,109 @@ export class CommerceService {
     return { order, payment: this.publicPayment(payment), transferReference: reference };
   }
 
+  /**
+   * Checkout UNIFICATO del carrello: piano (0/1) + prodotti (0..N), con buono sconto,
+   * pagabile con carta (Stripe) o bonifico. Crea UN solo pagamento che collega
+   * abbonamento e/o ordine; l'attivazione avviene poi via finalizeApproval (webhook/approvazione).
+   */
+  async checkout(
+    clientId: string,
+    clientEmail: string,
+    input: { planId?: string; items?: { productId: string; qty: number }[]; method: 'card' | 'bank_transfer'; discountCode?: string },
+  ) {
+    const method: 'card' | 'bank_transfer' = input.method === 'card' ? 'card' : 'bank_transfer';
+    let subtotal = 0;
+
+    let plan: { id: string; name: string; priceCents: number } | null = null;
+    if (input.planId) {
+      plan = await this.prisma.plan.findFirst({ where: { id: input.planId, active: true }, select: { id: true, name: true, priceCents: true } });
+      if (!plan) throw new NotFoundException('Piano non trovato');
+      const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { consents: true } });
+      const consents = (profile?.consents ?? {}) as { healthDataConsent?: { accepted?: boolean } };
+      if (!consents.healthDataConsent?.accepted) {
+        throw new BadRequestException("Per il piano serve il consenso ai dati sanitari: completa prima il questionario.");
+      }
+      const existing = await this.prisma.subscription.findFirst({ where: { clientId, status: { in: ['pending', 'active'] as never } } });
+      if (existing) {
+        throw new BadRequestException(existing.status === 'active' ? 'Hai già un abbonamento attivo.' : 'Hai già una richiesta di abbonamento in corso.');
+      }
+      subtotal += plan.priceCents;
+    }
+
+    let detailed: { productId: string; name: string; priceCents: number; qty: number }[] = [];
+    if (input.items?.length) {
+      const ids = input.items.map((i) => i.productId);
+      const products = await this.prisma.product.findMany({ where: { id: { in: ids }, active: true } });
+      if (products.length !== new Set(ids).size) throw new BadRequestException('Uno o più prodotti non esistono');
+      type P = { id: string; name: string; priceCents: number };
+      detailed = input.items.map((i) => {
+        const pr = (products as P[]).find((p) => p.id === i.productId)!;
+        const qty = Math.max(1, Math.min(99, Math.round(i.qty) || 1));
+        return { productId: pr.id, name: pr.name, priceCents: pr.priceCents, qty };
+      });
+      subtotal += detailed.reduce((a, d) => a + d.priceCents * d.qty, 0);
+    }
+
+    if (!plan && detailed.length === 0) throw new BadRequestException('Il carrello è vuoto.');
+
+    let discountCents = 0;
+    let discountCodeId: string | null = null;
+    if (input.discountCode?.trim()) {
+      const res = await this.discounts.validate(input.discountCode, clientId, subtotal);
+      discountCents = res.discountCents;
+      discountCodeId = res.codeId;
+    }
+    const totalCents = Math.max(0, subtotal - discountCents);
+
+    let subscriptionId: string | null = null;
+    if (plan) {
+      const sub = await this.prisma.subscription.create({ data: { clientId, planId: plan.id, status: 'pending' } });
+      subscriptionId = sub.id;
+    }
+    let orderId: string | null = null;
+    if (detailed.length) {
+      const order = await this.prisma.order.create({
+        data: { clientId, totalCents: detailed.reduce((a, d) => a + d.priceCents * d.qty, 0), items: detailed as never },
+      });
+      orderId = order.id;
+    }
+
+    const parts = [plan ? `Abbonamento ${plan.name}` : null, detailed.length ? `${detailed.length} prodotti` : null].filter(Boolean);
+    const description = parts.join(' + ') || 'Ordine';
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        clientId,
+        subscriptionId,
+        orderId,
+        amountCents: totalCents,
+        description,
+        method: method as never,
+        status: 'pending',
+        discountCodeId,
+        discountCents: discountCents || null,
+      },
+    });
+    await this.audit.log({
+      action: 'commerce.checkout',
+      actorId: clientId,
+      entityType: 'payment',
+      entityId: payment.id,
+      metadata: { planId: plan?.id, products: detailed.length, method, discountCents },
+    });
+
+    if (method === 'card') {
+      const session = await this.stripe.createCheckoutSession({ paymentId: payment.id, description, amountCents: totalCents, customerEmail: clientEmail });
+      await this.prisma.payment.update({ where: { id: payment.id }, data: { pspRef: session.sessionId } });
+      return { checkoutUrl: session.url, paymentId: payment.id, totalCents };
+    }
+    const bankDetails = await this.configParams.getString('bank_transfer_details', 'IBAN: da configurare');
+    const reference = `Ordine ${payment.id.slice(0, 8).toUpperCase()}`;
+    const buyer = await this.prisma.user.findUnique({ where: { id: clientId }, select: { locale: true } });
+    await this.mail.sendBankTransferInstructions(clientEmail, { description, amountCents: totalCents, bankDetails, reference }, buyer?.locale);
+    return { method: 'bank_transfer', transferReference: reference, paymentId: payment.id, totalCents };
+  }
+
   /** La cliente carica la contabile del bonifico (cifrata). */
   async uploadReceipt(
     clientId: string,

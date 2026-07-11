@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { api } from './api/client';
 import { useAuth } from './auth/AuthContext';
+import { CartProvider } from './cart/CartContext';
 import TabBar from './components/TabBar';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -11,6 +12,7 @@ import Menu from './pages/Menu';
 import Calendario from './pages/Calendario';
 import Obiettivo from './pages/Obiettivo';
 import Negozio from './pages/Negozio';
+import Checkout from './pages/Checkout';
 import Onboarding from './pages/Onboarding';
 import PaymentResult from './pages/PaymentResult';
 
@@ -35,6 +37,7 @@ function Shell() {
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/obiettivo" element={<Obiettivo />} />
           <Route path="/negozio" element={<Negozio />} />
+          <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment/success" element={<PaymentResult ok />} />
           <Route path="/payment/cancelled" element={<PaymentResult ok={false} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -64,7 +67,11 @@ function AuthedApp() {
 
   if (status === 'loading') return <Centered />;
   if (status === 'todo') return <Onboarding onDone={() => setStatus('done')} />;
-  return <Shell />;
+  return (
+    <CartProvider>
+      <Shell />
+    </CartProvider>
+  );
 }
 
 export default function App() {

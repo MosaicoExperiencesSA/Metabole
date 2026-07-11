@@ -291,6 +291,9 @@ p { line-height: 1.5; }
 /* stelle valutazione */
 .stars { display: flex; gap: 7px; font-size: 26px; }
 
+/* barra carrello fluttuante */
+.cart-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px); width: calc(100% - 32px); max-width: 428px; z-index: 20; border: none; border-radius: 999px; background: var(--teal); color: #fff; padding: 13px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; box-shadow: 0 8px 18px rgba(18, 163, 134, 0.45); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
 /* coda commerciale (piano/pagamento) */
 .plan-card { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .plan-card.sel { border: 2px solid var(--teal); }
