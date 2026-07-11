@@ -39,7 +39,7 @@ if (!API_KEY) {
 
 // Testi di Gaia (devono combaciare con quelli del prototipo)
 const PHRASES = {
-  benvenuto: "Ciao, sono Gaia, la tua assistente AI che ti guiderà passo passo alla configurazione personalizzata di Metabole, in modo che il tuo percorso di rinascita sia unico e cucito su di te. Appena sei pronta, clicca sul pulsante Entra in Metabole in fondo.",
+  benvenuto: "Ciao, sono Gaia, la tua assistente Èi Ài che ti guiderà passo passo alla configurazione personalizzata di Metàbol, in modo che il tuo percorso di rinascita sia unico e cucito su di te. Appena sei pronta, clicca sul pulsante Entra in Metàbol in fondo.",
   registrazione: "Presentati, così saprò dove e come inviarti tutto quello che serve per la gestione dell'app. Considera che i percorsi sono personalizzati e potrebbero richiedere l'invio di prodotti al tuo indirizzo o di schede via email.",
   facciamo: "Per settare e personalizzare la tua app ho bisogno di qualche indicazione su cinque punti: la mente, la vita, l'agenda, il gusto e il corpo.",
   intro_testa: "Per prima cosa, cosa c'è nella tua mente? L'equilibrio mentale è il primo passo per ritrovare la forma fisica corretta. Rispondi pure alle prossime domande.",
@@ -91,7 +91,8 @@ OUT_DIRS.forEach(d => mkdirSync(d, { recursive: true }));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function tts(key, text) {
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=mp3_44100_128`;
+  // Endpoint "with-timestamps": restituisce audio + allineamento tempo<->carattere
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/with-timestamps?output_format=mp3_44100_128`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'xi-api-key': API_KEY, 'Content-Type': 'application/json' },
@@ -101,9 +102,14 @@ async function tts(key, text) {
     const t = await res.text().catch(() => '');
     throw new Error(`ElevenLabs ${res.status}: ${t.slice(0, 200)}`);
   }
-  const buf = Buffer.from(await res.arrayBuffer());
-  for (const d of OUT_DIRS) writeFileSync(`${d}/${key}.mp3`, buf);
-  console.log(`✓ ${key}.mp3 (${(buf.length / 1024).toFixed(0)} KB)`);
+  const j = await res.json();
+  const buf = Buffer.from(j.audio_base64, 'base64');
+  const al = j.alignment || j.normalized_alignment || null;
+  for (const d of OUT_DIRS) {
+    writeFileSync(`${d}/${key}.mp3`, buf);
+    if (al) writeFileSync(`${d}/${key}.json`, JSON.stringify({ characters: al.characters, character_start_times_seconds: al.character_start_times_seconds }));
+  }
+  console.log(`✓ ${key}.mp3 (${(buf.length / 1024).toFixed(0)} KB)${al ? ' + timings' : ''}`);
 }
 
 const entries = Object.entries(PHRASES);
