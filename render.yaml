@@ -44,7 +44,9 @@ services:
       - key: ADMIN_PASSWORD
         sync: false # inserire a mano: password iniziale admin (min. 8 caratteri); usata dal seed solo alla creazione
       - key: CORS_ORIGINS
-        sync: false # inserire a mano: origini frontend consentite (es. https://metabole-backoffice.vercel.app)
+        sync: false # inserire a mano: origini frontend consentite, separate da virgola:
+        # https://app.metabole.eu,https://backoffice.metabole.eu (durante la transizione puoi
+        # aggiungere anche gli URL *.vercel.app). Solo protocollo+dominio, niente slash finale.
       - key: JWT_ACCESS_SECRET
         generateValue: true # generata da Render, mai committata
       - key: FILE_ENCRYPTION_KEY
@@ -54,9 +56,9 @@ services:
       - key: REFRESH_TTL_DAYS
         value: "30"
       - key: APP_URL
-        # URL PUBBLICO DELL'APP CLIENTE su Vercel (non il backend!): è dove Stripe
-        # rimanda dopo il pagamento (/payment/success) e dove puntano i link nelle email.
-        value: https://metabole.vercel.app
+        # URL PUBBLICO DELL'APP CLIENTE (non il backend!): è dove Stripe rimanda
+        # dopo il pagamento (/payment/success) e dove puntano i link nelle email.
+        value: https://app.metabole.eu
       - fromGroup: metabole-shared
 
   # Cron giornaliero: motore + notifiche, ogni mattina alle 05:00 UTC (07:00 CEST).

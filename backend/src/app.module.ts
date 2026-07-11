@@ -34,6 +34,7 @@ import { UsersModule } from './users/users.module';
 import { PdfModule } from './pdf/pdf.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { PayoutsModule } from './payouts/payouts.module';
     CompensationModule,
     AnalyticsModule,
     PayoutsModule,
+    DashboardModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

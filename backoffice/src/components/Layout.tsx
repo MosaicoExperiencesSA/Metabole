@@ -90,6 +90,16 @@ export function Layout({ title, children }: { title: string; children: ReactNode
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [navOpen, setNavOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('metabole_bo_nav') !== 'closed'; } catch { return true; }
+  });
+  function toggleNav() {
+    setNavOpen((o) => {
+      const n = !o;
+      try { localStorage.setItem('metabole_bo_nav', n ? 'open' : 'closed'); } catch { /* no-op */ }
+      return n;
+    });
+  }
 
   async function handleLogout() {
     await logout();
@@ -112,16 +122,19 @@ export function Layout({ title, children }: { title: string; children: ReactNode
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${navOpen ? '' : ' nav-closed'}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">
             <i className="ti ti-leaf" />
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <b>Metabole</b>
             <span>Backoffice</span>
           </div>
+          <button className="nav-collapse" onClick={toggleNav} title="Chiudi il menu">
+            <i className="ti ti-chevron-left" />
+          </button>
         </div>
 
         {NAV.map((section) => {
@@ -174,7 +187,12 @@ export function Layout({ title, children }: { title: string; children: ReactNode
           </div>
         )}
         <div className="topbar">
-          <h1>{title}</h1>
+          <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+            <button className="nav-toggle" onClick={toggleNav} title={navOpen ? 'Chiudi il menu' : 'Apri il menu'}>
+              <i className="ti ti-menu-2" />
+            </button>
+            <h1>{title}</h1>
+          </div>
           <div className="row">
             <span className="muted" style={{ fontSize: 13 }}>
               {user?.email} · {permissions ? ROLE_LABEL[permissions.role] : ''}

@@ -35,7 +35,7 @@ export class StripeService {
     amountCents: number;
     customerEmail: string;
   }): Promise<{ sessionId: string; url: string }> {
-    const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole-backend.onrender.com';
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
     const session = await this.getClient().checkout.sessions.create({
       mode: 'payment',
       customer_email: input.customerEmail,

@@ -113,7 +113,7 @@ export class MailService {
   }
 
   async sendEmailVerification(to: string, token: string, locale?: string | null): Promise<boolean> {
-    const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole.vercel.app';
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
     // Il link apre una pagina dell'app (che poi chiama l'API), non l'endpoint API diretto.
     const link = `${appUrl}/verifica-email?token=${token}`;
     const vars = { link, token };
@@ -126,7 +126,7 @@ export class MailService {
 
   /** Verifica della NUOVA email nel cambio email: il link apre una pagina dell'app. */
   async sendEmailChangeVerification(to: string, token: string, locale?: string | null): Promise<boolean> {
-    const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole.vercel.app';
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
     const link = `${appUrl}/conferma-email?token=${token}`;
     const vars = { link, token };
     const { subject, html } = await this.resolve('email_verification', {
@@ -188,7 +188,7 @@ export class MailService {
   }
 
   async sendPasswordReset(to: string, token: string, locale?: string | null): Promise<boolean> {
-    const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole-backend.onrender.com';
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
     const link = `${appUrl}/reset-password?token=${token}`;
     const vars = { link, token };
     const { subject, html } = await this.resolve('password_reset', {

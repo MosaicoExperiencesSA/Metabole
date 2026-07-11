@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { Banner, Modal } from '../components/ui';
-import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
+import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS, type DashboardModule } from '../lib/dashboardModules';
 import { WalletWidget } from '../components/WalletWidget';
 
 interface Shortcut {
@@ -43,6 +43,7 @@ export function Dashboard() {
   const available = CATALOG.filter((s) => can(s.pageKey));
   const [selected, setSelected] = useState<string[] | null>(null); // null = non ancora caricato
   const [modules, setModules] = useState<string[] | null>(null);
+  const [previews, setPreviews] = useState<Record<string, { a: string; b?: string }[]>>({});
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +58,7 @@ export function Dashboard() {
         setModules(DEFAULT_MODULE_IDS);
       }
     })();
+    api<Record<string, { a: string; b?: string }[]>>('/admin/dashboard/previews').then(setPreviews).catch(() => {});
   }, []);
 
   const chosen = selected ?? DEFAULT_IDS;
@@ -77,23 +79,6 @@ export function Dashboard() {
       </div>
 
       <WalletWidget />
-
-      {shownModules.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 14 }}>
-          {shownModules.map((m) => (
-            <Link key={m.id} to={m.to} className="card" style={{ display: 'flex', gap: 14, alignItems: 'flex-start', textDecoration: 'none', color: 'inherit', margin: 0 }}>
-              <span style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--chip)', color: 'var(--chip-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                <i className={`ti ${m.icon}`} style={{ fontSize: 24 }} />
-              </span>
-              <span style={{ flex: 1 }}>
-                <b style={{ display: 'block', fontSize: 16, marginBottom: 3 }}>{m.label}</b>
-                <span className="muted" style={{ fontSize: 13 }}>{m.preview}</span>
-                <span style={{ display: 'block', marginTop: 8, color: 'var(--teal-dark)', fontSize: 13, fontWeight: 600 }}>Apri <i className="ti ti-arrow-right" /></span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
 
       <div className="card">
         <div className="spread" style={{ marginBottom: 4 }}>
@@ -131,6 +116,14 @@ export function Dashboard() {
         )}
       </div>
 
+      {shownModules.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 14, marginTop: 14 }}>
+          {shownModules.map((m) => (
+            <ModuleCard key={m.id} module={m} rows={previews[m.pageKey] ?? null} />
+          ))}
+        </div>
+      )}
+
       {editing && (
         <CustomizeModal
           available={available}
@@ -141,6 +134,32 @@ export function Dashboard() {
         />
       )}
     </>
+  );
+}
+
+function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: { a: string; b?: string }[] | null }) {
+  return (
+    <Link to={m.to} className="card" style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', margin: 0 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ width: 42, height: 42, borderRadius: 12, background: 'var(--chip)', color: 'var(--chip-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+          <i className={`ti ${m.icon}`} style={{ fontSize: 22 }} />
+        </span>
+        <b style={{ fontSize: 16 }}>{m.label}</b>
+      </div>
+      {rows && rows.length > 0 ? (
+        <div style={{ display: 'grid', gap: 2, flex: 1 }}>
+          {rows.slice(0, 5).map((r, i) => (
+            <div key={i} className="spread" style={{ fontSize: 13, padding: '5px 0', borderBottom: i < Math.min(rows.length, 5) - 1 ? '1px solid var(--line)' : 'none' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.a}</span>
+              {r.b && <b style={{ whiteSpace: 'nowrap', marginLeft: 8 }}>{r.b}</b>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <span className="muted" style={{ fontSize: 13, flex: 1 }}>{rows && rows.length === 0 ? 'Nessun dato recente.' : m.preview}</span>
+      )}
+      <span style={{ display: 'block', marginTop: 10, color: 'var(--teal-dark)', fontSize: 13, fontWeight: 600 }}>Apri <i className="ti ti-arrow-right" /></span>
+    </Link>
   );
 }
 
