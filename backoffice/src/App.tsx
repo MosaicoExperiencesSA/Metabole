@@ -12,6 +12,7 @@ import { ClientDetail } from './pages/ClientDetail';
 import { Clienti } from './pages/Clienti';
 import { Compensi } from './pages/Compensi';
 import { Diete } from './pages/Diete';
+import { Ricette } from './pages/Ricette';
 import { GestioneNegozio } from './pages/GestioneNegozio';
 import { Protocolli } from './pages/Protocolli';
 import { Agenda } from './pages/Agenda';
@@ -81,6 +82,7 @@ export default function App() {
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
+      <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="diets_catalog"><Ricette /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />
       <Route path="/log" element={<Protected title="Log attività" pageKey="audit_logs"><LogAttivita /></Protected>} />

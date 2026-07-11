@@ -62,6 +62,7 @@ const NAV: NavSection[] = [
     group: 'Contenuti',
     items: [
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
+      { key: 'diets_catalog', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
       { key: 'engine_protocols', label: 'Protocolli motore', to: '/protocolli', icon: 'ti-cpu' },
     ],
   },

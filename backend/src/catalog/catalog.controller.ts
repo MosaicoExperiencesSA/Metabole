@@ -16,6 +16,7 @@ import { CatalogService } from './catalog.service';
 import {
   CreateDietDto,
   CreateRecipeDto,
+  UpdateRecipeDto,
   RejectDietDto,
   SetDayTemplatesDto,
   UpdateDietDto,
@@ -119,8 +120,9 @@ export class RecipesController {
     @Query('regime') regime?: string,
     @Query('mealSlot') mealSlot?: string,
     @Query('q') q?: string,
+    @Query('includeInactive') includeInactive?: string,
   ) {
-    return this.catalog.listRecipes({ regime, mealSlot, q });
+    return this.catalog.listRecipes({ regime, mealSlot, q, includeInactive: includeInactive === 'true' });
   }
 
   @Get(':id')
@@ -132,5 +134,11 @@ export class RecipesController {
   @Post()
   create(@Body() dto: CreateRecipeDto, @CurrentUser() user: AuthUser) {
     return this.catalog.createRecipe(user.sub, dto);
+  }
+
+  @Roles('nutritionist', 'head_nutritionist')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateRecipeDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.updateRecipe(user.sub, id, dto);
   }
 }

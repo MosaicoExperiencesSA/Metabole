@@ -11,6 +11,7 @@ import {
   CreateRecipeDto,
   SetDayTemplatesDto,
   UpdateDietDto,
+  UpdateRecipeDto,
 } from './dto/catalog.dto';
 
 /**
@@ -213,10 +214,10 @@ export class CatalogService {
 
   // ---------- Ricette ----------
 
-  async listRecipes(filter: { regime?: string; mealSlot?: string; q?: string }) {
+  async listRecipes(filter: { regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean }) {
     return this.prisma.recipe.findMany({
       where: {
-        active: true,
+        ...(filter.includeInactive ? {} : { active: true }),
         ...(filter.regime ? { regime: filter.regime as never } : {}),
         ...(filter.mealSlot ? { mealSlot: filter.mealSlot as never } : {}),
         ...(filter.q ? { name: { contains: filter.q, mode: 'insensitive' } } : {}),
@@ -224,6 +225,30 @@ export class CatalogService {
       orderBy: { name: 'asc' },
       take: 200,
     });
+  }
+
+  /** Modifica ricetta (nutrizionista). Aggiorna solo i campi inviati. */
+  async updateRecipe(userId: string, id: string, dto: UpdateRecipeDto) {
+    const existing = await this.prisma.recipe.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Ricetta non trovata');
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.regime !== undefined) data.regime = dto.regime as never;
+    if (dto.mealSlot !== undefined) data.mealSlot = dto.mealSlot as never;
+    if (dto.kcal !== undefined) data.kcal = dto.kcal;
+    if (dto.ingredients !== undefined) data.ingredients = dto.ingredients as never;
+    if (dto.cookingMethods !== undefined) data.cookingMethods = dto.cookingMethods as never;
+    if (dto.tags !== undefined) data.tags = dto.tags;
+    if (dto.macros !== undefined) data.macros = dto.macros as never;
+    if (dto.active !== undefined) data.active = dto.active;
+    const recipe = await this.prisma.recipe.update({ where: { id }, data });
+    await this.audit.log({
+      action: 'catalog.recipe.update',
+      actorId: userId,
+      entityType: 'recipe',
+      entityId: id,
+    });
+    return recipe;
   }
 
   async getRecipe(id: string) {

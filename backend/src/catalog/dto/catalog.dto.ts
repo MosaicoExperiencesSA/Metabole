@@ -152,6 +152,19 @@ export class CreateRecipeDto {
   active?: boolean;
 }
 
+/** Modifica ricetta: tutti i campi opzionali (si aggiornano solo quelli inviati). */
+export class UpdateRecipeDto {
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
+  @IsOptional() @IsIn(['omnivore', 'vegetarian', 'vegan']) regime?: string;
+  @IsOptional() @IsIn(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']) mealSlot?: string;
+  @IsOptional() @IsInt() @Min(30) @Max(2000) kcal?: number;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => IngredientDto) ingredients?: IngredientDto[];
+  @IsOptional() @IsArray() cookingMethods?: unknown[];
+  @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
+  @IsOptional() @IsObject() macros?: Record<string, number>;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
 export class RejectDietDto {
   @IsOptional()
   @IsString()
