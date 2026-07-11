@@ -45,6 +45,7 @@ export const PAGE_LABEL: Record<string, string> = {
   email_log: 'Log email',
   pdf_templates: 'Grafica PDF',
   charts: 'Grafici',
+  withdrawals: 'Richieste prelievo',
 };
 
 export function pageLabel(key: string): string {

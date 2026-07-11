@@ -25,6 +25,7 @@ import { ModelliEmail } from './pages/ModelliEmail';
 import { GraficaPdf } from './pages/GraficaPdf';
 import { Grafici } from './pages/Grafici';
 import { Impostazioni } from './pages/Impostazioni';
+import { Prelievi } from './pages/Prelievi';
 import { Parametri } from './pages/Parametri';
 import { Payments } from './pages/Payments';
 import { Permissions } from './pages/Permissions';
@@ -88,6 +89,7 @@ export default function App() {
       <Route path="/grafica-pdf" element={<Protected title="Grafica PDF" pageKey="pdf_templates"><GraficaPdf /></Protected>} />
       <Route path="/grafici" element={<Protected title="Grafici" pageKey="charts"><Grafici /></Protected>} />
       <Route path="/impostazioni" element={<Protected title="Impostazioni"><Impostazioni /></Protected>} />
+      <Route path="/prelievi" element={<Protected title="Richieste di prelievo" pageKey="withdrawals"><Prelievi /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

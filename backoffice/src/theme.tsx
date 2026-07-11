@@ -5,10 +5,10 @@ import { useAuth } from './auth/AuthContext';
 /** 4 temi commutabili del backoffice. L'id combacia con [data-theme] nel CSS e col backend. */
 export interface ThemeDef { id: string; label: string; bg: string; surface: string; accent: string; text: string; }
 export const THEMES: ThemeDef[] = [
-  { id: 'light', label: 'Chiaro', bg: '#faf8f3', surface: '#ffffff', accent: '#12a386', text: '#16302c' },
-  { id: 'dark', label: 'Scuro', bg: '#101a17', surface: '#17241f', accent: '#12a386', text: '#e7efe9' },
-  { id: 'taupe', label: 'Tortora', bg: '#e4ddd2', surface: '#f4f0e9', accent: '#12a386', text: '#332c22' },
-  { id: 'white', label: 'Bianco', bg: '#ffffff', surface: '#ffffff', accent: '#12a386', text: '#1c1814' },
+  { id: 'light', label: 'Chiaro · verde', bg: '#faf8f3', surface: '#ffffff', accent: '#12a386', text: '#16302c' },
+  { id: 'dark', label: 'Notturno · oro', bg: '#14110b', surface: '#1e1810', accent: '#cba14e', text: '#ece3d0' },
+  { id: 'taupe', label: 'Tortora · terracotta', bg: '#e6ded2', surface: '#f5f0e8', accent: '#c2683c', text: '#33291f' },
+  { id: 'white', label: 'Minimal · indaco', bg: '#ffffff', surface: '#ffffff', accent: '#5b57c9', text: '#1c1a24' },
 ];
 const IDS = THEMES.map((t) => t.id);
 const DEFAULT = 'light';

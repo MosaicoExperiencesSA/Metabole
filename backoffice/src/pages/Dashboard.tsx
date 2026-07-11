@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { Banner, Modal } from '../components/ui';
 import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
+import { WalletWidget } from '../components/WalletWidget';
 
 interface Shortcut {
   id: string;
@@ -65,7 +66,7 @@ export function Dashboard() {
 
   return (
     <>
-      <div className="card" style={{ background: 'linear-gradient(120deg,#10403a,#12a386)', color: '#fff', border: 'none' }}>
+      <div className="card" style={{ background: 'linear-gradient(120deg,var(--deep),var(--teal))', color: '#fff', border: 'none' }}>
         <h2 style={{ color: '#fff', fontSize: 20 }}>Ciao 👋</h2>
         <p style={{ margin: 0, opacity: 0.9 }}>
           {user?.email} · {permissions ? ROLE_LABEL[permissions.role] : ''}
@@ -74,6 +75,8 @@ export function Dashboard() {
           Benvenuta/o nel backoffice Metabole. Da qui gestisci utenti, permessi, pagamenti e i contenuti della piattaforma.
         </p>
       </div>
+
+      <WalletWidget />
 
       {shownModules.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 14 }}>

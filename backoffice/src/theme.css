@@ -30,29 +30,37 @@
    Cambiano solo sfondi/superfici/testo; l'accento Metabole (teal,
    coral, violet, gold, danger) resta uguale in tutti i temi.
    ============================================================ */
+/* Chiaro · verde Metabole (accento teal) */
 :root[data-theme="light"] {
+  --teal: #12a386; --teal-dark: #0e7c66; --deep: #10403a;
   --bg: #faf8f3; --card: #ffffff; --ink: #16302c; --muted: #7c8c88;
   --line: #ece7de; --chip: #dcebe3; --chip-ink: #0e7c66;
   --ok: #dcf0d8; --ok-ink: #3b6d11; --danger-bg: #fbeee7;
   color-scheme: light;
 }
+/* Notturno · oro (accento dorato su fondo scuro) */
 :root[data-theme="dark"] {
-  --bg: #101a17; --card: #17241f; --ink: #e7efe9; --muted: #9db3ab;
-  --line: #2a3d36; --chip: #143a30; --chip-ink: #6fd3b3;
-  --ok: #16302a; --ok-ink: #8fd0a8; --danger-bg: #3a1f1c;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4); --shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.55);
+  --teal: #cba14e; --teal-dark: #e3c079; --deep: #0d0a06;
+  --bg: #14110b; --card: #1e1810; --ink: #ece3d0; --muted: #a99d85;
+  --line: #38301f; --chip: #2a2113; --chip-ink: #e6c98a;
+  --ok: #202a12; --ok-ink: #c7d98a; --danger-bg: #3a1f1c;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.45); --shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
+/* Tortora · terracotta (accento caldo) */
 :root[data-theme="taupe"] {
-  --bg: #e4ddd2; --card: #f4f0e9; --ink: #332c22; --muted: #7a7062;
-  --line: #c9bfae; --chip: #dbe7df; --chip-ink: #0e7c66;
-  --ok: #dcf0d8; --ok-ink: #3b6d11; --danger-bg: #f3e4dd;
+  --teal: #c2683c; --teal-dark: #9d4e28; --deep: #3a2e24;
+  --bg: #e6ded2; --card: #f5f0e8; --ink: #33291f; --muted: #7c7161;
+  --line: #cabfad; --chip: #efe1d5; --chip-ink: #9d4e28;
+  --ok: #e3ecd6; --ok-ink: #5c6d2a; --danger-bg: #f3e0d8;
   color-scheme: light;
 }
+/* Minimal · indaco (accento indaco su bianco) */
 :root[data-theme="white"] {
-  --bg: #ffffff; --card: #ffffff; --ink: #1c1814; --muted: #8a8275;
-  --line: #ebe8e1; --chip: #e9f2ec; --chip-ink: #0e7c66;
-  --ok: #e7f5ef; --ok-ink: #0e7c66; --danger-bg: #fbeee7;
+  --teal: #5b57c9; --teal-dark: #423fa0; --deep: #2a2740;
+  --bg: #ffffff; --card: #ffffff; --ink: #1c1a24; --muted: #85808f;
+  --line: #eceaf2; --chip: #eae9f7; --chip-ink: #423fa0;
+  --ok: #e7f0ff; --ok-ink: #3a58a0; --danger-bg: #fbeef0;
   color-scheme: light;
 }
 

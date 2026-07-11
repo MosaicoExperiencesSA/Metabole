@@ -277,6 +277,7 @@ model Staff {
   specialties         String[] @default([])
   bio                 String?
   refCode             String?  @unique @map("ref_code") // codice di riferimento della coach
+  iban                String?  // IBAN salvato per i prelievi provvigioni
   headNutritionistId  String?  @map("head_nutritionist_id")
   headNutritionist    Staff?   @relation("NutritionistTeam", fields: [headNutritionistId], references: [id], onDelete: SetNull)
   teamMembers         Staff[]  @relation("NutritionistTeam")
@@ -305,8 +306,29 @@ model Staff {
   assignedLeads         CrmRecord[]     @relation("LeadAssigner")
   compensations         StaffCompensation[] @relation("CompensationStaff")
   authoredClientNotes   ClientNote[]        @relation("ClientNoteAuthor")
+  withdrawals           CommissionWithdrawal[] @relation("StaffWithdrawals")
 
   @@map("staff")
+}
+
+/** Richiesta di prelievo delle provvigioni maturate (portafoglio staff). */
+model CommissionWithdrawal {
+  id           String    @id @default(uuid())
+  staffId      String    @map("staff_id")
+  staff        Staff     @relation("StaffWithdrawals", fields: [staffId], references: [id], onDelete: Cascade)
+  amountCents  Int       @map("amount_cents")
+  iban         String
+  status       String    @default("requested") // requested | paid | rejected
+  receiptData  Bytes?    @map("receipt_data") // ricevuta/fattura caricata (cifrata)
+  receiptMime  String?   @map("receipt_mime")
+  receiptName  String?   @map("receipt_name")
+  note         String?   // motivo del rifiuto o nota dell'operatore
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  paidAt       DateTime? @map("paid_at")
+  approvedById String?   @map("approved_by_id")
+
+  @@index([staffId, status])
+  @@map("commission_withdrawal")
 }
 
 // Profilo della cliente: compilato dal questionario di onboarding (15 pagine).

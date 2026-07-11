@@ -54,6 +54,7 @@ const NAV: NavSection[] = [
       { key: 'accounting', label: 'Bonifici & contabilità', to: '/pagamenti', icon: 'ti-cash' },
       { key: 'commissions', label: 'Provvigioni', to: '/provvigioni', icon: 'ti-percentage' },
       { key: 'compensation', label: 'Compensi staff', to: '/compensi', icon: 'ti-coin' },
+      { key: 'withdrawals', label: 'Richieste prelievo', to: '/prelievi', icon: 'ti-wallet' },
     ],
   },
   {

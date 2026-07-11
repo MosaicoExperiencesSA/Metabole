@@ -136,6 +136,21 @@ export class MailService {
     return this.send({ to, subject, html, templateKey: 'email_verification' });
   }
 
+  /** Conferma allo staff che le provvigioni richieste sono state pagate. */
+  async sendCommissionWithdrawalPaid(
+    to: string,
+    input: { amountCents: number; iban: string; date: Date },
+    locale?: string | null,
+  ): Promise<boolean> {
+    const amount = (input.amountCents / 100).toFixed(2).replace('.', ',');
+    const loc = this.i18n.normalize(locale);
+    const html = loc === 'en'
+      ? `<p>Hi,</p><p>we have paid out your requested commissions.</p><p><b>Amount:</b> € ${amount}<br/><b>IBAN:</b> ${input.iban}<br/><b>Date:</b> ${input.date.toLocaleDateString('en-GB')}</p><p>Thank you for your work!</p>`
+      : `<p>Ciao,</p><p>abbiamo eseguito il bonifico delle provvigioni che avevi richiesto.</p><p><b>Importo:</b> € ${amount}<br/><b>IBAN:</b> ${input.iban}<br/><b>Data:</b> ${input.date.toLocaleDateString('it-IT')}</p><p>Grazie per il tuo lavoro!</p>`;
+    const subject = loc === 'en' ? 'Metabole — commissions paid' : 'Metabole — provvigioni pagate';
+    return this.send({ to, subject, html, templateKey: 'commission_paid' });
+  }
+
   async sendBankTransferInstructions(
     to: string,
     input: { description: string; amountCents: number; bankDetails: string; reference: string },

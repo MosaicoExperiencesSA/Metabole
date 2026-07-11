@@ -34,6 +34,7 @@ export const BACKOFFICE_PAGES = [
   'email_log',
   'pdf_templates',
   'charts',
+  'withdrawals',
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -129,5 +130,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     email_log: { view: true, manage: true },
     pdf_templates: { view: true, manage: true },
     charts: { view: true, manage: true },
+    withdrawals: { view: true, manage: true },
   },
 };
