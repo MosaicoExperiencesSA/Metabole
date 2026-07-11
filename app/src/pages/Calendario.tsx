@@ -23,6 +23,39 @@ const TYPES: [string, string][] = [
 const TYPE_LABEL = Object.fromEntries(TYPES);
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
 
+/** Consigli reali per l'evento (prima/durante/dopo) da GET /me/events/:id/plan. */
+function EventPlan({ eventId, mode }: { eventId: string; mode: string }) {
+  const [phases, setPhases] = useState<{ before: string; during: string; after: string } | null>(null);
+  const [tab, setTab] = useState<'before' | 'during' | 'after'>('before');
+
+  useEffect(() => {
+    api<{ currentPhase: string; phases: { before: string; during: string; after: string } }>(`/me/events/${eventId}/plan`)
+      .then((p) => {
+        setPhases(p.phases);
+        const cp = p.currentPhase === 'mini_plan_active' ? 'during' : p.currentPhase;
+        if (cp === 'before' || cp === 'during' || cp === 'after') setTab(cp);
+      })
+      .catch(() => {});
+  }, [eventId]);
+
+  if (!phases) return null;
+  const tabs: [typeof tab, string][] = [
+    ['before', 'Prima'],
+    ['during', mode === 'pause_period' ? 'Durante' : 'Il giorno'],
+    ['after', 'Dopo'],
+  ];
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div className="pill-row" style={{ marginBottom: 8, flexWrap: 'wrap' }}>
+        {tabs.map(([k, l]) => (
+          <button key={k} className={`pill${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>{l}</button>
+        ))}
+      </div>
+      <div className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>{phases[tab]}</div>
+    </div>
+  );
+}
+
 export default function Calendario() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +141,7 @@ export default function Calendario() {
               <i className="ti ti-trash" style={{ fontSize: 16 }} />
             </button>
           </div>
+          <EventPlan eventId={e.id} mode={e.mode} />
         </div>
       ))}
 
