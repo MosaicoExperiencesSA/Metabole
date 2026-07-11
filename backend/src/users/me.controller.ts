@@ -19,6 +19,7 @@ class UpdateMyProfileDto {
   @IsOptional() @IsString() @MaxLength(20) postalCode?: string;
   @IsOptional() @IsString() @MaxLength(80) city?: string;
   @IsOptional() @IsString() @MaxLength(60) province?: string;
+  @IsOptional() @IsString() @MaxLength(60) country?: string;
   @IsOptional() @IsString() @MaxLength(40) phone?: string;
 }
 

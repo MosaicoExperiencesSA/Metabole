@@ -1,7 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+
+const PHONE_PREFIXES = ['+39', '+41', '+33', '+49', '+43', '+44', '+34', '+32', '+31', '+351', '+386', '+1'];
+const COUNTRIES = ['Italia', 'Svizzera', 'Francia', 'Germania', 'Austria', 'Regno Unito', 'Spagna', 'Belgio', 'Paesi Bassi', 'Portogallo', 'Slovenia', 'Altro'];
+
+interface AddrSuggestion { label: string; addressLine: string; postalCode: string; city: string; province: string; country: string; }
+
+function splitPhone(p: string | null): { prefix: string; number: string } {
+  if (!p) return { prefix: '+39', number: '' };
+  const m = p.trim().match(/^(\+\d{1,3})\s*(.*)$/);
+  if (m) return { prefix: m[1], number: m[2] };
+  return { prefix: '+39', number: p.trim() };
+}
 
 /**
  * Profilo cliente: piano attivo (giorno X di N) + storico acquisti con
@@ -9,8 +21,8 @@ import { useAuth } from '../auth/AuthContext';
  */
 
 interface MyProfile {
-  email: string; firstName: string | null; lastName: string | null; nickname: string | null;
-  addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null;
+  email: string; secondaryEmail: string | null; firstName: string | null; lastName: string | null; nickname: string | null;
+  addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; country: string | null; phone: string | null;
 }
 interface Plan { name: string; period: string; priceCents: number; }
 interface Subscription { id: string; status: string; startDate: string | null; endDate: string | null; plan: Plan | null; }
@@ -49,9 +61,16 @@ export default function Profilo() {
   // Sezione "I miei dati"
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [form, setForm] = useState<Partial<MyProfile>>({});
+  const [phonePrefix, setPhonePrefix] = useState('+39');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [editing, setEditing] = useState(false);
   const [savingData, setSavingData] = useState(false);
   const [dataMsg, setDataMsg] = useState<string | null>(null);
+
+  // Autocompletamento indirizzo (Photon / OpenStreetMap, senza chiave)
+  const [addrSug, setAddrSug] = useState<AddrSuggestion[]>([]);
+  const [addrOpen, setAddrOpen] = useState(false);
+  const addrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -61,23 +80,51 @@ export default function Profilo() {
     ]).then(([s, p, pr]) => {
       setSub(s);
       setPayments(Array.isArray(p) ? p : []);
-      if (pr) { setProfile(pr); setForm(pr); }
+      if (pr) { setProfile(pr); setForm(pr); const sp = splitPhone(pr.phone); setPhonePrefix(sp.prefix); setPhoneNumber(sp.number); }
     }).finally(() => setLoading(false));
   }, []);
+
+  function searchAddress(q: string) {
+    if (addrTimer.current) clearTimeout(addrTimer.current);
+    if (q.trim().length < 3) { setAddrSug([]); setAddrOpen(false); return; }
+    addrTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=it`);
+        const data = await res.json();
+        type F = { properties: Record<string, string> };
+        const sug: AddrSuggestion[] = (data.features ?? []).map((f: F) => {
+          const p = f.properties;
+          const street = [p.street ?? p.name, p.housenumber].filter(Boolean).join(' ');
+          const label = [street, p.postcode, p.city, p.country].filter(Boolean).join(', ');
+          return { label, addressLine: street, postalCode: p.postcode ?? '', city: p.city ?? '', province: p.state ?? '', country: p.country ?? '' };
+        }).filter((s: AddrSuggestion) => s.addressLine);
+        setAddrSug(sug);
+        setAddrOpen(sug.length > 0);
+      } catch { setAddrSug([]); setAddrOpen(false); }
+    }, 350);
+  }
+
+  function pickAddress(s: AddrSuggestion) {
+    setForm((f) => ({ ...f, addressLine: s.addressLine, postalCode: s.postalCode, city: s.city, province: s.province, country: s.country || f.country }));
+    setAddrOpen(false);
+    setAddrSug([]);
+  }
 
   async function saveData() {
     setSavingData(true);
     setDataMsg(null);
     setErr(null);
     try {
+      const phone = phoneNumber.trim() ? `${phonePrefix} ${phoneNumber.trim()}` : '';
       const body = {
         firstName: form.firstName ?? '', lastName: form.lastName ?? '', nickname: form.nickname ?? '',
         addressLine: form.addressLine ?? '', postalCode: form.postalCode ?? '', city: form.city ?? '',
-        province: form.province ?? '', phone: form.phone ?? '',
+        province: form.province ?? '', country: form.country ?? '', phone,
       };
       const updated = await api<MyProfile>('/me/profile', { method: 'PATCH', body: JSON.stringify(body) });
       setProfile(updated);
       setForm(updated);
+      const sp = splitPhone(updated.phone); setPhonePrefix(sp.prefix); setPhoneNumber(sp.number);
       setEditing(false);
       setDataMsg('Dati aggiornati.');
     } catch (e) {
@@ -132,34 +179,67 @@ export default function Profilo() {
       {profile && (
         <div className="card">
           {!editing ? (
-            <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+            <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
               <div><span className="muted">Nome:</span> <b>{[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}</b></div>
               <div><span className="muted">Nickname:</span> <b>{profile.nickname || '—'}</b></div>
-              <div><span className="muted">Indirizzo:</span> <b>{[profile.addressLine, profile.postalCode, profile.city, profile.province].filter(Boolean).join(', ') || '—'}</b></div>
+              <div><span className="muted">Indirizzo:</span> <b>{[profile.addressLine, profile.postalCode, profile.city, profile.province, profile.country].filter(Boolean).join(', ') || '—'}</b></div>
               <div><span className="muted">Telefono:</span> <b>{profile.phone || '—'}</b></div>
-              <div style={{ paddingTop: 6, borderTop: '1px solid var(--line)', marginTop: 4 }}>
+              <div style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                 <span className="muted">Email:</span> <b>{profile.email}</b>
+                {profile.secondaryEmail && <div style={{ marginTop: 2 }}><span className="muted">Email secondaria:</span> <b>{profile.secondaryEmail}</b></div>}
                 <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Per cambiare email userai una verifica via link (in arrivo).</div>
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div className="row" style={{ gap: 8 }}>
-                <input className="input" style={{ flex: 1 }} placeholder="Nome" value={form.firstName ?? ''} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
-                <input className="input" style={{ flex: 1 }} placeholder="Cognome" value={form.lastName ?? ''} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input className="input" style={{ flex: 1, minWidth: 0 }} placeholder="Nome" value={form.firstName ?? ''} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
+                <input className="input" style={{ flex: 1, minWidth: 0 }} placeholder="Cognome" value={form.lastName ?? ''} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
               </div>
               <input className="input" placeholder="Nickname" value={form.nickname ?? ''} onChange={(e) => setForm((f) => ({ ...f, nickname: e.target.value }))} />
-              <input className="input" placeholder="Via e numero" value={form.addressLine ?? ''} onChange={(e) => setForm((f) => ({ ...f, addressLine: e.target.value }))} />
-              <div className="row" style={{ gap: 8 }}>
-                <input className="input" style={{ width: 90 }} placeholder="CAP" value={form.postalCode ?? ''} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} />
-                <input className="input" style={{ flex: 1 }} placeholder="Città" value={form.city ?? ''} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
-                <input className="input" style={{ width: 70 }} placeholder="Prov." value={form.province ?? ''} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} />
+
+              <select className="input" value={form.country ?? ''} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}>
+                <option value="">Paese…</option>
+                {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {form.country && !COUNTRIES.includes(form.country) && <option value={form.country}>{form.country}</option>}
+              </select>
+
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="input" placeholder="Via e numero (digita per cercare)" autoComplete="off"
+                  value={form.addressLine ?? ''}
+                  onChange={(e) => { setForm((f) => ({ ...f, addressLine: e.target.value })); searchAddress(e.target.value); }}
+                  onFocus={() => { if (addrSug.length) setAddrOpen(true); }}
+                />
+                {addrOpen && (
+                  <div className="addr-pop">
+                    {addrSug.map((s, i) => (
+                      <button type="button" key={i} className="addr-opt" onClick={() => pickAddress(s)}>
+                        <i className="ti ti-map-pin" style={{ color: 'var(--teal)' }} /> <span>{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <input className="input" placeholder="Telefono" value={form.phone ?? ''} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input className="input" style={{ width: 96, flex: '0 0 auto' }} placeholder="CAP" value={form.postalCode ?? ''} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} />
+                <input className="input" style={{ flex: 1, minWidth: 0 }} placeholder="Città" value={form.city ?? ''} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
+                <input className="input" style={{ width: 74, flex: '0 0 auto' }} placeholder="Prov." value={form.province ?? ''} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <select className="input" style={{ width: 96, flex: '0 0 auto' }} value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)}>
+                  {PHONE_PREFIXES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {!PHONE_PREFIXES.includes(phonePrefix) && <option value={phonePrefix}>{phonePrefix}</option>}
+                </select>
+                <input className="input" style={{ flex: 1, minWidth: 0 }} placeholder="Numero di telefono" inputMode="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+              </div>
+
               <div className="muted" style={{ fontSize: 11 }}>L'email ({profile.email}) non si cambia da qui: servirà una verifica via link.</div>
-              <div className="row" style={{ gap: 8, marginTop: 4 }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
                 <button className="btn" style={{ flex: 1 }} onClick={saveData} disabled={savingData}>{savingData ? 'Salvo…' : 'Salva'}</button>
-                <button className="btn ghost" style={{ flex: 1 }} onClick={() => { setEditing(false); setForm(profile); setErr(null); }}>Annulla</button>
+                <button className="btn ghost" style={{ flex: 1 }} onClick={() => { setEditing(false); setForm(profile); const sp = splitPhone(profile.phone); setPhonePrefix(sp.prefix); setPhoneNumber(sp.number); setErr(null); setAddrOpen(false); }}>Annulla</button>
               </div>
             </div>
           )}

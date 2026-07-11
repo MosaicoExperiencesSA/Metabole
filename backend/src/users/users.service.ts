@@ -74,8 +74,8 @@ export class UsersService {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
       select: {
-        email: true, firstName: true, lastName: true,
-        addressLine: true, postalCode: true, city: true, province: true, phone: true,
+        email: true, secondaryEmail: true, firstName: true, lastName: true,
+        addressLine: true, postalCode: true, city: true, province: true, country: true, phone: true,
         clientProfile: { select: { name: true } },
       },
     });
@@ -87,10 +87,10 @@ export class UsersService {
   /** La cliente aggiorna i propri dati (mai l'email: quella ha un flusso a parte con verifica). */
   async updateMyProfile(
     userId: string,
-    dto: { firstName?: string; lastName?: string; nickname?: string; addressLine?: string; postalCode?: string; city?: string; province?: string; phone?: string },
+    dto: { firstName?: string; lastName?: string; nickname?: string; addressLine?: string; postalCode?: string; city?: string; province?: string; country?: string; phone?: string },
   ) {
     const userData: Record<string, string | null> = {};
-    for (const k of ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const) {
+    for (const k of ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'country', 'phone'] as const) {
       if (dto[k] !== undefined) userData[k] = dto[k]!.trim() || null;
     }
     if (Object.keys(userData).length) {

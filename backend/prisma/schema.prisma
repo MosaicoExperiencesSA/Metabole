@@ -39,6 +39,7 @@ enum ConfigParamType {
 enum ActionTokenType {
   email_verification
   password_reset
+  email_change
 }
 
 enum Sex {
@@ -211,6 +212,7 @@ enum MealSlot {
 model User {
   id              String     @id @default(uuid())
   email           String     @unique
+  secondaryEmail  String?    @unique @map("secondary_email") // email alternativa per il login (verificata); notifiche/ricevute vanno sempre alla principale `email`
   passwordHash    String     @map("password_hash")
   role            Role       @default(client)
   customRoleKey   String?    @map("custom_role_key") // ruolo personalizzato (etichetta+menu); il ruolo di sistema resta in `role`
@@ -228,6 +230,7 @@ model User {
   postalCode      String?    @map("postal_code")  // CAP
   city            String?
   province        String?
+  country         String?    // paese dell'indirizzo (es. Italia, Svizzera)
   phone           String?
 
   auditLogs       AuditLog[]
@@ -992,6 +995,7 @@ model ActionToken {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      ActionTokenType
   tokenHash String          @unique @map("token_hash")
+  email     String?         // email di destinazione (per il cambio email)
   expiresAt DateTime        @map("expires_at")
   usedAt    DateTime?       @map("used_at")
   createdAt DateTime        @default(now()) @map("created_at")

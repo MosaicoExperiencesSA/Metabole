@@ -247,6 +247,10 @@ p { line-height: 1.5; }
 .recipe-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
 .recipe-steps { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
 .storico-row { display: flex; align-items: center; gap: 10px; padding: 11px 13px; }
+.addr-pop { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); overflow: hidden; }
+.addr-opt { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 10px 12px; background: none; border: none; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink); cursor: pointer; }
+.addr-opt:last-child { border-bottom: none; }
+.addr-opt:hover { background: #F3F7F5; }
 .prog-track { height: 10px; border-radius: 6px; background: #E7EFE9; overflow: hidden; }
 .prog-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #12A386, #2AA7C4); transition: width .4s ease; }
 .storico-thumb { width: 30px; height: 30px; flex: none; border-radius: 9px; background: #f2efe8; color: #b3aFA4; display: flex; align-items: center; justify-content: center; }
