@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 
 interface NamedLoss { name: string; lossKg: number }
@@ -65,32 +66,55 @@ function BarList({ title, items, unit }: { title: string; items: NamedLoss[]; un
 }
 
 export function Grafici() {
+  const { can } = useAuth();
+  const isAdmin = can('charts', 'manage');
   const [data, setData] = useState<Charts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [demoBusy, setDemoBusy] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setData(await api<Charts>('/admin/charts'));
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 403) setError('Non hai accesso ai grafici.');
-        else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  async function load() {
+    setLoading(true); setError(null);
+    try {
+      setData(await api<Charts>('/admin/charts'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Non hai accesso ai grafici.');
+      else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { void load(); }, []);
+
+  async function demo(action: 'seed' | 'clear') {
+    if (action === 'clear' && !confirm('Rimuovere tutti i dati demo?')) return;
+    setDemoBusy(true); setError(null);
+    try {
+      await api('/admin/charts/demo', { method: action === 'seed' ? 'POST' : 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Operazione non riuscita.');
+    } finally { setDemoBusy(false); }
+  }
 
   if (loading) return <Spinner />;
-  if (error) return <Banner kind="err">{error}</Banner>;
+  if (error && !data) return <Banner kind="err">{error}</Banner>;
   if (!data) return null;
 
   return (
     <>
-      <p className="hint" style={{ marginTop: 0 }}>
-        {data.scope === 'all' ? 'Dati di tutti i clienti.' : 'Dati dei tuoi clienti.'} · {data.clientsCount} clienti
-      </p>
+      {error && <Banner kind="err">{error}</Banner>}
+      <div className="spread" style={{ marginTop: 0, marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+        <p className="hint" style={{ margin: 0 }}>
+          {data.scope === 'all' ? 'Dati di tutti i clienti.' : 'Dati dei tuoi clienti.'} · {data.clientsCount} clienti
+        </p>
+        {isAdmin && (
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn ghost sm" disabled={demoBusy} onClick={() => demo('seed')}><i className="ti ti-sparkles" /> Genera dati demo</button>
+            <button className="btn ghost sm" disabled={demoBusy} onClick={() => demo('clear')} style={{ color: 'var(--danger)' }}><i className="ti ti-trash" /> Rimuovi demo</button>
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12, marginBottom: 16 }}>
         <Stat label="Kg persi questo mese" value={kg(data.kgLostThisMonth)} icon="ti-scale" color="var(--teal-dark)" />

@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const round1 = (n: number) => Math.round(n * 10) / 10;
+const DEMO_DOMAIN = '@demo.metabole.local';
+const DEMO_NOTE = '__demo_analytics__';
 
 interface Meas { clientId: string; date: Date; weightKg: number; waistCm: number | null }
 
@@ -113,5 +115,75 @@ export class AnalyticsService {
       avgLossKg: lossByClient.length ? round1(lossByClient.reduce((a, c) => a + c.lossKg, 0) / lossByClient.length) : 0,
       activeSubscriptions: activeSubs,
     };
+  }
+
+  // ---------- Dati demo (per vedere i grafici popolati) ----------
+
+  /** Crea 6 clienti demo con 6 mesi di misure, pagamenti e provvigioni. Idempotente. */
+  async seedDemo() {
+    const coach = await this.prisma.staff.findFirst({ where: { user: { role: 'coach' } }, select: { id: true } });
+    const nutri = await this.prisma.staff.findFirst({ where: { user: { role: 'nutritionist' } }, select: { id: true } });
+    const now = new Date();
+    const demos = [
+      { name: 'Demo Anna', startW: 88, lossKg: 7.5, startWaist: 98, lossCm: 9, tenure: 9, spend: 79700 },
+      { name: 'Demo Bruno', startW: 102, lossKg: 9.2, startWaist: 112, lossCm: 11, tenure: 7, spend: 49700 },
+      { name: 'Demo Carla', startW: 76, lossKg: 4.1, startWaist: 88, lossCm: 5, tenure: 5, spend: 29700 },
+      { name: 'Demo Dario', startW: 95, lossKg: 6.0, startWaist: 104, lossCm: 7, tenure: 11, spend: 79700 },
+      { name: 'Demo Elena', startW: 82, lossKg: 2.3, startWaist: 92, lossCm: 3, tenure: 4, spend: 29700 },
+      { name: 'Demo Franco', startW: 110, lossKg: 8.7, startWaist: 118, lossCm: 10, tenure: 6, spend: 49700 },
+    ];
+    let count = 0;
+    for (let i = 0; i < demos.length; i++) {
+      const d = demos[i];
+      const email = `demo${i + 1}${DEMO_DOMAIN}`;
+      const createdAt = new Date(now.getFullYear(), now.getMonth() - d.tenure, 5);
+      const user = await this.prisma.user.upsert({
+        where: { email },
+        update: {},
+        create: { email, passwordHash: 'demo-disabled-account', role: 'client' as never, firstName: d.name.split(' ')[1], lastName: 'Demo', createdAt },
+      });
+      await this.prisma.clientProfile.upsert({
+        where: { userId: user.id },
+        update: { assignedCoachId: coach?.id ?? null, assignedNutritionistId: nutri?.id ?? null },
+        create: { userId: user.id, name: d.name, assignedCoachId: coach?.id ?? null, assignedNutritionistId: nutri?.id ?? null },
+      });
+      // Misure ogni 10 giorni per 6 mesi (peso e vita in calo).
+      const points = 18;
+      for (let k = 0; k < points; k++) {
+        const date = new Date(now);
+        date.setDate(now.getDate() - (points - 1 - k) * 10);
+        date.setHours(0, 0, 0, 0);
+        const frac = k / (points - 1);
+        await this.prisma.measurement.upsert({
+          where: { clientId_date: { clientId: user.id, date } },
+          update: { weightKg: +(d.startW - d.lossKg * frac).toFixed(1), waistCm: +(d.startWaist - d.lossCm * frac).toFixed(1) },
+          create: { clientId: user.id, date, weightKg: +(d.startW - d.lossKg * frac).toFixed(1), waistCm: +(d.startWaist - d.lossCm * frac).toFixed(1) },
+        });
+      }
+      // Pagamento approvato + provvigione coach, distribuiti su questo mese e mesi passati.
+      const existingPay = await this.prisma.payment.findFirst({ where: { clientId: user.id, description: 'Abbonamento DEMO' } });
+      if (!existingPay) {
+        const payDate = new Date(now.getFullYear(), now.getMonth() - (i % 4), 3);
+        await this.prisma.payment.create({
+          data: { clientId: user.id, amountCents: d.spend, description: 'Abbonamento DEMO', method: 'card' as never, status: 'approved' as never, createdAt: payDate, approvedAt: payDate },
+        });
+        if (coach) {
+          await this.prisma.ledgerEntry.create({
+            data: { type: 'expense' as never, category: 'sales_commission', amountCents: Math.round(d.spend * 0.1), staffId: coach.id, clientId: user.id, date: payDate, note: DEMO_NOTE },
+          });
+        }
+      }
+      count++;
+    }
+    return { seeded: count };
+  }
+
+  /** Rimuove tutti i dati demo. */
+  async clearDemo() {
+    const users = (await this.prisma.user.findMany({ where: { email: { endsWith: DEMO_DOMAIN } }, select: { id: true } })) as { id: string }[];
+    const ids = users.map((u) => u.id);
+    await this.prisma.ledgerEntry.deleteMany({ where: { note: DEMO_NOTE } });
+    if (ids.length) await this.prisma.user.deleteMany({ where: { id: { in: ids } } });
+    return { removed: ids.length };
   }
 }
