@@ -231,7 +231,7 @@ p { line-height: 1.5; }
 /* Carosello pasti (come il prototipo): scorrimento orizzontale con snap + puntini */
 .meal-carousel { display: flex; gap: 11px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-bottom: 2px; scrollbar-width: none; }
 .meal-carousel::-webkit-scrollbar { display: none; }
-.meal-carousel > .meal-row { min-width: 100%; scroll-snap-align: start; }
+.meal-carousel > .meal-row, .meal-carousel > .card { min-width: 100%; scroll-snap-align: start; margin: 0; }
 .home-dots { display: flex; justify-content: center; gap: 5px; margin: 9px 0 2px; }
 .home-dots > span { width: 6px; height: 6px; border-radius: 50%; background: #d6ded9; transition: background 0.15s ease; }
 .home-dots > span.on { background: var(--teal); }

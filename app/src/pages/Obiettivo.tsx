@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
@@ -26,12 +26,15 @@ function Spark({ vals, color }: { vals: number[]; color: string }) {
   const min = Math.min(...vals);
   const max = Math.max(...vals);
   const range = max - min || 1;
-  const w = 100;
-  const h = 40;
-  const pts = vals.map((v, i) => `${(i / Math.max(vals.length - 1, 1)) * w},${(h - 2) - ((v - min) / range) * (h - 4) + 2}`).join(' ');
+  const w = 250;
+  const h = 64;
+  const x = (i: number) => (i / Math.max(vals.length - 1, 1)) * w;
+  const y = (v: number) => h - ((v - min) / range) * h * 0.85 - 5;
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="52" preserveAspectRatio="none">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="66" preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+      {vals.map((v, i) => <circle key={i} cx={x(i).toFixed(1)} cy={y(v).toFixed(1)} r="3" fill={color} />)}
     </svg>
   );
 }
@@ -51,6 +54,13 @@ export default function Obiettivo() {
   const [hips, setHips] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const chartsRef = useRef<HTMLDivElement>(null);
+  const [chartIdx, setChartIdx] = useState(0);
+
+  function onChartsScroll() {
+    const el = chartsRef.current;
+    if (el) setChartIdx(Math.round(el.scrollLeft / el.clientWidth));
+  }
 
   async function load() {
     const [ms, obj] = await Promise.all([
@@ -124,27 +134,40 @@ export default function Obiettivo() {
         </div>
       ) : (
         <>
-          {/* Andamento */}
-          <div className="sec">Andamento</div>
-          <div className="meals-col">
-            {METRICS.map((m) => {
-              const series = measurements.map((x) => x[m.key] as number | null).filter((v): v is number => v != null);
-              if (series.length < 2) return null;
-              const delta = series[0] - series[series.length - 1];
-              return (
-                <div className="card" key={m.key}>
-                  <div className="row-between" style={{ marginBottom: 8 }}>
-                    <b style={{ fontSize: 13 }}>Andamento {m.label.toLowerCase()}</b>
-                    <span style={{ fontSize: 11, color: m.color, fontWeight: 600 }}>{delta >= 0 ? '-' : '+'}{d1(Math.abs(delta))} {m.unit}</span>
-                  </div>
-                  <Spark vals={series} color={m.color} />
-                  <div className="row-between" style={{ fontSize: 10, color: '#9aa', marginTop: 4 }}>
-                    <span>inizio</span><span>oggi</span>
-                  </div>
+          {/* Andamento — carosello di grafici (come il prototipo) */}
+          {(() => {
+            const charts = METRICS
+              .map((m) => ({ m, series: measurements.map((x) => x[m.key] as number | null).filter((v): v is number => v != null) }))
+              .filter((c) => c.series.length >= 2);
+            if (charts.length === 0) return null;
+            return (
+              <>
+                <div className="sec">Andamento <span className="muted" style={{ fontWeight: 400 }}>· scorri i grafici</span></div>
+                <div className="meal-carousel" ref={chartsRef} onScroll={onChartsScroll}>
+                  {charts.map(({ m, series }) => {
+                    const delta = series[0] - series[series.length - 1];
+                    return (
+                      <div className="card" key={m.key}>
+                        <div className="row-between" style={{ marginBottom: 8 }}>
+                          <b style={{ fontSize: 13 }}>Andamento {m.label.toLowerCase()}</b>
+                          <span style={{ fontSize: 11, color: m.color, fontWeight: 600 }}>{delta >= 0 ? '-' : '+'}{d1(Math.abs(delta))} {m.unit}</span>
+                        </div>
+                        <Spark vals={series} color={m.color} />
+                        <div className="row-between" style={{ fontSize: 10, color: '#9aa', marginTop: 4 }}>
+                          <span>inizio</span><span>oggi</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+                {charts.length > 1 && (
+                  <div className="home-dots">
+                    {charts.map((_, i) => <span key={i} className={i === chartIdx ? 'on' : ''} />)}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Progressi */}
           <div className="card" style={{ marginTop: 12 }}>
