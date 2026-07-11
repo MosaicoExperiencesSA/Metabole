@@ -43,6 +43,7 @@ export const PAGE_LABEL: Record<string, string> = {
   permissions: 'Permessi',
   email_templates: 'Modelli email',
   email_log: 'Log email',
+  pdf_templates: 'Grafica PDF',
 };
 
 export function pageLabel(key: string): string {

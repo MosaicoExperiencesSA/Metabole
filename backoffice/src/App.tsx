@@ -22,6 +22,7 @@ import { LeadsTable } from './pages/LeadsTable';
 import { LogAttivita } from './pages/LogAttivita';
 import { LogEmail } from './pages/LogEmail';
 import { ModelliEmail } from './pages/ModelliEmail';
+import { GraficaPdf } from './pages/GraficaPdf';
 import { Parametri } from './pages/Parametri';
 import { Payments } from './pages/Payments';
 import { Permissions } from './pages/Permissions';
@@ -82,6 +83,7 @@ export default function App() {
       <Route path="/log" element={<Protected title="Log attività" pageKey="audit_logs"><LogAttivita /></Protected>} />
       <Route path="/email-modelli" element={<Protected title="Modelli email" pageKey="email_templates"><ModelliEmail /></Protected>} />
       <Route path="/email-log" element={<Protected title="Log email" pageKey="email_log"><LogEmail /></Protected>} />
+      <Route path="/grafica-pdf" element={<Protected title="Grafica PDF" pageKey="pdf_templates"><GraficaPdf /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -64,6 +64,7 @@ const NAV: NavSection[] = [
     items: [
       { key: 'email_templates', label: 'Modelli email', to: '/email-modelli', icon: 'ti-mail-cog' },
       { key: 'email_log', label: 'Log email', to: '/email-log', icon: 'ti-mail-check' },
+      { key: 'pdf_templates', label: 'Grafica PDF', to: '/grafica-pdf', icon: 'ti-file-type-pdf' },
     ],
   },
   {

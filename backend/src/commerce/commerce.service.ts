@@ -13,6 +13,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PdfService } from '../pdf/pdf.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
@@ -46,6 +47,7 @@ export class CommerceService {
     private readonly stripe: StripeService,
     private readonly audit: AuditService,
     private readonly discounts: DiscountsService,
+    private readonly pdf: PdfService,
   ) {
     this.receiptKey = deriveKey(this.config.get<string>('FILE_ENCRYPTION_KEY') ?? 'dev-only-file-key');
   }
@@ -725,6 +727,24 @@ export class CommerceService {
     const methodLabel = p.method === 'card' ? 'Carta' : p.method === 'manual' ? 'Manuale' : 'Bonifico';
     const statusLabel = p.status === 'approved' ? 'Pagato' : p.status === 'rejected' ? 'Rifiutato' : 'In attesa';
     const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
+    const fileName = `${number}.pdf`;
+
+    // Preferisci il template HTML modificabile (Chromium); in caso di problemi, ripiega su pdfkit.
+    try {
+      const htmlPdf = await this.pdf.renderTemplatePdf('receipt', {
+        number,
+        date: date.toLocaleDateString('it-IT'),
+        clientName,
+        email: p.client?.email ?? '',
+        description: p.description,
+        method: methodLabel,
+        status: statusLabel,
+        total: euro(p.amountCents),
+      });
+      return { fileName, mimeType: 'application/pdf', contentBase64: htmlPdf.toString('base64') };
+    } catch {
+      /* Chromium non disponibile: uso il generatore storico (pdfkit) qui sotto. */
+    }
 
     const buffer = await new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 56 });

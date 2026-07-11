@@ -1086,6 +1086,18 @@ model EmailTemplate {
   @@map("email_template")
 }
 
+/** Template HTML dei PDF inviati ai clienti (ricevuta, report mensile), modificabili da admin. */
+model PdfTemplate {
+  key         String   @id // 'receipt', 'monthly_report'
+  name        String
+  html        String
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("pdf_template")
+}
+
 // Log di ogni email tentata (per verificare gli invii).
 model EmailLog {
   id          String   @id @default(uuid())

@@ -113,8 +113,9 @@ export class MailService {
   }
 
   async sendEmailVerification(to: string, token: string, locale?: string | null): Promise<boolean> {
-    const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole-backend.onrender.com';
-    const link = `${appUrl}/api/v1/auth/verify-email?token=${token}`;
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole.vercel.app';
+    // Il link apre una pagina dell'app (che poi chiama l'API), non l'endpoint API diretto.
+    const link = `${appUrl}/verifica-email?token=${token}`;
     const vars = { link, token };
     const { subject, html } = await this.resolve('email_verification', {
       subject: this.i18n.text(locale, 'mail.verify.subject'),

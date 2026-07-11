@@ -31,6 +31,7 @@ import { ProfileModule } from './profile/profile.module';
 import { RolesModule } from './roles/roles.module';
 import { SignalsModule } from './signals/signals.module';
 import { UsersModule } from './users/users.module';
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { UsersModule } from './users/users.module';
     I18nModule,
     MailModule,
     ConfigParamsModule,
+    PdfModule,
     AuthModule,
     UsersModule,
     RolesModule,

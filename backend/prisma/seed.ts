@@ -7,6 +7,7 @@ import * as argon2 from 'argon2';
 import { PrismaClient, ConfigParamType } from '@prisma/client';
 import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS } from '../src/permissions/pages';
 import { ROLES } from '../src/common/roles';
+import { DEFAULT_PDF_TEMPLATES } from '../src/pdf/pdf.defaults';
 
 const prisma = new PrismaClient();
 
@@ -191,6 +192,16 @@ async function seedEmailTemplates(): Promise<void> {
       where: { key: t.key },
       create: t,
       update: { name: t.name }, // non tocca subject/body: l'admin può averli modificati
+    });
+  }
+}
+
+async function seedPdfTemplates(): Promise<void> {
+  for (const t of DEFAULT_PDF_TEMPLATES) {
+    await prisma.pdfTemplate.upsert({
+      where: { key: t.key },
+      create: { key: t.key, name: t.name, html: t.html },
+      update: { name: t.name }, // non tocca html: l'admin può averlo modificato
     });
   }
 }
@@ -505,6 +516,7 @@ async function main(): Promise<void> {
   await backfillPaidClientsIntoCrm();
   await backfillCoachRefCodes();
   await seedEmailTemplates();
+  await seedPdfTemplates();
   const count = await prisma.configParam.count();
   const permCount = await prisma.rolePagePermission.count();
   console.log(
