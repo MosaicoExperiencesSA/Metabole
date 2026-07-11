@@ -123,6 +123,18 @@ export class MailService {
     return this.send({ to, subject, html, templateKey: 'email_verification' });
   }
 
+  /** Verifica della NUOVA email nel cambio email: il link apre una pagina dell'app. */
+  async sendEmailChangeVerification(to: string, token: string, locale?: string | null): Promise<boolean> {
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://metabole.vercel.app';
+    const link = `${appUrl}/conferma-email?token=${token}`;
+    const vars = { link, token };
+    const { subject, html } = await this.resolve('email_verification', {
+      subject: this.i18n.text(locale, 'mail.verify.subject'),
+      html: this.i18n.text(locale, 'mail.verify.body', vars),
+    }, vars);
+    return this.send({ to, subject, html, templateKey: 'email_verification' });
+  }
+
   async sendBankTransferInstructions(
     to: string,
     input: { description: string; amountCents: number; bankDetails: string; reference: string },

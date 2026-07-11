@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Ip,
   Post,
   Query,
 } from '@nestjs/common';
+import { IsEmail, MaxLength } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -20,6 +22,12 @@ import {
 import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+
+class RequestEmailChangeDto {
+  @IsEmail()
+  @MaxLength(160)
+  newEmail!: string;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -69,6 +77,38 @@ export class AuthController {
   @Get('verify-email')
   verifyEmailByLink(@Query('token') token: string) {
     return this.auth.verifyEmail(token ?? '');
+  }
+
+  // ---------- Cambio email (autenticato) ----------
+
+  /** Chiede il cambio email: invia il link di verifica alla nuova email. */
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(202)
+  @Post('email-change/request')
+  async requestEmailChange(@CurrentUser() user: AuthUser, @Body() dto: RequestEmailChangeDto) {
+    await this.auth.requestEmailChange(user.sub, dto.newEmail);
+    return { message: 'Ti abbiamo inviato un link di conferma alla nuova email.' };
+  }
+
+  /** Conferma dal link (pubblico: il token fa da autenticazione). */
+  @Public()
+  @HttpCode(200)
+  @Post('email-change/confirm')
+  confirmEmailChange(@Body() dto: VerifyEmailDto) {
+    return this.auth.confirmEmailChange(dto.token);
+  }
+
+  /** Rende principale l'email secondaria (scambio). */
+  @HttpCode(200)
+  @Post('email/primary')
+  makePrimary(@CurrentUser() user: AuthUser) {
+    return this.auth.makeSecondaryPrimary(user.sub);
+  }
+
+  /** Rimuove l'email secondaria. */
+  @Delete('email/secondary')
+  removeSecondary(@CurrentUser() user: AuthUser) {
+    return this.auth.removeSecondaryEmail(user.sub);
   }
 
   @Public()

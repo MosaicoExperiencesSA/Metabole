@@ -16,6 +16,7 @@ import Profilo from './pages/Profilo';
 import Checkout from './pages/Checkout';
 import Onboarding from './pages/Onboarding';
 import PaymentResult from './pages/PaymentResult';
+import ConfermaEmail from './pages/ConfermaEmail';
 
 function Centered() {
   return (
@@ -39,6 +40,7 @@ function Shell() {
           <Route path="/obiettivo" element={<Obiettivo />} />
           <Route path="/negozio" element={<Negozio />} />
           <Route path="/profilo" element={<Profilo />} />
+          <Route path="/conferma-email" element={<ConfermaEmail />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment/success" element={<PaymentResult ok />} />
           <Route path="/payment/cancelled" element={<PaymentResult ok={false} />} />
@@ -85,6 +87,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/conferma-email" element={<ConfermaEmail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );

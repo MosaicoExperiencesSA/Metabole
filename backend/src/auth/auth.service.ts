@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
@@ -90,7 +91,10 @@ export class AuthService {
 
   async login(email: string, password: string, ip?: string) {
     const normalized = email.trim().toLowerCase();
-    const user = await this.prisma.user.findUnique({ where: { email: normalized } });
+    // Accetta sia l'email principale sia quella secondaria (login alternativo).
+    const user = await this.prisma.user.findFirst({
+      where: { OR: [{ email: normalized }, { secondaryEmail: normalized }] },
+    });
     const invalid = new UnauthorizedException('Credenziali non valide');
     if (!user || user.status !== 'active' || user.deletedAt) {
       await this.audit.log({ action: 'auth.login_failed', metadata: { email: normalized }, ipAddress: ip });
@@ -204,6 +208,77 @@ export class AuthService {
       entityId: record.userId,
     });
     return { verified: true };
+  }
+
+  // ---------- Cambio email (con verifica + email secondaria) ----------
+
+  /** La cliente chiede di aggiungere/cambiare email: verifica via link sulla NUOVA email. */
+  async requestEmailChange(userId: string, newEmailRaw: string): Promise<void> {
+    const newEmail = newEmailRaw.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utente non trovato');
+    if (newEmail === user.email.toLowerCase() || (user.secondaryEmail && newEmail === user.secondaryEmail.toLowerCase())) {
+      throw new BadRequestException('Questa email è già collegata al tuo account.');
+    }
+    const taken = await this.prisma.user.findFirst({
+      where: { OR: [{ email: newEmail }, { secondaryEmail: newEmail }], NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (taken) throw new BadRequestException('Email già in uso da un altro account.');
+
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.actionToken.create({
+      data: { userId, type: 'email_change', tokenHash: sha256(token), email: newEmail, expiresAt: new Date(Date.now() + 48 * 3600_000) },
+    });
+    await this.audit.log({ action: 'auth.email_change_requested', actorId: userId, entityType: 'user', entityId: userId, metadata: { newEmail } });
+    await this.mail.sendEmailChangeVerification(newEmail, token, user.locale);
+  }
+
+  /** Conferma dal link: la nuova email diventa email SECONDARIA (verificata). */
+  async confirmEmailChange(token: string): Promise<{ ok: boolean; email: string }> {
+    const record = await this.prisma.actionToken.findUnique({ where: { tokenHash: sha256(token) } });
+    if (!record || record.type !== 'email_change' || record.usedAt || record.expiresAt < new Date() || !record.email) {
+      throw new BadRequestException('Link di conferma non valido o scaduto.');
+    }
+    const newEmail = record.email.toLowerCase();
+    const taken = await this.prisma.user.findFirst({
+      where: { OR: [{ email: newEmail }, { secondaryEmail: newEmail }], NOT: { id: record.userId } },
+      select: { id: true },
+    });
+    if (taken) throw new BadRequestException('Email già in uso da un altro account.');
+    await this.prisma.$transaction([
+      this.prisma.actionToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+      this.prisma.user.update({ where: { id: record.userId }, data: { secondaryEmail: newEmail } }),
+    ]);
+    await this.audit.log({ action: 'auth.email_change_confirmed', actorId: record.userId, entityType: 'user', entityId: record.userId, metadata: { newEmail } });
+    return { ok: true, email: newEmail };
+  }
+
+  /** Scambia principale e secondaria: la secondaria diventa quella per notifiche/ricevute. */
+  async makeSecondaryPrimary(userId: string): Promise<{ email: string; secondaryEmail: string | null }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utente non trovato');
+    if (!user.secondaryEmail) throw new BadRequestException('Non hai un\'email secondaria da rendere principale.');
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { email: user.secondaryEmail, secondaryEmail: user.email },
+      select: { email: true, secondaryEmail: true },
+    });
+    await this.audit.log({ action: 'auth.email_primary_swapped', actorId: userId, entityType: 'user', entityId: userId });
+    return updated;
+  }
+
+  /** Rimuove l'email secondaria (resta solo la principale). */
+  async removeSecondaryEmail(userId: string): Promise<{ email: string; secondaryEmail: string | null }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { secondaryEmail: true } });
+    if (!user?.secondaryEmail) throw new BadRequestException('Non hai un\'email secondaria da rimuovere.');
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { secondaryEmail: null },
+      select: { email: true, secondaryEmail: true },
+    });
+    await this.audit.log({ action: 'auth.email_secondary_removed', actorId: userId, entityType: 'user', entityId: userId });
+    return updated;
   }
 
   // ---------- Reset password ----------

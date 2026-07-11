@@ -67,6 +67,13 @@ export default function Profilo() {
   const [savingData, setSavingData] = useState(false);
   const [dataMsg, setDataMsg] = useState<string | null>(null);
 
+  // Gestione email (cambio con verifica + secondaria)
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
+
   // Autocompletamento indirizzo (OpenStreetMap / Nominatim, senza chiave)
   const [addrSug, setAddrSug] = useState<AddrSuggestion[]>([]);
   const [addrOpen, setAddrOpen] = useState(false);
@@ -142,6 +149,39 @@ export default function Profilo() {
     }
   }
 
+  async function requestEmailChange() {
+    setEmailBusy(true); setEmailErr(null); setEmailMsg(null);
+    try {
+      await api('/auth/email-change/request', { method: 'POST', body: JSON.stringify({ newEmail: newEmail.trim() }) });
+      setEmailMsg('Ti abbiamo inviato un link di conferma alla nuova email: aprilo per confermarla.');
+      setNewEmail(''); setEmailOpen(false);
+    } catch (e) {
+      setEmailErr(e instanceof ApiError ? e.message : 'Richiesta non riuscita.');
+    } finally { setEmailBusy(false); }
+  }
+
+  async function makePrimary() {
+    setEmailBusy(true); setEmailErr(null); setEmailMsg(null);
+    try {
+      const r = await api<{ email: string; secondaryEmail: string | null }>('/auth/email/primary', { method: 'POST' });
+      setProfile((p) => (p ? { ...p, email: r.email, secondaryEmail: r.secondaryEmail } : p));
+      setEmailMsg('Email principale aggiornata. Notifiche e ricevute andranno alla nuova principale.');
+    } catch (e) {
+      setEmailErr(e instanceof ApiError ? e.message : 'Operazione non riuscita.');
+    } finally { setEmailBusy(false); }
+  }
+
+  async function removeSecondary() {
+    setEmailBusy(true); setEmailErr(null); setEmailMsg(null);
+    try {
+      const r = await api<{ email: string; secondaryEmail: string | null }>('/auth/email/secondary', { method: 'DELETE' });
+      setProfile((p) => (p ? { ...p, secondaryEmail: r.secondaryEmail } : p));
+      setEmailMsg('Email secondaria rimossa.');
+    } catch (e) {
+      setEmailErr(e instanceof ApiError ? e.message : 'Operazione non riuscita.');
+    } finally { setEmailBusy(false); }
+  }
+
   async function downloadReceipt(id: string) {
     setBusyId(id);
     setErr(null);
@@ -192,11 +232,6 @@ export default function Profilo() {
               <div><span className="muted">Nickname:</span> <b>{profile.nickname || '—'}</b></div>
               <div><span className="muted">Indirizzo:</span> <b>{[profile.addressLine, profile.postalCode, profile.city, profile.province, profile.country].filter(Boolean).join(', ') || '—'}</b></div>
               <div><span className="muted">Telefono:</span> <b>{profile.phone || '—'}</b></div>
-              <div style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>
-                <span className="muted">Email:</span> <b>{profile.email}</b>
-                {profile.secondaryEmail && <div style={{ marginTop: 2 }}><span className="muted">Email secondaria:</span> <b>{profile.secondaryEmail}</b></div>}
-                <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Per cambiare email userai una verifica via link (in arrivo).</div>
-              </div>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
@@ -255,6 +290,50 @@ export default function Profilo() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Le mie email */}
+      {profile && (
+        <>
+          <div className="sec">Le mie email</div>
+          {emailMsg && <div className="banner ok" style={{ marginBottom: 10 }}>{emailMsg}</div>}
+          {emailErr && <div className="banner err" style={{ marginBottom: 10 }}>{emailErr}</div>}
+          <div className="card" style={{ display: 'grid', gap: 10 }}>
+            <div className="row-between">
+              <div style={{ minWidth: 0 }}>
+                <b style={{ wordBreak: 'break-all' }}>{profile.email}</b>
+                <div className="muted" style={{ fontSize: 11 }}>Principale · notifiche e ricevute</div>
+              </div>
+              <span className="chip" style={{ background: '#DCF0D8', color: '#3B6D11', flex: '0 0 auto' }}>Principale</span>
+            </div>
+
+            {profile.secondaryEmail && (
+              <div style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+                <b style={{ wordBreak: 'break-all' }}>{profile.secondaryEmail}</b>
+                <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>Secondaria · login alternativo</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn-recipe" onClick={makePrimary} disabled={emailBusy}>Rendi principale</button>
+                  <button className="btn-recipe" style={{ background: '#f3e3e1', color: '#b3261e' }} onClick={removeSecondary} disabled={emailBusy}>Rimuovi</button>
+                </div>
+              </div>
+            )}
+
+            {!emailOpen ? (
+              <button className="btn ghost" onClick={() => { setEmailOpen(true); setEmailErr(null); setEmailMsg(null); }}>
+                <i className="ti ti-mail-plus" /> {profile.secondaryEmail ? 'Cambia email' : 'Aggiungi / cambia email'}
+              </button>
+            ) : (
+              <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+                <div className="muted" style={{ fontSize: 12 }}>Inserisci la nuova email: ti mandiamo un link di conferma. Dopo la verifica potrai sceglierla come principale o tenerle entrambe.</div>
+                <input className="input" type="email" inputMode="email" placeholder="nuova@email.it" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn" style={{ flex: 1 }} onClick={requestEmailChange} disabled={emailBusy || !newEmail.trim()}>{emailBusy ? 'Invio…' : 'Invia link'}</button>
+                  <button className="btn ghost" style={{ flex: 1 }} onClick={() => { setEmailOpen(false); setNewEmail(''); }}>Annulla</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Piano attivo */}
