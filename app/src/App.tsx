@@ -7,8 +7,11 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Home from './pages/Home';
+import Menu from './pages/Menu';
+import Calendario from './pages/Calendario';
+import Obiettivo from './pages/Obiettivo';
+import Negozio from './pages/Negozio';
 import Onboarding from './pages/Onboarding';
-import Placeholder from './pages/Placeholder';
 
 function Centered() {
   return (
@@ -27,10 +30,10 @@ function Shell() {
       <div className="screen">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/menu" element={<Placeholder title="Menu & Diario" icon="ti-salad" />} />
-          <Route path="/calendario" element={<Placeholder title="Calendario" icon="ti-calendar-heart" />} />
-          <Route path="/obiettivo" element={<Placeholder title="Obiettivo" icon="ti-target" />} />
-          <Route path="/negozio" element={<Placeholder title="Negozio" icon="ti-shopping-bag" />} />
+          <Route path="/menu" element={<Menu />} />
+          <Route path="/calendario" element={<Calendario />} />
+          <Route path="/obiettivo" element={<Obiettivo />} />
+          <Route path="/negozio" element={<Negozio />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
