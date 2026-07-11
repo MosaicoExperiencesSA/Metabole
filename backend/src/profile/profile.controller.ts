@@ -14,12 +14,17 @@ import { ProfileService } from './profile.service';
 export class ProfileController {
   constructor(private readonly profile: ProfileService) {}
 
-  @Get('profile')
+  /**
+   * Profilo CLINICO/onboarding completo (regime, stile, coach/nutrizionista, lifestyle).
+   * Path distinto da /me/profile (anagrafica, gestita da MeController) per evitare
+   * la collisione di rotta: due handler sullo stesso path si oscuravano a vicenda.
+   */
+  @Get('client-profile')
   getProfile(@CurrentUser() user: AuthUser) {
     return this.profile.getProfile(user.sub);
   }
 
-  @Patch('profile')
+  @Patch('client-profile')
   updateProfile(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
     return this.profile.updateProfile(user.sub, dto);
   }
