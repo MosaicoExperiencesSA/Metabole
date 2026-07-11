@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -84,6 +84,13 @@ export default function Home() {
   const [today, setToday] = useState<Today | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
+  const mealsRef = useRef<HTMLDivElement>(null);
+  const [mealIdx, setMealIdx] = useState(0);
+
+  function onMealsScroll() {
+    const el = mealsRef.current;
+    if (el) setMealIdx(Math.round(el.scrollLeft / el.clientWidth));
+  }
 
   useEffect(() => {
     api<Today>('/me/today').then(setToday).catch(() => {});
@@ -168,7 +175,7 @@ export default function Home() {
         <span className="sec" style={{ margin: 0 }}>I pasti di oggi <span className="muted" style={{ fontWeight: 400 }}>· 5 pasti</span></span>
         <span className="chip" style={{ cursor: 'pointer' }} onClick={() => setSheet('spesa')}><i className="ti ti-basket" style={{ fontSize: 13 }} /> Lista spesa</span>
       </div>
-      <div className="meals-col">
+      <div className="meal-carousel" ref={mealsRef} onScroll={onMealsScroll}>
         {MEALS.map((m, i) => (
           <div className="meal-row" key={i}>
             <div className="meal-thumb" style={{ background: m[5] }}><i className={`ti ${m[4]}`} style={{ color: m[6] }} /></div>
@@ -182,6 +189,9 @@ export default function Home() {
             </div>
           </div>
         ))}
+      </div>
+      <div className="home-dots">
+        {MEALS.map((_, i) => <span key={i} className={i === mealIdx ? 'on' : ''} />)}
       </div>
 
       <div className="sec">Ti serve una mano adesso?</div>

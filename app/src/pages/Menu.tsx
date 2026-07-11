@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 /**
  * Menu / diario — replica del prototipo: intestazione, toggle Oggi/Domani,
@@ -85,6 +85,23 @@ function Recipe({ meal, onBack }: { meal: Meal; onBack: () => void }) {
 export default function Menu() {
   const [day, setDay] = useState<'oggi' | 'domani'>('oggi');
   const [recipe, setRecipe] = useState<Meal | null>(null);
+  const mealsRef = useRef<HTMLDivElement>(null);
+  const [idx, setIdx] = useState(0);
+
+  function scrollTo(i: number) {
+    const el = mealsRef.current;
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' });
+  }
+  function onScroll() {
+    const el = mealsRef.current;
+    if (el) setIdx(Math.round(el.scrollLeft / el.clientWidth));
+  }
+  function pickDay(d: 'oggi' | 'domani') {
+    setDay(d);
+    setIdx(0);
+    const el = mealsRef.current;
+    if (el) el.scrollTo({ left: 0 });
+  }
 
   if (recipe) return <Recipe meal={recipe} onBack={() => setRecipe(null)} />;
 
@@ -99,12 +116,18 @@ export default function Menu() {
         </div>
       </div>
 
-      <div className="pill-row" style={{ marginBottom: 12 }}>
-        <button className={`pill${day === 'oggi' ? ' on' : ''}`} onClick={() => setDay('oggi')}>Oggi</button>
-        <button className={`pill${day === 'domani' ? ' on' : ''}`} onClick={() => setDay('domani')}>Domani</button>
+      <div className="pill-row" style={{ marginBottom: 10 }}>
+        <button className={`pill${day === 'oggi' ? ' on' : ''}`} onClick={() => pickDay('oggi')}>Oggi</button>
+        <button className={`pill${day === 'domani' ? ' on' : ''}`} onClick={() => pickDay('domani')}>Domani</button>
       </div>
 
-      <div className="meals-col">
+      <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+        {meals.map((m, i) => (
+          <button key={i} className={`pill${idx === i ? ' on' : ''}`} onClick={() => scrollTo(i)}>{m[0]}</button>
+        ))}
+      </div>
+
+      <div className="meal-carousel" ref={mealsRef} onScroll={onScroll}>
         {meals.map((m, i) => (
           <div className="meal-row" key={i}>
             <div className="meal-thumb" style={{ background: m[5] }}><i className={`ti ${m[4]}`} style={{ color: m[6] }} /></div>
@@ -119,12 +142,15 @@ export default function Menu() {
           </div>
         ))}
       </div>
+      <div className="home-dots">
+        {meals.map((_, i) => <span key={i} className={i === idx ? 'on' : ''} />)}
+      </div>
 
       <div className="sec">Storico menu</div>
       <div className="meals-col">
         {STORICO.map((s, i) => (
           <div className="card storico-row" key={i}>
-            <span className={`storico-thumb${s[2] ? ' ok' : ''}`}><i className={`ti ${s[2] ? 'ti-check' : 'ti-minus'}`} /></span>
+            <span className="storico-thumb" style={{ background: s[2] ? '#DCF0D8' : '#F7DAD6', color: s[2] ? '#3B6D11' : '#993C1D' }}><i className={`ti ${s[2] ? 'ti-thumb-up' : 'ti-thumb-down'}`} /></span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{s[0]}</div>
               <div className="muted" style={{ fontSize: 11 }}>{s[1]}</div>

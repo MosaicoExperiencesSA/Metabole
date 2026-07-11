@@ -263,7 +263,7 @@ function CalendarModule({ module: m }: { module: DashboardModule }) {
     api<CalReminder[]>('/crm/reminders?includeDone=false').then(setReminders).catch(() => setReminders([]));
   }, []);
   return (
-    <div className="card" style={{ margin: 0, gridColumn: '1 / -1' }}>
+    <div className="card" style={{ margin: 0 }}>
       <div className="spread" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <span style={{ width: 42, height: 42, borderRadius: 12, background: 'var(--chip)', color: 'var(--chip-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
