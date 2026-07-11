@@ -83,7 +83,7 @@
     var cheek=st.cheek?'<ellipse cx="86" cy="150" rx="12" ry="7.5" fill="#FF9DB0" opacity=".7"/><ellipse cx="154" cy="150" rx="12" ry="7.5" fill="#FF9DB0" opacity=".7"/>':'';
     return '<svg viewBox="0 0 240 250" style="width:'+w+'px;flex:none" aria-hidden="true"><defs><linearGradient id="cmB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93E7C8"/><stop offset="1" stop-color="#33B190"/></linearGradient><linearGradient id="cmBe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ECFCF4"/><stop offset="1" stop-color="#CBF2E3"/></linearGradient><linearGradient id="cmL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9EF7C"/><stop offset="1" stop-color="#54BD66"/></linearGradient></defs><g class="cmFloat"><g class="cmBreathe"><g class="cmSprout"><path d="M117 66 C112 44 96 40 92 46 C100 60 112 64 117 66Z" fill="url(#cmL)"/><path d="M123 66 C128 44 144 40 148 46 C140 60 128 64 123 66Z" fill="url(#cmL)"/><rect x="116" y="58" width="8" height="20" rx="4" fill="#3FA98C"/></g><ellipse cx="50" cy="168" rx="14" ry="22" fill="#57C0A2"/><ellipse cx="190" cy="168" rx="14" ry="22" fill="#57C0A2"/><path d="M120 70 C172 70 200 112 200 156 C200 208 162 226 120 226 C78 226 40 208 40 156 C40 112 68 70 120 70Z" fill="url(#cmB)"/><ellipse cx="105" cy="104" rx="40" ry="24" fill="#fff" opacity=".22"/><ellipse cx="120" cy="162" rx="50" ry="54" fill="url(#cmBe)"/><ellipse cx="98" cy="224" rx="16" ry="10" fill="#4FB495"/><ellipse cx="142" cy="224" rx="16" ry="10" fill="#4FB495"/>'+cheek+eyes+'<path class="gmouth" d="'+mouth+'" stroke="#25384A" stroke-width="5" stroke-linecap="round" fill="none"/></g></g></svg>';
   }
-  var COACH_CSS='<style>@keyframes cmFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}@keyframes cmBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}@keyframes cmSway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}@keyframes cmBlink{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}.cmFloat{animation:cmFloat 3.2s ease-in-out infinite}.cmBreathe{transform-box:fill-box;transform-origin:50% 92%;animation:cmBreathe 3.6s ease-in-out infinite}.cmSprout{transform-box:fill-box;transform-origin:50% 100%;animation:cmSway 3s ease-in-out infinite}.cmEye{transform-box:fill-box;animation:cmBlink 4.2s infinite}@keyframes gtalk{0%,100%{transform:scaleY(1)}50%{transform:scaleY(2.1)}}.gtalk{transform-box:fill-box;transform-origin:center;animation:gtalk .15s ease-in-out infinite}.greveal{max-height:96px;overflow-y:auto}</style>';
+  var COACH_CSS='<style>@keyframes cmFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}@keyframes cmBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}@keyframes cmSway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg)}}@keyframes cmBlink{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.08)}}.cmFloat{animation:cmFloat 3.2s ease-in-out infinite}.cmBreathe{transform-box:fill-box;transform-origin:50% 92%;animation:cmBreathe 3.6s ease-in-out infinite}.cmSprout{transform-box:fill-box;transform-origin:50% 100%;animation:cmSway 3s ease-in-out infinite}.cmEye{transform-box:fill-box;animation:cmBlink 4.2s infinite}.gmouth{transform-box:fill-box;transform-origin:center}.greveal{max-height:96px;overflow-y:auto}</style>';
   var FRASI=['Non è una dieta, è il tuo nuovo stile.','Un passo alla volta è comunque un passo avanti.','I piccoli gesti di oggi sono i risultati di domani.','Bevi, respira, muoviti: il resto viene.','Sii gentile con te: stai già facendo tanto.','La costanza batte la perfezione.'];
   var COACHST={buongiorno:{bg:'#2AA7C4',head:'Buongiorno,<br>Giulia!',eyes:'happy',mouth:'big',cheek:1,say:'Buongiorno! Un nuovo giorno, un passo alla volta.'},inrotta:{bg:'#12A386',head:'Sei in rotta,<br>Giulia!',eyes:'happy',mouth:'big',cheek:1,say:'Sei in rotta, continua così!'},acqua:{bg:'#2AA7C4',head:'Bevi un po\',<br>Giulia',eyes:'open',mouth:'smile',cheek:1,say:'Ricordati di bere un po\' d\'acqua.'},passi:{bg:'#D8663C',head:'Muoviti un po\'!',eyes:'happy',mouth:'big',cheek:1,say:'Muoviti un po\', ti aspetto per una camminata.'},buonanotte:{bg:'#2E2A5A',head:'Buonanotte,<br>Giulia',eyes:'sleep',mouth:'smile',cheek:1,say:'Buonanotte, riposa. Domani si ricomincia.'}};
   var COACHORD=['buongiorno','inrotta','acqua','passi','buonanotte'];
@@ -103,19 +103,23 @@
   function gaiaLoadTimings(key){if(!key||gaiaTimings[key]!==undefined)return;gaiaTimings[key]=null;try{fetch('audio/'+key+'.json').then(function(r){return r.ok?r.json():null;}).then(function(j){if(j&&j.characters&&j.character_start_times_seconds){gaiaTimings[key]={chars:j.characters,starts:j.character_start_times_seconds};}}).catch(function(){});}catch(e){}}
   function gaiaAnimate(txt,key,audioEl){try{
     var boxes=[].slice.call(document.querySelectorAll('.greveal'));if(!boxes.length)return;
-    var mouths=[].slice.call(document.querySelectorAll('.gmouth'));mouths.forEach(function(m){m.classList.add('gtalk');});
+    var mouths=[].slice.call(document.querySelectorAll('.gmouth'));
     var items=boxes.map(function(b){var full=b.getAttribute('data-full');if(full===null){full=(b.textContent||'').replace(/\s+/g,' ').trim();b.setAttribute('data-full',full);}b.textContent='';return {b:b,full:full};});
-    var maxLen=Math.max.apply(null,items.map(function(i){return i.full.length;}))||1;
+    var prim=items[0].full;var maxLen=Math.max.apply(null,items.map(function(i){return i.full.length;}))||1;
     var tim=(key&&audioEl)?gaiaTimings[key]:null;var t0=performance.now();var estDur=Math.min(Math.max(maxLen*0.058,1.5),15);var raf=0;
-    function stop(){if(raf)cancelAnimationFrame(raf);raf=0;mouths.forEach(function(m){m.classList.remove('gtalk');});items.forEach(function(it){it.b.textContent=it.full;it.b.scrollTop=it.b.scrollHeight;});gaiaAnimStop=null;}
+    function setMouth(v){mouths.forEach(function(m){m.style.transform=v?('scaleY('+v+')'):'';});}
+    function stop(){if(raf)cancelAnimationFrame(raf);raf=0;setMouth(0);items.forEach(function(it){it.b.textContent=it.full;it.b.scrollTop=it.b.scrollHeight;});gaiaAnimStop=null;}
     gaiaAnimStop=stop;
-    function frame(){var t=audioEl?(audioEl.currentTime||0):(performance.now()-t0)/1000;
+    function frame(){var now=performance.now();var t=audioEl?(audioEl.currentTime||0):(now-t0)/1000;
       var d=(audioEl&&isFinite(audioEl.duration)&&audioEl.duration)?audioEl.duration:estDur;var frac;
       if(tim&&tim.starts&&tim.starts.length){var ci=0;while(ci<tim.starts.length&&tim.starts[ci]<=t)ci++;frac=ci/tim.starts.length;}
       else{frac=t/d;}
       if(frac>1)frac=1;if(frac<0)frac=0;
       items.forEach(function(it){var n=Math.round(frac*it.full.length);var s=it.full.slice(0,n);if(it.b.textContent!==s){it.b.textContent=s;it.b.scrollTop=it.b.scrollHeight;}});
-      var ended=audioEl?audioEl.ended:((performance.now()-t0)/1000>=estDur);
+      var pn=Math.round(frac*prim.length);var ch=prim.charAt(Math.max(0,pn-1));
+      var talking=frac<1&&ch!==''&&!/[\s.,;:!?…«»"'()\-]/.test(ch);
+      setMouth(talking?(1.5+0.65*Math.abs(Math.sin(now/48))):0);
+      var ended=audioEl?audioEl.ended:((now-t0)/1000>=estDur);
       if(ended||(frac>=1&&(!audioEl||audioEl.ended))){stop();return;}
       raf=requestAnimationFrame(frame);}
     raf=requestAnimationFrame(frame);
