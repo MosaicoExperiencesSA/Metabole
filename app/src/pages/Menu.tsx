@@ -1,93 +1,124 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../api/client';
+import { slotInfo, METHOD_LABEL, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
 
 /**
- * Menu / diario — replica del prototipo: intestazione, toggle Oggi/Domani,
- * carosello pasti con "Ricetta", storico menu, e il dettaglio ricetta
- * ("Come si cucina": Veloce / Al forno / Meal prep). Dati dimostrativi.
+ * Menu / diario — dati REALI dal backend:
+ * - GET /me/menu → giorni erogati (visibili) con i pasti
+ * - GET /recipes/:id → dettaglio ricetta (metodi di cottura, ingredienti)
+ * - POST /me/ratings → valutazione del piatto
  */
 
-type Meal = [string, string, number, string, string, string, string];
-const DAYS: Record<'oggi' | 'domani', Meal[]> = {
-  oggi: [
-    ['Colazione', 'Yogurt, avena e frutta', 320, 'Veloce', 'ti-coffee', '#F3E8DC', '#B8863B'],
-    ['Spuntino', 'Frutta secca e frutto', 150, 'Al volo', 'ti-apple', '#F3F9E8', '#4D7C0F'],
-    ['Pranzo', 'Farro, pollo e verdure', 480, 'Da portare', 'ti-salad', '#DCEBE3', '#12A386'],
-    ['Merenda', 'Yogurt greco', 120, 'Leggera', 'ti-cup', '#EFEAF9', '#6C5AB7'],
-    ['Cena', 'Orata, patate e insalata', 430, 'Leggera', 'ti-fish', '#DCEBE3', '#0E7C66'],
-  ],
-  domani: [
-    ['Colazione', 'Pancake proteici', 350, 'Sfizio sano', 'ti-coffee', '#F3E8DC', '#B8863B'],
-    ['Spuntino', 'Un frutto', 80, 'Al volo', 'ti-apple', '#F3F9E8', '#4D7C0F'],
-    ['Pranzo', 'Vellutata e legumi', 400, 'Comfort', 'ti-bowl-spoon', '#DCEBE3', '#12A386'],
-    ['Merenda', 'Cioccolato fondente', 90, 'Sfizio', 'ti-cup', '#EFEAF9', '#6C5AB7'],
-    ['Cena', 'Pizza integrale', 520, 'Giorno libero', 'ti-pizza', '#FBEEE7', '#E8825A'],
-  ],
-};
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const diff = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
+  if (diff === 0) return 'Oggi';
+  if (diff === 1) return 'Domani';
+  if (diff === -1) return 'Ieri';
+  return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
+}
 
-const STORICO: [string, string, boolean, string][] = [
-  ['Menu mediterraneo', 'Lun 6 lug', true, '-0,4 kg'],
-  ['Sgarro gestito', 'Sab 4 lug', true, 'stabile'],
-  ['Menu proteico', 'Gio 2 lug', false, '+0,2 kg'],
-];
-
-const METHODS: Record<string, string[]> = {
-  Veloce: ['Lessa il farro.', 'Salta il pollo.', 'Aggiungi le verdure.', 'Condisci.'],
-  'Al forno': ['Cuoci il farro.', 'In teglia pollo e verdure.', 'Forno 200° per 18 min.'],
-  'Meal prep': ['La sera prima cuoci tutto.', 'Dividi nei contenitori.', 'Condisci al momento.'],
-};
-
-function StarRating() {
+function StarRating({ recipeId, date }: { recipeId: string; date?: string }) {
   const [rating, setRating] = useState(0);
+  const [saved, setSaved] = useState(false);
   const msg = rating >= 4 ? 'Ti è piaciuta: te la riproporrò più spesso.' : rating > 0 && rating <= 2 ? 'Capito, la eviterò quasi del tutto.' : 'Valutazione salvata.';
+
+  async function rate(n: number) {
+    setRating(n);
+    try {
+      await api('/me/ratings', { method: 'POST', body: JSON.stringify({ recipeId, stars: n, ...(date ? { date } : {}) }) });
+      setSaved(true);
+    } catch {
+      setSaved(false);
+    }
+  }
+
   return (
     <div className="card">
       <b style={{ fontSize: 13 }}>Hai cucinato questo piatto?</b>
       <div className="muted" style={{ margin: '2px 0 8px' }}>La valutazione insegna cosa proporti</div>
       <div className="stars">
         {[1, 2, 3, 4, 5].map((n) => (
-          <i key={n} className="ti ti-star-filled" style={{ color: n <= rating ? '#F2B705' : '#E2DED4', cursor: 'pointer' }} onClick={() => setRating(n)} />
+          <i key={n} className="ti ti-star-filled" style={{ color: n <= rating ? '#F2B705' : '#E2DED4', cursor: 'pointer' }} onClick={() => rate(n)} />
         ))}
       </div>
-      {rating > 0 && <div style={{ marginTop: 8, fontSize: 12, color: rating <= 2 ? '#993C1D' : '#0E7C66' }}>{msg}</div>}
+      {rating > 0 && <div style={{ marginTop: 8, fontSize: 12, color: rating <= 2 ? '#993C1D' : '#0E7C66' }}>{saved ? msg : 'Salvataggio…'}</div>}
     </div>
   );
 }
 
-function Recipe({ meal, onBack }: { meal: Meal; onBack: () => void }) {
-  const [method, setMethod] = useState('Veloce');
+function Recipe({ recipeId, date, tag, onBack }: { recipeId: string; date?: string; tag?: string; onBack: () => void }) {
+  const [recipe, setRecipe] = useState<ApiRecipe | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [method, setMethod] = useState(0);
+
+  useEffect(() => {
+    api<ApiRecipe>(`/recipes/${recipeId}`).then(setRecipe).catch(() => setRecipe(null)).finally(() => setLoading(false));
+  }, [recipeId]);
+
+  if (loading) return <div className="menu"><button className="back-link" onClick={onBack}><i className="ti ti-chevron-left" /> Menu</button><div className="center"><div className="spin" /></div></div>;
+  if (!recipe) return <div className="menu"><button className="back-link" onClick={onBack}><i className="ti ti-chevron-left" /> Menu</button><div className="card"><p className="muted" style={{ margin: 0 }}>Ricetta non disponibile.</p></div></div>;
+
+  const methods = recipe.cookingMethods ?? [];
   return (
     <div className="menu">
       <button className="back-link" onClick={onBack}><i className="ti ti-chevron-left" /> Menu</button>
-      <h1>{meal[1]}</h1>
+      <h1>{recipe.name}</h1>
       <div className="recipe-tags">
-        <span className="meal-tag" style={{ background: '#F2EFE8', color: '#5F6E6B' }}>{meal[2]} kcal</span>
-        <span className="meal-tag" style={{ background: '#F2EFE8', color: '#5F6E6B' }}>15 min</span>
-        <span className="meal-tag" style={{ background: '#DCEBE3', color: '#0E7C66' }}>{meal[3]}</span>
+        <span className="meal-tag" style={{ background: '#F2EFE8', color: '#5F6E6B' }}>{recipe.kcal} kcal</span>
+        {tag && <span className="meal-tag" style={{ background: '#DCEBE3', color: '#0E7C66' }}>{tag}</span>}
+        {(recipe.tags ?? []).map((t) => <span key={t} className="meal-tag" style={{ background: '#F2EFE8', color: '#5F6E6B' }}>{t}</span>)}
       </div>
-      <div className="card">
-        <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span className="event-ic" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-tools-kitchen-2" /></span>
-          <b style={{ fontSize: 13 }}>Come si cucina</b>
+
+      {recipe.ingredients && recipe.ingredients.length > 0 && (
+        <div className="card">
+          <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span className="event-ic" style={{ background: '#F3E8DC', color: '#B8863B' }}><i className="ti ti-basket" /></span>
+            <b style={{ fontSize: 13 }}>Ingredienti</b>
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
+            {recipe.ingredients.map((ing, i) => (
+              <li key={i}>{ing.name}{ing.qty ? ` — ${ing.qty}${ing.unit ? ' ' + ing.unit : ''}` : ''}</li>
+            ))}
+          </ul>
         </div>
-        <div className="pill-row" style={{ marginBottom: 10 }}>
-          {Object.keys(METHODS).map((k) => (
-            <button key={k} className={`pill${method === k ? ' on' : ''}`} onClick={() => setMethod(k)}>{k}</button>
-          ))}
+      )}
+
+      {methods.length > 0 && (
+        <div className="card">
+          <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span className="event-ic" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-tools-kitchen-2" /></span>
+            <b style={{ fontSize: 13 }}>Come si cucina</b>
+          </div>
+          {methods.length > 1 && (
+            <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+              {methods.map((m, i) => (
+                <button key={i} className={`pill${method === i ? ' on' : ''}`} onClick={() => setMethod(i)}>{METHOD_LABEL[m.type] ?? m.type}</button>
+              ))}
+            </div>
+          )}
+          <ol className="recipe-steps">
+            {(methods[method]?.steps ?? []).map((s, i) => <li key={i}>{s}</li>)}
+          </ol>
         </div>
-        <ol className="recipe-steps">
-          {METHODS[method].map((s, i) => <li key={i}>{s}</li>)}
-        </ol>
-      </div>
-      <StarRating />
+      )}
+
+      <StarRating recipeId={recipeId} date={date} />
     </div>
   );
 }
 
 export default function Menu() {
-  const [day, setDay] = useState<'oggi' | 'domani'>('oggi');
-  const [recipe, setRecipe] = useState<Meal | null>(null);
+  const [days, setDays] = useState<ApiMenuDay[] | null>(null);
+  const [dayIdx, setDayIdx] = useState(0);
+  const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; tag?: string } | null>(null);
   const mealsRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    api<{ delivered: string[]; days: ApiMenuDay[] }>('/me/menu').then((r) => setDays(r.days ?? [])).catch(() => setDays([]));
+  }, []);
 
   function scrollTo(i: number) {
     const el = mealsRef.current;
@@ -97,72 +128,94 @@ export default function Menu() {
     const el = mealsRef.current;
     if (el) setIdx(Math.round(el.scrollLeft / el.clientWidth));
   }
-  function pickDay(d: 'oggi' | 'domani') {
-    setDay(d);
+  function pickDay(i: number) {
+    setDayIdx(i);
     setIdx(0);
     const el = mealsRef.current;
     if (el) el.scrollTo({ left: 0 });
   }
 
-  if (recipe) return <Recipe meal={recipe} onBack={() => setRecipe(null)} />;
+  if (recipe) return <Recipe recipeId={recipe.recipeId} date={recipe.date} tag={recipe.tag} onBack={() => setRecipe(null)} />;
+  if (days === null) return <div className="center"><div className="spin" /></div>;
 
-  const meals = DAYS[day];
+  const todayMs = startOfDay(new Date()).getTime();
+  const upcoming = days.filter((d) => startOfDay(new Date(d.date)).getTime() >= todayMs);
+  const past = days.filter((d) => startOfDay(new Date(d.date)).getTime() < todayMs).reverse();
+  const selDay = upcoming[dayIdx];
+  const meals = selDay?.meals ?? [];
+
   return (
     <div className="menu">
       <div className="menu-head">
         <span className="event-ic" style={{ background: '#F3E8DC', color: '#B8863B' }}><i className="ti ti-chef-hat" /></span>
         <div>
           <h1 style={{ margin: 0 }}>Il mio menu</h1>
-          <div className="muted">Piano 5 pasti · la tua giornata</div>
+          <div className="muted">La tua giornata</div>
         </div>
       </div>
 
-      <div className="pill-row" style={{ marginBottom: 10 }}>
-        <button className={`pill${day === 'oggi' ? ' on' : ''}`} onClick={() => pickDay('oggi')}>Oggi</button>
-        <button className={`pill${day === 'domani' ? ' on' : ''}`} onClick={() => pickDay('domani')}>Domani</button>
-      </div>
+      {upcoming.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center' }}>
+          <p className="muted" style={{ margin: 0 }}>Il tuo menu non è ancora disponibile. Si sblocca quando parte il tuo piano (e dopo i check-in).</p>
+        </div>
+      ) : (
+        <>
+          <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+            {upcoming.map((d, i) => (
+              <button key={d.id} className={`pill${dayIdx === i ? ' on' : ''}`} onClick={() => pickDay(i)}>{dayLabel(d.date)}</button>
+            ))}
+          </div>
 
-      <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
-        {meals.map((m, i) => (
-          <button key={i} className={`pill${idx === i ? ' on' : ''}`} onClick={() => scrollTo(i)}>{m[0]}</button>
-        ))}
-      </div>
+          {meals.length > 1 && (
+            <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+              {meals.map((m, i) => (
+                <button key={i} className={`pill${idx === i ? ' on' : ''}`} onClick={() => scrollTo(i)}>{slotInfo(m.slot).label}</button>
+              ))}
+            </div>
+          )}
 
-      <div className="meal-carousel" ref={mealsRef} onScroll={onScroll}>
-        {meals.map((m, i) => (
-          <div className="meal-row" key={i}>
-            <div className="meal-thumb" style={{ background: m[5] }}><i className={`ti ${m[4]}`} style={{ color: m[6] }} /></div>
-            <div className="meal-body">
-              <span className="meal-tag" style={{ background: m[5], color: m[6] }}>{m[0]} · {m[3]}</span>
-              <div className="meal-name">{m[1]}</div>
-              <div className="row-between">
-                <span className="muted" style={{ fontSize: 12 }}>{m[2]} kcal · 15 min</span>
-                <button className="btn-recipe" onClick={() => setRecipe(m)}>Ricetta</button>
+          <div className="meal-carousel" ref={mealsRef} onScroll={onScroll}>
+            {meals.map((m: ApiMeal, i) => {
+              const s = slotInfo(m.slot);
+              return (
+                <div className="meal-row" key={i}>
+                  <div className="meal-thumb" style={{ background: s.bg }}><i className={`ti ${s.icon}`} style={{ color: s.color }} /></div>
+                  <div className="meal-body">
+                    <span className="meal-tag" style={{ background: s.bg, color: s.color }}>{s.label}</span>
+                    <div className="meal-name">{m.name}</div>
+                    <div className="row-between">
+                      <span className="muted" style={{ fontSize: 12 }}>{m.kcal} kcal</span>
+                      <button className="btn-recipe" onClick={() => setRecipe({ recipeId: m.recipeId, date: selDay.date.slice(0, 10), tag: s.label })}>Ricetta</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {meals.length > 1 && (
+            <div className="home-dots">
+              {meals.map((_, i) => <span key={i} className={i === idx ? 'on' : ''} />)}
+            </div>
+          )}
+        </>
+      )}
+
+      {past.length > 0 && (
+        <>
+          <div className="sec">Storico menu</div>
+          <div className="meals-col">
+            {past.slice(0, 7).map((d) => (
+              <div className="card storico-row" key={d.id}>
+                <span className="storico-thumb" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-calendar" /></span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{dayLabel(d.date)}</div>
+                  <div className="muted" style={{ fontSize: 11 }}>{d.meals.length} pasti</div>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="home-dots">
-        {meals.map((_, i) => <span key={i} className={i === idx ? 'on' : ''} />)}
-      </div>
-
-      <div className="sec">Storico menu</div>
-      <div className="meals-col">
-        {STORICO.map((s, i) => (
-          <div className="card storico-row" key={i}>
-            <span className="storico-thumb" style={{ background: s[2] ? '#DCF0D8' : '#F7DAD6', color: s[2] ? '#3B6D11' : '#993C1D' }}><i className={`ti ${s[2] ? 'ti-thumb-up' : 'ti-thumb-down'}`} /></span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{s[0]}</div>
-              <div className="muted" style={{ fontSize: 11 }}>{s[1]}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: s[2] ? '#3B6D11' : '#993C1D' }}>{s[2] ? 'Vantaggio' : 'Nessun calo'}</div>
-              <div className="muted" style={{ fontSize: 10 }}>{s[3]}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }

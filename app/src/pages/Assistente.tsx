@@ -1,71 +1,88 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../api/client';
 
 /**
- * Assistente AI — chat con la coach digitale (protocolli validati dalla nutrizionista).
- * Layout come nel prototipo definitivo: bolle a sinistra (assistente) e a destra (utente).
+ * Assistente AI — chat REALE con il sistema di thread (GET /me/threads,
+ * GET|POST /threads/:id/messages). Punta al thread dell'assistente AI:
+ * risponde subito e gira le domande sanitarie alla nutrizionista.
  */
 
-interface Msg { from: 'ai' | 'me'; text: string }
-
-const SEED: Msg[] = [
-  { from: 'ai', text: 'Energia bassa e turno lungo oggi: vuoi che ti alleggerisca il pranzo?' },
-  { from: 'me', text: 'Sì, e stasera non ho tempo' },
-  { from: 'ai', text: 'Fatto. Cena in 10 minuti e pranzo da portare. Protocollo validato dalla nutrizionista.' },
-];
+interface Thread { id: string; counterpart: string; counterpartName: string }
+interface Msg { id: string; senderRole: string; body: string; sentAt: string }
 
 export default function Assistente() {
-  const [msgs, setMsgs] = useState<Msg[]>(SEED);
+  const [thread, setThread] = useState<Thread | null>(null);
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const endRef = useRef<HTMLDivElement>(null);
 
-  function send() {
-    const t = text.trim();
-    if (!t) return;
-    setMsgs((m) => [...m, { from: 'me', text: t }]);
+  useEffect(() => {
+    api<Thread[]>('/me/threads')
+      .then((ts) => setThread(ts.find((x) => x.counterpart === 'ai') ?? ts[0] ?? null))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!thread) return;
+    api<Msg[]>(`/threads/${thread.id}/messages`).then(setMessages).catch(() => setMessages([]));
+  }, [thread?.id]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length]);
+
+  async function send() {
+    const body = text.trim();
+    if (!body || !thread || sending) return;
     setText('');
-    // Risposta simulata: quando ci sarà l'endpoint AI, qui si chiamerà l'API.
-    setTimeout(() => {
-      setMsgs((m) => [...m, { from: 'ai', text: 'Ricevuto! Aggiorno il tuo piano e ti avviso appena è pronto.' }]);
-    }, 500);
+    setSending(true);
+    try {
+      const res = await api<{ message: Msg; aiReply?: Msg }>(`/threads/${thread.id}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+      setMessages((m) => [...m, res.message, ...(res.aiReply ? [res.aiReply] : [])]);
+    } catch {
+      /* ignora */
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
     <div className="menu">
       <div className="menu-head">
         <span className="event-ic" style={{ background: '#ECE7F7', color: '#6C5AB7' }}><i className="ti ti-sparkles" /></span>
-        <div><h1 style={{ margin: 0 }}>Assistente AI</h1><div className="muted">Protocolli validati dalla nutrizionista</div></div>
+        <div><h1 style={{ margin: 0 }}>Assistente AI</h1><div className="muted">Ti rispondo subito; le domande sanitarie le giro alla nutrizionista</div></div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 14 }}>
-        {msgs.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              alignSelf: m.from === 'me' ? 'flex-end' : 'flex-start',
-              maxWidth: '85%',
-              background: m.from === 'me' ? 'var(--teal)' : '#fff',
-              color: m.from === 'me' ? '#fff' : 'inherit',
-              borderRadius: 16,
-              padding: '10px 12px',
-              fontSize: 13,
-              boxShadow: m.from === 'me' ? 'none' : '0 2px 6px rgba(16,64,58,.06)',
-            }}
-          >
-            {m.text}
+      {loading ? (
+        <div className="center" style={{ minHeight: 120 }}><div className="spin" /></div>
+      ) : !thread ? (
+        <div className="card"><p className="muted" style={{ margin: 0 }}>L'assistente non è ancora disponibile per il tuo account.</p></div>
+      ) : (
+        <>
+          <div className="chat-col" style={{ minHeight: '50vh' }}>
+            {messages.length === 0 && <div className="muted" style={{ fontSize: 13, textAlign: 'center', padding: '10px 0' }}>Scrivi il primo messaggio 👋</div>}
+            {messages.map((m) => (
+              <div key={m.id} className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}>{m.body}</div>
+            ))}
+            <div ref={endRef} />
           </div>
-        ))}
-      </div>
 
-      <div className="row" style={{ gap: 8, position: 'sticky', bottom: 0 }}>
-        <input
-          className="input"
-          placeholder="Scrivi…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-          style={{ flex: 1, borderRadius: 22 }}
-        />
-        <button className="btn" style={{ padding: '10px 13px' }} onClick={send} aria-label="Invia"><i className="ti ti-send" /></button>
-      </div>
+          <div className="chat-input">
+            <input
+              className="input"
+              style={{ flex: 1, borderRadius: 22 }}
+              placeholder="Scrivi…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
+            />
+            <button className="btn" style={{ width: 'auto', padding: '10px 13px' }} onClick={send} disabled={sending} aria-label="Invia"><i className="ti ti-send" /></button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

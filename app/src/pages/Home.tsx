@@ -6,6 +6,7 @@ import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
 import CheckinPopup from '../components/CheckinPopup';
 import ChatSheet from '../components/ChatSheet';
+import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 
 interface Today {
   checkinDone: boolean;
@@ -13,22 +14,15 @@ interface Today {
   water: { glasses: number; goal: number };
   steps: { steps: number; goal: number };
 }
+interface EventItem { id: string; type: string; label: string | null; startDate: string; endDate: string; mode: string }
 
 /**
- * Home / dashboard — replica fedele del prototipo del socio:
- * saluto, card del coach (mascotte + frase), "Oggi a colpo d'occhio",
- * i pasti di oggi, azioni rapide, eventi gestiti, popup check-in e schede dal basso.
- * (Dati dimostrativi per ora; il collegamento ai dati reali arriva dopo.)
+ * Home / dashboard — dati REALI:
+ * - GET /me/today (acqua, passi, check-in)
+ * - GET /me/menu (pasti di oggi)
+ * - GET /me/events (prossimo evento gestito)
+ * - GET /me/shopping-list (lista della spesa)
  */
-
-type Meal = [string, string, number, string, string, string, string, boolean];
-const MEALS: Meal[] = [
-  ['Colazione', 'Yogurt, avena e frutta', 320, 'Veloce', 'ti-coffee', '#F3E8DC', '#B8863B', false],
-  ['Spuntino', 'Frutta secca e frutto', 150, 'Al volo', 'ti-apple', '#F3F9E8', '#4D7C0F', false],
-  ['Pranzo', 'Farro, pollo e verdure', 480, 'Da portare', 'ti-salad', '#DCEBE3', '#12A386', true],
-  ['Merenda', 'Yogurt greco', 120, 'Leggera', 'ti-cup', '#EFEAF9', '#6C5AB7', false],
-  ['Cena', 'Orata, patate e insalata', 430, 'Leggera', 'ti-fish', '#DCEBE3', '#0E7C66', false],
-];
 
 const FRASI = [
   'Non è una dieta, è il tuo nuovo stile.',
@@ -45,7 +39,15 @@ const HELP: Record<string, { t: string; b: string; cta: string }> = {
   sost: { t: 'Sostituisci un ingrediente', b: 'Non hai un ingrediente o non ti piace? Alternativa equivalente: al posto del farro, quinoa o orzo. Vuoi che aggiorni la ricetta di oggi?', cta: 'Aggiorna ricetta' },
 };
 
-const SPESA = ['Farro', 'Petto di pollo', 'Yogurt greco', 'Avena', 'Frutta fresca', 'Zucchine', 'Pomodorini', 'Orata', 'Patate'];
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const EV: Record<string, [string, string]> = {
+  wedding: ['Matrimonio', 'ti-heart'],
+  baptism: ['Battesimo', 'ti-heart'],
+  dinner: ['Cena', 'ti-glass'],
+  monthly_cheat: ['Sgarro', 'ti-cake'],
+  vacation: ['Vacanza', 'ti-plane'],
+  other: ['Evento', 'ti-calendar-heart'],
+};
 
 function coachOfDay(name: string): { bg: string; head: string } {
   const h = new Date().getHours();
@@ -56,23 +58,39 @@ function coachOfDay(name: string): { bg: string; head: string } {
   return { bg: '#2E2A5A', head: `Buonanotte, ${name}` };
 }
 
+interface SpesaItem { name: string; qty?: number | null; unit?: string | null; checked: boolean }
 function SpesaList() {
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [list, setList] = useState<{ id?: string; items: SpesaItem[] } | null>(null);
+  useEffect(() => {
+    api<{ id?: string; items: SpesaItem[] }>('/me/shopping-list').then(setList).catch(() => setList(null));
+  }, []);
+
+  async function toggle(item: SpesaItem) {
+    if (!list?.id) return;
+    setList((l) => (l ? { ...l, items: l.items.map((x) => (x.name === item.name ? { ...x, checked: !x.checked } : x)) } : l));
+    try {
+      await api(`/me/shopping-list/${list.id}/items`, { method: 'PATCH', body: JSON.stringify({ itemName: item.name, checked: !item.checked }) });
+    } catch {
+      /* la spunta è già applicata localmente */
+    }
+  }
+
   return (
     <>
       <div className="row" style={{ alignItems: 'center', gap: 9, marginBottom: 10 }}>
         <span className="event-ic" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-basket" /></span>
-        <div><b style={{ fontSize: 15 }}>Lista della spesa</b><div className="muted" style={{ fontSize: 11 }}>Per i prossimi 2 giorni</div></div>
+        <div><b style={{ fontSize: 15 }}>Lista della spesa</b><div className="muted" style={{ fontSize: 11 }}>Per i prossimi giorni</div></div>
       </div>
-      {SPESA.map((it) => {
-        const on = checked[it];
-        return (
-          <div key={it} className="spesa-item" style={{ opacity: on ? 0.55 : 1 }} onClick={() => setChecked((c) => ({ ...c, [it]: !c[it] }))}>
-            <span className={`spesa-ck${on ? ' on' : ''}`}>{on && <i className="ti ti-check" />}</span>
-            <span style={{ fontSize: 13 }}>{it}</span>
+      {!list || list.items.length === 0 ? (
+        <p className="muted" style={{ fontSize: 13 }}>Nessun ingrediente: la lista si popola quando il menu è disponibile.</p>
+      ) : (
+        list.items.map((it) => (
+          <div key={it.name} className="spesa-item" style={{ opacity: it.checked ? 0.55 : 1 }} onClick={() => toggle(it)}>
+            <span className={`spesa-ck${it.checked ? ' on' : ''}`}>{it.checked && <i className="ti ti-check" />}</span>
+            <span style={{ fontSize: 13 }}>{it.name}{it.qty ? ` · ${it.qty}${it.unit ? ' ' + it.unit : ''}` : ''}</span>
           </div>
-        );
-      })}
+        ))
+      )}
     </>
   );
 }
@@ -82,19 +100,31 @@ export default function Home() {
   const navigate = useNavigate();
   const [sheet, setSheet] = useState<null | 'coach' | 'fame' | 'fuori' | 'sost' | 'spesa'>(null);
   const [today, setToday] = useState<Today | null>(null);
+  const [meals, setMeals] = useState<ApiMeal[] | null>(null);
+  const [nextEvent, setNextEvent] = useState<EventItem | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const mealsRef = useRef<HTMLDivElement>(null);
   const [mealIdx, setMealIdx] = useState(0);
 
+  useEffect(() => {
+    api<Today>('/me/today').then(setToday).catch(() => {});
+    api<{ days: ApiMenuDay[] }>('/me/menu').then((r) => {
+      const iso = new Date().toISOString().slice(0, 10);
+      const day = (r.days ?? []).find((d) => d.date.slice(0, 10) === iso) ?? (r.days ?? [])[0];
+      setMeals(day?.meals ?? []);
+    }).catch(() => setMeals([]));
+    api<EventItem[]>('/me/events').then((evs) => {
+      const t = startOfDay(new Date()).getTime();
+      const up = evs.filter((e) => startOfDay(new Date(e.startDate)).getTime() >= t).sort((a, b) => a.startDate.localeCompare(b.startDate));
+      setNextEvent(up[0] ?? null);
+    }).catch(() => setNextEvent(null));
+  }, []);
+
   function onMealsScroll() {
     const el = mealsRef.current;
     if (el) setMealIdx(Math.round(el.scrollLeft / el.clientWidth));
   }
-
-  useEffect(() => {
-    api<Today>('/me/today').then(setToday).catch(() => {});
-  }, []);
 
   async function submitMood(mood: string) {
     setCheckinBusy(true);
@@ -126,6 +156,10 @@ export default function Home() {
   const coach = coachOfDay(name);
   const frase = FRASI[now.getDate() % FRASI.length];
 
+  const evInfo = nextEvent ? (EV[nextEvent.type] ?? EV.other) : null;
+  const evDays = nextEvent ? Math.round((startOfDay(new Date(nextEvent.startDate)).getTime() - startOfDay(now).getTime()) / 86_400_000) : 0;
+  const evWhen = evDays === 0 ? 'oggi' : evDays === 1 ? 'domani' : `tra ${evDays} giorni`;
+
   return (
     <div className="home">
       <div className="home-head">
@@ -143,7 +177,6 @@ export default function Home() {
       <div className="coach-hero" style={{ background: coach.bg, cursor: 'pointer' }} onClick={() => setSheet('coach')}>
         <div className="row-between">
           <span style={{ fontSize: 13, fontWeight: 600 }}>Il tuo coach</span>
-          <span className="chip-flame"><i className="ti ti-flame" /> 5 giorni</span>
         </div>
         <div className="coach-body">
           <Gaia size={70} controls={false} mouth="big" />
@@ -171,28 +204,35 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="row-between" style={{ margin: '6px 2px 8px' }}>
-        <span className="sec" style={{ margin: 0 }}>I pasti di oggi <span className="muted" style={{ fontWeight: 400 }}>· 5 pasti</span></span>
-        <span className="chip" style={{ cursor: 'pointer' }} onClick={() => setSheet('spesa')}><i className="ti ti-basket" style={{ fontSize: 13 }} /> Lista spesa</span>
-      </div>
-      <div className="meal-carousel" ref={mealsRef} onScroll={onMealsScroll}>
-        {MEALS.map((m, i) => (
-          <div className="meal-row" key={i}>
-            <div className="meal-thumb" style={{ background: m[5] }}><i className={`ti ${m[4]}`} style={{ color: m[6] }} /></div>
-            <div className="meal-body">
-              <span className="meal-tag" style={{ background: m[5], color: m[6] }}>{m[0]} · {m[3]}</span>
-              <div className="meal-name">{m[1]}</div>
-              <div className="row-between">
-                <span className="muted" style={{ fontSize: 12 }}>{m[2]} kcal · 15 min</span>
-                {m[7] && <button className="btn-recipe" onClick={() => navigate('/menu')}>Ricetta</button>}
-              </div>
-            </div>
+      {meals && meals.length > 0 && (
+        <>
+          <div className="row-between" style={{ margin: '6px 2px 8px' }}>
+            <span className="sec" style={{ margin: 0 }}>I pasti di oggi <span className="muted" style={{ fontWeight: 400 }}>· {meals.length} pasti</span></span>
+            <span className="chip" style={{ cursor: 'pointer' }} onClick={() => setSheet('spesa')}><i className="ti ti-basket" style={{ fontSize: 13 }} /> Lista spesa</span>
           </div>
-        ))}
-      </div>
-      <div className="home-dots">
-        {MEALS.map((_, i) => <span key={i} className={i === mealIdx ? 'on' : ''} />)}
-      </div>
+          <div className="meal-carousel" ref={mealsRef} onScroll={onMealsScroll}>
+            {meals.map((m, i) => {
+              const s = slotInfo(m.slot);
+              return (
+                <div className="meal-row" key={i}>
+                  <div className="meal-thumb" style={{ background: s.bg }}><i className={`ti ${s.icon}`} style={{ color: s.color }} /></div>
+                  <div className="meal-body">
+                    <span className="meal-tag" style={{ background: s.bg, color: s.color }}>{s.label}</span>
+                    <div className="meal-name">{m.name}</div>
+                    <div className="row-between">
+                      <span className="muted" style={{ fontSize: 12 }}>{m.kcal} kcal</span>
+                      <button className="btn-recipe" onClick={() => navigate('/menu')}>Ricetta</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="home-dots">
+            {meals.map((_, i) => <span key={i} className={i === mealIdx ? 'on' : ''} />)}
+          </div>
+        </>
+      )}
 
       <div className="sec">Ti serve una mano adesso?</div>
       <div className="card">
@@ -203,15 +243,19 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="sec">Eventi gestiti</div>
-      <div className="event-card" onClick={() => navigate('/calendario')}>
-        <span className="event-ic"><i className="ti ti-heart" /></span>
-        <div style={{ flex: 1 }}>
-          <div className="event-title">Matrimonio tra 4 giorni</div>
-          <div className="event-sub">Ti preparo per arrivare serena</div>
-        </div>
-        <i className="ti ti-chevron-right" style={{ color: '#C08363' }} />
-      </div>
+      {nextEvent && evInfo && (
+        <>
+          <div className="sec">Eventi gestiti</div>
+          <div className="event-card" onClick={() => navigate('/calendario')}>
+            <span className="event-ic"><i className={`ti ${evInfo[1]}`} /></span>
+            <div style={{ flex: 1 }}>
+              <div className="event-title">{nextEvent.label || evInfo[0]} {evWhen}</div>
+              <div className="event-sub">Ti preparo per arrivare serena</div>
+            </div>
+            <i className="ti ti-chevron-right" style={{ color: '#C08363' }} />
+          </div>
+        </>
+      )}
 
       {/* Popup e schede */}
       {today && !today.checkinDone && !dismissed && (
