@@ -326,6 +326,18 @@ export class SignalsService {
       }
     }
 
+    // Streak: giorni consecutivi con check-in fino a oggi.
+    const recent = await this.prisma.dailyCheckin.findMany({
+      where: { clientId }, orderBy: { date: 'desc' }, take: 60, select: { date: true },
+    });
+    const done = new Set((recent as { date: Date }[]).map((c) => c.date.toISOString().slice(0, 10)));
+    let streak = 0;
+    let cur = new Date(today);
+    while (done.has(cur.toISOString().slice(0, 10))) {
+      streak++;
+      cur = new Date(cur.getTime() - 86_400_000);
+    }
+
     return {
       name,
       state,
@@ -336,6 +348,7 @@ export class SignalsService {
       steps: todayStatus.steps,
       weightLostKg,
       progressPercent,
+      streak,
       updatedAt: now.toISOString(),
     };
   }
