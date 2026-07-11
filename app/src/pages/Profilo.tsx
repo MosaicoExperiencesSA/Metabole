@@ -67,9 +67,10 @@ export default function Profilo() {
   const [savingData, setSavingData] = useState(false);
   const [dataMsg, setDataMsg] = useState<string | null>(null);
 
-  // Autocompletamento indirizzo (Photon / OpenStreetMap, senza chiave)
+  // Autocompletamento indirizzo (OpenStreetMap / Nominatim, senza chiave)
   const [addrSug, setAddrSug] = useState<AddrSuggestion[]>([]);
   const [addrOpen, setAddrOpen] = useState(false);
+  const [addrLoading, setAddrLoading] = useState(false);
   const addrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -86,22 +87,29 @@ export default function Profilo() {
 
   function searchAddress(q: string) {
     if (addrTimer.current) clearTimeout(addrTimer.current);
-    if (q.trim().length < 3) { setAddrSug([]); setAddrOpen(false); return; }
+    if (q.trim().length < 3) { setAddrSug([]); setAddrOpen(false); setAddrLoading(false); return; }
+    setAddrOpen(true);
+    setAddrLoading(true);
     addrTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=it`);
-        const data = await res.json();
-        type F = { properties: Record<string, string> };
-        const sug: AddrSuggestion[] = (data.features ?? []).map((f: F) => {
-          const p = f.properties;
-          const street = [p.street ?? p.name, p.housenumber].filter(Boolean).join(' ');
-          const label = [street, p.postcode, p.city, p.country].filter(Boolean).join(', ');
-          return { label, addressLine: street, postalCode: p.postcode ?? '', city: p.city ?? '', province: p.state ?? '', country: p.country ?? '' };
-        }).filter((s: AddrSuggestion) => s.addressLine);
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&addressdetails=1&limit=6&accept-language=it`;
+        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        type A = { road?: string; house_number?: string; postcode?: string; city?: string; town?: string; village?: string; municipality?: string; county?: string; state?: string; country?: string };
+        type R = { display_name: string; name?: string; address?: A };
+        const data: R[] = await res.json();
+        const sug: AddrSuggestion[] = (data ?? []).map((r) => {
+          const a = r.address ?? {};
+          const street = [a.road ?? r.name, a.house_number].filter(Boolean).join(' ') || (r.display_name.split(',')[0] ?? '');
+          const city = a.city ?? a.town ?? a.village ?? a.municipality ?? '';
+          return { label: r.display_name, addressLine: street, postalCode: a.postcode ?? '', city, province: a.county ?? a.state ?? '', country: a.country ?? '' };
+        }).filter((s) => s.addressLine);
         setAddrSug(sug);
-        setAddrOpen(sug.length > 0);
-      } catch { setAddrSug([]); setAddrOpen(false); }
-    }, 350);
+      } catch {
+        setAddrSug([]);
+      } finally {
+        setAddrLoading(false);
+      }
+    }, 450);
   }
 
   function pickAddress(s: AddrSuggestion) {
@@ -213,11 +221,14 @@ export default function Profilo() {
                 />
                 {addrOpen && (
                   <div className="addr-pop">
+                    {addrLoading && <div className="addr-opt" style={{ cursor: 'default', color: 'var(--muted)' }}><i className="ti ti-loader" /> <span>Cerco indirizzi…</span></div>}
+                    {!addrLoading && addrSug.length === 0 && <div className="addr-opt" style={{ cursor: 'default', color: 'var(--muted)' }}><i className="ti ti-map-off" /> <span>Nessun indirizzo trovato — scrivilo a mano</span></div>}
                     {addrSug.map((s, i) => (
                       <button type="button" key={i} className="addr-opt" onClick={() => pickAddress(s)}>
                         <i className="ti ti-map-pin" style={{ color: 'var(--teal)' }} /> <span>{s.label}</span>
                       </button>
                     ))}
+                    <button type="button" className="addr-opt" style={{ justifyContent: 'center', color: 'var(--muted)', fontSize: 11 }} onClick={() => setAddrOpen(false)}>Chiudi</button>
                   </div>
                 )}
               </div>
