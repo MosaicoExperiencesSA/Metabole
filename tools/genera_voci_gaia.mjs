@@ -39,7 +39,7 @@ if (!API_KEY) {
 
 // Testi di Gaia (devono combaciare con quelli del prototipo)
 const PHRASES = {
-  benvenuto: "Ciao, sono Gaia, la tua assistente Èi Ài che ti guiderà passo passo alla configurazione personalizzata di Metàbol, in modo che il tuo percorso di rinascita sia unico e cucito su di te. Appena sei pronta, clicca sul pulsante Entra in Metàbol in fondo.",
+  benvenuto: "Ciao, sono Gaia, la tua assistente Èi Ài che ti guiderà passo passo alla configurazione personalizzata di Metàbol Èi Ài, in modo che il tuo percorso di rinascita sia unico e cucito su di te. Appena sei pronta, clicca sul pulsante Entra in Metàbol Èi Ài in fondo.",
   registrazione: "Crea la tua registrazione in pochi passi, in modo da darti l'accesso completo a Metàbol Èi Ài.",
   facciamo: "Per settare e personalizzare la tua app ho bisogno di qualche indicazione su cinque punti: la mente, la vita, l'agenda, il gusto e il corpo.",
   intro_testa: "Per prima cosa, cosa c'è nella tua mente? L'equilibrio mentale è il primo passo per ritrovare la forma fisica corretta. Rispondi pure alle prossime domande.",
@@ -52,6 +52,7 @@ const PHRASES = {
   elaboro: "Dammi un momento: sto confrontando i protocolli, consulto il nutrizionista e cucio il tuo percorso su misura.",
   piano: "Resta la cosa più sfidante da completare. Ti consiglio il piano da tre mesi: risparmi e sono sicura di portarti all'obiettivo. Se preferisci andare un mese alla volta, scegli il percorso da un mese. Esegui il pagamento e saremo online: io, la tua coach e il nutrizionista, al tuo fianco.",
   datainizio: "Bene, un obiettivo non è tale senza una data di partenza. Quando vuoi iniziare?",
+  fatturazione: "Inserisci i dati per la fatturazione. Troverai la ricevuta via email una volta completato il pagamento del tuo piano.",
   attesa: "Tra pochi giorni parte il tuo percorso. Non preoccuparti: ti indicherò io cosa fare, come la lista della spesa. Un consiglio: installami sul telefono come widget, toccando il pulsante qui sotto.",
 
   // Domande del test (chiave = q_ + titolo "slugificato")
