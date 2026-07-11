@@ -393,6 +393,19 @@ export class AuthService {
 
   // ---------- Interni ----------
 
+  /**
+   * Token dedicato al WIDGET da home screen: JWT a lunga scadenza (90 giorni) con
+   * scope 'widget'. Vale SOLO sull'endpoint pubblico del widget (la guardia lo
+   * rifiuta sulle altre rotte). Non ruota, così non interferisce con la sessione app.
+   */
+  async issueWidgetToken(user: AuthUser): Promise<{ token: string }> {
+    const token = await this.jwtService.signAsync(
+      { sub: user.sub, email: user.email, role: user.role, customRoleKey: user.customRoleKey ?? null, scope: 'widget' },
+      { expiresIn: '90d' },
+    );
+    return { token };
+  }
+
   private async issueTokenPair(user: {
     id: string;
     email: string;

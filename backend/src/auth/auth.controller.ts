@@ -111,6 +111,12 @@ export class AuthController {
     return this.auth.removeSecondaryEmail(user.sub);
   }
 
+  /** Token a lunga scadenza per il widget da home screen (app → storage condiviso → widget). */
+  @Post('widget-token')
+  widgetToken(@CurrentUser() user: AuthUser) {
+    return this.auth.issueWidgetToken(user);
+  }
+
   @Public()
   @HttpCode(202)
   @Throttle({ default: { limit: 5, ttl: 900_000 } }) // anti-abuso reset

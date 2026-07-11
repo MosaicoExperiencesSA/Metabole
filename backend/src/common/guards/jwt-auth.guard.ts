@@ -32,7 +32,9 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) throw new UnauthorizedException('Token mancante');
 
     try {
-      const payload = await this.jwtService.verifyAsync<AuthUser>(token);
+      const payload = await this.jwtService.verifyAsync<AuthUser & { scope?: string }>(token);
+      // I token "widget" (lunga scadenza) valgono SOLO sull'endpoint pubblico del widget.
+      if (payload.scope === 'widget') throw new UnauthorizedException('Token widget non valido qui');
       request.user = payload;
       return true;
     } catch {

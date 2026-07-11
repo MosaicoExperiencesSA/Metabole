@@ -1,5 +1,21 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 import { api, apiPublic, getRefreshToken, setAccessToken, setRefreshToken } from '../api/client';
+
+const WIDGET_TOKEN_KEY = 'metabole_widget_token';
+
+/** Sul nativo: ottiene un token widget (lunga scadenza) e lo salva nello storage
+ *  condiviso (SharedPreferences "CapacitorStorage") che il widget da home screen legge. */
+async function syncWidgetToken() {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const { token } = await api<{ token: string }>('/auth/widget-token', { method: 'POST' });
+    await Preferences.set({ key: WIDGET_TOKEN_KEY, value: token });
+  } catch {
+    /* il widget resterà sull'ultimo stato noto */
+  }
+}
 
 export interface User {
   id: string;
@@ -53,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         setUser(await api<User>('/me')); // l'api rinnova l'access token in automatico
+        void syncWidgetToken();
       } catch {
         setRefreshToken(null);
         setAccessToken(null);
@@ -66,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(res.accessToken);
     setRefreshToken(res.refreshToken);
     setUser(res.user);
+    void syncWidgetToken();
   }
 
   async function login(email: string, password: string) {
@@ -99,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRefreshToken(null);
     setAccessToken(null);
     setUser(null);
+    if (Capacitor.isNativePlatform()) { try { await Preferences.remove({ key: WIDGET_TOKEN_KEY }); } catch { /* ignora */ } }
   }
 
   async function refreshMe() {
