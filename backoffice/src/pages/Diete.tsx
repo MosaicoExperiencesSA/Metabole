@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 
 interface DietRow {
@@ -25,23 +26,46 @@ const STATUS: Record<string, { label: string; chip: string }> = {
 };
 
 export function Diete() {
+  const { permissions } = useAuth();
+  const role = permissions?.role;
+  const isHead = role === 'head_nutritionist';
+  const isNutri = role === 'nutritionist' || role === 'head_nutritionist';
   const [rows, setRows] = useState<DietRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setRows(await api<DietRow[]>(`/diets${status ? `?status=${status}` : ''}`));
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
-        else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [status]);
+  async function load() {
+    try {
+      setRows(await api<DietRow[]>(`/diets${status ? `?status=${status}` : ''}`));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
+      else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [status]);
+
+  async function act(id: string, action: 'submit' | 'approve' | 'reject') {
+    let body: string | undefined;
+    if (action === 'reject') {
+      const reason = prompt('Motivazione del rifiuto (facoltativa):') ?? '';
+      body = JSON.stringify({ reason });
+    }
+    setBusy(id + action); setError(null);
+    try {
+      await api(`/diets/${id}/${action}`, { method: 'POST', ...(body ? { body } : {}) });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const showActions = isNutri; // nutrizionisti/capo vedono la colonna azioni
 
   if (loading) return <Spinner />;
 
@@ -74,6 +98,7 @@ export function Diete() {
                 <th>Giorni</th>
                 <th>Autore</th>
                 <th>Stato</th>
+                {showActions && <th>Azioni</th>}
               </tr>
             </thead>
             <tbody>
@@ -86,6 +111,21 @@ export function Diete() {
                   <td className="muted">{r._count?.dayTemplates ?? 0}</td>
                   <td className="muted">{r.author?.displayName ?? '—'}</td>
                   <td><span className={`chip ${STATUS[r.status]?.chip ?? 'gray'}`}>{STATUS[r.status]?.label ?? r.status}</span></td>
+                  {showActions && (
+                    <td>
+                      <div className="row" style={{ gap: 6 }}>
+                        {r.status === 'draft' && isNutri && (
+                          <button className="btn ghost sm" disabled={!!busy} onClick={() => act(r.id, 'submit')}><i className="ti ti-send" /> Invia in revisione</button>
+                        )}
+                        {r.status === 'in_review' && isHead && (
+                          <>
+                            <button className="btn sm" disabled={!!busy} onClick={() => act(r.id, 'approve')}><i className="ti ti-check" /> Approva</button>
+                            <button className="btn ghost sm" disabled={!!busy} style={{ color: 'var(--danger)' }} onClick={() => act(r.id, 'reject')}><i className="ti ti-x" /> Rifiuta</button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -63,7 +63,7 @@ export default function App() {
       <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="permissions"><Roles /></Protected>} />
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
 
-      {/* Sezioni in arrivo (stesse API già pronte lato backend) */}
+      {/* Percorso cliente e CRM */}
       <Route path="/clienti" element={<Protected title="Clienti" pageKey="clients"><Clienti /></Protected>} />
       <Route path="/clienti/:id" element={<Protected title="Scheda cliente" pageKey="clients"><ClientDetail /></Protected>} />
       <Route path="/crm" element={<Navigate to="/crm/gestione" replace />} />

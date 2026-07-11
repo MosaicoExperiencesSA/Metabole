@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 
 interface ProtocolRow {
@@ -25,23 +26,37 @@ const STATUS: Record<string, { label: string; chip: string }> = {
 };
 
 export function Protocolli() {
+  const { permissions } = useAuth();
+  const isHead = permissions?.role === 'head_nutritionist';
   const [rows, setRows] = useState<ProtocolRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setRows(await api<ProtocolRow[]>(`/protocols${status ? `?status=${status}` : ''}`));
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
-        else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [status]);
+  async function load() {
+    try {
+      setRows(await api<ProtocolRow[]>(`/protocols${status ? `?status=${status}` : ''}`));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
+      else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [status]);
+
+  async function validate(id: string, approve: boolean) {
+    setBusy(id + approve); setError(null);
+    try {
+      await api(`/protocols/${id}/validate`, { method: 'POST', body: JSON.stringify({ approve }) });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
+    } finally {
+      setBusy(null);
+    }
+  }
 
   if (loading) return <Spinner />;
 
@@ -72,6 +87,7 @@ export function Protocolli() {
                 <th>Autore</th>
                 <th>Validato da</th>
                 <th>Stato</th>
+                {isHead && <th>Azioni</th>}
               </tr>
             </thead>
             <tbody>
@@ -83,6 +99,16 @@ export function Protocolli() {
                   <td className="muted">{r.author?.displayName ?? '—'}</td>
                   <td className="muted">{r.validatedBy?.displayName ?? '—'}</td>
                   <td><span className={`chip ${STATUS[r.status]?.chip ?? 'gray'}`}>{STATUS[r.status]?.label ?? r.status}</span></td>
+                  {isHead && (
+                    <td>
+                      {r.status === 'pending' && (
+                        <div className="row" style={{ gap: 6 }}>
+                          <button className="btn sm" disabled={!!busy} onClick={() => validate(r.id, true)}><i className="ti ti-check" /> Approva</button>
+                          <button className="btn ghost sm" disabled={!!busy} style={{ color: 'var(--danger)' }} onClick={() => validate(r.id, false)}><i className="ti ti-x" /> Rifiuta</button>
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
