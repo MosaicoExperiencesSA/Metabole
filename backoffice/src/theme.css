@@ -22,6 +22,38 @@
   --shadow: 0 2px 8px rgba(16, 64, 58, 0.06);
   --shadow-hover: 0 8px 20px rgba(16, 64, 58, 0.12);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: light;
+}
+
+/* ============================================================
+   TEMI commutabili a runtime (data-theme su <html>).
+   Cambiano solo sfondi/superfici/testo; l'accento Metabole (teal,
+   coral, violet, gold, danger) resta uguale in tutti i temi.
+   ============================================================ */
+:root[data-theme="light"] {
+  --bg: #faf8f3; --card: #ffffff; --ink: #16302c; --muted: #7c8c88;
+  --line: #ece7de; --chip: #dcebe3; --chip-ink: #0e7c66;
+  --ok: #dcf0d8; --ok-ink: #3b6d11; --danger-bg: #fbeee7;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #101a17; --card: #17241f; --ink: #e7efe9; --muted: #9db3ab;
+  --line: #2a3d36; --chip: #143a30; --chip-ink: #6fd3b3;
+  --ok: #16302a; --ok-ink: #8fd0a8; --danger-bg: #3a1f1c;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4); --shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+:root[data-theme="taupe"] {
+  --bg: #e4ddd2; --card: #f4f0e9; --ink: #332c22; --muted: #7a7062;
+  --line: #c9bfae; --chip: #dbe7df; --chip-ink: #0e7c66;
+  --ok: #dcf0d8; --ok-ink: #3b6d11; --danger-bg: #f3e4dd;
+  color-scheme: light;
+}
+:root[data-theme="white"] {
+  --bg: #ffffff; --card: #ffffff; --ink: #1c1814; --muted: #8a8275;
+  --line: #ebe8e1; --chip: #e9f2ec; --chip-ink: #0e7c66;
+  --ok: #e7f5ef; --ok-ink: #0e7c66; --danger-bg: #fbeee7;
+  color-scheme: light;
 }
 
 * {

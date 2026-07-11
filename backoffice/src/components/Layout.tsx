@@ -20,7 +20,11 @@ interface NavSection {
 const NAV: NavSection[] = [
   {
     group: 'Generale',
-    items: [{ key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' }],
+    items: [
+      { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
+      { key: 'charts', label: 'Grafici', to: '/grafici', icon: 'ti-chart-histogram' },
+      { key: 'impostazioni', label: 'Impostazioni', to: '/impostazioni', icon: 'ti-settings' },
+    ],
   },
   {
     group: 'CRM',
@@ -119,7 +123,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         </div>
 
         {NAV.map((section) => {
-          const visible = section.items.filter((it) => it.key === 'dashboard' || can(it.key));
+          const visible = section.items.filter((it) => it.key === 'dashboard' || it.key === 'impostazioni' || can(it.key));
           if (visible.length === 0) return null;
 
           if (section.collapsible) {

@@ -33,6 +33,7 @@ export const BACKOFFICE_PAGES = [
   'email_templates',
   'email_log',
   'pdf_templates',
+  'charts',
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -51,6 +52,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   client: {},
   coach: {
     dashboard: { view: true },
+    charts: { view: true },
     clients: { view: true },
     crm_leads: { view: true, manage: true }, // pipeline: la coach sposta i clienti tra gli stati
     lead_acceptance: { view: true, manage: true }, // casella dei lead da accettare
@@ -60,6 +62,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   },
   nutritionist: {
     dashboard: { view: true },
+    charts: { view: true },
     clients: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
     recipes: { view: true, manage: true },
@@ -72,6 +75,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   },
   head_nutritionist: {
     dashboard: { view: true },
+    charts: { view: true },
     clients: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
     recipes: { view: true, manage: true },
@@ -88,6 +92,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   },
   sales: {
     dashboard: { view: true },
+    charts: { view: true },
     crm_leads: { view: true, manage: true },
     lead_acceptance: { view: true },
     accounting: { view: true }, // dashboard incassi/conversioni
@@ -123,5 +128,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     email_templates: { view: true, manage: true },
     email_log: { view: true, manage: true },
     pdf_templates: { view: true, manage: true },
+    charts: { view: true, manage: true },
   },
 };

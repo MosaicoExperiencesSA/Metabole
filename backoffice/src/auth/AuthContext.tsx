@@ -14,6 +14,11 @@ export interface AuthUser {
   role: Role;
   customRoleKey?: string | null;
   locale: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  title?: string | null;
+  theme?: string | null;
 }
 
 interface LoginResponse {
@@ -37,6 +42,7 @@ interface AuthState {
   impersonate: (userId: string, email: string) => Promise<void>;
   stopImpersonation: () => void;
   can: (pageKey: string, level?: 'view' | 'manage') => boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -136,6 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function refreshUser() {
+    try { setUser(await api<AuthUser>('/me')); } catch { /* best-effort */ }
+  }
+
   function can(pageKey: string, level: 'view' | 'manage' = 'view'): boolean {
     if (!permissions) return false;
     const p = permissions.pages.find((x) => x.pageKey === pageKey);
@@ -155,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         impersonate,
         stopImpersonation,
         can,
+        refreshUser,
       }}
     >
       {children}

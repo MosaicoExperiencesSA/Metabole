@@ -22,10 +22,15 @@ const PUBLIC_USER_SELECT = {
   emailVerifiedAt: true,
   firstName: true,
   lastName: true,
+  phone: true,
+  title: true,
+  theme: true,
   createdAt: true,
   updatedAt: true,
   staff: { select: { id: true, displayName: true, managerId: true, refCode: true } },
 } as const;
+
+const ACCOUNT_THEMES = ['light', 'dark', 'taupe', 'white'];
 
 @Injectable()
 export class UsersService {
@@ -104,25 +109,68 @@ export class UsersService {
     return this.getMyProfile(userId);
   }
 
+  /** Impostazioni account (backoffice): l'utente aggiorna i propri dati e il tema. */
+  async updateAccount(
+    userId: string,
+    dto: { firstName?: string; lastName?: string; phone?: string; title?: string; theme?: string; email?: string },
+  ) {
+    const data: Record<string, string | null> = {};
+    for (const k of ['firstName', 'lastName', 'phone', 'title'] as const) {
+      if (dto[k] !== undefined) data[k] = dto[k]!.trim() || null;
+    }
+    if (dto.theme !== undefined) {
+      if (!ACCOUNT_THEMES.includes(dto.theme)) throw new BadRequestException('Tema non valido.');
+      data.theme = dto.theme;
+    }
+    if (dto.email !== undefined) {
+      const email = dto.email.trim().toLowerCase();
+      if (!email) throw new BadRequestException('Email non valida.');
+      const taken = await this.prisma.user.findFirst({
+        where: { OR: [{ email }, { secondaryEmail: email }], NOT: { id: userId } },
+        select: { id: true },
+      });
+      if (taken) throw new ConflictException('Email già in uso da un altro account.');
+      data.email = email;
+    }
+    if (Object.keys(data).length === 0) return this.getById(userId);
+    await this.prisma.user.update({ where: { id: userId }, data });
+    await this.audit.log({ action: 'me.account.update', actorId: userId, entityType: 'user', entityId: userId, metadata: { fields: Object.keys(data) } });
+    return this.getById(userId);
+  }
+
+  /** Cambio password con verifica di quella attuale. */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 8) throw new BadRequestException('La nuova password deve avere almeno 8 caratteri.');
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    if (!user) throw new NotFoundException('Utente non trovato');
+    const ok = await argon2.verify(user.passwordHash, currentPassword).catch(() => false);
+    if (!ok) throw new BadRequestException('La password attuale non è corretta.');
+    const passwordHash = await argon2.hash(newPassword);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await this.audit.log({ action: 'me.password.change', actorId: userId, entityType: 'user', entityId: userId });
+    return { changed: true };
+  }
+
   /** Preferenze UI dell'utente (es. scorciatoie dashboard scelte). */
   async getPreferences(userId: string) {
     const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });
     if (!u) throw new NotFoundException('Utente non trovato');
     const prefs = (u.prefs as Record<string, unknown> | null) ?? {};
-    const raw = prefs.dashboardShortcuts;
-    const dashboardShortcuts = Array.isArray(raw)
-      ? raw.filter((x): x is string => typeof x === 'string')
-      : null; // null = mai personalizzate (il frontend userà i valori predefiniti)
-    return { dashboardShortcuts };
+    const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null);
+    // null = mai personalizzate (il frontend usa i predefiniti)
+    return { dashboardShortcuts: arr(prefs.dashboardShortcuts), dashboardModules: arr(prefs.dashboardModules) };
   }
 
-  async setDashboardShortcuts(userId: string, keys: string[]) {
+  /** Aggiorna scorciatoie e/o moduli della dashboard (solo i campi forniti). */
+  async updatePreferences(userId: string, input: { dashboardShortcuts?: string[]; dashboardModules?: string[] }) {
     const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });
     if (!u) throw new NotFoundException('Utente non trovato');
-    const clean = Array.from(new Set(keys.filter((k) => typeof k === 'string'))).slice(0, 40);
-    const prefs = { ...((u.prefs as Record<string, unknown> | null) ?? {}), dashboardShortcuts: clean };
+    const clean = (keys: string[]) => Array.from(new Set(keys.filter((k) => typeof k === 'string'))).slice(0, 40);
+    const prefs = { ...((u.prefs as Record<string, unknown> | null) ?? {}) };
+    if (input.dashboardShortcuts !== undefined) prefs.dashboardShortcuts = clean(input.dashboardShortcuts);
+    if (input.dashboardModules !== undefined) prefs.dashboardModules = clean(input.dashboardModules);
     await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
-    return { dashboardShortcuts: clean };
+    return { dashboardShortcuts: (prefs.dashboardShortcuts as string[]) ?? null, dashboardModules: (prefs.dashboardModules as string[]) ?? null };
   }
 
   /** Imposta (o rimuove) il responsabile diretto di un membro dello staff. */

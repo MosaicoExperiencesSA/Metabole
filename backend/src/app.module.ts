@@ -32,6 +32,7 @@ import { RolesModule } from './roles/roles.module';
 import { SignalsModule } from './signals/signals.module';
 import { UsersModule } from './users/users.module';
 import { PdfModule } from './pdf/pdf.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { PdfModule } from './pdf/pdf.module';
     EscalationsModule,
     VisitsModule,
     CompensationModule,
+    AnalyticsModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

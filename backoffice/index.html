@@ -10,6 +10,13 @@
     />
   </head>
   <body>
+    <script>
+      // Applica il tema salvato prima del render (evita il "lampo" del tema sbagliato).
+      try {
+        var _t = localStorage.getItem('metabole_bo_theme') || 'light';
+        document.documentElement.dataset.theme = ['light','dark','taupe','white'].indexOf(_t) >= 0 ? _t : 'light';
+      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { Banner, Modal } from '../components/ui';
+import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
 
 interface Shortcut {
   id: string;
@@ -40,22 +41,27 @@ export function Dashboard() {
   const { user, permissions, can } = useAuth();
   const available = CATALOG.filter((s) => can(s.pageKey));
   const [selected, setSelected] = useState<string[] | null>(null); // null = non ancora caricato
+  const [modules, setModules] = useState<string[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const prefs = await api<{ dashboardShortcuts: string[] | null }>('/me/preferences');
+        const prefs = await api<{ dashboardShortcuts: string[] | null; dashboardModules: string[] | null }>('/me/preferences');
         setSelected(prefs.dashboardShortcuts ?? DEFAULT_IDS);
+        setModules(prefs.dashboardModules ?? DEFAULT_MODULE_IDS);
       } catch {
         setSelected(DEFAULT_IDS); // se le preferenze non si caricano, mostro i predefiniti
+        setModules(DEFAULT_MODULE_IDS);
       }
     })();
   }, []);
 
   const chosen = selected ?? DEFAULT_IDS;
   const shown = available.filter((s) => chosen.includes(s.id));
+  const chosenModules = modules ?? DEFAULT_MODULE_IDS;
+  const shownModules = DASHBOARD_MODULES.filter((m) => can(m.pageKey) && chosenModules.includes(m.id));
 
   return (
     <>
@@ -68,6 +74,23 @@ export function Dashboard() {
           Benvenuta/o nel backoffice Metabole. Da qui gestisci utenti, permessi, pagamenti e i contenuti della piattaforma.
         </p>
       </div>
+
+      {shownModules.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 14 }}>
+          {shownModules.map((m) => (
+            <Link key={m.id} to={m.to} className="card" style={{ display: 'flex', gap: 14, alignItems: 'flex-start', textDecoration: 'none', color: 'inherit', margin: 0 }}>
+              <span style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--chip)', color: 'var(--chip-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                <i className={`ti ${m.icon}`} style={{ fontSize: 24 }} />
+              </span>
+              <span style={{ flex: 1 }}>
+                <b style={{ display: 'block', fontSize: 16, marginBottom: 3 }}>{m.label}</b>
+                <span className="muted" style={{ fontSize: 13 }}>{m.preview}</span>
+                <span style={{ display: 'block', marginTop: 8, color: 'var(--teal-dark)', fontSize: 13, fontWeight: 600 }}>Apri <i className="ti ti-arrow-right" /></span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <div className="spread" style={{ marginBottom: 4 }}>

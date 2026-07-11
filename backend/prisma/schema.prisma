@@ -226,6 +226,8 @@ model User {
   prefs           Json?      @map("prefs") // preferenze UI (es. scorciatoie dashboard)
   firstName       String?    @map("first_name")
   lastName        String?    @map("last_name")
+  title           String?    // titolo/qualifica mostrata nel backoffice (es. "Coach", "Dr.ssa")
+  theme           String     @default("light") // tema grafico backoffice: light | dark | taupe | white
   addressLine     String?    @map("address_line") // via e numero civico
   postalCode      String?    @map("postal_code")  // CAP
   city            String?
