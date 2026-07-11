@@ -58,9 +58,14 @@ function Shell() {
 
 /** Area autenticata: controlla se l'onboarding è stato completato. */
 function AuthedApp() {
+  const { user, logout } = useAuth();
   const [status, setStatus] = useState<'loading' | 'todo' | 'done'>('loading');
 
+  // L'app cliente è riservata alle clienti: le rotte /onboarding sono @Roles('client').
+  const isClient = !user?.role || user.role === 'client';
+
   useEffect(() => {
+    if (!isClient) return; // niente chiamate client con un account staff
     let alive = true;
     api('/onboarding/result')
       .then(() => alive && setStatus('done'))
@@ -71,7 +76,23 @@ function AuthedApp() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [isClient]);
+
+  if (!isClient) {
+    return (
+      <div className="app-frame">
+        <div className="onb-body" style={{ textAlign: 'center', paddingTop: 40 }}>
+          <span className="big-badge" style={{ background: '#F3E8DC', color: '#B8863B', margin: '0 auto 14px' }}><i className="ti ti-briefcase" /></span>
+          <h1>Account staff</h1>
+          <p className="muted">
+            Questo è un account dello staff ({user?.role}). L'app è riservata alle clienti;
+            per la gestione usa il backoffice su backoffice.metabole.eu.
+          </p>
+          <button className="btn" style={{ marginTop: 8 }} onClick={() => logout()}>Esci</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <CartProvider>
