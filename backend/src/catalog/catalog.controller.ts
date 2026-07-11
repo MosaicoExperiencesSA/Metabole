@@ -27,11 +27,13 @@ import {
 export class DietsController {
   constructor(private readonly catalog: CatalogService) {}
 
+  @Roles('nutritionist', 'head_nutritionist', 'admin') // admin: sola lettura
   @Get()
   list(@Query('status') status?: string) {
     return this.catalog.listDiets({ status });
   }
 
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
   @Get(':id')
   get(@Param('id') id: string) {
     return this.catalog.getDiet(id);

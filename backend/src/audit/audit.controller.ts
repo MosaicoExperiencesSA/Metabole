@@ -26,6 +26,7 @@ export class AuditController {
         orderBy: { createdAt: 'desc' },
         take,
         skip,
+        include: { actor: { select: { email: true, firstName: true, lastName: true, role: true } } },
       }),
       this.prisma.auditLog.count({ where }),
     ]);

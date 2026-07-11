@@ -112,6 +112,7 @@ export class EngineController {
 export class ProtocolsController {
   constructor(private readonly engine: EngineService) {}
 
+  @Roles('nutritionist', 'head_nutritionist', 'admin') // admin: sola lettura
   @Get()
   list(@Query('status') status?: string) {
     return this.engine.listProtocols(status);

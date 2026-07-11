@@ -11,6 +11,7 @@ import { ClientsModule } from './clients/clients.module';
 import { CommerceModule } from './commerce/commerce.module';
 import { CronModule } from './cron/cron.module';
 import { EngineModule } from './engine/engine.module';
+import { EscalationsModule } from './escalations/escalations.module';
 import { HealthAreaModule } from './health-area/health-area.module';
 import { I18nModule } from './i18n/i18n.module';
 import { MenuModule } from './menu/menu.module';
@@ -61,6 +62,7 @@ import { UsersModule } from './users/users.module';
     CommerceModule,
     ReportsModule,
     HealthModule,
+    EscalationsModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.
