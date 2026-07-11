@@ -93,55 +93,36 @@ p { line-height: 1.5; }
 
 .link { color: var(--teal-dark); font-weight: 700; text-decoration: none; }
 
-/* Tab bar in basso — pillola flottante, Home centrale rialzata */
+/* Tab bar in basso — pillola flottante compatta, cerchietti colorati (come il prototipo) */
 .tabbar {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(env(safe-area-inset-bottom) + 12px);
-  width: calc(100% - 28px);
-  max-width: 400px;
-  height: 62px;
-  padding: 0 12px;
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  bottom: calc(env(safe-area-inset-bottom) + 15px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
-  backdrop-filter: saturate(180%) blur(10px);
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 6px 8px;
+  box-shadow: 0 10px 26px rgba(16, 64, 58, 0.16);
   z-index: 30;
 }
 .tab {
-  flex: 1;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  background: transparent;
-  color: var(--muted);
   cursor: pointer;
   text-decoration: none;
-  transition: color 0.15s ease;
+  transition: background 0.15s ease;
 }
-.tab i { font-size: 25px; }
+.tab i { font-size: 22px; }
 .tab span { display: none; } /* solo icone, come il design */
-.tab.active { color: var(--teal); }
-
-/* Home: cerchio verde rialzato al centro */
-.tab.home {
-  flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--teal);
-  color: #fff;
-  transform: translateY(-10px);
-  box-shadow: 0 8px 18px rgba(18, 163, 134, 0.45);
-}
-.tab.home i { font-size: 27px; }
-.tab.home.active { color: #fff; }
 
 /* Intestazione con saluto + mascotte */
 .hero {

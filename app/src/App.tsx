@@ -11,6 +11,7 @@ import Home from './pages/Home';
 import Menu from './pages/Menu';
 import Calendario from './pages/Calendario';
 import Obiettivo from './pages/Obiettivo';
+import Assistente from './pages/Assistente';
 import Negozio from './pages/Negozio';
 import Profilo from './pages/Profilo';
 import Checkout from './pages/Checkout';
@@ -39,6 +40,7 @@ function Shell() {
           <Route path="/menu" element={<Menu />} />
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/obiettivo" element={<Obiettivo />} />
+          <Route path="/assistente" element={<Assistente />} />
           <Route path="/negozio" element={<Negozio />} />
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/conferma-email" element={<ConfermaEmail />} />
