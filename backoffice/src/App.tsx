@@ -10,8 +10,10 @@ import { BuoniSconto } from './pages/BuoniSconto';
 import { Calendar } from './pages/Calendar';
 import { ClientDetail } from './pages/ClientDetail';
 import { Clienti } from './pages/Clienti';
+import { Compensi } from './pages/Compensi';
 import { Diete } from './pages/Diete';
 import { Protocolli } from './pages/Protocolli';
+import { Agenda } from './pages/Agenda';
 import { Segnalazioni } from './pages/Segnalazioni';
 import { LeadDaAccettare } from './pages/LeadDaAccettare';
 import { LeadForm } from './pages/LeadForm';
@@ -65,13 +67,13 @@ export default function App() {
       <Route path="/crm/pipeline" element={<Protected title="Pipeline" pageKey="crm_leads"><Pipeline /></Protected>} />
       <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_leads"><Calendar /></Protected>} />
       <Route path="/crm/da-accettare" element={<Protected title="Lead da accettare" pageKey="lead_acceptance"><LeadDaAccettare /></Protected>} />
-      <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Placeholder title="Agenda visite" icon="ti-calendar" /></Protected>} />
+      <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Agenda /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Segnalazioni /></Protected>} />
       <Route path="/acquisti" element={<Protected title="Acquisti" pageKey="purchases"><Acquisti /></Protected>} />
       <Route path="/buoni-sconto" element={<Protected title="Buoni sconto" pageKey="discounts"><BuoniSconto /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
-      <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Placeholder title="Compensi staff" icon="ti-coin" /></Protected>} />
+      <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />
