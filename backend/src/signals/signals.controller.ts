@@ -55,6 +55,12 @@ export class SignalsController {
     return this.signals.todayStatus(user.sub);
   }
 
+  /** Dati per il widget da home screen (stato mascotte, frase, prossimo pasto, progresso). */
+  @Get('widget')
+  widget(@CurrentUser() user: AuthUser) {
+    return this.signals.widget(user.sub);
+  }
+
   // Acqua e passi
   @Post('water')
   water(@CurrentUser() user: AuthUser, @Body() dto: CreateWaterDto) {

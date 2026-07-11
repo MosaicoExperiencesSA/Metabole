@@ -261,4 +261,82 @@ export class SignalsService {
       update: { steps: dto.steps, ...(dto.source ? { source: dto.source } : {}) },
     });
   }
+
+  /**
+   * Dati per il WIDGET da home screen (nativo iOS/Android): stato mascotte in base
+   * all'ora, saluto, frase del giorno, prossimo pasto, acqua/passi e progresso.
+   * Endpoint di sola lettura, pensato per essere chiamato dal widget con il token cliente.
+   */
+  async widget(clientId: string) {
+    const FRASI = [
+      'Non è una dieta, è il tuo nuovo stile.',
+      'Un passo alla volta è comunque un passo avanti.',
+      'I piccoli gesti di oggi sono i risultati di domani.',
+      'Bevi, respira, muoviti: il resto viene.',
+      'Sii gentile con te: stai già facendo tanto.',
+      'La costanza batte la perfezione.',
+    ];
+    const [profile, user, todayStatus] = await Promise.all([
+      this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { name: true } }),
+      this.prisma.user.findUnique({ where: { id: clientId }, select: { firstName: true } }),
+      this.todayStatus(clientId),
+    ]);
+    const name = (profile?.name ?? user?.firstName ?? '').trim();
+    const now = new Date();
+    const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', hour: '2-digit', hour12: false }).format(now));
+    const day = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', day: '2-digit' }).format(now));
+
+    const state = hour < 11 ? 'buongiorno' : hour < 14 ? 'inrotta' : hour < 17 ? 'acqua' : hour < 21 ? 'passi' : 'buonanotte';
+    const greetings: Record<string, string> = {
+      buongiorno: name ? `Buongiorno, ${name}!` : 'Buongiorno!',
+      inrotta: name ? `Sei in rotta, ${name}!` : 'Sei in rotta!',
+      acqua: name ? `Bevi un po', ${name}` : 'Bevi un po\'',
+      passi: 'Muoviti un po\'!',
+      buonanotte: name ? `Buonanotte, ${name}` : 'Buonanotte',
+    };
+    const phrase = FRASI[day % FRASI.length];
+
+    // Prossimo pasto di oggi in base all'ora.
+    const today = toDateOnly();
+    const menuDay = await this.prisma.menuDay.findUnique({ where: { clientId_date: { clientId, date: today } } });
+    const meals = (menuDay?.meals ?? []) as { slot: string; name: string; kcal: number }[];
+    const SLOT_HOURS: [string, number][] = [['breakfast', 10], ['morning_snack', 11], ['lunch', 14], ['afternoon_snack', 17], ['dinner', 21]];
+    let nextMeal: { slot: string; name: string; kcal: number } | null = null;
+    for (const [slot, h] of SLOT_HOURS) {
+      if (hour < h) {
+        const m = meals.find((x) => x.slot === slot);
+        if (m) { nextMeal = { slot, name: m.name, kcal: m.kcal }; break; }
+      }
+    }
+
+    // Progresso verso l'obiettivo peso (se disponibile).
+    const [measurements, objective] = await Promise.all([
+      this.prisma.measurement.findMany({ where: { clientId }, orderBy: { date: 'asc' }, select: { weightKg: true } }),
+      this.prisma.objective.findFirst({ where: { clientId }, orderBy: { createdAt: 'desc' }, select: { targetWeightKg: true } }),
+    ]);
+    let weightLostKg: number | null = null;
+    let progressPercent: number | null = null;
+    if (measurements.length >= 1) {
+      const start = measurements[0].weightKg;
+      const current = measurements[measurements.length - 1].weightKg;
+      weightLostKg = Math.round((start - current) * 10) / 10;
+      const target = objective?.targetWeightKg ?? null;
+      if (target != null && start - target !== 0) {
+        progressPercent = Math.max(0, Math.min(100, Math.round(((start - current) / (start - target)) * 100)));
+      }
+    }
+
+    return {
+      name,
+      state,
+      greeting: greetings[state],
+      phrase,
+      nextMeal,
+      water: todayStatus.water,
+      steps: todayStatus.steps,
+      weightLostKg,
+      progressPercent,
+      updatedAt: now.toISOString(),
+    };
+  }
 }
