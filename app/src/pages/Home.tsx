@@ -6,6 +6,7 @@ import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
 import CheckinPopup from '../components/CheckinPopup';
 import ChatSheet from '../components/ChatSheet';
+import StartDatePrompt from '../components/StartDatePrompt';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 
 interface Today {
@@ -173,6 +174,8 @@ export default function Home() {
           <button className="home-icon" style={{ color: '#10403A' }} onClick={() => navigate('/profilo')}><i className="ti ti-user" /></button>
         </div>
       </div>
+
+      <StartDatePrompt />
 
       <div className="coach-hero" style={{ background: coach.bg, cursor: 'pointer' }} onClick={() => setSheet('coach')}>
         <div className="row-between">
