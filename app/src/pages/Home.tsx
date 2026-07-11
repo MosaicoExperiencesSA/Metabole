@@ -34,11 +34,14 @@ const FRASI = [
   'La costanza batte la perfezione.',
 ];
 
-const HELP: Record<string, { t: string; b: string; cta: string }> = {
-  fame: { t: 'Ho fame adesso', b: "Bevi un bicchiere d'acqua e prendi un frutto o dei semi: spesso la fame passa in 15 minuti. Se ti capita spesso di pomeriggio, lo segnalo a Sara e anticipiamo lo spuntino.", cta: 'Chiedi a Sara' },
-  fuori: { t: 'Mangio fuori', b: 'Scegli una proteina con verdure, evita bevande zuccherate e concediti un piccolo piacere senza sensi di colpa. Domani ti preparo un rientro morbido, tranquilla.', cta: 'Ok, grazie' },
-  sost: { t: 'Sostituisci un ingrediente', b: 'Non hai un ingrediente o non ti piace? Alternativa equivalente: al posto del farro, quinoa o orzo. Vuoi che aggiorni la ricetta di oggi?', cta: 'Aggiorna ricetta' },
-};
+type HelpAction = 'coach' | 'menu' | 'close';
+function helpFor(coach: string): Record<string, { t: string; b: string; cta: string; action: HelpAction }> {
+  return {
+    fame: { t: 'Ho fame adesso', b: `Bevi un bicchiere d'acqua e prendi un frutto o dei semi: spesso la fame passa in 15 minuti. Se ti capita spesso di pomeriggio, scrivilo a ${coach} e anticipiamo lo spuntino.`, cta: `Scrivi a ${coach}`, action: 'coach' },
+    fuori: { t: 'Mangio fuori', b: 'Scegli una proteina con verdure, evita bevande zuccherate e concediti un piccolo piacere senza sensi di colpa. Domani ti preparo un rientro morbido, tranquilla.', cta: 'Ok, grazie', action: 'close' },
+    sost: { t: 'Sostituisci un ingrediente', b: 'Non hai un ingrediente o non ti piace? Alternativa equivalente: al posto del farro, quinoa o orzo. Vuoi vedere il menu di oggi?', cta: 'Apri il menu', action: 'menu' },
+  };
+}
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const EV: Record<string, [string, string]> = {
@@ -105,11 +108,16 @@ export default function Home() {
   const [nextEvent, setNextEvent] = useState<EventItem | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
+  const [coachName, setCoachName] = useState('la tua coach');
   const mealsRef = useRef<HTMLDivElement>(null);
   const [mealIdx, setMealIdx] = useState(0);
+  const HELP = helpFor(coachName);
 
   useEffect(() => {
     api<Today>('/me/today').then(setToday).catch(() => {});
+    api<{ assignedCoach?: { displayName?: string } | null }>('/me/client-profile')
+      .then((p) => { if (p?.assignedCoach?.displayName) setCoachName(p.assignedCoach.displayName); })
+      .catch(() => {});
     api<{ days: ApiMenuDay[] }>('/me/menu').then((r) => {
       const iso = new Date().toISOString().slice(0, 10);
       const day = (r.days ?? []).find((d) => d.date.slice(0, 10) === iso) ?? (r.days ?? [])[0];
@@ -273,7 +281,17 @@ export default function Home() {
             <b style={{ fontSize: 15 }}>{HELP[sheet].t}</b>
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{HELP[sheet].b}</div>
-          <button className="btn" onClick={() => setSheet(null)}>{HELP[sheet].cta}</button>
+          <button
+            className="btn"
+            onClick={() => {
+              const act = HELP[sheet].action;
+              if (act === 'coach') setSheet('coach');
+              else if (act === 'menu') { setSheet(null); navigate('/menu'); }
+              else setSheet(null);
+            }}
+          >
+            {HELP[sheet].cta}
+          </button>
         </Sheet>
       )}
     </div>
