@@ -22,20 +22,45 @@ const parseNum = (s: string) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
-function Spark({ vals, color }: { vals: number[]; color: string }) {
+function Spark({ vals, dates, format, color }: { vals: number[]; dates?: string[]; format: (v: number) => string; color: string }) {
+  const H = 66;
   const min = Math.min(...vals);
   const max = Math.max(...vals);
   const range = max - min || 1;
   const w = 250;
   const h = 64;
-  const x = (i: number) => (i / Math.max(vals.length - 1, 1)) * w;
+  const n = vals.length;
+  const x = (i: number) => (i / Math.max(n - 1, 1)) * w;
   const y = (v: number) => h - ((v - min) / range) * h * 0.85 - 5;
   const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+
+  const ref = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  function onMove(e: React.MouseEvent<HTMLDivElement>) {
+    const el = ref.current;
+    if (!el || n <= 1) return;
+    const rect = el.getBoundingClientRect();
+    const rel = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    setHover(Math.round(rel * (n - 1)));
+  }
+  const hx = hover != null ? (x(hover) / w) * 100 : 0;
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="66" preserveAspectRatio="none">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      {vals.map((v, i) => <circle key={i} cx={x(i).toFixed(1)} cy={y(v).toFixed(1)} r="3" fill={color} />)}
-    </svg>
+    <div ref={ref} style={{ position: 'relative', height: H }} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block' }}>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        {vals.map((v, i) => <circle key={i} cx={x(i).toFixed(1)} cy={y(v).toFixed(1)} r="3" fill={hover === i ? color : color} opacity={hover == null || hover === i ? 1 : 0.5} />)}
+      </svg>
+      {hover != null && (
+        <>
+          <div style={{ position: 'absolute', left: `${hx}%`, top: 0, bottom: 0, width: 1, background: 'rgba(0,0,0,.12)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: `${hx}%`, top: (y(vals[hover]) / h) * H, width: 9, height: 9, marginLeft: -4.5, marginTop: -4.5, borderRadius: '50%', background: color, border: '2px solid #fff', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: `${Math.min(85, Math.max(15, hx))}%`, top: -4, transform: 'translate(-50%,-100%)', background: '#16302C', color: '#fff', fontSize: 11, fontWeight: 600, padding: '3px 7px', borderRadius: 6, whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: '0 2px 6px rgba(0,0,0,.2)' }}>
+            {dates?.[hover] ? `${dates[hover]} · ` : ''}{format(vals[hover])}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -137,14 +162,23 @@ export default function Obiettivo() {
           {/* Andamento — carosello di grafici (come il prototipo) */}
           {(() => {
             const charts = METRICS
-              .map((m) => ({ m, series: measurements.map((x) => x[m.key] as number | null).filter((v): v is number => v != null) }))
+              .map((m) => {
+                const pts = measurements
+                  .map((x) => ({ v: x[m.key] as number | null, d: x.date }))
+                  .filter((p): p is { v: number; d: string } => p.v != null);
+                return {
+                  m,
+                  series: pts.map((p) => p.v),
+                  dates: pts.map((p) => new Date(p.d).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })),
+                };
+              })
               .filter((c) => c.series.length >= 2);
             if (charts.length === 0) return null;
             return (
               <>
                 <div className="sec">Andamento <span className="muted" style={{ fontWeight: 400 }}>· scorri i grafici</span></div>
                 <div className="meal-carousel" ref={chartsRef} onScroll={onChartsScroll}>
-                  {charts.map(({ m, series }) => {
+                  {charts.map(({ m, series, dates }) => {
                     const delta = series[0] - series[series.length - 1];
                     return (
                       <div className="card" key={m.key}>
@@ -152,9 +186,9 @@ export default function Obiettivo() {
                           <b style={{ fontSize: 13 }}>Andamento {m.label.toLowerCase()}</b>
                           <span style={{ fontSize: 11, color: m.color, fontWeight: 600 }}>{delta >= 0 ? '-' : '+'}{d1(Math.abs(delta))} {m.unit}</span>
                         </div>
-                        <Spark vals={series} color={m.color} />
+                        <Spark vals={series} dates={dates} format={(v) => `${d1(v)} ${m.unit}`} color={m.color} />
                         <div className="row-between" style={{ fontSize: 10, color: '#9aa', marginTop: 4 }}>
-                          <span>inizio</span><span>oggi</span>
+                          <span>{dates[0]}</span><span>{dates[dates.length - 1]}</span>
                         </div>
                       </div>
                     );
