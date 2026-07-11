@@ -61,6 +61,7 @@ const META: Record<string, Meta> = {
   menu_visible_days_before_start: { label: 'Menu visibile prima dell’inizio', group: 'Menu', kind: 'number', unit: 'giorni' },
 
   ai_composer_enabled: { label: 'Layer AI per le notifiche', group: 'AI', kind: 'toggle', help: 'Se attivo (e con AI_API_KEY su Render) i testi delle notifiche vengono riformulati da Claude; il tono resta deciso dal motore.' },
+  ai_assistant_enabled: { label: 'Assistente AI in chat', group: 'AI', kind: 'toggle', help: 'Se attivo (e con AI_API_KEY su Render) l’assistente risponde con Claude ai messaggi generici; i temi sensibili/sanitari restano instradati al nutrizionista.' },
 };
 
 const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'AI', 'Altro'];
