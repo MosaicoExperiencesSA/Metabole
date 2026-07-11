@@ -11,7 +11,19 @@
 // Output: scrive gli MP3 in ./audio e in ./docs/audio (per il sito GitHub Pages),
 // con i nomi-chiave usati dal prototipo (benvenuto, facciamo, intro_*, colore).
 
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+
+// Carica le variabili da un file .env (nella cartella del repo), se presente.
+// Così la chiave si mette UNA volta e non va mai incollata nei comandi né nel repo (.env è git-ignored).
+for (const p of ['.env', 'tools/.env']) {
+  if (!existsSync(p)) continue;
+  for (const line of readFileSync(p, 'utf8').split('\n')) {
+    const mm = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (mm && !line.trim().startsWith('#') && !process.env[mm[1]]) {
+      process.env[mm[1]] = mm[2].replace(/^["']|["']$/g, '');
+    }
+  }
+}
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE_ID = process.env.VOICE_ID || 'Xb7hH8MSUJpSbSDYk0k2'; // Alice (multilingua)
@@ -21,7 +33,7 @@ const FORCE = process.env.FORCE === '1';
 const ONLY = (process.env.ONLY || '').split(',').map(s => s.trim()).filter(Boolean);
 
 if (!API_KEY) {
-  console.error('Manca ELEVENLABS_API_KEY. Esempio:\n  ELEVENLABS_API_KEY=xxxx node tools/genera_voci_gaia.mjs');
+  console.error('Manca ELEVENLABS_API_KEY.\nCrea il file .env nella cartella del repo con dentro:\n  ELEVENLABS_API_KEY=sk_la_tua_chiave_vera\nPoi lancia: node tools/genera_voci_gaia.mjs');
   process.exit(1);
 }
 
@@ -43,6 +55,7 @@ const PHRASES = {
   attesa: "Tra pochi giorni parte il tuo percorso. Non preoccuparti: ti indicherò io cosa fare, come la lista della spesa. Un consiglio: installami sul telefono come widget, toccando il pulsante qui sotto.",
 
   // Domande del test (chiave = q_ + titolo "slugificato")
+  q_perche_vuoi_iniziare_adesso: "Dimmi la spinta più vera: mi aiuta a costruire il percorso giusto per te.",
   q_come_vuoi_essere_chiamata: "Come vuoi che ti chiami? Scrivi qui il tuo nome.",
   q17_resto: "Perfetto! Ora inseriscimi la tua età, il tuo sesso e la tua altezza.",
   q_il_tuo_punto_di_partenza: "Inseriscimi le tue misure di partenza. Ricordati che dovrai aggiornarle ogni due giorni. Se non sai come prenderle, guarda il video toccando il pulsante.",
