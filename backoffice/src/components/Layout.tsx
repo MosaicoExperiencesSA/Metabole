@@ -41,6 +41,7 @@ const NAV: NavSection[] = [
   {
     group: 'Percorso cliente',
     items: [
+      { key: 'clients', label: 'Clienti', to: '/clienti', icon: 'ti-users' },
       { key: 'visits_agenda', label: 'Agenda visite', to: '/agenda', icon: 'ti-calendar' },
       { key: 'escalations', label: 'Segnalazioni', to: '/segnalazioni', icon: 'ti-alert-triangle' },
     ],

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const round1 = (n: number) => Math.round(n * 10) / 10;
+const MONTH_LABELS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const DEMO_DOMAIN = '@demo.metabole.local';
 const DEMO_NOTE = '__demo_analytics__';
 
@@ -50,10 +51,14 @@ export class AnalyticsService {
       longestTenured: null as { name: string; since: Date } | null,
       newClientsThisMonth: 0, revenueThisMonthCents: 0, totalRevenueCents: 0, avgLossKg: 0,
       activeSubscriptions: 0,
+      monthly: [] as {
+        label: string; kgLost: number; cmWaistLost: number; avgLossKg: number;
+        newClients: number; activeSubscriptions: number; revenueCents: number; cumulativeRevenueCents: number;
+      }[],
     };
     if (ids.length === 0) return base;
 
-    const [measurements, payments, activeSubs] = await Promise.all([
+    const [measurements, payments, subs] = await Promise.all([
       this.prisma.measurement.findMany({
         where: { clientId: { in: ids } },
         orderBy: { date: 'asc' },
@@ -63,8 +68,13 @@ export class AnalyticsService {
         where: { clientId: { in: ids }, status: 'approved' as never },
         select: { clientId: true, amountCents: true, createdAt: true },
       }),
-      this.prisma.subscription.count({ where: { clientId: { in: ids }, status: 'active' as never } }),
+      this.prisma.subscription.findMany({
+        where: { clientId: { in: ids } },
+        select: { startDate: true, endDate: true, status: true },
+      }),
     ]);
+    const subsList = subs as { startDate: Date | null; endDate: Date | null; status: string }[];
+    const activeSubs = subsList.filter((s) => s.status === 'active').length;
 
     // Misure per cliente (già ordinate per data crescente).
     const byClient = new Map<string, Meas[]>();
@@ -100,8 +110,46 @@ export class AnalyticsService {
     const topCoach = [...revenueByCoach.entries()].sort((a, b) => b[1] - a[1])[0];
     const longest = [...clients].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
 
+    // Serie mensile (ultimi 6 mesi) per i grafici con linea di tendenza.
+    const months: { start: Date; end: Date; label: string }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ start: s, end: new Date(s.getFullYear(), s.getMonth() + 1, 1), label: MONTH_LABELS[s.getMonth()] });
+    }
+    let cumRevenue = payments
+      .filter((p: { createdAt: Date }) => p.createdAt < months[0].start)
+      .reduce((a: number, p: { amountCents: number }) => a + p.amountCents, 0);
+    const monthly = months.map((mo) => {
+      let kg = 0, cm = 0, withLoss = 0, revenue = 0, newC = 0;
+      for (const arr of byClient.values()) {
+        const inMonth = arr.filter((m) => m.date >= mo.start && m.date < mo.end);
+        if (inMonth.length >= 2) {
+          kg += inMonth[0].weightKg - inMonth[inMonth.length - 1].weightKg;
+          const ws = inMonth.find((m) => m.waistCm != null)?.waistCm;
+          const we = [...inMonth].reverse().find((m) => m.waistCm != null)?.waistCm;
+          if (ws != null && we != null) cm += ws - we;
+          withLoss++;
+        }
+      }
+      for (const p of payments) if (p.createdAt >= mo.start && p.createdAt < mo.end) revenue += p.amountCents;
+      for (const c of clients) if (c.createdAt >= mo.start && c.createdAt < mo.end) newC++;
+      const activeAtEnd = subsList.filter((s) => s.startDate != null && s.startDate < mo.end && (s.endDate == null || s.endDate >= mo.end)).length;
+      cumRevenue += revenue;
+      return {
+        label: mo.label,
+        kgLost: round1(kg),
+        cmWaistLost: round1(cm),
+        avgLossKg: withLoss ? round1(kg / withLoss) : 0,
+        newClients: newC,
+        activeSubscriptions: activeAtEnd,
+        revenueCents: revenue,
+        cumulativeRevenueCents: cumRevenue,
+      };
+    });
+
     return {
       ...base,
+      monthly,
       kgLostThisMonth: round1(kgMonth),
       cmWaistLostThisMonth: round1(cmMonth),
       top5ByLoss: sortedLoss.slice(0, 5).map((x) => ({ name: x.name, lossKg: round1(x.lossKg) })),

@@ -2,28 +2,26 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
+import { MiniTrend } from '../components/MiniTrend';
 
 interface NamedLoss { name: string; lossKg: number }
 interface NamedAmount { name: string; amountCents: number }
+interface MonthPoint {
+  label: string; kgLost: number; cmWaistLost: number; avgLossKg: number;
+  newClients: number; activeSubscriptions: number; revenueCents: number; cumulativeRevenueCents: number;
+}
 interface Charts {
   scope: 'all' | 'own';
   clientsCount: number;
-  kgLostThisMonth: number;
-  cmWaistLostThisMonth: number;
+  monthly: MonthPoint[];
   top5ByLoss: NamedLoss[];
   bottom5ByLoss: NamedLoss[];
   topCoachByRevenue: NamedAmount | null;
   topSpender: NamedAmount | null;
   longestTenured: { name: string; since: string } | null;
-  newClientsThisMonth: number;
-  revenueThisMonthCents: number;
-  totalRevenueCents: number;
-  avgLossKg: number;
-  activeSubscriptions: number;
 }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(0);
-const kg = (n: number) => `${n > 0 ? '' : ''}${n.toFixed(1)} kg`;
 
 function Stat({ label, value, sub, icon, color }: { label: string; value: string; sub?: string; icon: string; color: string }) {
   return (
@@ -116,18 +114,33 @@ export function Grafici() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12, marginBottom: 16 }}>
-        <Stat label="Kg persi questo mese" value={kg(data.kgLostThisMonth)} icon="ti-scale" color="var(--teal-dark)" />
-        <Stat label="Cm vita persi (mese)" value={`${data.cmWaistLostThisMonth.toFixed(1)} cm`} icon="ti-ruler-2" color="#3A6EA5" />
-        <Stat label="Perdita media / cliente" value={kg(data.avgLossKg)} icon="ti-trending-down" color="var(--teal-dark)" />
-        <Stat label="Nuovi clienti (mese)" value={String(data.newClientsThisMonth)} icon="ti-user-plus" color="var(--violet)" />
-        <Stat label="Abbonamenti attivi" value={String(data.activeSubscriptions)} icon="ti-refresh" color="var(--teal-dark)" />
-        <Stat label="Fatturato del mese" value={euro(data.revenueThisMonthCents)} icon="ti-cash" color="var(--gold)" />
-        <Stat label="Fatturato totale" value={euro(data.totalRevenueCents)} icon="ti-coin" color="var(--gold)" />
-        {data.topSpender && <Stat label="Maggior spendente" value={data.topSpender.name} sub={euro(data.topSpender.amountCents)} icon="ti-crown" color="var(--gold)" />}
-        {data.topCoachByRevenue && <Stat label="Coach con più fatturato" value={data.topCoachByRevenue.name} sub={euro(data.topCoachByRevenue.amountCents)} icon="ti-medal" color="var(--teal-dark)" />}
-        {data.longestTenured && <Stat label="Cliente da più tempo" value={data.longestTenured.name} sub={new Date(data.longestTenured.since).toLocaleDateString('it-IT')} icon="ti-hourglass" color="var(--coral-dark)" />}
-      </div>
+      {(() => {
+        const m = data.monthly ?? [];
+        const L = m.map((x) => x.label);
+        const kgF = (v: number) => `${v.toFixed(1)} kg`;
+        const cmF = (v: number) => `${v.toFixed(1)} cm`;
+        const intF = (v: number) => String(Math.round(v));
+        const eurF = (v: number) => '€ ' + Math.round(v / 100).toLocaleString('it-IT');
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 12, marginBottom: 16 }}>
+            <MiniTrend label="Kg persi / mese" values={m.map((x) => x.kgLost)} labels={L} format={kgF} />
+            <MiniTrend label="Cm vita persi / mese" values={m.map((x) => x.cmWaistLost)} labels={L} format={cmF} color="#3A6EA5" />
+            <MiniTrend label="Perdita media / cliente" values={m.map((x) => x.avgLossKg)} labels={L} format={kgF} />
+            <MiniTrend label="Nuovi clienti / mese" values={m.map((x) => x.newClients)} labels={L} format={intF} color="var(--violet)" />
+            <MiniTrend label="Abbonamenti attivi" values={m.map((x) => x.activeSubscriptions)} labels={L} format={intF} />
+            <MiniTrend label="Fatturato / mese" values={m.map((x) => x.revenueCents)} labels={L} format={eurF} color="var(--gold)" />
+            <MiniTrend label="Fatturato cumulato" values={m.map((x) => x.cumulativeRevenueCents)} labels={L} format={eurF} color="var(--gold)" />
+          </div>
+        );
+      })()}
+
+      {(data.topSpender || data.topCoachByRevenue || data.longestTenured) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 12, marginBottom: 16 }}>
+          {data.topSpender && <Stat label="Maggior spendente" value={data.topSpender.name} sub={euro(data.topSpender.amountCents)} icon="ti-crown" color="var(--gold)" />}
+          {data.topCoachByRevenue && <Stat label="Coach con più fatturato" value={data.topCoachByRevenue.name} sub={euro(data.topCoachByRevenue.amountCents)} icon="ti-medal" color="var(--teal-dark)" />}
+          {data.longestTenured && <Stat label="Cliente da più tempo" value={data.longestTenured.name} sub={new Date(data.longestTenured.since).toLocaleDateString('it-IT')} icon="ti-hourglass" color="var(--coral-dark)" />}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14 }}>
         <BarList title="Migliori 5 per perdita" items={data.top5ByLoss} unit="kg" />

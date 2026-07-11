@@ -128,11 +128,11 @@ export function LeadsTable() {
 
       {error && <Banner kind="err">{error}</Banner>}
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
         {filtered.length === 0 ? (
           <div className="empty">Nessun lead o cliente. Inseriscine uno con "Nuovo lead".</div>
         ) : (
-          <table className="grid">
+          <table className="grid" style={{ minWidth: 920 }}>
             <thead>
               <tr>
                 <th>Nome</th>
