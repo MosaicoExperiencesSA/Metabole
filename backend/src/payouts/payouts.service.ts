@@ -144,7 +144,7 @@ export class PayoutsService {
     await this.prisma.staff.update({ where: { id: staff.id }, data: { iban } });
 
     const withdrawal = await this.prisma.commissionWithdrawal.create({
-      data: { staffId: staff.id, amountCents: amount, iban, status: 'requested', receiptData, receiptMime, receiptName },
+      data: { staffId: staff.id, amountCents: amount, iban, status: 'requested', receiptData: receiptData as never, receiptMime, receiptName },
     });
     await this.audit.log({ action: 'payout.request', actorId: userId, entityType: 'commission_withdrawal', entityId: withdrawal.id, metadata: { amountCents: amount } });
     return this.publicWithdrawal(withdrawal);
