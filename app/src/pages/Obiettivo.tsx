@@ -1,19 +1,26 @@
-/** Obiettivo — misure di oggi, andamento (grafici) e progressi verso il target. */
+import { useEffect, useState } from 'react';
+import { api, ApiError } from '../api/client';
 
-type Obj = [string, string, number, number, number, string]; // label, unit, start, current, target, color
-const OBJ: Obj[] = [
-  ['Peso', 'kg', 72, 68.4, 66, '#12A386'],
-  ['Vita', 'cm', 80, 76.5, 72, '#E8825A'],
-  ['Fianchi', 'cm', 99, 97, 94, '#3A6EA5'],
-];
-const CHARTS: [string, string, number[], string][] = [
-  ['Peso', 'kg', [72, 71.3, 70.6, 70, 69.4, 69, 68.7, 68.4], '#12A386'],
-  ['Vita', 'cm', [80, 79.4, 78.6, 78, 77.5, 77.1, 76.8, 76.5], '#E8825A'],
-  ['Fianchi', 'cm', [99, 98.6, 98.2, 97.8, 97.5, 97.2, 97, 97], '#3A6EA5'],
-];
+/** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
+
+interface Measurement {
+  id: string;
+  date: string;
+  weightKg: number;
+  waistCm: number | null;
+  hipsCm: number | null;
+}
+interface Objective {
+  targetWeightKg: number | null;
+  targetWaistCm: number | null;
+  targetHipsCm: number | null;
+}
 
 const d1 = (n: number) => n.toFixed(1).replace('.', ',');
-const pctOf = (o: Obj) => Math.round(((o[2] - o[3]) / (o[2] - o[4])) * 100);
+const parseNum = (s: string) => {
+  const n = Number(s.replace(',', '.'));
+  return Number.isFinite(n) ? n : undefined;
+};
 
 function Spark({ vals, color }: { vals: number[]; color: string }) {
   const min = Math.min(...vals);
@@ -21,7 +28,7 @@ function Spark({ vals, color }: { vals: number[]; color: string }) {
   const range = max - min || 1;
   const w = 100;
   const h = 40;
-  const pts = vals.map((v, i) => `${(i / (vals.length - 1)) * w},${(h - 2) - ((v - min) / range) * (h - 4) + 2}`).join(' ');
+  const pts = vals.map((v, i) => `${(i / Math.max(vals.length - 1, 1)) * w},${(h - 2) - ((v - min) / range) * (h - 4) + 2}`).join(' ');
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="52" preserveAspectRatio="none">
       <polyline points={pts} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
@@ -29,7 +36,67 @@ function Spark({ vals, color }: { vals: number[]; color: string }) {
   );
 }
 
+const METRICS = [
+  { key: 'weightKg', label: 'Peso', unit: 'kg', color: '#12A386', targetKey: 'targetWeightKg' },
+  { key: 'waistCm', label: 'Vita', unit: 'cm', color: '#E8825A', targetKey: 'targetWaistCm' },
+  { key: 'hipsCm', label: 'Fianchi', unit: 'cm', color: '#3A6EA5', targetKey: 'targetHipsCm' },
+] as const;
+
 export default function Obiettivo() {
+  const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [objective, setObjective] = useState<Objective | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [weight, setWeight] = useState('');
+  const [waist, setWaist] = useState('');
+  const [hips, setHips] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function load() {
+    const [ms, obj] = await Promise.all([
+      api<Measurement[]>('/me/measurements').catch(() => [] as Measurement[]),
+      api<Objective>('/me/objective').catch((e) => (e instanceof ApiError && e.status === 404 ? null : null)),
+    ]);
+    setMeasurements(ms);
+    setObjective(obj);
+    const last = ms[ms.length - 1];
+    if (last) {
+      setWeight(d1(last.weightKg));
+      setWaist(last.waistCm != null ? d1(last.waistCm) : '');
+      setHips(last.hipsCm != null ? d1(last.hipsCm) : '');
+    }
+    setLoading(false);
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function submit() {
+    setMsg(null);
+    const w = parseNum(weight);
+    if (w === undefined) {
+      setMsg('Inserisci almeno il peso.');
+      return;
+    }
+    setBusy(true);
+    const body: Record<string, number> = { weightKg: w };
+    const wa = parseNum(waist);
+    const hi = parseNum(hips);
+    if (wa !== undefined) body.waistCm = wa;
+    if (hi !== undefined) body.hipsCm = hi;
+    try {
+      await api('/me/measurements', { method: 'POST', body: JSON.stringify(body) });
+      await load();
+      setMsg('Misure salvate!');
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <div className="center"><div className="spin" /></div>;
+
   return (
     <div className="menu">
       <div className="menu-head">
@@ -41,51 +108,68 @@ export default function Obiettivo() {
       <div className="card">
         <b style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Misure di oggi</b>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" defaultValue="68,4" /></div>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" defaultValue="76,5" /></div>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" defaultValue="97" /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} onChange={(e) => setWaist(e.target.value)} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} onChange={(e) => setHips(e.target.value)} /></div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn" style={{ padding: 11 }}><i className="ti ti-send" /> Invia</button>
+            <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy}><i className="ti ti-send" /> {busy ? 'Salvo…' : 'Invia'}</button>
           </div>
         </div>
+        {msg && <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>{msg}</div>}
       </div>
 
-      {/* Andamento */}
-      <div className="sec">Andamento</div>
-      <div className="meals-col">
-        {CHARTS.map((c) => {
-          const delta = d1(c[2][0] - c[2][c[2].length - 1]);
-          return (
-            <div className="card" key={c[0]}>
-              <div className="row-between" style={{ marginBottom: 8 }}>
-                <b style={{ fontSize: 13 }}>Andamento {c[0].toLowerCase()}</b>
-                <span style={{ fontSize: 11, color: c[3], fontWeight: 600 }}>-{delta} {c[1]}</span>
-              </div>
-              <Spark vals={c[2]} color={c[3]} />
-              <div className="row-between" style={{ fontSize: 10, color: '#9aa', marginTop: 4 }}>
-                <span>3 sett. fa</span><span>oggi</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {measurements.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center' }}>
+          <p className="muted" style={{ margin: 0 }}>Ancora nessuna misura: inserisci la prima per vedere i progressi.</p>
+        </div>
+      ) : (
+        <>
+          {/* Andamento */}
+          <div className="sec">Andamento</div>
+          <div className="meals-col">
+            {METRICS.map((m) => {
+              const series = measurements.map((x) => x[m.key] as number | null).filter((v): v is number => v != null);
+              if (series.length < 2) return null;
+              const delta = series[0] - series[series.length - 1];
+              return (
+                <div className="card" key={m.key}>
+                  <div className="row-between" style={{ marginBottom: 8 }}>
+                    <b style={{ fontSize: 13 }}>Andamento {m.label.toLowerCase()}</b>
+                    <span style={{ fontSize: 11, color: m.color, fontWeight: 600 }}>{delta >= 0 ? '-' : '+'}{d1(Math.abs(delta))} {m.unit}</span>
+                  </div>
+                  <Spark vals={series} color={m.color} />
+                  <div className="row-between" style={{ fontSize: 10, color: '#9aa', marginTop: 4 }}>
+                    <span>inizio</span><span>oggi</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-      {/* Progressi */}
-      <div className="card" style={{ marginTop: 12 }}>
-        <b style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>Verso il tuo obiettivo</b>
-        {OBJ.map((o) => {
-          const pct = pctOf(o);
-          return (
-            <div key={o[0]} style={{ marginBottom: 13 }}>
-              <div className="row-between" style={{ fontSize: 12, marginBottom: 4 }}>
-                <b>{o[0]}</b>
-                <span className="muted">-{d1(o[2] - o[3])} di -{d1(o[2] - o[4])} {o[1]} · <b style={{ color: o[5] }}>{pct}%</b></span>
-              </div>
-              <div className="bar"><span style={{ width: `${pct}%`, background: o[5] }} /></div>
-            </div>
-          );
-        })}
-      </div>
+          {/* Progressi */}
+          <div className="card" style={{ marginTop: 12 }}>
+            <b style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>Verso il tuo obiettivo</b>
+            {METRICS.map((m) => {
+              const series = measurements.map((x) => x[m.key] as number | null).filter((v): v is number => v != null);
+              const target = objective ? (objective[m.targetKey] as number | null) : null;
+              if (series.length === 0 || target == null) return null;
+              const start = series[0];
+              const current = series[series.length - 1];
+              const denom = start - target;
+              const pct = denom === 0 ? 100 : Math.max(0, Math.min(100, Math.round(((start - current) / denom) * 100)));
+              return (
+                <div key={m.key} style={{ marginBottom: 13 }}>
+                  <div className="row-between" style={{ fontSize: 12, marginBottom: 4 }}>
+                    <b>{m.label}</b>
+                    <span className="muted">-{d1(start - current)} di -{d1(start - target)} {m.unit} · <b style={{ color: m.color }}>{pct}%</b></span>
+                  </div>
+                  <div className="bar"><span style={{ width: `${pct}%`, background: m.color }} /></div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

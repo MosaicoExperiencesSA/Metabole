@@ -1,9 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
 import CheckinPopup from '../components/CheckinPopup';
+
+interface Today {
+  checkinDone: boolean;
+  measurementDone: boolean;
+  water: { glasses: number; goal: number };
+  steps: { steps: number; goal: number };
+}
 
 /**
  * Home / dashboard — replica fedele del prototipo del socio:
@@ -92,13 +100,43 @@ export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sheet, setSheet] = useState<null | 'coach' | 'fame' | 'fuori' | 'sost' | 'spesa'>(null);
-  const [checkin, setCheckin] = useState(true);
+  const [today, setToday] = useState<Today | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const [checkinBusy, setCheckinBusy] = useState(false);
+
+  useEffect(() => {
+    api<Today>('/me/today').then(setToday).catch(() => {});
+  }, []);
+
+  async function submitMood(mood: string) {
+    setCheckinBusy(true);
+    try {
+      await api('/me/checkins', { method: 'POST', body: JSON.stringify({ mood }) });
+      setToday((t) => (t ? { ...t, checkinDone: true } : t));
+    } catch {
+      /* in caso di errore chiudiamo comunque */
+    } finally {
+      setCheckinBusy(false);
+      setDismissed(true);
+    }
+  }
+
+  async function addWater() {
+    if (!today) return;
+    const glasses = today.water.glasses + 1;
+    setToday({ ...today, water: { ...today.water, glasses } });
+    try {
+      await api('/me/water', { method: 'POST', body: JSON.stringify({ glasses }) });
+    } catch {
+      /* ignora */
+    }
+  }
 
   const name = (user?.firstName || user?.email?.split('@')[0] || 'ciao').replace(/^\w/, (c) => c.toUpperCase());
-  const today = new Date();
-  const dateStr = today.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
   const coach = coachOfDay(name);
-  const frase = FRASI[today.getDate() % FRASI.length];
+  const frase = FRASI[now.getDate() % FRASI.length];
 
   return (
     <div className="home">
@@ -128,9 +166,21 @@ export default function Home() {
 
       <div className="sec">Oggi a colpo d'occhio</div>
       <div className="stat-row">
-        <div className="stat"><i className="ti ti-droplet" style={{ color: '#2AA7C4' }} /><div className="stat-v">5/8</div><div className="muted stat-l">acqua</div></div>
-        <div className="stat"><i className="ti ti-walk" style={{ color: '#E8825A' }} /><div className="stat-v">4.200</div><div className="muted stat-l">passi</div></div>
-        <div className="stat" onClick={() => navigate('/obiettivo')} style={{ cursor: 'pointer' }}><i className="ti ti-ruler-2" style={{ color: '#3A6EA5' }} /><div className="stat-v">oggi</div><div className="muted stat-l">misure</div></div>
+        <div className="stat" onClick={addWater} style={{ cursor: 'pointer' }}>
+          <i className="ti ti-droplet" style={{ color: '#2AA7C4' }} />
+          <div className="stat-v">{today ? `${today.water.glasses}/${today.water.goal}` : '—'}</div>
+          <div className="muted stat-l">acqua</div>
+        </div>
+        <div className="stat">
+          <i className="ti ti-walk" style={{ color: '#E8825A' }} />
+          <div className="stat-v">{today ? today.steps.steps.toLocaleString('it-IT') : '—'}</div>
+          <div className="muted stat-l">passi</div>
+        </div>
+        <div className="stat" onClick={() => navigate('/obiettivo')} style={{ cursor: 'pointer' }}>
+          <i className="ti ti-ruler-2" style={{ color: '#3A6EA5' }} />
+          <div className="stat-v">{today ? (today.measurementDone ? 'oggi' : '—') : '—'}</div>
+          <div className="muted stat-l">misure</div>
+        </div>
       </div>
 
       <div className="row-between" style={{ margin: '6px 2px 8px' }}>
@@ -173,7 +223,9 @@ export default function Home() {
       </div>
 
       {/* Popup e schede */}
-      {checkin && <CheckinPopup onDone={() => setCheckin(false)} />}
+      {today && !today.checkinDone && !dismissed && (
+        <CheckinPopup onMood={submitMood} onSkip={() => setDismissed(true)} busy={checkinBusy} />
+      )}
       {sheet === 'coach' && <Sheet onClose={() => setSheet(null)}><CoachChat /></Sheet>}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
       {sheet && HELP[sheet] && (
