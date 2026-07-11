@@ -56,6 +56,7 @@ export function Impostazioni() {
   const availableModules = DASHBOARD_MODULES.filter((m) => can(m.pageKey));
   const [modules, setModules] = useState<string[] | null>(null);
   const [modMsg, setModMsg] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -66,19 +67,36 @@ export function Impostazioni() {
     })();
   }, []);
 
-  async function toggleModule(id: string) {
-    const cur = modules ?? DEFAULT_MODULE_IDS;
-    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+  async function saveModules(next: string[]) {
     setModules(next);
     setModMsg(null);
     try {
-      const ordered = availableModules.filter((m) => next.includes(m.id)).map((m) => m.id);
-      await api('/me/preferences', { method: 'PUT', body: JSON.stringify({ dashboardModules: ordered }) });
+      await api('/me/preferences', { method: 'PUT', body: JSON.stringify({ dashboardModules: next }) });
       setModMsg('Preferenze dashboard salvate.');
     } catch { setModMsg('Salvataggio non riuscito.'); }
   }
 
-  const chosen = modules ?? DEFAULT_MODULE_IDS;
+  const chosen = (modules ?? DEFAULT_MODULE_IDS).filter((id) => availableModules.some((m) => m.id === id));
+
+  function toggleModule(id: string) {
+    const next = chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id];
+    void saveModules(next);
+  }
+
+  /** Sposta il modulo trascinato PRIMA di quello su cui si rilascia. */
+  function reorder(fromId: string, toId: string) {
+    if (fromId === toId) return;
+    const next = [...chosen];
+    const from = next.indexOf(fromId);
+    if (from < 0) return;
+    next.splice(from, 1);
+    const to = next.indexOf(toId);
+    next.splice(to < 0 ? next.length : to, 0, fromId);
+    void saveModules(next);
+  }
+
+  const selectedModules = chosen.map((id) => availableModules.find((m) => m.id === id)).filter(Boolean) as typeof availableModules;
+  const unselectedModules = availableModules.filter((m) => !chosen.includes(m.id));
 
   return (
     <>
@@ -124,22 +142,46 @@ export function Impostazioni() {
       {/* Moduli dashboard */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Moduli in dashboard</h2>
-        <p className="hint" style={{ marginTop: 0 }}>Scegli i riquadri (anteprime delle pagine) da mostrare in dashboard. {modMsg && <b style={{ color: 'var(--ok-ink)' }}>· {modMsg}</b>}</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 8 }}>
-          {availableModules.map((m) => {
-            const on = chosen.includes(m.id);
-            return (
-              <label key={m.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 10, cursor: 'pointer', border: '1px solid var(--line)', background: on ? 'var(--chip)' : 'transparent' }}>
-                <input type="checkbox" checked={on} onChange={() => toggleModule(m.id)} />
+        <p className="hint" style={{ marginTop: 0 }}>Trascina per riordinare i riquadri; l'ordine si riflette in dashboard. {modMsg && <b style={{ color: 'var(--ok-ink)' }}>· {modMsg}</b>}</p>
+
+        {selectedModules.length === 0 ? (
+          <div className="empty" style={{ padding: '18px 12px' }}>Nessun modulo attivo. Aggiungine qui sotto.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {selectedModules.map((m) => (
+              <div
+                key={m.id}
+                draggable
+                onDragStart={() => setDragId(m.id)}
+                onDragEnd={() => setDragId(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => { if (dragId) reorder(dragId, m.id); setDragId(null); }}
+                style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--chip)', cursor: 'grab', opacity: dragId === m.id ? 0.4 : 1 }}
+              >
+                <i className="ti ti-grip-vertical" style={{ fontSize: 18, color: 'var(--muted)' }} />
                 <i className={`ti ${m.icon}`} style={{ fontSize: 18 }} />
                 <span style={{ flex: 1 }}>
                   <b style={{ display: 'block', fontSize: 14 }}>{m.label}</b>
                   <span className="muted" style={{ fontSize: 12 }}>{m.preview}</span>
                 </span>
-              </label>
-            );
-          })}
-        </div>
+                <button className="btn ghost sm" onClick={() => toggleModule(m.id)} title="Rimuovi dalla dashboard"><i className="ti ti-x" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {unselectedModules.length > 0 && (
+          <>
+            <p className="muted" style={{ fontSize: 12, margin: '14px 0 6px' }}>Aggiungi altri moduli</p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {unselectedModules.map((m) => (
+                <button key={m.id} className="chip" onClick={() => toggleModule(m.id)} style={{ cursor: 'pointer', gap: 6 }}>
+                  <i className={`ti ${m.icon}`} /> {m.label} <i className="ti ti-plus" style={{ fontSize: 13 }} />
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </>
   );

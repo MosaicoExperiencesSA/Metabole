@@ -77,7 +77,10 @@ export function Dashboard() {
   const chosen = selected ?? DEFAULT_IDS;
   const shown = available.filter((s) => chosen.includes(s.id));
   const chosenModules = modules ?? DEFAULT_MODULE_IDS;
-  const shownModules = DASHBOARD_MODULES.filter((m) => can(m.pageKey) && chosenModules.includes(m.id));
+  // Rispetta l'ordine scelto dall'utente (drag & drop in Impostazioni), non quello del catalogo.
+  const shownModules = chosenModules
+    .map((id) => DASHBOARD_MODULES.find((m) => m.id === id))
+    .filter((m): m is DashboardModule => !!m && can(m.pageKey));
 
   async function saveCharts(keys: string[]) {
     setChartKeys(keys);

@@ -12,12 +12,9 @@ Il video viene mostrato al cliente nella schermata "La tua coach, Sara" durante 
 (oggi nel prototipo è un player finto). Prevedere: campo `intro_video_url` sul profilo coach,
 upload da dashboard, formato/durata consigliati e fallback se assente.
 
-## Impostazioni backoffice — moduli dashboard trascinabili (da fare)
-Nella pagina Impostazioni, la sezione "Moduli in dashboard" deve permettere di
-**riordinare i moduli con drag & drop**, così l'ordine è personalizzabile (non solo
-quali mostrare). Salvare l'ordine in `dashboardModules` (già presente nelle preferenze):
-l'array riflette l'ordine scelto. La dashboard rispetta già l'ordine dell'array; serve
-solo la UI di trascinamento nel picker.
+## Impostazioni backoffice — moduli dashboard trascinabili — FATTO
+Riordino drag & drop dei moduli in Impostazioni (lista trascinabile + chip "Aggiungi");
+l'ordine si salva in `dashboardModules` e la dashboard lo rispetta.
 
 ## PROMEMORIA — permessi pagine
 Ogni NUOVA pagina del backoffice va aggiunta alla lista permessi:
