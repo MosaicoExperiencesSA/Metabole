@@ -36,6 +36,22 @@ const METHODS: Record<string, string[]> = {
   'Meal prep': ['La sera prima cuoci tutto.', 'Dividi nei contenitori.', 'Condisci al momento.'],
 };
 
+function StarRating() {
+  const [rating, setRating] = useState(0);
+  return (
+    <div className="card">
+      <b style={{ fontSize: 13 }}>Hai cucinato questo piatto?</b>
+      <div className="muted" style={{ margin: '2px 0 8px' }}>La valutazione insegna cosa proporti</div>
+      <div className="stars">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <i key={n} className="ti ti-star-filled" style={{ color: n <= rating ? '#F2B705' : '#E2DED4', cursor: 'pointer' }} onClick={() => setRating(n)} />
+        ))}
+      </div>
+      {rating > 0 && <div className="muted" style={{ marginTop: 8 }}>Grazie! Ne terrò conto per i prossimi menu.</div>}
+    </div>
+  );
+}
+
 function Recipe({ meal, onBack }: { meal: Meal; onBack: () => void }) {
   const [method, setMethod] = useState('Veloce');
   return (
@@ -61,6 +77,7 @@ function Recipe({ meal, onBack }: { meal: Meal; onBack: () => void }) {
           {METHODS[method].map((s, i) => <li key={i}>{s}</li>)}
         </ol>
       </div>
+      <StarRating />
     </div>
   );
 }

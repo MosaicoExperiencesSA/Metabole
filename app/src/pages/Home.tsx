@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
+import Sheet from '../components/Sheet';
+import CheckinPopup from '../components/CheckinPopup';
 
 /**
  * Home / dashboard — replica fedele del prototipo del socio:
  * saluto, card del coach (mascotte + frase), "Oggi a colpo d'occhio",
- * i pasti di oggi, azioni rapide, eventi gestiti.
- * (Dati dimostrativi per ora; il collegamento ai dati reali arriva subito dopo.)
+ * i pasti di oggi, azioni rapide, eventi gestiti, popup check-in e schede dal basso.
+ * (Dati dimostrativi per ora; il collegamento ai dati reali arriva dopo.)
  */
 
 type Meal = [string, string, number, string, string, string, string, boolean];
@@ -27,6 +30,14 @@ const FRASI = [
   'La costanza batte la perfezione.',
 ];
 
+const HELP: Record<string, { t: string; b: string; cta: string }> = {
+  fame: { t: 'Ho fame adesso', b: "Bevi un bicchiere d'acqua e prendi un frutto o dei semi: spesso la fame passa in 15 minuti. Se ti capita spesso di pomeriggio, lo segnalo a Sara e anticipiamo lo spuntino.", cta: 'Chiedi a Sara' },
+  fuori: { t: 'Mangio fuori', b: 'Scegli una proteina con verdure, evita bevande zuccherate e concediti un piccolo piacere senza sensi di colpa. Domani ti preparo un rientro morbido, tranquilla.', cta: 'Ok, grazie' },
+  sost: { t: 'Sostituisci un ingrediente', b: 'Non hai un ingrediente o non ti piace? Alternativa equivalente: al posto del farro, quinoa o orzo. Vuoi che aggiorni la ricetta di oggi?', cta: 'Aggiorna ricetta' },
+};
+
+const SPESA = ['Farro', 'Petto di pollo', 'Yogurt greco', 'Avena', 'Frutta fresca', 'Zucchine', 'Pomodorini', 'Orata', 'Patate'];
+
 function coachOfDay(name: string): { bg: string; head: string } {
   const h = new Date().getHours();
   if (h < 11) return { bg: '#2AA7C4', head: `Buongiorno, ${name}!` };
@@ -36,9 +47,53 @@ function coachOfDay(name: string): { bg: string; head: string } {
   return { bg: '#2E2A5A', head: `Buonanotte, ${name}` };
 }
 
+function CoachChat() {
+  return (
+    <>
+      <div className="row" style={{ alignItems: 'center', gap: 9, marginBottom: 4 }}>
+        <span className="sara-av">SC</span>
+        <div><b style={{ fontSize: 15 }}>Sara — la tua coach</b><div className="muted" style={{ fontSize: 11 }}>Domande sanitarie? Ti giro alla nutrizionista.</div></div>
+      </div>
+      <div className="chat-col">
+        <div className="bubble-in">Ciao! Come procede questa settimana?</div>
+        <div className="bubble-out">Bene, un po' di fame il pomeriggio</div>
+        <div className="bubble-in">Perfetto, anticipiamo lo spuntino. Ci vediamo in televisita il 22!</div>
+      </div>
+      <div className="chat-input">
+        <input className="input" style={{ borderRadius: 22 }} placeholder="Scrivi a Sara…" />
+        <button className="btn" style={{ width: 'auto', padding: '10px 13px' }}><i className="ti ti-send" /></button>
+      </div>
+    </>
+  );
+}
+
+function SpesaList() {
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  return (
+    <>
+      <div className="row" style={{ alignItems: 'center', gap: 9, marginBottom: 10 }}>
+        <span className="event-ic" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-basket" /></span>
+        <div><b style={{ fontSize: 15 }}>Lista della spesa</b><div className="muted" style={{ fontSize: 11 }}>Per i prossimi 2 giorni</div></div>
+      </div>
+      {SPESA.map((it) => {
+        const on = checked[it];
+        return (
+          <div key={it} className="spesa-item" style={{ opacity: on ? 0.55 : 1 }} onClick={() => setChecked((c) => ({ ...c, [it]: !c[it] }))}>
+            <span className={`spesa-ck${on ? ' on' : ''}`}>{on && <i className="ti ti-check" />}</span>
+            <span style={{ fontSize: 13 }}>{it}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [sheet, setSheet] = useState<null | 'coach' | 'fame' | 'fuori' | 'sost' | 'spesa'>(null);
+  const [checkin, setCheckin] = useState(true);
+
   const name = (user?.firstName || user?.email?.split('@')[0] || 'ciao').replace(/^\w/, (c) => c.toUpperCase());
   const today = new Date();
   const dateStr = today.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -47,21 +102,19 @@ export default function Home() {
 
   return (
     <div className="home">
-      {/* Saluto */}
       <div className="home-head">
         <div>
           <h1 style={{ textTransform: 'capitalize' }}>Ciao, {name}</h1>
           <div className="muted" style={{ textTransform: 'capitalize' }}>{dateStr}</div>
         </div>
         <div className="home-icons">
-          <button className="home-icon" style={{ color: '#12A386' }}><i className="ti ti-message-2" /></button>
+          <button className="home-icon" style={{ color: '#12A386' }} onClick={() => setSheet('coach')}><i className="ti ti-message-2" /></button>
           <button className="home-icon" style={{ color: '#6C5AB7' }} onClick={() => navigate('/negozio')}><i className="ti ti-shopping-bag" /></button>
           <button className="home-icon" style={{ color: '#10403A' }}><i className="ti ti-bell" /></button>
         </div>
       </div>
 
-      {/* Coach del giorno */}
-      <div className="coach-hero" style={{ background: coach.bg }}>
+      <div className="coach-hero" style={{ background: coach.bg, cursor: 'pointer' }} onClick={() => setSheet('coach')}>
         <div className="row-between">
           <span style={{ fontSize: 13, fontWeight: 600 }}>Il tuo coach</span>
           <span className="chip-flame"><i className="ti ti-flame" /> 5 giorni</span>
@@ -73,7 +126,6 @@ export default function Home() {
         <div className="coach-phrase">"{frase}"</div>
       </div>
 
-      {/* Oggi a colpo d'occhio */}
       <div className="sec">Oggi a colpo d'occhio</div>
       <div className="stat-row">
         <div className="stat"><i className="ti ti-droplet" style={{ color: '#2AA7C4' }} /><div className="stat-v">5/8</div><div className="muted stat-l">acqua</div></div>
@@ -81,10 +133,9 @@ export default function Home() {
         <div className="stat" onClick={() => navigate('/obiettivo')} style={{ cursor: 'pointer' }}><i className="ti ti-ruler-2" style={{ color: '#3A6EA5' }} /><div className="stat-v">oggi</div><div className="muted stat-l">misure</div></div>
       </div>
 
-      {/* Pasti di oggi */}
       <div className="row-between" style={{ margin: '6px 2px 8px' }}>
         <span className="sec" style={{ margin: 0 }}>I pasti di oggi <span className="muted" style={{ fontWeight: 400 }}>· 5 pasti</span></span>
-        <span className="chip"><i className="ti ti-basket" style={{ fontSize: 13 }} /> Lista spesa</span>
+        <span className="chip" style={{ cursor: 'pointer' }} onClick={() => setSheet('spesa')}><i className="ti ti-basket" style={{ fontSize: 13 }} /> Lista spesa</span>
       </div>
       <div className="meals-col">
         {MEALS.map((m, i) => (
@@ -102,17 +153,15 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Azioni rapide */}
       <div className="sec">Ti serve una mano adesso?</div>
       <div className="card">
         <div className="qa-row">
-          <span className="qa-chip">Ho fame</span>
-          <span className="qa-chip">Mangio fuori</span>
-          <span className="qa-chip">Sostituisci</span>
+          <span className="qa-chip" onClick={() => setSheet('fame')}>Ho fame</span>
+          <span className="qa-chip" onClick={() => setSheet('fuori')}>Mangio fuori</span>
+          <span className="qa-chip" onClick={() => setSheet('sost')}>Sostituisci</span>
         </div>
       </div>
 
-      {/* Eventi gestiti */}
       <div className="sec">Eventi gestiti</div>
       <div className="event-card" onClick={() => navigate('/calendario')}>
         <span className="event-ic"><i className="ti ti-heart" /></span>
@@ -122,6 +171,21 @@ export default function Home() {
         </div>
         <i className="ti ti-chevron-right" style={{ color: '#C08363' }} />
       </div>
+
+      {/* Popup e schede */}
+      {checkin && <CheckinPopup onDone={() => setCheckin(false)} />}
+      {sheet === 'coach' && <Sheet onClose={() => setSheet(null)}><CoachChat /></Sheet>}
+      {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
+      {sheet && HELP[sheet] && (
+        <Sheet onClose={() => setSheet(null)}>
+          <div className="row" style={{ alignItems: 'center', gap: 9, marginBottom: 10 }}>
+            <span className="event-ic" style={{ background: '#12A386', color: '#fff' }}><i className="ti ti-sparkles" /></span>
+            <b style={{ fontSize: 15 }}>{HELP[sheet].t}</b>
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{HELP[sheet].b}</div>
+          <button className="btn" onClick={() => setSheet(null)}>{HELP[sheet].cta}</button>
+        </Sheet>
+      )}
     </div>
   );
 }
