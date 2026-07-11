@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -55,6 +56,14 @@ class CreateProtocolDto {
   @IsOptional()
   @IsString()
   appliesTo?: string;
+}
+
+class UpdateProtocolDto {
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
+  @IsOptional() @IsString() @MinLength(2) type?: string;
+  @IsOptional() @IsObject() definition?: Record<string, unknown>;
+  @IsOptional() @IsObject() thresholds?: Record<string, unknown>;
+  @IsOptional() @IsString() appliesTo?: string;
 }
 
 class ValidateProtocolDto {
@@ -121,6 +130,11 @@ export class ProtocolsController {
   @Post()
   create(@Body() dto: CreateProtocolDto, @CurrentUser() user: AuthUser) {
     return this.engine.createProtocol(user.sub, dto);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateProtocolDto, @CurrentUser() user: AuthUser) {
+    return this.engine.updateProtocol(user.sub, id, dto);
   }
 
   @HttpCode(200)

@@ -279,6 +279,39 @@ export class EngineService {
     return protocol;
   }
 
+  /** Modifica protocollo (autore/nutrizionista). Torna in "pending" per la ri-validazione. */
+  async updateProtocol(
+    userId: string,
+    id: string,
+    input: { name?: string; type?: string; definition?: unknown; thresholds?: unknown; appliesTo?: string },
+  ) {
+    const existing = await this.prisma.protocol.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Protocollo non trovato');
+    if (existing.status === 'approved') {
+      throw new BadRequestException('Un protocollo approvato non si modifica.');
+    }
+    if (input.definition !== undefined) {
+      const def = input.definition as { conditions?: unknown[]; action?: unknown };
+      if (!Array.isArray(def?.conditions) || !def?.action) {
+        throw new BadRequestException('definition deve contenere conditions[] e action');
+      }
+    }
+    const data: Record<string, unknown> = { status: 'pending', validatedById: null, validatedAt: null };
+    if (input.name !== undefined) data.name = input.name;
+    if (input.type !== undefined) data.type = input.type;
+    if (input.definition !== undefined) data.definition = input.definition as never;
+    if (input.thresholds !== undefined) data.thresholds = (input.thresholds ?? undefined) as never;
+    if (input.appliesTo !== undefined) data.appliesTo = input.appliesTo;
+    const protocol = await this.prisma.protocol.update({ where: { id }, data });
+    await this.audit.log({
+      action: 'engine.protocol.update',
+      actorId: userId,
+      entityType: 'protocol',
+      entityId: id,
+    });
+    return protocol;
+  }
+
   /** Validazione a monte: mai il proprio protocollo. */
   async validateProtocol(userId: string, protocolId: string, approve: boolean) {
     const staff = await this.prisma.staff.findUnique({ where: { userId } });
