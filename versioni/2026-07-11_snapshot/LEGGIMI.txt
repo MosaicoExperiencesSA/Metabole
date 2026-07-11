@@ -1,0 +1,10 @@
+Snapshot dell'app Metabole al 2026-07-11.
+Include: mascotte animata (bocca cadenzata), tema colore vero, prove sociali,
+"perché" richiamato al piano, value stack + garanzia + obiezioni, pagina obiettivo
+con vita+fianchi, voce fatturazione, brand "Metàbol Èi-Ài", coach in video e
+anteprima menu con pulsanti ricetta.
+
+Per ripristinare questa versione:
+  cp "versioni/2026-07-11_snapshot/Metabole_Prototipo_Navigabile.html" Metabole_Prototipo_Navigabile.html
+  cp "versioni/2026-07-11_snapshot/Metabole_Prototipo_Navigabile.html" docs/Metabole_Prototipo_Navigabile.html
+  cp "versioni/2026-07-11_snapshot/genera_voci_gaia.mjs" tools/genera_voci_gaia.mjs
