@@ -9,6 +9,13 @@ class AssignCoachDto {
   @IsUUID()
   coachStaffId!: string;
 }
+class AssignNutritionistDto {
+  // stringa vuota = rimuovi; UUID = assegna quel nutrizionista.
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  nutritionistStaffId!: string;
+}
 class RejectDto {
   @IsOptional()
   @IsString()
@@ -33,6 +40,21 @@ export class LeadAssignmentController {
   @Get('coaches')
   coaches() {
     return this.svc.listCoaches();
+  }
+
+  /** Il capo nutrizionisti (o admin) assegna il nutrizionista a una cliente. */
+  @Roles('head_nutritionist', 'admin')
+  @HttpCode(200)
+  @Post('leads/:id/assign-nutritionist')
+  assignNutritionist(@Param('id') id: string, @Body() dto: AssignNutritionistDto, @CurrentUser() user: AuthUser) {
+    return this.svc.assignNutritionist(id, dto.nutritionistStaffId, user.sub);
+  }
+
+  /** Elenco nutrizionisti per il menu di assegnazione. */
+  @Roles('head_nutritionist', 'admin')
+  @Get('nutritionists')
+  nutritionists() {
+    return this.svc.listNutritionists();
   }
 
   /** Lead in attesa di accettazione per la coach corrente (vuoto per chi non è coach). */

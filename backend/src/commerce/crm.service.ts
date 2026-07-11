@@ -82,7 +82,8 @@ export class CrmService {
               select: {
                 name: true,
                 assignedCoach: { select: { displayName: true } },
-                assignedNutritionist: { select: { displayName: true } },
+                assignedNutritionistId: true,
+                assignedNutritionist: { select: { id: true, displayName: true } },
               },
             },
           },

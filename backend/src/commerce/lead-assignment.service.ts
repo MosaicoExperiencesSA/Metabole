@@ -165,6 +165,66 @@ export class LeadAssignmentService {
     return rows;
   }
 
+  /** Elenco nutrizionisti (per il menu di assegnazione). */
+  async listNutritionists() {
+    return this.prisma.staff.findMany({
+      where: { user: { role: 'nutritionist', status: 'active' }, active: true },
+      select: { id: true, displayName: true },
+      orderBy: { displayName: 'asc' },
+    });
+  }
+
+  /**
+   * Assegna (o rimuove) il nutrizionista di una cliente.
+   * A differenza della coach non c'è finestra di accettazione: l'assegnazione è
+   * diretta sul profilo. Vale solo per clienti registrati (non per i lead puri).
+   * Passa stringa vuota per rimuovere.
+   */
+  async assignNutritionist(recordId: string, nutritionistStaffId: string, byUserId: string) {
+    const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
+    if (!record) throw new NotFoundException('Lead non trovato.');
+    if (!record.clientId) {
+      throw new BadRequestException('Il nutrizionista si assegna a una cliente registrata, non a un semplice lead.');
+    }
+    const staffId: string | null = nutritionistStaffId ? nutritionistStaffId : null;
+    let nutriUserId: string | null = null;
+    if (staffId) {
+      const nutri = await this.prisma.staff.findFirst({
+        where: { id: staffId, user: { role: 'nutritionist' } },
+        include: { user: { select: { id: true } } },
+      });
+      if (!nutri) throw new BadRequestException('Nutrizionista non valido.');
+      nutriUserId = nutri.user.id;
+    }
+
+    const profile = await this.prisma.clientProfile.findUnique({ where: { userId: record.clientId }, select: { id: true, name: true } });
+    if (!profile) {
+      throw new BadRequestException('Profilo cliente non trovato: la cliente deve completare il questionario.');
+    }
+    await this.prisma.clientProfile.update({
+      where: { userId: record.clientId },
+      data: { assignedNutritionistId: staffId },
+    });
+
+    if (nutriUserId) {
+      await this.notifications.notify({
+        userId: nutriUserId,
+        type: 'client_assigned_nutritionist',
+        title: 'Nuova cliente assegnata',
+        body: `Ti è stata assegnata una nuova cliente: ${profile.name ?? this.label(record)}.`,
+        payload: { clientId: record.clientId },
+      });
+    }
+    await this.audit.log({
+      action: 'crm.nutritionist.assign',
+      actorId: byUserId,
+      entityType: 'client_profile',
+      entityId: profile.id,
+      metadata: { nutritionistStaffId: staffId },
+    });
+    return { clientId: record.clientId, assignedNutritionistId: staffId };
+  }
+
   // ---------- Ref code coach ----------
 
   private randomCode(): string {

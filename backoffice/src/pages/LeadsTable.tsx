@@ -22,7 +22,7 @@ interface Lead {
   assignedCoachId: string | null;
   assignedCoach: { id: string; displayName: string } | null;
   assignmentStatus: string | null; // pending | accepted
-  client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null } | null;
+  client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionistId: string | null; assignedNutritionist: { id: string; displayName: string } | null } | null } | null;
 }
 interface Coach { id: string; displayName: string }
 
@@ -34,10 +34,13 @@ function displayName(l: Lead): string {
 }
 
 export function LeadsTable() {
-  const { impersonate } = useAuth();
+  const { impersonate, can } = useAuth();
+  const canAssignCoach = can('assign_coach', 'manage');
+  const canAssignNutri = can('assign_nutritionist', 'manage');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [nutritionists, setNutritionists] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
@@ -49,6 +52,19 @@ export function LeadsTable() {
       await api(`/crm/leads/${l.id}/assign-coach`, { method: 'POST', body: JSON.stringify({ coachStaffId }) });
       const coach = coaches.find((c) => c.id === coachStaffId) ?? null;
       setLeads((ls) => ls.map((x) => (x.id === l.id ? { ...x, assignedCoachId: coachStaffId, assignmentStatus: 'pending', assignedCoach: coach } : x)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Assegnazione non riuscita.');
+    }
+  }
+
+  async function assignNutritionist(l: Lead, nutritionistStaffId: string) {
+    setError(null);
+    try {
+      await api(`/crm/leads/${l.id}/assign-nutritionist`, { method: 'POST', body: JSON.stringify({ nutritionistStaffId }) });
+      const nutri = nutritionists.find((n) => n.id === nutritionistStaffId) ?? null;
+      setLeads((ls) => ls.map((x) => (x.id === l.id && x.client?.clientProfile
+        ? { ...x, client: { ...x.client, clientProfile: { ...x.client.clientProfile, assignedNutritionistId: nutritionistStaffId || null, assignedNutritionist: nutri } } }
+        : x)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Assegnazione non riuscita.');
     }
@@ -70,7 +86,8 @@ export function LeadsTable() {
       const [ls, st] = await Promise.all([api<Lead[]>('/crm/leads'), api<Stage[]>('/crm/stages')]);
       setLeads(ls);
       setStages(st);
-      try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ }
+      if (canAssignCoach) { try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ } }
+      if (canAssignNutri) { try { setNutritionists(await api<Coach[]>('/crm/nutritionists')); } catch { /* elenco nutrizionisti opzionale */ } }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
     } finally {
@@ -158,23 +175,47 @@ export function LeadsTable() {
                       </select>
                     </td>
                     <td>
-                      <select
-                        className="select"
-                        style={{ width: 150, padding: '6px 10px' }}
-                        value={l.assignedCoachId ?? ''}
-                        onChange={(e) => assignCoach(l, e.target.value)}
-                        title="Assegna la coach (dovrà accettare entro 2 giorni)"
-                      >
-                        <option value="">— assegna —</option>
-                        {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
-                        {l.assignedCoachId && !coaches.some((c) => c.id === l.assignedCoachId) && (
-                          <option value={l.assignedCoachId}>{l.assignedCoach?.displayName ?? 'Coach'}</option>
-                        )}
-                      </select>
-                      {l.assignmentStatus === 'pending' && <div><span className="chip amber" style={{ fontSize: 10, marginTop: 3 }}>in attesa</span></div>}
-                      {l.assignmentStatus === 'accepted' && <div><span className="chip" style={{ fontSize: 10, marginTop: 3 }}>accettato</span></div>}
+                      {canAssignCoach ? (
+                        <>
+                          <select
+                            className="select"
+                            style={{ width: 150, padding: '6px 10px' }}
+                            value={l.assignedCoachId ?? ''}
+                            onChange={(e) => assignCoach(l, e.target.value)}
+                            title="Assegna la coach (dovrà accettare entro 2 giorni)"
+                          >
+                            <option value="">— assegna —</option>
+                            {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+                            {l.assignedCoachId && !coaches.some((c) => c.id === l.assignedCoachId) && (
+                              <option value={l.assignedCoachId}>{l.assignedCoach?.displayName ?? 'Coach'}</option>
+                            )}
+                          </select>
+                          {l.assignmentStatus === 'pending' && <div><span className="chip amber" style={{ fontSize: 10, marginTop: 3 }}>in attesa</span></div>}
+                          {l.assignmentStatus === 'accepted' && <div><span className="chip" style={{ fontSize: 10, marginTop: 3 }}>accettato</span></div>}
+                        </>
+                      ) : (
+                        <span className="muted">{l.assignedCoach?.displayName ?? l.client?.clientProfile?.assignedCoach?.displayName ?? '—'}</span>
+                      )}
                     </td>
-                    <td className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</td>
+                    <td>
+                      {canAssignNutri && l.clientId && l.client?.clientProfile ? (
+                        <select
+                          className="select"
+                          style={{ width: 150, padding: '6px 10px' }}
+                          value={l.client.clientProfile.assignedNutritionistId ?? ''}
+                          onChange={(e) => assignNutritionist(l, e.target.value)}
+                          title="Assegna il nutrizionista alla cliente"
+                        >
+                          <option value="">— assegna —</option>
+                          {nutritionists.map((n) => <option key={n.id} value={n.id}>{n.displayName}</option>)}
+                          {l.client.clientProfile.assignedNutritionistId && !nutritionists.some((n) => n.id === l.client!.clientProfile!.assignedNutritionistId) && (
+                            <option value={l.client.clientProfile.assignedNutritionistId}>{l.client.clientProfile.assignedNutritionist?.displayName ?? 'Nutrizionista'}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <span className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</span>
+                      )}
+                    </td>
                     <td>{euro(l.valueCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>

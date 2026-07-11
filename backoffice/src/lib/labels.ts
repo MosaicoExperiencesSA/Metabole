@@ -36,6 +36,8 @@ export const PAGE_LABEL: Record<string, string> = {
   compensation: 'Compensi staff',
   users: 'Utenti',
   assignments: 'Assegnazioni',
+  assign_coach: 'Assegna coach (in lista)',
+  assign_nutritionist: 'Assegna nutrizionista (in lista)',
   engine_config: 'Parametri motore',
   audit_logs: 'Log attività',
   permissions: 'Permessi',
