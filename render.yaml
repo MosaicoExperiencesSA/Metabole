@@ -54,7 +54,9 @@ services:
       - key: REFRESH_TTL_DAYS
         value: "30"
       - key: APP_URL
-        value: https://metabole-backend.onrender.com
+        # URL PUBBLICO DELL'APP CLIENTE su Vercel (non il backend!): è dove Stripe
+        # rimanda dopo il pagamento (/payment/success) e dove puntano i link nelle email.
+        value: https://metabole.vercel.app
       - fromGroup: metabole-shared
 
   # Cron giornaliero: motore + notifiche, ogni mattina alle 05:00 UTC (07:00 CEST).

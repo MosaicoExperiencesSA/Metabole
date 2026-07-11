@@ -129,7 +129,7 @@ export default function Home() {
         <div className="home-icons">
           <button className="home-icon" style={{ color: '#12A386' }} onClick={() => setSheet('coach')}><i className="ti ti-message-2" /></button>
           <button className="home-icon" style={{ color: '#6C5AB7' }} onClick={() => navigate('/negozio')}><i className="ti ti-shopping-bag" /></button>
-          <button className="home-icon" style={{ color: '#10403A' }}><i className="ti ti-bell" /></button>
+          <button className="home-icon" style={{ color: '#10403A' }} onClick={() => navigate('/profilo')}><i className="ti ti-user" /></button>
         </div>
       </div>
 

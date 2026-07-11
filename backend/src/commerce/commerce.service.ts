@@ -401,6 +401,16 @@ export class CommerceService {
     });
   }
 
+  /** Ricevuta PDF di un PROPRIO pagamento, solo dopo la conferma. */
+  async myReceiptPdf(clientId: string, paymentId: string) {
+    const payment = await this.prisma.payment.findFirst({ where: { id: paymentId, clientId } });
+    if (!payment) throw new NotFoundException('Pagamento non trovato');
+    if (payment.status !== 'approved') {
+      throw new BadRequestException('La ricevuta sarà disponibile dopo la conferma del pagamento.');
+    }
+    return this.generateReceiptPdf(paymentId);
+  }
+
   // ---------- Operatore (admin/commerciale) ----------
 
   async listPayments(status?: string) {

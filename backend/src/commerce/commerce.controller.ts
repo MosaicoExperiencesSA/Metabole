@@ -182,6 +182,12 @@ export class MyCommerceController {
     return this.commerce.myPayments(user.sub);
   }
 
+  /** Ricevuta PDF di un proprio pagamento confermato. */
+  @Get('payments/:id/receipt-pdf')
+  receiptPdf(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.commerce.myReceiptPdf(user.sub, id);
+  }
+
   /** Upload della contabile del bonifico. */
   @HttpCode(200)
   @Post('payments/:id/receipt')

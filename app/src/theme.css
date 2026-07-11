@@ -247,6 +247,8 @@ p { line-height: 1.5; }
 .recipe-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
 .recipe-steps { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
 .storico-row { display: flex; align-items: center; gap: 10px; padding: 11px 13px; }
+.prog-track { height: 10px; border-radius: 6px; background: #E7EFE9; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #12A386, #2AA7C4); transition: width .4s ease; }
 .storico-thumb { width: 30px; height: 30px; flex: none; border-radius: 9px; background: #f2efe8; color: #b3aFA4; display: flex; align-items: center; justify-content: center; }
 .storico-thumb.ok { background: #dcf0d8; color: #3b6d11; }
 

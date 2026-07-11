@@ -12,6 +12,7 @@ import Menu from './pages/Menu';
 import Calendario from './pages/Calendario';
 import Obiettivo from './pages/Obiettivo';
 import Negozio from './pages/Negozio';
+import Profilo from './pages/Profilo';
 import Checkout from './pages/Checkout';
 import Onboarding from './pages/Onboarding';
 import PaymentResult from './pages/PaymentResult';
@@ -37,6 +38,7 @@ function Shell() {
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/obiettivo" element={<Obiettivo />} />
           <Route path="/negozio" element={<Negozio />} />
+          <Route path="/profilo" element={<Profilo />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment/success" element={<PaymentResult ok />} />
           <Route path="/payment/cancelled" element={<PaymentResult ok={false} />} />
@@ -65,11 +67,9 @@ function AuthedApp() {
     };
   }, []);
 
-  if (status === 'loading') return <Centered />;
-  if (status === 'todo') return <Onboarding onDone={() => setStatus('done')} />;
   return (
     <CartProvider>
-      <Shell />
+      {status === 'loading' ? <Centered /> : status === 'todo' ? <Onboarding onDone={() => setStatus('done')} /> : <Shell />}
     </CartProvider>
   );
 }
