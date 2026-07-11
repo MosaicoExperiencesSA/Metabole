@@ -3,7 +3,8 @@ import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
 
 interface Plan { id: string; name: string; priceCents: number; period: string; mealsPerDay: number | null; features: string[]; active: boolean; }
-interface Product { id: string; name: string; priceCents: number; description: string | null; active: boolean; }
+interface Product { id: string; name: string; priceCents: number; description: string | null; active: boolean; commissionTeam: string; }
+const TEAM_LABEL: Record<string, string> = { both: 'Entrambi i team', coaching: 'Team coaching', nutrition: 'Team nutrizionisti' };
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const toCents = (s: string) => Math.round((Number(s.replace(',', '.')) || 0) * 100);
@@ -71,6 +72,7 @@ export function GestioneNegozio() {
       priceCents: toCents(prodForm.price ?? '0'),
       description: prodForm.description || undefined,
       active: prodForm.active !== 'false',
+      commissionTeam: prodForm.team || 'both',
     };
     try {
       if (prodForm.id) await api(`/admin/shop/products/${prodForm.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -177,6 +179,13 @@ export function GestioneNegozio() {
                 <option value="true">Sì</option><option value="false">No</option>
               </select>
             </label>
+            <label style={fld}><span>Provvigioni a</span>
+              <select className="select" value={prodForm.team ?? 'both'} onChange={(e) => setProdForm({ ...prodForm, team: e.target.value })}>
+                <option value="both">Entrambi i team</option>
+                <option value="coaching">Team coaching</option>
+                <option value="nutrition">Team nutrizionisti</option>
+              </select>
+            </label>
           </div>
           <div className="row" style={{ gap: 8, marginTop: 12 }}>
             <button className="btn" onClick={saveProduct} disabled={busy}>Salva</button>
@@ -187,16 +196,16 @@ export function GestioneNegozio() {
 
       <div className="card" style={{ padding: 0 }}>
         <table className="grid">
-          <thead><tr><th>Nome</th><th>Prezzo</th><th>Descrizione</th><th>Stato</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Prezzo</th><th>Provvigioni</th><th>Stato</th><th></th></tr></thead>
           <tbody>
             {products.map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td>{euro(p.priceCents)}</td>
-                <td className="muted">{p.description ?? '—'}</td>
+                <td className="muted">{TEAM_LABEL[p.commissionTeam] ?? 'Entrambi i team'}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setProdForm({ id: p.id, name: p.name, price: (p.priceCents / 100).toString().replace('.', ','), description: p.description ?? '', active: String(p.active) })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setProdForm({ id: p.id, name: p.name, price: (p.priceCents / 100).toString().replace('.', ','), description: p.description ?? '', active: String(p.active), team: p.commissionTeam ?? 'both' })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delProduct(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>

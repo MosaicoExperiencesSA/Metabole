@@ -1,11 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsInt, IsOptional, IsString, Min, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, MaxLength, MinLength } from 'class-validator';
+
+const COMMISSION_TEAMS = ['both', 'coaching', 'nutrition'];
 
 export class CreateProductDto {
   @IsString() @MinLength(1) @MaxLength(120) name!: string;
   @Type(() => Number) @IsInt() @Min(0) priceCents!: number;
   @IsOptional() @IsString() @MaxLength(500) description?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsIn(COMMISSION_TEAMS) commissionTeam?: string;
 }
 
 export class UpdateProductDto {
@@ -13,6 +16,7 @@ export class UpdateProductDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) priceCents?: number;
   @IsOptional() @IsString() @MaxLength(500) description?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsIn(COMMISSION_TEAMS) commissionTeam?: string;
 }
 
 export class CreatePlanDto {

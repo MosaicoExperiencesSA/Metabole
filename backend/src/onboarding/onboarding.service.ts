@@ -54,11 +54,19 @@ export class OnboardingService {
     // 2. Screening sanitario.
     const screeningFlag = computeScreeningFlag(dto.health);
 
-    // 3. Assegnazione team: coach e nutrizionista attivi meno carichi.
-    const [coach, nutritionist] = await Promise.all([
-      this.pickLeastLoadedStaff('coach'),
+    // 3. Assegnazione team. Rispetta un'eventuale coach GIÀ assegnata (via ref code
+    // in registrazione, o da un manager sul lead): NON la si riassegna. La
+    // nutrizionista viene invece scelta tra gli staff attivi meno carichi.
+    const record = await this.prisma.crmRecord.findUnique({
+      where: { clientId: userId },
+      select: { assignedCoachId: true },
+    });
+    const refCoachId = record?.assignedCoachId ?? null;
+    const [pickedCoach, nutritionist] = await Promise.all([
+      refCoachId ? Promise.resolve(null) : this.pickLeastLoadedStaff('coach'),
       this.pickLeastLoadedStaff('nutritionist'),
     ]);
+    const coachId = refCoachId ?? pickedCoach?.id ?? null;
 
     // 4. Profilo (upsert: il questionario si può rifare, aggiorna il profilo).
     const intolerances = (dto.intolerances ?? []).filter((i) => i !== 'none');
@@ -83,7 +91,7 @@ export class OnboardingService {
         dislikedFoods: dto.dislikedFoods ?? [],
         lifestyle: (dto.lifestyle ?? undefined) as never,
         themeColor: dto.themeColor,
-        assignedCoachId: coach?.id,
+        assignedCoachId: coachId,
         assignedNutritionistId: nutritionist?.id,
         consents: {
           ...(dto.consents ?? {}),

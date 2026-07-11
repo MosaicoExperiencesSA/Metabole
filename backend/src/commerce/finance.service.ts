@@ -77,7 +77,7 @@ export class FinanceService {
    * Il "responsabile" di ogni membro è Staff.managerId (impostato dall'admin).
    */
   async generateCommissions(payment: { id: string; clientId: string; amountCents: number }) {
-    const [coachPct, managerCoachPct, nutriPct, headNutriPct, profile] = await Promise.all([
+    const [coachPct, managerCoachPct, nutriPct, headNutriPct, profile, full] = await Promise.all([
       this.configParams.getNumber('commission_coach_percent', 10),
       this.configParams.getNumber('commission_manager_coach_percent', 0),
       this.configParams.getNumber('commission_nutritionist_percent', 15),
@@ -91,11 +91,57 @@ export class FinanceService {
           assignedNutritionist: { select: { managerId: true } },
         },
       }),
+      this.prisma.payment.findUnique({
+        where: { id: payment.id },
+        select: { subscription: { select: { plan: { select: { priceCents: true } } } }, order: { select: { items: true } } },
+      }),
     ]);
     if (!profile) return;
 
-    await this.settleSide(payment, 'coach', profile.assignedCoachId, profile.assignedCoach?.managerId, coachPct, managerCoachPct);
-    await this.settleSide(payment, 'nutritionist', profile.assignedNutritionistId, profile.assignedNutritionist?.managerId, nutriPct, headNutriPct);
+    // Basi imponibili separate per lato: rispetta il flag "provvigioni a" di ogni prodotto
+    // (default "both" → identico al comportamento precedente).
+    const { coachBase, nutriBase } = await this.commissionBases(payment.amountCents, full);
+
+    await this.settleSide(payment, 'coach', profile.assignedCoachId, profile.assignedCoach?.managerId, coachPct, managerCoachPct, coachBase);
+    await this.settleSide(payment, 'nutritionist', profile.assignedNutritionistId, profile.assignedNutritionist?.managerId, nutriPct, headNutriPct, nutriBase);
+  }
+
+  /**
+   * Base provvigionale per il lato coaching e per quello nutrizione.
+   * L'abbonamento (piano) conta per entrambi; ogni prodotto conta per il/i lato/i
+   * indicati dal suo flag commissionTeam. Il tutto è riscalato sull'importo
+   * effettivamente pagato (per tenere conto di eventuali sconti).
+   */
+  private async commissionBases(
+    paidCents: number,
+    full: { subscription?: { plan?: { priceCents: number } | null } | null; order?: { items: unknown } | null } | null,
+  ): Promise<{ coachBase: number; nutriBase: number }> {
+    const planGross = full?.subscription?.plan?.priceCents ?? 0;
+    const items = Array.isArray(full?.order?.items)
+      ? (full!.order!.items as unknown as { productId: string; priceCents: number; qty: number }[])
+      : [];
+    if (items.length === 0) return { coachBase: paidCents, nutriBase: paidCents };
+
+    const products = (await this.prisma.product.findMany({
+      where: { id: { in: items.map((i) => i.productId) } },
+      select: { id: true, commissionTeam: true },
+    })) as { id: string; commissionTeam: string }[];
+    const teamOf = new Map(products.map((p) => [p.id, p.commissionTeam ?? 'both']));
+
+    let coachProd = 0, nutriProd = 0, allProd = 0;
+    for (const it of items) {
+      const line = (it.priceCents ?? 0) * (it.qty ?? 1);
+      allProd += line;
+      const team = teamOf.get(it.productId) ?? 'both';
+      if (team === 'both' || team === 'coaching') coachProd += line;
+      if (team === 'both' || team === 'nutrition') nutriProd += line;
+    }
+    const totalGross = planGross + allProd;
+    const scale = totalGross > 0 ? paidCents / totalGross : 1;
+    return {
+      coachBase: Math.round((planGross + coachProd) * scale),
+      nutriBase: Math.round((planGross + nutriProd) * scale),
+    };
   }
 
   /**
@@ -110,9 +156,10 @@ export class FinanceService {
     managerStaffId: string | null | undefined,
     primaryPct: number,
     managerPct: number,
+    baseCents: number,
   ) {
     const [primaryRole, managerRole] = group === 'coach' ? ['coach', 'manager_coach'] : ['nutritionist', 'head_nutritionist'];
-    const amount = (pct: number) => Math.round((payment.amountCents * pct) / 100);
+    const amount = (pct: number) => Math.round((baseCents * pct) / 100);
 
     if (primaryStaffId) {
       // Assegnato: paga subito la quota base e (se presente il responsabile) la sua.

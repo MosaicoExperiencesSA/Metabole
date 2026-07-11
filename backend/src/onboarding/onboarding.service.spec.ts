@@ -56,6 +56,7 @@ describe('OnboardingService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'o1', status: 'proposed' }),
       },
       escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }) },
+      crmRecord: { findUnique: jest.fn().mockResolvedValue(null) },
       staff: {
         findMany: jest.fn().mockResolvedValue([
           { id: 's-a', displayName: 'A', _count: { clientsAsCoach: 5 } },

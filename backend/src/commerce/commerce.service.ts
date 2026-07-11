@@ -94,7 +94,7 @@ export class CommerceService {
     return this.prisma.product.findMany({ orderBy: { name: 'asc' } });
   }
 
-  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean }) {
+  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; commissionTeam?: string }) {
     const product = await this.prisma.product.create({ data: { ...dto, active: dto.active ?? true } });
     await this.audit.log({ action: 'shop.product.create', actorId, entityType: 'product', entityId: product.id });
     return product;

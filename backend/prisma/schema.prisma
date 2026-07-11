@@ -487,6 +487,8 @@ model Product {
   priceCents  Int      @map("price_cents")
   description String?
   active      Boolean  @default(true)
+  // A quale team vanno le provvigioni di questo prodotto: both | coaching | nutrition
+  commissionTeam String @default("both") @map("commission_team")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
