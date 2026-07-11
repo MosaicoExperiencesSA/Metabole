@@ -12,6 +12,7 @@ import Calendario from './pages/Calendario';
 import Obiettivo from './pages/Obiettivo';
 import Negozio from './pages/Negozio';
 import Onboarding from './pages/Onboarding';
+import PaymentResult from './pages/PaymentResult';
 
 function Centered() {
   return (
@@ -34,6 +35,8 @@ function Shell() {
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/obiettivo" element={<Obiettivo />} />
           <Route path="/negozio" element={<Negozio />} />
+          <Route path="/payment/success" element={<PaymentResult ok />} />
+          <Route path="/payment/cancelled" element={<PaymentResult ok={false} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
