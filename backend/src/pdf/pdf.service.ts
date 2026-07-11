@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_PDF_TEMPLATES, PDF_PREVIEW_SAMPLE, fillTemplate } from './pdf.defaults';
@@ -88,7 +88,11 @@ export class PdfService {
     return { fileName: `${key}-anteprima.pdf`, mimeType: 'application/pdf', contentBase64: buffer.toString('base64') };
   }
 
-  /** HTML → PDF con Chromium headless. Import dinamico: se manca, lancia (il chiamante ripiega). */
+  /**
+   * HTML → PDF con Chromium headless. Import dinamico: se puppeteer/Chromium
+   * non è disponibile a runtime, lancia un errore leggibile (il chiamante può
+   * ripiegare; l'editor mostra il motivo).
+   */
   async htmlToPdf(html: string): Promise<Buffer> {
     const mod = 'puppeteer';
     let puppeteer: { launch: (o: unknown) => Promise<Browser> };
@@ -96,17 +100,24 @@ export class PdfService {
       const imported = (await import(mod)) as { default?: typeof puppeteer } & typeof puppeteer;
       puppeteer = imported.default ?? imported;
     } catch (err) {
-      this.logger.error('puppeteer non disponibile: rendering HTML→PDF non possibile', err instanceof Error ? err.message : String(err));
-      throw new Error('PDF_RENDERER_UNAVAILABLE');
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`puppeteer non importabile: ${msg}`);
+      throw new ServiceUnavailableException(`Motore PDF non disponibile (puppeteer): ${msg}`);
     }
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
+    let browser: Browser | null = null;
     try {
+      browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'load' });
       const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '16mm', bottom: '16mm', left: '14mm', right: '14mm' } });
       return Buffer.from(pdf);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Rendering HTML→PDF fallito: ${msg}`);
+      // Messaggio in chiaro per l'editor (es. "Could not find Chrome", librerie mancanti…).
+      throw new ServiceUnavailableException(`Chromium non è riuscito a generare il PDF: ${msg.slice(0, 400)}`);
     } finally {
-      await browser.close();
+      if (browser) await browser.close().catch(() => undefined);
     }
   }
 }
