@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -23,6 +24,7 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
+    private readonly ai: AiService,
   ) {}
 
   // ---------- Thread ----------
@@ -191,7 +193,17 @@ export class ChatService {
 
     if (result.kind === 'faq') meta.matchedFaq = result.faqKey;
 
-    if (result.kind === 'route_coach' || result.kind === 'route_nutritionist') {
+    // Risposta generativa (Claude) per messaggi generici o FAQ, se l'AI è abilitata.
+    // I temi sensibili/sanitari NON passano dall'AI: restano gestiti sopra e instradati.
+    let replyText: string = result.reply;
+    let aiAnswered = false;
+    if ((result.kind === 'faq' || result.kind === 'route_coach') && (await this.ai.assistantEnabled())) {
+      const u = await this.prisma.user.findUnique({ where: { id: clientId }, select: { locale: true } });
+      const aiText = await this.ai.assistantReply(body, u?.locale === 'en' ? 'en' : 'it');
+      if (aiText) { replyText = aiText; aiAnswered = true; meta.composer = 'ai'; }
+    }
+
+    if (!aiAnswered && (result.kind === 'route_coach' || result.kind === 'route_nutritionist')) {
       const target: Counterpart = result.kind === 'route_coach' ? 'coach' : 'nutritionist';
       meta.routedTo = target;
       // Inoltra il messaggio nel thread giusto, così lo staff lo trova nel suo contesto.
@@ -213,7 +225,7 @@ export class ChatService {
     }
 
     const aiMessage = await this.prisma.message.create({
-      data: { threadId, senderRole: 'ai', body: result.reply, meta: meta as never },
+      data: { threadId, senderRole: 'ai', body: replyText, meta: meta as never },
     });
     await this.prisma.chatThread.update({
       where: { id: threadId },

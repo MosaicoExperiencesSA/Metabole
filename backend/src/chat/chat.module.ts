@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiModule } from '../ai/ai.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import {
   MyThreadsController,
@@ -8,7 +9,7 @@ import {
 import { ChatService } from './chat.service';
 
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, AiModule],
   controllers: [MyThreadsController, StaffThreadsController, ThreadsController],
   providers: [ChatService],
   exports: [ChatService],

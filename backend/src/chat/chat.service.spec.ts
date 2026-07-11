@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -52,6 +53,7 @@ describe('ChatService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationsService, useValue: notifications },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: AiService, useValue: { assistantEnabled: jest.fn().mockResolvedValue(false), assistantReply: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = moduleRef.get(ChatService);

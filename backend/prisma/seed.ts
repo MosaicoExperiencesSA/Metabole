@@ -126,6 +126,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Layer AI di supporto: se "true" (e AI_API_KEY configurata su Render) i testi delle notifiche vengono riformulati da Claude; il tono resta deciso dal motore',
   },
   {
+    key: 'ai_assistant_enabled',
+    value: 'false',
+    type: 'string',
+    description: 'Assistente AI in chat: se "true" (e AI_API_KEY configurata su Render) l\'assistente risponde con Claude ai messaggi generici; i temi sensibili/sanitari restano instradati al nutrizionista',
+  },
+  {
     key: 'bank_transfer_details',
     value: BANK_TRANSFER_DETAILS,
     type: 'string',

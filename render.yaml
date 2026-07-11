@@ -39,6 +39,10 @@ services:
         sync: false # inserire a mano: chiave segreta Stripe (sk_test_... / sk_live_...)
       - key: STRIPE_WEBHOOK_SECRET
         sync: false # inserire a mano: signing secret del webhook Stripe (whsec_...)
+      - key: AI_API_KEY
+        sync: false # inserire a mano: API key Anthropic (console.anthropic.com) per assistente AI + testi notifiche. Attivare poi i parametri ai_assistant_enabled / ai_composer_enabled dal backoffice.
+      - key: AI_MODEL
+        sync: false # opzionale: modello Claude (default claude-haiku-4-5)
       - key: ADMIN_EMAIL
         sync: false # inserire a mano: email dell'admin principale (es. simone.salogni@gmail.com)
       - key: ADMIN_PASSWORD
