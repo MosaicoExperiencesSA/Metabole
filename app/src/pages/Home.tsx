@@ -99,10 +99,25 @@ function SpesaList() {
   );
 }
 
+function StepsSheet({ current, goal, onSave }: { current: number; goal: number; onSave: (n: number) => void }) {
+  const [val, setVal] = useState(String(current || ''));
+  const n = Math.max(0, Math.min(100000, Math.round(Number(val) || 0)));
+  return (
+    <>
+      <div className="row" style={{ alignItems: 'center', gap: 9, marginBottom: 10 }}>
+        <span className="event-ic" style={{ background: '#FBEEE7', color: '#E8825A' }}><i className="ti ti-walk" /></span>
+        <div><b style={{ fontSize: 15 }}>Passi di oggi</b><div className="muted" style={{ fontSize: 11 }}>Obiettivo: {goal.toLocaleString('it-IT')}</div></div>
+      </div>
+      <input className="input" inputMode="numeric" value={val} onChange={(e) => setVal(e.target.value)} placeholder="Es. 6500" autoFocus style={{ marginBottom: 12 }} />
+      <button className="btn" style={{ width: '100%' }} onClick={() => onSave(n)}><i className="ti ti-check" /> Salva passi</button>
+    </>
+  );
+}
+
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [sheet, setSheet] = useState<null | 'coach' | 'fame' | 'fuori' | 'sost' | 'spesa'>(null);
+  const [sheet, setSheet] = useState<null | 'coach' | 'fame' | 'fuori' | 'sost' | 'spesa' | 'passi'>(null);
   const [today, setToday] = useState<Today | null>(null);
   const [meals, setMeals] = useState<ApiMeal[] | null>(null);
   const [nextEvent, setNextEvent] = useState<EventItem | null>(null);
@@ -159,6 +174,17 @@ export default function Home() {
     }
   }
 
+  async function saveSteps(steps: number) {
+    if (!today) return;
+    setToday({ ...today, steps: { ...today.steps, steps } });
+    setSheet(null);
+    try {
+      await api('/me/steps', { method: 'POST', body: JSON.stringify({ steps }) });
+    } catch {
+      /* ignora */
+    }
+  }
+
   const name = (user?.firstName || user?.email?.split('@')[0] || 'ciao').replace(/^\w/, (c) => c.toUpperCase());
   const now = new Date();
   const dateStr = now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -203,7 +229,7 @@ export default function Home() {
           <div className="stat-v">{today ? `${today.water.glasses}/${today.water.goal}` : '—'}</div>
           <div className="muted stat-l">acqua</div>
         </div>
-        <div className="stat">
+        <div className="stat" onClick={() => today && setSheet('passi')} style={{ cursor: 'pointer' }}>
           <i className="ti ti-walk" style={{ color: '#E8825A' }} />
           <div className="stat-v">{today ? today.steps.steps.toLocaleString('it-IT') : '—'}</div>
           <div className="muted stat-l">passi</div>
@@ -274,6 +300,7 @@ export default function Home() {
       )}
       {sheet === 'coach' && <Sheet onClose={() => setSheet(null)}><ChatSheet /></Sheet>}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
+      {sheet === 'passi' && today && <Sheet onClose={() => setSheet(null)}><StepsSheet current={today.steps.steps} goal={today.steps.goal} onSave={saveSteps} /></Sheet>}
       {sheet && HELP[sheet] && (
         <Sheet onClose={() => setSheet(null)}>
           <div className="row" style={{ alignItems: 'center', gap: 9, marginBottom: 10 }}>
