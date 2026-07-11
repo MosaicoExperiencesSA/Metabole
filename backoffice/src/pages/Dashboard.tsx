@@ -4,8 +4,16 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { Banner, Modal } from '../components/ui';
-import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS, type DashboardModule } from '../lib/dashboardModules';
+import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS, CHART_METRICS, DEFAULT_CHART_KEYS, type DashboardModule } from '../lib/dashboardModules';
 import { WalletWidget } from '../components/WalletWidget';
+import { MiniTrend } from '../components/MiniTrend';
+import { ReminderCalendar, type CalReminder } from '../components/ReminderCalendar';
+
+interface MonthPoint {
+  label: string; kgLost: number; cmWaistLost: number; avgLossKg: number;
+  newClients: number; activeSubscriptions: number; revenueCents: number; cumulativeRevenueCents: number;
+}
+type PreviewRow = { a: string; b?: string; sub?: string };
 
 interface Shortcut {
   id: string;
@@ -43,28 +51,39 @@ export function Dashboard() {
   const available = CATALOG.filter((s) => can(s.pageKey));
   const [selected, setSelected] = useState<string[] | null>(null); // null = non ancora caricato
   const [modules, setModules] = useState<string[] | null>(null);
-  const [previews, setPreviews] = useState<Record<string, { a: string; b?: string }[]>>({});
+  const [chartKeys, setChartKeys] = useState<string[] | null>(null);
+  const [monthly, setMonthly] = useState<MonthPoint[] | null>(null);
+  const [previews, setPreviews] = useState<Record<string, PreviewRow[]>>({});
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const prefs = await api<{ dashboardShortcuts: string[] | null; dashboardModules: string[] | null }>('/me/preferences');
+        const prefs = await api<{ dashboardShortcuts: string[] | null; dashboardModules: string[] | null; dashboardCharts: string[] | null }>('/me/preferences');
         setSelected(prefs.dashboardShortcuts ?? DEFAULT_IDS);
         setModules(prefs.dashboardModules ?? DEFAULT_MODULE_IDS);
+        setChartKeys(prefs.dashboardCharts?.length ? prefs.dashboardCharts : DEFAULT_CHART_KEYS);
       } catch {
         setSelected(DEFAULT_IDS); // se le preferenze non si caricano, mostro i predefiniti
         setModules(DEFAULT_MODULE_IDS);
+        setChartKeys(DEFAULT_CHART_KEYS);
       }
     })();
-    api<Record<string, { a: string; b?: string }[]>>('/admin/dashboard/previews').then(setPreviews).catch(() => {});
+    api<Record<string, PreviewRow[]>>('/admin/dashboard/previews').then(setPreviews).catch(() => {});
+    if (can('charts')) api<{ monthly: MonthPoint[] }>('/admin/charts').then((d) => setMonthly(d.monthly ?? [])).catch(() => setMonthly([]));
   }, []);
 
   const chosen = selected ?? DEFAULT_IDS;
   const shown = available.filter((s) => chosen.includes(s.id));
   const chosenModules = modules ?? DEFAULT_MODULE_IDS;
   const shownModules = DASHBOARD_MODULES.filter((m) => can(m.pageKey) && chosenModules.includes(m.id));
+
+  async function saveCharts(keys: string[]) {
+    setChartKeys(keys);
+    try { await api('/me/preferences', { method: 'PUT', body: JSON.stringify({ dashboardCharts: keys }) }); }
+    catch { /* la preferenza è già applicata localmente */ }
+  }
 
   return (
     <>
@@ -118,9 +137,15 @@ export function Dashboard() {
 
       {shownModules.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 14, marginTop: 14 }}>
-          {shownModules.map((m) => (
-            <ModuleCard key={m.id} module={m} rows={previews[m.pageKey] ?? null} />
-          ))}
+          {shownModules.map((m) =>
+            m.id === 'm_grafici' ? (
+              <GraficiModule key={m.id} module={m} monthly={monthly} chartKeys={chartKeys ?? DEFAULT_CHART_KEYS} onSave={saveCharts} />
+            ) : m.id === 'm_calendario' ? (
+              <CalendarModule key={m.id} module={m} />
+            ) : (
+              <ModuleCard key={m.id} module={m} rows={previews[m.previewKey ?? m.pageKey] ?? null} />
+            ),
+          )}
         </div>
       )}
 
@@ -137,7 +162,7 @@ export function Dashboard() {
   );
 }
 
-function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: { a: string; b?: string }[] | null }) {
+function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: PreviewRow[] | null }) {
   return (
     <Link to={m.to} className="card" style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', margin: 0 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
@@ -149,9 +174,12 @@ function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: { a: s
       {rows && rows.length > 0 ? (
         <div style={{ display: 'grid', gap: 2, flex: 1 }}>
           {rows.slice(0, 5).map((r, i) => (
-            <div key={i} className="spread" style={{ fontSize: 13, padding: '5px 0', borderBottom: i < Math.min(rows.length, 5) - 1 ? '1px solid var(--line)' : 'none' }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.a}</span>
-              {r.b && <b style={{ whiteSpace: 'nowrap', marginLeft: 8 }}>{r.b}</b>}
+            <div key={i} style={{ fontSize: 13, padding: '5px 0', borderBottom: i < Math.min(rows.length, 5) - 1 ? '1px solid var(--line)' : 'none' }}>
+              <div className="spread">
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.a}</span>
+                {r.b && <b style={{ whiteSpace: 'nowrap', marginLeft: 8 }}>{r.b}</b>}
+              </div>
+              {r.sub && <div className="muted" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.sub}</div>}
             </div>
           ))}
         </div>
@@ -160,6 +188,141 @@ function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: { a: s
       )}
       <span style={{ display: 'block', marginTop: 10, color: 'var(--teal-dark)', fontSize: 13, fontWeight: 600 }}>Apri <i className="ti ti-arrow-right" /></span>
     </Link>
+  );
+}
+
+/** Modulo Grafici a tutta larghezza: fino a 3 grafici scelti dall'utente. */
+function GraficiModule({
+  module: m, monthly, chartKeys, onSave,
+}: {
+  module: DashboardModule;
+  monthly: MonthPoint[] | null;
+  chartKeys: string[];
+  onSave: (keys: string[]) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const metrics = chartKeys.map((k) => CHART_METRICS.find((mm) => mm.key === k)).filter(Boolean) as typeof CHART_METRICS;
+  const labels = (monthly ?? []).map((x) => x.label);
+  const fmt = (unit: string) => (v: number) =>
+    unit === 'kg' ? `${v.toFixed(1)} kg`
+    : unit === 'cm' ? `${v.toFixed(1)} cm`
+    : unit === 'euro' ? '€ ' + Math.round(v / 100).toLocaleString('it-IT')
+    : String(Math.round(v));
+
+  return (
+    <div className="card" style={{ margin: 0, gridColumn: '1 / -1' }}>
+      <div className="spread" style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ width: 42, height: 42, borderRadius: 12, background: 'var(--chip)', color: 'var(--chip-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+            <i className={`ti ${m.icon}`} style={{ fontSize: 22 }} />
+          </span>
+          <b style={{ fontSize: 16 }}>{m.label}</b>
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn ghost sm" onClick={() => setPicking(true)}><i className="ti ti-adjustments" /> Scegli grafici</button>
+          <Link to={m.to} className="btn ghost sm"><i className="ti ti-arrow-right" /> Apri</Link>
+        </div>
+      </div>
+
+      {monthly === null ? (
+        <span className="muted" style={{ fontSize: 13 }}>Caricamento…</span>
+      ) : monthly.length === 0 ? (
+        <span className="muted" style={{ fontSize: 13 }}>Nessun dato. Genera dati demo dalla pagina Grafici.</span>
+      ) : metrics.length === 0 ? (
+        <span className="muted" style={{ fontSize: 13 }}>Nessun grafico selezionato. Usa “Scegli grafici”.</span>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${metrics.length}, 1fr)`, gap: 12 }}>
+          {metrics.map((mm) => (
+            <MiniTrend
+              key={mm.key}
+              label={mm.label}
+              values={(monthly ?? []).map((x) => (x as unknown as Record<string, number>)[mm.key] ?? 0)}
+              labels={labels}
+              format={fmt(mm.unit)}
+              color={mm.color}
+            />
+          ))}
+        </div>
+      )}
+
+      {picking && (
+        <ChartPickerModal
+          selected={chartKeys}
+          onClose={() => setPicking(false)}
+          onSaved={(keys) => { onSave(keys); setPicking(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Modulo Calendario a tutta larghezza: stesso selettore viste della pagina Calendario. */
+function CalendarModule({ module: m }: { module: DashboardModule }) {
+  const [reminders, setReminders] = useState<CalReminder[] | null>(null);
+  useEffect(() => {
+    api<CalReminder[]>('/crm/reminders?includeDone=false').then(setReminders).catch(() => setReminders([]));
+  }, []);
+  return (
+    <div className="card" style={{ margin: 0, gridColumn: '1 / -1' }}>
+      <div className="spread" style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ width: 42, height: 42, borderRadius: 12, background: 'var(--chip)', color: 'var(--chip-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+            <i className={`ti ${m.icon}`} style={{ fontSize: 22 }} />
+          </span>
+          <b style={{ fontSize: 16 }}>{m.label}</b>
+        </div>
+        <Link to={m.to} className="btn ghost sm"><i className="ti ti-arrow-right" /> Apri</Link>
+      </div>
+      {reminders === null ? (
+        <span className="muted" style={{ fontSize: 13 }}>Caricamento…</span>
+      ) : reminders.length === 0 ? (
+        <span className="muted" style={{ fontSize: 13 }}>Nessun promemoria in programma.</span>
+      ) : (
+        <ReminderCalendar
+          reminders={reminders}
+          compact
+          renderItem={(r) => (
+            <div className="spread" style={{ fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <b style={{ fontWeight: 600 }}>{new Date(r.dueAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</b> · {r.title}
+              </span>
+              {r.linkedName && <span className="chip" style={{ fontSize: 10, marginLeft: 8, whiteSpace: 'nowrap' }}>{r.linkedName}</span>}
+            </div>
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
+function ChartPickerModal({ selected, onClose, onSaved }: { selected: string[]; onClose: () => void; onSaved: (keys: string[]) => void }) {
+  const [draft, setDraft] = useState<string[]>(selected);
+  const full = draft.length >= 3;
+  function toggle(key: string) {
+    setDraft((d) => (d.includes(key) ? d.filter((x) => x !== key) : d.length >= 3 ? d : [...d, key]));
+  }
+  return (
+    <Modal title="Scegli i grafici (max 3)" onClose={onClose}>
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        Seleziona fino a 3 grafici da mostrare a tutta larghezza in dashboard. ({draft.length}/3)
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
+        {CHART_METRICS.map((mm) => {
+          const on = draft.includes(mm.key);
+          const disabled = !on && full;
+          return (
+            <label key={mm.key} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 10, cursor: disabled ? 'not-allowed' : 'pointer', border: '1px solid var(--line)', background: on ? 'var(--chip)' : 'transparent', opacity: disabled ? 0.5 : 1 }}>
+              <input type="checkbox" checked={on} disabled={disabled} onChange={() => toggle(mm.key)} />
+              <span style={{ flex: 1, fontSize: 14 }}>{mm.label}</span>
+            </label>
+          );
+        })}
+      </div>
+      <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+        <button className="btn ghost" onClick={onClose}>Annulla</button>
+        <button className="btn" onClick={() => onSaved(draft)}><i className="ti ti-device-floppy" /> Salva</button>
+      </div>
+    </Modal>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { Banner, Modal, Spinner } from '../components/ui';
+import { ReminderCalendar } from '../components/ReminderCalendar';
 
 interface Reminder {
   id: string;
@@ -15,18 +16,9 @@ interface LeadOption {
   id: string;
   name: string | null;
   email: string | null;
-  client: { email: string; clientProfile: { name: string | null } | null } | null;
+  client: { email: string; phone: string | null; clientProfile: { name: string | null } | null } | null;
 }
 
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-function dayLabel(d: Date): string {
-  const today = startOfDay(new Date());
-  const diff = Math.round((startOfDay(d).getTime() - today.getTime()) / 86_400_000);
-  if (diff === 0) return 'Oggi';
-  if (diff === 1) return 'Domani';
-  if (diff === -1) return 'Ieri';
-  return d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
-}
 const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 
 export function Calendar() {
@@ -75,13 +67,6 @@ export function Calendar() {
 
   const now = Date.now();
   const overdue = reminders.filter((r) => !r.done && new Date(r.dueAt).getTime() < now);
-  const upcoming = reminders.filter((r) => r.done || new Date(r.dueAt).getTime() >= now);
-  const byDay = new Map<string, Reminder[]>();
-  for (const r of upcoming) {
-    const k = startOfDay(new Date(r.dueAt)).toISOString();
-    (byDay.get(k) ?? byDay.set(k, []).get(k)!).push(r);
-  }
-  const days = [...byDay.keys()].sort();
 
   function Row({ r }: { r: Reminder }) {
     const late = !r.done && new Date(r.dueAt).getTime() < now;
@@ -128,12 +113,11 @@ export function Calendar() {
         </div>
       )}
 
-      {days.map((k) => (
-        <div className="card" key={k}>
-          <h2 style={{ textTransform: 'capitalize' }}>{dayLabel(new Date(k))}</h2>
-          {byDay.get(k)!.sort((a, b) => a.dueAt.localeCompare(b.dueAt)).map((r) => <Row key={r.id} r={r} />)}
+      {reminders.length > 0 && (
+        <div className="card">
+          <ReminderCalendar reminders={reminders} renderItem={(r) => <Row r={r as Reminder} />} />
         </div>
-      ))}
+      )}
 
       {showCreate && (
         <CreateReminderModal
@@ -161,6 +145,12 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
   function leadName(l: LeadOption) {
     return l.client?.clientProfile?.name ?? l.name ?? l.client?.email ?? l.email ?? 'Senza nome';
   }
+
+  const selectedLead = leads.find((l) => l.id === crmRecordId) ?? null;
+  const leadEmail = selectedLead ? (selectedLead.client?.email ?? selectedLead.email ?? null) : null;
+  const leadPhone = selectedLead?.client?.phone ?? null;
+  // Numero per WhatsApp: solo cifre; se manca il prefisso internazionale si assume l'Italia (39).
+  const waNumber = leadPhone ? (() => { const d = leadPhone.replace(/[^\d]/g, ''); return d.startsWith('39') ? d : d.startsWith('0') ? '39' + d.replace(/^0+/, '') : '39' + d; })() : null;
 
   async function submit() {
     setError(null);
@@ -199,6 +189,26 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
             <option key={l.id} value={l.id}>{leadName(l)}</option>
           ))}
         </select>
+        {selectedLead && (
+          <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center' }}>
+            <span className="muted" style={{ fontSize: 12 }}>Contatta subito:</span>
+            {leadPhone ? (
+              <a className="btn ghost sm" href={`tel:${leadPhone}`} title={`Chiama ${leadPhone}`} style={{ padding: '6px 10px' }}><i className="ti ti-phone" /></a>
+            ) : (
+              <button className="btn ghost sm" disabled title="Nessun telefono" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-phone" /></button>
+            )}
+            {waNumber ? (
+              <a className="btn ghost sm" href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" title="Scrivi su WhatsApp" style={{ padding: '6px 10px', color: '#25D366' }}><i className="ti ti-brand-whatsapp" /></a>
+            ) : (
+              <button className="btn ghost sm" disabled title="Nessun telefono" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-brand-whatsapp" /></button>
+            )}
+            {leadEmail ? (
+              <a className="btn ghost sm" href={`mailto:${leadEmail}`} title={`Scrivi a ${leadEmail}`} style={{ padding: '6px 10px' }}><i className="ti ti-mail" /></a>
+            ) : (
+              <button className="btn ghost sm" disabled title="Nessuna email" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-mail" /></button>
+            )}
+          </div>
+        )}
       </div>
       <div className="field">
         <label>Note (facoltative)</label>

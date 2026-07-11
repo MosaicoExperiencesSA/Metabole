@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
 
+// Home al centro (rialzata, cerchio verde) come una barra flottante moderna.
 const TABS = [
-  { to: '/', icon: 'ti-home', label: 'Home', end: true },
-  { to: '/menu', icon: 'ti-salad', label: 'Menu', end: false },
-  { to: '/calendario', icon: 'ti-calendar-heart', label: 'Calendario', end: false },
-  { to: '/obiettivo', icon: 'ti-target', label: 'Obiettivo', end: false },
-  { to: '/negozio', icon: 'ti-shopping-bag', label: 'Negozio', end: false },
+  { to: '/menu', icon: 'ti-chef-hat', label: 'Menu', end: false, center: false },
+  { to: '/obiettivo', icon: 'ti-target', label: 'Obiettivo', end: false, center: false },
+  { to: '/', icon: 'ti-home', label: 'Home', end: true, center: true },
+  { to: '/negozio', icon: 'ti-shopping-bag', label: 'Negozio', end: false, center: false },
+  { to: '/calendario', icon: 'ti-calendar-heart', label: 'Calendario', end: false, center: false },
 ];
 
 export default function TabBar() {
@@ -16,7 +17,9 @@ export default function TabBar() {
           key={t.to}
           to={t.to}
           end={t.end}
-          className={({ isActive }) => (isActive ? 'tab active' : 'tab')}
+          title={t.label}
+          aria-label={t.label}
+          className={({ isActive }) => `tab${t.center ? ' home' : ''}${isActive ? ' active' : ''}`}
         >
           <i className={`ti ${t.icon}`} />
           <span>{t.label}</span>

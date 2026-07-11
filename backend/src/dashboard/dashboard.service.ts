@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const FINANCE_ROLES = ['admin', 'sales'];
-type Row = { a: string; b?: string };
+type Row = { a: string; b?: string; sub?: string };
 
 /**
  * Mini-anteprime per i moduli della dashboard: gli ultimi dati di ciascuna
@@ -37,13 +37,52 @@ export class DashboardService {
       out.clients = rows.map((r) => ({ a: r.clientProfile?.name ?? r.email, b: dmy(r.createdAt) }));
     } catch { /* skip */ }
 
-    // CRM: lead recenti
+    // CRM: lead recenti (con coach e nutrizionista assegnati)
     try {
       const rows = (await this.prisma.crmRecord.findMany({
         orderBy: { updatedAt: 'desc' }, take: 5,
-        select: { name: true, email: true, stage: true, client: { select: { email: true, clientProfile: { select: { name: true } } } } },
-      })) as { name: string | null; email: string | null; stage: string; client: { email: string; clientProfile: { name: string | null } | null } | null }[];
-      out.crm_leads = rows.map((r) => ({ a: r.client?.clientProfile?.name ?? r.name ?? r.client?.email ?? r.email ?? 'Senza nome', b: r.stage }));
+        select: {
+          name: true, email: true, stage: true,
+          assignedCoach: { select: { displayName: true } },
+          client: { select: { email: true, clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } }, assignedNutritionist: { select: { displayName: true } } } } } },
+        },
+      })) as {
+        name: string | null; email: string | null; stage: string;
+        assignedCoach: { displayName: string } | null;
+        client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null } | null;
+      }[];
+      out.crm_leads = rows.map((r) => {
+        const coach = r.assignedCoach?.displayName ?? r.client?.clientProfile?.assignedCoach?.displayName ?? null;
+        const nutri = r.client?.clientProfile?.assignedNutritionist?.displayName ?? null;
+        const sub = `Coach: ${coach ?? '—'} · Nutr.: ${nutri ?? '—'}`;
+        return { a: r.client?.clientProfile?.name ?? r.name ?? r.client?.email ?? r.email ?? 'Senza nome', b: r.stage, sub };
+      });
+    } catch { /* skip */ }
+
+    // Lead da accettare: assegnati in attesa (assignmentStatus pending), scope per coach
+    try {
+      const whereAccept: Record<string, unknown> = { assignmentStatus: 'pending' };
+      if (!scopeAll) {
+        if (user.role === 'coach' && staff) whereAccept.assignedCoachId = staff.id;
+        else whereAccept.id = '__none__';
+      }
+      const rows = (await this.prisma.crmRecord.findMany({
+        where: whereAccept as never, orderBy: { assignedAt: 'desc' }, take: 5,
+        select: {
+          name: true, email: true, assignedAt: true,
+          assignedCoach: { select: { displayName: true } },
+          client: { select: { email: true, clientProfile: { select: { name: true } } } },
+        },
+      })) as {
+        name: string | null; email: string | null; assignedAt: Date | null;
+        assignedCoach: { displayName: string } | null;
+        client: { email: string; clientProfile: { name: string | null } | null } | null;
+      }[];
+      out.lead_accept = rows.map((r) => ({
+        a: r.client?.clientProfile?.name ?? r.name ?? r.client?.email ?? r.email ?? 'Senza nome',
+        b: r.assignedAt ? dmy(r.assignedAt) : 'da accettare',
+        sub: scopeAll && r.assignedCoach ? `Coach: ${r.assignedCoach.displayName}` : undefined,
+      }));
     } catch { /* skip */ }
 
     // Grafici: numeri chiave (scope per ruolo)
@@ -70,13 +109,17 @@ export class DashboardService {
         })) as { amountCents: number; description: string; client: { email: string; clientProfile: { name: string | null } | null } | null }[];
         out.accounting = rows.map((r) => ({ a: r.client?.clientProfile?.name ?? r.client?.email ?? r.description, b: euro(r.amountCents) }));
       } catch { /* skip */ }
-      // Acquisti recenti (approvati)
+      // Acquisti recenti (approvati) — con nickname del cliente
       try {
         const rows = (await this.prisma.payment.findMany({
           where: { status: 'approved' as never }, orderBy: { approvedAt: 'desc' }, take: 5,
-          select: { amountCents: true, description: true, approvedAt: true },
-        })) as { amountCents: number; description: string; approvedAt: Date | null }[];
-        out.purchases = rows.map((r) => ({ a: r.description, b: euro(r.amountCents) }));
+          select: { amountCents: true, description: true, approvedAt: true, client: { select: { email: true, clientProfile: { select: { name: true } } } } },
+        })) as { amountCents: number; description: string; approvedAt: Date | null; client: { email: string; clientProfile: { name: string | null } | null } | null }[];
+        out.purchases = rows.map((r) => ({
+          a: r.description,
+          b: euro(r.amountCents),
+          sub: r.client?.clientProfile?.name ?? r.client?.email ?? undefined,
+        }));
       } catch { /* skip */ }
     }
 

@@ -15,11 +15,11 @@ type Answers = Record<string, unknown>;
  * NB: 'meals' non è nel documento ma il backend richiede mealsPerDay → lo teniamo in Vita.
  */
 const SECTIONS = [
-  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Ora motivazione e carattere', note: 'Come vuoi essere seguita e che tipo sei.', color: '#6C5AB7', voice: 'intro_testa', pages: ['coach_style', 'character'] },
-  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', color: '#2E7BB5', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
-  { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', color: '#E8825A', voice: 'intro_agenda', pages: ['pause_periods'] },
-  { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', color: '#B8863B', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
-  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Procediamo con le domande sul corpo', note: 'Peso, misure e obiettivo. Niente giudizi: mi servono solo per partire.', color: '#12A386', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
+  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Ora motivazione e carattere', note: 'Come vuoi essere seguita e che tipo sei.', desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C5AB7', voice: 'intro_testa', pages: ['coach_style', 'character'] },
+  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2E7BB5', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
+  { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', desc: 'Eventi e periodi speciali', icon: 'ti-calendar-heart', color: '#E8825A', voice: 'intro_agenda', pages: ['pause_periods'] },
+  { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', desc: 'Regime, stile e cibi', icon: 'ti-tools-kitchen-2', color: '#B8863B', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
+  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Procediamo con le domande sul corpo', note: 'Peso, misure e obiettivo. Niente giudizi: mi servono solo per partire.', desc: 'Obiettivo: peso, misure', icon: 'ti-target', color: '#12A386', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
 ] as const;
 
 type Section = (typeof SECTIONS)[number];
@@ -279,8 +279,13 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             <div className="areas">
               {SECTIONS.map((s) => (
                 <div className="area" key={s.key}>
-                  <span className="area-dot" style={{ background: s.color }} />
-                  <span>{s.name}</span>
+                  <span className="area-ic" style={{ background: s.color }}>
+                    <i className={`ti ${s.icon}`} />
+                  </span>
+                  <span className="area-txt">
+                    <b>{s.tab}</b>
+                    <span className="muted">{s.desc}</span>
+                  </span>
                 </div>
               ))}
             </div>

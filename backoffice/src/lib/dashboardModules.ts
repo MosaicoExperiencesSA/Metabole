@@ -6,6 +6,9 @@ export interface DashboardModule {
   icon: string;
   label: string;
   preview: string;
+  /** Chiave dei dati di anteprima (default = pageKey). Serve quando più moduli
+   *  condividono lo stesso permesso ma mostrano dati diversi (es. CRM vs Lead da accettare). */
+  previewKey?: string;
 }
 
 export const DASHBOARD_MODULES: DashboardModule[] = [
@@ -13,6 +16,8 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   { id: 'm_grafici', pageKey: 'charts', to: '/grafici', icon: 'ti-chart-histogram', label: 'Grafici', preview: 'Kg persi nel mese, perdita media, fatturato e classifiche.' },
   { id: 'm_pagamenti', pageKey: 'accounting', to: '/pagamenti', icon: 'ti-cash', label: 'Bonifici & contabilità', preview: 'Contabili da verificare e incassi.' },
   { id: 'm_crm', pageKey: 'crm_leads', to: '/crm/gestione', icon: 'ti-list-details', label: 'CRM / Lead', preview: 'Lead, pipeline e conversioni.' },
+  { id: 'm_lead_accept', pageKey: 'crm_leads', previewKey: 'lead_accept', to: '/crm/gestione', icon: 'ti-user-check', label: 'Lead da accettare', preview: 'Lead assegnati in attesa di accettazione.' },
+  { id: 'm_calendario', pageKey: 'crm_leads', to: '/crm/calendario', icon: 'ti-calendar-event', label: 'Calendario', preview: 'Promemoria e appuntamenti: lista, settimana o mese.' },
   { id: 'm_agenda', pageKey: 'visits_agenda', to: '/agenda', icon: 'ti-calendar', label: 'Agenda visite', preview: 'Televisite e appuntamenti in programma.' },
   { id: 'm_segnalazioni', pageKey: 'escalations', to: '/segnalazioni', icon: 'ti-alert-triangle', label: 'Segnalazioni', preview: 'Situazioni del motore da gestire.' },
   { id: 'm_diete', pageKey: 'diets_catalog', to: '/diete', icon: 'ti-salad', label: 'Catalogo diete', preview: 'Diete e ricette approvate.' },
@@ -22,3 +27,21 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
 
 /** Moduli mostrati di default se l'utente non ha ancora personalizzato. */
 export const DEFAULT_MODULE_IDS = ['m_clienti', 'm_grafici', 'm_pagamenti', 'm_agenda'];
+
+/** Catalogo dei grafici disponibili nel modulo "Grafici" (max 3 selezionabili). */
+export interface ChartMetric {
+  key: string;
+  label: string;
+  unit: 'kg' | 'cm' | 'int' | 'euro';
+  color: string;
+}
+export const CHART_METRICS: ChartMetric[] = [
+  { key: 'kgLost', label: 'Kg persi / mese', unit: 'kg', color: 'var(--teal)' },
+  { key: 'cmWaistLost', label: 'Cm vita persi / mese', unit: 'cm', color: '#3A6EA5' },
+  { key: 'avgLossKg', label: 'Perdita media / cliente', unit: 'kg', color: 'var(--teal)' },
+  { key: 'newClients', label: 'Nuovi clienti / mese', unit: 'int', color: 'var(--violet)' },
+  { key: 'activeSubscriptions', label: 'Abbonamenti attivi', unit: 'int', color: 'var(--teal)' },
+  { key: 'revenueCents', label: 'Fatturato / mese', unit: 'euro', color: 'var(--gold)' },
+  { key: 'cumulativeRevenueCents', label: 'Fatturato cumulato', unit: 'euro', color: 'var(--gold)' },
+];
+export const DEFAULT_CHART_KEYS = ['kgLost', 'revenueCents', 'newClients'];

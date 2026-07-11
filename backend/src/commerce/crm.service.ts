@@ -78,6 +78,7 @@ export class CrmService {
         client: {
           select: {
             email: true,
+            phone: true,
             clientProfile: {
               select: {
                 name: true,
