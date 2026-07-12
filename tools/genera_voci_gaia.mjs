@@ -39,7 +39,7 @@ if (!API_KEY) {
 
 // Testi di Gaia (devono combaciare con quelli del prototipo)
 const PHRASES = {
-  benvenuto: "Ciao, sono Gaia, la tua assistente Èi Ài che ti guiderà passo passo alla configurazione personalizzata di Metàbol Èi Ài, in modo che il tuo percorso di rinascita sia unico e cucito su di te. Appena sei pronta, clicca sul pulsante Entra in Metàbol Èi Ài in fondo.",
+  benvenuto: "Ciao, sono Gaia, l'assistente Èi Ài di Metàbol Èi Ài: il tuo percorso personalizzato per raggiungere e mantenere la tua forma migliore. Accedi se sei già registrata, oppure registrati se sei nuova.",
   registrazione: "Crea la tua registrazione in pochi passi, in modo da darti l'accesso completo a Metàbol Èi Ài.",
   facciamo: "Per settare e personalizzare la tua app ho bisogno di qualche indicazione su cinque punti: la mente, la vita, l'agenda, il gusto e il corpo.",
   intro_testa: "Per prima cosa, cosa c'è nella tua mente? L'equilibrio mentale è il primo passo per ritrovare la forma fisica corretta. Rispondi pure alle prossime domande.",
