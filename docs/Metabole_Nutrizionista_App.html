@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaboleAI — App Nutrizionista (prototipo)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+  :root{--brand:#12A386}
+  *{box-sizing:border-box}
+  body{margin:0;background:#E9ECEB;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#101826;padding:24px 0;display:flex;justify-content:center}
+  .phone{width:304px;height:634px;display:flex;flex-direction:column;background:#fff;border:11px solid #0B0F0E;border-radius:52px;overflow:hidden;position:relative;box-shadow:0 20px 46px rgba(16,64,58,.24)}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:9}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:13px 26px 4px;font-size:11px;font-weight:600;flex:none}
+  #inner{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+  .av{width:38px;height:38px;border-radius:50%;background:#DCEBE3;color:#0E7C66;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+  .body{flex:1;overflow:auto;padding:6px 13px 80px}
+  .h1{font-size:19px;font-weight:800;margin:2px 0}
+  .sub{font-size:12px;color:#8A938F}
+  .sec{font-size:12px;font-weight:700;color:#3A4A46;margin:14px 2px 8px}
+  .card{background:#fff;border:1px solid #EEF1F0;border-radius:16px;box-shadow:0 6px 18px rgba(16,48,42,.06);margin-bottom:10px}
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 4px;margin-bottom:6px}
+  .chip{border:1px solid #E7EBE9;background:#fff;border-radius:20px;padding:6px 11px;font-size:11px;cursor:pointer;color:#5F6E6B;white-space:nowrap;flex:none}
+  .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px}
+  .pill{font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px}
+  .acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .mini{font-size:11px;border:1px solid #E7EBE9;background:#fff;border-radius:9px;padding:6px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;color:#3A4A46;text-decoration:none}
+  .mini.b{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid #F2F5F4;cursor:pointer}
+  .row:last-child{border-bottom:none}
+  .tabbar{position:absolute;left:0;right:0;bottom:0;display:flex;background:#fff;border-top:1px solid #EEF1F0;padding:8px 4px 11px;box-shadow:0 -8px 22px rgba(16,48,42,.06);z-index:8}
+  .tab{flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#B4BEBA}
+  .tab i{font-size:23px}
+  .tab.on{color:#fff}
+  .tab.on i{background:var(--brand);width:44px;height:44px;border-radius:15px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(18,163,134,.42);margin-top:-15px}
+  .hicon{width:31px;height:31px;border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+  .hicon i{font-size:17px}
+  .hbadge{position:absolute;top:-5px;right:-5px;min-width:14px;height:14px;padding:0 3px;border-radius:8px;background:#E23B3B;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+  .kpi{border-radius:14px;padding:12px;flex:1;min-width:0}
+  .back{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#8A938F;cursor:pointer;margin-bottom:8px}
+  .inp{width:100%;border:1px solid #E7EBE9;border-radius:12px;padding:10px 12px;font-size:13px;outline:none}
+  .btn{border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+  .btn.p{background:var(--brand);color:#fff;width:100%}
+  .btn.g{background:#F2F5F4;color:#101826;width:100%}
+  .lock{font-size:8.5px;font-weight:700;color:#B4491F;background:#FBE3E3;padding:2px 7px;border-radius:20px;display:inline-flex;align-items:center;gap:3px}
+  .login{position:absolute;inset:0;background:linear-gradient(150deg,#0E6E5A,#12A386);display:flex;align-items:center;justify-content:center;padding:22px;z-index:20}
+  .lcard{width:100%;background:#fff;border-radius:20px;padding:20px}
+</style>
+</head>
+<body>
+<div class="phone"><div class="island"></div><div class="statusbar"><span>9:41</span><span><i class="ti ti-wifi" style="font-size:13px"></i> <i class="ti ti-battery-3" style="font-size:14px"></i></span></div><div id="inner"></div></div>
+<script>
+(function(){
+  var state={view:'login',screen:'dash',detailP:0,prev:'pazienti',brand:null,openMonth:null};
+  var PALETTE=['#F2B807','#E23B3B','#E86FA6','#2F80ED','#12A386','#F2820A'];
+  function autoColor(){var d=Math.floor(Date.now()/86400000);return PALETTE[Math.floor(d/2)%PALETTE.length];}
+  function swatches(){var sel=state.brand||'#12A386';var h=PALETTE.map(function(cc){return '<span class="sw" data-c="'+cc+'" style="width:36px;height:36px;border-radius:50%;background:'+cc+';cursor:pointer;border:3px solid '+(sel===cc?'#0B302B':'transparent')+'"></span>';}).join('');h+='<span class="sw" data-c="auto" style="width:36px;height:36px;border-radius:50%;background:conic-gradient(from 90deg,#F2B807,#E23B3B,#E86FA6,#2F80ED,#12A386,#F2820A,#F2B807);cursor:pointer;border:3px solid '+(sel==='auto'?'#0B302B':'transparent')+';position:relative;display:inline-flex"><i class="ti ti-sparkles" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px"></i></span>';return h;}
+  function waLink(ph){return 'https://wa.me/'+(''+ph).replace(/[^0-9]/g,'');}
+
+  var PATIENTS=[
+    {name:'Giulia Rossi',ini:'GR',age:40,sex:'Donna',status:'proto',phone:'+39 333 123 4567',cond:['Ipotiroidismo'],meds:['Eutirox 50'],allerg:['Lattosio'],diet:'Equilibrio Mediterraneo · liv. 2',trend:'-1,8 kg',docs:[['Analisi del sangue','12 giu','ok'],['Foto progressi','1 lug','ok']]},
+    {name:'Marta Bianchi',ini:'MB',age:35,sex:'Donna',status:'flag',phone:'+39 340 998 2211',cond:['Nessuna'],meds:['—'],allerg:['Glutine'],diet:'Proteica · liv. 1',trend:'-0,4 kg',docs:[['Analisi del sangue','8 lug','flag']]},
+    {name:'Elena Verdi',ini:'EV',age:47,sex:'Donna',status:'esc',phone:'+39 348 771 5566',cond:['Diabete tipo 2'],meds:['Metformina'],allerg:['—'],diet:'Low-carb · liv. 2',trend:'-2,2 kg',docs:[['Analisi del sangue','20 giu','ok']]},
+    {name:'Chiara Toni',ini:'CT',age:29,sex:'Donna',status:'ok',phone:'+39 331 445 7788',cond:['Nessuna'],meds:['—'],allerg:['Frutta secca'],diet:'Mediterranea · liv. 3',trend:'-3,0 kg',docs:[]},
+    {name:'Sara Poli',ini:'SP',age:52,sex:'Donna',status:'ok',phone:'+39 349 220 3344',cond:['Ipertensione'],meds:['Ramipril'],allerg:['—'],diet:'Mediterranea · liv. 2',trend:'-1,1 kg',docs:[['Analisi del sangue','2 lug','ok']]},
+    {name:'Federica Lo',ini:'FL',age:38,sex:'Donna',status:'new',phone:'+39 342 556 9900',cond:['Da valutare in screening'],meds:['—'],allerg:['—'],diet:'Da assegnare',trend:'—',docs:[]}
+  ];
+  var ALERTS=[
+    {id:1,p:1,ic:'ti-file-alert',bg:'#FBE3E3',fg:'#B4491F',pr:'high',t:'Analisi fuori range',d:'Marta B.: glicemia sopra soglia nell\'ultimo esame. Da revisionare.'},
+    {id:2,p:2,ic:'ti-arrow-up-right',bg:'#FBEEE7',fg:'#E8825A',pr:'high',t:'Escalation dalla coach',d:'Elena V.: la coach ha segnalato un tema clinico da valutare.'},
+    {id:3,p:0,ic:'ti-clipboard-check',bg:'#E7EEF6',fg:'#3A6EA5',pr:'med',t:'Protocollo da validare',d:'Giulia R.: adattamento del menu proposto dal motore.'},
+    {id:4,p:5,ic:'ti-user-check',bg:'#EFEAF9',fg:'#6C4CD6',pr:'med',t:'Nuovo screening',d:'Federica L.: condizione dichiarata in registrazione, da valutare.'},
+    {id:5,p:2,ic:'ti-vaccine-bottle',bg:'#FDF3DD',fg:'#B8863B',pr:'low',t:'Rivedere terapia',d:'Elena V.: verificare interazione dieta/Metformina.'}
+  ];
+  var DIETS=[['Equilibrio Mediterraneo · liv. 2','Onnivoro','approved'],['Proteica · liv. 1','Onnivoro','approved'],['Low-carb · liv. 2','Onnivoro','in_review'],['Vegetariana · liv. 2','Vegetariano','draft']];
+  var VISITS=[['Oggi','11:00','Chiara Toni','in_person','Prima visita'],['Oggi','16:00','Giulia Rossi','televisit','Controllo mensile'],['Gio','10:30','Sara Poli','televisit','Controllo']];
+
+  var inner=document.getElementById('inner');
+  function statusPill(s){var m={ok:['#DCF0D8','#3B6D11','In equilibrio'],flag:['#FBE3E3','#B4491F','Doc. da rivedere'],esc:['#FBEEE7','#B4491F','Escalation'],proto:['#E7EEF6','#3A6EA5','Protocollo'],new:['#EFEAF9','#6C4CD6','Screening']}[s];return '<span class="pill" style="background:'+m[0]+';color:'+m[1]+'">'+m[2]+'</span>';}
+
+  function login(){
+    inner.innerHTML='<div class="login"><div class="lcard"><div style="font-size:20px;font-weight:800;color:#0E5A49">Metabole<span style="color:#6C4CD6">AI</span></div><div class="sub" style="margin:2px 0 16px">Accesso operatori</div>'
+      +'<input class="inp" style="margin-bottom:9px" value="nutrizionista@metabole.ai"><input class="inp" type="password" style="margin-bottom:12px" value="metabole">'
+      +'<button class="btn p" data-go="nutri">Entra</button>'
+      +'<div class="sub" style="text-align:center;margin:14px 0 7px">Demo — entra come:</div>'
+      +'<div style="display:flex;gap:7px"><button class="btn g" data-go="nutri" style="font-size:12px;padding:9px"><i class="ti ti-stethoscope"></i></button><button class="btn g" data-go="coach" style="font-size:12px;padding:9px"><i class="ti ti-heart-handshake"></i></button><button class="btn g" data-go="client" style="font-size:12px;padding:9px"><i class="ti ti-user"></i></button></div>'
+      +'<div class="sub" style="text-align:center;font-size:10px;margin-top:8px">Nutrizionista · Coach · Cliente</div>'
+      +'</div></div>';
+    inner.querySelectorAll('[data-go]').forEach(function(b){b.addEventListener('click',function(){var r=b.getAttribute('data-go');if(r==='nutri'){state.view='app';state.screen='dash';render();}else role(r);});});
+  }
+  function role(r){var t=r==='coach'?['App Coach','Usa l\'app della coach con le tue credenziali.','ti-heart-handshake']:['App Cliente','Le clienti usano la loro app mobile.','ti-user'];
+    inner.innerHTML='<div class="login"><div class="lcard" style="text-align:center"><div class="av" style="width:58px;height:58px;margin:0 auto 12px;font-size:26px"><i class="ti '+t[2]+'"></i></div><div style="font-size:17px;font-weight:700">'+t[0]+'</div><div class="sub" style="margin:8px 0 16px">'+t[1]+'</div><button class="btn g" data-back>← Torna al login</button></div></div>';
+    inner.querySelector('[data-back]').addEventListener('click',login);
+  }
+
+  function shell(content){
+    var nH=ALERTS.filter(function(a){return a.pr==='high';}).length;
+    var nav=[['dash','ti-layout-dashboard'],['pazienti','ti-users'],['diete','ti-salad'],['agenda','ti-calendar-heart'],['guadagni','ti-cash']];
+    var titles={dash:'Dashboard',pazienti:'Pazienti',paziente:'Cartella',diete:'Diete e protocolli',agenda:'Agenda visite',guadagni:'Guadagni',alert:'Priorità cliniche',notifiche:'Notifiche',profilo:'Profilo'};
+    return '<div style="background:linear-gradient(135deg,var(--brand,#12A386),#0E6E5A);padding:13px 12px 18px;border-radius:0 0 24px 24px;box-shadow:0 10px 26px rgba(16,110,90,.28);display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="min-width:0;flex:1;overflow:hidden"><div style="font-size:9px;color:rgba(255,255,255,.82);font-weight:700;letter-spacing:.5px">METABOLE<span style="color:#BFF0E2">AI</span> · NUTRIZIONISTA</div><div style="font-size:16px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(titles[state.screen]||'')+'</div></div><div style="display:flex;gap:6px;flex:none"><span class="hicon" data-nav="notifiche" style="background:rgba(255,255,255,.2);color:#fff"><i class="ti ti-bell"></i><span class="hbadge">2</span></span><span class="hicon" data-nav="alert" style="background:rgba(255,255,255,.2);color:#fff"><i class="ti ti-alert-triangle"></i>'+(nH?'<span class="hbadge">'+nH+'</span>':'')+'</span><span class="hicon" data-nav="profilo" style="background:#fff;color:var(--brand,#12A386)"><i class="ti ti-user"></i></span></div></div>'
+      +'<div class="body">'+content+'</div>'
+      +'<div class="tabbar">'+nav.map(function(n){return '<div class="tab'+(state.screen===n[0]?' on':'')+'" data-nav="'+n[0]+'"><i class="ti '+n[1]+'"></i></div>';}).join('')+'</div>';
+  }
+
+  function scDash(){
+    function kpi(ic,val,lab,bg,fg,nav){return '<div class="card" style="flex:1;margin:0;padding:12px;display:flex;align-items:center;gap:10px'+(nav?';cursor:pointer':'')+'"'+(nav?' data-nav="'+nav+'"':'')+'><span style="width:36px;height:36px;border-radius:11px;background:'+bg+';color:'+fg+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+ic+'" style="font-size:19px"></i></span><div><div style="font-size:18px;font-weight:800;line-height:1">'+val+'</div><div class="sub" style="font-size:10.5px">'+lab+'</div></div></div>';}
+    function earnCard(lab,val,ic,grad){return '<div data-nav="guadagni" style="flex:1;cursor:pointer;border-radius:18px;padding:14px 15px;'+(grad?'background:linear-gradient(135deg,var(--brand,#12A386),#0E6E5A);color:#fff;box-shadow:0 10px 22px rgba(18,163,134,.28)':'background:#fff;border:1px solid #EEF1F0;box-shadow:0 6px 18px rgba(16,48,42,.06)')+'"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;'+(grad?'opacity:.9':'color:#8A938F')+';font-weight:600">'+lab+'</span><i class="ti '+ic+'" style="font-size:18px;'+(grad?'opacity:.9':'color:#B8863B')+'"></i></div><div style="font-size:23px;font-weight:800;margin-top:8px">'+val+'</div></div>';}
+    var earn='<div style="display:flex;gap:10px;margin-top:4px">'+earnCard('Guadagno totale','€ 12.450','ti-coin',true)+earnCard('Guadagno del mese','€ 1.180','ti-cash',false)+'</div>';
+    var r1='<div style="display:flex;gap:10px;margin-top:10px">'+kpi('ti-users','24','Pazienti','#DCEBE3','#0E7C66','pazienti')+kpi('ti-clipboard-check','3','Da validare','#E7EEF6','#3A6EA5','diete')+'</div>';
+    var r2='<div style="display:flex;gap:10px;margin-top:10px">'+kpi('ti-calendar-heart','2','Visite oggi','#FBEEE7','#E8825A','agenda')+kpi('ti-file-alert','4','Documenti','#FBE3E3','#B4491F','alert')+'</div>';
+    var top=ALERTS.slice(0,3).map(function(a){return '<div class="row" data-open="'+a.p+'"><span style="width:34px;height:34px;border-radius:10px;background:'+a.bg+';color:'+a.fg+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+a.ic+'" style="font-size:17px"></i></span><div style="flex:1;min-width:0"><b style="font-size:12.5px">'+a.t+'</b><div class="sub" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+a.d+'</div></div><i class="ti ti-chevron-right" style="color:#C6CFCB"></i></div>';}).join('');
+    return shell(earn+r1+r2+'<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 2px 8px"><span class="sec" style="margin:0">Priorità cliniche</span><span class="chip on" data-nav="alert" style="font-size:11px">Vedi tutte</span></div><div class="card" style="padding:2px 6px">'+top+'</div>');
+  }
+
+  function scPazienti(){
+    var rows=PATIENTS.map(function(p,i){return '<div class="row" data-open="'+i+'"><div class="av" style="width:36px;height:36px;font-size:13px">'+p.ini+'</div><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px"><b style="font-size:13px">'+p.name+'</b>'+statusPill(p.status)+'</div><div class="sub" style="font-size:11px;margin-top:3px">'+p.age+' anni · '+p.diet+'</div></div><i class="ti ti-chevron-right" style="color:#C6CFCB"></i></div>';}).join('');
+    return shell('<div class="sub" style="margin:0 2px 10px">I tuoi pazienti — accesso alla cartella clinica.</div><div class="card" style="padding:2px 6px">'+rows+'</div>');
+  }
+
+  function scPaziente(i){var p=PATIENTS[i];
+    function line(lab,val){return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F2F5F4"><span class="sub" style="font-size:11.5px">'+lab+'</span><span style="font-size:12.5px;font-weight:600;text-align:right;max-width:60%">'+val+'</span></div>';}
+    var docs=p.docs.length?p.docs.map(function(d){var flag=d[2]==='flag';return '<div class="row" style="cursor:default"><span style="width:32px;height:32px;border-radius:9px;background:'+(flag?'#FBE3E3':'#F2F5F4')+';color:'+(flag?'#B4491F':'#8A938F')+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+(flag?'ti-file-alert':'ti-file-text')+'" style="font-size:16px"></i></span><div style="flex:1"><b style="font-size:12.5px">'+d[0]+'</b><div class="sub" style="font-size:10.5px">'+d[1]+(flag?' · valore fuori range':'')+'</div></div><i class="ti ti-eye" style="color:#C6CFCB"></i></div>';}).join(''):'<div style="padding:14px;text-align:center;color:#9AA5A1;font-size:12px">Nessun documento</div>';
+    return shell('<span class="back" data-back-p><i class="ti ti-chevron-left"></i> Pazienti</span>'
+      +'<div style="display:flex;align-items:center;gap:11px;margin:2px 0 12px"><div class="av" style="width:52px;height:52px;font-size:19px">'+p.ini+'</div><div><div style="font-size:17px;font-weight:800">'+p.name+'</div><div class="sub" style="font-size:11px">'+p.age+' anni · '+p.sex+'</div><div style="margin-top:4px">'+statusPill(p.status)+'</div></div></div>'
+      +'<div class="sec" style="margin:0 2px 8px">Quadro clinico <span class="lock"><i class="ti ti-lock" style="font-size:9px"></i> riservato</span></div>'
+      +'<div class="card" style="padding:4px 13px">'+line('Patologie',p.cond.join(', '))+line('Farmaci',p.meds.join(', '))+line('Allergie/intolleranze',p.allerg.join(', '))+'<div style="display:flex;justify-content:space-between;padding:8px 0"><span class="sub" style="font-size:11.5px">Andamento peso</span><span style="font-size:12.5px;font-weight:700;color:#0E7C66">'+p.trend+'</span></div></div>'
+      +'<div class="sec">Documenti</div><div class="card" style="padding:2px 6px">'+docs+'</div>'
+      +'<div class="sec">Dieta assegnata</div><div class="card" style="display:flex;align-items:center;gap:10px;padding:12px"><span style="width:38px;height:38px;border-radius:11px;background:#DCEBE3;color:#0E7C66;display:flex;align-items:center;justify-content:center;flex:none"><i class="ti ti-salad" style="font-size:19px"></i></span><div style="flex:1"><div style="font-size:13px;font-weight:600">'+p.diet+'</div><div class="sub" style="font-size:11px">Validata da te</div></div><span class="mini"><i class="ti ti-edit"></i> Modifica</span></div>'
+      +'<div class="sec">Note cliniche <span class="lock"><i class="ti ti-lock" style="font-size:9px"></i></span></div><div class="card" style="padding:11px 12px"><div style="font-size:12.5px;line-height:1.5;color:#2b2822">Paziente stabile. Consigliato controllo tiroide a 3 mesi.</div><div class="sub" style="font-size:10px;margin-top:5px">Dott.ssa Marini · 1 lug</div></div>'
+      +'<div style="display:flex;gap:8px;margin-top:4px"><button class="btn p" style="flex:1"><i class="ti ti-video"></i> Televisita</button><button class="btn g" style="flex:1"><i class="ti ti-notes"></i> Nuova nota</button></div>');
+  }
+
+  function scDiete(){
+    var st={approved:['#DCF0D8','#3B6D11','Approvata'],in_review:['#FDF3DD','#B8863B','In revisione'],draft:['#F2F5F4','#8A938F','Bozza']};
+    var rows=DIETS.map(function(d){var s=st[d[2]];return '<div class="row" style="cursor:default"><span style="width:34px;height:34px;border-radius:10px;background:#DCEBE3;color:#0E7C66;display:flex;align-items:center;justify-content:center;flex:none"><i class="ti ti-salad" style="font-size:17px"></i></span><div style="flex:1;min-width:0"><b style="font-size:12.5px">'+d[0]+'</b><div class="sub" style="font-size:11px">'+d[1]+'</div></div><span class="pill" style="background:'+s[0]+';color:'+s[1]+'">'+s[2]+'</span></div>';}).join('');
+    var proto='<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #C7DAF0;background:#F4F8FE"><span style="width:36px;height:36px;border-radius:11px;background:#E7EEF6;color:#3A6EA5;display:flex;align-items:center;justify-content:center;flex:none"><i class="ti ti-clipboard-check" style="font-size:19px"></i></span><div style="flex:1"><div style="font-size:13px;font-weight:600">3 protocolli del motore da validare</div><div class="sub" style="font-size:11px">Adattamenti proposti dall\'AI sui menu</div></div><i class="ti ti-chevron-right" style="color:#3A6EA5"></i></div>';
+    return shell(proto+'<div class="sec">Le tue diete</div><div class="card" style="padding:2px 6px">'+rows+'</div><button class="btn p" style="margin-top:2px"><i class="ti ti-plus"></i> Proponi una nuova dieta</button><div class="sub" style="text-align:center;font-size:11px;margin-top:8px">Le diete vanno approvate dal nutrizionista capo prima di entrare in catalogo.</div>');
+  }
+
+  function scAgenda(){
+    return shell('<div class="sub" style="margin:0 2px 10px">Prima visita in presenza · controlli in televisita.</div>'
+      +VISITS.map(function(e){var isTV=e[3]==='televisit';return '<div class="card" style="padding:12px;display:flex;align-items:center;gap:11px"><div style="width:48px;text-align:center;flex:none"><div style="font-size:15px;font-weight:800;color:'+(isTV?'#3A6EA5':'#0E7C66')+'">'+e[1]+'</div><div class="sub" style="font-size:10px">'+e[0]+'</div></div><div style="flex:1;border-left:1px solid #EEF1F0;padding-left:11px"><b style="font-size:13px">'+e[2]+'</b><div class="sub" style="font-size:11px">'+e[4]+'</div><span class="tag" style="background:'+(isTV?'#E7EEF6':'#DCEBE3')+';color:'+(isTV?'#3A6EA5':'#0E7C66')+';margin-top:5px;display:inline-block">'+(isTV?'Televisita':'In presenza')+'</span></div>'+(e[0]==='Oggi'?'<button class="btn p" style="width:auto;padding:8px 11px;flex:none"><i class="ti ti-video"></i></button>':'')+'</div>';}).join(''));
+  }
+
+  function scGuadagni(){
+    var MONTHS=[{m:'Luglio 2026',tot:'€ 1.180',rows:[['Prime visite','5','€ 500'],['Televisite','9','€ 450'],['Quota percorsi','—','€ 230']]},{m:'Giugno 2026',tot:'€ 1.020',rows:[['Prime visite','4','€ 400'],['Televisite','8','€ 400'],['Quota percorsi','—','€ 220']]}];
+    var cur=MONTHS[0];
+    function rr(r){return '<div class="row" style="cursor:default"><span style="flex:1;font-size:12.5px;font-weight:600">'+r[0]+(r[1]!=='—'?' <span class="sub" style="font-weight:400">· '+r[1]+'</span>':'')+'</span><span style="font-size:14px;font-weight:800;color:#0E7C66">'+r[2]+'</span></div>';}
+    var head='<div style="display:flex;justify-content:space-between;align-items:center;margin:2px 2px 10px"><div><div class="sub" style="font-size:10px;font-weight:700">MESE CORRENTE</div><div style="font-size:16px;font-weight:800">'+cur.m+'</div></div><div style="text-align:right"><div class="sub" style="font-size:10px">Guadagno</div><div style="font-size:22px;font-weight:800;color:#0E7C66">'+cur.tot+'</div></div></div>';
+    var list='<div class="card" style="padding:2px 12px">'+cur.rows.map(rr).join('')+'</div>';
+    var storico='<div class="sec" style="margin-top:10px">Storico mesi</div>'+MONTHS.slice(1).map(function(mo){var open=state.openMonth===mo.m;return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:9px"><div class="row" data-month="'+mo.m+'" style="border:none;cursor:pointer"><span style="width:34px;height:34px;border-radius:10px;background:#F2F5F4;color:#8A938F;display:flex;align-items:center;justify-content:center;flex:none"><i class="ti ti-calendar-month" style="font-size:17px"></i></span><div style="flex:1"><b style="font-size:13px">'+mo.m+'</b></div><span style="font-size:14px;font-weight:800;color:#0E7C66">'+mo.tot+'</span><i class="ti ti-chevron-'+(open?'up':'down')+'" style="color:#C6CFCB;margin-left:8px"></i></div>'+(open?'<div style="border-top:1px solid #F2F5F4;padding:2px 12px">'+mo.rows.map(rr).join('')+'</div>':'')+'</div>';}).join('');
+    return shell(head+list+'<button class="btn p" style="margin-top:2px;padding:13px"><i class="ti ti-wallet"></i> Richiedi prelievo</button><div class="sub" style="text-align:center;font-size:11px;margin:8px 0 4px">Accredito sul tuo IBAN entro 3 giorni lavorativi.</div>'+storico);
+  }
+
+  function scAlert(){
+    var ord={high:0,med:1,low:2};var list=ALERTS.slice().sort(function(x,y){return ord[x.pr]-ord[y.pr];});
+    return shell('<div class="sub" style="margin:0 2px 10px">Documenti, escalation e protocolli da gestire.</div>'
+      +(list.length?list.map(function(a){var p=PATIENTS[a.p];return '<div class="card" style="padding:12px 13px"><div style="display:flex;align-items:center;gap:9px"><span style="width:9px;height:9px;border-radius:50%;background:'+({high:'#E23B3B',med:'#E8A11B',low:'#3A6EA5'})[a.pr]+';flex:none"></span><span style="width:36px;height:36px;border-radius:11px;background:'+a.bg+';color:'+a.fg+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+a.ic+'" style="font-size:19px"></i></span><div style="flex:1;min-width:0"><b style="font-size:13px">'+a.t+'</b><div class="sub" style="font-size:11px">'+p.name+'</div></div></div><div style="font-size:12px;color:#5F6E6B;line-height:1.45;margin-top:8px">'+a.d+'</div><div class="acts"><span class="mini b" data-open="'+a.p+'"><i class="ti ti-folder"></i> Apri cartella</span><span class="mini" data-done="'+a.id+'"><i class="ti ti-check"></i> Gestito</span></div></div>';}).join(''):'<div class="card" style="padding:24px;text-align:center;color:#9AA5A1;font-size:13px">Tutto gestito 🎉</div>'));
+  }
+
+  function scNotifiche(){
+    var N=[['ti-file-alert','Nuovo documento','Marta B. ha caricato le analisi.','oggi','#FBE3E3','#B4491F'],['ti-arrow-up-right','Escalation','La coach ha segnalato Elena V.','oggi','#FBEEE7','#E8825A'],['ti-calendar','Televisita confermata','Giulia R. · oggi 16:00','ieri','#E7EEF6','#3A6EA5']];
+    return shell('<div class="card" style="padding:2px 6px">'+N.map(function(n){return '<div class="row" style="align-items:flex-start;cursor:default"><span style="width:36px;height:36px;border-radius:11px;background:'+n[4]+';color:'+n[5]+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+n[0]+'" style="font-size:18px"></i></span><div style="flex:1"><b style="font-size:13px">'+n[1]+'</b><div class="sub" style="font-size:11.5px;line-height:1.4;margin-top:2px">'+n[2]+'</div><div class="sub" style="font-size:10px;margin-top:3px">'+n[3]+'</div></div></div>';}).join('')+'</div>');
+  }
+
+  function scProfilo(){
+    return shell('<div style="text-align:center;margin:6px 0 14px"><div class="av" style="width:72px;height:72px;margin:0 auto 8px;font-size:26px">DM</div><div style="font-size:18px;font-weight:700">Dott.ssa Marini</div><div class="sub">Biologa nutrizionista · albo n. 12345</div></div>'
+      +'<div class="sec" style="margin:0 2px 8px">I tuoi dati</div><div class="card" style="padding:2px 12px"><div class="row" style="cursor:pointer"><i class="ti ti-mail" style="font-size:18px;color:#8A938F"></i><div style="flex:1"><div class="sub" style="font-size:10px">Email</div><div style="font-size:13px">marini@metabole.ai</div></div><i class="ti ti-pencil" style="color:#C6CFCB"></i></div><div class="row" style="cursor:pointer;border:none"><i class="ti ti-phone" style="font-size:18px;color:#8A938F"></i><div style="flex:1"><div class="sub" style="font-size:10px">Telefono</div><div style="font-size:13px">+39 333 222 1100</div></div><i class="ti ti-pencil" style="color:#C6CFCB"></i></div></div>'
+      +'<div class="sec" style="margin:14px 2px 8px">Colore dell\'app</div><div class="card" style="padding:14px"><div id="cols" style="display:flex;gap:11px;flex-wrap:wrap">'+swatches()+'</div></div>'
+      +'<div class="sec" style="margin:14px 2px 8px">Account</div><div class="card" style="padding:2px 12px"><div class="row" style="cursor:default"><i class="ti ti-users-group" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Nutrizionista capo</span><span class="sub" style="font-size:12px">Dott. Bianchi</span></div><div class="row" style="cursor:default;border:none"><i class="ti ti-bell" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Notifiche cliniche</span><span class="sub" style="font-size:12px">Attive</span></div></div>'
+      +'<button class="btn g" data-logout style="color:#E23B3B;margin-top:6px"><i class="ti ti-logout"></i> Esci</button>');
+  }
+
+  function render(){
+    if(state.view==='login'){login();return;}
+    if(state.brand==='auto')document.documentElement.style.setProperty('--brand',autoColor());
+    var s=state.screen;
+    if(s==='dash')inner.innerHTML=scDash();
+    else if(s==='pazienti')inner.innerHTML=scPazienti();
+    else if(s==='paziente')inner.innerHTML=scPaziente(state.detailP);
+    else if(s==='diete')inner.innerHTML=scDiete();
+    else if(s==='agenda')inner.innerHTML=scAgenda();
+    else if(s==='guadagni')inner.innerHTML=scGuadagni();
+    else if(s==='alert')inner.innerHTML=scAlert();
+    else if(s==='notifiche')inner.innerHTML=scNotifiche();
+    else inner.innerHTML=scProfilo();
+    wire();
+  }
+  function wire(){
+    inner.querySelectorAll('[data-nav]').forEach(function(el){el.addEventListener('click',function(){state.screen=el.getAttribute('data-nav');render();});});
+    inner.querySelectorAll('[data-open]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();if(state.screen!=='paziente')state.prev=state.screen;state.detailP=+el.getAttribute('data-open');state.screen='paziente';render();});});
+    var bp=inner.querySelector('[data-back-p]');if(bp)bp.addEventListener('click',function(){state.screen=state.prev||'pazienti';render();});
+    inner.querySelectorAll('[data-done]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();var id=+el.getAttribute('data-done');ALERTS=ALERTS.filter(function(a){return a.id!==id;});render();});});
+    inner.querySelectorAll('[data-month]').forEach(function(el){el.addEventListener('click',function(){var m=el.getAttribute('data-month');state.openMonth=state.openMonth===m?null:m;render();});});
+    inner.querySelectorAll('.sw').forEach(function(sw){sw.addEventListener('click',function(){inner.querySelectorAll('.sw').forEach(function(x){x.style.borderColor='transparent';});sw.style.borderColor='#0B302B';var c=sw.getAttribute('data-c');state.brand=c;document.documentElement.style.setProperty('--brand',c==='auto'?autoColor():c);});});
+    var lo=inner.querySelector('[data-logout]');if(lo)lo.addEventListener('click',function(){state.view='login';render();});
+  }
+  render();
+})();
+</script>
+</body>
+</html>

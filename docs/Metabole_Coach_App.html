@@ -63,7 +63,11 @@
 <div class="phone"><div class="island"></div><div class="statusbar"><span>9:41</span><span><i class="ti ti-wifi" style="font-size:13px"></i> <i class="ti ti-battery-3" style="font-size:14px"></i></span></div><div id="inner"></div></div>
 <script>
 (function(){
-  var state={view:'login',screen:'dash',filter:'all',chatWith:null,detailClient:0,prevScreen:'clienti'};
+  var state={view:'login',screen:'dash',filter:'all',prFilter:'all',chatWith:null,detailClient:0,prevScreen:'clienti',brand:null,openMonth:null};
+  var PALETTE=['#F2B807','#E23B3B','#E86FA6','#2F80ED','#12A386','#F2820A'];
+  function autoColor(){var d=Math.floor(Date.now()/86400000);return PALETTE[Math.floor(d/2)%PALETTE.length];}
+  function swatches(){var sel=state.brand||'#12A386';var h=PALETTE.map(function(cc){return '<span class="sw" data-c="'+cc+'" style="width:36px;height:36px;border-radius:50%;background:'+cc+';cursor:pointer;border:3px solid '+(sel===cc?'#0B302B':'transparent')+'"></span>';}).join('');h+='<span class="sw" data-c="auto" style="width:36px;height:36px;border-radius:50%;background:conic-gradient(from 90deg,#F2B807,#E23B3B,#E86FA6,#2F80ED,#12A386,#F2820A,#F2B807);cursor:pointer;border:3px solid '+(sel==='auto'?'#0B302B':'transparent')+';position:relative;display:inline-flex"><i class="ti ti-sparkles" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px"></i></span>';return h;}
+  function waLink(ph){return 'https://wa.me/'+(''+ph).replace(/[^0-9]/g,'');}
   var CLIENTS=[
     {name:'Giulia Rossi',ini:'GR',status:'risk',adh:62,trend:'-1,8 kg',last:'2 g',email:'giulia.rossi@email.com',phone:'+39 333 123 4567'},
     {name:'Marta Bianchi',ini:'MB',status:'risk',adh:40,trend:'-0,4 kg',last:'5 g',email:'marta.bianchi@email.com',phone:'+39 340 998 2211'},
@@ -110,37 +114,49 @@
 
   function shell(content){
     var nH=ALERTS.filter(function(a){return a.pr==='high';}).length;
-    var nav=[['dash','ti-layout-dashboard',0],['alert','ti-alert-triangle',nH],['clienti','ti-users',0],['chat','ti-message-2',0],['agenda','ti-calendar-heart',0]];
-    var titles={dash:'Dashboard',alert:'Alert',clienti:'Le tue clienti',chat:'Chat',agenda:'Agenda',profilo:'Profilo',notifiche:'Notifiche',cliente:'Scheda cliente'};
-    return '<div class="top"><div><div style="font-size:11px;color:#8A938F;font-weight:700">METABOLE<span style="color:#12A386">AI</span> · COACH</div><div style="font-size:17px;font-weight:800">'+(titles[state.screen]||'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span class="hicon" data-nav="notifiche"><i class="ti ti-bell"></i><span class="hbadge">2</span></span><span class="hicon" data-nav="alert"><i class="ti ti-alert-triangle" style="color:#E8825A"></i>'+(nH?'<span class="hbadge">'+nH+'</span>':'')+'</span><span class="av" data-nav="profilo" style="width:36px;height:36px;cursor:pointer">SC</span></div></div>'
+    var nav=[['dash','ti-layout-dashboard'],['pagamenti','ti-cash'],['clienti','ti-users'],['chat','ti-message-2'],['agenda','ti-calendar-heart']];
+    var titles={dash:'Dashboard',pagamenti:'Guadagni',alert:'Alert',clienti:'Le tue clienti',chat:'Chat',agenda:'Agenda',profilo:'Profilo',notifiche:'Notifiche',cliente:'Scheda cliente'};
+    return '<div style="background:linear-gradient(135deg,var(--brand,#12A386),#0E6E5A);padding:13px 12px 18px;border-radius:0 0 24px 24px;box-shadow:0 10px 26px rgba(16,110,90,.28);display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="min-width:0;flex:1;overflow:hidden"><div style="font-size:9px;color:rgba(255,255,255,.82);font-weight:700;letter-spacing:.5px">METABOLE<span style="color:#BFF0E2">AI</span> · COACH</div><div style="font-size:17px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(titles[state.screen]||'')+'</div></div><div style="display:flex;gap:6px;flex:none"><span class="hicon" data-nav="notifiche" style="width:31px;height:31px;background:rgba(255,255,255,.2);color:#fff"><i class="ti ti-bell"></i><span class="hbadge">2</span></span><span class="hicon" data-nav="alert" style="width:31px;height:31px;background:rgba(255,255,255,.2);color:#fff"><i class="ti ti-alert-triangle"></i>'+(nH?'<span class="hbadge">'+nH+'</span>':'')+'</span><span class="hicon" data-nav="profilo" style="width:31px;height:31px;background:#fff;color:var(--brand,#12A386)"><i class="ti ti-user"></i></span></div></div>'
       +'<div class="body">'+content+'</div>'
-      +'<div class="tabbar">'+nav.map(function(n){return '<div class="tab'+(state.screen===n[0]?' on':'')+'" data-nav="'+n[0]+'"><i class="ti '+n[1]+'"></i>'+(n[2]?'<span class="badge">'+n[2]+'</span>':'')+'</div>';}).join('')+'</div>';
+      +'<div class="tabbar">'+nav.map(function(n){return '<div class="tab'+(state.screen===n[0]?' on':'')+'" data-nav="'+n[0]+'"><i class="ti '+n[1]+'"></i></div>';}).join('')+'</div>';
   }
 
   function alertCard(a){var p=PR[a.pr];var c=CLIENTS[a.c];
     return '<div class="card" style="padding:12px 13px"><div style="display:flex;align-items:center;gap:9px"><span style="width:9px;height:9px;border-radius:50%;background:'+p[0]+';flex:none"></span><span style="width:36px;height:36px;border-radius:11px;background:'+a.bg+';color:'+a.fg+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+a.ic+'" style="font-size:19px"></i></span><div style="flex:1;min-width:0"><b style="font-size:13px">'+a.t+'</b><div style="margin-top:2px"><span class="tag" style="background:'+a.bg+';color:'+a.fg+'">'+a.s+'</span> <span class="sub" style="font-size:10px">'+p[1]+'</span></div></div></div>'
       +'<div style="font-size:12px;color:#5F6E6B;line-height:1.45;margin:8px 0 0">'+a.d+'</div>'
       +'<div class="sub" data-clidet="'+a.c+'" style="font-size:11px;margin-top:6px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-user" style="font-size:12px"></i> '+c.name+' · '+a.time+' <i class="ti ti-chevron-right" style="margin-left:auto;font-size:13px;color:#C6CFCB"></i></div>'
-      +'<div class="acts"><span class="mini b" data-msg="'+a.c+'"><i class="ti ti-message-2"></i> Messaggia</span>'+(a.esc?'<span class="mini" data-done="'+a.id+'"><i class="ti ti-eye"></i> Segui</span>':'<span class="mini" data-done="'+a.id+'"><i class="ti ti-arrow-up-right"></i> Escala</span>')+'<span class="mini" data-done="'+a.id+'"><i class="ti ti-check"></i> Gestito</span></div></div>';
+      +'<div class="acts"><span class="mini b" data-msg="'+a.c+'"><i class="ti ti-message-2"></i> Messaggia</span><a class="mini" href="'+waLink(c.phone)+'" target="_blank" rel="noopener" style="text-decoration:none;color:#0E7C66;border-color:#BFE3D3"><i class="ti ti-brand-whatsapp"></i> WhatsApp</a>'+(a.esc?'<span class="mini" data-done="'+a.id+'"><i class="ti ti-eye"></i> Segui</span>':'<span class="mini" data-done="'+a.id+'"><i class="ti ti-arrow-up-right"></i> Escala</span>')+'<span class="mini" data-done="'+a.id+'"><i class="ti ti-check"></i> Gestito</span></div></div>';
   }
 
+  function scPagamenti(){
+    var MONTHS=[
+      {m:'Luglio 2026',tot:'€ 640',rows:[['Giulia Rossi','GR','Percorso 3 mesi','3 lug','€ 160'],['Sara Poli','SP','Piano mensile','6 lug','€ 80'],['Chiara Toni','CT','Percorso 3 mesi','12 lug','€ 160'],['Marta Bianchi','MB','Piano mensile','5 lug','€ 80'],['Elena Verdi','EV','Percorso 3 mesi','9 lug','€ 160']]},
+      {m:'Giugno 2026',tot:'€ 720',rows:[['Federica Lo','FL','Percorso 3 mesi','2 giu','€ 160'],['Giulia Rossi','GR','Piano mensile','4 giu','€ 80'],['Sara Poli','SP','Piano mensile','6 giu','€ 80'],['Chiara Toni','CT','Percorso 3 mesi','10 giu','€ 160'],['Elena Verdi','EV','Percorso 3 mesi','9 giu','€ 160'],['Marta Bianchi','MB','Piano mensile','5 giu','€ 80']]},
+      {m:'Maggio 2026',tot:'€ 480',rows:[['Chiara Toni','CT','Percorso 3 mesi','11 mag','€ 160'],['Giulia Rossi','GR','Piano mensile','4 mag','€ 80'],['Sara Poli','SP','Piano mensile','6 mag','€ 80'],['Elena Verdi','EV','Percorso 3 mesi','9 mag','€ 160']]}
+    ];
+    var cur=MONTHS[0];
+    function payRow(r){return '<div class="row" style="cursor:default"><div class="av" style="width:32px;height:32px;font-size:11px">'+r[1]+'</div><div style="flex:1;min-width:0"><b style="font-size:12.5px">'+r[0]+'</b><div class="sub" style="font-size:10.5px">'+r[2]+'</div></div><div style="text-align:right;flex:none"><div style="font-size:14px;font-weight:800;color:#0E7C66">'+r[4]+'</div><div class="sub" style="font-size:10px">'+r[3]+'</div></div></div>';}
+    var head='<div style="display:flex;justify-content:space-between;align-items:center;margin:2px 2px 10px"><div><div class="sub" style="font-size:10px;font-weight:700;letter-spacing:.3px">MESE CORRENTE</div><div style="font-size:16px;font-weight:800">'+cur.m+'</div></div><div style="text-align:right"><div class="sub" style="font-size:10px">Guadagno</div><div style="font-size:22px;font-weight:800;color:#0E7C66">'+cur.tot+'</div></div></div>';
+    var list='<div class="card" style="padding:4px 6px">'+cur.rows.map(payRow).join('')+'</div>';
+    var btn='<button class="btn p" style="margin-top:2px;padding:13px"><i class="ti ti-wallet"></i> Richiedi prelievo</button><div class="sub" style="text-align:center;font-size:11px;margin:8px 0 4px">Accredito sul tuo IBAN entro 3 giorni lavorativi.</div>';
+    var storico='<div class="sec" style="margin-top:10px">Storico mesi</div>'+MONTHS.slice(1).map(function(mo){var open=state.openMonth===mo.m;return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:9px"><div class="row" data-month="'+mo.m+'" style="border:none;cursor:pointer"><span style="width:34px;height:34px;border-radius:10px;background:#F2F5F4;color:#8A938F;display:flex;align-items:center;justify-content:center;flex:none"><i class="ti ti-calendar-month" style="font-size:17px"></i></span><div style="flex:1"><b style="font-size:13px">'+mo.m+'</b><div class="sub" style="font-size:11px">'+mo.rows.length+' clienti</div></div><span style="font-size:14px;font-weight:800;color:#0E7C66">'+mo.tot+'</span><i class="ti ti-chevron-'+(open?'up':'down')+'" style="color:#C6CFCB;margin-left:8px"></i></div>'+(open?'<div style="border-top:1px solid #F2F5F4;padding:2px 6px 4px">'+mo.rows.map(payRow).join('')+'</div>':'')+'</div>';}).join('');
+    return shell(head+list+btn+storico);
+  }
   function scDashboard(){
     var exp=[['Marta Bianchi','MB',5],['Giulia Rossi','GR',12],['Sara Poli','SP',22]];
-    function kpi(ic,val,lab,bg,fg){return '<div class="card" style="width:calc(50% - 5px);margin:0;padding:13px"><span style="width:34px;height:34px;border-radius:11px;background:'+bg+';color:'+fg+';display:flex;align-items:center;justify-content:center"><i class="ti '+ic+'" style="font-size:19px"></i></span><div style="font-size:20px;font-weight:800;margin-top:8px;line-height:1">'+val+'</div><div class="sub" style="font-size:11px;margin-top:3px">'+lab+'</div></div>';}
-    var grid='<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px">'
-      +kpi('ti-users','6','Clienti gestite','#DCEBE3','#0E7C66')
-      +kpi('ti-clock-exclamation','3','Piani in scadenza','#FBE3E3','#B4491F')
-      +kpi('ti-coin','€ 4.820','Guadagno totale','#DCF0D8','#3B6D11')
-      +kpi('ti-cash','€ 640','Guadagno del mese','#FDF3DD','#B8863B')
-    +'</div>';
-    var list='<div class="sec">Piani in scadenza</div><div class="card" style="padding:4px 6px">'+exp.map(function(e){var urg=e[2]<=7;return '<div class="row" style="cursor:default"><div class="av" style="width:34px;height:34px;font-size:13px">'+e[1]+'</div><div style="flex:1"><b style="font-size:13px">'+e[0]+'</b><div class="sub" style="font-size:11px">Percorso in scadenza</div></div><span class="pill" style="background:'+(urg?'#FBE3E3':'#FDF3DD')+';color:'+(urg?'#B4491F':'#B8863B')+'">tra '+e[2]+' gg</span></div>';}).join('')+'</div>';
-    return shell(grid+list);
+    function earnCard(lab,val,ic,grad){return '<div style="flex:1;border-radius:18px;padding:14px 15px;'+(grad?'background:linear-gradient(135deg,var(--brand,#12A386),#0E6E5A);color:#fff;box-shadow:0 10px 22px rgba(18,163,134,.28)':'background:#fff;border:1px solid #EEF1F0;box-shadow:0 6px 18px rgba(16,48,42,.06)')+'"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;'+(grad?'opacity:.9':'color:#8A938F')+';font-weight:600">'+lab+'</span><i class="ti '+ic+'" style="font-size:18px;'+(grad?'opacity:.9':'color:#B8863B')+'"></i></div><div style="font-size:23px;font-weight:800;margin-top:8px">'+val+'</div></div>';}
+    function miniKpi(ic,val,lab,bg,fg,nav){return '<div class="card" style="flex:1;margin:0;padding:12px;display:flex;align-items:center;gap:10px'+(nav?';cursor:pointer':'')+'"'+(nav?' data-nav="'+nav+'"':'')+'><span style="width:36px;height:36px;border-radius:11px;background:'+bg+';color:'+fg+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+ic+'" style="font-size:19px"></i></span><div><div style="font-size:18px;font-weight:800;line-height:1">'+val+'</div><div class="sub" style="font-size:11px">'+lab+'</div></div></div>';}
+    var earn='<div style="display:flex;gap:10px;margin-top:4px">'+earnCard('Guadagno totale','€ 4.820','ti-coin',true)+earnCard('Guadagno del mese','€ 640','ti-cash',false)+'</div>';
+    var below='<div style="display:flex;gap:10px;margin-top:10px">'+miniKpi('ti-users','6','Clienti gestite','#DCEBE3','#0E7C66')+miniKpi('ti-alert-triangle',''+ALERTS.length,'Allert attivi','#FBE3E3','#B4491F','alert')+'</div>';
+    var list='<div class="sec" style="margin-top:16px">Piani in scadenza</div><div class="card" style="padding:4px 6px">'+exp.map(function(e){var urg=e[2]<=7;return '<div class="row" style="cursor:default"><div class="av" style="width:34px;height:34px;font-size:13px">'+e[1]+'</div><div style="flex:1"><b style="font-size:13px">'+e[0]+'</b><div class="sub" style="font-size:11px">Percorso in scadenza</div></div><span class="pill" style="background:'+(urg?'#FBE3E3':'#FDF3DD')+';color:'+(urg?'#B4491F':'#B8863B')+'">tra '+e[2]+' gg</span></div>';}).join('')+'</div>';
+    return shell(earn+below+list);
   }
   function scAlert(){
-    var list=ALERTS.filter(function(a){return state.filter==='all'||a.g===state.filter;});
+    var list=ALERTS.filter(function(a){return (state.filter==='all'||a.g===state.filter)&&(state.prFilter==='all'||a.pr===state.prFilter);});
     var ord={high:0,med:1,low:2};list=list.slice().sort(function(x,y){return ord[x.pr]-ord[y.pr];});
     var nH=ALERTS.filter(function(a){return a.pr==='high';}).length,nM=ALERTS.filter(function(a){return a.pr==='med';}).length,nL=ALERTS.filter(function(a){return a.pr==='low';}).length;
-    var kpis='<div class="kpis"><div class="kpi" style="background:#E23B3B"><div class="n">'+nH+'</div><div class="l">Urgenti</div></div><div class="kpi" style="background:#E8A11B"><div class="n">'+nM+'</div><div class="l">Da gestire</div></div><div class="kpi" style="background:#3A6EA5"><div class="n">'+nL+'</div><div class="l">Info</div></div></div>';
+    function kbox(pr,n,lab,bg){return '<div class="kpi" data-pr="'+pr+'" style="background:'+bg+';cursor:pointer;'+(state.prFilter===pr?'outline:3px solid rgba(255,255,255,.65);outline-offset:-3px':'')+'"><div class="n">'+n+'</div><div class="l">'+lab+'</div></div>';}
+    var kpis='<div class="kpis">'+kbox('high',nH,'Urgenti','#E23B3B')+kbox('med',nM,'Da gestire','#E8A11B')+kbox('low',nL,'Info','#3A6EA5')+'</div>';
     var chips='<div class="chips">'+GROUPS.map(function(g){return '<span class="chip'+(state.filter===g[0]?' on':'')+'" data-filter="'+g[0]+'">'+g[1]+'</span>';}).join('')+'</div>';
     var q=list.length?list.map(alertCard).join(''):'<div class="card" style="padding:24px;text-align:center;color:#9AA5A1;font-size:13px">Nessun alert qui 🎉</div>';
     return shell(kpis+chips+q);
@@ -160,8 +176,13 @@
       +'<div style="display:flex;gap:8px"><input class="inp" style="flex:1;border-radius:22px" placeholder="Scrivi…"><button class="btn p" style="width:auto;padding:10px 14px"><i class="ti ti-send"></i></button></div>');
   }
   function scProfilo(){
-    return shell('<div style="text-align:center;margin:10px 0 16px"><div class="av" style="width:72px;height:72px;margin:0 auto 8px;font-size:28px">SC</div><div style="font-size:18px;font-weight:700">Sara C.</div><div class="sub">Coach nutrizionale · 6 clienti</div></div>'
-      +'<div class="card" style="padding:4px 12px"><div class="row" style="cursor:default"><i class="ti ti-clock-hour-9" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Orari di lavoro</span><span class="sub" style="font-size:12px">9–18</span></div><div class="row" style="cursor:default;border:none"><i class="ti ti-bell" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Notifiche alert</span><span class="sub" style="font-size:12px">Attive</span></div></div>'
+    return shell('<div style="text-align:center;margin:6px 0 14px"><div class="av" style="width:72px;height:72px;margin:0 auto 8px;font-size:28px">SC</div><div style="font-size:18px;font-weight:700">Sara C.</div><div class="sub">Coach nutrizionale · 6 clienti</div></div>'
+      +'<div class="sec" style="font-size:12px;font-weight:700;color:#3A4A46;margin:0 2px 8px">I tuoi dati</div>'
+      +'<div class="card" style="padding:2px 12px"><div class="row" style="cursor:pointer"><i class="ti ti-mail" style="font-size:18px;color:#8A938F"></i><div style="flex:1"><div class="sub" style="font-size:10px">Email</div><div style="font-size:13px">sara.c@metabole.ai</div></div><i class="ti ti-pencil" style="color:#C6CFCB"></i></div><div class="row" style="cursor:pointer;border:none"><i class="ti ti-phone" style="font-size:18px;color:#8A938F"></i><div style="flex:1"><div class="sub" style="font-size:10px">Telefono</div><div style="font-size:13px">+39 333 000 1122</div></div><i class="ti ti-pencil" style="color:#C6CFCB"></i></div></div>'
+      +'<div class="sec" style="font-size:12px;font-weight:700;color:#3A4A46;margin:14px 2px 8px">Colore dell\'app</div>'
+      +'<div class="card" style="padding:14px"><div id="cols" style="display:flex;gap:11px;flex-wrap:wrap">'+swatches()+'</div></div>'
+      +'<div class="sec" style="font-size:12px;font-weight:700;color:#3A4A46;margin:14px 2px 8px">Account</div>'
+      +'<div class="card" style="padding:2px 12px"><div class="row" style="cursor:default"><i class="ti ti-clock-hour-9" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Orari di lavoro</span><span class="sub" style="font-size:12px">9–18</span></div><div class="row" style="cursor:default;border:none"><i class="ti ti-bell" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Notifiche alert</span><span class="sub" style="font-size:12px">Attive</span></div></div>'
       +'<button class="btn g" data-logout style="color:#E23B3B;margin-top:6px"><i class="ti ti-logout"></i> Esci</button>');
   }
 
@@ -185,7 +206,9 @@
   }
   function render(){
     if(state.view==='login'){login();return;}
+    if(state.brand==='auto')document.documentElement.style.setProperty('--brand',autoColor());
     if(state.screen==='dash')inner.innerHTML=scDashboard();
+    else if(state.screen==='pagamenti')inner.innerHTML=scPagamenti();
     else if(state.screen==='alert')inner.innerHTML=scAlert();
     else if(state.screen==='clienti')inner.innerHTML=scClienti();
     else if(state.screen==='chat')inner.innerHTML=scChat();
@@ -198,6 +221,9 @@
   function wire(){
     inner.querySelectorAll('[data-nav]').forEach(function(el){el.addEventListener('click',function(){state.screen=el.getAttribute('data-nav');if(state.screen==='chat')state.chatWith=null;render();});});
     inner.querySelectorAll('[data-filter]').forEach(function(el){el.addEventListener('click',function(){state.filter=el.getAttribute('data-filter');render();});});
+    inner.querySelectorAll('[data-pr]').forEach(function(el){el.addEventListener('click',function(){var v=el.getAttribute('data-pr');state.prFilter=(v==='all')?'all':(state.prFilter===v?'all':v);render();});});
+    inner.querySelectorAll('[data-month]').forEach(function(el){el.addEventListener('click',function(){var m=el.getAttribute('data-month');state.openMonth=state.openMonth===m?null:m;render();});});
+    inner.querySelectorAll('.sw').forEach(function(s){s.addEventListener('click',function(){inner.querySelectorAll('.sw').forEach(function(x){x.style.borderColor='transparent';});s.style.borderColor='#0B302B';var c=s.getAttribute('data-c');state.brand=c;document.documentElement.style.setProperty('--brand',c==='auto'?autoColor():c);});});
     inner.querySelectorAll('[data-msg]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();state.chatWith=+el.getAttribute('data-msg');state.screen='chat';render();});});
     inner.querySelectorAll('[data-done]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();var id=+el.getAttribute('data-done');ALERTS=ALERTS.filter(function(a){return a.id!==id;});render();});});
     inner.querySelectorAll('[data-clidet]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();if(state.screen!=='cliente')state.prevScreen=state.screen;state.detailClient=+el.getAttribute('data-clidet');state.screen='cliente';render();});});
