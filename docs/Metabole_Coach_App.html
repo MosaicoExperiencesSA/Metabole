@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaboleAI — App Coach (prototipo)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+  :root{--brand:#12A386}
+  *{box-sizing:border-box}
+  body{margin:0;background:#E9ECEB;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#101826;padding:24px 0;display:flex;justify-content:center}
+  .phone{width:304px;height:634px;display:flex;flex-direction:column;background:#fff;border:11px solid #0B0F0E;border-radius:52px;overflow:hidden;position:relative;box-shadow:0 20px 46px rgba(16,64,58,.24)}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:96px;height:24px;background:#000;border-radius:14px;z-index:9}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:13px 26px 4px;font-size:11px;font-weight:600;flex:none}
+  #inner{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+  .top{flex:none;padding:8px 16px 6px;display:flex;align-items:center;justify-content:space-between}
+  .av{width:38px;height:38px;border-radius:50%;background:#DCEBE3;color:#0E7C66;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+  .body{flex:1;overflow:auto;padding:6px 14px 80px}
+  .h1{font-size:19px;font-weight:800;margin:2px 0}
+  .sub{font-size:12px;color:#8A938F}
+  .sec{font-size:12px;font-weight:700;color:#3A4A46;margin:14px 2px 8px}
+  .card{background:#fff;border:1px solid #EEF1F0;border-radius:16px;box-shadow:0 6px 18px rgba(16,48,42,.06);margin-bottom:10px}
+  .kpis{display:flex;gap:8px;margin-bottom:6px}
+  .kpi{flex:1;border-radius:14px;padding:11px 6px;text-align:center;color:#fff}
+  .kpi .n{font-size:20px;font-weight:800;line-height:1}
+  .kpi .l{font-size:9.5px;opacity:.92;margin-top:3px}
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 4px;margin-bottom:6px}
+  .chip{border:1px solid #E7EBE9;background:#fff;border-radius:20px;padding:6px 11px;font-size:11px;cursor:pointer;color:#5F6E6B;white-space:nowrap;flex:none}
+  .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px}
+  .acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .mini{font-size:11px;border:1px solid #E7EBE9;background:#fff;border-radius:9px;padding:6px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;color:#3A4A46}
+  .mini.b{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .pill{font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px}
+  .bar{height:7px;background:#EEF3F0;border-radius:5px;overflow:hidden;flex:1}
+  .bar>span{display:block;height:100%;background:var(--brand)}
+  .row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid #F2F5F4;cursor:pointer}
+  .row:last-child{border-bottom:none}
+  .tabbar{position:absolute;left:0;right:0;bottom:0;display:flex;background:#fff;border-top:1px solid #EEF1F0;padding:8px 4px 11px;box-shadow:0 -8px 22px rgba(16,48,42,.06);z-index:8}
+  .tab{flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#B4BEBA;position:relative}
+  .tab i{font-size:23px}
+  .tab.on{color:#fff}
+  .tab.on i{background:var(--brand);width:44px;height:44px;border-radius:15px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(18,163,134,.42);margin-top:-15px}
+  .badge{position:absolute;top:-2px;right:24px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#E23B3B;color:#fff;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .inp{width:100%;border:1px solid #E7EBE9;border-radius:12px;padding:10px 12px;font-size:13px;outline:none}
+  .btn{border:none;border-radius:12px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+  .btn.p{background:var(--brand);color:#fff;width:100%}
+  .btn.g{background:#F2F5F4;color:#101826;width:100%}
+  .mb{max-width:78%;padding:9px 11px;border-radius:14px;font-size:12.5px;line-height:1.4}
+  .mb.in{align-self:flex-start;background:#F2F5F4}
+  .mb.out{align-self:flex-end;background:var(--brand);color:#fff}
+  .note{background:#FBEEE7;color:#B4491F;border-radius:10px;padding:8px 10px;font-size:11px;display:flex;gap:7px;align-items:center;margin-bottom:10px}
+  .back{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#8A938F;cursor:pointer;margin-bottom:6px}
+  .hicon{width:34px;height:34px;border-radius:11px;background:#F2F5F4;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:#3A4A46}
+  .hicon i{font-size:18px}
+  .hbadge{position:absolute;top:-4px;right:-4px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#E23B3B;color:#fff;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .back{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#8A938F;cursor:pointer;margin-bottom:8px}
+  .login{position:absolute;inset:0;background:linear-gradient(150deg,#0E6E5A,#12A386);display:flex;align-items:center;justify-content:center;padding:22px;z-index:20}
+  .lcard{width:100%;background:#fff;border-radius:20px;padding:20px}
+</style>
+</head>
+<body>
+<div class="phone"><div class="island"></div><div class="statusbar"><span>9:41</span><span><i class="ti ti-wifi" style="font-size:13px"></i> <i class="ti ti-battery-3" style="font-size:14px"></i></span></div><div id="inner"></div></div>
+<script>
+(function(){
+  var state={view:'login',screen:'dash',filter:'all',chatWith:null,detailClient:0,prevScreen:'clienti'};
+  var CLIENTS=[
+    {name:'Giulia Rossi',ini:'GR',status:'risk',adh:62,trend:'-1,8 kg',last:'2 g',email:'giulia.rossi@email.com',phone:'+39 333 123 4567'},
+    {name:'Marta Bianchi',ini:'MB',status:'risk',adh:40,trend:'-0,4 kg',last:'5 g',email:'marta.bianchi@email.com',phone:'+39 340 998 2211'},
+    {name:'Elena Verdi',ini:'EV',status:'risk',adh:55,trend:'-2,2 kg',last:'1 g',email:'elena.verdi@email.com',phone:'+39 348 771 5566'},
+    {name:'Chiara Toni',ini:'CT',status:'ok',adh:88,trend:'-3,0 kg',last:'3 h',email:'chiara.toni@email.com',phone:'+39 331 445 7788'},
+    {name:'Sara Poli',ini:'SP',status:'ok',adh:74,trend:'-1,1 kg',last:'6 h',email:'sara.poli@email.com',phone:'+39 349 220 3344'},
+    {name:'Federica Lo',ini:'FL',status:'new',adh:0,trend:'—',last:'nuova',email:'federica.lo@email.com',phone:'+39 342 556 9900'}
+  ];
+  var ALERTS=[
+    {id:1,c:0,g:'corpo',s:'Corpo',pr:'high',ic:'ti-scale',bg:'#E7EEF6',fg:'#3A6EA5',t:'Misure mancanti (2° giorno)',d:'Menu di domani in pausa finché Giulia non aggiorna le misure.',time:'poco fa'},
+    {id:2,c:1,g:'vita',s:'Vita',pr:'high',ic:'ti-zzz',bg:'#F3E8DC',fg:'#B8863B',t:'Inattiva da 5 giorni',d:'Marta non apre l\'app da 5 giorni: rischio di perderla.',time:'oggi'},
+    {id:3,c:2,g:'gusto_mente',s:'Mente',pr:'high',ic:'ti-mood-sad',bg:'#EFEAF9',fg:'#6C4CD6',t:'Rischio abbandono',d:'Umore basso + attività in calo, carattere "tende a mollare".',time:'oggi'},
+    {id:4,c:3,g:'corpo',s:'Corpo',pr:'med',ic:'ti-trending-up',bg:'#FBE3E3',fg:'#B4491F',t:'Peso in aumento',d:'+0,6 kg nell\'ultima settimana.',time:'ieri'},
+    {id:5,c:4,g:'vita',s:'Vita',pr:'med',ic:'ti-calendar-x',bg:'#F3E8DC',fg:'#B8863B',t:'Check-in saltato (3 giorni)',d:'Sara non fa il check-in da 3 giorni.',time:'ieri'},
+    {id:6,c:0,g:'gusto_mente',s:'Gusto',pr:'med',ic:'ti-star-off',bg:'#FDF3DD',fg:'#B8863B',t:'3 menu sotto 3 stelle',d:'Stanchezza sui piatti: proponi alternative.',time:'ieri'},
+    {id:7,c:1,g:'agenda',s:'Agenda',pr:'med',ic:'ti-heart',bg:'#FBEEE7',fg:'#E8825A',t:'Matrimonio tra 4 giorni',d:'Preparala per arrivare serena.',time:'2 g'},
+    {id:8,c:2,g:'agenda',s:'Escalation',pr:'med',ic:'ti-arrow-up-right',bg:'#FBE3E3',fg:'#B4491F',t:'Escalation al nutrizionista',d:'Tema clinico: contenuto riservato. Resti aggiornata sullo stato.',time:'2 g',esc:true},
+    {id:9,c:5,g:'agenda',s:'Operativo',pr:'low',ic:'ti-user-plus',bg:'#DCEBE3',fg:'#0E7C66',t:'Nuova cliente assegnata',d:'Federica Lo è nel tuo gruppo: dalle il benvenuto.',time:'oggi'},
+    {id:10,c:3,g:'agenda',s:'Operativo',pr:'low',ic:'ti-trophy',bg:'#DCF0D8',fg:'#3B6D11',t:'Traguardo: -3 kg',d:'Chiara ha raggiunto -3 kg: complimenti!',time:'oggi'},
+    {id:11,c:4,g:'vita',s:'Vita',pr:'low',ic:'ti-droplet-half-2',bg:'#E7F4F7',fg:'#2AA7C4',t:'Acqua sotto soglia',d:'Sara beve poco: un promemoria gentile può bastare.',time:'ieri'}
+  ];
+  var PR={high:['#E23B3B','Urgente'],med:['#E8A11B','Da gestire'],low:['#3A6EA5','Info']};
+  var GROUPS=[['all','Tutti'],['corpo','Corpo'],['vita','Vita'],['gusto_mente','Gusto & Mente'],['agenda','Agenda/Esc.']];
+  var CHATS={0:[['in','Ciao Giulia! Hai un attimo per aggiornare le misure?'],['out','Sì scusa, giornata piena!'],['in','Nessun problema, appena puoi così ti sblocco il menu.']],1:[['in','Marta, ci sei? Non ti vedo da qualche giorno.']],3:[['in','Chiara, -3 kg! Bravissima 🎉'],['out','Grazie!!']]};
+
+  var inner=document.getElementById('inner');
+  function esc(s){return (''+s).replace(/</g,'&lt;');}
+  function statusPill(s){var m={ok:['#DCF0D8','#3B6D11','In rotta'],risk:['#FBE3E3','#B4491F','A rischio'],new:['#E7EEF6','#3A6EA5','Nuova']}[s];return '<span class="pill" style="background:'+m[0]+';color:'+m[1]+'">'+m[2]+'</span>';}
+
+  function login(){
+    inner.innerHTML='<div class="login"><div class="lcard"><div style="font-size:20px;font-weight:800;color:#0E5A49">Metabole<span style="color:#6C4CD6">AI</span></div><div class="sub" style="margin:2px 0 16px">Accesso operatori</div>'
+      +'<input class="inp" style="margin-bottom:9px" value="coach@metabole.ai"><input class="inp" type="password" style="margin-bottom:12px" value="metabole">'
+      +'<button class="btn p" data-go="coach">Entra</button>'
+      +'<div class="sub" style="text-align:center;margin:14px 0 7px">Demo — entra come:</div>'
+      +'<div style="display:flex;gap:7px"><button class="btn g" data-go="coach" style="font-size:12px;padding:9px"><i class="ti ti-heart-handshake"></i></button><button class="btn g" data-go="nutri" style="font-size:12px;padding:9px"><i class="ti ti-stethoscope"></i></button><button class="btn g" data-go="client" style="font-size:12px;padding:9px"><i class="ti ti-user"></i></button></div>'
+      +'<div class="sub" style="text-align:center;font-size:10px;margin-top:8px">Coach · Nutrizionista · Cliente</div>'
+      +'</div></div>';
+    inner.querySelectorAll('[data-go]').forEach(function(b){b.addEventListener('click',function(){var r=b.getAttribute('data-go');if(r==='coach'){state.view='app';state.screen='dash';render();}else role(r);});});
+  }
+  function role(r){var t=r==='nutri'?['Web app Nutrizionista','La costruiamo dopo la coach.','ti-stethoscope']:['App Cliente','Le clienti usano la loro app mobile.','ti-user'];
+    inner.innerHTML='<div class="login"><div class="lcard" style="text-align:center"><div class="av" style="width:58px;height:58px;margin:0 auto 12px;font-size:26px"><i class="ti '+t[2]+'"></i></div><div style="font-size:17px;font-weight:700">'+t[0]+'</div><div class="sub" style="margin:8px 0 16px">'+t[1]+'</div><button class="btn g" data-back>← Torna al login</button></div></div>';
+    inner.querySelector('[data-back]').addEventListener('click',login);
+  }
+
+  function shell(content){
+    var nH=ALERTS.filter(function(a){return a.pr==='high';}).length;
+    var nav=[['dash','ti-layout-dashboard',0],['alert','ti-alert-triangle',nH],['clienti','ti-users',0],['chat','ti-message-2',0],['agenda','ti-calendar-heart',0]];
+    var titles={dash:'Dashboard',alert:'Alert',clienti:'Le tue clienti',chat:'Chat',agenda:'Agenda',profilo:'Profilo',notifiche:'Notifiche',cliente:'Scheda cliente'};
+    return '<div class="top"><div><div style="font-size:11px;color:#8A938F;font-weight:700">METABOLE<span style="color:#12A386">AI</span> · COACH</div><div style="font-size:17px;font-weight:800">'+(titles[state.screen]||'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span class="hicon" data-nav="notifiche"><i class="ti ti-bell"></i><span class="hbadge">2</span></span><span class="hicon" data-nav="alert"><i class="ti ti-alert-triangle" style="color:#E8825A"></i>'+(nH?'<span class="hbadge">'+nH+'</span>':'')+'</span><span class="av" data-nav="profilo" style="width:36px;height:36px;cursor:pointer">SC</span></div></div>'
+      +'<div class="body">'+content+'</div>'
+      +'<div class="tabbar">'+nav.map(function(n){return '<div class="tab'+(state.screen===n[0]?' on':'')+'" data-nav="'+n[0]+'"><i class="ti '+n[1]+'"></i>'+(n[2]?'<span class="badge">'+n[2]+'</span>':'')+'</div>';}).join('')+'</div>';
+  }
+
+  function alertCard(a){var p=PR[a.pr];var c=CLIENTS[a.c];
+    return '<div class="card" style="padding:12px 13px"><div style="display:flex;align-items:center;gap:9px"><span style="width:9px;height:9px;border-radius:50%;background:'+p[0]+';flex:none"></span><span style="width:36px;height:36px;border-radius:11px;background:'+a.bg+';color:'+a.fg+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+a.ic+'" style="font-size:19px"></i></span><div style="flex:1;min-width:0"><b style="font-size:13px">'+a.t+'</b><div style="margin-top:2px"><span class="tag" style="background:'+a.bg+';color:'+a.fg+'">'+a.s+'</span> <span class="sub" style="font-size:10px">'+p[1]+'</span></div></div></div>'
+      +'<div style="font-size:12px;color:#5F6E6B;line-height:1.45;margin:8px 0 0">'+a.d+'</div>'
+      +'<div class="sub" data-clidet="'+a.c+'" style="font-size:11px;margin-top:6px;cursor:pointer;display:flex;align-items:center;gap:5px"><i class="ti ti-user" style="font-size:12px"></i> '+c.name+' · '+a.time+' <i class="ti ti-chevron-right" style="margin-left:auto;font-size:13px;color:#C6CFCB"></i></div>'
+      +'<div class="acts"><span class="mini b" data-msg="'+a.c+'"><i class="ti ti-message-2"></i> Messaggia</span>'+(a.esc?'<span class="mini" data-done="'+a.id+'"><i class="ti ti-eye"></i> Segui</span>':'<span class="mini" data-done="'+a.id+'"><i class="ti ti-arrow-up-right"></i> Escala</span>')+'<span class="mini" data-done="'+a.id+'"><i class="ti ti-check"></i> Gestito</span></div></div>';
+  }
+
+  function scDashboard(){
+    var exp=[['Marta Bianchi','MB',5],['Giulia Rossi','GR',12],['Sara Poli','SP',22]];
+    function kpi(ic,val,lab,bg,fg){return '<div class="card" style="width:calc(50% - 5px);margin:0;padding:13px"><span style="width:34px;height:34px;border-radius:11px;background:'+bg+';color:'+fg+';display:flex;align-items:center;justify-content:center"><i class="ti '+ic+'" style="font-size:19px"></i></span><div style="font-size:20px;font-weight:800;margin-top:8px;line-height:1">'+val+'</div><div class="sub" style="font-size:11px;margin-top:3px">'+lab+'</div></div>';}
+    var grid='<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:4px">'
+      +kpi('ti-users','6','Clienti gestite','#DCEBE3','#0E7C66')
+      +kpi('ti-clock-exclamation','3','Piani in scadenza','#FBE3E3','#B4491F')
+      +kpi('ti-coin','€ 4.820','Guadagno totale','#DCF0D8','#3B6D11')
+      +kpi('ti-cash','€ 640','Guadagno del mese','#FDF3DD','#B8863B')
+    +'</div>';
+    var list='<div class="sec">Piani in scadenza</div><div class="card" style="padding:4px 6px">'+exp.map(function(e){var urg=e[2]<=7;return '<div class="row" style="cursor:default"><div class="av" style="width:34px;height:34px;font-size:13px">'+e[1]+'</div><div style="flex:1"><b style="font-size:13px">'+e[0]+'</b><div class="sub" style="font-size:11px">Percorso in scadenza</div></div><span class="pill" style="background:'+(urg?'#FBE3E3':'#FDF3DD')+';color:'+(urg?'#B4491F':'#B8863B')+'">tra '+e[2]+' gg</span></div>';}).join('')+'</div>';
+    return shell(grid+list);
+  }
+  function scAlert(){
+    var list=ALERTS.filter(function(a){return state.filter==='all'||a.g===state.filter;});
+    var ord={high:0,med:1,low:2};list=list.slice().sort(function(x,y){return ord[x.pr]-ord[y.pr];});
+    var nH=ALERTS.filter(function(a){return a.pr==='high';}).length,nM=ALERTS.filter(function(a){return a.pr==='med';}).length,nL=ALERTS.filter(function(a){return a.pr==='low';}).length;
+    var kpis='<div class="kpis"><div class="kpi" style="background:#E23B3B"><div class="n">'+nH+'</div><div class="l">Urgenti</div></div><div class="kpi" style="background:#E8A11B"><div class="n">'+nM+'</div><div class="l">Da gestire</div></div><div class="kpi" style="background:#3A6EA5"><div class="n">'+nL+'</div><div class="l">Info</div></div></div>';
+    var chips='<div class="chips">'+GROUPS.map(function(g){return '<span class="chip'+(state.filter===g[0]?' on':'')+'" data-filter="'+g[0]+'">'+g[1]+'</span>';}).join('')+'</div>';
+    var q=list.length?list.map(alertCard).join(''):'<div class="card" style="padding:24px;text-align:center;color:#9AA5A1;font-size:13px">Nessun alert qui 🎉</div>';
+    return shell(kpis+chips+q);
+  }
+  function scClienti(){
+    var rows=CLIENTS.map(function(c,i){var na=ALERTS.filter(function(a){return a.c===i;}).length;return '<div class="row" data-clidet="'+i+'"><div class="av" style="width:36px;height:36px;font-size:13px">'+c.ini+'</div><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:7px"><b style="font-size:13px">'+c.name+'</b>'+statusPill(c.status)+'</div><div style="display:flex;align-items:center;gap:7px;margin-top:5px"><div class="bar"><span style="width:'+c.adh+'%"></span></div><span class="sub" style="font-size:10px;flex:none">'+c.adh+'%</span></div></div><div style="text-align:right;flex:none"><div style="font-size:12px;font-weight:700;color:'+(na?'#B4491F':'#0E7C66')+'">'+na+' alert</div><div class="sub" style="font-size:10px">'+c.trend+'</div></div></div>';}).join('');
+    return shell('<div class="card" style="padding:4px 6px">'+rows+'</div>');
+  }
+  function scChat(){
+    if(state.chatWith===null){
+      var rows=CLIENTS.map(function(c,i){var lm=(CHATS[i]&&CHATS[i].length)?CHATS[i][CHATS[i].length-1][1]:'—';return '<div class="row" data-openchat="'+i+'"><div class="av" style="width:38px;height:38px;font-size:13px">'+c.ini+'</div><div style="flex:1;min-width:0"><b style="font-size:13px">'+c.name+'</b><div class="sub" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+lm+'</div></div><i class="ti ti-chevron-right" style="color:#C6CFCB"></i></div>';}).join('');
+      return shell('<div class="note"><i class="ti ti-shield-lock"></i> Chat non sanitaria: per la salute usa l\'escalation.</div><div class="card" style="padding:4px 6px">'+rows+'</div>');
+    }
+    var w=state.chatWith;var msgs=(CHATS[w]||[['in','Ciao! Come procede questa settimana?']]);
+    return shell('<span class="back" data-backchat><i class="ti ti-chevron-left"></i> Chat</span><div style="display:flex;align-items:center;gap:9px;margin-bottom:10px"><div class="av" style="width:38px;height:38px;font-size:13px">'+CLIENTS[w].ini+'</div><div><b style="font-size:14px">'+CLIENTS[w].name+'</b><div class="sub" style="font-size:11px">online</div></div></div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">'+msgs.map(function(m){return '<div class="mb '+(m[0]==='in'?'in':'out')+'">'+esc(m[1])+'</div>';}).join('')+'</div>'
+      +'<div style="display:flex;gap:8px"><input class="inp" style="flex:1;border-radius:22px" placeholder="Scrivi…"><button class="btn p" style="width:auto;padding:10px 14px"><i class="ti ti-send"></i></button></div>');
+  }
+  function scProfilo(){
+    return shell('<div style="text-align:center;margin:10px 0 16px"><div class="av" style="width:72px;height:72px;margin:0 auto 8px;font-size:28px">SC</div><div style="font-size:18px;font-weight:700">Sara C.</div><div class="sub">Coach nutrizionale · 6 clienti</div></div>'
+      +'<div class="card" style="padding:4px 12px"><div class="row" style="cursor:default"><i class="ti ti-clock-hour-9" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Orari di lavoro</span><span class="sub" style="font-size:12px">9–18</span></div><div class="row" style="cursor:default;border:none"><i class="ti ti-bell" style="font-size:18px;color:#8A938F"></i><span style="flex:1;font-size:13px">Notifiche alert</span><span class="sub" style="font-size:12px">Attive</span></div></div>'
+      +'<button class="btn g" data-logout style="color:#E23B3B;margin-top:6px"><i class="ti ti-logout"></i> Esci</button>');
+  }
+
+  function scCliente(i){var c=CLIENTS[i];var na=ALERTS.filter(function(a){return a.c===i;});
+    function ctc(ic,lab,val){return '<div class="row" style="cursor:default"><i class="ti '+ic+'" style="font-size:18px;color:#8A938F"></i><div style="flex:1"><div class="sub" style="font-size:10px">'+lab+'</div><div style="font-size:13px">'+val+'</div></div></div>';}
+    return shell('<span class="back" data-back-scr><i class="ti ti-chevron-left"></i> Indietro</span>'
+      +'<div style="text-align:center;margin:2px 0 14px"><div class="av" style="width:66px;height:66px;margin:0 auto 8px;font-size:24px">'+c.ini+'</div><div style="font-size:18px;font-weight:700">'+c.name+'</div><div style="margin-top:5px">'+statusPill(c.status)+'</div></div>'
+      +'<div class="sec">Contatti</div><div class="card" style="padding:2px 12px">'+ctc('ti-mail','Email',c.email)+ctc('ti-phone','Telefono',c.phone)+'</div>'
+      +'<div class="sec">Percorso</div><div class="card" style="padding:13px"><div style="display:flex;align-items:center;gap:8px"><div class="bar"><span style="width:'+c.adh+'%"></span></div><span class="sub" style="font-size:11px;flex:none">Aderenza '+c.adh+'%</span></div><div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px"><span class="sub">Trend <b style="color:'+(c.trend.charAt(0)==='+'?'#B4491F':'#0E7C66')+'">'+c.trend+'</b></span><span class="sub">Vista '+c.last+'</span></div></div>'
+      +'<div class="sec">Alert attivi ('+na.length+')</div>'+(na.length?na.map(function(a){return '<div class="card" style="padding:10px 12px;display:flex;align-items:center;gap:9px"><span style="width:30px;height:30px;border-radius:9px;background:'+a.bg+';color:'+a.fg+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+a.ic+'" style="font-size:16px"></i></span><span style="flex:1;font-size:12.5px">'+a.t+'</span></div>';}).join(''):'<div class="card" style="padding:16px;text-align:center;color:#9AA5A1;font-size:12px">Nessun alert</div>')
+      +'<button class="btn p" data-msg="'+i+'" style="margin-top:6px"><i class="ti ti-message-2"></i> Messaggia</button>');
+  }
+  function scAgenda(){
+    var A=[['Oggi','15:00','Giulia Rossi','coach','Televisita di controllo'],['Domani','11:00','Sara Poli','coach','Chiamata motivazionale'],['Gio','10:30','Chiara Toni','nutri','Prima visita (in presenza)'],['Ven','18:00','Elena Verdi','nutri','Controllo mensile']];
+    return shell('<div class="sub" style="margin:0 2px 10px">Appuntamenti delle tue clienti — con te e col nutrizionista.</div>'
+      +A.map(function(e){var isC=e[3]==='coach';return '<div class="card" style="padding:12px;display:flex;align-items:center;gap:11px"><div style="width:48px;text-align:center;flex:none"><div style="font-size:15px;font-weight:800;color:'+(isC?'#0E7C66':'#3A6EA5')+'">'+e[1]+'</div><div class="sub" style="font-size:10px">'+e[0]+'</div></div><div style="flex:1;border-left:1px solid #EEF1F0;padding-left:11px"><b style="font-size:13px">'+e[2]+'</b><div class="sub" style="font-size:11px">'+e[4]+'</div><span class="tag" style="background:'+(isC?'#DCEBE3':'#E7EEF6')+';color:'+(isC?'#0E7C66':'#3A6EA5')+';margin-top:5px;display:inline-block">'+(isC?'Con te (coach)':'Col nutrizionista')+'</span></div></div>';}).join(''));
+  }
+  function scNotifiche(){
+    var N=[['ti-user-plus','Nuova cliente assegnata','Federica Lo è nel tuo gruppo.','oggi','#DCEBE3','#0E7C66'],['ti-trophy','Traguardo cliente','Chiara ha raggiunto -3 kg.','oggi','#DCF0D8','#3B6D11'],['ti-calendar','Appuntamento confermato','Giulia · televisita oggi 15:00','ieri','#E7EEF6','#3A6EA5']];
+    return shell('<div class="card" style="padding:4px 6px">'+N.map(function(n){return '<div class="row" style="align-items:flex-start;cursor:default"><span style="width:36px;height:36px;border-radius:11px;background:'+n[4]+';color:'+n[5]+';display:flex;align-items:center;justify-content:center;flex:none"><i class="ti '+n[0]+'" style="font-size:18px"></i></span><div style="flex:1"><b style="font-size:13px">'+n[1]+'</b><div class="sub" style="font-size:11.5px;line-height:1.4;margin-top:2px">'+n[2]+'</div><div class="sub" style="font-size:10px;margin-top:3px">'+n[3]+'</div></div></div>';}).join('')+'</div>');
+  }
+  function render(){
+    if(state.view==='login'){login();return;}
+    if(state.screen==='dash')inner.innerHTML=scDashboard();
+    else if(state.screen==='alert')inner.innerHTML=scAlert();
+    else if(state.screen==='clienti')inner.innerHTML=scClienti();
+    else if(state.screen==='chat')inner.innerHTML=scChat();
+    else if(state.screen==='agenda')inner.innerHTML=scAgenda();
+    else if(state.screen==='cliente')inner.innerHTML=scCliente(state.detailClient);
+    else if(state.screen==='notifiche')inner.innerHTML=scNotifiche();
+    else inner.innerHTML=scProfilo();
+    wire();
+  }
+  function wire(){
+    inner.querySelectorAll('[data-nav]').forEach(function(el){el.addEventListener('click',function(){state.screen=el.getAttribute('data-nav');if(state.screen==='chat')state.chatWith=null;render();});});
+    inner.querySelectorAll('[data-filter]').forEach(function(el){el.addEventListener('click',function(){state.filter=el.getAttribute('data-filter');render();});});
+    inner.querySelectorAll('[data-msg]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();state.chatWith=+el.getAttribute('data-msg');state.screen='chat';render();});});
+    inner.querySelectorAll('[data-done]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();var id=+el.getAttribute('data-done');ALERTS=ALERTS.filter(function(a){return a.id!==id;});render();});});
+    inner.querySelectorAll('[data-clidet]').forEach(function(el){el.addEventListener('click',function(e){e.stopPropagation();if(state.screen!=='cliente')state.prevScreen=state.screen;state.detailClient=+el.getAttribute('data-clidet');state.screen='cliente';render();});});
+    var bk=inner.querySelector('[data-back-scr]');if(bk)bk.addEventListener('click',function(){state.screen=state.prevScreen||'clienti';render();});
+    inner.querySelectorAll('[data-openchat]').forEach(function(el){el.addEventListener('click',function(){state.chatWith=+el.getAttribute('data-openchat');render();});});
+    var bc=inner.querySelector('[data-backchat]');if(bc)bc.addEventListener('click',function(){state.chatWith=null;render();});
+    var lo=inner.querySelector('[data-logout]');if(lo)lo.addEventListener('click',function(){state.view='login';render();});
+  }
+  render();
+})();
+</script>
+</body>
+</html>

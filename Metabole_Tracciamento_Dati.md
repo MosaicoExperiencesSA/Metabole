@@ -95,7 +95,9 @@ navigazione/curiosità → basta l'evento.*
 | Obiettivi | "Modifica / fissa nuovo obiettivo" | nuovo obiettivo (versionato) | Goal (nuova versione) | POST /goals | guardrail sostenibilità |
 | Contatti | apri chat (Gaia / Coach / Nutrizionista) | messaggi | ChatThread + Message | POST /threads/{id}/messages | dati sanitari solo nutrizionista |
 | Contatti | **Conversazioni passate** | storico | ConversationSummary (date, titolo AI) | GET /threads/{who}/summaries | 1 conversazione/giorno, titolata dall'AI |
-| Shop | Rinnova / Acquista / Invita amica | acquisto/referral | Purchase, Referral | POST /purchases, POST /referrals | provvigioni via refcod |
+| Agenda | Vede/prenota appuntamenti (coach e nutrizionista) e vede la scadenza del piano | appuntamento + scadenza | Visit/Appointment, Purchase.expiry | GET /me/agenda, POST /appointments | gli appuntamenti col nutrizionista sono visibili al cliente e alla coach (sola lettura per la coach) |
+| Home | box "Prossimo appuntamento" | lettura | Appointment (next) | GET /me/agenda?next=1 | scorciatoia verso Agenda |
+| Shop | Rinnova / Acquista / Invita amica (accessibile dall'header) | acquisto/referral | Purchase, Referral | POST /purchases, POST /referrals | provvigioni via refcod |
 | Header | Notifiche (segna lette) | stato notifiche | Notification.read_at | PUT /notifications | — |
 | Header | Allert (azioni non fatte → "Aggiorna/Valuta/Registra") | to-do generati da regole | Alert (stato) | PUT /alerts | vedi §5 |
 | Profilo | cambia Email / Telefono / **Colore app** | profilo | User.email, phone, theme_color | PUT /profile | verifica email/telefono |
