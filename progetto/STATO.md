@@ -54,7 +54,15 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Aggiunto: `GET /nutritionist/patients` (pazienti assegnati con riepilogo: ultima misura, escalation
   aperte, documenti da revisionare, prossima visita) e `GET /nutritionist/dashboard` (pazienti, documenti
   pending, escalation, protocolli da validare, visite in arrivo, guadagni mese/totale).
-- Ancora da fare: validazione diete/protocolli per-paziente (coda), app front-end nutrizionista.
+- **Coda di validazione** ✅ (`GET /nutritionist/validation-queue`): decisioni del motore marcate per
+  revisione filtrate PER-PAZIENTE (solo pazienti assegnati; capo/admin tutte), diete in revisione (solo
+  il capo approva), protocolli in attesa (mai i propri). Azioni: `POST /nutritionist/decisions/:id/confirm|correct`
+  con scoping per-paziente (delega all'EngineService); diete/protocolli via endpoint esistenti.
+- Ancora da fare: **app front-end nutrizionista** (React).
+- ⚠️ Follow-up sicurezza: gli endpoint diretti `/engine/decisions/:id/confirm|correct` (ruolo
+  nutritionist) NON verificano che la decisione sia di un paziente assegnato — un nutrizionista potrebbe
+  revisionare decisioni di pazienti altrui. La via `/nutritionist/...` è scoped; valutare se stringere
+  anche quella diretta (o rimuoverla a favore della scoped).
 
 ## Backoffice (React + Vite)
 - Dashboard (moduli configurabili/trascinabili, grafici con assi mesi + tooltip), CRM/Lead,
@@ -148,7 +156,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
 | 5 | Motore di personalizzazione menu — v1 "naive" | ✅ completo v1 (esclusioni+sostituzione+learning+selezione+DayCombo+attribuzione causale) |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ✅ stati completi (pre/post-evento, plateau, conforto+guardrail, rientro) + selezione modulata |
-| 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard fatti (clinica già in health-area) |
+| 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard+coda validazione (scoped per-paziente) fatti; resta l'app front-end |
 | 8 | Shop / abbonamenti / provvigioni | 🟡 commerce già presente; aggiunto referral cliente "porta un'amica" |
 | 9 | Certificazione unicità (seed, collision check, registro firmato) | ⬜ |
 

@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { EngineService } from '../engine/engine.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY = 86_400_000;
@@ -25,9 +26,25 @@ interface VisitRow {
  * (assignedNutritionistId). Il dettaglio clinico (documenti, note, visite, agenda) è
  * già in health-area; qui c'è il "collante": elenco pazienti e dashboard.
  */
+interface DecisionRow {
+  id: string;
+  clientId: string;
+  date: Date;
+  flagReason: string | null;
+  action: unknown;
+  rule: { id: string; name: string } | null;
+}
+
 @Injectable()
 export class NutritionistService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly engine: EngineService,
+  ) {}
+
+  private isSupervisor(user: AuthUser): boolean {
+    return user.role === 'head_nutritionist' || user.role === 'admin';
+  }
 
   private async staffId(userId: string): Promise<string | null> {
     const staff = await this.prisma.staff.findUnique({ where: { userId }, select: { id: true } });
@@ -133,5 +150,119 @@ export class NutritionistService {
       earningsMonthCents: monthAgg._sum.amountCents ?? 0,
       earningsTotalCents: totalAgg._sum.amountCents ?? 0,
     };
+  }
+
+  /**
+   * Coda di validazione (Fase 7). Raccoglie ciò che il nutrizionista deve validare:
+   * - **decisioni del motore** marcate per revisione, PER-PAZIENTE (solo i pazienti
+   *   assegnati; il capo/admin le vede tutte) → confermare/correggere;
+   * - **diete in revisione** da approvare (solo il capo approva; mai le proprie);
+   * - **protocolli** in attesa di validazione (mai i propri).
+   * Le azioni riusano gli endpoint esistenti (motore `reviewDecision` scoped qui,
+   * diete `catalog`, protocolli `protocols/:id/validate`).
+   */
+  async validationQueue(user: AuthUser): Promise<{
+    engineDecisions: unknown[];
+    dietsInReview: unknown[];
+    protocolsPending: unknown[];
+    counts: { engineDecisions: number; dietsInReview: number; protocolsPending: number };
+  }> {
+    const supervisor = this.isSupervisor(user);
+    const staffId = await this.staffId(user.sub);
+    const empty = { engineDecisions: [], dietsInReview: [], protocolsPending: [], counts: { engineDecisions: 0, dietsInReview: 0, protocolsPending: 0 } };
+    if (!staffId && !supervisor) return empty;
+
+    // Filtro pazienti per le decisioni motore: il nutrizionista solo i suoi.
+    let nameOf = new Map<string, string | null>();
+    let clientFilter: Record<string, unknown>;
+    if (supervisor) {
+      clientFilter = {};
+    } else {
+      const profiles = await this.patientIds(staffId!);
+      nameOf = new Map(profiles.map((p) => [p.userId, p.name]));
+      const ids = profiles.map((p) => p.userId);
+      // Nessun paziente assegnato → filtro impossibile (lista vuota, senza query globale).
+      clientFilter = { clientId: { in: ids.length ? ids : ['__none__'] } };
+    }
+
+    const decisions = (await this.prisma.engineDecision.findMany({
+      where: { flaggedForReview: true, reviewedAt: null, ...clientFilter },
+      orderBy: { date: 'desc' },
+      take: 100,
+      select: { id: true, clientId: true, date: true, flagReason: true, action: true, rule: { select: { id: true, name: true } } },
+    })) as DecisionRow[];
+
+    // Il capo/admin vede pazienti di più nutrizionisti: recupera i nomi mancanti.
+    if (supervisor && decisions.length) {
+      const cids = [...new Set(decisions.map((d) => d.clientId))];
+      const profs = (await this.prisma.clientProfile.findMany({
+        where: { userId: { in: cids } },
+        select: { userId: true, name: true },
+      })) as { userId: string; name: string | null }[];
+      nameOf = new Map(profs.map((p) => [p.userId, p.name]));
+    }
+
+    const engineDecisions = decisions.map((d) => ({
+      id: d.id,
+      clientId: d.clientId,
+      patientName: nameOf.get(d.clientId) ?? null,
+      date: d.date.toISOString().slice(0, 10),
+      flagReason: d.flagReason,
+      rule: d.rule ? { id: d.rule.id, name: d.rule.name } : null,
+      action: d.action,
+    }));
+
+    // Diete in revisione: solo il capo le approva; escluse le proprie.
+    let dietsInReview: unknown[] = [];
+    if (supervisor) {
+      const diets = (await this.prisma.diet.findMany({
+        where: { status: 'in_review' as never, ...(staffId ? { NOT: { authorId: staffId } } : {}) },
+        orderBy: { updatedAt: 'desc' },
+        take: 100,
+        select: { id: true, name: true, regime: true, style: true, updatedAt: true },
+      })) as { id: string; name: string; regime: string; style: string; updatedAt: Date }[];
+      dietsInReview = diets.map((x) => ({ id: x.id, name: x.name, regime: x.regime, style: x.style, updatedAt: x.updatedAt.toISOString() }));
+    }
+
+    // Protocolli in attesa: nutrizionista/capo, mai i propri.
+    const protocols = (await this.prisma.protocol.findMany({
+      where: { status: 'pending' as never, ...(staffId ? { NOT: { authorId: staffId } } : {}) },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      select: { id: true, name: true, type: true, updatedAt: true },
+    })) as { id: string; name: string; type: string; updatedAt: Date }[];
+    const protocolsPending = protocols.map((p) => ({ id: p.id, name: p.name, type: p.type, updatedAt: p.updatedAt.toISOString() }));
+
+    return {
+      engineDecisions,
+      dietsInReview,
+      protocolsPending,
+      counts: { engineDecisions: engineDecisions.length, dietsInReview: dietsInReview.length, protocolsPending: protocolsPending.length },
+    };
+  }
+
+  /**
+   * Revisione di una decisione del motore CON scoping per-paziente: un nutrizionista
+   * può revisionare solo le decisioni dei propri pazienti (il capo/admin qualsiasi).
+   * Delega poi la scrittura all'EngineService (idempotenza + audit già lì).
+   */
+  async reviewDecision(user: AuthUser, decisionId: string, outcome: 'confirmed' | 'corrected', note?: string) {
+    const decision = (await this.prisma.engineDecision.findUnique({
+      where: { id: decisionId },
+      select: { id: true, clientId: true },
+    })) as { id: string; clientId: string } | null;
+    if (!decision) throw new NotFoundException('Decisione non trovata');
+
+    if (!this.isSupervisor(user)) {
+      const staffId = await this.staffId(user.sub);
+      const profile = (await this.prisma.clientProfile.findUnique({
+        where: { userId: decision.clientId },
+        select: { assignedNutritionistId: true },
+      })) as { assignedNutritionistId: string | null } | null;
+      if (!staffId || profile?.assignedNutritionistId !== staffId) {
+        throw new ForbiddenException('Paziente non assegnato: revisione non consentita');
+      }
+    }
+    return this.engine.reviewDecision(user.sub, decisionId, outcome, note);
   }
 }

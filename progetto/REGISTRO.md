@@ -7,6 +7,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 7 (parte 2) — Coda di validazione (diete/protocolli/decisioni) per-paziente** —
+  nuovo `GET /nutritionist/validation-queue`: raccoglie ciò che il nutrizionista deve validare —
+  **decisioni del motore** marcate per revisione filtrate PER-PAZIENTE (solo i pazienti assegnati; il
+  capo/admin le vede tutte), **diete in revisione** da approvare (solo il capo) e **protocolli** in
+  attesa (mai i propri) — con nomi paziente e contesto. Nuovi `POST /nutritionist/decisions/:id/confirm|correct`
+  che applicano lo **scoping per-paziente** (un nutrizionista revisiona solo le decisioni dei suoi
+  pazienti) e delegano la scrittura all'EngineService (idempotenza + audit già lì); le azioni su
+  diete/protocolli riusano gli endpoint esistenti (catalog / protocols). 7 test nuovi, suite 337 verde.
+  Nessuna migrazione. (Nota sicurezza: gli endpoint `/engine/decisions/:id/confirm|correct` restano
+  NON scoped — vedi follow-up in STATO.)
 - `[Sviluppo]` **Fase 6 (completamento) — Agente: post-evento, rientro, guardrail conforto** — estesa
   la macchina a stati `DietAgentService`: nuovi stati **post_evento** (evento concluso negli ultimi N
   giorni → spinta efficacia per il recupero) e **rientro**, con due inneschi: il **guardrail** (troppi
