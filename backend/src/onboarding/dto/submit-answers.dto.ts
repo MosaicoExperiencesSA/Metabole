@@ -27,6 +27,11 @@ class LifestyleDto {
   @IsOptional()
   @IsIn(['home', 'canteen', 'out', 'on_the_go'])
   weekdayLunch?: string;
+
+  // Schermo 6 del prototipo: "Perché vuoi iniziare adesso?" (motivazione).
+  @IsOptional()
+  @IsIn(['wellbeing', 'clothes', 'health', 'event'])
+  motivation?: string;
 }
 
 class HealthDto {

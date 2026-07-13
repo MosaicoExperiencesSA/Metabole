@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import Gaia from '../components/Gaia';
+import { TypeText } from '../components/TypeText';
 import type { OnboardingResult } from '../onboarding/types';
 
 /**
@@ -15,8 +17,12 @@ const euro = (c: number) => `€ ${Math.round(c / 100)}`;
 const PERIOD: Record<string, string> = { '3m': '3 mesi', '6m': '6 mesi', '12m': '12 mesi' };
 
 export default function PlanFlow({ result, onDone }: { result: OnboardingResult; onDone: () => void }) {
+  const { user } = useAuth();
   const cart = useCart();
   const navigate = useNavigate();
+  const name = user?.firstName || 'ciao';
+  const coachName = result.team.coach?.displayName ?? null;
+  const nutriName = result.team.nutritionist?.displayName ?? null;
   const [step, setStep] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planId, setPlanId] = useState<string | null>(null);
@@ -36,9 +42,21 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
     return (
       <div className="app-frame">
         <div className="screen no-tabbar onb">
-          <div className="onb-gaia"><Gaia clip="percorso" size={110} controls={false} /></div>
           <div className="onb-body">
-            <h1>Il tuo percorso è pronto! 🎉</h1>
+            <h1>Il tuo percorso è pronto</h1>
+            <p className="muted" style={{ marginTop: 2 }}>Costruito sulle tue risposte.</p>
+            <div className="qbubble">
+              <Gaia clip="percorso" size={62} controls={false} />
+              <div className="bubble">
+                <TypeText segments={[
+                  { t: `${name}, il tuo percorso personalizzato è pronto. Settato secondo le indicazioni del nutrizionista e personalizzato sulle informazioni che hai fornito. La tua coach è ` },
+                  { t: coachName ?? 'in assegnazione', b: true },
+                  { t: ' e il tuo nutrizionista è ' },
+                  { t: nutriName ?? 'in assegnazione', b: true },
+                  { t: '. Sei pronta a partire?' },
+                ]} />
+              </div>
+            </div>
             <div className="card result-card">
               <div className="result-name">{result.path.name}</div>
               {result.path.tags.length > 0 && <div className="result-tags">{result.path.tags.map((t) => <span className="chip" key={t}>{t}</span>)}</div>}

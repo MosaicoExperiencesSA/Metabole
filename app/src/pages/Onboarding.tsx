@@ -18,7 +18,7 @@ type Answers = Record<string, unknown>;
 // Sezioni allineate 1:1 al prototipo (docs/): ordine testa·vita·agenda·gusto·corpo,
 // nomi/tab/intro/note e COLORI esatti dalla direttiva §3.
 const SECTIONS = [
-  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Partiamo dalla tua mente', note: 'Motivazione e carattere: come vuoi essere seguita.', desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C4CD6', soft: '#F3EFFB', voice: 'intro_testa', pages: ['coach_style', 'character'] },
+  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Partiamo dalla tua mente', note: 'Motivazione e carattere: come vuoi essere seguita.', desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C4CD6', soft: '#F3EFFB', voice: 'intro_testa', pages: ['why', 'coach_style', 'character'] },
   { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2F80ED', soft: '#EDF3FE', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
   { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', desc: 'Eventi e periodi speciali', icon: 'ti-calendar-heart', color: '#E8543C', soft: '#FDF0EC', voice: 'intro_agenda', pages: ['pause_periods'] },
   { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', desc: 'Regime, stile e cibi', icon: 'ti-tools-kitchen-2', color: '#E8A11B', soft: '#FEF7E8', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
@@ -203,7 +203,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     if (a.startHipsCm != null && a.startHipsCm !== '') dto.startHipsCm = Number(a.startHipsCm);
     if (Array.isArray(a.intolerances) && a.intolerances.length) dto.intolerances = a.intolerances;
     if (Array.isArray(a.dislikedFoods) && a.dislikedFoods.length) dto.dislikedFoods = a.dislikedFoods;
-    const lifestyle = cleanObj({ work: a.work, cookingTime: a.cookingTime, weekdayLunch: a.weekdayLunch });
+    const lifestyle = cleanObj({ work: a.work, cookingTime: a.cookingTime, weekdayLunch: a.weekdayLunch, motivation: a.why });
     if (lifestyle) dto.lifestyle = lifestyle;
     if (a.themeColor) dto.themeColor = a.themeColor;
     if (Array.isArray(a.pausePeriods) && a.pausePeriods.length) dto.consents = { pausePeriods: a.pausePeriods };
