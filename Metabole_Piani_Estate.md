@@ -14,7 +14,20 @@ con lo Sviluppo per l'implementazione.
 
 ---
 
-## 0. Come si incastrano con ciò che esiste già
+## 0. Scope: cosa sono (e cosa non sono)
+
+I due piani **non hanno menu propri**: sono **modalità** che modulano la selezione **sopra la dieta
+già scelta dal cliente**. "Vacanze in Serenità" dice al motore *"privilegia i piatti freddi/portabili
+e resta in mantenimento"*; "Ritorno in Equilibrio" dice *"parti leggero e spingi gradualmente"* — ma
+i piatti erogati vengono **sempre dal catalogo della dieta scelta**.
+
+Oggi l'unico catalogo di menu reale è quello della **dieta Mediterranea** (`Metabole_Catalogo_Menu_
+Mediterranea.xlsx`). Quindi: per un cliente **Mediterranea** i due piani erogano **menu concreti veri**
+(45 menu estivi, 31 con versione fredda). Per un cliente su **altri regimi** (proteica, vegetariana…)
+le due modalità funzionano **a livello di logica**, ma non hanno piatti da proporre finché non si
+costruiscono anche quei cataloghi — come per tutto il resto del motore.
+
+## 0bis. Come si incastrano con ciò che esiste già
 
 Entrambi i piani **riusano** i mattoni già presenti nel motore (non serve reinventare):
 
