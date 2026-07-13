@@ -5,6 +5,29 @@ import { Banner } from '../components/ui';
 import { ThemeSelect } from '../theme';
 import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
 
+/** Riduce un'immagine a un quadrato 256×256 (cover, ritaglio centrato) e la ritorna come data URL JPEG. */
+function fileToAvatarDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) { reject(new Error('Il file non è un\'immagine.')); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const size = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Impossibile elaborare l\'immagine.')); return; }
+      const scale = Math.max(size / img.width, size / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Immagine non leggibile.')); };
+    img.src = url;
+  });
+}
+
 export function Impostazioni() {
   const { user, refreshUser, can } = useAuth();
 
@@ -13,6 +36,36 @@ export function Impostazioni() {
   const [savingAcc, setSavingAcc] = useState(false);
   const [accMsg, setAccMsg] = useState<string | null>(null);
   const [accErr, setAccErr] = useState<string | null>(null);
+
+  // --- Foto profilo (avatar) ---
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
+
+  async function onPhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoErr(null); setAccMsg(null); setPhotoBusy(true);
+    try {
+      const dataUrl = await fileToAvatarDataUrl(file);
+      await api('/me/account', { method: 'PATCH', body: JSON.stringify({ photoUrl: dataUrl }) });
+      await refreshUser();
+      setAccMsg('Foto profilo aggiornata.');
+    } catch (err) {
+      setPhotoErr(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+    } finally { setPhotoBusy(false); }
+  }
+
+  async function removePhoto() {
+    setPhotoErr(null); setAccMsg(null); setPhotoBusy(true);
+    try {
+      await api('/me/account', { method: 'PATCH', body: JSON.stringify({ photoUrl: null }) });
+      await refreshUser();
+      setAccMsg('Foto rimossa.');
+    } catch (err) {
+      setPhotoErr(err instanceof Error ? err.message : 'Operazione non riuscita.');
+    } finally { setPhotoBusy(false); }
+  }
 
   useEffect(() => {
     if (user) setForm({
@@ -105,6 +158,31 @@ export function Impostazioni() {
         <h2 style={{ marginTop: 0 }}>I miei dati</h2>
         {accErr && <Banner kind="err">{accErr}</Banner>}
         {accMsg && <Banner kind="ok">{accMsg}</Banner>}
+
+        {/* Foto profilo (icona in alto a destra) */}
+        <div className="row" style={{ gap: 16, alignItems: 'center', marginBottom: 18 }}>
+          <span
+            style={{
+              width: 64, height: 64, borderRadius: '50%', flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontWeight: 700, fontSize: 22, background: user?.photoUrl ? undefined : 'var(--teal)',
+              backgroundImage: user?.photoUrl ? `url(${user.photoUrl})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center',
+            }}
+          >
+            {user?.photoUrl ? '' : (user?.firstName?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()}
+          </span>
+          <div>
+            <div className="row" style={{ gap: 8 }}>
+              <label className="btn ghost sm" style={{ cursor: photoBusy ? 'default' : 'pointer' }}>
+                <i className="ti ti-upload" /> {photoBusy ? 'Carico…' : (user?.photoUrl ? 'Cambia foto' : 'Carica foto')}
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onPhotoFile} style={{ display: 'none' }} disabled={photoBusy} />
+              </label>
+              {user?.photoUrl && <button className="btn ghost sm" onClick={removePhoto} disabled={photoBusy}>Rimuovi</button>}
+            </div>
+            {photoErr && <div style={{ color: 'var(--danger)', fontSize: 12, marginTop: 6 }}>{photoErr}</div>}
+            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>Usata come icona in alto a destra. Ridotta a un quadrato in automatico.</div>
+          </div>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
           <Field label="Nome"><input className="input" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></Field>
           <Field label="Cognome"><input className="input" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></Field>

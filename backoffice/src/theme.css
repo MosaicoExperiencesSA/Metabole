@@ -475,6 +475,9 @@ table.grid tr:hover td {
   font-weight: 700;
   letter-spacing: 0.3px;
   flex: none;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
 }
 .usermenu-avatar.lg {
   width: 40px;

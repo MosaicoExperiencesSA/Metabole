@@ -17,6 +17,7 @@ export const BACKOFFICE_PAGES = [
   'health_documents',
   'crm_leads',
   'lead_acceptance',
+  'marketing',
   'accounting',
   'accounting_costs',
   'purchases',
@@ -100,6 +101,22 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     accounting: { view: true }, // dashboard incassi/conversioni
     purchases: { view: true },
     assign_coach: { view: true, manage: true }, // Resp. Coach Team: assegna le coach
+  },
+  // Reparto Marketing (nessun accesso a dati sanitari): campagne, segmenti, KPI, consensi.
+  marketing: {
+    dashboard: { view: true },
+    charts: { view: true },
+    crm_leads: { view: true }, // vede i lead (fonte/canale/campagna), non gestisce la pipeline clinica
+    marketing: { view: true, manage: true },
+  },
+  head_marketing: {
+    dashboard: { view: true },
+    charts: { view: true },
+    crm_leads: { view: true, manage: true },
+    marketing: { view: true, manage: true },
+    accounting: { view: true }, // budget/spesa marketing (dashboard incassi/conversioni)
+    email_templates: { view: true, manage: true },
+    email_log: { view: true },
   },
   admin: {
     dashboard: { view: true, manage: true },

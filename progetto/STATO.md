@@ -21,7 +21,10 @@ Auth (JWT+refresh rotante, RBAC), Users/Profile, Onboarding, Signals (misure/che
 Catalog (diete/ricette), Menu (erogazione), Engine (motore a regole M5), Notifications, Cron, Chat (+AI),
 Clients, Commerce/CRM, Reports, Health/HealthArea, Escalations, Visits, Compensation/Payouts,
 Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (eventi)**, **Alerts (coda coach)**. ✅
-- Ruoli RBAC: client, coach, nutritionist, head_nutritionist, sales, admin. ✅
+- Ruoli RBAC: client, coach, nutritionist, head_nutritionist, sales, **marketing, head_marketing**, admin. ✅
+  (marketing = reparto in arrivo: ruoli+permessi+menu attivi, modulo funzionale da costruire).
+- Gestione utenti: creazione staff, cambio ruolo/responsabile, sospendi, **archivia/ripristina** (soft-delete,
+  con protezione dell'admin `ADMIN_EMAIL` e anti-auto-archiviazione). Foto profilo (avatar) in Impostazioni. ✅
 - Dati sanitari cifrati, accessibili solo a cliente + suo nutrizionista. ✅
 
 ## App cliente (React + Vite + Capacitor)
@@ -141,8 +144,9 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
     plateau, ecc.).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 
-## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) ⬜
-- Nuovo ruolo `head_marketing` (+ `marketing`) da aggiungere all'RBAC e alla matrice permessi.
+## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) 🟡
+- Ruoli `marketing` + `head_marketing` **aggiunti** all'RBAC, ai permessi di default e al menu (voce
+  "Marketing", pagina placeholder). ✅ Resta da costruire il **modulo funzionale**: ↓
 - Sezione backoffice marketing: campagne, segmenti, automazioni, KPI, gestione consensi (no dati sanitari).
 - Standard lead/pipeline: stadi (nuovo→contattato→qualificato MQL→opportunità SQL→cliente→a rischio→churn→in rientro);
   campi lead (fonte/canale, campagna+utm, refcod, consensi email/sms/marketing con timestamp+base giuridica, owner).

@@ -1,6 +1,6 @@
 // Etichette in italiano per ruoli e sezioni del backoffice.
 
-export type Role = 'client' | 'coach' | 'nutritionist' | 'head_nutritionist' | 'sales' | 'admin';
+export type Role = 'client' | 'coach' | 'nutritionist' | 'head_nutritionist' | 'sales' | 'marketing' | 'head_marketing' | 'admin';
 
 export const ROLE_LABEL: Record<Role, string> = {
   client: 'Cliente',
@@ -8,12 +8,14 @@ export const ROLE_LABEL: Record<Role, string> = {
   nutritionist: 'Nutrizionista',
   head_nutritionist: 'Capo nutrizionista',
   sales: 'Resp. Coach Team',
+  marketing: 'Marketing',
+  head_marketing: 'Responsabile Marketing',
   admin: 'Admin',
 };
 
 /** Ruoli assegnabili allo staff dal backoffice (il cliente si registra da sé). */
-export const STAFF_ROLES: Role[] = ['coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin'];
-export const ALL_ROLES: Role[] = ['admin', 'head_nutritionist', 'nutritionist', 'coach', 'sales', 'client'];
+export const STAFF_ROLES: Role[] = ['coach', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin'];
+export const ALL_ROLES: Role[] = ['admin', 'head_nutritionist', 'nutritionist', 'coach', 'sales', 'head_marketing', 'marketing', 'client'];
 
 export const PAGE_LABEL: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -30,6 +32,7 @@ export const PAGE_LABEL: Record<string, string> = {
   lead_acceptance: 'Lead da accettare',
   accounting: 'Bonifici & contabilità',
   accounting_costs: 'Contabilità',
+  marketing: 'Marketing',
   purchases: 'Acquisti',
   shop: 'Negozio',
   discounts: 'Buoni sconto',

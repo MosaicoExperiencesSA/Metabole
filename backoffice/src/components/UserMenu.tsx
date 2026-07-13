@@ -47,6 +47,12 @@ export function UserMenu() {
   const email = user.email;
   const roleLabel = permissions ? ROLE_LABEL[permissions.role] : ROLE_LABEL[user.role] ?? '';
   const initials = initialsFor(user.firstName, email);
+  const photo = user.photoUrl || null;
+  const avatar = (cls = '') => (
+    <span className={`usermenu-avatar${cls ? ' ' + cls : ''}`} style={photo ? { backgroundImage: `url(${photo})` } : { background: colorFor(email) }}>
+      {photo ? '' : initials}
+    </span>
+  );
 
   async function handleLogout() {
     setOpen(false);
@@ -63,7 +69,7 @@ export function UserMenu() {
         aria-expanded={open}
         title={`${email} · ${roleLabel}`}
       >
-        <span className="usermenu-avatar" style={{ background: colorFor(email) }}>{initials}</span>
+        {avatar()}
         <span className="usermenu-id">
           <b>{(user.firstName && user.firstName.trim()) || email}</b>
           <span className="muted">{roleLabel}</span>
@@ -74,7 +80,7 @@ export function UserMenu() {
       {open && (
         <div className="usermenu-pop" role="menu">
           <div className="usermenu-head">
-            <span className="usermenu-avatar lg" style={{ background: colorFor(email) }}>{initials}</span>
+            {avatar('lg')}
             <div style={{ minWidth: 0 }}>
               <div className="usermenu-email" title={email}>{email}</div>
               <div className="muted" style={{ fontSize: 12 }}>{roleLabel}</div>

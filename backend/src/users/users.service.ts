@@ -25,6 +25,8 @@ const PUBLIC_USER_SELECT = {
   phone: true,
   title: true,
   theme: true,
+  photoUrl: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
   staff: { select: { id: true, displayName: true, managerId: true, refCode: true } },
@@ -41,11 +43,11 @@ export class UsersService {
     private readonly mail: MailService,
   ) {}
 
-  async list(params: { role?: Role; staffOnly?: boolean; page?: number; limit?: number }) {
+  async list(params: { role?: Role; staffOnly?: boolean; includeArchived?: boolean; page?: number; limit?: number }) {
     const take = Math.min(Math.max(params.limit ?? 50, 1), 200);
     const skip = (Math.max(params.page ?? 1, 1) - 1) * take;
     const where = {
-      deletedAt: null,
+      ...(params.includeArchived ? {} : { deletedAt: null }),
       ...(params.role
         ? { role: params.role }
         : params.staffOnly
@@ -112,11 +114,18 @@ export class UsersService {
   /** Impostazioni account (backoffice): l'utente aggiorna i propri dati e il tema. */
   async updateAccount(
     userId: string,
-    dto: { firstName?: string; lastName?: string; phone?: string; title?: string; theme?: string; email?: string },
+    dto: { firstName?: string; lastName?: string; phone?: string; title?: string; theme?: string; email?: string; photoUrl?: string | null },
   ) {
     const data: Record<string, string | null> = {};
     for (const k of ['firstName', 'lastName', 'phone', 'title'] as const) {
       if (dto[k] !== undefined) data[k] = dto[k]!.trim() || null;
+    }
+    if (dto.photoUrl !== undefined) {
+      // Accetta solo un'immagine come data URL (o null per rimuoverla).
+      if (dto.photoUrl !== null && !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(dto.photoUrl)) {
+        throw new BadRequestException('Immagine non valida.');
+      }
+      data.photoUrl = dto.photoUrl;
     }
     if (dto.theme !== undefined) {
       if (!ACCOUNT_THEMES.includes(dto.theme)) throw new BadRequestException('Tema non valido.');
@@ -209,6 +218,8 @@ export class UsersService {
     'nutritionist',
     'head_nutritionist',
     'sales',
+    'marketing',
+    'head_marketing',
   ];
 
   async create(
@@ -390,5 +401,42 @@ export class UsersService {
       metadata: data as Record<string, unknown>,
     });
     return user;
+  }
+
+  /** Email dell'admin protetto (variabile Render): non archiviabile, per non perdere l'accesso. */
+  private protectedAdminEmail(): string {
+    return (process.env.ADMIN_EMAIL ?? 'simone.salogni@gmail.com').trim().toLowerCase();
+  }
+
+  /**
+   * Archivia (soft-delete) un utente: `deletedAt` valorizzato + stato sospeso + sessioni
+   * revocate. Reversibile con `restore`. Protezioni: non ci si può archiviare da soli e
+   * non si può archiviare l'admin legato alla variabile d'ambiente Render (anti-lockout).
+   */
+  async archive(id: string, actorId: string) {
+    if (id === actorId) throw new BadRequestException('Non puoi archiviare il tuo stesso account.');
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true, email: true, deletedAt: true } });
+    if (!target) throw new NotFoundException('Utente non trovato');
+    if (target.deletedAt) throw new BadRequestException('Utente già archiviato');
+    if (target.email.trim().toLowerCase() === this.protectedAdminEmail()) {
+      throw new BadRequestException('Questo è l\'admin principale (variabile Render): non è archiviabile.');
+    }
+    await this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date(), status: 'suspended' },
+    });
+    await this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.audit.log({ action: 'admin.user.archive', actorId, entityType: 'user', entityId: id, metadata: { email: target.email } });
+    return { archived: true };
+  }
+
+  /** Ripristina un utente archiviato (torna attivo). */
+  async restore(id: string, actorId: string) {
+    const target = await this.prisma.user.findUnique({ where: { id }, select: { id: true, deletedAt: true } });
+    if (!target) throw new NotFoundException('Utente non trovato');
+    if (!target.deletedAt) throw new BadRequestException('Utente non archiviato');
+    await this.prisma.user.update({ where: { id }, data: { deletedAt: null, status: 'active' } });
+    await this.audit.log({ action: 'admin.user.restore', actorId, entityType: 'user', entityId: id });
+    return { restored: true };
   }
 }

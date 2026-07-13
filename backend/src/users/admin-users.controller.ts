@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -31,12 +33,14 @@ export class AdminUsersController {
   list(
     @Query('role') role?: Role,
     @Query('scope') scope?: string,
+    @Query('includeArchived') includeArchived?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '50',
   ) {
     return this.users.list({
       role,
       staffOnly: scope === 'staff', // la tabella Utenti mostra solo lo staff, non i clienti
+      includeArchived: includeArchived === 'true',
       page: parseInt(page, 10) || 1,
       limit: parseInt(limit, 10) || 50,
     });
@@ -59,6 +63,20 @@ export class AdminUsersController {
     @CurrentUser() actor: AuthUser,
   ) {
     return this.users.update(id, dto, actor.sub);
+  }
+
+  /** Archivia (soft-delete) un account: reversibile con /restore. */
+  @HttpCode(200)
+  @Delete(':id')
+  archive(@Param('id') id: string, @CurrentUser() actor: AuthUser) {
+    return this.users.archive(id, actor.sub);
+  }
+
+  /** Ripristina un account archiviato. */
+  @HttpCode(200)
+  @Post(':id/restore')
+  restore(@Param('id') id: string, @CurrentUser() actor: AuthUser) {
+    return this.users.restore(id, actor.sub);
   }
 
   /** Imposta il responsabile diretto (manager coach / capo nutrizionista). */

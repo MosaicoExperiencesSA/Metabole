@@ -7,6 +7,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Ruoli Marketing + archiviazione utenti + foto profilo (pulizia account)** — tre interventi
+  a supporto della gestione utenti:
+  1) **Ruoli Marketing**: nuovi ruoli RBAC `marketing` e `head_marketing` (Responsabile Marketing) —
+     enum Prisma + migrazione, `roles.ts`, permessi di default (dashboard/grafici/CRM in lettura, sezione
+     `marketing` gestibile; il capo marketing vede anche modelli email e contabilità incassi), etichette,
+     voce di menu "Marketing" (pagina placeholder: il modulo vero è da costruire). Così si può creare un
+     account "Responsabile Marketing".
+  2) **Archivia/ripristina utente** (soft-delete): `DELETE /admin/users/:id` (imposta `deletedAt` + sospeso
+     + revoca sessioni) e `POST /admin/users/:id/restore`. **Protezioni anti-lockout**: non ci si può
+     archiviare da soli e non si può archiviare l'admin legato alla variabile Render `ADMIN_EMAIL`.
+     La tabella Utenti ha "Mostra archiviati", il pulsante Archivia e il Ripristina. 6 test.
+  3) **Foto profilo**: campo `photoUrl` su User + migrazione; in Impostazioni si carica un'immagine
+     (ridotta a 256×256 lato client come data URL) usata come **avatar** nel menu utente in alto (altrimenti
+     iniziali). PATCH `/me/account` accetta `photoUrl` (solo data URL immagine, o null per rimuoverla).
+  4) **Impostazioni** tolte dalla sidebar (ora si aprono dal menu utente/avatar in alto).
+  Suite 356 verde; migrazioni validate su PG16.
 - `[Sviluppo]` **Backlog #6 — Modulo Contabilità (costi + conto economico)** — nuovo modello `CostEntry`
   (costi ricorrenti + una tantum: infrastruttura, marketing, stipendi, tasse, AI…) + migrazione (validata
   PG16). `AccountingService` con aggregazione **pura e testata** (`buildReport`/`costInMonth`/`monthsBetween`):

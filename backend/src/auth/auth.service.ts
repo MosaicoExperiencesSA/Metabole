@@ -455,6 +455,7 @@ export class AuthService {
     emailVerifiedAt: Date | null;
     firstName?: string | null;
     lastName?: string | null;
+    photoUrl?: string | null;
   }) {
     return {
       id: user.id,
@@ -465,6 +466,7 @@ export class AuthService {
       emailVerified: Boolean(user.emailVerifiedAt),
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
+      photoUrl: user.photoUrl ?? null,
     };
   }
 }

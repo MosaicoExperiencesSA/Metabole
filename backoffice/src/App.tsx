@@ -83,6 +83,7 @@ export default function App() {
       <Route path="/buoni-sconto" element={<Protected title="Buoni sconto" pageKey="discounts"><BuoniSconto /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
       <Route path="/contabilita" element={<Protected title="Contabilità" pageKey="accounting_costs"><Contabilita /></Protected>} />
+      <Route path="/marketing" element={<Protected title="Marketing" pageKey="marketing"><Placeholder title="Reparto Marketing" icon="ti-speakerphone" note="Campagne, segmenti, KPI e gestione consensi. Il modulo marketing è in arrivo; il ruolo e i permessi sono già attivi." /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />

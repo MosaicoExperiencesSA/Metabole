@@ -24,7 +24,7 @@ const NAV: NavSection[] = [
     items: [
       { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
       { key: 'charts', label: 'Grafici', to: '/grafici', icon: 'ti-chart-histogram' },
-      { key: 'impostazioni', label: 'Impostazioni', to: '/impostazioni', icon: 'ti-settings' },
+      // Impostazioni spostate nel menu utente in alto (avatar) → non più in sidebar.
     ],
   },
   {
@@ -59,6 +59,12 @@ const NAV: NavSection[] = [
       { key: 'commissions', label: 'Provvigioni', to: '/provvigioni', icon: 'ti-percentage' },
       { key: 'compensation', label: 'Compensi staff', to: '/compensi', icon: 'ti-coin' },
       { key: 'withdrawals', label: 'Richieste prelievo', to: '/prelievi', icon: 'ti-wallet' },
+    ],
+  },
+  {
+    group: 'Marketing',
+    items: [
+      { key: 'marketing', label: 'Marketing', to: '/marketing', icon: 'ti-speakerphone' },
     ],
   },
   {
@@ -142,7 +148,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         </div>
 
         {NAV.map((section) => {
-          const visible = section.items.filter((it) => it.key === 'dashboard' || it.key === 'impostazioni' || can(it.key));
+          const visible = section.items.filter((it) => it.key === 'dashboard' || can(it.key));
           if (visible.length === 0) return null;
 
           if (section.collapsible) {

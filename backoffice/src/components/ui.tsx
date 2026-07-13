@@ -20,6 +20,8 @@ export function RoleChip({ role }: { role: Role }) {
     nutritionist: 'violet',
     coach: '',
     sales: 'amber',
+    marketing: 'amber',
+    head_marketing: 'amber',
     client: 'gray',
   };
   return <span className={`chip ${cls[role]}`}>{ROLE_LABEL[role]}</span>;
