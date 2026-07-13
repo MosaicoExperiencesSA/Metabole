@@ -186,6 +186,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Soglia (kg) sotto/sopra cui l\'esito peso del ciclo è "stabile"',
   },
   {
+    key: 'learning_distinctive_weighting',
+    value: 'false',
+    type: 'boolean',
+    description: 'Attribuzione causale del pasto: se "true" il merito/demerito del ciclo viene pesato per distintività (la ricetta rara, quella cambiata nel ciclo, prende più credito di quelle sempre presenti) invece che in parti uguali',
+  },
+  {
+    key: 'learning_distinctiveness_alpha',
+    value: '0.5',
+    type: 'number',
+    description: 'Sensibilità della distintività (attribuzione causale): più alto = più credito alle ricette rare rispetto a quelle abituali (peso = 1/(1+alpha·samples))',
+  },
+  {
     key: 'cycle_cm_delta',
     value: '0.5',
     type: 'number',

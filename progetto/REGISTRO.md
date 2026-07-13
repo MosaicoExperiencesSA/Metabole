@@ -7,6 +7,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 5 (avanzata) — Attribuzione causale del pasto** — nuova funzione
+  `distinctiveCredits`: alla chiusura di un ciclo il merito/demerito non va più in parti uguali a tutte
+  le ricette, ma è pesato per **distintività** — la ricetta rara (quella che è CAMBIATA nel ciclo) è la
+  causa più probabile di un esito diverso dal solito e prende più credito, quelle sempre presenti lo
+  prendono scontato (peso = 1/(1+alpha·samples), normalizzato). Se tutte hanno la stessa frequenza il
+  credito torna uniforme. **Opt-in** via `learning_distinctive_weighting` (default false → comportamento
+  v1 naive invariato) + `learning_distinctiveness_alpha`. Non è una prova causale: è un modo trasparente
+  per far emergere prima il pasto che sposta l'ago. **Con questo il motore v1 della Fase 5 è completo.**
+  9 test (suite 327 verde). Nessuna migrazione.
 - `[Sviluppo]` **Fase 5 (avanzata) — Giornate bilanciate automatiche (DayCombo)** — nuovo
   `DayComboService` (algoritmo puro, testabile): compone la giornata scegliendo una ricetta per slot
   DENTRO il pool della dieta approvata, in modo che il totale kcal rientri nella banda del target del

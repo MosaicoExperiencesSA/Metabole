@@ -105,9 +105,12 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
     proteica. Attivo solo con `menu_daycombo_enabled=true` e se il livello ha un target kcal; altrimenti
     (o se nessuna giornata rientra nella banda) fallback ai template composti a mano. Non allarga mai
     l'insieme ricette approvato dal nutrizionista.
-  - Ancora da fare (avanzato): **attribuzione causale** dell'effetto del singolo pasto (isolare il pasto
-    che pesa di più); eventuale composizione dall'intero catalogo (oggi il pool DayCombo = ricette dei
-    template della dieta).
+  - **Attribuzione causale del pasto** ✅ (opt-in): alla chiusura del ciclo il credito ai MenuWeight è
+    pesato per distintività — la ricetta rara (cambiata nel ciclo) prende più merito/demerito di quelle
+    abituali (`learning_distinctive_weighting`, `learning_distinctiveness_alpha`). Se spento → credito
+    uniforme (v1 naive). **Motore v1 Fase 5 completo.**
+  - Idee future (non urgenti): composizione DayCombo dall'intero catalogo (oggi il pool = ricette dei
+    template della dieta); attribuzione causale con veri controfattuali (oggi è euristica osservazionale).
 - **Agente AI della dieta** (stati, scoring): 🟡 (Fase 6).
   - `DietAgentService.stateFor` determina lo stato: **pre_evento** (evento entro N giorni),
     **plateau** (ultimi N cicli senza calo), **conforto** (umore basso recente), altrimenti **normale**.
@@ -138,7 +141,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 2 | **Misure bloccanti** al 2° giorno del ciclo | ✅ (13/7) |
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
-| 5 | Motore di personalizzazione menu — v1 "naive" | ✅ nucleo v1 + DayCombo (giornate bilanciate, opt-in); resta l'attribuzione causale |
+| 5 | Motore di personalizzazione menu — v1 "naive" | ✅ completo v1 (esclusioni+sostituzione+learning+selezione+DayCombo+attribuzione causale) |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | 🟡 stati + selezione modulata fatti |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard fatti (clinica già in health-area) |
 | 8 | Shop / abbonamenti / provvigioni | 🟡 commerce già presente; aggiunto referral cliente "porta un'amica" |
