@@ -7,6 +7,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 7 (parte 1) — App Nutrizionista: pazienti + dashboard** — nuovo modulo
+  `nutritionist`: `GET /nutritionist/patients` (pazienti assegnati con riepilogo clinico: ultima misura,
+  escalation aperte, documenti da revisionare, prossima visita, ordinati per attenzione) e
+  `GET /nutritionist/dashboard` (pazienti, documenti pending, escalation aperte, protocolli da validare
+  `flaggedForReview`, visite in arrivo, guadagni mese/totale). Il dettaglio clinico è già in `health-area`
+  (documenti/note/visite/agenda). Nessuna migrazione. 4 test nuovi, suite 303 verde.
 - `[Sviluppo]` **Fase 6 (parte 1) — Agente AI: stati + selezione modulata** — nuovo `DietAgentService.stateFor`
   (pre_evento / plateau / conforto / normale, da eventi, cicli senza calo, umore recente). La selezione
   dei menu è modulata dallo stato: conforto → boost gradimento, plateau → boost efficacia, pre_evento →

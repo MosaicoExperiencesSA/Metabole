@@ -46,8 +46,15 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Home cliente: box "Prossimo appuntamento" (usa `GET /me/agenda?next=1`, tap → Calendario). ✅
 - **Backend Fase 4 completo.** Ancora da fare: l'**app front-end coach** (React).
 
-## App Nutrizionista (nuova) ⬜
-- Prototipo pronto: `../Metabole_Nutrizionista_App.html`. Da costruire (Fase 7). Unico ruolo con accesso ai dati sanitari.
+## App Nutrizionista (nuova) 🟡
+- Prototipo pronto: `../Metabole_Nutrizionista_App.html`. Unico ruolo con accesso ai dati sanitari.
+- Già esistente (modulo `health-area`): agenda, visite (`POST /visits`, `/visits/:id/start` televisita,
+  `/visits/:id/complete`), documenti clinici cifrati con revisione e flag fuori-range
+  (`GET /clients/:id/documents`, `POST /documents/:id/review`), note cliniche (`clients/:id/notes`).
+- Aggiunto: `GET /nutritionist/patients` (pazienti assegnati con riepilogo: ultima misura, escalation
+  aperte, documenti da revisionare, prossima visita) e `GET /nutritionist/dashboard` (pazienti, documenti
+  pending, escalation, protocolli da validare, visite in arrivo, guadagni mese/totale).
+- Ancora da fare: validazione diete/protocolli per-paziente (coda), app front-end nutrizionista.
 
 ## Backoffice (React + Vite)
 - Dashboard (moduli configurabili/trascinabili, grafici con assi mesi + tooltip), CRM/Lead,
@@ -116,7 +123,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
 | 5 | Motore di personalizzazione menu — v1 "naive" | ✅ nucleo v1 (esclusioni+sostituzione+learning+selezione); avanzato (DayCombo, causale) da fare |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | 🟡 stati + selezione modulata fatti |
-| 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | ⬜ |
+| 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard fatti (clinica già in health-area) |
 | 8 | Shop / abbonamenti / provvigioni | ⬜ |
 | 9 | Certificazione unicità (seed, collision check, registro firmato) | ⬜ |
 
