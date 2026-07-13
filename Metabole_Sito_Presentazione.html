@@ -6,12 +6,14 @@
 <meta name="description" content="Al centro ci sei tu. Gaia organizza il resto — menu, coach, nutrizionista, eventi e imprevisti — con persone vere sempre al tuo fianco.">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;600&family=Noto+Sans+SC:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{--teal:#12A386;--deep:#0E5A49;--coral:#E8825A;--violet:#6C4CD6;--gold:#E8A11B;--ink:#16302A;--mut:#61736D;--bg:#FBFAF6;--card:#fff;--bd:#EAECE5;--serif:'Fraunces',Georgia,serif}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:'Inter',-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;-webkit-font-smoothing:antialiased}
+html[lang=ar] body{font-family:'Noto Sans Arabic','Inter',sans-serif}
+html[lang=zh] body{font-family:'Noto Sans SC','Inter',sans-serif}
 a{color:inherit;text-decoration:none}
 img{display:block;max-width:100%}
 .wrap{max-width:1120px;margin:0 auto;padding:0 22px}
@@ -23,24 +25,25 @@ img{display:block;max-width:100%}
 .kick{color:var(--teal);font-weight:600;font-size:13px;letter-spacing:1.2px;text-transform:uppercase}
 h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.3px;line-height:1.12}
 h2{font-size:38px;margin:10px 0 12px}
-.lead{color:var(--mut);font-size:17px;max-width:620px}
-section{padding:70px 0}
-/* header */
+.lead{color:var(--mut);font-size:17px;max-width:640px}
+section{padding:68px 0}
 header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd)}
-.nav{display:flex;align-items:center;gap:26px;height:68px}
+.nav{display:flex;align-items:center;gap:22px;height:68px}
 .logo{font-family:var(--serif);font-weight:600;font-size:22px;color:var(--deep)}
 .logo span{color:var(--violet)}
-.nav .links{display:flex;gap:24px;margin-left:auto;font-size:14.5px;color:var(--mut);font-weight:500}
+.nav .links{display:flex;gap:22px;margin-left:auto;font-size:14.5px;color:var(--mut);font-weight:500}
 .nav .links a:hover{color:var(--deep)}
+.langsel{display:flex;align-items:center;gap:6px;border:1.5px solid var(--bd);border-radius:100px;padding:6px 10px;background:#fff}
+.langsel i{font-size:16px;color:var(--mut)}
+.langsel select{border:0;background:transparent;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--deep);cursor:pointer;outline:none}
 /* hero */
-.hero{padding:60px 0 24px;overflow:hidden}
+.hero{padding:56px 0 20px;overflow:hidden}
 .hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center}
 .h-badge{display:inline-flex;align-items:center;gap:8px;background:#EAF3EE;color:var(--deep);font-size:13px;font-weight:600;padding:7px 14px;border-radius:100px}
-.hero h1{font-size:58px;margin:18px 0 16px}
+.hero h1{font-size:56px;margin:18px 0 16px}
 .hero h1 em{font-style:normal;color:var(--teal)}
 .hero .lead{font-size:19px}
 .hero .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
-/* ORBIT animation */
 .orbit{position:relative;width:min(460px,92vw);aspect-ratio:1;margin:0 auto}
 .orbit svg{position:absolute;inset:0;width:100%;height:100%}
 .ring{fill:none;stroke:#CDE7DE;stroke-width:1.5;stroke-dasharray:3 8;transform-origin:200px 200px;animation:spin 40s linear infinite}
@@ -49,13 +52,9 @@ header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdro
 .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38%;aspect-ratio:1;border-radius:50%;overflow:hidden;border:5px solid #fff;box-shadow:0 18px 40px rgba(16,64,58,.22);z-index:3}
 .center img{width:100%;height:100%;object-fit:cover}
 .center .lbl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(14,64,58,.72));color:#fff;font-size:12px;font-weight:600;text-align:center;padding:14px 4px 7px}
-.node{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--bd);border-radius:14px;padding:9px 13px;display:flex;align-items:center;gap:8px;box-shadow:0 10px 26px rgba(16,64,58,.12);z-index:4;font-size:13px;font-weight:600;white-space:nowrap;animation:float 6s ease-in-out infinite}
+.node{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--bd);border-radius:14px;padding:9px 13px;display:flex;align-items:center;gap:8px;box-shadow:0 10px 26px rgba(16,64,58,.12);z-index:4;font-size:13px;font-weight:600;white-space:nowrap;color:#0E5A49;animation:float 6s ease-in-out infinite}
 .node i{font-size:18px}
-.node.n1{left:50%;top:9%;animation-delay:0s}
-.node.n2{left:88%;top:32%;animation-delay:.8s}
-.node.n3{left:82%;top:80%;animation-delay:1.6s}
-.node.n4{left:18%;top:80%;animation-delay:2.4s}
-.node.n5{left:12%;top:32%;animation-delay:3.2s}
+.node.n1{left:50%;top:9%}.node.n2{left:88%;top:32%;animation-delay:.8s}.node.n3{left:82%;top:80%;animation-delay:1.6s}.node.n4{left:18%;top:80%;animation-delay:2.4s}.node.n5{left:12%;top:32%;animation-delay:3.2s}
 .gwrap{position:absolute;inset:0;transform-origin:50% 50%;animation:spin 18s linear infinite;z-index:5}
 .gaia{position:absolute;left:50%;top:6%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;background:linear-gradient(150deg,#8FE0C6,#12A386);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(18,163,134,.4);animation:cspin 18s linear infinite}
 .gaia i{color:#fff;font-size:26px}
@@ -63,52 +62,56 @@ header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdro
 @keyframes cspin{to{transform:translate(-50%,-50%) rotate(-360deg)}}
 @keyframes float{0%,100%{translate:0 0}50%{translate:0 -7px}}
 @media(prefers-reduced-motion:reduce){.ring,.ring2,.gwrap,.gaia,.node{animation:none}}
-.orbit-cap{text-align:center;margin-top:14px;color:var(--mut);font-size:14px}
-/* photo band */
+.orbit-cap{text-align:center;margin-top:12px;color:var(--mut);font-size:14px}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.stat{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px;text-align:center}
+.stat b{font-family:var(--serif);font-size:40px;color:var(--teal);display:block;line-height:1}
+.stat span{font-size:13.5px;color:var(--mut);display:block;margin-top:6px}
+.stats-note{text-align:center;color:var(--mut);font-size:13px;margin-top:14px;max-width:720px;margin-left:auto;margin-right:auto}
+/* concept / cards */
+.concept{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px}
+.cc{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px}
+.cc .ic{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.cc h3{font-size:19px;margin-bottom:6px}.cc p{font-size:14.5px;color:var(--mut)}
+/* band */
 .band{position:relative;border-radius:26px;overflow:hidden;min-height:340px;display:flex;align-items:flex-end}
 .band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .band .ov{position:relative;background:linear-gradient(transparent,rgba(11,40,34,.82));color:#fff;padding:40px 32px;width:100%}
-.band .ov h2{color:#fff;font-size:30px}
-.band .ov p{color:#DCEAE4;max-width:520px}
-/* concept row */
-.concept{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:30px}
-.cc{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px}
-.cc .ic{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
-.cc h3{font-family:var(--serif);font-size:19px;margin-bottom:6px}
-.cc p{font-size:14.5px;color:var(--mut)}
+.band .ov h2{color:#fff;font-size:30px}.band .ov p{color:#DCEAE4;max-width:520px}
+/* culture */
+.cult{background:#0E403A;border-radius:26px;padding:40px;color:#fff}
+.cult h2{color:#fff}.cult .lead{color:#CFE7DE}
+.cult .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:24px}
+.cult .it{background:rgba(255,255,255,.08);border-radius:16px;padding:18px}
+.cult .it i{font-size:24px;color:#8FE0C6}
+.cult .it b{display:block;margin:10px 0 4px;font-family:var(--serif)}
+.cult .it p{font-size:13.5px;color:#CFE7DE}
 /* team */
 .lead-person{display:grid;grid-template-columns:.85fr 1.15fr;gap:34px;align-items:center;background:var(--card);border:1px solid var(--bd);border-radius:26px;padding:30px;margin-top:26px}
 .lead-person .pic{border-radius:20px;overflow:hidden;aspect-ratio:4/5}
 .lead-person .pic img{width:100%;height:100%;object-fit:cover}
 .cred{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .cred span{background:#EAF3EE;color:var(--deep);font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:100px}
-.coaches{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:24px}
+.coaches{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:22px}
 .coach{text-align:center}
 .coach .pic{border-radius:18px;overflow:hidden;aspect-ratio:1;margin-bottom:9px}
 .coach .pic img{width:100%;height:100%;object-fit:cover}
 .coach b{font-size:13.5px;display:block}
-.coach small{font-size:11.5px;color:var(--mut)}
-/* steps */
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:28px}
-.step{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:22px}
-.step .n{width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;font-family:var(--serif);font-weight:600;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:14px}
-.step h3{font-family:var(--serif);font-size:17px;margin-bottom:5px}
-.step p{font-size:13.5px;color:var(--mut)}
 /* day */
 .day{display:grid;grid-template-columns:1.1fr .9fr;gap:34px;align-items:center}
 .day .pic{border-radius:24px;overflow:hidden;aspect-ratio:5/4}
 .day .pic img{width:100%;height:100%;object-fit:cover}
 .time{display:flex;gap:12px;margin:14px 0;align-items:flex-start}
-.time .t{font-family:var(--serif);color:var(--teal);font-weight:600;min-width:56px}
-.time p{font-size:14.5px;color:var(--ink)}
+.time .t{font-family:var(--serif);color:var(--teal);font-weight:600;min-width:64px}
+.time p{font-size:14.5px}
 /* stories */
 .tst{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px}
 .quote{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px}
 .quote .row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .quote .row .pic{width:48px;height:48px;border-radius:50%;overflow:hidden;flex:none}
 .quote .row .pic img{width:100%;height:100%;object-fit:cover}
-.quote .row b{font-size:14px;display:block}
-.quote .row small{font-size:12px;color:var(--mut)}
+.quote .row b{font-size:14px;display:block}.quote .row small{font-size:12px;color:var(--mut)}
 .quote p{font-size:15px;color:#28433c;font-family:var(--serif);font-weight:500;line-height:1.45}
 /* lead */
 .lead-band{background:linear-gradient(150deg,#EAF6F0,#fff);border:1px solid var(--bd);border-radius:26px;padding:36px;display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:center}
@@ -118,173 +121,193 @@ header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdro
 .form .btn{width:100%;justify-content:center;margin-top:14px}
 .form .ok{display:none;background:#EAF3EE;color:var(--deep);border-radius:12px;padding:14px;font-size:14px;font-weight:600;margin-top:12px}
 /* faq + final */
-.faq{margin-top:24px;max-width:780px}
+.faq{margin-top:24px;max-width:800px}
 .qa{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:17px 20px;margin-bottom:11px}
-.qa b{display:block;font-size:15.5px;margin-bottom:5px;font-family:var(--serif)}
-.qa p{font-size:14px;color:var(--mut)}
+.qa b{display:block;font-size:15.5px;margin-bottom:5px;font-family:var(--serif)}.qa p{font-size:14px;color:var(--mut)}
 .final{position:relative;border-radius:28px;overflow:hidden;padding:60px 34px;text-align:center;color:#fff}
 .final img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .final .ov{position:absolute;inset:0;background:linear-gradient(150deg,rgba(14,64,58,.9),rgba(18,163,134,.82))}
-.final .c{position:relative}
-.final h2{color:#fff;font-size:36px}.final p{color:#DCF0E9;max-width:560px;margin:8px auto 22px}
+.final .c{position:relative}.final h2{color:#fff;font-size:36px}.final p{color:#DCF0E9;max-width:560px;margin:8px auto 22px}
 footer{padding:36px 0;color:var(--mut);font-size:13px;border-top:1px solid var(--bd);margin-top:40px}
-.foot{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
-.foot .sp{margin-left:auto}
-@media(max-width:880px){.hero-grid,.lead-person,.day,.lead-band{grid-template-columns:1fr}.concept,.steps,.tst{grid-template-columns:1fr 1fr}.coaches{grid-template-columns:repeat(3,1fr)}.nav .links{display:none}.hero h1{font-size:42px}h2{font-size:30px}}
-@media(max-width:520px){.concept,.steps,.tst{grid-template-columns:1fr}.coaches{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:34px}}
+.foot{display:flex;flex-wrap:wrap;gap:18px;align-items:center}.foot .sp{margin-left:auto}
+/* cookie banner */
+.cookie{position:fixed;left:16px;right:16px;bottom:16px;z-index:60;background:#0E403A;color:#fff;border-radius:18px;padding:18px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;box-shadow:0 20px 50px rgba(0,0,0,.28);max-width:820px;margin:0 auto}
+.cookie p{font-size:13.5px;color:#DCEAE4;flex:1;min-width:220px}
+.cookie a{color:#8FE0C6;text-decoration:underline}
+.cookie .b{display:flex;gap:10px}
+.cookie button{border:0;border-radius:100px;padding:10px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.cookie .acc{background:#12A386;color:#fff}.cookie .rej{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.4)}
+/* rtl */
+html[dir=rtl] .nav .links{margin-left:0;margin-right:auto}
+html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
+@media(max-width:880px){.hero-grid,.lead-person,.day,.lead-band{grid-template-columns:1fr}.stats,.concept,.tst{grid-template-columns:1fr 1fr}.cult .grid{grid-template-columns:1fr 1fr}.coaches{grid-template-columns:repeat(3,1fr)}.nav .links{display:none}.hero h1{font-size:42px}h2{font-size:30px}}
+@media(max-width:520px){.stats,.concept,.tst,.cult .grid{grid-template-columns:1fr}.coaches{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:34px}}
 </style></head>
 <body>
 
 <header><div class="wrap nav">
   <div class="logo">Metabole<span>AI</span></div>
   <div class="links">
-    <a href="#concept">Come funziona</a>
-    <a href="#team">Chi ti segue</a>
-    <a href="#giorno">Un giorno con te</a>
-    <a href="#storie">Storie</a>
+    <a href="#concept" data-i18n="nav_how">Come funziona</a>
+    <a href="#culture" data-i18n="nav_culture">Per ogni cultura</a>
+    <a href="#team" data-i18n="nav_team">Chi ti segue</a>
+    <a href="#stories" data-i18n="nav_stories">Storie</a>
   </div>
-  <a class="btn p" href="https://app.metabole.eu/">Inizia</a>
+  <div class="langsel"><i class="ti ti-world"></i><select id="lang" aria-label="Lingua">
+    <option value="it">Italiano</option><option value="en">English</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ru">Русский</option><option value="zh">中文</option><option value="ar">العربية</option>
+  </select></div>
+  <a class="btn p" href="https://app.metabole.eu/" data-i18n="nav_start">Inizia</a>
 </div></header>
 
 <section class="hero"><div class="wrap hero-grid">
   <div>
-    <span class="h-badge"><i class="ti ti-sparkles"></i> Al centro ci sei tu</span>
-    <h1>Tu vivi.<br><em>Gaia</em> organizza il resto.</h1>
-    <p class="lead">Menu, coach, nutrizionista, eventi e imprevisti: il tuo percorso ruota intorno a te, guidato da persone vere e da un'assistente sempre presente.</p>
+    <span class="h-badge"><i class="ti ti-sparkles"></i> <span data-i18n="hero_badge">Al centro ci sei tu</span></span>
+    <h1 data-i18n-html="hero_title">Tu vivi.<br><em>Gaia</em> organizza il resto.</h1>
+    <p class="lead" data-i18n="hero_lead">Menu, coach, nutrizionista, eventi e imprevisti: il tuo percorso ruota intorno a te, guidato da persone vere e da un'assistente sempre presente.</p>
     <div class="actions">
-      <a class="btn p" href="https://app.metabole.eu/">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
-      <a class="btn g" href="#team">Conosci chi ti segue</a>
+      <a class="btn p" href="https://app.metabole.eu/"><span data-i18n="hero_cta1">Inizia il percorso</span> <i class="ti ti-arrow-right"></i></a>
+      <a class="btn g" href="#team" data-i18n="hero_cta2">Conosci chi ti segue</a>
     </div>
   </div>
   <div>
     <div class="orbit">
       <svg viewBox="0 0 400 400" aria-hidden="true">
-        <circle class="ring" cx="200" cy="200" r="150"></circle>
-        <circle class="ring2" cx="200" cy="200" r="110"></circle>
-        <line class="spoke" x1="200" y1="200" x2="200" y2="52"></line>
-        <line class="spoke" x1="200" y1="200" x2="330" y2="128"></line>
-        <line class="spoke" x1="200" y1="200" x2="312" y2="312"></line>
-        <line class="spoke" x1="200" y1="200" x2="88" y2="312"></line>
-        <line class="spoke" x1="200" y1="200" x2="70" y2="128"></line>
+        <circle class="ring" cx="200" cy="200" r="150"></circle><circle class="ring2" cx="200" cy="200" r="110"></circle>
+        <line class="spoke" x1="200" y1="200" x2="200" y2="52"></line><line class="spoke" x1="200" y1="200" x2="330" y2="128"></line><line class="spoke" x1="200" y1="200" x2="312" y2="312"></line><line class="spoke" x1="200" y1="200" x2="88" y2="312"></line><line class="spoke" x1="200" y1="200" x2="70" y2="128"></line>
       </svg>
       <div class="center">
-        <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80" alt="Tu, al centro del tuo percorso" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboleyou/400/400'">
-        <div class="lbl">Tu</div>
+        <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboleyou/400/400'">
+        <div class="lbl" data-i18n="node_you">Tu</div>
       </div>
-      <div class="node n1" style="color:#0E5A49"><i class="ti ti-salad" style="color:var(--teal)"></i> Menu</div>
-      <div class="node n2" style="color:#0E5A49"><i class="ti ti-heart-handshake" style="color:var(--coral)"></i> Coach</div>
-      <div class="node n3" style="color:#0E5A49"><i class="ti ti-stethoscope" style="color:#274b73"></i> Nutrizionista</div>
-      <div class="node n4" style="color:#0E5A49"><i class="ti ti-calendar-heart" style="color:var(--gold)"></i> Eventi</div>
-      <div class="node n5" style="color:#0E5A49"><i class="ti ti-bolt" style="color:var(--violet)"></i> Imprevisti</div>
+      <div class="node n1"><i class="ti ti-salad" style="color:var(--teal)"></i> <span data-i18n="node_menu">Menu</span></div>
+      <div class="node n2"><i class="ti ti-heart-handshake" style="color:var(--coral)"></i> <span data-i18n="node_coach">Coach</span></div>
+      <div class="node n3"><i class="ti ti-stethoscope" style="color:#274b73"></i> <span data-i18n="node_nutri">Nutrizionista</span></div>
+      <div class="node n4"><i class="ti ti-calendar-heart" style="color:var(--gold)"></i> <span data-i18n="node_events">Eventi</span></div>
+      <div class="node n5"><i class="ti ti-bolt" style="color:var(--violet)"></i> <span data-i18n="node_unexpected">Imprevisti</span></div>
       <div class="gwrap"><div class="gaia" title="Gaia"><i class="ti ti-mood-smile"></i></div></div>
     </div>
-    <div class="orbit-cap">Gaia connette tutto ciò che ti serve, intorno a te.</div>
+    <div class="orbit-cap" data-i18n="orbit_cap">Gaia connette tutto ciò che ti serve, intorno a te.</div>
   </div>
 </div></section>
 
+<section style="padding-top:20px"><div class="wrap">
+  <div class="stats">
+    <div class="stat"><b data-i18n="stat1n">20+</b><span data-i18n="stat1l">anni di esperienza del team</span></div>
+    <div class="stat"><b data-i18n="stat2n">20.000+</b><span data-i18n="stat2l">clienti seguiti</span></div>
+    <div class="stat"><b data-i18n="stat3n">80.000+</b><span data-i18n="stat3l">persone raggiunte</span></div>
+  </div>
+  <p class="stats-note" data-i18n="stats_note">Numeri maturati attraverso i nostri prodotti di nutrizione e benessere — tra cui Nutriamo — e oggi con MetaboleAI, nell'ambito di Mosaico Experiences SA.</p>
+</div></section>
+
 <section id="concept"><div class="wrap">
-  <div class="kick">L'idea</div>
-  <h2>Un percorso che gira intorno alla tua vita</h2>
-  <p class="lead">Non sei tu a doverti adattare a una dieta. È il percorso ad adattarsi a te — ogni giorno.</p>
+  <div class="kick" data-i18n="concept_k">L'idea</div>
+  <h2 data-i18n="concept_t">Un percorso che gira intorno alla tua vita</h2>
+  <p class="lead" data-i18n="concept_lead">Non sei tu a doverti adattare a una dieta. È il percorso ad adattarsi a te — ogni giorno.</p>
   <div class="concept">
-    <div class="cc"><div class="ic" style="background:#EAF7F2;color:#12A386"><i class="ti ti-salad" style="font-size:24px"></i></div><h3>Il menu su misura</h3><p>Gaia compone i tuoi pasti su gusti e stagione; il nutrizionista li valida. Gustoso, senza fame.</p></div>
-    <div class="cc"><div class="ic" style="background:#FBEEE7;color:#E8825A"><i class="ti ti-heart-handshake" style="font-size:24px"></i></div><h3>Le persone che ci sono</h3><p>Una coach vera che ti segue e un nutrizionista che presidia la tua salute. Non solo notifiche.</p></div>
-    <div class="cc"><div class="ic" style="background:#EFEAF9;color:#6C4CD6"><i class="ti ti-calendar-heart" style="font-size:24px"></i></div><h3>La vita, com'è</h3><p>Un matrimonio, le vacanze, una giornata storta: Gaia riorganizza tutto, senza sensi di colpa.</p></div>
+    <div class="cc"><div class="ic" style="background:#EAF7F2;color:#12A386"><i class="ti ti-salad" style="font-size:24px"></i></div><h3 data-i18n="cc1t">Il menu su misura</h3><p data-i18n="cc1p">Gaia compone i tuoi pasti su gusti e stagione; il nutrizionista li valida. Gustoso, senza fame.</p></div>
+    <div class="cc"><div class="ic" style="background:#FBEEE7;color:#E8825A"><i class="ti ti-heart-handshake" style="font-size:24px"></i></div><h3 data-i18n="cc2t">Le persone che ci sono</h3><p data-i18n="cc2p">Una coach vera che ti segue e un nutrizionista che presidia la tua salute. Non solo notifiche.</p></div>
+    <div class="cc"><div class="ic" style="background:#EFEAF9;color:#6C4CD6"><i class="ti ti-calendar-heart" style="font-size:24px"></i></div><h3 data-i18n="cc3t">La vita, com'è</h3><p data-i18n="cc3p">Un matrimonio, le vacanze, una giornata storta: Gaia riorganizza tutto, senza sensi di colpa.</p></div>
   </div>
 </div></section>
 
 <section><div class="wrap">
   <div class="band">
-    <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1400&q=80" alt="Cibo sano e colorato" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metabolefood/1400/700'">
-    <div class="ov">
-      <div class="kick" style="color:#BFE9DC">A tavola</div>
-      <h2>Mangi bene. Davvero.</h2>
-      <p>Cibo di stagione, porzioni vere, tante ricette. Il piacere fa parte del percorso — è ciò che lo rende sostenibile.</p>
+    <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1400&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metabolefood/1400/700'">
+    <div class="ov"><div class="kick" style="color:#BFE9DC" data-i18n="band_k">A tavola</div><h2 data-i18n="band_t">Mangi bene. Davvero.</h2><p data-i18n="band_p">Cibo di stagione, porzioni vere, tante ricette. Il piacere fa parte del percorso — è ciò che lo rende sostenibile.</p></div>
+  </div>
+</div></section>
+
+<section id="culture"><div class="wrap">
+  <div class="cult">
+    <div class="kick" style="color:#8FE0C6" data-i18n="cult_k">Per ogni cultura</div>
+    <h2 data-i18n="cult_t">Il tuo percorso rispetta chi sei</h2>
+    <p class="lead" data-i18n="cult_lead">Ogni persona ha la propria cultura, fede e sensibilità a tavola. I nostri menu si adattano davvero — le regole religiose e culturali non sono un'eccezione, sono parte del percorso.</p>
+    <div class="grid">
+      <div class="it"><i class="ti ti-moon"></i><b data-i18n="cult1t">Halal</b><p data-i18n="cult1p">Nessun maiale, nessun crostaceo e ingredienti conformi, per chi segue l'alimentazione musulmana.</p></div>
+      <div class="it"><i class="ti ti-star-of-david"></i><b data-i18n="cult2t">Kosher e altre fedi</b><p data-i18n="cult2p">Rispettiamo le prescrizioni alimentari di diverse tradizioni religiose.</p></div>
+      <div class="it"><i class="ti ti-plant-2"></i><b data-i18n="cult3t">Vegetariano e vegano</b><p data-i18n="cult3p">Percorsi completi anche senza carne o senza alimenti di origine animale.</p></div>
+      <div class="it"><i class="ti ti-alert-triangle"></i><b data-i18n="cult4t">Allergie e intolleranze</b><p data-i18n="cult4p">Glutine, lattosio, frutta secca e altro: escludiamo in sicurezza ciò che ti fa male.</p></div>
     </div>
   </div>
 </div></section>
 
 <section id="team"><div class="wrap">
-  <div class="kick">Chi ti segue</div>
-  <h2>Persone vere, non un algoritmo</h2>
-  <p class="lead">Dietro MetaboleAI c'è un team clinico reale. È la parte che fa la differenza.</p>
-
+  <div class="kick" data-i18n="team_k">Chi ti segue</div>
+  <h2 data-i18n="team_t">Persone vere, non un algoritmo</h2>
+  <p class="lead" data-i18n="team_lead">Dietro MetaboleAI c'è un team clinico reale. È la parte che fa la differenza.</p>
   <div class="lead-person">
     <div class="pic"><img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=600&q=80" alt="Dott. Salvatore Russolillo" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboledoc/600/750'"></div>
     <div>
-      <div class="kick">Responsabile scientifico</div>
+      <div class="kick" data-i18n="team_role">Responsabile scientifico</div>
       <h2 style="font-size:28px;margin-top:6px">Dott. Salvatore Russolillo</h2>
-      <p class="lead">Guida il team e valida ogni percorso. Un approccio che unisce la scienza dell'alimentazione all'attenzione per la persona.</p>
-      <div class="cred"><span>Nutrizionista</span><span>Tecnologo alimentare</span><span>Coach</span><span>Psicologo</span></div>
+      <p class="lead" data-i18n="team_bio">Guida il team e valida ogni percorso. Un approccio che unisce la scienza dell'alimentazione all'attenzione per la persona.</p>
+      <div class="cred"><span data-i18n="cred1">Nutrizionista</span><span data-i18n="cred2">Tecnologo alimentare</span><span data-i18n="cred3">Coach</span><span data-i18n="cred4">Psicologo</span></div>
     </div>
   </div>
-
   <div style="margin-top:36px">
-    <div class="kick">Il team</div>
-    <h2 style="font-size:24px">Otto coach e una supervisora, pronte a seguirti</h2>
+    <div class="kick" data-i18n="coach_k">Il team</div>
+    <h2 style="font-size:24px" data-i18n="coach_t">Otto coach e una supervisora, pronte a seguirti</h2>
     <div class="coaches">
-      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach1/300/300'"></div><b>Coach</b><small>La tua guida</small></div>
-      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach2/300/300'"></div><b>Coach</b><small>Ascolto e cura</small></div>
-      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach3/300/300'"></div><b>Coach</b><small>Ogni giorno</small></div>
-      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach4/300/300'"></div><b>Coach</b><small>Al tuo fianco</small></div>
-      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=300&q=80" alt="Supervisora" onerror="this.onerror=null;this.src='https://picsum.photos/seed/superv/300/300'"></div><b>Supervisora</b><small>Coordina il team</small></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach1/300/300'"></div><b data-i18n="coach_l">Coach</b></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=300&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach2/300/300'"></div><b data-i18n="coach_l">Coach</b></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach3/300/300'"></div><b data-i18n="coach_l">Coach</b></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=300&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach4/300/300'"></div><b data-i18n="coach_l">Coach</b></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=300&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/superv/300/300'"></div><b data-i18n="superv_l">Supervisora</b></div>
     </div>
-    <p class="lead" style="font-size:13.5px;margin-top:14px"><i class="ti ti-info-circle" style="vertical-align:-2px"></i> Foto segnaposto: sostituire con le foto e i nomi reali delle 8 coach + supervisora.</p>
   </div>
 </div></section>
 
 <section id="giorno"><div class="wrap">
-  <div class="kick">Un giorno con te</div>
-  <h2>Come Gaia ti accompagna</h2>
+  <div class="kick" data-i18n="day_k">Un giorno con te</div>
+  <h2 data-i18n="day_t">Come Gaia ti accompagna</h2>
   <div class="day" style="margin-top:24px">
-    <div class="pic"><img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=80" alt="Una giornata sana" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboleday/900/720'"></div>
+    <div class="pic"><img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboleday/900/720'"></div>
     <div>
-      <div class="time"><span class="t">08:00</span><p>"Buongiorno! Ecco la colazione di oggi, cucita sui tuoi gusti."</p></div>
-      <div class="time"><span class="t">13:00</span><p>Mangi fuori? Gaia ti dà la bussola per scegliere bene al ristorante.</p></div>
-      <div class="time"><span class="t">18:00</span><p>Giornata storta: nessun problema, il piano si riorganizza da solo.</p></div>
-      <div class="time"><span class="t">Sempre</span><p>La coach c'è quando serve; il nutrizionista veglia sulla tua salute.</p></div>
+      <div class="time"><span class="t">08:00</span><p data-i18n="day1">"Buongiorno! Ecco la colazione di oggi, cucita sui tuoi gusti."</p></div>
+      <div class="time"><span class="t">13:00</span><p data-i18n="day2">Mangi fuori? Gaia ti dà la bussola per scegliere bene al ristorante.</p></div>
+      <div class="time"><span class="t">18:00</span><p data-i18n="day3">Giornata storta: nessun problema, il piano si riorganizza da solo.</p></div>
+      <div class="time"><span class="t" data-i18n="day_always_t">Sempre</span><p data-i18n="day4">La coach c'è quando serve; il nutrizionista veglia sulla tua salute.</p></div>
     </div>
   </div>
 </div></section>
 
-<section id="storie"><div class="wrap">
-  <div class="kick">Storie vere</div>
-  <h2>Le parole di chi è seguito da noi</h2>
-  <p class="lead">Nessun numero, nessuna promessa: solo come ci si sente.</p>
+<section id="stories"><div class="wrap">
+  <div class="kick" data-i18n="stories_k">Storie vere</div>
+  <h2 data-i18n="stories_t">Le parole di chi è seguito da noi</h2>
+  <p class="lead" data-i18n="stories_lead">Nessun numero, nessuna promessa: solo come ci si sente.</p>
   <div class="tst">
-    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80" alt="Martina" onerror="this.onerror=null;this.src='https://picsum.photos/seed/martina/200/200'"></div><div><b>Martina</b><small>41 anni</small></div></div><p>"Finalmente mi sento seguita davvero. La coach c'è, e questo cambia tutto."</p></div>
-    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=200&q=80" alt="Elena" onerror="this.onerror=null;this.src='https://picsum.photos/seed/elena/200/200'"></div><div><b>Elena</b><small>35 anni</small></div></div><p>"Mangio con gusto e le giornate storte non mi buttano più giù."</p></div>
-    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80" alt="Giulia" onerror="this.onerror=null;this.src='https://picsum.photos/seed/giulia/200/200'"></div><div><b>Giulia</b><small>38 anni</small></div></div><p>"Un nutrizionista vero e Gaia sempre lì: mi sento in mani sicure."</p></div>
+    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/martina/200/200'"></div><div><b>Martina</b><small>41</small></div></div><p data-i18n="q1">"Finalmente mi sento seguita davvero. La coach c'è, e questo cambia tutto."</p></div>
+    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=200&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/elena/200/200'"></div><div><b>Elena</b><small>35</small></div></div><p data-i18n="q2">"Mangio con gusto e le giornate storte non mi buttano più giù."</p></div>
+    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/giulia/200/200'"></div><div><b>Giulia</b><small>38</small></div></div><p data-i18n="q3">"Un nutrizionista vero e Gaia sempre lì: mi sento in mani sicure."</p></div>
   </div>
-  <p class="lead" style="font-size:13.5px;margin-top:14px"><i class="ti ti-info-circle" style="vertical-align:-2px"></i> Foto e testimonianze segnaposto: sostituire con quelle reali (con consenso). Niente prima/dopo.</p>
 </div></section>
 
 <section><div class="wrap">
   <div class="lead-band">
     <div>
-      <div class="kick">Parliamone</div>
-      <h2>Vuoi capire se fa per te?</h2>
-      <p class="lead">Lasciaci un contatto: ti raccontiamo come funziona, con calma e senza impegno. Oppure inizia subito nell'app.</p>
-      <a class="btn p" href="https://app.metabole.eu/" style="margin-top:18px">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
+      <div class="kick" data-i18n="lead_k">Parliamone</div>
+      <h2 data-i18n="lead_t">Vuoi capire se fa per te?</h2>
+      <p class="lead" data-i18n="lead_lead">Lasciaci un contatto: ti raccontiamo come funziona, con calma e senza impegno. Oppure inizia subito nell'app.</p>
+      <a class="btn p" href="https://app.metabole.eu/" style="margin-top:18px" data-i18n="lead_cta">Inizia il percorso</a>
     </div>
     <form class="form" id="leadForm" data-endpoint="">
-      <label>Nome</label><input name="nome" placeholder="Il tuo nome" required>
-      <label>Email</label><input name="email" type="email" placeholder="nome@email.it" required>
-      <div class="chk"><input type="checkbox" required style="width:auto;margin-top:2px"><span>Acconsento a essere ricontattata/o e al trattamento dei dati secondo l'informativa privacy.</span></div>
-      <button class="btn p" type="submit">Voglio saperne di più</button>
-      <div class="ok" id="leadOk"><i class="ti ti-check"></i> Grazie! Ti ricontatteremo presto.</div>
+      <label data-i18n="f_nome">Nome</label><input name="nome" required>
+      <label data-i18n="f_email">Email</label><input name="email" type="email" required>
+      <div class="chk"><input type="checkbox" required style="width:auto;margin-top:2px"><span data-i18n-html="f_consent">Acconsento a essere ricontattata/o e al trattamento dei dati secondo l'<a href="Metabole_Privacy.html" target="_blank" style="color:var(--teal)">informativa privacy</a>.</span></div>
+      <button class="btn p" type="submit" data-i18n="f_submit">Voglio saperne di più</button>
+      <div class="ok" id="leadOk"><i class="ti ti-check"></i> <span data-i18n="f_ok">Grazie! Ti ricontatteremo presto.</span></div>
     </form>
   </div>
 </div></section>
 
 <section id="faq"><div class="wrap">
-  <div class="kick">Domande</div>
-  <h2>Le risposte che cerchi</h2>
+  <div class="kick" data-i18n="faq_k">Domande</div>
+  <h2 data-i18n="faq_t">Le risposte che cerchi</h2>
   <div class="faq">
-    <div class="qa"><b>È l'ennesima dieta?</b><p>No: è un percorso graduale con persone vere che non ti mollano, pensato per durare.</p></div>
-    <div class="qa"><b>Avrò sempre fame?</b><p>No. Porzioni vere e cibo di stagione: l'equilibrio, non la privazione.</p></div>
-    <div class="qa"><b>Ci sono persone vere o solo un'app?</b><p>Entrambe: un nutrizionista responsabile, coach reali e l'AI che li affianca.</p></div>
-    <div class="qa"><b>La mia salute è al sicuro?</b><p>Sì: i dati sanitari sono riservati e visti solo dal nutrizionista, che presidia la parte clinica.</p></div>
+    <div class="qa"><b data-i18n="faq_q1">È l'ennesima dieta?</b><p data-i18n="faq_a1">No: è un percorso graduale con persone vere che non ti mollano, pensato per durare.</p></div>
+    <div class="qa"><b data-i18n="faq_q2">Avrò sempre fame?</b><p data-i18n="faq_a2">No. Porzioni vere e cibo di stagione: l'equilibrio, non la privazione.</p></div>
+    <div class="qa"><b data-i18n="faq_q3">Rispettate le mie esigenze alimentari?</b><p data-i18n="faq_a3">Sì: halal, kosher, vegetariano, vegano, allergie e intolleranze. Il percorso si adatta a te.</p></div>
+    <div class="qa"><b data-i18n="faq_q4">La mia salute è al sicuro?</b><p data-i18n="faq_a4">Sì: i dati sanitari sono riservati e visti solo dal nutrizionista, che presidia la parte clinica.</p></div>
   </div>
 </div></section>
 
@@ -292,29 +315,55 @@ footer{padding:36px 0;color:var(--mut);font-size:13px;border-top:1px solid var(-
   <div class="final">
     <img src="https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&w=1400&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metabolefinal/1400/600'">
     <div class="ov"></div>
-    <div class="c">
-      <h2>Facciamo il primo passo insieme</h2>
-      <p>Persone vere, nessuna fretta e un percorso che è davvero tuo.</p>
-      <a class="btn w" href="https://app.metabole.eu/">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
-    </div>
+    <div class="c"><h2 data-i18n="final_t">Facciamo il primo passo insieme</h2><p data-i18n="final_p">Persone vere, nessuna fretta e un percorso che è davvero tuo.</p><a class="btn w" href="https://app.metabole.eu/" data-i18n="final_cta">Inizia il percorso</a></div>
   </div>
 </div></section>
 
 <footer><div class="wrap foot">
   <div class="logo" style="font-size:18px">Metabole<span>AI</span></div>
-  <a href="#">Informativa privacy</a><a href="#">Termini</a><a href="#">Cookie</a>
-  <span class="sp">© 2026 MetaboleAI · Percorso di benessere · Contenuti per maggiorenni.</span>
+  <a href="Metabole_Privacy.html" data-i18n="foot_privacy">Informativa privacy</a>
+  <a href="Metabole_Termini.html" data-i18n="foot_terms">Termini</a>
+  <a href="Metabole_Cookie.html" data-i18n="foot_cookie">Cookie</a>
+  <span class="sp" data-i18n="foot_copy">© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)</span>
 </div></footer>
 
+<div class="cookie" id="cookieBar" style="display:none">
+  <p data-i18n-html="cookie_text">Utilizziamo cookie tecnici e, previo consenso, cookie di terze parti. Vedi la <a href="Metabole_Cookie.html">Cookie Policy</a>.</p>
+  <div class="b"><button class="rej" id="ckRej" data-i18n="cookie_reject">Rifiuta</button><button class="acc" id="ckAcc" data-i18n="cookie_accept">Accetta</button></div>
+</div>
+
 <script>
-  var f=document.getElementById('leadForm');
-  f.addEventListener('submit',function(e){
-    e.preventDefault();
-    var ep=f.getAttribute('data-endpoint');
-    var data={nome:f.nome.value,email:f.email.value,fonte:'sito_presentazione'};
-    function done(){document.getElementById('leadOk').style.display='block';f.querySelector('button').style.display='none';}
-    if(ep){fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(done).catch(done);}
-    else{done();}
-  });
+var I18N={
+ it:{nav_how:"Come funziona",nav_culture:"Per ogni cultura",nav_team:"Chi ti segue",nav_stories:"Storie",nav_start:"Inizia",hero_badge:"Al centro ci sei tu",hero_title:"Tu vivi.<br><em>Gaia</em> organizza il resto.",hero_lead:"Menu, coach, nutrizionista, eventi e imprevisti: il tuo percorso ruota intorno a te, guidato da persone vere e da un'assistente sempre presente.",hero_cta1:"Inizia il percorso",hero_cta2:"Conosci chi ti segue",orbit_cap:"Gaia connette tutto ciò che ti serve, intorno a te.",node_you:"Tu",node_menu:"Menu",node_coach:"Coach",node_nutri:"Nutrizionista",node_events:"Eventi",node_unexpected:"Imprevisti",stat1n:"20+",stat1l:"anni di esperienza del team",stat2n:"20.000+",stat2l:"clienti seguiti",stat3n:"80.000+",stat3l:"persone raggiunte",stats_note:"Numeri maturati attraverso i nostri prodotti di nutrizione e benessere — tra cui Nutriamo — e oggi con MetaboleAI, nell'ambito di Mosaico Experiences SA.",concept_k:"L'idea",concept_t:"Un percorso che gira intorno alla tua vita",concept_lead:"Non sei tu a doverti adattare a una dieta. È il percorso ad adattarsi a te — ogni giorno.",cc1t:"Il menu su misura",cc1p:"Gaia compone i tuoi pasti su gusti e stagione; il nutrizionista li valida. Gustoso, senza fame.",cc2t:"Le persone che ci sono",cc2p:"Una coach vera che ti segue e un nutrizionista che presidia la tua salute. Non solo notifiche.",cc3t:"La vita, com'è",cc3p:"Un matrimonio, le vacanze, una giornata storta: Gaia riorganizza tutto, senza sensi di colpa.",band_k:"A tavola",band_t:"Mangi bene. Davvero.",band_p:"Cibo di stagione, porzioni vere, tante ricette. Il piacere fa parte del percorso — è ciò che lo rende sostenibile.",cult_k:"Per ogni cultura",cult_t:"Il tuo percorso rispetta chi sei",cult_lead:"Ogni persona ha la propria cultura, fede e sensibilità a tavola. I nostri menu si adattano davvero — le regole religiose e culturali non sono un'eccezione, sono parte del percorso.",cult1t:"Halal",cult1p:"Nessun maiale, nessun crostaceo e ingredienti conformi, per chi segue l'alimentazione musulmana.",cult2t:"Kosher e altre fedi",cult2p:"Rispettiamo le prescrizioni alimentari di diverse tradizioni religiose.",cult3t:"Vegetariano e vegano",cult3p:"Percorsi completi anche senza carne o senza alimenti di origine animale.",cult4t:"Allergie e intolleranze",cult4p:"Glutine, lattosio, frutta secca e altro: escludiamo in sicurezza ciò che ti fa male.",team_k:"Chi ti segue",team_t:"Persone vere, non un algoritmo",team_lead:"Dietro MetaboleAI c'è un team clinico reale. È la parte che fa la differenza.",team_role:"Responsabile scientifico",team_bio:"Guida il team e valida ogni percorso. Un approccio che unisce la scienza dell'alimentazione all'attenzione per la persona.",cred1:"Nutrizionista",cred2:"Tecnologo alimentare",cred3:"Coach",cred4:"Psicologo",coach_k:"Il team",coach_t:"Otto coach e una supervisora, pronte a seguirti",coach_l:"Coach",superv_l:"Supervisora",day_k:"Un giorno con te",day_t:"Come Gaia ti accompagna",day1:"\"Buongiorno! Ecco la colazione di oggi, cucita sui tuoi gusti.\"",day2:"Mangi fuori? Gaia ti dà la bussola per scegliere bene al ristorante.",day3:"Giornata storta: nessun problema, il piano si riorganizza da solo.",day4:"La coach c'è quando serve; il nutrizionista veglia sulla tua salute.",day_always_t:"Sempre",stories_k:"Storie vere",stories_t:"Le parole di chi è seguito da noi",stories_lead:"Nessun numero, nessuna promessa: solo come ci si sente.",q1:"\"Finalmente mi sento seguita davvero. La coach c'è, e questo cambia tutto.\"",q2:"\"Mangio con gusto e le giornate storte non mi buttano più giù.\"",q3:"\"Un nutrizionista vero e Gaia sempre lì: mi sento in mani sicure.\"",lead_k:"Parliamone",lead_t:"Vuoi capire se fa per te?",lead_lead:"Lasciaci un contatto: ti raccontiamo come funziona, con calma e senza impegno. Oppure inizia subito nell'app.",lead_cta:"Inizia il percorso",f_nome:"Nome",f_email:"Email",f_consent:"Acconsento a essere ricontattata/o e al trattamento dei dati secondo l'<a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">informativa privacy</a>.",f_submit:"Voglio saperne di più",f_ok:"Grazie! Ti ricontatteremo presto.",faq_k:"Domande",faq_t:"Le risposte che cerchi",faq_q1:"È l'ennesima dieta?",faq_a1:"No: è un percorso graduale con persone vere che non ti mollano, pensato per durare.",faq_q2:"Avrò sempre fame?",faq_a2:"No. Porzioni vere e cibo di stagione: l'equilibrio, non la privazione.",faq_q3:"Rispettate le mie esigenze alimentari?",faq_a3:"Sì: halal, kosher, vegetariano, vegano, allergie e intolleranze. Il percorso si adatta a te.",faq_q4:"La mia salute è al sicuro?",faq_a4:"Sì: i dati sanitari sono riservati e visti solo dal nutrizionista, che presidia la parte clinica.",final_t:"Facciamo il primo passo insieme",final_p:"Persone vere, nessuna fretta e un percorso che è davvero tuo.",final_cta:"Inizia il percorso",foot_privacy:"Informativa privacy",foot_terms:"Termini",foot_cookie:"Cookie",foot_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)",cookie_text:"Utilizziamo cookie tecnici e, previo consenso, cookie di terze parti. Vedi la <a href=\"Metabole_Cookie.html\">Cookie Policy</a>.",cookie_accept:"Accetta",cookie_reject:"Rifiuta"},
+ en:{nav_how:"How it works",nav_culture:"For every culture",nav_team:"Who follows you",nav_stories:"Stories",nav_start:"Start",hero_badge:"You are at the center",hero_title:"You live.<br><em>Gaia</em> organizes the rest.",hero_lead:"Menu, coach, nutritionist, events and the unexpected: your journey revolves around you, guided by real people and an assistant that's always there.",hero_cta1:"Start your journey",hero_cta2:"Meet your team",orbit_cap:"Gaia connects everything you need, around you.",node_you:"You",node_menu:"Menu",node_coach:"Coach",node_nutri:"Nutritionist",node_events:"Events",node_unexpected:"Surprises",stat1n:"20+",stat1l:"years of team experience",stat2n:"20,000+",stat2l:"clients supported",stat3n:"80,000+",stat3l:"people reached",stats_note:"Figures built through our nutrition and wellbeing products — including Nutriamo — and now with MetaboleAI, part of Mosaico Experiences SA.",concept_k:"The idea",concept_t:"A journey that revolves around your life",concept_lead:"You don't have to fit into a diet. The journey adapts to you — every day.",cc1t:"A menu made for you",cc1p:"Gaia builds your meals on your tastes and the season; the nutritionist validates them. Tasty, never hungry.",cc2t:"People who are there",cc2p:"A real coach who follows you and a nutritionist who watches over your health. Not just notifications.",cc3t:"Life, as it is",cc3p:"A wedding, holidays, a bad day: Gaia reorganizes everything, with no guilt.",band_k:"At the table",band_t:"You eat well. Truly.",band_p:"Seasonal food, real portions, plenty of recipes. Pleasure is part of the journey — it's what makes it sustainable.",cult_k:"For every culture",cult_t:"Your journey respects who you are",cult_lead:"Everyone has their own culture, faith and sensitivity at the table. Our menus truly adapt — religious and cultural rules aren't an exception, they're part of the journey.",cult1t:"Halal",cult1p:"No pork, no shellfish and compliant ingredients, for those following Muslim dietary rules.",cult2t:"Kosher and other faiths",cult2p:"We respect the dietary rules of different religious traditions.",cult3t:"Vegetarian and vegan",cult3p:"Complete journeys even without meat or animal products.",cult4t:"Allergies and intolerances",cult4p:"Gluten, lactose, nuts and more: we safely exclude what harms you.",team_k:"Who follows you",team_t:"Real people, not an algorithm",team_lead:"Behind MetaboleAI there is a real clinical team. That's what makes the difference.",team_role:"Scientific director",team_bio:"Leads the team and validates every journey. An approach that blends nutrition science with care for the person.",cred1:"Nutritionist",cred2:"Food technologist",cred3:"Coach",cred4:"Psychologist",coach_k:"The team",coach_t:"Eight coaches and a supervisor, ready to follow you",coach_l:"Coach",superv_l:"Supervisor",day_k:"A day with you",day_t:"How Gaia supports you",day1:"\"Good morning! Here's today's breakfast, tailored to your tastes.\"",day2:"Eating out? Gaia gives you the compass to choose well at the restaurant.",day3:"A bad day: no problem, the plan reorganizes itself.",day4:"The coach is there when needed; the nutritionist watches over your health.",day_always_t:"Always",stories_k:"Real stories",stories_t:"Words from those we follow",stories_lead:"No numbers, no promises: just how it feels.",q1:"\"At last I feel truly supported. The coach is there, and that changes everything.\"",q2:"\"I eat with pleasure and bad days no longer get me down.\"",q3:"\"A real nutritionist and Gaia always there: I feel in safe hands.\"",lead_k:"Let's talk",lead_t:"Want to see if it's right for you?",lead_lead:"Leave us a contact: we'll tell you how it works, calmly and with no obligation. Or start now in the app.",lead_cta:"Start your journey",f_nome:"Name",f_email:"Email",f_consent:"I agree to be contacted and to the processing of my data according to the <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">privacy policy</a>.",f_submit:"I want to know more",f_ok:"Thank you! We'll be in touch soon.",faq_k:"Questions",faq_t:"The answers you're looking for",faq_q1:"Is it just another diet?",faq_a1:"No: it's a gradual journey with real people who don't leave you, built to last.",faq_q2:"Will I always be hungry?",faq_a2:"No. Real portions and seasonal food: balance, not deprivation.",faq_q3:"Do you respect my dietary needs?",faq_a3:"Yes: halal, kosher, vegetarian, vegan, allergies and intolerances. The journey adapts to you.",faq_q4:"Is my health safe?",faq_a4:"Yes: health data is private and seen only by the nutritionist, who oversees the clinical side.",final_t:"Let's take the first step together",final_p:"Real people, no rush, and a journey that is truly yours.",final_cta:"Start your journey",foot_privacy:"Privacy policy",foot_terms:"Terms",foot_cookie:"Cookies",foot_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)",cookie_text:"We use technical cookies and, with your consent, third-party cookies. See the <a href=\"Metabole_Cookie.html\">Cookie Policy</a>.",cookie_accept:"Accept",cookie_reject:"Decline"},
+ fr:{nav_how:"Comment ça marche",nav_culture:"Pour chaque culture",nav_team:"Qui vous suit",nav_stories:"Témoignages",nav_start:"Commencer",hero_badge:"Vous êtes au centre",hero_title:"Vous vivez.<br><em>Gaia</em> organise le reste.",hero_lead:"Menu, coach, nutritionniste, événements et imprévus : votre parcours tourne autour de vous, guidé par de vraies personnes et une assistante toujours présente.",hero_cta1:"Commencer le parcours",hero_cta2:"Découvrir l'équipe",orbit_cap:"Gaia relie tout ce dont vous avez besoin, autour de vous.",node_you:"Vous",node_menu:"Menu",node_coach:"Coach",node_nutri:"Nutritionniste",node_events:"Événements",node_unexpected:"Imprévus",stat1n:"20+",stat1l:"ans d'expérience de l'équipe",stat2n:"20 000+",stat2l:"clients suivis",stat3n:"80 000+",stat3l:"personnes touchées",stats_note:"Chiffres construits grâce à nos produits de nutrition et de bien-être — dont Nutriamo — et aujourd'hui avec MetaboleAI, au sein de Mosaico Experiences SA.",concept_k:"L'idée",concept_t:"Un parcours qui tourne autour de votre vie",concept_lead:"Ce n'est pas à vous de vous adapter à un régime. C'est le parcours qui s'adapte à vous — chaque jour.",cc1t:"Le menu sur mesure",cc1p:"Gaia compose vos repas selon vos goûts et la saison ; le nutritionniste les valide. Savoureux, sans faim.",cc2t:"Des personnes présentes",cc2p:"Une vraie coach qui vous suit et un nutritionniste qui veille sur votre santé. Pas seulement des notifications.",cc3t:"La vie, telle qu'elle est",cc3p:"Un mariage, les vacances, une journée difficile : Gaia réorganise tout, sans culpabilité.",band_k:"À table",band_t:"Vous mangez bien. Vraiment.",band_p:"Produits de saison, vraies portions, de nombreuses recettes. Le plaisir fait partie du parcours — c'est ce qui le rend durable.",cult_k:"Pour chaque culture",cult_t:"Votre parcours respecte qui vous êtes",cult_lead:"Chacun a sa culture, sa foi et sa sensibilité à table. Nos menus s'adaptent vraiment — les règles religieuses et culturelles ne sont pas une exception, elles font partie du parcours.",cult1t:"Halal",cult1p:"Pas de porc, pas de crustacés et des ingrédients conformes, pour ceux qui suivent l'alimentation musulmane.",cult2t:"Casher et autres religions",cult2p:"Nous respectons les règles alimentaires de différentes traditions religieuses.",cult3t:"Végétarien et végan",cult3p:"Des parcours complets même sans viande ni produits d'origine animale.",cult4t:"Allergies et intolérances",cult4p:"Gluten, lactose, fruits à coque et plus : nous excluons en toute sécurité ce qui vous nuit.",team_k:"Qui vous suit",team_t:"De vraies personnes, pas un algorithme",team_lead:"Derrière MetaboleAI, il y a une véritable équipe clinique. C'est ce qui fait la différence.",team_role:"Directeur scientifique",team_bio:"Il dirige l'équipe et valide chaque parcours. Une approche qui allie la science de la nutrition à l'attention à la personne.",cred1:"Nutritionniste",cred2:"Technologue alimentaire",cred3:"Coach",cred4:"Psychologue",coach_k:"L'équipe",coach_t:"Huit coachs et une superviseuse, prêtes à vous suivre",coach_l:"Coach",superv_l:"Superviseuse",day_k:"Une journée avec vous",day_t:"Comment Gaia vous accompagne",day1:"« Bonjour ! Voici le petit-déjeuner du jour, adapté à vos goûts. »",day2:"Vous mangez dehors ? Gaia vous donne la boussole pour bien choisir au restaurant.",day3:"Une mauvaise journée : pas de souci, le plan se réorganise tout seul.",day4:"La coach est là quand il le faut ; le nutritionniste veille sur votre santé.",day_always_t:"Toujours",stories_k:"Histoires vraies",stories_t:"Les mots de celles que nous suivons",stories_lead:"Pas de chiffres, pas de promesses : juste le ressenti.",q1:"« Enfin je me sens vraiment suivie. La coach est là, et ça change tout. »",q2:"« Je mange avec plaisir et les mauvaises journées ne me plombent plus. »",q3:"« Un vrai nutritionniste et Gaia toujours là : je me sens entre de bonnes mains. »",lead_k:"Parlons-en",lead_t:"Vous voulez voir si cela vous convient ?",lead_lead:"Laissez-nous un contact : nous vous expliquons comment ça marche, sans engagement. Ou commencez dès maintenant dans l'app.",lead_cta:"Commencer le parcours",f_nome:"Nom",f_email:"E-mail",f_consent:"J'accepte d'être recontacté(e) et le traitement de mes données selon la <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">politique de confidentialité</a>.",f_submit:"Je veux en savoir plus",f_ok:"Merci ! Nous vous recontacterons bientôt.",faq_k:"Questions",faq_t:"Les réponses que vous cherchez",faq_q1:"Encore un régime ?",faq_a1:"Non : un parcours progressif avec de vraies personnes qui ne vous lâchent pas, conçu pour durer.",faq_q2:"Aurai-je toujours faim ?",faq_a2:"Non. De vraies portions et des produits de saison : l'équilibre, pas la privation.",faq_q3:"Respectez-vous mes besoins alimentaires ?",faq_a3:"Oui : halal, casher, végétarien, végan, allergies et intolérances. Le parcours s'adapte à vous.",faq_q4:"Ma santé est-elle protégée ?",faq_a4:"Oui : les données de santé sont confidentielles et vues uniquement par le nutritionniste, qui supervise l'aspect clinique.",final_t:"Faisons le premier pas ensemble",final_p:"De vraies personnes, sans précipitation, et un parcours vraiment vôtre.",final_cta:"Commencer le parcours",foot_privacy:"Confidentialité",foot_terms:"Conditions",foot_cookie:"Cookies",foot_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)",cookie_text:"Nous utilisons des cookies techniques et, avec votre consentement, des cookies tiers. Voir la <a href=\"Metabole_Cookie.html\">politique cookies</a>.",cookie_accept:"Accepter",cookie_reject:"Refuser"},
+ de:{nav_how:"So funktioniert's",nav_culture:"Für jede Kultur",nav_team:"Wer dich begleitet",nav_stories:"Geschichten",nav_start:"Starten",hero_badge:"Du stehst im Mittelpunkt",hero_title:"Du lebst.<br><em>Gaia</em> organisiert den Rest.",hero_lead:"Menü, Coach, Ernährungsberater, Ereignisse und Unerwartetes: Dein Weg dreht sich um dich, geführt von echten Menschen und einer Assistentin, die immer da ist.",hero_cta1:"Weg beginnen",hero_cta2:"Das Team kennenlernen",orbit_cap:"Gaia verbindet alles, was du brauchst, um dich herum.",node_you:"Du",node_menu:"Menü",node_coach:"Coach",node_nutri:"Ernährungsberater",node_events:"Ereignisse",node_unexpected:"Unerwartetes",stat1n:"20+",stat1l:"Jahre Team-Erfahrung",stat2n:"20.000+",stat2l:"betreute Kunden",stat3n:"80.000+",stat3l:"erreichte Menschen",stats_note:"Zahlen aus unseren Ernährungs- und Wellness-Produkten — darunter Nutriamo — und heute mit MetaboleAI, Teil von Mosaico Experiences SA.",concept_k:"Die Idee",concept_t:"Ein Weg, der sich um dein Leben dreht",concept_lead:"Nicht du musst dich einer Diät anpassen. Der Weg passt sich dir an — jeden Tag.",cc1t:"Das massgeschneiderte Menü",cc1p:"Gaia stellt deine Mahlzeiten nach Geschmack und Saison zusammen; der Ernährungsberater validiert sie. Lecker, ohne Hunger.",cc2t:"Menschen, die da sind",cc2p:"Ein echter Coach, der dich begleitet, und ein Ernährungsberater, der über deine Gesundheit wacht. Nicht nur Benachrichtigungen.",cc3t:"Das Leben, wie es ist",cc3p:"Eine Hochzeit, Ferien, ein schlechter Tag: Gaia organisiert alles neu, ohne Schuldgefühle.",band_k:"Am Tisch",band_t:"Du isst gut. Wirklich.",band_p:"Saisonale Speisen, echte Portionen, viele Rezepte. Genuss gehört zum Weg — er macht ihn nachhaltig.",cult_k:"Für jede Kultur",cult_t:"Dein Weg respektiert, wer du bist",cult_lead:"Jeder Mensch hat seine Kultur, seinen Glauben und seine Vorlieben am Tisch. Unsere Menüs passen sich wirklich an — religiöse und kulturelle Regeln sind keine Ausnahme, sondern Teil des Weges.",cult1t:"Halal",cult1p:"Kein Schweinefleisch, keine Schalentiere und konforme Zutaten, für alle, die sich muslimisch ernähren.",cult2t:"Koscher und andere Religionen",cult2p:"Wir respektieren die Ernährungsregeln verschiedener religiöser Traditionen.",cult3t:"Vegetarisch und vegan",cult3p:"Vollständige Wege auch ohne Fleisch oder tierische Produkte.",cult4t:"Allergien und Unverträglichkeiten",cult4p:"Gluten, Laktose, Nüsse und mehr: Wir schliessen sicher aus, was dir schadet.",team_k:"Wer dich begleitet",team_t:"Echte Menschen, kein Algorithmus",team_lead:"Hinter MetaboleAI steht ein echtes klinisches Team. Das macht den Unterschied.",team_role:"Wissenschaftlicher Leiter",team_bio:"Er leitet das Team und validiert jeden Weg. Ein Ansatz, der Ernährungswissenschaft mit Aufmerksamkeit für den Menschen verbindet.",cred1:"Ernährungsberater",cred2:"Lebensmitteltechnologe",cred3:"Coach",cred4:"Psychologe",coach_k:"Das Team",coach_t:"Acht Coaches und eine Supervisorin, bereit für dich",coach_l:"Coach",superv_l:"Supervisorin",day_k:"Ein Tag mit dir",day_t:"Wie Gaia dich begleitet",day1:"\"Guten Morgen! Hier ist dein heutiges Frühstück, ganz nach deinem Geschmack.\"",day2:"Isst du auswärts? Gaia gibt dir den Kompass, um im Restaurant gut zu wählen.",day3:"Ein schlechter Tag: kein Problem, der Plan organisiert sich selbst neu.",day4:"Der Coach ist da, wenn du ihn brauchst; der Ernährungsberater wacht über deine Gesundheit.",day_always_t:"Immer",stories_k:"Echte Geschichten",stories_t:"Worte derer, die wir begleiten",stories_lead:"Keine Zahlen, keine Versprechen: nur das Gefühl.",q1:"\"Endlich fühle ich mich wirklich begleitet. Der Coach ist da, und das ändert alles.\"",q2:"\"Ich esse mit Freude und schlechte Tage ziehen mich nicht mehr runter.\"",q3:"\"Ein echter Ernährungsberater und Gaia immer da: Ich fühle mich in sicheren Händen.\"",lead_k:"Sprechen wir",lead_t:"Willst du sehen, ob es zu dir passt?",lead_lead:"Hinterlass uns einen Kontakt: Wir erklären dir in Ruhe, wie es funktioniert, ganz unverbindlich. Oder starte gleich in der App.",lead_cta:"Weg beginnen",f_nome:"Name",f_email:"E-Mail",f_consent:"Ich stimme der Kontaktaufnahme und der Verarbeitung meiner Daten gemäss <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">Datenschutzerklärung</a> zu.",f_submit:"Ich möchte mehr wissen",f_ok:"Danke! Wir melden uns bald.",faq_k:"Fragen",faq_t:"Die Antworten, die du suchst",faq_q1:"Noch eine Diät?",faq_a1:"Nein: ein schrittweiser Weg mit echten Menschen, die dich nicht loslassen — gemacht, um zu bleiben.",faq_q2:"Habe ich immer Hunger?",faq_a2:"Nein. Echte Portionen und saisonale Speisen: Gleichgewicht, nicht Verzicht.",faq_q3:"Berücksichtigt ihr meine Ernährungsbedürfnisse?",faq_a3:"Ja: halal, koscher, vegetarisch, vegan, Allergien und Unverträglichkeiten. Der Weg passt sich dir an.",faq_q4:"Sind meine Daten sicher?",faq_a4:"Ja: Gesundheitsdaten sind vertraulich und nur für den Ernährungsberater sichtbar, der den klinischen Teil betreut.",final_t:"Machen wir den ersten Schritt gemeinsam",final_p:"Echte Menschen, keine Eile und ein Weg, der wirklich deiner ist.",final_cta:"Weg beginnen",foot_privacy:"Datenschutz",foot_terms:"AGB",foot_cookie:"Cookies",foot_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)",cookie_text:"Wir verwenden technische Cookies und, mit deiner Zustimmung, Cookies von Drittanbietern. Siehe die <a href=\"Metabole_Cookie.html\">Cookie-Richtlinie</a>.",cookie_accept:"Akzeptieren",cookie_reject:"Ablehnen"},
+ ru:{nav_how:"Как это работает",nav_culture:"Для каждой культуры",nav_team:"Кто вас ведёт",nav_stories:"Истории",nav_start:"Начать",hero_badge:"Вы в центре",hero_title:"Вы живёте.<br><em>Gaia</em> организует остальное.",hero_lead:"Меню, коуч, нутрициолог, события и неожиданности: ваш путь вращается вокруг вас, под руководством настоящих людей и ассистента, который всегда рядом.",hero_cta1:"Начать путь",hero_cta2:"Познакомиться с командой",orbit_cap:"Gaia связывает всё, что вам нужно, вокруг вас.",node_you:"Вы",node_menu:"Меню",node_coach:"Коуч",node_nutri:"Нутрициолог",node_events:"События",node_unexpected:"Неожиданности",stat1n:"20+",stat1l:"лет опыта команды",stat2n:"20 000+",stat2l:"клиентов",stat3n:"80 000+",stat3l:"охваченных людей",stats_note:"Цифры, накопленные через наши продукты питания и благополучия — включая Nutriamo — и сегодня с MetaboleAI, в составе Mosaico Experiences SA.",concept_k:"Идея",concept_t:"Путь, который вращается вокруг вашей жизни",concept_lead:"Не вы подстраиваетесь под диету. Это путь подстраивается под вас — каждый день.",cc1t:"Меню по вашей мерке",cc1p:"Gaia составляет блюда по вашим вкусам и сезону; нутрициолог их проверяет. Вкусно и без голода.",cc2t:"Люди, которые рядом",cc2p:"Настоящий коуч, который вас ведёт, и нутрициолог, следящий за здоровьем. Не только уведомления.",cc3t:"Жизнь как она есть",cc3p:"Свадьба, отпуск, трудный день: Gaia всё перестраивает, без чувства вины.",band_k:"За столом",band_t:"Вы едите хорошо. По-настоящему.",band_p:"Сезонные продукты, реальные порции, множество рецептов. Удовольствие — часть пути, оно делает его устойчивым.",cult_k:"Для каждой культуры",cult_t:"Ваш путь уважает то, кто вы есть",cult_lead:"У каждого своя культура, вера и вкусы за столом. Наши меню действительно адаптируются — религиозные и культурные правила не исключение, а часть пути.",cult1t:"Халяль",cult1p:"Без свинины, без ракообразных и с подходящими ингредиентами — для тех, кто соблюдает мусульманское питание.",cult2t:"Кошер и другие религии",cult2p:"Мы уважаем пищевые предписания разных религиозных традиций.",cult3t:"Вегетарианцы и веганы",cult3p:"Полноценные программы даже без мяса и продуктов животного происхождения.",cult4t:"Аллергии и непереносимость",cult4p:"Глютен, лактоза, орехи и другое: мы безопасно исключаем то, что вам вредит.",team_k:"Кто вас ведёт",team_t:"Настоящие люди, а не алгоритм",team_lead:"За MetaboleAI стоит настоящая клиническая команда. Именно это создаёт разницу.",team_role:"Научный руководитель",team_bio:"Возглавляет команду и утверждает каждый путь. Подход, соединяющий науку о питании с вниманием к человеку.",cred1:"Нутрициолог",cred2:"Пищевой технолог",cred3:"Коуч",cred4:"Психолог",coach_k:"Команда",coach_t:"Восемь коучей и супервайзер, готовы вас вести",coach_l:"Коуч",superv_l:"Супервайзер",day_k:"День с вами",day_t:"Как Gaia вас сопровождает",day1:"«Доброе утро! Вот завтрак на сегодня, по вашим вкусам.»",day2:"Едите вне дома? Gaia даёт компас, чтобы выбрать в ресторане правильно.",day3:"Трудный день: не проблема, план перестроится сам.",day4:"Коуч рядом, когда нужно; нутрициолог следит за вашим здоровьем.",day_always_t:"Всегда",stories_k:"Реальные истории",stories_t:"Слова тех, кого мы ведём",stories_lead:"Без цифр и обещаний: только ощущения.",q1:"«Наконец я чувствую настоящую поддержку. Коуч рядом, и это меняет всё.»",q2:"«Ем с удовольствием, и трудные дни больше не выбивают из колеи.»",q3:"«Настоящий нутрициолог и Gaia всегда рядом: я в надёжных руках.»",lead_k:"Поговорим",lead_t:"Хотите понять, подходит ли это вам?",lead_lead:"Оставьте контакт: расскажем, как всё работает, спокойно и без обязательств. Или начните прямо сейчас в приложении.",lead_cta:"Начать путь",f_nome:"Имя",f_email:"Эл. почта",f_consent:"Я согласен(на) на обратную связь и обработку данных согласно <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">политике конфиденциальности</a>.",f_submit:"Хочу узнать больше",f_ok:"Спасибо! Мы скоро свяжемся.",faq_k:"Вопросы",faq_t:"Ответы, которые вы ищете",faq_q1:"Это очередная диета?",faq_a1:"Нет: постепенный путь с настоящими людьми, которые вас не бросают, созданный, чтобы длиться.",faq_q2:"Я всегда буду голодать?",faq_a2:"Нет. Реальные порции и сезонные продукты: баланс, а не лишения.",faq_q3:"Учитываете ли вы мои пищевые потребности?",faq_a3:"Да: халяль, кошер, вегетарианство, веганство, аллергии и непереносимость. Путь адаптируется к вам.",faq_q4:"Мои данные в безопасности?",faq_a4:"Да: данные о здоровье конфиденциальны и видны только нутрициологу, который отвечает за клиническую часть.",final_t:"Сделаем первый шаг вместе",final_p:"Настоящие люди, без спешки и путь, который действительно ваш.",final_cta:"Начать путь",foot_privacy:"Конфиденциальность",foot_terms:"Условия",foot_cookie:"Cookies",foot_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Лугано (CH)",cookie_text:"Мы используем технические cookie и, с вашего согласия, сторонние cookie. См. <a href=\"Metabole_Cookie.html\">Политику cookie</a>.",cookie_accept:"Принять",cookie_reject:"Отклонить"},
+ zh:{nav_how:"运作方式",nav_culture:"尊重每种文化",nav_team:"陪伴你的人",nav_stories:"故事",nav_start:"开始",hero_badge:"你是中心",hero_title:"你只管生活，<br><em>Gaia</em> 安排其余一切。",hero_lead:"菜单、教练、营养师、活动与突发情况：你的旅程围绕着你，由真实的人和始终在线的助手引导。",hero_cta1:"开始旅程",hero_cta2:"认识团队",orbit_cap:"Gaia 把你所需的一切围绕在你身边。",node_you:"你",node_menu:"菜单",node_coach:"教练",node_nutri:"营养师",node_events:"活动",node_unexpected:"突发情况",stat1n:"20+",stat1l:"年团队经验",stat2n:"20,000+",stat2l:"服务客户",stat3n:"80,000+",stat3l:"触达人数",stats_note:"这些数字来自我们的营养与健康产品——包括 Nutriamo——如今由 MetaboleAI 延续，隶属 Mosaico Experiences SA。",concept_k:"理念",concept_t:"一段围绕你生活的旅程",concept_lead:"不是你去迁就饮食，而是旅程每天为你而调整。",cc1t:"为你定制的菜单",cc1p:"Gaia 根据你的口味和季节搭配餐食，营养师审核。美味且不挨饿。",cc2t:"真正在身边的人",cc2p:"一位真实的教练陪伴你，一位营养师守护你的健康。不只是通知。",cc3t:"真实的生活",cc3p:"婚礼、假期、糟糕的一天：Gaia 重新安排一切，毫无负罪感。",band_k:"餐桌上",band_t:"你吃得很好，真的。",band_p:"当季食材、真实分量、丰富食谱。享受是旅程的一部分——这让它可持续。",cult_k:"尊重每种文化",cult_t:"你的旅程尊重你是谁",cult_lead:"每个人都有自己的文化、信仰和饮食习惯。我们的菜单真正做到适配——宗教与文化规则不是例外，而是旅程的一部分。",cult1t:"清真 (Halal)",cult1p:"不含猪肉、不含甲壳类，食材符合规定，适合遵循穆斯林饮食的人。",cult2t:"洁食及其他信仰",cult2p:"我们尊重不同宗教传统的饮食规定。",cult3t:"素食与纯素",cult3p:"即使不含肉类或动物性食品，也有完整的方案。",cult4t:"过敏与不耐受",cult4p:"麸质、乳糖、坚果等：我们安全地排除对你有害的食物。",team_k:"陪伴你的人",team_t:"真实的人，而非算法",team_lead:"MetaboleAI 背后是一支真正的临床团队。这正是不同之处。",team_role:"科学负责人",team_bio:"带领团队并审核每一段旅程。将营养科学与对人的关怀相结合。",cred1:"营养师",cred2:"食品技术专家",cred3:"教练",cred4:"心理学家",coach_k:"团队",coach_t:"八位教练和一位主管，随时陪伴你",coach_l:"教练",superv_l:"主管",day_k:"与你的一天",day_t:"Gaia 如何陪伴你",day1:"“早上好！这是今天的早餐，按你的口味定制。”",day2:"在外就餐？Gaia 给你选择的指南针，在餐厅也能吃对。",day3:"糟糕的一天：没关系，计划会自行重新安排。",day4:"需要时教练就在；营养师守护你的健康。",day_always_t:"始终",stories_k:"真实故事",stories_t:"我们所陪伴者的心声",stories_lead:"没有数字，没有承诺：只有真实的感受。",q1:"“终于感到被真正陪伴。教练一直都在，这改变了一切。”",q2:"“我吃得开心，糟糕的日子也不再让我沮丧。”",q3:"“有真正的营养师，Gaia 也一直都在：我感到很安心。”",lead_k:"聊一聊",lead_t:"想知道它是否适合你？",lead_lead:"留下联系方式：我们会从容地告诉你它如何运作，毫无压力。或立即在应用中开始。",lead_cta:"开始旅程",f_nome:"姓名",f_email:"邮箱",f_consent:"我同意被联系并根据<a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">隐私政策</a>处理我的数据。",f_submit:"我想了解更多",f_ok:"谢谢！我们会尽快联系你。",faq_k:"常见问题",faq_t:"你想要的答案",faq_q1:"这是又一种节食吗？",faq_a1:"不是：这是一段循序渐进的旅程，有不会离开你的真实的人，为长久而设计。",faq_q2:"我会一直挨饿吗？",faq_a2:"不会。真实的分量和当季食材：平衡，而非剥夺。",faq_q3:"你们尊重我的饮食需求吗？",faq_a3:"是的：清真、洁食、素食、纯素、过敏与不耐受。旅程会为你适配。",faq_q4:"我的健康信息安全吗？",faq_a4:"是的：健康数据保密，仅营养师可见，由其负责临床部分。",final_t:"一起迈出第一步",final_p:"真实的人、不慌不忙，一段真正属于你的旅程。",final_cta:"开始旅程",foot_privacy:"隐私政策",foot_terms:"条款",foot_cookie:"Cookie",foot_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · 卢加诺 (CH)",cookie_text:"我们使用技术性 Cookie，并在你同意后使用第三方 Cookie。参见<a href=\"Metabole_Cookie.html\">Cookie 政策</a>。",cookie_accept:"接受",cookie_reject:"拒绝"},
+ ar:{nav_how:"كيف يعمل",nav_culture:"لكل ثقافة",nav_team:"من يرافقك",nav_stories:"قصص",nav_start:"ابدأ",hero_badge:"أنت في المركز",hero_title:"أنت تعيش،<br><em>Gaia</em> تنظّم الباقي.",hero_lead:"القائمة، المدرّبة، أخصائي التغذية، المناسبات والمفاجآت: رحلتك تدور حولك، بإرشاد أشخاص حقيقيين ومساعِدة حاضرة دائماً.",hero_cta1:"ابدأ رحلتك",hero_cta2:"تعرّف على الفريق",orbit_cap:"تربط Gaia كل ما تحتاجه من حولك.",node_you:"أنت",node_menu:"القائمة",node_coach:"مدرّبة",node_nutri:"أخصائي تغذية",node_events:"مناسبات",node_unexpected:"مفاجآت",stat1n:"+20",stat1l:"عاماً من خبرة الفريق",stat2n:"+20,000",stat2l:"عميل تمت متابعته",stat3n:"+80,000",stat3l:"شخص تم الوصول إليه",stats_note:"أرقام تحققت عبر منتجاتنا للتغذية والعافية — ومنها Nutriamo — واليوم مع MetaboleAI، ضمن Mosaico Experiences SA.",concept_k:"الفكرة",concept_t:"رحلة تدور حول حياتك",concept_lead:"لست أنت من يتكيّف مع الحمية، بل الرحلة تتكيّف معك — كل يوم.",cc1t:"قائمة مصمّمة لك",cc1p:"تُعدّ Gaia وجباتك حسب ذوقك والموسم، ويعتمدها أخصائي التغذية. لذيذة وبلا جوع.",cc2t:"أشخاص حاضرون",cc2p:"مدرّبة حقيقية ترافقك وأخصائي تغذية يرعى صحتك. ليست مجرد إشعارات.",cc3t:"الحياة كما هي",cc3p:"زفاف، إجازة، يوم عصيب: تعيد Gaia تنظيم كل شيء، دون شعور بالذنب.",band_k:"على المائدة",band_t:"تأكل جيداً. حقاً.",band_p:"طعام موسمي، حصص حقيقية، وصفات كثيرة. المتعة جزء من الرحلة — وهي ما يجعلها مستدامة.",cult_k:"لكل ثقافة",cult_t:"رحلتك تحترم من تكون",cult_lead:"لكل شخص ثقافته وعقيدته وذوقه على المائدة. قوائمنا تتكيّف فعلاً — القواعد الدينية والثقافية ليست استثناءً بل جزء من الرحلة.",cult1t:"حلال",cult1p:"بلا لحم خنزير وبلا قشريات ومكوّنات مطابقة، لمن يتّبع الطعام الإسلامي.",cult2t:"كوشير وعقائد أخرى",cult2p:"نحترم القواعد الغذائية لمختلف التقاليد الدينية.",cult3t:"نباتي وخالٍ تماماً",cult3p:"برامج كاملة حتى دون لحوم أو منتجات حيوانية.",cult4t:"الحساسية وعدم التحمّل",cult4p:"الغلوتين واللاكتوز والمكسّرات وغيرها: نستبعد بأمان ما يضرّك.",team_k:"من يرافقك",team_t:"أشخاص حقيقيون، لا خوارزمية",team_lead:"خلف MetaboleAI فريق سريري حقيقي. هذا ما يصنع الفرق.",team_role:"المدير العلمي",team_bio:"يقود الفريق ويعتمد كل رحلة. نهج يجمع بين علم التغذية والاهتمام بالإنسان.",cred1:"أخصائي تغذية",cred2:"تقني أغذية",cred3:"مدرّب",cred4:"طبيب نفسي",coach_k:"الفريق",coach_t:"ثماني مدرّبات ومشرفة، جاهزات لمرافقتك",coach_l:"مدرّبة",superv_l:"مشرفة",day_k:"يوم معك",day_t:"كيف ترافقك Gaia",day1:"«صباح الخير! هذا فطور اليوم، مُعدّ حسب ذوقك.»",day2:"تأكل خارجاً؟ تمنحك Gaia البوصلة لتختار جيداً في المطعم.",day3:"يوم عصيب: لا مشكلة، تعيد الخطة تنظيم نفسها.",day4:"المدرّبة حاضرة عند الحاجة، وأخصائي التغذية يرعى صحتك.",day_always_t:"دائماً",stories_k:"قصص حقيقية",stories_t:"كلمات من نرافقهم",stories_lead:"لا أرقام ولا وعود: فقط الإحساس.",q1:"«أخيراً أشعر بمرافقة حقيقية. المدرّبة حاضرة، وهذا يغيّر كل شيء.»",q2:"«آكل باستمتاع والأيام الصعبة لم تعد تُثقلني.»",q3:"«أخصائي تغذية حقيقي وGaia دائماً حاضرة: أشعر بأنني في أيدٍ أمينة.»",lead_k:"لنتحدّث",lead_t:"تريد أن تعرف إن كان يناسبك؟",lead_lead:"اترك لنا وسيلة تواصل: نخبرك كيف يعمل بهدوء ودون التزام. أو ابدأ الآن في التطبيق.",lead_cta:"ابدأ رحلتك",f_nome:"الاسم",f_email:"البريد الإلكتروني",f_consent:"أوافق على أن يتم التواصل معي وعلى معالجة بياناتي وفق <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">سياسة الخصوصية</a>.",f_submit:"أريد معرفة المزيد",f_ok:"شكراً! سنتواصل معك قريباً.",faq_k:"أسئلة",faq_t:"الإجابات التي تبحث عنها",faq_q1:"هل هي مجرد حمية أخرى؟",faq_a1:"لا: إنها رحلة تدريجية مع أشخاص حقيقيين لا يتركونك، مصمّمة لتدوم.",faq_q2:"هل سأظل جائعاً؟",faq_a2:"لا. حصص حقيقية وطعام موسمي: توازن لا حرمان.",faq_q3:"هل تحترمون احتياجاتي الغذائية؟",faq_a3:"نعم: حلال، كوشير، نباتي، خالٍ تماماً، الحساسية وعدم التحمّل. الرحلة تتكيّف معك.",faq_q4:"هل صحتي في أمان؟",faq_a4:"نعم: البيانات الصحية سرّية ولا يراها إلا أخصائي التغذية المسؤول عن الجانب السريري.",final_t:"لنخطُ الخطوة الأولى معاً",final_p:"أشخاص حقيقيون، دون عجلة، ورحلة هي حقاً لك.",final_cta:"ابدأ رحلتك",foot_privacy:"سياسة الخصوصية",foot_terms:"الشروط",foot_cookie:"ملفات تعريف الارتباط",foot_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · لوغانو (CH)",cookie_text:"نستخدم ملفات تعريف ارتباط تقنية، وبموافقتك، ملفات من أطراف ثالثة. راجع <a href=\"Metabole_Cookie.html\">سياسة ملفات تعريف الارتباط</a>.",cookie_accept:"موافق",cookie_reject:"رفض"}
+};
+function ls(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsset(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function setLang(l){
+  var d=I18N[l]||I18N.it;
+  document.documentElement.lang=l;
+  document.documentElement.dir=(l==='ar')?'rtl':'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(function(el){var k=el.getAttribute('data-i18n');if(d[k]!=null)el.textContent=d[k];});
+  document.querySelectorAll('[data-i18n-html]').forEach(function(el){var k=el.getAttribute('data-i18n-html');if(d[k]!=null)el.innerHTML=d[k];});
+  lsset('mb_lang',l);
+  var sel=document.getElementById('lang');if(sel)sel.value=l;
+}
+var saved=ls('mb_lang');var nav=(navigator.language||'it').slice(0,2);
+var start=saved||(I18N[nav]?nav:'it');
+setLang(start);
+document.getElementById('lang').addEventListener('change',function(){setLang(this.value)});
+// cookie banner
+if(!ls('mb_cookie')){document.getElementById('cookieBar').style.display='flex';}
+function ck(v){lsset('mb_cookie',v);document.getElementById('cookieBar').style.display='none';}
+document.getElementById('ckAcc').addEventListener('click',function(){ck('accept')});
+document.getElementById('ckRej').addEventListener('click',function(){ck('reject')});
+// lead form
+var f=document.getElementById('leadForm');
+f.addEventListener('submit',function(e){e.preventDefault();var ep=f.getAttribute('data-endpoint');var data={nome:f.nome.value,email:f.email.value,fonte:'sito_presentazione',lingua:document.documentElement.lang};function done(){document.getElementById('leadOk').style.display='block';f.querySelector('button').style.display='none';}if(ep){fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(done).catch(done);}else{done();}});
 </script>
 </body></html>
