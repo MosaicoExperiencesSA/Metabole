@@ -38,7 +38,8 @@ export class TrackingService {
         phase: dto.phase ?? null,
         screen: dto.screen ?? null,
         step: dto.step ?? null,
-        data: data ?? undefined,
+        // cast Json (convenzione del progetto): Record<string, unknown> → InputJsonValue
+        data: (data ?? undefined) as never,
         clientTs: dto.ts != null ? BigInt(dto.ts) : null,
       },
       select: { id: true },
