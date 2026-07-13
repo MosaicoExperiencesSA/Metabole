@@ -51,11 +51,7 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - **Testo di Gaia "a composizione" (TypeText)** — effetto macchina da scrivere identico al prototipo
   (durata = max 1500ms, ~62ms/carattere) su: Landing, "In cosa siamo diversi", Crea account, intro di
   sezione e ogni domanda dell'Onboarding, overview "Facciamo conoscenza", frase del giorno in Home. ✅
-- **✅ Navigazione DECISA (13/7, [Prodotto]):** si adotta la navigazione del **prototipo** →
-  *Home · Percorso · Obiettivi · Contatti · Agenda* (Shop nelle icone header). La versione
-  *Menu · Obiettivo · Home · AI · Agenda* è la **vecchia**, da **sostituire**. → impatto [Sviluppo]:
-  allineare l'app (creare **Percorso** e **Contatti**, spostare **Menu** dentro la Home, trasformare
-  **AI/Assistente** in Contatti). Riferimento visivo: `../Metabole_Prototipo_Navigabile.html`.
+- **✅ Navigazione DECISA (13/7):** si adotta quella del prototipo *Home · Percorso · Obiettivi · Contatti · Agenda* (Shop in header); la versione *Menu · Obiettivo · Home · AI · Agenda* è la vecchia, **da sostituire**. Tab bar con icone (attiva rialzata in quadrato teal), **header comune** teal (METABOLEAI + titolo + notifiche/da-completare/shop/profilo). Home semplificata (Menu di oggi + Prossimo appuntamento + Frase di Gaia), nuove pagine **Percorso** e **Contatti**, **Accedi** come bottom sheet. Menu/Assistente/Profilo ancora con la loro intestazione (da uniformare). 🟡 restano fuori i video (27–28) e gli schermi con contenuti reali (29, 33).
 - Widget home Android (3 formati, mascotte Gaia). ✅
 - Tracciamento eventi via `track()` (viste, login, registrazione, logout). ✅
 - Popup bloccante misure al 2° giorno del ciclo. ✅

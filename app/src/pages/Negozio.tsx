@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useCart } from '../cart/CartContext';
+import AppHeader from '../components/AppHeader';
 
 /** Negozio — piani e integratori. Si aggiunge al carrello, poi checkout unico. */
 
@@ -25,12 +26,8 @@ export default function Negozio() {
   }, []);
 
   return (
-    <div className="menu" style={{ paddingBottom: cart.count > 0 ? 72 : undefined }}>
-      <button className="back-link" onClick={() => navigate('/')}><i className="ti ti-chevron-left" /> Home</button>
-      <div className="menu-head">
-        <span className="event-ic" style={{ background: '#EFEAF9', color: '#6C5AB7' }}><i className="ti ti-shopping-bag" /></span>
-        <div><h1 style={{ margin: 0 }}>Negozio</h1><div className="muted">Piani e integratori</div></div>
-      </div>
+    <div className="home" style={{ paddingBottom: cart.count > 0 ? 72 : undefined }}>
+      <AppHeader title="Shop" />
 
       <div className="sec" style={{ marginTop: 4 }}>Piani</div>
       {plans.map((p, i) => {

@@ -12,6 +12,8 @@ import Register from './pages/Register';
 import Diversi from './pages/Diversi';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
+import Percorso from './pages/Percorso';
+import Contatti from './pages/Contatti';
 import Calendario from './pages/Calendario';
 import Obiettivo from './pages/Obiettivo';
 import Assistente from './pages/Assistente';
@@ -45,10 +47,13 @@ function Shell() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/menu" element={<Menu />} />
+          <Route path="/percorso" element={<Percorso />} />
+          <Route path="/contatti" element={<Contatti />} />
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/obiettivo" element={<Obiettivo />} />
           <Route path="/assistente" element={<Assistente />} />
           <Route path="/negozio" element={<Negozio />} />
+          <Route path="/shop" element={<Negozio />} />
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/conferma-email" element={<ConfermaEmail />} />
           <Route path="/verifica-email" element={<VerificaEmail />} />
