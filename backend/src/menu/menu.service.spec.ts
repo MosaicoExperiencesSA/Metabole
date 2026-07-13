@@ -67,6 +67,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       getNumber: jest.fn((key: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[key] ?? def),
       ),
+      getBool: jest.fn((_key: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
     (globalThis as any).__eventsMock = events;
@@ -78,6 +79,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: require('../calendar/events.service').EventsService, useValue: events },
         { provide: require('../diet-agent/diet-agent.service').DietAgentService, useValue: { stateFor: jest.fn().mockResolvedValue('normale') } },
+        { provide: require('./day-combo.service').DayComboService, useValue: new (require('./day-combo.service').DayComboService)() },
       ],
     }).compile();
     service = moduleRef.get(MenuService);
@@ -208,5 +210,86 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     const zucchine = list.items.find((i: any) => i.name.toLowerCase() === 'zucchine');
     expect(zucchine.qty).toBe(250);
     expect(list.items).toHaveLength(2);
+  });
+});
+
+describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
+  // Pool: 2 candidati per slot; target livello 1400 kcal (±15% = [1190,1610]).
+  const recipes = [
+    { id: 'b1', name: 'Colazione A', kcal: 300, macros: { protein_g: 15, carbs_g: 40, fat_g: 8 } },
+    { id: 'b2', name: 'Colazione B', kcal: 350, macros: { protein_g: 18, carbs_g: 45, fat_g: 9 } },
+    { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
+    { id: 'l2', name: 'Pranzo B', kcal: 600, macros: { protein_g: 35, carbs_g: 60, fat_g: 18 } },
+    { id: 'd1', name: 'Cena A', kcal: 500, macros: { protein_g: 32, carbs_g: 40, fat_g: 16 } },
+    { id: 'd2', name: 'Cena B', kcal: 700, macros: { protein_g: 40, carbs_g: 60, fat_g: 22 } },
+  ];
+  const tmpl = (dayIndex: number, b: string, l: string, d: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [{ slot: 'colazione', recipeId: b }, { slot: 'pranzo', recipeId: l }, { slot: 'cena', recipeId: d }],
+  });
+
+  function build(daycombo: boolean) {
+    const prisma: any = {
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 3,
+          intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
+        }),
+      },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
+      dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
+      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', levels: [{ level: 1, kcal: 1400 }] }) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'b1', 'l1', 'd1'), tmpl(2, 'b2', 'l2', 'd2')]) },
+      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+    };
+    const config = {
+      getNumber: jest.fn((k: string, def?: number) =>
+        Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[k] ?? def)),
+      getBool: jest.fn((k: string, def?: boolean) => Promise.resolve(k === 'menu_daycombo_enabled' ? daycombo : (def ?? false))),
+    };
+    const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
+    const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
+    const { DayComboService } = require('./day-combo.service');
+    const service = new MenuService(
+      prisma as PrismaService,
+      config as unknown as ConfigParamsService,
+      { log: jest.fn() } as unknown as AuditService,
+      events as any,
+      dietAgent as any,
+      new DayComboService(),
+    );
+    return { service, prisma };
+  }
+
+  it('compone le giornate dentro la banda kcal del livello usando solo ricette del pool', async () => {
+    const { service, prisma } = build(true);
+    const created = await service.deliverIfEligible('u1');
+    expect(created).toHaveLength(2);
+    const poolIds = recipes.map((r) => r.id);
+    for (const call of prisma.menuDay.upsert.mock.calls) {
+      const meals = call[0].create.meals as { slot: string; recipeId: string; kcal: number }[];
+      expect(meals.map((m) => m.slot)).toEqual(['colazione', 'pranzo', 'cena']);
+      meals.forEach((m) => expect(poolIds).toContain(m.recipeId));
+      const kcal = meals.reduce((a, m) => a + m.kcal, 0);
+      expect(kcal).toBeGreaterThanOrEqual(1400 * 0.85);
+      expect(kcal).toBeLessThanOrEqual(1400 * 1.15);
+    }
+  });
+
+  it('con DayCombo spento eroga comunque i giorni (fallback ai template)', async () => {
+    const { service, prisma } = build(false);
+    const created = await service.deliverIfEligible('u1');
+    expect(created).toHaveLength(2);
+    expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
   });
 });

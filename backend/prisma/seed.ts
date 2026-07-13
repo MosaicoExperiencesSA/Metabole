@@ -162,6 +162,24 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Tolleranza kcal (%) entro cui una ricetta alternativa può sostituire quella del template (bilanciamento)',
   },
   {
+    key: 'menu_daycombo_enabled',
+    value: 'false',
+    type: 'boolean',
+    description: 'Composizione automatica delle giornate (DayCombo): se "true" il motore compone la giornata dal pool della dieta approvata puntando alle kcal del livello, invece di usare solo i template composti a mano (fallback ai template se spento o se nessuna giornata rientra nella banda kcal)',
+  },
+  {
+    key: 'menu_daycombo_protein_min',
+    value: '0.2',
+    type: 'number',
+    description: 'DayCombo: quota proteica minima giornaliera desiderata (0..1) — penalità soft, non blocca',
+  },
+  {
+    key: 'menu_daycombo_protein_max',
+    value: '0.45',
+    type: 'number',
+    description: 'DayCombo: quota proteica massima giornaliera desiderata (0..1) — penalità soft, non blocca',
+  },
+  {
     key: 'cycle_weight_delta_kg',
     value: '0.2',
     type: 'number',

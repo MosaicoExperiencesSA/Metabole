@@ -99,9 +99,15 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
     punteggio migliore = `w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)` (default 5★, tie →
     resta il template). Pesi e tolleranza in config.
   - **Nucleo v1 del motore completo** (sicurezza esclusioni + sostituzione + learning + selezione).
-    Ancora da fare (avanzato): generazione automatica delle **giornate bilanciate** (DayCombo, oggi i
-    giorni sono composti a mano dal nutrizionista nei template) e l'**attribuzione causale** dell'effetto
-    del singolo pasto (isolare il pasto che pesa di più).
+  - **Giornate bilanciate automatiche (DayCombo)** ✅ (opt-in): il motore compone la giornata scegliendo
+    una ricetta per slot DENTRO il pool della dieta approvata puntando alle kcal del livello
+    (`Diet.levels`), col punteggio efficacia+gradimento e varietà tra i giorni; penalità soft sulla quota
+    proteica. Attivo solo con `menu_daycombo_enabled=true` e se il livello ha un target kcal; altrimenti
+    (o se nessuna giornata rientra nella banda) fallback ai template composti a mano. Non allarga mai
+    l'insieme ricette approvato dal nutrizionista.
+  - Ancora da fare (avanzato): **attribuzione causale** dell'effetto del singolo pasto (isolare il pasto
+    che pesa di più); eventuale composizione dall'intero catalogo (oggi il pool DayCombo = ricette dei
+    template della dieta).
 - **Agente AI della dieta** (stati, scoring): 🟡 (Fase 6).
   - `DietAgentService.stateFor` determina lo stato: **pre_evento** (evento entro N giorni),
     **plateau** (ultimi N cicli senza calo), **conforto** (umore basso recente), altrimenti **normale**.
@@ -132,7 +138,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 2 | **Misure bloccanti** al 2° giorno del ciclo | ✅ (13/7) |
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
-| 5 | Motore di personalizzazione menu — v1 "naive" | ✅ nucleo v1 (esclusioni+sostituzione+learning+selezione); avanzato (DayCombo, causale) da fare |
+| 5 | Motore di personalizzazione menu — v1 "naive" | ✅ nucleo v1 + DayCombo (giornate bilanciate, opt-in); resta l'attribuzione causale |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | 🟡 stati + selezione modulata fatti |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard fatti (clinica già in health-area) |
 | 8 | Shop / abbonamenti / provvigioni | 🟡 commerce già presente; aggiunto referral cliente "porta un'amica" |

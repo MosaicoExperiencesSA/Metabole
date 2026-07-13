@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 5 (avanzata) — Giornate bilanciate automatiche (DayCombo)** — nuovo
+  `DayComboService` (algoritmo puro, testabile): compone la giornata scegliendo una ricetta per slot
+  DENTRO il pool della dieta approvata, in modo che il totale kcal rientri nella banda del target del
+  livello (`Diet.levels`), massimizzando il punteggio efficacia+gradimento (modulato dallo stato) e
+  ruotando tra le combinazioni migliori per varietà; penalità soft sulla quota proteica giornaliera.
+  Pool piccoli → enumerazione completa; pool grandi → greedy. **Opt-in** via `menu_daycombo_enabled`
+  (default false): se spento, o se il livello non ha un target kcal, o se nessuna giornata rientra nella
+  banda → fallback ai template composti a mano + selettore per-slot (comportamento attuale invariato).
+  Refactor: estratto `buildScoringContext` (pool+punteggio) condiviso da selettore e DayCombo. Non
+  allarga mai l'insieme ricette approvato dal nutrizionista. 10 test nuovi, suite 322 verde. Nessuna
+  migrazione (usa `Diet.levels` e i campi ricetta già esistenti). Resta l'attribuzione causale del pasto.
 - `[Sviluppo]` **Fase 8 (parte 1) — "Porta un'amica" (referral cliente)** — ogni cliente ha un
   `referralCode` (8 caratteri, distinto dai ref code coach a 6) sul profilo; nuovo modello `Referral`
   (FK-less: referrer/referred = userId, una invitata = un solo invito) + migrazione (validata PG16).

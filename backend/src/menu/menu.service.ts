@@ -5,6 +5,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../signals/signals.service';
+import { DayComboService, RecipeInfo } from './day-combo.service';
 
 interface Substitution {
   from: string;
@@ -76,6 +77,7 @@ export class MenuService {
     private readonly audit: AuditService,
     private readonly events: EventsService,
     private readonly dietAgent: DietAgentService,
+    private readonly dayCombo: DayComboService,
   ) {}
 
   /** Menu visibile della cliente; prova a erogare i giorni successivi se ha diritto. */
@@ -183,9 +185,23 @@ export class MenuService {
     // gradimento, plateau → efficacia, pre-evento → proteine). Sicurezza e bilanciamento
     // restano prioritari.
     const agentState = await this.dietAgent.stateFor(clientId);
-    // Selettore per efficacia+gradimento: sceglie, DENTRO la dieta approvata, la
-    // ricetta migliore per ogni slot (learning + stelle, con vincolo kcal).
-    const selector = await this.buildSelector(clientId, profile.regime, templates as never, agentState);
+    // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState);
+    const [kcalTolPct, daycomboEnabled, pMin, pMax] = await Promise.all([
+      this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
+      this.configParams.getBool('menu_daycombo_enabled', false),
+      this.configParams.getNumber('menu_daycombo_protein_min', 0.2),
+      this.configParams.getNumber('menu_daycombo_protein_max', 0.45),
+    ]);
+    // Selettore per-slot (comportamento base, sempre disponibile come fallback).
+    const selector = this.selectorFromContext(ctx, kcalTolPct / 100);
+
+    // DayCombo (Fase 5 avanzata, opt-in): compone la giornata dal pool della dieta
+    // approvata puntando alle kcal del livello. Attivo solo se `menu_daycombo_enabled`
+    // e se il livello dichiara un target kcal in `Diet.levels`.
+    const targetKcal = this.levelTargetKcal(diet.levels, level);
+    const useDayCombo = daycomboEnabled && !!ctx && targetKcal > 0;
+    const combo = useDayCombo && ctx ? this.dayComboPools(ctx) : null;
 
     // Prepara gli snapshot dei giorni del ciclo.
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
@@ -193,7 +209,20 @@ export class MenuService {
       const date = new Date(firstNewDate.getTime() + i * 86_400_000);
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
-      const chosen = selector(template.meals as { slot: string; recipeId: string }[]);
+      let chosen: { slot: string; recipeId: string }[] | null = null;
+      if (combo) {
+        chosen = this.dayCombo.compose({
+          slots: combo.slots,
+          poolBySlot: combo.poolBySlot,
+          targetKcal,
+          tolerancePct: kcalTolPct,
+          dayIndex: daysSinceStart,
+          proteinBand: { min: pMin, max: pMax },
+        });
+      }
+      // Fallback: se DayCombo è spento o non trova una giornata nella banda, si usa
+      // il template composto a mano con il selettore per-slot.
+      if (!chosen) chosen = selector(template.meals as { slot: string; recipeId: string }[]);
       const meals = await this.snapshotMeals(chosen as never);
       daySnapshots.push({ date, meals });
     }
@@ -285,28 +314,30 @@ export class MenuService {
   // ---------- Selezione ricette per efficacia + gradimento ----------
 
   /**
-   * Costruisce un selettore: per ogni slot sceglie, TRA le ricette che la dieta
-   * approvata usa per quello slot (pool dai template), quella col punteggio migliore
-   * = w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle). Vincolo kcal per non
-   * sbilanciare la giornata. A parità di punteggio resta la ricetta del template.
+   * Contesto di scoring condiviso: pool ricette per slot (dalla dieta approvata),
+   * kcal/quota proteica per ricetta e la funzione punteggio
+   * `w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)` modulata dallo stato
+   * dell'agente. Usato sia dal selettore per-slot sia dalla composizione DayCombo.
    */
-  private async buildSelector(
+  private async buildScoringContext(
     clientId: string,
     regime: string | null,
     templates: { meals: { slot: string; recipeId: string }[] }[],
     state: AgentState = 'normale',
-  ): Promise<(meals: { slot: string; recipeId: string }[]) => { slot: string; recipeId: string }[]> {
-    const identity = (meals: { slot: string; recipeId: string }[]) => meals;
-    if (!regime) return identity;
+  ): Promise<{
+    slotPool: Map<string, Set<string>>;
+    kcalOf: Map<string, number>;
+    proteinOf: Map<string, number>;
+    score: (id: string) => number;
+  } | null> {
+    if (!regime) return null;
 
-    const [wEffBase, wGradBase, kcalTolPct, boost, proteinBonus] = await Promise.all([
+    const [wEffBase, wGradBase, boost, proteinBonus] = await Promise.all([
       this.configParams.getNumber('menu_select_w_eff', 1),
       this.configParams.getNumber('menu_select_w_grad', 1),
-      this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getNumber('menu_state_boost', 1.8),
       this.configParams.getNumber('menu_pre_event_protein_bonus', 0.6),
     ]);
-    const tol = kcalTolPct / 100;
     // Modulazione dei pesi in base allo stato dell'agente.
     let wEff = wEffBase;
     let wGrad = wGradBase;
@@ -324,7 +355,7 @@ export class MenuService {
         poolIds.add(m.recipeId);
       }
     }
-    if (poolIds.size === 0) return identity;
+    if (poolIds.size === 0) return null;
 
     const [recipes, weights, ratings] = await Promise.all([
       this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true } }) as Promise<{ id: string; kcal: number; macros: unknown }[]>,
@@ -336,7 +367,7 @@ export class MenuService {
     const effOf = new Map(weights.map((w) => [w.recipeId, w.samples > 0 ? w.score / w.samples : 0]));
     const starOf = new Map<string, number>();
     for (const r of ratings) starOf.set(r.recipeId, Math.max(starOf.get(r.recipeId) ?? 0, r.stars));
-    // Quota proteica (0..1) dai macro, per lo stato pre-evento.
+    // Quota proteica (0..1) dai macro, per lo stato pre-evento e per DayCombo.
     const proteinOf = new Map<string, number>();
     for (const r of recipes) {
       const m = r.macros as { protein_g?: number; carbs_g?: number; fat_g?: number } | null;
@@ -349,6 +380,20 @@ export class MenuService {
       wGrad * ((starOf.get(id) ?? 5) / 5) +
       (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0);
 
+    return { slotPool, kcalOf, proteinOf, score };
+  }
+
+  /**
+   * Selettore per-slot: per ogni slot sceglie, TRA le ricette che la dieta approvata
+   * usa per quello slot, quella col punteggio migliore, con vincolo kcal (±tol attorno
+   * alla ricetta del template). A parità di punteggio resta la ricetta del template.
+   */
+  private selectorFromContext(
+    ctx: { slotPool: Map<string, Set<string>>; kcalOf: Map<string, number>; score: (id: string) => number } | null,
+    tol: number,
+  ): (meals: { slot: string; recipeId: string }[]) => { slot: string; recipeId: string }[] {
+    if (!ctx) return (meals) => meals;
+    const { slotPool, kcalOf, score } = ctx;
     return (meals) =>
       meals.map((m) => {
         const pool = slotPool.get(m.slot);
@@ -370,6 +415,36 @@ export class MenuService {
         }
         return { slot: m.slot, recipeId: bestId };
       });
+  }
+
+  /** kcal obiettivo del livello dalla configurazione `Diet.levels` ([{level,kcal}]). */
+  private levelTargetKcal(levels: unknown, level: number): number {
+    const arr = (levels as { level?: number; kcal?: number }[] | null) ?? [];
+    const hit = Array.isArray(arr) ? arr.find((l) => l?.level === level) : undefined;
+    return hit?.kcal ?? 0;
+  }
+
+  /** Pool DayCombo (RecipeInfo per slot) dal contesto di scoring. */
+  private dayComboPools(ctx: {
+    slotPool: Map<string, Set<string>>;
+    kcalOf: Map<string, number>;
+    proteinOf: Map<string, number>;
+    score: (id: string) => number;
+  }): { slots: string[]; poolBySlot: Map<string, RecipeInfo[]> } {
+    const slots = [...ctx.slotPool.keys()];
+    const poolBySlot = new Map<string, RecipeInfo[]>();
+    for (const [slot, ids] of ctx.slotPool) {
+      poolBySlot.set(
+        slot,
+        [...ids].map((id) => ({
+          id,
+          kcal: ctx.kcalOf.get(id) ?? 0,
+          proteinShare: ctx.proteinOf.get(id) ?? 0,
+          score: ctx.score(id),
+        })),
+      );
+    }
+    return { slots, poolBySlot };
   }
 
   // ---------- Sicurezza: esclusioni (intolleranze/allergie) → blocco + escalation ----------

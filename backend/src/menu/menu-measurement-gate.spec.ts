@@ -3,6 +3,7 @@ import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DayComboService } from './day-combo.service';
 import { MenuService } from './menu.service';
 
 const dayIso = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
@@ -13,6 +14,7 @@ function makeService(prisma: unknown) {
     getNumber: jest.fn((k: string, def?: number) =>
       Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[k] ?? def),
     ),
+    getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
   };
   const audit = { log: jest.fn() };
   const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
@@ -23,6 +25,7 @@ function makeService(prisma: unknown) {
     audit as unknown as AuditService,
     events as unknown as EventsService,
     dietAgent as unknown as DietAgentService,
+    new DayComboService(),
   );
 }
 
