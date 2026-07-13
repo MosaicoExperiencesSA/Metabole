@@ -270,6 +270,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Compenso per visita completata (centesimi)',
   },
+  {
+    key: 'referral_reward_days',
+    value: '30',
+    type: 'number',
+    description: 'Giorni di abbonamento regalati a chi invita ("porta un\'amica") quando l\'invitata attiva il primo abbonamento (0 = ricompensa disattivata)',
+  },
 ];
 
 // Modelli email predefiniti (modificabili dall'admin). {{var}} = segnaposto.

@@ -360,6 +360,7 @@ model ClientProfile {
   assignedNutritionist   Staff?     @relation("AssignedNutritionist", fields: [assignedNutritionistId], references: [id], onDelete: SetNull)
   consents               Json?      // versioni dei consensi accettati
   notificationPrefs      Json?      @map("notification_prefs") // opt-out per tipo + email opzionale
+  referralCode           String?    @unique @map("referral_code") // codice "porta un'amica" della cliente
   screeningFlag          Boolean    @default(false) @map("screening_flag")
   onboardingAnswers      Json?      @map("onboarding_answers") // snapshot grezzo delle risposte
   onboardingCompletedAt  DateTime?  @map("onboarding_completed_at")
@@ -820,6 +821,23 @@ model MenuWeight {
   @@unique([clientId, recipeId])
   @@index([clientId])
   @@map("menu_weight")
+}
+
+// Invito "porta un'amica": una cliente (referrer) invita un'altra cliente (referred)
+// col proprio referralCode. Alla prima attivazione dell'abbonamento della referred
+// scatta la ricompensa per la referrer (estensione dell'abbonamento). FK-less:
+// referrerClientId/referredClientId come stringhe. Una referred = un solo invito.
+model Referral {
+  id               String    @id @default(uuid())
+  referrerClientId String    @map("referrer_client_id")
+  referredClientId String    @unique @map("referred_client_id")
+  code             String
+  convertedAt      DateTime? @map("converted_at") // prima attivazione abbonamento della referred
+  rewardedAt       DateTime? @map("rewarded_at") // ricompensa applicata alla referrer
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([referrerClientId])
+  @@map("referral")
 }
 
 // Appuntamento in agenda (app coach + cliente). Entità di SCHEDULING generale

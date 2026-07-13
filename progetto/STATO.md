@@ -68,6 +68,17 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Audit menu↔permessi (13/7): sezioni permessi ancora senza pagina backoffice (feature future):
   `engine_reviews`, `health_documents`, `assignments`, `assign_coach`, `assign_nutritionist`.
 
+## Shop / Abbonamenti / Provvigioni (Fase 8) 🟡
+- Già presente (commerce): piani/prodotti, checkout (carta Stripe + bonifico), abbonamenti, ordini,
+  pagamenti, ricevute PDF, approvazione/rifiuto in backoffice, provvigioni + ledger, payout/wallet/prelievi,
+  buoni sconto, ref code coach (assegnazione lead).
+- **Referral cliente "porta un'amica"** ✅: ogni cliente ha un `referralCode`; un'altra cliente può
+  indicarlo in registrazione (il codice coach ha la precedenza). Alla prima attivazione dell'abbonamento
+  dell'invitata, la referrer riceve `referral_reward_days` giorni extra sull'abbonamento attivo (config,
+  default 30); se non ne ha uno attivo la ricompensa resta in sospeso. `GET /me/referral` per l'app.
+- Ancora da fare: schermata "porta un'amica" nell'app cliente (front-end) + eventuale notifica alla
+  referrer quando la ricompensa scatta.
+
 ## Motore / AI
 - Motore a regole (Engine, M5): protocolli condizioni→azione, decisioni per cliente. ✅ (base)
 - Assistente AI (Claude) per chat e instradamento. ✅
@@ -124,7 +135,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 5 | Motore di personalizzazione menu — v1 "naive" | ✅ nucleo v1 (esclusioni+sostituzione+learning+selezione); avanzato (DayCombo, causale) da fare |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | 🟡 stati + selezione modulata fatti |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard fatti (clinica già in health-area) |
-| 8 | Shop / abbonamenti / provvigioni | ⬜ |
+| 8 | Shop / abbonamenti / provvigioni | 🟡 commerce già presente; aggiunto referral cliente "porta un'amica" |
 | 9 | Certificazione unicità (seed, collision check, registro firmato) | ⬜ |
 
 > Trasversali: privacy/consensi + AuditLog; tutte le soglie in `config_param`; notifiche push (backlog);

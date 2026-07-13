@@ -15,6 +15,7 @@ import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PdfService } from '../pdf/pdf.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReferralService } from '../referral/referral.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { FinanceService } from './finance.service';
@@ -48,6 +49,7 @@ export class CommerceService {
     private readonly audit: AuditService,
     private readonly discounts: DiscountsService,
     private readonly pdf: PdfService,
+    private readonly referral: ReferralService,
   ) {
     this.receiptKey = deriveKey(this.config.get<string>('FILE_ENCRYPTION_KEY') ?? 'dev-only-file-key');
   }
@@ -549,6 +551,9 @@ export class CommerceService {
         where: { id: payment.subscriptionId },
         data: { status: 'active', startDate: start, endDate: end },
       });
+      // "Porta un'amica": alla prima attivazione dell'invitata premia chi l'ha
+      // invitata (idempotente sull'invito; non deve mai far fallire il pagamento).
+      await this.referral.onConvert(payment.clientId).catch(() => undefined);
     }
     if (payment.orderId) {
       await this.prisma.order.update({ where: { id: payment.orderId }, data: { status: 'paid' } });

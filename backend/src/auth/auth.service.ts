@@ -16,6 +16,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReferralService } from '../referral/referral.service';
 import { RegisterDto } from './dto/register.dto';
 
 export interface TokenPair {
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly crm: CrmService,
     private readonly leadAssignment: LeadAssignmentService,
+    private readonly referral: ReferralService,
   ) {}
 
   // ---------- Registrazione ----------
@@ -47,10 +49,18 @@ export class AuthService {
 
     // Se è indicato un codice invito, lo validiamo PRIMA di creare l'utente,
     // così un codice errato dà un errore chiaro invece di un account "orfano".
+    // Un codice invito può essere di una COACH (ref code → auto-assegnazione) oppure
+    // di una CLIENTE ("porta un'amica" → invito). Il codice coach ha la precedenza.
     const trimmedRef = dto.refCode?.trim();
+    let refKind: 'coach' | 'client' | null = null;
     if (trimmedRef) {
-      const resolved = await this.leadAssignment.resolveByRefCode(trimmedRef);
-      if (!resolved) throw new BadRequestException('Codice invito non valido');
+      const resolvedCoach = await this.leadAssignment.resolveByRefCode(trimmedRef);
+      if (resolvedCoach) {
+        refKind = 'coach';
+      } else if (await this.referral.isClientCode(trimmedRef)) {
+        refKind = 'client';
+      }
+      if (!refKind) throw new BadRequestException('Codice invito non valido');
     }
 
     const passwordHash = await argon2.hash(dto.password);
@@ -79,9 +89,13 @@ export class AuthService {
 
     await this.issueEmailVerification(user.id, normalized, user.locale);
     await this.crm.ensureLead(user.id, normalized); // CRM: lead_in automatico
-    // Codice invito valido → auto-assegna la cliente alla coach (assegnazione immediata).
-    if (trimmedRef) {
+    // Codice coach → auto-assegna la cliente alla coach (assegnazione immediata).
+    if (trimmedRef && refKind === 'coach') {
       await this.leadAssignment.autoAssignByRefCode(user.id, trimmedRef);
+    }
+    // Codice cliente → registra l'invito "porta un'amica" (ricompensa alla conversione).
+    if (trimmedRef && refKind === 'client') {
+      await this.referral.linkOnRegister(user.id, trimmedRef);
     }
     const tokens = await this.issueTokenPair(user);
     return { user: this.toPublicUser(user), ...tokens };

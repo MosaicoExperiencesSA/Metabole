@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 8 (parte 1) — "Porta un'amica" (referral cliente)** — ogni cliente ha un
+  `referralCode` (8 caratteri, distinto dai ref code coach a 6) sul profilo; nuovo modello `Referral`
+  (FK-less: referrer/referred = userId, una invitata = un solo invito) + migrazione (validata PG16).
+  `ReferralService`: `ensureCode`, `myReferral` (codice + inviti/conversioni/ricompense), `isClientCode`,
+  `linkOnRegister`, `onConvert`. In **registrazione** il codice coach ha la precedenza; se non è un
+  codice coach ma di una cliente, si registra l'invito (prima il codice ignoto veniva rifiutato).
+  Alla **prima attivazione dell'abbonamento** dell'invitata (`finalizeApproval`) scatta la ricompensa:
+  l'abbonamento attivo della referrer viene esteso di `referral_reward_days` (config, default 30);
+  se la referrer non ha un abbonamento attivo la ricompensa resta in sospeso (convertita ma non premiata).
+  Endpoint cliente `GET /me/referral`. 8 test nuovi, suite 313 verde. (Il resto della Fase 8 — piani,
+  checkout, provvigioni, ledger, payout — era già presente.)
 - `[Sviluppo]` **Fase 7 (parte 1) — App Nutrizionista: pazienti + dashboard** — nuovo modulo
   `nutritionist`: `GET /nutritionist/patients` (pazienti assegnati con riepilogo clinico: ultima misura,
   escalation aperte, documenti da revisionare, prossima visita, ordinati per attenzione) e

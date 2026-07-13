@@ -39,6 +39,7 @@ import { TrackingModule } from './tracking/tracking.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { CoachModule } from './coach/coach.module';
 import { NutritionistModule } from './nutritionist/nutritionist.module';
+import { ReferralModule } from './referral/referral.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { NutritionistModule } from './nutritionist/nutritionist.module';
     AlertsModule,
     CoachModule,
     NutritionistModule,
+    ReferralModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

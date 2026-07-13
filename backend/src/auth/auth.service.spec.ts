@@ -6,6 +6,7 @@ import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
 import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
+import { ReferralService } from '../referral/referral.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
@@ -61,6 +62,13 @@ describe('AuthService', () => {
           useValue: {
             resolveByRefCode: jest.fn().mockResolvedValue(null),
             autoAssignByRefCode: jest.fn().mockResolvedValue(false),
+          },
+        },
+        {
+          provide: ReferralService,
+          useValue: {
+            isClientCode: jest.fn().mockResolvedValue(null),
+            linkOnRegister: jest.fn().mockResolvedValue(false),
           },
         },
         {
