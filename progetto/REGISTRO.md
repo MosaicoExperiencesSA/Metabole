@@ -7,6 +7,11 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Backlog #0 — Permessi: pulsante "Salva" con conferma** — la matrice Permessi non salva
+  più ogni interruttore all'istante: le modifiche si accumulano in locale (celle evidenziate + barra
+  "N modifiche non salvate"), poi **Salva** apre un **modale di conferma** e invia il batch dei PATCH
+  (una cella per volta, come da API), con toast di esito; "Annulla" scarta le modifiche. Regola "senza
+  vede niente gestisce" mantenuta. Solo front-end.
 - `[Sviluppo]` **Fix seed admin da Render (password che "non funzionava")** — `ensureAdminFromEnv` prima
   applicava `ADMIN_PASSWORD` SOLO alla creazione dell'account: se l'admin (`ADMIN_EMAIL`, es.
   `admin@metabole.eu`) esisteva già, la password su Render veniva ignorata → login impossibile. Ora il
