@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
+import { UserMenu } from './UserMenu';
 
 interface NavItem {
   key: string; // pageKey dei permessi
@@ -23,7 +24,7 @@ const NAV: NavSection[] = [
     items: [
       { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
       { key: 'charts', label: 'Grafici', to: '/grafici', icon: 'ti-chart-histogram' },
-      { key: 'impostazioni', label: 'Impostazioni', to: '/impostazioni', icon: 'ti-settings' },
+      // Impostazioni spostate nel menu utente in alto (avatar) → non più in sidebar.
     ],
   },
   {
@@ -44,6 +45,7 @@ const NAV: NavSection[] = [
       { key: 'clients', label: 'Clienti', to: '/clienti', icon: 'ti-users' },
       { key: 'visits_agenda', label: 'Agenda visite', to: '/agenda', icon: 'ti-calendar' },
       { key: 'escalations', label: 'Segnalazioni', to: '/segnalazioni', icon: 'ti-alert-triangle' },
+      { key: 'chat', label: 'Chat', to: '/chat', icon: 'ti-messages' },
     ],
   },
   {
@@ -53,9 +55,16 @@ const NAV: NavSection[] = [
       { key: 'purchases', label: 'Acquisti', to: '/acquisti', icon: 'ti-shopping-cart' },
       { key: 'discounts', label: 'Buoni sconto', to: '/buoni-sconto', icon: 'ti-ticket' },
       { key: 'accounting', label: 'Bonifici & contabilità', to: '/pagamenti', icon: 'ti-cash' },
+      { key: 'accounting_costs', label: 'Contabilità', to: '/contabilita', icon: 'ti-report-money' },
       { key: 'commissions', label: 'Provvigioni', to: '/provvigioni', icon: 'ti-percentage' },
       { key: 'compensation', label: 'Compensi staff', to: '/compensi', icon: 'ti-coin' },
       { key: 'withdrawals', label: 'Richieste prelievo', to: '/prelievi', icon: 'ti-wallet' },
+    ],
+  },
+  {
+    group: 'Marketing',
+    items: [
+      { key: 'marketing', label: 'Marketing', to: '/marketing', icon: 'ti-speakerphone' },
     ],
   },
   {
@@ -87,7 +96,7 @@ const NAV: NavSection[] = [
 ];
 
 export function Layout({ title, children }: { title: string; children: ReactNode }) {
-  const { user, permissions, can, logout, impersonating, stopImpersonation } = useAuth();
+  const { can, logout, impersonating, stopImpersonation } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -139,7 +148,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         </div>
 
         {NAV.map((section) => {
-          const visible = section.items.filter((it) => it.key === 'dashboard' || it.key === 'impostazioni' || can(it.key));
+          const visible = section.items.filter((it) => it.key === 'dashboard' || can(it.key));
           if (visible.length === 0) return null;
 
           if (section.collapsible) {
@@ -195,9 +204,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
             <h1>{title}</h1>
           </div>
           <div className="row">
-            <span className="muted" style={{ fontSize: 13 }}>
-              {user?.email} · {permissions ? ROLE_LABEL[permissions.role] : ''}
-            </span>
+            <UserMenu />
           </div>
         </div>
         <div className="content">{children}</div>

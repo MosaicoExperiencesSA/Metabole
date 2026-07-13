@@ -19,6 +19,7 @@ export interface AuthUser {
   phone?: string | null;
   title?: string | null;
   theme?: string | null;
+  photoUrl?: string | null;
 }
 
 interface LoginResponse {

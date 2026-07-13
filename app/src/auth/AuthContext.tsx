@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { api, apiPublic, getRefreshToken, setAccessToken, setRefreshToken } from '../api/client';
+import { track, currentRefcod } from '../lib/track';
 
 const WIDGET_TOKEN_KEY = 'metabole_widget_token';
 
@@ -89,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string) {
     const res = await apiPublic<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
     applyAuth(res);
+    track('login', { role: res.user?.role });
   }
 
   async function register(data: RegisterPayload) {
@@ -103,11 +105,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data.city?.trim()) body.city = data.city.trim();
     if (data.province?.trim()) body.province = data.province.trim().toUpperCase();
     if (data.refCode?.trim()) body.refCode = data.refCode.trim().toUpperCase();
+    // Se non è stato inserito un ref code ma l'utente è arrivato da ?ref=CODICE,
+    // lo usiamo per l'attribuzione commerciale (vedi Tracciamento_Dati §2).
+    else {
+      const ref = currentRefcod();
+      if (ref) body.refCode = ref.toUpperCase();
+    }
     const res = await apiPublic<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(body) });
     applyAuth(res);
+    track('register', { refcod: body.refCode ?? null });
   }
 
   async function logout() {
+    track('logout');
     const refreshToken = getRefreshToken();
     try {
       if (refreshToken) await apiPublic('/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) });

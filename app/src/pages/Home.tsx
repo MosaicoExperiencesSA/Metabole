@@ -8,6 +8,7 @@ import CheckinPopup from '../components/CheckinPopup';
 import ChatSheet from '../components/ChatSheet';
 import StartDatePrompt from '../components/StartDatePrompt';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
+import { TypeText } from '../components/TypeText';
 
 interface Today {
   checkinDone: boolean;
@@ -16,6 +17,15 @@ interface Today {
   steps: { steps: number; goal: number };
 }
 interface EventItem { id: string; type: string; label: string | null; startDate: string; endDate: string; mode: string }
+interface NextAppt { id: string; staffRole: string; staffName: string | null; type: string; datetime: string; note: string | null }
+
+const APPT_TYPE_LABEL: Record<string, string> = { call: 'Chiamata', televisit: 'Televisita', in_person: 'In presenza' };
+function apptWhen(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  return `${date} · ${time}`;
+}
 
 /**
  * Home / dashboard — dati REALI:
@@ -121,6 +131,7 @@ export default function Home() {
   const [today, setToday] = useState<Today | null>(null);
   const [meals, setMeals] = useState<ApiMeal[] | null>(null);
   const [nextEvent, setNextEvent] = useState<EventItem | null>(null);
+  const [nextAppt, setNextAppt] = useState<NextAppt | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const [coachName, setCoachName] = useState('la tua coach');
@@ -143,6 +154,7 @@ export default function Home() {
       const up = evs.filter((e) => startOfDay(new Date(e.startDate)).getTime() >= t).sort((a, b) => a.startDate.localeCompare(b.startDate));
       setNextEvent(up[0] ?? null);
     }).catch(() => setNextEvent(null));
+    api<{ next: NextAppt | null }>('/me/agenda?next=1').then((r) => setNextAppt(r.next)).catch(() => setNextAppt(null));
   }, []);
 
   function onMealsScroll() {
@@ -213,13 +225,15 @@ export default function Home() {
 
       <div className="coach-hero" style={{ background: coach.bg, cursor: 'pointer' }} onClick={() => setSheet('coach')}>
         <div className="row-between">
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Il tuo coach</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.4px', opacity: .9 }}>
+            <i className="ti ti-sparkles" style={{ fontSize: 11, verticalAlign: '-1px' }} /> GAIA · LA FRASE DI OGGI
+          </span>
         </div>
         <div className="coach-body">
           <Gaia size={70} controls={false} mouth="big" />
           <div className="coach-head">{coach.head}</div>
         </div>
-        <div className="coach-phrase">"{frase}"</div>
+        <div className="coach-phrase">"<TypeText key={frase} segments={[{ t: frase }]} />"</div>
       </div>
 
       <div className="sec">Oggi a colpo d'occhio</div>
@@ -240,6 +254,23 @@ export default function Home() {
           <div className="muted stat-l">misure</div>
         </div>
       </div>
+
+      {nextAppt && (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }} onClick={() => navigate('/calendario')}>
+          <span className="event-ic" style={{ background: '#EAF6F1', color: '#12A386', flex: 'none' }}>
+            <i className="ti ti-calendar-event" />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="muted" style={{ fontSize: 11 }}>Prossimo appuntamento</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>
+              {APPT_TYPE_LABEL[nextAppt.type] ?? 'Appuntamento'}
+              {nextAppt.staffName ? ` · ${nextAppt.staffName}` : ''}
+            </div>
+            <div className="muted" style={{ fontSize: 12, textTransform: 'capitalize' }}>{apptWhen(nextAppt.datetime)}</div>
+          </div>
+          <i className="ti ti-chevron-right" style={{ color: '#9aa' }} />
+        </div>
+      )}
 
       {meals && meals.length > 0 && (
         <>

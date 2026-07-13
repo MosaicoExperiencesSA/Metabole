@@ -35,6 +35,11 @@ import { PdfModule } from './pdf/pdf.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { TrackingModule } from './tracking/tracking.module';
+import { AlertsModule } from './alerts/alerts.module';
+import { CoachModule } from './coach/coach.module';
+import { NutritionistModule } from './nutritionist/nutritionist.module';
+import { ReferralModule } from './referral/referral.module';
 
 @Module({
   imports: [
@@ -75,6 +80,11 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AnalyticsModule,
     PayoutsModule,
     DashboardModule,
+    TrackingModule,
+    AlertsModule,
+    CoachModule,
+    NutritionistModule,
+    ReferralModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

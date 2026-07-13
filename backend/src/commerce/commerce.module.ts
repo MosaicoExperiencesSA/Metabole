@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ReferralModule } from '../referral/referral.module';
+import { AccountingController } from './accounting.controller';
+import { AccountingService } from './accounting.service';
 import {
   AdminPaymentsController,
   AdminPurchasesController,
@@ -24,7 +27,7 @@ import { RemindersService } from './reminders.service';
 import { StripeService } from './stripe.service';
 
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, ReferralModule],
   controllers: [
     CatalogCommerceController,
     MyCommerceController,
@@ -39,8 +42,9 @@ import { StripeService } from './stripe.service';
     AdminDiscountsController,
     MyDiscountsController,
     LeadAssignmentController,
+    AccountingController,
   ],
-  providers: [CommerceService, CrmService, FinanceService, PipelineService, RemindersService, StripeService, DiscountsService, LeadAssignmentService],
+  providers: [CommerceService, CrmService, FinanceService, PipelineService, RemindersService, StripeService, DiscountsService, LeadAssignmentService, AccountingService],
   exports: [CommerceService, CrmService, FinanceService, StripeService, DiscountsService, LeadAssignmentService],
 })
 export class CommerceModule {}

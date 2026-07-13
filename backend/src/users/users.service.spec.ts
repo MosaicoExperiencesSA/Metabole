@@ -101,4 +101,48 @@ describe('UsersService (admin)', () => {
     expect(select.passwordHash).toBeUndefined();
     expect(select.email).toBe(true);
   });
+
+  describe('archive / restore', () => {
+    it('non permette di archiviare sé stessi', async () => {
+      await expect(service.archive('me', 'me')).rejects.toThrow('tuo stesso account');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('non permette di archiviare l\'admin protetto (variabile Render)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'a1', email: 'simone.salogni@gmail.com', deletedAt: null });
+      await expect(service.archive('a1', 'admin-1')).rejects.toThrow('admin principale');
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('archivia un utente normale (soft-delete + sospeso + sessioni revocate)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u9', email: 'coach.test@metabole.eu', deletedAt: null });
+      prisma.user.update.mockResolvedValue({});
+      prisma.refreshToken.updateMany.mockResolvedValue({});
+      const res = await service.archive('u9', 'admin-1');
+      expect(res).toEqual({ archived: true });
+      const data = prisma.user.update.mock.calls[0][0].data;
+      expect(data.deletedAt).toBeInstanceOf(Date);
+      expect(data.status).toBe('suspended');
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalled();
+      expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'admin.user.archive' }));
+    });
+
+    it('non archivia due volte', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u9', email: 'x@y.z', deletedAt: new Date() });
+      await expect(service.archive('u9', 'admin-1')).rejects.toThrow('già archiviato');
+    });
+
+    it('ripristina un utente archiviato', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u9', deletedAt: new Date() });
+      prisma.user.update.mockResolvedValue({});
+      const res = await service.restore('u9', 'admin-1');
+      expect(res).toEqual({ restored: true });
+      expect(prisma.user.update.mock.calls[0][0].data).toEqual({ deletedAt: null, status: 'active' });
+    });
+
+    it('non ripristina un utente non archiviato', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u9', deletedAt: null });
+      await expect(service.restore('u9', 'admin-1')).rejects.toThrow('non archiviato');
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { DietLearningService } from '../diet-learning/diet-learning.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SignalsService, toDateOnly } from './signals.service';
 
@@ -44,6 +45,8 @@ describe('SignalsService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
       },
       milestone: { createMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn() },
+      // Sblocco gate misure: chiude gli avvisi coach "misure mancanti".
+      notification: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       escalation: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'e1' }),
@@ -68,6 +71,7 @@ describe('SignalsService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigParamsService, useValue: config },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: DietLearningService, useValue: { onCycleClose: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = moduleRef.get(SignalsService);

@@ -1,65 +1,54 @@
-# Widget Android — file da aggiungere al progetto nativo
+# Widget home Android — Metabole (mascotte Gaia, 3 formati)
 
-Questi file aggiungono il **widget da home screen** all'APK. Vanno copiati nel progetto
-`android/` (che si genera con `npx cap add android`, vedi `docs/APK_Build_Guida.md`).
+Copia **versionata** dei file nativi del widget da home screen.
+La cartella reale `app/android/` è ignorata da git (è generata da Capacitor),
+quindi questi file vivono qui come sorgente di verità e vanno **copiati** dentro
+il progetto Android quando serve (nuovo clone, dopo `npx cap add android`, ecc.).
 
-Backend e app sono già pronti:
-- `POST /auth/widget-token` → l'app ottiene un token widget (90 giorni) e lo salva in
-  SharedPreferences `CapacitorStorage` chiave `metabole_widget_token` (fatto in AuthContext).
-- `GET /widget` (pubblico, auth col token widget) → dati del widget.
+## Cosa fa il widget
 
-## 1. Copia i file (rinominandoli al percorso indicato in testa a ciascuno)
+Legge il *token widget* salvato dall'app cliente in SharedPreferences
+(`CapacitorStorage` → chiave `metabole_widget_token`), chiama
+`GET https://metabole-backend.onrender.com/api/v1/widget` e mostra la mascotte
+Gaia con saluto, frase del giorno, streak, acqua, passi e prossimo pasto.
+Tap sul widget → apre l'app.
 
-| File in questa cartella | Destinazione nel progetto |
+Tre formati che si adattano al ridimensionamento sulla home:
+- **quadrato** (`widget_square.xml`): streak + mascotte + frase
+- **rettangolare** (`widget_rect.xml`): mascotte + saluto/frase + acqua/passi
+- **largo** (`widget_large.xml`): intestazione con streak, mascotte + saluto +
+  metriche, frase, card "Prossimo pasto", pulsante "Apri Metabole"
+
+Colore di sfondo e mascotte cambiano in base allo `state` restituito dal backend
+(buongiorno/acqua = blu, in rotta = teal, passi = arancio, buonanotte = viola
+scuro + mascotte addormentata).
+
+## Dove va ogni file (dentro app/android/app/src/main/)
+
+| File in questa cartella | Destinazione nel progetto Android |
 |---|---|
-| `MetaboleWidget.kt` | `android/app/src/main/java/app/metabole/client/MetaboleWidget.kt` |
-| `res-layout-metabole_widget.xml` | `android/app/src/main/res/layout/metabole_widget.xml` |
-| `res-drawable-widget_bg.xml` | `android/app/src/main/res/drawable/widget_bg.xml` |
-| `res-xml-metabole_widget_info.xml` | `android/app/src/main/res/xml/metabole_widget_info.xml` |
+| `java/MetaboleWidget.java` | `java/app/metabole/client/MetaboleWidget.java` |
+| `res/layout/widget_square.xml` | `res/layout/widget_square.xml` |
+| `res/layout/widget_rect.xml` | `res/layout/widget_rect.xml` |
+| `res/layout/widget_large.xml` | `res/layout/widget_large.xml` |
+| `res/drawable/widget_bg_teal.xml` | `res/drawable/widget_bg_teal.xml` |
+| `res/drawable/widget_bg_blue.xml` | `res/drawable/widget_bg_blue.xml` |
+| `res/drawable/widget_bg_orange.xml` | `res/drawable/widget_bg_orange.xml` |
+| `res/drawable/widget_bg_dark.xml` | `res/drawable/widget_bg_dark.xml` |
+| `res/drawable/widget_btn_bg.xml` | `res/drawable/widget_btn_bg.xml` |
+| `res/drawable/widget_chip_bg.xml` | `res/drawable/widget_chip_bg.xml` |
+| `res/drawable/widget_meal_bg.xml` | `res/drawable/widget_meal_bg.xml` |
+| `res/drawable/mascot_happy.png` | `res/drawable/mascot_happy.png` |
+| `res/drawable/mascot_sleepy.png` | `res/drawable/mascot_sleepy.png` |
+| `res/xml/metabole_widget_info.xml` | `res/xml/metabole_widget_info.xml` |
 
-⚠️ **Package**: in `MetaboleWidget.kt` la prima riga è `package app.metabole.client`.
-Deve combaciare con il package della `MainActivity` (guarda in
-`android/app/src/main/java/.../MainActivity.java`). Se il tuo è diverso, adatta il package
-e sposta il file nella cartella corrispondente. La cartella `res/xml/` potrebbe non esistere:
-creala.
-
-## 2. Registra il widget nel Manifest
-
-In `android/app/src/main/AndroidManifest.xml`, **dentro** `<application> … </application>`
-(dopo l'`<activity>` della MainActivity) incolla:
-
-```xml
-<receiver
-    android:name=".MetaboleWidget"
-    android:exported="false">
-    <intent-filter>
-        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-    </intent-filter>
-    <meta-data
-        android:name="android.appwidget.provider"
-        android:resource="@xml/metabole_widget_info" />
-</receiver>
-```
-
-La permission Internet è già presente nei progetti Capacitor; se mancasse, aggiungi
-`<uses-permission android:name="android.permission.INTERNET" />` fuori da `<application>`.
-
-## 3. Ricompila e prova
-
-```bash
-npx cap sync android
-npx cap open android
-```
-In Android Studio fai **Build → Build APK(s)**, installa l'APK, poi tieni premuto sulla home
-del telefono → **Widget** → cerca **Metabole** e trascinalo sulla home.
-
-Requisito: aver fatto **login nell'app almeno una volta** (così il token widget viene salvato).
-Il widget si aggiorna da solo ~ogni 30 minuti e al tap apre l'app.
+Inoltre incollare il contenuto di `AndroidManifest-receiver.xml` dentro il tag
+`<application>` di `app/android/app/src/main/AndroidManifest.xml`.
 
 ## Note
-- È la **versione base** (un formato, mascotte come emoji per stato, saluto, frase, prossimo
-  pasto, acqua/passi). Quando funziona, possiamo aggiungere immagini mascotte vere, più formati
-  (piccolo/grande) e animazioni.
-- Se il widget resta su "Apri l'app Metabole": fai login nell'app, poi rimuovi e riaggiungi il
-  widget (o aspetta il refresh). Vuol dire che il token non era ancora salvato.
-- Endpoint dati e schema JSON: vedi `docs/Widget_Nativo_Guida.md`.
+
+- Il progetto Capacitor è **Java-only** (niente Kotlin): il provider è in Java.
+- Le mascotte sono PNG (i widget Android non supportano SVG/animazioni).
+- Backend: l'endpoint pubblico `GET /widget` e il token widget dedicato (scope
+  `widget`, 90 giorni) sono già nel codice backend (`signals/widget.controller.ts`,
+  `auth.service.ts`). Lo `streak` è calcolato in `signals.service.ts`.

@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { clipForPage, isMuted, setMuted } from '../audio/gaia';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
+import { TypeText } from '../components/TypeText';
 import FieldInput from '../onboarding/Field';
 import PlanFlow from './PlanFlow';
 import type { Field, OnboardingResult, Page, Questions } from '../onboarding/types';
@@ -205,8 +206,13 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     if (a.themeColor) dto.themeColor = a.themeColor;
     if (Array.isArray(a.pausePeriods) && a.pausePeriods.length) dto.consents = { pausePeriods: a.pausePeriods };
 
+    const t0 = performance.now();
     try {
       const res = await api<OnboardingResult>('/onboarding/answers', { method: 'POST', body: JSON.stringify(dto) });
+      // Schermo 25 "Sto cucendo il tuo percorso": teniamo la transizione visibile
+      // almeno ~3,2s (come nel prototipo) anche se l'API risponde subito.
+      const elapsed = performance.now() - t0;
+      if (elapsed < 3200) await new Promise((r) => setTimeout(r, 3200 - elapsed));
       setResult(res);
     } catch (e) {
       setSubmitErr(e instanceof ApiError ? e.message : 'Qualcosa non ha funzionato. Riprova.');
@@ -233,6 +239,22 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   // Percorso pronto → coda commerciale (piano, pagamento demo, data, conferme).
   if (result) return <PlanFlow result={result} onDone={onDone} />;
 
+  // Schermo 25 — "Sto cucendo il tuo percorso" (transizione mentre il motore calcola).
+  if (submitting) {
+    return (
+      <div className="app-frame">
+        <div className="screen no-tabbar center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 16, padding: 24 }}>
+          <Gaia size={120} controls={false} mouth="big" />
+          <h1 style={{ margin: 0 }}>Sto cucendo il tuo percorso</h1>
+          <div className="bubble" style={{ maxWidth: 320, borderRadius: 14, padding: '12px 14px' }}>
+            <TypeText segments={[{ t: 'Metto insieme ' }, { t: 'dieta, coach e obiettivi', b: true }, { t: ' su misura per te. Ci vuole solo un istante…' }]} />
+          </div>
+          <div className="spin" style={{ width: 34, height: 34, marginTop: 4 }} />
+        </div>
+      </div>
+    );
+  }
+
   if (cur.t === 'section') {
     return (
       <div className="app-frame">
@@ -243,7 +265,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             <Gaia clip={clip} size={140} controls={false} />
             <div className="sec-name">{cur.sec.name}</div>
             <div className="sec-headline">{cur.sec.intro}</div>
-            <div className="sec-note">{cur.sec.note}</div>
+            <TypeText key={`sec-${cur.sec.key}`} className="sec-note" segments={[{ t: cur.sec.note }]} />
           </div>
           <button className="btn" style={{ background: '#fff', color: cur.sec.color }} onClick={next}>Iniziamo</button>
         </div>
@@ -273,9 +295,14 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
         {cur.t === 'overview' && (
           <div className="onb-body">
-            <div className="onb-gaia"><Gaia clip={clip} size={116} controls={false} /></div>
             <h1>Facciamo conoscenza</h1>
-            <p className="muted">Poche domande, divise in cinque aree, per costruire il tuo percorso:</p>
+            <p className="muted">Cinque aree per costruire il tuo percorso.</p>
+            <div className="qbubble">
+              <Gaia clip={clip} size={62} controls={false} />
+              <div className="bubble">
+                <TypeText segments={[{ t: 'Per settare e personalizzare la tua app ho bisogno di qualche indicazione su questi ' }, { t: 'cinque punti', b: true }, { t: '.' }]} />
+              </div>
+            </div>
             <div className="areas">
               {SECTIONS.map((s) => (
                 <div className="area" key={s.key}>
@@ -297,7 +324,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <div className="onb-body">
             <div className="qbubble">
               <Gaia clip={clip} size={62} controls={false} />
-              <div className="bubble">{cur.page.subtitle || "Rispondi con calma, non c'è fretta."}</div>
+              <div className="bubble"><TypeText key={idx} segments={[{ t: cur.page.subtitle || "Rispondi con calma, non c'è fretta." }]} /></div>
             </div>
             <h1>{cur.page.title}</h1>
             <div className={`onb-fields${cur.page.key === 'baseline' ? ' fields-grid' : ''}`}>

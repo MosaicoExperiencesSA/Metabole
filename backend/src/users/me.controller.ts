@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Patch, Put } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { UsersService } from './users.service';
@@ -31,6 +31,8 @@ class UpdateAccountDto {
   @IsOptional() @IsString() @MaxLength(80) title?: string;
   @IsOptional() @IsIn(['light', 'dark', 'taupe', 'white']) theme?: string;
   @IsOptional() @IsEmail() @MaxLength(160) email?: string;
+  // Foto profilo: data URL ridotta lato client (≤ ~300k char ≈ 220KB) o null per rimuoverla.
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(300000) photoUrl?: string | null;
 }
 
 class ChangePasswordDto {

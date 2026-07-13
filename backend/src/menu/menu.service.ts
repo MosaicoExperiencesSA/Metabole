@@ -2,15 +2,64 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../signals/signals.service';
+import { DayComboService, RecipeInfo } from './day-combo.service';
 
+interface Substitution {
+  from: string;
+  to: string;
+  reason: string;
+}
 interface MealSnapshot {
   slot: string;
   recipeId: string;
   name: string;
   kcal: number;
+  substitutions?: Substitution[];
 }
+
+// Mappa intolleranza/allergia → parole chiave negli ingredienti (v1; spostabile in config).
+// Serve a riconoscere un ingrediente pericoloso anche quando il nome non coincide
+// col termine dell'intolleranza (es. "lattosio" → "yogurt", "formaggio").
+const INTOLERANCE_MAP: Record<string, string[]> = {
+  lattosio: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano'],
+  glutine: ['pane', 'pasta', 'farro', 'orzo', 'couscous', 'grano', 'seitan', 'pizza', 'cracker'],
+  'frutta secca': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'arachidi'],
+  uova: ['uovo', 'uova', 'frittata', 'maionese'],
+  pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe'],
+  crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle'],
+  soia: ['soia', 'tofu', 'edamame'],
+};
+
+// Sostituzioni equivalenti sicure (v1; spostabile in config). Chiave = parola chiave
+// nell'ingrediente → sostituto. Se un ingrediente escluso NON è qui e deriva da
+// un'intolleranza, il piano si blocca (frutta secca/pesce/crostacei/uova: nessuna
+// sostituzione sicura come cardine → blocco).
+const SUBSTITUTION_MAP: Record<string, string> = {
+  // lattosio
+  latte: 'bevanda vegetale',
+  yogurt: 'yogurt senza lattosio',
+  formaggio: 'formaggio senza lattosio',
+  mozzarella: 'mozzarella senza lattosio',
+  ricotta: 'ricotta senza lattosio',
+  burro: 'olio evo',
+  panna: 'panna vegetale',
+  parmigiano: 'parmigiano ben stagionato',
+  // glutine
+  pane: 'pane senza glutine',
+  pasta: 'pasta senza glutine',
+  farro: 'riso',
+  orzo: 'riso',
+  couscous: 'quinoa',
+  cracker: 'gallette di riso',
+  pizza: 'pizza senza glutine',
+  // gusti non graditi comuni
+  funghi: 'cavolfiore',
+  cipolla: 'porro',
+  peperoni: 'zucchine',
+};
 
 /**
  * Erogazione del menu (spec sez. 8):
@@ -27,6 +76,8 @@ export class MenuService {
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
     private readonly events: EventsService,
+    private readonly dietAgent: DietAgentService,
+    private readonly dayCombo: DayComboService,
   ) {}
 
   /** Menu visibile della cliente; prova a erogare i giorni successivi se ha diritto. */
@@ -44,7 +95,8 @@ export class MenuService {
       orderBy: { date: 'asc' },
       take: 30,
     });
-    return { delivered, days: menuDays };
+    const blocked = await this.dietBlock(clientId);
+    return { delivered, days: menuDays, blocked };
   }
 
   /**
@@ -92,6 +144,13 @@ export class MenuService {
         where: { clientId_date: { clientId, date: today } },
       });
       if (!checkinToday) return []; // spec: sblocco dopo il check-in
+
+      // Gate misure (Tracciamento_Dati §5): al 2° giorno di ogni ciclo le misure
+      // sono obbligatorie. Finché non arrivano, il ciclo successivo resta "held".
+      // L'avviso alla coach lo genera l'Alert engine (missing_measurements).
+      if (await this.cycleNeedsMeasure(clientId, last, daysPerDelivery)) {
+        return [];
+      }
       firstNewDate = nextDate.getTime() > today.getTime() ? nextDate : today;
     }
 
@@ -122,27 +181,84 @@ export class MenuService {
     }
     if (templates.length === 0) return [];
 
-    const created: string[] = [];
+    // Stato dell'agente (Metabole_Agente_AI_Dieta): modula la selezione (conforto →
+    // gradimento, plateau → efficacia, pre-evento → proteine). Sicurezza e bilanciamento
+    // restano prioritari.
+    const agentState = await this.dietAgent.stateFor(clientId);
+    // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState);
+    const [kcalTolPct, daycomboEnabled, pMin, pMax] = await Promise.all([
+      this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
+      this.configParams.getBool('menu_daycombo_enabled', false),
+      this.configParams.getNumber('menu_daycombo_protein_min', 0.2),
+      this.configParams.getNumber('menu_daycombo_protein_max', 0.45),
+    ]);
+    // Selettore per-slot (comportamento base, sempre disponibile come fallback).
+    const selector = this.selectorFromContext(ctx, kcalTolPct / 100);
+
+    // DayCombo (Fase 5 avanzata, opt-in): compone la giornata dal pool della dieta
+    // approvata puntando alle kcal del livello. Attivo solo se `menu_daycombo_enabled`
+    // e se il livello dichiara un target kcal in `Diet.levels`.
+    const targetKcal = this.levelTargetKcal(diet.levels, level);
+    const useDayCombo = daycomboEnabled && !!ctx && targetKcal > 0;
+    const combo = useDayCombo && ctx ? this.dayComboPools(ctx) : null;
+
+    // Prepara gli snapshot dei giorni del ciclo.
+    const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
     for (let i = 0; i < daysPerDelivery; i++) {
       const date = new Date(firstNewDate.getTime() + i * 86_400_000);
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
-      const meals = await this.snapshotMeals(template.meals as never);
+      let chosen: { slot: string; recipeId: string }[] | null = null;
+      if (combo) {
+        chosen = this.dayCombo.compose({
+          slots: combo.slots,
+          poolBySlot: combo.poolBySlot,
+          targetKcal,
+          tolerancePct: kcalTolPct,
+          dayIndex: daysSinceStart,
+          proteinBand: { min: pMin, max: pMax },
+        });
+      }
+      // Fallback: se DayCombo è spento o non trova una giornata nella banda, si usa
+      // il template composto a mano con il selettore per-slot.
+      if (!chosen) chosen = selector(template.meals as { slot: string; recipeId: string }[]);
+      const meals = await this.snapshotMeals(chosen as never);
+      daySnapshots.push({ date, meals });
+    }
 
+    // SICUREZZA + SOSTITUZIONE (motore §2/§7): controllo i piatti contro le esclusioni
+    // della cliente. Se un ingrediente escluso ha una sostituzione sicura → la annoto sul
+    // pasto (il piatto si eroga). Se un'INTOLLERANZA non è sostituibile → NON si eroga:
+    // blocco + escalation al nutrizionista (la coach la vede via Alert engine).
+    const { violations, subsByRecipe } = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals));
+    if (violations.length) {
+      await this.ensureDietBlockedEscalation(clientId, violations);
+      return [];
+    }
+    for (const day of daySnapshots) {
+      for (const m of day.meals) {
+        const subs = subsByRecipe[m.recipeId];
+        if (subs && subs.length) m.substitutions = subs;
+      }
+    }
+
+    const created: string[] = [];
+    for (const day of daySnapshots) {
       await this.prisma.menuDay.upsert({
-        where: { clientId_date: { clientId, date } },
+        where: { clientId_date: { clientId, date: day.date } },
         create: {
           clientId,
-          date,
+          date: day.date,
           dietId: diet.id,
           level,
-          meals: meals as never,
+          meals: day.meals as never,
           visibleFrom: last ? today : visibleFrom,
           sourceRuleId,
         },
         update: {}, // mai sovrascrivere un giorno già erogato
       });
-      created.push(date.toISOString().slice(0, 10));
+      created.push(day.date.toISOString().slice(0, 10));
     }
     await this.audit.log({
       action: 'menu.delivered',
@@ -151,6 +267,282 @@ export class MenuService {
       metadata: { days: created, dietId: diet.id },
     });
     return created;
+  }
+
+  // ---------- Gate misure (misure obbligatorie al 2° giorno del ciclo) ----------
+
+  /**
+   * Stato del gate misure per l'app: se `blocking` è true, il client mostra il
+   * popup bloccante finché non arriva la misura del ciclo corrente.
+   */
+  async measurementGate(clientId: string): Promise<{
+    required: boolean;
+    blocking: boolean;
+    cycleDate: string | null;
+  }> {
+    const daysPerDelivery = await this.configParams.getNumber('menu_days_delivered', 2);
+    const last = await this.prisma.menuDay.findFirst({
+      where: { clientId },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    });
+    if (!last) return { required: false, blocking: false, cycleDate: null };
+    const needs = await this.cycleNeedsMeasure(clientId, last, daysPerDelivery);
+    return { required: needs, blocking: needs, cycleDate: last.date.toISOString().slice(0, 10) };
+  }
+
+  /**
+   * True se siamo al 2° giorno (o oltre) del ciclo corrente e manca ancora la
+   * misura di quel ciclo. Il 2° giorno = la data più alta erogata (cycleEnd).
+   */
+  private async cycleNeedsMeasure(
+    clientId: string,
+    last: { date: Date },
+    daysPerDelivery: number,
+  ): Promise<boolean> {
+    const today = toDateOnly();
+    const cycleEnd = toDateOnly(last.date.toISOString());
+    if (today.getTime() < cycleEnd.getTime()) return false; // non ancora al 2° giorno
+    const cycleStart = new Date(cycleEnd.getTime() - (daysPerDelivery - 1) * 86_400_000);
+    const measure = await this.prisma.measurement.findFirst({
+      where: { clientId, date: { gte: cycleStart } },
+      select: { id: true },
+    });
+    return !measure;
+  }
+
+  // ---------- Selezione ricette per efficacia + gradimento ----------
+
+  /**
+   * Contesto di scoring condiviso: pool ricette per slot (dalla dieta approvata),
+   * kcal/quota proteica per ricetta e la funzione punteggio
+   * `w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)` modulata dallo stato
+   * dell'agente. Usato sia dal selettore per-slot sia dalla composizione DayCombo.
+   */
+  private async buildScoringContext(
+    clientId: string,
+    regime: string | null,
+    templates: { meals: { slot: string; recipeId: string }[] }[],
+    state: AgentState = 'normale',
+  ): Promise<{
+    slotPool: Map<string, Set<string>>;
+    kcalOf: Map<string, number>;
+    proteinOf: Map<string, number>;
+    score: (id: string) => number;
+  } | null> {
+    if (!regime) return null;
+
+    const [wEffBase, wGradBase, boost, proteinBonus] = await Promise.all([
+      this.configParams.getNumber('menu_select_w_eff', 1),
+      this.configParams.getNumber('menu_select_w_grad', 1),
+      this.configParams.getNumber('menu_state_boost', 1.8),
+      this.configParams.getNumber('menu_pre_event_protein_bonus', 0.6),
+    ]);
+    // Modulazione dei pesi in base allo stato dell'agente.
+    let wEff = wEffBase;
+    let wGrad = wGradBase;
+    if (state === 'conforto') wGrad = wGradBase * boost; // menu più amati
+    // plateau / post-evento / rientro → si spinge sull'efficacia (calo/recupero).
+    else if (state === 'plateau' || state === 'post_evento' || state === 'rientro') wEff = wEffBase * boost;
+    const usePreEvent = state === 'pre_evento';
+
+    // Pool candidati per slot (ricette usate dalla dieta per quello slot).
+    const slotPool = new Map<string, Set<string>>();
+    const poolIds = new Set<string>();
+    for (const t of templates) {
+      for (const m of (t.meals as { slot: string; recipeId: string }[]) ?? []) {
+        if (!slotPool.has(m.slot)) slotPool.set(m.slot, new Set());
+        slotPool.get(m.slot)!.add(m.recipeId);
+        poolIds.add(m.recipeId);
+      }
+    }
+    if (poolIds.size === 0) return null;
+
+    const [recipes, weights, ratings] = await Promise.all([
+      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true } }) as Promise<{ id: string; kcal: number; macros: unknown }[]>,
+      this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
+      this.prisma.recipeRating.findMany({ where: { clientId }, select: { recipeId: true, stars: true } }) as Promise<{ recipeId: string; stars: number }[]>,
+    ]);
+
+    const kcalOf = new Map(recipes.map((r) => [r.id, r.kcal]));
+    const effOf = new Map(weights.map((w) => [w.recipeId, w.samples > 0 ? w.score / w.samples : 0]));
+    const starOf = new Map<string, number>();
+    for (const r of ratings) starOf.set(r.recipeId, Math.max(starOf.get(r.recipeId) ?? 0, r.stars));
+    // Quota proteica (0..1) dai macro, per lo stato pre-evento e per DayCombo.
+    const proteinOf = new Map<string, number>();
+    for (const r of recipes) {
+      const m = r.macros as { protein_g?: number; carbs_g?: number; fat_g?: number } | null;
+      const tot = (m?.protein_g ?? 0) + (m?.carbs_g ?? 0) + (m?.fat_g ?? 0);
+      proteinOf.set(r.id, tot > 0 ? (m?.protein_g ?? 0) / tot : 0);
+    }
+
+    const score = (id: string) =>
+      wEff * (effOf.get(id) ?? 0) +
+      wGrad * ((starOf.get(id) ?? 5) / 5) +
+      (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0);
+
+    return { slotPool, kcalOf, proteinOf, score };
+  }
+
+  /**
+   * Selettore per-slot: per ogni slot sceglie, TRA le ricette che la dieta approvata
+   * usa per quello slot, quella col punteggio migliore, con vincolo kcal (±tol attorno
+   * alla ricetta del template). A parità di punteggio resta la ricetta del template.
+   */
+  private selectorFromContext(
+    ctx: { slotPool: Map<string, Set<string>>; kcalOf: Map<string, number>; score: (id: string) => number } | null,
+    tol: number,
+  ): (meals: { slot: string; recipeId: string }[]) => { slot: string; recipeId: string }[] {
+    if (!ctx) return (meals) => meals;
+    const { slotPool, kcalOf, score } = ctx;
+    return (meals) =>
+      meals.map((m) => {
+        const pool = slotPool.get(m.slot);
+        const baseKcal = kcalOf.get(m.recipeId);
+        if (!pool || baseKcal == null) return m;
+        const lo = baseKcal * (1 - tol);
+        const hi = baseKcal * (1 + tol);
+        let bestId = m.recipeId;
+        let bestScore = score(m.recipeId);
+        for (const cand of pool) {
+          if (cand === m.recipeId) continue;
+          const ck = kcalOf.get(cand);
+          if (ck == null || ck < lo || ck > hi) continue; // vincolo bilanciamento
+          const s = score(cand);
+          if (s > bestScore + 1e-9) {
+            bestScore = s;
+            bestId = cand;
+          }
+        }
+        return { slot: m.slot, recipeId: bestId };
+      });
+  }
+
+  /** kcal obiettivo del livello dalla configurazione `Diet.levels` ([{level,kcal}]). */
+  private levelTargetKcal(levels: unknown, level: number): number {
+    const arr = (levels as { level?: number; kcal?: number }[] | null) ?? [];
+    const hit = Array.isArray(arr) ? arr.find((l) => l?.level === level) : undefined;
+    return hit?.kcal ?? 0;
+  }
+
+  /** Pool DayCombo (RecipeInfo per slot) dal contesto di scoring. */
+  private dayComboPools(ctx: {
+    slotPool: Map<string, Set<string>>;
+    kcalOf: Map<string, number>;
+    proteinOf: Map<string, number>;
+    score: (id: string) => number;
+  }): { slots: string[]; poolBySlot: Map<string, RecipeInfo[]> } {
+    const slots = [...ctx.slotPool.keys()];
+    const poolBySlot = new Map<string, RecipeInfo[]>();
+    for (const [slot, ids] of ctx.slotPool) {
+      poolBySlot.set(
+        slot,
+        [...ids].map((id) => ({
+          id,
+          kcal: ctx.kcalOf.get(id) ?? 0,
+          proteinShare: ctx.proteinOf.get(id) ?? 0,
+          score: ctx.score(id),
+        })),
+      );
+    }
+    return { slots, poolBySlot };
+  }
+
+  // ---------- Sicurezza: esclusioni (intolleranze/allergie) → blocco + escalation ----------
+
+  /**
+   * Valuta i piatti contro le esclusioni della cliente:
+   * - `violations`: intolleranze NON sostituibili → il piano va bloccato;
+   * - `subsByRecipe`: sostituzioni sicure da annotare sui pasti (per recipeId).
+   * I cibi "non graditi" (dislikedFoods) si sostituiscono se possibile, ma non bloccano mai.
+   */
+  private async evaluateMeals(
+    clientId: string,
+    meals: MealSnapshot[],
+  ): Promise<{ violations: string[]; subsByRecipe: Record<string, Substitution[]> }> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { intolerances: true, dislikedFoods: true },
+    });
+    const intolerances = ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
+    const dislikes = ((profile?.dislikedFoods ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
+    if (!intolerances.length && !dislikes.length) return { violations: [], subsByRecipe: {} };
+
+    // Termini esclusi con la loro "causa" e se sono di sicurezza (bloccanti).
+    const excluded: { keyword: string; reason: string; blocking: boolean }[] = [];
+    for (const intol of intolerances) {
+      for (const kw of INTOLERANCE_MAP[intol] ?? [intol]) excluded.push({ keyword: kw, reason: intol, blocking: true });
+    }
+    for (const d of dislikes) excluded.push({ keyword: d, reason: 'non gradito', blocking: false });
+
+    const recipeIds = [...new Set(meals.map((m) => m.recipeId))];
+    if (!recipeIds.length) return { violations: [], subsByRecipe: {} };
+    const recipes = (await this.prisma.recipe.findMany({
+      where: { id: { in: recipeIds } },
+      select: { id: true, name: true, ingredients: true },
+    })) as { id: string; name: string; ingredients: unknown }[];
+
+    const violations = new Set<string>();
+    const subsByRecipe: Record<string, Substitution[]> = {};
+
+    for (const r of recipes) {
+      const ings = ((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').filter(Boolean);
+      const subs: Substitution[] = [];
+      for (const ing of ings) {
+        const low = ing.toLowerCase();
+        for (const ex of excluded) {
+          if (!low.includes(ex.keyword)) continue;
+          const repl = SUBSTITUTION_MAP[ex.keyword] ?? SUBSTITUTION_MAP[low];
+          if (repl) {
+            subs.push({ from: ing, to: repl, reason: ex.reason });
+          } else if (ex.blocking) {
+            violations.add(`${r.name}: incompatibile con "${ex.reason}"`);
+          }
+          break; // un solo match per ingrediente
+        }
+      }
+      if (subs.length) subsByRecipe[r.id] = subs;
+    }
+    return { violations: [...violations], subsByRecipe };
+  }
+
+  /** Apre (una sola volta) un'escalation "piano bloccato" al nutrizionista. */
+  private async ensureDietBlockedEscalation(clientId: string, reasons: string[]): Promise<void> {
+    const already = await this.prisma.escalation.findFirst({
+      where: { clientId, source: 'engine' as never, status: { in: ['open', 'in_progress'] as never }, reason: { contains: 'Piano bloccato' } },
+      select: { id: true },
+    });
+    if (already) return;
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { assignedNutritionistId: true },
+    });
+    await this.prisma.escalation.create({
+      data: {
+        clientId,
+        reason: `Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`,
+        source: 'engine' as never,
+        assignedToId: profile?.assignedNutritionistId,
+      },
+    });
+    await this.audit.log({
+      action: 'menu.diet_blocked',
+      actorId: clientId,
+      entityType: 'escalation',
+      metadata: { reasons },
+    });
+  }
+
+  /** Stato "piano bloccato" per l'app cliente (messaggio rassicurante). */
+  async dietBlock(clientId: string): Promise<{ active: boolean; reason: string | null }> {
+    const esc = (await this.prisma.escalation.findFirst({
+      where: { clientId, source: 'engine' as never, status: { in: ['open', 'in_progress'] as never }, reason: { contains: 'Piano bloccato' } },
+      select: { reason: true },
+    })) as { reason: string } | null;
+    return {
+      active: !!esc,
+      reason: esc ? 'Stiamo sistemando il tuo piano con la nutrizionista.' : null,
+    };
   }
 
   /** Dieta approvata più adatta al profilo (regime+pasti; stile se possibile). */

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { DietLearningService } from '../diet-learning/diet-learning.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateCheckinDto,
@@ -29,6 +30,7 @@ export class SignalsService {
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    private readonly dietLearning: DietLearningService,
   ) {}
 
   // ---------- Misure (segnale Corpo) ----------
@@ -68,6 +70,23 @@ export class SignalsService {
         thighsCm: dto.thighsCm,
       },
     });
+
+    // Nota: lo sblocco del gate misure (chiusura dell'alert coach "missing_measurements")
+    // avviene ora nell'Alert engine: al prossimo recompute (lettura coda coach o cron)
+    // la condizione non vale più e l'alert passa a "resolved".
+
+    // Learning motore: la misura chiude un ciclo → calcola esito peso/cm e aggiorna i
+    // pesi delle ricette. Non deve mai rompere il salvataggio della misura.
+    try {
+      await this.dietLearning.onCycleClose(clientId, {
+        date: measurement.date,
+        weightKg: measurement.weightKg,
+        waistCm: measurement.waistCm,
+        hipsCm: measurement.hipsCm,
+      });
+    } catch {
+      /* learning best-effort */
+    }
 
     const newMilestones = await this.evaluateMilestones(clientId);
     const alert = await this.checkRapidLossGuardrail(clientId);

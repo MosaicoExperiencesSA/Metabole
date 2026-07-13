@@ -70,6 +70,28 @@ describe('PermissionsService', () => {
     );
   });
 
+  it('syncDefaults crea solo le righe mancanti dai default (Parametri/Chat inclusi)', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 0 });
+    const p2 = {
+      rolePagePermission: {
+        findMany: jest.fn().mockResolvedValue([]), // nessuna riga esistente
+        createMany,
+      },
+    };
+    const svc = new PermissionsService(p2 as never, { log: jest.fn() } as never, {} as never);
+    const res = await svc.syncDefaults();
+    expect(res.created).toBeGreaterThan(0);
+    const data = createMany.mock.calls[0][0].data as { role: string; pageKey: string; canView: boolean }[];
+    const adminEngine = data.find((d) => d.role === 'admin' && d.pageKey === 'engine_config');
+    expect(adminEngine?.canView).toBe(true); // Parametri torna visibile all'admin
+    // non ricrea righe già presenti
+    (p2.rolePagePermission.findMany as jest.Mock).mockResolvedValue([{ role: 'admin', pageKey: 'engine_config' }]);
+    createMany.mockClear();
+    await svc.syncDefaults();
+    const data2 = createMany.mock.calls[0][0].data as { pageKey: string; role: string }[];
+    expect(data2.find((d) => d.role === 'admin' && d.pageKey === 'engine_config')).toBeUndefined();
+  });
+
   it('rifiuta una sezione sconosciuta', async () => {
     await expect(
       service.update({ role: 'coach', pageKey: 'pagina_inventata', canView: true }, 'admin-1'),

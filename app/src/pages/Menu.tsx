@@ -115,9 +115,12 @@ export default function Menu() {
   const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; tag?: string } | null>(null);
   const mealsRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
+  const [blocked, setBlocked] = useState<{ active: boolean; reason: string | null } | null>(null);
 
   useEffect(() => {
-    api<{ delivered: string[]; days: ApiMenuDay[] }>('/me/menu').then((r) => setDays(r.days ?? [])).catch(() => setDays([]));
+    api<{ delivered: string[]; days: ApiMenuDay[]; blocked?: { active: boolean; reason: string | null } }>('/me/menu')
+      .then((r) => { setDays(r.days ?? []); setBlocked(r.blocked ?? null); })
+      .catch(() => setDays([]));
   }, []);
 
   function scrollTo(i: number) {
@@ -154,6 +157,13 @@ export default function Menu() {
         </div>
       </div>
 
+      {blocked?.active && (
+        <div className="card" style={{ background: '#FBF0D6', border: '1px solid #EAD8A6', display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span className="event-ic" style={{ background: '#F2B705', color: '#fff', flex: 'none' }}><i className="ti ti-heart-handshake" /></span>
+          <div style={{ fontSize: 13, color: '#7A5B12' }}>{blocked.reason ?? 'Stiamo sistemando il tuo piano con la nutrizionista.'}</div>
+        </div>
+      )}
+
       {upcoming.length === 0 ? (
         <div className="card" style={{ textAlign: 'center' }}>
           <p className="muted" style={{ margin: 0 }}>Il tuo menu non è ancora disponibile. Si sblocca quando parte il tuo piano (e dopo i check-in).</p>
@@ -183,6 +193,12 @@ export default function Menu() {
                   <div className="meal-body">
                     <span className="meal-tag" style={{ background: s.bg, color: s.color }}>{s.label}</span>
                     <div className="meal-name">{m.name}</div>
+                    {m.substitutions && m.substitutions.length > 0 && (
+                      <div style={{ fontSize: 11, color: '#0E7C66', margin: '2px 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ti ti-replace" style={{ fontSize: 13 }} />
+                        {m.substitutions.map((sub) => `${sub.from} → ${sub.to}`).join(' · ')}
+                      </div>
+                    )}
                     <div className="row-between">
                       <span className="muted" style={{ fontSize: 12 }}>{m.kcal} kcal</span>
                       <button className="btn-recipe" onClick={() => setRecipe({ recipeId: m.recipeId, date: selDay.date.slice(0, 10), tag: s.label })}>Ricetta</button>

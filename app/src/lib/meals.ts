@@ -20,7 +20,7 @@ export const METHOD_LABEL: Record<string, string> = {
   meal_prep: 'Meal prep',
 };
 
-export interface ApiMeal { slot: string; recipeId: string; name: string; kcal: number }
+export interface ApiMeal { slot: string; recipeId: string; name: string; kcal: number; substitutions?: { from: string; to: string; reason: string }[] }
 export interface ApiMenuDay { id: string; date: string; meals: ApiMeal[] }
 export interface ApiRecipe {
   id: string;

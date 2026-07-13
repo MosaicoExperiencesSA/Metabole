@@ -1,57 +1,83 @@
-# README — indice del progetto Metabole
+# Metabole — Diario di progetto (fonte di verità condivisa)
 
-Indice di tutte le specifiche e i documenti. I percorsi con `../` puntano alla **root** del repo.
-Aggiorna questo indice quando aggiungi o rinomini un documento. Tag: **[P]** = Prodotto,
-**[S]** = Sviluppo, **[P/S]** = condiviso.
+Questa cartella (`progetto/`) è il **punto unico di allineamento** del progetto. Serve a tenere
+sincronizzati i due team di lavoro e le loro AI:
 
-Prima di lavorare leggi anche `STATO.md` (dove siamo) e `REGISTRO.md` (cosa è cambiato).
+- **Team Sviluppo** — Simone + Claude (Cowork): backend (NestJS), app cliente (React/Capacitor),
+  backoffice, database, infrastruttura.
+- **Team Prodotto** — il socio + la sua AI: prototipi navigabili, design/UX, voci (Gaia),
+  specifiche del motore/agente AI, analisi mercato/marketing, CRM.
 
----
+Regola d'oro: **ogni volta che si fa una modifica, si scrive qui.** Così, aprendo questa cartella,
+entrambe le parti (e le due AI) trovano subito lo stato aggiornato per la parte che le riguarda,
+senza dover ricostruire il contesto ogni volta.
 
-## Governance (questa cartella)
-- `ISTRUZIONI_PER_AI.md` — regole operative per entrambe le AI. **[P/S]**
-- `STATO.md` — stato per area + piano a fasi. **[P/S]**
-- `REGISTRO.md` — diario delle modifiche (novità in alto). **[P/S]**
-- `INTEGRAZIONE_MARKETING.md` — come il reparto/agenti marketing entrano nel deploy. **[P/S]**
+> ⚠️ **Perché `progetto/` e non `docs/`**: la cartella `docs/` è **pubblica** (viene pubblicata da
+> GitHub Pages come demo dei prototipi). I documenti interni — stato, registro, analisi, business —
+> NON vanno in `docs/`. Restano nel repository privato ma fuori dalla pubblicazione. Vedi
+> `../Metabole_Guida_Pubblicazione.pdf`.
 
-## Prototipi (cartella `docs/` = pubblica) **[P]**
-- `../Metabole_Prototipo_Navigabile.html` — app cliente (onboarding + app attiva).
-- `../Metabole_Coach_App.html` · `../Metabole_Coach_WebApp.html` — app coach (mobile/web).
+## Cosa contiene
+
+| File | A cosa serve | Chi scrive |
+|---|---|---|
+| `STATO.md` | Lo **stato attuale** del progetto per area (cosa è fatto, cosa manca). Si **aggiorna** (si sovrascrive la voce) quando qualcosa cambia. | Entrambi i team |
+| `REGISTRO.md` | Il **log cronologico** di ogni modifica (data · autore · area · cosa). Si **aggiunge in cima**, non si cancella mai il passato. | Entrambi i team |
+| `README.md` | Questo file: regole d'uso + indice dei documenti di specifica. | Entrambi i team |
+| `ISTRUZIONI_PER_AI.md` | Istruzioni operative per le AI dei due team (leggere il diario a inizio sessione, aggiornarlo dopo ogni modifica). | Entrambi i team |
+
+## Come si aggiorna (regole semplici)
+
+1. Fai una modifica (codice, prototipo, specifica, voce…).
+2. **Aggiungi una riga in cima a `REGISTRO.md`** con: data, autore, area, cosa è cambiato (1-2 righe).
+3. Se la modifica cambia lo **stato** di un'area (una funzione passa da "da fare" a "fatta", o si
+   scopre qualcosa di nuovo da fare), **aggiorna la voce corrispondente in `STATO.md`**.
+4. Autori da usare nel registro: `[Sviluppo]` (Simone + Claude Cowork) oppure `[Prodotto]` (socio + AI).
+
+> Le AI: quando lavorate a una modifica, aggiornate questi due file **nello stesso commit** della
+> modifica. Non serve chiedere: fa parte del lavoro.
+
+## Indice dei documenti di specifica (a cui questo diario rimanda)
+
+Non duplichiamo le specifiche qui: restano nei loro documenti (nella **root** del repo), questo diario
+le **collega**.
+
+**Specifiche tecniche (backend / dati / motore)**
+- `../Metabole_Specifica_Backend_Sviluppatore.md` — modello dati, RBAC, API, roadmap milestone.
+- `../Metabole_Backend_Operazioni.md` — cosa costruire lato server per i 3 prototipi (delta + ordine).
+- `../Metabole_Tracciamento_Dati.md` — mappa evento→dato→entità→endpoint per ogni click.
+- `../Metabole_Motore_Personalizzazione.md` — motore dei menu (catalogo→dieta cliente→giornate→learning).
+- `../Metabole_Agente_AI_Dieta.md` — politica di decisione dell'agente (stati, scoring, escalation).
+- `../Metabole_Analisi_Tecnica_Motore.md` + `../Metabole_Analisi_Motore_Certificazione.md` — analisi motore e certificazione unicità.
+- `../Metabole_Esempio_Agente_Giulia.md` — esempio pratico (6 giorni / 3 cicli).
+- `../Metabole_App_Blueprint.md` — blueprint dell'app.
+- `../CLAUDE.md` — regole tecniche di progetto (stack, sicurezza, migrazioni).
+- `../backend/README.md` — sviluppo locale e deploy del backend.
+
+**Prototipi navigabili (design/UX di riferimento — gli screen si prendono da qui)**
+- `../Metabole_Prototipo_Navigabile.html` — app cliente (riferimento definitivo).
+- `../Metabole_Coach_App.html`, `../Metabole_Coach_WebApp.html` — app coach.
 - `../Metabole_Nutrizionista_App.html` — app nutrizionista.
-- `../Metabole_Flusso_Attivazione.html` · `../Metabole_Sondaggio_Iniziale.html` · `../Metabole_Widget_Mascotte.html`.
-- `../Metabole_App_Schermate_Nuovo_Cliente.pdf` — tutte le schermate onboarding in PDF.
+- `../Metabole_Widget_Mascotte.html` — widget mascotte (3 formati).
+- `../Metabole_Sondaggio_Iniziale.html`, `../Metabole_Flusso_Attivazione.html` — onboarding/attivazione.
+- `../Metabole_App_Schermate_Nuovo_Cliente.pdf` — sequenza schermate nuovo cliente (**solo per la sequenza**; gli screen reali si prendono dal prototipo navigabile).
 
-## Specifiche prodotto/app **[P]**
-- `../Metabole_App_Blueprint.md` · `../Metabole_Sequenza_Schermate.md`.
-- `../Metabole_Specifica_Prodotto.docx` · `../Metabole_Piano_Prodotto_Business.docx`.
+**Business, marketing, CRM, analisi**
+- `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf` — carta reparto marketing + standard lead/pipeline (stadi, campi, consensi) + ruolo `head_marketing`.
+- `../Metabole_Macchina_Marketing_AI.pdf` — macchina di marketing: 8 agenti + il Giudice, motore creativo, compliance/blocchi social, media planning IT.
+- `../Metabole_Agente_Contesto_Tempismo.pdf` — agente che legge news/stagioni/life-events: calendario 12 mesi, micro-pubblici a tempo (ISTAT).
+- `../Metabole_Libreria_Creativa.pdf` — brand, lessico compliance, 30+ hook, template formati, testi pronti.
+- `../Metabole_Specifica_Giudice_Compliance.pdf` — specifica tecnica del Giudice (ruleset social + scoring + audit). → impatto Sviluppo.
+- `INTEGRAZIONE_MARKETING.md` — come reparto/agenti marketing entrano nel deploy (ruoli, eventi, endpoint).
+- `../Metabole_Analisi_Progetto_Mercato.md`, `../Metabole_Punti_Forza_Marketing.md`,
+  `../Metabole_Analisi_Esperienza_Vendita.md`, `../Metabole_Confronto_App_e_Questionario_BitePal.md`.
+- `../Metabole_Coach_AI_e_Sondaggio.md`, `../Metabole_Sequenza_Schermate.md`, `../Metabole_Indice_Progetto.md`.
 
-## Motore & Agente AI dieta **[P]**
-- `../Metabole_Motore_Personalizzazione.md` — motore di personalizzazione dei menu.
-- `../Metabole_Agente_AI_Dieta.md` — politica dell'agente dieta (Gaia).
-- `../Metabole_Analisi_Motore_Certificazione.md` · `../Metabole_Analisi_Tecnica_Motore.md`.
-- `../Metabole_Esempio_Agente_Giulia.md` · `../Metabole_Motore_Intelligente.docx`.
-- Cataloghi: `../Metabole_Catalogo_Menu_Mediterranea.xlsx` · `../Metabole_Giornate_Mediterranea.xlsx` · `../Metabole_Dieta_Cliente_Giulia_Mediterranea.xlsx`.
-- `../Metabole_Motore_Pacchetto.zip` — pacchetto motore per lo sviluppo.
+**Guide operative**
+- `../Metabole_Guida_Pubblicazione.pdf` — pubblicazione demo (GitHub Pages su `docs/`) + deploy produzione (ordine + variabili d'ambiente).
+- `../docs/APK_Build_Guida.md` — build APK Android.
+- `../docs/Widget_Nativo_Guida.md` + `../docs/android-widget/` — widget nativo (file + guida).
 
-## Backend, dati & deploy **[S]**
-- `../Metabole_Specifica_Backend_Sviluppatore.md` — modello dati, API, motore, roadmap.
-- `../Metabole_Backend_Operazioni.md` · `../Metabole_Tracciamento_Dati.md` (eventi `track`).
-- `../backend/README.md` · `../render.yaml` (blueprint deploy).
-- `../Metabole_Guida_Pubblicazione.md` (+ `.pdf`) — guida deploy: demo + produzione.
-
-## Marketing & CRM **[P]** (con impatti **[S]**)
-- `../Metabole_Reparto_Marketing_e_Standard_CRM.md` (+ `.pdf`) — carta del reparto, Responsabile, **standard lead/pipeline** e template CRM per il socio.
-- `../Metabole_Macchina_Marketing_AI.md` (+ `.pdf`) — la macchina: **7 agenti** + il Giudice, motore creativo, compliance/blocchi social, media planning IT.
-- `../Metabole_Agente_Contesto_Tempismo.md` (+ `.pdf`) — **8° agente**: legge news/stagioni/life-events, calendario 12 mesi, micro-pubblici a tempo (dati ISTAT).
-- `../Metabole_Libreria_Creativa.md` (+ `.pdf`) — libreria creativa: brand, lessico compliance, 30+ hook, template formati, testi pronti.
-- `../Metabole_Specifica_Giudice_Compliance.md` (+ `.pdf`) — specifica tecnica del **Giudice**: ruleset social + scoring + audit. → impatto **[S]**.
-- `../Metabole_Punti_Forza_Marketing.md` (+ `.pdf`) — punti di forza e leve.
-
-## Analisi & mercato **[P]**
-- `../Metabole_Analisi_Progetto_Mercato.md` (+ `.pdf`) · `../Metabole_Analisi_App_Personas.md`.
-- `../Metabole_Confronto_App_e_Questionario_BitePal.md` (+ `.pdf`).
-- `../Metabole_Analisi_Esperienza_Vendita.md` · `../Metabole_Analisi_Giusy_Antonio.md` · `../Metabole_Analisi_Maria_Matteo.md`.
-- `../Metabole_Coach_AI_e_Sondaggio.md` · `../Metabole_Modello_Economico.xlsx`.
-
-## Indici storici
-- `../Metabole_Indice_Progetto.md` · `../metabole-backlog.md`.
+**Backlog e piano**
+- `../metabole-backlog.md` — richieste non urgenti.
+- `STATO.md` (qui) — piano a 10 fasi con avanzamento.

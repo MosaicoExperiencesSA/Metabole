@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { CommerceModule } from '../commerce/commerce.module';
+import { ReferralModule } from '../referral/referral.module';
 import { AdminImpersonateController } from './admin-impersonate.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -9,6 +10,7 @@ import { AuthService } from './auth.service';
 @Module({
   imports: [
     CommerceModule,
+    ReferralModule,
     JwtModule.registerAsync({
       global: true,
       imports: [ConfigModule],

@@ -1,61 +1,49 @@
-# ISTRUZIONI PER AI — progetto Metabole
+# Istruzioni operative per le AI del progetto Metabole
 
-Regole operative valide per **entrambe le AI** che lavorano al progetto: il team **[Prodotto]**
-(prototipi, design, voci di Gaia, specifiche motore/agente AI, analisi, marketing/CRM) e il team
-**[Sviluppo]** (backend, frontend, deploy). Questa è la versione estesa; la versione breve da
-incollare a inizio chat è in `PROMPT_PER_AI_SOCIO.md`.
+Questo file vale per **qualsiasi AI** lavori al progetto Metabole (sia lato Sviluppo — Simone + Claude
+Cowork — sia lato Prodotto — il socio + la sua AI). Serve a lavorare in modo coordinato usando il
+diario condiviso in `progetto/`.
 
-La cartella `progetto/` è la **fonte di verità condivisa**. Non è codice: è il "cruscotto" da cui
-qualsiasi Aj capisce dove siamo e cosa fare, senza rifare cose già fatte.
+## 1. All'inizio di ogni sessione: leggi il contesto
+Prima di fare qualsiasi cosa, leggi in quest'ordine:
+1. `progetto/README.md` — regole d'uso + indice di tutte le specifiche.
+2. `progetto/STATO.md` — stato attuale del progetto per area e piano a 10 fasi.
+3. `progetto/REGISTRO.md` — cosa è stato fatto di recente (le voci più in alto sono le più nuove).
+4. I documenti di specifica pertinenti alla tua parte (linkati nel README): per il Prodotto soprattutto
+   i prototipi HTML, `Metabole_Motore_Personalizzazione.md`, `Metabole_Agente_AI_Dieta.md`,
+   `Metabole_Tracciamento_Dati.md`, `Metabole_Reparto_Marketing_e_Standard_CRM.pdf`.
 
----
+Così parti già allineato e non rifai cose già fatte dall'altro team.
 
-## 1. A inizio sessione — leggi sempre, in quest'ordine
+## 2. Dopo ogni modifica: aggiorna il diario (obbligatorio)
+Ogni volta che consegni una modifica (codice, prototipo, specifica, voce, analisi…):
+- **Aggiungi una riga IN CIMA a `progetto/REGISTRO.md`**, formato:
+  `AAAA-MM-GG · [Team] · area — cosa è cambiato (1-2 righe)`
+  Usa `[Prodotto]` se sei l'AI del socio, `[Sviluppo]` se sei l'AI lato Simone.
+- Se la modifica cambia lo **stato** di un'area (una funzione passa a "fatta", o emerge qualcosa di
+  nuovo da fare), **aggiorna la voce corrispondente in `progetto/STATO.md`**.
+- Fai questi aggiornamenti **nello stesso commit** della modifica. Non serve che l'umano lo chieda:
+  è parte del lavoro.
 
-1. `progetto/ISTRUZIONI_PER_AI.md` (questo file: le regole)
-2. `progetto/README.md` (indice di tutte le specifiche e i documenti)
-3. `progetto/STATO.md` (stato attuale per area + piano a fasi)
-4. `progetto/REGISTRO.md` (diario: le voci in alto sono le più recenti)
-
-Solo dopo aver letto questi quattro file inizia a lavorare. Così parti allineato con l'altro team.
-
-## 2. Dopo ogni modifica — aggiorna il diario (stesso commit)
-
-- Aggiungi **una riga in cima** a `progetto/REGISTRO.md`, formato:
-
-  ```
-  AAAA-MM-GG · [Prodotto|Sviluppo] · area — cosa hai cambiato (1-2 righe)
-  ```
-
-- Se la modifica cambia lo **stato di un'area**, aggiorna la voce corrispondente in `progetto/STATO.md`.
-- Se aggiungi un documento/specifica nuovi, aggiungi la riga nell'indice `progetto/README.md`.
-- Marca **sempre** il tuo lavoro con il tag del tuo team: `[Prodotto]` o `[Sviluppo]`.
-
-## 3. Segnala gli impatti sull'altro team
-
-Se una tua modifica ha impatto sull'altro team — es. una nuova schermata che richiede un endpoint,
-un campo dati nuovo, un evento da esporre — **scrivilo nel REGISTRO** con la dicitura
-`→ impatto [Sviluppo]` (o `→ impatto [Prodotto]`), così viene visto e preso in carico.
+## 3. Divisione delle aree (chi tocca cosa, di norma)
+- **Prodotto (socio + AI)**: prototipi navigabili (HTML), design/UX, voci di Gaia, specifiche del
+  motore e dell'agente AI, analisi mercato/marketing, standard CRM.
+- **Sviluppo (Simone + Claude Cowork)**: backend (NestJS), app cliente (React/Capacitor), backoffice,
+  database, infrastruttura, deploy.
+- Quando una modifica di un lato ha impatto sull'altro (es. una nuova schermata del prototipo che
+  richiede un endpoint, o un campo dati nuovo), **scrivilo nel REGISTRO** così l'altro team lo vede.
 
 ## 4. Regole tecniche da rispettare sempre
+- **Chiavi e segreti**: mai nel repository né in chat. Solo nei pannelli dei servizi (Neon, Render,
+  Vercel, Brevo, Stripe, Anthropic). In locale un file `.env` git-ignored.
+- **`docs/` è PUBBLICA** (GitHub Pages pubblica la demo dei prototipi). In `docs/` vanno SOLO i
+  prototipi HTML + asset (audio, icone) e le guide non sensibili. I documenti interni, di business,
+  le analisi e i file del motore restano nella **root** o in **`progetto/`** (repo privato), mai in `docs/`.
+- **Pubblicare la demo**: dopo aver aggiornato un prototipo nella root, copiarlo in `docs/` e fare
+  commit+push (GitHub Pages si rigenera da solo). Vedi `Metabole_Guida_Pubblicazione.pdf`.
+- Le decisioni/specifiche non si duplicano in `progetto/`: restano nei loro documenti, il diario le
+  collega.
 
-- **Segreti**: chiavi e connection string **mai** nel repository né in chat. Solo nei pannelli dei
-  servizi (Neon, Render, Vercel, Brevo, Stripe, Anthropic, API social). In locale: `.env` git-ignored.
-- **Cartella `docs/` PUBBLICA** (GitHub Pages): lì **solo** i prototipi HTML + asset. Documenti
-  interni/di business/analisi/marketing restano nella **root** o in `progetto/`, **mai** in `docs/`.
-- **Aggiornare la demo pubblica**: copia il prototipo aggiornato in `docs/` e fai commit + push.
-- **Dati sanitari**: cifrati, accessibili solo a cliente e suo nutrizionista; **fuori** da ogni uso
-  di marketing. Hosting UE (GDPR).
-- **Soglie del motore**: in tabella `config_param`, mai hardcodate.
-
-## 5. Tag dei team
-
-- **[Prodotto]** — prototipi HTML (cliente/coach/nutrizionista), design, voci di Gaia, specifiche
-  motore e agente AI, catalogo menu, analisi, **marketing/CRM**.
-- **[Sviluppo]** — backend NestJS, frontend, database, deploy, integrazioni.
-
-## 6. In sintesi
-
-Leggi `STATO.md` + `REGISTRO.md` per capire dove siamo → fai il tuo lavoro → prima di chiudere
-aggiorna quei file (e `README.md` se serve) con quello che hai fatto, marcato col tuo tag. Segnala
-sempre gli impatti sull'altro team.
+## 5. In una riga
+Leggi `progetto/STATO.md` + `progetto/REGISTRO.md` per capire dove siamo, fai il tuo lavoro, e prima di
+chiudere aggiorna quei due file con quello che hai fatto, marcandolo `[Prodotto]` o `[Sviluppo]`.

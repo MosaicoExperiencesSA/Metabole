@@ -120,6 +120,151 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'agent_pre_event_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni prima di un evento in cui l\'agente passa a stato "pre-evento" (più proteico)',
+  },
+  {
+    key: 'agent_post_event_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni dopo la fine di un evento in cui l\'agente resta in stato "post-evento" (spinta efficacia per il recupero)',
+  },
+  {
+    key: 'agent_plateau_cycles',
+    value: '2',
+    type: 'number',
+    description: 'Cicli consecutivi senza calo peso dopo cui l\'agente passa a stato "plateau"',
+  },
+  {
+    key: 'agent_comfort_max_days',
+    value: '3',
+    type: 'number',
+    description: 'Guardrail: giorni consecutivi di umore basso oltre i quali l\'agente esce dal "conforto" e passa al "rientro" (spinta efficacia), per non lasciare la cliente ferma nei menu più amati',
+  },
+  {
+    key: 'agent_reentry_days',
+    value: '3',
+    type: 'number',
+    description: 'Finestra (giorni) dopo un periodo difficile in cui, se l\'umore è risalito, l\'agente resta in "rientro" (spinta efficacia) per recuperare',
+  },
+  {
+    key: 'menu_state_boost',
+    value: '1.8',
+    type: 'number',
+    description: 'Fattore con cui l\'agente potenzia gradimento (conforto) o efficacia (plateau) nella selezione',
+  },
+  {
+    key: 'menu_pre_event_protein_bonus',
+    value: '0.6',
+    type: 'number',
+    description: 'Bonus alle ricette proteiche nello stato pre-evento (selezione menu)',
+  },
+  {
+    key: 'menu_select_w_eff',
+    value: '1',
+    type: 'number',
+    description: 'Peso dell\'efficacia appresa (MenuWeight) nella selezione delle ricette',
+  },
+  {
+    key: 'menu_select_w_grad',
+    value: '1',
+    type: 'number',
+    description: 'Peso del gradimento (stelle) nella selezione delle ricette',
+  },
+  {
+    key: 'menu_kcal_balance_tolerance_pct',
+    value: '15',
+    type: 'number',
+    description: 'Tolleranza kcal (%) entro cui una ricetta alternativa può sostituire quella del template (bilanciamento)',
+  },
+  {
+    key: 'menu_daycombo_enabled',
+    value: 'false',
+    type: 'boolean',
+    description: 'Composizione automatica delle giornate (DayCombo): se "true" il motore compone la giornata dal pool della dieta approvata puntando alle kcal del livello, invece di usare solo i template composti a mano (fallback ai template se spento o se nessuna giornata rientra nella banda kcal)',
+  },
+  {
+    key: 'menu_daycombo_protein_min',
+    value: '0.2',
+    type: 'number',
+    description: 'DayCombo: quota proteica minima giornaliera desiderata (0..1) — penalità soft, non blocca',
+  },
+  {
+    key: 'menu_daycombo_protein_max',
+    value: '0.45',
+    type: 'number',
+    description: 'DayCombo: quota proteica massima giornaliera desiderata (0..1) — penalità soft, non blocca',
+  },
+  {
+    key: 'cycle_weight_delta_kg',
+    value: '0.2',
+    type: 'number',
+    description: 'Soglia (kg) sotto/sopra cui l\'esito peso del ciclo è "stabile"',
+  },
+  {
+    key: 'learning_distinctive_weighting',
+    value: 'false',
+    type: 'boolean',
+    description: 'Attribuzione causale del pasto: se "true" il merito/demerito del ciclo viene pesato per distintività (la ricetta rara, quella cambiata nel ciclo, prende più credito di quelle sempre presenti) invece che in parti uguali',
+  },
+  {
+    key: 'learning_distinctiveness_alpha',
+    value: '0.5',
+    type: 'number',
+    description: 'Sensibilità della distintività (attribuzione causale): più alto = più credito alle ricette rare rispetto a quelle abituali (peso = 1/(1+alpha·samples))',
+  },
+  {
+    key: 'cycle_cm_delta',
+    value: '0.5',
+    type: 'number',
+    description: 'Soglia (cm, vita+fianchi) sotto/sopra cui l\'esito cm del ciclo è "stabile"',
+  },
+  {
+    key: 'expiring_plan_days',
+    value: '14',
+    type: 'number',
+    description: 'Giorni entro cui un piano è considerato "in scadenza" nella dashboard coach',
+  },
+  {
+    key: 'lead_accept_days',
+    value: '2',
+    type: 'number',
+    description: 'Giorni entro cui una coach deve accettare un lead assegnato: oltre, l\'assegnazione scade e la responsabile viene avvisata per riassegnarlo',
+  },
+  // --- Soglie Alert engine (coda coach) ---
+  {
+    key: 'alert_inactive_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni senza attività nell\'app prima dell\'alert coach "inattiva"',
+  },
+  {
+    key: 'alert_water_low_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni consecutivi con acqua sotto obiettivo prima dell\'alert coach',
+  },
+  {
+    key: 'alert_low_ratings_count',
+    value: '3',
+    type: 'number',
+    description: 'Numero di valutazioni basse recenti che attivano l\'alert coach',
+  },
+  {
+    key: 'alert_event_incoming_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni di anticipo per l\'alert coach "evento in arrivo"',
+  },
+  {
+    key: 'alert_weight_gain_days',
+    value: '7',
+    type: 'number',
+    description: 'Finestra (giorni) per rilevare aumento di peso e alzare l\'alert coach',
+  },
+  {
     key: 'ai_composer_enabled',
     value: 'false',
     type: 'string',
@@ -178,6 +323,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     value: '4000',
     type: 'number',
     description: 'Compenso per visita completata (centesimi)',
+  },
+  {
+    key: 'referral_reward_days',
+    value: '30',
+    type: 'number',
+    description: 'Giorni di abbonamento regalati a chi invita ("porta un\'amica") quando l\'invitata attiva il primo abbonamento (0 = ricompensa disattivata)',
   },
 ];
 
@@ -581,30 +732,49 @@ async function backfillCoachRefCodes(): Promise<void> {
 /**
  * Admin principale da variabili d'ambiente (impostate nel pannello Render,
  * mai nel repo né in chat):
- *   ADMIN_EMAIL    → email dell'admin (default: simone.salogni@gmail.com)
- *   ADMIN_PASSWORD → password iniziale (min. 8 caratteri)
- * - Se l'account non esiste e ADMIN_PASSWORD è impostata → lo crea (admin, email
- *   già verificata) con quella password (salvata solo come hash argon2).
- * - Se esiste ma non è admin → lo promuove ad admin.
- * - Se esiste già → NON tocca la password (la gestisce l'admin dal backoffice).
- * Idempotente: non ricrea né sovrascrive un account esistente.
+ *   ADMIN_EMAIL          → email dell'admin (default: simone.salogni@gmail.com)
+ *   ADMIN_PASSWORD       → password (min. 8 caratteri)
+ *   ADMIN_PASSWORD_RESET → se "true", forza il reset della password all'ADMIN_PASSWORD
+ *                          anche su un account esistente (uso una tantum: poi togliere la var)
+ * - Account NON esistente + ADMIN_PASSWORD → lo crea (admin, email verificata).
+ * - Account esistente non admin → lo promuove ad admin.
+ * - Account esistente con password MAI impostata (placeholder) e ADMIN_PASSWORD presente
+ *   → gli applica la password (auto-riparazione: prima veniva ignorata, da qui il caso
+ *   "password su Render che non funziona").
+ * - Account esistente con password reale → NON la tocca, a meno di ADMIN_PASSWORD_RESET=true.
+ * Idempotente: non sovrascrive una password reale se non richiesto esplicitamente.
  */
 async function ensureAdminFromEnv(): Promise<void> {
   const email = (process.env.ADMIN_EMAIL ?? 'simone.salogni@gmail.com').trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
+  const forceReset = (process.env.ADMIN_PASSWORD_RESET ?? '').trim().toLowerCase() === 'true';
+  const usable = Boolean(password && password.length >= 8);
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.role !== 'admin') {
-      await prisma.user.update({ where: { id: existing.id }, data: { role: 'admin' } });
-      console.log(`Seed: ${email} promosso ad admin.`);
+    const data: Record<string, unknown> = {};
+    if (existing.role !== 'admin') data.role = 'admin';
+
+    // Applica ADMIN_PASSWORD se la password non è mai stata impostata (placeholder)
+    // oppure se è richiesto un reset forzato. Un account "attivo" resta accessibile.
+    const neverSet = existing.passwordHash === 'SET_VIA_PASSWORD_RESET';
+    if (usable && (neverSet || forceReset)) {
+      data.passwordHash = await argon2.hash(password as string);
+      if (!existing.emailVerifiedAt) data.emailVerifiedAt = new Date();
+      if (existing.status !== 'active') data.status = 'active';
+      if (existing.deletedAt) data.deletedAt = null;
+    }
+
+    if (Object.keys(data).length) {
+      await prisma.user.update({ where: { id: existing.id }, data: data as never });
+      const what = Object.keys(data).join(', ');
+      console.log(`Seed: admin ${email} aggiornato (${what}).`);
     }
     return;
   }
 
-  // Crea comunque l'account admin: con ADMIN_PASSWORD se fornita (≥8),
+  // Crea l'account admin: con ADMIN_PASSWORD se fornita (≥8),
   // altrimenti con una password non valida da impostare con "Password dimenticata".
-  const usable = Boolean(password && password.length >= 8);
   const passwordHash = usable ? await argon2.hash(password as string) : 'SET_VIA_PASSWORD_RESET';
   await prisma.user.create({
     data: { email, passwordHash, role: 'admin', locale: 'it', emailVerifiedAt: new Date() },

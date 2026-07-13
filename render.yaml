@@ -46,7 +46,12 @@ services:
       - key: ADMIN_EMAIL
         sync: false # inserire a mano: email dell'admin principale (es. simone.salogni@gmail.com)
       - key: ADMIN_PASSWORD
-        sync: false # inserire a mano: password iniziale admin (min. 8 caratteri); usata dal seed solo alla creazione
+        sync: false # inserire a mano: password admin (min. 8 caratteri). Il seed la applica alla creazione
+        # dell'account e anche se la password non è mai stata impostata (placeholder). Per FORZARE il reset
+        # su un account esistente, impostare ADMIN_PASSWORD_RESET=true, fare un deploy, poi rimuovere la var.
+      - key: ADMIN_PASSWORD_RESET
+        sync: false # opzionale/una tantum: "true" forza il seed a reimpostare la password admin all'ADMIN_PASSWORD
+        # anche su un account già esistente. Rimuovere (o mettere a false) dopo il deploy che l'ha applicata.
       - key: CORS_ORIGINS
         sync: false # inserire a mano: origini frontend consentite, separate da virgola:
         # https://app.metabole.eu,https://backoffice.metabole.eu (durante la transizione puoi

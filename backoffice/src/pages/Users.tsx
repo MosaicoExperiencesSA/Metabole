@@ -14,6 +14,7 @@ interface User {
   status: string;
   locale: string;
   createdAt: string;
+  deletedAt: string | null;
   staff: { id: string; displayName: string; managerId: string | null; refCode: string | null } | null;
 }
 
@@ -33,13 +34,15 @@ export function Users() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [roleFilter, setRoleFilter] = useState<Role | ''>('');
+  const [showArchived, setShowArchived] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const query = roleFilter ? `?role=${roleFilter}` : '?scope=staff';
+      const base = roleFilter ? `?role=${roleFilter}` : '?scope=staff';
+      const query = showArchived ? `${base}&includeArchived=true` : base;
       const [res, roleList] = await Promise.all([
         api<{ items: User[] }>(`/admin/users${query}`),
         roles.length ? Promise.resolve(roles) : fetchRoles(),
@@ -56,7 +59,28 @@ export function Users() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleFilter]);
+  }, [roleFilter, showArchived]);
+
+  async function archive(u: User) {
+    if (!confirm(`Archiviare l'account ${u.email}?\nVerrà sospeso e nascosto, ma potrai ripristinarlo.`)) return;
+    try {
+      await api(`/admin/users/${u.id}`, { method: 'DELETE' });
+      setNotice(`${u.email} archiviato.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Archiviazione non riuscita.');
+    }
+  }
+
+  async function restore(u: User) {
+    try {
+      await api(`/admin/users/${u.id}/restore`, { method: 'POST' });
+      setNotice(`${u.email} ripristinato.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ripristino non riuscito.');
+    }
+  }
 
   function effectiveKey(u: User): string {
     return u.customRole?.key ?? u.role;
@@ -117,7 +141,7 @@ export function Users() {
   return (
     <>
       <div className="spread" style={{ marginBottom: 18 }}>
-        <div className="row">
+        <div className="row" style={{ gap: 14, alignItems: 'center' }}>
           <select className="select" style={{ width: 200 }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as Role | '')}>
             <option value="">Tutti i ruoli</option>
             {STAFF_ROLES.map((r) => (
@@ -126,6 +150,10 @@ export function Users() {
               </option>
             ))}
           </select>
+          <label className="row" style={{ gap: 6, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            Mostra archiviati
+          </label>
         </div>
         {canManage && (
           <button className="btn" onClick={() => setShowCreate(true)}>
@@ -158,11 +186,13 @@ export function Users() {
             <tbody>
               {users.map((u) => {
                 const isSelf = u.id === me?.id;
+                const archived = !!u.deletedAt;
                 return (
-                  <tr key={u.id}>
+                  <tr key={u.id} style={archived ? { opacity: 0.55 } : undefined}>
                     <td>
                       <b>{u.email}</b>
                       {isSelf && <span className="muted"> · tu</span>}
+                      {archived && <span className="chip gray" style={{ fontSize: 10, marginLeft: 6 }}>archiviato</span>}
                     </td>
                     <td>
                       {canManage && !isSelf ? (
@@ -232,16 +262,31 @@ export function Users() {
                     </td>
                     <td className="muted">{u.locale.toUpperCase()}</td>
                     <td>
-                      <div className="row" style={{ justifyContent: 'flex-end' }}>
-                        {canManage && u.role !== 'admin' && u.status === 'active' && (
-                          <button className="btn ghost sm" onClick={() => doImpersonate(u)} title="Entra nell'app come questo utente">
-                            <i className="ti ti-eye" /> Entra come
-                          </button>
-                        )}
-                        {canManage && !isSelf && (
-                          <button className={`btn sm ${u.status === 'active' ? 'danger' : 'ghost'}`} onClick={() => toggleStatus(u)}>
-                            {u.status === 'active' ? 'Sospendi' : 'Riattiva'}
-                          </button>
+                      <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
+                        {archived ? (
+                          canManage && (
+                            <button className="btn ghost sm" onClick={() => restore(u)} title="Ripristina l'account">
+                              <i className="ti ti-arrow-back-up" /> Ripristina
+                            </button>
+                          )
+                        ) : (
+                          <>
+                            {canManage && u.role !== 'admin' && u.status === 'active' && (
+                              <button className="btn ghost sm" onClick={() => doImpersonate(u)} title="Entra nell'app come questo utente">
+                                <i className="ti ti-eye" /> Entra come
+                              </button>
+                            )}
+                            {canManage && !isSelf && (
+                              <button className={`btn sm ${u.status === 'active' ? 'danger' : 'ghost'}`} onClick={() => toggleStatus(u)}>
+                                {u.status === 'active' ? 'Sospendi' : 'Riattiva'}
+                              </button>
+                            )}
+                            {canManage && !isSelf && (
+                              <button className="btn ghost sm" onClick={() => archive(u)} title="Archivia (rimuovi) l'account">
+                                <i className="ti ti-archive" />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
