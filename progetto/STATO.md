@@ -30,7 +30,13 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 ## App cliente (React + Vite + Capacitor)
 - Onboarding, Home (dati reali), Menu, Obiettivo (grafici), Calendario, Assistente (chat AI),
   Negozio, Profilo, Checkout/Pagamento. ✅
-- Tab bar e icone allineate al prototipo. ✅
+- Tab bar e icone allineate al prototipo. ✅ **⚠️ ma vedi nota navigazione sotto.**
+- **Testo di Gaia "a composizione" (TypeText)** — effetto macchina da scrivere identico al prototipo
+  (durata = max 1500ms, ~62ms/carattere) su: Landing, "In cosa siamo diversi", Crea account, intro di
+  sezione e ogni domanda dell'Onboarding, overview "Facciamo conoscenza", frase del giorno in Home. ✅
+- **⚠️ Navigazione a tab da decidere:** app oggi = *Menu · Obiettivo · Home · AI · Agenda*; prototipo
+  `docs/` = *Home · Percorso · Obiettivi · Contatti · Agenda* (+Shop). Serve scelta di Simone prima di
+  rifare pagine e rotte (creare Percorso e Contatti, spostare Menu nella Home). 🟡
 - Widget home Android (3 formati, mascotte Gaia). ✅
 - Tracciamento eventi via `track()` (viste, login, registrazione, logout). ✅
 - Popup bloccante misure al 2° giorno del ciclo. ✅

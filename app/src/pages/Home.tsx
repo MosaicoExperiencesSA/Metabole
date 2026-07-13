@@ -8,6 +8,7 @@ import CheckinPopup from '../components/CheckinPopup';
 import ChatSheet from '../components/ChatSheet';
 import StartDatePrompt from '../components/StartDatePrompt';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
+import { TypeText } from '../components/TypeText';
 
 interface Today {
   checkinDone: boolean;
@@ -224,13 +225,15 @@ export default function Home() {
 
       <div className="coach-hero" style={{ background: coach.bg, cursor: 'pointer' }} onClick={() => setSheet('coach')}>
         <div className="row-between">
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Il tuo coach</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.4px', opacity: .9 }}>
+            <i className="ti ti-sparkles" style={{ fontSize: 11, verticalAlign: '-1px' }} /> GAIA · LA FRASE DI OGGI
+          </span>
         </div>
         <div className="coach-body">
           <Gaia size={70} controls={false} mouth="big" />
           <div className="coach-head">{coach.head}</div>
         </div>
-        <div className="coach-phrase">"{frase}"</div>
+        <div className="coach-phrase">"<TypeText key={frase} segments={[{ t: frase }]} />"</div>
       </div>
 
       <div className="sec">Oggi a colpo d'occhio</div>
