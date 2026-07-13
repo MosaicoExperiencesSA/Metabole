@@ -9,6 +9,7 @@ import MeasuresGate from './components/MeasuresGate';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Diversi from './pages/Diversi';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
 import Calendario from './pages/Calendario';
@@ -117,6 +118,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/diversi" element={<Diversi />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/conferma-email" element={<ConfermaEmail />} />
