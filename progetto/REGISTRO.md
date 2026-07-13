@@ -7,6 +7,9 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **App cliente — box "Prossimo appuntamento" in Home** — nuova card nella Home che legge
+  `GET /me/agenda?next=1` e mostra tipo/interlocutore/data del prossimo appuntamento; tap → Calendario.
+  Type-check app verde.
 - `[Sviluppo]` **Fase 4 (parte 3) — Riassunti conversazioni** — nuovo modello `ConversationSummary`
   (titolo AI + data, FK-less) + migrazione (validata PG16). `AiService.summarizeConversation` (titolo
   breve + una frase, con fallback deterministico). `ConversationSummaryService.generateDailyBatch`

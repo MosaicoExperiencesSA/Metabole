@@ -43,8 +43,8 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Chat: base in `staff/threads` (coach) + `me/threads` (cliente). Riassunti conversazioni giornalieri
   (`ConversationSummary`, titolo AI) generati dal cron: `GET /me/threads/:who/summaries` (cliente) e
   `GET /staff/threads/:clientId/:who/summaries` (staff; la coach non vede i riassunti del nutrizionista).
-- **Backend Fase 4 sostanzialmente completo.** Ancora da fare: box "prossimo appuntamento" in Home
-  cliente (front-end) e l'**app front-end coach** (React).
+- Home cliente: box "Prossimo appuntamento" (usa `GET /me/agenda?next=1`, tap → Calendario). ✅
+- **Backend Fase 4 completo.** Ancora da fare: l'**app front-end coach** (React).
 
 ## App Nutrizionista (nuova) ⬜
 - Prototipo pronto: `../Metabole_Nutrizionista_App.html`. Da costruire (Fase 7). Unico ruolo con accesso ai dati sanitari.
