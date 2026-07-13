@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api/client';
+import { track } from './lib/track';
 import { useAuth } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
 import TabBar from './components/TabBar';
@@ -32,6 +33,10 @@ function Centered() {
 
 /** Guscio autenticato: schermata + tab bar in basso. */
 function Shell() {
+  const location = useLocation();
+  useEffect(() => {
+    track('screen_view', { path: location.pathname }, { phase: 'app', screen: location.pathname });
+  }, [location.pathname]);
   return (
     <div className="app-frame">
       <div className="screen">

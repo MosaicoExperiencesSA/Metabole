@@ -721,6 +721,31 @@ model Event {
   @@map("event")
 }
 
+// Eventi di tracciamento (analitici, append-only). Ogni click/interazione del
+// prototipo passa da track() → POST /events. Tabella DISACCOPPIATA: nessuna FK
+// verso User (userId è una stringa opzionale) così gli eventi restano immutabili
+// e sopravvivono alla cancellazione dell'utente (GDPR: no dati sanitari nel data).
+// Vedi Metabole_Tracciamento_Dati.md.
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  eventId    String   @unique @map("event_id") // UUID lato client per idempotenza sui retry
+  name       String // "ui_click" | "view" | ...
+  userId     String?  @map("user_id") // dal JWT se presente (nessuna FK)
+  session    String? // sessione pre-login (riconciliata alla registrazione)
+  refcod     String? // attribuzione commerciale / provvigioni
+  phase      String? // "flow" | "app"
+  screen     String?
+  step       Int?
+  data       Json? // payload libero (MAI dati sanitari in chiaro)
+  clientTs   BigInt?  @map("client_ts") // timestamp epoch ms dichiarato dal client
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  @@index([userId, receivedAt])
+  @@index([session, receivedAt])
+  @@index([name, receivedAt])
+  @@map("analytics_event")
+}
+
 // Notifiche personalizzate (spec sez. 9). userId = destinatario (cliente o staff).
 model Notification {
   id           String              @id @default(uuid())

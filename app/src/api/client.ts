@@ -14,6 +14,10 @@ let accessToken: string | null = null;
 export function setAccessToken(token: string | null) {
   accessToken = token;
 }
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+export const API_BASE_URL = API_BASE;
 export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_KEY);
 }
