@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Gaia from '../components/Gaia';
+import { TypeText } from '../components/TypeText';
 
 /** Passo 1 di 34 — Benvenuto: brand MetaboleAI, assistente Gaia, prova sociale, testimonianze. */
 export default function Landing() {
@@ -31,9 +32,14 @@ export default function Landing() {
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center' }}>
             <div style={{ flex: 'none' }}><Gaia clip="benvenuto" size={92} controls={false} /></div>
-            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45 }}>
-              Ciao, sono <b>Gaia</b>, l'assistente <b>AI</b> di MetaboleAI: il tuo percorso personalizzato per raggiungere e mantenere la tua <b>forma</b> migliore. Accedi se sei già registrata, o registrati se sei nuova.
-            </p>
+            <TypeText
+              style={{ margin: 0, fontSize: 14, lineHeight: 1.45, flex: 1 }}
+              segments={[
+                { t: 'Ciao, sono ' }, { t: 'Gaia', b: true }, { t: ", l'assistente " }, { t: 'AI', b: true },
+                { t: ' di MetaboleAI: il tuo percorso personalizzato per raggiungere e mantenere la tua ' }, { t: 'forma', b: true },
+                { t: ' migliore. Accedi se sei già registrata, o registrati se sei nuova.' },
+              ]}
+            />
           </div>
         </div>
 

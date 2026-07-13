@@ -398,3 +398,7 @@ p { line-height: 1.5; }
 .seclbl { display: flex; justify-content: space-between; margin-bottom: 12px; }
 .seclbl span { font-size: 11px; color: var(--muted); }
 .seclbl span.active { color: var(--teal); font-weight: 700; }
+
+/* Cursore "macchina da scrivere" per i testi che Gaia compone mentre parla */
+.type-caret { display: inline-block; margin-left: 1px; color: var(--teal); opacity: .75; animation: tw-blink 1s steps(1) infinite; }
+@keyframes tw-blink { 50% { opacity: 0; } }

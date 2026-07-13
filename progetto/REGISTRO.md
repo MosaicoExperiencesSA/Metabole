@@ -7,6 +7,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **App cliente — testo "a composizione" (TypeText) + Fase 2 (Crea account)** — come nel
+  prototipo, i testi di Gaia si **compongono a macchina da scrivere mentre lei parla**: nuovo componente
+  riutilizzabile `TypeText` (rispetta grassetti e `prefers-reduced-motion`, cursore lampeggiante),
+  applicato alla card assistente della Landing, alla bolla di "In cosa siamo diversi" e di "Crea account";
+  da usare su tutti gli schermi. **Fase 2**: `Register` (schermo 3) allineato al mockup — registrazione
+  minimale (Nome/Cognome/Email/Password/Codice invito con nota, l'indirizzo si prende al checkout),
+  barra "Passo 3 di 34", "oppure registrati con" Apple/Google (placeholder "in arrivo"). Type-check ok.
+  Nota: il prototipo live non è raggiungibile dalla sandbox (rete ristretta) e la copia locale è una
+  versione più vecchia (28 step) → animazioni calibrate sul video del socio.
 - `[Sviluppo]` **App cliente — allineamento al prototipo "34 schermate" (Fase 1)** — dai riferimenti del
   socio (video del flusso + PDF sequenza esatta + prototipo navigabile) il funnel nuovo cliente è di
   **34 step** con barra "Passo N di 34" e tab di sezione. Ricostruita la **Landing (schermo 1)** fedele al

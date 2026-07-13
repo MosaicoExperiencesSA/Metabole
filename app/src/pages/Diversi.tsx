@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Gaia from '../components/Gaia';
+import { TypeText } from '../components/TypeText';
 
 /** Passo 2 di 34 — "In cosa siamo diversi": i 5 punti di forza, poi si va alla registrazione. */
 const ITEMS: { n: number; title: string; icon: string; bg: string; color: string }[] = [
@@ -31,7 +32,7 @@ export default function Diversi() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', margin: '10px 0 14px' }}>
           <div style={{ flex: 'none' }}><Gaia size={48} controls={false} /></div>
           <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: '14px 14px 14px 4px', padding: '10px 12px', fontSize: 14, boxShadow: 'var(--shadow)' }}>
-            Prima di iniziare, lascia che ti spieghi in cosa siamo diversi.
+            <TypeText segments={[{ t: 'Prima di iniziare, lascia che ti spieghi in cosa siamo diversi.' }]} />
           </div>
         </div>
 

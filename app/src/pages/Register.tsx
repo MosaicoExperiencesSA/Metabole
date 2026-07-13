@@ -1,11 +1,14 @@
 import { FormEvent, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import Gaia from '../components/Gaia';
+import { TypeText } from '../components/TypeText';
 
+/** Passo 3 di 34 — Crea il tuo account (minimale: l'indirizzo si prende al checkout). */
 export default function Register() {
   const { register } = useAuth();
+  const nav = useNavigate();
   const [searchParams] = useSearchParams();
   // Codice invito da link (es. app.metabole.eu/register?ref=ABC123) — precompilato.
   const invitedCode = (searchParams.get('ref') ?? searchParams.get('refCode') ?? '').trim().toUpperCase();
@@ -42,46 +45,38 @@ export default function Register() {
 
   return (
     <div className="app-frame">
-      <div className="screen no-tabbar">
-        <h1>Crea il tuo account</h1>
-        <p className="muted">Bastano pochi secondi.</p>
+      <div className="screen no-tabbar" style={{ overflowY: 'auto' }}>
+        {/* Progress */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
+          <button className="link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => nav(-1)}>‹ Indietro</button>
+          <span>Passo 3 di 34</span>
+        </div>
+        <div style={{ height: 4, background: 'var(--line)', borderRadius: 999, marginBottom: 12 }}>
+          <div style={{ width: '9%', height: '100%', background: 'var(--teal)', borderRadius: 999 }} />
+        </div>
+
+        <h1 style={{ margin: '2px 0' }}>Crea il tuo account</h1>
+        <p className="muted" style={{ marginTop: 2 }}>Bastano pochi secondi.</p>
 
         <div className="qbubble">
           <Gaia clip="registrazione" size={58} controls={false} />
           <div className="bubble">
-            Presentati, così saprò dove e come inviarti tutto il necessario. I percorsi sono personalizzati:
-            potrebbero richiedere l'invio di <b>prodotti al tuo indirizzo</b> o di <b>schede via email</b>.
+            <TypeText segments={[{ t: 'Crea la tua registrazione in pochi passi, in modo da darti l\'accesso completo a ' }, { t: 'MetaboleAI', b: true }, { t: '.' }]} />
           </div>
         </div>
 
         {err && <div className="banner err">{err}</div>}
 
         <form onSubmit={onSubmit}>
-          <div className="field">
-            <label>Nome</label>
-            <input className="input" value={f.firstName} onChange={(e) => up('firstName', e.target.value)} autoComplete="given-name" required />
-          </div>
-          <div className="field">
-            <label>Cognome</label>
-            <input className="input" value={f.lastName} onChange={(e) => up('lastName', e.target.value)} autoComplete="family-name" required />
-          </div>
-          <div className="field">
-            <label>Via e numero civico</label>
-            <input className="input" value={f.addressLine} onChange={(e) => up('addressLine', e.target.value)} autoComplete="street-address" />
-          </div>
           <div className="fields-grid">
             <div className="field">
-              <label>CAP</label>
-              <input className="input" value={f.postalCode} onChange={(e) => up('postalCode', e.target.value)} inputMode="numeric" autoComplete="postal-code" />
+              <label>Nome</label>
+              <input className="input" value={f.firstName} onChange={(e) => up('firstName', e.target.value)} autoComplete="given-name" required />
             </div>
             <div className="field">
-              <label>Città</label>
-              <input className="input" value={f.city} onChange={(e) => up('city', e.target.value)} autoComplete="address-level2" />
+              <label>Cognome</label>
+              <input className="input" value={f.lastName} onChange={(e) => up('lastName', e.target.value)} autoComplete="family-name" required />
             </div>
-          </div>
-          <div className="field">
-            <label>Provincia</label>
-            <input className="input" value={f.province} onChange={(e) => up('province', e.target.value.toUpperCase())} maxLength={2} placeholder="Es. MI" />
           </div>
           <div className="field">
             <label>Email</label>
@@ -101,18 +96,30 @@ export default function Register() {
               placeholder="Es. AB12CD"
               style={{ letterSpacing: '2px', textTransform: 'uppercase' }}
             />
-            {invitedCode && f.refCode === invitedCode && (
-              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                <i className="ti ti-ticket" /> Codice invito applicato dal link.
-              </div>
-            )}
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {invitedCode && f.refCode === invitedCode
+                ? <span><i className="ti ti-ticket" /> Codice invito applicato dal link.</span>
+                : 'Se ti ha seguito un consulente, inserisci il suo codice.'}
+            </div>
           </div>
-          <button className="btn" type="submit" disabled={busy}>
+
+          <button className="btn" type="submit" disabled={busy} style={{ marginTop: 4 }}>
             {busy ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Registrati'}
           </button>
         </form>
 
-        <p className="muted" style={{ textAlign: 'center', marginTop: 20 }}>
+        {/* Social login (in arrivo) */}
+        <p className="muted" style={{ textAlign: 'center', margin: '16px 0 8px', fontSize: 13 }}>oppure registrati con</p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn ghost" style={{ flex: 1 }} onClick={() => setErr('Accesso con Apple in arrivo: per ora usa email e password.')}>
+            <i className="ti ti-brand-apple" /> Apple
+          </button>
+          <button className="btn ghost" style={{ flex: 1 }} onClick={() => setErr('Accesso con Google in arrivo: per ora usa email e password.')}>
+            <i className="ti ti-brand-google" /> Google
+          </button>
+        </div>
+
+        <p className="muted" style={{ textAlign: 'center', marginTop: 18 }}>
           Hai già un account? <Link className="link" to="/login">Accedi</Link>
         </p>
       </div>
