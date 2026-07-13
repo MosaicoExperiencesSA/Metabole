@@ -36,6 +36,14 @@ export class CreateDietDto {
   @IsOptional()
   @IsObject()
   options?: Record<string, unknown>;
+
+  // Campi "prodotto" mostrati al cliente (schermo 16).
+  @IsOptional() @IsString() @MaxLength(60) clientName?: string;
+  @IsOptional() @IsString() @MaxLength(400) clientDescription?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) highlights?: string[];
+  @IsOptional() @IsString() @MaxLength(40) seasonalTag?: string;
+  @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
+  @IsOptional() @IsBoolean() clientVisible?: boolean;
 }
 
 export class UpdateDietDto {
@@ -64,6 +72,14 @@ export class UpdateDietDto {
   @IsOptional()
   @IsObject()
   options?: Record<string, unknown>;
+
+  // Campi "prodotto" mostrati al cliente (schermo 16).
+  @IsOptional() @IsString() @MaxLength(60) clientName?: string;
+  @IsOptional() @IsString() @MaxLength(400) clientDescription?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) highlights?: string[];
+  @IsOptional() @IsString() @MaxLength(40) seasonalTag?: string;
+  @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
+  @IsOptional() @IsBoolean() clientVisible?: boolean;
 }
 
 class TemplateMealDto {

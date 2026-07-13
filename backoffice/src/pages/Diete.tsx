@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
 
 const REGIMES = ['omnivore', 'vegetarian', 'vegan'];
-const STYLES = ['mediterranean', 'protein', 'low_carb', 'flexible'];
+const STYLES = ['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'];
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 function slotsFor(mealsPerDay: number): string[] {
   if (mealsPerDay <= 3) return ['breakfast', 'lunch', 'dinner'];
@@ -32,7 +32,7 @@ interface DietRow {
 }
 
 const REGIME: Record<string, string> = { omnivore: 'Onnivora', vegetarian: 'Vegetariana', vegan: 'Vegana' };
-const STYLE: Record<string, string> = { mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile' };
+const STYLE: Record<string, string> = { mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto' };
 const STATUS: Record<string, { label: string; chip: string }> = {
   draft: { label: 'Bozza', chip: 'gray' },
   in_review: { label: 'In revisione', chip: 'amber' },
@@ -163,7 +163,7 @@ export function Diete() {
 }
 
 function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5 });
+  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', clientVisible: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -172,7 +172,15 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     if (f.name.trim().length < 2) { setErr('Dai un nome alla dieta.'); return; }
     setBusy(true);
     try {
-      await api('/diets', { method: 'POST', body: JSON.stringify({ name: f.name.trim(), regime: f.regime, style: f.style, mealsPerDay: f.mealsPerDay }) });
+      const highlights = f.highlights.split('\n').map((h) => h.trim()).filter(Boolean).slice(0, 6);
+      await api('/diets', { method: 'POST', body: JSON.stringify({
+        name: f.name.trim(), regime: f.regime, style: f.style, mealsPerDay: f.mealsPerDay,
+        clientName: f.clientName.trim() || undefined,
+        clientDescription: f.clientDescription.trim() || undefined,
+        highlights: highlights.length ? highlights : undefined,
+        objective: f.objective,
+        clientVisible: f.clientVisible,
+      }) });
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Creazione non riuscita.');
@@ -191,6 +199,25 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
           <select className="select" value={f.style} onChange={(e) => setF({ ...f, style: e.target.value })}>{STYLES.map((s) => <option key={s} value={s}>{STYLE[s]}</option>)}</select></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Pasti al giorno</span>
           <select className="select" value={f.mealsPerDay} onChange={(e) => setF({ ...f, mealsPerDay: Number(e.target.value) })}>{[3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+
+        <div style={{ borderTop: '1px solid var(--line)', margin: '4px 0 0', paddingTop: 10 }}>
+          <b style={{ fontSize: 13 }}>Scheda cliente (schermo 16)</b>
+          <p className="muted" style={{ fontSize: 11, margin: '2px 0 8px' }}>Cosa vede la cliente quando sceglie il piano.</p>
+        </div>
+        <label><span className="muted" style={{ fontSize: 12 }}>Nome mostrato al cliente</span>
+          <input className="input" value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} placeholder="Es. Mediterranea" /></label>
+        <label><span className="muted" style={{ fontSize: 12 }}>Descrizione breve</span>
+          <textarea className="input" rows={2} value={f.clientDescription} onChange={(e) => setF({ ...f, clientDescription: e.target.value })} placeholder="Una riga che spiega il piano." /></label>
+        <label><span className="muted" style={{ fontSize: 12 }}>Caratteristiche principali (una per riga, max 6)</span>
+          <textarea className="input" rows={3} value={f.highlights} onChange={(e) => setF({ ...f, highlights: e.target.value })} placeholder={'Alta sazietà\nSostiene la massa muscolare'} /></label>
+        <label><span className="muted" style={{ fontSize: 12 }}>Obiettivo</span>
+          <select className="select" value={f.objective} onChange={(e) => setF({ ...f, objective: e.target.value })}>
+            <option value="dimagrimento">Dimagrimento</option>
+            <option value="mantenimento">Mantenimento</option>
+          </select></label>
+        <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={f.clientVisible} onChange={(e) => setF({ ...f, clientVisible: e.target.checked })} />
+          <span style={{ fontSize: 13 }}>Visibile alle clienti nello schermo 16</span></label>
       </div>
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>

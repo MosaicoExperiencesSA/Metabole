@@ -78,7 +78,13 @@ export class CatalogService {
         options: (dto.options ?? {}) as never,
         authorId: staff.id,
         status: 'draft',
-      },
+        clientName: dto.clientName ?? null,
+        clientDescription: dto.clientDescription ?? null,
+        highlights: (dto.highlights ?? []) as never,
+        seasonalTag: dto.seasonalTag ?? null,
+        objective: dto.objective ?? 'dimagrimento',
+        clientVisible: dto.clientVisible ?? false,
+      } as never,
     });
     await this.audit.log({
       action: 'catalog.diet.create',
