@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metabole — Confronto app (Prototipo vs Web)</title>
+<style>
+:root{--teal:#12A386;--deep:#0E5A49;--bd:#E3ECE9;--mut:#6b7d78}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#16302C;background:#EEF2F0;height:100vh;display:flex;flex-direction:column}
+header{background:var(--deep);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex:none}
+header b{font-size:15px}
+header .sub{font-size:11.5px;opacity:.85}
+header .sp{margin-left:auto;display:flex;gap:8px}
+button,a.btn{font-family:inherit;font-size:12px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;border-radius:7px;padding:6px 11px;cursor:pointer;text-decoration:none}
+main{flex:1;display:flex;gap:14px;padding:14px;min-height:0;justify-content:center}
+.col{display:flex;flex-direction:column;min-height:0;flex:1;max-width:460px}
+.lab{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--deep);padding:4px 6px 8px}
+.lab .dot{width:9px;height:9px;border-radius:50%}
+.frame{flex:1;background:#fff;border:1px solid var(--bd);border-radius:16px;overflow:hidden;min-height:0;position:relative}
+iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+.note{font-size:11px;color:var(--mut);padding:6px 6px 0;line-height:1.4}
+.tools{display:flex;gap:6px;padding:0 6px 8px}
+.tools button{color:var(--deep);border-color:var(--bd)}
+.warn{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:10px;color:var(--mut);font-size:13px}
+</style></head>
+<body>
+<header>
+  <b>Confronto app — Prototipo vs Web</b>
+  <span class="sub">sfoglia le due versioni fianco a fianco</span>
+  <span class="sp">
+    <button onclick="rl('a')">↻ Prototipo</button>
+    <button onclick="rl('b')">↻ Web</button>
+    <a class="btn" href="https://app.metabole.eu/" target="_blank" rel="noopener">Apri Web in una scheda ↗</a>
+  </span>
+</header>
+<main>
+  <div class="col">
+    <div class="lab"><span class="dot" style="background:#12A386"></span> Prototipo (nostro · file locale)</div>
+    <div class="frame"><iframe id="a" src="Metabole_Prototipo_Navigabile.html"></iframe></div>
+    <div class="note">La versione di riferimento del design. Scorri e clicca "Iniziamo" per procedere pagina per pagina.</div>
+  </div>
+  <div class="col">
+    <div class="lab"><span class="dot" style="background:#E8825A"></span> Web (app.metabole.eu · live)</div>
+    <div class="frame">
+      <iframe id="b" src="https://app.metabole.eu/"></iframe>
+      <div class="warn" id="warnB">
+        <div>La versione web non si carica qui dentro (login richiesto o blocco di incorporamento).</div>
+        <a class="btn" style="color:#0E5A49;border-color:#12A386" href="https://app.metabole.eu/" target="_blank" rel="noopener">Aprila in una nuova scheda ↗</a>
+      </div>
+    </div>
+    <div class="note">L'app reale. Se sei già loggato nel browser, la vedi qui; l'onboarding (prime pagine) è pubblico.</div>
+  </div>
+</main>
+<script>
+  function rl(id){var f=document.getElementById(id);f.src=f.src;}
+  // se il frame web non carica entro qualche secondo, mostra il fallback
+  var b=document.getElementById('b'),loaded=false;
+  b.addEventListener('load',function(){loaded=true;});
+  setTimeout(function(){ if(!loaded){ document.getElementById('warnB').style.display='flex'; } },4000);
+</script>
+</body></html>

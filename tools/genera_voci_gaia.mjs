@@ -68,7 +68,8 @@ const PHRASES = {
   // Domande del test (chiave = q_ + titolo "slugificato")
   q_perche_vuoi_iniziare_adesso: "Dimmi la spinta più vera: mi aiuta a costruire il percorso giusto per te.",
   q_come_vuoi_essere_chiamata: "Come vuoi che ti chiami? Scrivi qui il tuo nome.",
-  q17_resto: "Perfetto! Ora inseriscimi la tua età, il tuo sesso e la tua altezza.",
+  q17_resto: "Perfetto! Ora inseriscimi la tua età e il tuo sesso.",
+  privacy: "Un ultimo passaggio importante: il trattamento dei tuoi dati. Li proteggiamo secondo le norme europee e i dati sulla salute li vede solo il tuo nutrizionista. Leggi e accetta per continuare.",
   q_il_tuo_punto_di_partenza: "Inseriscimi le tue misure di partenza. Ricordati che dovrai aggiornarle ogni due giorni. Se non sai come prenderle, guarda il video toccando il pulsante.",
   q_il_tuo_regime_alimentare: "La base del tuo menu: qual è il tuo regime alimentare? Onnivoro, vegetariano o vegano?",
   q_stile_che_preferisci: "Scegli il piano più adatto alle tue esigenze: tocca il nome di un piano per scoprirne le caratteristiche principali.",
