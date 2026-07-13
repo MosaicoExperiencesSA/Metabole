@@ -746,6 +746,29 @@ model AnalyticsEvent {
   @@map("analytics_event")
 }
 
+// Alert engine (coda avvisi per la coach). Tabella DISACCOPPIATA (clientId/coachId
+// come stringhe, nessuna FK) generata e sincronizzata da AlertsService.recompute:
+// gli alert la cui condizione non vale più vengono messi a status='resolved'.
+// coachId = Staff.id della coach assegnata. Vedi Metabole_Backend_Operazioni §5.
+model Alert {
+  id        String    @id @default(uuid())
+  clientId  String    @map("client_id")
+  coachId   String?   @map("coach_id")
+  group     String    @map("alert_group") // corpo_misure | aderenza_vita | gusto_mente | agenda_op
+  type      String // missing_measurements | weight_gain | plateau | inactive | checkin_skipped | water_low | low_ratings | dropout_risk | event_incoming | escalation_open | milestone
+  priority  String // high | med | low
+  title     String
+  detail    String?
+  status    String    @default("open") // open | handled | escalated | resolved
+  dueDate   DateTime? @map("due_date") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([coachId, status])
+  @@index([clientId, type, status])
+  @@map("alert")
+}
+
 // Notifiche personalizzate (spec sez. 9). userId = destinatario (cliente o staff).
 model Notification {
   id           String              @id @default(uuid())

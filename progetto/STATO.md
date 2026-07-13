@@ -20,7 +20,7 @@ Legenda: ✅ fatto · 🟡 in corso/parziale · ⬜ da fare
 Auth (JWT+refresh rotante, RBAC), Users/Profile, Onboarding, Signals (misure/checkin/acqua/passi/progress),
 Catalog (diete/ricette), Menu (erogazione), Engine (motore a regole M5), Notifications, Cron, Chat (+AI),
 Clients, Commerce/CRM, Reports, Health/HealthArea, Escalations, Visits, Compensation/Payouts,
-Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (eventi)**. ✅
+Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (eventi)**, **Alerts (coda coach)**. ✅
 - Ruoli RBAC: client, coach, nutritionist, head_nutritionist, sales, admin. ✅
 - Dati sanitari cifrati, accessibili solo a cliente + suo nutrizionista. ✅
 
@@ -69,7 +69,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 0 | Consolidamento: ogni risposta test salvata 1:1; login → role/home_route (4 percorsi) | 🟡 |
 | 1 | **Tracciamento eventi** (POST /events + client track()) | ✅ (13/7) |
 | 2 | **Misure bloccanti** al 2° giorno del ciclo | ✅ (13/7) |
-| 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ⬜ prossima |
+| 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | ⬜ |
 | 5 | Motore di personalizzazione menu — v1 "naive" | ⬜ |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ⬜ |

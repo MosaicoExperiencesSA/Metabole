@@ -119,6 +119,37 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
+  // --- Soglie Alert engine (coda coach) ---
+  {
+    key: 'alert_inactive_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni senza attività nell\'app prima dell\'alert coach "inattiva"',
+  },
+  {
+    key: 'alert_water_low_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni consecutivi con acqua sotto obiettivo prima dell\'alert coach',
+  },
+  {
+    key: 'alert_low_ratings_count',
+    value: '3',
+    type: 'number',
+    description: 'Numero di valutazioni basse recenti che attivano l\'alert coach',
+  },
+  {
+    key: 'alert_event_incoming_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni di anticipo per l\'alert coach "evento in arrivo"',
+  },
+  {
+    key: 'alert_weight_gain_days',
+    value: '7',
+    type: 'number',
+    description: 'Finestra (giorni) per rilevare aumento di peso e alzare l\'alert coach',
+  },
   {
     key: 'ai_composer_enabled',
     value: 'false',

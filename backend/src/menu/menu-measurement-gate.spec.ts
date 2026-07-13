@@ -68,30 +68,22 @@ describe('MenuService — gate misure', () => {
     expect(res.blocking).toBe(false);
   });
 
-  it('erogazione: senza misura del ciclo NON eroga e avvisa la coach', async () => {
-    const notificationCreate = jest.fn().mockResolvedValue({});
+  it('erogazione: senza misura del ciclo NON eroga (ciclo successivo "held")', async () => {
     const prisma = {
       clientProfile: {
-        findUnique: jest
-          .fn()
-          // 1ª chiamata: planStartDate per l'erogazione
-          .mockResolvedValueOnce({ planStartDate: D(dayIso(-3)), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5 })
-          // 2ª chiamata: dentro ensureCoachMissingMeasureAlert
-          .mockResolvedValueOnce({ name: 'Giulia', assignedCoach: { userId: 'coach-1' } }),
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: D(dayIso(-3)),
+          regime: 'omnivore',
+          dietStyle: 'mediterranean',
+          mealsPerDay: 5,
+        }),
       },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-2)) }) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue({ id: 'ck' }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
-      notification: {
-        findFirst: jest.fn().mockResolvedValue(null),
-        create: notificationCreate,
-      },
     };
     const created = await makeService(prisma).deliverIfEligible('c1');
-    expect(created).toEqual([]); // ciclo successivo "held"
-    expect(notificationCreate).toHaveBeenCalledTimes(1);
-    expect(notificationCreate.mock.calls[0][0].data.type).toBe('missing_measurements');
-    expect(notificationCreate.mock.calls[0][0].data.userId).toBe('coach-1');
+    expect(created).toEqual([]); // held: l'avviso coach lo genera l'Alert engine
   });
 });
