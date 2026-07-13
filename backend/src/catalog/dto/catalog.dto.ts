@@ -82,6 +82,16 @@ export class UpdateDietDto {
   @IsOptional() @IsBoolean() clientVisible?: boolean;
 }
 
+/** Modifica della sola "scheda cliente" (schermo 16), consentita anche su diete approvate. */
+export class UpdateDietProductDto {
+  @IsOptional() @IsString() @MaxLength(60) clientName?: string;
+  @IsOptional() @IsString() @MaxLength(400) clientDescription?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) highlights?: string[];
+  @IsOptional() @IsString() @MaxLength(40) seasonalTag?: string;
+  @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
+  @IsOptional() @IsBoolean() clientVisible?: boolean;
+}
+
 class TemplateMealDto {
   @IsIn(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'])
   slot!: string;

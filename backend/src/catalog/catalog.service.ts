@@ -120,6 +120,23 @@ export class CatalogService {
     return updated;
   }
 
+  /** Aggiorna SOLO la scheda cliente (schermo 16). Consentito anche su diete approvate:
+   *  non tocca i menu, solo come il prodotto viene mostrato/scelto dalla cliente. */
+  async updateDietProduct(userId: string, id: string, dto: UpdateDietProductDto) {
+    await this.getDiet(id); // 404 se non esiste
+    const updated = await this.prisma.diet.update({
+      where: { id },
+      data: { ...(dto as Record<string, unknown>) } as never,
+    });
+    await this.audit.log({
+      action: 'catalog.diet.product.update',
+      actorId: userId,
+      entityType: 'diet',
+      entityId: id,
+    });
+    return updated;
+  }
+
   /** Sostituisce i template giornata (dieta+livello+giorno). Verifica che le ricette esistano. */
   async setDayTemplates(userId: string, dietId: string, dto: SetDayTemplatesDto) {
     const diet = await this.getDiet(dietId);

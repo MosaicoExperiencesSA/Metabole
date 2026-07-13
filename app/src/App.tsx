@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api/client';
 import { track } from './lib/track';
+import { initPush } from './lib/push';
 import { useAuth } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
 import TabBar from './components/TabBar';
@@ -116,6 +117,10 @@ function AuthedApp() {
 
 export default function App() {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (user) initPush(); // registra le push dopo il login (no-op su web)
+  }, [user]);
 
   if (loading) return <Centered />;
 
