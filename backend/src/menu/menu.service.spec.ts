@@ -27,6 +27,8 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
           regime: 'omnivore',
           dietStyle: 'mediterranean',
           mealsPerDay: 5,
+          intolerances: [], // nessuna esclusione → nessun blocco di sicurezza
+          assignedNutritionistId: null,
         }),
       },
       menuDay: {
@@ -38,6 +40,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       // Gate misure: misura del ciclo presente → non blocca l'erogazione.
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
       dietDayTemplate: {
         findMany: jest.fn().mockResolvedValue([template(1), template(2)]),

@@ -115,9 +115,12 @@ export default function Menu() {
   const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; tag?: string } | null>(null);
   const mealsRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
+  const [blocked, setBlocked] = useState<{ active: boolean; reason: string | null } | null>(null);
 
   useEffect(() => {
-    api<{ delivered: string[]; days: ApiMenuDay[] }>('/me/menu').then((r) => setDays(r.days ?? [])).catch(() => setDays([]));
+    api<{ delivered: string[]; days: ApiMenuDay[]; blocked?: { active: boolean; reason: string | null } }>('/me/menu')
+      .then((r) => { setDays(r.days ?? []); setBlocked(r.blocked ?? null); })
+      .catch(() => setDays([]));
   }, []);
 
   function scrollTo(i: number) {
@@ -153,6 +156,13 @@ export default function Menu() {
           <div className="muted">La tua giornata</div>
         </div>
       </div>
+
+      {blocked?.active && (
+        <div className="card" style={{ background: '#FBF0D6', border: '1px solid #EAD8A6', display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span className="event-ic" style={{ background: '#F2B705', color: '#fff', flex: 'none' }}><i className="ti ti-heart-handshake" /></span>
+          <div style={{ fontSize: 13, color: '#7A5B12' }}>{blocked.reason ?? 'Stiamo sistemando il tuo piano con la nutrizionista.'}</div>
+        </div>
+      )}
 
       {upcoming.length === 0 ? (
         <div className="card" style={{ textAlign: 'center' }}>

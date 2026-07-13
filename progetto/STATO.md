@@ -58,8 +58,12 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 ## Motore / AI
 - Motore a regole (Engine, M5): protocolli condizioni→azione, decisioni per cliente. ✅ (base)
 - Assistente AI (Claude) per chat e instradamento. ✅
-- **Motore di personalizzazione dei menu** (catalogo→dieta cliente→giornate→learning): ⬜ (Fase 6).
-- **Agente AI della dieta** (stati Conforto/Rientro/Pre-evento/Plateau, scoring): ⬜ (Fase 7).
+- **Motore di personalizzazione dei menu** (catalogo→dieta cliente→giornate→learning): 🟡 (Fase 5).
+  - Sicurezza esclusioni (v1): intolleranze/allergie in un piatto → **blocco erogazione + escalation al
+    nutrizionista** (la coach la vede via Alert engine); `GET /me/menu` espone `blocked` e l'app mostra
+    "stiamo sistemando il tuo piano". Ancora da fare: sostituzione equivalente degli ingredienti,
+    giornate bilanciate, cicli con learning (esito peso/cm), MenuWeight.
+- **Agente AI della dieta** (stati Conforto/Rientro/Pre-evento/Plateau, scoring): ⬜ (Fase 6).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) ⬜
@@ -81,7 +85,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 2 | **Misure bloccanti** al 2° giorno del ciclo | ✅ (13/7) |
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
-| 5 | Motore di personalizzazione menu — v1 "naive" | ⬜ |
+| 5 | Motore di personalizzazione menu — v1 "naive" | 🟡 sicurezza esclusioni fatta |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ⬜ |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | ⬜ |
 | 8 | Shop / abbonamenti / provvigioni | ⬜ |

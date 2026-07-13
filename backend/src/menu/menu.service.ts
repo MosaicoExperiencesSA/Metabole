@@ -12,6 +12,19 @@ interface MealSnapshot {
   kcal: number;
 }
 
+// Mappa intolleranza/allergia → parole chiave negli ingredienti (v1; spostabile in config).
+// Serve a riconoscere un ingrediente pericoloso anche quando il nome non coincide
+// col termine dell'intolleranza (es. "lattosio" → "yogurt", "formaggio").
+const INTOLERANCE_MAP: Record<string, string[]> = {
+  lattosio: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano'],
+  glutine: ['pane', 'pasta', 'farro', 'orzo', 'couscous', 'grano', 'seitan', 'pizza', 'cracker'],
+  'frutta secca': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'arachidi'],
+  uova: ['uovo', 'uova', 'frittata', 'maionese'],
+  pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe'],
+  crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle'],
+  soia: ['soia', 'tofu', 'edamame'],
+};
+
 /**
  * Erogazione del menu (spec sez. 8):
  * - il menu diventa visibile menu_visible_days_before_start giorni prima dell'inizio piano;
@@ -44,7 +57,8 @@ export class MenuService {
       orderBy: { date: 'asc' },
       take: 30,
     });
-    return { delivered, days: menuDays };
+    const blocked = await this.dietBlock(clientId);
+    return { delivered, days: menuDays, blocked };
   }
 
   /**
@@ -129,27 +143,41 @@ export class MenuService {
     }
     if (templates.length === 0) return [];
 
-    const created: string[] = [];
+    // Prepara gli snapshot dei giorni del ciclo.
+    const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
     for (let i = 0; i < daysPerDelivery; i++) {
       const date = new Date(firstNewDate.getTime() + i * 86_400_000);
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
       const meals = await this.snapshotMeals(template.meals as never);
+      daySnapshots.push({ date, meals });
+    }
 
+    // SICUREZZA (motore §2/§7): se i piatti contengono un'intolleranza/allergia
+    // della cliente, NON si eroga: si blocca e si apre un'escalation al nutrizionista
+    // (la coach la vede via Alert engine). La sostituzione equivalente è un v2.
+    const violations = await this.safetyViolations(clientId, daySnapshots.flatMap((d) => d.meals));
+    if (violations.length) {
+      await this.ensureDietBlockedEscalation(clientId, violations);
+      return [];
+    }
+
+    const created: string[] = [];
+    for (const day of daySnapshots) {
       await this.prisma.menuDay.upsert({
-        where: { clientId_date: { clientId, date } },
+        where: { clientId_date: { clientId, date: day.date } },
         create: {
           clientId,
-          date,
+          date: day.date,
           dietId: diet.id,
           level,
-          meals: meals as never,
+          meals: day.meals as never,
           visibleFrom: last ? today : visibleFrom,
           sourceRuleId,
         },
         update: {}, // mai sovrascrivere un giorno già erogato
       });
-      created.push(date.toISOString().slice(0, 10));
+      created.push(day.date.toISOString().slice(0, 10));
     }
     await this.audit.log({
       action: 'menu.delivered',
@@ -200,6 +228,78 @@ export class MenuService {
       select: { id: true },
     });
     return !measure;
+  }
+
+  // ---------- Sicurezza: esclusioni (intolleranze/allergie) → blocco + escalation ----------
+
+  /** Violazioni di sicurezza nei piatti: intolleranze/allergie presenti negli ingredienti. */
+  private async safetyViolations(clientId: string, meals: MealSnapshot[]): Promise<string[]> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { intolerances: true },
+    });
+    const intolerances = ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
+    if (!intolerances.length) return [];
+
+    const recipeIds = [...new Set(meals.map((m) => m.recipeId))];
+    if (!recipeIds.length) return [];
+    const recipes = (await this.prisma.recipe.findMany({
+      where: { id: { in: recipeIds } },
+      select: { name: true, ingredients: true },
+    })) as { name: string; ingredients: unknown }[];
+
+    const violations = new Set<string>();
+    for (const r of recipes) {
+      const ings = ((r.ingredients as { name?: string }[]) ?? [])
+        .map((i) => (i?.name ?? '').toLowerCase())
+        .filter(Boolean);
+      for (const intol of intolerances) {
+        const keywords = INTOLERANCE_MAP[intol] ?? [intol];
+        if (keywords.some((kw) => ings.some((n) => n.includes(kw)))) {
+          violations.add(`${r.name}: incompatibile con "${intol}"`);
+        }
+      }
+    }
+    return [...violations];
+  }
+
+  /** Apre (una sola volta) un'escalation "piano bloccato" al nutrizionista. */
+  private async ensureDietBlockedEscalation(clientId: string, reasons: string[]): Promise<void> {
+    const already = await this.prisma.escalation.findFirst({
+      where: { clientId, source: 'engine' as never, status: { in: ['open', 'in_progress'] as never }, reason: { contains: 'Piano bloccato' } },
+      select: { id: true },
+    });
+    if (already) return;
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { assignedNutritionistId: true },
+    });
+    await this.prisma.escalation.create({
+      data: {
+        clientId,
+        reason: `Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`,
+        source: 'engine' as never,
+        assignedToId: profile?.assignedNutritionistId,
+      },
+    });
+    await this.audit.log({
+      action: 'menu.diet_blocked',
+      actorId: clientId,
+      entityType: 'escalation',
+      metadata: { reasons },
+    });
+  }
+
+  /** Stato "piano bloccato" per l'app cliente (messaggio rassicurante). */
+  async dietBlock(clientId: string): Promise<{ active: boolean; reason: string | null }> {
+    const esc = (await this.prisma.escalation.findFirst({
+      where: { clientId, source: 'engine' as never, status: { in: ['open', 'in_progress'] as never }, reason: { contains: 'Piano bloccato' } },
+      select: { reason: true },
+    })) as { reason: string } | null;
+    return {
+      active: !!esc,
+      reason: esc ? 'Stiamo sistemando il tuo piano con la nutrizionista.' : null,
+    };
   }
 
   /** Dieta approvata più adatta al profilo (regime+pasti; stile se possibile). */
