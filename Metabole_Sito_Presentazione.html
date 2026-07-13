@@ -98,7 +98,7 @@ header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdro
 @media(prefers-reduced-motion:reduce){.ring,.ring2,.gwrap,.gaia,.node,.flow{animation:none}.flow{opacity:0}}
 .orbit-cap{text-align:center;margin-top:12px;color:var(--mut);font-size:14px}
 /* stats */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
 .stat{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px;text-align:center}
 .stat b{font-family:var(--serif);font-size:40px;color:var(--teal);display:block;line-height:1}
 .stat span{font-size:13.5px;color:var(--mut);display:block;margin-top:6px}
@@ -244,9 +244,10 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
   <div class="logo">Metabole<span class="ai">AI</span></div>
   <div class="links">
     <a href="#app" data-i18n="nav_app">L'app</a>
+    <a href="#percorsi" data-i18n="paths_k">Percorsi</a>
     <a href="#culture" data-i18n="nav_culture">Per ogni cultura</a>
-    <a href="#team" data-i18n="nav_team">Chi ti segue</a>
-    <a href="#work" data-i18n="nav_work">Lavora con noi</a>
+    <a href="Metabole_Blog.html" data-i18n="nav_blog">Blog</a>
+    <a href="Metabole_Lavora.html" data-i18n="nav_work">Lavora con noi</a>
   </div>
   <div class="langsel"><i class="ti ti-world"></i><select id="lang" aria-label="Lingua">
     <option value="it">Italiano</option><option value="en">English</option><option value="es">Español</option><option value="pt">Português</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ru">Русский</option><option value="zh">中文</option><option value="ar">العربية</option>
@@ -297,6 +298,7 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
     <div class="stat"><b id="statYears">20+</b><span data-i18n="stat1l">anni di esperienza del team</span></div>
     <div class="stat"><b id="statClients">20.000+</b><span data-i18n="stat2l">clienti seguiti</span></div>
     <div class="stat"><b id="statReached">80.000+</b><span data-i18n="stat3l">persone raggiunte</span></div>
+    <div class="stat"><b id="statMethods">4</b><span data-i18n="stat4l">metodi gestiti</span></div>
   </div>
   <p class="stats-note" data-i18n="stats_note">Numeri maturati attraverso i nostri prodotti di nutrizione e benessere — tra cui Nutriamo — e oggi con MetaboleAI, nell'ambito di Mosaico Experiences SA.</p>
 </div></section>
@@ -552,6 +554,10 @@ var EXTRA2={
  ar:{store_apple_s:"حمّله من",store_google_s:"متوفر على",blog_feat:"مميّز",work_recall:"أخصائي تغذية، مدرّبة، أو تريد أن تصبح مُوجّه تغذية؟ هناك مكان لك. اطّلع على الوظائف المتاحة.",paths_k:"مسارات غذائية",paths_t:"مسار لكل هدف",paths_lead:"المسارات المتاحة في التطبيق. يختار أخصائي التغذية معك المسار المناسب ويخصّصه.",p1t:"متوسطية",p1p:"متوازنة ومتنوّعة وموسمية: أساس التقليد الإيطالي.",p2t:"بروتينية",p2p:"مزيد من البروتين للشبع وقوّة العضلات، دون تنازل عن الطعم.",p3t:"قليلة الكربوهيدرات",p3p:"كربوهيدرات أقل لطاقة ثابتة وخفّة.",p4t:"كيتو",p4p:"دهون جيدة وسكر قليل، دائماً تحت إشراف أخصائي التغذية.",paths_note:"تتحدّث المسارات في التطبيق: يمكن لأخصائي التغذية تفعيل مسارات جديدة حسب احتياجك."}
 };
 Object.keys(EXTRA2).forEach(function(l){var s=EXTRA2[l];for(var k in s){if(!I18N[l])I18N[l]={};I18N[l][k]=s[k];}});
+var NAVBLOG={it:'Blog',en:'Blog',es:'Blog',pt:'Blog',fr:'Blog',de:'Blog',ru:'Блог',zh:'博客',ar:'المدوّنة'};
+Object.keys(NAVBLOG).forEach(function(l){if(I18N[l])I18N[l].nav_blog=NAVBLOG[l];});
+var STAT4={it:'metodi gestiti',en:'methods managed',es:'métodos gestionados',pt:'métodos geridos',fr:'méthodes gérées',de:'verwaltete Methoden',ru:'методов в управлении',zh:'管理的方法',ar:'طرق مُدارة'};
+Object.keys(STAT4).forEach(function(l){if(I18N[l])I18N[l].stat4l=STAT4[l];});
 /* --- Traduzioni dal database (endpoint da collegare lato Sviluppo) --- */
 /* Quando l'endpoint restituisce {lingua:{chiave:valore}}, sovrascrive quelle locali. Struttura: GET data-i18n-src -> JSON. */
 var I18N_ENDPOINT="";
@@ -575,20 +581,21 @@ function setLang(l){
   applyStats(l);
 }
 /* --- Contatori dinamici (dal DB): persone raggiunte +1 per lead, clienti +1 per acquisto piano --- */
-var STATS={years:20,clients:20000,reached:80000};
+var STATS={years:20,clients:20000,reached:80000,methods:4};
 function fmtN(n,l){try{return n.toLocaleString(l||'it')}catch(e){return String(n)}}
 function applyStats(l){
-  var y=document.getElementById('statYears'),c=document.getElementById('statClients'),r=document.getElementById('statReached');
+  var y=document.getElementById('statYears'),c=document.getElementById('statClients'),r=document.getElementById('statReached'),m=document.getElementById('statMethods');
   if(y)y.textContent=fmtN(STATS.years,l)+'+';
   if(c)c.textContent=fmtN(STATS.clients,l)+'+';
   if(r)r.textContent=fmtN(STATS.reached,l)+'+';
+  if(m)m.textContent=fmtN(STATS.methods,l);
 }
 var STATS_ENDPOINT="";
 function loadStats(){
   STATS_ENDPOINT=document.body.getAttribute('data-stats-endpoint')||STATS_ENDPOINT;
   if(!STATS_ENDPOINT)return;
   fetch(STATS_ENDPOINT).then(function(r){return r.json()}).then(function(s){
-    if(s&&typeof s==='object'){if(s.years!=null)STATS.years=s.years;if(s.clients!=null)STATS.clients=s.clients;if(s.reached!=null)STATS.reached=s.reached;applyStats(document.documentElement.lang);}
+    if(s&&typeof s==='object'){if(s.years!=null)STATS.years=s.years;if(s.clients!=null)STATS.clients=s.clients;if(s.reached!=null)STATS.reached=s.reached;if(s.methods!=null)STATS.methods=s.methods;applyStats(document.documentElement.lang);}
   }).catch(function(){});
 }
 /* --- Percorsi alimentari dinamici (da endpoint app, es. /onboarding/diet-products) --- */
@@ -602,6 +609,7 @@ function loadPaths(){
     grid.innerHTML=list.map(function(p,i){var c=p.color||cols[i%cols.length];var ic=p.icon||icons[i%icons.length];
       return '<div class="path" style="border-top-color:'+c+'"><div class="ic" style="background:'+c+'"><i class="ti '+ic+'" style="font-size:20px"></i></div><h3>'+(p.name||p.clientName||'')+'</h3><p>'+(p.desc||p.clientDescription||'')+'</p></div>';
     }).join('');
+    STATS.methods=list.length;applyStats(document.documentElement.lang);
   }).catch(function(){});
 }
 var saved=ls('mb_lang');var nav=(navigator.language||'it').slice(0,2);
