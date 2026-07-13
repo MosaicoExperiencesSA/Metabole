@@ -769,6 +769,26 @@ model Alert {
   @@map("alert")
 }
 
+// Appuntamento in agenda (app coach + cliente). Entità di SCHEDULING generale
+// (coach e nutrizionista); la visita clinica dettagliata resta su Visit (fase
+// nutrizionista). FK-less: clientId/staffId come stringhe. Vedi Metabole_Backend_Operazioni §6.
+model Appointment {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  staffId   String   @map("staff_id")
+  staffRole String   @map("staff_role") // coach | nutritionist
+  type      String // call | televisit | in_person
+  datetime  DateTime
+  status    String   @default("scheduled") // scheduled | done | cancelled
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId, datetime])
+  @@index([staffId, datetime])
+  @@map("appointment")
+}
+
 // Notifiche personalizzate (spec sez. 9). userId = destinatario (cliente o staff).
 model Notification {
   id           String              @id @default(uuid())

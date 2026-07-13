@@ -7,6 +7,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 4 (parte 2) — Agenda e appuntamenti** — nuova entità `Appointment` (FK-less) +
+  migrazione (validata PG16). `GET /coach/agenda` (appuntamenti futuri delle clienti: i propri
+  gestibili, quelli col nutrizionista in sola lettura), `POST /appointments` (coach/nutrizionista solo
+  per i propri clienti, con validazioni tipo/data), `PATCH /appointments/:id` (solo il proprietario),
+  `GET /me/agenda` lato cliente (appuntamenti + scadenza piano; `?next=1` = solo il prossimo, per la
+  Home). 7 test nuovi, suite 282 verde.
 - `[Sviluppo]` **Fase 4 (parte 1) — App Coach: clienti + dashboard** — nuovo modulo `coach` con
   `GET /coach/clients` (lista clienti assegnate: nome, stato piano, ultima misura, alert aperti,
   ordinata per alert) e `GET /coach/dashboard` (conteggio clienti, piani in scadenza entro

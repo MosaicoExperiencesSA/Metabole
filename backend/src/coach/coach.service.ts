@@ -1,10 +1,34 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY = 86_400_000;
 const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
+const APPOINTMENT_TYPES = ['call', 'televisit', 'in_person'];
+
+interface ApptRow {
+  id: string;
+  clientId: string;
+  staffId: string;
+  staffRole: string;
+  type: string;
+  datetime: Date;
+  status: string;
+  note: string | null;
+}
+
+export interface CreateAppointmentInput {
+  clientId: string;
+  type: string;
+  datetime: string;
+  note?: string;
+}
+export interface UpdateAppointmentInput {
+  status?: 'scheduled' | 'done' | 'cancelled';
+  datetime?: string;
+  note?: string;
+}
 
 interface ProfileRow {
   userId: string;
@@ -138,6 +162,133 @@ export class CoachService {
         name: s.client?.clientProfile?.name ?? null,
         endDate: s.endDate ? s.endDate.toISOString().slice(0, 10) : null,
       })),
+    };
+  }
+
+  // ---------- Agenda / appuntamenti ----------
+
+  private async staffNames(ids: string[]): Promise<Map<string, string>> {
+    if (!ids.length) return new Map();
+    const rows = (await this.prisma.staff.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, displayName: true },
+    })) as { id: string; displayName: string }[];
+    return new Map(rows.map((r) => [r.id, r.displayName]));
+  }
+
+  /** Agenda della coach: appuntamenti futuri delle sue clienti (i propri gestibili, quelli col nutrizionista in sola lettura). */
+  async coachAgenda(user: AuthUser): Promise<{ appointments: unknown[] }> {
+    const staffId = await this.staffId(user.sub);
+    if (!staffId) return { appointments: [] };
+
+    const profiles = (await this.prisma.clientProfile.findMany({
+      where: { assignedCoachId: staffId },
+      select: { userId: true, name: true },
+    })) as { userId: string; name: string | null }[];
+    const ids = profiles.map((p) => p.userId);
+    if (!ids.length) return { appointments: [] };
+    const nameOf = new Map(profiles.map((p) => [p.userId, p.name]));
+
+    const startToday = new Date();
+    startToday.setHours(0, 0, 0, 0);
+    const appts = (await this.prisma.appointment.findMany({
+      where: { clientId: { in: ids }, status: 'scheduled', datetime: { gte: startToday } },
+      orderBy: { datetime: 'asc' },
+    })) as ApptRow[];
+
+    const staffNameOf = await this.staffNames([...new Set(appts.map((a) => a.staffId))]);
+    return {
+      appointments: appts.map((a) => ({
+        id: a.id,
+        clientId: a.clientId,
+        clientName: nameOf.get(a.clientId) ?? null,
+        staffRole: a.staffRole,
+        staffName: staffNameOf.get(a.staffId) ?? null,
+        type: a.type,
+        datetime: a.datetime.toISOString(),
+        note: a.note,
+        editable: a.staffRole === 'coach' && a.staffId === staffId,
+      })),
+    };
+  }
+
+  /** Crea un appuntamento (coach o nutrizionista) per una propria cliente. */
+  async createAppointment(user: AuthUser, dto: CreateAppointmentInput) {
+    const staffId = await this.staffId(user.sub);
+    if (!staffId) throw new ForbiddenException('Solo lo staff può creare appuntamenti');
+    if (!APPOINTMENT_TYPES.includes(dto.type)) throw new BadRequestException('Tipo appuntamento non valido');
+    const when = new Date(dto.datetime);
+    if (isNaN(when.getTime()) || when.getTime() < Date.now()) {
+      throw new BadRequestException('Data/ora non valida (dev\'essere futura)');
+    }
+
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: dto.clientId },
+      select: { assignedCoachId: true, assignedNutritionistId: true },
+    });
+    if (!profile) throw new NotFoundException('Cliente non trovata');
+
+    let staffRole: 'coach' | 'nutritionist';
+    if (user.role === 'coach') {
+      if (profile.assignedCoachId !== staffId) throw new ForbiddenException('Non è una tua cliente');
+      staffRole = 'coach';
+    } else if (user.role === 'nutritionist') {
+      if (profile.assignedNutritionistId !== staffId) throw new ForbiddenException('Non è una tua paziente');
+      staffRole = 'nutritionist';
+    } else {
+      throw new ForbiddenException('Ruolo non abilitato a creare appuntamenti');
+    }
+
+    return this.prisma.appointment.create({
+      data: { clientId: dto.clientId, staffId, staffRole, type: dto.type, datetime: when, note: dto.note ?? null },
+    });
+  }
+
+  /** Aggiorna/annulla un appuntamento: solo chi l'ha creato. */
+  async updateAppointment(user: AuthUser, id: string, dto: UpdateAppointmentInput) {
+    const appt = (await this.prisma.appointment.findUnique({ where: { id } })) as ApptRow | null;
+    if (!appt) throw new NotFoundException('Appuntamento non trovato');
+    const staffId = await this.staffId(user.sub);
+    if (!staffId || appt.staffId !== staffId) throw new ForbiddenException('Non puoi modificare questo appuntamento');
+
+    const data: Record<string, unknown> = {};
+    if (dto.status) data.status = dto.status;
+    if (dto.note !== undefined) data.note = dto.note;
+    if (dto.datetime) {
+      const when = new Date(dto.datetime);
+      if (isNaN(when.getTime())) throw new BadRequestException('Data/ora non valida');
+      data.datetime = when;
+    }
+    return this.prisma.appointment.update({ where: { id }, data });
+  }
+
+  /** Agenda del cliente: appuntamenti futuri (coach + nutrizionista) + scadenza piano. `next` = solo il prossimo. */
+  async clientAgenda(clientId: string, nextOnly = false) {
+    const now = new Date();
+    const appts = (await this.prisma.appointment.findMany({
+      where: { clientId, status: 'scheduled', datetime: { gte: now } },
+      orderBy: { datetime: 'asc' },
+      take: nextOnly ? 1 : 50,
+    })) as ApptRow[];
+    const staffNameOf = await this.staffNames([...new Set(appts.map((a) => a.staffId))]);
+    const enrich = (a: ApptRow) => ({
+      id: a.id,
+      staffRole: a.staffRole,
+      staffName: staffNameOf.get(a.staffId) ?? null,
+      type: a.type,
+      datetime: a.datetime.toISOString(),
+      note: a.note,
+    });
+
+    if (nextOnly) return { next: appts[0] ? enrich(appts[0]) : null };
+
+    const sub = (await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
+      select: { endDate: true },
+    })) as { endDate: Date | null } | null;
+    return {
+      appointments: appts.map(enrich),
+      planEndDate: sub?.endDate ? sub.endDate.toISOString().slice(0, 10) : null,
     };
   }
 }
