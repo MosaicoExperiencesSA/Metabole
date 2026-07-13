@@ -177,13 +177,18 @@ export class MenuService {
     }
     if (templates.length === 0) return [];
 
+    // Selettore per efficacia+gradimento: sceglie, DENTRO la dieta approvata, la
+    // ricetta migliore per ogni slot (learning + stelle, con vincolo kcal).
+    const selector = await this.buildSelector(clientId, profile.regime, templates as never);
+
     // Prepara gli snapshot dei giorni del ciclo.
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
     for (let i = 0; i < daysPerDelivery; i++) {
       const date = new Date(firstNewDate.getTime() + i * 86_400_000);
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
-      const meals = await this.snapshotMeals(template.meals as never);
+      const chosen = selector(template.meals as { slot: string; recipeId: string }[]);
+      const meals = await this.snapshotMeals(chosen as never);
       daySnapshots.push({ date, meals });
     }
 
@@ -269,6 +274,77 @@ export class MenuService {
       select: { id: true },
     });
     return !measure;
+  }
+
+  // ---------- Selezione ricette per efficacia + gradimento ----------
+
+  /**
+   * Costruisce un selettore: per ogni slot sceglie, TRA le ricette che la dieta
+   * approvata usa per quello slot (pool dai template), quella col punteggio migliore
+   * = w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle). Vincolo kcal per non
+   * sbilanciare la giornata. A parità di punteggio resta la ricetta del template.
+   */
+  private async buildSelector(
+    clientId: string,
+    regime: string | null,
+    templates: { meals: { slot: string; recipeId: string }[] }[],
+  ): Promise<(meals: { slot: string; recipeId: string }[]) => { slot: string; recipeId: string }[]> {
+    const identity = (meals: { slot: string; recipeId: string }[]) => meals;
+    if (!regime) return identity;
+
+    const [wEff, wGrad, kcalTolPct] = await Promise.all([
+      this.configParams.getNumber('menu_select_w_eff', 1),
+      this.configParams.getNumber('menu_select_w_grad', 1),
+      this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
+    ]);
+    const tol = kcalTolPct / 100;
+
+    // Pool candidati per slot (ricette usate dalla dieta per quello slot).
+    const slotPool = new Map<string, Set<string>>();
+    const poolIds = new Set<string>();
+    for (const t of templates) {
+      for (const m of (t.meals as { slot: string; recipeId: string }[]) ?? []) {
+        if (!slotPool.has(m.slot)) slotPool.set(m.slot, new Set());
+        slotPool.get(m.slot)!.add(m.recipeId);
+        poolIds.add(m.recipeId);
+      }
+    }
+    if (poolIds.size === 0) return identity;
+
+    const [recipes, weights, ratings] = await Promise.all([
+      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true } }) as Promise<{ id: string; kcal: number }[]>,
+      this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
+      this.prisma.recipeRating.findMany({ where: { clientId }, select: { recipeId: true, stars: true } }) as Promise<{ recipeId: string; stars: number }[]>,
+    ]);
+
+    const kcalOf = new Map(recipes.map((r) => [r.id, r.kcal]));
+    const effOf = new Map(weights.map((w) => [w.recipeId, w.samples > 0 ? w.score / w.samples : 0]));
+    const starOf = new Map<string, number>();
+    for (const r of ratings) starOf.set(r.recipeId, Math.max(starOf.get(r.recipeId) ?? 0, r.stars));
+
+    const score = (id: string) => wEff * (effOf.get(id) ?? 0) + wGrad * ((starOf.get(id) ?? 5) / 5);
+
+    return (meals) =>
+      meals.map((m) => {
+        const pool = slotPool.get(m.slot);
+        const baseKcal = kcalOf.get(m.recipeId);
+        if (!pool || baseKcal == null) return m;
+        const lo = baseKcal * (1 - tol);
+        const hi = baseKcal * (1 + tol);
+        let bestId = m.recipeId;
+        let bestScore = score(m.recipeId);
+        for (const cand of pool) {
+          if (cand === m.recipeId) continue;
+          const ck = kcalOf.get(cand);
+          if (ck == null || ck < lo || ck > hi) continue; // vincolo bilanciamento
+          const s = score(cand);
+          if (s > bestScore + 1e-9) {
+            bestScore = s;
+            bestId = cand;
+          }
+        }
+        return { slot: m.slot, recipeId: bestId };
+      });
   }
 
   // ---------- Sicurezza: esclusioni (intolleranze/allergie) → blocco + escalation ----------

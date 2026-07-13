@@ -7,6 +7,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 5 (parte 4) — Selezione menu per efficacia+gradimento** — alla composizione della
+  giornata, per ogni slot il motore sceglie la ricetta col punteggio migliore
+  (`w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)`, default 5★, tie → template), SOLO tra le
+  ricette della dieta approvata per quello slot e con vincolo kcal (bilanciamento). Pesi/tolleranza in
+  config. Con questo il **nucleo v1 del motore è completo** (esclusioni+sostituzione+learning+selezione).
+  1 test nuovo, suite 294 verde.
 - `[Sviluppo]` **Backoffice — pagina Chat + auto-riparazione permessi** — nuova pagina `Chat.tsx`
   (staff↔cliente: elenco conversazioni, messaggi, invio) + voce di menu (chiave `chat`) + rotta.
   Risolto anche il problema "sezioni non nel menu" (es. Parametri): `PermissionsService.syncDefaults`

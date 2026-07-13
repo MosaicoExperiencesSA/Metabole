@@ -76,9 +76,14 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
     del ciclo (`CycleFeedback`: perso/stabile/preso, con soglie config) e — se seguito (proxy: check-in
     nel ciclo) — si aggiornano i **MenuWeight** (efficacia appresa per ricetta/cliente, attribuzione naive
     all'intera giornata). Trigger da `signals.upsertMeasurement`.
-  - Ancora da fare: **giornate bilanciate** (DayCombo, porzioni standard) e la **selezione per
-    efficacia (MenuWeight) + gradimento (stelle)** che sostituisca i template fissi; isolamento
-    dell'effetto del singolo pasto (learning avanzato).
+  - Selezione (v1): alla composizione della giornata, per ogni slot il motore sceglie — **dentro la
+    dieta approvata** (pool dai template) e con **vincolo kcal** (bilanciamento) — la ricetta col
+    punteggio migliore = `w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)` (default 5★, tie →
+    resta il template). Pesi e tolleranza in config.
+  - **Nucleo v1 del motore completo** (sicurezza esclusioni + sostituzione + learning + selezione).
+    Ancora da fare (avanzato): generazione automatica delle **giornate bilanciate** (DayCombo, oggi i
+    giorni sono composti a mano dal nutrizionista nei template) e l'**attribuzione causale** dell'effetto
+    del singolo pasto (isolare il pasto che pesa di più).
 - **Agente AI della dieta** (stati Conforto/Rientro/Pre-evento/Plateau, scoring): ⬜ (Fase 6).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 
@@ -101,7 +106,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 2 | **Misure bloccanti** al 2° giorno del ciclo | ✅ (13/7) |
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
-| 5 | Motore di personalizzazione menu — v1 "naive" | 🟡 sicurezza esclusioni fatta |
+| 5 | Motore di personalizzazione menu — v1 "naive" | ✅ nucleo v1 (esclusioni+sostituzione+learning+selezione); avanzato (DayCombo, causale) da fare |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ⬜ |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | ⬜ |
 | 8 | Shop / abbonamenti / provvigioni | ⬜ |

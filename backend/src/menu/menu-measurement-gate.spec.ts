@@ -9,8 +9,8 @@ const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
 function makeService(prisma: unknown) {
   const config = {
-    getNumber: jest.fn((k: string) =>
-      Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[k]),
+    getNumber: jest.fn((k: string, def?: number) =>
+      Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[k] ?? def),
     ),
   };
   const audit = { log: jest.fn() };
@@ -76,6 +76,8 @@ describe('MenuService — gate misure', () => {
     diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
     dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ dayIndex: 1, level: 1, meals: [{ slot: 'breakfast', recipeId: 'r1' }] }]) },
     escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+    menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
+    recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
     ...over,
   });
 
@@ -94,6 +96,36 @@ describe('MenuService — gate misure', () => {
     expect((prisma.escalation.create as jest.Mock)).toHaveBeenCalled();
     expect((prisma.escalation.create as jest.Mock).mock.calls[0][0].data.reason).toContain('Piano bloccato');
     expect((prisma.menuDay.upsert as jest.Mock)).not.toHaveBeenCalled();
+  });
+
+  it('selezione: a parità di kcal sceglie la ricetta più gradita', async () => {
+    const upsert = jest.fn().mockResolvedValue({});
+    const prisma = deliveryPrisma({
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: D(dayIso(-3)), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5,
+          intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
+        }),
+      },
+      dietDayTemplate: {
+        findMany: jest.fn().mockResolvedValue([
+          { dayIndex: 1, level: 1, meals: [{ slot: 'lunch', recipeId: 'r1' }] },
+          { dayIndex: 2, level: 1, meals: [{ slot: 'lunch', recipeId: 'r2' }] },
+        ]),
+      },
+      recipe: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'r1', name: 'Pasta A', kcal: 500, ingredients: [] },
+          { id: 'r2', name: 'Pasta B', kcal: 500, ingredients: [] },
+        ]),
+      },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'r1', stars: 2 }, { recipeId: 'r2', stars: 5 }]) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), upsert },
+    });
+    await makeService(prisma).deliverIfEligible('c1');
+    // il giorno che parte dal template con r1 deve erogare r2 (più gradita, stesse kcal)
+    const firstDayMeals = upsert.mock.calls[0][0].create.meals;
+    expect(firstDayMeals[0].recipeId).toBe('r2');
   });
 
   it('sostituzione: intolleranza sostituibile → eroga con nota di sostituzione', async () => {

@@ -53,6 +53,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         upsert: jest.fn().mockResolvedValue({ id: 'rt1' }),
         findMany: jest.fn().mockResolvedValue([]),
       },
+      menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       shoppingList: {
         findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn(),
@@ -63,8 +64,8 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     prisma.engineDecision = { findFirst: jest.fn().mockResolvedValue(null) };
     prisma.subscription = { findFirst: jest.fn().mockResolvedValue({ id: 'sub1', status: 'active' }) };
     const config = {
-      getNumber: jest.fn((key: string) =>
-        Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[key]),
+      getNumber: jest.fn((key: string, def?: number) =>
+        Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[key] ?? def),
       ),
     };
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };

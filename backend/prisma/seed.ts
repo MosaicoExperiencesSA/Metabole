@@ -120,6 +120,24 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'menu_select_w_eff',
+    value: '1',
+    type: 'number',
+    description: 'Peso dell\'efficacia appresa (MenuWeight) nella selezione delle ricette',
+  },
+  {
+    key: 'menu_select_w_grad',
+    value: '1',
+    type: 'number',
+    description: 'Peso del gradimento (stelle) nella selezione delle ricette',
+  },
+  {
+    key: 'menu_kcal_balance_tolerance_pct',
+    value: '15',
+    type: 'number',
+    description: 'Tolleranza kcal (%) entro cui una ricetta alternativa può sostituire quella del template (bilanciamento)',
+  },
+  {
     key: 'cycle_weight_delta_kg',
     value: '0.2',
     type: 'number',
