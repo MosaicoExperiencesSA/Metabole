@@ -1,9 +1,9 @@
 # MetaboleAI — Piani d'estate (luglio): Vacanze in Serenità & Ritorno in Equilibrio
 
-Due percorsi stagionali per il mese di luglio, quando metà del pubblico **parte** in vacanza e metà
-**rientra**. Non sono nuovi abbonamenti: sono **due modalità** del percorso Metabole che il motore e
-l'agente AI attivano in base al contesto del cliente. Documento **prodotto**, pronto da condividere
-con lo Sviluppo per l'implementazione.
+Due protocolli stagionali per il mese di luglio, quando metà del pubblico **parte** in vacanza e metà
+**rientra**. Sono **due prodotti a sé**, ciascuno con il **proprio catalogo di menu** (da fornire), che
+il motore e l'agente AI attivano in base al contesto del cliente. Documento **prodotto**, pronto da
+condividere con lo Sviluppo per l'implementazione.
 
 - **Piano 1 — Vacanze in Serenità**: per chi parte. Obiettivo = **mantenimento senza fame e senza sensi di colpa**.
 - **Piano 2 — Ritorno in Equilibrio** *(nome proposto)*: per chi rientra. Obiettivo = **ripartire con dolcezza** verso il proprio traguardo.
@@ -14,27 +14,36 @@ con lo Sviluppo per l'implementazione.
 
 ---
 
-## 0. Scope: cosa sono (e cosa non sono)
+## 0. REGOLA FONDAMENTALE — isolamento dei menu per prodotto (BLOCCO)
 
-I due piani **non hanno menu propri**: sono **modalità** che modulano la selezione **sopra la dieta
-già scelta dal cliente**. "Vacanze in Serenità" dice al motore *"privilegia i piatti freddi/portabili
-e resta in mantenimento"*; "Ritorno in Equilibrio" dice *"parti leggero e spingi gradualmente"* — ma
-i piatti erogati vengono **sempre dal catalogo della dieta scelta**.
+> **Ogni prodotto/protocollo ha il PROPRIO catalogo di menu, separato e indipendente.**
+> Non si mischiano **mai** menu di diete o prodotti diversi, **nemmeno per riferimento**. Se due
+> prodotti devono proporre gli stessi piatti, i menu si **duplicano** (copie proprie del prodotto),
+> **non** si condividono. I menu li fornisce il **nutrizionista** (o Antonio): l'AI **non li inventa**
+> e **non li prende in prestito** da un altro prodotto (es. dalla dieta Mediterranea).
 
-Oggi l'unico catalogo di menu reale è quello della **dieta Mediterranea** (`Metabole_Catalogo_Menu_
-Mediterranea.xlsx`). Quindi: per un cliente **Mediterranea** i due piani erogano **menu concreti veri**
-(45 menu estivi, 31 con versione fredda). Per un cliente su **altri regimi** (proteica, vegetariana…)
-le due modalità funzionano **a livello di logica**, ma non hanno piatti da proporre finché non si
-costruiscono anche quei cataloghi — come per tutto il resto del motore.
+Questa regola vale per la dieta Mediterranea, per i due protocolli estate e per **ogni** prodotto
+futuro. Vantaggio: tracciabilità, responsabilità clinica chiara (ogni menu è validato nel suo
+prodotto) e nessuna contaminazione tra diete.
+
+## 0bis. Cosa sono i due protocolli (e cosa manca)
+
+Vacanze in Serenità e Ritorno in Equilibrio sono **due protocolli a sé**, ciascuno con il **proprio
+catalogo di menu**. In questo documento è definita la **logica** (mantenimento / ripartenza) e
+l'**esperienza** cliente; i **menu sono in attesa**: oggi per questi due protocolli **non esiste alcun
+menu** e il catalogo della Mediterranea **non va usato** come loro fonte.
+
+**Stato menu dei due protocolli:** ⬜ da fornire dal **nutrizionista / Antonio**. L'AI non li prepara.
 
 ## 0bis. Come si incastrano con ciò che esiste già
 
-Entrambi i piani **riusano** i mattoni già presenti nel motore (non serve reinventare):
+Entrambi i protocolli **riusano i meccanismi** già presenti nel motore (non i menu, che sono propri di
+ciascun prodotto — vedi §0):
 
-- **Agente AI dieta** con i suoi stati (`normale`, `conforto`, `plateau`, `pre_evento`, `post_evento`, `rientro`): i due piani sono in pratica due **stati stagionali** guidati da un segnale di contesto.
-- **Catalogo menu stagionale** (estate) con etichette **caldo/freddo**: per la vacanza si privilegiano i piatti **freddi/portabili**.
+- **Agente AI dieta** con i suoi stati (`normale`, `conforto`, `plateau`, `pre_evento`, `post_evento`, `rientro`): i due protocolli usano gli **stati** (mantenimento / rientro), applicati **al proprio catalogo**.
+- **Etichette caldo/freddo** come attributo dei menu: in vacanza si privilegiano i piatti **freddi/portabili** — scelti però dentro il **catalogo del protocollo Vacanze**, non altrove.
 - **Segnali** già tracciati: acqua, passi, check-in umore, misure (con il popup bloccante al 2° giorno).
-- **Agente Contesto & Tempismo**: è luglio → propone questi due piani al pubblico giusto.
+- **Agente Contesto & Tempismo**: è luglio → propone questi due protocolli al pubblico giusto.
 
 Serve solo un **segnale di contesto** nuovo ("sto per partire" / "sono rientrato/a") con le date, che accende la modalità. Dettaglio implementativo in §3.
 
@@ -89,11 +98,12 @@ Serve solo un **segnale di contesto** nuovo ("sto per partire" / "sono rientrato
 
 ## 3. Cosa serve allo Sviluppo (impatto [Sviluppo])
 
-Implementabile riusando i mattoni esistenti, con poco di nuovo:
+Implementabile riusando i **meccanismi** esistenti, con poco di nuovo:
 
+- **Isolamento menu (hard constraint, §0)**: nel modello dati ogni catalogo di menu è legato al **prodotto/protocollo** (`product_id`); **nessun** riferimento o join tra cataloghi di prodotti diversi. I due protocolli estate hanno **cataloghi propri** (vuoti finché il nutrizionista non li popola). Se serve un piatto identico ad un altro prodotto, si **duplica** la riga, non si condivide.
 - **Segnale di contesto** sul profilo cliente: `travel_mode` con `stato` = `in_partenza` / `in_vacanza` / `rientrato` + **date**. Il cliente lo attiva con un toggle "Sto per partire / Sono rientrato" (o lo propone l'agente Contesto in base al periodo).
-- **Aggancio all'agente dieta**: `in_vacanza` → stato **mantenimento** (nuovo o mappato su `normale` con deficit=0 e preferenza menu freddi/portabili); `rientrato` → stato **rientro** già esistente (spinta efficacia graduale, con la settimana 1 "reset").
-- **Preferenza menu**: in vacanza, privilegia ricette **fredde/portabili** e aggiunge la nota "versione fuori casa/ristorante" per pasto.
+- **Aggancio all'agente dieta**: `in_vacanza` → stato **mantenimento** applicato al **catalogo del protocollo Vacanze**; `rientrato` → stato **rientro** applicato al **catalogo del protocollo Ritorno** (spinta efficacia graduale, settimana 1 "reset").
+- **Preferenza menu**: in vacanza, privilegia ricette **fredde/portabili** (attributo del menu) **dentro il catalogo del protocollo**, con la nota "versione fuori casa/ristorante" per pasto.
 - **Misure**: durante `in_vacanza`, **sospendi il popup bloccante** del 2° giorno; riattivalo al rientro (settimana 2).
 - **Copy di Gaia**: due set di testi (partenza / rientro) + consiglio pre-partenza.
 - **Template coach**: messaggio automatico "buona partenza" e "bentornato".
@@ -106,11 +116,11 @@ Tutte le soglie (durata reset, giorni di spinta) in `config_param`, mai hardcoda
 ## 4. Prossimi passi lato Prodotto
 
 1. Confermare il **nome** del Piano 2.
-2. Scrivere i **testi di Gaia** (partenza / rientro / consiglio valigia) e i **template coach**.
-3. Selezionare dal catalogo estivo i **menu "da vacanza"** (freddi/portabili) e le **alternative ristorante**.
+2. **Attendere i menu** dei due protocolli dal **nutrizionista / Antonio** (l'AI non li prepara). Ogni protocollo avrà il **proprio** catalogo, isolato (§0).
+3. Scrivere i **testi di Gaia** (partenza / rientro / consiglio valigia) e i **template coach**.
 4. Disegnare le due **schermate** (toggle contesto + card "sei in Vacanze in Serenità / Ritorno in Equilibrio" in Home).
 5. Passare la spec allo Sviluppo (questo documento) e allineare in `progetto/REGISTRO.md`.
 
 ## In una riga
 
-Due modalità di luglio: **Vacanze in Serenità** (mantenimento, zero colpa, menu da spiaggia e bussola-ristorante) e **Ritorno in Equilibrio** (ripartenza dolce in due settimane) — entrambe costruite sui mattoni già esistenti del motore, con un solo segnale di contesto nuovo, e collegate alla campagna di rientro del marketing.
+Due protocolli di luglio: **Vacanze in Serenità** (mantenimento, zero colpa) e **Ritorno in Equilibrio** (ripartenza dolce) — **ciascuno con i propri menu** (forniti dal nutrizionista, mai mischiati tra prodotti), che riusano i **meccanismi** del motore (stati agente, segnali) e si collegano alla campagna di rientro del marketing.
