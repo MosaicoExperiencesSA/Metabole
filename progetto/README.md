@@ -24,6 +24,7 @@ senza dover ricostruire il contesto ogni volta.
 | `STATO.md` | Lo **stato attuale** del progetto per area (cosa è fatto, cosa manca). Si **aggiorna** (si sovrascrive la voce) quando qualcosa cambia. | Entrambi i team |
 | `REGISTRO.md` | Il **log cronologico** di ogni modifica (data · autore · area · cosa). Si **aggiunge in cima**, non si cancella mai il passato. | Entrambi i team |
 | `README.md` | Questo file: regole d'uso + indice dei documenti di specifica. | Entrambi i team |
+| `ISTRUZIONI_PER_AI.md` | Istruzioni operative per le AI dei due team (leggere il diario a inizio sessione, aggiornarlo dopo ogni modifica). | Entrambi i team |
 
 ## Come si aggiorna (regole semplici)
 
