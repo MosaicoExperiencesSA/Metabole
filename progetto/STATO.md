@@ -6,6 +6,23 @@ Legenda: ✅ fatto · 🟡 in corso/parziale · ⬜ da fare
 
 ---
 
+## ⛔ REGOLE FERREE (invarianti) — non violare mai
+
+1. **Isolamento dei menu per prodotto.** Ogni prodotto/protocollo (dieta Mediterranea, protocolli
+   Vacanze in Serenità / Ritorno in Equilibrio, e **ogni** prodotto futuro — es. gravidanza/allattamento)
+   ha il **PROPRIO** catalogo di menu, separato e indipendente. I menu **non si mischiano MAI** tra
+   prodotti diversi, **nemmeno per riferimento**. Anche a parità di piatti o combinazioni si esegue un
+   **NUOVO inserimento completo**: **si duplicano, non si condividono**. I menu li **fornisce e valida il
+   nutrizionista** (o Antonio); l'AI **non li inventa** e **non li prende in prestito** da un altro
+   prodotto. **Dati:** menu legati a `product_id`; **nessun** join o riferimento tra cataloghi di prodotti
+   diversi. Rif. canonico: `../Metabole_Motore_Personalizzazione.md` §0.
+
+_(Questo elenco raccoglie i vincoli architetturali che non cambiano. Le altre regole tecniche —
+segreti fuori dal repo, `docs/` pubblica, dati sanitari cifrati, soglie in `config_param` — restano in
+`ISTRUZIONI_PER_AI.md` §4.)_
+
+---
+
 ## Infrastruttura / Stack
 - Stack: **NestJS + TypeScript + PostgreSQL (Prisma 6)**, JWT, hosting UE. ✅
 - Database **Neon** (Francoforte), pooled `DATABASE_URL` + direct `DIRECT_DATABASE_URL`. ✅
