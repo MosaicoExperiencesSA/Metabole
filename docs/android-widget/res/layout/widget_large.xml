@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/widget_bg_teal">
+
+    <!-- Header: Metabole + streak -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:text="Metabole" />
+        <TextView
+            android:id="@+id/widget_streak"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_chip_bg"
+            android:paddingLeft="9dp"
+            android:paddingRight="9dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:text="🔥 0 giorni" />
+    </LinearLayout>
+
+    <!-- Mascot + greeting + metrics -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="10dp">
+
+        <ImageView
+            android:id="@+id/widget_mascot"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/mascot_happy"
+            android:contentDescription="Metabole" />
+
+        <TextView
+            android:id="@+id/widget_greeting"
+            android:layout_width="92dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:text="Metabole" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginEnd="6dp"
+                android:orientation="vertical" android:gravity="center"
+                android:paddingTop="8dp" android:paddingBottom="8dp"
+                android:background="@drawable/widget_meal_bg">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="16sp" android:text="💧" />
+                <TextView android:id="@+id/widget_water" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" android:layout_marginTop="2dp" android:text="0/8" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#D9FFFFFF" android:textSize="11sp" android:text="acqua" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical" android:gravity="center"
+                android:paddingTop="8dp" android:paddingBottom="8dp"
+                android:background="@drawable/widget_meal_bg">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="16sp" android:text="🚶" />
+                <TextView android:id="@+id/widget_steps" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" android:layout_marginTop="2dp" android:text="0" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="#D9FFFFFF" android:textSize="11sp" android:text="passi" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Frase del giorno -->
+    <TextView
+        android:id="@+id/widget_phrase"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:layout_marginBottom="12dp"
+        android:text="" />
+
+    <!-- Prossimo pasto -->
+    <LinearLayout
+        android:id="@+id/widget_meal_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="9dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/widget_meal_bg">
+        <TextView
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:layout_marginEnd="10dp"
+            android:textSize="22sp"
+            android:background="@drawable/widget_btn_bg"
+            android:text="🍽" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/widget_meal_label"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textColor="#D9FFFFFF" android:textSize="11sp" android:text="Prossimo pasto" />
+            <TextView
+                android:id="@+id/widget_meal_name"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold"
+                android:maxLines="1" android:ellipsize="end" android:text="—" />
+            <TextView
+                android:id="@+id/widget_meal_kcal"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textColor="#D9FFFFFF" android:textSize="11sp" android:text="" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Apri Metabole -->
+    <TextView
+        android:id="@+id/widget_cta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="10dp"
+        android:background="@drawable/widget_btn_bg"
+        android:textColor="#173A33"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:text="Apri Metabole" />
+</LinearLayout>

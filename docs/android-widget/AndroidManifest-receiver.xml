@@ -1,0 +1,12 @@
+<!-- Da incollare dentro <application> in
+     app/android/app/src/main/AndroidManifest.xml -->
+<receiver
+    android:name=".MetaboleWidget"
+    android:exported="false">
+    <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+    </intent-filter>
+    <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/metabole_widget_info" />
+</receiver>

@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copiare in: android/app/src/main/res/xml/metabole_widget_info.xml -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="180dp"
+    android:minWidth="110dp"
     android:minHeight="110dp"
-    android:targetCellWidth="3"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="320dp"
+    android:maxResizeHeight="280dp"
+    android:targetCellWidth="2"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
-    android:initialLayout="@layout/metabole_widget"
-    android:previewLayout="@layout/metabole_widget"
+    android:initialLayout="@layout/widget_square"
+    android:previewLayout="@layout/widget_rect"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />
