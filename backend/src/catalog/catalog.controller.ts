@@ -20,6 +20,7 @@ import {
   RejectDietDto,
   SetDayTemplatesDto,
   UpdateDietDto,
+  UpdateDietProductDto,
 } from './dto/catalog.dto';
 
 /** Diete: il nutrizionista propone, il capo approva. */
@@ -48,6 +49,12 @@ export class DietsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateDietDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateDiet(user.sub, id, dto);
+  }
+
+  /** Modifica la sola scheda cliente (schermo 16), anche su diete approvate. */
+  @Patch(':id/product')
+  updateProduct(@Param('id') id: string, @Body() dto: UpdateDietProductDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.updateDietProduct(user.sub, id, dto);
   }
 
   @Put(':id/days')

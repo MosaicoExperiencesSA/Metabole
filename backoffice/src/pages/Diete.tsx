@@ -52,6 +52,7 @@ export function Diete() {
   const [busy, setBusy] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [daysId, setDaysId] = useState<string | null>(null);
+  const [productId, setProductId] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -137,6 +138,9 @@ export function Diete() {
                         {r.status !== 'approved' && isNutri && (
                           <button className="btn ghost sm" disabled={!!busy} onClick={() => setDaysId(r.id)}><i className="ti ti-calendar" /> Componi giorni</button>
                         )}
+                        {isNutri && (
+                          <button className="btn ghost sm" disabled={!!busy} onClick={() => setProductId(r.id)}><i className="ti ti-tag" /> Scheda cliente</button>
+                        )}
                         {r.status === 'draft' && isNutri && (
                           <button className="btn ghost sm" disabled={!!busy} onClick={() => act(r.id, 'submit')}><i className="ti ti-send" /> Invia in revisione</button>
                         )}
@@ -158,7 +162,75 @@ export function Diete() {
 
       {createOpen && <CreateDietModal onClose={() => setCreateOpen(false)} onSaved={() => { setCreateOpen(false); void load(); }} />}
       {daysId && <DayEditorModal dietId={daysId} onClose={() => setDaysId(null)} onSaved={() => { setDaysId(null); void load(); }} />}
+      {productId && <ProductCardModal dietId={productId} onClose={() => setProductId(null)} onSaved={() => { setProductId(null); void load(); }} />}
     </>
+  );
+}
+
+/** Modifica la "scheda cliente" (schermo 16) di una dieta esistente, anche approvata. */
+function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({ clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', clientVisible: false });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ clientName?: string | null; clientDescription?: string | null; highlights?: string[] | null; objective?: string | null; clientVisible?: boolean }>(`/diets/${dietId}`)
+      .then((d) => setF({
+        clientName: d.clientName ?? '',
+        clientDescription: d.clientDescription ?? '',
+        highlights: Array.isArray(d.highlights) ? d.highlights.join('\n') : '',
+        objective: d.objective ?? 'dimagrimento',
+        clientVisible: !!d.clientVisible,
+      }))
+      .catch((e) => setErr(e instanceof Error ? e.message : 'Caricamento non riuscito.'))
+      .finally(() => setLoading(false));
+  }, [dietId]);
+
+  async function save() {
+    setErr(null);
+    setBusy(true);
+    try {
+      const highlights = f.highlights.split('\n').map((h) => h.trim()).filter(Boolean).slice(0, 6);
+      await api(`/diets/${dietId}/product`, { method: 'PATCH', body: JSON.stringify({
+        clientName: f.clientName.trim() || null,
+        clientDescription: f.clientDescription.trim() || null,
+        highlights,
+        objective: f.objective,
+        clientVisible: f.clientVisible,
+      }) });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title="Scheda cliente (schermo 16)" onClose={onClose}>
+      {err && <Banner kind="err">{err}</Banner>}
+      {loading ? <p className="muted">Carico…</p> : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          <label><span className="muted" style={{ fontSize: 12 }}>Nome mostrato al cliente</span>
+            <input className="input" value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} placeholder="Es. Mediterranea" /></label>
+          <label><span className="muted" style={{ fontSize: 12 }}>Descrizione breve</span>
+            <textarea className="input" rows={2} value={f.clientDescription} onChange={(e) => setF({ ...f, clientDescription: e.target.value })} /></label>
+          <label><span className="muted" style={{ fontSize: 12 }}>Caratteristiche principali (una per riga, max 6)</span>
+            <textarea className="input" rows={3} value={f.highlights} onChange={(e) => setF({ ...f, highlights: e.target.value })} /></label>
+          <label><span className="muted" style={{ fontSize: 12 }}>Obiettivo</span>
+            <select className="select" value={f.objective} onChange={(e) => setF({ ...f, objective: e.target.value })}>
+              <option value="dimagrimento">Dimagrimento</option>
+              <option value="mantenimento">Mantenimento</option>
+            </select></label>
+          <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <input type="checkbox" checked={f.clientVisible} onChange={(e) => setF({ ...f, clientVisible: e.target.checked })} />
+            <span style={{ fontSize: 13 }}>Visibile alle clienti nello schermo 16</span></label>
+        </div>
+      )}
+      <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+        <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
+        <button className="btn" onClick={save} disabled={busy || loading}>{busy ? 'Salvo…' : 'Salva'}</button>
+      </div>
+    </Modal>
   );
 }
 
