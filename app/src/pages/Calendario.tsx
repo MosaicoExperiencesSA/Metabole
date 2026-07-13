@@ -1,28 +1,37 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import AppHeader from '../components/AppHeader';
+import Sheet from '../components/Sheet';
 
-/** Agenda / calendario — giorni speciali ed eventi no-diet (dati reali). */
+/**
+ * Agenda — allineata al prototipo (docs/): "Prossimi appuntamenti" + "Prenota un
+ * appuntamento" + "Il tuo piano". Sotto, la gestione dei giorni no-diet (dati reali).
+ * Appuntamenti: GET /me/agenda · Piano: GET /me/subscription.
+ */
 
-interface EventItem {
-  id: string;
-  type: string;
-  label: string | null;
-  startDate: string;
-  endDate: string;
-  mode: string;
-}
+interface EventItem { id: string; type: string; label: string | null; startDate: string; endDate: string; mode: string }
+interface Appt { id: string; staffRole: string; staffName: string | null; type: string; datetime: string; note: string | null }
+interface Sub { status: string; endDate: string | null; plan?: { name: string; period: string } | null }
 
 const TYPES: [string, string][] = [
-  ['wedding', 'Matrimonio'],
-  ['baptism', 'Battesimo'],
-  ['dinner', 'Cena'],
-  ['monthly_cheat', 'Sgarro mensile'],
-  ['vacation', 'Vacanza'],
-  ['other', 'Altro'],
+  ['wedding', 'Matrimonio'], ['baptism', 'Battesimo'], ['dinner', 'Cena'],
+  ['monthly_cheat', 'Sgarro mensile'], ['vacation', 'Vacanza'], ['other', 'Altro'],
 ];
 const TYPE_LABEL = Object.fromEntries(TYPES);
+const APPT_TYPE: Record<string, string> = { call: 'Chiamata', televisit: 'Televisita', in_person: 'In presenza' };
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+function apptTime(iso: string) { return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }); }
+function apptDay(iso: string) {
+  const d = startOfDay(new Date(iso));
+  const days = Math.round((d.getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
+  if (days === 0) return 'Oggi';
+  if (days === 1) return 'Domani';
+  return new Date(iso).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function isCoach(role: string) { return role === 'coach' || role === 'sales'; }
 
 /** Consigli reali per l'evento (prima/durante/dopo) da GET /me/events/:id/plan. */
 function EventPlan({ eventId, mode }: { eventId: string; mode: string }) {
@@ -58,11 +67,15 @@ function EventPlan({ eventId, mode }: { eventId: string; mode: string }) {
 }
 
 export default function Calendario() {
+  const nav = useNavigate();
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [appts, setAppts] = useState<Appt[]>([]);
+  const [sub, setSub] = useState<Sub | null>(null);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [book, setBook] = useState(false);
   const [f, setF] = useState({ type: 'dinner', label: '', startDate: '', endDate: '', mode: 'single_event' });
 
   async function load() {
@@ -76,14 +89,13 @@ export default function Calendario() {
   }
   useEffect(() => {
     load();
+    api<{ appointments: Appt[]; planEndDate: string | null }>('/me/agenda').then((r) => setAppts(r.appointments ?? [])).catch(() => setAppts([]));
+    api<Sub>('/me/subscription').then(setSub).catch(() => setSub(null));
   }, []);
 
   async function add() {
     setErr(null);
-    if (!f.startDate) {
-      setErr('Scegli la data di inizio.');
-      return;
-    }
+    if (!f.startDate) { setErr('Scegli la data di inizio.'); return; }
     setBusy(true);
     const body: Record<string, string> = { type: f.type, startDate: f.startDate, mode: f.mode };
     if (f.label.trim()) body.label = f.label.trim();
@@ -113,13 +125,71 @@ export default function Calendario() {
 
   if (loading) return <div className="center"><div className="spin" /></div>;
 
+  const planEnd = sub?.endDate ?? null;
+  const daysLeft = planEnd ? Math.max(0, Math.ceil((startOfDay(new Date(planEnd)).getTime() - startOfDay(new Date()).getTime()) / 86_400_000)) : null;
+
   return (
     <div className="home">
       <AppHeader title="Agenda" />
 
+      <p className="muted" style={{ margin: '0 2px 12px', fontSize: 13 }}>I tuoi appuntamenti e le scadenze del piano.</p>
+
+      {/* Prossimi appuntamenti */}
+      <div className="sec" style={{ margin: '0 2px 8px' }}>Prossimi appuntamenti</div>
+      {appts.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', background: '#F7FAF9', boxShadow: 'none' }}>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>Nessun appuntamento in programma.</p>
+        </div>
+      ) : (
+        appts.map((a) => {
+          const c = isCoach(a.staffRole);
+          return (
+            <div className="card" key={a.id} style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div style={{ width: 56, textAlign: 'center', flex: 'none' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: c ? '#0E7C66' : '#3A6EA5' }}>{apptTime(a.datetime)}</div>
+                <div className="muted" style={{ fontSize: 10, textTransform: 'capitalize' }}>{apptDay(a.datetime)}</div>
+              </div>
+              <div style={{ flex: 1, borderLeft: '1px solid #EEF1F0', paddingLeft: 11 }}>
+                <b style={{ fontSize: 13 }}>{a.staffName ?? (c ? 'La tua coach' : 'Nutrizionista')}</b>
+                <div className="muted" style={{ fontSize: 11 }}>{a.note || APPT_TYPE[a.type] || 'Appuntamento'}</div>
+                <span className="meal-tag" style={{ background: c ? '#DCEBE3' : '#E7EEF6', color: c ? '#0E7C66' : '#3A6EA5', marginTop: 5, display: 'inline-block' }}>
+                  {c ? 'Con la coach' : 'Col nutrizionista'}
+                </span>
+              </div>
+            </div>
+          );
+        })
+      )}
+      <button className="btn ghost" style={{ marginTop: 4 }} onClick={() => setBook(true)}>Prenota un appuntamento</button>
+
+      {/* Il tuo piano */}
+      {sub && (
+        <>
+          <div className="sec" style={{ margin: '14px 2px 8px' }}>Il tuo piano</div>
+          <div className="card" style={{ border: '1px solid var(--teal)', background: 'linear-gradient(135deg,#F3FBF8,#fff)' }}>
+            <div className="row-between">
+              <div>
+                <span className="meal-tag" style={{ background: '#DCF0D8', color: '#3B6D11' }}>{sub.status === 'active' ? 'Piano attivo' : sub.status}</span>
+                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>{sub.plan?.name ?? 'Il tuo percorso'}</div>
+                <div className="muted" style={{ fontSize: 11 }}>Coach + nutrizionista + Gaia</div>
+              </div>
+              {daysLeft != null && (
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: '#8A938F' }}>scade tra</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--teal)' }}>{daysLeft} gg</div>
+                </div>
+              )}
+            </div>
+            <button className="btn" style={{ marginTop: 12 }} onClick={() => nav('/shop')}>Rinnova</button>
+          </div>
+        </>
+      )}
+
+      {/* Giorni no-diet */}
+      <div className="sec" style={{ margin: '14px 2px 8px' }}>I tuoi giorni no-diet</div>
       {events.length === 0 && !adding && (
-        <div className="card" style={{ textAlign: 'center' }}>
-          <p className="muted" style={{ margin: 0 }}>Nessun evento in programma. Aggiungi le occasioni in cui non seguirai la dieta.</p>
+        <div className="card" style={{ textAlign: 'center', background: '#F7FAF9', boxShadow: 'none' }}>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>Aggiungi le occasioni in cui non seguirai la dieta: ti preparo un piano prima, durante e dopo.</p>
         </div>
       )}
 
@@ -187,6 +257,22 @@ export default function Calendario() {
         <i className="ti ti-shield-check" style={{ color: '#0E7C66' }} />
         <span style={{ fontSize: 12, color: '#0E7C66' }}>Nei giorni no-diet non ti do la dieta; se il peso sale, arriva un mini-piano.</span>
       </div>
+
+      {book && (
+        <Sheet onClose={() => setBook(false)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+            <span className="event-ic" style={{ background: '#EAF6F1', color: '#0E7C66' }}><i className="ti ti-calendar-plus" /></span>
+            <b style={{ fontSize: 15 }}>Prenota un appuntamento</b>
+          </div>
+          <p className="muted" style={{ fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
+            La prenotazione diretta dall'app sta arrivando. Per ora chiedi a Gaia o alla tua coach: fissano
+            l'appuntamento e lo vedrai qui.
+          </p>
+          <button className="btn" style={{ marginTop: 6 }} onClick={() => { setBook(false); nav('/assistente'); }}>
+            <i className="ti ti-sparkles" /> Chiedi a Gaia
+          </button>
+        </Sheet>
+      )}
     </div>
   );
 }
