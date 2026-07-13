@@ -906,6 +906,19 @@ model Notification {
   @@map("notification")
 }
 
+// Token dei dispositivi per le notifiche push (FCM). FK-less (userId senza relazione).
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  String   @default("android") // android | ios | web
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("push_token")
+}
+
 // --- Motore a regole (milestone 5) ---
 
 // Protocollo/regola: condizioni sui 5 segnali → azione (menu/tono/timing).

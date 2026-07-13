@@ -5,6 +5,7 @@ import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../signals/signals.service';
 import { MessageComposerService, MessageTone } from './message-composer.service';
+import { PushService } from './push.service';
 
 interface NotifyInput {
   userId: string;
@@ -43,6 +44,7 @@ export class NotificationsService {
     private readonly composer: MessageComposerService,
     private readonly mail: MailService,
     private readonly menu: MenuService,
+    private readonly push: PushService,
   ) {}
 
   /** Crea la notifica solo se oggi non ne esiste già una dello stesso tipo. */
@@ -104,6 +106,8 @@ export class NotificationsService {
     if (prefs.emailEnabled && EMAILABLE_TYPES.has(input.type)) {
       await this.mail.sendNotificationEmail(recipient.email, recipient.locale, title, body);
     }
+    // Push sul telefono (no-op se non configurato). L'opt-out per tipo è già rispettato sopra.
+    await this.push.sendToUser(input.userId, title, body, { type: input.type });
     return true;
   }
 
@@ -121,6 +125,7 @@ export class NotificationsService {
         sentAt: new Date(),
       },
     });
+    await this.push.sendToUser(input.userId, input.title, input.body, { type: input.type });
   }
 
   async listForUser(userId: string, unreadOnly = false) {
