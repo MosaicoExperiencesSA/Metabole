@@ -7,6 +7,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 4 (parte 1) — App Coach: clienti + dashboard** — nuovo modulo `coach` con
+  `GET /coach/clients` (lista clienti assegnate: nome, stato piano, ultima misura, alert aperti,
+  ordinata per alert) e `GET /coach/dashboard` (conteggio clienti, piani in scadenza entro
+  `expiring_plan_days`, guadagni mese/totale dal ledger, alert aperti). Riusa i guadagni dal
+  ledger e l'Alert engine. 4 test nuovi, suite 275 verde. Restano agenda/appuntamenti, chat e
+  riassunti conversazioni.
 - `[Sviluppo]` **Fase 3 — Alert engine** — nuovo modello `Alert` (coda coach, FK-less) + migrazione
   `alert_engine` (validata PG16) + soglie in config. `AlertsService.recompute(clientId)` sincronizza gli
   alert dai segnali reali (missing_measurements, weight_gain, plateau, inactive, checkin_skipped,

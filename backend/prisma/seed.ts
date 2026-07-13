@@ -119,6 +119,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
+  {
+    key: 'expiring_plan_days',
+    value: '14',
+    type: 'number',
+    description: 'Giorni entro cui un piano è considerato "in scadenza" nella dashboard coach',
+  },
   // --- Soglie Alert engine (coda coach) ---
   {
     key: 'alert_inactive_days',

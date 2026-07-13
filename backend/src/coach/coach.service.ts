@@ -1,0 +1,143 @@
+import { Injectable } from '@nestjs/common';
+import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+const DAY = 86_400_000;
+const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
+
+interface ProfileRow {
+  userId: string;
+  name: string | null;
+  planStartDate: Date | null;
+}
+interface SubRow {
+  clientId: string;
+  status: string;
+  endDate: Date | null;
+}
+interface MeasRow {
+  clientId: string;
+  date: Date;
+  weightKg: number;
+}
+interface AlertRow {
+  clientId: string;
+}
+
+/**
+ * API dell'app Coach. Dati sempre limitati alle clienti ASSEGNATE alla coach
+ * (assignedCoachId = Staff.id). I dati sanitari/clinici NON passano da qui
+ * (sono riservati al nutrizionista).
+ */
+@Injectable()
+export class CoachService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configParams: ConfigParamsService,
+  ) {}
+
+  private async staffId(userId: string): Promise<string | null> {
+    const staff = await this.prisma.staff.findUnique({ where: { userId }, select: { id: true } });
+    return staff?.id ?? null;
+  }
+
+  /** Elenco delle clienti della coach con un riepilogo per la lista. */
+  async clients(user: AuthUser): Promise<{ clients: unknown[] }> {
+    const staffId = await this.staffId(user.sub);
+    if (!staffId) return { clients: [] };
+
+    const profiles = (await this.prisma.clientProfile.findMany({
+      where: { assignedCoachId: staffId },
+      select: { userId: true, name: true, planStartDate: true },
+    })) as ProfileRow[];
+    const ids = profiles.map((p) => p.userId);
+    if (ids.length === 0) return { clients: [] };
+
+    const [subs, measures, alerts] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where: { clientId: { in: ids }, status: 'active' },
+        select: { clientId: true, status: true, endDate: true },
+      }) as Promise<SubRow[]>,
+      this.prisma.measurement.findMany({
+        where: { clientId: { in: ids } },
+        orderBy: { date: 'desc' },
+        distinct: ['clientId'],
+        select: { clientId: true, date: true, weightKg: true },
+      }) as Promise<MeasRow[]>,
+      this.prisma.alert.findMany({
+        where: { coachId: staffId, status: 'open', clientId: { in: ids } },
+        select: { clientId: true },
+      }) as Promise<AlertRow[]>,
+    ]);
+
+    const subByClient = new Map(subs.map((s) => [s.clientId, s]));
+    const measByClient = new Map(measures.map((m) => [m.clientId, m]));
+    const alertCount = new Map<string, number>();
+    for (const a of alerts) alertCount.set(a.clientId, (alertCount.get(a.clientId) ?? 0) + 1);
+
+    const clients = profiles.map((p) => {
+      const sub = subByClient.get(p.userId);
+      const meas = measByClient.get(p.userId);
+      return {
+        clientId: p.userId,
+        name: p.name,
+        planActive: !!sub,
+        planEndDate: sub?.endDate ? sub.endDate.toISOString().slice(0, 10) : null,
+        planStartDate: p.planStartDate ? p.planStartDate.toISOString().slice(0, 10) : null,
+        lastMeasureDate: meas?.date ? meas.date.toISOString().slice(0, 10) : null,
+        lastWeightKg: meas?.weightKg ?? null,
+        openAlerts: alertCount.get(p.userId) ?? 0,
+      };
+    });
+    // Ordina: prima chi ha più alert aperti.
+    clients.sort((a, b) => b.openAlerts - a.openAlerts);
+    return { clients };
+  }
+
+  /** Riepilogo per la home della coach: clienti, piani in scadenza, guadagni, alert. */
+  async dashboard(user: AuthUser) {
+    const staffId = await this.staffId(user.sub);
+    if (!staffId) return { isCoach: false };
+
+    const expiringDays = await this.configParams.getNumber('expiring_plan_days', 14);
+    const now = new Date();
+    const horizon = new Date(now.getTime() + expiringDays * DAY);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [clientsCount, expiring, openAlerts, monthAgg, totalAgg] = await Promise.all([
+      this.prisma.clientProfile.count({ where: { assignedCoachId: staffId } }),
+      this.prisma.subscription.findMany({
+        where: {
+          status: 'active',
+          endDate: { gte: now, lte: horizon },
+          client: { clientProfile: { assignedCoachId: staffId } },
+        },
+        select: { clientId: true, endDate: true, client: { select: { clientProfile: { select: { name: true } } } } },
+        orderBy: { endDate: 'asc' },
+      }) as Promise<{ clientId: string; endDate: Date | null; client: { clientProfile: { name: string | null } | null } | null }[]>,
+      this.prisma.alert.count({ where: { coachId: staffId, status: 'open' } }),
+      this.prisma.ledgerEntry.aggregate({
+        _sum: { amountCents: true },
+        where: { staffId, type: 'expense' as never, category: { in: COMMISSION_CATEGORIES }, date: { gte: monthStart } },
+      }),
+      this.prisma.ledgerEntry.aggregate({
+        _sum: { amountCents: true },
+        where: { staffId, type: 'expense' as never, category: { in: COMMISSION_CATEGORIES } },
+      }),
+    ]);
+
+    return {
+      isCoach: true,
+      clientsCount,
+      openAlerts,
+      earningsMonthCents: monthAgg._sum.amountCents ?? 0,
+      earningsTotalCents: totalAgg._sum.amountCents ?? 0,
+      expiringPlans: expiring.map((s) => ({
+        clientId: s.clientId,
+        name: s.client?.clientProfile?.name ?? null,
+        endDate: s.endDate ? s.endDate.toISOString().slice(0, 10) : null,
+      })),
+    };
+  }
+}

@@ -33,8 +33,13 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Popup bloccante misure al 2° giorno del ciclo. ✅
 - APK Android generabile da Android Studio (guida in `../docs/APK_Build_Guida.md`). ✅
 
-## App Coach (nuova) ⬜
-- Prototipo pronto: `../Metabole_Coach_App.html` (+ web). Backend/app da costruire (Fase 4-5 del piano).
+## App Coach (nuova) 🟡
+- Prototipo pronto: `../Metabole_Coach_App.html` (+ web).
+- Backend fatto finora: `GET /coach/alerts` + `PUT /alerts/:id` (Alert engine, Fase 3),
+  `GET /coach/clients` (lista clienti assegnate con riepilogo), `GET /coach/dashboard`
+  (clienti, piani in scadenza, guadagni mese/totale, alert aperti). Dettaglio cliente via `admin/clients/:id`.
+- Ancora da fare: agenda/appuntamenti (entità Appointment) + `/coach/agenda` e `/me/agenda`,
+  chat coach dedicata (base in `staff/threads`), riassunti conversazioni (ConversationSummary), app front-end.
 
 ## App Nutrizionista (nuova) ⬜
 - Prototipo pronto: `../Metabole_Nutrizionista_App.html`. Da costruire (Fase 7). Unico ruolo con accesso ai dati sanitari.
@@ -70,7 +75,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 1 | **Tracciamento eventi** (POST /events + client track()) | ✅ (13/7) |
 | 2 | **Misure bloccanti** al 2° giorno del ciclo | ✅ (13/7) |
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
-| 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | ⬜ |
+| 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
 | 5 | Motore di personalizzazione menu — v1 "naive" | ⬜ |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ⬜ |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | ⬜ |
