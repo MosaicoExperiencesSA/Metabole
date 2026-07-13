@@ -113,6 +113,14 @@ export const ONBOARDING_QUESTIONS = {
       ],
     },
     {
+      key: 'why',
+      title: 'Perché vuoi iniziare adesso?',
+      subtitle: 'Dimmi la spinta più vera: mi aiuta a costruire il percorso giusto per te.',
+      fields: [
+        { key: 'why', type: 'choice', options: ['wellbeing', 'clothes', 'health', 'event'], labels: ['Sentirmi bene con me stessa', 'Rientrare nei miei vestiti', 'Salute ed energia', 'Un evento importante'], required: true },
+      ],
+    },
+    {
       key: 'coach_style',
       title: 'Come vuoi essere seguita?',
       subtitle: "Oltre a me sarai seguita anche da un coach umano, che ti affiancherà nel tuo percorso. Per assegnarti l'assistente più adatta devo capire alcune cose, così non sarò né invadente né superficiale. Con che frequenza vuoi essere seguita dalla tua coach: ogni giorno, quando serve, o su tua richiesta?",
