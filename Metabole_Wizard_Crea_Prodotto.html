@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metabole — Wizard "Crea nuovo prodotto" (mockup)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+:root{--teal:#12A386;--deep:#0E5A49;--coral:#E8825A;--bg:#F5F7F6;--card:#fff;--bd:#E3ECE9;--tx:#16302C;--mut:#6b7d78}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--tx)}
+.top{background:var(--deep);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:10px}
+.top .t{font-weight:600;font-size:16px}.top .s{margin-left:auto;font-size:12px;opacity:.8}
+.wrap{max-width:900px;margin:22px auto;padding:0 18px}
+.steps{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);background:#fff;border:1px solid var(--bd);border-radius:999px;padding:6px 13px}
+.step.on{color:#fff;background:var(--teal);border-color:var(--teal)}
+.step.done{color:var(--deep);border-color:var(--teal)}
+.step .n{width:19px;height:19px;border-radius:50%;background:#EDF2F0;color:var(--mut);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+.step.on .n{background:rgba(255,255,255,.25);color:#fff}.step.done .n{background:var(--teal);color:#fff}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+.panel h2{margin:0 0 3px;font-size:16px;color:var(--deep)}
+.panel .sub{color:var(--mut);font-size:12.5px;margin-bottom:14px}
+.f{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.f label{font-size:12px;color:var(--mut)}
+.inp{border:1px solid var(--bd);border-radius:9px;padding:9px 11px;font-size:13px;background:#fff}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.seg{display:inline-flex;border:1px solid var(--bd);border-radius:9px;overflow:hidden}
+.seg span{padding:8px 14px;font-size:12.5px;cursor:default}.seg span.on{background:var(--teal);color:#fff}
+.meal{display:flex;align-items:center;gap:11px;border:1px solid var(--bd);border-radius:11px;padding:11px 13px;margin-bottom:9px}
+.meal .ic{width:38px;height:38px;border-radius:10px;background:#E1F5EE;color:var(--deep);display:flex;align-items:center;justify-content:center;flex:none}
+.meal .g{flex:1}.meal .nm{font-size:13.5px;font-weight:600}.meal .d{font-size:11.5px;color:var(--mut)}
+.add{border:1px dashed #C9DBD5;color:var(--deep);background:#F3FAF7;border-radius:9px;padding:6px 11px;font-size:12px}
+.rule{border:1px solid var(--bd);border-radius:12px;padding:13px 15px;margin-bottom:11px}
+.rule .h{display:flex;align-items:center;gap:8px}
+.rule .code{font-size:10.5px;font-weight:700;color:var(--teal);background:#E1F5EE;border-radius:5px;padding:2px 7px}
+.rule .ti-name{font-size:14px;font-weight:600}
+.rule p{margin:7px 0 10px;font-size:12.5px;color:var(--tx);line-height:1.5}
+.consent{display:flex;align-items:center;gap:10px}
+.tog{display:inline-flex;border:1px solid var(--bd);border-radius:8px;overflow:hidden}
+.tog span{padding:6px 15px;font-size:12.5px}.tog .yes{background:var(--teal);color:#fff}
+.par{margin-left:auto;font-size:12px;color:var(--mut)}
+.par b{background:#fff;border:1px solid var(--bd);border-radius:7px;padding:3px 9px;color:var(--tx)}
+.lock{background:#FAF6EE;border-color:#EAD9BC}
+.lock .code{color:#B4531F;background:#FDF1E3}
+.locktag{margin-left:auto;font-size:11px;color:#B4531F;display:flex;align-items:center;gap:4px}
+.foot{display:flex;justify-content:space-between;margin-top:6px}
+.btn{border-radius:9px;padding:9px 18px;font-size:13px;border:1px solid var(--bd);background:#fff;color:var(--tx)}
+.btn.p{background:var(--teal);color:#fff;border-color:var(--teal)}
+.hint{font-size:11.5px;color:var(--mut);margin-top:6px}
+.note{background:#EAF6F1;border:1px solid #CFE8DF;color:var(--deep);border-radius:10px;padding:10px 13px;font-size:12px;display:flex;gap:8px;align-items:center}
+</style></head><body>
+<div class="top"><i class="ti ti-box"></i><span class="t">Crea nuovo prodotto</span><span class="s">Backoffice · nutrizionista</span></div>
+<div class="wrap">
+
+  <div class="steps">
+    <div class="step done"><span class="n"><i class="ti ti-check" style="font-size:12px"></i></span> Anagrafica</div>
+    <div class="step done"><span class="n"><i class="ti ti-check" style="font-size:12px"></i></span> Menu</div>
+    <div class="step on"><span class="n">3</span> Regole</div>
+    <div class="step"><span class="n">4</span> Proposta</div>
+    <div class="step"><span class="n">5</span> Attivazione</div>
+  </div>
+
+  <div class="panel">
+    <h2>1 · Anagrafica del prodotto</h2>
+    <div class="sub">Nome, stagione e obiettivo.</div>
+    <div class="row2">
+      <div class="f"><label>Nome prodotto</label><div class="inp">Vacanze in Serenità</div></div>
+      <div class="f"><label>Tag stagionale (opzionale)</label><div class="inp">Estate</div></div>
+    </div>
+    <div class="f"><label>Obiettivo</label><div class="seg"><span>Dimagrimento</span><span class="on">Mantenimento</span></div></div>
+  </div>
+
+  <div class="panel">
+    <h2>2 · Menu del prodotto</h2>
+    <div class="sub">Inserisci i menu propri di questo prodotto. Non si prendono da altri prodotti (a parità di piatti, si duplicano).</div>
+    <div class="meal"><span class="ic"><i class="ti ti-coffee" style="font-size:19px"></i></span><div class="g"><div class="nm">Colazione</div><div class="d">3 menu · 7 ricette</div></div><span class="add"><i class="ti ti-plus" style="font-size:12px"></i> Aggiungi</span></div>
+    <div class="meal"><span class="ic"><i class="ti ti-salad" style="font-size:19px"></i></span><div class="g"><div class="nm">Pranzo</div><div class="d">4 menu · 9 ricette</div></div><span class="add"><i class="ti ti-plus" style="font-size:12px"></i> Aggiungi</span></div>
+    <div class="meal"><span class="ic"><i class="ti ti-fish" style="font-size:19px"></i></span><div class="g"><div class="nm">Cena</div><div class="d">4 menu · 8 ricette</div></div><span class="add"><i class="ti ti-plus" style="font-size:12px"></i> Aggiungi</span></div>
+    <div class="meal" style="opacity:.7"><span class="ic"><i class="ti ti-apple" style="font-size:19px"></i></span><div class="g"><div class="nm">Spuntini e merende (opzionali)</div><div class="d">0 menu</div></div><span class="add"><i class="ti ti-plus" style="font-size:12px"></i> Aggiungi</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>3 · Regole — consenso una a una</h2>
+    <div class="sub">Le regole di sicurezza sono sempre attive. Le altre le scegli tu.</div>
+
+    <div class="rule lock">
+      <div class="h"><span class="code">S3</span><span class="ti-name">Se un cibo è escluso, si sostituisce o si blocca</span><span class="locktag"><i class="ti ti-lock" style="font-size:13px"></i> sempre attiva</span></div>
+      <p>Se un ingrediente è escluso, il sistema lo sostituisce con uno sicuro; se non è possibile, blocca quel menu e avvisa te e la coach.</p>
+    </div>
+
+    <div class="rule">
+      <div class="h"><span class="code">A2</span><span class="ti-name">Conforto</span></div>
+      <p>Se la persona è giù di morale, per un ciclo propone i menu più amati per tirarla su.</p>
+      <div class="consent"><span style="font-size:12px;color:var(--mut)">Attivare?</span><div class="tog"><span class="yes">Sì</span><span>No</span></div><span class="par">Max giorni di conforto: <b>3</b></span></div>
+    </div>
+
+    <div class="rule">
+      <div class="h"><span class="code">A4</span><span class="ti-name">Prima di un evento</span></div>
+      <p>Prima di un evento in cui non vuole "stare a dieta", propone menu più proteici per arrivare più leggera.</p>
+      <div class="consent"><span style="font-size:12px;color:var(--mut)">Attivare?</span><div class="tog"><span class="yes">Sì</span><span>No</span></div><span class="par">Giorni prima: <b>3</b></span></div>
+    </div>
+
+    <div class="rule">
+      <div class="h"><span class="code">L6</span><span class="ti-name">Sceglie i menu più efficaci e più graditi</span></div>
+      <p>Il sistema propone tenendo conto sia dei risultati sia del gusto.</p>
+      <div class="consent"><span style="font-size:12px;color:var(--mut)">Attivare?</span><div class="tog"><span class="yes">Sì</span><span>No</span></div><span class="par">Bilancia: <b>risultati ⟷ gusto</b></span></div>
+    </div>
+
+    <div class="hint">… le altre regole scorrono una alla volta (E1–E4, L1–L7, A1/A3/A5/A6, avvisi, unicità).</div>
+  </div>
+
+  <div class="panel">
+    <h2>4 · C'è un'altra regola?</h2>
+    <div class="sub">Se ti serve una regola non presente, scrivila: la valutiamo e, se approvata, la aggiungiamo per tutti i prodotti.</div>
+    <div class="inp" style="color:var(--mut)">Es. "In estate non proporre mai piatti caldi a pranzo"…</div>
+  </div>
+
+  <div class="panel">
+    <h2>5 · Attivazione</h2>
+    <div class="note"><i class="ti ti-robot" style="font-size:16px"></i> Alla conferma, il prodotto va in revisione del capo; approvato, parte un <b style="margin:0 3px">agente AI dedicato</b> che lavora solo sui menu di questo prodotto.</div>
+    <div class="foot"><button class="btn"><i class="ti ti-chevron-left" style="font-size:13px"></i> Indietro</button><button class="btn p">Invia in revisione <i class="ti ti-arrow-right" style="font-size:13px"></i></button></div>
+  </div>
+
+</div></body></html>

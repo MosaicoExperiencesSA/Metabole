@@ -73,6 +73,8 @@ le **collega**.
 - `../Metabole_Piani_Estate.pdf` — **prodotto**: due protocolli di luglio (Vacanze in Serenità + Ritorno in Equilibrio), creati come prodotti dal wizard.
 - `../Metabole_Regole_Motore_Catalogo.pdf` — **catalogo regole** del motore (🔒 sicurezza · ⚙️ opzionali) + spec wizard "Crea nuovo prodotto".
 - `../Metabole_Spec_Prodotti_Dinamici_Sviluppo.pdf` — **handover Sviluppo**: modello dati, API, wizard, agente per prodotto, pagina 16 dinamica. → impatto **[S]**.
+- `../Metabole_Schede_Regole_Wizard.pdf` — microcopy del wizard: ogni regola in linguaggio semplice + consenso.
+- `../Metabole_Wizard_Crea_Prodotto.html` — mockup dei 5 passi del wizard "Crea nuovo prodotto".
 - `../Metabole_Testi_Gaia_Coach_Estate.pdf` — copioni Gaia + template Coach per i due protocolli.
 - `../Metabole_Analisi_Progetto_Mercato.md`, `../Metabole_Punti_Forza_Marketing.md`,
   `../Metabole_Analisi_Esperienza_Vendita.md`, `../Metabole_Confronto_App_e_Questionario_BitePal.md`.
