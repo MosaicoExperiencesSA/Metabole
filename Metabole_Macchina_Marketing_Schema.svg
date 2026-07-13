@@ -1,0 +1,71 @@
+<svg viewBox="0 0 780 600" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, Segoe UI, Roboto, Arial, sans-serif">
+<title>La Macchina di Marketing di MetaboleAI</title>
+<desc>Flusso a otto agenti: Contesto e Tempismo alimenta lo Stratega, poi Creativo e Copy, poi il Giudice che valida e blocca, poi Publisher e Lead verso il CRM; l'Analista chiude il ciclo di apprendimento. In basso le fasi del ciclo di vita del cliente.</desc>
+<rect x="0" y="0" width="780" height="600" fill="#FFFFFF"/>
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path d="M0 0 L10 5 L0 10 z" fill="#5b6b67"/>
+</marker>
+</defs>
+
+<text x="390" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#0E5A49">La Macchina di Marketing — MetaboleAI</text>
+<text x="390" y="52" text-anchor="middle" font-size="12" fill="#5b6b67">8 agenti AI · il Giudice valida ogni contenuto prima di pubblicare</text>
+
+<rect x="240" y="70" width="300" height="52" rx="12" fill="#E7F5F1" stroke="#12A386" stroke-width="1.5"/>
+<text x="390" y="94" text-anchor="middle" font-size="13" font-weight="700" fill="#0E5A49">① Contesto &amp; Tempismo</text>
+<text x="390" y="110" text-anchor="middle" font-size="10.5" fill="#5b6b67">news · stagioni · eventi</text>
+<line x1="390" y1="122" x2="390" y2="146" stroke="#5b6b67" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<rect x="36" y="150" width="132" height="66" rx="12" fill="#E7F5F1" stroke="#12A386" stroke-width="1.5"/>
+<text x="102" y="178" text-anchor="middle" font-size="13" font-weight="700" fill="#0E5A49">② Stratega</text>
+<text x="102" y="196" text-anchor="middle" font-size="10.5" fill="#5b6b67">temi · angoli</text>
+<rect x="180" y="150" width="132" height="66" rx="12" fill="#E7F5F1" stroke="#12A386" stroke-width="1.5"/>
+<text x="246" y="178" text-anchor="middle" font-size="13" font-weight="700" fill="#0E5A49">③ Creativo+Copy</text>
+<text x="246" y="196" text-anchor="middle" font-size="10.5" fill="#5b6b67">visual · testi</text>
+<rect x="324" y="150" width="132" height="66" rx="12" fill="#FDF1E3" stroke="#E8825A" stroke-width="2"/>
+<text x="390" y="178" text-anchor="middle" font-size="13" font-weight="700" fill="#B4531F">④ Giudice</text>
+<text x="390" y="196" text-anchor="middle" font-size="10.5" fill="#B4531F">compliance · blocca</text>
+<rect x="468" y="150" width="132" height="66" rx="12" fill="#E7F5F1" stroke="#12A386" stroke-width="1.5"/>
+<text x="534" y="178" text-anchor="middle" font-size="13" font-weight="700" fill="#0E5A49">⑤ Publisher</text>
+<text x="534" y="196" text-anchor="middle" font-size="10.5" fill="#5b6b67">pubblica via API</text>
+<rect x="612" y="150" width="132" height="66" rx="12" fill="#E7F5F1" stroke="#12A386" stroke-width="1.5"/>
+<text x="678" y="178" text-anchor="middle" font-size="13" font-weight="700" fill="#0E5A49">⑥ Lead → CRM</text>
+<text x="678" y="196" text-anchor="middle" font-size="10.5" fill="#5b6b67">cattura · consensi</text>
+<line x1="168" y1="183" x2="179" y2="183" stroke="#5b6b67" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="312" y1="183" x2="323" y2="183" stroke="#5b6b67" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="456" y1="183" x2="467" y2="183" stroke="#E8825A" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="600" y1="183" x2="611" y2="183" stroke="#5b6b67" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<rect x="324" y="264" width="132" height="58" rx="12" fill="#E7F5F1" stroke="#12A386" stroke-width="1.5"/>
+<text x="390" y="290" text-anchor="middle" font-size="13" font-weight="700" fill="#0E5A49">⑦ Analista</text>
+<text x="390" y="306" text-anchor="middle" font-size="10.5" fill="#5b6b67">misura · impara</text>
+<path d="M678 216 L678 293 L457 293" fill="none" stroke="#5b6b67" stroke-width="1.5" marker-end="url(#ah)"/>
+<path d="M324 293 L102 293 L102 217" fill="none" stroke="#12A386" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+<text x="150" y="285" font-size="10" fill="#0E5A49">memoria / apprendimento</text>
+
+<text x="390" y="368" text-anchor="middle" font-size="13" font-weight="700" fill="#0E5A49">Le fasi presidiate — la 5ª (Automazione) è la macchina stessa</text>
+<g font-size="11.5" font-weight="600">
+<rect x="36" y="384" width="168" height="46" rx="10" fill="#FFFFFF" stroke="#CDE3DC" stroke-width="1.2"/>
+<text x="120" y="406" text-anchor="middle" fill="#16302C">Acquisizione</text>
+<text x="120" y="421" text-anchor="middle" font-size="9.5" font-weight="400" fill="#5b6b67">freddo → lead</text>
+<rect x="216" y="384" width="168" height="46" rx="10" fill="#FFFFFF" stroke="#CDE3DC" stroke-width="1.2"/>
+<text x="300" y="406" text-anchor="middle" fill="#16302C">Nurture lead</text>
+<text x="300" y="421" text-anchor="middle" font-size="9.5" font-weight="400" fill="#5b6b67">chi non ha comprato</text>
+<rect x="396" y="384" width="168" height="46" rx="10" fill="#FFFFFF" stroke="#CDE3DC" stroke-width="1.2"/>
+<text x="480" y="406" text-anchor="middle" fill="#16302C">Attivazione+Retention</text>
+<text x="480" y="421" text-anchor="middle" font-size="9.5" font-weight="400" fill="#5b6b67">iniziare e restare</text>
+<rect x="576" y="384" width="168" height="46" rx="10" fill="#FFFFFF" stroke="#CDE3DC" stroke-width="1.2"/>
+<text x="660" y="406" text-anchor="middle" fill="#16302C">Win-back</text>
+<text x="660" y="421" text-anchor="middle" font-size="9.5" font-weight="400" fill="#5b6b67">app-allert di rientro</text>
+</g>
+
+<line x1="36" y1="460" x2="744" y2="460" stroke="#E3ECE9" stroke-width="1"/>
+<rect x="36" y="474" width="14" height="14" rx="3" fill="#E7F5F1" stroke="#12A386" stroke-width="1.5"/>
+<text x="58" y="485" font-size="11" fill="#16302C">Agente progettato (documenti pronti)</text>
+<rect x="300" y="474" width="14" height="14" rx="3" fill="#FDF1E3" stroke="#E8825A" stroke-width="2"/>
+<text x="322" y="485" font-size="11" fill="#16302C">Giudice = freno di sicurezza</text>
+<text x="36" y="512" font-size="11.5" font-weight="600" fill="#B4531F">Da costruire (software):</text>
+<text x="176" y="512" font-size="11.5" fill="#16302C">servizio Giudice (ruleset in config) · endpoint agenti (lead/consensi/pubblicazione) · esposizione eventi al CRM</text>
+<text x="36" y="534" font-size="11.5" font-weight="600" fill="#0E5A49">Pronto (progettazione):</text>
+<text x="176" y="534" font-size="11.5" fill="#16302C">reparto · standard CRM · 8 agenti · calendario &amp; tempismo · libreria creativa · specifica Giudice</text>
+</svg>

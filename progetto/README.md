@@ -69,6 +69,8 @@ le **collega**.
 - `../Metabole_Libreria_Creativa.pdf` — brand, lessico compliance, 30+ hook, template formati, testi pronti.
 - `../Metabole_Specifica_Giudice_Compliance.pdf` — specifica tecnica del Giudice (ruleset social + scoring + audit). → impatto Sviluppo.
 - `INTEGRAZIONE_MARKETING.md` — come reparto/agenti marketing entrano nel deploy (ruoli, eventi, endpoint).
+- `../Metabole_Macchina_Marketing_Schema.svg` — schema visivo della macchina (8 agenti + Giudice).
+- `../Metabole_Piani_Estate.pdf` — **prodotto**: due percorsi di luglio (Vacanze in Serenità + Ritorno in Equilibrio). → impatto Sviluppo: segnale `travel_mode`.
 - `../Metabole_Analisi_Progetto_Mercato.md`, `../Metabole_Punti_Forza_Marketing.md`,
   `../Metabole_Analisi_Esperienza_Vendita.md`, `../Metabole_Confronto_App_e_Questionario_BitePal.md`.
 - `../Metabole_Coach_AI_e_Sondaggio.md`, `../Metabole_Sequenza_Schermate.md`, `../Metabole_Indice_Progetto.md`.

@@ -153,6 +153,11 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   - Le segnalazioni (aderenza→coach, mood/plateau) sono già coperte dall'Alert engine (dropout_risk,
     plateau, ecc.).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
+- **Piani stagionali (prodotto)** ⬜ da `../Metabole_Piani_Estate.pdf`: due modalità di luglio —
+  *Vacanze in Serenità* (mantenimento, menu freddi/portabili, bussola-ristorante, misure non bloccanti)
+  e *Ritorno in Equilibrio* (ripartenza dolce, reset→ritmo). Da costruire: segnale `travel_mode` (date)
+  che accende mantenimento/rientro sull'agente dieta; sospendere il popup misure in vacanza; evento
+  `rientrato` verso CRM/marketing. Riusa stati agente + catalogo estivo esistenti.
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) 🟡
 - Ruoli `marketing` + `head_marketing` **aggiunti** all'RBAC, ai permessi di default e al menu (voce
