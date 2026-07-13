@@ -64,6 +64,18 @@ le **collega**.
 
 **Business, marketing, CRM, analisi**
 - `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf` — carta reparto marketing + standard lead/pipeline (stadi, campi, consensi) + ruolo `head_marketing`.
+- `../Metabole_Macchina_Marketing_AI.pdf` — macchina di marketing: 8 agenti + il Giudice, motore creativo, compliance/blocchi social, media planning IT.
+- `../Metabole_Agente_Contesto_Tempismo.pdf` — agente che legge news/stagioni/life-events: calendario 12 mesi, micro-pubblici a tempo (ISTAT).
+- `../Metabole_Libreria_Creativa.pdf` — brand, lessico compliance, 30+ hook, template formati, testi pronti.
+- `../Metabole_Specifica_Giudice_Compliance.pdf` — specifica tecnica del Giudice (ruleset social + scoring + audit). → impatto Sviluppo.
+- `INTEGRAZIONE_MARKETING.md` — come reparto/agenti marketing entrano nel deploy (ruoli, eventi, endpoint).
+- `../Metabole_Macchina_Marketing_Schema.svg` — schema visivo della macchina (8 agenti + Giudice).
+- `../Metabole_Piani_Estate.pdf` — **prodotto**: due protocolli di luglio (Vacanze in Serenità + Ritorno in Equilibrio), creati come prodotti dal wizard.
+- `../Metabole_Regole_Motore_Catalogo.pdf` — **catalogo regole** del motore (🔒 sicurezza · ⚙️ opzionali) + spec wizard "Crea nuovo prodotto".
+- `../Metabole_Spec_Prodotti_Dinamici_Sviluppo.pdf` — **handover Sviluppo**: modello dati, API, wizard, agente per prodotto, pagina 16 dinamica. → impatto **[S]**.
+- `../Metabole_Schede_Regole_Wizard.pdf` — microcopy del wizard: ogni regola in linguaggio semplice + consenso.
+- `../Metabole_Wizard_Crea_Prodotto.html` — mockup dei 5 passi del wizard "Crea nuovo prodotto".
+- `../Metabole_Testi_Gaia_Coach_Estate.pdf` — copioni Gaia + template Coach per i due protocolli.
 - `../Metabole_Analisi_Progetto_Mercato.md`, `../Metabole_Punti_Forza_Marketing.md`,
   `../Metabole_Analisi_Esperienza_Vendita.md`, `../Metabole_Confronto_App_e_Questionario_BitePal.md`.
 - `../Metabole_Coach_AI_e_Sondaggio.md`, `../Metabole_Sequenza_Schermate.md`, `../Metabole_Indice_Progetto.md`.

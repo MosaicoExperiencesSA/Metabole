@@ -7,6 +7,32 @@ cliente**, con apprendimento su gradimento ed efficacia. File di riferimento:
 
 ---
 
+## 0. REGOLA FONDAMENTALE — isolamento dei menu per prodotto (BLOCCO)
+
+> **Ogni prodotto/protocollo ha il PROPRIO catalogo di menu, separato e indipendente. I menu non si
+> mischiano MAI tra prodotti diversi, nemmeno per riferimento.**
+
+- Vale per **ogni** prodotto: dieta Mediterranea, protocolli stagionali (Vacanze in Serenità, Ritorno
+  in Equilibrio) e ogni prodotto futuro (es. "gravidanza/allattamento", "proteica", ecc.).
+- Se un nuovo prodotto usa **gli stessi piatti o combinazioni** di uno esistente, si esegue comunque un
+  **nuovo inserimento completo** di tutti i suoi menu: **si duplicano, non si condividono**.
+- I menu li fornisce e li valida il **nutrizionista** (o Antonio). L'AI **non inventa** menu e **non li
+  prende in prestito** da un altro prodotto.
+- **Modello dati**: ogni menu/ricetta è legato a un `product_id` (o `protocol_id`); **nessun** riferimento
+  condiviso e **nessun** join di menu tra prodotti diversi. La duplicazione è voluta.
+- **Perché**: tracciabilità, responsabilità clinica per prodotto (ogni menu è approvato nel suo
+  contesto), e nessuna contaminazione tra regimi/diete.
+
+## 0ter. Obiettivo del prodotto (dimagrimento / mantenimento)
+
+Ogni prodotto ha un **obiettivo** impostato alla creazione:
+- **Dimagrimento** — l'agente spinge l'efficacia (comportamento standard).
+- **Mantenimento** — efficacia **neutra**: si difende il risultato senza deficit (es. il prodotto
+  "Vacanze in Serenità"). Le porzioni restano standard, niente restrizione.
+
+L'obiettivo è un parametro del prodotto (non hardcodato) e modula i pesi dell'agente. Vedi
+`Metabole_Regole_Motore_Catalogo.md` (A4) e il wizard "Crea nuovo prodotto".
+
 ## 1. Ingredienti del motore (catalogo per regime)
 
 - **Menu** = la/le pietanze per UN pasto (es. "Pollo con funghi"). Ogni abbinamento diverso = nuovo menu.

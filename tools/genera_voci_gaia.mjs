@@ -71,7 +71,7 @@ const PHRASES = {
   q17_resto: "Perfetto! Ora inseriscimi la tua età, il tuo sesso e la tua altezza.",
   q_il_tuo_punto_di_partenza: "Inseriscimi le tue misure di partenza. Ricordati che dovrai aggiornarle ogni due giorni. Se non sai come prenderle, guarda il video toccando il pulsante.",
   q_il_tuo_regime_alimentare: "La base del tuo menu: qual è il tuo regime alimentare? Onnivoro, vegetariano o vegano?",
-  q_stile_che_preferisci: "Scegli la dieta che preferisci: mediterranea, proteica, low-carb o flessibile?",
+  q_stile_che_preferisci: "Scegli il piano più adatto alle tue esigenze: tocca il nome di un piano per scoprirne le caratteristiche principali.",
   q_intolleranze_o_allergie: "Un punto molto importante: le tue allergie o intolleranze. È importante che le conosca, così posso evitarti i cibi che potrebbero farti male.",
   q_cibi_che_non_ami: "Mangiare non deve essere uno stress: elencami i cibi che proprio non riesci a mangiare.",
   q_la_tua_vita_e_il_lavoro: "Parliamo del tuo lavoro. Il tuo lavoro è: sedentario, in piedi, a turni, o viaggi spesso?",

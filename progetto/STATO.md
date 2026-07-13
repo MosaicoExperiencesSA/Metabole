@@ -6,6 +6,23 @@ Legenda: ✅ fatto · 🟡 in corso/parziale · ⬜ da fare
 
 ---
 
+## ⛔ REGOLE FERREE (invarianti) — non violare mai
+
+1. **Isolamento dei menu per prodotto.** Ogni prodotto/protocollo (dieta Mediterranea, protocolli
+   Vacanze in Serenità / Ritorno in Equilibrio, e **ogni** prodotto futuro — es. gravidanza/allattamento)
+   ha il **PROPRIO** catalogo di menu, separato e indipendente. I menu **non si mischiano MAI** tra
+   prodotti diversi, **nemmeno per riferimento**. Anche a parità di piatti o combinazioni si esegue un
+   **NUOVO inserimento completo**: **si duplicano, non si condividono**. I menu li **fornisce e valida il
+   nutrizionista** (o Antonio); l'AI **non li inventa** e **non li prende in prestito** da un altro
+   prodotto. **Dati:** menu legati a `product_id`; **nessun** join o riferimento tra cataloghi di prodotti
+   diversi. Rif. canonico: `../Metabole_Motore_Personalizzazione.md` §0.
+
+_(Questo elenco raccoglie i vincoli architetturali che non cambiano. Le altre regole tecniche —
+segreti fuori dal repo, `docs/` pubblica, dati sanitari cifrati, soglie in `config_param` — restano in
+`ISTRUZIONI_PER_AI.md` §4.)_
+
+---
+
 ## Infrastruttura / Stack
 - Stack: **NestJS + TypeScript + PostgreSQL (Prisma 6)**, JWT, hosting UE. ✅
 - Database **Neon** (Francoforte), pooled `DATABASE_URL` + direct `DIRECT_DATABASE_URL`. ✅
@@ -34,11 +51,7 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - **Testo di Gaia "a composizione" (TypeText)** — effetto macchina da scrivere identico al prototipo
   (durata = max 1500ms, ~62ms/carattere) su: Landing, "In cosa siamo diversi", Crea account, intro di
   sezione e ogni domanda dell'Onboarding, overview "Facciamo conoscenza", frase del giorno in Home. ✅
-- **Navigazione allineata al prototipo docs/** ✅ — tab bar *Home · Percorso · Obiettivi · Contatti ·
-  Agenda* (icone, attiva rialzata), **header comune** teal (METABOLEAI + titolo + notifiche/da-completare/
-  shop/profilo), Home semplificata (Menu di oggi + Prossimo appuntamento + Frase di Gaia), nuove pagine
-  **Percorso** e **Contatti**, **Accedi** come bottom sheet. Menu/Assistente/Profilo ancora con la loro
-  intestazione (da uniformare). 🟡 restano fuori i video (27–28) e gli schermi con contenuti reali (29, 33).
+- **✅ Navigazione DECISA (13/7):** si adotta quella del prototipo *Home · Percorso · Obiettivi · Contatti · Agenda* (Shop in header); la versione *Menu · Obiettivo · Home · AI · Agenda* è la vecchia, **da sostituire**. Tab bar con icone (attiva rialzata in quadrato teal), **header comune** teal (METABOLEAI + titolo + notifiche/da-completare/shop/profilo). Home semplificata (Menu di oggi + Prossimo appuntamento + Frase di Gaia), nuove pagine **Percorso** e **Contatti**, **Accedi** come bottom sheet. Menu/Assistente/Profilo ancora con la loro intestazione (da uniformare). 🟡 restano fuori i video (27–28) e gli schermi con contenuti reali (29, 33).
 - Widget home Android (3 formati, mascotte Gaia). ✅
 - Tracciamento eventi via `track()` (viste, login, registrazione, logout). ✅
 - Popup bloccante misure al 2° giorno del ciclo. ✅
@@ -155,6 +168,11 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   - Le segnalazioni (aderenza→coach, mood/plateau) sono già coperte dall'Alert engine (dropout_risk,
     plateau, ecc.).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
+- **Piani stagionali (prodotto)** ⬜ da `../Metabole_Piani_Estate.pdf`: due modalità di luglio —
+  *Vacanze in Serenità* (mantenimento, menu freddi/portabili, bussola-ristorante, misure non bloccanti)
+  e *Ritorno in Equilibrio* (ripartenza dolce, reset→ritmo). Da costruire: segnale `travel_mode` (date)
+  che accende mantenimento/rientro sull'agente dieta; sospendere il popup misure in vacanza; evento
+  `rientrato` verso CRM/marketing. Riusa stati agente + catalogo estivo esistenti.
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) 🟡
 - Ruoli `marketing` + `head_marketing` **aggiunti** all'RBAC, ai permessi di default e al menu (voce
@@ -163,6 +181,7 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Standard lead/pipeline: stadi (nuovo→contattato→qualificato MQL→opportunità SQL→cliente→a rischio→churn→in rientro);
   campi lead (fonte/canale, campagna+utm, refcod, consensi email/sms/marketing con timestamp+base giuridica, owner).
 - SLA marketing↔vendite e regola di recycle (collegato al backlog "assegnazione lead a tempo").
+- **Macchina marketing (8 agenti + Giudice)** — documenti Prodotto: `../Metabole_Macchina_Marketing_AI.pdf`, `../Metabole_Agente_Contesto_Tempismo.pdf`, `../Metabole_Libreria_Creativa.pdf`, `../Metabole_Specifica_Giudice_Compliance.pdf`. Integrazione nel deploy: `progetto/INTEGRAZIONE_MARKETING.md`. Da costruire: servizio **Giudice** (ruleset in `config_param`) + endpoint agenti (lead/pubblicazione/consensi).
 
 ---
 
