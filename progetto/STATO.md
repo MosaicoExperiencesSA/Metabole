@@ -47,7 +47,9 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   (`ConversationSummary`, titolo AI) generati dal cron: `GET /me/threads/:who/summaries` (cliente) e
   `GET /staff/threads/:clientId/:who/summaries` (staff; la coach non vede i riassunti del nutrizionista).
 - Home cliente: box "Prossimo appuntamento" (usa `GET /me/agenda?next=1`, tap → Calendario). ✅
-- **Backend Fase 4 completo.** Ancora da fare: l'**app front-end coach** (React).
+- **Backend Fase 4 completo.** Front-end: **Home Coach** dentro l'app staff (backoffice role-adattivo) ✅
+  — `CoachHome` (KPI, lead da accettare, coda avvisi con gestito/escalation, elenco clienti, link invito).
+  Resta: rifiniture mobile + eventuali pagine coach dedicate (agenda dettagliata, chat ottimizzata).
 
 ## App Nutrizionista (nuova) 🟡
 - Prototipo pronto: `../Metabole_Nutrizionista_App.html`. Unico ruolo con accesso ai dati sanitari.
@@ -61,7 +63,9 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   revisione filtrate PER-PAZIENTE (solo pazienti assegnati; capo/admin tutte), diete in revisione (solo
   il capo approva), protocolli in attesa (mai i propri). Azioni: `POST /nutritionist/decisions/:id/confirm|correct`
   con scoping per-paziente (delega all'EngineService); diete/protocolli via endpoint esistenti.
-- Ancora da fare: **app front-end nutrizionista** (React).
+- Front-end: **Home Nutrizionista** dentro l'app staff (backoffice role-adattivo) ✅ — `NutritionistHome`
+  (KPI clinici, coda validazione decisioni/diete/protocolli con Conferma/Correggi, pazienti da attenzionare).
+  Resta: rifiniture mobile + pagine cliniche dedicate (dettaglio paziente, televisita).
 - ⚠️ Follow-up sicurezza: gli endpoint diretti `/engine/decisions/:id/confirm|correct` (ruolo
   nutritionist) NON verificano che la decisione sia di un paziente assegnato — un nutrizionista potrebbe
   revisionare decisioni di pazienti altrui. La via `/nutritionist/...` è scoped; valutare se stringere
@@ -163,7 +167,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 1 | **Tracciamento eventi** (POST /events + client track()) | ✅ (13/7) |
 | 2 | **Misure bloccanti** al 2° giorno del ciclo | ✅ (13/7) |
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
-| 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
+| 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | ✅ backend completo; resta l'app front-end coach (React) |
 | 5 | Motore di personalizzazione menu — v1 "naive" | ✅ completo v1 (esclusioni+sostituzione+learning+selezione+DayCombo+attribuzione causale) |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ✅ stati completi (pre/post-evento, plateau, conforto+guardrail, rientro) + selezione modulata |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard+coda validazione (scoped per-paziente) fatti; resta l'app front-end |
