@@ -193,6 +193,12 @@ export default function Menu() {
                   <div className="meal-body">
                     <span className="meal-tag" style={{ background: s.bg, color: s.color }}>{s.label}</span>
                     <div className="meal-name">{m.name}</div>
+                    {m.substitutions && m.substitutions.length > 0 && (
+                      <div style={{ fontSize: 11, color: '#0E7C66', margin: '2px 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ti ti-replace" style={{ fontSize: 13 }} />
+                        {m.substitutions.map((sub) => `${sub.from} → ${sub.to}`).join(' · ')}
+                      </div>
+                    )}
                     <div className="row-between">
                       <span className="muted" style={{ fontSize: 12 }}>{m.kcal} kcal</span>
                       <button className="btn-recipe" onClick={() => setRecipe({ recipeId: m.recipeId, date: selDay.date.slice(0, 10), tag: s.label })}>Ricetta</button>

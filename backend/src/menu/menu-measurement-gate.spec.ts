@@ -68,37 +68,49 @@ describe('MenuService — gate misure', () => {
     expect(res.blocking).toBe(false);
   });
 
-  it('sicurezza: intolleranza in un piatto → blocca ed apre escalation al nutrizionista', async () => {
-    const escalationCreate = jest.fn().mockResolvedValue({});
-    const prisma = {
+  const deliveryPrisma = (over: Record<string, unknown>) => ({
+    subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+    menuDay: { findFirst: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
+    dailyCheckin: { findUnique: jest.fn() },
+    engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+    diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
+    dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ dayIndex: 1, level: 1, meals: [{ slot: 'breakfast', recipeId: 'r1' }] }]) },
+    escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+    ...over,
+  });
+
+  it('sicurezza: intolleranza NON sostituibile → blocca ed apre escalation al nutrizionista', async () => {
+    const prisma = deliveryPrisma({
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({
-          planStartDate: D(dayIso(-3)),
-          regime: 'omnivore',
-          dietStyle: 'mediterranean',
-          mealsPerDay: 5,
-          intolerances: ['lattosio'],
-          assignedNutritionistId: 'nut-1',
+          planStartDate: D(dayIso(-3)), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5,
+          intolerances: ['frutta secca'], dislikedFoods: [], assignedNutritionistId: 'nut-1',
         }),
       },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
-      events: undefined,
-      menuDay: { findFirst: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
-      dailyCheckin: { findUnique: jest.fn() },
-      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
-      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
-      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ dayIndex: 1, level: 1, meals: [{ slot: 'breakfast', recipeId: 'r1' }] }]) },
-      recipe: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Yogurt e avena', kcal: 300, ingredients: [{ name: 'yogurt greco' }] }]),
-      },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: escalationCreate },
-    };
+      recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Insalata con noci', kcal: 300, ingredients: [{ name: 'noci sgusciate' }] }]) },
+    });
     const created = await makeService(prisma).deliverIfEligible('c1');
-    expect(created).toEqual([]); // bloccato
-    expect(escalationCreate).toHaveBeenCalled();
-    expect(escalationCreate.mock.calls[0][0].data.reason).toContain('Piano bloccato');
-    expect(escalationCreate.mock.calls[0][0].data.assignedToId).toBe('nut-1');
-    expect(prisma.menuDay.upsert).not.toHaveBeenCalled();
+    expect(created).toEqual([]);
+    expect((prisma.escalation.create as jest.Mock)).toHaveBeenCalled();
+    expect((prisma.escalation.create as jest.Mock).mock.calls[0][0].data.reason).toContain('Piano bloccato');
+    expect((prisma.menuDay.upsert as jest.Mock)).not.toHaveBeenCalled();
+  });
+
+  it('sostituzione: intolleranza sostituibile → eroga con nota di sostituzione', async () => {
+    const prisma = deliveryPrisma({
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: D(dayIso(-3)), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5,
+          intolerances: ['lattosio'], dislikedFoods: [], assignedNutritionistId: 'nut-1',
+        }),
+      },
+      recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Yogurt e avena', kcal: 300, ingredients: [{ name: 'yogurt greco' }] }]) },
+    });
+    const created = await makeService(prisma).deliverIfEligible('c1');
+    expect(created.length).toBeGreaterThan(0); // erogato, non bloccato
+    expect((prisma.escalation.create as jest.Mock)).not.toHaveBeenCalled();
+    const meals = (prisma.menuDay.upsert as jest.Mock).mock.calls[0][0].create.meals;
+    expect(meals[0].substitutions[0]).toEqual({ from: 'yogurt greco', to: 'yogurt senza lattosio', reason: 'lattosio' });
   });
 
   it('erogazione: senza misura del ciclo NON eroga (ciclo successivo "held")', async () => {

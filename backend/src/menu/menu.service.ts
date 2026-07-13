@@ -5,11 +5,17 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../signals/signals.service';
 
+interface Substitution {
+  from: string;
+  to: string;
+  reason: string;
+}
 interface MealSnapshot {
   slot: string;
   recipeId: string;
   name: string;
   kcal: number;
+  substitutions?: Substitution[];
 }
 
 // Mappa intolleranza/allergia → parole chiave negli ingredienti (v1; spostabile in config).
@@ -23,6 +29,34 @@ const INTOLERANCE_MAP: Record<string, string[]> = {
   pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe'],
   crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle'],
   soia: ['soia', 'tofu', 'edamame'],
+};
+
+// Sostituzioni equivalenti sicure (v1; spostabile in config). Chiave = parola chiave
+// nell'ingrediente → sostituto. Se un ingrediente escluso NON è qui e deriva da
+// un'intolleranza, il piano si blocca (frutta secca/pesce/crostacei/uova: nessuna
+// sostituzione sicura come cardine → blocco).
+const SUBSTITUTION_MAP: Record<string, string> = {
+  // lattosio
+  latte: 'bevanda vegetale',
+  yogurt: 'yogurt senza lattosio',
+  formaggio: 'formaggio senza lattosio',
+  mozzarella: 'mozzarella senza lattosio',
+  ricotta: 'ricotta senza lattosio',
+  burro: 'olio evo',
+  panna: 'panna vegetale',
+  parmigiano: 'parmigiano ben stagionato',
+  // glutine
+  pane: 'pane senza glutine',
+  pasta: 'pasta senza glutine',
+  farro: 'riso',
+  orzo: 'riso',
+  couscous: 'quinoa',
+  cracker: 'gallette di riso',
+  pizza: 'pizza senza glutine',
+  // gusti non graditi comuni
+  funghi: 'cavolfiore',
+  cipolla: 'porro',
+  peperoni: 'zucchine',
 };
 
 /**
@@ -153,13 +187,20 @@ export class MenuService {
       daySnapshots.push({ date, meals });
     }
 
-    // SICUREZZA (motore §2/§7): se i piatti contengono un'intolleranza/allergia
-    // della cliente, NON si eroga: si blocca e si apre un'escalation al nutrizionista
-    // (la coach la vede via Alert engine). La sostituzione equivalente è un v2.
-    const violations = await this.safetyViolations(clientId, daySnapshots.flatMap((d) => d.meals));
+    // SICUREZZA + SOSTITUZIONE (motore §2/§7): controllo i piatti contro le esclusioni
+    // della cliente. Se un ingrediente escluso ha una sostituzione sicura → la annoto sul
+    // pasto (il piatto si eroga). Se un'INTOLLERANZA non è sostituibile → NON si eroga:
+    // blocco + escalation al nutrizionista (la coach la vede via Alert engine).
+    const { violations, subsByRecipe } = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals));
     if (violations.length) {
       await this.ensureDietBlockedEscalation(clientId, violations);
       return [];
+    }
+    for (const day of daySnapshots) {
+      for (const m of day.meals) {
+        const subs = subsByRecipe[m.recipeId];
+        if (subs && subs.length) m.substitutions = subs;
+      }
     }
 
     const created: string[] = [];
@@ -232,35 +273,60 @@ export class MenuService {
 
   // ---------- Sicurezza: esclusioni (intolleranze/allergie) → blocco + escalation ----------
 
-  /** Violazioni di sicurezza nei piatti: intolleranze/allergie presenti negli ingredienti. */
-  private async safetyViolations(clientId: string, meals: MealSnapshot[]): Promise<string[]> {
+  /**
+   * Valuta i piatti contro le esclusioni della cliente:
+   * - `violations`: intolleranze NON sostituibili → il piano va bloccato;
+   * - `subsByRecipe`: sostituzioni sicure da annotare sui pasti (per recipeId).
+   * I cibi "non graditi" (dislikedFoods) si sostituiscono se possibile, ma non bloccano mai.
+   */
+  private async evaluateMeals(
+    clientId: string,
+    meals: MealSnapshot[],
+  ): Promise<{ violations: string[]; subsByRecipe: Record<string, Substitution[]> }> {
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { intolerances: true },
+      select: { intolerances: true, dislikedFoods: true },
     });
     const intolerances = ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
-    if (!intolerances.length) return [];
+    const dislikes = ((profile?.dislikedFoods ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
+    if (!intolerances.length && !dislikes.length) return { violations: [], subsByRecipe: {} };
+
+    // Termini esclusi con la loro "causa" e se sono di sicurezza (bloccanti).
+    const excluded: { keyword: string; reason: string; blocking: boolean }[] = [];
+    for (const intol of intolerances) {
+      for (const kw of INTOLERANCE_MAP[intol] ?? [intol]) excluded.push({ keyword: kw, reason: intol, blocking: true });
+    }
+    for (const d of dislikes) excluded.push({ keyword: d, reason: 'non gradito', blocking: false });
 
     const recipeIds = [...new Set(meals.map((m) => m.recipeId))];
-    if (!recipeIds.length) return [];
+    if (!recipeIds.length) return { violations: [], subsByRecipe: {} };
     const recipes = (await this.prisma.recipe.findMany({
       where: { id: { in: recipeIds } },
-      select: { name: true, ingredients: true },
-    })) as { name: string; ingredients: unknown }[];
+      select: { id: true, name: true, ingredients: true },
+    })) as { id: string; name: string; ingredients: unknown }[];
 
     const violations = new Set<string>();
+    const subsByRecipe: Record<string, Substitution[]> = {};
+
     for (const r of recipes) {
-      const ings = ((r.ingredients as { name?: string }[]) ?? [])
-        .map((i) => (i?.name ?? '').toLowerCase())
-        .filter(Boolean);
-      for (const intol of intolerances) {
-        const keywords = INTOLERANCE_MAP[intol] ?? [intol];
-        if (keywords.some((kw) => ings.some((n) => n.includes(kw)))) {
-          violations.add(`${r.name}: incompatibile con "${intol}"`);
+      const ings = ((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').filter(Boolean);
+      const subs: Substitution[] = [];
+      for (const ing of ings) {
+        const low = ing.toLowerCase();
+        for (const ex of excluded) {
+          if (!low.includes(ex.keyword)) continue;
+          const repl = SUBSTITUTION_MAP[ex.keyword] ?? SUBSTITUTION_MAP[low];
+          if (repl) {
+            subs.push({ from: ing, to: repl, reason: ex.reason });
+          } else if (ex.blocking) {
+            violations.add(`${r.name}: incompatibile con "${ex.reason}"`);
+          }
+          break; // un solo match per ingrediente
         }
       }
+      if (subs.length) subsByRecipe[r.id] = subs;
     }
-    return [...violations];
+    return { violations: [...violations], subsByRecipe };
   }
 
   /** Apre (una sola volta) un'escalation "piano bloccato" al nutrizionista. */

@@ -61,8 +61,13 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - **Motore di personalizzazione dei menu** (catalogo→dieta cliente→giornate→learning): 🟡 (Fase 5).
   - Sicurezza esclusioni (v1): intolleranze/allergie in un piatto → **blocco erogazione + escalation al
     nutrizionista** (la coach la vede via Alert engine); `GET /me/menu` espone `blocked` e l'app mostra
-    "stiamo sistemando il tuo piano". Ancora da fare: sostituzione equivalente degli ingredienti,
-    giornate bilanciate, cicli con learning (esito peso/cm), MenuWeight.
+    "stiamo sistemando il tuo piano".
+  - Sostituzione equivalente (v1): se l'ingrediente escluso ha un sostituto sicuro (es. yogurt → yogurt
+    senza lattosio, pane → pane senza glutine, funghi → cavolfiore) il piatto si eroga con la **nota di
+    sostituzione** (visibile in Menu); si blocca solo se un'intolleranza NON è sostituibile. I cibi non
+    graditi si sostituiscono ma non bloccano.
+  - Ancora da fare: **giornate bilanciate** (DayCombo, porzioni standard), **cicli con learning**
+    (esito peso/cm per ciclo, MenuWeight), selezione per efficacia+gradimento.
 - **Agente AI della dieta** (stati Conforto/Rientro/Pre-evento/Plateau, scoring): ⬜ (Fase 6).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 
