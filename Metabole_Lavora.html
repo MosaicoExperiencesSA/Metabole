@@ -99,15 +99,17 @@ footer{padding:30px 0;color:var(--mut);font-size:13px;border-top:1px solid var(-
 <section><div class="wrap">
   <h2 data-i18n="apply_t">Candidati</h2>
   <p class="lead" style="margin-bottom:14px" data-i18n="apply_lead">Raccontaci chi sei: ti ricontattiamo noi.</p>
-  <form class="formbox" id="jobForm" data-endpoint="">
+  <form class="formbox" id="jobForm" data-endpoint="https://metabole-backend.onrender.com/api/v1/public/leads">
     <label data-i18n="f_name">Nome e cognome</label><input name="nome" required>
     <label data-i18n="f_email">Email</label><input name="email" type="email" required>
     <label data-i18n="f_role">Ruolo di interesse</label>
     <select name="ruolo"><option data-i18n="opt1">Nutrizionista</option><option data-i18n="opt2">Coach</option><option data-i18n="opt3">Tutor della nutrizione</option><option data-i18n="opt4">Altro</option></select>
     <label data-i18n="f_msg">Parlaci di te (facoltativo)</label><textarea name="messaggio" data-i18n-ph="f_msg_ph" placeholder="Esperienza, motivazione, disponibilità…"></textarea>
+    <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     <div class="chk"><input type="checkbox" required style="width:auto;margin-top:2px"><span data-i18n-html="f_consent">Acconsento al trattamento dei miei dati per la selezione, secondo l'<a href="Metabole_Privacy.html" target="_blank" style="color:var(--teal)">informativa privacy</a>.</span></div>
     <button class="btn" type="submit" data-i18n="f_submit">Invia candidatura</button>
     <div class="ok" id="jobOk"><i class="ti ti-check"></i> <span data-i18n="f_ok">Grazie! Abbiamo ricevuto la tua candidatura.</span></div>
+    <div class="ok" id="jobErr" style="display:none;background:#FBF3E7;border:1px solid #EBD9B8;color:#7a5a1e"><i class="ti ti-alert-triangle"></i> <span data-i18n-html="f_err">Non è stato possibile inviare ora. Scrivici a <a href="mailto:info@metabole.eu" style="color:var(--deep)">info@metabole.eu</a> e ti ricontattiamo.</span></div>
   </form>
 </div></section>
 
@@ -131,6 +133,8 @@ var I18N={
  zh:{back:"返回网站",kick:"加入我们",h1:"一起打造<br>以人为本的健康",lead:"我们寻找专业人士与热爱健康的伙伴。在 <span class=\"ai\">Gaia</span> 智能的支持下，你的时间回归到最重要的事：人。",r1t:"你是营养师吗？",r1d:"加入临床团队，守护客户的健康。",r1a:"审核并个性化方案",r1b:"Gaia 准备建议，你来决定",r1c:"远程工作，灵活自由",r2t:"你是教练吗？",r2d:"日复一日地陪伴他人。",r2a:"在应用中跟进你的客户",r2b:"同理心与方法，工具清晰",r2c:"团队持续培训",r3t:"想成为营养辅导师吗？",r3d:"我们来培训你，即使从零开始。",r3a:"专属培训路径",r3b:"专业人士的陪伴",r3c:"健康行业的一份职业",offer_t:"我们提供什么",o1t:"灵活",o1p:"远程工作与可持续的时间安排。",o2t:"Gaia 在你身边",o2p:"AI 处理重复性工作，你专注于人。",o3t:"成长",o3p:"持续培训与相互支持的团队。",apply_t:"申请",apply_lead:"告诉我们你是谁：我们会联系你。",f_name:"姓名",f_email:"邮箱",f_role:"感兴趣的岗位",opt1:"营养师",opt2:"教练",opt3:"营养辅导师",opt4:"其他",f_msg:"介绍一下你自己（可选）",f_msg_ph:"经验、动机、可用时间…",f_consent:"我同意根据<a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">隐私政策</a>为招聘处理我的数据。",f_submit:"提交申请",f_ok:"谢谢！我们已收到你的申请。",f_home:"主页",f_blog:"博客",f_privacy:"隐私",f_cookie:"Cookie",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · 卢加诺 (CH)"},
  ar:{back:"العودة إلى الموقع",kick:"اعمل معنا",h1:"لنبنِ معاً عافية<br>تضع الإنسان في المركز",lead:"نبحث عن مختصين وأشخاص شغوفين. بدعم ذكاء <span class=\"ai\">Gaia</span>، يعود وقتك إلى ما يهمّ: الناس.",r1t:"هل أنت أخصائي تغذية؟",r1d:"انضم إلى الفريق السريري واعتنِ بصحة العملاء.",r1a:"تعتمد وتخصّص المسارات",r1b:"تُعدّ Gaia الاقتراحات، وأنت تقرّر",r1c:"تعمل عن بُعد بمرونة",r2t:"هل أنت مدرّبة؟",r2d:"رافق الناس يوماً بيوم.",r2a:"تابع عملاءك في التطبيق",r2b:"تعاطف ومنهجية بأدوات واضحة",r2c:"تدريب مستمر للفريق",r3t:"هل تريد أن تصبح مُوجّه تغذية؟",r3d:"نحن ندرّبك، حتى من الصفر.",r3a:"مسار تدريب مخصّص",r3b:"مرافقة من المختصين",r3c:"مهنة في مجال العافية",offer_t:"ما نقدّمه",o1t:"مرونة",o1p:"عمل عن بُعد وأوقات مستدامة.",o2t:"Gaia إلى جانبك",o2p:"يتولّى الذكاء الاصطناعي العمل المتكرّر، وتركّز أنت على الناس.",o3t:"نموّ",o3p:"تدريب مستمر وفريق يدعم بعضه.",apply_t:"قدّم الآن",apply_lead:"أخبرنا من أنت: سنتواصل معك.",f_name:"الاسم الكامل",f_email:"البريد الإلكتروني",f_role:"الدور المطلوب",opt1:"أخصائي تغذية",opt2:"مدرّب",opt3:"مُوجّه تغذية",opt4:"أخرى",f_msg:"حدّثنا عن نفسك (اختياري)",f_msg_ph:"الخبرة، الدافع، التوفّر…",f_consent:"أوافق على معالجة بياناتي لأغراض التوظيف وفق <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">سياسة الخصوصية</a>.",f_submit:"إرسال الطلب",f_ok:"شكراً! لقد استلمنا طلبك.",f_home:"الرئيسية",f_blog:"المدوّنة",f_privacy:"الخصوصية",f_cookie:"ملفات الارتباط",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · لوغانو (CH)"}
 };
+var FERR={it:"Non è stato possibile inviare ora. Scrivici a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e ti ricontattiamo.",en:"We couldn't send it right now. Write to us at <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> and we'll get back to you.",es:"No se ha podido enviar ahora. Escríbenos a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> y te contactamos.",pt:"Não foi possível enviar agora. Escreva para <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e entramos em contacto.",fr:"L'envoi a échoué. Écrivez-nous à <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> et nous vous recontactons.",de:"Senden derzeit nicht möglich. Schreiben Sie an <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, wir melden uns.",ru:"Не удалось отправить. Напишите нам на <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, и мы свяжемся с вами.",zh:"暂时无法发送。请写信至 <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>，我们会与你联系。",ar:"تعذّر الإرسال الآن. راسِلنا على <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> وسنعاود التواصل معك."};
+Object.keys(FERR).forEach(function(l){if(I18N[l])I18N[l].f_err=FERR[l];});
 function ls(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function lsset(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function setLang(l){var d=I18N[l]||I18N.it;document.documentElement.lang=l;document.documentElement.dir=(l==='ar')?'rtl':'ltr';
@@ -145,6 +149,16 @@ var saved=ls('mb_lang');var nv=(navigator.language||'it').slice(0,2);var start=s
 setLang(start);loadRemote(function(){setLang(document.documentElement.lang||start);});
 document.getElementById('lang').addEventListener('change',function(){setLang(this.value)});
 var f=document.getElementById('jobForm');
-f.addEventListener('submit',function(e){e.preventDefault();var ep=f.getAttribute('data-endpoint');var data={nome:f.nome.value,email:f.email.value,ruolo:f.ruolo.value,messaggio:f.messaggio.value,fonte:'lavora_con_noi',lingua:document.documentElement.lang};function done(){document.getElementById('jobOk').style.display='block';f.querySelector('button').style.display='none';}if(ep){fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(done).catch(done);}else{done();}});
+f.addEventListener('submit',function(e){e.preventDefault();
+  var ep=f.getAttribute('data-endpoint');
+  var ok=document.getElementById('jobOk'),err=document.getElementById('jobErr'),btn=f.querySelector('button');
+  if(f.website&&f.website.value){ok.style.display='block';return;}
+  var data={nome:f.nome.value,email:f.email.value,ruolo:f.ruolo.value,messaggio:f.messaggio.value,website:f.website?f.website.value:'',fonte:'lavora_con_noi',lingua:document.documentElement.lang};
+  function success(){err.style.display='none';ok.style.display='block';btn.style.display='none';}
+  function fail(){ok.style.display='none';err.style.display='block';btn.disabled=false;}
+  if(!ep){fail();return;}
+  btn.disabled=true;
+  fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){if(r&&r.ok)success();else fail();}).catch(fail);
+});
 </script>
 </body></html>

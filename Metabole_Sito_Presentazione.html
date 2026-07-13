@@ -447,12 +447,14 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
       <p class="lead" data-i18n="lead_lead">Lasciaci un contatto: ti raccontiamo come funziona, con calma e senza impegno. Oppure inizia subito nell'app.</p>
       <a class="btn p" href="https://app.metabole.eu/" style="margin-top:18px" data-i18n="lead_cta">Inizia il percorso</a>
     </div>
-    <form class="form" id="leadForm" data-endpoint="">
+    <form class="form" id="leadForm" data-endpoint="https://metabole-backend.onrender.com/api/v1/public/leads">
       <label data-i18n="f_nome">Nome</label><input name="nome" required>
       <label data-i18n="f_email">Email</label><input name="email" type="email" required>
+      <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       <div class="chk"><input type="checkbox" required style="width:auto;margin-top:2px"><span data-i18n-html="f_consent">Acconsento a essere ricontattata/o e al trattamento dei dati secondo l'<a href="Metabole_Privacy.html" target="_blank" style="color:var(--teal)">informativa privacy</a>.</span></div>
       <button class="btn p" type="submit" data-i18n="f_submit">Voglio saperne di più</button>
       <div class="ok" id="leadOk"><i class="ti ti-check"></i> <span data-i18n="f_ok">Grazie! Ti ricontatteremo presto.</span></div>
+      <div class="ok" id="leadErr" style="display:none;background:#FBF3E7;border:1px solid #EBD9B8;color:#7a5a1e"><i class="ti ti-alert-triangle"></i> <span data-i18n-html="f_err">Non è stato possibile inviare ora. Scrivici a <a href="mailto:info@metabole.eu" style="color:var(--deep)">info@metabole.eu</a> e ti ricontattiamo.</span></div>
     </form>
   </div>
 </div></section>
@@ -558,6 +560,8 @@ var NAVBLOG={it:'Blog',en:'Blog',es:'Blog',pt:'Blog',fr:'Blog',de:'Blog',ru:'Б�
 Object.keys(NAVBLOG).forEach(function(l){if(I18N[l])I18N[l].nav_blog=NAVBLOG[l];});
 var STAT4={it:'metodi gestiti',en:'methods managed',es:'métodos gestionados',pt:'métodos geridos',fr:'méthodes gérées',de:'verwaltete Methoden',ru:'методов в управлении',zh:'管理的方法',ar:'طرق مُدارة'};
 Object.keys(STAT4).forEach(function(l){if(I18N[l])I18N[l].stat4l=STAT4[l];});
+var FERR={it:"Non è stato possibile inviare ora. Scrivici a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e ti ricontattiamo.",en:"We couldn't send it right now. Write to us at <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> and we'll get back to you.",es:"No se ha podido enviar ahora. Escríbenos a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> y te contactamos.",pt:"Não foi possível enviar agora. Escreva para <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e entramos em contacto.",fr:"L'envoi a échoué. Écrivez-nous à <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> et nous vous recontactons.",de:"Senden derzeit nicht möglich. Schreiben Sie an <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, wir melden uns.",ru:"Не удалось отправить. Напишите нам на <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, и мы свяжемся с вами.",zh:"暂时无法发送。请写信至 <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>，我们会与你联系。",ar:"تعذّر الإرسال الآن. راسِلنا على <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> وسنعاود التواصل معك."};
+Object.keys(FERR).forEach(function(l){if(I18N[l])I18N[l].f_err=FERR[l];});
 /* --- Traduzioni dal database (endpoint da collegare lato Sviluppo) --- */
 /* Quando l'endpoint restituisce {lingua:{chiave:valore}}, sovrascrive quelle locali. Struttura: GET data-i18n-src -> JSON. */
 var I18N_ENDPOINT="";
@@ -638,6 +642,16 @@ document.getElementById('ckAcc').addEventListener('click',function(){ck('accept'
 document.getElementById('ckRej').addEventListener('click',function(){ck('reject')});
 // lead form
 var f=document.getElementById('leadForm');
-f.addEventListener('submit',function(e){e.preventDefault();var ep=f.getAttribute('data-endpoint');var data={nome:f.nome.value,email:f.email.value,fonte:'sito_presentazione',lingua:document.documentElement.lang};function done(){document.getElementById('leadOk').style.display='block';f.querySelector('button').style.display='none';STATS.reached=(STATS.reached||0)+1;applyStats(document.documentElement.lang);}if(ep){fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(done).catch(done);}else{done();}});
+f.addEventListener('submit',function(e){e.preventDefault();
+  var ep=f.getAttribute('data-endpoint');
+  var ok=document.getElementById('leadOk'),err=document.getElementById('leadErr'),btn=f.querySelector('button');
+  if(f.website&&f.website.value){ok.style.display='block';return;} // honeypot: bot → nessun invio
+  var data={nome:f.nome.value,email:f.email.value,website:f.website?f.website.value:'',fonte:'sito_presentazione',lingua:document.documentElement.lang};
+  function success(){err.style.display='none';ok.style.display='block';btn.style.display='none';STATS.reached=(STATS.reached||0)+1;applyStats(document.documentElement.lang);}
+  function fail(){ok.style.display='none';err.style.display='block';btn.disabled=false;btn.textContent=(I18N[document.documentElement.lang]||I18N.it).f_submit||'Riprova';}
+  if(!ep){fail();return;}
+  btn.disabled=true;
+  fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){if(r&&r.ok)success();else fail();}).catch(fail);
+});
 </script>
 </body></html>
