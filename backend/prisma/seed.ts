@@ -120,6 +120,30 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'agent_pre_event_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni prima di un evento in cui l\'agente passa a stato "pre-evento" (più proteico)',
+  },
+  {
+    key: 'agent_plateau_cycles',
+    value: '2',
+    type: 'number',
+    description: 'Cicli consecutivi senza calo peso dopo cui l\'agente passa a stato "plateau"',
+  },
+  {
+    key: 'menu_state_boost',
+    value: '1.8',
+    type: 'number',
+    description: 'Fattore con cui l\'agente potenzia gradimento (conforto) o efficacia (plateau) nella selezione',
+  },
+  {
+    key: 'menu_pre_event_protein_bonus',
+    value: '0.6',
+    type: 'number',
+    description: 'Bonus alle ricette proteiche nello stato pre-evento (selezione menu)',
+  },
+  {
     key: 'menu_select_w_eff',
     value: '1',
     type: 'number',

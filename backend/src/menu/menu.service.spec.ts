@@ -77,6 +77,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         { provide: ConfigParamsService, useValue: config },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: require('../calendar/events.service').EventsService, useValue: events },
+        { provide: require('../diet-agent/diet-agent.service').DietAgentService, useValue: { stateFor: jest.fn().mockResolvedValue('normale') } },
       ],
     }).compile();
     service = moduleRef.get(MenuService);

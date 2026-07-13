@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../signals/signals.service';
 
@@ -74,6 +75,7 @@ export class MenuService {
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
     private readonly events: EventsService,
+    private readonly dietAgent: DietAgentService,
   ) {}
 
   /** Menu visibile della cliente; prova a erogare i giorni successivi se ha diritto. */
@@ -177,9 +179,13 @@ export class MenuService {
     }
     if (templates.length === 0) return [];
 
+    // Stato dell'agente (Metabole_Agente_AI_Dieta): modula la selezione (conforto →
+    // gradimento, plateau → efficacia, pre-evento → proteine). Sicurezza e bilanciamento
+    // restano prioritari.
+    const agentState = await this.dietAgent.stateFor(clientId);
     // Selettore per efficacia+gradimento: sceglie, DENTRO la dieta approvata, la
     // ricetta migliore per ogni slot (learning + stelle, con vincolo kcal).
-    const selector = await this.buildSelector(clientId, profile.regime, templates as never);
+    const selector = await this.buildSelector(clientId, profile.regime, templates as never, agentState);
 
     // Prepara gli snapshot dei giorni del ciclo.
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
@@ -288,16 +294,25 @@ export class MenuService {
     clientId: string,
     regime: string | null,
     templates: { meals: { slot: string; recipeId: string }[] }[],
+    state: AgentState = 'normale',
   ): Promise<(meals: { slot: string; recipeId: string }[]) => { slot: string; recipeId: string }[]> {
     const identity = (meals: { slot: string; recipeId: string }[]) => meals;
     if (!regime) return identity;
 
-    const [wEff, wGrad, kcalTolPct] = await Promise.all([
+    const [wEffBase, wGradBase, kcalTolPct, boost, proteinBonus] = await Promise.all([
       this.configParams.getNumber('menu_select_w_eff', 1),
       this.configParams.getNumber('menu_select_w_grad', 1),
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
+      this.configParams.getNumber('menu_state_boost', 1.8),
+      this.configParams.getNumber('menu_pre_event_protein_bonus', 0.6),
     ]);
     const tol = kcalTolPct / 100;
+    // Modulazione dei pesi in base allo stato dell'agente.
+    let wEff = wEffBase;
+    let wGrad = wGradBase;
+    if (state === 'conforto') wGrad = wGradBase * boost; // menu più amati
+    else if (state === 'plateau') wEff = wEffBase * boost; // menu più efficaci
+    const usePreEvent = state === 'pre_evento';
 
     // Pool candidati per slot (ricette usate dalla dieta per quello slot).
     const slotPool = new Map<string, Set<string>>();
@@ -312,7 +327,7 @@ export class MenuService {
     if (poolIds.size === 0) return identity;
 
     const [recipes, weights, ratings] = await Promise.all([
-      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true } }) as Promise<{ id: string; kcal: number }[]>,
+      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true } }) as Promise<{ id: string; kcal: number; macros: unknown }[]>,
       this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
       this.prisma.recipeRating.findMany({ where: { clientId }, select: { recipeId: true, stars: true } }) as Promise<{ recipeId: string; stars: number }[]>,
     ]);
@@ -321,8 +336,18 @@ export class MenuService {
     const effOf = new Map(weights.map((w) => [w.recipeId, w.samples > 0 ? w.score / w.samples : 0]));
     const starOf = new Map<string, number>();
     for (const r of ratings) starOf.set(r.recipeId, Math.max(starOf.get(r.recipeId) ?? 0, r.stars));
+    // Quota proteica (0..1) dai macro, per lo stato pre-evento.
+    const proteinOf = new Map<string, number>();
+    for (const r of recipes) {
+      const m = r.macros as { protein_g?: number; carbs_g?: number; fat_g?: number } | null;
+      const tot = (m?.protein_g ?? 0) + (m?.carbs_g ?? 0) + (m?.fat_g ?? 0);
+      proteinOf.set(r.id, tot > 0 ? (m?.protein_g ?? 0) / tot : 0);
+    }
 
-    const score = (id: string) => wEff * (effOf.get(id) ?? 0) + wGrad * ((starOf.get(id) ?? 5) / 5);
+    const score = (id: string) =>
+      wEff * (effOf.get(id) ?? 0) +
+      wGrad * ((starOf.get(id) ?? 5) / 5) +
+      (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0);
 
     return (meals) =>
       meals.map((m) => {

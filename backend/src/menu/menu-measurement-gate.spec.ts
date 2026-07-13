@@ -1,6 +1,7 @@
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MenuService } from './menu.service';
 
@@ -15,11 +16,13 @@ function makeService(prisma: unknown) {
   };
   const audit = { log: jest.fn() };
   const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
+  const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
   return new MenuService(
     prisma as PrismaService,
     config as unknown as ConfigParamsService,
     audit as unknown as AuditService,
     events as unknown as EventsService,
+    dietAgent as unknown as DietAgentService,
   );
 }
 

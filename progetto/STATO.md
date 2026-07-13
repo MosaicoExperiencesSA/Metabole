@@ -84,7 +84,15 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
     Ancora da fare (avanzato): generazione automatica delle **giornate bilanciate** (DayCombo, oggi i
     giorni sono composti a mano dal nutrizionista nei template) e l'**attribuzione causale** dell'effetto
     del singolo pasto (isolare il pasto che pesa di più).
-- **Agente AI della dieta** (stati Conforto/Rientro/Pre-evento/Plateau, scoring): ⬜ (Fase 6).
+- **Agente AI della dieta** (stati, scoring): 🟡 (Fase 6).
+  - `DietAgentService.stateFor` determina lo stato: **pre_evento** (evento entro N giorni),
+    **plateau** (ultimi N cicli senza calo), **conforto** (umore basso recente), altrimenti **normale**.
+  - La selezione dei menu è **modulata dallo stato**: conforto → boost gradimento (menu più amati),
+    plateau → boost efficacia (menu più dimagranti), pre_evento → bonus proteine (dai macro). Sicurezza
+    e bilanciamento restano prioritari. Pesi/soglie in config.
+  - Le segnalazioni (aderenza→coach, mood/plateau) sono già coperte dall'Alert engine (dropout_risk,
+    plateau, ecc.). Ancora da fare: **Rientro** (dopo un conforto → boost efficacia, richiede memoria
+    dello stato per ciclo), post-evento, guardrail sui giorni di conforto.
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) ⬜
@@ -107,7 +115,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
 | 5 | Motore di personalizzazione menu — v1 "naive" | ✅ nucleo v1 (esclusioni+sostituzione+learning+selezione); avanzato (DayCombo, causale) da fare |
-| 6 | Agente AI della dieta (stati, scoring, escalation) | ⬜ |
+| 6 | Agente AI della dieta (stati, scoring, escalation) | 🟡 stati + selezione modulata fatti |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | ⬜ |
 | 8 | Shop / abbonamenti / provvigioni | ⬜ |
 | 9 | Certificazione unicità (seed, collision check, registro firmato) | ⬜ |
