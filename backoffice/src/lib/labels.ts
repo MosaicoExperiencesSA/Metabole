@@ -29,6 +29,7 @@ export const PAGE_LABEL: Record<string, string> = {
   crm_leads: 'CRM / Lead',
   lead_acceptance: 'Lead da accettare',
   accounting: 'Bonifici & contabilità',
+  accounting_costs: 'Contabilità',
   purchases: 'Acquisti',
   shop: 'Negozio',
   discounts: 'Buoni sconto',

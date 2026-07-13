@@ -575,6 +575,30 @@ model PipelineStage {
 }
 
 // Contabilità: eventi economici automatici, niente doppio inserimento.
+// Voce di costo per la contabilità (backlog #6). Registra i costi aziendali oltre a
+// quelli già a ledger (provvigioni/compensi): infrastruttura (Neon/Render/Vercel/Brevo/
+// Stripe/Anthropic), marketing/ads, stipendi, tasse, ecc. Un costo può essere una tantum
+// (`recurring=false`, conta nella sua `date`) o ricorrente (`recurring=true`, `cadence`
+// mensile/annuale, attivo da `date` a `endDate`). FK-less.
+model CostEntry {
+  id          String    @id @default(uuid())
+  label       String
+  category    String // salaries | infrastructure | marketing | payment_fees | ai | taxes | other
+  amountCents Int       @map("amount_cents")
+  recurring   Boolean   @default(false)
+  cadence     String    @default("once") // once | monthly | yearly
+  date        DateTime  @db.Date // una tantum: data del costo · ricorrente: data di inizio
+  endDate     DateTime? @map("end_date") @db.Date // ricorrente: fine (opzionale)
+  vendor      String?
+  note        String?
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([category, date])
+  @@map("cost_entry")
+}
+
 model LedgerEntry {
   id        String     @id @default(uuid())
   type      LedgerType

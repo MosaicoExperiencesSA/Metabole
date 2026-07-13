@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
+import { UserMenu } from './UserMenu';
 
 interface NavItem {
   key: string; // pageKey dei permessi
@@ -54,6 +55,7 @@ const NAV: NavSection[] = [
       { key: 'purchases', label: 'Acquisti', to: '/acquisti', icon: 'ti-shopping-cart' },
       { key: 'discounts', label: 'Buoni sconto', to: '/buoni-sconto', icon: 'ti-ticket' },
       { key: 'accounting', label: 'Bonifici & contabilità', to: '/pagamenti', icon: 'ti-cash' },
+      { key: 'accounting_costs', label: 'Contabilità', to: '/contabilita', icon: 'ti-report-money' },
       { key: 'commissions', label: 'Provvigioni', to: '/provvigioni', icon: 'ti-percentage' },
       { key: 'compensation', label: 'Compensi staff', to: '/compensi', icon: 'ti-coin' },
       { key: 'withdrawals', label: 'Richieste prelievo', to: '/prelievi', icon: 'ti-wallet' },
@@ -88,7 +90,7 @@ const NAV: NavSection[] = [
 ];
 
 export function Layout({ title, children }: { title: string; children: ReactNode }) {
-  const { user, permissions, can, logout, impersonating, stopImpersonation } = useAuth();
+  const { can, logout, impersonating, stopImpersonation } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -196,9 +198,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
             <h1>{title}</h1>
           </div>
           <div className="row">
-            <span className="muted" style={{ fontSize: 13 }}>
-              {user?.email} · {permissions ? ROLE_LABEL[permissions.role] : ''}
-            </span>
+            <UserMenu />
           </div>
         </div>
         <div className="content">{children}</div>

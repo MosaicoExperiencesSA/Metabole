@@ -442,6 +442,112 @@ table.grid tr:hover td {
 .muted {
   color: var(--muted);
 }
+
+/* ---------- Menu utente (header) ---------- */
+.usermenu {
+  position: relative;
+}
+.usermenu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px 5px 5px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background 0.15s, border-color 0.15s;
+}
+.usermenu-trigger:hover {
+  background: var(--bg);
+  border-color: var(--teal);
+}
+.usermenu-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  flex: none;
+}
+.usermenu-avatar.lg {
+  width: 40px;
+  height: 40px;
+  font-size: 15px;
+}
+.usermenu-id {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-align: left;
+  max-width: 180px;
+}
+.usermenu-id b {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.usermenu-id .muted {
+  font-size: 11.5px;
+}
+.usermenu-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-hover);
+  padding: 8px;
+  z-index: 20;
+}
+.usermenu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+.usermenu-email {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+.usermenu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 10px;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.usermenu-item:hover {
+  background: var(--bg);
+}
+.usermenu-item.danger {
+  color: var(--danger);
+}
+.usermenu-item i {
+  font-size: 17px;
+}
 .empty {
   text-align: center;
   color: var(--muted);

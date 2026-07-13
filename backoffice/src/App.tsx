@@ -30,6 +30,7 @@ import { Impostazioni } from './pages/Impostazioni';
 import { Prelievi } from './pages/Prelievi';
 import { Parametri } from './pages/Parametri';
 import { Payments } from './pages/Payments';
+import { Contabilita } from './pages/Contabilita';
 import { Permissions } from './pages/Permissions';
 import { Pipeline } from './pages/Pipeline';
 import { Provvigioni } from './pages/Provvigioni';
@@ -81,6 +82,7 @@ export default function App() {
       <Route path="/acquisti" element={<Protected title="Acquisti" pageKey="purchases"><Acquisti /></Protected>} />
       <Route path="/buoni-sconto" element={<Protected title="Buoni sconto" pageKey="discounts"><BuoniSconto /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
+      <Route path="/contabilita" element={<Protected title="Contabilità" pageKey="accounting_costs"><Contabilita /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />

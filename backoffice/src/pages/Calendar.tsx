@@ -28,12 +28,54 @@ const KIND: Record<string, { label: string; icon: string }> = {
   mail: { label: 'Email', icon: 'ti-mail' },
 };
 
+/** Numero per WhatsApp: solo cifre; se manca il prefisso internazionale si assume l'Italia (39). */
+function waFrom(phone: string | null): string | null {
+  if (!phone) return null;
+  const d = phone.replace(/[^\d]/g, '');
+  if (!d) return null;
+  return d.startsWith('39') ? d : d.startsWith('0') ? '39' + d.replace(/^0+/, '') : '39' + d;
+}
+
+/** Azioni rapide di contatto (chiama / WhatsApp / email) per un lead collegato. */
+function ContactActions({ phone, email }: { phone: string | null; email: string | null }) {
+  const wa = waFrom(phone);
+  return (
+    <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span className="muted" style={{ fontSize: 12 }}>Contatta subito:</span>
+      {phone ? (
+        <a className="btn ghost sm" href={`tel:${phone}`} title={`Chiama ${phone}`} style={{ padding: '6px 10px' }}><i className="ti ti-phone" /></a>
+      ) : (
+        <button className="btn ghost sm" disabled title="Nessun telefono" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-phone" /></button>
+      )}
+      {wa ? (
+        <a className="btn ghost sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" title="Scrivi su WhatsApp" style={{ padding: '6px 10px', color: '#25D366' }}><i className="ti ti-brand-whatsapp" /></a>
+      ) : (
+        <button className="btn ghost sm" disabled title="Nessun telefono" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-brand-whatsapp" /></button>
+      )}
+      {email ? (
+        <a className="btn ghost sm" href={`mailto:${email}`} title={`Scrivi a ${email}`} style={{ padding: '6px 10px' }}><i className="ti ti-mail" /></a>
+      ) : (
+        <button className="btn ghost sm" disabled title="Nessuna email" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-mail" /></button>
+      )}
+    </div>
+  );
+}
+
+/** Valore per <input type="datetime-local"> dal timestamp ISO (in ora locale). */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function Calendar() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [leads, setLeads] = useState<LeadOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState<Reminder | null>(null);
 
   async function load() {
     setLoading(true);
@@ -50,6 +92,16 @@ export function Calendar() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDone]);
+
+  // Anagrafica lead per risolvere i contatti (telefono/email) del promemoria.
+  useEffect(() => {
+    api<LeadOption[]>('/crm/leads').then(setLeads).catch(() => setLeads([]));
+  }, []);
+
+  function contactFor(r: Reminder): { phone: string | null; email: string | null } {
+    const lead = r.crmRecordId ? leads.find((l) => l.id === r.crmRecordId) : null;
+    return { phone: lead?.client?.phone ?? null, email: lead?.client?.email ?? lead?.email ?? null };
+  }
 
   async function toggle(r: Reminder) {
     setReminders((rs) => rs.map((x) => (x.id === r.id ? { ...x, done: !x.done } : x)));
@@ -79,8 +131,15 @@ export function Calendar() {
     const late = !r.done && new Date(r.dueAt).getTime() < now;
     return (
       <div className="row" style={{ gap: 12, padding: '10px 4px', borderBottom: '1px solid var(--line)', alignItems: 'flex-start' }}>
-        <button className={`toggle ${r.done ? 'on' : ''}`} onClick={() => toggle(r)} title={r.done ? 'Fatto' : 'Segna come fatto'} style={{ marginTop: 2 }} />
-        <div style={{ flex: 1, opacity: r.done ? 0.55 : 1 }}>
+        <button className={`toggle ${r.done ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); void toggle(r); }} title={r.done ? 'Fatto' : 'Segna come fatto'} style={{ marginTop: 2 }} />
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setEditing(r)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(r); } }}
+          style={{ flex: 1, opacity: r.done ? 0.55 : 1, cursor: 'pointer' }}
+          title="Apri per modificare, spostare o contattare"
+        >
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <b style={{ textDecoration: r.done ? 'line-through' : 'none' }}>{r.title}</b>
             <span className={`chip ${late ? 'red' : 'gray'}`} style={{ fontSize: 11 }}>{timeLabel(r.dueAt)}</span>
@@ -88,7 +147,7 @@ export function Calendar() {
           </div>
           {r.note && <div className="muted" style={{ fontSize: 13, marginTop: 3 }}>{r.note}</div>}
         </div>
-        <button className="btn ghost sm" onClick={() => remove(r)} title="Elimina"><i className="ti ti-trash" /></button>
+        <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); void remove(r); }} title="Elimina"><i className="ti ti-trash" /></button>
       </div>
     );
   }
@@ -132,7 +191,107 @@ export function Calendar() {
           onCreated={() => { setShowCreate(false); void load(); }}
         />
       )}
+
+      {editing && (
+        <EditReminderModal
+          reminder={editing}
+          contact={contactFor(editing)}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); void load(); }}
+          onDeleted={() => { setEditing(null); void load(); }}
+        />
+      )}
     </>
+  );
+}
+
+function EditReminderModal({
+  reminder,
+  contact,
+  onClose,
+  onSaved,
+  onDeleted,
+}: {
+  reminder: Reminder;
+  contact: { phone: string | null; email: string | null };
+  onClose: () => void;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const [title, setTitle] = useState(reminder.title);
+  const [dueAt, setDueAt] = useState(toLocalInput(reminder.dueAt));
+  const [note, setNote] = useState(reminder.note ?? '');
+  const [done, setDone] = useState(reminder.done);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setError(null);
+    if (title.trim().length < 2) { setError('Dai un titolo al promemoria.'); return; }
+    if (!dueAt) { setError('Scegli data e ora.'); return; }
+    setBusy(true);
+    try {
+      await api(`/crm/reminders/${reminder.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: title.trim(), dueAt: new Date(dueAt).toISOString(), note: note.trim() || undefined, done }),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Salvataggio non riuscito.');
+      setBusy(false);
+    }
+  }
+
+  async function del() {
+    if (!confirm(`Eliminare il promemoria "${reminder.title}"?`)) return;
+    setBusy(true);
+    try {
+      await api(`/crm/reminders/${reminder.id}`, { method: 'DELETE' });
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Promemoria" onClose={onClose}>
+      {error && <Banner kind="err">{error}</Banner>}
+      {reminder.linkedName && (
+        <div className="field">
+          <label>Cliente/lead collegato</label>
+          <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="chip"><i className="ti ti-user" /> {reminder.linkedName}</span>
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <ContactActions phone={contact.phone} email={contact.email} />
+          </div>
+        </div>
+      )}
+      <div className="field">
+        <label>Titolo</label>
+        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+      </div>
+      <div className="field">
+        <label>Data e ora (sposta il promemoria)</label>
+        <input className="input" type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Note</label>
+        <textarea className="input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} style={{ resize: 'vertical' }} />
+      </div>
+      <label className="row" style={{ gap: 8, fontSize: 14, cursor: 'pointer' }}>
+        <input type="checkbox" checked={done} onChange={(e) => setDone(e.target.checked)} />
+        Completato
+      </label>
+      <div className="spread" style={{ marginTop: 14 }}>
+        <button className="btn ghost danger" onClick={del} disabled={busy} title="Elimina promemoria"><i className="ti ti-trash" /> Elimina</button>
+        <div className="row" style={{ gap: 10 }}>
+          <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
+          <button className="btn" onClick={save} disabled={busy}>{busy ? 'Salvo…' : 'Salva'}</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -157,8 +316,6 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
   const selectedLead = leads.find((l) => l.id === crmRecordId) ?? null;
   const leadEmail = selectedLead ? (selectedLead.client?.email ?? selectedLead.email ?? null) : null;
   const leadPhone = selectedLead?.client?.phone ?? null;
-  // Numero per WhatsApp: solo cifre; se manca il prefisso internazionale si assume l'Italia (39).
-  const waNumber = leadPhone ? (() => { const d = leadPhone.replace(/[^\d]/g, ''); return d.startsWith('39') ? d : d.startsWith('0') ? '39' + d.replace(/^0+/, '') : '39' + d; })() : null;
 
   async function submit() {
     setError(null);
@@ -218,23 +375,8 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
           ))}
         </select>
         {selectedLead && (
-          <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <span className="muted" style={{ fontSize: 12 }}>Contatta subito:</span>
-            {leadPhone ? (
-              <a className="btn ghost sm" href={`tel:${leadPhone}`} title={`Chiama ${leadPhone}`} style={{ padding: '6px 10px' }}><i className="ti ti-phone" /></a>
-            ) : (
-              <button className="btn ghost sm" disabled title="Nessun telefono" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-phone" /></button>
-            )}
-            {waNumber ? (
-              <a className="btn ghost sm" href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" title="Scrivi su WhatsApp" style={{ padding: '6px 10px', color: '#25D366' }}><i className="ti ti-brand-whatsapp" /></a>
-            ) : (
-              <button className="btn ghost sm" disabled title="Nessun telefono" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-brand-whatsapp" /></button>
-            )}
-            {leadEmail ? (
-              <a className="btn ghost sm" href={`mailto:${leadEmail}`} title={`Scrivi a ${leadEmail}`} style={{ padding: '6px 10px' }}><i className="ti ti-mail" /></a>
-            ) : (
-              <button className="btn ghost sm" disabled title="Nessuna email" style={{ padding: '6px 10px', opacity: 0.45 }}><i className="ti ti-mail" /></button>
-            )}
+          <div style={{ marginTop: 8 }}>
+            <ContactActions phone={leadPhone} email={leadEmail} />
           </div>
         )}
       </div>
