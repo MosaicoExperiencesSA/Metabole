@@ -643,6 +643,50 @@ async function seedCommerce(): Promise<void> {
   }
 }
 
+/**
+ * Campi "prodotto" mostrati al cliente sullo schermo 16 "Stile che preferisci".
+ * Idempotente: aggiorna le diete esistenti e assicura l'esistenza di "Keto"
+ * (menu vuoti finché il nutrizionista non li popola — regola isolamento menu).
+ */
+async function seedDietProductFields(): Promise<void> {
+  const PRODUCTS = [
+    { style: 'mediterranean', clientName: 'Mediterranea', clientDescription: "L'equilibrio della dieta mediterranea: gusto, varietà e sostenibilità nel tempo.", highlights: ['Piatti della tradizione', 'Tanta verdura e cereali integrali', 'Facile da mantenere'] },
+    { style: 'protein', clientName: 'Proteica', clientDescription: 'Più proteine per sazietà e tono muscolare.', highlights: ['Alta sazietà', 'Sostiene la massa muscolare', 'Ideale se ti alleni'] },
+    { style: 'low_carb', clientName: 'Low-carb', clientDescription: 'Meno carboidrati, più leggerezza al pasto.', highlights: ['Riduce gli zuccheri', 'Sensazione di leggerezza', 'Menu bilanciati'] },
+    { style: 'keto', clientName: 'Keto', clientDescription: 'Chetogenica: pochissimi carboidrati, energia dai grassi buoni.', highlights: ['Carboidrati molto bassi', 'Energia costante', 'Da seguire con il nutrizionista'] },
+  ] as const;
+
+  for (const p of PRODUCTS) {
+    await prisma.diet.updateMany({
+      where: { style: p.style },
+      data: {
+        clientVisible: true,
+        clientName: p.clientName,
+        clientDescription: p.clientDescription,
+        highlights: p.highlights as never,
+      },
+    });
+  }
+
+  const keto = PRODUCTS.find((p) => p.style === 'keto')!;
+  const existingKeto = await prisma.diet.findFirst({ where: { style: 'keto' } });
+  if (!existingKeto) {
+    await prisma.diet.create({
+      data: {
+        name: keto.clientName,
+        regime: 'omnivore',
+        style: 'keto',
+        mealsPerDay: 5,
+        status: 'draft',
+        clientVisible: true,
+        clientName: keto.clientName,
+        clientDescription: keto.clientDescription,
+        highlights: keto.highlights as never,
+      },
+    });
+  }
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -668,6 +712,7 @@ async function main(): Promise<void> {
   await seedPipelineStages();
   await seedPermissions();
   await seedDemoCatalog();
+  await seedDietProductFields();
   await seedProtocols();
   await seedCommerce();
   await backfillPaidClientsIntoCrm();

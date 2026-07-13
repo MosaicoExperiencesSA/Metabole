@@ -60,6 +60,7 @@ enum DietStyle {
   protein
   low_carb
   flexible
+  keto
 }
 
 enum PathType {
@@ -974,11 +975,20 @@ model Diet {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
+  // Campi "prodotto" mostrati al cliente (schermo 16 "Stile che preferisci").
+  clientName        String?  @map("client_name")
+  clientDescription String?  @map("client_description")
+  highlights        Json? // 3–5 "caratteristiche principali" mostrate al cliente
+  seasonalTag       String?  @map("seasonal_tag")
+  objective         String   @default("dimagrimento") // dimagrimento | mantenimento
+  clientVisible     Boolean  @default(false) @map("client_visible")
+
   dayTemplates DietDayTemplate[]
   menuDays     MenuDay[]
 
   @@index([status])
   @@index([regime, mealsPerDay, status])
+  @@index([clientVisible])
   @@map("diet")
 }
 

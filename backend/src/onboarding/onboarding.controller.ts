@@ -15,6 +15,12 @@ export class OnboardingController {
     return this.onboarding.getQuestions();
   }
 
+  /** Prodotti (diete) selezionabili allo schermo 16, letti a runtime (zero-redeploy). */
+  @Get('diet-products')
+  dietProducts() {
+    return this.onboarding.dietProducts();
+  }
+
   @Post('answers')
   submit(
     @Body() dto: SubmitAnswersDto,

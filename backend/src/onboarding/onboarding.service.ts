@@ -21,6 +21,37 @@ export class OnboardingService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Prodotti (diete) mostrati allo schermo 16: le Diet con clientVisible=true,
+   * una per stile. Data-driven: aggiungere/modificare un prodotto non richiede deploy.
+   */
+  async dietProducts() {
+    const diets = await this.prisma.diet.findMany({
+      where: { clientVisible: true } as never,
+      orderBy: { createdAt: 'asc' },
+    });
+    const seen = new Set<string>();
+    const products: {
+      id: string; style: string; name: string; description: string | null;
+      highlights: string[]; objective: string; seasonalTag: string | null;
+    }[] = [];
+    for (const d of diets as unknown as Array<Record<string, unknown>>) {
+      const style = String(d.style);
+      if (seen.has(style)) continue;
+      seen.add(style);
+      products.push({
+        id: String(d.id),
+        style,
+        name: (d.clientName as string) ?? style,
+        description: (d.clientDescription as string) ?? null,
+        highlights: Array.isArray(d.highlights) ? (d.highlights as string[]) : [],
+        objective: (d.objective as string) ?? 'dimagrimento',
+        seasonalTag: (d.seasonalTag as string) ?? null,
+      });
+    }
+    return products;
+  }
+
   getQuestions() {
     return ONBOARDING_QUESTIONS;
   }
