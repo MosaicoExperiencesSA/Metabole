@@ -126,10 +126,28 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni prima di un evento in cui l\'agente passa a stato "pre-evento" (più proteico)',
   },
   {
+    key: 'agent_post_event_days',
+    value: '3',
+    type: 'number',
+    description: 'Giorni dopo la fine di un evento in cui l\'agente resta in stato "post-evento" (spinta efficacia per il recupero)',
+  },
+  {
     key: 'agent_plateau_cycles',
     value: '2',
     type: 'number',
     description: 'Cicli consecutivi senza calo peso dopo cui l\'agente passa a stato "plateau"',
+  },
+  {
+    key: 'agent_comfort_max_days',
+    value: '3',
+    type: 'number',
+    description: 'Guardrail: giorni consecutivi di umore basso oltre i quali l\'agente esce dal "conforto" e passa al "rientro" (spinta efficacia), per non lasciare la cliente ferma nei menu più amati',
+  },
+  {
+    key: 'agent_reentry_days',
+    value: '3',
+    type: 'number',
+    description: 'Finestra (giorni) dopo un periodo difficile in cui, se l\'umore è risalito, l\'agente resta in "rientro" (spinta efficacia) per recuperare',
   },
   {
     key: 'menu_state_boost',

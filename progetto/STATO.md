@@ -112,14 +112,19 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   - Idee future (non urgenti): composizione DayCombo dall'intero catalogo (oggi il pool = ricette dei
     template della dieta); attribuzione causale con veri controfattuali (oggi è euristica osservazionale).
 - **Agente AI della dieta** (stati, scoring): 🟡 (Fase 6).
-  - `DietAgentService.stateFor` determina lo stato: **pre_evento** (evento entro N giorni),
-    **plateau** (ultimi N cicli senza calo), **conforto** (umore basso recente), altrimenti **normale**.
+  - `DietAgentService.stateFor` determina lo stato (in priorità): **pre_evento** (evento entro N giorni),
+    **post_evento** (evento concluso negli ultimi N giorni), **plateau** (ultimi N cicli senza calo),
+    **conforto** (umore basso recente sotto il guardrail), **rientro** (guardrail conforto superato,
+    oppure umore risalito dopo un periodo difficile), altrimenti **normale**.
   - La selezione dei menu è **modulata dallo stato**: conforto → boost gradimento (menu più amati),
-    plateau → boost efficacia (menu più dimagranti), pre_evento → bonus proteine (dai macro). Sicurezza
-    e bilanciamento restano prioritari. Pesi/soglie in config.
+    plateau/post_evento/rientro → boost efficacia (menu più dimagranti/recupero), pre_evento → bonus
+    proteine (dai macro). Sicurezza e bilanciamento restano prioritari. Pesi/soglie in config.
+  - **Guardrail conforto** (`agent_comfort_max_days`): dopo troppi giorni di umore basso di fila si esce
+    dal conforto e si rientra (spinta efficacia), per non lasciare la cliente ferma nei menu amati.
+    **Rientro** dopo il recupero entro `agent_reentry_days`. La "memoria" dello stato si ricava dallo
+    storico dei check-in (nessuna tabella dedicata). **Agente Fase 6 completo.**
   - Le segnalazioni (aderenza→coach, mood/plateau) sono già coperte dall'Alert engine (dropout_risk,
-    plateau, ecc.). Ancora da fare: **Rientro** (dopo un conforto → boost efficacia, richiede memoria
-    dello stato per ciclo), post-evento, guardrail sui giorni di conforto.
+    plateau, ecc.).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) ⬜
@@ -142,7 +147,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 3 | **Alert engine** (coda avvisi coach, tutte le regole) | ✅ (13/7) |
 | 4 | App Coach — API (clienti, agenda, dashboard guadagni, chat, appuntamenti, riassunti) | 🟡 clients+dashboard fatti |
 | 5 | Motore di personalizzazione menu — v1 "naive" | ✅ completo v1 (esclusioni+sostituzione+learning+selezione+DayCombo+attribuzione causale) |
-| 6 | Agente AI della dieta (stati, scoring, escalation) | 🟡 stati + selezione modulata fatti |
+| 6 | Agente AI della dieta (stati, scoring, escalation) | ✅ stati completi (pre/post-evento, plateau, conforto+guardrail, rientro) + selezione modulata |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard fatti (clinica già in health-area) |
 | 8 | Shop / abbonamenti / provvigioni | 🟡 commerce già presente; aggiunto referral cliente "porta un'amica" |
 | 9 | Certificazione unicità (seed, collision check, registro firmato) | ⬜ |

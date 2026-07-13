@@ -342,7 +342,8 @@ export class MenuService {
     let wEff = wEffBase;
     let wGrad = wGradBase;
     if (state === 'conforto') wGrad = wGradBase * boost; // menu più amati
-    else if (state === 'plateau') wEff = wEffBase * boost; // menu più efficaci
+    // plateau / post-evento / rientro → si spinge sull'efficacia (calo/recupero).
+    else if (state === 'plateau' || state === 'post_evento' || state === 'rientro') wEff = wEffBase * boost;
     const usePreEvent = state === 'pre_evento';
 
     // Pool candidati per slot (ricette usate dalla dieta per quello slot).

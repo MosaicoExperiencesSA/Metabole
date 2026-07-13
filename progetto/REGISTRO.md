@@ -7,6 +7,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 6 (completamento) — Agente: post-evento, rientro, guardrail conforto** — estesa
+  la macchina a stati `DietAgentService`: nuovi stati **post_evento** (evento concluso negli ultimi N
+  giorni → spinta efficacia per il recupero) e **rientro**, con due inneschi: il **guardrail** (troppi
+  giorni di conforto consecutivi oltre `agent_comfort_max_days` → si esce dai menu "amati" e si torna
+  a spingere l'efficacia) e il **recupero** (umore risalito dopo un periodo difficile entro
+  `agent_reentry_days`). La "memoria" dello stato si ricava dallo storico dei check-in (nessuna tabella,
+  nessuna migrazione). La selezione menu tratta post_evento/rientro come plateau (boost efficacia).
+  Priorità: pre_evento > post_evento > plateau > conforto/guardrail/rientro > normale. Nuove soglie in
+  config. **Con questo l'agente della Fase 6 è completo.** 8 test (suite 330 verde).
 - `[Sviluppo]` **Fase 5 (avanzata) — Attribuzione causale del pasto** — nuova funzione
   `distinctiveCredits`: alla chiusura di un ciclo il merito/demerito non va più in parti uguali a tutte
   le ricette, ma è pesato per **distintività** — la ricetta rara (quella che è CAMBIATA nel ciclo) è la
