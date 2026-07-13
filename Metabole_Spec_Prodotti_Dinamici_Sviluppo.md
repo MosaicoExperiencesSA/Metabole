@@ -12,6 +12,21 @@ Regola ferrea (bloccante): **isolamento dei menu per prodotto** — vedi `STATO.
 
 ---
 
+## 0. Requisito chiave — ZERO-REDEPLOY
+
+**Aggiungere o modificare un prodotto NON deve mai richiedere una ripubblicazione dell'app** (né web,
+né nativa) né un deploy del backend. Il prodotto è **dato**, non codice.
+
+- Il client (app web e nativa) **legge i prodotti dall'API a runtime** (`GET /products?active=1`),
+  non da liste hardcodate. La pagina 16, i menu e le regole si popolano dai dati.
+- Menu e ricette del prodotto arrivano dal server; l'app nativa resta invariata → **niente passaggio
+  in App Store / Play Store** per un nuovo prodotto.
+- Le regole sono data-driven (`ProductRule` + `config_param`): attivarle/parametrizzarle **non** è un
+  deploy.
+- **Unica eccezione:** se un prodotto richiede un *tipo di schermata/interazione nuova* non ancora
+  supportata dall'app, quella serve svilupparla una volta; poi tutti i prodotti che la usano restano
+  data-driven. Obiettivo: le interazioni sono **generiche e configurabili**, così l'eccezione è rara.
+
 ## 1. Modello dati (delta)
 
 - **`Product`**: `id`, `name`, `slug`, `seasonal_tag` (nullable, es. "estate"), `objective`
