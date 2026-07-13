@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import AppHeader from '../components/AppHeader';
 
 const PHONE_PREFIXES = ['+39', '+41', '+33', '+49', '+43', '+44', '+34', '+32', '+31', '+351', '+386', '+1'];
 const COUNTRIES = ['Italia', 'Svizzera', 'Francia', 'Germania', 'Austria', 'Regno Unito', 'Spagna', 'Belgio', 'Paesi Bassi', 'Portogallo', 'Slovenia', 'Altro'];
@@ -209,8 +210,10 @@ export default function Profilo() {
   const fmtDate = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
-    <div className="menu">
-      <div className="menu-head">
+    <div className="home">
+      <AppHeader title="Profilo" />
+
+      <div className="menu-head" style={{ marginTop: 4 }}>
         <span className="event-ic" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-user" /></span>
         <div>
           <h1 style={{ margin: 0 }}>{name || 'Profilo'}</h1>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
+import AppHeader from '../components/AppHeader';
 
 /**
  * Assistente AI — chat REALE con il sistema di thread (GET /me/threads,
@@ -50,11 +51,8 @@ export default function Assistente() {
   }
 
   return (
-    <div className="menu">
-      <div className="menu-head">
-        <span className="event-ic" style={{ background: '#ECE7F7', color: '#6C5AB7' }}><i className="ti ti-sparkles" /></span>
-        <div><h1 style={{ margin: 0 }}>Assistente AI</h1><div className="muted">Ti rispondo subito; le domande sanitarie le giro alla nutrizionista</div></div>
-      </div>
+    <div className="home">
+      <AppHeader title="Gaia" />
 
       {loading ? (
         <div className="center" style={{ minHeight: 120 }}><div className="spin" /></div>

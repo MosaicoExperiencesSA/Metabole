@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
+import AppHeader from '../components/AppHeader';
 import { slotInfo, METHOD_LABEL, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
 
 /**
@@ -148,14 +149,8 @@ export default function Menu() {
   const meals = selDay?.meals ?? [];
 
   return (
-    <div className="menu">
-      <div className="menu-head">
-        <span className="event-ic" style={{ background: '#F3E8DC', color: '#B8863B' }}><i className="ti ti-chef-hat" /></span>
-        <div>
-          <h1 style={{ margin: 0 }}>Il mio menu</h1>
-          <div className="muted">La tua giornata</div>
-        </div>
-      </div>
+    <div className="home">
+      <AppHeader title="Il tuo menu" />
 
       {blocked?.active && (
         <div className="card" style={{ background: '#FBF0D6', border: '1px solid #EAD8A6', display: 'flex', gap: 10, alignItems: 'center' }}>
