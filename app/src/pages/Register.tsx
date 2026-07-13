@@ -1,11 +1,14 @@
 import { FormEvent, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import Gaia from '../components/Gaia';
 
 export default function Register() {
   const { register } = useAuth();
+  const [searchParams] = useSearchParams();
+  // Codice invito da link (es. app.metabole.eu/register?ref=ABC123) — precompilato.
+  const invitedCode = (searchParams.get('ref') ?? searchParams.get('refCode') ?? '').trim().toUpperCase();
   const [f, setF] = useState({
     firstName: '',
     lastName: '',
@@ -15,7 +18,7 @@ export default function Register() {
     province: '',
     email: '',
     password: '',
-    refCode: '',
+    refCode: invitedCode,
   });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,10 +97,15 @@ export default function Register() {
               className="input"
               value={f.refCode}
               onChange={(e) => up('refCode', e.target.value.toUpperCase())}
-              maxLength={6}
+              maxLength={8}
               placeholder="Es. AB12CD"
               style={{ letterSpacing: '2px', textTransform: 'uppercase' }}
             />
+            {invitedCode && f.refCode === invitedCode && (
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                <i className="ti ti-ticket" /> Codice invito applicato dal link.
+              </div>
+            )}
           </div>
           <button className="btn" type="submit" disabled={busy}>
             {busy ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Registrati'}

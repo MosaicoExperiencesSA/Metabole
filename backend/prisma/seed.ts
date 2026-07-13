@@ -227,6 +227,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Giorni entro cui un piano è considerato "in scadenza" nella dashboard coach',
   },
+  {
+    key: 'lead_accept_days',
+    value: '2',
+    type: 'number',
+    description: 'Giorni entro cui una coach deve accettare un lead assegnato: oltre, l\'assegnazione scade e la responsabile viene avvisata per riassegnarlo',
+  },
   // --- Soglie Alert engine (coda coach) ---
   {
     key: 'alert_inactive_days',

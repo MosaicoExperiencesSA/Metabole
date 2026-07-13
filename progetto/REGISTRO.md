@@ -7,6 +7,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Backlog #2 — Invito cliente dalla coach (ref code)** — la pagina di registrazione dell'app
+  ora accetta il codice invito dal link (`/register?ref=CODICE`, precompilato e con nota "codice applicato");
+  ampliato il campo a 8 caratteri per supportare anche i codici "porta un'amica" (8) oltre a quelli coach (6).
+  Nuovo endpoint self-service `GET /crm/my-invite` (ruolo coach): restituisce il proprio ref code (creato se
+  manca) + il link di registrazione pronto da condividere (base da `APP_URL`). Così la coach ha subito il suo
+  link d'invito (la UI dedicata arriverà con l'app coach). Il backend di auto-assegnazione via ref code
+  esisteva già. 3 test nuovi.
+- `[Sviluppo]` **Backlog #1 — Assegnazione lead a tempo: soglia in config** — il flusso c'era già
+  (assegna→pending, la coach accetta/rifiuta entro N giorni, scadenza via cron con notifica alla responsabile
+  per riassegnare). Portata la **finestra di accettazione da hardcodata (2 giorni) a config** `lead_accept_days`
+  (default 2), usata sia dal conto alla rovescia in "Lead da accettare" sia dalla scadenza del cron; testo
+  della notifica reso dinamico. 2 test nuovi. Con questo il #1 è completo.
+- `[Sviluppo]` **Backlog #3 — Numero versione app** — la versione (da `app/package.json`) viene iniettata a
+  build-time come costante `__APP_VERSION__` (Vite `define`) e mostrata in piccolo/discreto in fondo alla
+  pagina Profilo ("Metabole · v0.1.0"). Solo front-end app cliente.
 - `[Sviluppo]` **Backlog #0 — Permessi: pulsante "Salva" con conferma** — la matrice Permessi non salva
   più ogni interruttore all'istante: le modifiche si accumulano in locale (celle evidenziate + barra
   "N modifiche non salvate"), poi **Salva** apre un **modale di conferma** e invia il batch dei PATCH

@@ -64,6 +64,13 @@ export class LeadAssignmentController {
     return this.svc.myPending(user.sub);
   }
 
+  /** Invito della coach: proprio ref code + link di registrazione precompilato (backlog #2). */
+  @Roles('coach')
+  @Get('my-invite')
+  myInvite(@CurrentUser() user: AuthUser) {
+    return this.svc.myInvite(user.sub);
+  }
+
   @Roles('coach')
   @HttpCode(200)
   @Post('leads/:id/accept')

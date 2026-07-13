@@ -414,6 +414,10 @@ export default function Profilo() {
       <button className="btn ghost" style={{ marginTop: 18 }} onClick={() => { logout(); navigate('/'); }}>
         <i className="ti ti-logout" /> Esci
       </button>
+
+      <div className="muted" style={{ textAlign: 'center', fontSize: 11, marginTop: 20, opacity: 0.7 }}>
+        Metabole · v{__APP_VERSION__}
+      </div>
     </div>
   );
 }
