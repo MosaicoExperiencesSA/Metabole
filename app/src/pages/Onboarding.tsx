@@ -15,12 +15,14 @@ type Answers = Record<string, unknown>;
  * Corpo → Testa → Vita → Agenda → Gusto.
  * NB: 'meals' non è nel documento ma il backend richiede mealsPerDay → lo teniamo in Vita.
  */
+// Sezioni allineate 1:1 al prototipo (docs/): ordine testa·vita·agenda·gusto·corpo,
+// nomi/tab/intro/note e COLORI esatti dalla direttiva §3.
 const SECTIONS = [
-  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Procediamo con le domande sul corpo', note: 'Peso, misure e obiettivo. Niente giudizi: mi servono solo per partire.', desc: 'Peso, misure e obiettivo', icon: 'ti-target', color: '#12A386', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
-  { key: 'testa', tab: 'Testa', name: 'La testa', intro: 'Ora motivazione e carattere', note: 'Come vuoi essere seguita e che tipo sei.', desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C5AB7', voice: 'intro_testa', pages: ['coach_style', 'character'] },
-  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2E7BB5', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
-  { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', desc: 'Eventi e periodi speciali', icon: 'ti-calendar-heart', color: '#E8825A', voice: 'intro_agenda', pages: ['pause_periods'] },
-  { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', desc: 'Regime, stile e cibi', icon: 'ti-tools-kitchen-2', color: '#B8863B', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
+  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Partiamo dalla tua mente', note: 'Motivazione e carattere: come vuoi essere seguita.', desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C4CD6', soft: '#F3EFFB', voice: 'intro_testa', pages: ['coach_style', 'character'] },
+  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2F80ED', soft: '#EDF3FE', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
+  { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', desc: 'Eventi e periodi speciali', icon: 'ti-calendar-heart', color: '#E8543C', soft: '#FDF0EC', voice: 'intro_agenda', pages: ['pause_periods'] },
+  { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', desc: 'Regime, stile e cibi', icon: 'ti-tools-kitchen-2', color: '#E8A11B', soft: '#FEF7E8', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
+  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Per finire: i tuoi obiettivi', note: 'Peso e misure: il punto di partenza, senza giudizi.', desc: 'Peso, misure e obiettivo', icon: 'ti-target', color: '#12A386', soft: '#EAF7F2', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
 ] as const;
 
 type Section = (typeof SECTIONS)[number];
@@ -274,10 +276,11 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   }
 
   const curSecKey = cur.t === 'page' ? cur.sec.key : cur.t === 'theme' ? 'gusto' : null;
+  const curSoft = curSecKey ? SECTIONS.find((s) => s.key === curSecKey)?.soft : undefined;
 
   return (
     <div className="app-frame">
-      <div className="screen no-tabbar onb">
+      <div className="screen no-tabbar onb" style={curSoft ? { background: curSoft } : undefined}>
         <MuteBtn />
         <div className="progress"><div className="progress-bar" style={{ width: `${((idx + 1) / flow.length) * 100}%` }} /></div>
 
@@ -346,10 +349,16 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
         {cur.t === 'consent' && (
           <div className="onb-body">
-            <h1>Un ultimo passo</h1>
-            <p className="muted">
-              Per costruire un percorso sicuro trattiamo alcuni dati sulla tua salute. Sono visibili solo a te
-              e al tuo nutrizionista. Serve il tuo consenso per continuare.
+            <h1>Trattamento dei dati personali</h1>
+            <div className="qbubble">
+              <Gaia clip="privacy" size={62} controls={false} />
+              <div className="bubble">
+                <TypeText segments={[{ t: 'Manca solo la tua approvazione al trattamento dei dati personali e potrò costruire il tuo percorso personalizzato di ' }, { t: 'MetaboleAI', b: true }, { t: '. Clicca su accetta e procedo.' }]} />
+              </div>
+            </div>
+            <p className="muted" style={{ fontSize: 13 }}>
+              Trattiamo alcuni dati sulla tua salute solo per costruire un percorso sicuro. Sono visibili
+              solo a te e al tuo nutrizionista.
             </p>
             {submitErr && <div className="banner err">{submitErr}</div>}
             <label className="consent">
@@ -359,7 +368,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             <div className="onb-nav">
               <button className="btn ghost" onClick={back} disabled={submitting}>Indietro</button>
               <button className="btn" onClick={submit} disabled={!consent || submitting}>
-                {submitting ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Crea il mio percorso'}
+                {submitting ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Accetta e procedi'}
               </button>
             </div>
           </div>
