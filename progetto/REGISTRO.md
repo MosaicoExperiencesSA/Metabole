@@ -7,6 +7,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fix seed admin da Render (password che "non funzionava")** — `ensureAdminFromEnv` prima
+  applicava `ADMIN_PASSWORD` SOLO alla creazione dell'account: se l'admin (`ADMIN_EMAIL`, es.
+  `admin@metabole.eu`) esisteva già, la password su Render veniva ignorata → login impossibile. Ora il
+  seed: promuove ad admin, e **applica `ADMIN_PASSWORD`** se la password non è mai stata impostata
+  (placeholder) o se si imposta `ADMIN_PASSWORD_RESET=true` (reset forzato una tantum, poi si rimuove la
+  var); riattiva l'account se sospeso/archiviato. Così `admin@metabole.eu` è l'**admin principale
+  recuperabile da Render** (e resta non archiviabile, anti-lockout). Documentato in `render.yaml`.
+  Gira nel `preDeployCommand` a ogni deploy.
 - `[Sviluppo]` **Ruoli Marketing + archiviazione utenti + foto profilo (pulizia account)** — tre interventi
   a supporto della gestione utenti:
   1) **Ruoli Marketing**: nuovi ruoli RBAC `marketing` e `head_marketing` (Responsabile Marketing) —

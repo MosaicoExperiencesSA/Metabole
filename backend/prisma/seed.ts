@@ -726,30 +726,49 @@ async function backfillCoachRefCodes(): Promise<void> {
 /**
  * Admin principale da variabili d'ambiente (impostate nel pannello Render,
  * mai nel repo né in chat):
- *   ADMIN_EMAIL    → email dell'admin (default: simone.salogni@gmail.com)
- *   ADMIN_PASSWORD → password iniziale (min. 8 caratteri)
- * - Se l'account non esiste e ADMIN_PASSWORD è impostata → lo crea (admin, email
- *   già verificata) con quella password (salvata solo come hash argon2).
- * - Se esiste ma non è admin → lo promuove ad admin.
- * - Se esiste già → NON tocca la password (la gestisce l'admin dal backoffice).
- * Idempotente: non ricrea né sovrascrive un account esistente.
+ *   ADMIN_EMAIL          → email dell'admin (default: simone.salogni@gmail.com)
+ *   ADMIN_PASSWORD       → password (min. 8 caratteri)
+ *   ADMIN_PASSWORD_RESET → se "true", forza il reset della password all'ADMIN_PASSWORD
+ *                          anche su un account esistente (uso una tantum: poi togliere la var)
+ * - Account NON esistente + ADMIN_PASSWORD → lo crea (admin, email verificata).
+ * - Account esistente non admin → lo promuove ad admin.
+ * - Account esistente con password MAI impostata (placeholder) e ADMIN_PASSWORD presente
+ *   → gli applica la password (auto-riparazione: prima veniva ignorata, da qui il caso
+ *   "password su Render che non funziona").
+ * - Account esistente con password reale → NON la tocca, a meno di ADMIN_PASSWORD_RESET=true.
+ * Idempotente: non sovrascrive una password reale se non richiesto esplicitamente.
  */
 async function ensureAdminFromEnv(): Promise<void> {
   const email = (process.env.ADMIN_EMAIL ?? 'simone.salogni@gmail.com').trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
+  const forceReset = (process.env.ADMIN_PASSWORD_RESET ?? '').trim().toLowerCase() === 'true';
+  const usable = Boolean(password && password.length >= 8);
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.role !== 'admin') {
-      await prisma.user.update({ where: { id: existing.id }, data: { role: 'admin' } });
-      console.log(`Seed: ${email} promosso ad admin.`);
+    const data: Record<string, unknown> = {};
+    if (existing.role !== 'admin') data.role = 'admin';
+
+    // Applica ADMIN_PASSWORD se la password non è mai stata impostata (placeholder)
+    // oppure se è richiesto un reset forzato. Un account "attivo" resta accessibile.
+    const neverSet = existing.passwordHash === 'SET_VIA_PASSWORD_RESET';
+    if (usable && (neverSet || forceReset)) {
+      data.passwordHash = await argon2.hash(password as string);
+      if (!existing.emailVerifiedAt) data.emailVerifiedAt = new Date();
+      if (existing.status !== 'active') data.status = 'active';
+      if (existing.deletedAt) data.deletedAt = null;
+    }
+
+    if (Object.keys(data).length) {
+      await prisma.user.update({ where: { id: existing.id }, data: data as never });
+      const what = Object.keys(data).join(', ');
+      console.log(`Seed: admin ${email} aggiornato (${what}).`);
     }
     return;
   }
 
-  // Crea comunque l'account admin: con ADMIN_PASSWORD se fornita (≥8),
+  // Crea l'account admin: con ADMIN_PASSWORD se fornita (≥8),
   // altrimenti con una password non valida da impostare con "Password dimenticata".
-  const usable = Boolean(password && password.length >= 8);
   const passwordHash = usable ? await argon2.hash(password as string) : 'SET_VIA_PASSWORD_RESET';
   await prisma.user.create({
     data: { email, passwordHash, role: 'admin', locale: 'it', emailVerifiedAt: new Date() },
