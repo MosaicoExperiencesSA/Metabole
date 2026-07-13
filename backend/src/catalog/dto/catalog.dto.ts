@@ -92,6 +92,24 @@ export class UpdateDietProductDto {
   @IsOptional() @IsBoolean() clientVisible?: boolean;
 }
 
+/** Una regola del motore attivata/parametrizzata per un prodotto (Fase F). */
+export class ProductRuleItemDto {
+  @IsString() @MaxLength(20) ruleCode!: string;
+  @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @IsObject() params?: Record<string, unknown>;
+}
+
+export class SetProductRulesDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductRuleItemDto)
+  rules!: ProductRuleItemDto[];
+}
+
+export class RuleProposalDto {
+  @IsString() @MinLength(4) @MaxLength(500) text!: string;
+}
+
 class TemplateMealDto {
   @IsIn(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'])
   slot!: string;

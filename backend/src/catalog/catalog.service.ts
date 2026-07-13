@@ -137,6 +137,37 @@ export class CatalogService {
     return updated;
   }
 
+  // ---------- Regole del prodotto (Fase F) ----------
+
+  async getRules(dietId: string) {
+    await this.getDiet(dietId);
+    return this.prisma.productRule.findMany({ where: { dietId }, orderBy: { ruleCode: 'asc' } });
+  }
+
+  /** Attiva/parametrizza le regole opzionali del prodotto (upsert per ruleCode). */
+  async setRules(userId: string, dietId: string, rules: { ruleCode: string; enabled?: boolean; params?: Record<string, unknown> }[]) {
+    await this.getDiet(dietId);
+    for (const r of rules) {
+      await this.prisma.productRule.upsert({
+        where: { dietId_ruleCode: { dietId, ruleCode: r.ruleCode } },
+        create: { dietId, ruleCode: r.ruleCode, enabled: r.enabled ?? true, params: (r.params ?? {}) as never },
+        update: { enabled: r.enabled ?? true, params: (r.params ?? {}) as never },
+      });
+    }
+    await this.audit.log({ action: 'catalog.diet.rules.set', actorId: userId, entityType: 'diet', entityId: dietId, metadata: { count: rules.length } });
+    return this.getRules(dietId);
+  }
+
+  /** Coda "c'è un'altra regola?": proposta di una regola nuova. */
+  async proposeRule(userId: string, dietId: string, text: string) {
+    await this.getDiet(dietId);
+    const proposal = await this.prisma.ruleProposal.create({
+      data: { dietId, text, proposedBy: userId, status: 'pending' },
+    });
+    await this.audit.log({ action: 'catalog.diet.rule_proposal', actorId: userId, entityType: 'diet', entityId: dietId });
+    return proposal;
+  }
+
   /** Sostituisce i template giornata (dieta+livello+giorno). Verifica che le ricette esistano. */
   async setDayTemplates(userId: string, dietId: string, dto: SetDayTemplatesDto) {
     const diet = await this.getDiet(dietId);

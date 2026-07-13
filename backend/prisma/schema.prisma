@@ -1005,6 +1005,36 @@ model Diet {
   @@map("diet")
 }
 
+// Regole del motore attivate per un prodotto (dieta). rule_code dal catalogo (es. L5, L7, A2…).
+// I comportamenti sono mappati su config_param; qui si sceglie quali attivare per prodotto (Fase F).
+model ProductRule {
+  id        String   @id @default(uuid())
+  dietId    String   @map("diet_id")
+  ruleCode  String   @map("rule_code")
+  enabled   Boolean  @default(true)
+  params    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([dietId, ruleCode])
+  @@index([dietId])
+  @@map("product_rule")
+}
+
+// Coda "c'è un'altra regola?": proposta di una regola nuova, da approvare dal capo.
+model RuleProposal {
+  id         String   @id @default(uuid())
+  dietId     String   @map("diet_id")
+  text       String
+  proposedBy String?  @map("proposed_by")
+  status     String   @default("pending") // pending | approved | rejected
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("rule_proposal")
+}
+
 model Recipe {
   id             String   @id @default(uuid())
   name           String
