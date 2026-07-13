@@ -96,8 +96,10 @@ scelte.
 
 ## B1. Passi del wizard
 
-1. **Nome del prodotto** (es. "Vacanze in Serenità") + eventuale **tag stagionale** (es. Estate) e
-   descrizione breve.
+1. **Nome del prodotto** (es. "Vacanze in Serenità") + eventuale **tag stagionale** (es. Estate),
+   descrizione breve e **caratteristiche principali** (3–5 punti) — queste ultime **mostrate al
+   cliente** quando tocca il piano a pagina 16 (es. "Menu freschi da viaggio", "Nessuna dieta rigida",
+   "Seguita da coach e nutrizionista").
 2. **Menu del prodotto** (il cuore): inserimento dei menu **propri** per
    **Colazione · Pranzo · Cena** (obbligatori) e **Spuntini · Merende** (opzionali). Per ogni menu, le
    **ricette** (modi di cottura, etichetta caldo/freddo). **Regola ferrea:** i menu si inseriscono qui,

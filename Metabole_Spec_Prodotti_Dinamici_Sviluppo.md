@@ -26,12 +26,20 @@ né nativa) né un deploy del backend. Il prodotto è **dato**, non codice.
 - **Unica eccezione:** se un prodotto richiede un *tipo di schermata/interazione nuova* non ancora
   supportata dall'app, quella serve svilupparla una volta; poi tutti i prodotti che la usano restano
   data-driven. Obiettivo: le interazioni sono **generiche e configurabili**, così l'eccezione è rara.
+- **Voce di Gaia (importante):** l'audio è **pre-generato** (file MP3). Le frasi parlate **non devono
+  MAI enumerare dati dinamici** (nomi di prodotti, menu): resterebbero legate a un elenco fisso e
+  costringerebbero a rigenerare l'audio a ogni nuovo prodotto. I nomi dei prodotti compaiono **solo come
+  testo a schermo** (dato). Es. pagina 16: la voce dice *"Scegli il piano più adatto alle tue esigenze: tocca il nome di un piano
+  per scoprirne le caratteristiche principali."* (generica), mentre l'elenco prodotti è visivo e dinamico e ogni
+  nome è **toccabile** per aprirne la descrizione (anch'essa un dato del prodotto). Per leggere i nomi
+  si può usare la sintesi vocale del browser come fallback, ma le frasi guida restano generiche.
 
 ## 1. Modello dati (delta)
 
 - **`Product`**: `id`, `name`, `slug`, `seasonal_tag` (nullable, es. "estate"), `objective`
-  (`dimagrimento` | `mantenimento`), `status` (`bozza` | `in_review` | `attivo` | `archiviato`),
-  `created_by`, timestamps.
+  (`dimagrimento` | `mantenimento`), `client_description` (breve, mostrata al cliente),
+  `highlights` (JSON: 3–5 **caratteristiche principali** mostrate al cliente nella scelta),
+  `status` (`bozza` | `in_review` | `attivo` | `archiviato`), `created_by`, timestamps.
 - **`Menu`**: **legato a `product_id`** (obbligatorio). `meal` (colazione/spuntino/pranzo/merenda/cena),
   `name`, `season`, `kcal` (interne), `status`. **Nessuna FK/riferimento a menu di altri prodotti.**
 - **`Recipe`**: `menu_id`, `steps`, `serving` (`caldo`|`freddo`), `status`. Appartiene al menu del suo
@@ -50,7 +58,9 @@ join che unisca menu di prodotti diversi. A parità di piatti tra prodotti, le r
 
 Ruoli abilitati: nutrizionista / nutrizionista capo / admin. Passi:
 
-1. **Anagrafica**: nome, tag stagionale (opz.), obiettivo (dimagrimento/mantenimento), descrizione.
+1. **Anagrafica**: nome, tag stagionale (opz.), obiettivo (dimagrimento/mantenimento), descrizione
+   breve e **caratteristiche principali** (3–5 punti) — questi ultimi **mostrati al cliente** quando
+   tocca il piano a pagina 16.
 2. **Menu**: inserimento menu **propri** per colazione/pranzo/cena (obbligatori) + spuntini/merende
    (opz.), ciascuno con ricette (steps + `caldo/freddo`). Salvataggio come `bozza`.
 3. **Regole (consenso una a una)**: la UI presenta le regole **⚙️ opzionali** del catalogo, una per
@@ -88,6 +98,9 @@ default globali **solo per quel prodotto**).
 La schermata "Stile che preferisci" (pagina 16) non è più una lista statica: legge
 `GET /products?active=1` (con filtro stagionale se impostato). I prodotti esistenti (Mediterranea,
 Proteica, ecc.) diventano record `Product`; i due protocolli estate sono record come gli altri.
+Al **tocco sul nome** di un piano, la schermata mostra la `client_description` e le `highlights`
+(caratteristiche principali) di quel prodotto — coerente con la frase voce di Gaia. La voce resta
+generica; le caratteristiche sono **testo/dato**, non audio.
 
 ## 6. Vincoli & sicurezza (non negoziabili)
 
