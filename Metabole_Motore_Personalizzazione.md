@@ -23,6 +23,16 @@ cliente**, con apprendimento su gradimento ed efficacia. File di riferimento:
 - **Perché**: tracciabilità, responsabilità clinica per prodotto (ogni menu è approvato nel suo
   contesto), e nessuna contaminazione tra regimi/diete.
 
+## 0ter. Obiettivo del prodotto (dimagrimento / mantenimento)
+
+Ogni prodotto ha un **obiettivo** impostato alla creazione:
+- **Dimagrimento** — l'agente spinge l'efficacia (comportamento standard).
+- **Mantenimento** — efficacia **neutra**: si difende il risultato senza deficit (es. il prodotto
+  "Vacanze in Serenità"). Le porzioni restano standard, niente restrizione.
+
+L'obiettivo è un parametro del prodotto (non hardcodato) e modula i pesi dell'agente. Vedi
+`Metabole_Regole_Motore_Catalogo.md` (A4) e il wizard "Crea nuovo prodotto".
+
 ## 1. Ingredienti del motore (catalogo per regime)
 
 - **Menu** = la/le pietanze per UN pasto (es. "Pollo con funghi"). Ogni abbinamento diverso = nuovo menu.

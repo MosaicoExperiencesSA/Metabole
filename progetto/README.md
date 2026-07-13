@@ -70,7 +70,10 @@ le **collega**.
 - `../Metabole_Specifica_Giudice_Compliance.pdf` — specifica tecnica del Giudice (ruleset social + scoring + audit). → impatto Sviluppo.
 - `INTEGRAZIONE_MARKETING.md` — come reparto/agenti marketing entrano nel deploy (ruoli, eventi, endpoint).
 - `../Metabole_Macchina_Marketing_Schema.svg` — schema visivo della macchina (8 agenti + Giudice).
-- `../Metabole_Piani_Estate.pdf` — **prodotto**: due percorsi di luglio (Vacanze in Serenità + Ritorno in Equilibrio). → impatto Sviluppo: segnale `travel_mode`.
+- `../Metabole_Piani_Estate.pdf` — **prodotto**: due protocolli di luglio (Vacanze in Serenità + Ritorno in Equilibrio), creati come prodotti dal wizard.
+- `../Metabole_Regole_Motore_Catalogo.pdf` — **catalogo regole** del motore (🔒 sicurezza · ⚙️ opzionali) + spec wizard "Crea nuovo prodotto".
+- `../Metabole_Spec_Prodotti_Dinamici_Sviluppo.pdf` — **handover Sviluppo**: modello dati, API, wizard, agente per prodotto, pagina 16 dinamica. → impatto **[S]**.
+- `../Metabole_Testi_Gaia_Coach_Estate.pdf` — copioni Gaia + template Coach per i due protocolli.
 - `../Metabole_Analisi_Progetto_Mercato.md`, `../Metabole_Punti_Forza_Marketing.md`,
   `../Metabole_Analisi_Esperienza_Vendita.md`, `../Metabole_Confronto_App_e_Questionario_BitePal.md`.
 - `../Metabole_Coach_AI_e_Sondaggio.md`, `../Metabole_Sequenza_Schermate.md`, `../Metabole_Indice_Progetto.md`.
