@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import AppHeader from '../components/AppHeader';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
 
@@ -133,11 +134,8 @@ export default function Obiettivo() {
   if (loading) return <div className="center"><div className="spin" /></div>;
 
   return (
-    <div className="menu">
-      <div className="menu-head">
-        <span className="event-ic" style={{ background: '#E7EEF6', color: '#3A6EA5' }}><i className="ti ti-target" /></span>
-        <div><h1 style={{ margin: 0 }}>Il mio obiettivo</h1><div className="muted">Inserisci le misure e segui i progressi</div></div>
-      </div>
+    <div className="home">
+      <AppHeader title="I tuoi obiettivi" />
 
       {/* Misure di oggi */}
       <div className="card">

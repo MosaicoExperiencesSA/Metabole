@@ -40,6 +40,34 @@ body {
 }
 .screen.no-tabbar { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
 
+/* Header comune app (teal, angoli arrotondati in basso) — a tutta larghezza dentro .screen */
+.app-header {
+  margin: calc(-1 * (env(safe-area-inset-top) + 16px)) -16px 14px;
+  padding: calc(env(safe-area-inset-top) + 14px) 14px 18px;
+  background: linear-gradient(135deg, var(--teal), #0E6E5A);
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 10px 26px rgba(16, 110, 90, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.app-header-brand { font-size: 9px; color: rgba(255, 255, 255, 0.82); font-weight: 700; letter-spacing: 0.5px; }
+.app-header-title { font-size: 18px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hicon {
+  width: 34px; height: 34px; border-radius: 11px; flex: none;
+  background: rgba(255, 255, 255, 0.2); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; cursor: pointer; position: relative; padding: 0;
+}
+.hicon i { font-size: 17px; }
+.hicon-user { background: #fff; color: var(--teal); }
+.hicon .hbadge {
+  position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 8px; background: #E8543C; color: #fff; font-size: 8px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+}
+
 h1 { font-size: 22px; margin: 0 0 4px; }
 h2 { font-size: 17px; margin: 0 0 10px; }
 p { line-height: 1.5; }
@@ -98,30 +126,41 @@ p { line-height: 1.5; }
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(env(safe-area-inset-bottom) + 15px);
+  bottom: 0;
+  width: 100%;
+  max-width: 460px;
   display: flex;
   align-items: center;
-  gap: 4px;
   background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  padding: 6px 8px;
-  box-shadow: 0 10px 26px rgba(16, 64, 58, 0.16);
+  border-top: 1px solid var(--line);
+  padding: 8px 4px calc(env(safe-area-inset-bottom) + 11px);
+  box-shadow: 0 -8px 22px rgba(16, 48, 42, 0.06);
   z-index: 30;
 }
 .tab {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
+  background: none;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s ease;
+  color: #b4beba;
 }
-.tab i { font-size: 22px; }
+.tab i { font-size: 24px; }
+.tab.active { color: #fff; }
+.tab.active i {
+  background: var(--teal);
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 20px rgba(18, 163, 134, 0.42);
+  margin-top: -20px;
+}
 .tab span { display: none; } /* solo icone, come il design */
 
 /* Intestazione con saluto + mascotte */
@@ -235,6 +274,15 @@ p { line-height: 1.5; }
 .home-dots { display: flex; justify-content: center; gap: 5px; margin: 9px 0 2px; }
 .home-dots > span { width: 6px; height: 6px; border-radius: 50%; background: #d6ded9; transition: background 0.15s ease; }
 .home-dots > span.on { background: var(--teal); }
+
+/* Pallino LIVE (Contatti) */
+.livedot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; animation: livePulse 1.4s ease-in-out infinite; }
+@keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Segmenti (Percorso: Menu passati / Eventi) */
+.seg { display: flex; background: #F0F3F2; border-radius: 12px; padding: 3px; margin-bottom: 12px; }
+.seg .s { flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: #6E7B77; padding: 8px 0; border-radius: 9px; cursor: pointer; }
+.seg .s.on { background: #fff; color: var(--ink); box-shadow: 0 2px 6px rgba(16, 48, 42, 0.08); }
 .meal-row { display: flex; overflow: hidden; border: 1.5px solid #bfe0d2; border-radius: 16px; background: #fff; box-shadow: 0 4px 12px rgba(16, 64, 58, 0.08); }
 .meal-thumb { width: 92px; flex: none; display: flex; align-items: center; justify-content: center; }
 .meal-thumb i { font-size: 38px; }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import AppHeader from '../components/AppHeader';
 
 /** Agenda / calendario — giorni speciali ed eventi no-diet (dati reali). */
 
@@ -113,11 +114,8 @@ export default function Calendario() {
   if (loading) return <div className="center"><div className="spin" /></div>;
 
   return (
-    <div className="menu">
-      <div className="menu-head">
-        <span className="event-ic" style={{ background: '#FBEEE7', color: '#E8825A' }}><i className="ti ti-calendar-heart" /></span>
-        <div><h1 style={{ margin: 0 }}>Agenda</h1><div className="muted">I tuoi giorni speciali</div></div>
-      </div>
+    <div className="home">
+      <AppHeader title="Agenda" />
 
       {events.length === 0 && !adding && (
         <div className="card" style={{ textAlign: 'center' }}>

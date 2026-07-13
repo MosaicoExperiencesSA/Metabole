@@ -1,14 +1,22 @@
 import { FormEvent, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
+import Landing from './Landing';
 
+/**
+ * Accedi — come nel prototipo: un foglio che sale dal basso ("bottom sheet")
+ * sopra la Landing (MetaboleAI). "Bentornata" · Email o username · Password ·
+ * Entra · Password dimenticata?.
+ */
 export default function Login() {
   const { login } = useAuth();
+  const nav = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -24,51 +32,73 @@ export default function Login() {
   }
 
   return (
-    <div className="app-frame">
-      <div className="screen no-tabbar">
-        <div className="hero" style={{ marginBottom: 22 }}>
-          <div className="chip" style={{ marginBottom: 10 }}>
-            <i className="ti ti-sparkles" /> Metabole
-          </div>
-          <h1 style={{ color: '#fff' }}>Bentornata 👋</h1>
-          <p style={{ margin: 0, opacity: 0.9 }}>Accedi per continuare il tuo percorso.</p>
-        </div>
-
-        {err && <div className="banner err">{err}</div>}
-
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label>Email</label>
-            <input
-              className="input"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label>Password</label>
-            <input
-              className="input"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button className="btn" type="submit" disabled={busy}>
-            {busy ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Accedi'}
-          </button>
-        </form>
-
-        <p className="muted" style={{ textAlign: 'center', marginTop: 22 }}>
-          Non hai un account? <Link className="link" to="/register">Registrati</Link>
-        </p>
+    <>
+      {/* Landing sullo sfondo (non interattiva) */}
+      <div aria-hidden style={{ pointerEvents: 'none' }}>
+        <Landing />
       </div>
-    </div>
+
+      {/* Foglio di accesso */}
+      <div className="sheet-overlay" onClick={() => nav('/')}>
+        <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
+          <div className="sheet-grab" />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--teal)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+              <i className="ti ti-login-2" style={{ fontSize: 16 }} />
+            </span>
+            <b style={{ fontSize: 16 }}>Bentornata</b>
+          </div>
+
+          {err && <div className="banner err">{err}</div>}
+
+          <form onSubmit={onSubmit}>
+            <div className="field">
+              <label>Email o username</label>
+              <input
+                className="input"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label>Password</label>
+              <input
+                className="input"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <button className="btn" type="submit" disabled={busy} style={{ marginTop: 6 }}>
+              {busy ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Entra'}
+            </button>
+          </form>
+
+          <div
+            className="muted"
+            style={{ textAlign: 'center', fontSize: 12, marginTop: 12, cursor: 'pointer' }}
+            onClick={() => setShowHelp((v) => !v)}
+          >
+            Password dimenticata?
+          </div>
+          {showHelp && (
+            <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 6 }}>
+              Scrivi a <a className="link" href="mailto:supporto@metabole.eu">supporto@metabole.eu</a> e ti aiutiamo a reimpostarla.
+            </p>
+          )}
+
+          <p className="muted" style={{ textAlign: 'center', marginTop: 14, fontSize: 13 }}>
+            Non hai un account? <Link className="link" to="/register">Registrati</Link>
+          </p>
+        </div>
+      </div>
+    </>
   );
 }
