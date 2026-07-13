@@ -5,6 +5,11 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-07-14
+
+
+- `[Prodotto]` **Marketing — testimonianze sul sito + pubblicazione social (spec)** — la sezione **Storie** del sito ora è **dinamica** (`data-testimonials-endpoint`, con fallback alle 3 storie statiche): ogni testimonianza **approvata** nel marketing **compare automaticamente sul sito** oltre a essere usata nei contenuti. Nuovo doc `../Metabole_Testimonianze_Social_Publishing.md`: entità **`Testimonial`** + flusso (raccolta → **Giudice**/consenso → approvazione responsabile marketing → pubblica su sito + marketing); e **Publisher via API** per i social — **Facebook Pagina + Instagram** (Meta Graph / Instagram Content Publishing API: account Business, Pagina collegata, IG professionale, app Meta, permessi `instagram_content_publish`, **App Review** 2–4 sett., pubblicazione in 2 passi), **TikTok** (Content Posting API: App Review, upload a chunk, token 24h, limiti/giorno, no scheduling nativo), + canali **consigliati** (LinkedIn, YouTube, Threads, Pinterest, Google Business, WhatsApp/Telegram). Entità `SocialAccount`/`SocialPost`, adapter per canale, guardrail (Giudice, rate limit, token refresh, audit, segreti su Render). → **impatto [Sviluppo]:** entità Testimonial + endpoint (sito già pronto), Publisher + adapter social, gestione OAuth/token. NB: collegare account e App Review sono **azioni dell'utente/business** (l'AI non fa login/OAuth).
+
 ## 2026-07-13
 
 

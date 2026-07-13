@@ -209,7 +209,7 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
 @media(max-width:880px){.hero-grid,.lead-person,.day,.lead-band{grid-template-columns:1fr}.stats,.concept,.tst{grid-template-columns:1fr 1fr}.cult .grid{grid-template-columns:1fr 1fr}.coaches{grid-template-columns:repeat(3,1fr)}.nav .links{display:none}.hero h1{font-size:42px}h2{font-size:30px}}
 @media(max-width:520px){.stats,.concept,.tst,.cult .grid{grid-template-columns:1fr}.coaches{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:34px}}
 </style></head>
-<body data-i18n-endpoint="" data-stats-endpoint="" data-paths-endpoint="">
+<body data-i18n-endpoint="" data-stats-endpoint="" data-paths-endpoint="" data-testimonials-endpoint="">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="gaiaMascot" viewBox="0 0 240 250">
   <style>
@@ -432,7 +432,7 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
   <div class="kick" data-i18n="stories_k">Storie vere</div>
   <h2 data-i18n="stories_t">Le parole di chi è seguito da noi</h2>
   <p class="lead" data-i18n="stories_lead">Nessun numero, nessuna promessa: solo come ci si sente.</p>
-  <div class="tst">
+  <div class="tst" id="storiesGrid">
     <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/martina/200/200'"></div><div><b>Martina</b><small>41</small></div></div><p data-i18n="q1">"Finalmente mi sento seguita davvero. La coach c'è, e questo cambia tutto."</p></div>
     <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=200&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/elena/200/200'"></div><div><b>Elena</b><small>35</small></div></div><p data-i18n="q2">"Mangio con gusto e le giornate storte non mi buttano più giù."</p></div>
     <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/giulia/200/200'"></div><div><b>Giulia</b><small>38</small></div></div><p data-i18n="q3">"Un nutrizionista vero e Gaia sempre lì: mi sento in mani sicure."</p></div>
@@ -598,6 +598,18 @@ function loadStats(){
     if(s&&typeof s==='object'){if(s.years!=null)STATS.years=s.years;if(s.clients!=null)STATS.clients=s.clients;if(s.reached!=null)STATS.reached=s.reached;if(s.methods!=null)STATS.methods=s.methods;applyStats(document.documentElement.lang);}
   }).catch(function(){});
 }
+/* --- Testimonianze dinamiche (dal marketing): ogni testimonianza approvata compare qui --- */
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function loadTestimonials(){
+  var ep=document.body.getAttribute('data-testimonials-endpoint');if(!ep)return;
+  var grid=document.getElementById('storiesGrid');if(!grid)return;
+  fetch(ep).then(function(r){return r.json()}).then(function(list){
+    if(!Array.isArray(list)||!list.length)return;
+    grid.innerHTML=list.map(function(t){var ph=t.photo||('https://picsum.photos/seed/'+encodeURIComponent(t.name||'p')+'/200/200');
+      return '<div class="quote"><div class="row"><div class="pic"><img src="'+esc(ph)+'" alt=""></div><div><b>'+esc(t.name||'')+'</b>'+(t.age?'<small>'+esc(t.age)+'</small>':'')+'</div></div><p>'+esc(t.text||'')+'</p></div>';
+    }).join('');
+  }).catch(function(){});
+}
 /* --- Percorsi alimentari dinamici (da endpoint app, es. /onboarding/diet-products) --- */
 function loadPaths(){
   var ep=document.body.getAttribute('data-paths-endpoint');if(!ep)return;
@@ -617,7 +629,7 @@ var start=saved||(I18N[nav]?nav:'it');
 I18N_ENDPOINT=document.body.getAttribute('data-i18n-endpoint')||I18N_ENDPOINT;
 setLang(start);
 loadRemoteI18N(function(){setLang(document.documentElement.lang||start);});
-loadStats();loadPaths();
+loadStats();loadPaths();loadTestimonials();
 document.getElementById('lang').addEventListener('change',function(){setLang(this.value)});
 // cookie banner
 if(!ls('mb_cookie')){document.getElementById('cookieBar').style.display='flex';}
