@@ -2,208 +2,275 @@
 <html lang="it"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MetaboleAI — Persone vere + AI per il tuo percorso di benessere</title>
-<meta name="description" content="Un percorso di benessere con coach e nutrizionista veri, potenziato da un'AI che cuce la dieta su di te: gustosa, sostenibile, senza fame.">
+<title>MetaboleAI — Al centro ci sei tu</title>
+<meta name="description" content="Al centro ci sei tu. Gaia organizza il resto — menu, coach, nutrizionista, eventi e imprevisti — con persone vere sempre al tuo fianco.">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--teal:#12A386;--deep:#0E5A49;--coral:#E8825A;--violet:#6C4CD6;--ink:#14312B;--mut:#5f726c;--bg:#F6FAF8;--card:#fff;--bd:#E4EEEA}
+:root{--teal:#12A386;--deep:#0E5A49;--coral:#E8825A;--violet:#6C4CD6;--gold:#E8A11B;--ink:#16302A;--mut:#61736D;--bg:#FBFAF6;--card:#fff;--bd:#EAECE5;--serif:'Fraunces',Georgia,serif}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55}
+body{font-family:'Inter',-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
-.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
-.btn{display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:13px 22px;font-size:15px;font-weight:600;cursor:pointer;border:0}
-.btn.p{background:var(--teal);color:#fff}
+img{display:block;max-width:100%}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:100px;padding:14px 26px;font-size:15px;font-weight:600;cursor:pointer;border:0;transition:transform .15s,box-shadow .15s}
+.btn:hover{transform:translateY(-2px)}
+.btn.p{background:var(--teal);color:#fff;box-shadow:0 10px 24px rgba(18,163,134,.28)}
 .btn.g{background:#fff;color:var(--deep);border:1.5px solid var(--bd)}
 .btn.w{background:#fff;color:var(--deep)}
-.sec{color:var(--teal);font-weight:700;font-size:13px;letter-spacing:.6px;text-transform:uppercase}
-h2{font-size:32px;font-weight:800;line-height:1.15;letter-spacing:-.5px;margin:8px 0 10px}
-.sub{color:var(--mut);font-size:16px;max-width:640px}
+.kick{color:var(--teal);font-weight:600;font-size:13px;letter-spacing:1.2px;text-transform:uppercase}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.3px;line-height:1.12}
+h2{font-size:38px;margin:10px 0 12px}
+.lead{color:var(--mut);font-size:17px;max-width:620px}
+section{padding:70px 0}
 /* header */
-header{position:sticky;top:0;z-index:20;background:rgba(246,250,248,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--bd)}
-.nav{display:flex;align-items:center;gap:22px;height:64px}
-.logo{font-weight:800;font-size:20px;color:var(--deep);letter-spacing:-.3px}
+header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd)}
+.nav{display:flex;align-items:center;gap:26px;height:68px}
+.logo{font-family:var(--serif);font-weight:600;font-size:22px;color:var(--deep)}
 .logo span{color:var(--violet)}
-.nav .links{display:flex;gap:22px;margin-left:auto;font-size:14px;color:var(--mut);font-weight:500}
+.nav .links{display:flex;gap:24px;margin-left:auto;font-size:14.5px;color:var(--mut);font-weight:500}
 .nav .links a:hover{color:var(--deep)}
-.nav .cta{margin-left:8px}
 /* hero */
-.hero{padding:56px 0 40px}
-.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
-.badge{display:inline-flex;align-items:center;gap:7px;background:#E7F5F0;color:var(--deep);font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px}
-.hero h1{font-size:46px;font-weight:800;line-height:1.08;letter-spacing:-1px;margin:16px 0 14px}
-.hero h1 b{color:var(--teal)}
-.hero .lead{font-size:18px;color:var(--mut);max-width:520px}
-.hero .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
-.hero .trust{display:flex;align-items:center;gap:10px;margin-top:18px;color:var(--mut);font-size:13.5px}
-.stars{color:#F2B807;letter-spacing:1px}
-.card-gaia{background:linear-gradient(160deg,var(--deep),var(--teal));border-radius:26px;padding:24px;color:#fff;box-shadow:0 26px 60px rgba(14,64,58,.28)}
-.card-gaia .top{display:flex;align-items:center;gap:10px;font-size:13px;opacity:.9;font-weight:600;margin-bottom:14px}
-.mascot{width:64px;height:64px;border-radius:50%;background:#EAF7F2;flex:none;display:flex;align-items:center;justify-content:center}
-.bubble{background:rgba(255,255,255,.14);border-radius:16px 16px 16px 5px;padding:13px 15px;font-size:14.5px;line-height:1.5}
-.mini{display:flex;gap:8px;margin-top:14px}
-.mini div{flex:1;background:rgba(255,255,255,.12);border-radius:12px;padding:10px;text-align:center;font-size:12px}
-.mini i{font-size:19px;display:block;margin-bottom:4px}
-/* generic section */
-section{padding:52px 0}
-.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
-.pill{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:20px}
-.pill .ic{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
-.pill h3{font-size:16px;margin-bottom:5px}
-.pill p{font-size:13.5px;color:var(--mut)}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
-.step{position:relative;background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:20px}
-.step .n{width:30px;height:30px;border-radius:50%;background:var(--teal);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;margin-bottom:12px}
-.step h3{font-size:15px;margin-bottom:5px}
+.hero{padding:60px 0 24px;overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center}
+.h-badge{display:inline-flex;align-items:center;gap:8px;background:#EAF3EE;color:var(--deep);font-size:13px;font-weight:600;padding:7px 14px;border-radius:100px}
+.hero h1{font-size:58px;margin:18px 0 16px}
+.hero h1 em{font-style:normal;color:var(--teal)}
+.hero .lead{font-size:19px}
+.hero .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+/* ORBIT animation */
+.orbit{position:relative;width:min(460px,92vw);aspect-ratio:1;margin:0 auto}
+.orbit svg{position:absolute;inset:0;width:100%;height:100%}
+.ring{fill:none;stroke:#CDE7DE;stroke-width:1.5;stroke-dasharray:3 8;transform-origin:200px 200px;animation:spin 40s linear infinite}
+.ring2{fill:none;stroke:#EAD9F5;stroke-width:1.5;transform-origin:200px 200px;animation:spin 60s linear infinite reverse}
+.spoke{stroke:#DCEAE5;stroke-width:1.5}
+.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38%;aspect-ratio:1;border-radius:50%;overflow:hidden;border:5px solid #fff;box-shadow:0 18px 40px rgba(16,64,58,.22);z-index:3}
+.center img{width:100%;height:100%;object-fit:cover}
+.center .lbl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(14,64,58,.72));color:#fff;font-size:12px;font-weight:600;text-align:center;padding:14px 4px 7px}
+.node{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--bd);border-radius:14px;padding:9px 13px;display:flex;align-items:center;gap:8px;box-shadow:0 10px 26px rgba(16,64,58,.12);z-index:4;font-size:13px;font-weight:600;white-space:nowrap;animation:float 6s ease-in-out infinite}
+.node i{font-size:18px}
+.node.n1{left:50%;top:9%;animation-delay:0s}
+.node.n2{left:88%;top:32%;animation-delay:.8s}
+.node.n3{left:82%;top:80%;animation-delay:1.6s}
+.node.n4{left:18%;top:80%;animation-delay:2.4s}
+.node.n5{left:12%;top:32%;animation-delay:3.2s}
+.gwrap{position:absolute;inset:0;transform-origin:50% 50%;animation:spin 18s linear infinite;z-index:5}
+.gaia{position:absolute;left:50%;top:6%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;background:linear-gradient(150deg,#8FE0C6,#12A386);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(18,163,134,.4);animation:cspin 18s linear infinite}
+.gaia i{color:#fff;font-size:26px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes cspin{to{transform:translate(-50%,-50%) rotate(-360deg)}}
+@keyframes float{0%,100%{translate:0 0}50%{translate:0 -7px}}
+@media(prefers-reduced-motion:reduce){.ring,.ring2,.gwrap,.gaia,.node{animation:none}}
+.orbit-cap{text-align:center;margin-top:14px;color:var(--mut);font-size:14px}
+/* photo band */
+.band{position:relative;border-radius:26px;overflow:hidden;min-height:340px;display:flex;align-items:flex-end}
+.band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.band .ov{position:relative;background:linear-gradient(transparent,rgba(11,40,34,.82));color:#fff;padding:40px 32px;width:100%}
+.band .ov h2{color:#fff;font-size:30px}
+.band .ov p{color:#DCEAE4;max-width:520px}
+/* concept row */
+.concept{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:30px}
+.cc{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px}
+.cc .ic{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.cc h3{font-family:var(--serif);font-size:19px;margin-bottom:6px}
+.cc p{font-size:14.5px;color:var(--mut)}
+/* team */
+.lead-person{display:grid;grid-template-columns:.85fr 1.15fr;gap:34px;align-items:center;background:var(--card);border:1px solid var(--bd);border-radius:26px;padding:30px;margin-top:26px}
+.lead-person .pic{border-radius:20px;overflow:hidden;aspect-ratio:4/5}
+.lead-person .pic img{width:100%;height:100%;object-fit:cover}
+.cred{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.cred span{background:#EAF3EE;color:var(--deep);font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:100px}
+.coaches{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:24px}
+.coach{text-align:center}
+.coach .pic{border-radius:18px;overflow:hidden;aspect-ratio:1;margin-bottom:9px}
+.coach .pic img{width:100%;height:100%;object-fit:cover}
+.coach b{font-size:13.5px;display:block}
+.coach small{font-size:11.5px;color:var(--mut)}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:28px}
+.step{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:22px}
+.step .n{width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;font-family:var(--serif);font-weight:600;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:14px}
+.step h3{font-family:var(--serif);font-size:17px;margin-bottom:5px}
 .step p{font-size:13.5px;color:var(--mut)}
-.team{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
-.member{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:22px;text-align:center}
-.member .av{width:66px;height:66px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff}
-.member h3{font-size:17px}
-.member .role{color:var(--teal);font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin:2px 0 8px}
-.member p{font-size:13.5px;color:var(--mut)}
-.diff{background:var(--deep);color:#fff;border-radius:24px;padding:34px;margin-top:10px}
-.diff h2{color:#fff}
-.diff .row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
-.diff .row div{background:rgba(255,255,255,.08);border-radius:14px;padding:16px;font-size:14px}
-.diff .row b{display:block;margin-bottom:5px;color:#BFE9DC}
-.tst{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
-.quote{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:20px}
-.quote p{font-size:14.5px;font-style:italic;color:#28433c}
-.quote .who{margin-top:12px;font-size:13px;color:var(--mut);font-weight:600}
+/* day */
+.day{display:grid;grid-template-columns:1.1fr .9fr;gap:34px;align-items:center}
+.day .pic{border-radius:24px;overflow:hidden;aspect-ratio:5/4}
+.day .pic img{width:100%;height:100%;object-fit:cover}
+.time{display:flex;gap:12px;margin:14px 0;align-items:flex-start}
+.time .t{font-family:var(--serif);color:var(--teal);font-weight:600;min-width:56px}
+.time p{font-size:14.5px;color:var(--ink)}
+/* stories */
+.tst{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px}
+.quote{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px}
+.quote .row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.quote .row .pic{width:48px;height:48px;border-radius:50%;overflow:hidden;flex:none}
+.quote .row .pic img{width:100%;height:100%;object-fit:cover}
+.quote .row b{font-size:14px;display:block}
+.quote .row small{font-size:12px;color:var(--mut)}
+.quote p{font-size:15px;color:#28433c;font-family:var(--serif);font-weight:500;line-height:1.45}
 /* lead */
-.lead-band{background:linear-gradient(160deg,#EAF7F2,#fff);border:1px solid var(--bd);border-radius:24px;padding:34px;display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center}
+.lead-band{background:linear-gradient(150deg,#EAF6F0,#fff);border:1px solid var(--bd);border-radius:26px;padding:36px;display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:center}
 .form label{font-size:12.5px;color:var(--mut);font-weight:600;display:block;margin:10px 0 4px}
-.form input{width:100%;border:1.5px solid var(--bd);border-radius:11px;padding:12px 13px;font-size:15px;background:#fff}
+.form input{width:100%;border:1.5px solid var(--bd);border-radius:12px;padding:13px 14px;font-size:15px;background:#fff}
 .form .chk{display:flex;gap:9px;align-items:flex-start;margin-top:12px;font-size:12px;color:var(--mut)}
 .form .btn{width:100%;justify-content:center;margin-top:14px}
-.form .ok{display:none;background:#E7F5F0;color:var(--deep);border-radius:12px;padding:14px;font-size:14px;font-weight:600;margin-top:12px}
-/* faq */
-.faq{margin-top:24px;max-width:760px}
-.qa{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px 18px;margin-bottom:10px}
-.qa b{display:block;font-size:15px;margin-bottom:5px}
-.qa p{font-size:13.5px;color:var(--mut)}
-/* final */
-.final{background:linear-gradient(160deg,var(--teal),var(--deep));border-radius:26px;padding:44px;text-align:center;color:#fff}
-.final h2{color:#fff}
-.final p{color:#DCF0E9;max-width:560px;margin:6px auto 20px}
-footer{padding:34px 0;color:var(--mut);font-size:13px;border-top:1px solid var(--bd);margin-top:40px}
-.foot{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
-.foot a{color:var(--mut)}
+.form .ok{display:none;background:#EAF3EE;color:var(--deep);border-radius:12px;padding:14px;font-size:14px;font-weight:600;margin-top:12px}
+/* faq + final */
+.faq{margin-top:24px;max-width:780px}
+.qa{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:17px 20px;margin-bottom:11px}
+.qa b{display:block;font-size:15.5px;margin-bottom:5px;font-family:var(--serif)}
+.qa p{font-size:14px;color:var(--mut)}
+.final{position:relative;border-radius:28px;overflow:hidden;padding:60px 34px;text-align:center;color:#fff}
+.final img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.final .ov{position:absolute;inset:0;background:linear-gradient(150deg,rgba(14,64,58,.9),rgba(18,163,134,.82))}
+.final .c{position:relative}
+.final h2{color:#fff;font-size:36px}.final p{color:#DCF0E9;max-width:560px;margin:8px auto 22px}
+footer{padding:36px 0;color:var(--mut);font-size:13px;border-top:1px solid var(--bd);margin-top:40px}
+.foot{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
 .foot .sp{margin-left:auto}
-@media(max-width:820px){
-  .hero-grid,.lead-band{grid-template-columns:1fr}
-  .pillars,.steps,.team,.tst,.diff .row{grid-template-columns:1fr 1fr}
-  .hero h1{font-size:36px}.nav .links{display:none}
-}
-@media(max-width:520px){.pillars,.steps,.team,.tst,.diff .row{grid-template-columns:1fr}h2{font-size:26px}}
+@media(max-width:880px){.hero-grid,.lead-person,.day,.lead-band{grid-template-columns:1fr}.concept,.steps,.tst{grid-template-columns:1fr 1fr}.coaches{grid-template-columns:repeat(3,1fr)}.nav .links{display:none}.hero h1{font-size:42px}h2{font-size:30px}}
+@media(max-width:520px){.concept,.steps,.tst{grid-template-columns:1fr}.coaches{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:34px}}
 </style></head>
 <body>
 
 <header><div class="wrap nav">
   <div class="logo">Metabole<span>AI</span></div>
   <div class="links">
-    <a href="#come">Come funziona</a>
-    <a href="#team">Il team</a>
-    <a href="#diverso">Perché diverso</a>
-    <a href="#faq">Domande</a>
+    <a href="#concept">Come funziona</a>
+    <a href="#team">Chi ti segue</a>
+    <a href="#giorno">Un giorno con te</a>
+    <a href="#storie">Storie</a>
   </div>
-  <a class="btn p cta" href="https://app.metabole.eu/">Inizia il percorso</a>
+  <a class="btn p" href="https://app.metabole.eu/">Inizia</a>
 </div></header>
 
 <section class="hero"><div class="wrap hero-grid">
   <div>
-    <span class="badge"><i class="ti ti-heart-handshake"></i> Persone vere + intelligenza artificiale</span>
-    <h1>Non una dieta. Un <b>percorso</b> cucito su di te.</h1>
-    <p class="lead">Coach e nutrizionista veri, insieme a un'AI che adatta il tuo menu giorno per giorno: gustoso, sostenibile e senza fame. Perché il benessere si costruisce, non si subisce.</p>
+    <span class="h-badge"><i class="ti ti-sparkles"></i> Al centro ci sei tu</span>
+    <h1>Tu vivi.<br><em>Gaia</em> organizza il resto.</h1>
+    <p class="lead">Menu, coach, nutrizionista, eventi e imprevisti: il tuo percorso ruota intorno a te, guidato da persone vere e da un'assistente sempre presente.</p>
     <div class="actions">
       <a class="btn p" href="https://app.metabole.eu/">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
-      <a class="btn g" href="#come">Guarda come funziona</a>
+      <a class="btn g" href="#team">Conosci chi ti segue</a>
     </div>
-    <div class="trust"><span class="stars">★★★★★</span> Migliaia di persone hanno già iniziato il loro percorso.</div>
   </div>
-  <div class="card-gaia">
-    <div class="top"><i class="ti ti-sparkles"></i> La tua assistente AI</div>
-    <div style="display:flex;gap:12px;align-items:flex-start">
-      <div class="mascot"><i class="ti ti-mood-smile" style="font-size:34px;color:#0E5A49"></i></div>
-      <div class="bubble">Ciao, sono <b>Gaia</b>. Ti accompagno ogni giorno e cucio il percorso su di te, insieme alla tua coach e al nutrizionista.</div>
+  <div>
+    <div class="orbit">
+      <svg viewBox="0 0 400 400" aria-hidden="true">
+        <circle class="ring" cx="200" cy="200" r="150"></circle>
+        <circle class="ring2" cx="200" cy="200" r="110"></circle>
+        <line class="spoke" x1="200" y1="200" x2="200" y2="52"></line>
+        <line class="spoke" x1="200" y1="200" x2="330" y2="128"></line>
+        <line class="spoke" x1="200" y1="200" x2="312" y2="312"></line>
+        <line class="spoke" x1="200" y1="200" x2="88" y2="312"></line>
+        <line class="spoke" x1="200" y1="200" x2="70" y2="128"></line>
+      </svg>
+      <div class="center">
+        <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80" alt="Tu, al centro del tuo percorso" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboleyou/400/400'">
+        <div class="lbl">Tu</div>
+      </div>
+      <div class="node n1" style="color:#0E5A49"><i class="ti ti-salad" style="color:var(--teal)"></i> Menu</div>
+      <div class="node n2" style="color:#0E5A49"><i class="ti ti-heart-handshake" style="color:var(--coral)"></i> Coach</div>
+      <div class="node n3" style="color:#0E5A49"><i class="ti ti-stethoscope" style="color:#274b73"></i> Nutrizionista</div>
+      <div class="node n4" style="color:#0E5A49"><i class="ti ti-calendar-heart" style="color:var(--gold)"></i> Eventi</div>
+      <div class="node n5" style="color:#0E5A49"><i class="ti ti-bolt" style="color:var(--violet)"></i> Imprevisti</div>
+      <div class="gwrap"><div class="gaia" title="Gaia"><i class="ti ti-mood-smile"></i></div></div>
     </div>
-    <div class="mini">
-      <div><i class="ti ti-salad"></i>Menu gustosi</div>
-      <div><i class="ti ti-mood-heart"></i>Senza fame</div>
-      <div><i class="ti ti-users"></i>Team vero</div>
-    </div>
+    <div class="orbit-cap">Gaia connette tutto ciò che ti serve, intorno a te.</div>
+  </div>
+</div></section>
+
+<section id="concept"><div class="wrap">
+  <div class="kick">L'idea</div>
+  <h2>Un percorso che gira intorno alla tua vita</h2>
+  <p class="lead">Non sei tu a doverti adattare a una dieta. È il percorso ad adattarsi a te — ogni giorno.</p>
+  <div class="concept">
+    <div class="cc"><div class="ic" style="background:#EAF7F2;color:#12A386"><i class="ti ti-salad" style="font-size:24px"></i></div><h3>Il menu su misura</h3><p>Gaia compone i tuoi pasti su gusti e stagione; il nutrizionista li valida. Gustoso, senza fame.</p></div>
+    <div class="cc"><div class="ic" style="background:#FBEEE7;color:#E8825A"><i class="ti ti-heart-handshake" style="font-size:24px"></i></div><h3>Le persone che ci sono</h3><p>Una coach vera che ti segue e un nutrizionista che presidia la tua salute. Non solo notifiche.</p></div>
+    <div class="cc"><div class="ic" style="background:#EFEAF9;color:#6C4CD6"><i class="ti ti-calendar-heart" style="font-size:24px"></i></div><h3>La vita, com'è</h3><p>Un matrimonio, le vacanze, una giornata storta: Gaia riorganizza tutto, senza sensi di colpa.</p></div>
   </div>
 </div></section>
 
 <section><div class="wrap">
-  <div class="sec">Perché MetaboleAI</div>
-  <h2>Il meglio dei due mondi</h2>
-  <p class="sub">La tecnologia che personalizza, le persone che ti seguono davvero.</p>
-  <div class="pillars">
-    <div class="pill"><div class="ic" style="background:#EFEAF9;color:#6C4CD6"><i class="ti ti-robot" style="font-size:22px"></i></div><h3>Persone vere + AI</h3><p>Un'AI che lavora insieme a coach e nutrizionista, per te.</p></div>
-    <div class="pill"><div class="ic" style="background:#E7F5F0;color:#0E5A49"><i class="ti ti-adjustments-heart" style="font-size:22px"></i></div><h3>Davvero su misura</h3><p>Il tuo percorso parte dai tuoi gusti e dalla tua vita. La tua, e solo la tua.</p></div>
-    <div class="pill"><div class="ic" style="background:#FBEEE7;color:#E8825A"><i class="ti ti-tools-kitchen-2" style="font-size:22px"></i></div><h3>Piacere senza fame</h3><p>Cibo di stagione, porzioni vere, tante ricette. Mangi bene e stai bene.</p></div>
-    <div class="pill"><div class="ic" style="background:#EAF7F2;color:#12A386"><i class="ti ti-mood-heart" style="font-size:22px"></i></div><h3>Ti capisce</h3><p>Si adatta alle tue giornate no e ai tuoi eventi, senza giudicare.</p></div>
-  </div>
-</div></section>
-
-<section id="come"><div class="wrap">
-  <div class="sec">Come funziona</div>
-  <h2>Il tuo percorso in pochi passi</h2>
-  <div class="steps">
-    <div class="step"><div class="n">1</div><h3>Raccontati</h3><p>Rispondi a qualche domanda su mente, vita, gusto e obiettivi: ci mette pochi minuti.</p></div>
-    <div class="step"><div class="n">2</div><h3>Costruiamo il tuo piano</h3><p>Il nutrizionista valida e l'AI cuce il percorso sulle tue risposte.</p></div>
-    <div class="step"><div class="n">3</div><h3>Ti seguiamo ogni giorno</h3><p>Coach per la motivazione, Gaia sempre disponibile, menu che si adattano.</p></div>
-    <div class="step"><div class="n">4</div><h3>Vivi la tua vita</h3><p>Eventi, vacanze, giornate storte: le gestiamo insieme, senza sensi di colpa.</p></div>
+  <div class="band">
+    <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1400&q=80" alt="Cibo sano e colorato" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metabolefood/1400/700'">
+    <div class="ov">
+      <div class="kick" style="color:#BFE9DC">A tavola</div>
+      <h2>Mangi bene. Davvero.</h2>
+      <p>Cibo di stagione, porzioni vere, tante ricette. Il piacere fa parte del percorso — è ciò che lo rende sostenibile.</p>
+    </div>
   </div>
 </div></section>
 
 <section id="team"><div class="wrap">
-  <div class="sec">Il tuo team</div>
-  <h2>Non sei sola. Non sei solo.</h2>
-  <p class="sub">Due professionisti reali e un'assistente sempre presente.</p>
-  <div class="team">
-    <div class="member"><div class="av" style="background:#12A386"><i class="ti ti-heart-handshake"></i></div><h3>La tua coach</h3><div class="role">Motivazione &amp; costanza</div><p>Ti segue, ti sprona e c'è nei momenti difficili. Una persona vera al tuo fianco.</p></div>
-    <div class="member"><div class="av" style="background:#274b73"><i class="ti ti-stethoscope"></i></div><h3>Il nutrizionista</h3><div class="role">Sicurezza clinica</div><p>Costruisce e valida il tuo piano, adattandolo alla tua salute. Sei in mani sicure.</p></div>
-    <div class="member"><div class="av" style="background:#6C4CD6"><i class="ti ti-sparkles"></i></div><h3>Gaia</h3><div class="role">Assistente AI · h24</div><p>Impara i tuoi gusti, ti guida ogni giorno e adatta il menu in tempo reale.</p></div>
+  <div class="kick">Chi ti segue</div>
+  <h2>Persone vere, non un algoritmo</h2>
+  <p class="lead">Dietro MetaboleAI c'è un team clinico reale. È la parte che fa la differenza.</p>
+
+  <div class="lead-person">
+    <div class="pic"><img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=600&q=80" alt="Dott. Salvatore Russolillo" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboledoc/600/750'"></div>
+    <div>
+      <div class="kick">Responsabile scientifico</div>
+      <h2 style="font-size:28px;margin-top:6px">Dott. Salvatore Russolillo</h2>
+      <p class="lead">Guida il team e valida ogni percorso. Un approccio che unisce la scienza dell'alimentazione all'attenzione per la persona.</p>
+      <div class="cred"><span>Nutrizionista</span><span>Tecnologo alimentare</span><span>Coach</span><span>Psicologo</span></div>
+    </div>
+  </div>
+
+  <div style="margin-top:36px">
+    <div class="kick">Il team</div>
+    <h2 style="font-size:24px">Otto coach e una supervisora, pronte a seguirti</h2>
+    <div class="coaches">
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach1/300/300'"></div><b>Coach</b><small>La tua guida</small></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach2/300/300'"></div><b>Coach</b><small>Ascolto e cura</small></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach3/300/300'"></div><b>Coach</b><small>Ogni giorno</small></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=300&q=80" alt="Coach" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach4/300/300'"></div><b>Coach</b><small>Al tuo fianco</small></div>
+      <div class="coach"><div class="pic"><img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=300&q=80" alt="Supervisora" onerror="this.onerror=null;this.src='https://picsum.photos/seed/superv/300/300'"></div><b>Supervisora</b><small>Coordina il team</small></div>
+    </div>
+    <p class="lead" style="font-size:13.5px;margin-top:14px"><i class="ti ti-info-circle" style="vertical-align:-2px"></i> Foto segnaposto: sostituire con le foto e i nomi reali delle 8 coach + supervisora.</p>
   </div>
 </div></section>
 
-<section id="diverso"><div class="wrap">
-  <div class="diff">
-    <div class="sec" style="color:#BFE9DC">Perché diverso</div>
-    <h2>Quello che gli altri non hanno</h2>
-    <div class="row">
-      <div><b>Non solo un'app</b>Ci sono persone vere: coach e nutrizionista, non solo un algoritmo.</div>
-      <div><b>Non solo un coach</b>C'è anche un nutrizionista che valida la parte clinica, più l'AI.</div>
-      <div><b>Non una scorciatoia</b>Costruiamo l'abitudine sana che dura, senza promesse miracolose.</div>
+<section id="giorno"><div class="wrap">
+  <div class="kick">Un giorno con te</div>
+  <h2>Come Gaia ti accompagna</h2>
+  <div class="day" style="margin-top:24px">
+    <div class="pic"><img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=80" alt="Una giornata sana" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboleday/900/720'"></div>
+    <div>
+      <div class="time"><span class="t">08:00</span><p>"Buongiorno! Ecco la colazione di oggi, cucita sui tuoi gusti."</p></div>
+      <div class="time"><span class="t">13:00</span><p>Mangi fuori? Gaia ti dà la bussola per scegliere bene al ristorante.</p></div>
+      <div class="time"><span class="t">18:00</span><p>Giornata storta: nessun problema, il piano si riorganizza da solo.</p></div>
+      <div class="time"><span class="t">Sempre</span><p>La coach c'è quando serve; il nutrizionista veglia sulla tua salute.</p></div>
     </div>
   </div>
 </div></section>
 
-<section><div class="wrap">
-  <div class="sec">Storie</div>
-  <h2>Le parole di chi ha iniziato</h2>
+<section id="storie"><div class="wrap">
+  <div class="kick">Storie vere</div>
+  <h2>Le parole di chi è seguito da noi</h2>
+  <p class="lead">Nessun numero, nessuna promessa: solo come ci si sente.</p>
   <div class="tst">
-    <div class="quote"><p>"Finalmente un percorso cucito su di me, non la solita dieta. E la coach c'è sempre."</p><div class="who">— Martina, 41 anni</div></div>
-    <div class="quote"><p>"Mangio con gusto e mi sento seguita davvero. Le giornate storte non mi buttano più giù."</p><div class="who">— Elena, 35 anni</div></div>
-    <div class="quote"><p>"Avere un nutrizionista vero e Gaia sempre disponibile mi ha dato sicurezza."</p><div class="who">— Giulia, 38 anni</div></div>
+    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80" alt="Martina" onerror="this.onerror=null;this.src='https://picsum.photos/seed/martina/200/200'"></div><div><b>Martina</b><small>41 anni</small></div></div><p>"Finalmente mi sento seguita davvero. La coach c'è, e questo cambia tutto."</p></div>
+    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=200&q=80" alt="Elena" onerror="this.onerror=null;this.src='https://picsum.photos/seed/elena/200/200'"></div><div><b>Elena</b><small>35 anni</small></div></div><p>"Mangio con gusto e le giornate storte non mi buttano più giù."</p></div>
+    <div class="quote"><div class="row"><div class="pic"><img src="https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80" alt="Giulia" onerror="this.onerror=null;this.src='https://picsum.photos/seed/giulia/200/200'"></div><div><b>Giulia</b><small>38 anni</small></div></div><p>"Un nutrizionista vero e Gaia sempre lì: mi sento in mani sicure."</p></div>
   </div>
+  <p class="lead" style="font-size:13.5px;margin-top:14px"><i class="ti ti-info-circle" style="vertical-align:-2px"></i> Foto e testimonianze segnaposto: sostituire con quelle reali (con consenso). Niente prima/dopo.</p>
 </div></section>
 
 <section><div class="wrap">
   <div class="lead-band">
     <div>
-      <div class="sec">Resta in contatto</div>
-      <h2>Vuoi saperne di più?</h2>
-      <p class="sub">Lasciaci un contatto: ti raccontiamo come funziona, senza impegno. Oppure inizia subito il tuo percorso nell'app.</p>
-      <a class="btn p" href="https://app.metabole.eu/" style="margin-top:16px">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
+      <div class="kick">Parliamone</div>
+      <h2>Vuoi capire se fa per te?</h2>
+      <p class="lead">Lasciaci un contatto: ti raccontiamo come funziona, con calma e senza impegno. Oppure inizia subito nell'app.</p>
+      <a class="btn p" href="https://app.metabole.eu/" style="margin-top:18px">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
     </div>
     <form class="form" id="leadForm" data-endpoint="">
       <label>Nome</label><input name="nome" placeholder="Il tuo nome" required>
       <label>Email</label><input name="email" type="email" placeholder="nome@email.it" required>
-      <div class="chk"><input type="checkbox" required style="width:auto;margin-top:2px"><span>Acconsento a essere ricontattata/o e al trattamento dei miei dati secondo l'informativa privacy.</span></div>
+      <div class="chk"><input type="checkbox" required style="width:auto;margin-top:2px"><span>Acconsento a essere ricontattata/o e al trattamento dei dati secondo l'informativa privacy.</span></div>
       <button class="btn p" type="submit">Voglio saperne di più</button>
       <div class="ok" id="leadOk"><i class="ti ti-check"></i> Grazie! Ti ricontatteremo presto.</div>
     </form>
@@ -211,31 +278,32 @@ footer{padding:34px 0;color:var(--mut);font-size:13px;border-top:1px solid var(-
 </div></section>
 
 <section id="faq"><div class="wrap">
-  <div class="sec">Domande frequenti</div>
-  <h2>Le risposte alle tue domande</h2>
+  <div class="kick">Domande</div>
+  <h2>Le risposte che cerchi</h2>
   <div class="faq">
-    <div class="qa"><b>È l'ennesima dieta?</b><p>No: è un percorso graduale con un team di persone vere che non ti molla, pensato per durare nel tempo.</p></div>
-    <div class="qa"><b>Avrò sempre fame?</b><p>No. Porzioni vere e cibo di stagione: il risultato viene dalla qualità e dall'equilibrio, non dalla privazione.</p></div>
-    <div class="qa"><b>Non ho tempo.</b><p>Il percorso si costruisce sulla tua vita reale, con ricette veloci e Gaia che ti guida ogni giorno.</p></div>
-    <div class="qa"><b>Ci sono persone vere o solo un'app?</b><p>Ci sono entrambe: coach e nutrizionista reali, più l'AI che li affianca. Il meglio dei due mondi.</p></div>
-    <div class="qa"><b>La mia salute è al sicuro?</b><p>Sì: i dati sanitari sono riservati e visti solo dal tuo nutrizionista, che presidia la parte clinica.</p></div>
+    <div class="qa"><b>È l'ennesima dieta?</b><p>No: è un percorso graduale con persone vere che non ti mollano, pensato per durare.</p></div>
+    <div class="qa"><b>Avrò sempre fame?</b><p>No. Porzioni vere e cibo di stagione: l'equilibrio, non la privazione.</p></div>
+    <div class="qa"><b>Ci sono persone vere o solo un'app?</b><p>Entrambe: un nutrizionista responsabile, coach reali e l'AI che li affianca.</p></div>
+    <div class="qa"><b>La mia salute è al sicuro?</b><p>Sì: i dati sanitari sono riservati e visti solo dal nutrizionista, che presidia la parte clinica.</p></div>
   </div>
 </div></section>
 
 <section><div class="wrap">
   <div class="final">
-    <h2>Il tuo percorso inizia oggi</h2>
-    <p>Persone vere, un'AI che ti conosce, e nessuna fretta. Fai il primo passo.</p>
-    <a class="btn w" href="https://app.metabole.eu/">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
+    <img src="https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&w=1400&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metabolefinal/1400/600'">
+    <div class="ov"></div>
+    <div class="c">
+      <h2>Facciamo il primo passo insieme</h2>
+      <p>Persone vere, nessuna fretta e un percorso che è davvero tuo.</p>
+      <a class="btn w" href="https://app.metabole.eu/">Inizia il percorso <i class="ti ti-arrow-right"></i></a>
+    </div>
   </div>
 </div></section>
 
 <footer><div class="wrap foot">
-  <div class="logo" style="font-size:17px">Metabole<span>AI</span></div>
-  <a href="#">Informativa privacy</a>
-  <a href="#">Termini</a>
-  <a href="#">Cookie</a>
-  <span class="sp">© 2026 MetaboleAI · Percorso di benessere · Contenuti riservati a maggiorenni.</span>
+  <div class="logo" style="font-size:18px">Metabole<span>AI</span></div>
+  <a href="#">Informativa privacy</a><a href="#">Termini</a><a href="#">Cookie</a>
+  <span class="sp">© 2026 MetaboleAI · Percorso di benessere · Contenuti per maggiorenni.</span>
 </div></footer>
 
 <script>
@@ -245,8 +313,8 @@ footer{padding:34px 0;color:var(--mut);font-size:13px;border-top:1px solid var(-
     var ep=f.getAttribute('data-endpoint');
     var data={nome:f.nome.value,email:f.email.value,fonte:'sito_presentazione'};
     function done(){document.getElementById('leadOk').style.display='block';f.querySelector('button').style.display='none';}
-    if(ep){ fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(done).catch(done); }
-    else { done(); } /* DEV: impostare data-endpoint sul CRM (lead) per la produzione */
+    if(ep){fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(done).catch(done);}
+    else{done();}
   });
 </script>
 </body></html>
