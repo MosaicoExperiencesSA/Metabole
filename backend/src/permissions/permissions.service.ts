@@ -1,17 +1,51 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { isSystemRole } from '../common/roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../roles/roles.service';
-import { BACKOFFICE_PAGES, PageKey } from './pages';
+import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS, PageKey } from './pages';
 
 @Injectable()
-export class PermissionsService {
+export class PermissionsService implements OnModuleInit {
+  private readonly logger = new Logger(PermissionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly roles: RolesService,
   ) {}
+
+  /**
+   * All'avvio auto-ripara la matrice permessi: crea le righe MANCANTI dei ruoli di
+   * sistema dai default (es. sezioni aggiunte dopo il seed → non comparivano nel menu).
+   * NON tocca le righe esistenti, quindi le modifiche dell'admin restano intatte.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const { created } = await this.syncDefaults();
+      if (created) this.logger.log(`Permessi: create ${created} righe di default mancanti`);
+    } catch (err) {
+      this.logger.warn(`Sync permessi all'avvio non riuscito: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async syncDefaults(): Promise<{ created: number }> {
+    const existing = (await this.prisma.rolePagePermission.findMany({
+      select: { role: true, pageKey: true },
+    })) as { role: string; pageKey: string }[];
+    const have = new Set(existing.map((e) => `${e.role}:${e.pageKey}`));
+
+    const toCreate: { role: string; pageKey: string; canView: boolean; canManage: boolean }[] = [];
+    for (const role of Object.keys(DEFAULT_PERMISSIONS)) {
+      for (const pageKey of BACKOFFICE_PAGES) {
+        if (have.has(`${role}:${pageKey}`)) continue;
+        const def = DEFAULT_PERMISSIONS[role as keyof typeof DEFAULT_PERMISSIONS]?.[pageKey];
+        toCreate.push({ role, pageKey, canView: def?.view ?? false, canManage: def?.manage ?? false });
+      }
+    }
+    if (toCreate.length) await this.prisma.rolePagePermission.createMany({ data: toCreate });
+    return { created: toCreate.length };
+  }
 
   /** Matrice completa: elenco ruoli (sistema + personalizzati) + permessi per ruolo. */
   async getMatrix() {

@@ -787,6 +787,41 @@ model ConversationSummary {
   @@map("conversation_summary")
 }
 
+// Esito di un ciclo (2 giorni) del motore: perdita/stabilità/aumento di peso e cm,
+// attribuiti all'INTERA giornata/ciclo. Registrato alla chiusura del ciclo (arrivo
+// misura al 2° giorno). Vedi Metabole_Motore_Personalizzazione §4. FK-less.
+model CycleFeedback {
+  id            String   @id @default(uuid())
+  clientId      String   @map("client_id")
+  cycleStart    DateTime @map("cycle_start") @db.Date
+  cycleEnd      DateTime @map("cycle_end") @db.Date
+  deltaWeightKg Float?   @map("delta_weight_kg")
+  deltaCm       Float?   @map("delta_cm")
+  esitoPeso     String   @map("esito_peso") // perso | stabile | preso | n.d.
+  esitoCm       String   @map("esito_cm") // perso | stabile | preso | n.d.
+  followed      Boolean  @default(false)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([clientId, cycleEnd])
+  @@index([clientId, cycleEnd])
+  @@map("cycle_feedback")
+}
+
+// Efficacia APPRESA di una ricetta per uno specifico cliente (learning del motore):
+// sale se i cicli in cui compare fanno perdere peso/cm, scende altrimenti. FK-less.
+model MenuWeight {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  recipeId  String   @map("recipe_id")
+  score     Float    @default(0)
+  samples   Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, recipeId])
+  @@index([clientId])
+  @@map("menu_weight")
+}
+
 // Appuntamento in agenda (app coach + cliente). Entità di SCHEDULING generale
 // (coach e nutrizionista); la visita clinica dettagliata resta su Visit (fase
 // nutrizionista). FK-less: clientId/staffId come stringhe. Vedi Metabole_Backend_Operazioni §6.

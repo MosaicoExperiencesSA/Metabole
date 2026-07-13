@@ -53,7 +53,13 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Dashboard (moduli configurabili/trascinabili, grafici con assi mesi + tooltip), CRM/Lead,
   Acquisti, Calendario/Reminder (tipi telefonata/messaggio/email), Impostazioni. ✅
 - Editor: Diete (crea + componi giorni), Ricette, Protocolli (regole motore). ✅
-- Matrice permessi ruolo × sezione. ✅
+- Matrice permessi ruolo × sezione. ✅ Le righe permessi **si auto-riparano all'avvio** del backend
+  (`PermissionsService.syncDefaults` crea solo le righe mancanti dai default, senza toccare le modifiche
+  dell'admin) — così le sezioni aggiunte dopo il primo seed ricompaiono nel menu.
+- **Chat staff ↔ cliente** (pagina `Chat.tsx`, voce di menu): elenco conversazioni + messaggi + invio,
+  su API `staff/threads` / `threads/:id/messages`. ✅
+- Audit menu↔permessi (13/7): sezioni permessi ancora senza pagina backoffice (feature future):
+  `engine_reviews`, `health_documents`, `assignments`, `assign_coach`, `assign_nutritionist`.
 
 ## Motore / AI
 - Motore a regole (Engine, M5): protocolli condizioni→azione, decisioni per cliente. ✅ (base)
@@ -66,8 +72,13 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
     senza lattosio, pane → pane senza glutine, funghi → cavolfiore) il piatto si eroga con la **nota di
     sostituzione** (visibile in Menu); si blocca solo se un'intolleranza NON è sostituibile. I cibi non
     graditi si sostituiscono ma non bloccano.
-  - Ancora da fare: **giornate bilanciate** (DayCombo, porzioni standard), **cicli con learning**
-    (esito peso/cm per ciclo, MenuWeight), selezione per efficacia+gradimento.
+  - Learning (v1): alla chiusura di un ciclo (arrivo misura al 2° giorno) si calcola l'**esito peso/cm**
+    del ciclo (`CycleFeedback`: perso/stabile/preso, con soglie config) e — se seguito (proxy: check-in
+    nel ciclo) — si aggiornano i **MenuWeight** (efficacia appresa per ricetta/cliente, attribuzione naive
+    all'intera giornata). Trigger da `signals.upsertMeasurement`.
+  - Ancora da fare: **giornate bilanciate** (DayCombo, porzioni standard) e la **selezione per
+    efficacia (MenuWeight) + gradimento (stelle)** che sostituisca i template fissi; isolamento
+    dell'effetto del singolo pasto (learning avanzato).
 - **Agente AI della dieta** (stati Conforto/Rientro/Pre-evento/Plateau, scoring): ⬜ (Fase 6).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 

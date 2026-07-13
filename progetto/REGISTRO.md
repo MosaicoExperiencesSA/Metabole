@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Backoffice — pagina Chat + auto-riparazione permessi** — nuova pagina `Chat.tsx`
+  (staff↔cliente: elenco conversazioni, messaggi, invio) + voce di menu (chiave `chat`) + rotta.
+  Risolto anche il problema "sezioni non nel menu" (es. Parametri): `PermissionsService.syncDefaults`
+  gira all'avvio e crea le righe permessi mancanti dai default (senza sovrascrivere le modifiche admin),
+  così le sezioni aggiunte dopo il seed ricompaiono. Audit menu↔permessi registrato in STATO. Suite 293.
+- `[Sviluppo]` **Fase 5 (parte 3) — Learning: esito ciclo + MenuWeight** — nuovi modelli `CycleFeedback`
+  (esito peso/cm per ciclo di 2 giorni) e `MenuWeight` (efficacia appresa per ricetta/cliente) +
+  migrazione (validata PG16) + soglie config. `DietLearningService.onCycleClose` (trigger da
+  `signals.upsertMeasurement`): calcola delta peso/cm vs misura precedente, determina l'esito, e se il
+  ciclo è stato seguito aggiorna i MenuWeight delle ricette del ciclo (attribuzione naive). 4 test nuovi,
+  suite 292 verde. Manca la selezione per efficacia+gradimento (sostituirà i template fissi).
 - `[Sviluppo]` **Fase 5 (parte 2) — Sostituzione equivalente** — se un ingrediente escluso ha un
   sostituto sicuro (mappa: yogurt→senza lattosio, pane→senza glutine, funghi→cavolfiore…) il piatto si
   eroga con la **nota di sostituzione** salvata nello snapshot del pasto e mostrata in Menu; il blocco

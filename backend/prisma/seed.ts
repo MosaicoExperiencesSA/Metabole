@@ -120,6 +120,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'cycle_weight_delta_kg',
+    value: '0.2',
+    type: 'number',
+    description: 'Soglia (kg) sotto/sopra cui l\'esito peso del ciclo è "stabile"',
+  },
+  {
+    key: 'cycle_cm_delta',
+    value: '0.5',
+    type: 'number',
+    description: 'Soglia (cm, vita+fianchi) sotto/sopra cui l\'esito cm del ciclo è "stabile"',
+  },
+  {
     key: 'expiring_plan_days',
     value: '14',
     type: 'number',

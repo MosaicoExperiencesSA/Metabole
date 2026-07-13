@@ -1,0 +1,115 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+// Helper locale (evita import da signals.service → dipendenza circolare).
+const toDateOnly = (iso: string): Date => new Date(iso.slice(0, 10) + 'T00:00:00.000Z');
+
+type Esito = 'perso' | 'stabile' | 'preso' | 'n.d.';
+
+interface MeasureRow {
+  date: Date;
+  weightKg: number;
+  waistCm: number | null;
+  hipsCm: number | null;
+}
+interface MenuDayRow {
+  date: Date;
+  meals: unknown;
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * Learning del motore (Metabole_Motore_Personalizzazione §4/§6).
+ * Alla chiusura di un ciclo (arrivo della misura al 2° giorno) calcola l'esito
+ * peso/cm dell'intera giornata/ciclo e — se il ciclo è stato seguito — aggiorna
+ * i "pesi" (MenuWeight) delle ricette del ciclo (attribuzione naive: all'intera
+ * giornata). Non lancia mai: il salvataggio della misura non deve dipendere da qui.
+ */
+@Injectable()
+export class DietLearningService {
+  private readonly logger = new Logger(DietLearningService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configParams: ConfigParamsService,
+  ) {}
+
+  /** Da chiamare dopo il salvataggio di una misura. */
+  async onCycleClose(
+    clientId: string,
+    measurement: { date: Date; weightKg: number; waistCm: number | null; hipsCm: number | null },
+  ): Promise<{ esitoPeso: Esito; esitoCm: Esito; followed: boolean } | null> {
+    const [daysPerDelivery, wThr, cmThr] = await Promise.all([
+      this.configParams.getNumber('menu_days_delivered', 2),
+      this.configParams.getNumber('cycle_weight_delta_kg', 0.2),
+      this.configParams.getNumber('cycle_cm_delta', 0.5),
+    ]);
+
+    const end = toDateOnly(measurement.date.toISOString());
+    // Giorni del ciclo corrente = ultimi N menu day fino alla data della misura.
+    const cycleDays = (await this.prisma.menuDay.findMany({
+      where: { clientId, date: { lte: end } },
+      orderBy: { date: 'desc' },
+      take: daysPerDelivery,
+      select: { date: true, meals: true },
+    })) as MenuDayRow[];
+    if (!cycleDays.length) return null;
+    const cycleStart = toDateOnly(cycleDays[cycleDays.length - 1].date.toISOString());
+    const cycleEnd = toDateOnly(cycleDays[0].date.toISOString());
+
+    // Misura precedente (chiusura del ciclo prima): serve per il delta.
+    const prev = (await this.prisma.measurement.findFirst({
+      where: { clientId, date: { lt: cycleStart } },
+      orderBy: { date: 'desc' },
+      select: { date: true, weightKg: true, waistCm: true, hipsCm: true },
+    })) as MeasureRow | null;
+
+    let deltaWeightKg: number | null = null;
+    let deltaCm: number | null = null;
+    let esitoPeso: Esito = 'n.d.';
+    let esitoCm: Esito = 'n.d.';
+    if (prev) {
+      deltaWeightKg = round1(prev.weightKg - measurement.weightKg); // perdita = positivo
+      esitoPeso = deltaWeightKg > wThr ? 'perso' : deltaWeightKg < -wThr ? 'preso' : 'stabile';
+      if (prev.waistCm != null && measurement.waistCm != null) {
+        const prevSum = prev.waistCm + (prev.hipsCm ?? 0);
+        const curSum = measurement.waistCm + (measurement.hipsCm ?? 0);
+        deltaCm = round1(prevSum - curSum);
+        esitoCm = deltaCm > cmThr ? 'perso' : deltaCm < -cmThr ? 'preso' : 'stabile';
+      }
+    }
+
+    // "Seguito" (proxy v1): almeno un check-in nel ciclo.
+    const checkin = await this.prisma.dailyCheckin.findFirst({
+      where: { clientId, date: { gte: cycleStart, lte: cycleEnd } },
+      select: { id: true },
+    });
+    const followed = !!checkin;
+
+    await this.prisma.cycleFeedback.upsert({
+      where: { clientId_cycleEnd: { clientId, cycleEnd } },
+      create: { clientId, cycleStart, cycleEnd, deltaWeightKg, deltaCm, esitoPeso, esitoCm, followed },
+      update: { cycleStart, deltaWeightKg, deltaCm, esitoPeso, esitoCm, followed },
+    });
+
+    // Learning: aggiorna i pesi delle ricette del ciclo SOLO se seguito e con esito noto.
+    if (followed && esitoPeso !== 'n.d.') {
+      const nudge = esitoPeso === 'perso' ? 1 : esitoPeso === 'preso' ? -1 : 0;
+      const recipeIds = new Set<string>();
+      for (const d of cycleDays) {
+        for (const m of (d.meals as { recipeId?: string }[]) ?? []) if (m?.recipeId) recipeIds.add(m.recipeId);
+      }
+      for (const recipeId of recipeIds) {
+        await this.prisma.menuWeight.upsert({
+          where: { clientId_recipeId: { clientId, recipeId } },
+          create: { clientId, recipeId, score: nudge, samples: 1 },
+          update: { score: { increment: nudge }, samples: { increment: 1 } },
+        });
+      }
+    }
+
+    return { esitoPeso, esitoCm, followed };
+  }
+}
