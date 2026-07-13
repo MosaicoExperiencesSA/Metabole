@@ -656,34 +656,31 @@ async function seedDietProductFields(): Promise<void> {
     { style: 'keto', clientName: 'Keto', clientDescription: 'Chetogenica: pochissimi carboidrati, energia dai grassi buoni.', highlights: ['Carboidrati molto bassi', 'Energia costante', 'Da seguire con il nutrizionista'] },
   ] as const;
 
+  // I 4 prodotti dello schermo 16 devono essere tutti visibili (come nel prototipo).
+  // Se una dieta di quello stile esiste → aggiorno i campi cliente; se non esiste →
+  // la creo come "prodotto" senza menu (il nutrizionista popolerà il catalogo).
   for (const p of PRODUCTS) {
-    await prisma.diet.updateMany({
-      where: { style: p.style },
-      data: {
-        clientVisible: true,
-        clientName: p.clientName,
-        clientDescription: p.clientDescription,
-        highlights: p.highlights as never,
-      },
-    });
-  }
-
-  const keto = PRODUCTS.find((p) => p.style === 'keto')!;
-  const existingKeto = await prisma.diet.findFirst({ where: { style: 'keto' } });
-  if (!existingKeto) {
-    await prisma.diet.create({
-      data: {
-        name: keto.clientName,
-        regime: 'omnivore',
-        style: 'keto',
-        mealsPerDay: 5,
-        status: 'draft',
-        clientVisible: true,
-        clientName: keto.clientName,
-        clientDescription: keto.clientDescription,
-        highlights: keto.highlights as never,
-      },
-    });
+    const existing = await prisma.diet.findFirst({ where: { style: p.style } });
+    const productData = {
+      clientVisible: true,
+      clientName: p.clientName,
+      clientDescription: p.clientDescription,
+      highlights: p.highlights as never,
+    };
+    if (existing) {
+      await prisma.diet.updateMany({ where: { style: p.style }, data: productData });
+    } else {
+      await prisma.diet.create({
+        data: {
+          name: p.clientName,
+          regime: 'omnivore',
+          style: p.style,
+          mealsPerDay: 5,
+          status: 'draft',
+          ...productData,
+        },
+      });
+    }
   }
 }
 

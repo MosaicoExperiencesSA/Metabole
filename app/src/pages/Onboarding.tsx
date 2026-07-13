@@ -56,6 +56,68 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
   return Object.keys(out).length ? (out as T) : undefined;
 }
 
+interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[] }
+
+/** Schermo 16 "Stile che preferisci": prodotti (diete) letti dall'API a runtime (zero-redeploy).
+ *  Ogni nome è toccabile → caratteristiche principali. Fallback statico se l'endpoint è vuoto. */
+function DietProductsBlock({ page, value, onChange }: { page: Page; value: unknown; onChange: (k: string, v: unknown) => void }) {
+  const [products, setProducts] = useState<DietProduct[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<DietProduct[]>('/onboarding/diet-products')
+      .then((r) => setProducts(Array.isArray(r) ? r : []))
+      .catch(() => setProducts([]));
+  }, []);
+
+  if (!products) return <div className="center" style={{ minHeight: 80 }}><div className="spin" /></div>;
+
+  // Fallback: se il catalogo prodotti è vuoto, uso il campo statico del questionario.
+  if (products.length === 0) {
+    return <FieldInput field={page.fields[0]} value={value} onChange={onChange} />;
+  }
+
+  const sel = String(value ?? '');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {products.map((p) => {
+        const on = sel === p.style;
+        const isOpen = open === p.style;
+        return (
+          <div key={p.style} className="card" style={{ display: 'block', border: on ? '2px solid var(--teal)' : undefined }}>
+            <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => onChange('dietStyle', p.style)}>
+              <b style={{ fontSize: 15 }}>{p.name}</b>
+              {on
+                ? <i className="ti ti-circle-check" style={{ color: 'var(--teal)', fontSize: 20 }} />
+                : <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--line)', display: 'inline-block' }} />}
+            </div>
+            {(p.description || p.highlights.length > 0) && (
+              <button
+                type="button"
+                className="link"
+                style={{ background: 'none', border: 0, padding: '6px 0 0', cursor: 'pointer', fontSize: 12, margin: 0 }}
+                onClick={() => setOpen(isOpen ? null : p.style)}
+              >
+                {isOpen ? 'Nascondi' : 'Caratteristiche principali'} <i className={`ti ti-chevron-${isOpen ? 'up' : 'down'}`} style={{ fontSize: 13, verticalAlign: '-2px' }} />
+              </button>
+            )}
+            {isOpen && (
+              <div style={{ marginTop: 6 }}>
+                {p.description && <div className="muted" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 6 }}>{p.description}</div>}
+                {p.highlights.map((h, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 6, fontSize: 13, marginBottom: 3 }}>
+                    <i className="ti ti-check" style={{ color: 'var(--teal)', flex: 'none' }} /> <span>{h}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Obiettivo con slider e banner di sostenibilità (come nel prototipo). */
 function ObjectiveBlock({ page, answers, setAnswer }: { page: Page; answers: Answers; setAnswer: (k: string, v: unknown) => void }) {
   useEffect(() => {
@@ -333,6 +395,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             <div className={`onb-fields${cur.page.key === 'baseline' ? ' fields-grid' : ''}`}>
               {cur.t === 'page' && cur.page.key === 'objective' ? (
                 <ObjectiveBlock page={cur.page} answers={answers} setAnswer={setAnswer} />
+              ) : cur.t === 'page' && cur.page.key === 'style' ? (
+                <DietProductsBlock page={cur.page} value={answers.dietStyle} onChange={setAnswer} />
               ) : (
                 cur.page.fields
                   .filter((f) => !(cur.page.key === 'identity' && f.key === 'name' && nameKnown))

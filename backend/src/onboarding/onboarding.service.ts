@@ -271,6 +271,7 @@ export class OnboardingService {
       protein: 'Slancio Proteico',
       low_carb: 'Leggerezza Low-carb',
       flexible: 'Percorso Flessibile',
+      keto: 'Percorso Keto',
     };
     const pathNames: Record<string, string> = {
       classic3: '3 pasti classico',

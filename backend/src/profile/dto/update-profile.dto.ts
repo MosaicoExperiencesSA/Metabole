@@ -57,7 +57,7 @@ export class UpdateProfileDto {
   regime?: string;
 
   @IsOptional()
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible'])
+  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
   dietStyle?: string;
 
   @IsOptional()

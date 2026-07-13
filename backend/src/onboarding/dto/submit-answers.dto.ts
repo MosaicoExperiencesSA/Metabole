@@ -99,7 +99,7 @@ export class SubmitAnswersDto {
   @IsIn(['omnivore', 'vegetarian', 'vegan'])
   regime!: string;
 
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible'])
+  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
   dietStyle!: string;
 
   @IsOptional()

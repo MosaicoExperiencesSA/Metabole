@@ -23,7 +23,7 @@ export class CreateDietDto {
   @IsIn(['omnivore', 'vegetarian', 'vegan'])
   regime!: string;
 
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible'])
+  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
   style!: string;
 
   @IsIn([3, 4, 5])
@@ -50,7 +50,7 @@ export class UpdateDietDto {
   regime?: string;
 
   @IsOptional()
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible'])
+  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
   style?: string;
 
   @IsOptional()

@@ -41,8 +41,10 @@ export const ONBOARDING_QUESTIONS = {
     {
       key: 'style',
       title: 'Stile che preferisci',
+      subtitle: 'Scegli il piano più adatto alle tue esigenze: tocca il nome di un piano per scoprirne le caratteristiche principali.',
+      // Fallback statico: l'app legge i prodotti veri da GET /onboarding/diet-products.
       fields: [
-        { key: 'dietStyle', type: 'choice', options: ['mediterranean', 'protein', 'low_carb', 'flexible'], labels: ['Mediterranea', 'Proteica', 'Low-carb', 'Flessibile'], required: true },
+        { key: 'dietStyle', type: 'choice', options: ['mediterranean', 'protein', 'low_carb', 'keto'], labels: ['Mediterranea', 'Proteica', 'Low-carb', 'Keto'], required: true },
       ],
     },
     {

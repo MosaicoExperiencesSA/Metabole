@@ -30,7 +30,7 @@ export class UpdateClientDto {
   @IsOptional() @IsNumber() @Min(40) @Max(200) startWaistCm?: number;
   @IsOptional() @IsNumber() @Min(40) @Max(200) startHipsCm?: number;
   @IsOptional() @IsIn(['omnivore', 'vegetarian', 'vegan']) regime?: string;
-  @IsOptional() @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible']) dietStyle?: string;
+  @IsOptional() @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto']) dietStyle?: string;
   @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   @IsOptional() @IsIn(['daily', 'when_needed', 'on_request']) coachStyle?: string;
