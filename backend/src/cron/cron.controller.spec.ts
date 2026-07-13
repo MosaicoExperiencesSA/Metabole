@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { AlertsService } from '../alerts/alerts.service';
+import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { AuditService } from '../audit/audit.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { ReportsService } from '../reports/reports.service';
@@ -25,6 +26,7 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: LeadAssignmentService, useValue: { expireStale: jest.fn().mockResolvedValue({ expired: 0 }) } },
         { provide: ReportsService, useValue: { sendMonthlyBatch: jest.fn().mockResolvedValue({ sent: 0 }) } },
         { provide: AlertsService, useValue: { recomputeAllBatch: jest.fn().mockResolvedValue({ clients: 1, errors: 0 }) } },
+        { provide: ConversationSummaryService, useValue: { generateDailyBatch: jest.fn().mockResolvedValue({ threads: 0, created: 0, errors: 0 }) } },
       ],
     }).compile();
     controller = moduleRef.get(CronController);

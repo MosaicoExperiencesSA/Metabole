@@ -74,4 +74,61 @@ export class AiService {
       clearTimeout(timer);
     }
   }
+
+  /**
+   * Riassume una conversazione (chiusura giornaliera): titolo breve + una frase.
+   * Ritorna null se l'AI non è disponibile → chi chiama usa un fallback deterministico.
+   */
+  async summarizeConversation(
+    transcript: string,
+    locale: 'it' | 'en',
+  ): Promise<{ title: string; summary: string } | null> {
+    const key = this.config.get<string>('AI_API_KEY');
+    if (!key) return null;
+    const model = this.config.get<string>('AI_MODEL') ?? 'claude-haiku-4-5';
+    const language = locale === 'en' ? 'English' : 'italiano';
+    const system =
+      `Riassumi la conversazione seguente in ${language}. ` +
+      `Rispondi ESATTAMENTE in due righe: ` +
+      `riga 1 = un TITOLO breve (massimo 6 parole, senza virgolette); ` +
+      `riga 2 = un riassunto in UNA frase. ` +
+      `Niente dati sanitari sensibili nel testo, nessun consiglio medico.`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9_000);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 200,
+          system,
+          messages: [{ role: 'user', content: transcript.slice(0, 6000) }],
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        this.logger.warn(`AI riassunto: risposta ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+      const out = data.content?.find((c) => c.type === 'text')?.text?.trim();
+      if (!out) return null;
+      const lines = out.split('\n').map((l) => l.trim()).filter(Boolean);
+      const title = (lines[0] ?? '').replace(/^["']|["']$/g, '').slice(0, 80);
+      const summary = (lines[1] ?? lines[0] ?? '').slice(0, 300);
+      if (!title) return null;
+      return { title, summary };
+    } catch (err) {
+      this.logger.warn(`AI riassunto non disponibile: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }

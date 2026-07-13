@@ -7,6 +7,13 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-13
 
+- `[Sviluppo]` **Fase 4 (parte 3) — Riassunti conversazioni** — nuovo modello `ConversationSummary`
+  (titolo AI + data, FK-less) + migrazione (validata PG16). `AiService.summarizeConversation` (titolo
+  breve + una frase, con fallback deterministico). `ConversationSummaryService.generateDailyBatch`
+  (chiude i thread con messaggi del giorno, upsert per cliente/interlocutore/data) agganciato al cron.
+  Endpoint `GET /me/threads/:who/summaries` (cliente) e `GET /staff/threads/:clientId/:who/summaries`
+  (staff, con scope; la coach non vede i riassunti col nutrizionista). 4 test nuovi, suite 286 verde.
+  Con questo il backend della Fase 4 è sostanzialmente completo.
 - `[Sviluppo]` **Fase 4 (parte 2) — Agenda e appuntamenti** — nuova entità `Appointment` (FK-less) +
   migrazione (validata PG16). `GET /coach/agenda` (appuntamenti futuri delle clienti: i propri
   gestibili, quelli col nutrizionista in sola lettura), `POST /appointments` (coach/nutrizionista solo

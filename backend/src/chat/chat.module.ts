@@ -7,11 +7,12 @@ import {
   ThreadsController,
 } from './chat.controller';
 import { ChatService } from './chat.service';
+import { ConversationSummaryService } from './conversation-summary.service';
 
 @Module({
   imports: [NotificationsModule, AiModule],
   controllers: [MyThreadsController, StaffThreadsController, ThreadsController],
-  providers: [ChatService],
-  exports: [ChatService],
+  providers: [ChatService, ConversationSummaryService],
+  exports: [ChatService, ConversationSummaryService],
 })
 export class ChatModule {}

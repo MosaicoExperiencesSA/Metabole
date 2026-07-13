@@ -769,6 +769,24 @@ model Alert {
   @@map("alert")
 }
 
+// Riassunto giornaliero di una conversazione (chiusura quotidiana): titolo
+// generato dall'AI + data, mostrato in "Conversazioni passate" (cliente e staff).
+// Vedi Metabole_Backend_Operazioni §7. FK-less sul clientId.
+model ConversationSummary {
+  id           String          @id @default(uuid())
+  clientId     String          @map("client_id")
+  counterpart  ChatCounterpart
+  date         DateTime        @db.Date
+  title        String
+  summary      String?
+  messageCount Int             @default(0) @map("message_count")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@unique([clientId, counterpart, date])
+  @@index([clientId, counterpart, date])
+  @@map("conversation_summary")
+}
+
 // Appuntamento in agenda (app coach + cliente). Entità di SCHEDULING generale
 // (coach e nutrizionista); la visita clinica dettagliata resta su Visit (fase
 // nutrizionista). FK-less: clientId/staffId come stringhe. Vedi Metabole_Backend_Operazioni §6.
