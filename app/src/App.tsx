@@ -5,6 +5,7 @@ import { track } from './lib/track';
 import { useAuth } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
 import TabBar from './components/TabBar';
+import MeasuresGate from './components/MeasuresGate';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -57,6 +58,7 @@ function Shell() {
         </Routes>
       </div>
       <TabBar />
+      <MeasuresGate />
     </div>
   );
 }

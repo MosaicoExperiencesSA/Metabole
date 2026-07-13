@@ -92,6 +92,14 @@ export class MenuService {
         where: { clientId_date: { clientId, date: today } },
       });
       if (!checkinToday) return []; // spec: sblocco dopo il check-in
+
+      // Gate misure (Tracciamento_Dati §5): al 2° giorno di ogni ciclo le misure
+      // sono obbligatorie. Finché non arrivano, il ciclo successivo resta "held"
+      // e si avvisa la coach.
+      if (await this.cycleNeedsMeasure(clientId, last, daysPerDelivery)) {
+        await this.ensureCoachMissingMeasureAlert(clientId, last.date);
+        return [];
+      }
       firstNewDate = nextDate.getTime() > today.getTime() ? nextDate : today;
     }
 
@@ -151,6 +159,87 @@ export class MenuService {
       metadata: { days: created, dietId: diet.id },
     });
     return created;
+  }
+
+  // ---------- Gate misure (misure obbligatorie al 2° giorno del ciclo) ----------
+
+  /**
+   * Stato del gate misure per l'app: se `blocking` è true, il client mostra il
+   * popup bloccante finché non arriva la misura del ciclo corrente.
+   */
+  async measurementGate(clientId: string): Promise<{
+    required: boolean;
+    blocking: boolean;
+    cycleDate: string | null;
+  }> {
+    const daysPerDelivery = await this.configParams.getNumber('menu_days_delivered', 2);
+    const last = await this.prisma.menuDay.findFirst({
+      where: { clientId },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    });
+    if (!last) return { required: false, blocking: false, cycleDate: null };
+    const needs = await this.cycleNeedsMeasure(clientId, last, daysPerDelivery);
+    return { required: needs, blocking: needs, cycleDate: last.date.toISOString().slice(0, 10) };
+  }
+
+  /**
+   * True se siamo al 2° giorno (o oltre) del ciclo corrente e manca ancora la
+   * misura di quel ciclo. Il 2° giorno = la data più alta erogata (cycleEnd).
+   */
+  private async cycleNeedsMeasure(
+    clientId: string,
+    last: { date: Date },
+    daysPerDelivery: number,
+  ): Promise<boolean> {
+    const today = toDateOnly();
+    const cycleEnd = toDateOnly(last.date.toISOString());
+    if (today.getTime() < cycleEnd.getTime()) return false; // non ancora al 2° giorno
+    const cycleStart = new Date(cycleEnd.getTime() - (daysPerDelivery - 1) * 86_400_000);
+    const measure = await this.prisma.measurement.findFirst({
+      where: { clientId, date: { gte: cycleStart } },
+      select: { id: true },
+    });
+    return !measure;
+  }
+
+  /**
+   * Crea (una sola volta, finché aperto) un avviso alla coach per misure mancanti.
+   * L'Alert engine completo è la fase successiva; qui si usa Notification.
+   * Lo sblocco/chiusura avviene al salvataggio della misura (SignalsService).
+   */
+  private async ensureCoachMissingMeasureAlert(clientId: string, cycleDate: Date): Promise<void> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { name: true, assignedCoach: { select: { userId: true } } },
+    });
+    const coachUserId = profile?.assignedCoach?.userId;
+    if (!coachUserId) return; // nessuna coach assegnata: niente avviso
+
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        userId: coachUserId,
+        type: 'missing_measurements',
+        readAt: null,
+        payload: { path: ['clientId'], equals: clientId },
+      },
+      select: { id: true },
+    });
+    if (existing) return; // avviso già aperto per questa cliente
+
+    await this.prisma.notification.create({
+      data: {
+        userId: coachUserId,
+        type: 'missing_measurements',
+        channel: 'inapp',
+        scheduledFor: new Date(),
+        payload: {
+          clientId,
+          clientName: profile?.name ?? null,
+          dueDate: cycleDate.toISOString().slice(0, 10),
+        },
+      },
+    });
   }
 
   /** Dieta approvata più adatta al profilo (regime+pasti; stile se possibile). */

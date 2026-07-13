@@ -44,6 +44,8 @@ describe('SignalsService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
       },
       milestone: { createMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn() },
+      // Sblocco gate misure: chiude gli avvisi coach "misure mancanti".
+      notification: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       escalation: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'e1' }),

@@ -61,6 +61,15 @@ export class MenuController {
     return this.menu.getMenu(user.sub, from, to);
   }
 
+  /**
+   * Stato del gate misure: se `blocking` è true, l'app mostra il popup bloccante
+   * (misure obbligatorie al 2° giorno del ciclo) finché non arriva la misura.
+   */
+  @Get('measurement-gate')
+  measurementGate(@CurrentUser() user: AuthUser) {
+    return this.menu.measurementGate(user.sub);
+  }
+
   @Post('ratings')
   rate(@CurrentUser() user: AuthUser, @Body() dto: RateRecipeDto) {
     return this.menu.rateRecipe(user.sub, dto);

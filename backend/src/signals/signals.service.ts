@@ -69,6 +69,17 @@ export class SignalsService {
       },
     });
 
+    // Sblocco gate misure: chiude eventuali avvisi coach "misure mancanti" aperti
+    // per questa cliente (il ciclo successivo tornerà erogabile). Vedi MenuService.
+    await this.prisma.notification.updateMany({
+      where: {
+        type: 'missing_measurements',
+        readAt: null,
+        payload: { path: ['clientId'], equals: clientId },
+      },
+      data: { readAt: new Date() },
+    });
+
     const newMilestones = await this.evaluateMilestones(clientId);
     const alert = await this.checkRapidLossGuardrail(clientId);
 

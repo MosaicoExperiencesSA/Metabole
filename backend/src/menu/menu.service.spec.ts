@@ -35,6 +35,9 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         upsert: jest.fn().mockResolvedValue({}),
       },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      // Gate misure: misura del ciclo presente → non blocca l'erogazione.
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
       dietDayTemplate: {
         findMany: jest.fn().mockResolvedValue([template(1), template(2)]),
