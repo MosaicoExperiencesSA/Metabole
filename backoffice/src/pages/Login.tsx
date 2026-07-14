@@ -12,6 +12,7 @@ export function Login() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
@@ -103,7 +104,15 @@ export function Login() {
             </div>
             <div className="field">
               <label htmlFor="password">Password</label>
-              <input id="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <div style={{ position: 'relative' }}>
+                <input id="password" className="input" type={showPwd ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ paddingRight: 40 }} />
+                <button type="button" aria-label="Mostra password (tieni premuto)" title="Tieni premuto per vedere la password" tabIndex={-1}
+                  onMouseDown={() => setShowPwd(true)} onMouseUp={() => setShowPwd(false)} onMouseLeave={() => setShowPwd(false)}
+                  onTouchStart={() => setShowPwd(true)} onTouchEnd={() => setShowPwd(false)}
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted,#9a8f86)', padding: 4, display: 'flex', alignItems: 'center' }}>
+                  <i className={showPwd ? 'ti ti-eye-off' : 'ti ti-eye'} />
+                </button>
+              </div>
             </div>
             <button className="btn" type="submit" disabled={busy} style={{ width: '100%', justifyContent: 'center' }}>
               {busy ? <span className="spin" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'Accedi'}

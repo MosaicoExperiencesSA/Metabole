@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext';
 import { Layout } from './components/Layout';
 import { Spinner } from './components/ui';
 import { Home } from './pages/Home';
+import { Posta } from './pages/Posta';
 import { Login } from './pages/Login';
 import { CambioPasswordObbligatorio } from './pages/CambioPasswordObbligatorio';
 import { Placeholder } from './pages/Placeholder';
@@ -68,6 +69,7 @@ export default function App() {
       <Route path="/login" element={loading ? <Spinner /> : user ? <Navigate to="/" replace /> : <Login />} />
 
       <Route path="/" element={<Protected title="Home"><Home /></Protected>} />
+      <Route path="/posta" element={<Protected title="Posta"><Posta /></Protected>} />
       <Route path="/utenti" element={<Protected title="Utenti" pageKey="users"><Users /></Protected>} />
       <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="permissions"><Roles /></Protected>} />
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
