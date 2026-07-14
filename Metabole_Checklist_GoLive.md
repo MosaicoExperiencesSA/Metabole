@@ -36,7 +36,7 @@ Aggiornata: 2026-07-14 (verifica live).
 ## 🔵 Contenuti prima del pubblico [Pr]
 
 - [ ] **Team**: nome/CV reali del responsabile scientifico + foto reali coach/nutrizionista (oggi placeholder).
-- [ ] **Menu Keto**: firma finale del nutrizionista sulle **grammature** (il catalogo è già nel motore).
+- [ ] **Menu Keto**: già approvati dal nutrizionista e caricati nel motore (nessuna azione contenuti residua).
 - [ ] **Revisione madrelingua** traduzioni sensibili (RU/ZH/AR) su sito e legali.
 - [ ] **Prime testimonianze** con consenso (compaiono in automatico sul sito).
 

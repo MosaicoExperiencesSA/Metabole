@@ -37,7 +37,6 @@ Ultimo aggiornamento: **2026-07-14**.
 | Cosa | Stato |
 |---|---|
 | Team: nome/CV + **foto reali** responsabile scientifico e coach/nutrizionista | ⬜ |
-| **Firma nutrizionista sulle grammature Keto** (catalogo già nel motore) | ⬜ |
 | Revisione madrelingua traduzioni RU/ZH/AR (sito + legali) | ⬜ |
 | Prime **testimonianze** con consenso (compaiono in automatico) | ⬜ |
 
