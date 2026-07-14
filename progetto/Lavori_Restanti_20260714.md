@@ -35,7 +35,7 @@
 
 **Da validare col socio** (il motore è dominio suo): definizione operativa di "stessi alimenti" (gruppo di equivalenza vs ingredienti identici), fallback preferito, flag per cliente vs per prodotto. **Stima:** piccola/media (backend + toggle backoffice + test + riga informativa in app). — [Sv/Claude]
 
-### 2.2 Liste CRM — suddivisione manuale di lead/clienti + import liste storiche
+### 2.2 Liste CRM — Fase A ✅ FATTA (in attesa di push) · Fase B (import) da fare
 
 **Cosa:** poter raggruppare lead e clienti in **liste create manualmente** dal backoffice; le viste CRM (Gestione lead, clienti) mostrano **tutti insieme o filtrati per lista**; nel **dettaglio** del lead/cliente la lista compare come badge accanto a "CRM: paid". In più, **import delle liste storiche esistenti** di Simone: per ogni contatto importato si salvano — visibili nello stesso punto della scheda — lo **stato precedente** (dallo storico pre-Metabole) e il **totale già pagato** da quel cliente.
 
@@ -47,14 +47,6 @@
 - Nota GDPR: per l'import di dati personali storici verificare base giuridica/consensi (i contatti arrivano da prodotti precedenti di Mosaico).
 
 **Stima:** media (migrazione + backend CRUD/filtri/import + backoffice UI). Sinergia con il modulo Marketing (§4): le liste possono fare da base ai futuri "segmenti". — [Sv/Claude]
-
-### 2.3 Storno acquisti — ✅ FATTO 14/07 (deployato)
-
-Dalla tabella Acquisti (admin): pulsante Storno su un acquisto pagato → chiede quanto rimborsare (anche parziale) + nota → blocca i menu (abbonamento annullato), incasso nettato, provvigioni stornate in proporzione, ricevuta di rimborso PDF alla cliente. Rimborso effettivo su Stripe/bonifico manuale.
-
-### 2.4 Provvigioni/compensi PER PRODOTTO in € — ✅ FATTO 14/07 sera (in attesa di push)
-
-Le 4 percentuali globali (config_param) sostituite da 4 importi fissi in € su ogni piano/prodotto (coach, manager coach, nutrizionista, capo nutrizionista); sconto → riduzione proporzionale; rimosso il flag commissionTeam. Migrazione 20260714230000. ⚠️ dopo il deploy i piani/prodotti esistenti hanno provvigioni a 0 finché l'admin non le imposta in Gestione negozio.
 
 ## 3. 🧠 Motore — code residue (niente codice mancante salvo §2)
 

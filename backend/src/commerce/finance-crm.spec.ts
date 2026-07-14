@@ -183,6 +183,17 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         ]),
       },
       ledgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 89100 } }) },
+      crmList: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'L1', name: 'Storici 2024', color: null, _count: { members: 3 } },
+          { id: 'L2', name: 'Keto', color: '#33B190', _count: { members: 0 } },
+        ]),
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'Lnew', ...data })),
+        update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'L1', ...data })),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      crmListMember: { deleteMany: jest.fn(), upsert: jest.fn() },
+      $transaction: jest.fn().mockResolvedValue([]),
     };
     const pipeline = {
       stageKeys: jest.fn().mockResolvedValue(new Set(['lead_in', 'worked', 'paid', 'coach_assigned', 'coach_call', 'nutritionist_assigned', 'first_visit', 'follow_up'])),
@@ -236,5 +247,42 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     expect(dash.totalLeads).toBe(10);
     expect(dash.conversionToPaidPercent).toBe(40); // (3 paid + 1 first_visit) / 10
     expect(dash.monthIncomeCents).toBe(89100);
+  });
+
+  it('listLists espone il numero di membri per lista', async () => {
+    const lists: any = await service.listLists();
+    expect(lists).toEqual([
+      expect.objectContaining({ id: 'L1', name: 'Storici 2024', memberCount: 3 }),
+      expect.objectContaining({ id: 'L2', name: 'Keto', memberCount: 0 }),
+    ]);
+    expect(lists[0]._count).toBeUndefined(); // _count non deve trapelare
+  });
+
+  it('setLeadLists rimpiazza le appartenenze (upsert per lista + deleteMany fuori insieme)', async () => {
+    prisma.crmRecord.findUnique.mockImplementation(({ select }: any) =>
+      select
+        ? Promise.resolve({ id: 'lead1' })
+        : Promise.resolve({ id: 'lead1', reminders: [], listMemberships: [{ list: { id: 'L1', name: 'Storici 2024', color: null } }] }),
+    );
+    const res: any = await service.setLeadLists('sales-user', 'lead1', ['L1', 'L1', 'L2']); // dedup
+    expect(prisma.crmListMember.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.crmListMember.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { recordId: 'lead1', listId: { notIn: ['L1', 'L2'] } } }),
+    );
+    expect(res.lists).toEqual([{ id: 'L1', name: 'Storici 2024', color: null }]); // detail appiattisce
+  });
+
+  it('setLeadLists solleva NotFound se il lead non esiste', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue(null);
+    await expect(service.setLeadLists('u', 'x', ['L1'])).rejects.toThrow('Lead non trovato');
+  });
+
+  it('detail appiattisce listMemberships in lists e non espone il grezzo', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue({
+      id: 'lead1', reminders: [], listMemberships: [{ list: { id: 'L2', name: 'Keto', color: '#33B190' } }],
+    });
+    const d: any = await service.detail('lead1');
+    expect(d.lists).toEqual([{ id: 'L2', name: 'Keto', color: '#33B190' }]);
+    expect(d.listMemberships).toBeUndefined();
   });
 });

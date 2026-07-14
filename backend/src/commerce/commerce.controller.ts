@@ -141,6 +141,35 @@ class UpdateLeadInfoDto {
   @IsInt()
   @Min(0)
   valueCents?: number;
+
+  // Storico importato dalle liste pre-Metabole (informativo).
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  previousStatus?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  historicalPaidCents?: number | null;
+}
+
+class SetLeadListsDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  listIds!: string[];
+}
+
+class CreateCrmListDto {
+  @IsString() @MinLength(1) @MaxLength(80) name!: string;
+  @IsOptional() @IsString() @MaxLength(300) description?: string;
+  @IsOptional() @IsString() @MaxLength(9) color?: string;
+}
+
+class UpdateCrmListDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(80) name?: string;
+  @IsOptional() @IsString() @MaxLength(300) description?: string;
+  @IsOptional() @IsString() @MaxLength(9) color?: string;
 }
 
 /** Piani e prodotti pubblici (per landing e app). */
@@ -365,8 +394,8 @@ export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
   @Get()
-  list(@Query('stage') stage?: string) {
-    return this.crm.list({ stage });
+  list(@Query('stage') stage?: string, @Query('listId') listId?: string) {
+    return this.crm.list({ stage, listId });
   }
 
   @Post()
@@ -387,6 +416,41 @@ export class CrmController {
   @Patch(':id/info')
   updateInfo(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateLeadInfoDto) {
     return this.crm.updateInfo(user.sub, id, dto);
+  }
+
+  /** Imposta le liste di un lead (rimpiazza le appartenenze). */
+  @Post(':id/lists')
+  @HttpCode(200)
+  setLists(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetLeadListsDto) {
+    return this.crm.setLeadLists(user.sub, id, dto.listIds);
+  }
+}
+
+/** Liste CRM: raggruppamenti manuali di lead/clienti. */
+@Controller('crm/lists')
+@Roles('coach', 'sales', 'head_nutritionist', 'admin')
+export class CrmListsController {
+  constructor(private readonly crm: CrmService) {}
+
+  @Get()
+  list() {
+    return this.crm.listLists();
+  }
+
+  @Post()
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateCrmListDto) {
+    return this.crm.createList(user.sub, dto);
+  }
+
+  @Patch(':id')
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateCrmListDto) {
+    return this.crm.updateList(user.sub, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crm.deleteList(user.sub, id);
   }
 }
 

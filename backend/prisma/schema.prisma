@@ -560,13 +560,45 @@ model CrmRecord {
   assignedAt       DateTime? @map("assigned_at")
   assignedById     String?   @map("assigned_by_id")
   assignedBy       Staff?    @relation("LeadAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  // Storico pre-Metabole (dalle liste importate): stato precedente e totale già
+  // pagato dal cliente. Solo INFORMATIVI sulla scheda: NON entrano in contabilità.
+  previousStatus      String? @map("previous_status")
+  historicalPaidCents Int?    @map("historical_paid_cents")
   reminders  CrmReminder[]
+  listMemberships CrmListMember[]
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([stage])
   @@index([assignedCoachId, assignmentStatus])
   @@map("crm_record")
+}
+
+// Liste CRM: raggruppamenti manuali di lead/clienti (un contatto può stare in più
+// liste). Create a mano dall'operatore; usate per filtrare le viste CRM.
+model CrmList {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String? // hex opzionale per il badge
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  members     CrmListMember[]
+
+  @@map("crm_list")
+}
+
+// Appartenenza N:N tra lead/cliente e lista.
+model CrmListMember {
+  listId   String    @map("list_id")
+  list     CrmList   @relation(fields: [listId], references: [id], onDelete: Cascade)
+  recordId String    @map("record_id")
+  record   CrmRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  addedAt  DateTime  @default(now()) @map("added_at")
+
+  @@id([listId, recordId])
+  @@index([recordId])
+  @@map("crm_list_member")
 }
 
 // Calendario CRM: promemoria/appuntamenti, opzionalmente legati a un lead/cliente.

@@ -109,13 +109,17 @@ export class CrmService {
     }
   }
 
-  async list(filter: { stage?: string }) {
-    return this.prisma.crmRecord.findMany({
-      where: filter.stage ? { stage: filter.stage as never } : {},
+  async list(filter: { stage?: string; listId?: string }) {
+    const rows = await this.prisma.crmRecord.findMany({
+      where: {
+        ...(filter.stage ? { stage: filter.stage as never } : {}),
+        ...(filter.listId ? { listMemberships: { some: { listId: filter.listId } } } : {}),
+      },
       orderBy: { updatedAt: 'desc' },
       include: {
         owner: { select: { displayName: true } },
         assignedCoach: { select: { id: true, displayName: true } },
+        listMemberships: { select: { list: { select: { id: true, name: true, color: true } } } },
         client: {
           select: {
             email: true,
@@ -133,6 +137,16 @@ export class CrmService {
       },
       take: 200,
     });
+    // Appiattisce le appartenenze in un array `lists` comodo per il frontend.
+    return rows.map((r: Record<string, unknown>) => this.withLists(r));
+  }
+
+  /** Trasforma listMemberships → lists: [{id,name,color}] per il frontend. */
+  private withLists(r: Record<string, unknown>) {
+    const memberships = (r.listMemberships as { list: unknown }[] | undefined) ?? [];
+    const { listMemberships, ...rest } = r;
+    void listMemberships;
+    return { ...rest, lists: memberships.map((m) => m.list) };
   }
 
   /** Scheda di un singolo lead: anagrafica, storico stati, promemoria collegati. */
@@ -160,17 +174,24 @@ export class CrmService {
           orderBy: { dueAt: 'asc' },
           select: { id: true, title: true, dueAt: true, note: true, done: true },
         },
+        listMemberships: { select: { list: { select: { id: true, name: true, color: true } } } },
       },
     });
     if (!record) throw new NotFoundException('Lead non trovato');
-    return record;
+    return this.withLists(record as Record<string, unknown>);
   }
 
-  /** Modifica anagrafica del lead (nome, email, valore stimato). */
+  /** Modifica anagrafica del lead (nome, email, valore stimato, storico importato). */
   async updateInfo(
     byUserId: string,
     recordId: string,
-    input: { name?: string; email?: string; valueCents?: number | null },
+    input: {
+      name?: string;
+      email?: string;
+      valueCents?: number | null;
+      previousStatus?: string | null;
+      historicalPaidCents?: number | null;
+    },
   ) {
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
     if (!record) throw new NotFoundException('Lead non trovato');
@@ -180,6 +201,8 @@ export class CrmService {
         ...(input.name !== undefined ? { name: input.name || null } : {}),
         ...(input.email !== undefined ? { email: input.email || null } : {}),
         ...(input.valueCents !== undefined ? { valueCents: input.valueCents } : {}),
+        ...(input.previousStatus !== undefined ? { previousStatus: input.previousStatus || null } : {}),
+        ...(input.historicalPaidCents !== undefined ? { historicalPaidCents: input.historicalPaidCents } : {}),
       },
     });
     await this.audit.log({
@@ -193,6 +216,69 @@ export class CrmService {
       },
     });
     return updated;
+  }
+
+  // ---------- Liste CRM (raggruppamenti manuali) ----------
+
+  /** Tutte le liste con il numero di membri. */
+  async listLists() {
+    const lists = await this.prisma.crmList.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { members: true } } },
+    });
+    return lists.map((l: Record<string, unknown>) => {
+      const { _count, ...rest } = l;
+      return { ...rest, memberCount: (_count as { members: number }).members };
+    });
+  }
+
+  async createList(actorId: string, input: { name: string; description?: string | null; color?: string | null }) {
+    const list = await this.prisma.crmList.create({
+      data: { name: input.name.trim(), description: input.description || null, color: input.color || null },
+    });
+    await this.audit.log({ action: 'crm.list.create', actorId, entityType: 'crm_list', entityId: list.id, metadata: { name: list.name } });
+    return list;
+  }
+
+  async updateList(actorId: string, id: string, input: { name?: string; description?: string | null; color?: string | null }) {
+    const list = await this.prisma.crmList.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.description !== undefined ? { description: input.description || null } : {}),
+        ...(input.color !== undefined ? { color: input.color || null } : {}),
+      },
+    });
+    await this.audit.log({ action: 'crm.list.update', actorId, entityType: 'crm_list', entityId: id });
+    return list;
+  }
+
+  async deleteList(actorId: string, id: string) {
+    await this.prisma.crmList.delete({ where: { id } }); // le appartenenze cadono in cascade
+    await this.audit.log({ action: 'crm.list.delete', actorId, entityType: 'crm_list', entityId: id });
+    return { deleted: true };
+  }
+
+  /**
+   * Imposta l'insieme delle liste di un lead (rimpiazza le appartenenze correnti).
+   * Un contatto può stare in più liste contemporaneamente.
+   */
+  async setLeadLists(actorId: string, recordId: string, listIds: string[]) {
+    const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId }, select: { id: true } });
+    if (!record) throw new NotFoundException('Lead non trovato');
+    const wanted = [...new Set(listIds)];
+    await this.prisma.$transaction([
+      this.prisma.crmListMember.deleteMany({ where: { recordId, listId: { notIn: wanted.length ? wanted : ['__none__'] } } }),
+      ...wanted.map((listId) =>
+        this.prisma.crmListMember.upsert({
+          where: { listId_recordId: { listId, recordId } },
+          create: { listId, recordId },
+          update: {},
+        }),
+      ),
+    ]);
+    await this.audit.log({ action: 'crm.lead.set_lists', actorId, entityType: 'crm_record', entityId: recordId, metadata: { listIds: wanted } });
+    return this.detail(recordId);
   }
 
   async create(byUserId: string, input: { email: string; name?: string }) {
