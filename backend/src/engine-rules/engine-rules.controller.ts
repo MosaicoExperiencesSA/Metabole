@@ -77,6 +77,13 @@ export class EngineRulesController {
     return this.service.applyPresetToDiet(id, dietId, u.sub);
   }
 
+  /** Genera con l'AI una BOZZA di catalogo (ricette, giornate, alternative, allergeni)
+   *  dal preset: tutto in bozza, il nutrizionista rivede e approva. */
+  @Post('presets/:id/generate-catalog')
+  generateCatalog(@Param('id') id: string, @CurrentUser() u: AuthUser) {
+    return this.service.generateCatalogFromPreset(id, u.sub);
+  }
+
   @Get('proposals')
   proposals() {
     return this.service.listProposals();

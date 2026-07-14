@@ -96,13 +96,28 @@ export function ModelliEmail() {
   );
 }
 
+// Valori d'esempio per l'anteprima (sostituiscono i segnaposto {{...}}).
+const SAMPLE: Record<string, string> = {
+  nome: 'Anna', piano: 'Equilibrio Mediterraneo', evento: 'il tuo evento', nutrizionista: 'Dr.ssa Bianchi', coach: 'Gaia',
+  data: '15/07/2026', link: '#', link_preferenze: '#', token: 'A1B2C3',
+  amount: '€ 49,00', description: 'Abbonamento Metabole', date: '14/07/2026', paymentId: 'pay_12345',
+  bankDetails: 'IBAN IT00 X000 …', reference: 'RIF-2026-001', clientName: 'Anna Rossi',
+  title: 'Titolo della notifica', body: 'Testo della notifica.', period: 'Luglio 2026',
+  lostThisMonth: '—', lostTotal: '—', currentWeight: '—', target: '—', checkins: '—', trend: '—',
+};
+const fillSample = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k: string) => SAMPLE[k] ?? `{{${k}}}`);
+
 function EditTemplateModal({ template, onClose, onSaved }: { template: Template; onClose: () => void; onSaved: (t: Template) => void }) {
   const [subject, setSubject] = useState(template.subject);
   const [bodyHtml, setBodyHtml] = useState(template.bodyHtml);
   const [active, setActive] = useState(template.active);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const vars = PLACEHOLDERS[template.key] ?? [];
+  const [view, setView] = useState<'preview' | 'code'>('preview');
+
+  // Segnaposto: quelli noti + quelli effettivamente presenti nel testo.
+  const detected = Array.from(new Set([...`${subject} ${bodyHtml}`.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1])));
+  const vars = Array.from(new Set([...(PLACEHOLDERS[template.key] ?? []), ...detected]));
 
   async function save() {
     setBusy(true);
@@ -120,22 +135,38 @@ function EditTemplateModal({ template, onClose, onSaved }: { template: Template;
     }
   }
 
+  const previewDoc = `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>html,body{margin:0;padding:0;background:#f4f1ea}body{font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#2b2b2b}img{max-width:100%}</style></head><body>${fillSample(bodyHtml)}</body></html>`;
+
   return (
-    <Modal title={`Modifica: ${template.name}`} onClose={onClose}>
+    <Modal title={`Modifica: ${template.name}`} onClose={onClose} wide>
       {error && <Banner kind="err">{error}</Banner>}
       {vars.length > 0 && (
         <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-          Segnaposto disponibili: {vars.map((v) => <code key={v} style={{ marginRight: 6 }}>{`{{${v}}}`}</code>)}
+          Segnaposto: {vars.map((v) => <code key={v} style={{ marginRight: 6 }}>{`{{${v}}}`}</code>)} — nell'anteprima sono sostituiti da valori d'esempio.
         </p>
       )}
       <div className="field">
         <label>Oggetto</label>
         <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: '100%' }} />
+        {view === 'preview' && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Anteprima oggetto: <b style={{ color: 'var(--ink,#2b2b2b)' }}>{fillSample(subject)}</b></div>}
       </div>
+
       <div className="field">
-        <label>Corpo (HTML)</label>
-        <textarea className="input" style={{ width: '100%', minHeight: 220, resize: 'vertical', fontFamily: 'monospace', fontSize: 13 }} value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} />
+        <div className="spread" style={{ alignItems: 'center' }}>
+          <label style={{ margin: 0 }}>Corpo</label>
+          <div className="row" style={{ gap: 6 }}>
+            <button className={`btn ${view === 'preview' ? '' : 'ghost'} sm`} onClick={() => setView('preview')}><i className="ti ti-eye" /> Anteprima</button>
+            <button className={`btn ${view === 'code' ? '' : 'ghost'} sm`} onClick={() => setView('code')}><i className="ti ti-code" /> Codice HTML</button>
+          </div>
+        </div>
+        {view === 'preview' ? (
+          <iframe title="Anteprima email" srcDoc={previewDoc} sandbox="allow-popups allow-popups-to-escape-sandbox"
+            style={{ width: '100%', height: '48vh', border: '1px solid var(--line,#eee)', borderRadius: 8, background: '#fff', marginTop: 6 }} />
+        ) : (
+          <textarea className="input" style={{ width: '100%', minHeight: '48vh', resize: 'vertical', fontFamily: 'monospace', fontSize: 13, marginTop: 6 }} value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} />
+        )}
       </div>
+
       <label className="row" style={{ gap: 10, alignItems: 'center', marginTop: 4 }}>
         <Toggle on={active} onChange={setActive} />
         <span>Attivo {active ? '(si usa questo testo)' : '(si usa il testo predefinito)'}</span>

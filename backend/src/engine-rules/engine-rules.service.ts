@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { AiService } from '../ai/ai.service';
+import { suggestAllergens } from '../catalog/allergens';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BASE_RULES, ENGINE_RULES, ENGINE_RULE_BY_CODE, RULE_CATEGORIES } from './engine-rules.catalog';
@@ -17,6 +19,7 @@ export class EngineRulesService {
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    private readonly ai: AiService,
   ) {}
 
   private coerce(code: string, raw: unknown): { value: number | boolean; asString: string } {
@@ -157,6 +160,115 @@ export class EngineRulesService {
     }
     await this.audit.log({ action: 'engine_rule.preset.apply', actorId, entityType: 'diet', entityId: dietId, metadata: { presetId, applied } });
     return { applied };
+  }
+
+  /**
+   * GENERA una BOZZA di catalogo dal preset con l'AI: ricette per pasto, giornate
+   * bilanciate, gruppi di equivalenza (alternative) e pre-tag allergeni. Tutto in BOZZA,
+   * non attivo: il nutrizionista rivede e approva (R7) e conferma gli allergeni (R8)
+   * prima che il motore lo usi. Ritorna i conteggi e l'id della dieta generata.
+   */
+  async generateCatalogFromPreset(presetId: string, actorId: string) {
+    const preset = await this.prisma.rulePreset.findUnique({ where: { id: presetId } });
+    if (!preset) throw new NotFoundException('Preset non trovato.');
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } })) as { id: string } | null;
+    if (!staff) throw new BadRequestException('Serve un profilo nutrizionista per generare il catalogo.');
+
+    const rules = (preset.rules ?? {}) as Record<string, number | boolean>;
+    const regime = ['omnivore', 'vegetarian', 'vegan'].includes(preset.regime ?? '') ? (preset.regime as string) : 'omnivore';
+    const protMin = Math.round(Number(rules.menu_daycombo_protein_min ?? 0.2) * 100);
+    const protMax = Math.round(Number(rules.menu_daycombo_protein_max ?? 0.35) * 100);
+    const kcalTol = Number(rules.menu_kcal_balance_tolerance_pct ?? 15);
+    const targetKcal = 1500;
+    const slots = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
+    const perSlot = 4;
+    const days = 4;
+
+    const regimeRule = regime === 'vegan' ? 'nessun alimento di origine animale' : regime === 'vegetarian' ? 'niente carne né pesce (uova/latticini sì)' : 'onnivoro';
+    const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido, senza testo attorno. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
+    const user =
+`Genera una bozza di catalogo per la dieta "${preset.label}" (stile ${preset.style}, regime ${regime}${preset.objective ? `, obiettivo ${preset.objective}` : ''}).
+Vincoli: proteine ${protMin}-${protMax}% delle kcal; giornata ~${targetKcal} kcal (tolleranza ±${kcalTol}%). Regime: ${regimeRule}.${preset.clinicalNotes ? ` Regole cliniche da rispettare: ${preset.clinicalNotes}` : ''}
+Per OGNI pasto tra [${slots.join(', ')}] genera ${perSlot} ricette. Ogni ricetta: {"ref":"slug-univoco","slot":"<pasto>","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"veloce|forno|meal_prep","steps":["passo 1","passo 2"]}]}.
+Poi ${days} giornate bilanciate ~${targetKcal} kcal: {"level":1,"dayIndex":<1..${days}>,"meals":[{"slot":"<pasto>","ref":"<ref di una ricetta di quel pasto>"}]}.
+Infine gruppi di equivalenza (alimenti intercambiabili a struttura simile): [{"name":"es. Pesci bianchi","items":["branzino","orata","merluzzo"]}].
+Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
+
+    const gen = await this.ai.generateJson<{ recipes?: unknown[]; days?: unknown[]; equivalenceGroups?: unknown[] }>(system, user, 8000);
+    if (!gen) throw new BadRequestException('Generazione non disponibile: verifica che AI_API_KEY sia configurata su Render e riprova.');
+    const recipes = Array.isArray(gen.recipes) ? (gen.recipes as Record<string, unknown>[]) : [];
+    if (recipes.length === 0) throw new BadRequestException('L\'AI non ha prodotto ricette valide: riprova.');
+
+    const validSlots = new Set(slots);
+    const diet = await this.prisma.diet.create({
+      data: {
+        name: `${preset.label} — bozza generata`,
+        regime, style: preset.style, mealsPerDay: 5,
+        levels: [{ level: 1, kcal: targetKcal }], options: {},
+        authorId: staff.id, status: 'draft',
+        objective: preset.objective ?? 'dimagrimento', clientVisible: false,
+      } as never,
+    });
+
+    const refToId = new Map<string, string>();
+    let recCount = 0;
+    for (const r of recipes) {
+      const slot = validSlots.has(String(r.slot)) ? String(r.slot) : 'lunch';
+      const ingredients = Array.isArray(r.ingredients) ? r.ingredients : [];
+      const allergens = suggestAllergens(ingredients).map((s) => s.allergen);
+      const created = await this.prisma.recipe.create({
+        data: {
+          name: String(r.name ?? 'Ricetta generata').slice(0, 120),
+          regime, mealSlot: slot as never,
+          kcal: Math.max(0, Math.round(Number(r.kcal) || 0)),
+          ingredients: ingredients as never,
+          cookingMethods: (Array.isArray(r.cookingMethods) ? r.cookingMethods : []) as never,
+          macros: (r.macros ?? undefined) as never,
+          tags: [`gen:${preset.style}`],
+          active: false, // BOZZA: non entra nel motore finché non approvata
+          allergens, allergensReviewed: false,
+        } as never,
+      });
+      if (r.ref) refToId.set(String(r.ref), created.id);
+      recCount++;
+    }
+
+    let dayCount = 0;
+    for (const d of (Array.isArray(gen.days) ? gen.days : []) as Record<string, unknown>[]) {
+      const meals = (Array.isArray(d.meals) ? d.meals : [])
+        .map((m) => ({ slot: (m as Record<string, unknown>).slot, recipeId: refToId.get(String((m as Record<string, unknown>).ref)) }))
+        .filter((m) => m.recipeId);
+      if (meals.length === 0) continue;
+      await this.prisma.dietDayTemplate.create({
+        data: { dietId: diet.id, level: Number(d.level) || 1, dayIndex: Number(d.dayIndex) || dayCount + 1, meals: meals as never },
+      });
+      dayCount++;
+    }
+
+    let grpCount = 0;
+    for (const g of (Array.isArray(gen.equivalenceGroups) ? gen.equivalenceGroups : []) as Record<string, unknown>[]) {
+      const items = Array.isArray(g.items) ? g.items.map((x) => String(x)) : [];
+      if (!g.name || items.length < 2) continue;
+      await this.prisma.equivalenceGroup.create({
+        data: { name: String(g.name).slice(0, 120), productId: null, members: { items } as never, status: 'draft', version: 1 } as never,
+      });
+      grpCount++;
+    }
+
+    // Applica al prodotto le regole del preset (override per dieta).
+    for (const [code, value] of Object.entries(rules)) {
+      const rule = ENGINE_RULE_BY_CODE.get(code);
+      if (!rule) continue;
+      const enabled = rule.kind === 'boolean' ? Boolean(value) : true;
+      await this.prisma.productRule.upsert({
+        where: { dietId_ruleCode: { dietId: diet.id, ruleCode: code } },
+        create: { dietId: diet.id, ruleCode: code, enabled, params: { value } as never },
+        update: { enabled, params: { value } as never },
+      });
+    }
+
+    await this.audit.log({ action: 'engine_rule.preset.generate_catalog', actorId, entityType: 'diet', entityId: diet.id, metadata: { presetId, recipes: recCount, days: dayCount, groups: grpCount } });
+    return { dietId: diet.id, dietName: diet.name, recipes: recCount, days: dayCount, groups: grpCount };
   }
 
   // ---------- Proposte di regole nuove ----------

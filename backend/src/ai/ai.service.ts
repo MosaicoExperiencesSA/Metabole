@@ -76,6 +76,40 @@ export class AiService {
   }
 
   /**
+   * Generazione STRUTTURATA: ritorna il JSON estratto dalla risposta (o null se l'AI
+   * non è disponibile / risposta non parsabile). Usata per generare bozze di catalogo.
+   */
+  async generateJson<T = unknown>(system: string, userPrompt: string, maxTokens = 4000): Promise<T | null> {
+    const key = this.config.get<string>('AI_API_KEY');
+    if (!key) return null;
+    const model = this.config.get<string>('AI_MODEL') ?? 'claude-haiku-4-5';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90_000);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: userPrompt }] }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        this.logger.warn(`AI generateJson: risposta ${res.status}`);
+        return null;
+      }
+      const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+      const text = data.content?.find((c) => c.type === 'text')?.text ?? '';
+      const fence = text.match(/```json\s*([\s\S]*?)```/i) ?? text.match(/```\s*([\s\S]*?)```/);
+      const blob = fence ? fence[1] : (text.match(/[[{][\s\S]*[\]}]/)?.[0] ?? text);
+      return JSON.parse(blob) as T;
+    } catch (err) {
+      this.logger.warn(`AI generateJson non disponibile: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * Riassume una conversazione (chiusura giornaliera): titolo breve + una frase.
    * Ritorna null se l'AI non è disponibile → chi chiama usa un fallback deterministico.
    */

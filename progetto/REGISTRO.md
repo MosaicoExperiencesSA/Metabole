@@ -7,6 +7,10 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Modelli email — anteprima renderizzata** — l'editor dei modelli ora mostra l'email **renderizzata** (iframe isolato, come i PDF) con i segnaposto sostituiti da valori d'esempio, e un interruttore **Anteprima / Codice HTML**; finestra più larga, oggetto in anteprima, elenco segnaposto rilevati dal testo. Prima si vedeva solo l'HTML grezzo (inutilizzabile).
+
+- `[Sviluppo]` **Regole motore — generatore AI di catalogo (bozza) dai preset** — su ogni regola suggerita un pulsante **‘Genera catalogo’**: l'AI (Claude) produce **ricette per pasto** (ingredienti, kcal, macro, cotture), **giornate bilanciate**, **gruppi di equivalenza** (alternative) e **pre-tag allergeni** (dagli ingredienti), coerenti con stile/regime/bande del preset. Tutto in **BOZZA e non attivo**: crea una dieta `draft`, ricette `active:false` con allergeni `da confermare` → il nutrizionista rivede/approva (R7) e conferma gli allergeni (R8) prima che il motore le usi. Endpoint `POST /engine-rules/presets/:id/generate-catalog`; `AiService.generateJson`. Serve `AI_API_KEY` su Render. Test +2. ⚠️ v1: la qualità di kcal/macro/ricette va riverificata dal nutrizionista.
+
 - `[Sviluppo]` **Catalogo — tasto Elimina per diete e ricette** — aggiunto il pulsante Elimina in **Catalogo diete**, **Catalogo ricette** e **Allergeni** (le ultime due eliminano la ricetta). Backend: `DELETE /diets/:id` (rimuove giorni+regole; **bloccato** se la dieta è usata in menu già erogati) e `DELETE /recipes/:id` (rimuove anche valutazioni e pesi appresi), con audit; riservati a nutrizionista/capo nutrizionista.
 
 - `[Sviluppo]` **Utenti — scheda cliccabile con anagrafica + reset password** — cliccando l'email in Utenti si apre `/utenti/:id`: avatar, ruolo/stato, **nome mostrato, nome, cognome, telefono, titolo, indirizzo (`addressLine`+`country`), codice referral**, modificabili dall'admin, con il **Reset password** in scheda. Backend: `UpdateUserDto` esteso all'anagrafica, `update()` applica i campi (+ `Staff.displayName`), `PUBLIC_USER_SELECT` include indirizzo/paese.

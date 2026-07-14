@@ -21,12 +21,17 @@ function build() {
       update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'rp1', ...data })),
     },
     productRule: { upsert: jest.fn().mockResolvedValue({}) },
-    diet: { findUnique: jest.fn().mockResolvedValue({ id: 'diet1' }) },
+    diet: { findUnique: jest.fn().mockResolvedValue({ id: 'diet1' }), create: jest.fn().mockResolvedValue({ id: 'dietGen', name: 'Keto — bozza generata' }) },
+    staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff1' }) },
+    recipe: { create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: `r-${Math.round(data.kcal)}-${data.name}` })) },
+    dietDayTemplate: { create: jest.fn().mockResolvedValue({}) },
+    equivalenceGroup: { create: jest.fn().mockResolvedValue({}) },
   };
   const configParams = { update: jest.fn().mockResolvedValue({}) };
   const audit = { log: jest.fn() };
-  const service = new EngineRulesService(prisma as any, configParams as any, audit as any);
-  return { service, prisma, configParams };
+  const ai = { generateJson: jest.fn().mockResolvedValue(null) };
+  const service = new EngineRulesService(prisma as any, configParams as any, audit as any, ai as any);
+  return { service, prisma, configParams, ai };
 }
 
 describe('EngineRulesService', () => {
@@ -87,6 +92,35 @@ describe('EngineRulesService', () => {
     const eff = calls.find((c: any) => c.where.dietId_ruleCode.ruleCode === 'menu_select_w_eff');
     expect(eff.create.enabled).toBe(true);
     expect(eff.create.params).toEqual({ value: 1.2 });
+  });
+
+  it('generateCatalog: AI non disponibile → errore chiaro', async () => {
+    const { service, prisma, ai } = build();
+    prisma.rulePreset.findUnique.mockResolvedValue({ id: 'p1', label: 'Keto', style: 'keto', regime: 'omnivore', rules: {} });
+    ai.generateJson.mockResolvedValue(null);
+    await expect(service.generateCatalogFromPreset('p1', 'u1')).rejects.toThrow();
+  });
+
+  it('generateCatalog: crea dieta bozza + ricette + giornate + gruppi dal JSON dell\'AI', async () => {
+    const { service, prisma, ai } = build();
+    prisma.rulePreset.findUnique.mockResolvedValue({
+      id: 'p1', label: 'Keto', style: 'keto', regime: 'omnivore', objective: 'dimagrimento',
+      rules: { menu_daycombo_protein_min: 0.15, menu_daycombo_protein_max: 0.25, menu_repeat_two_days_default: true },
+    });
+    ai.generateJson.mockResolvedValue({
+      recipes: [{ ref: 'r1', slot: 'lunch', name: 'Orata al forno', kcal: 500, ingredients: [{ name: 'orata' }], macros: { protein_g: 35, carbs_g: 5, fat_g: 30 } }],
+      days: [{ level: 1, dayIndex: 1, meals: [{ slot: 'lunch', ref: 'r1' }] }],
+      equivalenceGroups: [{ name: 'Pesci bianchi', items: ['orata', 'branzino'] }],
+    });
+    const res = await service.generateCatalogFromPreset('p1', 'u1');
+    expect(res).toEqual(expect.objectContaining({ recipes: 1, days: 1, groups: 1, dietId: 'dietGen' }));
+    expect(prisma.diet.create).toHaveBeenCalled();
+    expect(prisma.recipe.create).toHaveBeenCalledTimes(1);
+    // ricetta creata in BOZZA (non attiva, allergeni da confermare)
+    expect(prisma.recipe.create.mock.calls[0][0].data).toEqual(expect.objectContaining({ active: false, allergensReviewed: false }));
+    expect(prisma.dietDayTemplate.create).toHaveBeenCalledTimes(1);
+    expect(prisma.equivalenceGroup.create).toHaveBeenCalledTimes(1);
+    expect(prisma.productRule.upsert).toHaveBeenCalled(); // regole del preset applicate alla dieta
   });
 
   it('createProposal: senza testo → errore; con testo → pending', async () => {

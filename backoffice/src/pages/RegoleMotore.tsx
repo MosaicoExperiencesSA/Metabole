@@ -41,6 +41,18 @@ export function RegoleMotore() {
   const [editPreset, setEditPreset] = useState<Preset | 'new' | null>(null);
   const [applyPreset, setApplyPreset] = useState<Preset | null>(null);
   const [proposeOpen, setProposeOpen] = useState(false);
+  const [generating, setGenerating] = useState<string | null>(null);
+
+  async function generateCatalog(p: Preset) {
+    if (!confirm(`Generare con l'AI una BOZZA di catalogo per "${p.label}"?\nCrea ricette, giornate, alternative e pre-tag allergeni in bozza: dovrai rivederli e approvarli. Può richiedere fino a un minuto.`)) return;
+    setGenerating(p.id); setError(null); setNotice(null);
+    try {
+      const r = await api<{ dietName: string; recipes: number; days: number; groups: number }>(`/engine-rules/presets/${p.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({}) });
+      setNotice(`Bozza creata: "${r.dietName}" con ${r.recipes} ricette, ${r.days} giornate e ${r.groups} gruppi di equivalenza. Rivedila in Catalogo diete e conferma gli allergeni.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generazione non riuscita.');
+    } finally { setGenerating(null); }
+  }
 
   async function load() {
     setLoading(true); setError(null);
@@ -85,6 +97,8 @@ export function RegoleMotore() {
           <div style={{ display: 'grid', gap: 12 }}>
             {presets.map((p) => (
               <PresetCard key={p.id} preset={p} catalog={catalog} canManage={canManage}
+                generating={generating === p.id}
+                onGenerate={() => generateCatalog(p)}
                 onEdit={() => setEditPreset(p)} onApply={() => setApplyPreset(p)}
                 onDelete={async () => {
                   if (!confirm(`Eliminare "${p.label}"?`)) return;
@@ -227,7 +241,7 @@ function GlobalRules({ catalog, canManage, onSaved, onError }: { catalog: Catalo
   );
 }
 
-function PresetCard({ preset, catalog, canManage, onEdit, onApply, onDelete }: { preset: Preset; catalog: Catalog | null; canManage: boolean; onEdit: () => void; onApply: () => void; onDelete: () => void }) {
+function PresetCard({ preset, catalog, canManage, generating, onGenerate, onEdit, onApply, onDelete }: { preset: Preset; catalog: Catalog | null; canManage: boolean; generating?: boolean; onGenerate?: () => void; onEdit: () => void; onApply: () => void; onDelete: () => void }) {
   const ruleLabels = catalog ? Object.fromEntries(catalog.rules.map((r) => [r.code, r])) : {};
   return (
     <div className="card">
@@ -244,7 +258,10 @@ function PresetCard({ preset, catalog, canManage, onEdit, onApply, onDelete }: {
         </div>
         {canManage && (
           <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
-            <button className="btn ghost sm" onClick={onApply} title="Applica a una dieta"><i className="ti ti-arrow-bar-to-down" /> Applica</button>
+            <button className="btn sm" onClick={onGenerate} disabled={generating} title="Genera con l'AI una bozza di catalogo (ricette, menù, alternative, allergeni)">
+              <i className="ti ti-sparkles" /> {generating ? 'Genero…' : 'Genera catalogo'}
+            </button>
+            <button className="btn ghost sm" onClick={onApply} title="Applica i parametri a una dieta"><i className="ti ti-arrow-bar-to-down" /> Applica</button>
             <button className="btn ghost sm" onClick={onEdit}><i className="ti ti-pencil" /></button>
             <button className="btn ghost sm" onClick={onDelete} title="Elimina"><i className="ti ti-trash" /></button>
           </div>
