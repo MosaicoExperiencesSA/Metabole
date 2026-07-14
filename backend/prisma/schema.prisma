@@ -545,6 +545,7 @@ model CrmRecord {
   clientId   String?  @unique @map("client_id")
   client     User?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
   email      String?
+  phone      String? // per i lead puri (importati): il telefono è chiave insieme all'email
   name       String?
   stage      String   @default("lead_in") // chiave di pipeline_stage (gestita da admin)
   stageDates Json     @default("{}") @map("stage_dates") // {stage: {at, byUserId}}

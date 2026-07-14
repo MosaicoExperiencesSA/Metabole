@@ -281,6 +281,108 @@ export class CrmService {
     return this.detail(recordId);
   }
 
+  // ---------- Import liste storiche ----------
+
+  /**
+   * Importa un lotto di contatti dalle liste storiche (file già normalizzato).
+   * Match/dedup su TELEFONO o EMAIL: se esiste già un record con lo stesso
+   * telefono o la stessa email lo aggiorna, altrimenti lo crea. Aggancia le liste
+   * (creandole se mancano) e, se `coachRefCode` combacia con una coach attuale,
+   * la assegna. Con `dryRun` non scrive nulla e restituisce solo i conteggi.
+   * Idempotente: rilanciare lo stesso file aggiorna invece di duplicare.
+   */
+  async importRows(
+    actorId: string,
+    rows: Array<{
+      email?: string | null;
+      phone?: string | null;
+      name?: string | null;
+      lists?: string | null; // separate da '|'
+      previousStatus?: string | null;
+      historicalPaidCents?: number | null;
+      coachRefCode?: string | null;
+    }>,
+    dryRun: boolean,
+  ) {
+    // Cache liste e coach (per non interrogare il DB a ogni riga).
+    const lists = (await this.prisma.crmList.findMany({ select: { id: true, name: true } })) as { id: string; name: string }[];
+    const listByName = new Map(lists.map((l) => [l.name.toLowerCase(), l.id]));
+    const coaches = (await this.prisma.staff.findMany({
+      where: { user: { role: 'coach' } },
+      select: { id: true, refCode: true },
+    })) as { id: string; refCode: string | null }[];
+    const coachByRef = new Map(coaches.filter((c) => c.refCode).map((c) => [c.refCode!.toUpperCase(), c.id]));
+
+    let created = 0, merged = 0, skipped = 0, coachAssigned = 0, listLinks = 0;
+    const newLists = new Set<string>();
+
+    for (const row of rows) {
+      const email = (row.email ?? '').trim().toLowerCase() || null;
+      const phone = (row.phone ?? '').replace(/\D/g, '') || null;
+      if (!email && !phone) { skipped++; continue; } // senza chiave: non importabile
+      const names = (row.lists ?? '').split('|').map((s) => s.trim()).filter(Boolean);
+      const coachId = row.coachRefCode ? coachByRef.get(row.coachRefCode.trim().toUpperCase()) ?? null : null;
+      const orWhere = [...(phone ? [{ phone }] : []), ...(email ? [{ email }] : [])];
+
+      if (dryRun) {
+        for (const n of names) if (!listByName.has(n.toLowerCase())) newLists.add(n.toLowerCase());
+        const exists = await this.prisma.crmRecord.findFirst({ where: { OR: orWhere }, select: { id: true } });
+        if (exists) merged++; else created++;
+        if (coachId) coachAssigned++;
+        listLinks += names.length;
+        continue;
+      }
+
+      // Liste: crea quelle mancanti (una tantum).
+      const listIds: string[] = [];
+      for (const n of names) {
+        let id = listByName.get(n.toLowerCase());
+        if (!id) {
+          const cl = await this.prisma.crmList.create({ data: { name: n } });
+          id = cl.id;
+          listByName.set(n.toLowerCase(), id);
+        }
+        listIds.push(id);
+      }
+
+      const existing = await this.prisma.crmRecord.findFirst({ where: { OR: orWhere }, select: { id: true } });
+      const base: Record<string, unknown> = {
+        email,
+        phone,
+        name: row.name || null,
+        previousStatus: row.previousStatus || null,
+        historicalPaidCents: row.historicalPaidCents ?? null,
+        ...(coachId ? { assignedCoachId: coachId, assignmentStatus: 'accepted', assignedAt: new Date() } : {}),
+      };
+      let recordId: string;
+      if (existing) {
+        await this.prisma.crmRecord.update({ where: { id: existing.id }, data: base as never });
+        recordId = existing.id;
+        merged++;
+      } else {
+        const c = await this.prisma.crmRecord.create({
+          data: { ...base, stage: 'lead_in', stageDates: { lead_in: { at: new Date().toISOString(), meta: { source: 'import' } } } } as never,
+        });
+        recordId = c.id;
+        created++;
+      }
+      if (coachId) coachAssigned++;
+      for (const listId of listIds) {
+        await this.prisma.crmListMember.upsert({
+          where: { listId_recordId: { listId, recordId } },
+          create: { listId, recordId },
+          update: {},
+        });
+        listLinks++;
+      }
+    }
+
+    if (!dryRun) {
+      await this.audit.log({ action: 'crm.import.batch', actorId, entityType: 'crm_record', metadata: { created, merged, coachAssigned, listLinks } });
+    }
+    return { created, merged, skipped, coachAssigned, listLinks, newLists: dryRun ? [...newLists] : [] };
+  }
+
   async create(byUserId: string, input: { email: string; name?: string }) {
     const record = await this.prisma.crmRecord.create({
       data: {

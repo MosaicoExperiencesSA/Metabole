@@ -212,6 +212,8 @@ a {
   max-width: 1180px;
   width: 100%;
 }
+/* A barra nascosta il contenuto usa tutta la larghezza (utile per le tabelle larghe). */
+.app-shell.nav-closed .content { max-width: none; }
 
 /* ---------- Componenti ---------- */
 .card {

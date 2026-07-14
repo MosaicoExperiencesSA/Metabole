@@ -35,7 +35,7 @@
 
 **Da validare col socio** (il motore è dominio suo): definizione operativa di "stessi alimenti" (gruppo di equivalenza vs ingredienti identici), fallback preferito, flag per cliente vs per prodotto. **Stima:** piccola/media (backend + toggle backoffice + test + riga informativa in app). — [Sv/Claude]
 
-### 2.2 Liste CRM — Fase A ✅ FATTA (in attesa di push) · Fase B (import) da fare
+### 2.2 Liste CRM — Fase A (liste manuali) ✅ + Fase B (import storico) ✅ FATTE (in attesa di push)
 
 **Cosa:** poter raggruppare lead e clienti in **liste create manualmente** dal backoffice; le viste CRM (Gestione lead, clienti) mostrano **tutti insieme o filtrati per lista**; nel **dettaglio** del lead/cliente la lista compare come badge accanto a "CRM: paid". In più, **import delle liste storiche esistenti** di Simone: per ogni contatto importato si salvano — visibili nello stesso punto della scheda — lo **stato precedente** (dallo storico pre-Metabole) e il **totale già pagato** da quel cliente.
 

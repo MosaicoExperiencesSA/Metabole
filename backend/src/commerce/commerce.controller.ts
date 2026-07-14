@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBase64,
   IsBoolean,
@@ -158,6 +159,25 @@ class SetLeadListsDto {
   @IsArray()
   @IsUUID('4', { each: true })
   listIds!: string[];
+}
+
+class ImportRowDto {
+  @IsOptional() @IsString() @MaxLength(200) email?: string;
+  @IsOptional() @IsString() @MaxLength(40) phone?: string;
+  @IsOptional() @IsString() @MaxLength(200) name?: string;
+  @IsOptional() @IsString() @MaxLength(300) lists?: string; // separate da '|'
+  @IsOptional() @IsString() @MaxLength(120) previousStatus?: string;
+  @IsOptional() @IsInt() historicalPaidCents?: number;
+  @IsOptional() @IsString() @MaxLength(20) coachRefCode?: string;
+}
+
+class ImportLeadsDto {
+  @IsBoolean() dryRun!: boolean;
+  @IsArray()
+  @ArrayMaxSize(2000)
+  @ValidateNested({ each: true })
+  @Type(() => ImportRowDto)
+  rows!: ImportRowDto[];
 }
 
 class CreateCrmListDto {
@@ -423,6 +443,14 @@ export class CrmController {
   @HttpCode(200)
   setLists(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetLeadListsDto) {
     return this.crm.setLeadLists(user.sub, id, dto.listIds);
+  }
+
+  /** Import liste storiche (solo admin): un lotto per volta, con dry-run per l'anteprima. */
+  @Roles('admin')
+  @Post('import')
+  @HttpCode(200)
+  import(@CurrentUser() user: AuthUser, @Body() dto: ImportLeadsDto) {
+    return this.crm.importRows(user.sub, dto.rows, dto.dryRun);
   }
 }
 

@@ -30,6 +30,7 @@ interface LeadDetailData {
   assignedCoachId: string | null;
   assignedCoach: { id: string; displayName: string } | null;
   assignmentStatus: string | null;
+  phone: string | null;
   previousStatus: string | null;
   historicalPaidCents: number | null;
   lists: CrmList[];
@@ -272,6 +273,7 @@ export function LeadDetail() {
             <h2 style={{ marginTop: 0, marginBottom: 4 }}>{displayName}</h2>
             <p className="muted" style={{ margin: 0, fontSize: 13 }}>
               {lead.client?.email ?? lead.email ?? '—'}
+              {(lead.client?.phone ?? lead.phone) && <span> · {lead.client?.phone ?? lead.phone}</span>}
               {!lead.client && <span className="chip amber" style={{ marginLeft: 8, fontSize: 10 }}>lead</span>}
             </p>
             {lead.lists.length > 0 && (

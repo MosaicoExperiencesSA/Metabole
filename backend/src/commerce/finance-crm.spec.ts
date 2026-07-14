@@ -193,8 +193,11 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         delete: jest.fn().mockResolvedValue({}),
       },
       crmListMember: { deleteMany: jest.fn(), upsert: jest.fn() },
+      staff: { findMany: jest.fn().mockResolvedValue([{ id: 'staff-c', refCode: 'VOLPEA01' }]) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
+    prisma.crmRecord.findFirst = jest.fn().mockResolvedValue(null);
+    prisma.crmRecord.create = jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'new1', ...data }));
     const pipeline = {
       stageKeys: jest.fn().mockResolvedValue(new Set(['lead_in', 'worked', 'paid', 'coach_assigned', 'coach_call', 'nutritionist_assigned', 'first_visit', 'follow_up'])),
       listStages: jest.fn().mockResolvedValue([
@@ -284,5 +287,43 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     const d: any = await service.detail('lead1');
     expect(d.lists).toEqual([{ id: 'L2', name: 'Keto', color: '#33B190' }]);
     expect(d.listMemberships).toBeUndefined();
+  });
+
+  it('import dryRun: conta creati/uniti e nuove liste, senza scrivere', async () => {
+    prisma.crmRecord.findFirst
+      .mockResolvedValueOnce(null)            // riga 1 → nuovo
+      .mockResolvedValueOnce({ id: 'esiste' }); // riga 2 → già presente
+    const s: any = await service.importRows('admin', [
+      { phone: '3331234567', name: 'Anna', lists: 'Storici 2024|NuovaLista', coachRefCode: 'volpea01' },
+      { email: 'gia@x.it', lists: 'Keto' },
+      { name: 'senza chiave' }, // saltato
+    ], true);
+    expect(s.created).toBe(1);
+    expect(s.merged).toBe(1);
+    expect(s.skipped).toBe(1);
+    expect(s.coachAssigned).toBe(1); // volpea01 → staff-c
+    expect(s.newLists).toContain('nuovalista'); // "Storici 2024" e "Keto" esistono già
+    expect(prisma.crmRecord.create).not.toHaveBeenCalled(); // dryRun non scrive
+    expect(prisma.crmList.create).not.toHaveBeenCalled();
+  });
+
+  it('import reale: crea il record, aggancia le liste e assegna la coach dal refcode', async () => {
+    prisma.crmRecord.findFirst.mockResolvedValue(null);
+    const s: any = await service.importRows('admin', [
+      { phone: '+39 333 1234567', name: 'Anna', lists: 'Storici 2024', coachRefCode: 'VOLPEA01', historicalPaidCents: 9900 },
+    ], false);
+    expect(s.created).toBe(1);
+    expect(prisma.crmRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          phone: '393331234567', // solo cifre
+          assignedCoachId: 'staff-c',
+          assignmentStatus: 'accepted',
+          historicalPaidCents: 9900,
+        }),
+      }),
+    );
+    expect(prisma.crmListMember.upsert).toHaveBeenCalled(); // agganciata la lista
+    expect(s.coachAssigned).toBe(1);
   });
 });

@@ -22,6 +22,7 @@ interface Lead {
   assignedCoachId: string | null;
   assignedCoach: { id: string; displayName: string } | null;
   assignmentStatus: string | null; // pending | accepted
+  phone: string | null;
   lists: CrmList[];
   client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionistId: string | null; assignedNutritionist: { id: string; displayName: string } | null } | null } | null;
 }
@@ -139,9 +140,14 @@ export function LeadsTable() {
           </select>
           <button className="btn ghost" onClick={() => setShowLists(true)}><i className="ti ti-tags" /> Gestisci liste</button>
         </div>
-        <Link className="btn" to="/crm/inserimento">
-          <i className="ti ti-user-plus" /> Nuovo lead
-        </Link>
+        <div className="row" style={{ gap: 8 }}>
+          {can('accounting', 'manage') && (
+            <Link className="btn ghost" to="/crm/import"><i className="ti ti-database-import" /> Importa</Link>
+          )}
+          <Link className="btn" to="/crm/inserimento">
+            <i className="ti ti-user-plus" /> Nuovo lead
+          </Link>
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
@@ -188,7 +194,7 @@ export function LeadsTable() {
                         </div>
                       )}
                     </td>
-                    <td className="muted">{l.client?.email ?? l.email ?? '—'}</td>
+                    <td className="muted">{l.client?.email ?? l.email ?? l.phone ?? '—'}</td>
                     <td>
                       <select
                         className="select"
