@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateDietDto,
@@ -26,6 +27,7 @@ export class CatalogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly config: ConfigParamsService,
   ) {}
 
   /** Scheda Staff dell'utente corrente (richiesta per operare sul catalogo). */
@@ -87,6 +89,36 @@ export class CatalogService {
       });
     }
     return paths;
+  }
+
+  /**
+   * Numeri per il SITO pubblico (data-stats-endpoint): { years, clients, reached, methods }.
+   * Ogni campo legge da `config_param` (`site_stats_*`) con **fallback ai conteggi reali** del DB.
+   * Così la scelta "numeri reali vs base marketing (es. 20.000/80.000)" è un semplice toggle
+   * dal backoffice, senza redeploy: se il parametro non è impostato si mostra il dato vero.
+   *  - years   → anni di attività (config `site_stats_years`; omesso se 0/non impostato)
+   *  - clients → clienti (config `site_stats_clients`, fallback: n° schede cliente reali)
+   *  - reached → persone raggiunte (config `site_stats_reached`, fallback: n° lead nel CRM)
+   *  - methods → n° percorsi visibili (uno per stile), coerente con /public/paths
+   */
+  async publicStats() {
+    const [paths, realClients, realReached] = await Promise.all([
+      this.publicPaths(),
+      this.prisma.clientProfile.count(),
+      this.prisma.crmRecord.count(),
+    ]);
+    const [years, clients, reached] = await Promise.all([
+      this.config.getNumber('site_stats_years', 0),
+      this.config.getNumber('site_stats_clients', realClients),
+      this.config.getNumber('site_stats_reached', realReached),
+    ]);
+    const stats: Record<string, number> = {
+      clients,
+      reached,
+      methods: paths.length,
+    };
+    if (years > 0) stats.years = years; // mostrato solo se configurato
+    return stats;
   }
 
   async getDiet(id: string) {

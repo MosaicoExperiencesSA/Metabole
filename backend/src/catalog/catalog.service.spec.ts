@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogService } from './catalog.service';
 
@@ -25,6 +26,8 @@ describe('CatalogService (flusso approvazione diete)', () => {
         findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockResolvedValue({ id: 'r1' }),
       },
+      clientProfile: { count: jest.fn().mockResolvedValue(5) },
+      crmRecord: { count: jest.fn().mockResolvedValue(12) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
     const moduleRef = await Test.createTestingModule({
@@ -32,6 +35,7 @@ describe('CatalogService (flusso approvazione diete)', () => {
         CatalogService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: ConfigParamsService, useValue: { getNumber: jest.fn(async (_k: string, d?: number) => d ?? 0) } },
       ],
     }).compile();
     service = moduleRef.get(CatalogService);
@@ -43,6 +47,19 @@ describe('CatalogService (flusso approvazione diete)', () => {
     authorId: 'staff-author',
     dayTemplates: [{ id: 't1' }],
     ...over,
+  });
+
+  it('publicStats: methods dedotti per stile, clients/reached da conteggi reali (fallback)', async () => {
+    prisma.diet.findMany.mockResolvedValue([
+      { id: 'd1', style: 'keto', name: 'Keto', clientVisible: true },
+      { id: 'd2', style: 'mediterranean', name: 'Med', clientVisible: true },
+      { id: 'd3', style: 'keto', name: 'Keto (bis)', clientVisible: true },
+    ]);
+    const s = await service.publicStats();
+    expect(s.methods).toBe(2); // 3 diete visibili ma 2 stili distinti
+    expect(s.clients).toBe(5); // fallback: clientProfile.count
+    expect(s.reached).toBe(12); // fallback: crmRecord.count
+    expect(s.years).toBeUndefined(); // config 0 → campo omesso
   });
 
   it('il capo approva una dieta in revisione di un altro autore', async () => {

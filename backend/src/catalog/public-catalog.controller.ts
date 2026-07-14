@@ -15,4 +15,12 @@ export class PublicCatalogController {
   paths() {
     return this.catalog.publicPaths();
   }
+
+  /** Numeri della home (data-stats-endpoint): config_param con fallback a conteggi reali. */
+  @Public()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('stats')
+  stats() {
+    return this.catalog.publicStats();
+  }
 }
