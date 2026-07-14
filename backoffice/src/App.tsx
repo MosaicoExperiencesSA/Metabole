@@ -18,6 +18,7 @@ import { Testimonianze } from './pages/Testimonianze';
 import { GruppiEquivalenza } from './pages/GruppiEquivalenza';
 import { Publisher } from './pages/Publisher';
 import { Ricette } from './pages/Ricette';
+import { TagAllergeni } from './pages/TagAllergeni';
 import { GestioneNegozio } from './pages/GestioneNegozio';
 import { Protocolli } from './pages/Protocolli';
 import { Agenda } from './pages/Agenda';
@@ -98,6 +99,7 @@ export default function App() {
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
       <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="diets_catalog"><Ricette /></Protected>} />
+      <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="diets_catalog"><TagAllergeni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="diets_catalog"><GruppiEquivalenza /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />

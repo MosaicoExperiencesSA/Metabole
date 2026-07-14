@@ -75,6 +75,7 @@ const NAV: NavSection[] = [
     items: [
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
       { key: 'diets_catalog', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
+      { key: 'diets_catalog', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
       { key: 'diets_catalog', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
       { key: 'engine_protocols', label: 'Protocolli motore', to: '/protocolli', icon: 'ti-cpu' },
     ],
