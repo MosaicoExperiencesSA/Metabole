@@ -44,6 +44,7 @@ export const PAGE_LABEL: Record<string, string> = {
   assign_coach: 'Assegna coach (in lista)',
   assign_nutritionist: 'Assegna nutrizionista (in lista)',
   engine_config: 'Parametri motore',
+  engine_rules: 'Regole motore',
   audit_logs: 'Log attività',
   permissions: 'Permessi',
   email_templates: 'Modelli email',

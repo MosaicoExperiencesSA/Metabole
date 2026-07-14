@@ -8,7 +8,7 @@ Ultimo aggiornamento: **2026-07-14 sera** (riallineamento: contatori LIVE, Strip
 ---
 
 ## 🟢 Semaforo
-**Tecnicamente pronti.** Resta 1 gate 🔴 vero: **pagamento reale di prova dentro lo smoke test**. Poi igiene pre-apertura e contenuti.
+**Tecnicamente pronti.** Pagamento reale **testato e confermato** (14/07). Restano lo smoke test end-to-end completo (registrazione → email in inbox → onboarding → menu → allergene → lead CRM) e l'igiene pre-apertura.
 
 ## ✅ Già fatto (verificato live)
 - Backend in produzione (`/health` ok) · **DB Neon prod seedato** (3 piani reali €297/€497/€797).
@@ -25,7 +25,7 @@ Ultimo aggiornamento: **2026-07-14 sera** (riallineamento: contatori LIVE, Strip
 ## 🔴 Gate — prima di aprire al pubblico
 | # | Cosa | Chi | Stato |
 |---|---|---|---|
-| 1 | **Pagamento reale di prova** (piano più economico, carta vera) → webhook 200 → abbonamento attivo; poi rimborso da Stripe + sistemazione abbonamento a mano | [Sv] | ⬜ |
+| 1 | **Pagamento reale di prova** (piano più economico, carta vera) → webhook 200 → abbonamento attivo; poi rimborso da Stripe + sistemazione abbonamento a mano | [Sv] | ✅ testato e confermato 14/07 |
 | 2 | **Smoke test end-to-end** (registrazione→email **in inbox**→onboarding→pagamento (=n.1)→menu→allergene→lead CRM) | [Pr]/[Sv] | ⬜ |
 | 3 | **Igiene pre-apertura**: lead di prova "Test GoLive Claude" via dal CRM · segreti Render (`ADMIN_*`, `AI_API_KEY` se serve) · **IBAN reale** in `bank_transfer_details` · conferma prezzi | [Sv]/[Ops] | ⬜ |
 

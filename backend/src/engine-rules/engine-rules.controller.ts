@@ -32,11 +32,13 @@ class ProposalStatusDto {
 }
 
 /**
- * Regole del motore — riservate al CAPO NUTRIZIONISTA (head_nutritionist).
- * L'admin ha accesso tecnico. Nessun altro ruolo tocca le regole cliniche.
+ * Regole del motore — di norma riservate al CAPO NUTRIZIONISTA (head_nutritionist),
+ * con l'admin per l'accesso tecnico. Il ruolo `nutritionist` è ammesso a livello di
+ * guardia così che il capo/admin possa ABILITARLO dalla tabella permessi (di default
+ * resta spento per il nutrizionista: vedi DEFAULT_PERMISSIONS in permissions/pages.ts).
  */
 @Controller('engine-rules')
-@Roles('head_nutritionist', 'admin')
+@Roles('head_nutritionist', 'nutritionist', 'admin')
 export class EngineRulesController {
   constructor(private readonly service: EngineRulesService) {}
 
