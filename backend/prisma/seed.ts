@@ -121,6 +121,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'menu_penalty_repeat',
+    value: '0',
+    type: 'number',
+    description: 'R11 — penalità di ripetizione nello scoring dei menu: penalizza le ricette servite di recente per favorire la varietà (0 = disattivata; valori tipici 0,05–0,2)',
+  },
+  {
+    key: 'menu_repeat_window_days',
+    value: '14',
+    type: 'number',
+    description: 'R11 — finestra (giorni) su cui contare le ripetizioni recenti di una ricetta per la penalità di ripetizione',
+  },
+  {
     key: 'cycle_default_rating',
     value: '5',
     type: 'number',

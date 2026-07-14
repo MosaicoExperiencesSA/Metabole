@@ -332,11 +332,14 @@ export class MenuService {
   } | null> {
     if (!regime) return null;
 
-    const [wEffBase, wGradBase, boost, proteinBonus] = await Promise.all([
+    const [wEffBase, wGradBase, boost, proteinBonus, penaltyRepeat, repeatWindowDays] = await Promise.all([
       this.configParams.getNumber('menu_select_w_eff', 1),
       this.configParams.getNumber('menu_select_w_grad', 1),
       this.configParams.getNumber('menu_state_boost', 1.8),
       this.configParams.getNumber('menu_pre_event_protein_bonus', 0.6),
+      // R11: penalità di ripetizione (varietà). Default 0 = disattivata (comportamento invariato).
+      this.configParams.getNumber('menu_penalty_repeat', 0),
+      this.configParams.getNumber('menu_repeat_window_days', 14),
     ]);
     // Modulazione dei pesi in base allo stato dell'agente.
     let wEff = wEffBase;
@@ -368,6 +371,22 @@ export class MenuService {
     const effOf = new Map(weights.map((w) => [w.recipeId, w.samples > 0 ? w.score / w.samples : 0]));
     const starOf = new Map<string, number>();
     for (const r of ratings) starOf.set(r.recipeId, Math.max(starOf.get(r.recipeId) ?? 0, r.stars));
+
+    // R11 — penalità di ripetizione: quante volte ogni ricetta è stata servita di recente
+    // (finestra `menu_repeat_window_days`). Interroga solo se la penalità è attiva (>0).
+    const recentCount = new Map<string, number>();
+    if (penaltyRepeat > 0) {
+      const since = new Date(Date.now() - repeatWindowDays * 86_400_000);
+      const recentDays = (await this.prisma.menuDay.findMany({
+        where: { clientId, date: { gte: since } },
+        select: { meals: true },
+      })) as { meals: unknown }[];
+      for (const d of recentDays) {
+        for (const m of (d.meals as { recipeId?: string }[]) ?? []) {
+          if (m?.recipeId) recentCount.set(m.recipeId, (recentCount.get(m.recipeId) ?? 0) + 1);
+        }
+      }
+    }
     // Quota proteica (0..1) dai macro, per lo stato pre-evento e per DayCombo.
     const proteinOf = new Map<string, number>();
     for (const r of recipes) {
@@ -379,7 +398,8 @@ export class MenuService {
     const score = (id: string) =>
       wEff * (effOf.get(id) ?? 0) +
       wGrad * ((starOf.get(id) ?? 5) / 5) +
-      (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0);
+      (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0) -
+      penaltyRepeat * (recentCount.get(id) ?? 0); // R11: scoraggia la ripetizione (varietà)
 
     return { slotPool, kcalOf, proteinOf, score };
   }
