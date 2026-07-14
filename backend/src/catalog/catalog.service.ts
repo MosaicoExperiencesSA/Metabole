@@ -11,6 +11,7 @@ import {
   CreateRecipeDto,
   SetDayTemplatesDto,
   UpdateDietDto,
+  UpdateDietProductDto,
   UpdateRecipeDto,
 } from './dto/catalog.dto';
 
