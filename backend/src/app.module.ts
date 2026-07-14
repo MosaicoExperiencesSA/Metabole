@@ -40,6 +40,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { CoachModule } from './coach/coach.module';
 import { NutritionistModule } from './nutritionist/nutritionist.module';
 import { ReferralModule } from './referral/referral.module';
+import { TestimonialsModule } from './testimonials/testimonials.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { ReferralModule } from './referral/referral.module';
     CoachModule,
     NutritionistModule,
     ReferralModule,
+    TestimonialsModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

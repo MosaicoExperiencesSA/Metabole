@@ -20,8 +20,6 @@ enum Role {
   nutritionist
   head_nutritionist
   sales
-  marketing
-  head_marketing
   admin
 }
 
@@ -41,7 +39,6 @@ enum ConfigParamType {
 enum ActionTokenType {
   email_verification
   password_reset
-  email_change
 }
 
 enum Sex {
@@ -60,7 +57,6 @@ enum DietStyle {
   protein
   low_carb
   flexible
-  keto
 }
 
 enum PathType {
@@ -215,7 +211,6 @@ enum MealSlot {
 model User {
   id              String     @id @default(uuid())
   email           String     @unique
-  secondaryEmail  String?    @unique @map("secondary_email") // email alternativa per il login (verificata); notifiche/ricevute vanno sempre alla principale `email`
   passwordHash    String     @map("password_hash")
   role            Role       @default(client)
   customRoleKey   String?    @map("custom_role_key") // ruolo personalizzato (etichetta+menu); il ruolo di sistema resta in `role`
@@ -229,14 +224,10 @@ model User {
   prefs           Json?      @map("prefs") // preferenze UI (es. scorciatoie dashboard)
   firstName       String?    @map("first_name")
   lastName        String?    @map("last_name")
-  title           String?    // titolo/qualifica mostrata nel backoffice (es. "Coach", "Dr.ssa")
-  photoUrl        String?    @map("photo_url") // foto profilo (data URL ridotta) per l'avatar
-  theme           String     @default("light") // tema grafico backoffice: light | dark | taupe | white
   addressLine     String?    @map("address_line") // via e numero civico
   postalCode      String?    @map("postal_code")  // CAP
   city            String?
   province        String?
-  country         String?    // paese dell'indirizzo (es. Italia, Svizzera)
   phone           String?
 
   auditLogs       AuditLog[]
@@ -281,7 +272,6 @@ model Staff {
   specialties         String[] @default([])
   bio                 String?
   refCode             String?  @unique @map("ref_code") // codice di riferimento della coach
-  iban                String?  // IBAN salvato per i prelievi provvigioni
   headNutritionistId  String?  @map("head_nutritionist_id")
   headNutritionist    Staff?   @relation("NutritionistTeam", fields: [headNutritionistId], references: [id], onDelete: SetNull)
   teamMembers         Staff[]  @relation("NutritionistTeam")
@@ -310,29 +300,8 @@ model Staff {
   assignedLeads         CrmRecord[]     @relation("LeadAssigner")
   compensations         StaffCompensation[] @relation("CompensationStaff")
   authoredClientNotes   ClientNote[]        @relation("ClientNoteAuthor")
-  withdrawals           CommissionWithdrawal[] @relation("StaffWithdrawals")
 
   @@map("staff")
-}
-
-/** Richiesta di prelievo delle provvigioni maturate (portafoglio staff). */
-model CommissionWithdrawal {
-  id           String    @id @default(uuid())
-  staffId      String    @map("staff_id")
-  staff        Staff     @relation("StaffWithdrawals", fields: [staffId], references: [id], onDelete: Cascade)
-  amountCents  Int       @map("amount_cents")
-  iban         String
-  status       String    @default("requested") // requested | paid | rejected
-  receiptData  Bytes?    @map("receipt_data") // ricevuta/fattura caricata (cifrata)
-  receiptMime  String?   @map("receipt_mime")
-  receiptName  String?   @map("receipt_name")
-  note         String?   // motivo del rifiuto o nota dell'operatore
-  requestedAt  DateTime  @default(now()) @map("requested_at")
-  paidAt       DateTime? @map("paid_at")
-  approvedById String?   @map("approved_by_id")
-
-  @@index([staffId, status])
-  @@map("commission_withdrawal")
 }
 
 // Profilo della cliente: compilato dal questionario di onboarding (15 pagine).
@@ -364,7 +333,6 @@ model ClientProfile {
   assignedNutritionist   Staff?     @relation("AssignedNutritionist", fields: [assignedNutritionistId], references: [id], onDelete: SetNull)
   consents               Json?      // versioni dei consensi accettati
   notificationPrefs      Json?      @map("notification_prefs") // opt-out per tipo + email opzionale
-  referralCode           String?    @unique @map("referral_code") // codice "porta un'amica" della cliente
   screeningFlag          Boolean    @default(false) @map("screening_flag")
   onboardingAnswers      Json?      @map("onboarding_answers") // snapshot grezzo delle risposte
   onboardingCompletedAt  DateTime?  @map("onboarding_completed_at")
@@ -492,8 +460,6 @@ model Product {
   priceCents  Int      @map("price_cents")
   description String?
   active      Boolean  @default(true)
-  // A quale team vanno le provvigioni di questo prodotto: both | coaching | nutrition
-  commissionTeam String @default("both") @map("commission_team")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -579,30 +545,6 @@ model PipelineStage {
 }
 
 // Contabilità: eventi economici automatici, niente doppio inserimento.
-// Voce di costo per la contabilità (backlog #6). Registra i costi aziendali oltre a
-// quelli già a ledger (provvigioni/compensi): infrastruttura (Neon/Render/Vercel/Brevo/
-// Stripe/Anthropic), marketing/ads, stipendi, tasse, ecc. Un costo può essere una tantum
-// (`recurring=false`, conta nella sua `date`) o ricorrente (`recurring=true`, `cadence`
-// mensile/annuale, attivo da `date` a `endDate`). FK-less.
-model CostEntry {
-  id          String    @id @default(uuid())
-  label       String
-  category    String // salaries | infrastructure | marketing | payment_fees | ai | taxes | other
-  amountCents Int       @map("amount_cents")
-  recurring   Boolean   @default(false)
-  cadence     String    @default("once") // once | monthly | yearly
-  date        DateTime  @db.Date // una tantum: data del costo · ricorrente: data di inizio
-  endDate     DateTime? @map("end_date") @db.Date // ricorrente: fine (opzionale)
-  vendor      String?
-  note        String?
-  createdById String?   @map("created_by_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  @@index([category, date])
-  @@map("cost_entry")
-}
-
 model LedgerEntry {
   id        String     @id @default(uuid())
   type      LedgerType
@@ -750,144 +692,6 @@ model Event {
   @@map("event")
 }
 
-// Eventi di tracciamento (analitici, append-only). Ogni click/interazione del
-// prototipo passa da track() → POST /events. Tabella DISACCOPPIATA: nessuna FK
-// verso User (userId è una stringa opzionale) così gli eventi restano immutabili
-// e sopravvivono alla cancellazione dell'utente (GDPR: no dati sanitari nel data).
-// Vedi Metabole_Tracciamento_Dati.md.
-model AnalyticsEvent {
-  id         String   @id @default(uuid())
-  eventId    String   @unique @map("event_id") // UUID lato client per idempotenza sui retry
-  name       String // "ui_click" | "view" | ...
-  userId     String?  @map("user_id") // dal JWT se presente (nessuna FK)
-  session    String? // sessione pre-login (riconciliata alla registrazione)
-  refcod     String? // attribuzione commerciale / provvigioni
-  phase      String? // "flow" | "app"
-  screen     String?
-  step       Int?
-  data       Json? // payload libero (MAI dati sanitari in chiaro)
-  clientTs   BigInt?  @map("client_ts") // timestamp epoch ms dichiarato dal client
-  receivedAt DateTime @default(now()) @map("received_at")
-
-  @@index([userId, receivedAt])
-  @@index([session, receivedAt])
-  @@index([name, receivedAt])
-  @@map("analytics_event")
-}
-
-// Alert engine (coda avvisi per la coach). Tabella DISACCOPPIATA (clientId/coachId
-// come stringhe, nessuna FK) generata e sincronizzata da AlertsService.recompute:
-// gli alert la cui condizione non vale più vengono messi a status='resolved'.
-// coachId = Staff.id della coach assegnata. Vedi Metabole_Backend_Operazioni §5.
-model Alert {
-  id        String    @id @default(uuid())
-  clientId  String    @map("client_id")
-  coachId   String?   @map("coach_id")
-  group     String    @map("alert_group") // corpo_misure | aderenza_vita | gusto_mente | agenda_op
-  type      String // missing_measurements | weight_gain | plateau | inactive | checkin_skipped | water_low | low_ratings | dropout_risk | event_incoming | escalation_open | milestone
-  priority  String // high | med | low
-  title     String
-  detail    String?
-  status    String    @default("open") // open | handled | escalated | resolved
-  dueDate   DateTime? @map("due_date") @db.Date
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-
-  @@index([coachId, status])
-  @@index([clientId, type, status])
-  @@map("alert")
-}
-
-// Riassunto giornaliero di una conversazione (chiusura quotidiana): titolo
-// generato dall'AI + data, mostrato in "Conversazioni passate" (cliente e staff).
-// Vedi Metabole_Backend_Operazioni §7. FK-less sul clientId.
-model ConversationSummary {
-  id           String          @id @default(uuid())
-  clientId     String          @map("client_id")
-  counterpart  ChatCounterpart
-  date         DateTime        @db.Date
-  title        String
-  summary      String?
-  messageCount Int             @default(0) @map("message_count")
-  createdAt    DateTime        @default(now()) @map("created_at")
-
-  @@unique([clientId, counterpart, date])
-  @@index([clientId, counterpart, date])
-  @@map("conversation_summary")
-}
-
-// Esito di un ciclo (2 giorni) del motore: perdita/stabilità/aumento di peso e cm,
-// attribuiti all'INTERA giornata/ciclo. Registrato alla chiusura del ciclo (arrivo
-// misura al 2° giorno). Vedi Metabole_Motore_Personalizzazione §4. FK-less.
-model CycleFeedback {
-  id            String   @id @default(uuid())
-  clientId      String   @map("client_id")
-  cycleStart    DateTime @map("cycle_start") @db.Date
-  cycleEnd      DateTime @map("cycle_end") @db.Date
-  deltaWeightKg Float?   @map("delta_weight_kg")
-  deltaCm       Float?   @map("delta_cm")
-  esitoPeso     String   @map("esito_peso") // perso | stabile | preso | n.d.
-  esitoCm       String   @map("esito_cm") // perso | stabile | preso | n.d.
-  followed      Boolean  @default(false)
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  @@unique([clientId, cycleEnd])
-  @@index([clientId, cycleEnd])
-  @@map("cycle_feedback")
-}
-
-// Efficacia APPRESA di una ricetta per uno specifico cliente (learning del motore):
-// sale se i cicli in cui compare fanno perdere peso/cm, scende altrimenti. FK-less.
-model MenuWeight {
-  id        String   @id @default(uuid())
-  clientId  String   @map("client_id")
-  recipeId  String   @map("recipe_id")
-  score     Float    @default(0)
-  samples   Int      @default(0)
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@unique([clientId, recipeId])
-  @@index([clientId])
-  @@map("menu_weight")
-}
-
-// Invito "porta un'amica": una cliente (referrer) invita un'altra cliente (referred)
-// col proprio referralCode. Alla prima attivazione dell'abbonamento della referred
-// scatta la ricompensa per la referrer (estensione dell'abbonamento). FK-less:
-// referrerClientId/referredClientId come stringhe. Una referred = un solo invito.
-model Referral {
-  id               String    @id @default(uuid())
-  referrerClientId String    @map("referrer_client_id")
-  referredClientId String    @unique @map("referred_client_id")
-  code             String
-  convertedAt      DateTime? @map("converted_at") // prima attivazione abbonamento della referred
-  rewardedAt       DateTime? @map("rewarded_at") // ricompensa applicata alla referrer
-  createdAt        DateTime  @default(now()) @map("created_at")
-
-  @@index([referrerClientId])
-  @@map("referral")
-}
-
-// Appuntamento in agenda (app coach + cliente). Entità di SCHEDULING generale
-// (coach e nutrizionista); la visita clinica dettagliata resta su Visit (fase
-// nutrizionista). FK-less: clientId/staffId come stringhe. Vedi Metabole_Backend_Operazioni §6.
-model Appointment {
-  id        String   @id @default(uuid())
-  clientId  String   @map("client_id")
-  staffId   String   @map("staff_id")
-  staffRole String   @map("staff_role") // coach | nutritionist
-  type      String // call | televisit | in_person
-  datetime  DateTime
-  status    String   @default("scheduled") // scheduled | done | cancelled
-  note      String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([clientId, datetime])
-  @@index([staffId, datetime])
-  @@map("appointment")
-}
-
 // Notifiche personalizzate (spec sez. 9). userId = destinatario (cliente o staff).
 model Notification {
   id           String              @id @default(uuid())
@@ -904,19 +708,6 @@ model Notification {
   @@index([userId, readAt])
   @@index([userId, type, scheduledFor])
   @@map("notification")
-}
-
-// Token dei dispositivi per le notifiche push (FCM). FK-less (userId senza relazione).
-model PushToken {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  token     String   @unique
-  platform  String   @default("android") // android | ios | web
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([userId])
-  @@map("push_token")
 }
 
 // --- Motore a regole (milestone 5) ---
@@ -988,51 +779,12 @@ model Diet {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  // Campi "prodotto" mostrati al cliente (schermo 16 "Stile che preferisci").
-  clientName        String?  @map("client_name")
-  clientDescription String?  @map("client_description")
-  highlights        Json? // 3–5 "caratteristiche principali" mostrate al cliente
-  seasonalTag       String?  @map("seasonal_tag")
-  objective         String   @default("dimagrimento") // dimagrimento | mantenimento
-  clientVisible     Boolean  @default(false) @map("client_visible")
-
   dayTemplates DietDayTemplate[]
   menuDays     MenuDay[]
 
   @@index([status])
   @@index([regime, mealsPerDay, status])
-  @@index([clientVisible])
   @@map("diet")
-}
-
-// Regole del motore attivate per un prodotto (dieta). rule_code dal catalogo (es. L5, L7, A2…).
-// I comportamenti sono mappati su config_param; qui si sceglie quali attivare per prodotto (Fase F).
-model ProductRule {
-  id        String   @id @default(uuid())
-  dietId    String   @map("diet_id")
-  ruleCode  String   @map("rule_code")
-  enabled   Boolean  @default(true)
-  params    Json?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@unique([dietId, ruleCode])
-  @@index([dietId])
-  @@map("product_rule")
-}
-
-// Coda "c'è un'altra regola?": proposta di una regola nuova, da approvare dal capo.
-model RuleProposal {
-  id         String   @id @default(uuid())
-  dietId     String   @map("diet_id")
-  text       String
-  proposedBy String?  @map("proposed_by")
-  status     String   @default("pending") // pending | approved | rejected
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  @@index([status])
-  @@map("rule_proposal")
 }
 
 model Recipe {
@@ -1240,7 +992,6 @@ model ActionToken {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      ActionTokenType
   tokenHash String          @unique @map("token_hash")
-  email     String?         // email di destinazione (per il cambio email)
   expiresAt DateTime        @map("expires_at")
   usedAt    DateTime?       @map("used_at")
   createdAt DateTime        @default(now()) @map("created_at")
@@ -1331,18 +1082,6 @@ model EmailTemplate {
   @@map("email_template")
 }
 
-/** Template HTML dei PDF inviati ai clienti (ricevuta, report mensile), modificabili da admin. */
-model PdfTemplate {
-  key         String   @id // 'receipt', 'monthly_report'
-  name        String
-  html        String
-  updatedById String?  @map("updated_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("pdf_template")
-}
-
 // Log di ogni email tentata (per verificare gli invii).
 model EmailLog {
   id          String   @id @default(uuid())
@@ -1404,4 +1143,23 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_log")
+}
+
+// Testimonianze del sito pubblico (gestite dal backoffice, approvate dal marketing).
+// Endpoint pubblico: GET /public/testimonials (solo published). Vedi TestimonialsModule.
+model Testimonial {
+  id        String   @id @default(uuid())
+  name      String
+  age       Int?
+  text      String
+  photo     String?
+  locale    String   @default("it")
+  published Boolean  @default(true)
+  order     Int      @default(0)
+  source    String? // provenienza, es. "marketing", "cliente"
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([published, order])
+  @@map("testimonial")
 }

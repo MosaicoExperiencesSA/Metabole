@@ -12,6 +12,7 @@ import { ClientDetail } from './pages/ClientDetail';
 import { Clienti } from './pages/Clienti';
 import { Compensi } from './pages/Compensi';
 import { Diete } from './pages/Diete';
+import { Testimonianze } from './pages/Testimonianze';
 import { Ricette } from './pages/Ricette';
 import { GestioneNegozio } from './pages/GestioneNegozio';
 import { Protocolli } from './pages/Protocolli';
@@ -84,6 +85,7 @@ export default function App() {
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
       <Route path="/contabilita" element={<Protected title="Contabilità" pageKey="accounting_costs"><Contabilita /></Protected>} />
       <Route path="/marketing" element={<Protected title="Marketing" pageKey="marketing"><Placeholder title="Reparto Marketing" icon="ti-speakerphone" note="Campagne, segmenti, KPI e gestione consensi. Il modulo marketing è in arrivo; il ruolo e i permessi sono già attivi." /></Protected>} />
+      <Route path="/testimonianze" element={<Protected title="Testimonianze" pageKey="marketing"><Testimonianze /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />

@@ -685,6 +685,27 @@ async function seedDietProductFields(): Promise<void> {
   }
 }
 
+/**
+ * Testimonianze iniziali del sito (le stesse del prototipo, approvate dal marketing).
+ * Idempotente: se esiste già almeno una testimonianza non fa nulla (il backoffice
+ * le gestisce da lì in poi). Foto lasciata vuota → il sito usa il proprio fallback.
+ */
+async function seedTestimonials(): Promise<void> {
+  const existing = await prisma.testimonial.count();
+  if (existing > 0) return;
+  const SEED = [
+    { name: 'Martina', age: 41, text: "Finalmente mi sento seguita davvero. La coach c'è, e questo cambia tutto.", order: 1 },
+    { name: 'Elena', age: 35, text: 'Mangio con gusto e le giornate storte non mi buttano più giù.', order: 2 },
+    { name: 'Giulia', age: 38, text: 'Un nutrizionista vero e Gaia sempre lì: mi sento in mani sicure.', order: 3 },
+  ];
+  for (const t of SEED) {
+    await prisma.testimonial.create({
+      data: { ...t, locale: 'it', published: true, source: 'marketing' },
+    });
+  }
+  console.log(`Seed: ${SEED.length} testimonianze iniziali inserite (sito).`);
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -711,6 +732,7 @@ async function main(): Promise<void> {
   await seedPermissions();
   await seedDemoCatalog();
   await seedDietProductFields();
+  await seedTestimonials();
   await seedKetoCatalog(prisma);
   await seedProtocols();
   await seedCommerce();
