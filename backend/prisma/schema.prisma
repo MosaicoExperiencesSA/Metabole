@@ -353,6 +353,7 @@ model ClientProfile {
   pathType               PathType?  @map("path_type")
   coachStyle             CoachStyle? @map("coach_style")
   character              Character?
+  allergies              String[]   @default([]) // R8: blocco duro (incl. tracce/derivati), distinto da intolleranze/gusti
   intolerances           String[]   @default([])
   dislikedFoods          String[]   @default([]) @map("disliked_foods")
   lifestyle              Json?      // lavoro, tempo per cucinare, pranzo feriali (segnale "Vita")
@@ -1423,4 +1424,78 @@ model Testimonial {
 
   @@index([published, order])
   @@map("testimonial")
+}
+
+// ============================================================================
+// MOTORE INTELLIGENTE — Fase B (R8–R12): scheletro modelli (E0, senza logica).
+// Approvati dal socio (Metabole_Motore_R8_R12_Decisioni.md). Additivi, isolati
+// per prodotto. La logica dell'agente arriverà nelle fasi E1–E5.
+// ============================================================================
+
+// R4/R8 — Gruppi di equivalenza per le sostituzioni (safety-critical).
+// Di proprietà del nutrizionista (workflow draft→approved, versionato).
+// productId null = gruppo globale; le sostituzioni restano comunque dentro il pool del prodotto.
+model EquivalenceGroup {
+  id        String   @id @default(uuid())
+  name      String
+  productId String?  @map("product_id") // Diet.id; null = globale
+  members   Json     @default("[]") // alimenti/ingredienti/recipeId equivalenti
+  status    String   @default("draft") // draft | approved
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([productId])
+  @@index([status])
+  @@map("equivalence_group")
+}
+
+// R8 — Base personalizzata del cliente (copia filtrata del pool del prodotto), isolata per client_id.
+model ClientMenuPool {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  dietId    String   @map("diet_id")
+  version   Int      @default(1)
+  recipeIds String[] @default([]) @map("recipe_ids") // ricette ammesse dopo esclusioni/sostituzioni
+  excluded  Json?    // audit: cosa rimosso/sostituito e perché
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([clientId, dietId, version])
+  @@index([clientId])
+  @@map("client_menu_pool")
+}
+
+// R10/R11 — Ciclo bigiornaliero attivo del cliente + stato contestuale (D4: lo stato vive qui).
+model ClientCycle {
+  id            String   @id @default(uuid())
+  clientId      String   @map("client_id")
+  dietId        String   @map("diet_id")
+  cycleStart    DateTime @map("cycle_start") @db.Date
+  cycleEnd      DateTime @map("cycle_end") @db.Date
+  dayTemplateId String?  @map("day_template_id") // menu erogato nel ciclo
+  cookingG1     String?  @map("cooking_g1") // metodo cottura giorno 1
+  cookingG2     String?  @map("cooking_g2") // metodo cottura giorno 2 (kcal invariate)
+  state         String   @default("normale") // normale|conforto|rientro|pre_evento|post_evento|plateau
+  status        String   @default("active") // active|closed|paused
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId, cycleEnd])
+  @@map("client_cycle")
+}
+
+// R9 — Certificato di unicità della personalizzazione (seme + firma HMAC/hash-chain).
+model PersonalizationCertificate {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  dietId    String?  @map("diet_id")
+  seed      String // seme deterministico derivato da client_id
+  signature String // hash(cliente, menu, ricette, stato, versione)
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([clientId, version])
+  @@index([clientId])
+  @@map("personalization_certificate")
 }

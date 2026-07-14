@@ -105,6 +105,11 @@ export class SubmitAnswersDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  allergies?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   intolerances?: string[];
 
   @IsOptional()

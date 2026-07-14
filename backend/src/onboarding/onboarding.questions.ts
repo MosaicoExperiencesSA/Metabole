@@ -49,9 +49,10 @@ export const ONBOARDING_QUESTIONS = {
     },
     {
       key: 'intolerances',
-      title: 'Intolleranze o allergie',
-      subtitle: 'Un punto molto importante: le tue allergie o intolleranze. È importante che le conosca, così posso evitarti i cibi che potrebbero farti male.',
+      title: 'Allergie e intolleranze',
+      subtitle: 'Un punto delicato e importante. Le allergie le evito sempre, senza eccezioni (anche tracce e derivati); le intolleranze le gestisco con alternative adatte. Elencamele con calma.',
       fields: [
+        { key: 'allergies', type: 'tags', label: 'Allergie — es. arachidi, crostacei, uova… (le evito sempre)' },
         { key: 'intolerances', type: 'multi_choice', options: ['none', 'gluten', 'lactose', 'nuts', 'other'], labels: ['Nessuna', 'Glutine', 'Lattosio', 'Frutta secca', 'Altro'] },
       ],
     },

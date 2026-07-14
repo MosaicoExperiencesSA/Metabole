@@ -209,7 +209,7 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
 @media(max-width:880px){.hero-grid,.lead-person,.day,.lead-band{grid-template-columns:1fr}.stats,.concept,.tst{grid-template-columns:1fr 1fr}.cult .grid{grid-template-columns:1fr 1fr}.coaches{grid-template-columns:repeat(3,1fr)}.nav .links{display:none}.hero h1{font-size:42px}h2{font-size:30px}}
 @media(max-width:520px){.stats,.concept,.tst,.cult .grid{grid-template-columns:1fr}.coaches{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:34px}}
 </style></head>
-<body data-i18n-endpoint="" data-stats-endpoint="https://metabole-backend.onrender.com/api/v1/public/stats" data-paths-endpoint="https://metabole-backend.onrender.com/api/v1/public/paths" data-testimonials-endpoint="https://metabole-backend.onrender.com/api/v1/public/testimonials">
+<body data-i18n-endpoint="" data-stats-endpoint="" data-paths-endpoint="" data-testimonials-endpoint="">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="gaiaMascot" viewBox="0 0 240 250">
   <style>
