@@ -6,6 +6,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { validateObjective } from '../onboarding/objective-validator';
+import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -15,6 +16,7 @@ export class ProfileService {
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    private readonly personalBase: PersonalBaseService,
   ) {}
 
   async getProfile(userId: string) {
@@ -53,6 +55,16 @@ export class ProfileService {
       entityId: profile.id,
       metadata: { fields: Object.keys(dto) },
     });
+
+    // Se cambiano regime/stile/numero pasti, il prodotto e il pool ricette possono
+    // cambiare: rigeneriamo la base personalizzata sicura (non bloccante).
+    if (dto.regime !== undefined || dto.dietStyle !== undefined || dto.mealsPerDay !== undefined) {
+      try {
+        await this.personalBase.buildPersonalBase(userId);
+      } catch {
+        /* non bloccante */
+      }
+    }
     return profile;
   }
 

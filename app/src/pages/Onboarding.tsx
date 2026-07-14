@@ -264,6 +264,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     if (a.startWaistCm != null && a.startWaistCm !== '') dto.startWaistCm = Number(a.startWaistCm);
     if (a.startHipsCm != null && a.startHipsCm !== '') dto.startHipsCm = Number(a.startHipsCm);
     if (Array.isArray(a.allergies) && a.allergies.length) dto.allergies = a.allergies;
+    if (Array.isArray(a.allergiesOther) && a.allergiesOther.length) dto.allergiesOther = a.allergiesOther;
     if (Array.isArray(a.intolerances) && a.intolerances.length) dto.intolerances = a.intolerances;
     if (Array.isArray(a.dislikedFoods) && a.dislikedFoods.length) dto.dislikedFoods = a.dislikedFoods;
     const lifestyle = cleanObj({ work: a.work, cookingTime: a.cookingTime, weekdayLunch: a.weekdayLunch, motivation: a.why });

@@ -107,6 +107,12 @@ export class SubmitAnswersDto {
   @IsString({ each: true })
   allergies?: string[];
 
+  /** Allergie fuori dai 14 codici UE: testo libero → forza revisione del nutrizionista. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergiesOther?: string[];
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

@@ -121,6 +121,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'personal_base_min_recipes_per_slot',
+    value: '3',
+    type: 'number',
+    description: 'R8 — ricette sicure minime per pasto principale (colazione/pranzo/cena) sotto cui la base personalizzata non è certificabile in automatico e si blocca in attesa del nutrizionista',
+  },
+  {
     key: 'agent_pre_event_days',
     value: '3',
     type: 'number',

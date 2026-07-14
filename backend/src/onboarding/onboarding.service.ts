@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
 import { ONBOARDING_QUESTIONS } from './onboarding.questions';
@@ -19,6 +20,7 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    private readonly personalBase: PersonalBaseService,
   ) {}
 
   /**
@@ -118,7 +120,7 @@ export class OnboardingService {
         pathType: dto.pathType as never,
         coachStyle: dto.coachStyle as never,
         character: dto.character as never,
-        allergies: dto.allergies ?? [],
+        allergies: [...(dto.allergies ?? []), ...(dto.allergiesOther ?? [])],
         intolerances,
         dislikedFoods: dto.dislikedFoods ?? [],
         lifestyle: (dto.lifestyle ?? undefined) as never,
@@ -147,7 +149,7 @@ export class OnboardingService {
         pathType: dto.pathType as never,
         coachStyle: dto.coachStyle as never,
         character: dto.character as never,
-        allergies: dto.allergies ?? [],
+        allergies: [...(dto.allergies ?? []), ...(dto.allergiesOther ?? [])],
         intolerances,
         dislikedFoods: dto.dislikedFoods ?? [],
         lifestyle: (dto.lifestyle ?? undefined) as never,
@@ -214,6 +216,15 @@ export class OnboardingService {
       metadata: { screeningFlag, pace: validation.pace },
       ipAddress: ip,
     });
+
+    // R8 — Agente esclusioni: costruisce la base personalizzata sicura. Non deve MAI far
+    // fallire l'onboarding: se non è certificabile in automatico apre da sé una segnalazione
+    // al nutrizionista, quindi qui assorbiamo eventuali errori imprevisti.
+    try {
+      await this.personalBase.buildPersonalBase(userId);
+    } catch {
+      /* non bloccante: la base verrà rigenerata al primo trigger utile */
+    }
 
     return this.buildResult(userId, { objectiveValidation: validation, objectiveId: objective.id });
   }

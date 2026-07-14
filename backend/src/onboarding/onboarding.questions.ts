@@ -52,7 +52,16 @@ export const ONBOARDING_QUESTIONS = {
       title: 'Allergie e intolleranze',
       subtitle: 'Un punto delicato e importante. Le allergie le evito sempre, senza eccezioni (anche tracce e derivati); le intolleranze le gestisco con alternative adatte. Elencamele con calma.',
       fields: [
-        { key: 'allergies', type: 'tags', label: 'Allergie — es. arachidi, crostacei, uova… (le evito sempre)' },
+        {
+          key: 'allergies',
+          type: 'multi_choice',
+          label: 'Allergie — le evito sempre, anche tracce e derivati',
+          // I 14 allergeni UE (allineati al backend src/catalog/allergens.ts): il motore
+          // esclusioni può filtrare in sicurezza solo se arrivano codificate come le ricette.
+          options: ['glutine', 'crostacei', 'uova', 'pesce', 'arachidi', 'soia', 'latte', 'frutta_a_guscio', 'sedano', 'senape', 'sesamo', 'solfiti', 'lupini', 'molluschi'],
+          labels: ['Glutine', 'Crostacei', 'Uova', 'Pesce', 'Arachidi', 'Soia', 'Latte e derivati', 'Frutta a guscio', 'Sedano', 'Senape', 'Sesamo', 'Solfiti', 'Lupini', 'Molluschi'],
+        },
+        { key: 'allergiesOther', type: 'tags', label: 'Altra allergia non in elenco (la verifica il nutrizionista)' },
         { key: 'intolerances', type: 'multi_choice', options: ['none', 'gluten', 'lactose', 'nuts', 'other'], labels: ['Nessuna', 'Glutine', 'Lattosio', 'Frutta secca', 'Altro'] },
       ],
     },
