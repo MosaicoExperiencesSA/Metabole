@@ -1499,3 +1499,32 @@ model PersonalizationCertificate {
   @@index([clientId])
   @@map("personalization_certificate")
 }
+
+// ============================================================================
+// MARKETING — Agente Publisher: log/coda dei post social. Ogni post passa dal
+// Giudice (compliance) prima della pubblicazione. Pubblicazione social ed export
+// Canva sono stub in attesa delle credenziali delle piattaforme.
+// ============================================================================
+model SocialPost {
+  id           String    @id @default(uuid())
+  collectionId String?   @map("collection_id") // id collezione dal catalogo vignette (es. persona.maria_matrimonio)
+  channel      String // instagram | facebook | ...
+  caption      String
+  hashtags     String[]  @default([])
+  imageRef     String?   @map("image_ref") // design_id Canva o path PNG
+  imageSource  String?   @map("image_source") // canva | png_locale
+  status       String    @default("draft") // draft|judged|approved|scheduled|published|failed|rejected
+  judgePass    Boolean?  @map("judge_pass")
+  judgeIssues  Json?     @map("judge_issues") // string[] dei problemi rilevati dal Giudice
+  scheduledAt  DateTime? @map("scheduled_at")
+  publishedAt  DateTime? @map("published_at")
+  externalId   String?   @map("external_id") // id del post sulla piattaforma (dopo la pubblicazione)
+  error        String?
+  createdById  String?   @map("created_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([channel, scheduledAt])
+  @@map("social_post")
+}

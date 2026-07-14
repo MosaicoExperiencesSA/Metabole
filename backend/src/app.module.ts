@@ -42,6 +42,7 @@ import { NutritionistModule } from './nutritionist/nutritionist.module';
 import { ReferralModule } from './referral/referral.module';
 import { TestimonialsModule } from './testimonials/testimonials.module';
 import { EquivalenceModule } from './equivalence/equivalence.module';
+import { SocialModule } from './social/social.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { EquivalenceModule } from './equivalence/equivalence.module';
     ReferralModule,
     TestimonialsModule,
     EquivalenceModule,
+    SocialModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.
