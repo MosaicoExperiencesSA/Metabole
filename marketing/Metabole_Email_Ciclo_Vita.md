@@ -367,6 +367,101 @@ Email che partono da un **evento** del percorso: risultato, ricorrenza, umore, s
 
 ---
 
+# PARTE 5 — Copy completa: conversione, retention, win-back
+
+## Conversione
+
+### PROFILO_INCOMPLETO — questionario iniziato, non finito (+48h)
+**Oggetto:** Ti manca solo un minuto, {{nome}}
+**Preview:** Il tuo percorso su misura è a un passo.
+> Ciao {{nome}}, hai iniziato a raccontarci di te ma non hai finito. Bastano un paio di minuti per completare il profilo e ricevere il **percorso pensato su di te**, con coach e nutrizionista dedicati. Riprendi da dove hai lasciato.
+**CTA:** Completa il profilo
+
+### NURTURE_1 — Perché non è una dieta
+**Oggetto:** Perché Metabole non è una dieta
+**Preview:** La differenza che cambia tutto.
+> Le diete falliscono perché chiedono a **te** di adattarti a loro. Noi facciamo il contrario: il menu si adatta a te — ai tuoi gusti, ai tuoi tempi, a come reagisce il tuo corpo — sotto la guida di un nutrizionista. Niente fame, niente conteggi. Solo cibo buono che funziona per te.
+**CTA:** Scopri il tuo percorso
+
+### NURTURE_2 — Il tuo team
+**Oggetto:** Non sei sola: il tuo team Metabole
+**Preview:** Una coach e un nutrizionista, veri.
+> In Metabole non ti lasciamo con un'app e basta. Hai una **coach** che ti segue giorno per giorno e ti motiva, e un **nutrizionista** che costruisce e valida il tuo menu. Gaia, la nostra assistente, ti guida passo passo. Le persone fanno la differenza.
+**CTA:** Inizia con il tuo team
+
+### NURTURE_3 — Storie come la tua
+**Oggetto:** Storie come la tua
+**Preview:** Chi ha iniziato prima di te.
+> {{testimonianza_breve}} — {{testimonianza_autrice}}
+> Ognuna è partita da un momento diverso; tutte hanno trovato un modo sostenibile, senza rinunce. Il prossimo passo può essere il tuo.
+**CTA:** Comincia oggi
+
+### NURTURE_4 — Pronta quando lo sei tu
+**Oggetto:** Ci siamo quando decidi tu, {{nome}}
+**Preview:** Il tuo profilo è già pronto.
+> Nessuna fretta e nessuna pressione. Quando ti va, il tuo percorso {{piano}} è pronto a partire, con coach e nutrizionista. Se hai una domanda, rispondi a questa email: ti risponde una persona vera.
+**CTA:** Attiva quando vuoi
+
+## Retention (cliente attivo)
+
+### ONB_G1 — Il tuo primo giorno
+**Oggetto:** Benvenuta nel tuo primo giorno, {{nome}}!
+**Preview:** Ecco come muoverti nell'app.
+> Oggi si comincia! Nell'app trovi il **menu del giorno** in Home; in Contatti ci sono la tua coach {{coach}} e Gaia, sempre a un messaggio di distanza. Un consiglio: parti dalla colazione e prenditela con calma.
+**CTA:** Apri l'app
+
+### ONB_G2 — Il primo check-in
+**Oggetto:** Il tuo primo check-in
+**Preview:** Bastano pochi secondi, ed è importante.
+> Ogni 2 giorni ti chiediamo le tue misure: è il **segnale** che permette al percorso di adattarsi a te. Niente ansia da bilancia — è solo il modo in cui capiamo cosa funziona meglio per il tuo corpo.
+**CTA:** Fai il check-in
+
+### ONB_G4 — Sostituzioni e gusti
+**Oggetto:** Un piatto non ti va? Cambialo
+**Preview:** Il menu si modella sui tuoi gusti.
+> Se un piatto non ti piace o non lo mangi, dillo nell'app: il percorso ti propone un'**alternativa**. Più ci dici cosa ami e cosa eviti, più il tuo menu diventa davvero tuo.
+**CTA:** Aggiorna i tuoi gusti
+
+### ONB_G7 — La tua prima settimana
+**Oggetto:** Una settimana insieme, {{nome}} 🌿
+**Preview:** Hai già fatto la parte più difficile: iniziare.
+> Sette giorni fa hai deciso di prenderti cura di te, e sei ancora qui. È così che nascono i risultati che durano: **un passo alla volta**. {{coach}} è fiera di te — continua così.
+**CTA:** Vedi i tuoi progressi
+
+### FEEDBACK_RICETTE — com'era il menu
+**Oggetto:** Com'era il tuo menu, {{nome}}?
+**Preview:** Il tuo parere rende il percorso più tuo.
+> Un piatto ti è piaciuto tantissimo? O proprio no? Dillo con un tocco nell'app: più valuti, più il percorso **impara** cosa proporti. Bastano pochi secondi.
+**CTA:** Valuta i piatti
+
+### RIATTIVA_DROPOUT — uso in calo
+**Oggetto:** Ci sei, {{nome}}? Ripartiamo insieme
+**Preview:** Un passo alla volta, senza fretta.
+> Ti abbiamo persa di vista in questi giorni — capita, la vita è piena di cose. Nessun giudizio: il tuo percorso è ancora qui, pronto a riprenderti da dove eri. {{coach}} è a un messaggio di distanza se vuoi ripartire con calma.
+**CTA:** Riapri l'app
+
+### REFERRAL — porta un'amica
+**Oggetto:** Conosci qualcuna che merita di stare bene?
+**Preview:** Un percorso su misura, anche per lei.
+> Se Metabole ti sta aiutando, forse può aiutare anche una persona a cui vuoi bene. Invitala: {{vantaggio}} per entrambe. Il benessere è più bello condiviso.
+**CTA:** Invita un'amica
+
+## Win-back (scaduti)
+
+### WB_T3 — grace period
+**Oggetto:** Riprendi da dove avevi lasciato, {{nome}}
+**Preview:** Il tuo percorso e i tuoi progressi sono ancora qui.
+> Il tuo percorso si è concluso qualche giorno fa, ma non abbiamo cancellato nulla: **menu, storico e personalizzazione** ti aspettano. Bastano un paio di clic per ricominciare, con la tua coach.
+**CTA:** Riattiva il percorso
+
+### WB_T7 — novità + offerta
+**Oggetto:** È cambiato qualcosa in Metabole
+**Preview:** Nuovi percorsi, la stessa cura per te.
+> Da quando ci siamo lasciati abbiamo aggiunto novità pensate proprio per rendere il percorso più semplice e su misura. Se vuoi riprovare, ti accogliamo con {{offerta}}. Ci farebbe piacere riaverti.
+**CTA:** Torna con noi
+
+---
+
 ## Priorità di attivazione (da agente di marketing)
 1. **Le 3 richieste** (benvenuto, profilo pronto, piano inizia domani) — sono il cuore dell'attivazione.
 2. **Checkout abbandonato (A2)** e **Pre-scadenza/rinnovo (C1–C3)** — massimo ritorno immediato (recupero acquisti + rinnovi).

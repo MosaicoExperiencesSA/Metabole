@@ -19,28 +19,28 @@ Registro delle email automatiche (triggered) che stiamo preparando. Ogni riga = 
 
 | Cod | Evento (trigger) | Oggetto | Testo (sintesi) | Segmento | Timing | Stato |
 |---|---|---|---|---|---|---|
-| PROFILO_INCOMPLETO | Registrato, questionario non finito | Ti manca solo un minuto, {{nome}} | Riduci attrito, ribadisci valore → completa il profilo | Lead nuovo | +48h | 🟡 |
+| PROFILO_INCOMPLETO | Registrato, questionario non finito | Ti manca solo un minuto, {{nome}} | Riduci attrito, ribadisci valore → completa il profilo | Lead nuovo | +48h | 🟢 |
 | CART_1H | Piano scelto, non pagato | Il tuo percorso {{piano}} ti aspetta | Riprendi da dove hai lasciato → paga | Opportunità | +1h | 🟢 |
 | CART_24H | Piano scelto, non pagato | "Ci ho già provato e non ha funzionato" | Perché qui è diverso + 1 testimonianza | Opportunità | +24h | 🟢 |
 | CART_72H | Piano scelto, non pagato | Un pensiero per iniziare 🎁 | Incentivo a tempo (48h) → attiva ora | Opportunità | +72h | 🟢 |
-| NURTURE_1 | Profilo pronto, non sceglie piano | Perché non è una dieta | Il metodo (si adatta a te) | Lead qualificato | +2gg | 🟡 |
-| NURTURE_2 | come sopra | Il tuo team | Chi sono coach e nutrizionista | Lead qualificato | +4gg | 🟡 |
-| NURTURE_3 | come sopra | Storie come la tua | Testimonianza per persona-target | Lead qualificato | +6gg | 🟡 |
-| NURTURE_4 | come sopra | Pronta quando lo sei tu | Riepilogo profilo + offerta gentile | Lead qualificato | +9gg | 🟡 |
+| NURTURE_1 | Profilo pronto, non sceglie piano | Perché non è una dieta | Il metodo (si adatta a te) | Lead qualificato | +2gg | 🟢 |
+| NURTURE_2 | come sopra | Il tuo team | Chi sono coach e nutrizionista | Lead qualificato | +4gg | 🟢 |
+| NURTURE_3 | come sopra | Storie come la tua | Testimonianza per persona-target | Lead qualificato | +6gg | 🟢 |
+| NURTURE_4 | come sopra | Pronta quando lo sei tu | Riepilogo profilo + offerta gentile | Lead qualificato | +9gg | 🟢 |
 | OBIEZIONE_PREZZO | Apre più email senza convertire | Un piccolo investimento su di te | Valore vs costo + parla con noi | Opportunità tiepida | evento | ⚪ |
 
 ## 3. Retention (cliente attivo)
 
 | Cod | Evento (trigger) | Oggetto | Testo (sintesi) | Segmento | Timing | Stato |
 |---|---|---|---|---|---|---|
-| ONB_G1 | Avvio percorso | Il tuo primo giorno | Come leggere il menu, dove sono coach/Gaia | Cliente attivo | Giorno 1 | 🟡 |
-| ONB_G2 | Cliente attivo | Il primo check-in | Perché le misure ogni 2 giorni contano | Cliente attivo | Giorno 2 | 🟡 |
-| ONB_G4 | Cliente attivo | Sostituzioni e gusti | Come dire cosa non ti piace → il menu cambia | Cliente attivo | Giorno 4 | 🟡 |
-| ONB_G7 | Cliente attivo | La tua prima settimana | Incoraggiamento + primo micro-risultato | Cliente attivo | Giorno 7 | 🟡 |
-| FEEDBACK_RICETTE | N cicli / ricette non valutate | Com'era il tuo menu? | Valuta le ricette (migliora la personalizzazione) | Cliente attivo | ricorrente | 🟡 |
+| ONB_G1 | Avvio percorso | Il tuo primo giorno | Come leggere il menu, dove sono coach/Gaia | Cliente attivo | Giorno 1 | 🟢 |
+| ONB_G2 | Cliente attivo | Il primo check-in | Perché le misure ogni 2 giorni contano | Cliente attivo | Giorno 2 | 🟢 |
+| ONB_G4 | Cliente attivo | Sostituzioni e gusti | Come dire cosa non ti piace → il menu cambia | Cliente attivo | Giorno 4 | 🟢 |
+| ONB_G7 | Cliente attivo | La tua prima settimana | Incoraggiamento + primo micro-risultato | Cliente attivo | Giorno 7 | 🟢 |
+| FEEDBACK_RICETTE | N cicli / ricette non valutate | Com'era il tuo menu? | Valuta le ricette (migliora la personalizzazione) | Cliente attivo | ricorrente | 🟢 |
 | VALORE_SETTIMANALE | Settimanale | Ricetta/consiglio della settimana | Contenuto di valore (lega al blog) | Cliente attivo | settimanale | ⚪ |
-| RIATTIVA_DROPOUT | Alert dropout_risk | Ci sei, {{nome}}? Ripartiamo insieme | Empatia, la coach si fa viva → riapri app | A rischio | evento | 🟡 |
-| REFERRAL | Cliente soddisfatto | Porta un'amica | Invito con vantaggio per entrambe | Cliente attivo | dopo milestone | 🟡 |
+| RIATTIVA_DROPOUT | Alert dropout_risk | Ci sei, {{nome}}? Ripartiamo insieme | Empatia, la coach si fa viva → riapri app | A rischio | evento | 🟢 |
+| REFERRAL | Cliente soddisfatto | Porta un'amica | Invito con vantaggio per entrambe | Cliente attivo | dopo milestone | 🟢 |
 
 ## 4. Email per EVENTO (milestone & morale)
 
@@ -72,8 +72,8 @@ Registro delle email automatiche (triggered) che stiamo preparando. Ogni riga = 
 
 | Cod | Evento (trigger) | Oggetto | Testo (sintesi) | Segmento | Timing | Stato |
 |---|---|---|---|---|---|---|
-| WB_T3 | Scaduto | Riprendi da dove avevi lasciato | Storico ancora lì + eventuale incentivo | Scaduto | T+3 | 🟡 |
-| WB_T7 | Scaduto | Cosa è cambiato in Metabole | Novità + offerta rientro a tempo | Scaduto | T+7/14 | 🟡 |
+| WB_T3 | Scaduto | Riprendi da dove avevi lasciato | Storico ancora lì + eventuale incentivo | Scaduto | T+3 | 🟢 |
+| WB_T7 | Scaduto | Cosa è cambiato in Metabole | Novità + offerta rientro a tempo | Scaduto | T+7/14 | 🟢 |
 | WB_SURVEY | Churn confermato | Aiutaci a capire | 1 domanda sul motivo d'uscita | Churn | evento | ⚪ |
 | WB_STAGIONALE | Stagione/occasione (Agente Tempismo) | È il momento giusto per ripartire | Percorso adatto a stagione/occasione | Ex cliente | stagionale | ⚪ |
 
@@ -98,9 +98,9 @@ Registro delle email automatiche (triggered) che stiamo preparando. Ogni riga = 
 ---
 
 ### Riepilogo stato
-- **Copy pronta (🟢):** 3 di attivazione + CART_1H/24H/72H + RIN_T7/T3/T1 + tutte le 12 EV. 
-- **In bozza (🟡):** nurture, onboarding, riattivazione, referral, win-back T3/T7.
-- **Da progettare (⚪):** obiezione prezzo, upsell, win-back survey/stagionale, transazionali, consensi.
+- **Copy pronta (🟢):** attivazione (3) + conversione (profilo incompleto, checkout 1H/24H/72H, nurture 1–4) + retention (onboarding G1/G2/G4/G7, feedback ricette, riattivazione, referral) + tutte le 12 EV + rinnovo T7/T3/T1 + win-back T3/T7. **Copy completa in `../Metabole_Email_Ciclo_Vita.md` (Parti 1, 3, 4, 5).**
+- **Da progettare (⚪):** obiezione prezzo, contenuti valore settimanali, upsell, win-back survey/stagionale, transazionali/dunning, consensi/preferenze.
+- **Prossimo passo:** tradurre (🔵) nelle lingue dell'app → template Brevo (⬛) con i trigger → test → live (✅).
 - **Prossimi passi:** completare le 🟡/⚪ → **tradurre (🔵)** nelle lingue dell'app → **costruire i template Brevo (⬛)** con i trigger → test → **live (✅)**.
 
 Copy completa e dettagli: `../Metabole_Email_Ciclo_Vita.md`. Campagne massive (win-back 20k / nurture 80k): `../../Metabole_Strategia_Rientro_Nurture.md`.
