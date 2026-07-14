@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ENGINE_RULES, ENGINE_RULE_BY_CODE, RULE_CATEGORIES } from './engine-rules.catalog';
+import { BASE_RULES, ENGINE_RULES, ENGINE_RULE_BY_CODE, RULE_CATEGORIES } from './engine-rules.catalog';
 
 /**
  * Gestione delle regole del motore per il CAPO NUTRIZIONISTA:
@@ -46,7 +46,7 @@ export class EngineRulesService {
       if (raw != null) global = r.kind === 'boolean' ? raw === 'true' : Number(raw);
       return { ...r, global, isSet: raw != null };
     });
-    return { categories: RULE_CATEGORIES, rules };
+    return { categories: RULE_CATEGORIES, rules, baseRules: BASE_RULES };
   }
 
   /** Imposta il valore GLOBALE di una regola (config_param). Attivo subito sul motore.

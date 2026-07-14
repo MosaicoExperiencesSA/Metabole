@@ -66,6 +66,19 @@ export function Diete() {
   }
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [status]);
 
+  async function del(id: string, name: string) {
+    if (!confirm(`Eliminare la dieta "${name}"?\nVengono rimossi anche i suoi giorni e le regole. Non è reversibile.`)) return;
+    setBusy(id + 'del'); setError(null);
+    try {
+      await api(`/diets/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function act(id: string, action: 'submit' | 'approve' | 'reject') {
     let body: string | undefined;
     if (action === 'reject') {
@@ -149,6 +162,9 @@ export function Diete() {
                             <button className="btn sm" disabled={!!busy} onClick={() => act(r.id, 'approve')}><i className="ti ti-check" /> Approva</button>
                             <button className="btn ghost sm" disabled={!!busy} style={{ color: 'var(--danger)' }} onClick={() => act(r.id, 'reject')}><i className="ti ti-x" /> Rifiuta</button>
                           </>
+                        )}
+                        {isNutri && (
+                          <button className="btn ghost sm" disabled={!!busy} title="Elimina dieta" style={{ color: 'var(--danger)' }} onClick={() => del(r.id, r.name)}><i className="ti ti-trash" /></button>
                         )}
                       </div>
                     </td>

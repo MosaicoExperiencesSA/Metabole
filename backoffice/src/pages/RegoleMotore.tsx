@@ -15,7 +15,8 @@ interface Rule {
   min?: number; max?: number; step?: number; unit?: string; perDiet?: boolean;
   global: number | boolean; isSet: boolean;
 }
-interface Catalog { categories: { key: string; label: string }[]; rules: Rule[] }
+interface BaseRule { code: string; phase: 'A' | 'B'; title: string; description: string }
+interface Catalog { categories: { key: string; label: string }[]; rules: Rule[]; baseRules: BaseRule[] }
 interface Preset {
   id: string; style: string; label: string; description: string | null;
   regime: string | null; objective: string | null; rules: Record<string, number | boolean>;
@@ -162,8 +163,33 @@ function GlobalRules({ catalog, canManage, onSaved, onError }: { catalog: Catalo
     finally { setSavingCode(null); }
   }
 
+  const baseRules = catalog.baseRules ?? [];
+  const phaseLabel: Record<string, string> = { A: 'Fase A — Costruzione della base (nutrizionista)', B: 'Fase B — Motore intelligente (agente AI)' };
+
   return (
     <div style={{ display: 'grid', gap: 18 }}>
+      {baseRules.length > 0 && (
+        <div className="card">
+          <h3 style={{ marginTop: 0, marginBottom: 2 }}>Regole base del motore <span className="muted" style={{ fontWeight: 400 }}>(le 12 del Metodo del Motore Intelligente)</span></h3>
+          <p className="muted" style={{ fontSize: 13, marginTop: 2 }}>I pilastri del motore, sempre validi per ogni percorso. Sono di riferimento: i valori fini che le regolano stanno nelle regole globali qui sotto.</p>
+          {(['A', 'B'] as const).map((ph) => (
+            <div key={ph} style={{ marginTop: 10 }}>
+              <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <span className={`chip ${ph === 'B' ? 'ok' : ''}`} style={{ fontSize: 11 }}>{phaseLabel[ph]}</span>
+              </div>
+              <div style={{ display: 'grid', gap: 0 }}>
+                {baseRules.filter((r) => r.phase === ph).map((r) => (
+                  <div key={r.code} style={{ padding: '8px 0', borderTop: '1px solid var(--line,#eee)' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5 }}><span style={{ color: 'var(--deep)' }}>{r.code}</span> · {r.title}</div>
+                    <div className="muted" style={{ fontSize: 12.5 }}>{r.description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {catalog.categories.map((cat) => {
         const rules = catalog.rules.filter((r) => r.category === cat.key);
         if (!rules.length) return null;

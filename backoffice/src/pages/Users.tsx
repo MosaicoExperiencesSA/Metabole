@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, RoleChip, Spinner, StatusChip } from '../components/ui';
@@ -202,7 +203,7 @@ export function Users() {
                 return (
                   <tr key={u.id} style={archived ? { opacity: 0.55 } : undefined}>
                     <td>
-                      <b>{u.email}</b>
+                      <Link to={`/utenti/${u.id}`} className="link" title="Apri la scheda"><b>{u.email}</b></Link>
                       {isSelf && <span className="muted"> · tu</span>}
                       {archived && <span className="chip gray" style={{ fontSize: 10, marginLeft: 6 }}>archiviato</span>}
                     </td>

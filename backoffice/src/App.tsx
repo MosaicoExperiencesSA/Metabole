@@ -38,6 +38,7 @@ import { Impostazioni } from './pages/Impostazioni';
 import { Prelievi } from './pages/Prelievi';
 import { Parametri } from './pages/Parametri';
 import { RegoleMotore } from './pages/RegoleMotore';
+import { UserDetail } from './pages/UserDetail';
 import { Payments } from './pages/Payments';
 import { Contabilita } from './pages/Contabilita';
 import { Permissions } from './pages/Permissions';
@@ -75,6 +76,7 @@ export default function App() {
       <Route path="/" element={<Protected title="Home" pageKey="dashboard"><Home /></Protected>} />
       <Route path="/posta" element={<Protected title="Posta" pageKey="posta"><Posta /></Protected>} />
       <Route path="/utenti" element={<Protected title="Utenti" pageKey="users"><Users /></Protected>} />
+      <Route path="/utenti/:id" element={<Protected title="Scheda utente" pageKey="users"><UserDetail /></Protected>} />
       <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="permissions"><Roles /></Protected>} />
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
 

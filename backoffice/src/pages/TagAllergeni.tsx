@@ -57,6 +57,18 @@ export function TagAllergeni() {
   }
   useEffect(() => { void load(); }, []);
 
+  async function del(r: Recipe) {
+    if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;
+    setError(null); setNotice(null);
+    try {
+      await api(`/recipes/${r.id}`, { method: 'DELETE' });
+      setNotice('Ricetta eliminata.');
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+    }
+  }
+
   const shown = useMemo(() => rows.filter((r) => (onlyTodo ? !r.allergensReviewed : true)), [rows, onlyTodo]);
   const todo = rows.filter((r) => !r.allergensReviewed).length;
 
@@ -100,7 +112,10 @@ export function TagAllergeni() {
                     <span className={`chip ${r.allergensReviewed ? '' : 'gray'}`}>{r.allergensReviewed ? 'Confermata' : 'Da rivedere'}</span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="btn ghost sm" onClick={() => setEditing(r)}>{r.allergensReviewed ? 'Modifica' : 'Rivedi'}</button>
+                    <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                      <button className="btn ghost sm" onClick={() => setEditing(r)}>{r.allergensReviewed ? 'Modifica' : 'Rivedi'}</button>
+                      <button className="btn ghost sm" title="Elimina ricetta" style={{ color: 'var(--danger)' }} onClick={() => del(r)}><i className="ti ti-trash" /></button>
+                    </div>
                   </td>
                 </tr>
               ))}

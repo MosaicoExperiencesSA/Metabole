@@ -9,6 +9,7 @@ import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS } from '../src/permissions/pages'
 import { ROLES } from '../src/common/roles';
 import { DEFAULT_PDF_TEMPLATES } from '../src/pdf/pdf.defaults';
 import { SUGGESTED_PRESETS } from '../src/engine-rules/engine-rules.presets';
+import { MARKETING_EMAIL_TEMPLATES } from './seed_email_marketing';
 import { seedKetoCatalog } from './seed_keto';
 
 const prisma = new PrismaClient();
@@ -399,11 +400,13 @@ const EMAIL_TEMPLATES = [
 ];
 
 async function seedEmailTemplates(): Promise<void> {
-  for (const t of EMAIL_TEMPLATES) {
+  // Transazionali + ciclo di vita/marketing (45). Idempotente: crea se assente,
+  // aggiorna solo il nome (subject/body restano quelli eventualmente editati dall'admin).
+  for (const t of [...EMAIL_TEMPLATES, ...MARKETING_EMAIL_TEMPLATES]) {
     await prisma.emailTemplate.upsert({
       where: { key: t.key },
       create: t,
-      update: { name: t.name }, // non tocca subject/body: l'admin può averli modificati
+      update: { name: t.name },
     });
   }
 }

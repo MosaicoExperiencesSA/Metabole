@@ -38,6 +38,8 @@ const PUBLIC_USER_SELECT = {
   lastName: true,
   phone: true,
   title: true,
+  addressLine: true,
+  country: true,
   theme: true,
   photoUrl: true,
   deletedAt: true,
@@ -431,7 +433,11 @@ export class UsersService {
 
   async update(
     id: string,
-    data: { role?: Role; customRoleKey?: string | null; status?: 'active' | 'suspended'; locale?: string },
+    data: {
+      role?: Role; customRoleKey?: string | null; status?: 'active' | 'suspended'; locale?: string;
+      firstName?: string | null; lastName?: string | null; displayName?: string;
+      phone?: string | null; title?: string | null; addressLine?: string | null; country?: string | null;
+    },
     actorId: string,
   ) {
     const current = await this.getById(id); // 404 se non esiste
@@ -442,15 +448,26 @@ export class UsersService {
         ? await this.resolveRole((data.role ?? current.role) as Role, data.customRoleKey)
         : null;
 
+    const norm = (v?: string | null) => (v === undefined ? undefined : (v?.trim() || null));
     const user = await this.prisma.user.update({
       where: { id },
       data: {
         ...(data.status !== undefined ? { status: data.status } : {}),
         ...(data.locale !== undefined ? { locale: data.locale } : {}),
         ...(roleChange ? { role: roleChange.systemRole, customRoleKey: roleChange.customRoleKey } : {}),
+        ...(data.firstName !== undefined ? { firstName: norm(data.firstName) } : {}),
+        ...(data.lastName !== undefined ? { lastName: norm(data.lastName) } : {}),
+        ...(data.phone !== undefined ? { phone: norm(data.phone) } : {}),
+        ...(data.title !== undefined ? { title: norm(data.title) } : {}),
+        ...(data.addressLine !== undefined ? { addressLine: norm(data.addressLine) } : {}),
+        ...(data.country !== undefined ? { country: norm(data.country) } : {}),
       },
       select: PUBLIC_USER_SELECT,
     });
+    // Nome mostrato (scheda Staff), se l'utente ha una scheda staff.
+    if (data.displayName !== undefined && user.staff) {
+      await this.prisma.staff.update({ where: { id: user.staff.id }, data: { displayName: data.displayName.trim() || user.email.split('@')[0] } });
+    }
     if (data.status === 'suspended' || roleChange) {
       // Cambi di ruolo o sospensione: revoca le sessioni attive.
       await this.prisma.refreshToken.updateMany({

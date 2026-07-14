@@ -83,6 +83,17 @@ export function Ricette() {
   }
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [regime, slot]);
 
+  async function del(r: Recipe) {
+    if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;
+    setError(null);
+    try {
+      await api(`/recipes/${r.id}`, { method: 'DELETE' });
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+    }
+  }
+
   if (loading) return <Spinner />;
 
   return (
@@ -125,7 +136,12 @@ export function Ricette() {
                   <td className="muted">{(r.tags ?? []).join(', ') || '—'}</td>
                   <td><span className={`chip ${r.active ? '' : 'gray'}`}>{r.active ? 'Attiva' : 'Archiviata'}</span></td>
                   {canEdit && (
-                    <td><button className="btn ghost sm" onClick={() => setEditing(r)}><i className="ti ti-edit" /> Modifica</button></td>
+                    <td>
+                      <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
+                        <button className="btn ghost sm" onClick={() => setEditing(r)}><i className="ti ti-edit" /> Modifica</button>
+                        {canEdit && <button className="btn ghost sm" title="Elimina ricetta" style={{ color: 'var(--danger)' }} onClick={() => del(r)}><i className="ti ti-trash" /></button>}
+                      </div>
+                    </td>
                   )}
                 </tr>
               ))}

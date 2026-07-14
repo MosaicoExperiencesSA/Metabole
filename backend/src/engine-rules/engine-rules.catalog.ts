@@ -55,6 +55,35 @@ export const ENGINE_RULES: EngineRule[] = [
 
 export const ENGINE_RULE_BY_CODE = new Map(ENGINE_RULES.map((r) => [r.code, r]));
 
+/**
+ * Le 12 REGOLE BASE del "Metodo del Motore Intelligente" (percorsi/METODO_MOTORE_INTELLIGENTE.md).
+ * Sono i pilastri del motore, in 2 fasi: A = costruzione base (nutrizionista+strumenti),
+ * B = motore intelligente (agente AI del percorso). Mostrate come riferimento sotto le
+ * regole globali. Non sono singoli interruttori: molte sono comportamenti sempre attivi o
+ * flussi; i parametri fini che le regolano stanno nelle regole globali qui sopra.
+ */
+export interface BaseRule {
+  code: string; // R1..R12
+  phase: 'A' | 'B';
+  title: string;
+  description: string;
+}
+
+export const BASE_RULES: BaseRule[] = [
+  { code: 'R1', phase: 'A', title: 'Raccolta menu', description: 'Il nutrizionista raccoglie i menu del percorso: è la materia prima della base.' },
+  { code: 'R2', phase: 'A', title: 'Catalogo diviso per pasto', description: 'Piatti divisi per pasto (colazione, pranzo, cena, spuntini), con la stagione dove il percorso lo richiede.' },
+  { code: 'R3', phase: 'A', title: 'Calorie per piatto (interne)', description: 'Ogni piatto porta le sue kcal, calcolate internamente: servono al bilanciamento, non si mostrano alla cliente.' },
+  { code: 'R4', phase: 'A', title: 'Gruppi di equivalenza', description: 'Alimenti intercambiabili a struttura e kcal invariate (es. pesci grassi): base per sostituzioni e nuovi piatti/menu.' },
+  { code: 'R5', phase: 'A', title: 'Metodi di cottura', description: '3–5 cotture per piatto a kcal invariate: alimentano la ripetizione bigiornaliera con preparazioni diverse.' },
+  { code: 'R6', phase: 'A', title: 'Bilanciamento della giornata', description: 'Giornata bilanciata (colazione+pranzo+cena a totale ~costante); porzioni standard, niente fame.' },
+  { code: 'R7', phase: 'A', title: 'Approvazione del nutrizionista', description: 'La base diventa ufficiale e ISOLATA per il prodotto solo dopo l’approvazione del nutrizionista.' },
+  { code: 'R8', phase: 'B', title: 'Base personale + Agente Esclusioni', description: 'Allergie = blocco duro; intolleranze e non graditi = sostituzione via gruppi di equivalenza; se non sostituibile → blocca ed escala.' },
+  { code: 'R9', phase: 'B', title: 'Partenza differenziata + unicità certificata', description: 'Partenza personalizzata per cliente con seme, collision check e certificato: due clienti non hanno la stessa dieta.' },
+  { code: 'R10', phase: 'B', title: 'Ciclo bigiornaliero + monitoraggio', description: 'Erogazione ogni 2 giorni (stessi alimenti, 2 cotture); a fine ciclo misura peso/cm separati, seguito sì/no, gradimento (max stelle).' },
+  { code: 'R11', phase: 'B', title: 'Agente Adattamento', description: 'Scelta per efficacia×gradimento, apprendimento che isola il pasto, e stati (conforto, rientro, pre/post-evento, plateau).' },
+  { code: 'R12', phase: 'B', title: 'Obiettivo, segnalazioni ed accessi', description: 'Obiettivo dimagrimento/mantenimento, matrice delle segnalazioni (coach/nutrizionista) e accessi (RBAC, kcal nascoste, cifratura).' },
+];
+
 export const RULE_CATEGORIES: { key: EngineRule['category']; label: string }[] = [
   { key: 'composizione', label: 'Composizione del ciclo' },
   { key: 'macro', label: 'Macro e bilanciamento' },

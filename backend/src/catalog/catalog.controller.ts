@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -52,6 +53,12 @@ export class DietsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateDietDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateDiet(user.sub, id, dto);
+  }
+
+  @HttpCode(200)
+  @Delete(':id')
+  delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.catalog.deleteDiet(user.sub, id);
   }
 
   /** Modifica la sola scheda cliente (schermo 16), anche su diete approvate. */
@@ -166,6 +173,13 @@ export class RecipesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateRecipeDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateRecipe(user.sub, id, dto);
+  }
+
+  @Roles('nutritionist', 'head_nutritionist')
+  @HttpCode(200)
+  @Delete(':id')
+  delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.catalog.deleteRecipe(user.sub, id);
   }
 
   /** Pre-tag allergeni assistito (suggerimenti dagli ingredienti + stato attuale). */

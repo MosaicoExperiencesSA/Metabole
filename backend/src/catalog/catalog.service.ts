@@ -167,6 +167,23 @@ export class CatalogService {
     return diet;
   }
 
+  /** Elimina una dieta e i suoi giorni/regole. Bloccata se già usata in menu erogati. */
+  async deleteDiet(userId: string, id: string) {
+    const diet = await this.prisma.diet.findUnique({ where: { id }, select: { id: true, name: true } });
+    if (!diet) throw new NotFoundException('Dieta non trovata');
+    const usedInMenus = await this.prisma.menuDay.count({ where: { dietId: id } });
+    if (usedInMenus > 0) {
+      throw new BadRequestException(`Impossibile eliminare "${diet.name}": è usata in ${usedInMenus} menu già erogati.`);
+    }
+    await this.prisma.$transaction([
+      this.prisma.dietDayTemplate.deleteMany({ where: { dietId: id } }),
+      this.prisma.productRule.deleteMany({ where: { dietId: id } }),
+      this.prisma.diet.delete({ where: { id } }),
+    ]);
+    await this.audit.log({ action: 'catalog.diet.delete', actorId: userId, entityType: 'diet', entityId: id, metadata: { name: diet.name } });
+    return { ok: true };
+  }
+
   async updateDiet(userId: string, id: string, dto: UpdateDietDto) {
     const diet = await this.getDiet(id);
     if (diet.status === 'approved') {
@@ -243,6 +260,19 @@ export class CatalogService {
     if (approvedGroups === 0) {
       throw new BadRequestException('Prodotto non attivabile: nessun gruppo di equivalenza approvato.');
     }
+  }
+
+  /** Elimina una ricetta e le sue valutazioni/pesi appresi. */
+  async deleteRecipe(userId: string, id: string) {
+    const recipe = await this.prisma.recipe.findUnique({ where: { id }, select: { id: true, name: true } });
+    if (!recipe) throw new NotFoundException('Ricetta non trovata');
+    await this.prisma.$transaction([
+      this.prisma.recipeRating.deleteMany({ where: { recipeId: id } }),
+      this.prisma.menuWeight.deleteMany({ where: { recipeId: id } }),
+      this.prisma.recipe.delete({ where: { id } }),
+    ]);
+    await this.audit.log({ action: 'catalog.recipe.delete', actorId: userId, entityType: 'recipe', entityId: id, metadata: { name: recipe.name } });
+    return { ok: true };
   }
 
   // ---------- Allergeni ricette (R8) ----------
