@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaboleAI — Vignette con app (mockup)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--teal:#12A386;--deep:#0E5A49;--coral:#E8825A;--gold:#E8A11B;--violet:#6C4CD6;--ink:#16302A;--mut:#5f726c;--bd:#EAECE5;--bg:#FBFAF6;--serif:'Fraunces',Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:30px 22px 70px}
+.rainbow{height:6px;border-radius:100px;background:linear-gradient(90deg,#E23B3B,#E8A11B,#12A386,#2F80ED,#6C4CD6,#E86FA6);max-width:130px;margin-bottom:16px}
+h1{font-family:var(--serif);font-size:32px;font-weight:600;color:var(--deep)}
+.lead{color:var(--mut);font-size:16px;max-width:760px;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:26px;margin-top:26px}
+figure{background:#fff;border:1px solid var(--bd);border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(16,64,58,.05)}
+/* card 1080x1350 (4:5) */
+.card{position:relative;aspect-ratio:4/5;overflow:hidden;padding:7% 7% 6%;display:flex;flex-direction:column}
+.card.g1{background:radial-gradient(120% 90% at 80% 0%,#1AB894 0%,#0E5A49 70%)}
+.card.g2{background:linear-gradient(160deg,#EAF6F0,#F4FBF8)}
+.card.g3{background:linear-gradient(160deg,#0E5A49,#12A386)}
+.card .kick{font-size:2.2vw;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.card .head{font-family:var(--serif);font-weight:600;line-height:1.1;margin:.35em 0 0}
+.card .sub{font-size:2vw;margin-top:.5em}
+.card .logo{font-family:var(--serif);font-weight:600;font-size:2.6vw;margin-top:auto}
+.card .logo span{color:#8FE0C6}
+.on-dark{color:#fff}.on-dark .kick{color:#8FE0C6}.on-dark .sub{color:#DCEFE7}
+.on-light .kick{color:var(--teal)}.on-light .head{color:var(--deep)}.on-light .sub{color:var(--mut)}.on-light .logo{color:var(--deep)}.on-light .logo span{color:var(--violet)}
+.card .head{font-size:4.6vw}
+figure.big .card .kick{font-size:12px}figure.big .card .sub{font-size:13px}figure.big .card .logo{font-size:15px}figure.big .card .head{font-size:27px}
+/* phone */
+.phone{align-self:center;width:56%;margin:4% 0;background:#fff;border-radius:9%/7%;padding:4% 4% 5%;box-shadow:0 18px 50px rgba(8,40,34,.28)}
+.phone .scr{background:#F6FBF9;border-radius:7%/5.5%;padding:7%;min-height:1px}
+.ph-top{display:flex;align-items:center;gap:2%;margin-bottom:7%}
+.ph-top .lg{font-family:var(--serif);font-weight:600;color:var(--deep);font-size:1.7vw}.ph-top .lg span{color:var(--violet)}
+figure.big .ph-top .lg{font-size:12px}
+.row{display:flex;align-items:center;gap:4%;background:#fff;border:1px solid var(--bd);border-radius:14px;padding:4%;margin-bottom:4%}
+.row .av{width:15%;aspect-ratio:1;border-radius:50%;overflow:hidden;flex:none;background:#EAF3EE}
+.row .av img{width:100%;height:100%;object-fit:cover}
+.row .tx b{display:block;font-size:1.7vw;color:var(--ink)}figure.big .row .tx b{font-size:12.5px}
+.row .tx small{font-size:1.4vw;color:var(--mut)}figure.big .row .tx small{font-size:10.5px}
+.row .dot{margin-left:auto;width:2.4%;aspect-ratio:1;border-radius:50%;background:#38C172}
+.gav{background:#fff;border:1px solid var(--bd)!important}
+.bub{display:flex;gap:4%;align-items:flex-start;margin-bottom:4%}
+.bub .av{width:13%;aspect-ratio:1;border-radius:50%;overflow:hidden;flex:none;background:#fff;border:1px solid var(--bd)}
+.bub .av img{width:100%;height:100%;object-fit:cover}
+.bub .msg{background:#fff;border:1px solid var(--bd);border-radius:14px;border-top-left-radius:4px;padding:3.5% 4.5%;font-size:1.5vw;color:#25423b}figure.big .bub .msg{font-size:11.5px}
+.bub .who{font-size:1.25vw;color:var(--mut);font-weight:700;margin-bottom:1%}figure.big .bub .who{font-size:9.5px}
+.seal{display:flex;align-items:center;gap:3%;background:#EFEAF9;border:1px solid #DBCFF3;border-radius:12px;padding:3.5%;font-size:1.4vw;color:#4A37A8;font-weight:600;margin-top:2%}figure.big .seal{font-size:10.5px}
+.gmascot{width:100%;height:100%;display:block}
+figcaption{padding:16px 18px}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px;background:#EAF3EE;color:var(--deep);margin-bottom:8px}
+figcaption h3{font-family:var(--serif);font-size:16px;margin:2px 0 6px}
+figcaption p{font-size:13.5px;color:#33473f;margin-bottom:8px}
+figcaption .tags{font-size:12px;color:var(--violet);font-weight:600}
+.note{background:#FBF3E7;border:1px solid #EBD9B8;border-radius:12px;padding:14px 16px;font-size:13.5px;color:#7a5a1e;margin-top:22px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="gaia" viewBox="0 0 240 250">
+  <defs>
+    <linearGradient id="gB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93E7C8"/><stop offset="1" stop-color="#33B190"/></linearGradient>
+    <linearGradient id="gBe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ECFCF4"/><stop offset="1" stop-color="#CBF2E3"/></linearGradient>
+    <linearGradient id="gL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9EF7C"/><stop offset="1" stop-color="#54BD66"/></linearGradient>
+  </defs>
+  <ellipse cx="120" cy="228" rx="46" ry="8" fill="rgba(0,0,0,.08)"/>
+  <path d="M117 66 C112 44 96 40 92 46 C100 60 112 64 117 66Z" fill="url(#gL)"/><path d="M123 66 C128 44 144 40 148 46 C140 60 128 64 123 66Z" fill="url(#gL)"/><rect x="116" y="58" width="8" height="20" rx="4" fill="#3FA98C"/>
+  <path d="M120 70 C172 70 200 112 200 156 C200 208 162 226 120 226 C78 226 40 208 40 156 C40 112 68 70 120 70Z" fill="url(#gB)"/>
+  <ellipse cx="120" cy="162" rx="50" ry="54" fill="url(#gBe)"/>
+  <ellipse cx="86" cy="150" rx="12" ry="7.5" fill="#FF9DB0" opacity=".7"/><ellipse cx="154" cy="150" rx="12" ry="7.5" fill="#FF9DB0" opacity=".7"/>
+  <ellipse cx="100" cy="128" rx="16" ry="19" fill="#25384A"/><ellipse cx="140" cy="128" rx="16" ry="19" fill="#25384A"/>
+  <circle cx="94" cy="121" r="6" fill="#fff"/><circle cx="134" cy="121" r="6" fill="#fff"/>
+  <path d="M100 172 Q120 190 140 172" stroke="#25384A" stroke-width="6" stroke-linecap="round" fill="none"/>
+</symbol></svg>
+
+<div class="wrap">
+<div class="rainbow"></div>
+<h1>Vignette con l'app — mockup (Coach · Nutrizionista · Gaia)</h1>
+<p class="lead">Composizione nostra, con la schermata reale dell'app e la <b>mascotte Gaia esatta</b> (Canva non la riproduce). Formato 1080×1350. Per pubblicare: screenshot del riquadro o export a 1080px. Conformi, dal Giudice prima di uscire.</p>
+<div class="grid">
+
+<!-- 1 Contatti: chi ti segue -->
+<figure class="big"><div class="card g1 on-dark">
+  <div class="kick">Nel tuo percorso</div>
+  <div class="head">Non sei sola.</div>
+  <div class="phone">
+    <div class="scr">
+      <div class="ph-top"><span class="lg">Metabole<span>AI</span></span> <span style="margin-left:auto;font-size:1.4vw;color:#5f726c">Chi ti segue</span></div>
+      <div class="row"><div class="av"><img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=120&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach/120/120'"></div><div class="tx"><b>La tua coach</b><small>Ti segue ogni giorno</small></div><div class="dot"></div></div>
+      <div class="row"><div class="av"><img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=120&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/nutri/120/120'"></div><div class="tx"><b>Il nutrizionista</b><small>Presidia la tua salute</small></div><div class="dot"></div></div>
+      <div class="row"><div class="av gav" style="padding:8%"><svg class="gmascot" viewBox="0 0 240 250"><use href="#gaia"></use></svg></div><div class="tx"><b>Gaia · assistente AI</b><small>Sempre con te, h24</small></div><div class="dot"></div></div>
+    </div>
+  </div>
+  <div class="sub">Coach, nutrizionista e Gaia: le persone vere + l'AI, sempre al tuo fianco.</div>
+  <div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">App · chi ti segue</span><h3>Non sei sola</h3><p>Nel tuo percorso ci sono persone vere — coach e nutrizionista — più Gaia, l'assistente AI sempre presente. Il meglio dei due mondi. 🤝</p><div class="tags">#personevere #coach #nutrizionista #ai #metaboleai</div></figcaption></figure>
+
+<!-- 2 Chat -->
+<figure class="big"><div class="card g2 on-light">
+  <div class="kick">Ogni giorno</div>
+  <div class="head">Persone vere + Gaia.</div>
+  <div class="phone">
+    <div class="scr">
+      <div class="ph-top"><span class="lg">Metabole<span>AI</span></span> <span style="margin-left:auto;font-size:1.4vw;color:#5f726c">Oggi</span></div>
+      <div class="bub"><div class="av"><svg class="gmascot" viewBox="0 0 240 250" style="padding:6%"><use href="#gaia"></use></svg></div><div><div class="who" style="color:#12A386">GAIA</div><div class="msg">Buongiorno! Ecco il menu di oggi, sui tuoi gusti 🌿</div></div></div>
+      <div class="bub"><div class="av"><img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=120&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/coach/120/120'"></div><div><div class="who">LA TUA COACH</div><div class="msg">Ieri giornata no? Nessun problema, oggi si riparte insieme 💚</div></div></div>
+      <div class="bub"><div class="av"><img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=120&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/nutri/120/120'"></div><div><div class="who">NUTRIZIONISTA</div><div class="msg">Piano della settimana validato ✓</div></div></div>
+    </div>
+  </div>
+  <div class="sub">Un'assistente che ti conosce e persone vere che ci sono. Ogni giorno.</div>
+  <div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">App · chat</span><h3>Persone vere + Gaia, ogni giorno</h3><p>Gaia ti guida, la coach c'è quando serve, il nutrizionista valida. Non solo notifiche: qualcuno che ti segue davvero. 💬</p><div class="tags">#coach #nutrizionista #ai #benessere #metaboleai</div></figcaption></figure>
+
+<!-- 3 Menu validato -->
+<figure class="big"><div class="card g3 on-dark">
+  <div class="kick">Come funziona</div>
+  <div class="head">L'AI propone. Il nutrizionista valida.</div>
+  <div class="phone">
+    <div class="scr">
+      <div class="ph-top"><span class="lg">Metabole<span>AI</span></span> <span style="margin-left:auto;font-size:1.4vw;color:#5f726c">Menu di oggi</span></div>
+      <div class="bub"><div class="av"><svg class="gmascot" viewBox="0 0 240 250" style="padding:6%"><use href="#gaia"></use></svg></div><div><div class="who" style="color:#12A386">GAIA</div><div class="msg">Ho preparato la proposta sui tuoi gusti e la stagione 🌿</div></div></div>
+      <div class="row" style="margin-bottom:3%"><i class="ti ti-sun" style="color:#E8A11B;font-size:2.4vw"></i><div class="tx" style="margin-left:3%"><b>Colazione</b><small>Yogurt, frutta di stagione, noci</small></div></div>
+      <div class="row" style="margin-bottom:3%"><i class="ti ti-bowl" style="color:#12A386;font-size:2.4vw"></i><div class="tx" style="margin-left:3%"><b>Pranzo</b><small>Farro, verdure, pesce azzurro</small></div></div>
+      <div class="seal"><i class="ti ti-rosette-discount-check" style="font-size:2.2vw"></i> Validato dal tuo nutrizionista</div>
+    </div>
+  </div>
+  <div class="sub">Tu inserisci misure e gusti, Gaia propone, il professionista approva. In sicurezza.</div>
+  <div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">App · come funziona</span><h3>L'AI propone, il nutrizionista valida</h3><p>Tu dici cosa ti piace, Gaia costruisce la proposta, il nutrizionista la supervisiona e la approva. Tecnologia + sicurezza clinica. ✅</p><div class="tags">#comefunziona #ai #nutrizionista #sicurezza #metaboleai</div></figcaption></figure>
+
+</div>
+<div class="note"><b>Note:</b> avatar coach/nutrizionista = foto stock (sostituibili con volti reali del team). La <b>mascotte Gaia</b> è quella ufficiale. Per la pubblicazione, screenshot del riquadro a 1080×1350 (o export). Se preferisci, posso caricare questi PNG in Canva come base e rifinirli lì.</div>
+</div></body></html>

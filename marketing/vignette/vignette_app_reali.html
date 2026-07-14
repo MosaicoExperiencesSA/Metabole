@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaboleAI — Vignette con schermate reali dell'app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--teal:#12A386;--deep:#0E5A49;--violet:#6C4CD6;--ink:#16302A;--mut:#5f726c;--bd:#EAECE5;--bg:#FBFAF6;--serif:'Fraunces',Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:30px 22px 70px}
+.rainbow{height:6px;border-radius:100px;background:linear-gradient(90deg,#E23B3B,#E8A11B,#12A386,#2F80ED,#6C4CD6,#E86FA6);max-width:130px;margin-bottom:16px}
+h1{font-family:var(--serif);font-size:32px;font-weight:600;color:var(--deep)}
+.lead{color:var(--mut);font-size:16px;max-width:760px;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:26px;margin-top:26px}
+figure{background:#fff;border:1px solid var(--bd);border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(16,64,58,.05)}
+.card{position:relative;aspect-ratio:4/5;overflow:hidden;display:flex;flex-direction:column;align-items:center;padding:8% 7% 6%}
+.card.dark{background:radial-gradient(120% 80% at 80% 0%,#1AB894,#0E5A49 75%)}
+.card.cream{background:linear-gradient(160deg,#EAF6F0,#F6FBF9)}
+.card.teal{background:linear-gradient(160deg,#0E5A49,#12A386)}
+.card .kick{font-size:2.2vw;font-weight:700;letter-spacing:.4px;text-transform:uppercase;align-self:flex-start}
+.card .head{font-family:var(--serif);font-weight:600;line-height:1.12;align-self:flex-start;margin:.3em 0 .1em;font-size:4.4vw}
+.card .phone{width:60%;margin:auto;filter:drop-shadow(0 24px 40px rgba(8,40,34,.35));border-radius:8%}
+.card .sub{font-size:1.9vw;align-self:flex-start}
+.card .logo{font-family:var(--serif);font-weight:600;font-size:2.5vw;align-self:flex-start;margin-top:.3em}
+.card .logo span{color:#8FE0C6}
+.dark .kick,.teal .kick{color:#8FE0C6}.dark .head,.teal .head{color:#fff}.dark .sub,.teal .sub{color:#DCEFE7}.dark .logo,.teal .logo{color:#fff}
+.cream .kick{color:var(--teal)}.cream .head{color:var(--deep)}.cream .sub{color:var(--mut)}.cream .logo{color:var(--deep)}.cream .logo span{color:var(--violet)}
+figure.big .card .kick{font-size:12px}figure.big .card .head{font-size:26px}figure.big .card .sub{font-size:13px}figure.big .card .logo{font-size:15px}
+figcaption{padding:16px 18px}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px;background:#EAF3EE;color:var(--deep);margin-bottom:8px}
+figcaption h3{font-family:var(--serif);font-size:16px;margin:2px 0 6px}
+figcaption p{font-size:13.5px;color:#33473f;margin-bottom:8px}
+figcaption .tags{font-size:12px;color:var(--violet);font-weight:600}
+.note{background:#EAF3EE;border:1px solid #CFE7DE;border-radius:12px;padding:14px 16px;font-size:13.5px;color:#0e5a49;margin-top:22px}
+</style></head>
+<body><div class="wrap">
+<div class="rainbow"></div>
+<h1>Vignette con schermate reali dell'app</h1>
+<p class="lead">Catturate dal <b>prototipo ufficiale</b> (rendering headless), non ricostruite. Formato 1080×1350. Per pubblicare: screenshot del riquadro o export a 1080px. Conformi, dal Giudice prima di uscire.</p>
+<div class="grid">
+
+<figure class="big"><div class="card dark">
+  <div class="kick">Nel tuo percorso</div>
+  <div class="head">Non sei sola.</div>
+  <img class="phone" src="app-screens/app_contatti.png" alt="Schermata Contatti">
+  <div class="sub">Coach, nutrizionista e Gaia — a portata di messaggio.</div>
+  <div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">App reale · Contatti</span><h3>Non sei sola</h3><p>Nel tuo percorso ci sono persone vere — coach e nutrizionista — più Gaia, l'assistente AI, sempre in linea. 🤝</p><div class="tags">#personevere #coach #nutrizionista #ai #metaboleai</div></figcaption></figure>
+
+<figure class="big"><div class="card cream">
+  <div class="kick">La tua giornata</div>
+  <div class="head">Tutto in un colpo d'occhio.</div>
+  <img class="phone" src="app-screens/app_home.png" alt="Schermata Home">
+  <div class="sub">Il menu di oggi e il prossimo appuntamento, pronti.</div>
+  <div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">App reale · Home</span><h3>La tua giornata, su misura</h3><p>Menu del giorno e prossimo appuntamento con la coach: la tua giornata, organizzata con te. 🌿</p><div class="tags">#app #menu #benessere #metaboleai</div></figcaption></figure>
+
+<figure class="big"><div class="card teal">
+  <div class="kick">I tuoi obiettivi</div>
+  <div class="head">Progressi, con serenità.</div>
+  <img class="phone" src="app-screens/app_obiettivi.png" alt="Schermata Obiettivi">
+  <div class="sub">Vedi come stai andando, senza ossessione dei numeri.</div>
+  <div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">App reale · Obiettivi</span><h3>I tuoi obiettivi, chiari</h3><p>I progressi a colpo d'occhio, con equilibrio: conti tu, non solo i numeri. 🎯</p><div class="tags">#obiettivi #progressi #benessere #metaboleai</div></figcaption></figure>
+
+<figure class="big"><div class="card cream">
+  <div class="kick">Il tuo percorso</div>
+  <div class="head">Giorno per giorno.</div>
+  <img class="phone" src="app-screens/app_percorso.png" alt="Schermata Percorso">
+  <div class="sub">Un passo alla volta, con qualcuno accanto.</div>
+  <div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">App reale · Percorso</span><h3>Il tuo percorso</h3><p>Il cammino giorno per giorno, senza fretta e senza sensi di colpa. 🛤️</p><div class="tags">#percorso #stiledivita #benessere #metaboleai</div></figcaption></figure>
+
+</div>
+<div class="note"><b>Schermate reali</b> dal prototipo ufficiale (cartella <code>app-screens/</code>: contatti, home, obiettivi, percorso, agenda). Alcune icone della barra in alto/in basso e le foto (piatti/avatar da CDN) non si sono caricate nel rendering headless — nella versione definitiva escono complete; per una resa perfetta possiamo ricatturarle da Chrome connesso o dall'app in produzione. La <b>Gaia</b> nell'app è l'assistente reale.</div>
+</div></body></html>

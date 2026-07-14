@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaboleAI — Lavora con noi</title>
+<meta name="description" content="Nutrizionisti, coach e tutor della nutrizione: entra nel team di MetaboleAI e metti la persona al centro.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;600&family=Noto+Sans+SC:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--teal:#12A386;--deep:#0E5A49;--violet:#6C4CD6;--ink:#16302A;--mut:#5f726c;--bd:#EAECE5;--bg:#FBFAF6;--card:#fff;--serif:'Fraunces',Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.65}
+html[lang=ar] body{font-family:'Noto Sans Arabic','Inter',sans-serif}
+html[lang=zh] body{font-family:'Noto Sans SC','Inter',sans-serif}
+a{color:inherit;text-decoration:none}img{display:block;max-width:100%}
+.wrap{max-width:1000px;margin:0 auto;padding:0 22px}
+.ai{background:linear-gradient(90deg,#6C4CD6,#2F80ED,#12A386,#E86FA6,#6C4CD6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;background-size:300% auto;animation:aishine 4s linear infinite}
+@keyframes aishine{to{background-position:300% center}}
+.rainbow{height:5px;border-radius:100px;background:linear-gradient(90deg,#E23B3B,#E8A11B,#12A386,#2F80ED,#6C4CD6,#E86FA6);background-size:220% auto;animation:aishine 7s linear infinite}
+@media(prefers-reduced-motion:reduce){.ai,.rainbow{animation:none}}
+.nav{display:flex;align-items:center;gap:14px;height:66px;max-width:1000px;margin:0 auto;padding:0 22px;border-bottom:1px solid var(--bd)}
+.logo{font-family:var(--serif);font-weight:600;font-size:21px;color:var(--deep)}
+.nav .back{font-size:14px;color:var(--mut)}
+.langsel{margin-left:auto;display:flex;align-items:center;gap:6px;border:1.5px solid var(--bd);border-radius:100px;padding:6px 10px;background:#fff}
+.langsel i{font-size:16px;color:var(--mut)}
+.langsel select{border:0;background:transparent;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--deep);cursor:pointer;outline:none}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:100px;padding:13px 24px;font-size:15px;font-weight:600;cursor:pointer;border:0;background:var(--teal);color:#fff;box-shadow:0 10px 24px rgba(18,163,134,.26)}
+.hero{padding:40px 0 8px}
+.kick{color:var(--teal);font-weight:600;font-size:13px;letter-spacing:1.2px;text-transform:uppercase}
+h1{font-family:var(--serif);font-size:40px;font-weight:600;margin:8px 0 10px;line-height:1.1}
+h2{font-family:var(--serif);font-size:24px;font-weight:600;margin:0 0 6px;color:var(--deep)}
+.lead{color:var(--mut);font-size:17px;max-width:640px}
+section{padding:26px 0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+.jc{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:22px}
+.jc .ic{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;color:#fff}
+.jc h3{font-size:18px;margin-bottom:5px;font-family:var(--serif)}
+.jc ul{margin:8px 0 0 18px;color:var(--mut);font-size:13.5px}.jc li{margin:3px 0}
+html[dir=rtl] .jc ul{margin:8px 18px 0 0}
+.offer{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.offer .o i{font-size:22px;color:var(--teal)}.offer .o b{display:block;margin:8px 0 3px;font-family:var(--serif)}.offer .o p{font-size:13.5px;color:var(--mut)}
+.formbox{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:26px;max-width:560px}
+label{font-size:12.5px;color:var(--mut);font-weight:600;display:block;margin:12px 0 4px}
+input,select,textarea{width:100%;border:1.5px solid var(--bd);border-radius:12px;padding:12px 13px;font-size:15px;font-family:inherit;background:#fff}
+textarea{min-height:90px;resize:vertical}
+.chk{display:flex;gap:9px;align-items:flex-start;margin-top:12px;font-size:12px;color:var(--mut)}
+.formbox .btn{width:100%;justify-content:center;margin-top:16px}
+.ok{display:none;background:#EAF3EE;color:var(--deep);border-radius:12px;padding:14px;font-size:14px;font-weight:600;margin-top:12px}
+footer{padding:30px 0;color:var(--mut);font-size:13px;border-top:1px solid var(--bd);margin-top:30px}
+.foot{display:flex;flex-wrap:wrap;gap:16px;align-items:center}.foot .sp{margin-left:auto}
+@media(max-width:820px){.grid,.offer{grid-template-columns:1fr}h1{font-size:32px}}
+</style></head>
+<body data-i18n-endpoint="">
+<header><div class="nav">
+  <div class="logo">Metabole<span class="ai">AI</span></div>
+  <a class="back" href="Metabole_Sito_Presentazione.html"><i class="ti ti-arrow-left" style="vertical-align:-2px"></i> <span data-i18n="back">Torna al sito</span></a>
+  <div class="langsel"><i class="ti ti-world"></i><select id="lang" aria-label="Lingua">
+    <option value="it">Italiano</option><option value="en">English</option><option value="es">Español</option><option value="pt">Português</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ru">Русский</option><option value="zh">中文</option><option value="ar">العربية</option>
+  </select></div>
+</div></header>
+
+<section class="hero"><div class="wrap">
+  <div class="rainbow" style="max-width:120px;margin-bottom:16px"></div>
+  <div class="kick" data-i18n="kick">Lavora con noi</div>
+  <h1 data-i18n-html="h1">Costruiamo insieme un benessere<br>che mette la persona al centro</h1>
+  <p class="lead" data-i18n-html="lead">Cerchiamo professionisti e persone appassionate. Con l'intelligenza di <span class="ai">Gaia</span> a supporto, il tuo tempo torna a ciò che conta: le persone.</p>
+</div></section>
+
+<section><div class="wrap">
+  <div class="grid">
+    <div class="jc"><div class="ic" style="background:#12A386"><i class="ti ti-stethoscope" style="font-size:22px"></i></div>
+      <h3 data-i18n="r1t">Sei un nutrizionista?</h3>
+      <p style="font-size:14px;color:var(--mut)" data-i18n="r1d">Entra nel team clinico e presidia la salute dei clienti.</p>
+      <ul><li data-i18n="r1a">Validi e personalizzi i percorsi</li><li data-i18n="r1b">Gaia prepara le proposte, tu decidi</li><li data-i18n="r1c">Lavori da remoto, con flessibilità</li></ul>
+    </div>
+    <div class="jc"><div class="ic" style="background:#E86FA6"><i class="ti ti-heart-handshake" style="font-size:22px"></i></div>
+      <h3 data-i18n="r2t">Sei una coach?</h3>
+      <p style="font-size:14px;color:var(--mut)" data-i18n="r2d">Accompagna le persone giorno per giorno.</p>
+      <ul><li data-i18n="r2a">Segui i tuoi clienti nell'app</li><li data-i18n="r2b">Empatia e metodo, con strumenti chiari</li><li data-i18n="r2c">Formazione continua del team</li></ul>
+    </div>
+    <div class="jc"><div class="ic" style="background:#6C4CD6"><i class="ti ti-school" style="font-size:22px"></i></div>
+      <h3 data-i18n="r3t">Vuoi diventare tutor della nutrizione?</h3>
+      <p style="font-size:14px;color:var(--mut)" data-i18n="r3d">Ti formiamo noi, anche se parti da zero.</p>
+      <ul><li data-i18n="r3a">Percorso di formazione dedicato</li><li data-i18n="r3b">Affiancamento dei professionisti</li><li data-i18n="r3c">Un mestiere nel benessere</li></ul>
+    </div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2 data-i18n="offer_t">Cosa offriamo</h2>
+  <div class="offer" style="margin-top:10px">
+    <div class="o"><i class="ti ti-clock-hour-4"></i><b data-i18n="o1t">Flessibilità</b><p data-i18n="o1p">Lavoro da remoto e orari sostenibili.</p></div>
+    <div class="o"><i class="ti ti-robot"></i><b data-i18n="o2t">Gaia al tuo fianco</b><p data-i18n="o2p">L'AI prepara il lavoro ripetitivo, tu ti concentri sulle persone.</p></div>
+    <div class="o"><i class="ti ti-certificate"></i><b data-i18n="o3t">Crescita</b><p data-i18n="o3p">Formazione continua e un team che si supporta.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2 data-i18n="apply_t">Candidati</h2>
+  <p class="lead" style="margin-bottom:14px" data-i18n="apply_lead">Raccontaci chi sei: ti ricontattiamo noi.</p>
+  <form class="formbox" id="jobForm" data-endpoint="https://metabole-backend.onrender.com/api/v1/public/leads">
+    <label data-i18n="f_name">Nome e cognome</label><input name="nome" required>
+    <label data-i18n="f_email">Email</label><input name="email" type="email" required>
+    <label data-i18n="f_role">Ruolo di interesse</label>
+    <select name="ruolo"><option data-i18n="opt1">Nutrizionista</option><option data-i18n="opt2">Coach</option><option data-i18n="opt3">Tutor della nutrizione</option><option data-i18n="opt4">Altro</option></select>
+    <label data-i18n="f_msg">Parlaci di te (facoltativo)</label><textarea name="messaggio" data-i18n-ph="f_msg_ph" placeholder="Esperienza, motivazione, disponibilità…"></textarea>
+    <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    <div class="chk"><input type="checkbox" required style="width:auto;margin-top:2px"><span data-i18n-html="f_consent">Acconsento al trattamento dei miei dati per la selezione, secondo l'<a href="Metabole_Privacy.html" target="_blank" style="color:var(--teal)">informativa privacy</a>.</span></div>
+    <button class="btn" type="submit" data-i18n="f_submit">Invia candidatura</button>
+    <div class="ok" id="jobOk"><i class="ti ti-check"></i> <span data-i18n="f_ok">Grazie! Abbiamo ricevuto la tua candidatura.</span></div>
+    <div class="ok" id="jobErr" style="display:none;background:#FBF3E7;border:1px solid #EBD9B8;color:#7a5a1e"><i class="ti ti-alert-triangle"></i> <span data-i18n-html="f_err">Non è stato possibile inviare ora. Scrivici a <a href="mailto:info@metabole.eu" style="color:var(--deep)">info@metabole.eu</a> e ti ricontattiamo.</span></div>
+  </form>
+</div></section>
+
+<footer><div class="wrap foot">
+  <div class="logo" style="font-size:17px">Metabole<span class="ai">AI</span></div>
+  <a href="Metabole_Sito_Presentazione.html" data-i18n="f_home">Home</a>
+  <a href="Metabole_Blog.html" data-i18n="f_blog">Blog</a>
+  <a href="Metabole_Privacy.html" data-i18n="f_privacy">Privacy</a>
+  <a href="Metabole_Cookie.html" data-i18n="f_cookie">Cookie</a>
+  <span class="sp" data-i18n="f_copy">© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)</span>
+</div></footer>
+<script>
+var I18N={
+ it:{back:"Torna al sito",kick:"Lavora con noi",h1:"Costruiamo insieme un benessere<br>che mette la persona al centro",lead:"Cerchiamo professionisti e persone appassionate. Con l'intelligenza di <span class=\"ai\">Gaia</span> a supporto, il tuo tempo torna a ciò che conta: le persone.",r1t:"Sei un nutrizionista?",r1d:"Entra nel team clinico e presidia la salute dei clienti.",r1a:"Validi e personalizzi i percorsi",r1b:"Gaia prepara le proposte, tu decidi",r1c:"Lavori da remoto, con flessibilità",r2t:"Sei una coach?",r2d:"Accompagna le persone giorno per giorno.",r2a:"Segui i tuoi clienti nell'app",r2b:"Empatia e metodo, con strumenti chiari",r2c:"Formazione continua del team",r3t:"Vuoi diventare tutor della nutrizione?",r3d:"Ti formiamo noi, anche se parti da zero.",r3a:"Percorso di formazione dedicato",r3b:"Affiancamento dei professionisti",r3c:"Un mestiere nel benessere",offer_t:"Cosa offriamo",o1t:"Flessibilità",o1p:"Lavoro da remoto e orari sostenibili.",o2t:"Gaia al tuo fianco",o2p:"L'AI prepara il lavoro ripetitivo, tu ti concentri sulle persone.",o3t:"Crescita",o3p:"Formazione continua e un team che si supporta.",apply_t:"Candidati",apply_lead:"Raccontaci chi sei: ti ricontattiamo noi.",f_name:"Nome e cognome",f_email:"Email",f_role:"Ruolo di interesse",opt1:"Nutrizionista",opt2:"Coach",opt3:"Tutor della nutrizione",opt4:"Altro",f_msg:"Parlaci di te (facoltativo)",f_msg_ph:"Esperienza, motivazione, disponibilità…",f_consent:"Acconsento al trattamento dei miei dati per la selezione, secondo l'<a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">informativa privacy</a>.",f_submit:"Invia candidatura",f_ok:"Grazie! Abbiamo ricevuto la tua candidatura.",f_home:"Home",f_blog:"Blog",f_privacy:"Privacy",f_cookie:"Cookie",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)"},
+ en:{back:"Back to site",kick:"Work with us",h1:"Let's build a wellbeing<br>that puts the person at the center",lead:"We're looking for professionals and passionate people. With <span class=\"ai\">Gaia</span>'s intelligence in support, your time goes back to what matters: people.",r1t:"Are you a nutritionist?",r1d:"Join the clinical team and oversee clients' health.",r1a:"Validate and tailor the journeys",r1b:"Gaia prepares the proposals, you decide",r1c:"Work remotely, with flexibility",r2t:"Are you a coach?",r2d:"Support people day by day.",r2a:"Follow your clients in the app",r2b:"Empathy and method, with clear tools",r2c:"Ongoing team training",r3t:"Want to become a nutrition tutor?",r3d:"We train you, even from scratch.",r3a:"Dedicated training path",r3b:"Support from professionals",r3c:"A career in wellbeing",offer_t:"What we offer",o1t:"Flexibility",o1p:"Remote work and sustainable hours.",o2t:"Gaia by your side",o2p:"The AI handles the repetitive work, you focus on people.",o3t:"Growth",o3p:"Continuous training and a team that supports each other.",apply_t:"Apply",apply_lead:"Tell us who you are: we'll get back to you.",f_name:"Full name",f_email:"Email",f_role:"Role of interest",opt1:"Nutritionist",opt2:"Coach",opt3:"Nutrition tutor",opt4:"Other",f_msg:"Tell us about you (optional)",f_msg_ph:"Experience, motivation, availability…",f_consent:"I agree to the processing of my data for recruitment, according to the <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">privacy policy</a>.",f_submit:"Send application",f_ok:"Thank you! We've received your application.",f_home:"Home",f_blog:"Blog",f_privacy:"Privacy",f_cookie:"Cookies",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)"},
+ es:{back:"Volver al sitio",kick:"Trabaja con nosotros",h1:"Construyamos juntos un bienestar<br>que pone a la persona en el centro",lead:"Buscamos profesionales y personas apasionadas. Con la inteligencia de <span class=\"ai\">Gaia</span> como apoyo, tu tiempo vuelve a lo que importa: las personas.",r1t:"¿Eres nutricionista?",r1d:"Únete al equipo clínico y cuida la salud de los clientes.",r1a:"Validas y personalizas los planes",r1b:"Gaia prepara las propuestas, tú decides",r1c:"Trabajas en remoto, con flexibilidad",r2t:"¿Eres coach?",r2d:"Acompaña a las personas día a día.",r2a:"Sigue a tus clientes en la app",r2b:"Empatía y método, con herramientas claras",r2c:"Formación continua del equipo",r3t:"¿Quieres ser tutor de nutrición?",r3d:"Te formamos nosotros, incluso desde cero.",r3a:"Itinerario de formación dedicado",r3b:"Acompañamiento de profesionales",r3c:"Un oficio en el bienestar",offer_t:"Qué ofrecemos",o1t:"Flexibilidad",o1p:"Trabajo en remoto y horarios sostenibles.",o2t:"Gaia a tu lado",o2p:"La IA hace el trabajo repetitivo, tú te centras en las personas.",o3t:"Crecimiento",o3p:"Formación continua y un equipo que se apoya.",apply_t:"Postúlate",apply_lead:"Cuéntanos quién eres: te contactamos nosotros.",f_name:"Nombre y apellidos",f_email:"Correo",f_role:"Rol de interés",opt1:"Nutricionista",opt2:"Coach",opt3:"Tutor de nutrición",opt4:"Otro",f_msg:"Háblanos de ti (opcional)",f_msg_ph:"Experiencia, motivación, disponibilidad…",f_consent:"Acepto el tratamiento de mis datos para la selección, según la <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">política de privacidad</a>.",f_submit:"Enviar candidatura",f_ok:"¡Gracias! Hemos recibido tu candidatura.",f_home:"Inicio",f_blog:"Blog",f_privacy:"Privacidad",f_cookie:"Cookies",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)"},
+ pt:{back:"Voltar ao site",kick:"Trabalhe conosco",h1:"Vamos construir juntos um bem-estar<br>que coloca a pessoa no centro",lead:"Procuramos profissionais e pessoas apaixonadas. Com a inteligência da <span class=\"ai\">Gaia</span> como apoio, o seu tempo volta ao que importa: as pessoas.",r1t:"Você é nutricionista?",r1d:"Entre na equipe clínica e cuide da saúde dos clientes.",r1a:"Valida e personaliza os percursos",r1b:"Gaia prepara as propostas, você decide",r1c:"Trabalha remotamente, com flexibilidade",r2t:"Você é coach?",r2d:"Acompanhe as pessoas dia após dia.",r2a:"Acompanhe os seus clientes no app",r2b:"Empatia e método, com ferramentas claras",r2c:"Formação contínua da equipe",r3t:"Quer ser tutor de nutrição?",r3d:"Nós te formamos, mesmo do zero.",r3a:"Percurso de formação dedicado",r3b:"Acompanhamento de profissionais",r3c:"Uma profissão no bem-estar",offer_t:"O que oferecemos",o1t:"Flexibilidade",o1p:"Trabalho remoto e horários sustentáveis.",o2t:"Gaia ao seu lado",o2p:"A IA faz o trabalho repetitivo, você foca nas pessoas.",o3t:"Crescimento",o3p:"Formação contínua e uma equipe que se apoia.",apply_t:"Candidate-se",apply_lead:"Conte-nos quem você é: entramos em contato.",f_name:"Nome completo",f_email:"E-mail",f_role:"Cargo de interesse",opt1:"Nutricionista",opt2:"Coach",opt3:"Tutor de nutrição",opt4:"Outro",f_msg:"Fale sobre você (opcional)",f_msg_ph:"Experiência, motivação, disponibilidade…",f_consent:"Concordo com o tratamento dos meus dados para a seleção, conforme a <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">política de privacidade</a>.",f_submit:"Enviar candidatura",f_ok:"Obrigado! Recebemos a sua candidatura.",f_home:"Início",f_blog:"Blog",f_privacy:"Privacidade",f_cookie:"Cookies",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)"},
+ fr:{back:"Retour au site",kick:"Rejoignez-nous",h1:"Construisons ensemble un bien-être<br>qui met la personne au centre",lead:"Nous cherchons des professionnels et des passionnés. Avec l'intelligence de <span class=\"ai\">Gaia</span> en soutien, votre temps revient à l'essentiel : les personnes.",r1t:"Vous êtes nutritionniste ?",r1d:"Rejoignez l'équipe clinique et veillez sur la santé des clients.",r1a:"Vous validez et personnalisez les parcours",r1b:"Gaia prépare les propositions, vous décidez",r1c:"Vous travaillez à distance, en souplesse",r2t:"Vous êtes coach ?",r2d:"Accompagnez les personnes au quotidien.",r2a:"Suivez vos clients dans l'app",r2b:"Empathie et méthode, avec des outils clairs",r2c:"Formation continue de l'équipe",r3t:"Devenir tuteur en nutrition ?",r3d:"Nous vous formons, même en partant de zéro.",r3a:"Parcours de formation dédié",r3b:"Accompagnement par des professionnels",r3c:"Un métier dans le bien-être",offer_t:"Ce que nous offrons",o1t:"Flexibilité",o1p:"Travail à distance et horaires soutenables.",o2t:"Gaia à vos côtés",o2p:"L'IA gère le travail répétitif, vous vous concentrez sur les personnes.",o3t:"Évolution",o3p:"Formation continue et une équipe solidaire.",apply_t:"Postuler",apply_lead:"Dites-nous qui vous êtes : nous vous recontactons.",f_name:"Nom et prénom",f_email:"E-mail",f_role:"Poste souhaité",opt1:"Nutritionniste",opt2:"Coach",opt3:"Tuteur en nutrition",opt4:"Autre",f_msg:"Parlez-nous de vous (facultatif)",f_msg_ph:"Expérience, motivation, disponibilité…",f_consent:"J'accepte le traitement de mes données pour le recrutement, selon la <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">politique de confidentialité</a>.",f_submit:"Envoyer la candidature",f_ok:"Merci ! Nous avons reçu votre candidature.",f_home:"Accueil",f_blog:"Blog",f_privacy:"Confidentialité",f_cookie:"Cookies",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)"},
+ de:{back:"Zurück zur Website",kick:"Arbeite mit uns",h1:"Bauen wir gemeinsam ein Wohlbefinden,<br>das den Menschen ins Zentrum stellt",lead:"Wir suchen Fachleute und Menschen mit Leidenschaft. Mit der Intelligenz von <span class=\"ai\">Gaia</span> als Unterstützung kehrt deine Zeit zum Wesentlichen zurück: den Menschen.",r1t:"Bist du Ernährungsberater?",r1d:"Werde Teil des klinischen Teams und wache über die Gesundheit der Kunden.",r1a:"Du validierst und personalisierst die Wege",r1b:"Gaia bereitet die Vorschläge vor, du entscheidest",r1c:"Du arbeitest remote, mit Flexibilität",r2t:"Bist du Coach?",r2d:"Begleite Menschen Tag für Tag.",r2a:"Begleite deine Kunden in der App",r2b:"Empathie und Methode, mit klaren Werkzeugen",r2c:"Laufende Weiterbildung des Teams",r3t:"Willst du Ernährungstutor werden?",r3d:"Wir bilden dich aus, auch von Grund auf.",r3a:"Eigener Ausbildungsweg",r3b:"Begleitung durch Fachleute",r3c:"Ein Beruf im Wohlbefinden",offer_t:"Was wir bieten",o1t:"Flexibilität",o1p:"Remote-Arbeit und nachhaltige Zeiten.",o2t:"Gaia an deiner Seite",o2p:"Die KI übernimmt die Routinearbeit, du konzentrierst dich auf die Menschen.",o3t:"Wachstum",o3p:"Laufende Weiterbildung und ein Team, das sich unterstützt.",apply_t:"Bewirb dich",apply_lead:"Erzähl uns, wer du bist: Wir melden uns bei dir.",f_name:"Vor- und Nachname",f_email:"E-Mail",f_role:"Gewünschte Rolle",opt1:"Ernährungsberater",opt2:"Coach",opt3:"Ernährungstutor",opt4:"Andere",f_msg:"Erzähl von dir (optional)",f_msg_ph:"Erfahrung, Motivation, Verfügbarkeit…",f_consent:"Ich stimme der Verarbeitung meiner Daten für die Auswahl gemäss <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">Datenschutzerklärung</a> zu.",f_submit:"Bewerbung senden",f_ok:"Danke! Wir haben deine Bewerbung erhalten.",f_home:"Start",f_blog:"Blog",f_privacy:"Datenschutz",f_cookie:"Cookies",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Lugano (CH)"},
+ ru:{back:"Назад на сайт",kick:"Работа у нас",h1:"Построим вместе благополучие,<br>в центре которого человек",lead:"Мы ищем профессионалов и увлечённых людей. С интеллектом <span class=\"ai\">Gaia</span> в поддержку ваше время возвращается к главному: людям.",r1t:"Вы нутрициолог?",r1d:"Присоединяйтесь к клинической команде и следите за здоровьем клиентов.",r1a:"Утверждаете и персонализируете программы",r1b:"Gaia готовит предложения, вы решаете",r1c:"Работаете удалённо, гибко",r2t:"Вы коуч?",r2d:"Сопровождайте людей день за днём.",r2a:"Ведите своих клиентов в приложении",r2b:"Эмпатия и метод, с понятными инструментами",r2c:"Постоянное обучение команды",r3t:"Хотите стать тьютором по питанию?",r3d:"Мы обучим вас, даже с нуля.",r3a:"Отдельная программа обучения",r3b:"Поддержка профессионалов",r3c:"Профессия в сфере благополучия",offer_t:"Что мы предлагаем",o1t:"Гибкость",o1p:"Удалённая работа и разумный график.",o2t:"Gaia рядом",o2p:"ИИ берёт рутину, вы сосредоточены на людях.",o3t:"Рост",o3p:"Постоянное обучение и команда, которая поддерживает.",apply_t:"Откликнуться",apply_lead:"Расскажите, кто вы: мы свяжемся с вами.",f_name:"Имя и фамилия",f_email:"Эл. почта",f_role:"Интересующая роль",opt1:"Нутрициолог",opt2:"Коуч",opt3:"Тьютор по питанию",opt4:"Другое",f_msg:"Расскажите о себе (необязательно)",f_msg_ph:"Опыт, мотивация, доступность…",f_consent:"Я согласен(на) на обработку моих данных для отбора, согласно <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">политике конфиденциальности</a>.",f_submit:"Отправить заявку",f_ok:"Спасибо! Мы получили вашу заявку.",f_home:"Главная",f_blog:"Блог",f_privacy:"Конфиденциальность",f_cookie:"Cookies",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · Лугано (CH)"},
+ zh:{back:"返回网站",kick:"加入我们",h1:"一起打造<br>以人为本的健康",lead:"我们寻找专业人士与热爱健康的伙伴。在 <span class=\"ai\">Gaia</span> 智能的支持下，你的时间回归到最重要的事：人。",r1t:"你是营养师吗？",r1d:"加入临床团队，守护客户的健康。",r1a:"审核并个性化方案",r1b:"Gaia 准备建议，你来决定",r1c:"远程工作，灵活自由",r2t:"你是教练吗？",r2d:"日复一日地陪伴他人。",r2a:"在应用中跟进你的客户",r2b:"同理心与方法，工具清晰",r2c:"团队持续培训",r3t:"想成为营养辅导师吗？",r3d:"我们来培训你，即使从零开始。",r3a:"专属培训路径",r3b:"专业人士的陪伴",r3c:"健康行业的一份职业",offer_t:"我们提供什么",o1t:"灵活",o1p:"远程工作与可持续的时间安排。",o2t:"Gaia 在你身边",o2p:"AI 处理重复性工作，你专注于人。",o3t:"成长",o3p:"持续培训与相互支持的团队。",apply_t:"申请",apply_lead:"告诉我们你是谁：我们会联系你。",f_name:"姓名",f_email:"邮箱",f_role:"感兴趣的岗位",opt1:"营养师",opt2:"教练",opt3:"营养辅导师",opt4:"其他",f_msg:"介绍一下你自己（可选）",f_msg_ph:"经验、动机、可用时间…",f_consent:"我同意根据<a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">隐私政策</a>为招聘处理我的数据。",f_submit:"提交申请",f_ok:"谢谢！我们已收到你的申请。",f_home:"主页",f_blog:"博客",f_privacy:"隐私",f_cookie:"Cookie",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · 卢加诺 (CH)"},
+ ar:{back:"العودة إلى الموقع",kick:"اعمل معنا",h1:"لنبنِ معاً عافية<br>تضع الإنسان في المركز",lead:"نبحث عن مختصين وأشخاص شغوفين. بدعم ذكاء <span class=\"ai\">Gaia</span>، يعود وقتك إلى ما يهمّ: الناس.",r1t:"هل أنت أخصائي تغذية؟",r1d:"انضم إلى الفريق السريري واعتنِ بصحة العملاء.",r1a:"تعتمد وتخصّص المسارات",r1b:"تُعدّ Gaia الاقتراحات، وأنت تقرّر",r1c:"تعمل عن بُعد بمرونة",r2t:"هل أنت مدرّبة؟",r2d:"رافق الناس يوماً بيوم.",r2a:"تابع عملاءك في التطبيق",r2b:"تعاطف ومنهجية بأدوات واضحة",r2c:"تدريب مستمر للفريق",r3t:"هل تريد أن تصبح مُوجّه تغذية؟",r3d:"نحن ندرّبك، حتى من الصفر.",r3a:"مسار تدريب مخصّص",r3b:"مرافقة من المختصين",r3c:"مهنة في مجال العافية",offer_t:"ما نقدّمه",o1t:"مرونة",o1p:"عمل عن بُعد وأوقات مستدامة.",o2t:"Gaia إلى جانبك",o2p:"يتولّى الذكاء الاصطناعي العمل المتكرّر، وتركّز أنت على الناس.",o3t:"نموّ",o3p:"تدريب مستمر وفريق يدعم بعضه.",apply_t:"قدّم الآن",apply_lead:"أخبرنا من أنت: سنتواصل معك.",f_name:"الاسم الكامل",f_email:"البريد الإلكتروني",f_role:"الدور المطلوب",opt1:"أخصائي تغذية",opt2:"مدرّب",opt3:"مُوجّه تغذية",opt4:"أخرى",f_msg:"حدّثنا عن نفسك (اختياري)",f_msg_ph:"الخبرة، الدافع، التوفّر…",f_consent:"أوافق على معالجة بياناتي لأغراض التوظيف وفق <a href=\"Metabole_Privacy.html\" target=\"_blank\" style=\"color:var(--teal)\">سياسة الخصوصية</a>.",f_submit:"إرسال الطلب",f_ok:"شكراً! لقد استلمنا طلبك.",f_home:"الرئيسية",f_blog:"المدوّنة",f_privacy:"الخصوصية",f_cookie:"ملفات الارتباط",f_copy:"© 2026 MetaboleAI · Mosaico Experiences SA · لوغانو (CH)"}
+};
+var FERR={it:"Non è stato possibile inviare ora. Scrivici a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e ti ricontattiamo.",en:"We couldn't send it right now. Write to us at <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> and we'll get back to you.",es:"No se ha podido enviar ahora. Escríbenos a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> y te contactamos.",pt:"Não foi possível enviar agora. Escreva para <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e entramos em contacto.",fr:"L'envoi a échoué. Écrivez-nous à <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> et nous vous recontactons.",de:"Senden derzeit nicht möglich. Schreiben Sie an <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, wir melden uns.",ru:"Не удалось отправить. Напишите нам на <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, и мы свяжемся с вами.",zh:"暂时无法发送。请写信至 <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>，我们会与你联系。",ar:"تعذّر الإرسال الآن. راسِلنا على <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> وسنعاود التواصل معك."};
+Object.keys(FERR).forEach(function(l){if(I18N[l])I18N[l].f_err=FERR[l];});
+function ls(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsset(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function setLang(l){var d=I18N[l]||I18N.it;document.documentElement.lang=l;document.documentElement.dir=(l==='ar')?'rtl':'ltr';
+ document.querySelectorAll('[data-i18n]').forEach(function(e){var k=e.getAttribute('data-i18n');if(d[k]!=null)e.textContent=d[k];});
+ document.querySelectorAll('[data-i18n-html]').forEach(function(e){var k=e.getAttribute('data-i18n-html');if(d[k]!=null)e.innerHTML=d[k];});
+ document.querySelectorAll('[data-i18n-ph]').forEach(function(e){var k=e.getAttribute('data-i18n-ph');if(d[k]!=null)e.setAttribute('placeholder',d[k]);});
+ lsset('mb_lang',l);var s=document.getElementById('lang');if(s)s.value=l;}
+var I18N_ENDPOINT="";
+function loadRemote(cb){var ep=document.body.getAttribute('data-i18n-endpoint')||I18N_ENDPOINT;if(!ep){cb&&cb();return;}
+ fetch(ep).then(function(r){return r.json()}).then(function(rm){Object.keys(rm||{}).forEach(function(l){var s=rm[l]||{};if(!I18N[l])I18N[l]={};for(var k in s)I18N[l][k]=s[k];});cb&&cb();}).catch(function(){cb&&cb();});}
+var saved=ls('mb_lang');var nv=(navigator.language||'it').slice(0,2);var start=saved||(I18N[nv]?nv:'it');
+setLang(start);loadRemote(function(){setLang(document.documentElement.lang||start);});
+document.getElementById('lang').addEventListener('change',function(){setLang(this.value)});
+var f=document.getElementById('jobForm');
+f.addEventListener('submit',function(e){e.preventDefault();
+  var ep=f.getAttribute('data-endpoint');
+  var ok=document.getElementById('jobOk'),err=document.getElementById('jobErr'),btn=f.querySelector('button');
+  if(f.website&&f.website.value){ok.style.display='block';return;}
+  var data={nome:f.nome.value,email:f.email.value,ruolo:f.ruolo.value,messaggio:f.messaggio.value,website:f.website?f.website.value:'',fonte:'lavora_con_noi',lingua:document.documentElement.lang};
+  function success(){err.style.display='none';ok.style.display='block';btn.style.display='none';}
+  function fail(){ok.style.display='none';err.style.display='block';btn.disabled=false;}
+  if(!ep){fail();return;}
+  btn.disabled=true;
+  fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){if(r&&r.ok)success();else fail();}).catch(fail);
+});
+</script>
+</body></html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaboleAI · Dashboard — Agenti</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--teal:#12a386;--teal-dark:#0e7c66;--deep:#10403a;--coral:#e8825a;--violet:#6c5ab7;--gold:#b8863b;--bg:#faf8f3;--card:#fff;--ink:#16302c;--muted:#7c8c88;--line:#ece7de;--chip:#dcebe3;--chip-ink:#0e7c66;--radius:16px;--shadow:0 2px 8px rgba(16,64,58,.06);--shadow-hover:0 8px 20px rgba(16,64,58,.12);--serif:'Fraunces',Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55}
+a{color:inherit;text-decoration:none}
+.ai{background:linear-gradient(90deg,#6C4CD6,#2F80ED,#12A386,#E86FA6,#6C4CD6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;background-size:300% auto;animation:aishine 4s linear infinite}
+@keyframes aishine{to{background-position:300% center}}
+@media(prefers-reduced-motion:reduce){.ai{animation:none}}
+.top{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.top .in{max-width:1180px;margin:0 auto;padding:0 22px;height:60px;display:flex;align-items:center;gap:14px}
+.brand{font-family:var(--serif);font-weight:600;font-size:19px;color:var(--deep)}
+.top .crumb{color:var(--muted);font-size:14px;margin-left:6px}
+.top .crumb b{color:var(--ink)}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
+.head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+h1{font-family:var(--serif);font-size:30px;font-weight:600}
+.head p{color:var(--muted);font-size:15px;max-width:640px;margin-top:4px}
+.head .sp{margin-left:auto}
+.btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:100px;padding:11px 20px;font-family:inherit;font-size:14.5px;font-weight:600;cursor:pointer;background:var(--teal);color:#fff;box-shadow:var(--shadow)}
+.btn:hover{box-shadow:var(--shadow-hover)}
+.btn.ghost{background:#fff;color:var(--deep);border:1.5px solid var(--line)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 8px}
+.filter{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:100px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.filter.on{background:var(--chip);color:var(--chip-ink);border-color:transparent}
+.count{color:var(--muted);font-size:13px;margin-left:auto;align-self:center}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+.ag{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;border-top:4px solid var(--teal)}
+.ag .h{display:flex;align-items:center;gap:10px}
+.ag .ic{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;flex:none;font-size:20px}
+.ag .nm{font-weight:700;font-size:16px;font-family:var(--serif)}
+.ag .type{font-size:11.5px;color:var(--muted);font-weight:600}
+.ag .row{font-size:13.5px}
+.ag .row .k{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:1px}
+.ag .rule{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:9px 11px;font-size:12.5px;color:#3b524c}
+.ag .rule i{color:var(--coral);vertical-align:-2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px;background:var(--chip);color:var(--chip-ink)}
+.chip.eng{background:#0e1116;color:#fff;border:1px solid #2a2f37}
+.chip.eng b{font-weight:700}
+.dept{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px}
+.d-app{background:#EAF7F2;color:#0e7c66}.d-mkt{background:#F3EEFB;color:#6c5ab7}.d-com{background:#FDF0E8;color:#993c1d}.d-crm{background:#EAF1FB;color:#2b5c9e}.d-sys{background:#EFF1F0;color:#516059}
+/* form */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);margin-top:14px;display:none}
+.panel.open{display:block}
+.panel h3{font-family:var(--serif);font-size:19px;margin-bottom:4px}
+.panel .sub{color:var(--muted);font-size:13.5px;margin-bottom:14px}
+.frm{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.frm .full{grid-column:1/-1}
+label{font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px}
+input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:10px 12px;font-family:inherit;font-size:14px;background:#fff;color:var(--ink)}
+textarea{min-height:64px;resize:vertical}
+.frm .act{grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
+@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.grid,.frm{grid-template-columns:1fr}}
+</style></head>
+<body>
+<div class="top"><div class="in">
+  <div class="brand">Metabole<span class="ai">AI</span></div>
+  <span class="crumb">Dashboard · <b>Agenti</b></span>
+</div></div>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Agenti</h1>
+      <p>Tutti gli agenti <span class="ai">Claude</span> del sistema: dove lavorano, cosa fanno e la regola che li governa. Puoi aggiungerne di nuovi.</p>
+    </div>
+    <div class="sp"></div>
+    <button class="btn" id="addBtn"><i class="ti ti-plus"></i> Nuovo agente</button>
+  </div>
+
+  <div class="panel" id="panel">
+    <h3>Nuovo agente</h3>
+    <div class="sub">Definisci il compito e dove applicarlo. Scegli il motore in base al carico e alla criticità.</div>
+    <form class="frm" id="frm">
+      <div><label>Nome agente</label><input name="nome" required placeholder="Es. Agente Recensioni"></div>
+      <div><label>Tipo</label><select name="tipo">
+        <option>Conversazionale</option><option>Generativo</option><option>Giudice / Classificatore</option><option>RAG (fonti curate)</option><option>Pianificatore</option><option>Analista</option><option>Redattore</option><option>Orchestratore</option>
+      </select></div>
+      <div><label>Dove lavora (reparto)</label><select name="dept">
+        <option value="app">App cliente</option><option value="mkt">Marketing</option><option value="com">Comunicazione</option><option value="crm">CRM</option><option value="sys">Sistema</option>
+      </select></div>
+      <div><label>Motore (Claude)</label><select name="engine">
+        <option value="Haiku 4.5">Haiku 4.5 — veloce/economico (alto volume)</option>
+        <option value="Sonnet 5" selected>Sonnet 5 — equilibrio qualità/prezzo</option>
+        <option value="Opus 4.8">Opus 4.8 — ragionamento pesante (raro)</option>
+      </select></div>
+      <div class="full"><label>Cosa fa</label><textarea name="cosa" required placeholder="Descrivi il compito dell'agente…"></textarea></div>
+      <div class="full"><label>Regola</label><textarea name="regola" placeholder="Il vincolo che deve sempre rispettare (es. escala i claim di salute al nutrizionista capo)…"></textarea></div>
+      <div class="act"><button type="button" class="btn ghost" id="cancelBtn">Annulla</button><button type="submit" class="btn"><i class="ti ti-check"></i> Crea agente</button></div>
+    </form>
+  </div>
+
+  <div class="bar" id="filters"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+var DEPTS={app:{lab:'App cliente',cls:'d-app'},mkt:{lab:'Marketing',cls:'d-mkt'},com:{lab:'Comunicazione',cls:'d-com'},crm:{lab:'CRM',cls:'d-crm'},sys:{lab:'Sistema',cls:'d-sys'}};
+var ENGCOL={'Haiku 4.5':'#12A386','Sonnet 5':'#2F80ED','Opus 4.8':'#6C4CD6'};
+var AGENTS=[
+ {nome:'Gaia',tipo:'Conversazionale + RAG',dept:'app',icon:'ti-mood-smile',col:'#12A386',engine:'Sonnet 5',cosa:'Accompagna il cliente: dialogo, spiegazioni del menu e dei consigli, motivazione. Il menu vero è calcolato dal motore dieta (deterministico); Gaia lo racconta e risponde.',regola:'Non dà diagnosi né prescrizioni: qualsiasi tema clinico è escalato al nutrizionista. Tono empatico, niente numeri/promesse.'},
+ {nome:'Motore dieta',tipo:'Deterministico (no LLM)',dept:'app',icon:'ti-salad',col:'#0e7c66',engine:'—',cosa:'Compone i menu su regole, catalogo e vincoli (gusti, stagione, cultura, allergie). Non usa LLM: costo ~0.',regola:'Le soglie stanno in config_param (mai hardcodate). Ogni menu è validato dal nutrizionista.'},
+ {nome:'Voce di Gaia',tipo:'Sintesi vocale (TTS)',dept:'app',icon:'ti-microphone',col:'#57C0A2',engine:'ElevenLabs',cosa:'Genera le frasi parlate di Gaia. Le frasi sono pre-generate per chiave (non in tempo reale), quindi il costo non scala col numero di utenti.',regola:'Si rigenera solo la chiave modificata (mai tutte). Testo approvato prima della sintesi.'},
+ {nome:'Stratega',tipo:'Pianificatore',dept:'mkt',icon:'ti-bulb',col:'#6c5ab7',engine:'Sonnet 5',cosa:'Legge KPI, stagionalità e segmenti; decide temi, angoli e priorità per canale e fase. Produce i brief creativi.',regola:'Rispetta i micro-pubblici e il calendario opportunità; nessun claim non conforme entra nei brief.'},
+ {nome:'Creativo (art)',tipo:'Generativo',dept:'mkt',icon:'ti-palette',col:'#e8825a',engine:'Sonnet 5 + immagini',cosa:'Genera concept visivi: vignette, illustrazioni, storyboard, format carosello, copertine.',regola:'Vietate immagini prima/dopo o che idealizzano il corpo. Sì a stile di vita sano.'},
+ {nome:'Copywriter',tipo:'Generativo',dept:'mkt',icon:'ti-pencil',col:'#b8863b',engine:'Haiku 4.5',cosa:'Scrive hook, caption, script video, email, SMS e adv nel tono del brand, in più varianti.',regola:'Niente promesse a tempo, numeri garantiti o seconda persona su attributi fisici. 18+.'},
+ {nome:'Giudice (compliance)',tipo:'Giudice / Classificatore',dept:'mkt',icon:'ti-gavel',col:'#c0392b',engine:'Sonnet 5',cosa:'Valuta ogni contenuto prima della pubblicazione: policy social, rischio ban, veridicità, coerenza brand. Verdetto: Approva / Rivedi / Blocca.',regola:'Ogni claim di salute è escalato al nutrizionista capo. Ogni decisione è loggata (audit).'},
+ {nome:'Publisher',tipo:'Orchestrazione API',dept:'mkt',icon:'ti-send',col:'#2b5c9e',engine:'Haiku 4.5',cosa:'Programma e pubblica sui canali via API ufficiali; gestisce calendario e test A/B.',regola:'Pubblica solo contenuti approvati dal Giudice (o dall\'umano per i casi sensibili).'},
+ {nome:'Lead',tipo:'Classificatore/dati',dept:'crm',icon:'ti-user-plus',col:'#2b5c9e',engine:'Haiku 4.5',cosa:'Cattura i lead da form/ads/social, deduplica, applica il consenso, attribuisce la fonte e li versa nel CRM.',regola:'Nessun lead entra senza consenso valido (LPD/GDPR). Fonte sempre tracciata.'},
+ {nome:'Analista',tipo:'Analista',dept:'mkt',icon:'ti-chart-histogram',col:'#0e7c66',engine:'Haiku 4.5',cosa:'Misura le performance, capisce cosa funziona, alimenta lo Stratega e la memoria della macchina.',regola:'Non accede ai dati sanitari. Lavora su metriche aggregate.'},
+ {nome:'Contesto & Tempismo',tipo:'Pianificatore',dept:'mkt',icon:'ti-calendar-time',col:'#6c5ab7',engine:'Sonnet 5',cosa:'Decide il momento giusto per ogni pubblicazione in base a stagione, eventi e micro-pubblici.',regola:'Segue il calendario opportunità; niente sfruttamento di temi sensibili.'},
+ {nome:'Redattore blog',tipo:'Redattore + RAG',dept:'com',icon:'ti-article',col:'#993c1d',engine:'Sonnet 5 + Haiku',cosa:'Scrive gli articoli del blog da una knowledge base validata; produce SEO e traduzioni. Un articolo al giorno dopo l\'approvazione.',regola:'Solo fonti curate (non web libero). Bozza → Giudice → approvazione responsabile marketing. Claim salute → nutrizionista capo.'},
+ {nome:'Orchestratore',tipo:'Orchestratore',dept:'sys',icon:'ti-hierarchy-2',col:'#516059',engine:'Haiku 4.5',cosa:'Coordina gli agenti, instrada i compiti, applica quota e budget per contenere i costi.',regola:'Rispetta i limiti di spesa e i permessi (RBAC) di ogni reparto.'}
+];
+
+var activeFilter='all';
+function engChip(e){var claude=/Haiku|Sonnet|Opus/.test(e);return '<span class="chip'+(claude?' eng':'')+'">'+(claude?'<b>'+e+'</b>':e)+'</span>';}
+function render(){
+  var grid=document.getElementById('grid');
+  var list=AGENTS.filter(function(a){return activeFilter==='all'||a.dept===activeFilter;});
+  grid.innerHTML=list.map(function(a){
+    var d=DEPTS[a.dept];
+    return '<div class="ag" style="border-top-color:'+a.col+'">'
+     +'<div class="h"><div class="ic" style="background:'+a.col+'"><i class="ti '+a.icon+'"></i></div>'
+     +'<div><div class="nm">'+a.nome+'</div><div class="type">'+a.tipo+'</div></div></div>'
+     +'<div class="chips"><span class="dept '+d.cls+'"><i class="ti ti-map-pin" style="font-size:12px"></i> '+d.lab+'</span>'+engChip(a.engine)+'</div>'
+     +'<div class="row"><span class="k">Cosa fa</span>'+a.cosa+'</div>'
+     +(a.regola?'<div class="rule"><i class="ti ti-shield-check"></i> <b>Regola:</b> '+a.regola+'</div>':'')
+     +'</div>';
+  }).join('');
+  document.getElementById('count').textContent=list.length+' agenti';
+}
+function renderFilters(){
+  var f=document.getElementById('filters');
+  var opts=[['all','Tutti']].concat(Object.keys(DEPTS).map(function(k){return [k,DEPTS[k].lab];}));
+  f.innerHTML=opts.map(function(o){return '<button class="filter'+(activeFilter===o[0]?' on':'')+'" data-f="'+o[0]+'">'+o[1]+'</button>';}).join('')+'<span class="count" id="count"></span>';
+  f.querySelectorAll('.filter').forEach(function(b){b.addEventListener('click',function(){activeFilter=this.getAttribute('data-f');renderFilters();render();});});
+}
+renderFilters();render();
+
+var panel=document.getElementById('panel');
+document.getElementById('addBtn').addEventListener('click',function(){panel.classList.toggle('open');if(panel.classList.contains('open'))panel.scrollIntoView({behavior:'smooth',block:'center'});});
+document.getElementById('cancelBtn').addEventListener('click',function(){panel.classList.remove('open');});
+var ICONS={'Conversazionale':'ti-mood-smile','Generativo':'ti-sparkles','Giudice / Classificatore':'ti-gavel','RAG (fonti curate)':'ti-books','Pianificatore':'ti-bulb','Analista':'ti-chart-histogram','Redattore':'ti-article','Orchestratore':'ti-hierarchy-2'};
+document.getElementById('frm').addEventListener('submit',function(e){
+  e.preventDefault();var f=e.target;
+  AGENTS.unshift({nome:f.nome.value,tipo:f.tipo.value,dept:f.dept.value,icon:ICONS[f.tipo.value]||'ti-robot',col:ENGCOL[f.engine.value]||'#12A386',engine:f.engine.value,cosa:f.cosa.value,regola:f.regola.value});
+  f.reset();panel.classList.remove('open');activeFilter='all';renderFilters();render();
+});
+</script>
+</body></html>
