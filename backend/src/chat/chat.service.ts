@@ -177,6 +177,8 @@ export class ChatService {
             clientId,
             reason: `Chat: tema sensibile rilevato dal filtro AI (${result.reason}). Messaggio da rivedere con urgenza.`,
             source: 'coach',
+            // R12: tema sensibile/clinico → categoria clinica, in carico al nutrizionista.
+            category: 'clinical' as never,
             assignedToId: profile?.assignedNutritionistId,
           },
         });

@@ -7,44 +7,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+<<<<<<< HEAD
 - `[Prodotto]` **Sito — restyling a box uniformi + ® + pulizia** (`Metabole_Sito_Presentazione.html`) — riorganizzato tutto il sito con **sistema a box annidati** e **gerarchia grafica uniforme** a 3 livelli: sezione (bianca, raggio 24), pannello/gruppo (tinta unica #F6FAF8, raggio 18, niente gradienti/ombre), card (bianche, raggio 14). Rimossi gradienti e raggi/ombre incoerenti su recall/cult/feat-art/lead-person/lead-band/app; unificate le fasce band/final solo nel raggio (testo/bg invariati). **Hero invariato.** Box numeri con sottotitolo **"L'esperienza"** (9 lingue) + i 4 dati in un box interno. Rimossa la sezione **"Un giorno con te"**. Aggiunta **® al logo MetaboleAI®** (header e footer). → da rideployare per vederlo live.
 
 - `[Prodotto]` **Sito — galleria app sfogliabile + dicitura contatori con 3 prodotti** (`Metabole_Sito_Presentazione.html`) — (1) la sezione app ora ha una **galleria swipe** (frecce + puntini + caption, touch/scroll-snap, no immagini esterne) con **4 schermate inline**: Home (misure/proposta), Percorso (menu giorno 1 e 2 con cottura diversa), Obiettivi (progressi + cambia obiettivo), Contatti (Gaia + coach + nutrizionista). (2) Dicitura contatori aggiornata in tutte le 9 lingue con l'elenco prodotti esteso: **"tra cui Nutriamo, Dimagriamo, Nutrilab"**. → da deployare per vederle live.
+=======
+- `[Sviluppo]` **Go-live: Stripe LIVE configurato, sito ripubblicato, pulizie repo** — ① Stripe in modalità live: chiave `sk_live` dedicata e destinazione evento con solo `checkout.session.completed` → `/api/v1/payments/webhook`; `STRIPE_SECRET_KEY`+`STRIPE_WEBHOOK_SECRET` aggiornati su Render, redeploy verificato (nessun prodotto/prezzo in Stripe: il checkout usa `price_data` inline col prezzo del piano dal DB). Resta il pagamento reale di prova nello smoke test. ② `index.html` ripubblicato su SiteGround 1:1 dal repo (nuova dicitura contatori + fallback; lo snippet favicon ormai è nel repo, niente più delta) e cache dinamica svuotata. ③ Pulizie: creato `app/.env.example` (VITE_API_URL), rimosso il backup `backend/prisma/schema_1.prisma`.
+>>>>>>> ba161685734acf61f6a0c69ea69617d8e50e9d64
 
-- `[Sviluppo]` **Backoffice — Segnalazioni: filtro e colonna per categoria (R12)** — la pagina
-  Segnalazioni ora mostra la **categoria** di ogni segnalazione (chip colorato: Piano bloccato,
-  Nessun progresso, Scarsa aderenza, Rischio umore/abbandono, Clinico, Altro — etichette allineate a
-  `escalation-routing.ts`) e permette di **filtrare per categoria** oltre che per stato
-  (`GET /admin/escalations?category=`, già supportato dal backend). Risanato inoltre REGISTRO.md:
-  erano finiti committati dei marker di conflitto git (voci ref-code e checklist go-live: tenute
-  entrambe). File: `backoffice/src/pages/Segnalazioni.tsx`, `progetto/REGISTRO.md`, `progetto/STATO.md`.
-
-- `[Sviluppo]` **Motore R8–R12 — fasi E1→E5 COMPLETE** *(voce di recupero: la sessione che ha consegnato
-  il lavoro si è interrotta prima di aggiornare il diario; il codice era già nel commit dei contatori)* —
-  eseguito per intero il piano `progetto/Metabole_Motore_Piano_R8_R12.md` con le decisioni del socio
-  (`Metabole_Motore_R8_R12_Decisioni.md` D1–D5, `Metabole_E1_Agente_Esclusioni_Decisioni.md` Q1–Q8):
-  ① **Migrazioni** `20260714110000_engine_r8r12_skeleton` (`ClientProfile.allergies String[]`,
-  `EquivalenceGroup`, `ClientCycle` con stato contestuale + 2 cotture, `PersonalizationCertificate`),
-  `20260714140000_recipe_allergens` (tag allergeni normalizzati 14 UE su Recipe) e
-  `20260714160000_escalation_category` (`Escalation.category`). ② **E1 — base personale + esclusioni
-  (R8)**: modulo `personal-base/` — copia filtrata del pool prodotto per cliente, allergie=blocco duro,
-  sostituzione via gruppi di equivalenza; se uno slot principale resta scoperto → **blocco + escalation
-  `diet_blocked`** al nutrizionista; `GET /me/personal-base`, `POST /me/personal-base/rebuild`,
-  `POST /clients/:id/personal-base/rebuild`; domanda **allergie separata** nell'onboarding. ③ **E2 —
-  partenza + unicità (R9)**: seme personale HMAC da client_id, ordinamento deterministico, firma del
-  piano + collision check, `PersonalizationCertificate` versionato, `GET /clients/:id/personalization-certificate`.
-  ④ **E3 — ciclo bigiornaliero (R10)**: modulo `cycle/` — `ClientCycle` con 2 metodi di cottura a kcal
-  invariate, `GET /me/cycle`, `GET /clients/:id/cycle`. ⑤ **E4 (R11)** già coperto da learning/agente
-  esistenti (fasi 5–6: MenuWeight, scoring, stati contestuali — lo stato ora vive sul ciclo). ⑥ **E5 —
-  routing segnalazioni (R12)**: `escalations/escalation-routing.{ts,service.ts}` con categorie standard
-  (diet_blocked, no_progress, low_adherence, mood_risk, clinical, other), instradamento primary/also,
-  `GET /admin/escalations?category=` + `PATCH` stato con audit. ⑦ **Backoffice**: nuove pagine
-  Segnalazioni e Gruppi equivalenza (CRUD + approvazione, seed dai 23 gruppi), tag allergeni sulle
-  ricette. **Restano 2 rifiniture da concordare col socio**: modulazione pesi da `Diet.objective`
-  (mantenimento → efficacia neutra) e adozione delle categorie/routing sulle segnalazioni create da
-  chat/segnali/onboarding/motore giornaliero (oggi le settano solo personal-base e menu).
-
-- `[Sviluppo]` **Contatori sito con base storica Mosaico** (`/public/stats`, gate n.1 di lancio) — `publicStats()` ora somma la base storica (`config_param`) ai conteggi reali: `clients = stats_clients_base (18.979) + abbonamenti attivati` (startDate valorizzata), `reached = stats_reached_base (85.218) + lead CRM`; `years` da `site_stats_years` (seed = 20). I 3 parametri sono nel seed (upsert: non tocca valori modificati dal backoffice) e il seed gira ad ogni deploy. Rimossi i vecchi override assoluti `site_stats_clients/reached`. Test aggiornati (somma base+reale, filtro abbonamenti attivati). File: `backend/src/catalog/catalog.service.ts`, `catalog.service.spec.ts`, `backend/prisma/seed.ts`. Dopo il deploy atteso `{clients:≥18979, reached:≥85218, methods:4, years:20}`; resta la ripubblicazione del sito su SiteGround per dicitura/fallback (punto 2 delle istruzioni).
+- `[Sviluppo]` **Contatori sito con base storica Mosaico** (`/public/stats`, commit `76c0cbf` — voce ripristinata, era andata persa in un risanamento conflitti del diario) — `publicStats()` somma la base storica ai conteggi reali: `clients = stats_clients_base (18.979) + abbonamenti attivati`, `reached = stats_reached_base (85.218) + lead CRM`, `years` da `site_stats_years` (20); parametri in config_param via seed (upsert, gira ad ogni deploy), rimossi gli override assoluti `site_stats_clients/reached`, test aggiornati. **Verificato live**: `{clients:18983, reached:85232, methods:4, years:20}`; home del sito mostra "18.983+ / 85.232+".
 
 - `[Sviluppo]` **Backoffice — permessi completi, moduli dashboard, scheda lead** — ① ogni schermata ora è
   controllata dalla tabella permessi: nuova chiave `posta` (staff di default), Dashboard senza bypass,
@@ -69,6 +40,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 - `[Prodotto]` **Sito — contatori: base storica Mosaico + nuova dicitura (9 lingue)** (`Metabole_Sito_Presentazione.html`) — i contatori partono dai numeri storici di **Mosaico Experiences SA**: **persone raggiunte da 85.218**, **clienti seguiti da 18.979** (default HTML + `STATS`). Nuova **dicitura** sotto i contatori (versione "sobria e chiara", tradotta in tutte le 9 lingue): *"L'esperienza è quella del nostro team. I clienti seguiti e le persone raggiunte sono i numeri che Mosaico Experiences SA ha maturato in 5 anni con diversi prodotti dedicati alla nutrizione."* → **impatto [Sviluppo]:** i numeri vivono nel DB e l'endpoint `/public/stats` sovrascrive i default (oggi mostra ~12/13 perché la base è ~0). Impostare la **base** nel backend/`config_param` così che `reached = 85218 + n° lead` e `clients = 18979 + n° acquisti` (offset di partenza), lasciando l'incremento +1 per lead / +1 per acquisto.
 
+<<<<<<< Updated upstream
 - `[Sviluppo]` **Generazione automatica dei codici col metodo aziendale** — nuovo modulo
   `common/ref-code.ts`: ogni codice generato in automatico segue la regola **5 lettere cognome +
   iniziale nome + progressivo da 01** (es. VOLPEA01). Vale per il ref code coach (admin e "il mio
@@ -76,8 +48,9 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   nome manca. Con la stessa forma nei due spazi, l'**unicità è verificata incrociata** (staff.refCode
   + clientProfile.referralCode), anche per i codici impostati a mano dall'admin. Inserimento
   case-insensitive (già garantito). +6 unit test (lead-assignment e referral).
-
+=======
 - `[Prodotto]` **Go-live — verifica LIVE + checklist ridotta** (`Metabole_Checklist_GoLive.md`) — controllo dal vivo: backend up (`/health`, `/plans` = 3 piani reali €297/€497/€797 → DB Neon prod seedato), `/payment-methods` carta+bonifico (Stripe collegato), **app cliente live** su app.metabole.eu, sito live, endpoint lead attivo, utenze staff reali create. Infrastruttura **in piedi**. Restano solo **conferme** (Stripe in modalità LIVE + webhook, deliverability email Brevo/DNS, backoffice raggiungibile, FCM) + **smoke test con pagamento reale** + **contenuti** (team, grammature Keto, traduzioni, testimonianze). Checklist riscritta con spuntato ciò che è live e ridotta ai punti rimasti.
+>>>>>>> Stashed changes
 
 - `[Prodotto]` **Marketing — area "Email automatiche" con elenco-tracker** (`marketing/email_automatiche/Elenco_Email_Automatiche.md`) — nuovo registro di lavoro delle email automatiche in preparazione, con campi **evento (trigger), oggetto, testo (sintesi), segmento, timing, stato** (⚪ da progettare / 🟡 bozza / 🟢 copy pronta / 🔵 da tradurre / ⬛ template Brevo / ✅ live). Raggruppate in 8 aree: attivazione, conversione, retention, **email per evento** (peso obiettivo, morale, plateau, ricorrenze…), rinnovo, win-back, servizio/transazionali, consensi. Rimanda alla copy completa in `Metabole_Email_Ciclo_Vita.md` e alle campagne massive.
 

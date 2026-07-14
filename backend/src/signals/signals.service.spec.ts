@@ -105,7 +105,7 @@ describe('SignalsService', () => {
     expect(result.rapidLossAlert).toBe(true);
     expect(prisma.escalation.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ source: 'engine', assignedToId: 'staff-n' }),
+        data: expect.objectContaining({ source: 'engine', category: 'clinical', assignedToId: 'staff-n' }),
       }),
     );
   });

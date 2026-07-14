@@ -128,6 +128,8 @@ export class SignalsService {
         clientId,
         reason: `Calo rapido: ${rate} kg/settimana sulle ultime rilevazioni (soglia ${threshold}). Verificare calorie ed energia.`,
         source: 'engine',
+        // R12: calo rapido = sicurezza clinica → solo nutrizionista.
+        category: 'clinical' as never,
         assignedToId: profile?.assignedNutritionistId,
       },
     });

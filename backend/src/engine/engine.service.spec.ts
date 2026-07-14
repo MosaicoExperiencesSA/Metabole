@@ -121,7 +121,7 @@ describe('EngineService', () => {
     expect((decision.action as any).menu).toBe('increase_calories');
     expect(prisma.escalation.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ source: 'engine', assignedToId: 'staff-n' }),
+        data: expect.objectContaining({ source: 'engine', category: 'clinical', assignedToId: 'staff-n' }),
       }),
     );
   });

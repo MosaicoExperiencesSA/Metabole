@@ -40,10 +40,11 @@ segreti fuori dal repo, `docs/` pubblica, dati sanitari cifrati, soglie in `conf
   Privacy, Cookie, Termini + `favicon.svg` (mascotte Gaia). ✅
 - Collegato al backend (per `Istruzioni_Claude_Sito_Metabole.md`): stats/percorsi/testimonianze dinamici,
   form lead → CRM (honeypot verificato). CORS ok da metabole.eu e www. ✅
-- Contatori con **base storica Mosaico** in `/public/stats`: `stats_clients_base` (18.979) + abbonamenti
-  attivati, `stats_reached_base` (85.218) + lead CRM, `years` = 20 — da `config_param` (modificabile dal
-  backoffice), seed automatico al deploy. In attesa di push+deploy; poi ripubblicare il sito su SiteGround
-  per dicitura/fallback aggiornati (punto 2 di `Metabole_Istruzioni_Contatori_Simone.pdf`). 🔶
+- Contatori con **base storica Mosaico** in `/public/stats` (`stats_clients_base` 18.979 + abbonamenti
+  attivati, `stats_reached_base` 85.218 + lead CRM, `years` 20 — config_param modificabili dal backoffice):
+  backend live e sito ripubblicato con nuova dicitura e fallback il 14/7. ✅
+- **Stripe LIVE configurato** (chiave + webhook `checkout.session.completed` in Render, 14/7): manca solo
+  il pagamento reale di prova nello smoke test. 🔶
 - Aggiornamento: dopo ogni push dei file del sito, ricopiare su SiteGround (lo fa Claude Cowork su
   richiesta) e svuotare la Cache Dinamica. ✅
 
@@ -203,26 +204,7 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
     storico dei check-in (nessuna tabella dedicata). **Agente Fase 6 completo.**
   - Le segnalazioni (aderenza→coach, mood/plateau) sono già coperte dall'Alert engine (dropout_risk,
     plateau, ecc.).
-- **Agente R8–R12 — fasi E1→E5 COMPLETE (14/7)** ✅ dal piano `progetto/Metabole_Motore_Piano_R8_R12.md`
-  con le decisioni del socio (D1–D5, Q1–Q8):
-  - **E1 (R8) Base personale + esclusioni**: `personal-base/` — pool prodotto filtrato per cliente
-    (campo `ClientProfile.allergies` + domanda onboarding separata; tag allergeni 14 UE sulle ricette;
-    sostituzione via `EquivalenceGroup` del nutrizionista, seed dai 23 gruppi); slot principale
-    scoperto → blocco + escalation `diet_blocked`. `GET /me/personal-base`, `POST …/rebuild`.
-  - **E2 (R9) Partenza + unicità**: seme personale HMAC da client_id, firma piano + collision check,
-    `PersonalizationCertificate` versionato (`GET /clients/:id/personalization-certificate`).
-    MVP come da D3; PKI/auditor esterno rimandato.
-  - **E3 (R10) Ciclo bigiornaliero**: `cycle/` — `ClientCycle` con 2 metodi di cottura a kcal
-    invariate e stato contestuale sul ciclo (D4). `GET /me/cycle`, `GET /clients/:id/cycle`.
-  - **E4 (R11)**: già coperto da learning/agente (fasi 5–6).
-  - **E5 (R12) Routing segnalazioni**: categorie standard (diet_blocked, no_progress, low_adherence,
-    mood_risk, clinical, other) + instradamento primary/also (`escalations/escalation-routing.*`);
-    backoffice **Segnalazioni** con colonna e filtro per categoria; pagina **Gruppi equivalenza**.
-  - **Rifiniture rimaste (da concordare col socio)**: modulazione pesi da `Diet.objective`
-    (mantenimento → efficacia neutra); adozione categorie/routing sulle escalation create da
-    chat/segnali/onboarding/motore giornaliero (oggi le settano solo personal-base e menu).
-- **Certificazione unicità** (seed, collision check, certificato HMAC): ✅ MVP con E2 (vedi sopra);
-  registro hash-chain/PKI verificabile da auditor esterno ⬜ rimandato (Fase 10 avanzata).
+- **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
 - **Piani stagionali (prodotto)** ⬜ da `../Metabole_Piani_Estate.pdf`: due modalità di luglio —
   *Vacanze in Serenità* (mantenimento, menu freddi/portabili, bussola-ristorante, misure non bloccanti)
   e *Ritorno in Equilibrio* (ripartenza dolce, reset→ritmo). Da costruire: segnale `travel_mode` (date)
@@ -254,7 +236,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ✅ stati completi (pre/post-evento, plateau, conforto+guardrail, rientro) + selezione modulata |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard+coda validazione (scoped per-paziente) fatti; resta l'app front-end |
 | 8 | Shop / abbonamenti / provvigioni | 🟡 commerce già presente; aggiunto referral cliente "porta un'amica" |
-| 9 | Certificazione unicità (seed, collision check, registro firmato) | ✅ MVP (E2 del 14/7: seme+collision+certificato HMAC); hash-chain/auditor esterno ⬜ |
+| 9 | Certificazione unicità (seed, collision check, registro firmato) | ⬜ |
 
 > Trasversali: privacy/consensi + AuditLog; tutte le soglie in `config_param`; notifiche push (backlog);
 > numero versione app (backlog); avatar/menu utente in alto nel backoffice (backlog).
