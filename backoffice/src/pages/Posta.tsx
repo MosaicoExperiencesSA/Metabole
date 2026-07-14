@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Spinner } from '../components/ui';
 
@@ -92,10 +92,18 @@ export function Posta() {
 
   if (!status?.configured) {
     return (
-      <MailboxSetup
-        onDone={(email) => { setStatus({ configured: true, email }); setNotice('Casella collegata.'); void loadInbox(); }}
-        error={error}
-      />
+      <div className="card" style={{ maxWidth: 520, textAlign: 'center' }}>
+        <div style={{ fontSize: 34, marginBottom: 6 }}><i className="ti ti-mail-off" style={{ color: 'var(--muted)' }} /></div>
+        <h3 style={{ marginTop: 0 }}>Casella non ancora collegata</h3>
+        <p className="muted">
+          Per usare la posta devi prima collegare la tua casella <b>@metabole.eu</b>. La colleghi dalle Impostazioni:
+          bastano indirizzo e password.
+        </p>
+        {error && <Banner kind="err">{error}</Banner>}
+        <Link className="btn" to="/impostazioni" style={{ marginTop: 8 }}>
+          <i className="ti ti-settings" /> Vai in Impostazioni e collega la casella
+        </Link>
+      </div>
     );
   }
 
@@ -158,46 +166,6 @@ export function Posta() {
         />
       )}
     </>
-  );
-}
-
-function MailboxSetup({ onDone, error }: { onDone: (email: string) => void; error: string | null }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function submit() {
-    setErr(null);
-    if (!email.trim() || !password) { setErr('Inserisci indirizzo e password della casella.'); return; }
-    setBusy(true);
-    try {
-      const r = await api<{ email: string }>('/me/mailbox', { method: 'PUT', body: JSON.stringify({ email: email.trim(), password }) });
-      onDone(r.email);
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Collegamento non riuscito.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="card" style={{ maxWidth: 480 }}>
-      <h3 style={{ marginTop: 0 }}>Collega la tua casella @metabole.eu</h3>
-      <p className="muted">La password viene salvata cifrata e usata solo per leggere e inviare la tua posta. Server: mail.metabole.eu (IMAP 993 / SMTP 465).</p>
-      {(err || error) && <Banner kind="err">{err || error}</Banner>}
-      <div className="field">
-        <label>Indirizzo email</label>
-        <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@metabole.eu" autoComplete="off" />
-      </div>
-      <div className="field">
-        <label>Password della casella</label>
-        <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />
-      </div>
-      <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
-        <button className="btn" onClick={submit} disabled={busy || !email.trim() || !password}>{busy ? 'Collego…' : 'Collega casella'}</button>
-      </div>
-    </div>
   );
 }
 

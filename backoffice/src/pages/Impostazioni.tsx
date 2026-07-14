@@ -105,6 +105,49 @@ export function Impostazioni() {
     } finally { setSavingPw(false); }
   }
 
+  // --- Casella di posta @metabole.eu ---
+  const [mail, setMail] = useState<{ configured: boolean; email: string | null } | null>(null);
+  const [mailForm, setMailForm] = useState({ email: '', password: '' });
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailMsg, setMailMsg] = useState<string | null>(null);
+  const [mailErr, setMailErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setMail(await api<{ configured: boolean; email: string | null }>('/me/mailbox'));
+      } catch {
+        setMail({ configured: false, email: null }); // se il ruolo non ha la casella, resta scollegata
+      }
+    })();
+  }, []);
+
+  async function connectMailbox() {
+    setMailErr(null); setMailMsg(null);
+    if (!mailForm.email.trim() || !mailForm.password) { setMailErr('Inserisci indirizzo e password della casella.'); return; }
+    setMailBusy(true);
+    try {
+      const r = await api<{ email: string }>('/me/mailbox', { method: 'PUT', body: JSON.stringify({ email: mailForm.email.trim(), password: mailForm.password }) });
+      setMail({ configured: true, email: r.email });
+      setMailForm({ email: '', password: '' });
+      setMailMsg('Casella collegata. Ora la trovi nel menu «Posta».');
+    } catch (err) {
+      setMailErr(err instanceof ApiError ? err.message : 'Collegamento non riuscito. Controlla indirizzo e password.');
+    } finally { setMailBusy(false); }
+  }
+
+  async function disconnectMailbox() {
+    if (!confirm('Scollegare la casella di posta? La password salvata verrà rimossa.')) return;
+    setMailErr(null); setMailMsg(null); setMailBusy(true);
+    try {
+      await api('/me/mailbox', { method: 'DELETE' });
+      setMail({ configured: false, email: null });
+      setMailMsg('Casella scollegata.');
+    } catch (err) {
+      setMailErr(err instanceof ApiError ? err.message : 'Operazione non riuscita.');
+    } finally { setMailBusy(false); }
+  }
+
   // --- Moduli dashboard ---
   const availableModules = DASHBOARD_MODULES.filter((m) => can(m.pageKey));
   const [modules, setModules] = useState<string[] | null>(null);
@@ -208,6 +251,38 @@ export function Impostazioni() {
         <button className="btn" style={{ marginTop: 14 }} onClick={changePassword} disabled={savingPw || !pw.current || !pw.next}>
           <i className="ti ti-key" /> {savingPw ? 'Aggiorno…' : 'Aggiorna password'}
         </button>
+      </div>
+
+      {/* Casella di posta @metabole.eu */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Casella di posta</h2>
+        <p className="hint" style={{ marginTop: 0 }}>
+          Collega la tua casella <b>@metabole.eu</b> per leggere e inviare email dal menu «Posta». La password viene
+          salvata cifrata e usata solo per la tua posta. Server: mail.metabole.eu (IMAP 993 / SMTP 465).
+        </p>
+        {mailErr && <Banner kind="err">{mailErr}</Banner>}
+        {mailMsg && <Banner kind="ok">{mailMsg}</Banner>}
+
+        {mail === null ? (
+          <p className="muted" style={{ fontSize: 13 }}>Carico…</p>
+        ) : mail.configured ? (
+          <div className="row" style={{ gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="chip" style={{ gap: 6 }}><i className="ti ti-mail-check" /> Collegata: <b>{mail.email}</b></span>
+            <button className="btn ghost sm" onClick={disconnectMailbox} disabled={mailBusy}>
+              <i className="ti ti-plug-connected-x" /> {mailBusy ? 'Attendi…' : 'Scollega'}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+              <Field label="Indirizzo email"><input className="input" placeholder="nome@metabole.eu" autoComplete="off" value={mailForm.email} onChange={(e) => setMailForm({ ...mailForm, email: e.target.value })} /></Field>
+              <Field label="Password della casella"><input className="input" type="password" autoComplete="off" value={mailForm.password} onChange={(e) => setMailForm({ ...mailForm, password: e.target.value })} /></Field>
+            </div>
+            <button className="btn" style={{ marginTop: 14 }} onClick={connectMailbox} disabled={mailBusy || !mailForm.email.trim() || !mailForm.password}>
+              <i className="ti ti-plug-connected" /> {mailBusy ? 'Collego…' : 'Collega casella'}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Tema */}

@@ -474,8 +474,10 @@ export class CommerceService {
       include: { subscription: { include: { plan: true } }, client: { select: { email: true, locale: true } } },
     });
     if (!payment) throw new NotFoundException('Pagamento non trovato');
-    if (payment.status !== 'receipt_uploaded') {
-      throw new BadRequestException('Si approvano solo pagamenti con contabile caricata');
+    // Si approva un pagamento in attesa (contabile caricata o meno: l'operatore può aver
+    // già visto il bonifico in banca). Non si "riapprova" un pagamento già chiuso.
+    if (payment.status !== 'receipt_uploaded' && payment.status !== 'pending') {
+      throw new BadRequestException('Questo pagamento non è più in attesa di approvazione');
     }
 
     const approved = await this.prisma.payment.update({
@@ -613,8 +615,8 @@ export class CommerceService {
       include: { client: { select: { email: true, locale: true } } },
     });
     if (!payment) throw new NotFoundException('Pagamento non trovato');
-    if (payment.status !== 'receipt_uploaded') {
-      throw new BadRequestException('Si rifiutano solo pagamenti con contabile caricata');
+    if (payment.status !== 'receipt_uploaded' && payment.status !== 'pending') {
+      throw new BadRequestException('Questo pagamento non è più in attesa di approvazione');
     }
     const rejected = await this.prisma.payment.update({
       where: { id: paymentId },
@@ -634,6 +636,83 @@ export class CommerceService {
       metadata: { reason },
     });
     return this.publicPayment(rejected);
+  }
+
+  /**
+   * Annulla un pagamento/ordine in attesa (non ancora approvato). Usato da:
+   * - l'operatore dal backoffice ("Elimina": annulla ma resta nello storico);
+   * - la cliente dalla sua area (annulla l'ordine se non lo vuole più);
+   * - il cron (auto-annullo dei bonifici in attesa oltre la soglia di giorni).
+   * L'annullo NON cancella lo storico: imposta lo stato `cancelled` e chiude
+   * eventuale abbonamento/ordine ancora in sospeso. Un pagamento già approvato
+   * non si annulla da qui (serve una nota di credito, fuori da questo flusso).
+   */
+  async cancelPayment(actorId: string, paymentId: string, opts: { byClient: boolean; reason?: string }) {
+    const where = opts.byClient ? { id: paymentId, clientId: actorId } : { id: paymentId };
+    const payment = await this.prisma.payment.findFirst({ where });
+    if (!payment) throw new NotFoundException('Pagamento non trovato');
+    if (payment.status === 'cancelled') return this.publicPayment(payment as unknown as Record<string, unknown>);
+    if (payment.status === 'approved') {
+      throw new BadRequestException('Un pagamento già approvato non può essere annullato.');
+    }
+    if (payment.status !== 'pending' && payment.status !== 'receipt_uploaded') {
+      throw new BadRequestException('Questo pagamento non è annullabile.');
+    }
+
+    const reason = opts.reason ?? (opts.byClient ? 'Annullato dalla cliente' : 'Annullato dall\'operatore');
+    const cancelled = await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { status: 'cancelled', rejectReason: reason },
+    });
+    // Chiude l'eventuale abbonamento/ordine ancora in sospeso.
+    if (payment.subscriptionId) {
+      await this.prisma.subscription.updateMany({
+        where: { id: payment.subscriptionId, status: 'pending' },
+        data: { status: 'cancelled' },
+      });
+    }
+    if (payment.orderId) {
+      await this.prisma.order.updateMany({
+        where: { id: payment.orderId, status: 'pending' },
+        data: { status: 'cancelled' },
+      });
+    }
+    await this.audit.log({
+      action: 'commerce.payment.cancel',
+      actorId,
+      entityType: 'payment',
+      entityId: paymentId,
+      metadata: { reason, byClient: opts.byClient },
+    });
+    return this.publicPayment(cancelled as unknown as Record<string, unknown>);
+  }
+
+  /**
+   * Cron: annulla i bonifici rimasti "in attesa contabile" (pending) oltre la soglia
+   * di giorni (config_param `payment_pending_auto_cancel_days`, default 10).
+   * I pagamenti con contabile già caricata (receipt_uploaded) NON si toccano: aspettano
+   * la verifica dell'operatore.
+   */
+  async autoCancelStalePayments(): Promise<{ cancelled: number; days: number }> {
+    const days = await this.configParams.getNumber('payment_pending_auto_cancel_days', 10);
+    const cutoff = new Date(Date.now() - days * 86_400_000);
+    const stale = await this.prisma.payment.findMany({
+      where: { status: 'pending', createdAt: { lt: cutoff } },
+      select: { id: true },
+    });
+    let cancelled = 0;
+    for (const p of stale) {
+      try {
+        await this.cancelPayment('system-cron', p.id, {
+          byClient: false,
+          reason: `Annullato automaticamente: nessuna contabile entro ${days} giorni`,
+        });
+        cancelled++;
+      } catch {
+        /* non bloccare il batch per un singolo record */
+      }
+    }
+    return { cancelled, days };
   }
 
   /** Mai esporre i byte della contabile nelle liste. */

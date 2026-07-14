@@ -182,6 +182,7 @@ enum PaymentStatus {
   receipt_uploaded
   approved
   rejected
+  cancelled
 }
 
 enum SubscriptionStatus {

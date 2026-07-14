@@ -187,8 +187,15 @@ describe('CommerceService (flusso bonifico)', () => {
       );
     });
 
-    it('senza contabile caricata NON si approva', async () => {
+    it('anche senza contabile si può approvare (operatore ha visto il bonifico in banca)', async () => {
       prisma.payment.findUnique.mockResolvedValue({ ...paymentReady(), status: 'pending' });
+      const res = (await service.approvePayment(operator, 'pay-1')) as unknown as { status: string };
+      expect(res.status).toBe('approved');
+      expect(finance.recordIncome).toHaveBeenCalled();
+    });
+
+    it('un pagamento già chiuso (approvato/annullato) NON si riapprova', async () => {
+      prisma.payment.findUnique.mockResolvedValue({ ...paymentReady(), status: 'cancelled' });
       await expect(service.approvePayment(operator, 'pay-1')).rejects.toThrow(BadRequestException);
       expect(finance.recordIncome).not.toHaveBeenCalled();
     });

@@ -205,6 +205,13 @@ export class MyCommerceController {
   ) {
     return this.commerce.uploadReceipt(user.sub, id, dto);
   }
+
+  /** La cliente annulla un proprio ordine ancora in attesa (non ancora approvato). */
+  @HttpCode(200)
+  @Post('payments/:id/cancel')
+  cancel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.commerce.cancelPayment(user.sub, id, { byClient: true });
+  }
 }
 
 class CreateManualPurchaseDto {
@@ -279,6 +286,13 @@ export class AdminPaymentsController {
   @Post(':id/reject')
   reject(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RejectPaymentDto) {
     return this.commerce.rejectPayment(user, id, dto.reason);
+  }
+
+  /** "Elimina" con conferma dal backoffice: annulla il pagamento (resta nello storico). */
+  @HttpCode(200)
+  @Post(':id/cancel')
+  cancel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.commerce.cancelPayment(user.sub, id, { byClient: false });
   }
 }
 

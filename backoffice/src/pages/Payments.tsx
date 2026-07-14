@@ -3,7 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
 
-type Status = 'pending' | 'receipt_uploaded' | 'approved' | 'rejected';
+type Status = 'pending' | 'receipt_uploaded' | 'approved' | 'rejected' | 'cancelled';
 
 interface Payment {
   id: string;
@@ -37,6 +37,7 @@ const STATUS: Record<Status, { label: string; chip: string }> = {
   pending: { label: 'In attesa contabile', chip: 'gray' },
   approved: { label: 'Approvato', chip: '' },
   rejected: { label: 'Rifiutato', chip: 'red' },
+  cancelled: { label: 'Annullato', chip: 'gray' },
 };
 
 const TABS: { key: Status; label: string }[] = [
@@ -44,6 +45,7 @@ const TABS: { key: Status; label: string }[] = [
   { key: 'pending', label: 'In attesa contabile' },
   { key: 'approved', label: 'Approvati' },
   { key: 'rejected', label: 'Rifiutati' },
+  { key: 'cancelled', label: 'Annullati' },
 ];
 
 export function Payments() {
@@ -130,6 +132,23 @@ export function Payments() {
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError(err instanceof Error ? err.message : 'Approvazione non riuscita.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function cancel(p: Payment) {
+    if (!confirm(`Annullare il pagamento di ${clientName(p)} da ${euro(p.amountCents)}?\nResterà nello storico come "Annullato".`)) return;
+    setError(null);
+    setNotice(null);
+    setBusyId(p.id);
+    try {
+      const updated = await api<Payment>(`/admin/payments/${p.id}/cancel`, { method: 'POST' });
+      setPayments((ps) => ps.map((x) => (x.id === p.id ? { ...x, ...updated } : x)));
+      setNotice(`Pagamento di ${clientName(p)} annullato.`);
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
     } finally {
       setBusyId(null);
     }
@@ -229,7 +248,7 @@ export function Payments() {
                         <i className="ti ti-file-text" /> Contabile
                       </button>
                     )}
-                    {p.status === 'receipt_uploaded' && (
+                    {(p.status === 'receipt_uploaded' || p.status === 'pending') && (
                       <>
                         <button className="btn sm" disabled={busyId === p.id} onClick={() => approve(p)} style={{ marginLeft: 6 }}>
                           <i className="ti ti-check" /> Approva
@@ -237,10 +256,10 @@ export function Payments() {
                         <button className="btn danger sm" disabled={busyId === p.id} onClick={() => setRejecting(p)} style={{ marginLeft: 6 }}>
                           Rifiuta
                         </button>
+                        <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => cancel(p)} style={{ marginLeft: 6 }} title="Annulla (resta nello storico)">
+                          <i className="ti ti-trash" /> Elimina
+                        </button>
                       </>
-                    )}
-                    {p.status === 'pending' && (
-                      <span className="muted" style={{ fontSize: 12 }}>In attesa della contabile</span>
                     )}
                   </td>
                 </tr>

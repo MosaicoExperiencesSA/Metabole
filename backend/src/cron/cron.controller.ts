@@ -10,6 +10,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { AuditService } from '../audit/audit.service';
+import { CommerceService } from '../commerce/commerce.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { Public } from '../common/decorators/public.decorator';
 import { EngineService } from '../engine/engine.service';
@@ -33,6 +34,7 @@ export class CronController {
     private readonly reports: ReportsService,
     private readonly alerts: AlertsService,
     private readonly summaries: ConversationSummaryService,
+    private readonly commerce: CommerceService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -52,12 +54,13 @@ export class CronController {
     const alerts = await this.alerts.recomputeAllBatch();
     const conversationSummaries = await this.summaries.generateDailyBatch();
     const leadAssignments = await this.leadAssignment.expireStale();
+    const stalePayments = await this.commerce.autoCancelStalePayments();
     // Il report mensile parte una volta al mese (il primo giorno).
     const monthlyReports = new Date().getDate() === 1 ? await this.reports.sendMonthlyBatch() : { sent: 0 };
     await this.audit.log({
       action: 'cron.daily',
-      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, monthlyReports } as Record<string, unknown>,
+      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, monthlyReports } as Record<string, unknown>,
     });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, monthlyReports };
+    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, monthlyReports };
   }
 }

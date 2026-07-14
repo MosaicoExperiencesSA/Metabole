@@ -38,6 +38,7 @@ const STATUS: Record<string, { label: string; bg: string; col: string }> = {
   receipt_uploaded: { label: 'Contabile inviata', bg: '#E4EEF9', col: '#2B5A93' },
   approved: { label: 'Pagato', bg: '#DCF0D8', col: '#3B6D11' },
   rejected: { label: 'Rifiutato', bg: '#F9E1DE', col: '#B3261E' },
+  cancelled: { label: 'Annullato', bg: '#EEE', col: '#666' },
 };
 const METHOD: Record<string, string> = { card: 'Carta', bank_transfer: 'Bonifico', manual: 'Manuale' };
 
@@ -182,6 +183,47 @@ export default function Profilo() {
     } catch (e) {
       setEmailErr(e instanceof ApiError ? e.message : 'Operazione non riuscita.');
     } finally { setEmailBusy(false); }
+  }
+
+  async function reloadPayments() {
+    const p = await api<Payment[]>('/me/payments').catch(() => [] as Payment[]);
+    setPayments(Array.isArray(p) ? p : []);
+  }
+
+  /** Carica la contabile del bonifico (PDF o immagine) come base64. */
+  async function uploadReceipt(id: string, file: File) {
+    setBusyId(id);
+    setErr(null);
+    try {
+      if (file.size > 5 * 1024 * 1024) throw new Error('File troppo grande (max 5 MB).');
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+        r.onerror = () => reject(new Error('File non leggibile.'));
+        r.readAsDataURL(file);
+      });
+      await api(`/me/payments/${id}/receipt`, { method: 'POST', body: JSON.stringify({ fileName: file.name, mimeType: file.type, contentBase64 }) });
+      await reloadPayments();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Caricamento non riuscito.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /** Annulla un proprio ordine ancora in attesa. */
+  async function cancelOrder(id: string) {
+    if (!confirm('Vuoi annullare questo ordine? Resterà nello storico come annullato.')) return;
+    setBusyId(id);
+    setErr(null);
+    try {
+      await api(`/me/payments/${id}/cancel`, { method: 'POST' });
+      await reloadPayments();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Operazione non riuscita.');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function downloadReceipt(id: string) {
@@ -405,6 +447,18 @@ export default function Profilo() {
                       <button className="btn-recipe" style={{ padding: '3px 10px', fontSize: 11 }} disabled={busyId === p.id} onClick={() => downloadReceipt(p.id)}>
                         <i className="ti ti-download" style={{ fontSize: 12 }} /> {busyId === p.id ? 'Attendi…' : 'Ricevuta'}
                       </button>
+                    )}
+                    {(p.status === 'pending' || p.status === 'receipt_uploaded') && (
+                      <>
+                        <label className="btn-recipe" style={{ padding: '3px 10px', fontSize: 11, cursor: busyId === p.id ? 'default' : 'pointer' }}>
+                          <i className="ti ti-upload" style={{ fontSize: 12 }} /> {busyId === p.id ? 'Attendi…' : p.status === 'receipt_uploaded' ? 'Sostituisci contabile' : 'Carica contabile'}
+                          <input type="file" accept="application/pdf,image/*" style={{ display: 'none' }} disabled={busyId === p.id}
+                            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void uploadReceipt(p.id, f); }} />
+                        </label>
+                        <button className="btn-recipe" style={{ padding: '3px 10px', fontSize: 11 }} disabled={busyId === p.id} onClick={() => cancelOrder(p.id)}>
+                          <i className="ti ti-x" style={{ fontSize: 12 }} /> Annulla ordine
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

@@ -121,6 +121,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'payment_pending_auto_cancel_days',
+    value: '10',
+    type: 'number',
+    description: 'Giorni dopo cui un bonifico rimasto "in attesa contabile" (senza contabile caricata) viene annullato in automatico dal cron giornaliero',
+  },
+  {
     key: 'personal_base_min_recipes_per_slot',
     value: '3',
     type: 'number',
