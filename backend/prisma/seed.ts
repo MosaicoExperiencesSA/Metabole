@@ -706,6 +706,54 @@ async function seedTestimonials(): Promise<void> {
   console.log(`Seed: ${SEED.length} testimonianze iniziali inserite (sito).`);
 }
 
+/**
+ * Gruppi di equivalenza (R4/R8) — base di partenza dai 23 gruppi validati dal socio
+ * (percorsi/keto/regola4_sostituzioni.md). Caricati come `draft`, GLOBALI (productId null):
+ * il nutrizionista li rivede/approva dal backoffice. Idempotente: se ne esiste già uno, salta.
+ * `members` = { items: [...], note? } per conservare le note di sicurezza (allergeni/etichette).
+ */
+async function seedEquivalenceGroups(): Promise<void> {
+  const existing = await prisma.equivalenceGroup.count();
+  if (existing > 0) return;
+  const GROUPS: { name: string; items: string[]; note?: string }[] = [
+    { name: 'Uova', items: ['pascolate', 'biologiche', 'convenzionali'] },
+    { name: 'Pollame', items: ['pollo', 'tacchino', 'faraona'], note: 'carne bianca' },
+    { name: 'Pesci grassi', items: ['salmone', 'aringa', 'sgombro', 'trota', 'tonno'], note: 'stessa combinazione grassa (omega-3)' },
+    { name: 'Pesci bianchi/magri', items: ['branzino', 'orata', 'sogliola', 'merluzzo', 'platessa'], note: 'condire con più EVO per compensare i grassi' },
+    { name: 'Crostacei/molluschi', items: ['gamberi', 'gamberetti', 'mazzancolle', 'calamari'] },
+    { name: 'Carne rossa', items: ['manzo', 'maiale', 'cervo', 'bisonte', 'agnello', 'frattaglie'] },
+    { name: 'Salumi/carni conservate', items: ['bresaola', 'prosciutto crudo', 'prosciutto cotto', 'speck', 'pancetta', 'salsiccia'], note: 'con moderazione, controllare le etichette' },
+    { name: 'Proteine vegetali', items: ['tofu', 'tempeh', 'burger di soia'], note: 'opzione vegetariana' },
+    { name: 'Latticini interi non zuccherati', items: ['yogurt greco', 'kefir', 'panna', 'burro'], note: 'controllare i carboidrati in etichetta' },
+    { name: 'Formaggi', items: ['cheddar', 'mozzarella', 'brie', 'feta', 'capra', 'crema di formaggio', 'ricotta', 'grana', 'parmigiano', 'mascarpone'] },
+    { name: 'Noci e semi', items: ['macadamia', 'mandorle', 'noci', 'nocciole', 'semi di zucca', 'semi di lino', 'semi di girasole', 'arachidi', 'chia'] },
+    { name: 'Burri di frutta secca', items: ['arachidi', 'mandorle', 'anacardi'], note: 'senza zuccheri aggiunti' },
+    { name: 'Oli/grassi', items: ['EVO', 'olio di avocado', 'olio di sesamo', 'olio di cocco', 'burro', 'ghee'] },
+    { name: 'Avocado', items: ['avocado'], note: 'aggiunta trasversale a pasti/spuntini' },
+    { name: 'Verdure a foglia', items: ['spinaci', 'bieta', 'rucola', 'cavolo nero', 'lattuga'] },
+    { name: 'Crucifere', items: ['broccoli', 'cavolfiore', 'cavoletti di Bruxelles', 'cavolo'] },
+    { name: 'Altre verdure low-carb', items: ['zucchine', 'asparagi', 'fagiolini', 'funghi', 'peperoni', 'cetrioli', 'sedano', 'finocchi', 'carciofi', 'melanzane'] },
+    { name: 'Basi finto-carbo', items: ['cavolfiore', 'zucchine', 'funghi'], note: 'sostituiscono pane/pasta/riso' },
+    { name: 'Frutti keto', items: ['more', 'mirtilli', 'lamponi', 'fragole', 'cocco'], note: 'in piccole quantità' },
+    { name: 'Latti/bevande vegetali', items: ['latte di mandorla', 'latte di cocco'], note: 'non zuccherati' },
+    { name: 'Condimenti', items: ['sale', 'pepe', 'aceto', 'limone', 'lime', 'erbe', 'spezie', 'senape', 'maionese senza zucchero', 'chimichurri', 'salsa satay senza zucchero'] },
+    { name: 'Dolcificanti keto', items: ['eritritolo', 'stevia', 'monk fruit'], note: 'per le merende' },
+    { name: 'Bevande', items: ['caffè', 'tè', 'tè matcha', 'acqua', 'acqua frizzante'], note: 'non zuccherati' },
+  ];
+  for (const g of GROUPS) {
+    await prisma.equivalenceGroup.create({
+      data: {
+        name: g.name,
+        productId: null,
+        members: { items: g.items, ...(g.note ? { note: g.note } : {}) } as never,
+        status: 'draft',
+        version: 1,
+      },
+    });
+  }
+  console.log(`Seed: ${GROUPS.length} gruppi di equivalenza inseriti (draft, da validare).`);
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -733,6 +781,7 @@ async function main(): Promise<void> {
   await seedDemoCatalog();
   await seedDietProductFields();
   await seedTestimonials();
+  await seedEquivalenceGroups();
   await seedKetoCatalog(prisma);
   await seedProtocols();
   await seedCommerce();
