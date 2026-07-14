@@ -39,9 +39,21 @@ describe('FinanceService (eventi economici automatici)', () => {
           assignedNutritionist: { managerId: 'staff-hn' },
         }),
       },
-      // Nessun ordine collegato → base provvigioni = amountCents del pagamento.
+      // Le provvigioni ora sono importi in € sul PIANO dell'abbonamento (non %).
+      // Piano da 297€ con quote: coach 29,70 · mgr 8,91 · nutri 44,55 · capo 14,85.
       payment: {
-        findUnique: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue({
+          subscription: {
+            plan: {
+              priceCents: 29700,
+              commissionCoachCents: 2970,
+              commissionManagerCoachCents: 891,
+              commissionNutritionistCents: 4455,
+              commissionHeadNutritionistCents: 1485,
+            },
+          },
+          order: null,
+        }),
       },
     };
     const moduleRef = await Test.createTestingModule({
@@ -52,15 +64,7 @@ describe('FinanceService (eventi economici automatici)', () => {
           provide: ConfigParamsService,
           useValue: {
             getNumber: jest.fn((key: string) =>
-              Promise.resolve(
-                ({
-                  commission_coach_percent: 10,
-                  commission_manager_coach_percent: 3,
-                  commission_nutritionist_percent: 15,
-                  commission_head_nutritionist_percent: 5,
-                  visit_compensation_amount_cents: 4000,
-                } as Record<string, number>)[key],
-              ),
+              Promise.resolve(({ visit_compensation_amount_cents: 4000 } as Record<string, number>)[key]),
             ),
           },
         },
@@ -70,7 +74,7 @@ describe('FinanceService (eventi economici automatici)', () => {
     service = moduleRef.get(FinanceService);
   });
 
-  it('provvigioni a catena: coach 10% + manager 3% + nutrizionista 15% + capo 5%, expense a ledger', async () => {
+  it('provvigioni a catena dagli importi € del piano: coach 29,70 + mgr 8,91 + nutri 44,55 + capo 14,85, expense a ledger', async () => {
     await service.generateCommissions({ id: 'pay-1', clientId: 'c1', amountCents: 29700 });
     const upserts = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create);
     expect(upserts).toEqual(
@@ -92,6 +96,10 @@ describe('FinanceService (eventi economici automatici)', () => {
       assignedCoach: { managerId: null },
       assignedNutritionist: { managerId: null },
     });
+    prisma.payment.findUnique.mockResolvedValueOnce({
+      subscription: { plan: { priceCents: 10000, commissionCoachCents: 1000, commissionManagerCoachCents: 300, commissionNutritionistCents: 1500, commissionHeadNutritionistCents: 500 } },
+      order: null,
+    });
     await service.generateCommissions({ id: 'pay-2', clientId: 'c1', amountCents: 10000 });
     const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
     expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-n']));
@@ -106,11 +114,15 @@ describe('FinanceService (eventi economici automatici)', () => {
       assignedCoach: { managerId: 'staff-mc' },
       assignedNutritionist: null,
     });
+    prisma.payment.findUnique.mockResolvedValueOnce({
+      subscription: { plan: { priceCents: 10000, commissionCoachCents: 1000, commissionManagerCoachCents: 300, commissionNutritionistCents: 1500, commissionHeadNutritionistCents: 500 } },
+      order: null,
+    });
     await service.generateCommissions({ id: 'pay-3', clientId: 'c1', amountCents: 10000 });
     // coach + manager pagati subito
     const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
     expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-mc']));
-    // nutrizionista + capo accantonati (15% e 5% di 10000)
+    // nutrizionista + capo accantonati (importi € del piano)
     const pendings = prisma.pendingCommission.create.mock.calls.map((c: any) => c[0].data);
     expect(pendings).toEqual(
       expect.arrayContaining([

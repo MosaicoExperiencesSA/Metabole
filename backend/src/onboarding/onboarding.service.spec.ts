@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
 import { OnboardingService } from './onboarding.service';
@@ -77,6 +78,7 @@ describe('OnboardingService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigParamsService, useValue: configParams },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: PersonalBaseService, useValue: { buildPersonalBase: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = moduleRef.get(OnboardingService);

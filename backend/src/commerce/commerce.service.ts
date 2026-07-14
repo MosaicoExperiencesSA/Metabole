@@ -96,7 +96,7 @@ export class CommerceService {
     return this.prisma.product.findMany({ orderBy: { name: 'asc' } });
   }
 
-  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; commissionTeam?: string }) {
+  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
     const product = await this.prisma.product.create({ data: { ...dto, active: dto.active ?? true } });
     await this.audit.log({ action: 'shop.product.create', actorId, entityType: 'product', entityId: product.id });
     return product;
@@ -116,7 +116,7 @@ export class CommerceService {
     return { deleted: true };
   }
 
-  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean }) {
+  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
     const plan = await this.prisma.plan.create({ data: { ...dto, features: dto.features ?? [], active: dto.active ?? true } });
     await this.audit.log({ action: 'shop.plan.create', actorId, entityType: 'plan', entityId: plan.id });
     return plan;

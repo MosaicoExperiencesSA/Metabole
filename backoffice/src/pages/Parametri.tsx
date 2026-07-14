@@ -28,10 +28,8 @@ const META: Record<string, Meta> = {
 
   bank_transfer_details: { label: 'Estremi del bonifico', group: 'Bonifico', kind: 'textarea', help: 'Testo inviato via email alla cliente per pagare con bonifico (intestatario, IBAN, BIC…).' },
 
-  commission_coach_percent: { label: 'Provvigione coach', group: 'Provvigioni e compensi', kind: 'number', unit: '%', help: 'Percentuale alla coach assegnata alla cliente.' },
-  commission_manager_coach_percent: { label: 'Provvigione manager coach', group: 'Provvigioni e compensi', kind: 'number', unit: '%', help: 'Percentuale alla responsabile della coach (impostata come “responsabile” in Utenti).' },
-  commission_nutritionist_percent: { label: 'Provvigione nutrizionista', group: 'Provvigioni e compensi', kind: 'number', unit: '%', help: 'Percentuale alla nutrizionista assegnata alla cliente.' },
-  commission_head_nutritionist_percent: { label: 'Provvigione capo nutrizionista', group: 'Provvigioni e compensi', kind: 'number', unit: '%', help: 'Percentuale al capo della nutrizionista (impostato come “responsabile” in Utenti).' },
+  // Le provvigioni di vendita non sono più parametri globali: dal 14/07 sono importi in €
+  // definiti su ogni piano/prodotto in Gestione negozio. Resta solo il compenso visita.
   visit_compensation_amount_cents: { label: 'Compenso per visita', group: 'Provvigioni e compensi', kind: 'euro', help: 'Compenso alla nutrizionista per ogni visita completata.' },
 
   water_goal_glasses: { label: 'Obiettivo acqua', group: 'Obiettivi cliente', kind: 'number', unit: 'bicchieri/giorno' },

@@ -48,13 +48,13 @@
 
 **Stima:** media (migrazione + backend CRUD/filtri/import + backoffice UI). Sinergia con il modulo Marketing (§4): le liste possono fare da base ai futuri "segmenti". — [Sv/Claude]
 
-### 2.3 Storno acquisti — ✅ FATTO 14/07 sera (in attesa di push)
+### 2.3 Storno acquisti — ✅ FATTO 14/07 (deployato)
 
-Dalla tabella Acquisti (solo admin): pulsante **Storno** su un acquisto pagato → modal che chiede **quanto rimborsare** (anche parziale) + nota. Effetti: blocco erogazione menu (abbonamento annullato), incasso nettato in contabilità, **provvigioni stornate in proporzione** (ledger + compensi del periodo + accantonate), **ricevuta di rimborso** PDF inviata alla cliente via email (it/en) e scaricabile. Il rimborso EFFETTIVO su Stripe/bonifico resta manuale (scelta di Simone). Migrazione `20260714220000_payment_refund`.
+Dalla tabella Acquisti (admin): pulsante Storno su un acquisto pagato → chiede quanto rimborsare (anche parziale) + nota → blocca i menu (abbonamento annullato), incasso nettato, provvigioni stornate in proporzione, ricevuta di rimborso PDF alla cliente. Rimborso effettivo su Stripe/bonifico manuale.
 
-### 2.4 Provvigioni e compensi PER PRODOTTO in € (non più % nei parametri)
+### 2.4 Provvigioni/compensi PER PRODOTTO in € — ✅ FATTO 14/07 sera (in attesa di push)
 
-**Cosa:** togliere le percentuali provvigionali da `config_param` (`commission_coach_percent`, `commission_nutritionist_percent`, ecc.) e definirle **su ogni prodotto del negozio** (piani e prodotti) come **valore assoluto in euro** — es. "piano 3 mesi → coach €30, nutrizionista €45". `generateCommissions` legge dall'acquisto il prodotto e usa gli importi fissi; il wizard/gestione prodotti del backoffice espone i campi. Da chiarire in corso d'opera: compensi di manager/capo (importo proprio o si elimina), comportamento con sconti (l'importo fisso resta fisso?) e default per prodotti senza importi. Sinergia col filone "prodotti dinamici" (§4). — [Sv/Claude]
+Le 4 percentuali globali (config_param) sostituite da 4 importi fissi in € su ogni piano/prodotto (coach, manager coach, nutrizionista, capo nutrizionista); sconto → riduzione proporzionale; rimosso il flag commissionTeam. Migrazione 20260714230000. ⚠️ dopo il deploy i piani/prodotti esistenti hanno provvigioni a 0 finché l'admin non le imposta in Gestione negozio.
 
 ## 3. 🧠 Motore — code residue (niente codice mancante salvo §2)
 

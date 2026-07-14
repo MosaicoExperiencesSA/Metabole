@@ -345,30 +345,9 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'boolean',
     description: 'Abilita il pagamento con bonifico nel checkout dell\'app',
   },
-  {
-    key: 'commission_coach_percent',
-    value: '10',
-    type: 'number',
-    description: 'Provvigione della coach sugli acquisti approvati (%)',
-  },
-  {
-    key: 'commission_manager_coach_percent',
-    value: '3',
-    type: 'number',
-    description: 'Provvigione della manager coach (responsabile della coach assegnata) sugli acquisti approvati (%)',
-  },
-  {
-    key: 'commission_nutritionist_percent',
-    value: '15',
-    type: 'number',
-    description: 'Provvigione della nutrizionista sugli acquisti approvati (%)',
-  },
-  {
-    key: 'commission_head_nutritionist_percent',
-    value: '5',
-    type: 'number',
-    description: 'Provvigione del capo nutrizionista (responsabile della nutrizionista assegnata) sugli acquisti approvati (%)',
-  },
+  // NB: le provvigioni NON sono più percentuali globali qui: dal 14/07 sono importi in €
+  // definiti su ogni piano/prodotto del negozio (campi commission*Cents). Il compenso
+  // visita resta un parametro globale.
   {
     key: 'visit_compensation_amount_cents',
     value: '4000',
