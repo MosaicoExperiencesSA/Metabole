@@ -1,9 +1,27 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const COST_CATEGORIES = ['salaries', 'infrastructure', 'marketing', 'payment_fees', 'ai', 'taxes', 'other'] as const;
 export const CADENCES = ['once', 'monthly', 'yearly'] as const;
+
+// Etichette italiane delle categorie (costi manuali + voci a ledger) per i report.
+const CATEGORY_LABEL: Record<string, string> = {
+  salaries: 'Stipendi',
+  infrastructure: 'Infrastruttura',
+  marketing: 'Marketing',
+  payment_fees: 'Commissioni pagamenti',
+  ai: 'AI',
+  taxes: 'Tasse',
+  other: 'Altro',
+  subscription: 'Abbonamenti',
+  order: 'Ordini',
+  commission: 'Provvigioni',
+  compensation: 'Compensi staff',
+};
+const catLabel = (c: string) => CATEGORY_LABEL[c] ?? c;
+const eur = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
 
 export interface MonthBucket {
   key: string; // 'YYYY-MM'
@@ -285,5 +303,103 @@ export class AccountingService {
     const arpuCents = payingClients > 0 ? Math.round(report.incomeCents / payingClients) : null;
 
     return { ...report, kpi: { newClients, payingClients, marketingCostCents, cacCents, arpuCents } };
+  }
+
+  /** Etichetta leggibile del periodo (es. "luglio 2026" per un mese intero, altrimenti "dal … al …"). */
+  private periodLabel(from: string, to: string): string {
+    const f = from.slice(0, 10);
+    const t = to.slice(0, 10);
+    const [fy, fm, fd] = f.split('-');
+    const monthNames = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+    const lastDay = new Date(Date.UTC(Number(fy), Number(fm), 0)).getUTCDate();
+    if (fd === '01' && t === `${fy}-${fm}-${String(lastDay).padStart(2, '0')}`) {
+      return `${monthNames[Number(fm) - 1]} ${fy}`;
+    }
+    return `dal ${f.split('-').reverse().join('/')} al ${t.split('-').reverse().join('/')}`;
+  }
+
+  /** Report contabile del periodo in CSV (separatore ';', decimale virgola: compatibile Excel IT). */
+  async reportCsv(from: string, to: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+    const r = await this.report(from, to);
+    const lines: string[] = [];
+    const row = (...cells: (string | number)[]) => lines.push(cells.map((c) => String(c)).join(';'));
+    row('Metabole — Contabilità', this.periodLabel(from, to));
+    row('Periodo', `${from.slice(0, 10)}`, `${to.slice(0, 10)}`);
+    row('');
+    row('Voce', 'Importo (€)');
+    row('Incassi', eur(r.incomeCents));
+    row('Costi', eur(r.costsCents));
+    row('Utile', eur(r.profitCents));
+    row('Margine %', r.marginPct != null ? String(r.marginPct).replace('.', ',') : '—');
+    row('');
+    row('KPI', 'Valore');
+    row('Nuovi clienti', r.kpi.newClients);
+    row('Clienti paganti', r.kpi.payingClients);
+    row('Spesa marketing (€)', eur(r.kpi.marketingCostCents));
+    row('CAC (€)', r.kpi.cacCents != null ? eur(r.kpi.cacCents) : '—');
+    row('ARPU (€)', r.kpi.arpuCents != null ? eur(r.kpi.arpuCents) : '—');
+    row('');
+    row('Costi per categoria', 'Importo (€)', 'Origine');
+    for (const c of r.byCategory) row(catLabel(c.category), eur(c.amountCents), c.source === 'ledger' ? 'automatico' : 'manuale');
+    row('');
+    row('Mese', 'Incassi (€)', 'Costi (€)', 'Utile (€)');
+    for (const s of r.series) row(s.month, eur(s.incomeCents), eur(s.costsCents), eur(s.incomeCents - s.costsCents));
+    const csv = '﻿' + lines.join('\r\n'); // BOM per Excel
+    return {
+      fileName: `contabilita-${from.slice(0, 10)}_${to.slice(0, 10)}.csv`,
+      mimeType: 'text/csv',
+      contentBase64: Buffer.from(csv, 'utf8').toString('base64'),
+    };
+  }
+
+  /** Report contabile del periodo in PDF. */
+  async reportPdf(from: string, to: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+    const r = await this.report(from, to);
+    const label = this.periodLabel(from, to);
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 56 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fillColor('#10403a').fontSize(24).text('Metabole');
+      doc.fillColor('#7c8c88').fontSize(12).text(`Contabilità — ${label}`);
+      doc.moveDown(1);
+
+      const line = (label: string, value: string, bold = false) => {
+        doc.fillColor('#111').font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(12)
+          .text(label, { continued: true }).font('Helvetica').fillColor('#333').text('   ' + value);
+        doc.moveDown(0.4);
+      };
+      doc.fillColor('#10403a').font('Helvetica-Bold').fontSize(14).text('Riepilogo'); doc.moveDown(0.4);
+      line('Incassi:', `€ ${eur(r.incomeCents)}`);
+      line('Costi:', `€ ${eur(r.costsCents)}`);
+      line('Utile:', `€ ${eur(r.profitCents)}`, true);
+      line('Margine:', r.marginPct != null ? `${String(r.marginPct).replace('.', ',')}%` : '—');
+
+      doc.moveDown(0.6);
+      doc.fillColor('#10403a').font('Helvetica-Bold').fontSize(14).text('Indicatori'); doc.moveDown(0.4);
+      line('Nuovi clienti:', String(r.kpi.newClients));
+      line('Clienti paganti:', String(r.kpi.payingClients));
+      line('Spesa marketing:', `€ ${eur(r.kpi.marketingCostCents)}`);
+      line('CAC:', r.kpi.cacCents != null ? `€ ${eur(r.kpi.cacCents)}` : '—');
+      line('ARPU:', r.kpi.arpuCents != null ? `€ ${eur(r.kpi.arpuCents)}` : '—');
+
+      if (r.byCategory.length) {
+        doc.moveDown(0.6);
+        doc.fillColor('#10403a').font('Helvetica-Bold').fontSize(14).text('Costi per categoria'); doc.moveDown(0.4);
+        for (const c of r.byCategory) line(`${catLabel(c.category)}:`, `€ ${eur(c.amountCents)}${c.source === 'ledger' ? ' (automatico)' : ''}`);
+      }
+
+      doc.moveDown(0.8);
+      doc.fillColor('#a9a29a').fontSize(9).text(`Generato da Metabole · periodo ${from.slice(0, 10)} → ${to.slice(0, 10)}`);
+      doc.end();
+    });
+    return {
+      fileName: `contabilita-${from.slice(0, 10)}_${to.slice(0, 10)}.pdf`,
+      mimeType: 'application/pdf',
+      contentBase64: buffer.toString('base64'),
+    };
   }
 }

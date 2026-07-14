@@ -121,6 +121,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Media energia (1-5) sotto cui scatta il guardrail "energia bassa cronica"',
   },
   {
+    key: 'cycle_default_rating',
+    value: '5',
+    type: 'number',
+    description: 'R10 — gradimento di default (stelle) per una ricetta non ancora valutata: il menu vale il MAX delle stelle delle sue ricette',
+  },
+  {
     key: 'payment_pending_auto_cancel_days',
     value: '10',
     type: 'number',

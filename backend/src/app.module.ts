@@ -45,6 +45,7 @@ import { EquivalenceModule } from './equivalence/equivalence.module';
 import { SocialModule } from './social/social.module';
 import { MailboxModule } from './mailbox/mailbox.module';
 import { PersonalBaseModule } from './personal-base/personal-base.module';
+import { CycleModule } from './cycle/cycle.module';
 
 @Module({
   imports: [
@@ -95,6 +96,7 @@ import { PersonalBaseModule } from './personal-base/personal-base.module';
     SocialModule,
     MailboxModule,
     PersonalBaseModule,
+    CycleModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

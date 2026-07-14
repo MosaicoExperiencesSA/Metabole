@@ -52,14 +52,20 @@ interface Report {
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-const yearStartIso = () => `${new Date().getFullYear()}-01-01`;
+const currentMonth = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+/** Primo e ultimo giorno del mese selezionato. */
+function monthRange(month: string): { from: string; to: string } {
+  const [y, m] = month.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
+}
 
 export function Contabilita() {
-  const [from, setFrom] = useState(yearStartIso());
-  const [to, setTo] = useState(todayIso());
+  const [month, setMonth] = useState(currentMonth());
   const [report, setReport] = useState<Report | null>(null);
   const [costs, setCosts] = useState<CostEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState<'pdf' | 'csv' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<CostEntry | 'new' | null>(null);
 
@@ -67,6 +73,7 @@ export function Contabilita() {
     setLoading(true);
     setError(null);
     try {
+      const { from, to } = monthRange(month);
       const [rep, cs] = await Promise.all([
         api<Report>(`/admin/accounting/report?from=${from}&to=${to}`),
         api<CostEntry[]>('/admin/accounting/costs'),
@@ -80,10 +87,29 @@ export function Contabilita() {
     }
   }
 
+  async function download(kind: 'pdf' | 'csv') {
+    setDownloading(kind);
+    setError(null);
+    try {
+      const { from, to } = monthRange(month);
+      const r = await api<{ fileName: string; mimeType: string; contentBase64: string }>(`/admin/accounting/report/${kind}?from=${from}&to=${to}`);
+      const bytes = Uint8Array.from(atob(r.contentBase64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: r.mimeType }));
+      const a = document.createElement('a');
+      a.href = url; a.download = r.fileName;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download non riuscito.');
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [month]);
 
   const labels = useMemo(() => (report?.series ?? []).map((s) => monthShort(s.month)), [report]);
 
@@ -107,17 +133,19 @@ export function Contabilita() {
       <div className="card">
         <div className="row" style={{ gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="field" style={{ margin: 0 }}>
-            <label>Dal</label>
-            <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <label>Mese</label>
+            <input className="input" type="month" value={month} max={currentMonth()} onChange={(e) => setMonth(e.target.value || currentMonth())} />
           </div>
-          <div className="field" style={{ margin: 0 }}>
-            <label>Al</label>
-            <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-          <button className="btn" onClick={() => void load()} disabled={loading}>
+          <button className="btn ghost" onClick={() => void load()} disabled={loading}>
             <i className="ti ti-refresh" /> Aggiorna
           </button>
           <div style={{ flex: 1 }} />
+          <button className="btn ghost" onClick={() => void download('pdf')} disabled={!report || downloading !== null}>
+            <i className="ti ti-file-type-pdf" /> {downloading === 'pdf' ? 'Genero…' : 'Report PDF'}
+          </button>
+          <button className="btn ghost" onClick={() => void download('csv')} disabled={!report || downloading !== null}>
+            <i className="ti ti-file-type-csv" /> {downloading === 'csv' ? 'Genero…' : 'Report CSV'}
+          </button>
           <button className="btn" onClick={() => setEditing('new')}>
             <i className="ti ti-plus" /> Registra costo
           </button>

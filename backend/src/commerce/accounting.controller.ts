@@ -74,6 +74,18 @@ export class AccountingController {
     return this.accounting.report(from, to);
   }
 
+  /** Report del periodo in PDF (base64) da scaricare. */
+  @Get('report/pdf')
+  reportPdf(@Query('from') from: string, @Query('to') to: string) {
+    return this.accounting.reportPdf(from, to);
+  }
+
+  /** Report del periodo in CSV (base64) da scaricare. */
+  @Get('report/csv')
+  reportCsv(@Query('from') from: string, @Query('to') to: string) {
+    return this.accounting.reportCsv(from, to);
+  }
+
   @Get('costs')
   listCosts() {
     return this.accounting.listCosts();
