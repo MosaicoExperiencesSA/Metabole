@@ -25,6 +25,7 @@ import { Agenda } from './pages/Agenda';
 import { Segnalazioni } from './pages/Segnalazioni';
 import { Chat } from './pages/Chat';
 import { LeadDaAccettare } from './pages/LeadDaAccettare';
+import { LeadDetail } from './pages/LeadDetail';
 import { LeadForm } from './pages/LeadForm';
 import { LeadsTable } from './pages/LeadsTable';
 import { LogAttivita } from './pages/LogAttivita';
@@ -69,8 +70,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={loading ? <Spinner /> : user ? <Navigate to="/" replace /> : <Login />} />
 
-      <Route path="/" element={<Protected title="Home"><Home /></Protected>} />
-      <Route path="/posta" element={<Protected title="Posta"><Posta /></Protected>} />
+      <Route path="/" element={<Protected title="Home" pageKey="dashboard"><Home /></Protected>} />
+      <Route path="/posta" element={<Protected title="Posta" pageKey="posta"><Posta /></Protected>} />
       <Route path="/utenti" element={<Protected title="Utenti" pageKey="users"><Users /></Protected>} />
       <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="permissions"><Roles /></Protected>} />
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
@@ -80,6 +81,7 @@ export default function App() {
       <Route path="/clienti/:id" element={<Protected title="Scheda cliente" pageKey="clients"><ClientDetail /></Protected>} />
       <Route path="/crm" element={<Navigate to="/crm/gestione" replace />} />
       <Route path="/crm/gestione" element={<Protected title="Gestione lead" pageKey="crm_leads"><LeadsTable /></Protected>} />
+      <Route path="/crm/lead/:id" element={<Protected title="Scheda lead" pageKey="crm_leads"><LeadDetail /></Protected>} />
       <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_leads"><LeadForm /></Protected>} />
       <Route path="/crm/pipeline" element={<Protected title="Pipeline" pageKey="crm_leads"><Pipeline /></Protected>} />
       <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_leads"><Calendar /></Protected>} />
@@ -98,8 +100,8 @@ export default function App() {
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
-      <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="diets_catalog"><Ricette /></Protected>} />
-      <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="diets_catalog"><TagAllergeni /></Protected>} />
+      <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="recipes"><Ricette /></Protected>} />
+      <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="recipes"><TagAllergeni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="diets_catalog"><GruppiEquivalenza /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />

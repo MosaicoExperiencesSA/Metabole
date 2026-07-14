@@ -123,8 +123,24 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - **Contabilità** (`accounting_costs`, admin): registrazione costi (ricorrenti + una tantum) e conto
   economico del periodo (incassi vs costi, per categoria, serie mensile, KPI utile/margine/CAC/ARPU).
   Backend `CostEntry` + `AccountingService`; pagina `/contabilita` con grafici. ✅
-- Audit menu↔permessi (13/7): sezioni permessi ancora senza pagina backoffice (feature future):
-  `engine_reviews`, `health_documents`, `assignments`, `assign_coach`, `assign_nutritionist`.
+- **Copertura permessi completa (14/7)** ✅: ogni schermata del backoffice è agganciata alla tabella
+  permessi. Nuova chiave `posta` (visibile a tutto lo staff di default); la voce Dashboard non bypassa
+  più il controllo; `/ricette` e `/tag-allergeni` ora usano la chiave `recipes` (prima erano sotto
+  `diets_catalog`, e la riga "Ricette" della matrice non aveva effetto). `syncDefaults` completa anche
+  i **ruoli personalizzati**: le sezioni aggiunte dopo la creazione del ruolo ereditano i default del
+  ruolo di base. Unica rotta senza permesso (voluta): `/impostazioni` (impostazioni personali).
+- Audit menu↔permessi (aggiornato 14/7): chiavi senza pagina dedicata ma usate come permessi di
+  funzione: `assign_coach`/`assign_nutritionist` (menu a tendina in Gestione lead); ancora senza uso:
+  `engine_reviews`, `health_documents`, `assignments` (feature future).
+- **Dashboard: moduli per tutte le sezioni (14/7)** ✅: aggiunti al catalogo dei riquadri Chat, Posta,
+  Negozio, Buoni sconto, Contabilità, Provvigioni, Richieste prelievo, Testimonianze — con
+  mini-anteprime dal backend (`dashboard.service`: chat scoped per ruolo, testimonianze per
+  marketing/admin, negozio/buoni/contabilità/provvigioni/prelievi solo admin).
+- **Scheda lead (14/7)** ✅: cliccando il nome di un lead puro (senza account) in Gestione lead o in
+  Pipeline si apre `/crm/lead/:id` — anagrafica modificabile (nome/email/valore, `PATCH
+  /crm/leads/:id/info`), stato, assegnazione coach, promemoria collegati (aggiunta rapida + spunta
+  fatto), storico passaggi di stato da `stageDates` (con fonte/messaggio dei form pubblici). Backend:
+  `GET /crm/leads/:id`. I lead già clienti continuano ad aprire la scheda cliente.
 
 ## Shop / Abbonamenti / Provvigioni (Fase 8) 🟡
 - Già presente (commerce): piani/prodotti, checkout (carta Stripe + bonifico), abbonamenti, ordini,

@@ -19,6 +19,7 @@ export const ALL_ROLES: Role[] = ['admin', 'head_nutritionist', 'nutritionist', 
 
 export const PAGE_LABEL: Record<string, string> = {
   dashboard: 'Dashboard',
+  posta: 'Posta',
   clients: 'Clienti',
   diets_catalog: 'Catalogo diete',
   recipes: 'Ricette',

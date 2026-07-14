@@ -77,6 +77,9 @@ describe('PermissionsService', () => {
         findMany: jest.fn().mockResolvedValue([]), // nessuna riga esistente
         createMany,
       },
+      customRole: {
+        findMany: jest.fn().mockResolvedValue([{ key: 'segreteria', baseRole: 'sales' }]),
+      },
     };
     const svc = new PermissionsService(p2 as never, { log: jest.fn() } as never, {} as never);
     const res = await svc.syncDefaults();
@@ -84,6 +87,11 @@ describe('PermissionsService', () => {
     const data = createMany.mock.calls[0][0].data as { role: string; pageKey: string; canView: boolean }[];
     const adminEngine = data.find((d) => d.role === 'admin' && d.pageKey === 'engine_config');
     expect(adminEngine?.canView).toBe(true); // Parametri torna visibile all'admin
+    // il ruolo personalizzato eredita i default del ruolo di base per le sezioni nuove
+    const customPosta = data.find((d) => d.role === 'segreteria' && d.pageKey === 'posta');
+    expect(customPosta?.canView).toBe(true);
+    const customUsers = data.find((d) => d.role === 'segreteria' && d.pageKey === 'users');
+    expect(customUsers?.canView).toBe(false);
     // non ricrea righe già presenti
     (p2.rolePagePermission.findMany as jest.Mock).mockResolvedValue([{ role: 'admin', pageKey: 'engine_config' }]);
     createMany.mockClear();

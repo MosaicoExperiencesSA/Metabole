@@ -7,6 +7,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Backoffice — permessi completi, moduli dashboard, scheda lead** — ① ogni schermata ora è
+  controllata dalla tabella permessi: nuova chiave `posta` (staff di default), Dashboard senza bypass,
+  Ricette/Allergeni sulla chiave `recipes`; `syncDefaults` completa anche i ruoli personalizzati (ereditano
+  il default del ruolo di base per le sezioni nuove). ② Moduli dashboard per tutte le sezioni aggiunte
+  (Chat, Posta, Negozio, Buoni sconto, Contabilità, Provvigioni, Prelievi, Testimonianze) con anteprime.
+  ③ Nuova **scheda lead** `/crm/lead/:id` (click sul nome del lead puro in Gestione lead e Pipeline):
+  anagrafica modificabile, stato, coach, promemoria, storico stati; backend `GET /crm/leads/:id` +
+  `PATCH /crm/leads/:id/info`. Test aggiornati (permessi custom role, CRM updateInfo/detail).
+
+- `[Prodotto]` **Documento "Cosa resta da fare" per Simone (PDF)** (`Metabole_Simone_Cosa_Resta.pdf`) — riepilogo completo e prioritizzato: A) gate di lancio (base contatori con snippet, Stripe LIVE + pagamento reale, email/DNS, smoke test); B) config & deploy (CORS/URL, AI key, segreti Render, FCM, Vercel/backoffice); C) pulizie (app/.env.example, rimuovere schema_1.prisma, build/test pipeline, cron); D) post-lancio (motore R8–R12 restante, email→Brevo, marketing/Giudice, blog/Publisher, app dedicate, prodotti dinamici, certificazione unicità). Con ordine consigliato e riferimenti.
+
+- `[Prodotto]` **Estratto traduzioni sensibili RU/ZH/AR per revisore** (`marketing/Traduzioni_Revisione_RU_ZH_AR.md`) — 18 stringhe chiave del sito (claim hero, concept "non una dieta", banda, multiculturalità, CTA, coach/supervisione, testimonianze, form + **consenso privacy**) affiancate IT↔RU, IT↔ZH, IT↔AR, con colonna "Correzione". Nota: pagine legali (privacy/cookie/termini) da rivedere a parte nei loro file. Pronto da mandare a un madrelingua per lingua; manca solo il revisore.
+
+- `[Prodotto]` **Marketing — catalogo email al 100%** (`marketing/Metabole_Email_Ciclo_Vita.md` Parti 6–7 + tracker) — scritte anche le ultime email (obiezione prezzo, valore settimanale, upsell, win-back survey/stagionale, transazionali: verifica/reset/ricevuta/rinnovo/**dunning**/appuntamento, consensi: re-permission/preferenze). Tracker `Elenco_Email_Automatiche.md`: **48 email tutte 🟢** (copy pronta), zero residui. Prossimo passo (Sviluppo): traduzione nelle lingue dell'app + template Brevo agganciati ai trigger.
+
 - `[Prodotto]` **Marketing — completata la copy delle email in bozza** (`marketing/Metabole_Email_Ciclo_Vita.md` Parte 5) — scritte le email che restavano 🟡: conversione (profilo incompleto, **nurture 1–4**), retention (**onboarding G1/G2/G4/G7**, feedback ricette, riattivazione dropout, referral), **win-back T+3/T+7**. Tracker `email_automatiche/Elenco_Email_Automatiche.md` aggiornato: tutte 🟢 tranne le ⚪ (obiezione prezzo, valore settimanale, upsell, win-back survey/stagionale, transazionali/dunning, consensi). Prossimo passo: traduzione + template Brevo con i trigger.
 
 - `[Prodotto]` **Piano Prodotto pre-lancio + primi materiali** — `progetto/Piano_Prodotto_PreLancio.md` (task nostri: team, testimonianze, revisione traduzioni, email, smoke test). Preparati: `marketing/Modulo_Testimonianze_Consenso.md` (raccolta + liberatoria GDPR + linee guida + tracce domanda) e `progetto/Template_Pagina_Team.md` (schede ruolo/CV + specifiche foto). **Rimosso ogni riferimento alle "grammature"** (non esistono nel nostro prodotto: si lavora per piatto e calorie) da Piano, STATO_LANCIO e checklist go-live.

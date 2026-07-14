@@ -6,6 +6,7 @@ import { Role } from '../common/roles';
  */
 export const BACKOFFICE_PAGES = [
   'dashboard',
+  'posta',
   'clients',
   'diets_catalog',
   'recipes',
@@ -55,6 +56,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   client: {},
   coach: {
     dashboard: { view: true },
+    posta: { view: true },
     charts: { view: true },
     clients: { view: true },
     crm_leads: { view: true, manage: true }, // pipeline: la coach sposta i clienti tra gli stati
@@ -65,6 +67,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   },
   nutritionist: {
     dashboard: { view: true },
+    posta: { view: true },
     charts: { view: true },
     clients: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
@@ -78,6 +81,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   },
   head_nutritionist: {
     dashboard: { view: true },
+    posta: { view: true },
     charts: { view: true },
     clients: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
@@ -95,6 +99,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   },
   sales: {
     dashboard: { view: true },
+    posta: { view: true },
     charts: { view: true },
     crm_leads: { view: true, manage: true },
     lead_acceptance: { view: true },
@@ -105,12 +110,14 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   // Reparto Marketing (nessun accesso a dati sanitari): campagne, segmenti, KPI, consensi.
   marketing: {
     dashboard: { view: true },
+    posta: { view: true },
     charts: { view: true },
     crm_leads: { view: true }, // vede i lead (fonte/canale/campagna), non gestisce la pipeline clinica
     marketing: { view: true, manage: true },
   },
   head_marketing: {
     dashboard: { view: true },
+    posta: { view: true },
     charts: { view: true },
     crm_leads: { view: true, manage: true },
     marketing: { view: true, manage: true },
@@ -120,6 +127,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   },
   admin: {
     dashboard: { view: true, manage: true },
+    posta: { view: true },
     clients: { view: true },
     diets_catalog: { view: true, manage: true },
     recipes: { view: true, manage: true },

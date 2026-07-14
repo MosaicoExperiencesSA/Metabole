@@ -135,6 +135,66 @@ export class CrmService {
     });
   }
 
+  /** Scheda di un singolo lead: anagrafica, storico stati, promemoria collegati. */
+  async detail(recordId: string) {
+    const record = await this.prisma.crmRecord.findUnique({
+      where: { id: recordId },
+      include: {
+        owner: { select: { displayName: true } },
+        assignedCoach: { select: { id: true, displayName: true } },
+        client: {
+          select: {
+            email: true,
+            phone: true,
+            createdAt: true,
+            clientProfile: {
+              select: {
+                name: true,
+                assignedCoach: { select: { displayName: true } },
+                assignedNutritionist: { select: { displayName: true } },
+              },
+            },
+          },
+        },
+        reminders: {
+          orderBy: { dueAt: 'asc' },
+          select: { id: true, title: true, dueAt: true, note: true, done: true },
+        },
+      },
+    });
+    if (!record) throw new NotFoundException('Lead non trovato');
+    return record;
+  }
+
+  /** Modifica anagrafica del lead (nome, email, valore stimato). */
+  async updateInfo(
+    byUserId: string,
+    recordId: string,
+    input: { name?: string; email?: string; valueCents?: number | null },
+  ) {
+    const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
+    if (!record) throw new NotFoundException('Lead non trovato');
+    const updated = await this.prisma.crmRecord.update({
+      where: { id: recordId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name || null } : {}),
+        ...(input.email !== undefined ? { email: input.email || null } : {}),
+        ...(input.valueCents !== undefined ? { valueCents: input.valueCents } : {}),
+      },
+    });
+    await this.audit.log({
+      action: 'crm.lead.update_info',
+      actorId: byUserId,
+      entityType: 'crm_record',
+      entityId: recordId,
+      metadata: {
+        from: { name: record.name, email: record.email, valueCents: record.valueCents },
+        to: { name: updated.name, email: updated.email, valueCents: updated.valueCents },
+      },
+    });
+    return updated;
+  }
+
   async create(byUserId: string, input: { email: string; name?: string }) {
     const record = await this.prisma.crmRecord.create({
       data: {

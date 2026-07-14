@@ -127,6 +127,22 @@ class AdvanceLeadDto {
   valueCents?: number;
 }
 
+class UpdateLeadInfoDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  valueCents?: number;
+}
+
 /** Piani e prodotti pubblici (per landing e app). */
 @Controller()
 export class CatalogCommerceController {
@@ -333,9 +349,19 @@ export class CrmController {
     return this.crm.create(user.sub, dto);
   }
 
+  @Get(':id')
+  detail(@Param('id') id: string) {
+    return this.crm.detail(id);
+  }
+
   @Patch(':id')
   advance(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AdvanceLeadDto) {
     return this.crm.advance(user.sub, id, dto);
+  }
+
+  @Patch(':id/info')
+  updateInfo(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateLeadInfoDto) {
+    return this.crm.updateInfo(user.sub, id, dto);
   }
 }
 

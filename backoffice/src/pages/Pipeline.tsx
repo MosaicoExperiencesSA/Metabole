@@ -155,7 +155,13 @@ export function Pipeline() {
                         {c.name}
                       </b>
                     ) : (
-                      <b style={{ fontSize: 14 }}>{c.name}</b>
+                      <b
+                        style={{ fontSize: 14, color: 'var(--teal-dark)', cursor: 'pointer' }}
+                        title="Apri la scheda del lead"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/crm/lead/${c.id}`); }}
+                      >
+                        {c.name}
+                      </b>
                     )}
                     {!c.isClient && <span className="chip amber" style={{ fontSize: 10 }}>lead</span>}
                   </div>

@@ -99,6 +99,42 @@ export class DashboardService {
       ];
     } catch { /* skip */ }
 
+    // Chat: ultime conversazioni (scope: coach/nutrizionista vedono i propri clienti)
+    try {
+      const threadWhere: Record<string, unknown> = { lastMessageAt: { not: null } };
+      if (user.role === 'coach') threadWhere.counterpart = 'coach';
+      else if (user.role === 'nutritionist') threadWhere.counterpart = 'nutritionist';
+      if (!scopeAll) threadWhere.client = { is: clientWhere };
+      const rows = (await this.prisma.chatThread.findMany({
+        where: threadWhere as never, orderBy: { lastMessageAt: 'desc' }, take: 5,
+        select: {
+          counterpart: true, lastMessageAt: true,
+          client: { select: { email: true, clientProfile: { select: { name: true } } } },
+          messages: { orderBy: { sentAt: 'desc' }, take: 1, select: { body: true } },
+        },
+      })) as {
+        counterpart: string; lastMessageAt: Date | null;
+        client: { email: string; clientProfile: { name: string | null } | null };
+        messages: { body: string }[];
+      }[];
+      out.chat = rows.map((r) => ({
+        a: r.client.clientProfile?.name ?? r.client.email,
+        b: r.lastMessageAt ? dmy(r.lastMessageAt) : undefined,
+        sub: r.messages[0]?.body?.slice(0, 80),
+      }));
+    } catch { /* skip */ }
+
+    // Testimonianze: le ultime inserite (marketing/admin)
+    if (['marketing', 'head_marketing', 'admin'].includes(user.role)) {
+      try {
+        const rows = (await this.prisma.testimonial.findMany({
+          orderBy: { createdAt: 'desc' }, take: 5,
+          select: { name: true, published: true, createdAt: true },
+        })) as { name: string; published: boolean; createdAt: Date }[];
+        out.testimonials = rows.map((r) => ({ a: r.name, b: r.published ? 'pubblicata' : 'bozza', sub: dmy(r.createdAt) }));
+      } catch { /* skip */ }
+    }
+
     // Dati finanziari solo per admin/commerciale
     if (FINANCE_ROLES.includes(user.role)) {
       // Bonifici da verificare
@@ -120,6 +156,61 @@ export class DashboardService {
           b: euro(r.amountCents),
           sub: r.client?.clientProfile?.name ?? r.client?.email ?? undefined,
         }));
+      } catch { /* skip */ }
+    }
+
+    // Sezioni amministrative (solo admin, come le rispettive pagine)
+    if (user.role === 'admin') {
+      // Negozio: piani e prodotti attivi
+      try {
+        const [plans, products] = await Promise.all([
+          this.prisma.plan.findMany({ where: { active: true }, orderBy: { priceCents: 'asc' }, take: 3, select: { name: true, priceCents: true } }),
+          this.prisma.product.findMany({ where: { active: true }, orderBy: { updatedAt: 'desc' }, take: 2, select: { name: true, priceCents: true } }),
+        ]);
+        out.shop = [
+          ...(plans as { name: string; priceCents: number }[]).map((p) => ({ a: p.name, b: euro(p.priceCents), sub: 'Piano' })),
+          ...(products as { name: string; priceCents: number }[]).map((p) => ({ a: p.name, b: euro(p.priceCents), sub: 'Prodotto' })),
+        ];
+      } catch { /* skip */ }
+      // Buoni sconto attivi
+      try {
+        const rows = (await this.prisma.discountCode.findMany({
+          where: { active: true }, orderBy: { createdAt: 'desc' }, take: 5,
+          select: { code: true, type: true, value: true, usedCount: true, maxTotalUses: true },
+        })) as { code: string; type: string; value: number; usedCount: number; maxTotalUses: number | null }[];
+        out.discounts = rows.map((r) => ({
+          a: r.code,
+          b: r.type === 'percent' ? `-${r.value}%` : '-' + euro(r.value),
+          sub: `Usato ${r.usedCount}${r.maxTotalUses ? `/${r.maxTotalUses}` : ''} volte`,
+        }));
+      } catch { /* skip */ }
+      // Contabilità: ultimi movimenti
+      try {
+        const rows = (await this.prisma.ledgerEntry.findMany({
+          orderBy: { date: 'desc' }, take: 5,
+          select: { type: true, amountCents: true, category: true, date: true },
+        })) as { type: string; amountCents: number; category: string; date: Date }[];
+        out.accounting_costs = rows.map((r) => ({
+          a: r.category,
+          b: (r.type === 'expense' ? '-' : '+') + euro(r.amountCents),
+          sub: dmy(r.date),
+        }));
+      } catch { /* skip */ }
+      // Provvigioni in sospeso
+      try {
+        const rows = (await this.prisma.pendingCommission.findMany({
+          where: { status: 'pending' }, orderBy: { createdAt: 'desc' }, take: 5,
+          select: { role: true, amountCents: true, createdAt: true },
+        })) as { role: string; amountCents: number; createdAt: Date }[];
+        out.commissions = rows.map((r) => ({ a: r.role, b: euro(r.amountCents), sub: dmy(r.createdAt) }));
+      } catch { /* skip */ }
+      // Richieste di prelievo da evadere
+      try {
+        const rows = (await this.prisma.commissionWithdrawal.findMany({
+          where: { status: 'requested' }, orderBy: { requestedAt: 'asc' }, take: 5,
+          select: { amountCents: true, requestedAt: true, staff: { select: { displayName: true } } },
+        })) as { amountCents: number; requestedAt: Date; staff: { displayName: string } }[];
+        out.withdrawals = rows.map((r) => ({ a: r.staff.displayName, b: euro(r.amountCents), sub: dmy(r.requestedAt) }));
       } catch { /* skip */ }
     }
 
