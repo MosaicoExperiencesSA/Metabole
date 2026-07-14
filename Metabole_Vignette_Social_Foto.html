@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaboleAI — Vignette social (grafica reale)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--teal:#12A386;--deep:#0E5A49;--coral:#E8825A;--gold:#E8A11B;--violet:#6C4CD6;--ink:#16302A;--mut:#5f726c;--bd:#EAECE5;--bg:#FBFAF6;--serif:'Fraunces',Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding:30px 22px 70px}
+.rainbow{height:6px;border-radius:100px;background:linear-gradient(90deg,#E23B3B,#E8A11B,#12A386,#2F80ED,#6C4CD6,#E86FA6);max-width:130px;margin-bottom:16px}
+h1{font-family:var(--serif);font-size:32px;font-weight:600;color:var(--deep)}
+.lead{color:var(--mut);font-size:16px;max-width:760px;margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:26px;margin-top:26px}
+figure{background:#fff;border:1px solid var(--bd);border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(16,64,58,.05)}
+/* card 1080x1080 */
+.vig{position:relative;aspect-ratio:1/1;overflow:hidden;background:#0E5A49}
+.vig>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.vig .grad{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,32,28,.15) 0%,rgba(8,32,28,0) 34%,rgba(8,32,28,.62) 78%,rgba(8,32,28,.86) 100%)}
+.vig .bar{position:absolute;top:0;left:0;right:0;height:2.6%;background:var(--teal)}
+.vig .chip{position:absolute;top:5.5%;left:5%;font-size:1.35vw;font-weight:700;letter-spacing:.3px;color:#fff;background:rgba(18,163,134,.9);padding:.5em 1em;border-radius:100px}
+.vig .adult{position:absolute;top:5.5%;right:5%;font-size:1.25vw;font-weight:700;color:#fff;background:rgba(0,0,0,.35);padding:.45em .8em;border-radius:100px}
+.vig .headline{position:absolute;left:5.5%;right:6%;bottom:14%;color:#fff;font-family:var(--serif);font-weight:600;font-size:3.05vw;line-height:1.12;text-shadow:0 2px 14px rgba(0,0,0,.35)}
+.vig .logo{position:absolute;left:5.5%;bottom:5.5%;color:#fff;font-family:var(--serif);font-weight:600;font-size:2.1vw}
+.vig .logo span{color:#8FE0C6}
+.vig .sub{position:absolute;left:5.5%;right:6%;bottom:9.5%;color:#DCEFE7;font-size:1.5vw;font-weight:500}
+@media(min-width:1181px){.grid{grid-template-columns:repeat(3,1fr)}}
+/* per il rendering: le unità vw sopra scalano col riquadro perché ogni card è ~1/3 di 1180. Fisso i px per export via classe .big */
+figure.big .vig .chip,figure.big .vig .adult{font-size:15px}
+figure.big .vig .headline{font-size:34px}figure.big .vig .logo{font-size:23px}figure.big .vig .sub{font-size:16px}
+/* brand card (quote senza foto) */
+.vig.brand{background:linear-gradient(150deg,#0E5A49,#12A386)}
+.vig.brand.cream{background:#FBFAF6}
+.vig.brand .q{position:absolute;left:5.5%;top:9%;font-family:var(--serif);font-size:12vw;color:rgba(255,255,255,.22);line-height:1}
+.vig.brand.cream .q{color:rgba(18,163,134,.25)}
+.vig.brand .big{position:absolute;left:5.5%;right:6%;top:30%;font-family:var(--serif);font-weight:700;font-size:4vw;line-height:1.1;color:#fff}
+.vig.brand.cream .big{color:#0E5A49}
+figure.big .vig.brand .big{font-size:44px}figure.big .vig.brand .q{font-size:130px}
+figcaption{padding:16px 18px}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px;background:#EAF3EE;color:var(--deep);margin-bottom:8px}
+.tag.reel{background:#EFEAF9;color:#4A37A8}.tag.caro{background:#FBF3E7;color:#7a5a1e}.tag.cura{background:#FBEEE7;color:#993c1d}
+figcaption h3{font-family:var(--serif);font-size:16px;margin:2px 0 6px}
+figcaption p{font-size:13.5px;color:#33473f;margin-bottom:8px}
+figcaption .tags{font-size:12px;color:var(--violet);font-weight:600}
+.note{background:#FBF3E7;border:1px solid #EBD9B8;border-radius:12px;padding:14px 16px;font-size:13.5px;color:#7a5a1e;margin-top:22px}
+</style></head>
+<body><div class="wrap">
+<div class="rainbow"></div>
+<h1>Vignette social — grafica reale (Lotto 1)</h1>
+<p class="lead">Versione con <b>foto vere</b> + tipografia brand (formato 1080×1080). Le foto sono stock illustrative (sostituibili con scatti nostri); nessuna è spacciata per "prima/dopo". Per la testimonianza uso una quote card (nessun volto reale senza consenso). Conformi: no numeri/garanzie, tono di cura, 18+. Per pubblicare: screenshot del riquadro quadrato o export a 1080px.</p>
+<div class="grid">
+
+<!-- 1 Empatia -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar"></div><div class="grad"></div>
+<div class="chip">Empatia</div><div class="adult">18+</div>
+<div class="headline">Le ho provate tutte.<br>Stavolta cambio metodo.</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">Vignetta</span><h3>Il cassetto delle diete</h3><p>Il punto non sei tu: è il metodo. Con MetaboleAI un team di persone vere — coach e nutrizionista — più un'AI che cuce il percorso su di te. 🌱</p><div class="tags">#benessere #stiledivita #nutrizione #percorsobenessere #metaboleai</div></figcaption></figure>
+
+<!-- 2 Fame carosello -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar" style="background:#E8A11B"></div><div class="grad"></div>
+<div class="chip" style="background:rgba(232,161,27,.92)">Carosello · 1/6</div>
+<div class="headline">Fame vera o<br>fame emotiva?</div>
+<div class="sub">Come riconoscerle — mini guida</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag caro">Carosello · educativo</span><h3>Fame vera o fame emotiva?</h3><p>Riconoscerle è il primo passo per stare bene con il cibo. Mini-guida a cura del nostro responsabile scientifico. 💚</p><div class="tags">#educazionealimentare #famenervosa #nutrizione #benesserepsicologico #metaboleai</div></figcaption></figure>
+
+<!-- 3 Non una dieta (brand quote) -->
+<figure class="big"><div class="vig brand">
+<div class="bar"></div>
+<div class="q">“</div>
+<div class="big">Non una dieta.<br>Un percorso con<br>persone vere.</div>
+<div class="sub">Coach · Nutrizionista · Gaia (AI)</div>
+<div class="logo">Metabole<span>AI</span></div>
+<div class="adult">18+</div>
+</div><figcaption><span class="tag">Quote · pilastro</span><h3>"Non una dieta. Un percorso con persone vere."</h3><p>Coach vera. Nutrizionista vero. Gaia, l'assistente AI, sempre con te. Il benessere si costruisce insieme.</p><div class="tags">#metaboleai #personevere #benessere #nonèunadieta</div></figcaption></figure>
+
+<!-- 4 Dietro le quinte reel -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar"></div><div class="grad"></div>
+<div class="chip" style="background:rgba(108,76,214,.9)">▶ Reel</div>
+<div class="headline">Dietro al tuo percorso,<br>chi c'è davvero?</div>
+<div class="sub">Coach · Nutrizionista · Gaia</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag reel">Reel · copertina</span><h3>Dietro le quinte del tuo percorso</h3><p>Un'AI che lavora insieme a coach e nutrizionista, per te. 🤝 CTA: "Scopri come funziona" (link in bio).</p><div class="tags">#dietrolequinte #coach #nutrizionista #ai #metaboleai</div></figcaption></figure>
+
+<!-- 5 Giornata storta -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar" style="background:#6C4CD6"></div><div class="grad"></div>
+<div class="chip">Ti capisce</div>
+<div class="headline">Giornata no? Si gestisce,<br>senza sensi di colpa.</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">Vignetta · ti capisce</span><h3>La giornata storta</h3><p>Il percorso non ti giudica: si adatta e riparte con te. Perché capisce te, non solo i numeri. 🌦️→🌤️</p><div class="tags">#benesserementale #selfcare #percorsobenessere #metaboleai</div></figcaption></figure>
+
+<!-- 6 Porzioni carosello -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar"></div><div class="grad"></div>
+<div class="chip">Carosello · 1/5</div>
+<div class="headline">3 cose che nessuno<br>ti dice sulle porzioni</div>
+<div class="sub">Porzione giusta ≠ poco</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag caro">Carosello · educativo</span><h3>3 cose sulle porzioni</h3><p>Mangiare la porzione giusta non vuol dire avere fame. Tre spunti a cura del nostro responsabile scientifico. 🍽️</p><div class="tags">#porzioni #educazionealimentare #nutrizione #senzafame #metaboleai</div></figcaption></figure>
+
+<!-- 7 Menopausa -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar" style="background:#E8A11B"></div><div class="grad"></div>
+<div class="chip" style="background:rgba(153,60,29,.85)">Cura · segmento</div><div class="adult">18+</div>
+<div class="headline">In menopausa il corpo cambia.<br>Un percorso pensato per questa fase.</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag cura">Post di cura · segmento</span><h3>Menopausa</h3><p>Energia, equilibrio, benessere: un percorso su misura, seguito da professionisti veri. Con cura, mai con pressione. 🌿</p><div class="tags">#menopausa #benesseredonna #over50 #nutrizione #metaboleai</div></figcaption></figure>
+
+<!-- 8 Assaggio menu reel -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar"></div><div class="grad"></div>
+<div class="chip" style="background:rgba(18,163,134,.92)">▶ Reel</div>
+<div class="headline">Di stagione,<br>senza fretta.</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag reel">Reel · copertina</span><h3>Un assaggio del menu</h3><p>Cibo che non sembra "a dieta": di stagione, gustoso, adatto alla tua giornata. 🥗 CTA: "Scopri il tuo menu" (link in bio).</p><div class="tags">#ricettasana #mangiaresano #stagionalità #metaboleai</div></figcaption></figure>
+
+<!-- 9 Mangi fuori -->
+<figure class="big"><div class="vig">
+<img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1080&h=1080&q=80" alt="" onerror="this.style.display='none'">
+<div class="bar" style="background:#E8A11B"></div><div class="grad"></div>
+<div class="chip">Vita reale</div>
+<div class="headline">Cena fuori? Ti guido<br>a scegliere bene.</div>
+<div class="logo">Metabole<span>AI</span></div>
+</div><figcaption><span class="tag">Vignetta · vita reale</span><h3>Mangi fuori? Nessun problema</h3><p>Anche fuori casa il percorso ti accompagna: una bussola per scegliere senza rinunce e senza sensi di colpa. 🧭</p><div class="tags">#mangiarefuori #equilibrio #stiledivita #metaboleai</div></figcaption></figure>
+
+<!-- 10 Testimonianza (brand quote) -->
+<figure class="big"><div class="vig brand cream">
+<div class="bar"></div>
+<div class="q">“</div>
+<div class="big">Finalmente mi sento<br>seguita davvero.<br>Le giornate no non mi<br>buttano più giù.</div>
+<div class="sub" style="color:#5f726c">Una nostra cliente · condivisa con consenso</div>
+<div class="logo" style="color:#0E5A49">Metabole<span style="color:#6C4CD6">AI</span></div>
+</div><figcaption><span class="tag">Testimonianza · conforme</span><h3>Testimonianza (senza prima/dopo)</h3><p>Le parole di chi ha iniziato il suo percorso. Nessun numero, nessuna promessa: solo come ci si sente. 💚 (Reale, con consenso.)</p><div class="tags">#testimonianza #benessere #percorso #metaboleai</div></figcaption></figure>
+
+</div>
+<div class="note"><b>Note:</b> le foto sono stock illustrative (Unsplash) — sostituiscile con scatti reali del team/piatti per la versione definitiva. Nessun volto è presentato come "cliente prima/dopo". Testimonianza = quote card (nessun volto reale senza consenso). Per una <b>grafica AI su misura</b> (illustrazioni originali dai prompt del piano) posso suggerirti un connettore di image-generation da collegare. Ogni post passa dal <b>Giudice</b> prima di uscire.</div>
+</div></body></html>
