@@ -3,7 +3,7 @@
 Pagina unica, sempre aggiornata: **"cosa manca per aprire"**. Guarda qui.
 Legenda: ✅ fatto · ⏳ in corso · ⬜ da fare · 🔴 gate (blocca il lancio pubblico).
 Responsabili: **[Ops]** pannelli servizi · **[Sv]** Simone · **[Pr]** Antonio.
-Ultimo aggiornamento: **2026-07-14**.
+Ultimo aggiornamento: **2026-07-14** (checkup: `/public/stats` ancora 12/13 → base contatori da impostare; Simone ha completato E5/R12 routing segnalazioni).
 
 ---
 
