@@ -161,14 +161,17 @@ class SetLeadListsDto {
   listIds!: string[];
 }
 
+// Nessun limite di lunghezza qui: i dati storici possono avere campi sporchi
+// (nomi concatenati, ecc.). Il servizio tronca i campi troppo lunghi invece di
+// far fallire l'intero lotto per una singola riga anomala.
 class ImportRowDto {
-  @IsOptional() @IsString() @MaxLength(200) email?: string;
-  @IsOptional() @IsString() @MaxLength(40) phone?: string;
-  @IsOptional() @IsString() @MaxLength(200) name?: string;
-  @IsOptional() @IsString() @MaxLength(300) lists?: string; // separate da '|'
-  @IsOptional() @IsString() @MaxLength(120) previousStatus?: string;
+  @IsOptional() @IsString() email?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() lists?: string; // separate da '|'
+  @IsOptional() @IsString() previousStatus?: string;
   @IsOptional() @IsInt() historicalPaidCents?: number;
-  @IsOptional() @IsString() @MaxLength(20) coachRefCode?: string;
+  @IsOptional() @IsString() coachRefCode?: string;
 }
 
 class ImportLeadsDto {

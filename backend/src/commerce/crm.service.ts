@@ -316,11 +316,14 @@ export class CrmService {
     let created = 0, merged = 0, skipped = 0, coachAssigned = 0, listLinks = 0;
     const newLists = new Set<string>();
 
+    const cut = (s: string | null | undefined, n: number) => (s == null ? null : String(s).slice(0, n));
     for (const row of rows) {
-      const email = (row.email ?? '').trim().toLowerCase() || null;
-      const phone = (row.phone ?? '').replace(/\D/g, '') || null;
+      const email = cut((row.email ?? '').trim().toLowerCase(), 200) || null;
+      const phone = (row.phone ?? '').replace(/\D/g, '').slice(0, 30) || null;
       if (!email && !phone) { skipped++; continue; } // senza chiave: non importabile
-      const names = (row.lists ?? '').split('|').map((s) => s.trim()).filter(Boolean);
+      const name = cut(row.name, 200) || null;
+      const previousStatus = cut(row.previousStatus, 120) || null;
+      const names = (row.lists ?? '').split('|').map((s) => s.trim().slice(0, 80)).filter(Boolean);
       const coachId = row.coachRefCode ? coachByRef.get(row.coachRefCode.trim().toUpperCase()) ?? null : null;
       const orWhere = [...(phone ? [{ phone }] : []), ...(email ? [{ email }] : [])];
 
@@ -349,8 +352,8 @@ export class CrmService {
       const base: Record<string, unknown> = {
         email,
         phone,
-        name: row.name || null,
-        previousStatus: row.previousStatus || null,
+        name,
+        previousStatus,
         historicalPaidCents: row.historicalPaidCents ?? null,
         ...(coachId ? { assignedCoachId: coachId, assignmentStatus: 'accepted', assignedAt: new Date() } : {}),
       };
