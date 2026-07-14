@@ -245,12 +245,29 @@ export class LeadAssignmentService {
     return s;
   }
 
-  async generateRefCode(staffUserId: string, actorId: string): Promise<{ refCode: string }> {
+  /**
+   * Genera (o imposta, se `desired` è indicato) il ref code di una coach.
+   * `desired`: codice scelto dall'admin (3-12 caratteri, lettere/numeri, salvato
+   * in maiuscolo); dev'essere libero. Senza `desired` si genera un codice casuale.
+   */
+  async generateRefCode(staffUserId: string, actorId: string, desired?: string): Promise<{ refCode: string }> {
     const staff = await this.prisma.staff.findFirst({ where: { userId: staffUserId, user: { role: 'coach' } }, select: { id: true } });
     if (!staff) throw new BadRequestException('Il ref code è disponibile solo per le coach.');
-    const code = await this.freshRefCode();
+    let code: string;
+    if (desired?.trim()) {
+      code = desired.trim().toUpperCase();
+      if (!/^[A-Z0-9]{3,12}$/.test(code)) {
+        throw new BadRequestException('Ref code non valido: da 3 a 12 caratteri, solo lettere e numeri.');
+      }
+      const exists = await this.prisma.staff.findUnique({ where: { refCode: code }, select: { id: true } });
+      if (exists && exists.id !== staff.id) {
+        throw new BadRequestException('Ref code già assegnato a un\'altra coach.');
+      }
+    } else {
+      code = await this.freshRefCode();
+    }
     await this.prisma.staff.update({ where: { id: staff.id }, data: { refCode: code } });
-    await this.audit.log({ action: 'staff.refcode.generate', actorId, entityType: 'staff', entityId: staff.id });
+    await this.audit.log({ action: 'staff.refcode.generate', actorId, entityType: 'staff', entityId: staff.id, metadata: desired ? { custom: true } : undefined });
     return { refCode: code };
   }
 
