@@ -1049,6 +1049,10 @@ model Recipe {
   tags           String[] @default([])
   macros         Json? // {protein_g, carbs_g, fat_g}
   active         Boolean  @default(true)
+  // R8 sicurezza: allergeni (14 UE, codici) presenti nella ricetta. `reviewed` = il
+  // nutrizionista ha CONFERMATO i tag (una ricetta non revisionata NON è considerata sicura).
+  allergens         String[] @default([]) @map("allergens")
+  allergensReviewed Boolean  @default(false) @map("allergens_reviewed")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
