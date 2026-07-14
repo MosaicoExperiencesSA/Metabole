@@ -33,4 +33,11 @@ export class PersonalBaseController {
   rebuildFor(@Param('id') clientId: string) {
     return this.personalBase.buildPersonalBase(clientId);
   }
+
+  /** Certificato di unicità della personalizzazione di una cliente (R9), per verifica. */
+  @Get('clients/:id/personalization-certificate')
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  certificate(@Param('id') clientId: string) {
+    return this.personalBase.getCertificate(clientId);
+  }
 }

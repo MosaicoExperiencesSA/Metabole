@@ -27,10 +27,15 @@ function make(over: {
   recipes?: Record<string, unknown>[];
   minPerSlot?: number;
   openBlock?: { id: string } | null;
+  collisionOnce?: boolean;
 }) {
   const created: Record<string, unknown>[] = [];
   const escalations: Record<string, unknown>[] = [];
+  const certs: Record<string, unknown>[] = [];
   const resolved: { count: number } = { count: 0 };
+  const collisionFind = over.collisionOnce
+    ? jest.fn().mockResolvedValueOnce({ id: 'other' }).mockResolvedValue(null)
+    : jest.fn().mockResolvedValue(null);
   const prisma = {
     clientProfile: { findUnique: jest.fn().mockResolvedValue(over.profile ?? null) },
     diet: { findFirst: jest.fn().mockResolvedValue(over.diet === undefined ? { id: 'diet1' } : over.diet) },
@@ -45,6 +50,13 @@ function make(over: {
       create: jest.fn((args: { data: Record<string, unknown> }) => {
         created.push(args.data);
         return Promise.resolve(args.data);
+      }),
+    },
+    personalizationCertificate: {
+      findFirst: collisionFind,
+      upsert: jest.fn((args: { create: Record<string, unknown> }) => {
+        certs.push(args.create);
+        return Promise.resolve(args.create);
       }),
     },
     escalation: {
@@ -68,7 +80,7 @@ function make(over: {
     config as unknown as ConfigParamsService,
     audit as unknown as AuditService,
   );
-  return { service, created, escalations, resolved };
+  return { service, created, escalations, resolved, certs };
 }
 
 const PROFILE = {
@@ -141,5 +153,41 @@ describe('PersonalBaseService.buildPersonalBase', () => {
     const { service, resolved } = make({ profile: { ...PROFILE } });
     await service.buildPersonalBase('c1');
     expect(resolved.count).toBe(1);
+  });
+});
+
+describe('PersonalBaseService — R9 unicità certificata', () => {
+  it('salva un certificato firmato e lo restituisce nel risultato', async () => {
+    const { service, certs } = make({ profile: { ...PROFILE } });
+    const res = await service.buildPersonalBase('c1');
+    expect(res.certificate?.signature).toBeTruthy();
+    expect(certs).toHaveLength(1);
+    expect(certs[0].signature).toBe(res.certificate?.signature);
+  });
+
+  it('seme deterministico: lo stesso cliente ottiene lo stesso ordine della base', async () => {
+    const { service, created } = make({ profile: { ...PROFILE } });
+    await service.buildPersonalBase('cliente-x');
+    await service.buildPersonalBase('cliente-x');
+    expect((created[0].recipeIds as string[]).join(',')).toEqual((created[1].recipeIds as string[]).join(','));
+  });
+
+  it('clienti diversi: stesso insieme di ricette ma ordine diverso (partenza differenziata)', async () => {
+    const { service, created } = make({ profile: { ...PROFILE } });
+    await service.buildPersonalBase('cliente-A');
+    await service.buildPersonalBase('cliente-B');
+    const a = created[0].recipeIds as string[];
+    const b = created[1].recipeIds as string[];
+    expect([...a].sort()).toEqual([...b].sort()); // stesso insieme sicuro
+    expect(a.join(',')).not.toEqual(b.join(',')); // ordine unico per cliente
+  });
+
+  it('in caso di collisione perturba il seme → firma diversa dal caso senza collisione', async () => {
+    const clean = make({ profile: { ...PROFILE } });
+    const r1 = await clean.service.buildPersonalBase('c1');
+    const collided = make({ profile: { ...PROFILE }, collisionOnce: true });
+    const r2 = await collided.service.buildPersonalBase('c1');
+    expect(r2.certificate?.signature).toBeTruthy();
+    expect(r2.certificate?.signature).not.toEqual(r1.certificate?.signature);
   });
 });

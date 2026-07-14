@@ -1,8 +1,25 @@
+import { createHmac } from 'crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+// R9 — Chiave server per firmare la personalizzazione (seme + certificato). Non è un
+// segreto d'utente: serve a rendere la firma deterministica e verificabile lato server.
+const engineSigningKey = () =>
+  process.env.ENGINE_SIGNING_KEY || process.env.FILE_ENCRYPTION_KEY || 'dev-only-engine-key';
+const hmac = (data: string): string => createHmac('sha256', engineSigningKey()).update(data).digest('hex');
+
+/** Seme deterministico e riproducibile derivato dal client_id (R9: partenza differenziata). */
+const seedFor = (clientId: string): string => hmac(`seed:${clientId}`);
+
+/** Rango deterministico di una ricetta per un dato seme: ordina la base in modo unico per cliente. */
+const rankOf = (seed: string, recipeId: string): string => hmac(`${seed}:${recipeId}`);
+
+/** Firma del menu personalizzato: hash(seme, versione, ricette ordinate). */
+const signMenu = (seed: string, version: number, orderedRecipeIds: string[]): string =>
+  hmac(`${seed}|v${version}|${orderedRecipeIds.join(',')}`);
 
 // Slot principali su cui garantiamo la soglia minima di ricette sicure.
 const MAIN_SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
@@ -32,6 +49,7 @@ export interface PersonalBaseResult {
   totalSafe?: number;
   perSlot?: Record<string, number>;
   reasons?: string[];
+  certificate?: { version: number; signature: string };
   message: string;
 }
 
@@ -72,12 +90,45 @@ export class PersonalBaseService {
       };
     }
     if (!pool) return { status: 'blocked', message: BLOCK_MESSAGE };
+    const cert = (await this.prisma.personalizationCertificate.findFirst({
+      where: { clientId, version: pool.version },
+      select: { version: true, signature: true },
+    })) as unknown as { version: number; signature: string } | null;
     return {
       status: 'ready',
       version: pool.version,
       dietId: pool.dietId,
       totalSafe: pool.recipeIds.length,
+      ...(cert ? { certificate: { version: cert.version, signature: cert.signature } } : {}),
       message: 'La tua base personalizzata è pronta.',
+    };
+  }
+
+  /**
+   * Certificato di personalizzazione corrente (R9), per verifica esterna: seme, firma,
+   * versione. Ricalcola la firma e conferma che corrisponde a quella registrata (integrità).
+   */
+  async getCertificate(clientId: string) {
+    const cert = (await this.prisma.personalizationCertificate.findFirst({
+      where: { clientId },
+      orderBy: { version: 'desc' },
+    })) as unknown as
+      | { clientId: string; dietId: string | null; seed: string; signature: string; version: number; createdAt: Date }
+      | null;
+    if (!cert) throw new NotFoundException('Nessun certificato di personalizzazione per questa cliente.');
+    const pool = (await this.prisma.clientMenuPool.findFirst({
+      where: { clientId, version: cert.version },
+      select: { recipeIds: true },
+    })) as unknown as { recipeIds: string[] } | null;
+    const recomputed = pool ? signMenu(cert.seed, cert.version, pool.recipeIds) : null;
+    return {
+      clientId: cert.clientId,
+      dietId: cert.dietId,
+      version: cert.version,
+      seed: cert.seed,
+      signature: cert.signature,
+      createdAt: cert.createdAt,
+      valid: recomputed !== null && recomputed === cert.signature,
     };
   }
 
@@ -170,7 +221,22 @@ export class PersonalBaseService {
       select: { version: true },
     })) as unknown as { version: number } | null;
     const version = (last?.version ?? 0) + 1;
-    const recipeIds = safe.map((r) => r.id);
+
+    // R9 — Partenza differenziata + unicità certificata.
+    // (a) seme deterministico dal client_id → ordinamento unico e riproducibile della base;
+    // (b) collision check: se la firma coincide con quella di un'altra cliente, si perturba
+    //     il seme e si riordina (fino a garantire una personalizzazione distinta);
+    // (c) certificato firmato salvato per verifica esterna.
+    const baseSeed = seedFor(clientId);
+    let seed = baseSeed;
+    let recipeIds = this.orderBySeed(safe, seed);
+    let signature = signMenu(seed, version, recipeIds);
+    for (let attempt = 1; attempt <= 5 && (await this.collides(clientId, signature)); attempt++) {
+      seed = hmac(`${baseSeed}#${attempt}`);
+      recipeIds = this.orderBySeed(safe, seed);
+      signature = signMenu(seed, version, recipeIds);
+    }
+
     await this.prisma.clientMenuPool.create({
       data: {
         clientId,
@@ -180,12 +246,17 @@ export class PersonalBaseService {
         excluded: { codedAllergies: coded, unreviewedSkipped: unreviewed, perSlot } as never,
       },
     });
+    await this.prisma.personalizationCertificate.upsert({
+      where: { clientId_version: { clientId, version } } as never,
+      create: { clientId, dietId: diet.id, seed, signature, version } as never,
+      update: { dietId: diet.id, seed, signature } as never,
+    });
     await this.resolveBlocks(clientId);
     await this.audit.log({
       action: 'personal_base.built',
       actorId: clientId,
       entityType: 'client_menu_pool',
-      metadata: { dietId: diet.id, version, total: recipeIds.length, perSlot },
+      metadata: { dietId: diet.id, version, total: recipeIds.length, perSlot, signature },
     });
     return {
       status: 'ready',
@@ -193,8 +264,26 @@ export class PersonalBaseService {
       dietId: diet.id,
       totalSafe: recipeIds.length,
       perSlot,
+      certificate: { version, signature },
       message: 'La tua base personalizzata è pronta.',
     };
+  }
+
+  /** Ordina la base in modo deterministico e unico per cliente (R9), tramite il seme. */
+  private orderBySeed(recipes: { id: string }[], seed: string): string[] {
+    return [...recipes]
+      .map((r) => ({ id: r.id, rank: rankOf(seed, r.id) }))
+      .sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : 0))
+      .map((r) => r.id);
+  }
+
+  /** Vero se un'ALTRA cliente ha già un certificato con questa firma (collisione da evitare). */
+  private async collides(clientId: string, signature: string): Promise<boolean> {
+    const other = (await this.prisma.personalizationCertificate.findFirst({
+      where: { signature, NOT: { clientId } } as never,
+      select: { id: true },
+    })) as unknown as { id: string } | null;
+    return Boolean(other);
   }
 
   // ---------- interni ----------
