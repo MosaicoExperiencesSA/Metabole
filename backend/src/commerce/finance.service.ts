@@ -71,17 +71,15 @@ export class FinanceService {
   }
 
   /**
-   * Provvigioni all'approvazione di un pagamento (percentuali da config).
-   * La catena: una quota alla coach + una alla sua responsabile (manager coach),
-   * una quota alla nutrizionista + una al suo capo (capo nutrizionista).
-   * Il "responsabile" di ogni membro è Staff.managerId (impostato dall'admin).
+   * Provvigioni all'approvazione di un pagamento. Gli importi sono FISSI (in €) e
+   * definiti su ogni PRODOTTO/PIANO del negozio (4 quote: coach, manager coach,
+   * nutrizionista, capo nutrizionista), non più percentuali globali.
+   * La catena: la quota base va allo staff assegnato + una quota al suo responsabile
+   * (Staff.managerId). In caso di sconto, gli importi sono riscalati sull'importo
+   * effettivamente pagato (paid/gross).
    */
   async generateCommissions(payment: { id: string; clientId: string; amountCents: number }) {
-    const [coachPct, managerCoachPct, nutriPct, headNutriPct, profile, full] = await Promise.all([
-      this.configParams.getNumber('commission_coach_percent', 10),
-      this.configParams.getNumber('commission_manager_coach_percent', 0),
-      this.configParams.getNumber('commission_nutritionist_percent', 15),
-      this.configParams.getNumber('commission_head_nutritionist_percent', 0),
+    const [profile, full] = await Promise.all([
       this.prisma.clientProfile.findUnique({
         where: { userId: payment.clientId },
         select: {
@@ -93,60 +91,109 @@ export class FinanceService {
       }),
       this.prisma.payment.findUnique({
         where: { id: payment.id },
-        select: { subscription: { select: { plan: { select: { priceCents: true } } } }, order: { select: { items: true } } },
+        select: {
+          subscription: {
+            select: {
+              plan: {
+                select: {
+                  priceCents: true,
+                  commissionCoachCents: true,
+                  commissionManagerCoachCents: true,
+                  commissionNutritionistCents: true,
+                  commissionHeadNutritionistCents: true,
+                },
+              },
+            },
+          },
+          order: { select: { items: true } },
+        },
       }),
     ]);
     if (!profile) return;
 
-    // Basi imponibili separate per lato: rispetta il flag "provvigioni a" di ogni prodotto
-    // (default "both" → identico al comportamento precedente).
-    const { coachBase, nutriBase } = await this.commissionBases(payment.amountCents, full);
+    const q = await this.commissionAmounts(payment.amountCents, full);
 
-    await this.settleSide(payment, 'coach', profile.assignedCoachId, profile.assignedCoach?.managerId, coachPct, managerCoachPct, coachBase);
-    await this.settleSide(payment, 'nutritionist', profile.assignedNutritionistId, profile.assignedNutritionist?.managerId, nutriPct, headNutriPct, nutriBase);
+    await this.settleSide(payment, 'coach', profile.assignedCoachId, profile.assignedCoach?.managerId, q.coach, q.managerCoach);
+    await this.settleSide(payment, 'nutritionist', profile.assignedNutritionistId, profile.assignedNutritionist?.managerId, q.nutritionist, q.headNutritionist);
   }
 
   /**
-   * Base provvigionale per il lato coaching e per quello nutrizione.
-   * L'abbonamento (piano) conta per entrambi; ogni prodotto conta per il/i lato/i
-   * indicati dal suo flag commissionTeam. Il tutto è riscalato sull'importo
-   * effettivamente pagato (per tenere conto di eventuali sconti).
+   * Somma le 4 quote provvigionali (in centesimi) dovute da questo acquisto:
+   * dal piano dell'abbonamento e/o da ciascun prodotto dell'ordine (× quantità).
+   * Il totale è riscalato sull'importo effettivamente pagato (per gli sconti).
    */
-  private async commissionBases(
+  private async commissionAmounts(
     paidCents: number,
-    full: { subscription?: { plan?: { priceCents: number } | null } | null; order?: { items: unknown } | null } | null,
-  ): Promise<{ coachBase: number; nutriBase: number }> {
-    const planGross = full?.subscription?.plan?.priceCents ?? 0;
+    full: {
+      subscription?: {
+        plan?: {
+          priceCents: number;
+          commissionCoachCents: number;
+          commissionManagerCoachCents: number;
+          commissionNutritionistCents: number;
+          commissionHeadNutritionistCents: number;
+        } | null;
+      } | null;
+      order?: { items: unknown } | null;
+    } | null,
+  ): Promise<{ coach: number; managerCoach: number; nutritionist: number; headNutritionist: number }> {
+    let coach = 0, managerCoach = 0, nutritionist = 0, headNutritionist = 0, gross = 0;
+
+    const plan = full?.subscription?.plan;
+    if (plan) {
+      coach += plan.commissionCoachCents;
+      managerCoach += plan.commissionManagerCoachCents;
+      nutritionist += plan.commissionNutritionistCents;
+      headNutritionist += plan.commissionHeadNutritionistCents;
+      gross += plan.priceCents;
+    }
+
     const items = Array.isArray(full?.order?.items)
       ? (full!.order!.items as unknown as { productId: string; priceCents: number; qty: number }[])
       : [];
-    if (items.length === 0) return { coachBase: paidCents, nutriBase: paidCents };
-
-    const products = (await this.prisma.product.findMany({
-      where: { id: { in: items.map((i) => i.productId) } },
-      select: { id: true, commissionTeam: true },
-    })) as { id: string; commissionTeam: string }[];
-    const teamOf = new Map(products.map((p) => [p.id, p.commissionTeam ?? 'both']));
-
-    let coachProd = 0, nutriProd = 0, allProd = 0;
-    for (const it of items) {
-      const line = (it.priceCents ?? 0) * (it.qty ?? 1);
-      allProd += line;
-      const team = teamOf.get(it.productId) ?? 'both';
-      if (team === 'both' || team === 'coaching') coachProd += line;
-      if (team === 'both' || team === 'nutrition') nutriProd += line;
+    if (items.length > 0) {
+      const products = (await this.prisma.product.findMany({
+        where: { id: { in: items.map((i) => i.productId) } },
+        select: {
+          id: true,
+          commissionCoachCents: true,
+          commissionManagerCoachCents: true,
+          commissionNutritionistCents: true,
+          commissionHeadNutritionistCents: true,
+        },
+      })) as {
+        id: string;
+        commissionCoachCents: number;
+        commissionManagerCoachCents: number;
+        commissionNutritionistCents: number;
+        commissionHeadNutritionistCents: number;
+      }[];
+      const byId = new Map(products.map((p) => [p.id, p]));
+      for (const it of items) {
+        const qty = it.qty ?? 1;
+        gross += (it.priceCents ?? 0) * qty;
+        const prod = byId.get(it.productId);
+        if (!prod) continue;
+        coach += prod.commissionCoachCents * qty;
+        managerCoach += prod.commissionManagerCoachCents * qty;
+        nutritionist += prod.commissionNutritionistCents * qty;
+        headNutritionist += prod.commissionHeadNutritionistCents * qty;
+      }
     }
-    const totalGross = planGross + allProd;
-    const scale = totalGross > 0 ? paidCents / totalGross : 1;
+
+    // Sconto: riscala le quote sull'importo pagato (paid/gross). Senza sconto scale=1.
+    const scale = gross > 0 ? Math.min(1, paidCents / gross) : 1;
     return {
-      coachBase: Math.round((planGross + coachProd) * scale),
-      nutriBase: Math.round((planGross + nutriProd) * scale),
+      coach: Math.round(coach * scale),
+      managerCoach: Math.round(managerCoach * scale),
+      nutritionist: Math.round(nutritionist * scale),
+      headNutritionist: Math.round(headNutritionist * scale),
     };
   }
 
   /**
    * Regola una "metà" della catena (coaching o nutrizione):
-   * - se lo staff è assegnato → paga subito (e paga il responsabile se c'è);
+   * - se lo staff è assegnato → paga subito la quota (e quella del responsabile se c'è);
    * - se NON è assegnato → accantona le quote, pagate poi all'assegnazione.
    */
   private async settleSide(
@@ -154,28 +201,26 @@ export class FinanceService {
     group: 'coach' | 'nutritionist',
     primaryStaffId: string | null | undefined,
     managerStaffId: string | null | undefined,
-    primaryPct: number,
-    managerPct: number,
-    baseCents: number,
+    primaryAmountCents: number,
+    managerAmountCents: number,
   ) {
     const [primaryRole, managerRole] = group === 'coach' ? ['coach', 'manager_coach'] : ['nutritionist', 'head_nutritionist'];
-    const amount = (pct: number) => Math.round((baseCents * pct) / 100);
 
     if (primaryStaffId) {
       // Assegnato: paga subito la quota base e (se presente il responsabile) la sua.
-      if (primaryPct > 0) {
-        await this.creditStaff({ staffId: primaryStaffId, amountCents: amount(primaryPct), kind: 'sales_commission', ref: payment.id, clientId: payment.clientId });
+      if (primaryAmountCents > 0) {
+        await this.creditStaff({ staffId: primaryStaffId, amountCents: primaryAmountCents, kind: 'sales_commission', ref: payment.id, clientId: payment.clientId });
       }
-      if (managerStaffId && managerPct > 0) {
-        await this.creditStaff({ staffId: managerStaffId, amountCents: amount(managerPct), kind: 'sales_commission', ref: payment.id, clientId: payment.clientId });
+      if (managerStaffId && managerAmountCents > 0) {
+        await this.creditStaff({ staffId: managerStaffId, amountCents: managerAmountCents, kind: 'sales_commission', ref: payment.id, clientId: payment.clientId });
       }
       return;
     }
 
     // Non assegnato: accantona (pagheremo all'assegnazione dal backoffice).
     const pendings: { paymentId: string; clientId: string; role: string; amountCents: number }[] = [];
-    if (primaryPct > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: primaryRole, amountCents: amount(primaryPct) });
-    if (managerPct > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: managerRole, amountCents: amount(managerPct) });
+    if (primaryAmountCents > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: primaryRole, amountCents: primaryAmountCents });
+    if (managerAmountCents > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: managerRole, amountCents: managerAmountCents });
     for (const data of pendings) {
       await this.prisma.pendingCommission.create({ data });
     }

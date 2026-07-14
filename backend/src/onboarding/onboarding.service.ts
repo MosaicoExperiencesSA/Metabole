@@ -87,19 +87,16 @@ export class OnboardingService {
     // 2. Screening sanitario.
     const screeningFlag = computeScreeningFlag(dto.health);
 
-    // 3. Assegnazione team. Rispetta un'eventuale coach GIÀ assegnata (via ref code
-    // in registrazione, o da un manager sul lead): NON la si riassegna. La
-    // nutrizionista viene invece scelta tra gli staff attivi meno carichi.
+    // 3. Team: coach e nutrizionista NON si assegnano in automatico — li assegna
+    // il responsabile dal backoffice. Unica eccezione: il ref code inserito dalla
+    // cliente in registrazione (di una coach O di una nutrizionista), già salvato
+    // sul lead: qui lo si propaga soltanto al profilo.
     const record = await this.prisma.crmRecord.findUnique({
       where: { clientId: userId },
-      select: { assignedCoachId: true },
+      select: { assignedCoachId: true, assignedNutritionistId: true },
     });
-    const refCoachId = record?.assignedCoachId ?? null;
-    const [pickedCoach, nutritionist] = await Promise.all([
-      refCoachId ? Promise.resolve(null) : this.pickLeastLoadedStaff('coach'),
-      this.pickLeastLoadedStaff('nutritionist'),
-    ]);
-    const coachId = refCoachId ?? pickedCoach?.id ?? null;
+    const coachId = record?.assignedCoachId ?? null;
+    const nutritionistId = record?.assignedNutritionistId ?? null;
 
     // 4. Profilo (upsert: il questionario si può rifare, aggiorna il profilo).
     const intolerances = (dto.intolerances ?? []).filter((i) => i !== 'none');
@@ -126,7 +123,7 @@ export class OnboardingService {
         lifestyle: (dto.lifestyle ?? undefined) as never,
         themeColor: dto.themeColor,
         assignedCoachId: coachId,
-        assignedNutritionistId: nutritionist?.id,
+        assignedNutritionistId: nutritionistId,
         consents: {
           ...(dto.consents ?? {}),
           healthDataConsent: { accepted: true, at: new Date().toISOString() },
@@ -194,7 +191,7 @@ export class OnboardingService {
             'Screening onboarding: condizione clinica o farmaci dichiarati — percorso supervisionato.',
           source: 'screening',
           category: 'clinical' as never,
-          assignedToId: nutritionist?.id,
+          assignedToId: nutritionistId ?? undefined,
         },
       });
     }
@@ -205,7 +202,7 @@ export class OnboardingService {
           reason: `Obiettivo oltre il ritmo sostenibile (${validation.ratePerWeek} kg/sett.): richiede conferma del nutrizionista.`,
           source: 'screening',
           category: 'clinical' as never,
-          assignedToId: nutritionist?.id,
+          assignedToId: nutritionistId ?? undefined,
         },
       });
     }
@@ -264,10 +261,6 @@ export class OnboardingService {
         coach: profile.assignedCoach,
         nutritionist: profile.assignedNutritionist,
       },
-      firstVisit: {
-        type: 'in_person',
-        note: 'La prima visita è sempre in presenza; i controlli successivi possono essere in televisita.',
-      },
       objective,
       ...(extra.objectiveValidation ? { objectiveValidation: extra.objectiveValidation } : {}),
       profileId: profile.id,
@@ -310,27 +303,4 @@ export class OnboardingService {
     };
   }
 
-  /** Staff attivo del ruolo indicato con meno clienti assegnate. */
-  private async pickLeastLoadedStaff(role: 'coach' | 'nutritionist') {
-    const candidates = await this.prisma.staff.findMany({
-      where: { active: true, user: { role, status: 'active' } },
-      select: {
-        id: true,
-        displayName: true,
-        _count: {
-          select:
-            role === 'coach'
-              ? { clientsAsCoach: true }
-              : { clientsAsNutritionist: true },
-        },
-      },
-    });
-    if (candidates.length === 0) return null;
-    candidates.sort((a: { _count: Record<string, number> }, b: { _count: Record<string, number> }) => {
-      const countA = Object.values(a._count)[0] ?? 0;
-      const countB = Object.values(b._count)[0] ?? 0;
-      return countA - countB;
-    });
-    return candidates[0];
-  }
 }

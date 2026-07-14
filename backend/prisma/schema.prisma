@@ -310,6 +310,7 @@ model Staff {
   approvedPayments      Payment[]       @relation("PaymentApprover")
   ownedLeads            CrmRecord[]     @relation("LeadOwner")
   coachLeads            CrmRecord[]     @relation("LeadCoach")
+  nutritionistLeads     CrmRecord[]     @relation("LeadNutritionist")
   assignedLeads         CrmRecord[]     @relation("LeadAssigner")
   compensations         StaffCompensation[] @relation("CompensationStaff")
   authoredClientNotes   ClientNote[]        @relation("ClientNoteAuthor")
@@ -433,6 +434,12 @@ model Plan {
   mealsPerDay Int?     @map("meals_per_day")
   features    String[] @default([])
   active      Boolean  @default(true)
+  // Provvigioni in CENTESIMI di € per questo piano (importi fissi, non percentuali).
+  // Riscalate sull'importo effettivamente pagato in caso di sconto.
+  commissionCoachCents            Int @default(0) @map("commission_coach_cents")
+  commissionManagerCoachCents     Int @default(0) @map("commission_manager_coach_cents")
+  commissionNutritionistCents     Int @default(0) @map("commission_nutritionist_cents")
+  commissionHeadNutritionistCents Int @default(0) @map("commission_head_nutritionist_cents")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -484,6 +491,10 @@ model Payment {
   pspRef         String?       @map("psp_ref")
   discountCodeId String?       @map("discount_code_id")
   discountCents  Int?          @map("discount_cents")
+  refundCents    Int?          @map("refund_cents") // storno registrato (rimborso alla cliente)
+  refundedAt     DateTime?     @map("refunded_at")
+  refundNote     String?       @map("refund_note")
+  refundById     String?       @map("refund_by_id") // user id dell'operatore che ha stornato
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
@@ -499,8 +510,13 @@ model Product {
   priceCents  Int      @map("price_cents")
   description String?
   active      Boolean  @default(true)
-  // A quale team vanno le provvigioni di questo prodotto: both | coaching | nutrition
-  commissionTeam String @default("both") @map("commission_team")
+  // Provvigioni in CENTESIMI di € per unità di questo prodotto (importi fissi).
+  // Sostituiscono il vecchio flag commissionTeam: 0 su un lato = niente provvigione
+  // a quel lato. Riscalate sull'importo pagato in caso di sconto.
+  commissionCoachCents            Int @default(0) @map("commission_coach_cents")
+  commissionManagerCoachCents     Int @default(0) @map("commission_manager_coach_cents")
+  commissionNutritionistCents     Int @default(0) @map("commission_nutritionist_cents")
+  commissionHeadNutritionistCents Int @default(0) @map("commission_head_nutritionist_cents")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -529,6 +545,7 @@ model CrmRecord {
   clientId   String?  @unique @map("client_id")
   client     User?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
   email      String?
+  phone      String? // per i lead puri (importati): il telefono è chiave insieme all'email
   name       String?
   stage      String   @default("lead_in") // chiave di pipeline_stage (gestita da admin)
   stageDates Json     @default("{}") @map("stage_dates") // {stage: {at, byUserId}}
@@ -538,17 +555,51 @@ model CrmRecord {
   // Assegnazione alla coach con accettazione (2 giorni), oppure diretta via ref code.
   assignedCoachId  String?   @map("assigned_coach_id")
   assignedCoach    Staff?    @relation("LeadCoach", fields: [assignedCoachId], references: [id], onDelete: SetNull)
+  assignedNutritionistId String? @map("assigned_nutritionist_id")
+  assignedNutritionist   Staff?  @relation("LeadNutritionist", fields: [assignedNutritionistId], references: [id], onDelete: SetNull)
   assignmentStatus String?   @map("assignment_status") // pending | accepted
   assignedAt       DateTime? @map("assigned_at")
   assignedById     String?   @map("assigned_by_id")
   assignedBy       Staff?    @relation("LeadAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  // Storico pre-Metabole (dalle liste importate): stato precedente e totale già
+  // pagato dal cliente. Solo INFORMATIVI sulla scheda: NON entrano in contabilità.
+  previousStatus      String? @map("previous_status")
+  historicalPaidCents Int?    @map("historical_paid_cents")
   reminders  CrmReminder[]
+  listMemberships CrmListMember[]
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([stage])
   @@index([assignedCoachId, assignmentStatus])
   @@map("crm_record")
+}
+
+// Liste CRM: raggruppamenti manuali di lead/clienti (un contatto può stare in più
+// liste). Create a mano dall'operatore; usate per filtrare le viste CRM.
+model CrmList {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String? // hex opzionale per il badge
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  members     CrmListMember[]
+
+  @@map("crm_list")
+}
+
+// Appartenenza N:N tra lead/cliente e lista.
+model CrmListMember {
+  listId   String    @map("list_id")
+  list     CrmList   @relation(fields: [listId], references: [id], onDelete: Cascade)
+  recordId String    @map("record_id")
+  record   CrmRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  addedAt  DateTime  @default(now()) @map("added_at")
+
+  @@id([listId, recordId])
+  @@index([recordId])
+  @@map("crm_list_member")
 }
 
 // Calendario CRM: promemoria/appuntamenti, opzionalmente legati a un lead/cliente.

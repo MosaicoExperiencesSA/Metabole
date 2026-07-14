@@ -96,7 +96,7 @@ export class CommerceService {
     return this.prisma.product.findMany({ orderBy: { name: 'asc' } });
   }
 
-  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; commissionTeam?: string }) {
+  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
     const product = await this.prisma.product.create({ data: { ...dto, active: dto.active ?? true } });
     await this.audit.log({ action: 'shop.product.create', actorId, entityType: 'product', entityId: product.id });
     return product;
@@ -116,7 +116,7 @@ export class CommerceService {
     return { deleted: true };
   }
 
-  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean }) {
+  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
     const plan = await this.prisma.plan.create({ data: { ...dto, features: dto.features ?? [], active: dto.active ?? true } });
     await this.audit.log({ action: 'shop.plan.create', actorId, entityType: 'plan', entityId: plan.id });
     return plan;
@@ -445,7 +445,8 @@ export class CommerceService {
   async listPayments(status?: string) {
     const payments = await this.prisma.payment.findMany({
       where: status ? { status: status as never } : {},
-      orderBy: { createdAt: 'asc' },
+      // Più recenti in alto; col take:200 l'ordine desc garantisce di tenere gli ultimi.
+      orderBy: { createdAt: 'desc' },
       include: { client: { select: { email: true, clientProfile: { select: { name: true } } } } },
       take: 200,
     });
@@ -936,5 +937,216 @@ export class CommerceService {
 
     await this.audit.log({ action: 'commerce.purchase.delete', actorId, entityType: 'payment', entityId: paymentId });
     return { removed: paymentId };
+  }
+
+  /**
+   * STORNO di un acquisto pagato: registra il rimborso deciso dall'operatore
+   * (l'esecuzione del rimborso su Stripe/bonifico resta manuale), BLOCCA
+   * l'erogazione dei menu annullando l'abbonamento collegato, netta l'incasso in
+   * contabilità e storna le provvigioni IN PROPORZIONE all'importo rimborsato.
+   * Alla cliente parte l'email con la ricevuta di rimborso in allegato.
+   */
+  async refundPurchase(paymentId: string, actorId: string, input: { amountCents: number; note?: string | null }) {
+    const payment = (await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { client: { select: { email: true, locale: true } } },
+    })) as
+      | {
+          id: string; clientId: string; subscriptionId: string | null; amountCents: number;
+          description: string; status: string; refundedAt: Date | null;
+          client: { email: string; locale: string | null } | null;
+        }
+      | null;
+    if (!payment) throw new NotFoundException('Acquisto non trovato');
+    if (payment.status !== 'approved') throw new BadRequestException('Si può stornare solo un acquisto pagato');
+    if (payment.refundedAt) throw new BadRequestException('Acquisto già stornato');
+    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0 || input.amountCents > payment.amountCents) {
+      throw new BadRequestException("L'importo del rimborso deve essere maggiore di zero e non superiore all'importo pagato");
+    }
+    const fraction = input.amountCents / payment.amountCents;
+
+    await this.prisma.$transaction(async (tx: PrismaTx) => {
+      // 1) Registra lo storno sul pagamento (resta nello storico, non si elimina).
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: {
+          refundCents: input.amountCents,
+          refundedAt: new Date(),
+          refundNote: input.note ?? null,
+          refundById: actorId,
+        } as never,
+      });
+
+      // 2) Blocco dell'erogazione dei menu: l'abbonamento collegato viene annullato
+      //    (deliverIfEligible eroga solo con abbonamento 'active').
+      if (payment.subscriptionId) {
+        await tx.subscription.update({
+          where: { id: payment.subscriptionId },
+          data: { status: 'cancelled' as never },
+        });
+      }
+
+      // 3) Contabilità: incasso NEGATIVO nella stessa categoria dell'entrata
+      //    originale, così totali e report mensile si nettano da soli.
+      await tx.ledgerEntry.create({
+        data: {
+          type: 'income',
+          amountCents: -input.amountCents,
+          category: payment.subscriptionId ? 'subscription' : 'order',
+          ref: paymentId,
+          clientId: payment.clientId,
+          note: `Storno rimborso${input.note ? ': ' + input.note : ''}`,
+        } as never,
+      });
+
+      // 4) Provvigioni: storno proporzionale di ogni provvigione generata da
+      //    questo acquisto (ledger negativo + compenso del periodo ridotto).
+      const commissions = (await tx.ledgerEntry.findMany({
+        where: { category: 'sales_commission', ref: paymentId, amountCents: { gt: 0 } },
+      })) as { id: string; amountCents: number; staffId: string | null; date: Date }[];
+      for (const c of commissions) {
+        const share = Math.round(c.amountCents * fraction);
+        if (share <= 0) continue;
+        await tx.ledgerEntry.create({
+          data: {
+            type: 'expense',
+            amountCents: -share,
+            category: 'sales_commission',
+            ref: paymentId,
+            staffId: c.staffId,
+            clientId: payment.clientId,
+            note: 'Storno provvigione (rimborso acquisto)',
+          } as never,
+        });
+        if (c.staffId) {
+          const period = new Date(c.date).toISOString().slice(0, 7);
+          const comp = (await tx.staffCompensation.findUnique({
+            where: { staffId_period: { staffId: c.staffId, period } },
+          })) as { amountCents: number; items: unknown } | null;
+          if (comp) {
+            const items = (Array.isArray(comp.items) ? comp.items : []) as Record<string, unknown>[];
+            items.push({ kind: 'sales_commission_refund', amountCents: -share, ref: paymentId });
+            await tx.staffCompensation.update({
+              where: { staffId_period: { staffId: c.staffId, period } },
+              data: { amountCents: Math.max(0, comp.amountCents - share), items: items as never },
+            });
+          }
+        }
+      }
+
+      // 5) Provvigioni ACCANTONATE non ancora risolte: ridotte in proporzione.
+      const pendings = (await tx.pendingCommission.findMany({
+        where: { paymentId, status: 'pending' },
+      })) as { id: string; amountCents: number }[];
+      for (const pc of pendings) {
+        const share = Math.round(pc.amountCents * fraction);
+        if (share <= 0) continue;
+        await tx.pendingCommission.update({
+          where: { id: pc.id },
+          data: { amountCents: Math.max(0, pc.amountCents - share) },
+        });
+      }
+    });
+
+    await this.audit.log({
+      action: 'commerce.purchase.refund',
+      actorId,
+      entityType: 'payment',
+      entityId: paymentId,
+      metadata: { refundCents: input.amountCents, note: input.note ?? undefined },
+    });
+
+    // Ricevuta di rimborso alla cliente (mail con PDF in allegato; eventuali
+    // errori di invio non annullano lo storno già registrato).
+    if (payment.client?.email) {
+      const receipt = await this.generateRefundReceiptPdf(paymentId).catch(() => null);
+      await this.mail
+        .sendRefundReceipt(
+          payment.client.email,
+          {
+            description: payment.description,
+            amountCents: input.amountCents,
+            paymentId,
+            date: new Date(),
+          },
+          payment.client.locale,
+          receipt ? [{ name: receipt.fileName, content: receipt.contentBase64 }] : undefined,
+        )
+        .catch(() => undefined);
+    }
+
+    const updated = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } } },
+    });
+    return this.publicPayment(updated as Record<string, unknown>);
+  }
+
+  /** Ricevuta di RIMBORSO in PDF (per la cliente e scaricabile dal backoffice). */
+  async generateRefundReceiptPdf(paymentId: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } } },
+    });
+    if (!payment) throw new NotFoundException('Pagamento non trovato');
+
+    const p = payment as unknown as {
+      id: string; amountCents: number; refundCents: number | null; refundedAt: Date | null;
+      refundNote: string | null; description: string; method: string;
+      client: { email: string; clientProfile: { name: string | null } | null } | null;
+    };
+    if (!p.refundedAt || !p.refundCents) throw new NotFoundException('Questo acquisto non è stato stornato');
+
+    const refundCents = p.refundCents; // narrowed a number dopo il guard (evita null nella closure del PDF)
+    const date = p.refundedAt;
+    const number = `RMB-${date.getUTCFullYear()}-${p.id.slice(0, 8).toUpperCase()}`;
+    const clientName = p.client?.clientProfile?.name ?? p.client?.email ?? 'Cliente';
+    const methodLabel = p.method === 'card' ? 'Carta' : p.method === 'manual' ? 'Manuale' : 'Bonifico';
+    const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
+
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 56 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fillColor('#10403a').fontSize(24).text('Metabole', { continued: false });
+      doc.moveDown(0.2);
+      doc.fillColor('#7c8c88').fontSize(11).text('Ricevuta di rimborso');
+      doc.moveDown(1.2);
+
+      doc.fillColor('#111').fontSize(11);
+      const row = (label: string, value: string) => {
+        doc.font('Helvetica-Bold').text(label, { continued: true }).font('Helvetica').text('   ' + value);
+        doc.moveDown(0.5);
+      };
+      row('Numero ricevuta:', number);
+      row('Data:', date.toLocaleDateString('it-IT'));
+      row('Cliente:', clientName);
+      if (p.client?.email) row('Email:', p.client.email);
+      row('Descrizione:', p.description);
+      row('Metodo originale:', methodLabel);
+      row('Importo pagato:', euro(p.amountCents));
+      if (p.refundNote) row('Nota:', p.refundNote);
+
+      doc.moveDown(0.8);
+      doc.moveTo(56, doc.y).lineTo(539, doc.y).strokeColor('#e6e2d8').stroke();
+      doc.moveDown(0.8);
+      doc.font('Helvetica-Bold').fillColor('#10403a').fontSize(16).text('Totale rimborsato: ' + euro(refundCents), { align: 'right' });
+
+      doc.moveDown(3);
+      doc.font('Helvetica').fillColor('#9aa39f').fontSize(9).text(
+        'Documento generato automaticamente da Metabole. Non costituisce fattura fiscale.',
+        { align: 'center' },
+      );
+      doc.end();
+    });
+
+    return {
+      fileName: `${number}.pdf`,
+      mimeType: 'application/pdf',
+      contentBase64: buffer.toString('base64'),
+    };
   }
 }

@@ -45,7 +45,6 @@ export interface OnboardingResult {
     coach: { id: string; displayName: string } | null;
     nutritionist: { id: string; displayName: string } | null;
   };
-  firstVisit: { type: string; note: string };
   objective?: { targetWeightKg?: number; targetDate?: string } | null;
   objectiveValidation?: { accepted: boolean; ratePerWeek?: number; suggestedWeeks?: number };
 }

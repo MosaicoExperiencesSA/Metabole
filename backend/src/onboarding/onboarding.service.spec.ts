@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
 import { OnboardingService } from './onboarding.service';
@@ -77,6 +78,7 @@ describe('OnboardingService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigParamsService, useValue: configParams },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: PersonalBaseService, useValue: { buildPersonalBase: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = moduleRef.get(OnboardingService);
@@ -100,10 +102,23 @@ describe('OnboardingService', () => {
     expect(result.team.coach.displayName).toBe('Marta');
   });
 
-  it('assegna lo staff meno carico (B con 2 clienti, non A con 5)', async () => {
+  it('senza ref code il team NON si assegna in automatico (lo assegna il responsabile)', async () => {
     await service.submitAnswers('u1', baseAnswers());
     const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
-    expect(createArgs.assignedCoachId).toBe('s-b');
+    expect(createArgs.assignedCoachId).toBeNull();
+    expect(createArgs.assignedNutritionistId).toBeNull();
+    expect(prisma.staff.findMany).not.toHaveBeenCalled();
+  });
+
+  it('col ref code sul lead, coach e nutrizionista si propagano al profilo', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue({
+      assignedCoachId: 's-ref-coach',
+      assignedNutritionistId: 's-ref-nutri',
+    });
+    await service.submitAnswers('u1', baseAnswers());
+    const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
+    expect(createArgs.assignedCoachId).toBe('s-ref-coach');
+    expect(createArgs.assignedNutritionistId).toBe('s-ref-nutri');
   });
 
   it('patologie dichiarate → screening_flag + escalation al nutrizionista', async () => {

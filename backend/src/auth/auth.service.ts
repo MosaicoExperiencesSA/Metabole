@@ -49,14 +49,15 @@ export class AuthService {
 
     // Se è indicato un codice invito, lo validiamo PRIMA di creare l'utente,
     // così un codice errato dà un errore chiaro invece di un account "orfano".
-    // Un codice invito può essere di una COACH (ref code → auto-assegnazione) oppure
-    // di una CLIENTE ("porta un'amica" → invito). Il codice coach ha la precedenza.
+    // Un codice invito può essere di uno STAFF (coach o nutrizionista: ref code →
+    // auto-assegnazione, l'unico caso senza il responsabile) oppure di una CLIENTE
+    // ("porta un'amica" → invito). Il codice staff ha la precedenza.
     const trimmedRef = dto.refCode?.trim();
-    let refKind: 'coach' | 'client' | null = null;
+    let refKind: 'staff' | 'client' | null = null;
     if (trimmedRef) {
-      const resolvedCoach = await this.leadAssignment.resolveByRefCode(trimmedRef);
-      if (resolvedCoach) {
-        refKind = 'coach';
+      const resolvedStaff = await this.leadAssignment.resolveByRefCode(trimmedRef);
+      if (resolvedStaff) {
+        refKind = 'staff';
       } else if (await this.referral.isClientCode(trimmedRef)) {
         refKind = 'client';
       }
@@ -89,8 +90,8 @@ export class AuthService {
 
     await this.issueEmailVerification(user.id, normalized, user.locale);
     await this.crm.ensureLead(user.id, normalized); // CRM: lead_in automatico
-    // Codice coach → auto-assegna la cliente alla coach (assegnazione immediata).
-    if (trimmedRef && refKind === 'coach') {
+    // Codice staff → auto-assegna la cliente alla coach o alla nutrizionista (immediata).
+    if (trimmedRef && refKind === 'staff') {
       await this.leadAssignment.autoAssignByRefCode(user.id, trimmedRef);
     }
     // Codice cliente → registra l'invito "porta un'amica" (ricompensa alla conversione).

@@ -1,13 +1,56 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
 
-interface Plan { id: string; name: string; priceCents: number; period: string; mealsPerDay: number | null; features: string[]; active: boolean; }
-interface Product { id: string; name: string; priceCents: number; description: string | null; active: boolean; commissionTeam: string; }
-const TEAM_LABEL: Record<string, string> = { both: 'Entrambi i team', coaching: 'Team coaching', nutrition: 'Team nutrizionisti' };
+interface Commissions {
+  commissionCoachCents: number;
+  commissionManagerCoachCents: number;
+  commissionNutritionistCents: number;
+  commissionHeadNutritionistCents: number;
+}
+interface Plan extends Commissions { id: string; name: string; priceCents: number; period: string; mealsPerDay: number | null; features: string[]; active: boolean; }
+interface Product extends Commissions { id: string; name: string; priceCents: number; description: string | null; active: boolean; }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
-const toCents = (s: string) => Math.round((Number(s.replace(',', '.')) || 0) * 100);
+const toCents = (s: string) => Math.round((Number((s ?? '').replace(',', '.')) || 0) * 100);
+const fromCents = (c: number | null | undefined) => (c ? (c / 100).toString().replace('.', ',') : '');
+
+/** Riepilogo compatto delle provvigioni per la tabella (mostra solo le quote > 0). */
+function commSummary(c: Commissions): string {
+  const parts: string[] = [];
+  if (c.commissionCoachCents) parts.push(`Coach ${euro(c.commissionCoachCents)}`);
+  if (c.commissionManagerCoachCents) parts.push(`Mgr coach ${euro(c.commissionManagerCoachCents)}`);
+  if (c.commissionNutritionistCents) parts.push(`Nutriz. ${euro(c.commissionNutritionistCents)}`);
+  if (c.commissionHeadNutritionistCents) parts.push(`Capo nutr. ${euro(c.commissionHeadNutritionistCents)}`);
+  return parts.length ? parts.join(' · ') : '—';
+}
+
+/** I 4 campi provvigione in €, condivisi dai form piano e prodotto. */
+function CommissionInputs({ form, set }: { form: Record<string, string>; set: (f: Record<string, string>) => void }) {
+  return (
+    <>
+      <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+        Provvigioni per questo articolo (importi fissi in €, 0 = nessuna). In caso di sconto sono ridotte in proporzione.
+      </div>
+      <Fld label="Provv. coach (€)" v={form.cCoach} on={(v) => set({ ...form, cCoach: v })} />
+      <Fld label="Provv. manager coach (€)" v={form.cMgrCoach} on={(v) => set({ ...form, cMgrCoach: v })} />
+      <Fld label="Provv. nutrizionista (€)" v={form.cNutri} on={(v) => set({ ...form, cNutri: v })} />
+      <Fld label="Provv. capo nutrizionista (€)" v={form.cHeadNutri} on={(v) => set({ ...form, cHeadNutri: v })} />
+    </>
+  );
+}
+const commBody = (f: Record<string, string>) => ({
+  commissionCoachCents: toCents(f.cCoach ?? '0'),
+  commissionManagerCoachCents: toCents(f.cMgrCoach ?? '0'),
+  commissionNutritionistCents: toCents(f.cNutri ?? '0'),
+  commissionHeadNutritionistCents: toCents(f.cHeadNutri ?? '0'),
+});
+const commFormFrom = (c: Commissions) => ({
+  cCoach: fromCents(c.commissionCoachCents),
+  cMgrCoach: fromCents(c.commissionManagerCoachCents),
+  cNutri: fromCents(c.commissionNutritionistCents),
+  cHeadNutri: fromCents(c.commissionHeadNutritionistCents),
+});
 
 export function GestioneNegozio() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -48,6 +91,7 @@ export function GestioneNegozio() {
       period: planForm.period || '3m',
       features: (planForm.features ?? '').split(',').map((s) => s.trim()).filter(Boolean),
       active: planForm.active !== 'false',
+      ...commBody(planForm),
     };
     if (planForm.mealsPerDay) body.mealsPerDay = Number(planForm.mealsPerDay);
     try {
@@ -72,7 +116,7 @@ export function GestioneNegozio() {
       priceCents: toCents(prodForm.price ?? '0'),
       description: prodForm.description || undefined,
       active: prodForm.active !== 'false',
-      commissionTeam: prodForm.team || 'both',
+      ...commBody(prodForm),
     };
     try {
       if (prodForm.id) await api(`/admin/shop/products/${prodForm.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -133,6 +177,7 @@ export function GestioneNegozio() {
                 <option value="true">Sì</option><option value="false">No</option>
               </select>
             </label>
+            <CommissionInputs form={planForm} set={setPlanForm} />
           </div>
           <div className="row" style={{ gap: 8, marginTop: 12 }}>
             <button className="btn" onClick={savePlan} disabled={busy}>Salva</button>
@@ -143,16 +188,17 @@ export function GestioneNegozio() {
 
       <div className="card" style={{ padding: 0 }}>
         <table className="grid">
-          <thead><tr><th>Nome</th><th>Prezzo</th><th>Periodo</th><th>Stato</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Prezzo</th><th>Periodo</th><th>Provvigioni</th><th>Stato</th><th></th></tr></thead>
           <tbody>
             {plans.map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td>{euro(p.priceCents)}</td>
                 <td className="muted">{p.period}</td>
+                <td className="muted" style={{ fontSize: 12 }}>{commSummary(p)}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: (p.priceCents / 100).toString().replace('.', ','), period: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active) })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), period: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), ...commFormFrom(p) })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delPlan(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>
@@ -179,13 +225,7 @@ export function GestioneNegozio() {
                 <option value="true">Sì</option><option value="false">No</option>
               </select>
             </label>
-            <label style={fld}><span>Provvigioni a</span>
-              <select className="select" value={prodForm.team ?? 'both'} onChange={(e) => setProdForm({ ...prodForm, team: e.target.value })}>
-                <option value="both">Entrambi i team</option>
-                <option value="coaching">Team coaching</option>
-                <option value="nutrition">Team nutrizionisti</option>
-              </select>
-            </label>
+            <CommissionInputs form={prodForm} set={setProdForm} />
           </div>
           <div className="row" style={{ gap: 8, marginTop: 12 }}>
             <button className="btn" onClick={saveProduct} disabled={busy}>Salva</button>
@@ -202,10 +242,10 @@ export function GestioneNegozio() {
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td>{euro(p.priceCents)}</td>
-                <td className="muted">{TEAM_LABEL[p.commissionTeam] ?? 'Entrambi i team'}</td>
+                <td className="muted" style={{ fontSize: 12 }}>{commSummary(p)}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setProdForm({ id: p.id, name: p.name, price: (p.priceCents / 100).toString().replace('.', ','), description: p.description ?? '', active: String(p.active), team: p.commissionTeam ?? 'both' })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setProdForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), description: p.description ?? '', active: String(p.active), ...commFormFrom(p) })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delProduct(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>
@@ -217,7 +257,7 @@ export function GestioneNegozio() {
   );
 }
 
-const fld: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' };
+const fld: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' };
 function Fld({ label, v, on, wide }: { label: string; v?: string; on: (v: string) => void; wide?: boolean }) {
   return (
     <label style={{ ...fld, ...(wide ? { gridColumn: '1 / -1' } : {}) }}>

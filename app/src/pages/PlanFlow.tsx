@@ -48,13 +48,19 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
             <div className="qbubble">
               <Gaia clip="percorso" size={62} controls={false} />
               <div className="bubble">
-                <TypeText segments={[
-                  { t: `${name}, il tuo percorso personalizzato è pronto. Settato secondo le indicazioni del nutrizionista e personalizzato sulle informazioni che hai fornito. La tua coach è ` },
-                  { t: coachName ?? 'in assegnazione', b: true },
-                  { t: ' e il tuo nutrizionista è ' },
-                  { t: nutriName ?? 'in assegnazione', b: true },
-                  { t: '. Sei pronta a partire?' },
-                ]} />
+                <TypeText segments={
+                  coachName || nutriName
+                    ? [
+                        { t: `${name}, il tuo percorso personalizzato è pronto. Settato secondo le indicazioni del nutrizionista e personalizzato sulle informazioni che hai fornito. La tua coach è ` },
+                        { t: coachName ?? 'in arrivo', b: true },
+                        { t: ' e il tuo nutrizionista è ' },
+                        { t: nutriName ?? 'in arrivo', b: true },
+                        { t: '. Sei pronta a partire?' },
+                      ]
+                    : [
+                        { t: `${name}, il tuo percorso personalizzato è pronto, costruito sulle informazioni che hai fornito. A breve il responsabile ti presenterà la tua coach e il tuo nutrizionista: sarà la nutrizionista a contattarti per organizzare la prima visita. Sei pronta a partire?` },
+                      ]
+                } />
               </div>
             </div>
             <div className="card result-card">
@@ -64,11 +70,16 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
             <div className="card">
               <h2>Il tuo team</h2>
               <p className="muted" style={{ margin: 0 }}>
-                Coach: <b>{result.team.coach?.displayName ?? 'in assegnazione'}</b><br />
-                Nutrizionista: <b>{result.team.nutritionist?.displayName ?? 'in assegnazione'}</b>
+                {coachName || nutriName ? (
+                  <>
+                    Coach: <b>{coachName ?? 'in arrivo'}</b><br />
+                    Nutrizionista: <b>{nutriName ?? 'in arrivo'}</b>
+                  </>
+                ) : (
+                  <>Coach e nutrizionista ti verranno presentati a breve; la nutrizionista ti contatterà per organizzare la prima visita.</>
+                )}
               </p>
             </div>
-            <div className="card"><h2>Prima visita</h2><p className="muted" style={{ margin: 0 }}>{result.firstVisit.note}</p></div>
             <button className="btn" style={{ marginTop: 18 }} onClick={() => setStep(1)}>Scegli il piano</button>
             <button className="btn ghost" style={{ marginTop: 10 }} onClick={onDone}>Lo faccio dopo</button>
           </div>

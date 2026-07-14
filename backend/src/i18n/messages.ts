@@ -183,6 +183,13 @@ const it: Catalog = {
       '<p>Il tuo pagamento è stato confermato. 🎉</p><table style="border-collapse:collapse"><tr><td style="padding:4px 12px 4px 0"><strong>Descrizione</strong></td><td>{description}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Importo</strong></td><td>€ {amount}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Data</strong></td><td>{date}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Riferimento</strong></td><td>{paymentId}</td></tr></table><p>Conserva questa email come ricevuta. Il tuo percorso è attivo: ti aspettiamo nell\'app!</p>',
     ],
   },
+  'mail.refund.subject': { title: '', variants: ['Metabole — ricevuta di rimborso'] },
+  'mail.refund.body': {
+    title: '',
+    variants: [
+      '<p>Ti confermiamo lo storno del tuo acquisto.</p><table style="border-collapse:collapse"><tr><td style="padding:4px 12px 4px 0"><strong>Descrizione</strong></td><td>{description}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Importo rimborsato</strong></td><td>€ {amount}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Data</strong></td><td>{date}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Riferimento</strong></td><td>{paymentId}</td></tr></table><p>Il riaccredito segue i tempi del metodo di pagamento originale. In allegato trovi la ricevuta di rimborso.</p>',
+    ],
+  },
   'mail.notification.subject': { title: '', variants: ['Metabole — {title}'] },
   'mail.notification.body': {
     title: '',
@@ -352,6 +359,13 @@ const en: Catalog = {
     title: '',
     variants: [
       '<p>Your payment has been confirmed. 🎉</p><table style="border-collapse:collapse"><tr><td style="padding:4px 12px 4px 0"><strong>Description</strong></td><td>{description}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Amount</strong></td><td>€ {amount}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Date</strong></td><td>{date}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Reference</strong></td><td>{paymentId}</td></tr></table><p>Keep this email as your receipt. Your journey is active: see you in the app!</p>',
+    ],
+  },
+  'mail.refund.subject': { title: '', variants: ['Metabole — refund receipt'] },
+  'mail.refund.body': {
+    title: '',
+    variants: [
+      '<p>We confirm the refund of your purchase.</p><table style="border-collapse:collapse"><tr><td style="padding:4px 12px 4px 0"><strong>Description</strong></td><td>{description}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Refunded amount</strong></td><td>€ {amount}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Date</strong></td><td>{date}</td></tr><tr><td style="padding:4px 12px 4px 0"><strong>Reference</strong></td><td>{paymentId}</td></tr></table><p>The credit follows the timing of your original payment method. The refund receipt is attached.</p>',
     ],
   },
   'mail.notification.subject': { title: '', variants: ['Metabole — {title}'] },

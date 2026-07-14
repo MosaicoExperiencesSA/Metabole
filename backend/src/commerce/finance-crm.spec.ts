@@ -39,9 +39,21 @@ describe('FinanceService (eventi economici automatici)', () => {
           assignedNutritionist: { managerId: 'staff-hn' },
         }),
       },
-      // Nessun ordine collegato → base provvigioni = amountCents del pagamento.
+      // Le provvigioni ora sono importi in € sul PIANO dell'abbonamento (non %).
+      // Piano da 297€ con quote: coach 29,70 · mgr 8,91 · nutri 44,55 · capo 14,85.
       payment: {
-        findUnique: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue({
+          subscription: {
+            plan: {
+              priceCents: 29700,
+              commissionCoachCents: 2970,
+              commissionManagerCoachCents: 891,
+              commissionNutritionistCents: 4455,
+              commissionHeadNutritionistCents: 1485,
+            },
+          },
+          order: null,
+        }),
       },
     };
     const moduleRef = await Test.createTestingModule({
@@ -52,15 +64,7 @@ describe('FinanceService (eventi economici automatici)', () => {
           provide: ConfigParamsService,
           useValue: {
             getNumber: jest.fn((key: string) =>
-              Promise.resolve(
-                ({
-                  commission_coach_percent: 10,
-                  commission_manager_coach_percent: 3,
-                  commission_nutritionist_percent: 15,
-                  commission_head_nutritionist_percent: 5,
-                  visit_compensation_amount_cents: 4000,
-                } as Record<string, number>)[key],
-              ),
+              Promise.resolve(({ visit_compensation_amount_cents: 4000 } as Record<string, number>)[key]),
             ),
           },
         },
@@ -70,7 +74,7 @@ describe('FinanceService (eventi economici automatici)', () => {
     service = moduleRef.get(FinanceService);
   });
 
-  it('provvigioni a catena: coach 10% + manager 3% + nutrizionista 15% + capo 5%, expense a ledger', async () => {
+  it('provvigioni a catena dagli importi € del piano: coach 29,70 + mgr 8,91 + nutri 44,55 + capo 14,85, expense a ledger', async () => {
     await service.generateCommissions({ id: 'pay-1', clientId: 'c1', amountCents: 29700 });
     const upserts = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create);
     expect(upserts).toEqual(
@@ -92,6 +96,10 @@ describe('FinanceService (eventi economici automatici)', () => {
       assignedCoach: { managerId: null },
       assignedNutritionist: { managerId: null },
     });
+    prisma.payment.findUnique.mockResolvedValueOnce({
+      subscription: { plan: { priceCents: 10000, commissionCoachCents: 1000, commissionManagerCoachCents: 300, commissionNutritionistCents: 1500, commissionHeadNutritionistCents: 500 } },
+      order: null,
+    });
     await service.generateCommissions({ id: 'pay-2', clientId: 'c1', amountCents: 10000 });
     const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
     expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-n']));
@@ -106,11 +114,15 @@ describe('FinanceService (eventi economici automatici)', () => {
       assignedCoach: { managerId: 'staff-mc' },
       assignedNutritionist: null,
     });
+    prisma.payment.findUnique.mockResolvedValueOnce({
+      subscription: { plan: { priceCents: 10000, commissionCoachCents: 1000, commissionManagerCoachCents: 300, commissionNutritionistCents: 1500, commissionHeadNutritionistCents: 500 } },
+      order: null,
+    });
     await service.generateCommissions({ id: 'pay-3', clientId: 'c1', amountCents: 10000 });
     // coach + manager pagati subito
     const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
     expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-mc']));
-    // nutrizionista + capo accantonati (15% e 5% di 10000)
+    // nutrizionista + capo accantonati (importi € del piano)
     const pendings = prisma.pendingCommission.create.mock.calls.map((c: any) => c[0].data);
     expect(pendings).toEqual(
       expect.arrayContaining([
@@ -171,7 +183,21 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         ]),
       },
       ledgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 89100 } }) },
+      crmList: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'L1', name: 'Storici 2024', color: null, _count: { members: 3 } },
+          { id: 'L2', name: 'Keto', color: '#33B190', _count: { members: 0 } },
+        ]),
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'Lnew', ...data })),
+        update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'L1', ...data })),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      crmListMember: { deleteMany: jest.fn(), upsert: jest.fn() },
+      staff: { findMany: jest.fn().mockResolvedValue([{ id: 'staff-c', refCode: 'VOLPEA01' }]) },
+      $transaction: jest.fn().mockResolvedValue([]),
     };
+    prisma.crmRecord.findFirst = jest.fn().mockResolvedValue(null);
+    prisma.crmRecord.create = jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'new1', ...data }));
     const pipeline = {
       stageKeys: jest.fn().mockResolvedValue(new Set(['lead_in', 'worked', 'paid', 'coach_assigned', 'coach_call', 'nutritionist_assigned', 'first_visit', 'follow_up'])),
       listStages: jest.fn().mockResolvedValue([
@@ -224,5 +250,80 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     expect(dash.totalLeads).toBe(10);
     expect(dash.conversionToPaidPercent).toBe(40); // (3 paid + 1 first_visit) / 10
     expect(dash.monthIncomeCents).toBe(89100);
+  });
+
+  it('listLists espone il numero di membri per lista', async () => {
+    const lists: any = await service.listLists();
+    expect(lists).toEqual([
+      expect.objectContaining({ id: 'L1', name: 'Storici 2024', memberCount: 3 }),
+      expect.objectContaining({ id: 'L2', name: 'Keto', memberCount: 0 }),
+    ]);
+    expect(lists[0]._count).toBeUndefined(); // _count non deve trapelare
+  });
+
+  it('setLeadLists rimpiazza le appartenenze (upsert per lista + deleteMany fuori insieme)', async () => {
+    prisma.crmRecord.findUnique.mockImplementation(({ select }: any) =>
+      select
+        ? Promise.resolve({ id: 'lead1' })
+        : Promise.resolve({ id: 'lead1', reminders: [], listMemberships: [{ list: { id: 'L1', name: 'Storici 2024', color: null } }] }),
+    );
+    const res: any = await service.setLeadLists('sales-user', 'lead1', ['L1', 'L1', 'L2']); // dedup
+    expect(prisma.crmListMember.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.crmListMember.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { recordId: 'lead1', listId: { notIn: ['L1', 'L2'] } } }),
+    );
+    expect(res.lists).toEqual([{ id: 'L1', name: 'Storici 2024', color: null }]); // detail appiattisce
+  });
+
+  it('setLeadLists solleva NotFound se il lead non esiste', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue(null);
+    await expect(service.setLeadLists('u', 'x', ['L1'])).rejects.toThrow('Lead non trovato');
+  });
+
+  it('detail appiattisce listMemberships in lists e non espone il grezzo', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue({
+      id: 'lead1', reminders: [], listMemberships: [{ list: { id: 'L2', name: 'Keto', color: '#33B190' } }],
+    });
+    const d: any = await service.detail('lead1');
+    expect(d.lists).toEqual([{ id: 'L2', name: 'Keto', color: '#33B190' }]);
+    expect(d.listMemberships).toBeUndefined();
+  });
+
+  it('import dryRun: conta creati/uniti e nuove liste, senza scrivere', async () => {
+    prisma.crmRecord.findFirst
+      .mockResolvedValueOnce(null)            // riga 1 → nuovo
+      .mockResolvedValueOnce({ id: 'esiste' }); // riga 2 → già presente
+    const s: any = await service.importRows('admin', [
+      { phone: '3331234567', name: 'Anna', lists: 'Storici 2024|NuovaLista', coachRefCode: 'volpea01' },
+      { email: 'gia@x.it', lists: 'Keto' },
+      { name: 'senza chiave' }, // saltato
+    ], true);
+    expect(s.created).toBe(1);
+    expect(s.merged).toBe(1);
+    expect(s.skipped).toBe(1);
+    expect(s.coachAssigned).toBe(1); // volpea01 → staff-c
+    expect(s.newLists).toContain('nuovalista'); // "Storici 2024" e "Keto" esistono già
+    expect(prisma.crmRecord.create).not.toHaveBeenCalled(); // dryRun non scrive
+    expect(prisma.crmList.create).not.toHaveBeenCalled();
+  });
+
+  it('import reale: crea il record, aggancia le liste e assegna la coach dal refcode', async () => {
+    prisma.crmRecord.findFirst.mockResolvedValue(null);
+    const s: any = await service.importRows('admin', [
+      { phone: '+39 333 1234567', name: 'Anna', lists: 'Storici 2024', coachRefCode: 'VOLPEA01', historicalPaidCents: 9900 },
+    ], false);
+    expect(s.created).toBe(1);
+    expect(prisma.crmRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          phone: '393331234567', // solo cifre
+          assignedCoachId: 'staff-c',
+          assignmentStatus: 'accepted',
+          historicalPaidCents: 9900,
+        }),
+      }),
+    );
+    expect(prisma.crmListMember.upsert).toHaveBeenCalled(); // agganciata la lista
+    expect(s.coachAssigned).toBe(1);
   });
 });

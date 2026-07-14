@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBase64,
   IsBoolean,
@@ -141,6 +142,57 @@ class UpdateLeadInfoDto {
   @IsInt()
   @Min(0)
   valueCents?: number;
+
+  // Storico importato dalle liste pre-Metabole (informativo).
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  previousStatus?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  historicalPaidCents?: number | null;
+}
+
+class SetLeadListsDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  listIds!: string[];
+}
+
+// Nessun limite di lunghezza qui: i dati storici possono avere campi sporchi
+// (nomi concatenati, ecc.). Il servizio tronca i campi troppo lunghi invece di
+// far fallire l'intero lotto per una singola riga anomala.
+class ImportRowDto {
+  @IsOptional() @IsString() email?: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() lists?: string; // separate da '|'
+  @IsOptional() @IsString() previousStatus?: string;
+  @IsOptional() @IsInt() historicalPaidCents?: number;
+  @IsOptional() @IsString() coachRefCode?: string;
+}
+
+class ImportLeadsDto {
+  @IsBoolean() dryRun!: boolean;
+  @IsArray()
+  @ArrayMaxSize(2000)
+  @ValidateNested({ each: true })
+  @Type(() => ImportRowDto)
+  rows!: ImportRowDto[];
+}
+
+class CreateCrmListDto {
+  @IsString() @MinLength(1) @MaxLength(80) name!: string;
+  @IsOptional() @IsString() @MaxLength(300) description?: string;
+  @IsOptional() @IsString() @MaxLength(9) color?: string;
+}
+
+class UpdateCrmListDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(80) name?: string;
+  @IsOptional() @IsString() @MaxLength(300) description?: string;
+  @IsOptional() @IsString() @MaxLength(9) color?: string;
 }
 
 /** Piani e prodotti pubblici (per landing e app). */
@@ -246,6 +298,18 @@ class CreateManualPurchaseDto {
   discountCode?: string | null;
 }
 
+class RefundPurchaseDto {
+  /** Importo del rimborso in centesimi (l'operatore lo decide: anche parziale). */
+  @IsInt()
+  @Min(1)
+  amountCents!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  note?: string | null;
+}
+
 /** Acquisti: elenco completo, ricevuta PDF, inserimento manuale (operatore). */
 @Controller('admin/purchases')
 @Roles('admin', 'sales')
@@ -273,6 +337,19 @@ export class AdminPurchasesController {
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.commerce.deletePurchase(id, user.sub);
+  }
+
+  /** Storno: registra il rimborso, blocca i menu e storna le provvigioni in proporzione. */
+  @Roles('admin')
+  @HttpCode(200)
+  @Post(':id/refund')
+  refund(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: RefundPurchaseDto) {
+    return this.commerce.refundPurchase(id, user.sub, dto);
+  }
+
+  @Get(':id/refund-receipt-pdf')
+  refundReceiptPdf(@Param('id') id: string) {
+    return this.commerce.generateRefundReceiptPdf(id);
   }
 }
 
@@ -340,8 +417,8 @@ export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
   @Get()
-  list(@Query('stage') stage?: string) {
-    return this.crm.list({ stage });
+  list(@Query('stage') stage?: string, @Query('listId') listId?: string) {
+    return this.crm.list({ stage, listId });
   }
 
   @Post()
@@ -362,6 +439,49 @@ export class CrmController {
   @Patch(':id/info')
   updateInfo(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateLeadInfoDto) {
     return this.crm.updateInfo(user.sub, id, dto);
+  }
+
+  /** Imposta le liste di un lead (rimpiazza le appartenenze). */
+  @Post(':id/lists')
+  @HttpCode(200)
+  setLists(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetLeadListsDto) {
+    return this.crm.setLeadLists(user.sub, id, dto.listIds);
+  }
+
+  /** Import liste storiche (solo admin): un lotto per volta, con dry-run per l'anteprima. */
+  @Roles('admin')
+  @Post('import')
+  @HttpCode(200)
+  import(@CurrentUser() user: AuthUser, @Body() dto: ImportLeadsDto) {
+    return this.crm.importRows(user.sub, dto.rows, dto.dryRun);
+  }
+}
+
+/** Liste CRM: raggruppamenti manuali di lead/clienti. */
+@Controller('crm/lists')
+@Roles('coach', 'sales', 'head_nutritionist', 'admin')
+export class CrmListsController {
+  constructor(private readonly crm: CrmService) {}
+
+  @Get()
+  list() {
+    return this.crm.listLists();
+  }
+
+  @Post()
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateCrmListDto) {
+    return this.crm.createList(user.sub, dto);
+  }
+
+  @Patch(':id')
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateCrmListDto) {
+    return this.crm.updateList(user.sub, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crm.deleteList(user.sub, id);
   }
 }
 

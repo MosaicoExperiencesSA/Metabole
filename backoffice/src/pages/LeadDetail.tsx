@@ -30,6 +30,10 @@ interface LeadDetailData {
   assignedCoachId: string | null;
   assignedCoach: { id: string; displayName: string } | null;
   assignmentStatus: string | null;
+  phone: string | null;
+  previousStatus: string | null;
+  historicalPaidCents: number | null;
+  lists: CrmList[];
   client: {
     email: string;
     phone: string | null;
@@ -39,6 +43,7 @@ interface LeadDetailData {
   reminders: Reminder[];
 }
 interface Coach { id: string; displayName: string }
+interface CrmList { id: string; name: string; color: string | null; memberCount?: number }
 
 const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
 const fmtDateTime = (s?: string | null) =>
@@ -62,7 +67,14 @@ export function LeadDetail() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [valueEuro, setValueEuro] = useState('');
+  const [prevStatus, setPrevStatus] = useState('');
+  const [histPaidEuro, setHistPaidEuro] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Liste CRM
+  const [allLists, setAllLists] = useState<CrmList[]>([]);
+  const [newListName, setNewListName] = useState('');
+  const [listBusy, setListBusy] = useState(false);
 
   // Nuovo promemoria
   const [remTitle, setRemTitle] = useState('');
@@ -73,12 +85,19 @@ export function LeadDetail() {
     setLoading(true);
     setError(null);
     try {
-      const [l, st] = await Promise.all([api<LeadDetailData>(`/crm/leads/${id}`), api<Stage[]>('/crm/stages')]);
+      const [l, st, lists] = await Promise.all([
+        api<LeadDetailData>(`/crm/leads/${id}`),
+        api<Stage[]>('/crm/stages'),
+        api<CrmList[]>('/crm/lists').catch(() => [] as CrmList[]),
+      ]);
       setLead(l);
       setStages(st);
+      setAllLists(lists);
       setName(l.name ?? '');
       setEmail(l.email ?? '');
       setValueEuro(l.valueCents != null ? String(l.valueCents / 100) : '');
+      setPrevStatus(l.previousStatus ?? '');
+      setHistPaidEuro(l.historicalPaidCents != null ? String(l.historicalPaidCents / 100) : '');
       if (canAssignCoach) { try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ } }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -100,10 +119,20 @@ export function LeadDetail() {
         setError('Valore non valido.');
         return;
       }
-      const body: Record<string, unknown> = { name: name.trim(), email: email.trim() };
+      const histCents = histPaidEuro.trim() === '' ? null : Math.round(Number(histPaidEuro.replace(',', '.')) * 100);
+      if (histCents !== null && (!Number.isFinite(histCents) || histCents < 0)) {
+        setError('Totale storico non valido.');
+        return;
+      }
+      const body: Record<string, unknown> = {
+        name: name.trim(),
+        email: email.trim(),
+        previousStatus: prevStatus.trim(),
+        historicalPaidCents: histCents,
+      };
       if (valueCents !== undefined) body.valueCents = valueCents;
       const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/info`, { method: 'PATCH', body: JSON.stringify(body) });
-      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents });
+      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents });
       setNotice('Dati salvati.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Salvataggio non riuscito.');
@@ -164,6 +193,43 @@ export function LeadDetail() {
     }
   }
 
+  // Attiva/disattiva l'appartenenza del lead a una lista (set = rimpiazza).
+  async function toggleList(listId: string) {
+    if (!lead) return;
+    setListBusy(true);
+    setError(null);
+    try {
+      const current = new Set(lead.lists.map((l) => l.id));
+      if (current.has(listId)) current.delete(listId);
+      else current.add(listId);
+      const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/lists`, { method: 'POST', body: JSON.stringify({ listIds: [...current] }) });
+      setLead({ ...lead, lists: updated.lists });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Aggiornamento liste non riuscito.');
+    } finally {
+      setListBusy(false);
+    }
+  }
+
+  // Crea una nuova lista e ci aggiunge subito il lead.
+  async function createAndAddList() {
+    if (!lead || !newListName.trim()) return;
+    setListBusy(true);
+    setError(null);
+    try {
+      const created = await api<CrmList>('/crm/lists', { method: 'POST', body: JSON.stringify({ name: newListName.trim() }) });
+      setAllLists((ls) => [...ls, created].sort((a, b) => a.name.localeCompare(b.name)));
+      const ids = [...new Set([...lead.lists.map((l) => l.id), created.id])];
+      const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/lists`, { method: 'POST', body: JSON.stringify({ listIds: ids }) });
+      setLead({ ...lead, lists: updated.lists });
+      setNewListName('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Creazione lista non riuscita.');
+    } finally {
+      setListBusy(false);
+    }
+  }
+
   async function doImpersonate() {
     if (!lead?.clientId) return;
     setError(null);
@@ -207,8 +273,18 @@ export function LeadDetail() {
             <h2 style={{ marginTop: 0, marginBottom: 4 }}>{displayName}</h2>
             <p className="muted" style={{ margin: 0, fontSize: 13 }}>
               {lead.client?.email ?? lead.email ?? '—'}
+              {(lead.client?.phone ?? lead.phone) && <span> · {lead.client?.phone ?? lead.phone}</span>}
               {!lead.client && <span className="chip amber" style={{ marginLeft: 8, fontSize: 10 }}>lead</span>}
             </p>
+            {lead.lists.length > 0 && (
+              <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                {lead.lists.map((l) => (
+                  <span key={l.id} className="chip" style={{ fontSize: 11, borderColor: l.color ?? undefined, color: l.color ?? undefined }}>
+                    <i className="ti ti-tag" style={{ fontSize: 12, marginRight: 3 }} />{l.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: 'right', fontSize: 13 }} className="muted">
             <div>Creato il {fmtDate(lead.createdAt)}</div>
@@ -252,6 +328,41 @@ export function LeadDetail() {
       </div>
 
       <div className="card">
+        <h2 style={{ marginTop: 0 }}>Liste</h2>
+        <p className="hint">Raggruppa questo contatto in una o più liste. Le liste servono a filtrare le viste CRM.</p>
+        {allLists.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13 }}>Nessuna lista ancora. Creane una qui sotto.</p>
+        ) : (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            {allLists.map((l) => {
+              const on = lead.lists.some((x) => x.id === l.id);
+              return (
+                <button
+                  key={l.id}
+                  className={`chip ${on ? '' : 'gray'}`}
+                  disabled={listBusy}
+                  onClick={() => toggleList(l.id)}
+                  style={{ cursor: 'pointer', borderColor: on ? l.color ?? undefined : undefined, color: on ? l.color ?? undefined : undefined }}
+                  title={on ? 'Rimuovi dalla lista' : 'Aggiungi alla lista'}
+                >
+                  <i className={`ti ${on ? 'ti-check' : 'ti-plus'}`} style={{ fontSize: 12, marginRight: 3 }} />{l.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="row" style={{ gap: 8, alignItems: 'flex-end' }}>
+          <div className="field" style={{ minWidth: 220 }}>
+            <label>Nuova lista</label>
+            <input className="input" value={newListName} onChange={(e) => setNewListName(e.target.value)} placeholder="Es. Clienti storici 2024" onKeyDown={(e) => { if (e.key === 'Enter') createAndAddList(); }} />
+          </div>
+          <button className="btn ghost" onClick={createAndAddList} disabled={listBusy || !newListName.trim()} style={{ marginBottom: 14 }}>
+            <i className="ti ti-plus" /> Crea e aggiungi
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
         <h2 style={{ marginTop: 0 }}>Dati del lead</h2>
         {lead.clientId ? (
           <p className="hint">
@@ -278,6 +389,17 @@ export function LeadDetail() {
             <input className="input" inputMode="decimal" value={valueEuro} onChange={(e) => setValueEuro(e.target.value)} placeholder="Es. 290" />
           </div>
         </div>
+        <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 4 }}>
+          <div className="field" style={{ minWidth: 220 }}>
+            <label>Stato precedente (storico)</label>
+            <input className="input" value={prevStatus} onChange={(e) => setPrevStatus(e.target.value)} placeholder="Es. Cliente 2023, disdetto" />
+          </div>
+          <div className="field" style={{ maxWidth: 180 }}>
+            <label>Totale già pagato (storico €)</label>
+            <input className="input" inputMode="decimal" value={histPaidEuro} onChange={(e) => setHistPaidEuro(e.target.value)} placeholder="Es. 1490" />
+          </div>
+        </div>
+        <p className="hint">I campi "storico" arrivano dalle liste importate (esperienze precedenti del cliente): sono solo informativi, non entrano nella contabilità Metabole.</p>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn" onClick={saveInfo} disabled={saving}>
             <i className="ti ti-device-floppy" /> {saving ? 'Salvataggio…' : 'Salva'}
