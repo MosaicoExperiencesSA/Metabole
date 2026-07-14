@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { Spinner } from './components/ui';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
+import { CambioPasswordObbligatorio } from './pages/CambioPasswordObbligatorio';
 import { Placeholder } from './pages/Placeholder';
 import { Acquisti } from './pages/Acquisti';
 import { BuoniSconto } from './pages/BuoniSconto';
@@ -47,6 +48,8 @@ function Protected({ title, pageKey, children }: { title: string; pageKey?: stri
   const location = useLocation();
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  // Account creato dall'admin con password provvisoria: blocca tutto finché non la cambia.
+  if (user.mustChangePassword) return <CambioPasswordObbligatorio />;
   if (pageKey && !can(pageKey)) {
     return (
       <Layout title={title}>

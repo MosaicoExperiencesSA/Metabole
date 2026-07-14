@@ -19,6 +19,7 @@ const PUBLIC_USER_SELECT = {
   customRole: { select: { key: true, label: true, color: true, baseRole: true } },
   locale: true,
   status: true,
+  mustChangePassword: true,
   emailVerifiedAt: true,
   firstName: true,
   lastName: true,
@@ -155,7 +156,8 @@ export class UsersService {
     const ok = await argon2.verify(user.passwordHash, currentPassword).catch(() => false);
     if (!ok) throw new BadRequestException('La password attuale non è corretta.');
     const passwordHash = await argon2.hash(newPassword);
-    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    // Cambio riuscito → l'eventuale obbligo di cambio al primo accesso è assolto.
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: false } });
     await this.audit.log({ action: 'me.password.change', actorId: userId, entityType: 'user', entityId: userId });
     return { changed: true };
   }
@@ -230,6 +232,7 @@ export class UsersService {
       customRoleKey?: string | null;
       locale?: string;
       displayName?: string;
+      mustChangePassword?: boolean;
     },
     actorId: string,
   ) {
@@ -243,7 +246,14 @@ export class UsersService {
 
     const passwordHash = await argon2.hash(data.password);
     const user = await this.prisma.user.create({
-      data: { email, passwordHash, role: systemRole, customRoleKey, locale: data.locale ?? 'it' },
+      data: {
+        email,
+        passwordHash,
+        role: systemRole,
+        customRoleKey,
+        locale: data.locale ?? 'it',
+        mustChangePassword: data.mustChangePassword ?? false,
+      },
       select: PUBLIC_USER_SELECT,
     });
 

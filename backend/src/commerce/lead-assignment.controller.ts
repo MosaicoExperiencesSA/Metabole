@@ -22,6 +22,13 @@ class RejectDto {
   @MaxLength(300)
   reason?: string;
 }
+class RefCodeDto {
+  /** Codice scelto dall'admin (3-12 caratteri, lettere/numeri); assente = casuale. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(12)
+  code?: string;
+}
 
 @Controller('crm')
 export class LeadAssignmentController {
@@ -85,11 +92,11 @@ export class LeadAssignmentController {
     return this.svc.reject(id, user.sub, dto.reason);
   }
 
-  /** Genera il ref code di una coach (admin). */
+  /** Genera (o imposta, con body.code) il ref code di una coach (admin). */
   @Roles('admin')
   @HttpCode(200)
   @Post('coaches/:userId/refcode')
-  refcode(@Param('userId') userId: string, @CurrentUser() user: AuthUser) {
-    return this.svc.generateRefCode(userId, user.sub);
+  refcode(@Param('userId') userId: string, @Body() dto: RefCodeDto, @CurrentUser() user: AuthUser) {
+    return this.svc.generateRefCode(userId, user.sub, dto.code);
   }
 }

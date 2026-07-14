@@ -7,7 +7,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   coach: 'Coach',
   nutritionist: 'Nutrizionista',
   head_nutritionist: 'Capo nutrizionista',
-  sales: 'Resp. Coach Team',
+  sales: 'Responsabile Coach',
   marketing: 'Marketing',
   head_marketing: 'Responsabile Marketing',
   admin: 'Admin',
