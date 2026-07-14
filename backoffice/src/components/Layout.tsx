@@ -66,6 +66,7 @@ const NAV: NavSection[] = [
     items: [
       { key: 'marketing', label: 'Marketing', to: '/marketing', icon: 'ti-speakerphone' },
       { key: 'marketing', label: 'Testimonianze', to: '/testimonianze', icon: 'ti-quote' },
+      { key: 'marketing', label: 'Publisher social', to: '/publisher', icon: 'ti-send' },
     ],
   },
   {
