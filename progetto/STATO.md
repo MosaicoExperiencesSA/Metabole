@@ -1,6 +1,6 @@
 # Metabole — Stato del progetto
 
-Ultimo aggiornamento: 2026-07-13 · Aggiornare la voce quando qualcosa cambia (e loggare in `REGISTRO.md`).
+Ultimo aggiornamento: 2026-07-14 · Aggiornare la voce quando qualcosa cambia (e loggare in `REGISTRO.md`).
 
 Legenda: ✅ fatto · 🟡 in corso/parziale · ⬜ da fare
 
@@ -32,6 +32,16 @@ segreti fuori dal repo, `docs/` pubblica, dati sanitari cifrati, soglie in `conf
 - Demo prototipi via **GitHub Pages** su `docs/` (cartella pubblica). ✅
 - Regola: chiavi/segreti solo nei pannelli servizi, mai nel repo né in chat. Dettagli: `../Metabole_Guida_Pubblicazione.pdf`.
 - Migrazioni versionate in `backend/prisma/migrations`; il type-check reale gira su Render (client Prisma non generabile in sandbox).
+
+## Sito di presentazione (metabole.eu) ✅
+- **LIVE su https://metabole.eu** (hosting SiteGround, `public_html`; il WordPress preinstallato resta
+  intatto: la homepage statica vince grazie a `DirectoryIndex index.html index.php` in `.htaccess`). ✅
+- Pagine pubblicate: home (`index.html` = `Metabole_Sito_Presentazione.html`), Blog, Lavora con noi,
+  Privacy, Cookie, Termini + `favicon.svg` (mascotte Gaia). ✅
+- Collegato al backend (per `Istruzioni_Claude_Sito_Metabole.md`): stats/percorsi/testimonianze dinamici,
+  form lead → CRM (honeypot verificato). CORS ok da metabole.eu e www. ✅
+- Aggiornamento: dopo ogni push dei file del sito, ricopiare su SiteGround (lo fa Claude Cowork su
+  richiesta) e svuotare la Cache Dinamica. ✅
 
 ## Backend (NestJS) — moduli presenti
 Auth (JWT+refresh rotante, RBAC), Users/Profile, Onboarding, Signals (misure/checkin/acqua/passi/progress),

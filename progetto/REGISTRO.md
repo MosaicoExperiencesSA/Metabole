@@ -7,6 +7,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Sito di presentazione LIVE su metabole.eu + favicon Gaia** — pubblicato su SiteGround
+  (`public_html`) il sito v4 completo: home + Blog/Lavora/Privacy/Cookie/Termini; WordPress preinstallato
+  accantonato senza cancellarlo (`DirectoryIndex index.html index.php` in `.htaccess`). Collaudo go-live da
+  `Istruzioni_Claude_Sito_Metabole.md`: endpoint pubblici 200 con CORS ok da metabole.eu e www, sezioni
+  dinamiche popolate (stats/percorsi/testimonianze), form lead → CRM verificato (lead di prova "Test GoLive
+  Claude" da cancellare), honeypot che scarta. Aggiunta **favicon Gaia** (`favicon.svg` dalla mascotte
+  `#gaiaMascot` + PNG 32px inline) su tutte le pagine. → nota: dopo ogni modifica ai file del sito nel repo,
+  ricopiare su SiteGround e svuotare la Cache Dinamica.
+
 
 - `[Prodotto/Sviluppo]` **Keto inserito nel motore + PDF Metodo/Audit + 12 regole nel wizard "Costruisci nuovo percorso"** — (1) **Motore**: base Keto approvata caricata come catalogo **isolato** del prodotto Keto — `backend/prisma/data/keto_catalog.json` (**118 ricette** per pasto con kcal, metodi di cottura, tag keto/veg; **8 giornate bilanciate** ~1450 kcal) + `backend/prisma/seed_keto.ts` (idempotente, crea Recipe + Diet `style:keto` con dayTemplates, isolato per prodotto) agganciato in `seed.ts` (`seedKetoCatalog`). (2) **PDF**: `Metabole_Metodo_Motore_Intelligente.pdf` (Fase A R1–R7 + Fase B R8–R12, mappa "dove agisce l'agente") e `Metabole_Audit_Personalizzazione.pdf` (verifica: ogni menu personalizzato e muta sui bisogni; parità Keto↔Mediterranea; rischi/presidi). (3) **Wizard** `Metabole_Wizard_Crea_Prodotto.html`: nuovo pannello con le **12 regole** in 2 fasi, R8+ marcate come **agente AI**, titolo "Costruisci nuovo percorso · nutrizionista/admin". → impatto [Sviluppo]: rivedere `seed_keto.ts` (grammature reali le fissa il nutrizionista); il seed è idempotente e non tocca cataloghi già popolati.
 
