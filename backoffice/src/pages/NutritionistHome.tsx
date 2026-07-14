@@ -39,7 +39,7 @@ interface Queue {
 }
 
 export function NutritionistHome() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [dash, setDash] = useState<Dash | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<Queue | null>(null);
@@ -179,6 +179,24 @@ export function NutritionistHome() {
           )}
         </div>
       </div>
+
+      {/* Modulo Regole del motore — solo il capo nutrizionista */}
+      {can('engine_rules', 'manage') && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="spread" style={{ alignItems: 'flex-start' }}>
+            <div>
+              <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <i className="ti ti-adjustments-cog" style={{ fontSize: 20, color: 'var(--deep)' }} />
+                <h2 style={{ margin: 0 }}>Regole del motore</h2>
+              </div>
+              <p className="muted" style={{ fontSize: 13.5, margin: '6px 0 0' }}>
+                Gestisci le regole globali del motore, le regole base suggerite per tipo di nutrizione e le proposte di nuove regole.
+              </p>
+            </div>
+            <Link className="btn" to="/regole-motore"><i className="ti ti-arrow-right" /> Apri</Link>
+          </div>
+        </div>
+      )}
     </>
   );
 }

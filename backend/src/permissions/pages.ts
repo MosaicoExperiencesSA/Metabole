@@ -31,6 +31,7 @@ export const BACKOFFICE_PAGES = [
   'assign_coach',
   'assign_nutritionist',
   'engine_config',
+  'engine_rules',
   'audit_logs',
   'permissions',
   'email_templates',
@@ -95,6 +96,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     assignments: { view: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista
     engine_config: { view: true },
+    engine_rules: { view: true, manage: true }, // regole del motore: le gestisce SOLO il capo nutrizionista
     lead_acceptance: { view: true },
   },
   sales: {
@@ -151,6 +153,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     assign_coach: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true },
     engine_config: { view: true, manage: true },
+    engine_rules: { view: true }, // l'admin vede le regole del motore (gestione al capo nutrizionista)
     audit_logs: { view: true },
     permissions: { view: true, manage: true },
     email_templates: { view: true, manage: true },

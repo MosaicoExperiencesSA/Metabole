@@ -8,6 +8,7 @@ import { PrismaClient, ConfigParamType } from '@prisma/client';
 import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS } from '../src/permissions/pages';
 import { ROLES } from '../src/common/roles';
 import { DEFAULT_PDF_TEMPLATES } from '../src/pdf/pdf.defaults';
+import { SUGGESTED_PRESETS } from '../src/engine-rules/engine-rules.presets';
 import { seedKetoCatalog } from './seed_keto';
 
 const prisma = new PrismaClient();
@@ -163,6 +164,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     value: '15',
     type: 'number',
     description: 'Tolleranza kcal (%) entro cui una ricetta "gemella" (stesso gruppo di equivalenza, preparazione diversa) è accettata per la ripetizione bigiornaliera del giorno 2',
+  },
+  {
+    key: 'menu_maintenance_w_eff',
+    value: '0.1',
+    type: 'number',
+    description: 'R12 — peso dell\'efficacia (calo peso appreso) in MANTENIMENTO: RIDOTTO ma non zero (0,1 quando il dimagrimento vale 1). Il mantenimento non spinge al deficit ma non ignora del tutto l\'efficacia; resta prioritario il gradimento',
   },
   {
     key: 'cycle_default_rating',
@@ -795,6 +802,33 @@ async function seedEquivalenceGroups(): Promise<void> {
   console.log(`Seed: ${GROUPS.length} gruppi di equivalenza inseriti (draft, da validare).`);
 }
 
+/**
+ * Regole BASE suggerite per tipo di nutrizione (letteratura), flag `suggested=true`.
+ * Idempotente: semina SOLO se la tabella è vuota, così non sovrascrive le modifiche
+ * fatte dal capo nutrizionista ai preset.
+ */
+async function seedRulePresets(): Promise<void> {
+  const existing = await prisma.rulePreset.count();
+  if (existing > 0) return;
+  for (const p of SUGGESTED_PRESETS) {
+    await prisma.rulePreset.create({
+      data: {
+        style: p.style,
+        label: p.label,
+        description: p.description,
+        regime: p.regime ?? null,
+        objective: p.objective ?? null,
+        rules: p.rules as never,
+        clinicalNotes: p.clinicalNotes ?? null,
+        source: p.source ?? null,
+        suggested: true,
+        sortOrder: p.sortOrder,
+      },
+    });
+  }
+  console.log(`Seed: ${SUGGESTED_PRESETS.length} regole suggerite per tipo di nutrizione inserite (flag suggerita).`);
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -823,6 +857,7 @@ async function main(): Promise<void> {
   await seedDietProductFields();
   await seedTestimonials();
   await seedEquivalenceGroups();
+  await seedRulePresets();
   await seedKetoCatalog(prisma);
   await seedProtocols();
   await seedCommerce();

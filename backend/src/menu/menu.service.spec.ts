@@ -379,14 +379,15 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'l1'), tmpl(2, 'l2')]) },
       recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
-      // l2 è la ricetta "che fa perdere di più" (efficacia appresa alta); l1 neutra.
+      // l2 = ricetta "che fa perdere di più" (efficacia appresa alta); l1 = più gradita.
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'l2', score: 5, samples: 5 }]) },
-      recipeRating: { findMany: jest.fn().mockResolvedValue([]) }, // gradimento pari (default 5★)
+      recipeRating: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'l1', stars: 5 }, { recipeId: 'l2', stars: 1 }]) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
-      getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[k] ?? def)),
+      // R12: mantenimento = efficacia RIDOTTA ma non zero (0,1 quando il dimagrimento vale 1).
+      getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_maintenance_w_eff: 0.1 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
@@ -399,16 +400,16 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
   const lunchesOf = (prisma: any) =>
     prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'lunch')?.recipeId);
 
-  it('DIMAGRIMENTO: vince la ricetta con efficacia appresa più alta', async () => {
+  it('DIMAGRIMENTO (w_eff=1): l\'efficacia appresa alta batte il gusto → vince l2', async () => {
     const { service, prisma } = build('dimagrimento');
     await service.deliverIfEligible('u1');
-    expect(lunchesOf(prisma)).toEqual(['l2', 'l2']);
+    expect(lunchesOf(prisma)).toEqual(['l2', 'l2']); // efficacia 1.0 supera il gradimento di l1
   });
 
-  it('MANTENIMENTO: efficacia neutra (w_eff=0) → a pari gradimento resta la ricetta del template', async () => {
+  it('MANTENIMENTO (w_eff=0,1): efficacia ridotta ma non zero → a gradimento più alto vince il gusto (l1)', async () => {
     const { service, prisma } = build('mantenimento');
     await service.deliverIfEligible('u1');
-    expect(lunchesOf(prisma)).toEqual(['l1', 'l2']); // template: giorno1 l1, giorno2 l2
+    expect(lunchesOf(prisma)).toEqual(['l1', 'l1']); // l1 (5★) batte l2 (1★) perché l'efficacia pesa solo 0,1
   });
 });
 

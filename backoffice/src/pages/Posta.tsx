@@ -27,6 +27,83 @@ interface FullMessage {
 
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
+/** Estrae l'indirizzo email da "Nome <a@b.it>" (o restituisce la stringa se già pulita). */
+const addressOf = (from: string) => {
+  const m = from.match(/<([^>]+)>/);
+  return (m ? m[1] : from).trim();
+};
+
+/** Divide "Mario Rossi <m@rossi.it>" in nome + indirizzo per un'intestazione leggibile. */
+function MessageHeader({ from, date }: { from: string; date: string }) {
+  const m = from.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  const name = m?.[1]?.trim();
+  const addr = m ? m[2].trim() : from.trim();
+  const initial = (name || addr || '?').charAt(0).toUpperCase();
+  return (
+    <div className="row" style={{ gap: 12, alignItems: 'center', paddingBottom: 14, marginBottom: 14, borderBottom: '1px solid var(--line,#eee)' }}>
+      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--chip,#f0ede8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--deep,#7a5)', flex: '0 0 auto' }}>{initial}</div>
+      <div style={{ minWidth: 0 }}>
+        {name && <div style={{ fontWeight: 600, lineHeight: 1.2 }}>{name}</div>}
+        <div className="muted" style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{addr}</div>
+      </div>
+      <div className="muted" style={{ fontSize: 12.5, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{date}</div>
+    </div>
+  );
+}
+
+/** Corpo del messaggio: se c'è l'HTML lo mostra in un iframe isolato (niente script,
+ * link in nuova scheda); altrimenti il testo con URL cliccabili e tipografia leggibile. */
+function MessageBody({ html, text }: { html: string | null; text: string }) {
+  if (html && html.trim()) {
+    const doc = `<!doctype html><html><head><meta charset="utf-8"><base target="_blank">
+<style>
+  html,body{margin:0;padding:0}
+  body{font:15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2b2b2b;padding:4px 2px;word-break:break-word}
+  img{max-width:100%;height:auto}
+  a{color:#0a7d55}
+  table{max-width:100%}
+  blockquote{margin:0 0 0 12px;padding-left:12px;border-left:3px solid #e4e0d8;color:#555}
+  pre{white-space:pre-wrap;word-break:break-word}
+</style></head><body>${html}</body></html>`;
+    return (
+      <iframe
+        title="Messaggio"
+        srcDoc={doc}
+        sandbox="allow-popups allow-popups-to-escape-sandbox"
+        style={{ width: '100%', height: '55vh', border: 0, borderRadius: 8, background: '#fff' }}
+      />
+    );
+  }
+  const body = (text || '').trim();
+  if (!body) return <div className="muted" style={{ padding: '8px 0' }}>(messaggio vuoto)</div>;
+  return (
+    <div style={{ maxHeight: '55vh', overflow: 'auto', fontSize: 15, lineHeight: 1.6, color: 'var(--ink,#2b2b2b)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+      <Linkified text={body} />
+    </div>
+  );
+}
+
+/** Rende cliccabili gli URL nel testo, togliendo le parentesi quadre del formato
+ * testo-semplice (es. "Registro [https://…]" → link). Sicuro: nessun HTML grezzo. */
+function Linkified({ text }: { text: string }) {
+  // Cattura URL eventualmente racchiusi tra parentesi quadre.
+  const re = /\[?(https?:\/\/[^\s\]<>]+)\]?/g;
+  const out: (string | JSX.Element)[] = [];
+  let last = 0, m: RegExpExecArray | null, k = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const url = m[1].replace(/[.,;:)]+$/, ''); // niente punteggiatura finale nel link
+    out.push(
+      <a key={k++} href={url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--deep,#0a7d55)', wordBreak: 'break-all' }}>
+        {url}
+      </a>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return <>{out}</>;
+}
+
 /** Casella di posta @metabole.eu dell'operatore (MVP: posta in arrivo + scrivi). */
 export function Posta() {
   const [params, setParams] = useSearchParams();
@@ -144,15 +221,11 @@ export function Posta() {
       </div>
 
       {open && (
-        <Modal title={open.subject || '(nessun oggetto)'} onClose={() => setOpen(null)}>
-          <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-            Da: {open.from}<br />Data: {fmtDate(open.date)}
-          </div>
-          <div style={{ whiteSpace: 'pre-wrap', maxHeight: '50vh', overflow: 'auto', borderTop: '1px solid var(--border,#eee)', paddingTop: 12 }}>
-            {open.text || (open.html ? '(messaggio in HTML — testo non disponibile)' : '(vuoto)')}
-          </div>
-          <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-            <button className="btn ghost" onClick={() => { setCompose({ to: open.from.replace(/.*<(.+)>.*/, '$1'), subject: open.subject.startsWith('Re:') ? open.subject : `Re: ${open.subject}`, text: '' }); setOpen(null); }}>Rispondi</button>
+        <Modal title={open.subject || '(nessun oggetto)'} onClose={() => setOpen(null)} wide>
+          <MessageHeader from={open.from} date={fmtDate(open.date)} />
+          <MessageBody html={open.html} text={open.text} />
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+            <button className="btn ghost" onClick={() => { setCompose({ to: addressOf(open.from), subject: open.subject.startsWith('Re:') ? open.subject : `Re: ${open.subject}`, text: '' }); setOpen(null); }}>Rispondi</button>
             <button className="btn" onClick={() => setOpen(null)}>Chiudi</button>
           </div>
         </Modal>

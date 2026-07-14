@@ -21,6 +21,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { ConfigParamsModule } from './config-params/config-params.module';
+import { EngineRulesModule } from './engine-rules/engine-rules.module';
 import { HealthModule } from './health/health.module';
 import { ReportsModule } from './reports/reports.module';
 import { MailModule } from './mail/mail.module';
@@ -60,6 +61,7 @@ import { CycleModule } from './cycle/cycle.module';
     I18nModule,
     MailModule,
     ConfigParamsModule,
+    EngineRulesModule,
     PdfModule,
     AuthModule,
     UsersModule,

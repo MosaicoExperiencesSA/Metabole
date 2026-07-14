@@ -37,6 +37,7 @@ import { Grafici } from './pages/Grafici';
 import { Impostazioni } from './pages/Impostazioni';
 import { Prelievi } from './pages/Prelievi';
 import { Parametri } from './pages/Parametri';
+import { RegoleMotore } from './pages/RegoleMotore';
 import { Payments } from './pages/Payments';
 import { Contabilita } from './pages/Contabilita';
 import { Permissions } from './pages/Permissions';
@@ -106,6 +107,7 @@ export default function App() {
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="recipes"><TagAllergeni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="diets_catalog"><GruppiEquivalenza /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
+      <Route path="/regole-motore" element={<Protected title="Regole motore" pageKey="engine_rules"><RegoleMotore /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />
       <Route path="/log" element={<Protected title="Log attività" pageKey="audit_logs"><LogAttivita /></Protected>} />
       <Route path="/email-modelli" element={<Protected title="Modelli email" pageKey="email_templates"><ModelliEmail /></Protected>} />

@@ -1085,7 +1085,8 @@ model ProductRule {
 // Coda "c'è un'altra regola?": proposta di una regola nuova, da approvare dal capo.
 model RuleProposal {
   id         String   @id @default(uuid())
-  dietId     String   @map("diet_id")
+  dietId     String?  @map("diet_id") // opzionale: una proposta può essere generale (non legata a una dieta)
+  title      String?  // titolo breve della regola proposta
   text       String
   proposedBy String?  @map("proposed_by")
   status     String   @default("pending") // pending | approved | rejected
@@ -1094,6 +1095,28 @@ model RuleProposal {
 
   @@index([status])
   @@map("rule_proposal")
+}
+
+// Regole "base" suggerite per tipo di nutrizione (letteratura). Il capo nutrizionista
+// le vede col flag `suggested`, può modificarle, aggiungerne di nuove e applicarle a
+// una dieta (→ ProductRule). `rules` = mappa { ruleCode: valore } dei parametri motore.
+model RulePreset {
+  id            String   @id @default(uuid())
+  style         String // mediterranean | protein | low_carb | flexible | keto | dash | ...
+  label         String
+  description   String?
+  regime        String? // omnivore | vegetarian | vegan | pescetarian | null = qualsiasi
+  objective     String? // dimagrimento | mantenimento | null
+  rules         Json     @default("{}") // { ruleCode: number|boolean }
+  clinicalNotes String?  @map("clinical_notes") // regole cliniche non ancora parametrizzabili
+  source        String? // fonte in letteratura
+  suggested     Boolean  @default(true) // true = suggerita da noi (non ancora adottata dal capo)
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([style])
+  @@map("rule_preset")
 }
 
 model Recipe {

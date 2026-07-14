@@ -78,6 +78,7 @@ const NAV: NavSection[] = [
       { key: 'recipes', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
       { key: 'diets_catalog', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
       { key: 'engine_protocols', label: 'Protocolli motore', to: '/protocolli', icon: 'ti-cpu' },
+      { key: 'engine_rules', label: 'Regole motore', to: '/regole-motore', icon: 'ti-adjustments-cog' },
     ],
   },
   {

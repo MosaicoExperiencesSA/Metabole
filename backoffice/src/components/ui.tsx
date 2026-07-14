@@ -60,14 +60,16 @@ export function Modal({
   title,
   children,
   onClose,
+  wide,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  wide?: boolean;
 }) {
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={wide ? { maxWidth: 760 } : undefined}>
         <h3>{title}</h3>
         {children}
       </div>
