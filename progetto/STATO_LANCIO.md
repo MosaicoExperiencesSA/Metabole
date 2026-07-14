@@ -3,27 +3,26 @@
 Pagina unica, sempre aggiornata: **"cosa manca per aprire"**. Guarda qui.
 Legenda: ✅ fatto · ⏳ in corso · ⬜ da fare · 🔴 gate (blocca il lancio pubblico).
 Responsabili: **[Ops]** pannelli servizi · **[Sv]** Simone · **[Pr]** Antonio.
-Ultimo aggiornamento: **2026-07-14** (checkup: `/public/stats` ancora 12/13 → base contatori da impostare; Simone ha completato E5/R12 routing segnalazioni).
+Ultimo aggiornamento: **2026-07-14** (Stripe LIVE + pulizie fatte da Simone; **contatori OK live** 18.984/85.233; restano email/DNS, pagamento reale, redeploy sito, smoke test).
 
 ---
 
 ## 🟢 Semaforo
-**Tecnicamente pronti.** Restano 3 gate 🔴 (base contatori, Stripe LIVE con pagamento vero, email/DNS) + smoke test. Contenuti completabili anche subito dopo.
+**Tecnicamente pronti.** Restano 3 azioni operative + smoke test: email/DNS, pagamento reale di prova, redeploy sito. Contenuti completabili anche subito dopo.
 
-## ✅ Già fatto (verificato live)
-- Backend in produzione (`/health` ok) · **DB Neon prod seedato** (3 piani reali €297/€497/€797).
-- Pagamenti configurati (`/payment-methods` carta+bonifico).
+## ✅ Già fatto
+- Backend in produzione · **DB Neon prod seedato** (3 piani reali) · pagamenti configurati (**Stripe LIVE** impostato da Simone).
 - **App cliente live** (app.metabole.eu) · **Sito live** (metabole.eu, 9 lingue, legali, form).
-- Blocker di codice chiusi: endpoint lead, form collegati, scoping per-paziente.
-- Utenze staff reali create (admin + Responsabile Coach + 12 coach, cambio password obbligatorio).
-- Catalogo **Keto nel motore** (118 ricette + giornate, isolato) · E1 allergeni ricette (Simone).
+- **Contatori con base storica OK live** (`/public/stats` → 18.984 / 85.233).
+- Blocker di codice chiusi · utenze staff reali · **motore R8–R12 (E1–E5) completo**.
+- Pulizie repo (`app/.env.example`, via `schema_1.prisma`) · catalogo **Keto nel motore**.
 
 ## 🔴 Gate — prima di aprire al pubblico
 | # | Cosa | Chi | Stato |
 |---|---|---|---|
-| 1 | **Base contatori** nel backend (`stats_reached_base=85218`, `stats_clients_base=18979`) + redeploy sito | [Sv]/[Ops] | ⬜ |
-| 2 | **Stripe LIVE**: chiavi `sk_live` + webhook + **pagamento reale di prova** | [Ops] | ⬜ |
-| 3 | **Email Brevo + DNS** (SPF/DKIM/DMARC): registrazione di prova → inbox non spam | [Ops] | ⬜ |
+| 1 | **Pagamento reale di prova** (Stripe è in LIVE): un acquisto vero end-to-end | [Ops]/[Pr] | ⬜ |
+| 2 | **Email Brevo + DNS** (SPF/DKIM/DMARC): registrazione di prova → inbox non spam | [Ops] | ⬜ |
+| 3 | **Redeploy sito** su SiteGround con le ultime modifiche (box uniformi, ®, **4 schermate reali dell'app**) | [Sv]/[Ops] | ⬜ |
 | 4 | **Smoke test end-to-end** (registrazione→email→onboarding→pagamento→menu→allergene→lead CRM) | [Pr]/[Sv] | ⬜ |
 
 ## 🟠 Consigliati prima dell'apertura (non strettamente bloccanti)
