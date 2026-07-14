@@ -164,10 +164,15 @@ export class ChatService {
 
     if (result.kind === 'sensitive') {
       meta.reason = result.reason;
+      meta.target = result.target;
       const profile = await this.prisma.clientProfile.findUnique({
         where: { userId: clientId },
-        select: { assignedNutritionistId: true },
+        select: { assignedNutritionistId: true, assignedCoachId: true },
       });
+      // Decisione socio 14/07: al nutrizionista SOLO i temi medici (mood/comportamento
+      // → coach, primo filtro che inoltra se serve). Categoria: clinical vs mood_risk.
+      const toNutritionist = result.target === 'nutritionist';
+      const assignedToId = toNutritionist ? profile?.assignedNutritionistId : profile?.assignedCoachId;
       const open = await this.prisma.escalation.findFirst({
         where: { clientId, source: 'coach', status: 'open', reason: { contains: 'Chat' } },
       });
@@ -177,19 +182,18 @@ export class ChatService {
             clientId,
             reason: `Chat: tema sensibile rilevato dal filtro AI (${result.reason}). Messaggio da rivedere con urgenza.`,
             source: 'coach',
-            // R12: tema sensibile/clinico → categoria clinica, in carico al nutrizionista.
-            category: 'clinical' as never,
-            assignedToId: profile?.assignedNutritionistId,
+            category: (toNutritionist ? 'clinical' : 'mood_risk') as never,
+            assignedToId,
           },
         });
       }
-      await this.notifyCounterpartStaff(clientId, 'nutritionist', 'chat_sensitive_alert', 'chat_sensitive_alert');
+      await this.notifyCounterpartStaff(clientId, toNutritionist ? 'nutritionist' : 'coach', 'chat_sensitive_alert', 'chat_sensitive_alert');
       await this.audit.log({
         action: 'chat.sensitive_escalation',
         actorId: clientId,
         entityType: 'chat_thread',
         entityId: threadId,
-        metadata: { reason: result.reason },
+        metadata: { reason: result.reason, target: result.target },
       });
     }
 

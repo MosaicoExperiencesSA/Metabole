@@ -89,9 +89,9 @@ describe('ChatService', () => {
     expect(prisma.escalation.create).not.toHaveBeenCalled();
   });
 
-  it('tema sensibile all\'AI → escalation + notifica alla nutrizionista + risposta di presa in carico', async () => {
+  it('tema sensibile MEDICO all\'AI → escalation clinica + notifica alla nutrizionista', async () => {
     prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
-    const result: any = await service.postMessage(client, 't-ai', 'mi faccio vomitare dopo i pasti');
+    const result: any = await service.postMessage(client, 't-ai', 'stamattina sono quasi svenuta');
     expect(prisma.escalation.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ category: 'clinical', assignedToId: 'staff-n' }) }),
     );
@@ -99,6 +99,18 @@ describe('ChatService', () => {
       expect.objectContaining({ userId: 'nutri-user', type: 'chat_sensitive_alert' }),
     );
     expect(result.aiReply.body).toContain('nutrizionista');
+  });
+
+  it('tema sensibile EMOTIVO all\'AI → escalation mood_risk + notifica alla COACH (primo filtro)', async () => {
+    prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
+    const result: any = await service.postMessage(client, 't-ai', 'mi faccio vomitare dopo i pasti');
+    expect(prisma.escalation.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ category: 'mood_risk', assignedToId: 'staff-c' }) }),
+    );
+    expect(notifications.notifyOncePerDay).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'coach-user', type: 'chat_sensitive_alert' }),
+    );
+    expect(result.aiReply.body).toContain('coach');
   });
 
   it('domanda generica all\'AI → inoltrata nel thread coach + notifica', async () => {

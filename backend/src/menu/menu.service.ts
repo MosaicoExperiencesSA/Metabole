@@ -69,6 +69,17 @@ const SUBSTITUTION_MAP: Record<string, string> = {
  * La scelta dieta+livello qui è deterministica (match sul profilo);
  * dal M5 sarà il motore a decidere (source_rule_id).
  */
+/** Override numerico per dieta: usa il valore per-dieta se numerico, altrimenti il globale. */
+function pickNumOverride(overrides: Map<string, number | boolean>, code: string, global: number): number {
+  const v = overrides.get(code);
+  return typeof v === 'number' ? v : global;
+}
+/** Override booleano per dieta: usa il valore per-dieta se booleano, altrimenti il globale. */
+function pickBoolOverride(overrides: Map<string, number | boolean>, code: string, global: boolean): boolean {
+  const v = overrides.get(code);
+  return typeof v === 'boolean' ? v : global;
+}
+
 @Injectable()
 export class MenuService {
   constructor(
@@ -185,14 +196,22 @@ export class MenuService {
     // gradimento, plateau → efficacia, pre-evento → proteine). Sicurezza e bilanciamento
     // restano prioritari.
     const agentState = await this.dietAgent.stateFor(clientId);
+    // Override PER DIETA (ProductRule): il capo nutrizionista può sovrascrivere i valori
+    // globali per una singola dieta dalla pagina "Regole motore". Caricati una volta e
+    // applicati ai parametri del motore, con il globale come fallback.
+    const overrides = await this.dietRuleOverrides(diet.id);
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
-    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective);
-    const [kcalTolPct, daycomboEnabled, pMin, pMax] = await Promise.all([
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective, overrides);
+    const [kcalTolG, daycomboG, pMinG, pMaxG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getBool('menu_daycombo_enabled', false),
       this.configParams.getNumber('menu_daycombo_protein_min', 0.2),
       this.configParams.getNumber('menu_daycombo_protein_max', 0.45),
     ]);
+    const kcalTolPct = pickNumOverride(overrides, 'menu_kcal_balance_tolerance_pct', kcalTolG);
+    const daycomboEnabled = pickBoolOverride(overrides, 'menu_daycombo_enabled', daycomboG);
+    const pMin = pickNumOverride(overrides, 'menu_daycombo_protein_min', pMinG);
+    const pMax = pickNumOverride(overrides, 'menu_daycombo_protein_max', pMaxG);
     // Selettore per-slot (comportamento base, sempre disponibile come fallback).
     const selector = this.selectorFromContext(ctx, kcalTolPct / 100);
 
@@ -342,6 +361,26 @@ export class MenuService {
    * `w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)` modulata dallo stato
    * dell'agente. Usato sia dal selettore per-slot sia dalla composizione DayCombo.
    */
+  /**
+   * Override PER DIETA dalle ProductRule: mappa ruleCode → valore. Per le regole numeriche
+   * il valore sta in `params.value`; per gli interruttori si usa `enabled`. Robusta anche
+   * dove `findMany` non è disponibile (stub sandbox) → nessun override.
+   */
+  private async dietRuleOverrides(dietId: string): Promise<Map<string, number | boolean>> {
+    const rows = (await this.prisma.productRule.findMany?.({
+      where: { dietId },
+      select: { ruleCode: true, enabled: true, params: true },
+    })) ?? [];
+    const m = new Map<string, number | boolean>();
+    for (const r of rows as { ruleCode: string; enabled: boolean; params: unknown }[]) {
+      const v = (r.params as { value?: unknown } | null)?.value;
+      if (typeof v === 'number') m.set(r.ruleCode, v);
+      else if (typeof v === 'boolean') m.set(r.ruleCode, v);
+      else m.set(r.ruleCode, r.enabled);
+    }
+    return m;
+  }
+
   /** True se la dieta ha la ProductRule `menu_repeat_two_days` attiva (o il default globale). */
   private async isRepeatTwoDaysActive(dietId: string): Promise<boolean> {
     const rule = (await this.prisma.productRule.findUnique({
@@ -417,6 +456,7 @@ export class MenuService {
     templates: { meals: { slot: string; recipeId: string }[] }[],
     state: AgentState = 'normale',
     objective: string = 'dimagrimento',
+    overrides: Map<string, number | boolean> = new Map(),
   ): Promise<{
     slotPool: Map<string, Set<string>>;
     kcalOf: Map<string, number>;
@@ -425,7 +465,7 @@ export class MenuService {
   } | null> {
     if (!regime) return null;
 
-    const [wEffBase, wGradBase, boost, proteinBonus, penaltyRepeat, repeatWindowDays, maintWEff] = await Promise.all([
+    const [wEffBaseG, wGradBaseG, boostG, proteinBonusG, penaltyRepeatG, repeatWindowDaysG, maintWEffG] = await Promise.all([
       this.configParams.getNumber('menu_select_w_eff', 1),
       this.configParams.getNumber('menu_select_w_grad', 1),
       this.configParams.getNumber('menu_state_boost', 1.8),
@@ -436,6 +476,14 @@ export class MenuService {
       // R12: peso efficacia in MANTENIMENTO (default 0 = efficacia neutra).
       this.configParams.getNumber('menu_maintenance_w_eff', 0),
     ]);
+    // Applica gli override PER DIETA (fallback al globale).
+    const wEffBase = pickNumOverride(overrides, 'menu_select_w_eff', wEffBaseG);
+    const wGradBase = pickNumOverride(overrides, 'menu_select_w_grad', wGradBaseG);
+    const boost = pickNumOverride(overrides, 'menu_state_boost', boostG);
+    const proteinBonus = pickNumOverride(overrides, 'menu_pre_event_protein_bonus', proteinBonusG);
+    const penaltyRepeat = pickNumOverride(overrides, 'menu_penalty_repeat', penaltyRepeatG);
+    const repeatWindowDays = pickNumOverride(overrides, 'menu_repeat_window_days', repeatWindowDaysG);
+    const maintWEff = pickNumOverride(overrides, 'menu_maintenance_w_eff', maintWEffG);
     // Modulazione dei pesi in base allo stato dell'agente.
     let wEff = wEffBase;
     let wGrad = wGradBase;

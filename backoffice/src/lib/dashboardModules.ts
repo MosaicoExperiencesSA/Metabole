@@ -16,7 +16,7 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   { id: 'm_grafici', pageKey: 'charts', to: '/grafici', icon: 'ti-chart-histogram', label: 'Grafici', preview: 'Kg persi nel mese, perdita media, fatturato e classifiche.' },
   { id: 'm_pagamenti', pageKey: 'accounting', to: '/pagamenti', icon: 'ti-cash', label: 'Bonifici & contabilità', preview: 'Contabili da verificare e incassi.' },
   { id: 'm_crm', pageKey: 'crm_leads', to: '/crm/gestione', icon: 'ti-list-details', label: 'CRM / Lead', preview: 'Lead, pipeline e conversioni.' },
-  { id: 'm_lead_accept', pageKey: 'crm_leads', previewKey: 'lead_accept', to: '/crm/gestione', icon: 'ti-user-check', label: 'Lead da accettare', preview: 'Lead assegnati in attesa di accettazione.' },
+  { id: 'm_lead_accept', pageKey: 'lead_acceptance', previewKey: 'lead_accept', to: '/crm/da-accettare', icon: 'ti-user-check', label: 'Lead da accettare', preview: 'Lead assegnati in attesa di accettazione.' },
   { id: 'm_calendario', pageKey: 'crm_leads', to: '/crm/calendario', icon: 'ti-calendar-event', label: 'Calendario', preview: 'Promemoria e appuntamenti: lista, settimana o mese.' },
   { id: 'm_agenda', pageKey: 'visits_agenda', to: '/agenda', icon: 'ti-calendar', label: 'Agenda visite', preview: 'Televisite e appuntamenti in programma.' },
   { id: 'm_segnalazioni', pageKey: 'escalations', to: '/segnalazioni', icon: 'ti-alert-triangle', label: 'Segnalazioni', preview: 'Situazioni del motore da gestire.' },
@@ -31,6 +31,19 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   { id: 'm_provvigioni', pageKey: 'commissions', to: '/provvigioni', icon: 'ti-percentage', label: 'Provvigioni', preview: 'Provvigioni in sospeso da attribuire.' },
   { id: 'm_prelievi', pageKey: 'withdrawals', to: '/prelievi', icon: 'ti-wallet', label: 'Richieste prelievo', preview: 'Richieste di prelievo da evadere.' },
   { id: 'm_testimonianze', pageKey: 'marketing', previewKey: 'testimonials', to: '/testimonianze', icon: 'ti-quote', label: 'Testimonianze', preview: 'Ultime testimonianze dei clienti.' },
+  // Contenuti / motore
+  { id: 'm_ricette', pageKey: 'recipes', to: '/ricette', icon: 'ti-tools-kitchen-2', label: 'Catalogo ricette', preview: 'Ricette e tag allergeni.' },
+  { id: 'm_protocolli', pageKey: 'engine_protocols', to: '/protocolli', icon: 'ti-cpu', label: 'Protocolli motore', preview: 'Protocolli a regole del motore.' },
+  { id: 'm_regole_motore', pageKey: 'engine_rules', to: '/regole-motore', icon: 'ti-adjustments-cog', label: 'Regole motore', preview: 'Regole globali, regole suggerite per nutrizione e proposte.' },
+  { id: 'm_parametri', pageKey: 'engine_config', to: '/parametri', icon: 'ti-adjustments', label: 'Parametri motore', preview: 'Soglie e parametri del motore.' },
+  // Comunicazioni
+  { id: 'm_email_modelli', pageKey: 'email_templates', to: '/email-modelli', icon: 'ti-mail-cog', label: 'Modelli email', preview: 'Template delle email automatiche.' },
+  { id: 'm_email_log', pageKey: 'email_log', to: '/email-log', icon: 'ti-mail-check', label: 'Log email', preview: 'Email inviate e stato di consegna.' },
+  { id: 'm_pdf', pageKey: 'pdf_templates', to: '/grafica-pdf', icon: 'ti-file-type-pdf', label: 'Grafica PDF', preview: 'Template grafici dei PDF.' },
+  // Amministrazione
+  { id: 'm_utenti', pageKey: 'users', to: '/utenti', icon: 'ti-id-badge-2', label: 'Utenti', preview: 'Staff, ruoli e accessi.' },
+  { id: 'm_ruoli', pageKey: 'permissions', to: '/ruoli', icon: 'ti-shield-half', label: 'Ruoli e permessi', preview: 'Ruoli personalizzati e visibilità per ruolo.' },
+  { id: 'm_log', pageKey: 'audit_logs', to: '/log', icon: 'ti-history', label: 'Log attività', preview: 'Storico delle azioni dello staff.' },
 ];
 
 /** Moduli mostrati di default se l'utente non ha ancora personalizzato. */

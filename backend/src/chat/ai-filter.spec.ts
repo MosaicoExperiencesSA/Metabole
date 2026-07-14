@@ -1,21 +1,34 @@
 import { classifyMessage } from './ai-filter';
 
 describe('Filtro AI (primo filtro deterministico, spec sez. 5)', () => {
-  describe('temi sensibili → escalation', () => {
+  // MEDICI → nutrizionista (sintomi fisici, gravidanza, terapie farmacologiche).
+  describe('temi sensibili MEDICI → nutrizionista', () => {
+    it.each([
+      'stamattina sono quasi svenuta',
+      'ho palpitazioni dopo i pasti',
+      'sono incinta, posso continuare la dieta?',
+      'sto prendendo un antibiotico, cambia qualcosa?',
+    ])('"%s" → sensitive (nutrizionista)', (text) => {
+      const result = classifyMessage(text);
+      expect(result.kind).toBe('sensitive');
+      expect((result as { target?: string }).target).toBe('nutritionist');
+      expect(result.reply).toContain('nutrizionista');
+    });
+  });
+
+  // EMOTIVI/COMPORTAMENTALI → coach (primo filtro, inoltra al nutrizionista se serve).
+  describe('temi sensibili EMOTIVI/COMPORTAMENTALI → coach', () => {
     it.each([
       'ultimamente mi faccio vomitare dopo cena',
       'non mangio da due giorni',
       'odio il mio corpo, mi faccio schifo',
       'ieri ho avuto un\'abbuffata terribile',
       'sto prendendo dei lassativi per andare più veloce',
-      'stamattina sono quasi svenuta',
-      'ho palpitazioni dopo i pasti',
-      'sono incinta, posso continuare la dieta?',
-      'sto prendendo un antibiotico, cambia qualcosa?',
-    ])('"%s" → sensitive', (text) => {
+    ])('"%s" → sensitive (coach)', (text) => {
       const result = classifyMessage(text);
       expect(result.kind).toBe('sensitive');
-      expect(result.reply).toContain('nutrizionista');
+      expect((result as { target?: string }).target).toBe('coach');
+      expect(result.reply).toContain('coach');
     });
   });
 

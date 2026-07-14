@@ -7,7 +7,7 @@
  */
 
 export type FilterResult =
-  | { kind: 'sensitive'; reason: string; reply: string }
+  | { kind: 'sensitive'; reason: string; reply: string; target: 'coach' | 'nutritionist' }
   | { kind: 'faq'; faqKey: string; reply: string }
   | { kind: 'route_coach'; reply: string }
   | { kind: 'route_nutritionist'; reason: string; reply: string };
@@ -18,17 +18,25 @@ const normalize = (text: string): string =>
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '');
 
-/** Temi sensibili (rapporto problematico col cibo, malessere): SEMPRE escalation. */
-const SENSITIVE_PATTERNS: { pattern: RegExp; reason: string }[] = [
-  { pattern: /vomit|mi faccio vomitare|butto fuori/, reason: 'possibile condotta di eliminazione' },
-  { pattern: /digiun\w* (da|per) (piu di )?\d|non mangio da|salto (tutti i|i) pasti/, reason: 'digiuno prolungato' },
-  { pattern: /odio il mio corpo|mi faccio schifo|non valgo niente/, reason: 'immagine corporea fortemente negativa' },
-  { pattern: /abbuffat|binge|non riesco a fermarmi a mangiare/, reason: 'possibile episodio di abbuffata' },
-  { pattern: /lassativ|diuretic/, reason: 'possibile uso improprio di farmaci' },
+/**
+ * Temi sensibili → SEMPRE escalation. Instradamento (decisione socio 14/07):
+ * al nutrizionista SOLO i temi MEDICI; tutto il resto (emotivo/comportamentale)
+ * alla COACH, che è il primo filtro e inoltra al nutrizionista se serve.
+ */
+// MEDICI → nutrizionista: sintomi fisici, gravidanza, terapie farmacologiche.
+const MEDICAL_SENSITIVE_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /svenut|svengo|capogir|giramenti di testa|mi sento svenire/, reason: 'sintomo fisico da valutare' },
   { pattern: /dolore (forte|al petto)|male al petto|palpitazioni/, reason: 'sintomo fisico da valutare' },
   { pattern: /incint|gravidanz|allatt/, reason: 'gravidanza/allattamento: serve il nutrizionista' },
   { pattern: /farmac|medicinal|antibiotic|cortison/, reason: 'interazione con farmaci' },
+];
+// EMOTIVI/COMPORTAMENTALI → coach (primo filtro): rapporto col cibo, immagine corporea, condotte.
+const BEHAVIORAL_SENSITIVE_PATTERNS: { pattern: RegExp; reason: string }[] = [
+  { pattern: /vomit|mi faccio vomitare|butto fuori/, reason: 'possibile condotta di eliminazione' },
+  { pattern: /lassativ|diuretic/, reason: 'possibile condotta di eliminazione' },
+  { pattern: /digiun\w* (da|per) (piu di )?\d|non mangio da|salto (tutti i|i) pasti/, reason: 'digiuno prolungato' },
+  { pattern: /odio il mio corpo|mi faccio schifo|non valgo niente/, reason: 'immagine corporea fortemente negativa' },
+  { pattern: /abbuffat|binge|non riesco a fermarmi a mangiare/, reason: 'possibile episodio di abbuffata' },
 ];
 
 /** Domande cliniche/nutrizionali specifiche: al nutrizionista, non alla coach. */
@@ -89,8 +97,10 @@ const FAQ_LIBRARY: { key: string; pattern: RegExp; reply: string }[] = [
   },
 ];
 
-export const SENSITIVE_HANDOFF_REPLY =
+export const SENSITIVE_HANDOFF_NUTRITIONIST =
   'Grazie per avermelo scritto: questa è una cosa importante e voglio che se ne occupi una persona, non un assistente. Ho già avvisato la tua nutrizionista, che ti contatterà al più presto. Nel frattempo sono qui per qualsiasi altra cosa. 💚';
+export const SENSITIVE_HANDOFF_COACH =
+  'Grazie per avermelo scritto: questa è una cosa importante e voglio che se ne occupi una persona, non un assistente. Ho già avvisato la tua coach, che ti contatterà al più presto. Nel frattempo sono qui per qualsiasi altra cosa. 💚';
 
 export const ROUTE_COACH_REPLY =
   'Bella domanda! L\'ho girata alla tua coach, che ti risponderà nel vostro thread appena possibile. 💬';
@@ -101,9 +111,16 @@ export const ROUTE_NUTRITIONIST_REPLY =
 export function classifyMessage(text: string): FilterResult {
   const normalized = normalize(text);
 
-  for (const { pattern, reason } of SENSITIVE_PATTERNS) {
+  // Prima i temi MEDICI → nutrizionista.
+  for (const { pattern, reason } of MEDICAL_SENSITIVE_PATTERNS) {
     if (pattern.test(normalized)) {
-      return { kind: 'sensitive', reason, reply: SENSITIVE_HANDOFF_REPLY };
+      return { kind: 'sensitive', reason, reply: SENSITIVE_HANDOFF_NUTRITIONIST, target: 'nutritionist' };
+    }
+  }
+  // Poi i temi EMOTIVI/COMPORTAMENTALI → coach (primo filtro, inoltra se serve).
+  for (const { pattern, reason } of BEHAVIORAL_SENSITIVE_PATTERNS) {
+    if (pattern.test(normalized)) {
+      return { kind: 'sensitive', reason, reply: SENSITIVE_HANDOFF_COACH, target: 'coach' };
     }
   }
   for (const { key, pattern, reply } of FAQ_LIBRARY) {
