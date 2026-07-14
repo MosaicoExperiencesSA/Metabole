@@ -217,6 +217,7 @@ model User {
   email           String     @unique
   secondaryEmail  String?    @unique @map("secondary_email") // email alternativa per il login (verificata); notifiche/ricevute vanno sempre alla principale `email`
   passwordHash    String     @map("password_hash")
+  mustChangePassword Boolean @default(false) @map("must_change_password") // account creati dall'admin: il frontend forza il cambio password al primo accesso
   role            Role       @default(client)
   customRoleKey   String?    @map("custom_role_key") // ruolo personalizzato (etichetta+menu); il ruolo di sistema resta in `role`
   customRole      CustomRole? @relation(fields: [customRoleKey], references: [key], onDelete: SetNull)
