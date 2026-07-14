@@ -7,6 +7,8 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Prodotto]` **Pagina unica STATO LANCIO** (`progetto/STATO_LANCIO.md`) — one-pager sempre aggiornato con "cosa manca per aprire": semaforo, ✅ già fatto (verificato live), 🔴 4 gate (base contatori, Stripe LIVE + pagamento reale, email/DNS, smoke test), 🟠 consigliati (backoffice, FCM, pulizie), 🔵 contenuti [Pr], ⚪ dopo il lancio. Da tenere come riferimento quando si chiede lo stato.
+
 - `[Prodotto]` **Sito — contatori: base storica Mosaico + nuova dicitura (9 lingue)** (`Metabole_Sito_Presentazione.html`) — i contatori partono dai numeri storici di **Mosaico Experiences SA**: **persone raggiunte da 85.218**, **clienti seguiti da 18.979** (default HTML + `STATS`). Nuova **dicitura** sotto i contatori (versione "sobria e chiara", tradotta in tutte le 9 lingue): *"L'esperienza è quella del nostro team. I clienti seguiti e le persone raggiunte sono i numeri che Mosaico Experiences SA ha maturato in 5 anni con diversi prodotti dedicati alla nutrizione."* → **impatto [Sviluppo]:** i numeri vivono nel DB e l'endpoint `/public/stats` sovrascrive i default (oggi mostra ~12/13 perché la base è ~0). Impostare la **base** nel backend/`config_param` così che `reached = 85218 + n° lead` e `clients = 18979 + n° acquisti` (offset di partenza), lasciando l'incremento +1 per lead / +1 per acquisto.
 
 <<<<<<< Updated upstream
