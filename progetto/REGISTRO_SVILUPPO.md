@@ -4,8 +4,16 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
 
 ---
 
+## 2026-07-14
+
+
+- **Go-live blocker #2 risolto — scoping decisioni motore per-paziente** — spostato il controllo di assegnazione **dentro `engine.reviewDecision`**: un nutrizionista può confermare/correggere SOLO le decisioni dei propri pazienti (capo/admin qualsiasi). Ora è protetta **ogni** via, anche l'endpoint diretto `/engine/decisions/:id/confirm|correct` (prima solo `/nutritionist/...` era scoped). Aggiunto test dedicato. **Test verdi: 10/10 motore + 11/11 nutrizionista.**
+
+- **Go-live blocker #1 risolto — endpoint pubblico lead** — applicato l'handoff del socio (`Metabole_Lead_Endpoint_Handoff.md`): nuovo `POST /api/v1/public/leads` (`@Public` + `@Throttle` 5/min + **honeypot** `website`), `CrmService.createPublic()` (riusa `CrmRecord`, metadati in `stageDates.lead_in.meta`, dedup soft per email — **nessuna migrazione**), `PublicLeadDto`, registrato in `CommerceModule`. I form del sito (contatti + Lavora) **non perdono più i lead**. → **Azione tua/Ops:** aggiungere il dominio del sito a `CORS_ORIGINS` su Render (es. `https://www.metabole.eu,https://metabole.eu`).
 ## 2026-07-13
 
+
+- **Prodotti dinamici — Fase F foundation (regole per prodotto)** — dal catalogo del socio: le regole opzionali (L5, L7, stati agente A1–A6, ecc.) sono **mappate su `config_param`**, quindi si agganciano al nostro motore. Aggiunti i modelli **`ProductRule`** (dietId, ruleCode, enabled, params) e **`RuleProposal`** (coda "c'è un'altra regola?") + migrazione validata su PG locale. Endpoint: `GET/PATCH /diets/:id/rules` (upsert regole attive/parametri) e `POST /diets/:id/rule-proposals`. **Additivo, non tocca il motore.** **Restano:** (F-UI) lo step "regole" nel wizard backoffice (checklist regole opzionali con consenso + parametri); (E) **agente/motore che legge le ProductRule per prodotto** e sovrascrive i default globali config_param — parte delicata, da allineare col socio (è il suo motore).
 
 - **Prodotti dinamici — Fase D completata (modifica scheda cliente)** — ora la scheda cliente di un prodotto si può **modificare** su una dieta esistente (prima solo alla creazione), **anche se approvata** (non tocca i menu): nuovo endpoint `PATCH /diets/:id/product` (aggiorna solo i campi cliente, bypassa il blocco 'approvata non modificabile') + modale **"Scheda cliente"** nell'editor Diete del backoffice (nome/descrizione/caratteristiche/obiettivo/visibile). **Nessuna migrazione** (i campi esistono già). Backoffice type-check + build ok.
 

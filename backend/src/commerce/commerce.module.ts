@@ -22,6 +22,7 @@ import { LeadAssignmentController } from './lead-assignment.controller';
 import { LeadAssignmentService } from './lead-assignment.service';
 import { PipelineController } from './pipeline.controller';
 import { PipelineService } from './pipeline.service';
+import { PublicLeadController } from './public-lead.controller';
 import { RemindersController } from './reminders.controller';
 import { RemindersService } from './reminders.service';
 import { StripeService } from './stripe.service';
@@ -42,6 +43,7 @@ import { StripeService } from './stripe.service';
     AdminDiscountsController,
     MyDiscountsController,
     LeadAssignmentController,
+    PublicLeadController,
     AccountingController,
   ],
   providers: [CommerceService, CrmService, FinanceService, PipelineService, RemindersService, StripeService, DiscountsService, LeadAssignmentService, AccountingService],

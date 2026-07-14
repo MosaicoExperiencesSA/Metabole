@@ -21,6 +21,8 @@ import {
   SetDayTemplatesDto,
   UpdateDietDto,
   UpdateDietProductDto,
+  SetProductRulesDto,
+  RuleProposalDto,
 } from './dto/catalog.dto';
 
 /** Diete: il nutrizionista propone, il capo approva. */
@@ -55,6 +57,22 @@ export class DietsController {
   @Patch(':id/product')
   updateProduct(@Param('id') id: string, @Body() dto: UpdateDietProductDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateDietProduct(user.sub, id, dto);
+  }
+
+  /** Regole del motore attivate per il prodotto (Fase F). */
+  @Get(':id/rules')
+  rules(@Param('id') id: string) {
+    return this.catalog.getRules(id);
+  }
+
+  @Patch(':id/rules')
+  setRules(@Param('id') id: string, @Body() dto: SetProductRulesDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.setRules(user.sub, id, dto.rules);
+  }
+
+  @Post(':id/rule-proposals')
+  proposeRule(@Param('id') id: string, @Body() dto: RuleProposalDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.proposeRule(user.sub, id, dto.text);
   }
 
   @Put(':id/days')
