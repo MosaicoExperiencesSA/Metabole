@@ -542,6 +542,7 @@ export class MenuService {
         clientId,
         reason: `Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`,
         source: 'engine' as never,
+        category: 'diet_blocked' as never,
         assignedToId: profile?.assignedNutritionistId,
       },
     });

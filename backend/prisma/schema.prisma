@@ -408,6 +408,9 @@ model Escalation {
   client       User             @relation(fields: [clientId], references: [id], onDelete: Cascade)
   reason       String
   source       EscalationSource
+  // R12 — categoria per il routing al ruolo giusto: diet_blocked | no_progress |
+  // low_adherence | mood_risk | clinical | other. Nullable per compatibilità (null = other).
+  category     String?          @map("category")
   assignedToId String?          @map("assigned_to_id")
   assignedTo   Staff?           @relation("EscalationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   status       EscalationStatus @default(open)

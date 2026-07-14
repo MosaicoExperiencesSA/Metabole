@@ -21,9 +21,12 @@ export class EscalationsController {
   ) {}
 
   @Get()
-  list(@Query('status') status?: string) {
+  list(@Query('status') status?: string, @Query('category') category?: string) {
     return this.prisma.escalation.findMany({
-      where: status ? { status: status as never } : {},
+      where: {
+        ...(status ? { status: status as never } : {}),
+        ...(category ? { category: category as never } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         client: { select: { id: true, email: true, firstName: true, lastName: true } },
