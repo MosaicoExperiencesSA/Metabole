@@ -46,9 +46,45 @@ body{margin:0;background:var(--bg);font-family:-apple-system,Segoe UI,Roboto,Ari
 .btn.p{background:var(--teal);color:#fff;border-color:var(--teal)}
 .hint{font-size:11.5px;color:var(--mut);margin-top:6px}
 .note{background:#EAF6F1;border:1px solid #CFE8DF;color:var(--deep);border-radius:10px;padding:10px 13px;font-size:12px;display:flex;gap:8px;align-items:center}
+.method{display:flex;flex-direction:column;gap:6px}
+.mr{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--bd);border-radius:9px;padding:8px 11px;font-size:12.3px;line-height:1.45;background:#fff}
+.mr .code{flex:none;min-width:28px;text-align:center;font-size:11px;font-weight:700;color:#fff;background:var(--teal);border-radius:6px;padding:3px 6px}
+.mr.ai{background:#FFF9F3;border-color:#F1DFCB}
+.mr.ai .code{background:var(--coral)}
 </style></head><body>
-<div class="top"><i class="ti ti-box"></i><span class="t">Crea nuovo prodotto</span><span class="s">Backoffice · nutrizionista</span></div>
+<div class="top"><i class="ti ti-box"></i><span class="t">Costruisci nuovo percorso</span><span class="s">Backoffice · nutrizionista / admin</span></div>
 <div class="wrap">
+
+  <div class="panel" style="border-color:#CFE8DF">
+    <h2 style="display:flex;align-items:center;gap:8px"><i class="ti ti-list-numbers"></i> Il metodo — le 12 regole per creare un percorso</h2>
+    <div class="sub">Standard del <b>Motore Intelligente</b> (Keto e Mediterranea allineate). Ogni nuovo percorso si costruisce con queste 12 regole, in 2 fasi. <b>Fase A</b> la fai tu (nutrizionista); da <b>R8</b> in poi lavora l'<b>agente AI</b> del percorso, per ogni cliente.</div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px">
+      <span style="font-size:11px;font-weight:700;color:#0E5A49;background:#E1F5EE;border-radius:6px;padding:3px 9px">FASE A · Costruzione della base — nutrizionista + strumenti</span>
+    </div>
+    <div class="method">
+      <div class="mr"><span class="code">R1</span><div><b>Raccolta menu</b> — si raccolgono i menu del percorso (fonti + nutrizionista).</div></div>
+      <div class="mr"><span class="code">R2</span><div><b>Catalogo per pasto</b> — colazioni/pranzi/cene/spuntini/merende (× stagione se serve).</div></div>
+      <div class="mr"><span class="code">R3</span><div><b>Calorie per piatto</b> — kcal interne, mai mostrate al cliente.</div></div>
+      <div class="mr"><span class="code">R4</span><div><b>Gruppi di equivalenza</b> — sostituzioni a kcal invariate → nuovi piatti e menu.</div></div>
+      <div class="mr"><span class="code">R5</span><div><b>Metodi di cottura</b> — 3–5 per piatto, stesse kcal (no frittura/impanatura).</div></div>
+      <div class="mr"><span class="code">R6</span><div><b>Bilanciamento giornata</b> — totale costante; porzioni standard, niente fame.</div></div>
+      <div class="mr"><span class="code">R7</span><div><b>Approvazione nutrizionista</b> — diventa la base ufficiale, isolata per prodotto.</div></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin:12px 0 10px">
+      <span style="font-size:11px;font-weight:700;color:#B4531F;background:#FDF1E3;border-radius:6px;padding:3px 9px"><i class="ti ti-robot" style="font-size:12px"></i> FASE B · Motore intelligente — qui entra l'AGENTE AI (uno per percorso, per cliente)</span>
+    </div>
+    <div class="method">
+      <div class="mr ai"><span class="code">R8</span><div><b>Esclusioni → base personalizzata</b> — allergie/intolleranze/non graditi/fede: sostituisce; se non sicuro, <b>blocca + escala</b>.</div></div>
+      <div class="mr ai"><span class="code">R9</span><div><b>Partenza differenziata + unicità</b> — seme personale, collision check, certificato: due clienti mai uguali.</div></div>
+      <div class="mr ai"><span class="code">R10</span><div><b>Ciclo bigiornaliero + monitoraggio</b> — 2 giorni stesso menu/2 cotture; misure obbligatorie (peso e cm), seguito sì/no, gradimento (default 5 stelle = max).</div></div>
+      <div class="mr ai"><span class="code">R11</span><div><b>Adattamento + apprendimento</b> — sale→ripesca il migliore, fermo/scende→nuovo menu; isola il pasto; stati Conforto/Rientro/Pre-evento/Plateau.</div></div>
+      <div class="mr ai"><span class="code">R12</span><div><b>Obiettivo, segnalazioni, accessi</b> — dimagrimento/mantenimento; alert a coach/nutrizionista; RBAC, kcal nascoste, dati cifrati.</div></div>
+    </div>
+    <div class="note" style="margin-top:12px"><i class="ti ti-file-text" style="font-size:15px"></i> Dettaglio completo: <b>Metabole_Metodo_Motore_Intelligente.pdf</b> · verifica: <b>Metabole_Audit_Personalizzazione.pdf</b></div>
+  </div>
+
 
   <div class="steps">
     <div class="step done"><span class="n"><i class="ti ti-check" style="font-size:12px"></i></span> Anagrafica</div>

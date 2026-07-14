@@ -8,6 +8,7 @@ import { PrismaClient, ConfigParamType } from '@prisma/client';
 import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS } from '../src/permissions/pages';
 import { ROLES } from '../src/common/roles';
 import { DEFAULT_PDF_TEMPLATES } from '../src/pdf/pdf.defaults';
+import { seedKetoCatalog } from './seed_keto';
 
 const prisma = new PrismaClient();
 
@@ -710,6 +711,7 @@ async function main(): Promise<void> {
   await seedPermissions();
   await seedDemoCatalog();
   await seedDietProductFields();
+  await seedKetoCatalog(prisma);
   await seedProtocols();
   await seedCommerce();
   await backfillPaidClientsIntoCrm();
