@@ -1,0 +1,4328 @@
+{
+  "product": "keto",
+  "style": "keto",
+  "regime": "omnivore",
+  "mealsPerDay": 5,
+  "levels": [
+    {
+      "level": 1,
+      "kcal": 1450
+    }
+  ],
+  "objective": "dimagrimento",
+  "clientName": "Keto",
+  "note": "Base Keto approvata dal nutrizionista — isolata per prodotto (regola ferrea: mai mischiata con altri percorsi).",
+  "counts": {
+    "breakfast": 28,
+    "lunch": 32,
+    "dinner": 31,
+    "morning_snack": 21,
+    "afternoon_snack": 6
+  },
+  "recipes": [
+    {
+      "id": "COL01",
+      "name": "Pane proteico con burro d'arachidi",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 300,
+      "ingredients": [
+        {
+          "name": "Pane proteico"
+        },
+        {
+          "name": "burro d'arachidi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL02",
+      "name": "Uova sbattute con prosciutto cotto e avocado",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Uova sbattute"
+        },
+        {
+          "name": "prosciutto cotto"
+        },
+        {
+          "name": "avocado"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL03",
+      "name": "Kefir e muesli con frutta secca",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 320,
+      "ingredients": [
+        {
+          "name": "Kefir"
+        },
+        {
+          "name": "muesli"
+        },
+        {
+          "name": "frutta secca"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL04",
+      "name": "Omelette con brie, zucchine e avocado",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Omelette"
+        },
+        {
+          "name": "brie"
+        },
+        {
+          "name": "zucchine"
+        },
+        {
+          "name": "avocado"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL05",
+      "name": "Bevanda di mandorle e frutti di bosco",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Bevanda"
+        },
+        {
+          "name": "mandorle"
+        },
+        {
+          "name": "frutti"
+        },
+        {
+          "name": "bosco"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL06",
+      "name": "Pane proteico con salmone affumicato",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 280,
+      "ingredients": [
+        {
+          "name": "Pane proteico"
+        },
+        {
+          "name": "salmone affumicato"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL07",
+      "name": "Pancake proteici / cheto (farina di mandorle)",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Pancake proteici / cheto"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL08",
+      "name": "Frittata con spinaci e formaggio",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Frittata"
+        },
+        {
+          "name": "spinaci"
+        },
+        {
+          "name": "formaggio"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL09",
+      "name": "Yogurt greco con noci e semi di chia",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 300,
+      "ingredients": [
+        {
+          "name": "Yogurt greco"
+        },
+        {
+          "name": "noci"
+        },
+        {
+          "name": "semi"
+        },
+        {
+          "name": "chia"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL10",
+      "name": "Uova strapazzate con pancetta",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Uova strapazzate"
+        },
+        {
+          "name": "pancetta"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL11",
+      "name": "Smoothie verde (mandorla, avocado, spinaci, lime)",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 250,
+      "ingredients": [
+        {
+          "name": "Smoothie verde"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL12",
+      "name": "Avocado toast su pane keto",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 330,
+      "ingredients": [
+        {
+          "name": "Avocado toast"
+        },
+        {
+          "name": "pane keto"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL13",
+      "name": "Pudding ai semi di chia e latte di cocco",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 280,
+      "ingredients": [
+        {
+          "name": "Pudding"
+        },
+        {
+          "name": "semi"
+        },
+        {
+          "name": "chia"
+        },
+        {
+          "name": "latte"
+        },
+        {
+          "name": "cocco"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL14",
+      "name": "Uova strapazzate con spinaci e funghi (EVO)",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 330,
+      "ingredients": [
+        {
+          "name": "Uova strapazzate"
+        },
+        {
+          "name": "spinaci"
+        },
+        {
+          "name": "funghi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL15",
+      "name": "Frullato di avocado con latte di cocco",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 300,
+      "ingredients": [
+        {
+          "name": "Frullato"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "latte"
+        },
+        {
+          "name": "cocco"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL16",
+      "name": "Omelette con pomodori, basilico e mozzarella",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 360,
+      "ingredients": [
+        {
+          "name": "Omelette"
+        },
+        {
+          "name": "pomodori"
+        },
+        {
+          "name": "basilico"
+        },
+        {
+          "name": "mozzarella"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL17",
+      "name": "Yogurt greco intero con noci",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 280,
+      "ingredients": [
+        {
+          "name": "Yogurt greco intero"
+        },
+        {
+          "name": "noci"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL18",
+      "name": "Uova in camicia su letto di spinaci",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 250,
+      "ingredients": [
+        {
+          "name": "Uova"
+        },
+        {
+          "name": "camicia"
+        },
+        {
+          "name": "letto"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL19",
+      "name": "Frittatine al forno (egg muffins) con cheddar, spinaci, pomodori secchi",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 320,
+      "ingredients": [
+        {
+          "name": "Frittatine"
+        },
+        {
+          "name": "forno"
+        },
+        {
+          "name": "cheddar"
+        },
+        {
+          "name": "spinaci"
+        },
+        {
+          "name": "pomodori secchi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL20",
+      "name": "Uova strapazzate su verdure saltate con semi di zucca",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 320,
+      "ingredients": [
+        {
+          "name": "Uova strapazzate"
+        },
+        {
+          "name": "verdure saltate"
+        },
+        {
+          "name": "semi"
+        },
+        {
+          "name": "zucca"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL21",
+      "name": "Omelette con funghi, broccoli e peperoni",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 330,
+      "ingredients": [
+        {
+          "name": "Omelette"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "broccoli"
+        },
+        {
+          "name": "peperoni"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL22",
+      "name": "Smoothie (mandorla, burro di frutta secca, spinaci, chia, proteine)",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Smoothie"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL23",
+      "name": "2 uova al burro con avocado e more",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "2 uova"
+        },
+        {
+          "name": "burro"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "more"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL24",
+      "name": "Uova strapazzate con jalapeños, cipollotti e pomodori + semi di girasole",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 330,
+      "ingredients": [
+        {
+          "name": "Uova strapazzate"
+        },
+        {
+          "name": "jalapeños"
+        },
+        {
+          "name": "cipollotti"
+        },
+        {
+          "name": "pomodori + semi"
+        },
+        {
+          "name": "girasole"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL25",
+      "name": "Yogurt con granola keto",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 300,
+      "ingredients": [
+        {
+          "name": "Yogurt"
+        },
+        {
+          "name": "granola keto"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL26",
+      "name": "Yogurt (greco) e nocciole",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 280,
+      "ingredients": [
+        {
+          "name": "Yogurt"
+        },
+        {
+          "name": "nocciole"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL27",
+      "name": "Cappuccino matcha al tè verde e cocco",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Cappuccino matcha"
+        },
+        {
+          "name": "tè verde"
+        },
+        {
+          "name": "cocco"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL28",
+      "name": "Caffè alla ricotta, mandorle e semi",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 250,
+      "ingredients": [
+        {
+          "name": "Caffè"
+        },
+        {
+          "name": "ricotta"
+        },
+        {
+          "name": "mandorle"
+        },
+        {
+          "name": "semi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR01",
+      "name": "Petto di pollo e broccoli",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Petto"
+        },
+        {
+          "name": "pollo"
+        },
+        {
+          "name": "broccoli"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR02",
+      "name": "Carpaccio di salmone affumicato con rucola e finocchi",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Carpaccio"
+        },
+        {
+          "name": "salmone affumicato"
+        },
+        {
+          "name": "rucola"
+        },
+        {
+          "name": "finocchi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR03",
+      "name": "Branzino al forno con asparagi",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Branzino"
+        },
+        {
+          "name": "forno"
+        },
+        {
+          "name": "asparagi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR04",
+      "name": "Burger di soia con broccoli",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Burger"
+        },
+        {
+          "name": "soia"
+        },
+        {
+          "name": "broccoli"
+        }
+      ],
+      "tags": [
+        "keto",
+        "veg"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR05",
+      "name": "Sogliola al forno con bieta",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Sogliola"
+        },
+        {
+          "name": "forno"
+        },
+        {
+          "name": "bieta"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR06",
+      "name": "Petto di tacchino al limone con germogli di bambù",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Petto"
+        },
+        {
+          "name": "tacchino"
+        },
+        {
+          "name": "limone"
+        },
+        {
+          "name": "germogli"
+        },
+        {
+          "name": "bambù"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR07",
+      "name": "Burger di manzo con carciofi",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Burger"
+        },
+        {
+          "name": "manzo"
+        },
+        {
+          "name": "carciofi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR08",
+      "name": "Insalata di pollo con avocado e olio d'oliva",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Insalata"
+        },
+        {
+          "name": "pollo"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "olio d'oliva"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR09",
+      "name": "Zucchine ripiene di carne macinata e formaggio",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Zucchine ripiene"
+        },
+        {
+          "name": "carne macinata"
+        },
+        {
+          "name": "formaggio"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR10",
+      "name": "Insalata Caesar senza crostini (extra parmigiano)",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Insalata Caesar senza crostini"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR11",
+      "name": "Peperoni ripieni di tonno e maionese keto",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Peperoni ripieni"
+        },
+        {
+          "name": "tonno"
+        },
+        {
+          "name": "maionese keto"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR12",
+      "name": "Wraps di lattuga con tacchino e formaggio",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Wraps"
+        },
+        {
+          "name": "lattuga"
+        },
+        {
+          "name": "tacchino"
+        },
+        {
+          "name": "formaggio"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR13",
+      "name": "Omelette ai funghi e pomodori secchi",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Omelette"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "pomodori secchi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR14",
+      "name": "Burger senza pane in foglie di lattuga",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Burger senza pane"
+        },
+        {
+          "name": "foglie"
+        },
+        {
+          "name": "lattuga"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR15",
+      "name": "Insalata di tonno con cetrioli, sedano e maionese",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Insalata"
+        },
+        {
+          "name": "tonno"
+        },
+        {
+          "name": "cetrioli"
+        },
+        {
+          "name": "sedano"
+        },
+        {
+          "name": "maionese"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR16",
+      "name": "Insalata greca (feta, pomodori, cetrioli, olive)",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Insalata greca"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR17",
+      "name": "Insalata di rucola + avocado ripieno di tonno e maionese",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Insalata"
+        },
+        {
+          "name": "rucola + avocado ripieno"
+        },
+        {
+          "name": "tonno"
+        },
+        {
+          "name": "maionese"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR18",
+      "name": "Zuppa di pesce con verdure low-carb",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Zuppa"
+        },
+        {
+          "name": "pesce"
+        },
+        {
+          "name": "verdure low-carb"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR19",
+      "name": "Insalata caprese (mozzarella, pomodoro, basilico) con EVO",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Insalata caprese"
+        },
+        {
+          "name": "EVO"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR20",
+      "name": "Carpaccio di manzo con rucola e parmigiano",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Carpaccio"
+        },
+        {
+          "name": "manzo"
+        },
+        {
+          "name": "rucola"
+        },
+        {
+          "name": "parmigiano"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR21",
+      "name": "Zuppa di cavolfiore speziata con bacon (o tofu)",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Zuppa"
+        },
+        {
+          "name": "cavolfiore speziata"
+        },
+        {
+          "name": "bacon"
+        }
+      ],
+      "tags": [
+        "keto",
+        "veg"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR22",
+      "name": "Insalata di pollo e maionese (avocado, mandorle, cetriolo)",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Insalata"
+        },
+        {
+          "name": "pollo"
+        },
+        {
+          "name": "maionese"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR23",
+      "name": "Insalata di avocado e uova in coppette di lattuga",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Insalata"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "uova"
+        },
+        {
+          "name": "coppette"
+        },
+        {
+          "name": "lattuga"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR24",
+      "name": "Insalata di gamberi e avocado (feta, pomodori, limone)",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 420,
+      "ingredients": [
+        {
+          "name": "Insalata"
+        },
+        {
+          "name": "gamberi"
+        },
+        {
+          "name": "avocado"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR25",
+      "name": "Salmone alla griglia con foglie miste e pomodoro",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 430,
+      "ingredients": [
+        {
+          "name": "Salmone"
+        },
+        {
+          "name": "griglia"
+        },
+        {
+          "name": "foglie miste"
+        },
+        {
+          "name": "pomodoro"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR26",
+      "name": "Insalata di tonno con pomodori, avocado e noci macadamia",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Insalata"
+        },
+        {
+          "name": "tonno"
+        },
+        {
+          "name": "pomodori"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "noci macadamia"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR27",
+      "name": "Burger di manzo (no pane) con guacamole, pomodoro e cavolo nero",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Burger"
+        },
+        {
+          "name": "manzo"
+        },
+        {
+          "name": "guacamole"
+        },
+        {
+          "name": "pomodoro"
+        },
+        {
+          "name": "cavolo nero"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR28",
+      "name": "Ricotta e insalata",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Ricotta"
+        },
+        {
+          "name": "insalata"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR29",
+      "name": "Pranzo a base di pesce",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Pranzo a base"
+        },
+        {
+          "name": "pesce"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR30",
+      "name": "Uova, pancetta e zucchine",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 420,
+      "ingredients": [
+        {
+          "name": "Uova"
+        },
+        {
+          "name": "pancetta"
+        },
+        {
+          "name": "zucchine"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR31",
+      "name": "Salsicce e cetrioli",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Salsicce"
+        },
+        {
+          "name": "cetrioli"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR32",
+      "name": "Polpette di carne e zucchine grigliate",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 490,
+      "ingredients": [
+        {
+          "name": "Polpette"
+        },
+        {
+          "name": "carne"
+        },
+        {
+          "name": "zucchine grigliate"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE01",
+      "name": "Insalata mista con tonno e olive",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Insalata mista"
+        },
+        {
+          "name": "tonno"
+        },
+        {
+          "name": "olive"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE02",
+      "name": "Tofu con funghi e peperoni grigliati",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Tofu"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "peperoni grigliati"
+        }
+      ],
+      "tags": [
+        "keto",
+        "veg"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE03",
+      "name": "Petto di tacchino con cavoletti di Bruxelles e guacamole",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Petto"
+        },
+        {
+          "name": "tacchino"
+        },
+        {
+          "name": "cavoletti"
+        },
+        {
+          "name": "Bruxelles"
+        },
+        {
+          "name": "guacamole"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE04",
+      "name": "Fettine di maiale al limone con spinaci",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 420,
+      "ingredients": [
+        {
+          "name": "Fettine"
+        },
+        {
+          "name": "maiale"
+        },
+        {
+          "name": "limone"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE05",
+      "name": "Carpaccio di bresaola con pomodorini, rucola e grana",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Carpaccio"
+        },
+        {
+          "name": "bresaola"
+        },
+        {
+          "name": "pomodorini"
+        },
+        {
+          "name": "rucola"
+        },
+        {
+          "name": "grana"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE06",
+      "name": "Brie con fagiolini e asparagi",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Brie"
+        },
+        {
+          "name": "fagiolini"
+        },
+        {
+          "name": "asparagi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE07",
+      "name": "Sgombro in umido con pomodoro, capperi e olive",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Sgombro"
+        },
+        {
+          "name": "umido"
+        },
+        {
+          "name": "pomodoro"
+        },
+        {
+          "name": "capperi"
+        },
+        {
+          "name": "olive"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE08",
+      "name": "Salmone alla griglia con asparagi al burro",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Salmone"
+        },
+        {
+          "name": "griglia"
+        },
+        {
+          "name": "asparagi"
+        },
+        {
+          "name": "burro"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE09",
+      "name": "Cosce di pollo al forno con broccoli",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Cosce"
+        },
+        {
+          "name": "pollo"
+        },
+        {
+          "name": "forno"
+        },
+        {
+          "name": "broccoli"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE10",
+      "name": "Bistecca di manzo con funghi trifolati",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Bistecca"
+        },
+        {
+          "name": "manzo"
+        },
+        {
+          "name": "funghi trifolati"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE11",
+      "name": "Filetto di maiale arrosto con cavolini di Bruxelles",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 430,
+      "ingredients": [
+        {
+          "name": "Filetto"
+        },
+        {
+          "name": "maiale arrosto"
+        },
+        {
+          "name": "cavolini"
+        },
+        {
+          "name": "Bruxelles"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE12",
+      "name": "Pizza cheto con base di cavolfiore",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Pizza cheto"
+        },
+        {
+          "name": "base"
+        },
+        {
+          "name": "cavolfiore"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE13",
+      "name": "Gamberetti saltati con zucchine",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Gamberetti saltati"
+        },
+        {
+          "name": "zucchine"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE14",
+      "name": "Pollo al curry con spinaci",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Pollo"
+        },
+        {
+          "name": "curry"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE15",
+      "name": "Bistecca alla griglia con insalata verde e vinaigrette al limone",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 480,
+      "ingredients": [
+        {
+          "name": "Bistecca"
+        },
+        {
+          "name": "griglia"
+        },
+        {
+          "name": "insalata verde"
+        },
+        {
+          "name": "vinaigrette"
+        },
+        {
+          "name": "limone"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE16",
+      "name": "Salmone al forno con asparagi avvolti in prosciutto crudo",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Salmone"
+        },
+        {
+          "name": "forno"
+        },
+        {
+          "name": "asparagi avvolti"
+        },
+        {
+          "name": "prosciutto crudo"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE17",
+      "name": "Polpette di carne al sugo con spinaci",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Polpette"
+        },
+        {
+          "name": "carne"
+        },
+        {
+          "name": "sugo"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE18",
+      "name": "Arrosto di maiale con cavolfiore arrosto e chimichurri",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 480,
+      "ingredients": [
+        {
+          "name": "Arrosto"
+        },
+        {
+          "name": "maiale"
+        },
+        {
+          "name": "cavolfiore arrosto"
+        },
+        {
+          "name": "chimichurri"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE19",
+      "name": "Hamburger senza pane con insalata, pomodoro, cetriolo",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Hamburger senza pane"
+        },
+        {
+          "name": "insalata"
+        },
+        {
+          "name": "pomodoro"
+        },
+        {
+          "name": "cetriolo"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE20",
+      "name": "Pollo arrosto con erbe e verdure grigliate",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Pollo arrosto"
+        },
+        {
+          "name": "erbe"
+        },
+        {
+          "name": "verdure grigliate"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE21",
+      "name": "Branzino al forno con finocchi e olive",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Branzino"
+        },
+        {
+          "name": "forno"
+        },
+        {
+          "name": "finocchi"
+        },
+        {
+          "name": "olive"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE22",
+      "name": "Gamberi al burro, aglio ed erbe con noodles di zucchine",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Gamberi"
+        },
+        {
+          "name": "burro"
+        },
+        {
+          "name": "aglio ed erbe"
+        },
+        {
+          "name": "noodles"
+        },
+        {
+          "name": "zucchine"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE23",
+      "name": "Spezzatino di manzo con funghi, cipolle, sedano ed erbe",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 480,
+      "ingredients": [
+        {
+          "name": "Spezzatino"
+        },
+        {
+          "name": "manzo"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "cipolle"
+        },
+        {
+          "name": "sedano ed erbe"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE24",
+      "name": "Pollo cajun con \"riso\" di cavolfiore e insalata di cavoletti",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 430,
+      "ingredients": [
+        {
+          "name": "Pollo cajun"
+        },
+        {
+          "name": "\"riso\""
+        },
+        {
+          "name": "cavolfiore"
+        },
+        {
+          "name": "insalata"
+        },
+        {
+          "name": "cavoletti"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE25",
+      "name": "Bistecca al burro all'aglio con funghi e asparagi",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Bistecca"
+        },
+        {
+          "name": "burro all'aglio"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "asparagi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE26",
+      "name": "Petto di pollo con purè di cavolfiore e fagiolini",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 420,
+      "ingredients": [
+        {
+          "name": "Petto"
+        },
+        {
+          "name": "pollo"
+        },
+        {
+          "name": "purè"
+        },
+        {
+          "name": "cavolfiore"
+        },
+        {
+          "name": "fagiolini"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE27",
+      "name": "Braciole di maiale con verdure non amidacee",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Braciole"
+        },
+        {
+          "name": "maiale"
+        },
+        {
+          "name": "verdure non amidacee"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE28",
+      "name": "Pollo saltato con broccoli, funghi e peperoni + salsa satay",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Pollo saltato"
+        },
+        {
+          "name": "broccoli"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "peperoni + salsa satay"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE29",
+      "name": "Spezzatino e spinaci",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Spezzatino"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE30",
+      "name": "Ricotta di pecora con carne e asparagi",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 480,
+      "ingredients": [
+        {
+          "name": "Ricotta"
+        },
+        {
+          "name": "pecora"
+        },
+        {
+          "name": "carne"
+        },
+        {
+          "name": "asparagi"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE31",
+      "name": "Arrosto di agnello con avocado e rucola",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Arrosto"
+        },
+        {
+          "name": "agnello"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "rucola"
+        }
+      ],
+      "tags": [
+        "keto"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "umido"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "SP01",
+      "name": "Yogurt greco bianco",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 120,
+      "ingredients": [
+        {
+          "name": "Yogurt greco bianco"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP02",
+      "name": "Sedano con formaggio spalmabile proteico",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 90,
+      "ingredients": [
+        {
+          "name": "Sedano"
+        },
+        {
+          "name": "formaggio spalmabile proteico"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP03",
+      "name": "Mandorle",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 120,
+      "ingredients": [
+        {
+          "name": "Mandorle"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP04",
+      "name": "Noci",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 130,
+      "ingredients": [
+        {
+          "name": "Noci"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP05",
+      "name": "Frutta secca (mista)",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Frutta secca"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP06",
+      "name": "Olive",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 60,
+      "ingredients": [
+        {
+          "name": "Olive"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP07",
+      "name": "Cocco essiccato",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 60,
+      "ingredients": [
+        {
+          "name": "Cocco essiccato"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP08",
+      "name": "Succhi/centrifugati senza zuccheri",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 80,
+      "ingredients": [
+        {
+          "name": "Succhi/centrifugati senza zuccheri"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP09",
+      "name": "Mela verde",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 80,
+      "ingredients": [
+        {
+          "name": "Mela verde"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP10",
+      "name": "Frutti di bosco",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 50,
+      "ingredients": [
+        {
+          "name": "Frutti"
+        },
+        {
+          "name": "bosco"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP11",
+      "name": "Pane proteico con bresaola",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 120,
+      "ingredients": [
+        {
+          "name": "Pane proteico"
+        },
+        {
+          "name": "bresaola"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP12",
+      "name": "Centrifugato di avocado, sedano e lime",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Centrifugato"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "sedano"
+        },
+        {
+          "name": "lime"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP13",
+      "name": "Uovo sodo",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 80,
+      "ingredients": [
+        {
+          "name": "Uovo sodo"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP14",
+      "name": "Cracker di semi di lino con formaggio",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Cracker"
+        },
+        {
+          "name": "semi"
+        },
+        {
+          "name": "lino"
+        },
+        {
+          "name": "formaggio"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP15",
+      "name": "Formaggio e peperoni",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Formaggio"
+        },
+        {
+          "name": "peperoni"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP16",
+      "name": "Chips di cavolo nero",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 100,
+      "ingredients": [
+        {
+          "name": "Chips"
+        },
+        {
+          "name": "cavolo nero"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP17",
+      "name": "Rotolini di tacchino e cetriolo",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 90,
+      "ingredients": [
+        {
+          "name": "Rotolini"
+        },
+        {
+          "name": "tacchino"
+        },
+        {
+          "name": "cetriolo"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP18",
+      "name": "Sedano/peperone con guacamole",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 120,
+      "ingredients": [
+        {
+          "name": "Sedano/peperone"
+        },
+        {
+          "name": "guacamole"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP19",
+      "name": "Smoothie (mandorla, burro di frutta secca, chia)",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 200,
+      "ingredients": [
+        {
+          "name": "Smoothie"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP20",
+      "name": "Jerky di tacchino senza zucchero",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 100,
+      "ingredients": [
+        {
+          "name": "Jerky"
+        },
+        {
+          "name": "tacchino senza zucchero"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "SP21",
+      "name": "Frittatina di uova e verdure",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Frittatina"
+        },
+        {
+          "name": "uova"
+        },
+        {
+          "name": "verdure"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "ME01",
+      "name": "Pancake cheto senza farina né zucchero",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 250,
+      "ingredients": [
+        {
+          "name": "Pancake cheto senza farina né zucchero"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "ME02",
+      "name": "Gelato keto nocciola (ricotta e cocco)",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 220,
+      "ingredients": [
+        {
+          "name": "Gelato keto nocciola"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "ME03",
+      "name": "Cappuccino / tè matcha",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 120,
+      "ingredients": [
+        {
+          "name": "Cappuccino / tè matcha"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "ME04",
+      "name": "Dessert al mascarpone e panna",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 320,
+      "ingredients": [
+        {
+          "name": "Dessert"
+        },
+        {
+          "name": "mascarpone"
+        },
+        {
+          "name": "panna"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "ME05",
+      "name": "Cioccolato ad alto cacao",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 110,
+      "ingredients": [
+        {
+          "name": "Cioccolato ad alto cacao"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    },
+    {
+      "id": "ME06",
+      "name": "Sedano con burro di mandorle + frutti di bosco",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Sedano"
+        },
+        {
+          "name": "burro"
+        },
+        {
+          "name": "mandorle + frutti"
+        },
+        {
+          "name": "bosco"
+        }
+      ],
+      "tags": [
+        "keto"
+      ]
+    }
+  ],
+  "dayTemplates": [
+    {
+      "level": 1,
+      "dayIndex": 1,
+      "kcalTotal": 1430,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL01",
+          "name": "Pane proteico con burro d'arachidi"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP01",
+          "name": "Yogurt greco bianco"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR01",
+          "name": "Petto di pollo e broccoli"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME01",
+          "name": "Pancake cheto senza farina né zucchero"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE01",
+          "name": "Insalata mista con tonno e olive"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 2,
+      "kcalTotal": 1430,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL04",
+          "name": "Omelette con brie, zucchine e avocado"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP06",
+          "name": "Olive"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR05",
+          "name": "Sogliola al forno con bieta"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME02",
+          "name": "Gelato keto nocciola (ricotta e cocco)"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE06",
+          "name": "Brie con fagiolini e asparagi"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 3,
+      "kcalTotal": 1470,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL07",
+          "name": "Pancake proteici / cheto (farina di mandorle)"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP11",
+          "name": "Pane proteico con bresaola"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR09",
+          "name": "Zucchine ripiene di carne macinata e formaggio"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME03",
+          "name": "Cappuccino / tè matcha"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE11",
+          "name": "Filetto di maiale arrosto con cavolini di Bruxelles"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 4,
+      "kcalTotal": 1380,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL11",
+          "name": "Smoothie verde (mandorla, avocado, spinaci, lime)"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP18",
+          "name": "Sedano/peperone con guacamole"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR14",
+          "name": "Burger senza pane in foglie di lattuga"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Cioccolato ad alto cacao"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE19",
+          "name": "Hamburger senza pane con insalata, pomodoro, cetriolo"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 5,
+      "kcalTotal": 1390,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL13",
+          "name": "Pudding ai semi di chia e latte di cocco"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP21",
+          "name": "Frittatina di uova e verdure"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR17",
+          "name": "Insalata di rucola + avocado ripieno di tonno e maionese"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Cioccolato ad alto cacao"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE21",
+          "name": "Branzino al forno con finocchi e olive"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 6,
+      "kcalTotal": 1490,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL16",
+          "name": "Omelette con pomodori, basilico e mozzarella"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP05",
+          "name": "Frutta secca (mista)"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR21",
+          "name": "Zuppa di cavolfiore speziata con bacon (o tofu)"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME06",
+          "name": "Sedano con burro di mandorle + frutti di bosco"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE26",
+          "name": "Petto di pollo con purè di cavolfiore e fagiolini"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 7,
+      "kcalTotal": 1570,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL19",
+          "name": "Frittatine al forno (egg muffins) con cheddar, spinaci, pomodori secchi"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP10",
+          "name": "Frutti di bosco"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR25",
+          "name": "Salmone alla griglia con foglie miste e pomodoro"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME01",
+          "name": "Pancake cheto senza farina né zucchero"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE31",
+          "name": "Arrosto di agnello con avocado e rucola"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 8,
+      "kcalTotal": 1470,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL22",
+          "name": "Smoothie (mandorla, burro di frutta secca, spinaci, chia, proteine)"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP15",
+          "name": "Formaggio e peperoni"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR29",
+          "name": "Pranzo a base di pesce"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME02",
+          "name": "Gelato keto nocciola (ricotta e cocco)"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE05",
+          "name": "Carpaccio di bresaola con pomodorini, rucola e grana"
+        }
+      ]
+    }
+  ]
+}
