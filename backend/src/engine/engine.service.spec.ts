@@ -69,6 +69,7 @@ describe('EngineService', () => {
       },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-x' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }) },
     };
     collector = { collect: jest.fn().mockResolvedValue({ signals: signals(), screeningFlag: false }) };
 
@@ -143,6 +144,17 @@ describe('EngineService', () => {
     prisma.engineDecision.findUnique.mockResolvedValue({ id: 'dec1', reviewedAt: new Date() });
     await expect(service.reviewDecision('nutri-user', 'dec1', 'corrected')).rejects.toThrow(
       BadRequestException,
+    );
+  });
+
+  it('revisione: un nutrizionista NON può revisionare decisioni di pazienti non suoi', async () => {
+    // Reviewer nutrizionista (non capo) con paziente assegnato a un altro staff.
+    prisma.user.findUnique.mockResolvedValue({ role: 'nutritionist' });
+    prisma.staff.findUnique.mockResolvedValue({ id: 'staff-x' });
+    prisma.engineDecision.findUnique.mockResolvedValue({ id: 'dec1', reviewedAt: null, clientId: 'c1' });
+    prisma.clientProfile.findUnique.mockResolvedValue({ assignedNutritionistId: 'staff-altro' });
+    await expect(service.reviewDecision('nutri-user', 'dec1', 'confirmed')).rejects.toThrow(
+      ForbiddenException,
     );
   });
 

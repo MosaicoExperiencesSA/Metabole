@@ -217,6 +217,24 @@ export class EngineService {
     if (!decision) throw new NotFoundException('Decisione non trovata');
     if (decision.reviewedAt) throw new BadRequestException('Decisione già revisionata');
 
+    // Scoping per-paziente: un nutrizionista può revisionare SOLO le decisioni dei propri
+    // pazienti; il capo (head_nutritionist) e l'admin qualsiasi. Vale per OGNI via (anche
+    // l'endpoint diretto /engine/decisions/:id/confirm|correct).
+    const reviewer = await this.prisma.user.findUnique({
+      where: { id: reviewerUserId },
+      select: { role: true },
+    });
+    const isSupervisor = reviewer?.role === 'head_nutritionist' || reviewer?.role === 'admin';
+    if (!isSupervisor) {
+      const profile = await this.prisma.clientProfile.findUnique({
+        where: { userId: decision.clientId },
+        select: { assignedNutritionistId: true },
+      });
+      if (!profile || profile.assignedNutritionistId !== staff.id) {
+        throw new ForbiddenException('Paziente non assegnato: revisione non consentita');
+      }
+    }
+
     const updated = await this.prisma.engineDecision.update({
       where: { id: decisionId },
       data: {
