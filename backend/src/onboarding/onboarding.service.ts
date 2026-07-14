@@ -191,7 +191,7 @@ export class OnboardingService {
             'Screening onboarding: condizione clinica o farmaci dichiarati — percorso supervisionato.',
           source: 'screening',
           category: 'clinical' as never,
-          assignedToId: nutritionist?.id,
+          assignedToId: nutritionistId ?? undefined,
         },
       });
     }
@@ -202,7 +202,7 @@ export class OnboardingService {
           reason: `Obiettivo oltre il ritmo sostenibile (${validation.ratePerWeek} kg/sett.): richiede conferma del nutrizionista.`,
           source: 'screening',
           category: 'clinical' as never,
-          assignedToId: nutritionist?.id,
+          assignedToId: nutritionistId ?? undefined,
         },
       });
     }

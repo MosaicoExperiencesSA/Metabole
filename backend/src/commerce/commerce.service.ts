@@ -1097,6 +1097,7 @@ export class CommerceService {
     };
     if (!p.refundedAt || !p.refundCents) throw new NotFoundException('Questo acquisto non è stato stornato');
 
+    const refundCents = p.refundCents; // narrowed a number dopo il guard (evita null nella closure del PDF)
     const date = p.refundedAt;
     const number = `RMB-${date.getUTCFullYear()}-${p.id.slice(0, 8).toUpperCase()}`;
     const clientName = p.client?.clientProfile?.name ?? p.client?.email ?? 'Cliente';
@@ -1132,7 +1133,7 @@ export class CommerceService {
       doc.moveDown(0.8);
       doc.moveTo(56, doc.y).lineTo(539, doc.y).strokeColor('#e6e2d8').stroke();
       doc.moveDown(0.8);
-      doc.font('Helvetica-Bold').fillColor('#10403a').fontSize(16).text('Totale rimborsato: ' + euro(p.refundCents), { align: 'right' });
+      doc.font('Helvetica-Bold').fillColor('#10403a').fontSize(16).text('Totale rimborsato: ' + euro(refundCents), { align: 'right' });
 
       doc.moveDown(3);
       doc.font('Helvetica').fillColor('#9aa39f').fontSize(9).text(
