@@ -6,6 +6,7 @@ import {
   RecipesController,
 } from './catalog.controller';
 import { CatalogService } from './catalog.service';
+import { PublicCatalogController } from './public-catalog.controller';
 
 @Module({
   controllers: [
@@ -13,6 +14,7 @@ import { CatalogService } from './catalog.service';
     HeadCatalogController,
     CatalogController,
     RecipesController,
+    PublicCatalogController,
   ],
   providers: [CatalogService],
   exports: [CatalogService],

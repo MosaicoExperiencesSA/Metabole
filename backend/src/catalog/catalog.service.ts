@@ -53,6 +53,41 @@ export class CatalogService {
     return this.listDiets({ status: 'approved' });
   }
 
+  /**
+   * Percorsi per il SITO pubblico (data-paths-endpoint). Nessuna autenticazione.
+   * Ritorna le diete clientVisible=true, una per stile, nel formato che il sito
+   * si aspetta: name (preferisce clientName), description, highlights, tag.
+   * Data-driven: aggiungere/modificare un prodotto NON richiede deploy del sito.
+   */
+  async publicPaths() {
+    const diets = await this.prisma.diet.findMany({
+      where: { clientVisible: true } as never,
+      orderBy: { createdAt: 'asc' },
+    });
+    const seen = new Set<string>();
+    const paths: {
+      style: string; name: string; clientName: string | null;
+      description: string | null; highlights: string[];
+      objective: string; seasonalTag: string | null;
+    }[] = [];
+    for (const d of diets as unknown as Array<Record<string, unknown>>) {
+      const style = String(d.style);
+      if (seen.has(style)) continue;
+      seen.add(style);
+      const clientName = (d.clientName as string) ?? null;
+      paths.push({
+        style,
+        name: clientName ?? String(d.name),
+        clientName,
+        description: (d.clientDescription as string) ?? null,
+        highlights: Array.isArray(d.highlights) ? (d.highlights as string[]) : [],
+        objective: (d.objective as string) ?? 'dimagrimento',
+        seasonalTag: (d.seasonalTag as string) ?? null,
+      });
+    }
+    return paths;
+  }
+
   async getDiet(id: string) {
     const diet = await this.prisma.diet.findUnique({
       where: { id },
