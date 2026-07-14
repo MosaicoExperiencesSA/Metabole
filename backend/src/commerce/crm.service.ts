@@ -16,6 +16,47 @@ export class CrmService {
     private readonly pipeline: PipelineService,
   ) {}
 
+  /** Lead pubblico dai form del sito (contatti + "Lavora con noi"). Nessuna migrazione:
+   *  i metadati vanno in stageDates.lead_in.meta. Dedup soft per email (lead non ancora cliente). */
+  async createPublic(input: {
+    email: string; nome?: string; fonte?: string; lingua?: string; ruolo?: string; messaggio?: string;
+  }): Promise<{ ok: true; id: string }> {
+    const meta = {
+      source: input.fonte ?? 'sito',
+      lang: input.lingua,
+      role: input.ruolo,
+      message: input.messaggio,
+      channel: 'public_form',
+    };
+    const existing = await this.prisma.crmRecord.findFirst({ where: { email: input.email, clientId: null } });
+    const stamp = { at: new Date().toISOString(), byUserId: 'public', meta };
+
+    const record = existing
+      ? await this.prisma.crmRecord.update({
+          where: { id: existing.id },
+          data: {
+            name: input.nome ?? existing.name,
+            stageDates: { ...(existing.stageDates as object), lead_in: stamp } as never,
+          },
+        })
+      : await this.prisma.crmRecord.create({
+          data: {
+            email: input.email,
+            name: input.nome,
+            stage: 'lead_in',
+            stageDates: { lead_in: stamp } as never,
+          },
+        });
+
+    await this.audit.log({
+      action: 'crm.lead.public_create',
+      actorId: 'public',
+      entityType: 'crm_record',
+      entityId: record.id,
+    });
+    return { ok: true, id: record.id };
+  }
+
   /** Registrazione → lead automatico (non blocca mai il flusso chiamante). */
   async ensureLead(clientId: string, email: string): Promise<void> {
     try {

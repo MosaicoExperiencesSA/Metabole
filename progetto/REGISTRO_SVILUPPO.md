@@ -4,6 +4,10 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
 
 ---
 
+## 2026-07-14
+
+
+- **Go-live blocker #1 risolto — endpoint pubblico lead** — applicato l'handoff del socio (`Metabole_Lead_Endpoint_Handoff.md`): nuovo `POST /api/v1/public/leads` (`@Public` + `@Throttle` 5/min + **honeypot** `website`), `CrmService.createPublic()` (riusa `CrmRecord`, metadati in `stageDates.lead_in.meta`, dedup soft per email — **nessuna migrazione**), `PublicLeadDto`, registrato in `CommerceModule`. I form del sito (contatti + Lavora) **non perdono più i lead**. → **Azione tua/Ops:** aggiungere il dominio del sito a `CORS_ORIGINS` su Render (es. `https://www.metabole.eu,https://metabole.eu`).
 ## 2026-07-13
 
 
