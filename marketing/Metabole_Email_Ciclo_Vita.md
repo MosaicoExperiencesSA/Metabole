@@ -462,6 +462,92 @@ Email che partono da un **evento** del percorso: risultato, ricorrenza, umore, s
 
 ---
 
+# PARTE 6 — Copy completa: conversione avanzata, valore, upsell, win-back
+
+### OBIEZIONE_PREZZO — esitazione sul prezzo
+**Oggetto:** Un piccolo investimento su di te, {{nome}}
+**Preview:** Meno di un caffè al giorno per stare bene.
+> Capisco l'esitazione. Ma pensa: {{piano}} è meno di {{costo_al_giorno}} al giorno — per un percorso su misura, una **coach** e un **nutrizionista** sempre con te. È un investimento su di te, sulla tua energia, sul tuo benessere. E se hai un dubbio, parliamone: rispondi a questa email.
+**CTA:** Parla con noi / Inizia ora
+
+### VALORE_SETTIMANALE — contenuto ricorrente
+**Oggetto:** La ricetta della settimana 🍋 (+ un consiglio)
+**Preview:** Buona, semplice, e nel tuo stile.
+> Questa settimana ti proponiamo **{{ricetta}}** — pochi ingredienti, tanto gusto. E il consiglio di {{coach}}: {{tip}}. Piccole abitudini, grandi risultati.
+**CTA:** Scopri la ricetta
+
+### UPSELL — cambio/upgrade piano
+**Oggetto:** Un passo avanti per te, {{nome}}
+**Preview:** Il piano più adatto a questa fase.
+> Stai andando bene, e forse è il momento di fare un passo in più: **{{suggerimento_piano}}** (es. passare al percorso annuale o cambiare stile). Ne parli con la tua coach e il nutrizionista, così scegli in serenità.
+**CTA:** Scopri il piano
+
+### WB_SURVEY — perché sei andata via
+**Oggetto:** Aiutaci a capire, {{nome}}
+**Preview:** Una domanda, 10 secondi.
+> Hai lasciato Metabole e ci dispiace. Ci aiuteresti con **una sola domanda**? Cosa ti ha fatto interrompere il percorso? Il tuo parere ci rende migliori — e la porta resta sempre aperta.
+**CTA:** Rispondi (1 domanda)
+
+### WB_STAGIONALE — riattivazione per occasione
+**Oggetto:** È il momento giusto per ripartire
+**Preview:** Un nuovo inizio, con il percorso adatto a te.
+> {{occasione_stagionale}} è spesso il momento in cui si ha voglia di rimettersi in carreggiata. Se senti che è il tuo, **ripartiamo insieme** con il percorso più adatto a questa stagione — senza pressioni, al tuo ritmo.
+**CTA:** Riparti con noi
+
+# PARTE 7 — Copy completa: transazionali & consensi
+
+> Le **transazionali** partono sempre (a prescindere dal consenso marketing); tono asciutto e rassicurante.
+
+### TX_VERIFICA — conferma email
+**Oggetto:** Conferma il tuo indirizzo email
+**Preview:** Un ultimo passo per attivare l'account.
+> Ciao {{nome}}, per completare la registrazione conferma il tuo indirizzo qui sotto. Il link scade tra {{ore}} ore. Se non hai richiesto tu la registrazione, ignora questa email.
+**CTA:** Conferma l'email
+
+### TX_RESET — reset password
+**Oggetto:** Reimposta la tua password
+**Preview:** Hai richiesto di reimpostare la password.
+> Ciao {{nome}}, clicca qui sotto per scegliere una nuova password. Il link è valido {{durata}}. Se non sei stato tu, ignora pure: la tua password resta invariata.
+**CTA:** Reimposta la password
+
+### TX_RICEVUTA — ricevuta pagamento
+**Oggetto:** La tua ricevuta Metabole
+**Preview:** Grazie! Ecco il riepilogo.
+> Ciao {{nome}}, grazie per aver attivato **{{piano}}**. Riepilogo: {{importo}} · {{data}} · {{metodo_pagamento}}. Trovi la ricevuta nel tuo profilo. Il tuo percorso è pronto a partire.
+**CTA:** Vai al percorso
+
+### TX_RINNOVO_OK — rinnovo/cambio confermato
+**Oggetto:** Rinnovo confermato — si continua! 🌿
+**Preview:** Il tuo percorso prosegue senza interruzioni.
+> Ciao {{nome}}, il rinnovo è andato a buon fine: il tuo percorso {{piano}} continua fino al **{{nuova_scadenza}}**, con la tua coach e il nutrizionista. Grazie per la fiducia.
+**CTA:** Continua il percorso
+
+### TX_DUNNING — pagamento fallito
+**Oggetto:** Problema con il pagamento, {{nome}}
+**Preview:** Aggiorna il metodo per non perdere il percorso.
+> Ciao {{nome}}, non siamo riusciti a completare il pagamento del tuo {{piano}}. Nessun problema: **aggiorna il metodo** e riproviamo subito, così il percorso continua senza interruzioni. Riproveremo in automatico tra {{giorni}} giorni.
+**CTA:** Aggiorna il metodo di pagamento
+
+### TX_APPUNTAMENTO — promemoria televisita
+**Oggetto:** Il tuo appuntamento con {{nutrizionista}}
+**Preview:** Promemoria: {{data}} alle {{ora}}.
+> Ciao {{nome}}, ti ricordiamo l'appuntamento in **televisita** con {{nutrizionista}} il {{data}} alle {{ora}}. Collegati dal link qui sotto qualche minuto prima. Se devi spostarlo, avvisa la tua coach.
+**CTA:** Vai alla televisita
+
+### REPERMISSION — riconferma consenso (lead vecchi)
+**Oggetto:** Vuoi restare in contatto con Metabole?
+**Preview:** Confermi che possiamo scriverti?
+> Ciao {{nome}}, teniamo alla tua privacy: vuoi continuare a ricevere consigli di benessere, ricette e novità? Con un clic **confermi** il consenso. Se non confermi, non ti scriveremo più (salvo le comunicazioni di servizio).
+**CTA:** Sì, restiamo in contatto
+
+### PREFERENZE — centro preferenze
+**Oggetto:** Gestisci le tue preferenze email
+**Preview:** Scegli cosa ricevere, e ogni quanto.
+> Ciao {{nome}}, qui decidi tu: quali email ricevere (consigli, novità, promemoria) e con quale frequenza. Preferisci solo l'essenziale? Nessun problema. La tua casella, le tue regole.
+**CTA:** Aggiorna le preferenze
+
+---
+
 ## Priorità di attivazione (da agente di marketing)
 1. **Le 3 richieste** (benvenuto, profilo pronto, piano inizia domani) — sono il cuore dell'attivazione.
 2. **Checkout abbandonato (A2)** e **Pre-scadenza/rinnovo (C1–C3)** — massimo ritorno immediato (recupero acquisti + rinnovi).

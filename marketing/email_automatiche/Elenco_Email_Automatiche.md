@@ -27,7 +27,7 @@ Registro delle email automatiche (triggered) che stiamo preparando. Ogni riga = 
 | NURTURE_2 | come sopra | Il tuo team | Chi sono coach e nutrizionista | Lead qualificato | +4gg | 🟢 |
 | NURTURE_3 | come sopra | Storie come la tua | Testimonianza per persona-target | Lead qualificato | +6gg | 🟢 |
 | NURTURE_4 | come sopra | Pronta quando lo sei tu | Riepilogo profilo + offerta gentile | Lead qualificato | +9gg | 🟢 |
-| OBIEZIONE_PREZZO | Apre più email senza convertire | Un piccolo investimento su di te | Valore vs costo + parla con noi | Opportunità tiepida | evento | ⚪ |
+| OBIEZIONE_PREZZO | Apre più email senza convertire | Un piccolo investimento su di te | Valore vs costo + parla con noi | Opportunità tiepida | evento | 🟢 |
 
 ## 3. Retention (cliente attivo)
 
@@ -38,7 +38,7 @@ Registro delle email automatiche (triggered) che stiamo preparando. Ogni riga = 
 | ONB_G4 | Cliente attivo | Sostituzioni e gusti | Come dire cosa non ti piace → il menu cambia | Cliente attivo | Giorno 4 | 🟢 |
 | ONB_G7 | Cliente attivo | La tua prima settimana | Incoraggiamento + primo micro-risultato | Cliente attivo | Giorno 7 | 🟢 |
 | FEEDBACK_RICETTE | N cicli / ricette non valutate | Com'era il tuo menu? | Valuta le ricette (migliora la personalizzazione) | Cliente attivo | ricorrente | 🟢 |
-| VALORE_SETTIMANALE | Settimanale | Ricetta/consiglio della settimana | Contenuto di valore (lega al blog) | Cliente attivo | settimanale | ⚪ |
+| VALORE_SETTIMANALE | Settimanale | Ricetta/consiglio della settimana | Contenuto di valore (lega al blog) | Cliente attivo | settimanale | 🟢 |
 | RIATTIVA_DROPOUT | Alert dropout_risk | Ci sei, {{nome}}? Ripartiamo insieme | Empatia, la coach si fa viva → riapri app | A rischio | evento | 🟢 |
 | REFERRAL | Cliente soddisfatto | Porta un'amica | Invito con vantaggio per entrambe | Cliente attivo | dopo milestone | 🟢 |
 
@@ -66,7 +66,7 @@ Registro delle email automatiche (triggered) che stiamo preparando. Ogni riga = 
 | RIN_T7 | Abbonamento in scadenza | Guarda quanta strada hai fatto | Risultati + rinnova | In scadenza | T-7 | 🟢 |
 | RIN_T3 | come sopra | Non fermarti proprio ora | Continuità + upsell/cambio piano | In scadenza | T-3 | 🟢 |
 | RIN_T1 | come sopra | Il tuo percorso scade domani | Urgenza gentile, un clic per continuare | In scadenza | T-1 | 🟢 |
-| UPSELL | Buoni risultati / esigenza diversa | Un passo avanti per te | Upgrade/cambio piano (es. → keto, annuale) | Cliente attivo | evento | ⚪ |
+| UPSELL | Buoni risultati / esigenza diversa | Un passo avanti per te | Upgrade/cambio piano (es. → keto, annuale) | Cliente attivo | evento | 🟢 |
 
 ## 6. Win-back (scaduti / usciti)
 
@@ -74,33 +74,33 @@ Registro delle email automatiche (triggered) che stiamo preparando. Ogni riga = 
 |---|---|---|---|---|---|---|
 | WB_T3 | Scaduto | Riprendi da dove avevi lasciato | Storico ancora lì + eventuale incentivo | Scaduto | T+3 | 🟢 |
 | WB_T7 | Scaduto | Cosa è cambiato in Metabole | Novità + offerta rientro a tempo | Scaduto | T+7/14 | 🟢 |
-| WB_SURVEY | Churn confermato | Aiutaci a capire | 1 domanda sul motivo d'uscita | Churn | evento | ⚪ |
-| WB_STAGIONALE | Stagione/occasione (Agente Tempismo) | È il momento giusto per ripartire | Percorso adatto a stagione/occasione | Ex cliente | stagionale | ⚪ |
+| WB_SURVEY | Churn confermato | Aiutaci a capire | 1 domanda sul motivo d'uscita | Churn | evento | 🟢 |
+| WB_STAGIONALE | Stagione/occasione (Agente Tempismo) | È il momento giusto per ripartire | Percorso adatto a stagione/occasione | Ex cliente | stagionale | 🟢 |
 
 ## 7. Servizio & transazionali (sempre attive)
 
 | Cod | Evento (trigger) | Oggetto | Testo (sintesi) | Segmento | Timing | Stato |
 |---|---|---|---|---|---|---|
-| TX_VERIFICA | Registrazione | Conferma il tuo indirizzo | Link verifica email | Tutti | evento | ⚪ |
-| TX_RESET | Richiesta reset | Reimposta la password | Link reset | Tutti | evento | ⚪ |
-| TX_RICEVUTA | Pagamento ok | La tua ricevuta | Dettaglio pagamento/abbonamento | Cliente | evento | ⚪ |
-| TX_RINNOVO_OK | Rinnovo/cambio piano | Rinnovo confermato | Conferma + nuova scadenza | Cliente | evento | ⚪ |
-| TX_DUNNING | Pagamento fallito | Problema con il pagamento | Retry + aggiorna metodo | Cliente | evento | ⚪ |
-| TX_APPUNTAMENTO | Appuntamento fissato/promemoria | Il tuo appuntamento con {{nutrizionista}} | Data/ora + link televisita | Cliente | pre-appuntamento | ⚪ |
+| TX_VERIFICA | Registrazione | Conferma il tuo indirizzo | Link verifica email | Tutti | evento | 🟢 |
+| TX_RESET | Richiesta reset | Reimposta la password | Link reset | Tutti | evento | 🟢 |
+| TX_RICEVUTA | Pagamento ok | La tua ricevuta | Dettaglio pagamento/abbonamento | Cliente | evento | 🟢 |
+| TX_RINNOVO_OK | Rinnovo/cambio piano | Rinnovo confermato | Conferma + nuova scadenza | Cliente | evento | 🟢 |
+| TX_DUNNING | Pagamento fallito | Problema con il pagamento | Retry + aggiorna metodo | Cliente | evento | 🟢 |
+| TX_APPUNTAMENTO | Appuntamento fissato/promemoria | Il tuo appuntamento con {{nutrizionista}} | Data/ora + link televisita | Cliente | pre-appuntamento | 🟢 |
 
 ## 8. Consensi & preferenze
 
 | Cod | Evento (trigger) | Oggetto | Testo (sintesi) | Segmento | Timing | Stato |
 |---|---|---|---|---|---|---|
-| REPERMISSION | Lead senza consenso valido | Vuoi restare in contatto? | Re-opt-in (base 80k) | Lead vecchio | campagna | ⚪ |
-| PREFERENZE | Link nel footer | Gestisci le tue preferenze | Centro preferenze / frequenza | Tutti | on-demand | ⚪ |
+| REPERMISSION | Lead senza consenso valido | Vuoi restare in contatto? | Re-opt-in (base 80k) | Lead vecchio | campagna | 🟢 |
+| PREFERENZE | Link nel footer | Gestisci le tue preferenze | Centro preferenze / frequenza | Tutti | on-demand | 🟢 |
 
 ---
 
-### Riepilogo stato
-- **Copy pronta (🟢):** attivazione (3) + conversione (profilo incompleto, checkout 1H/24H/72H, nurture 1–4) + retention (onboarding G1/G2/G4/G7, feedback ricette, riattivazione, referral) + tutte le 12 EV + rinnovo T7/T3/T1 + win-back T3/T7. **Copy completa in `../Metabole_Email_Ciclo_Vita.md` (Parti 1, 3, 4, 5).**
-- **Da progettare (⚪):** obiezione prezzo, contenuti valore settimanali, upsell, win-back survey/stagionale, transazionali/dunning, consensi/preferenze.
-- **Prossimo passo:** tradurre (🔵) nelle lingue dell'app → template Brevo (⬛) con i trigger → test → live (✅).
+### Riepilogo stato — **catalogo 100% con copy pronta 🟢**
+Tutte le email hanno **copy pronta**: attivazione, conversione (profilo incompleto, checkout 1H/24H/72H, nurture 1–4, obiezione prezzo), retention (onboarding G1/G2/G4/G7, feedback ricette, valore settimanale, riattivazione, referral), 12 email per evento, rinnovo T7/T3/T1 + upsell, win-back (T3/T7/survey/stagionale), transazionali (verifica, reset, ricevuta, rinnovo, dunning, appuntamento), consensi (re-permission, preferenze).
+**Copy completa in `../Metabole_Email_Ciclo_Vita.md`** (Parti 1, 3, 4, 5, 6, 7).
+- **Prossimo passo (Sviluppo):** tradurre (🔵) nelle lingue dell'app → **template Brevo (⬛)** con i trigger → test → **live (✅)**.
 - **Prossimi passi:** completare le 🟡/⚪ → **tradurre (🔵)** nelle lingue dell'app → **costruire i template Brevo (⬛)** con i trigger → test → **live (✅)**.
 
 Copy completa e dettagli: `../Metabole_Email_Ciclo_Vita.md`. Campagne massive (win-back 20k / nurture 80k): `../../Metabole_Strategia_Rientro_Nurture.md`.

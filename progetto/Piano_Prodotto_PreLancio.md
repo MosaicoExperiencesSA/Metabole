@@ -21,13 +21,13 @@ Compaiono in automatico sul sito una volta approvate.
 Sito + pagine legali. Le traduzioni ci sono, serve un controllo umano sulle lingue delicate.
 - **Preparo io:** **estratto** delle stringhe sensibili (claim, legali, CTA) in RU/ZH/AR affiancate all'italiano, pronto da mandare a un revisore madrelingua.
 - **Serve da te:** un revisore per lingua (o conferma che va bene lanciare e rivedere dopo).
-- **Stato:** ⬜
+- **Stato:** ⏳ estratto pronto (`marketing/Traduzioni_Revisione_RU_ZH_AR.md`, 18 stringhe sensibili IT↔RU/ZH/AR) — manca solo il revisore.
 
 ## 4. Testi email → template (marketing)
 Le copy le abbiamo (`marketing/email_automatiche/`). Restano da completare le bozze 🟡 e poi Simone costruisce i template in Brevo.
 - **Preparo io:** completo la copy mancante (nurture, onboarding giorni 1-7, win-back) e la porto tutta a "pronta".
 - **Serve da te:** ok sul tono; poi passaggio a Simone per Brevo.
-- **Stato:** ⏳ (3 richieste + eventi + rinnovo già pronte)
+- **Stato:** ✅ **copy al 100%** (48 email pronte). Resta a Simone: traduzione + template Brevo con i trigger.
 
 ## 5. Smoke test end-to-end (insieme a Simone)
 Prova reale del percorso cliente prima di aprire.
