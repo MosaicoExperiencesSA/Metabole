@@ -23,6 +23,7 @@ const NAV: NavSection[] = [
     group: 'Generale',
     items: [
       { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
+      { key: 'dashboard', label: 'Posta', to: '/posta', icon: 'ti-mail' },
       { key: 'charts', label: 'Grafici', to: '/grafici', icon: 'ti-chart-histogram' },
       // Impostazioni spostate nel menu utente in alto (avatar) → non più in sidebar.
     ],

@@ -23,17 +23,49 @@ describe('ReferralService.ensureCode', () => {
     expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
   });
 
-  it('genera e salva un codice se manca (8 caratteri)', async () => {
+  it('genera col metodo aziendale (cognome+iniziale+01) se manca', async () => {
     const prisma = {
       clientProfile: {
-        // 1a chiamata: profilo senza codice · 2a chiamata: check unicità → libero
+        // 1a chiamata: profilo senza codice · poi check unicità → libero
         findUnique: jest.fn().mockResolvedValueOnce({ referralCode: null }).mockResolvedValue(null),
         upsert: jest.fn().mockResolvedValue({}),
       },
+      user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'Giulia', lastName: 'Bianchi' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const code = await make(prisma).ensureCode('c1');
+    expect(code).toBe('BIANCG01');
+    expect(prisma.clientProfile.upsert).toHaveBeenCalled();
+  });
+
+  it('senza nome ricade sul codice casuale (8 caratteri)', async () => {
+    const prisma = {
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValueOnce({ referralCode: null }).mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ firstName: null, lastName: null }) },
+      staff: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const code = await make(prisma).ensureCode('c1');
     expect(code).toHaveLength(8);
     expect(prisma.clientProfile.upsert).toHaveBeenCalled();
+  });
+
+  it('non usa un codice già occupato da una coach', async () => {
+    const prisma = {
+      clientProfile: {
+        findUnique: jest.fn().mockImplementation(({ where }: any) =>
+          Promise.resolve(where.userId ? { referralCode: null } : null)),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'AnnaLisa', lastName: 'Volpetti' }) },
+      // VOLPEA01 è il ref code della coach → si passa a VOLPEA02
+      staff: { findUnique: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(where.refCode === 'VOLPEA01' ? { id: 'coach-staff' } : null)) },
+    };
+    const code = await make(prisma).ensureCode('c1');
+    expect(code).toBe('VOLPEA02');
   });
 });
 

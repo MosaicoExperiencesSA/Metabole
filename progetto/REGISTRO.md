@@ -7,6 +7,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Generazione automatica dei codici col metodo aziendale** — nuovo modulo
+  `common/ref-code.ts`: ogni codice generato in automatico segue la regola **5 lettere cognome +
+  iniziale nome + progressivo da 01** (es. VOLPEA01). Vale per il ref code coach (admin e "il mio
+  invito") e per il codice cliente "porta un'amica" (dal nome della cliente); casuale solo se il
+  nome manca. Con la stessa forma nei due spazi, l'**unicità è verificata incrociata** (staff.refCode
+  + clientProfile.referralCode), anche per i codici impostati a mano dall'admin. Inserimento
+  case-insensitive (già garantito). +6 unit test (lead-assignment e referral).
+
 - `[Prodotto]` **Marketing — area "Email automatiche" con elenco-tracker** (`marketing/email_automatiche/Elenco_Email_Automatiche.md`) — nuovo registro di lavoro delle email automatiche in preparazione, con campi **evento (trigger), oggetto, testo (sintesi), segmento, timing, stato** (⚪ da progettare / 🟡 bozza / 🟢 copy pronta / 🔵 da tradurre / ⬛ template Brevo / ✅ live). Raggruppate in 8 aree: attivazione, conversione, retention, **email per evento** (peso obiettivo, morale, plateau, ricorrenze…), rinnovo, win-back, servizio/transazionali, consensi. Rimanda alla copy completa in `Metabole_Email_Ciclo_Vita.md` e alle campagne massive.
 
 - `[Prodotto]` **Marketing — Email per ciclo di vita (per stato utente)** (`marketing/Metabole_Email_Ciclo_Vita.md`) — set completo di email triggered mappate a stati CRM e agente. Le 3 richieste con **copy pronta** (Benvenuto; "Il tuo profilo è pronto" con riepilogo questionario + piano + nutrizionista + coach; "Il tuo piano inizia domani + lista della spesa") + proposta di tutto il resto da agente di marketing: conversione (profilo incompleto, **checkout abbandonato** 3 email, nurture chi non sceglie il piano, obiezione prezzo), retention (onboarding 1–7, milestone, feedback ricette, contenuti valore, **riattivazione dropout_risk**, supporto stato Conforto, **referral**), **rinnovo** in scadenza (T-7/T-3/T-1 + upsell), **win-back** scaduti (grace, novità, survey uscita, stagionale), transazionali/dunning, consensi/preferenze. Con merge tag Brevo, trigger, priorità, A/B, metriche e passaggio dal Giudice. Da tradurre + costruire template Brevo. Nessun invio senza consenso. **Aggiunta copy completa** delle email ad alto impatto (checkout abbandonato A2.1–A2.3, rinnovo C1–C3) e una **Parte 4 — Email per EVENTO** (EV1 obiettivo di peso raggiunto, primo risultato, traguardo intermedio, costanza, **plateau**, **giornata storta/morale**, misure mancanti, rientro, compleanno, anniversario, pre-evento agenda, passaggio a mantenimento) con regole di frequenza e benessere.

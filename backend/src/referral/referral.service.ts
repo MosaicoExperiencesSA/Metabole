@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { nextRuleCode, refCodeBase } from '../common/ref-code';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-// Alfabeto senza caratteri ambigui (come i ref code staff). Lunghezza 8 →
-// DISTINTA dai ref code coach (6 caratteri): così i due spazi non collidono mai
-// e in registrazione il codice coach ha comunque la precedenza.
+// Metodo aziendale (14/7): anche i codici cliente seguono cognome+iniziale+01.
+// Stessa forma dei ref code coach → l'unicità si controlla su ENTRAMBI gli
+// spazi (staff.refCode e clientProfile.referralCode); in registrazione il
+// codice coach ha comunque la precedenza. Alfabeto casuale solo come ripiego.
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 8;
 
@@ -29,6 +31,15 @@ export class ReferralService {
     return s;
   }
 
+  /** true se il codice è già usato da un invito cliente O da una coach. */
+  private async codeTaken(code: string): Promise<boolean> {
+    const [c, s] = await Promise.all([
+      this.prisma.clientProfile.findUnique({ where: { referralCode: code }, select: { userId: true } }),
+      this.prisma.staff.findUnique({ where: { refCode: code }, select: { id: true } }),
+    ]);
+    return Boolean(c || s);
+  }
+
   /** Restituisce (creandolo se serve) il codice referral della cliente. */
   async ensureCode(clientId: string): Promise<string> {
     const profile = await this.prisma.clientProfile.findUnique({
@@ -37,14 +48,21 @@ export class ReferralService {
     });
     if (profile?.referralCode) return profile.referralCode;
 
-    let code = this.randomCode();
-    for (let i = 0; i < 8; i++) {
-      const exists = await this.prisma.clientProfile.findUnique({
-        where: { referralCode: code },
-        select: { userId: true },
-      });
-      if (!exists) break;
+    // Metodo aziendale: 5 lettere cognome + iniziale nome + progressivo da 01.
+    const user = await this.prisma.user.findUnique({
+      where: { id: clientId },
+      select: { firstName: true, lastName: true },
+    });
+    const base = refCodeBase(user?.firstName, user?.lastName);
+    let code = base ? await nextRuleCode(base, (c) => this.codeTaken(c)) : null;
+
+    // Ripiego casuale se il nome manca o i progressivi sono esauriti.
+    if (!code) {
       code = this.randomCode();
+      for (let i = 0; i < 8; i++) {
+        if (!(await this.codeTaken(code))) break;
+        code = this.randomCode();
+      }
     }
     // upsert: se il profilo non esiste ancora (invito prima dell'onboarding) lo crea
     // minimale; l'onboarding poi lo completa senza toccare il codice.

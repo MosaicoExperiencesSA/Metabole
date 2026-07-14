@@ -56,7 +56,36 @@ describe('LeadAssignmentService.myInvite', () => {
     expect(prisma.staff.update).not.toHaveBeenCalled();
   });
 
-  it('genera il ref code se manca', async () => {
+  it('genera il ref code col metodo aziendale (cognome+iniziale+01) dal displayName', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const prisma = {
+      staff: {
+        findFirst: jest.fn().mockResolvedValue({ id: 's1', refCode: null, displayName: 'AnnaLisa Volpetti', user: { firstName: null, lastName: null } }),
+        findUnique: jest.fn().mockResolvedValue(null),
+        update,
+      },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const res = await make(prisma).myInvite('coach-1');
+    expect(res.refCode).toBe('VOLPEA01');
+    expect(update).toHaveBeenCalled();
+  });
+
+  it('se VOLPEA01 è occupato passa a VOLPEA02', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const prisma = {
+      staff: {
+        findFirst: jest.fn().mockResolvedValue({ id: 's1', refCode: null, displayName: null, user: { firstName: 'AnnaLisa', lastName: 'Volpetti' } }),
+        findUnique: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(where.refCode === 'VOLPEA01' ? { id: 'altra' } : null)),
+        update,
+      },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const res = await make(prisma).myInvite('coach-1');
+    expect(res.refCode).toBe('VOLPEA02');
+  });
+
+  it('senza nome ricade sul codice casuale (6 caratteri)', async () => {
     const update = jest.fn().mockResolvedValue({});
     const prisma = {
       staff: {
@@ -64,6 +93,7 @@ describe('LeadAssignmentService.myInvite', () => {
         findUnique: jest.fn().mockResolvedValue(null),
         update,
       },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const res = await make(prisma).myInvite('coach-1');
     expect(res.refCode).toMatch(/^[A-Z0-9]{6}$/);

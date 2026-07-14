@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { nextRuleCode, refCodeBase, splitDisplayName } from '../common/ref-code';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -248,10 +249,15 @@ export class LeadAssignmentService {
   /**
    * Genera (o imposta, se `desired` è indicato) il ref code di una coach.
    * `desired`: codice scelto dall'admin (3-12 caratteri, lettere/numeri, salvato
-   * in maiuscolo); dev'essere libero. Senza `desired` si genera un codice casuale.
+   * in maiuscolo); dev'essere libero. Senza `desired` si genera col metodo
+   * aziendale (5 lettere cognome + iniziale nome + progressivo da 01);
+   * codice casuale solo come ripiego se il nome non è disponibile.
    */
   async generateRefCode(staffUserId: string, actorId: string, desired?: string): Promise<{ refCode: string }> {
-    const staff = await this.prisma.staff.findFirst({ where: { userId: staffUserId, user: { role: 'coach' } }, select: { id: true } });
+    const staff = await this.prisma.staff.findFirst({
+      where: { userId: staffUserId, user: { role: 'coach' } },
+      select: { id: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
+    });
     if (!staff) throw new BadRequestException('Il ref code è disponibile solo per le coach.');
     let code: string;
     if (desired?.trim()) {
@@ -259,24 +265,55 @@ export class LeadAssignmentService {
       if (!/^[A-Z0-9]{3,12}$/.test(code)) {
         throw new BadRequestException('Ref code non valido: da 3 a 12 caratteri, solo lettere e numeri.');
       }
-      const exists = await this.prisma.staff.findUnique({ where: { refCode: code }, select: { id: true } });
-      if (exists && exists.id !== staff.id) {
+      const owner = await this.prisma.staff.findUnique({ where: { refCode: code }, select: { id: true } });
+      if (owner && owner.id !== staff.id) {
         throw new BadRequestException('Ref code già assegnato a un\'altra coach.');
       }
+      // Stessa forma dei codici cliente "porta un'amica": il codice non deve esistere neanche lì.
+      const clientOwner = await this.prisma.clientProfile.findUnique({ where: { referralCode: code }, select: { userId: true } });
+      if (clientOwner) throw new BadRequestException('Codice già usato da un invito cliente.');
     } else {
-      code = await this.freshRefCode();
+      code = await this.ruleOrRandomCode(staff);
     }
     await this.prisma.staff.update({ where: { id: staff.id }, data: { refCode: code } });
     await this.audit.log({ action: 'staff.refcode.generate', actorId, entityType: 'staff', entityId: staff.id, metadata: desired ? { custom: true } : undefined });
     return { refCode: code };
   }
 
-  /** Genera un ref code univoco (non ancora usato da un'altra scheda staff). */
+  /** true se il codice è già usato da una coach O da un invito cliente. */
+  private async codeTaken(code: string): Promise<boolean> {
+    const [s, c] = await Promise.all([
+      this.prisma.staff.findUnique({ where: { refCode: code }, select: { id: true } }),
+      this.prisma.clientProfile.findUnique({ where: { referralCode: code }, select: { userId: true } }),
+    ]);
+    return Boolean(s || c);
+  }
+
+  /**
+   * Codice col metodo aziendale (cognome+iniziale+01…); se nome/cognome non
+   * ricavabili (da user o displayName) o progressivi esauriti → casuale.
+   */
+  private async ruleOrRandomCode(staff: {
+    displayName?: string | null;
+    user?: { firstName?: string | null; lastName?: string | null } | null;
+  }): Promise<string> {
+    const fromDisplay = splitDisplayName(staff.displayName);
+    const base = refCodeBase(
+      staff.user?.firstName || fromDisplay.firstName,
+      staff.user?.lastName || fromDisplay.lastName,
+    );
+    if (base) {
+      const code = await nextRuleCode(base, (c) => this.codeTaken(c));
+      if (code) return code;
+    }
+    return this.freshRefCode();
+  }
+
+  /** Ripiego casuale: ref code univoco (controllato anche sui codici cliente). */
   private async freshRefCode(): Promise<string> {
     let code = this.randomCode();
     for (let i = 0; i < 8; i++) {
-      const exists = await this.prisma.staff.findUnique({ where: { refCode: code } });
-      if (!exists) break;
+      if (!(await this.codeTaken(code))) break;
       code = this.randomCode();
     }
     return code;
@@ -289,12 +326,12 @@ export class LeadAssignmentService {
   async myInvite(coachUserId: string): Promise<{ refCode: string; url: string }> {
     const staff = await this.prisma.staff.findFirst({
       where: { userId: coachUserId, user: { role: 'coach' } },
-      select: { id: true, refCode: true },
+      select: { id: true, refCode: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
     if (!staff) throw new BadRequestException('L\'invito è disponibile solo per le coach.');
     let refCode = staff.refCode;
     if (!refCode) {
-      refCode = await this.freshRefCode();
+      refCode = await this.ruleOrRandomCode(staff);
       await this.prisma.staff.update({ where: { id: staff.id }, data: { refCode } });
       await this.audit.log({ action: 'staff.refcode.generate', actorId: coachUserId, entityType: 'staff', entityId: staff.id });
     }
