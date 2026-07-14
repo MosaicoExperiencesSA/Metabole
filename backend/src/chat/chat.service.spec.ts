@@ -93,7 +93,7 @@ describe('ChatService', () => {
     prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
     const result: any = await service.postMessage(client, 't-ai', 'mi faccio vomitare dopo i pasti');
     expect(prisma.escalation.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ assignedToId: 'staff-n' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ category: 'clinical', assignedToId: 'staff-n' }) }),
     );
     expect(notifications.notifyOncePerDay).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'nutri-user', type: 'chat_sensitive_alert' }),

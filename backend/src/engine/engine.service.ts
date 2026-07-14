@@ -91,6 +91,8 @@ export class EngineService {
             clientId,
             reason: `[${guardrail.reasonKey}] ${guardrail.reason}`,
             source: 'engine',
+            // R12: guardrail di sicurezza = categoria clinica → solo nutrizionista.
+            category: 'clinical' as never,
             assignedToId: profile?.assignedNutritionistId,
           },
         });

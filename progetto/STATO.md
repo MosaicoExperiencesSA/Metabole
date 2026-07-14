@@ -218,9 +218,11 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   - **E5 (R12) Routing segnalazioni**: categorie standard (diet_blocked, no_progress, low_adherence,
     mood_risk, clinical, other) + instradamento primary/also (`escalations/escalation-routing.*`);
     backoffice **Segnalazioni** con colonna e filtro per categoria; pagina **Gruppi equivalenza**.
-  - **Rifiniture rimaste (da concordare col socio)**: modulazione pesi da `Diet.objective`
-    (mantenimento → efficacia neutra); adozione categorie/routing sulle escalation create da
-    chat/segnali/onboarding/motore giornaliero (oggi le settano solo personal-base e menu).
+  - **Rifiniture R12 FATTE (14/7 sera, da validare col socio)**: ① modulazione pesi da
+    `Diet.objective` — in mantenimento efficacia neutra (`menu_maintenance_w_eff`, default 0),
+    niente spinta al deficit nemmeno dagli stati plateau/post-evento/rientro; ② categorie R12 su
+    TUTTE le segnalazioni: motore giornaliero/chat/segnali ora settano `clinical` (onboarding già;
+    personal-base/menu → `diet_blocked`), così il filtro per categoria del backoffice copre tutto.
 - **Certificazione unicità** (seed, collision check, certificato HMAC): ✅ MVP con E2 (vedi sopra);
   registro hash-chain/PKI verificabile da auditor esterno ⬜ rimandato (Fase 10 avanzata).
 - **Piani stagionali (prodotto)** ⬜ da `../Metabole_Piani_Estate.pdf`: due modalità di luglio —

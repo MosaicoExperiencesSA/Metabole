@@ -186,7 +186,7 @@ export class MenuService {
     // restano prioritari.
     const agentState = await this.dietAgent.stateFor(clientId);
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
-    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState);
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective);
     const [kcalTolPct, daycomboEnabled, pMin, pMax] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getBool('menu_daycombo_enabled', false),
@@ -324,6 +324,7 @@ export class MenuService {
     regime: string | null,
     templates: { meals: { slot: string; recipeId: string }[] }[],
     state: AgentState = 'normale',
+    objective: string = 'dimagrimento',
   ): Promise<{
     slotPool: Map<string, Set<string>>;
     kcalOf: Map<string, number>;
@@ -332,7 +333,7 @@ export class MenuService {
   } | null> {
     if (!regime) return null;
 
-    const [wEffBase, wGradBase, boost, proteinBonus, penaltyRepeat, repeatWindowDays] = await Promise.all([
+    const [wEffBase, wGradBase, boost, proteinBonus, penaltyRepeat, repeatWindowDays, maintWEff] = await Promise.all([
       this.configParams.getNumber('menu_select_w_eff', 1),
       this.configParams.getNumber('menu_select_w_grad', 1),
       this.configParams.getNumber('menu_state_boost', 1.8),
@@ -340,6 +341,8 @@ export class MenuService {
       // R11: penalità di ripetizione (varietà). Default 0 = disattivata (comportamento invariato).
       this.configParams.getNumber('menu_penalty_repeat', 0),
       this.configParams.getNumber('menu_repeat_window_days', 14),
+      // R12: peso efficacia in MANTENIMENTO (default 0 = efficacia neutra).
+      this.configParams.getNumber('menu_maintenance_w_eff', 0),
     ]);
     // Modulazione dei pesi in base allo stato dell'agente.
     let wEff = wEffBase;
@@ -347,6 +350,10 @@ export class MenuService {
     if (state === 'conforto') wGrad = wGradBase * boost; // menu più amati
     // plateau / post-evento / rientro → si spinge sull'efficacia (calo/recupero).
     else if (state === 'plateau' || state === 'post_evento' || state === 'rientro') wEff = wEffBase * boost;
+    // R12 — modulazione da obiettivo della dieta: in MANTENIMENTO l'efficacia (appresa
+    // sul calo peso) diventa neutra — niente spinta al deficit, nemmeno dagli stati che
+    // la boosterebbero (plateau/post-evento/rientro); resta il gradimento (+ varietà).
+    if (objective === 'mantenimento') wEff = maintWEff;
     const usePreEvent = state === 'pre_evento';
 
     // Pool candidati per slot (ricette usate dalla dieta per quello slot).

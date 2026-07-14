@@ -7,6 +7,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Motore — rifiniture R12 completate (da validare col socio)** — le due rifiniture
+  rimaste dopo E1→E5: ① **Modulazione pesi da `Diet.objective`**: in **mantenimento** l'efficacia
+  (appresa sul calo peso) diventa **neutra** nella selezione dei menu — niente spinta al deficit,
+  nemmeno dagli stati che la boosterebbero (plateau/post-evento/rientro); resta il gradimento
+  (+ varietà). Peso in `config_param` `menu_maintenance_w_eff` (default 0 = neutra); in dimagrimento
+  nulla cambia. ② **Categorie R12 sulle segnalazioni esistenti**: gli escalation creati da motore
+  giornaliero (guardrail), chat (tema sensibile) e segnali (calo rapido) ora portano
+  `category:'clinical'` (sicurezza → solo nutrizionista, coerente con l'assegnazione già in essere);
+  onboarding le aveva già, personal-base/menu usano `diet_blocked`. Così il filtro per categoria del
+  backoffice copre tutte le segnalazioni. +2 unit test menu (dimagrimento vs mantenimento), rafforzati
+  i test engine/chat/signals con l'assert sulla categoria. File: `menu.service.ts(+spec)`,
+  `engine.service.ts(+spec)`, `chat.service.ts(+spec)`, `signals.service.ts(+spec)`. Nessuna migrazione.
+
 - `[Prodotto]` **Sito — galleria app sfogliabile + dicitura contatori con 3 prodotti** (`Metabole_Sito_Presentazione.html`) — (1) la sezione app ora ha una **galleria swipe** (frecce + puntini + caption, touch/scroll-snap, no immagini esterne) con **4 schermate inline**: Home (misure/proposta), Percorso (menu giorno 1 e 2 con cottura diversa), Obiettivi (progressi + cambia obiettivo), Contatti (Gaia + coach + nutrizionista). (2) Dicitura contatori aggiornata in tutte le 9 lingue con l'elenco prodotti esteso: **"tra cui Nutriamo, Dimagriamo, Nutrilab"**. → da deployare per vederle live.
 
 - `[Sviluppo]` **Backoffice — Segnalazioni: filtro e colonna per categoria (R12)** — la pagina
