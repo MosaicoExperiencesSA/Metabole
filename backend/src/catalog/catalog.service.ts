@@ -7,6 +7,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
 import {
   CreateDietDto,
   CreateRecipeDto,
@@ -192,6 +193,10 @@ export class CatalogService {
    *  non tocca i menu, solo come il prodotto viene mostrato/scelto dalla cliente. */
   async updateDietProduct(userId: string, id: string, dto: UpdateDietProductDto) {
     await this.getDiet(id); // 404 se non esiste
+    // Gate R8: si può rendere visibile ai clienti solo un prodotto "sicuro".
+    if ((dto as { clientVisible?: boolean }).clientVisible === true) {
+      await this.assertActivatable(id);
+    }
     const updated = await this.prisma.diet.update({
       where: { id },
       data: { ...(dto as Record<string, unknown>) } as never,
@@ -201,6 +206,70 @@ export class CatalogService {
       actorId: userId,
       entityType: 'diet',
       entityId: id,
+    });
+    return updated;
+  }
+
+  /**
+   * Gate di sicurezza R8: un prodotto è attivabile ai clienti (clientVisible=true) solo se
+   * TUTTE le ricette dei suoi menu hanno gli allergeni CONFERMATI dal nutrizionista e c'è
+   * almeno un gruppo di equivalenza approvato (materia prima delle sostituzioni).
+   */
+  private async assertActivatable(dietId: string) {
+    const templates = await this.prisma.dietDayTemplate.findMany({ where: { dietId } });
+    const recipeIds = [
+      ...new Set(
+        templates.flatMap((t: { meals?: unknown }) =>
+          Array.isArray(t.meals)
+            ? (t.meals as Array<{ recipeId?: string }>).map((m) => m.recipeId).filter((x): x is string => !!x)
+            : [],
+        ),
+      ),
+    ];
+    if (recipeIds.length > 0) {
+      const notReviewed = await this.prisma.recipe.count({
+        where: { id: { in: recipeIds }, allergensReviewed: false } as never,
+      });
+      if (notReviewed > 0) {
+        throw new BadRequestException(
+          `Prodotto non attivabile: ${notReviewed} ricette non hanno ancora gli allergeni confermati dal nutrizionista.`,
+        );
+      }
+    }
+    const approvedGroups = await this.prisma.equivalenceGroup.count({ where: { status: 'approved' } as never });
+    if (approvedGroups === 0) {
+      throw new BadRequestException('Prodotto non attivabile: nessun gruppo di equivalenza approvato.');
+    }
+  }
+
+  // ---------- Allergeni ricette (R8) ----------
+
+  /** Pre-tag assistito: suggerisce gli allergeni dagli ingredienti + stato attuale. */
+  async recipeAllergenSuggestions(id: string) {
+    const recipe = await this.getRecipe(id);
+    return {
+      recipeId: recipe.id,
+      name: recipe.name,
+      current: (recipe as { allergens?: string[] }).allergens ?? [],
+      reviewed: (recipe as { allergensReviewed?: boolean }).allergensReviewed ?? false,
+      suggestions: suggestAllergens(recipe.ingredients),
+    };
+  }
+
+  /** Il nutrizionista CONFERMA gli allergeni della ricetta (→ reviewed=true). */
+  async setRecipeAllergens(userId: string, id: string, allergens: string[]) {
+    await this.getRecipe(id);
+    const clean = [...new Set(allergens)].filter((a) => EU_ALLERGEN_CODES.includes(a));
+    const updated = await this.prisma.recipe.update({
+      where: { id },
+      data: { allergens: clean, allergensReviewed: true } as never,
+    });
+    await this.audit.log({
+      action: 'catalog.recipe.allergens.set',
+      actorId: userId,
+      entityType: 'recipe',
+      entityId: id,
+      metadata: { count: clean.length },
     });
     return updated;
   }

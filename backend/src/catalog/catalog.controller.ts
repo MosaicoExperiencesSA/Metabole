@@ -13,6 +13,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { CatalogService } from './catalog.service';
+import { SetRecipeAllergensDto } from './dto/allergens.dto';
 import {
   CreateDietDto,
   CreateRecipeDto,
@@ -165,5 +166,19 @@ export class RecipesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateRecipeDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateRecipe(user.sub, id, dto);
+  }
+
+  /** Pre-tag allergeni assistito (suggerimenti dagli ingredienti + stato attuale). */
+  @Roles('nutritionist', 'head_nutritionist')
+  @Get(':id/allergen-suggestions')
+  allergenSuggestions(@Param('id') id: string) {
+    return this.catalog.recipeAllergenSuggestions(id);
+  }
+
+  /** Conferma degli allergeni della ricetta da parte del nutrizionista (reviewed=true). */
+  @Roles('nutritionist', 'head_nutritionist')
+  @Patch(':id/allergens')
+  setAllergens(@Param('id') id: string, @Body() dto: SetRecipeAllergensDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.setRecipeAllergens(user.sub, id, dto.allergens);
   }
 }
