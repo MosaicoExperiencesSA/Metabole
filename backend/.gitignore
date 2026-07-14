@@ -5,3 +5,6 @@ coverage/
 .env.local
 *.log
 .cache/
+
+# TS incremental build info (mai committare)
+*.tsbuildinfo

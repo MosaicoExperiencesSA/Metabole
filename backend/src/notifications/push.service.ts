@@ -58,7 +58,7 @@ export class PushService {
     const fcm = this.fcm();
     if (!fcm) return;
     const rows = await this.prisma.pushToken.findMany({ where: { userId }, select: { token: true } });
-    const tokens = rows.map((r) => r.token);
+    const tokens = rows.map((r: { token: string }) => r.token);
     if (tokens.length === 0) return;
     try {
       const res = await fcm.sendEachForMulticast({
