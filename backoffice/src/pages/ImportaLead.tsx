@@ -12,6 +12,7 @@ import { Banner } from '../components/ui';
 type Row = {
   email?: string; phone?: string; name?: string; lists?: string;
   previousStatus?: string; historicalPaidCents?: number; coachRefCode?: string;
+  codiceFiscale?: string; address?: string;
 };
 type Summary = { created: number; merged: number; skipped: number; coachAssigned: number; listLinks: number; newLists: string[] };
 
@@ -45,7 +46,8 @@ function toRows(csv: string): { rows: Row[]; errors: string[] } {
   const head = grid[0].map((h) => h.trim().toLowerCase());
   const col = (name: string) => head.indexOf(name);
   const iE = col('email'), iP = col('phone'), iN = col('name'), iL = col('lists'),
-    iS = col('previous_status'), iH = col('historical_paid_cents'), iC = col('coach_ref_code');
+    iS = col('previous_status'), iH = col('historical_paid_cents'), iC = col('coach_ref_code'),
+    iCF = col('codice_fiscale'), iA = col('address');
   const errors: string[] = [];
   if (iE < 0 && iP < 0) errors.push('Manca la colonna email o phone.');
   const rows: Row[] = [];
@@ -60,6 +62,8 @@ function toRows(csv: string): { rows: Row[]; errors: string[] } {
       previousStatus: iS >= 0 ? g[iS]?.trim() : undefined,
       historicalPaidCents: hv ? Math.round(Number(hv)) : undefined,
       coachRefCode: iC >= 0 ? g[iC]?.trim() : undefined,
+      codiceFiscale: iCF >= 0 ? g[iCF]?.trim() : undefined,
+      address: iA >= 0 ? g[iA]?.trim() : undefined,
     });
   }
   return { rows, errors };

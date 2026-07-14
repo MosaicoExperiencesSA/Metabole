@@ -33,6 +33,8 @@ interface LeadDetailData {
   phone: string | null;
   previousStatus: string | null;
   historicalPaidCents: number | null;
+  codiceFiscale: string | null;
+  address: string | null;
   lists: CrmList[];
   client: {
     email: string;
@@ -69,6 +71,8 @@ export function LeadDetail() {
   const [valueEuro, setValueEuro] = useState('');
   const [prevStatus, setPrevStatus] = useState('');
   const [histPaidEuro, setHistPaidEuro] = useState('');
+  const [codiceFiscale, setCodiceFiscale] = useState('');
+  const [address, setAddress] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Liste CRM
@@ -98,6 +102,8 @@ export function LeadDetail() {
       setValueEuro(l.valueCents != null ? String(l.valueCents / 100) : '');
       setPrevStatus(l.previousStatus ?? '');
       setHistPaidEuro(l.historicalPaidCents != null ? String(l.historicalPaidCents / 100) : '');
+      setCodiceFiscale(l.codiceFiscale ?? '');
+      setAddress(l.address ?? '');
       if (canAssignCoach) { try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ } }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -129,10 +135,12 @@ export function LeadDetail() {
         email: email.trim(),
         previousStatus: prevStatus.trim(),
         historicalPaidCents: histCents,
+        codiceFiscale: codiceFiscale.trim(),
+        address: address.trim(),
       };
       if (valueCents !== undefined) body.valueCents = valueCents;
       const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/info`, { method: 'PATCH', body: JSON.stringify(body) });
-      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents });
+      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address });
       setNotice('Dati salvati.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Salvataggio non riuscito.');
@@ -399,7 +407,17 @@ export function LeadDetail() {
             <input className="input" inputMode="decimal" value={histPaidEuro} onChange={(e) => setHistPaidEuro(e.target.value)} placeholder="Es. 1490" />
           </div>
         </div>
-        <p className="hint">I campi "storico" arrivano dalle liste importate (esperienze precedenti del cliente): sono solo informativi, non entrano nella contabilità Metabole.</p>
+        <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 4 }}>
+          <div className="field" style={{ maxWidth: 220 }}>
+            <label>Codice fiscale</label>
+            <input className="input" value={codiceFiscale} onChange={(e) => setCodiceFiscale(e.target.value.toUpperCase())} placeholder="RSSMRA80A01H501U" maxLength={20} style={{ textTransform: 'uppercase' }} />
+          </div>
+          <div className="field" style={{ minWidth: 260, flex: 1 }}>
+            <label>Indirizzo</label>
+            <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, Milano" maxLength={200} />
+          </div>
+        </div>
+        <p className="hint">I campi "storico" arrivano dalle liste importate (esperienze precedenti del cliente): sono solo informativi, non entrano nella contabilità Metabole. Codice fiscale e indirizzo servono per fatturazione/spedizione.</p>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn" onClick={saveInfo} disabled={saving}>
             <i className="ti ti-device-floppy" /> {saving ? 'Salvataggio…' : 'Salva'}

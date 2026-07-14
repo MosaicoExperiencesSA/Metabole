@@ -326,4 +326,27 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     expect(prisma.crmListMember.upsert).toHaveBeenCalled(); // agganciata la lista
     expect(s.coachAssigned).toBe(1);
   });
+
+  it('import: codice fiscale (upper) e indirizzo dalle liste storiche finiscono sul record', async () => {
+    prisma.crmRecord.findFirst.mockResolvedValue(null);
+    await service.importRows('admin', [
+      { phone: '3331234567', name: 'Anna', codiceFiscale: 'rssmra80a01h501u', address: 'Via Roma 1, Milano' },
+    ], false);
+    expect(prisma.crmRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          codiceFiscale: 'RSSMRA80A01H501U', // normalizzato in maiuscolo
+          address: 'Via Roma 1, Milano',
+        }),
+      }),
+    );
+  });
+
+  it('import: senza CF/indirizzo NON scrive quei campi (re-import idempotente, non cancella)', async () => {
+    prisma.crmRecord.findFirst.mockResolvedValue(null);
+    await service.importRows('admin', [{ phone: '3339999999', name: 'Bea' }], false);
+    const data = (prisma.crmRecord.create as jest.Mock).mock.calls.at(-1)![0].data;
+    expect('codiceFiscale' in data).toBe(false);
+    expect('address' in data).toBe(false);
+  });
 });

@@ -24,6 +24,8 @@
 
 ### 2.1 Regola motore menu — ripetizione bigiornaliera decisa dal nutrizionista
 
+**✅ FATTO (14/07)** — implementata come `ProductRule` `menu_repeat_two_days` **per prodotto/dieta** (decisione socio, non per cliente), OFF di default. Giorno 2+ ripropone gli stessi alimenti del giorno 1 con ricetta diversa (la "gemella"): stesso **gruppo di equivalenza approvato** + kcal in banda (`repeat_twin_kcal_tolerance_pct`, def. 15) + miglior punteggio efficacia/gradimento. Fallback socio: se manca la gemella resta il **pasto già composto** (nuovo), non la ripetizione identica. Config_param `menu_repeat_two_days_default` + `repeat_twin_kcal_tolerance_pct` a seed. **Inerte** finché il nutrizionista non approva i gruppi di equivalenza. Test +3 verdi. ⏳ Resta il **toggle nella scheda dieta del backoffice** (accensione via UI; oggi la regola si attiva creando la `ProductRule` — parte del wiring "regole per prodotto" §motore).
+
 **Cosa:** il nutrizionista può decidere che il menu di una cliente si ripete per 2 giorni consecutivi: il giorno 2 usa **gli stessi alimenti** del giorno 1 ma con **ricetta/preparazione diversa**, scelta **automaticamente dal motore** (nessun lavoro manuale oltre al flag).
 
 **Design proposto:**
@@ -35,7 +37,7 @@
 
 **Da validare col socio** (il motore è dominio suo): definizione operativa di "stessi alimenti" (gruppo di equivalenza vs ingredienti identici), fallback preferito, flag per cliente vs per prodotto. **Stima:** piccola/media (backend + toggle backoffice + test + riga informativa in app). — [Sv/Claude]
 
-### 2.2 Liste CRM — Fase A (liste manuali) ✅ + Fase B (import storico) ✅ FATTE (in attesa di push)
+### 2.2 Liste CRM — suddivisione manuale di lead/clienti + import liste storiche
 
 **Cosa:** poter raggruppare lead e clienti in **liste create manualmente** dal backoffice; le viste CRM (Gestione lead, clienti) mostrano **tutti insieme o filtrati per lista**; nel **dettaglio** del lead/cliente la lista compare come badge accanto a "CRM: paid". In più, **import delle liste storiche esistenti** di Simone: per ogni contatto importato si salvano — visibili nello stesso punto della scheda — lo **stato precedente** (dallo storico pre-Metabole) e il **totale già pagato** da quel cliente.
 

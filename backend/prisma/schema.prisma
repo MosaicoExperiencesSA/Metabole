@@ -565,6 +565,9 @@ model CrmRecord {
   // pagato dal cliente. Solo INFORMATIVI sulla scheda: NON entrano in contabilità.
   previousStatus      String? @map("previous_status")
   historicalPaidCents Int?    @map("historical_paid_cents")
+  // Anagrafica fiscale/indirizzo (dalle liste storiche o inserita a mano sulla scheda).
+  codiceFiscale String? @map("codice_fiscale")
+  address       String? // indirizzo (testo libero: via/città, come nelle liste storiche)
   reminders  CrmReminder[]
   listMemberships CrmListMember[]
   createdAt  DateTime @default(now()) @map("created_at")

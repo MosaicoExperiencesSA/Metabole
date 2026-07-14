@@ -169,18 +169,19 @@ export function Diete() {
 
 /** Modifica la "scheda cliente" (schermo 16) di una dieta esistente, anche approvata. */
 function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', clientVisible: false });
+  const [f, setF] = useState({ clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ clientName?: string | null; clientDescription?: string | null; highlights?: string[] | null; objective?: string | null; clientVisible?: boolean }>(`/diets/${dietId}`)
+    api<{ clientName?: string | null; clientDescription?: string | null; highlights?: string[] | null; objective?: string | null; seasonalTag?: string | null; clientVisible?: boolean }>(`/diets/${dietId}`)
       .then((d) => setF({
         clientName: d.clientName ?? '',
         clientDescription: d.clientDescription ?? '',
         highlights: Array.isArray(d.highlights) ? d.highlights.join('\n') : '',
         objective: d.objective ?? 'dimagrimento',
+        seasonalTag: d.seasonalTag ?? '',
         clientVisible: !!d.clientVisible,
       }))
       .catch((e) => setErr(e instanceof Error ? e.message : 'Caricamento non riuscito.'))
@@ -197,6 +198,7 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
         clientDescription: f.clientDescription.trim() || null,
         highlights,
         objective: f.objective,
+        seasonalTag: f.seasonalTag || null,
         clientVisible: f.clientVisible,
       }) });
       onSaved();
@@ -235,7 +237,7 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
 }
 
 function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', clientVisible: false });
+  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -251,6 +253,7 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         clientDescription: f.clientDescription.trim() || undefined,
         highlights: highlights.length ? highlights : undefined,
         objective: f.objective,
+        seasonalTag: f.seasonalTag || undefined,
         clientVisible: f.clientVisible,
       }) });
       onSaved();
@@ -286,6 +289,14 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
           <select className="select" value={f.objective} onChange={(e) => setF({ ...f, objective: e.target.value })}>
             <option value="dimagrimento">Dimagrimento</option>
             <option value="mantenimento">Mantenimento</option>
+          </select></label>
+        <label><span className="muted" style={{ fontSize: 12 }}>Stagione (per i protocolli stagionali)</span>
+          <select className="select" value={f.seasonalTag} onChange={(e) => setF({ ...f, seasonalTag: e.target.value })}>
+            <option value="">Nessuna (tutto l'anno)</option>
+            <option value="estate">Estate</option>
+            <option value="inverno">Inverno</option>
+            <option value="primavera">Primavera</option>
+            <option value="autunno">Autunno</option>
           </select></label>
         <label className="row" style={{ gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={f.clientVisible} onChange={(e) => setF({ ...f, clientVisible: e.target.checked })} />

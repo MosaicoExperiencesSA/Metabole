@@ -191,6 +191,8 @@ export class CrmService {
       valueCents?: number | null;
       previousStatus?: string | null;
       historicalPaidCents?: number | null;
+      codiceFiscale?: string | null;
+      address?: string | null;
     },
   ) {
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
@@ -203,6 +205,8 @@ export class CrmService {
         ...(input.valueCents !== undefined ? { valueCents: input.valueCents } : {}),
         ...(input.previousStatus !== undefined ? { previousStatus: input.previousStatus || null } : {}),
         ...(input.historicalPaidCents !== undefined ? { historicalPaidCents: input.historicalPaidCents } : {}),
+        ...(input.codiceFiscale !== undefined ? { codiceFiscale: (input.codiceFiscale || '').trim().toUpperCase() || null } : {}),
+        ...(input.address !== undefined ? { address: input.address || null } : {}),
       },
     });
     await this.audit.log({
@@ -301,6 +305,8 @@ export class CrmService {
       previousStatus?: string | null;
       historicalPaidCents?: number | null;
       coachRefCode?: string | null;
+      codiceFiscale?: string | null;
+      address?: string | null;
     }>,
     dryRun: boolean,
   ) {
@@ -323,6 +329,8 @@ export class CrmService {
       if (!email && !phone) { skipped++; continue; } // senza chiave: non importabile
       const name = cut(row.name, 200) || null;
       const previousStatus = cut(row.previousStatus, 120) || null;
+      const codiceFiscale = cut((row.codiceFiscale ?? '').trim().toUpperCase(), 20) || null;
+      const address = cut(row.address, 200) || null;
       const names = (row.lists ?? '').split('|').map((s) => s.trim().slice(0, 80)).filter(Boolean);
       const coachId = row.coachRefCode ? coachByRef.get(row.coachRefCode.trim().toUpperCase()) ?? null : null;
       const orWhere = [...(phone ? [{ phone }] : []), ...(email ? [{ email }] : [])];
@@ -355,6 +363,10 @@ export class CrmService {
         name,
         previousStatus,
         historicalPaidCents: row.historicalPaidCents ?? null,
+        // CF/indirizzo: scritti solo se presenti, così un re-import senza il dato
+        // non cancella quello già salvato (idempotenza).
+        ...(codiceFiscale ? { codiceFiscale } : {}),
+        ...(address ? { address } : {}),
         ...(coachId ? { assignedCoachId: coachId, assignmentStatus: 'accepted', assignedAt: new Date() } : {}),
       };
       let recordId: string;

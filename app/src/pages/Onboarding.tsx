@@ -56,7 +56,7 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
   return Object.keys(out).length ? (out as T) : undefined;
 }
 
-interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[] }
+interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[]; seasonalTag: string | null }
 
 /** Schermo 16 "Stile che preferisci": prodotti (diete) letti dall'API a runtime (zero-redeploy).
  *  Ogni nome è toccabile → caratteristiche principali. Fallback statico se l'endpoint è vuoto. */
@@ -86,7 +86,10 @@ function DietProductsBlock({ page, value, onChange }: { page: Page; value: unkno
         return (
           <div key={p.style} className="card" style={{ display: 'block', border: on ? '2px solid var(--teal)' : undefined }}>
             <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => onChange('dietStyle', p.style)}>
-              <b style={{ fontSize: 15 }}>{p.name}</b>
+              <b style={{ fontSize: 15 }}>
+                {p.name}
+                {p.seasonalTag && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: 'var(--teal)', background: 'rgba(51,177,144,.12)', padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{p.seasonalTag}</span>}
+              </b>
               {on
                 ? <i className="ti ti-circle-check" style={{ color: 'var(--teal)', fontSize: 20 }} />
                 : <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--line)', display: 'inline-block' }} />}

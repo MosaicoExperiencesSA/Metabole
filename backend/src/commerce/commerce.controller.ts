@@ -153,6 +153,16 @@ class UpdateLeadInfoDto {
   @IsInt()
   @Min(0)
   historicalPaidCents?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  codiceFiscale?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  address?: string | null;
 }
 
 class SetLeadListsDto {
@@ -172,6 +182,8 @@ class ImportRowDto {
   @IsOptional() @IsString() previousStatus?: string;
   @IsOptional() @IsInt() historicalPaidCents?: number;
   @IsOptional() @IsString() coachRefCode?: string;
+  @IsOptional() @IsString() codiceFiscale?: string;
+  @IsOptional() @IsString() address?: string;
 }
 
 class ImportLeadsDto {

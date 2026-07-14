@@ -227,6 +227,29 @@ export class MenuService {
       daySnapshots.push({ date, meals });
     }
 
+    // RIPETIZIONE BIGIORNALIERA (ProductRule `menu_repeat_two_days`, per dieta, off di
+    // default). Se attiva per questa dieta: il giorno 2+ ripropone GLI STESSI ALIMENTI del
+    // giorno 1 (stesso gruppo di equivalenza) ma con una ricetta/preparazione DIVERSA scelta
+    // dal motore. Se per un pasto non c'è una gemella, resta il pasto già composto (nuovo).
+    if (ctx && daySnapshots.length >= 2 && (await this.isRepeatTwoDaysActive(diet.id))) {
+      const poolIds = new Set<string>();
+      for (const set of ctx.slotPool.values()) for (const id of set) poolIds.add(id);
+      const twinTolPct = await this.configParams.getNumber('repeat_twin_kcal_tolerance_pct', 15);
+      const twin = await this.buildTwinFinder(diet.id, [...poolIds], ctx, twinTolPct / 100);
+      const day0 = daySnapshots[0].meals;
+      for (let i = 1; i < daySnapshots.length; i++) {
+        const used = new Set<string>(); // niente due gemelle uguali nello stesso giorno
+        const chosen = day0.map((m0) => {
+          const t = twin(m0.recipeId, m0.slot, used);
+          if (t) { used.add(t); return { slot: m0.slot, recipeId: t }; }
+          // Fallback (decisione socio): pasto nuovo = quello già composto per questo slot.
+          const orig = daySnapshots[i].meals.find((x) => x.slot === m0.slot);
+          return { slot: m0.slot, recipeId: orig?.recipeId ?? m0.recipeId };
+        });
+        daySnapshots[i] = { date: daySnapshots[i].date, meals: await this.snapshotMeals(chosen as never) };
+      }
+    }
+
     // SICUREZZA + SOSTITUZIONE (motore §2/§7): controllo i piatti contro le esclusioni
     // della cliente. Se un ingrediente escluso ha una sostituzione sicura → la annoto sul
     // pasto (il piatto si eroga). Se un'INTOLLERANZA non è sostituibile → NON si eroga:
@@ -319,6 +342,75 @@ export class MenuService {
    * `w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)` modulata dallo stato
    * dell'agente. Usato sia dal selettore per-slot sia dalla composizione DayCombo.
    */
+  /** True se la dieta ha la ProductRule `menu_repeat_two_days` attiva (o il default globale). */
+  private async isRepeatTwoDaysActive(dietId: string): Promise<boolean> {
+    const rule = (await this.prisma.productRule.findUnique({
+      where: { dietId_ruleCode: { dietId, ruleCode: 'menu_repeat_two_days' } },
+      select: { enabled: true },
+    })) as { enabled: boolean } | null;
+    if (rule) return rule.enabled;
+    return this.configParams.getBool('menu_repeat_two_days_default', false);
+  }
+
+  /**
+   * "Trova-gemella": data una ricetta del giorno 1, cerca nel pool dello slot una ricetta
+   * DIVERSA il cui alimento principale è nello STESSO gruppo di equivalenza (approvato,
+   * per questa dieta o globale) e con kcal in banda. Ritorna null se non c'è (→ fallback).
+   */
+  private async buildTwinFinder(
+    dietId: string,
+    poolIds: string[],
+    ctx: { slotPool: Map<string, Set<string>>; kcalOf: Map<string, number>; score: (id: string) => number },
+    tolerance: number,
+  ): Promise<(recipeId: string, slot: string, exclude: Set<string>) => string | null> {
+    // Alimento principale di ogni ricetta del pool (primo ingrediente).
+    const recipes = (await this.prisma.recipe.findMany({
+      where: { id: { in: poolIds } },
+      select: { id: true, ingredients: true },
+    })) as unknown as { id: string; ingredients: unknown }[];
+    const primaryFood = new Map<string, string>();
+    for (const r of recipes) {
+      const items = Array.isArray(r.ingredients) ? (r.ingredients as { name?: string }[]) : [];
+      const first = items.find((x) => x?.name)?.name;
+      if (first) primaryFood.set(r.id, String(first).trim().toLowerCase());
+    }
+    // Gruppi di equivalenza APPROVATI (della dieta o globali). Finché il nutrizionista non
+    // ne approva, il trova-gemella non trova nulla → la regola resta di fatto inerte (sicuro).
+    const groups = (await this.prisma.equivalenceGroup.findMany({
+      where: { status: 'approved', OR: [{ productId: dietId }, { productId: null }] } as never,
+      select: { id: true, members: true },
+    })) as unknown as { id: string; members: unknown }[];
+    const foodGroup = (food: string): string | null => {
+      for (const g of groups) {
+        const items = (((g.members as { items?: string[] })?.items) ?? []).map((s) => String(s).trim().toLowerCase());
+        if (items.some((it) => it === food || (it.length > 2 && (it.includes(food) || food.includes(it))))) return g.id;
+      }
+      return null;
+    };
+    const groupOfRecipe = (id: string): string | null => {
+      const f = primaryFood.get(id);
+      return f ? foodGroup(f) : null;
+    };
+    return (recipeId, slot, exclude) => {
+      const g0 = groupOfRecipe(recipeId);
+      if (!g0) return null;
+      const k0 = ctx.kcalOf.get(recipeId) ?? 0;
+      const lo = k0 * (1 - tolerance), hi = k0 * (1 + tolerance);
+      const pool = ctx.slotPool.get(slot);
+      if (!pool) return null;
+      let best: string | null = null, bestScore = -Infinity;
+      for (const cand of pool) {
+        if (cand === recipeId || exclude.has(cand)) continue;
+        if (groupOfRecipe(cand) !== g0) continue;
+        const k = ctx.kcalOf.get(cand) ?? 0;
+        if (k0 > 0 && (k < lo || k > hi)) continue;
+        const s = ctx.score(cand);
+        if (s > bestScore) { bestScore = s; best = cand; }
+      }
+      return best;
+    };
+  }
+
   private async buildScoringContext(
     clientId: string,
     regime: string | null,

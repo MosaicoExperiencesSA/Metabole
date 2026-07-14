@@ -21,6 +21,8 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
 
   beforeEach(async () => {
     prisma = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: D(todayIso),
@@ -233,6 +235,8 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
 
   function build(daycombo: boolean) {
     const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 3,
@@ -305,6 +309,8 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
 
   function build(penalty: number, recentLunch: string[]) {
     const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
       // findMany qui è consumata SOLO dalla penalità (le giornate recenti); ne conto le ripetizioni di l1.
@@ -362,6 +368,8 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
 
   function build(objective: string) {
     const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
@@ -401,5 +409,71 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
     const { service, prisma } = build('mantenimento');
     await service.deliverIfEligible('u1');
     expect(lunchesOf(prisma)).toEqual(['l1', 'l2']); // template: giorno1 l1, giorno2 l2
+  });
+});
+
+describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days)', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
+  // r1 e r2: stesso slot, stesse kcal, alimenti principali diversi (orata/branzino).
+  // menuWeight su r1 → r1 vince lo scoring per ENTRAMBI i giorni (base = r1, r1).
+  const recipes = [
+    { id: 'r1', name: 'Orata al forno', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 }, ingredients: [{ name: 'Orata', qty: 150, unit: 'g' }] },
+    { id: 'r2', name: 'Branzino in crosta', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 }, ingredients: [{ name: 'Branzino', qty: 150, unit: 'g' }] },
+  ];
+  const tmpl = (dayIndex: number, l: string) => ({ dayIndex, level: 1, meals: [{ slot: 'lunch', recipeId: l }] });
+
+  // ruleEnabled: valore di ProductRule.enabled (null = regola non impostata → default off).
+  function build(ruleEnabled: boolean | null, groups: { id: string; members: { items: string[] } }[]) {
+    const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(ruleEnabled === null ? null : { enabled: ruleEnabled }) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue(groups) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
+      dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
+      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective: 'dimagrimento' }) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'r1'), tmpl(2, 'r2')]) },
+      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      // r1 con efficacia appresa alta → vince lo scoring in entrambi i giorni (base r1,r1).
+      menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'r1', score: 5, samples: 5 }]) },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+    };
+    const config = {
+      getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, repeat_twin_kcal_tolerance_pct: 15 } as Record<string, number>)[k] ?? def)),
+      getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    };
+    const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
+    const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
+    const { DayComboService } = require('./day-combo.service');
+    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService());
+    return { service, prisma };
+  }
+
+  const lunchesOf = (prisma: any) =>
+    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'lunch')?.recipeId);
+
+  const grp = [{ id: 'g1', members: { items: ['orata', 'branzino'] } }];
+
+  it('regola OFF (default): il 2° giorno resta la ricetta composta dal motore (r1)', async () => {
+    const { service, prisma } = build(null, grp);
+    await service.deliverIfEligible('u1');
+    expect(lunchesOf(prisma)).toEqual(['r1', 'r1']); // nessun override gemella
+  });
+
+  it('regola ON: il 2° giorno ripropone lo STESSO alimento con ricetta DIVERSA (gemella r2)', async () => {
+    const { service, prisma } = build(true, grp);
+    await service.deliverIfEligible('u1');
+    expect(lunchesOf(prisma)).toEqual(['r1', 'r2']); // giorno1 orata → giorno2 branzino (stesso gruppo)
+  });
+
+  it('regola ON ma senza gruppo di equivalenza approvato: inerte, resta il pasto composto (r1)', async () => {
+    const { service, prisma } = build(true, []); // il nutrizionista non ha ancora approvato gruppi
+    await service.deliverIfEligible('u1');
+    expect(lunchesOf(prisma)).toEqual(['r1', 'r1']);
   });
 });

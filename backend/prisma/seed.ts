@@ -153,6 +153,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'R11 — finestra (giorni) su cui contare le ripetizioni recenti di una ricetta per la penalità di ripetizione',
   },
   {
+    key: 'menu_repeat_two_days_default',
+    value: 'false',
+    type: 'boolean',
+    description: 'Ripetizione bigiornaliera GLOBALE di default (di norma off): la si attiva per singola dieta con la ProductRule `menu_repeat_two_days`. Se attiva, il giorno 2 usa gli stessi alimenti (gruppo di equivalenza) con preparazione diversa',
+  },
+  {
+    key: 'repeat_twin_kcal_tolerance_pct',
+    value: '15',
+    type: 'number',
+    description: 'Tolleranza kcal (%) entro cui una ricetta "gemella" (stesso gruppo di equivalenza, preparazione diversa) è accettata per la ripetizione bigiornaliera del giorno 2',
+  },
+  {
     key: 'cycle_default_rating',
     value: '5',
     type: 'number',

@@ -75,6 +75,8 @@ describe('MenuService — gate misure', () => {
   });
 
   const deliveryPrisma = (over: Record<string, unknown>) => ({
+    productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+    equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
     subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
     menuDay: { findFirst: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
     dailyCheckin: { findUnique: jest.fn() },
