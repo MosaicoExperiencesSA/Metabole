@@ -151,8 +151,9 @@ export class UsersService {
   /** Cambio password con verifica di quella attuale. */
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     if (!newPassword || newPassword.length < 8) throw new BadRequestException('La nuova password deve avere almeno 8 caratteri.');
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true, role: true } });
     if (!user) throw new NotFoundException('Utente non trovato');
+    if (user.role === 'admin') throw new BadRequestException("La password dell'amministratore si gestisce solo dalla variabile ADMIN_PASSWORD su Render, non dall'app.");
     const ok = await argon2.verify(user.passwordHash, currentPassword).catch(() => false);
     if (!ok) throw new BadRequestException('La password attuale non è corretta.');
     const passwordHash = await argon2.hash(newPassword);

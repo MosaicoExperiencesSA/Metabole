@@ -334,6 +334,10 @@ export class AuthService {
     ) {
       throw new BadRequestException('Token di reset non valido o scaduto');
     }
+    const target = await this.prisma.user.findUnique({ where: { id: record.userId }, select: { role: true } });
+    if (target?.role === 'admin') {
+      throw new BadRequestException("La password dell'amministratore si gestisce solo dalla variabile ADMIN_PASSWORD su Render, non tramite reset.");
+    }
     const passwordHash = await argon2.hash(newPassword);
     await this.prisma.$transaction([
       this.prisma.actionToken.update({
