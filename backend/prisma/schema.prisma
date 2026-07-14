@@ -310,6 +310,7 @@ model Staff {
   approvedPayments      Payment[]       @relation("PaymentApprover")
   ownedLeads            CrmRecord[]     @relation("LeadOwner")
   coachLeads            CrmRecord[]     @relation("LeadCoach")
+  nutritionistLeads     CrmRecord[]     @relation("LeadNutritionist")
   assignedLeads         CrmRecord[]     @relation("LeadAssigner")
   compensations         StaffCompensation[] @relation("CompensationStaff")
   authoredClientNotes   ClientNote[]        @relation("ClientNoteAuthor")
@@ -484,6 +485,10 @@ model Payment {
   pspRef         String?       @map("psp_ref")
   discountCodeId String?       @map("discount_code_id")
   discountCents  Int?          @map("discount_cents")
+  refundCents    Int?          @map("refund_cents") // storno registrato (rimborso alla cliente)
+  refundedAt     DateTime?     @map("refunded_at")
+  refundNote     String?       @map("refund_note")
+  refundById     String?       @map("refund_by_id") // user id dell'operatore che ha stornato
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
@@ -538,6 +543,8 @@ model CrmRecord {
   // Assegnazione alla coach con accettazione (2 giorni), oppure diretta via ref code.
   assignedCoachId  String?   @map("assigned_coach_id")
   assignedCoach    Staff?    @relation("LeadCoach", fields: [assignedCoachId], references: [id], onDelete: SetNull)
+  assignedNutritionistId String? @map("assigned_nutritionist_id")
+  assignedNutritionist   Staff?  @relation("LeadNutritionist", fields: [assignedNutritionistId], references: [id], onDelete: SetNull)
   assignmentStatus String?   @map("assignment_status") // pending | accepted
   assignedAt       DateTime? @map("assigned_at")
   assignedById     String?   @map("assigned_by_id")

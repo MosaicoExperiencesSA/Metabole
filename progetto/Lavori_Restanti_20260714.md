@@ -15,8 +15,8 @@
 
 ## 1. 🔴 Gate di lancio (in ordine — bloccano l'apertura)
 
-1. ~~Ripubblicare il sito su SiteGround~~ ✅ **FATTO 14/07 sera**: index.html live identico al repo (restyling + galleria + MetaboleAI®), cache svuotata, verificato con fetch no-store.
-2. **Pagamento reale di prova** (piano più economico, carta di Simone) → webhook live consegnato con 200 + abbonamento attivo + contabilità/CRM aggiornati. Pagine **`/payment/success|cancelled` verificate: esistono già** (`PaymentResult.tsx`, login persiste al redirect, scelta data inizio piano inclusa) — nessun 404, si può pagare subito. Dopo il test: rimborso dal pannello Stripe + sistemazione a mano dell'abbonamento di prova (il rimborso non lo disattiva). — [Simone, previsto 15/07]
+1. **Ripubblicare il sito su SiteGround** — il repo è avanti di 2 versioni rispetto al live (galleria app `33a48bd` + restyling box/MetaboleAI® `4a42f71`); è cambiato solo `Metabole_Sito_Presentazione.html` → da ricopiare solo `index.html` + svuotare Cache Dinamica. Procedura collaudata — [Claude su richiesta]
+2. **Pagamento reale di prova** (piano più economico, carta di Simone) → webhook live consegnato con 200 + abbonamento attivo + contabilità/CRM aggiornati. Consigliato PRIMA: verificare/creare le pagine **`/payment/success` e `/payment/cancelled`** nell'app (oggi il redirect Stripe rischia un 404 visivo; l'attivazione via webhook funziona comunque). Dopo il test: rimborso dal pannello Stripe + sistemazione a mano dell'abbonamento di prova (il rimborso non lo disattiva). — [Simone, previsto 15/07]
 3. **Smoke test end-to-end** (`Metabole_Smoke_Test.md`): registrazione → email **in inbox** (chiude la verifica Brevo/DNS) → onboarding → pagamento reale (=punto 2) → menu erogato → test allergene (blocco + segnalazione `diet_blocked`) → lead nel CRM. — [Simone+Antonio, Claude per i collaudi API]
 4. **Igiene pre-apertura**: cancellare il lead di prova "Test GoLive Claude" (simone.salogni+lead-golive@gmail.com); verificare segreti Render (`ADMIN_*`, `CORS_ORIGINS`, eventuale `AI_API_KEY`); **IBAN reale** in `bank_transfer_details` (oggi placeholder); conferma prezzi piani/prodotti; **riallineare `progetto/STATO_LANCIO.md`** (segna ancora "base contatori ⬜" e "E2–E5 da fare": sono fatti).
 
@@ -47,6 +47,14 @@
 - Nota GDPR: per l'import di dati personali storici verificare base giuridica/consensi (i contatti arrivano da prodotti precedenti di Mosaico).
 
 **Stima:** media (migrazione + backend CRUD/filtri/import + backoffice UI). Sinergia con il modulo Marketing (§4): le liste possono fare da base ai futuri "segmenti". — [Sv/Claude]
+
+### 2.3 Storno acquisti — ✅ FATTO 14/07 sera (in attesa di push)
+
+Dalla tabella Acquisti (solo admin): pulsante **Storno** su un acquisto pagato → modal che chiede **quanto rimborsare** (anche parziale) + nota. Effetti: blocco erogazione menu (abbonamento annullato), incasso nettato in contabilità, **provvigioni stornate in proporzione** (ledger + compensi del periodo + accantonate), **ricevuta di rimborso** PDF inviata alla cliente via email (it/en) e scaricabile. Il rimborso EFFETTIVO su Stripe/bonifico resta manuale (scelta di Simone). Migrazione `20260714220000_payment_refund`.
+
+### 2.4 Provvigioni e compensi PER PRODOTTO in € (non più % nei parametri)
+
+**Cosa:** togliere le percentuali provvigionali da `config_param` (`commission_coach_percent`, `commission_nutritionist_percent`, ecc.) e definirle **su ogni prodotto del negozio** (piani e prodotti) come **valore assoluto in euro** — es. "piano 3 mesi → coach €30, nutrizionista €45". `generateCommissions` legge dall'acquisto il prodotto e usa gli importi fissi; il wizard/gestione prodotti del backoffice espone i campi. Da chiarire in corso d'opera: compensi di manager/capo (importo proprio o si elimina), comportamento con sconti (l'importo fisso resta fisso?) e default per prodotti senza importi. Sinergia col filone "prodotti dinamici" (§4). — [Sv/Claude]
 
 ## 3. 🧠 Motore — code residue (niente codice mancante salvo §2)
 

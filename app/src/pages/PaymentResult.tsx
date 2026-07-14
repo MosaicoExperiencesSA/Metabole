@@ -99,7 +99,7 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
       )}
       <div className="card">
         <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>Nel frattempo</div>
-        {[['ti-calendar-check', 'Prima visita con la nutrizionista'], ['ti-ruler-2', 'Registra le tue misure iniziali'], ['ti-basket', 'Prepara la spesa consigliata']].map((r) => (
+        {[['ti-ruler-2', 'Registra le tue misure iniziali'], ['ti-basket', 'Prepara la spesa consigliata']].map((r) => (
           <div key={r[1]} style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7, fontSize: 12.5 }}>
             <i className={`ti ${r[0]}`} style={{ fontSize: 16, color: '#0E7C66' }} />{r[1]}
           </div>

@@ -187,6 +187,28 @@ export class MailService {
     return this.send({ to, subject, html, templateKey: 'payment_receipt', attachments });
   }
 
+  /** Ricevuta di RIMBORSO: inviata quando l'operatore registra lo storno di un acquisto. */
+  async sendRefundReceipt(
+    to: string,
+    input: { description: string; amountCents: number; paymentId: string; date: Date },
+    locale?: string | null,
+    attachments?: Attachment[],
+  ): Promise<boolean> {
+    const amount = (input.amountCents / 100).toFixed(2).replace('.', ',');
+    const loc = this.i18n.normalize(locale);
+    const vars = {
+      description: input.description,
+      amount,
+      date: input.date.toLocaleDateString(loc === 'en' ? 'en-GB' : 'it-IT'),
+      paymentId: input.paymentId,
+    };
+    const { subject, html } = await this.resolve('refund_receipt', {
+      subject: this.i18n.text(locale, 'mail.refund.subject'),
+      html: this.i18n.text(locale, 'mail.refund.body', vars),
+    }, vars);
+    return this.send({ to, subject, html, templateKey: 'refund_receipt', attachments });
+  }
+
   async sendPasswordReset(to: string, token: string, locale?: string | null): Promise<boolean> {
     const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
     const link = `${appUrl}/reset-password?token=${token}`;

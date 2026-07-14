@@ -246,6 +246,18 @@ class CreateManualPurchaseDto {
   discountCode?: string | null;
 }
 
+class RefundPurchaseDto {
+  /** Importo del rimborso in centesimi (l'operatore lo decide: anche parziale). */
+  @IsInt()
+  @Min(1)
+  amountCents!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  note?: string | null;
+}
+
 /** Acquisti: elenco completo, ricevuta PDF, inserimento manuale (operatore). */
 @Controller('admin/purchases')
 @Roles('admin', 'sales')
@@ -273,6 +285,19 @@ export class AdminPurchasesController {
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.commerce.deletePurchase(id, user.sub);
+  }
+
+  /** Storno: registra il rimborso, blocca i menu e storna le provvigioni in proporzione. */
+  @Roles('admin')
+  @HttpCode(200)
+  @Post(':id/refund')
+  refund(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: RefundPurchaseDto) {
+    return this.commerce.refundPurchase(id, user.sub, dto);
+  }
+
+  @Get(':id/refund-receipt-pdf')
+  refundReceiptPdf(@Param('id') id: string) {
+    return this.commerce.generateRefundReceiptPdf(id);
   }
 }
 

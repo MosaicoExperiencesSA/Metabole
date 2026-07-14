@@ -339,20 +339,27 @@ export class LeadAssignmentService {
     return { refCode, url: `${base}/register?ref=${refCode}` };
   }
 
-  /** Risolve una coach dal suo ref code (per la registrazione con codice). */
-  async resolveByRefCode(code: string): Promise<{ coachStaffId: string; coachUserId: string } | null> {
-    const coach = await this.prisma.staff.findUnique({
+  /**
+   * Risolve uno STAFF dal suo ref code (per la registrazione con codice).
+   * Il codice può essere di una coach o di una nutrizionista: sono gli unici due
+   * casi in cui l'assegnazione del team avviene senza il responsabile.
+   */
+  async resolveByRefCode(
+    code: string,
+  ): Promise<{ staffId: string; userId: string; role: 'coach' | 'nutritionist' } | null> {
+    const staff = await this.prisma.staff.findUnique({
       where: { refCode: (code ?? '').trim().toUpperCase() },
       include: { user: { select: { id: true, role: true } } },
     });
-    if (!coach || coach.user.role !== 'coach') return null;
-    return { coachStaffId: coach.id, coachUserId: coach.user.id };
+    if (!staff || (staff.user.role !== 'coach' && staff.user.role !== 'nutritionist')) return null;
+    return { staffId: staff.id, userId: staff.user.id, role: staff.user.role };
   }
 
   /**
-   * Auto-assegna una cliente alla coach del ref code al momento della registrazione.
-   * A differenza dell'assegnazione manuale (che resta "pending" con finestra di 2 giorni),
-   * il ref code è una scelta esplicita della cliente: l'assegnazione è immediata e già accettata.
+   * Auto-assegna una cliente alla coach O alla nutrizionista del ref code al momento
+   * della registrazione. A differenza dell'assegnazione manuale del responsabile
+   * (che per la coach resta "pending" con finestra di 2 giorni), il ref code è una
+   * scelta esplicita della cliente: l'assegnazione è immediata e già accettata.
    * Non blocca mai la registrazione: se qualcosa non torna, ritorna false silenziosamente.
    */
   async autoAssignByRefCode(clientId: string, code: string): Promise<boolean> {
@@ -363,26 +370,36 @@ export class LeadAssignmentService {
       select: { id: true },
     });
     if (!record) return false;
-    await this.prisma.crmRecord.update({
-      where: { id: record.id },
-      data: {
-        assignedCoachId: resolved.coachStaffId,
-        assignmentStatus: 'accepted',
-        assignedAt: new Date(),
-        assignedById: null, // auto-assegnazione via codice, non da un manager
-      },
-    });
-    // Se il profilo cliente esiste già, propaghiamo la coach; altrimenti verrà
-    // impostata all'onboarding (updateMany su 0 righe è sicuro).
+    if (resolved.role === 'coach') {
+      await this.prisma.crmRecord.update({
+        where: { id: record.id },
+        data: {
+          assignedCoachId: resolved.staffId,
+          assignmentStatus: 'accepted',
+          assignedAt: new Date(),
+          assignedById: null, // auto-assegnazione via codice, non da un manager
+        },
+      });
+    } else {
+      await this.prisma.crmRecord.update({
+        where: { id: record.id },
+        data: { assignedNutritionistId: resolved.staffId },
+      });
+    }
+    // Se il profilo cliente esiste già, propaghiamo lo staff; altrimenti verrà
+    // impostato all'onboarding (updateMany su 0 righe è sicuro).
     await this.prisma.clientProfile.updateMany({
       where: { userId: clientId },
-      data: { assignedCoachId: resolved.coachStaffId },
+      data:
+        resolved.role === 'coach'
+          ? { assignedCoachId: resolved.staffId }
+          : { assignedNutritionistId: resolved.staffId },
     });
     await this.audit.log({
       action: 'lead.assign.refcode',
       entityType: 'crm_record',
       entityId: record.id,
-      metadata: { coachStaffId: resolved.coachStaffId, code: code.trim().toUpperCase() },
+      metadata: { staffId: resolved.staffId, role: resolved.role, code: code.trim().toUpperCase() },
     });
     return true;
   }
