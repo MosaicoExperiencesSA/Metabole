@@ -7,6 +7,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Create le 14 utenze staff reali in produzione** — via `POST /admin/users` (admin
+  `admin@metabole.eu`, password recuperata col flusso di reset): Giusy Vita (`sales` = Responsabile
+  Coach), Antonio Nocera (`head_marketing`) e 12 coach (`coach`), email `nome@metabole.eu`, password
+  provvisoria con **obbligo di cambio al primo accesso**, le 12 coach con **manager = Giusy** e **ref
+  code personalizzato** (regola: 5 lettere cognome + iniziale nome + 01; inserimento case-insensitive,
+  già garantito da `resolveByRefCode`). Verifica live: lista utenti completa, login di prova con flag
+  `mustChangePassword=true`. Credenziali provviste fuori repo (repo pubblico).
+
 - `[Prodotto]` **Checklist go-live aggiornata + Runbook operativo PDF** — `Metabole_Checklist_GoLive.md` rivista sullo stato reale: i **3 blocker di codice sono CHIUSI** (endpoint pubblico lead, form sito collegati, scoping per-paziente). Restano solo configurazione (Neon, segreti, Stripe LIVE, Brevo+DNS, CORS, FCM), deploy dei due front-end su Vercel e smoke test. Nuovo `Metabole_Runbook_GoLive.pdf` con l'**ordine esatto 1→9** dei passi (per Simone/Ops) + pulizie [Sv] (`app/.env.example`, rimuovere `schema_1.prisma`, build/test in pipeline) e contenuti [Pr]. Nessun nuovo sviluppo per aprire; chiavi solo nei pannelli, mai nel repo.
 
 - `[Prodotto]` **E1 Agente Esclusioni (R8) — decisioni per Simone** (`Metabole_E1_Agente_Esclusioni_Decisioni.md`) — sciolte Q1/Q2 bloccanti e confermate le proposte di default: **Q1** tag allergeni normalizzati (14 UE) taggati dal nutrizionista, con **pre-tag assistito** da confermare + gate "prodotto non attivabile finché ricette non taggate e gruppi approvati"; **Q2** derivati via tag (un tag = alimento + derivati), tracce rimandate; **Q3** filtro ricette (no generazione automatica); **Q4** base personale = `recipeIds` sicuri; **Q5** veg/vegano ora, religione dopo; **Q6** blocca+escala se un solo **slot principale** scoperto (spuntini/merende non bloccano) + testo messaggio cliente; **Q7** run a fine onboarding + su update profilo + pulsante "rigenera base" + flag rigenerazione su nuova versione base; **Q8** ≥3 opzioni per slot principale in `config_param` (soglia separata per spuntini/merende). Via libera a E1.
