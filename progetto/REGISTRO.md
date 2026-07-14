@@ -7,7 +7,9 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
-- `[Sviluppo]` **Lista consolidata dei lavori restanti** (`progetto/Lavori_Restanti_20260714.md`) — unifica Relazione_Cosa_Manca, Handoff sessione motore e sprint go-live del 14/07; sostituisce le liste precedenti. Include le **nuove richieste di Simone**: ① regola motore "ripetizione bigiornaliera" decisa dal nutrizionista (giorno 2 = stessi alimenti, preparazione diversa scelta dal motore), design da validare col socio; ② **Liste CRM** manuali per suddividere lead/clienti (viste tutte/per lista, badge nel dettaglio accanto allo stato CRM) con **import delle liste storiche** (stato precedente + totale già pagato, separato dalla contabilità Metabole).
+- `[Sviluppo]` **Lista consolidata dei lavori restanti** (`progetto/Lavori_Restanti_20260714.md`) — unifica Relazione_Cosa_Manca, Handoff sessione motore e sprint go-live del 14/07. Include le nuove richieste di Simone: regola motore "ripetizione bigiornaliera" (nutrizionista) e **Liste CRM** manuali con import liste storiche (stato precedente + totale pagato).
+
+- `[Sviluppo]` **Sito ripubblicato (restyling+galleria) · STATO_LANCIO riallineato · pagine payment verificate** — ① `index.html` su SiteGround ora identico a main (restyling a box, MetaboleAI®, galleria app, dicitura contatori); salvataggio verificato con la POST 201 dell'editor (il primo tentativo era fallito in silenzio), cache dinamica svuotata. ② `STATO_LANCIO.md` riallineato allo stato vero: resta 1 gate (pagamento reale nello smoke test) + igiene pre-apertura. ③ Verificato che `/payment/success|cancelled` esistono già nell'app (`PaymentResult.tsx`, login persiste al redirect, scelta data inizio inclusa): il pagamento di prova non troverà 404. Aggiornata anche `Lavori_Restanti_20260714.md`.
 
 - `[Sviluppo]` **Backoffice — permessi completi, moduli dashboard, scheda lead** — ① ogni schermata ora è
   controllata dalla tabella permessi: nuova chiave `posta` (staff di default), Dashboard senza bypass,
