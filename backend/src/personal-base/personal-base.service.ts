@@ -334,6 +334,7 @@ export class PersonalBaseService {
             .slice(0, 4)
             .join('; ')}). Serve la revisione del nutrizionista.`,
           source: 'engine' as never,
+          category: 'diet_blocked' as never,
           assignedToId: nutritionistId ?? undefined,
         },
       });
