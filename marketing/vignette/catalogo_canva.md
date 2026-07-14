@@ -53,6 +53,30 @@ Come si usa: quando serve, apri la cartella, scegli la variante, **Esporta → P
 
 ---
 
+## Punti di forza MetaboleAI
+
+### Persone vere + AI
+**Messaggio:** "Non un'app da sola. Coach e nutrizionista veri, con Gaia sempre con te." · sub: "Persone vere + intelligenza artificiale."
+**Caption:** Il meglio dei due mondi: la tecnologia che ti semplifica la vita e le persone vere che non ti mollano. Coach, nutrizionista e Gaia, insieme per te. 🤝
+**Hashtag:** #personevere #ai #coach #nutrizionista #metaboleai
+- v1 — modifica: https://www.canva.com/d/EOfa6oz9RCNQxLG · anteprima: https://www.canva.com/d/yjroISalPU-5yZZ
+- v2 (testo) — modifica: https://www.canva.com/d/57zRN925FfX4XIA · anteprima: https://www.canva.com/d/Bfx2IaZ_7imwtPn
+- v3 — modifica: https://www.canva.com/d/ckNyqyh9O1OS6xh · anteprima: https://www.canva.com/d/KNmGIPXvNJh7Dri
+- v4 — modifica: https://www.canva.com/d/qc376GosRSo4ZYW · anteprima: https://www.canva.com/d/YOa13GhkzD9TZwg
+
+### Davvero su misura
+**Messaggio:** "La tua dieta è unica come te." · sub: "Cucita sui tuoi gusti, la tua vita, le tue esigenze."
+**Caption:** Niente piani copia-incolla. Il tuo percorso è filtrato su gusti, allergie, eventi e giornate — unico come te. 🌱
+**Hashtag:** #sumisura #dietapersonalizzata #benessere #metaboleai
+- v1 (testo) — modifica: https://www.canva.com/d/6vVZV-bSyCeDG1e · anteprima: https://www.canva.com/d/dtnvYhx8u3WjRK9
+- v2 (piano scritto) — modifica: https://www.canva.com/d/StfqMJtQ1e8vAvN · anteprima: https://www.canva.com/d/b6kzl390hu1oRlo
+- v3 — modifica: https://www.canva.com/d/Yon_mABX3cRI2Rc · anteprima: https://www.canva.com/d/mnUUxqB2b3RgHzg
+- v4 — modifica: https://www.canva.com/d/gseF1fZfL5-m6LA · anteprima: https://www.canva.com/d/YxcChGfawGU-xhU
+
+> In coda (appena la quota Canva si ricarica): **Gusto senza fame**, **Sicurezza clinica**, **Trasparenza**. E i temi: **gravidanza pre/post parto**, **prossima al matrimonio (sposa)**.
+
+---
+
 ### Da fare ancora (quando vuoi)
 Altre storie utili con la stessa logica: **uomo che riparte / sportivo**, **pre-matrimonio (sposa/sposo, senza pressione estetica)**, **post-feste di Natale**, **papà**. E le due **educative** (fame vera/emotiva, porzioni) come caroselli. La **testimonianza** resta come quote card (nessun volto reale senza consenso).
 

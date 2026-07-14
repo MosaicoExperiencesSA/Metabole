@@ -1,0 +1,179 @@
+{
+  "schema": "metabole.vignette.catalog/v1",
+  "brand": "MetaboleAI",
+  "aggiornato": "2026-07-14",
+  "lingua_default": "it",
+  "uso": "Catalogo delle creative social. Lo legge l'agente Publisher per programmare e pubblicare. Ogni contenuto DEVE passare dal Giudice (compliance) prima della pubblicazione.",
+  "compliance": {
+    "regole": ["no prima/dopo", "no numeri/tempi/garanzie nei visual", "no seconda persona su attributi fisici", "tono di cura, dignita", "solo 18+"],
+    "gate": "giudice_obbligatorio",
+    "note": "Le offerte con condizioni economiche vanno nelle email 1:1, non nei post."
+  },
+  "formati": { "instagram_post": "1080x1350", "square": "1080x1080" },
+  "fonti": {
+    "canva": { "tipo": "canva_design", "cartella": "https://www.canva.com/folder/FAHPU5TzSCs", "export": "esportare PNG dal design_id al momento della pubblicazione (link temporanei)" },
+    "png_locale": { "tipo": "file", "base": "marketing/vignette/app-screens/" },
+    "html": { "tipo": "gallery_html", "base": "marketing/vignette/" }
+  },
+  "collezioni": [
+    {
+      "id": "persona.maria_matrimonio",
+      "categoria": "persona",
+      "tema": "Maria 58 - matrimonio della figlia (obesita)",
+      "messaggio": "Al matrimonio di mia figlia voglio esserci davvero.",
+      "sub": "Non una dieta. Un percorso con persone vere, al mio fianco.",
+      "caption": "C'e un giorno che non vuoi guardare da fuori: vuoi viverlo in pieno. Il percorso non e una dieta e non ti giudica - persone vere al tuo fianco, un passo alla volta.",
+      "hashtag": ["#benessere", "#percorsobenessere", "#personevere", "#nonèunadieta", "#metaboleai"],
+      "canale": ["instagram", "facebook"],
+      "stato": "pronta",
+      "fonte": "canva",
+      "varianti": [
+        {"design_id": "DAHPU2XhIr4", "preview": "https://www.canva.com/d/1IiC5U4Wi17JwBF"},
+        {"design_id": "DAHPU3a1jF4", "preview": "https://www.canva.com/d/G51v3RZjpB2ojk6"},
+        {"design_id": "DAHPU6QKWT0", "preview": "https://www.canva.com/d/4TgyBhu7Mld-OlU"}
+      ]
+    },
+    {
+      "id": "persona.menopausa",
+      "categoria": "persona",
+      "tema": "Menopausa (donna ~53)",
+      "messaggio": "In menopausa il mio corpo cambia. Io voglio sentirmi bene lo stesso.",
+      "sub": "Un percorso su misura, con persone vere al mio fianco.",
+      "caption": "La menopausa non e un traguardo da subire: e una fase che merita cura ed energia. Un percorso pensato per te, seguito da professionisti veri.",
+      "hashtag": ["#menopausa", "#benesseredonna", "#over50", "#nutrizione", "#metaboleai"],
+      "canale": ["instagram", "facebook"],
+      "stato": "pronta",
+      "fonte": "canva",
+      "varianti": [
+        {"design_id": "DAHPUxBwCGU", "preview": "https://www.canva.com/d/ygf30HRtGDeEPo6"},
+        {"design_id": "DAHPU7eJxg0", "preview": "https://www.canva.com/d/ld8B1rN_gethxwS"},
+        {"design_id": "DAHPUxGxuLc", "preview": "https://www.canva.com/d/czwMaTSKmytWMHa"},
+        {"design_id": "DAHPUxlRePY", "preview": "https://www.canva.com/d/tcpAIisLt3PkkqA"}
+      ]
+    },
+    {
+      "id": "persona.post_gravidanza",
+      "categoria": "persona",
+      "tema": "Post-gravidanza (mamma ~34)",
+      "messaggio": "Dopo mia figlia, un momento per me. Con calma.",
+      "sub": "Un percorso che rispetta i tuoi tempi, con persone vere.",
+      "caption": "Prendersi cura di se dopo essere diventata mamma non e egoismo: e ripartire con dolcezza, con i tuoi tempi e persone vere accanto.",
+      "hashtag": ["#postgravidanza", "#mammereali", "#benesseredonna", "#percorso", "#metaboleai"],
+      "canale": ["instagram", "facebook"],
+      "stato": "pronta",
+      "fonte": "canva",
+      "varianti": [
+        {"design_id": "DAHPUwFsTX0", "preview": "https://www.canva.com/d/TyiIbdApAt6mzxp"},
+        {"design_id": "DAHPUwQC-8s", "preview": "https://www.canva.com/d/J5Lr_ZVLRZaIKB6"},
+        {"design_id": "DAHPU0rLggU", "preview": "https://www.canva.com/d/Nn0PDwCKm9pJyM9"},
+        {"design_id": "DAHPU01bme4", "preview": "https://www.canva.com/d/EYssR5ZxlBm3Sqw"}
+      ]
+    },
+    {
+      "id": "persona.rientro_vacanze",
+      "categoria": "persona",
+      "tema": "Rientro dopo le vacanze (donna ~45)",
+      "messaggio": "Le vacanze finiscono, il mio benessere no. Riparto con dolcezza.",
+      "sub": "Un percorso che riparte con te, senza fretta.",
+      "caption": "Settembre non e una punizione. Si riparte con dolcezza, di stagione, senza fretta - e con qualcuno che riparte insieme a te.",
+      "hashtag": ["#rientro", "#settembre", "#benessere", "#stagionalità", "#metaboleai"],
+      "canale": ["instagram", "facebook"],
+      "stato": "pronta",
+      "fonte": "canva",
+      "stagione": "fine_estate",
+      "varianti": [
+        {"design_id": "DAHPU9cMOrQ", "preview": "https://www.canva.com/d/w9yKVxfDFMkLD06"},
+        {"design_id": "DAHPU51PncI", "preview": "https://www.canva.com/d/lbk6wNhEa9pYg3B"},
+        {"design_id": "DAHPU5tMuDs", "preview": "https://www.canva.com/d/n8jnm0h4cIE2nKD"},
+        {"design_id": "DAHPUyIuluc", "preview": "https://www.canva.com/d/ZG_dc9y0Bh0XV1l"}
+      ]
+    },
+    {
+      "id": "persona.giornata_storta",
+      "categoria": "persona",
+      "tema": "Giornata storta (dignita, ~40)",
+      "messaggio": "Oggi e una giornata no. E va bene: domani riparto, senza sensi di colpa.",
+      "sub": "Un percorso che capisce te, non solo i numeri.",
+      "caption": "Le giornate storte capitano. Non cancellano il percorso: si respira, si riparte domani, senza sensi di colpa. Perche qui conti tu, non solo i numeri.",
+      "hashtag": ["#benesserementale", "#selfcare", "#percorso", "#metaboleai"],
+      "canale": ["instagram", "facebook"],
+      "stato": "pronta",
+      "fonte": "canva",
+      "varianti": [
+        {"design_id": "DAHPU2-mFck", "preview": "https://www.canva.com/d/8-FzCjvooWPws7d"},
+        {"design_id": "DAHPU-4SnJU", "preview": "https://www.canva.com/d/0Mv-efHELRqI7AN"},
+        {"design_id": "DAHPU2tWX8U", "preview": "https://www.canva.com/d/s3EgEzV_HQR2pk5"},
+        {"design_id": "DAHPUxhFc84", "preview": "https://www.canva.com/d/WNJHSkyzoSvverN"}
+      ]
+    },
+    {
+      "id": "forza.persone_vere_ai",
+      "categoria": "punto_forza",
+      "tema": "Persone vere + AI",
+      "messaggio": "Non un'app da sola. Coach e nutrizionista veri, con Gaia sempre con te.",
+      "sub": "Persone vere + intelligenza artificiale.",
+      "caption": "Il meglio dei due mondi: la tecnologia che ti semplifica la vita e le persone vere che non ti mollano. Coach, nutrizionista e Gaia, insieme per te.",
+      "hashtag": ["#personevere", "#ai", "#coach", "#nutrizionista", "#metaboleai"],
+      "canale": ["instagram", "facebook", "linkedin"],
+      "stato": "pronta",
+      "fonte": "canva",
+      "varianti": [
+        {"design_id": "DAHPVIBkYbo", "preview": "https://www.canva.com/d/yjroISalPU-5yZZ"},
+        {"design_id": "DAHPVB_Uajc", "preview": "https://www.canva.com/d/Bfx2IaZ_7imwtPn"},
+        {"design_id": "DAHPVOEAdDI", "preview": "https://www.canva.com/d/KNmGIPXvNJh7Dri"},
+        {"design_id": "DAHPVKeDk-4", "preview": "https://www.canva.com/d/YOa13GhkzD9TZwg"}
+      ]
+    },
+    {
+      "id": "forza.su_misura",
+      "categoria": "punto_forza",
+      "tema": "Davvero su misura",
+      "messaggio": "La tua dieta e unica come te.",
+      "sub": "Cucita sui tuoi gusti, la tua vita, le tue esigenze.",
+      "caption": "Niente piani copia-incolla. Il tuo percorso e filtrato su gusti, allergie, eventi e giornate - unico come te.",
+      "hashtag": ["#sumisura", "#dietapersonalizzata", "#benessere", "#metaboleai"],
+      "canale": ["instagram", "facebook"],
+      "stato": "pronta",
+      "fonte": "canva",
+      "varianti": [
+        {"design_id": "DAHPVP5OAc0", "preview": "https://www.canva.com/d/dtnvYhx8u3WjRK9"},
+        {"design_id": "DAHPVIHCqjY", "preview": "https://www.canva.com/d/b6kzl390hu1oRlo"},
+        {"design_id": "DAHPVF4pVHo", "preview": "https://www.canva.com/d/mnUUxqB2b3RgHzg"},
+        {"design_id": "DAHPVM52WQw", "preview": "https://www.canva.com/d/YxcChGfawGU-xhU"}
+      ]
+    },
+    {
+      "id": "app.schermate_reali",
+      "categoria": "prodotto",
+      "tema": "Schermate reali dell'app (Coach + Nutrizionista + Gaia)",
+      "caption": "Guarda chi c'e nel tuo percorso: coach e nutrizionista veri, piu Gaia l'assistente AI. Sempre a portata di messaggio.",
+      "hashtag": ["#app", "#coach", "#nutrizionista", "#ai", "#metaboleai"],
+      "canale": ["instagram", "facebook"],
+      "stato": "pronta",
+      "fonte": "png_locale",
+      "asset": [
+        {"file": "app-screens/app_contatti.png", "uso": "Chi ti segue: Gaia + coach + nutrizionista (LIVE)", "messaggio": "Nel tuo percorso non sei sola."},
+        {"file": "app-screens/app_home.png", "uso": "Home: menu di oggi + prossimo appuntamento", "messaggio": "La tua giornata, su misura."},
+        {"file": "app-screens/app_obiettivi.png", "uso": "Obiettivi: progressi", "messaggio": "I tuoi obiettivi, sempre chiari."},
+        {"file": "app-screens/app_percorso.png", "uso": "Percorso giorno per giorno", "messaggio": "Il tuo percorso, un passo alla volta."},
+        {"file": "app-screens/app_agenda.png", "uso": "Agenda / appuntamenti", "messaggio": "Tutto in ordine, con te."}
+      ],
+      "vignette_pronte": "vignette_app_reali.html",
+      "note": "Avatar coach/nutrizionista da sostituire con volti reali; alcune icone/foto CDN da rifinire in produzione."
+    }
+  ],
+  "gallerie_html": [
+    {"file": "vignette_app_reali.html", "descrizione": "Vignette con schermate reali dell'app"},
+    {"file": "vignette_social_foto.html", "descrizione": "Vignette con foto reali + overlay (stock, da sostituire)"},
+    {"file": "vignette_social_illustrate.html", "descrizione": "Vignette illustrate SVG (Lotto 1)"},
+    {"file": "catalogo_canva.md", "descrizione": "Indice leggibile delle vignette Canva (messaggi, caption, link)"}
+  ],
+  "in_coda": [
+    {"id": "forza.gusto_senza_fame", "messaggio": "Mangi bene e stai bene. Senza fame.", "stato": "da_generare"},
+    {"id": "forza.sicurezza_clinica", "messaggio": "Seguita da un professionista vero, in sicurezza.", "stato": "da_generare"},
+    {"id": "forza.trasparenza", "messaggio": "Prezzo chiaro. Disdici quando vuoi.", "stato": "da_generare"},
+    {"id": "persona.gravidanza_pre", "messaggio": "In dolce attesa, in equilibrio (pre-parto).", "stato": "da_generare"},
+    {"id": "persona.gravidanza_post", "messaggio": "Dopo il parto, il mio ritmo.", "stato": "da_generare"},
+    {"id": "persona.sposa", "messaggio": "Al mio matrimonio voglio arrivare serena, con energia.", "stato": "da_generare", "note": "framing dignita, no pressione estetica"}
+  ]
+}
