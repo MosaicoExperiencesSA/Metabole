@@ -7,6 +7,8 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Prodotto]` **Sito — restyling a box uniformi + ® + pulizia** (`Metabole_Sito_Presentazione.html`) — riorganizzato tutto il sito con **sistema a box annidati** e **gerarchia grafica uniforme** a 3 livelli: sezione (bianca, raggio 24), pannello/gruppo (tinta unica #F6FAF8, raggio 18, niente gradienti/ombre), card (bianche, raggio 14). Rimossi gradienti e raggi/ombre incoerenti su recall/cult/feat-art/lead-person/lead-band/app; unificate le fasce band/final solo nel raggio (testo/bg invariati). **Hero invariato.** Box numeri con sottotitolo **"L'esperienza"** (9 lingue) + i 4 dati in un box interno. Rimossa la sezione **"Un giorno con te"**. Aggiunta **® al logo MetaboleAI®** (header e footer). → da rideployare per vederlo live.
+
 - `[Prodotto]` **Sito — galleria app sfogliabile + dicitura contatori con 3 prodotti** (`Metabole_Sito_Presentazione.html`) — (1) la sezione app ora ha una **galleria swipe** (frecce + puntini + caption, touch/scroll-snap, no immagini esterne) con **4 schermate inline**: Home (misure/proposta), Percorso (menu giorno 1 e 2 con cottura diversa), Obiettivi (progressi + cambia obiettivo), Contatti (Gaia + coach + nutrizionista). (2) Dicitura contatori aggiornata in tutte le 9 lingue con l'elenco prodotti esteso: **"tra cui Nutriamo, Dimagriamo, Nutrilab"**. → da deployare per vederle live.
 
 - `[Sviluppo]` **Backoffice — Segnalazioni: filtro e colonna per categoria (R12)** — la pagina
