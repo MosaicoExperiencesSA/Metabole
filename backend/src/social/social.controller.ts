@@ -36,6 +36,13 @@ export class SocialController {
     return this.publisher.create(user.sub, dto);
   }
 
+  /** Importa le collezioni pronte dal catalogo vignette come bozze (idempotente). */
+  @HttpCode(200)
+  @Post('import')
+  importCatalog(@CurrentUser() user: AuthUser) {
+    return this.publisher.importFromCatalog(user.sub);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateSocialPostDto, @CurrentUser() user: AuthUser) {
     return this.publisher.update(user.sub, id, dto);

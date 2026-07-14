@@ -6,6 +6,7 @@ import {
   UpdateSocialPostDto,
 } from './dto/social.dto';
 import { GiudiceService } from './giudice.service';
+import { VIGNETTE_CATALOG } from './vignette-catalog.data';
 
 /**
  * Agente Publisher (foundation). Macchina a stati del post social:
@@ -55,6 +56,37 @@ export class PublisherService {
     });
     await this.audit.log({ action: 'social.create', actorId: userId, entityType: 'social_post', entityId: created.id });
     return created;
+  }
+
+  /**
+   * Importa le collezioni "pronta" dallo snapshot del catalogo vignette come bozze.
+   * Idempotente: salta le collezioni già importate (match per collectionId).
+   */
+  async importFromCatalog(userId: string) {
+    const already = await this.prisma.socialPost.findMany({
+      where: { collectionId: { in: VIGNETTE_CATALOG.map((v) => v.collectionId) } },
+      select: { collectionId: true },
+    });
+    const have = new Set(already.map((e: { collectionId: string | null }) => e.collectionId));
+    let imported = 0;
+    for (const v of VIGNETTE_CATALOG) {
+      if (have.has(v.collectionId)) continue;
+      await this.prisma.socialPost.create({
+        data: {
+          channel: v.channel,
+          caption: v.caption,
+          hashtags: v.hashtags,
+          collectionId: v.collectionId,
+          imageRef: v.imageRef,
+          imageSource: v.imageSource,
+          status: 'draft',
+          createdById: userId,
+        },
+      });
+      imported++;
+    }
+    await this.audit.log({ action: 'social.import', actorId: userId, entityType: 'social_post', entityId: 'catalog', metadata: { imported } });
+    return { imported, skipped: VIGNETTE_CATALOG.length - imported, total: VIGNETTE_CATALOG.length };
   }
 
   async update(userId: string, id: string, dto: UpdateSocialPostDto) {

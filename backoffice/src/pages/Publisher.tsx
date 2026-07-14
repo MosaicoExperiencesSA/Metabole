@@ -74,6 +74,17 @@ export function Publisher() {
     void act(p, 'publish', ext ? { externalId: ext } : undefined, 'Post segnato come pubblicato.');
   }
 
+  async function importCatalog() {
+    setError(null);
+    try {
+      const r = await api<{ imported: number; skipped: number; total: number }>('/admin/social-posts/import', { method: 'POST' });
+      setNotice(`Import dal catalogo: ${r.imported} nuovi post, ${r.skipped} già presenti (su ${r.total}).`);
+      void load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Import non riuscito.');
+    }
+  }
+
   if (loading) return <Spinner />;
 
   return (
@@ -82,9 +93,14 @@ export function Publisher() {
         <p className="muted" style={{ margin: 0 }}>
           Ogni post passa dal <b>Giudice</b> (compliance) prima di poter essere approvato. La pubblicazione automatica sui social arriverà con le credenziali: per ora si segna a mano.
         </p>
-        <button className="btn" onClick={() => setEditing('new')}>
-          <i className="ti ti-plus" /> Nuovo post
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn ghost" onClick={importCatalog}>
+            <i className="ti ti-download" /> Importa dal catalogo
+          </button>
+          <button className="btn" onClick={() => setEditing('new')}>
+            <i className="ti ti-plus" /> Nuovo post
+          </button>
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
