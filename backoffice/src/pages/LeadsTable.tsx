@@ -156,7 +156,9 @@ export function LeadsTable() {
                           {displayName(l)}
                         </Link>
                       ) : (
-                        <b>{displayName(l)}</b>
+                        <Link to={`/crm/lead/${l.id}`} style={{ fontWeight: 700, textDecoration: 'none' }} title="Apri la scheda del lead">
+                          {displayName(l)}
+                        </Link>
                       )}
                       {!l.client && <span className="chip amber" style={{ marginLeft: 8, fontSize: 10 }}>lead</span>}
                     </td>

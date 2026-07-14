@@ -55,6 +55,26 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Calorie minime giornaliere',
   },
   {
+    key: 'stats_clients_base',
+    value: '18979',
+    type: 'number',
+    description:
+      'Base storica "clienti seguiti" (Mosaico Experiences SA) sommata agli abbonamenti attivati in /public/stats',
+  },
+  {
+    key: 'stats_reached_base',
+    value: '85218',
+    type: 'number',
+    description:
+      'Base storica "persone raggiunte" (Mosaico Experiences SA) sommata ai lead CRM in /public/stats',
+  },
+  {
+    key: 'site_stats_years',
+    value: '20',
+    type: 'number',
+    description: 'Anni di esperienza mostrati sul sito (/public/stats); 0 = campo nascosto',
+  },
+  {
     key: 'max_weight_change_alert_kg_week',
     value: '1.5',
     type: 'number',

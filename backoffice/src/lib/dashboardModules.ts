@@ -23,6 +23,14 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   { id: 'm_diete', pageKey: 'diets_catalog', to: '/diete', icon: 'ti-salad', label: 'Catalogo diete', preview: 'Diete e ricette approvate.' },
   { id: 'm_acquisti', pageKey: 'purchases', to: '/acquisti', icon: 'ti-shopping-cart', label: 'Acquisti', preview: 'Storico acquisti e ricevute.' },
   { id: 'm_compensi', pageKey: 'compensation', to: '/compensi', icon: 'ti-coin', label: 'Compensi staff', preview: 'Provvigioni e compensi del team.' },
+  { id: 'm_chat', pageKey: 'chat', to: '/chat', icon: 'ti-messages', label: 'Chat', preview: 'Ultimi messaggi dei clienti.' },
+  { id: 'm_posta', pageKey: 'posta', to: '/posta', icon: 'ti-mail', label: 'Posta', preview: 'La tua casella @metabole.eu: posta in arrivo e invio.' },
+  { id: 'm_negozio', pageKey: 'shop', to: '/negozio', icon: 'ti-building-store', label: 'Negozio', preview: 'Piani e prodotti in vendita.' },
+  { id: 'm_buoni', pageKey: 'discounts', to: '/buoni-sconto', icon: 'ti-ticket', label: 'Buoni sconto', preview: 'Codici attivi e utilizzi.' },
+  { id: 'm_contabilita', pageKey: 'accounting_costs', to: '/contabilita', icon: 'ti-report-money', label: 'Contabilità', preview: 'Ultimi movimenti di entrata e uscita.' },
+  { id: 'm_provvigioni', pageKey: 'commissions', to: '/provvigioni', icon: 'ti-percentage', label: 'Provvigioni', preview: 'Provvigioni in sospeso da attribuire.' },
+  { id: 'm_prelievi', pageKey: 'withdrawals', to: '/prelievi', icon: 'ti-wallet', label: 'Richieste prelievo', preview: 'Richieste di prelievo da evadere.' },
+  { id: 'm_testimonianze', pageKey: 'marketing', previewKey: 'testimonials', to: '/testimonianze', icon: 'ti-quote', label: 'Testimonianze', preview: 'Ultime testimonianze dei clienti.' },
 ];
 
 /** Moduli mostrati di default se l'utente non ha ancora personalizzato. */

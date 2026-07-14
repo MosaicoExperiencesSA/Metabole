@@ -200,6 +200,20 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     expect(updated.stageDates.worked.at).toBeDefined();
   });
 
+  it('updateInfo aggiorna nome/email/valore e stringa vuota → null', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue({ id: 'lead1', name: 'Vecchio', email: 'old@x.it', valueCents: null });
+    const updated: any = await service.updateInfo('sales-user', 'lead1', { name: 'Anna', email: '', valueCents: 29000 });
+    expect(prisma.crmRecord.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { name: 'Anna', email: null, valueCents: 29000 } }),
+    );
+    expect(updated.valueCents).toBe(29000);
+  });
+
+  it('detail solleva NotFound se il lead non esiste', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue(null);
+    await expect(service.detail('sconosciuto')).rejects.toThrow('Lead non trovato');
+  });
+
   it('ensureLead non solleva mai (il CRM non blocca la registrazione)', async () => {
     prisma.crmRecord.upsert.mockRejectedValue(new Error('db down'));
     await expect(service.ensureLead('u1', 'a@b.it')).resolves.toBeUndefined();

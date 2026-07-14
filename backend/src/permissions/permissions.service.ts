@@ -43,6 +43,18 @@ export class PermissionsService implements OnModuleInit {
         toCreate.push({ role, pageKey, canView: def?.view ?? false, canManage: def?.manage ?? false });
       }
     }
+    // Anche i ruoli PERSONALIZZATI ricevono le sezioni aggiunte dopo la loro creazione,
+    // ereditando il default del ruolo di base (le righe esistenti non vengono toccate).
+    const customRoles = (await this.prisma.customRole.findMany({
+      select: { key: true, baseRole: true },
+    })) as { key: string; baseRole: string }[];
+    for (const custom of customRoles) {
+      for (const pageKey of BACKOFFICE_PAGES) {
+        if (have.has(`${custom.key}:${pageKey}`)) continue;
+        const def = DEFAULT_PERMISSIONS[custom.baseRole as keyof typeof DEFAULT_PERMISSIONS]?.[pageKey];
+        toCreate.push({ role: custom.key, pageKey, canView: def?.view ?? false, canManage: def?.manage ?? false });
+      }
+    }
     if (toCreate.length) await this.prisma.rolePagePermission.createMany({ data: toCreate });
     return { created: toCreate.length };
   }

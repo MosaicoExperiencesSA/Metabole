@@ -94,28 +94,31 @@ export class CatalogService {
 
   /**
    * Numeri per il SITO pubblico (data-stats-endpoint): { years, clients, reached, methods }.
-   * Ogni campo legge da `config_param` (`site_stats_*`) con **fallback ai conteggi reali** del DB.
-   * Così la scelta "numeri reali vs base marketing (es. 20.000/80.000)" è un semplice toggle
-   * dal backoffice, senza redeploy: se il parametro non è impostato si mostra il dato vero.
+   * I contatori partono dalla BASE STORICA di Mosaico Experiences SA (config_param, mai
+   * hardcodata: `stats_clients_base`, `stats_reached_base`, modificabili dal backoffice)
+   * e crescono con l'attività reale — +1 cliente per abbonamento attivato, +1 raggiunto
+   * per lead nel CRM. Rif: Metabole_Handoff_Contatori_Stats.md.
    *  - years   → anni di attività (config `site_stats_years`; omesso se 0/non impostato)
-   *  - clients → clienti (config `site_stats_clients`, fallback: n° schede cliente reali)
-   *  - reached → persone raggiunte (config `site_stats_reached`, fallback: n° lead nel CRM)
+   *  - clients → `stats_clients_base` + n° abbonamenti attivati (startDate valorizzata)
+   *  - reached → `stats_reached_base` + n° lead nel CRM
    *  - methods → n° percorsi visibili (uno per stile), coerente con /public/paths
    */
   async publicStats() {
     const [paths, realClients, realReached] = await Promise.all([
       this.publicPaths(),
-      this.prisma.clientProfile.count(),
+      // "clienti seguiti" = abbonamenti attivati almeno una volta (startDate impostata
+      // all'attivazione e mai rimossa: conta anche i percorsi poi scaduti/disdetti).
+      this.prisma.subscription.count({ where: { startDate: { not: null } } }),
       this.prisma.crmRecord.count(),
     ]);
-    const [years, clients, reached] = await Promise.all([
+    const [years, clientsBase, reachedBase] = await Promise.all([
       this.config.getNumber('site_stats_years', 0),
-      this.config.getNumber('site_stats_clients', realClients),
-      this.config.getNumber('site_stats_reached', realReached),
+      this.config.getNumber('stats_clients_base', 0),
+      this.config.getNumber('stats_reached_base', 0),
     ]);
     const stats: Record<string, number> = {
-      clients,
-      reached,
+      clients: clientsBase + realClients,
+      reached: reachedBase + realReached,
       methods: paths.length,
     };
     if (years > 0) stats.years = years; // mostrato solo se configurato

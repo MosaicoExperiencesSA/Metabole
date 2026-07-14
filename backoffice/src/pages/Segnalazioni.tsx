@@ -8,6 +8,7 @@ interface EscalationRow {
   reason: string;
   source: string;
   status: string;
+  category: string | null;
   createdAt: string;
   client: { id: string; email: string; firstName: string | null; lastName: string | null } | null;
   assignedTo: { displayName: string } | null;
@@ -15,6 +16,23 @@ interface EscalationRow {
 
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
 const SOURCE: Record<string, string> = { screening: 'Screening sanitario', coach: 'Coach', engine: 'Motore' };
+// Allineato a backend/src/escalations/escalation-routing.ts (R12).
+const CATEGORY_LABEL: Record<string, string> = {
+  diet_blocked: 'Piano bloccato',
+  no_progress: 'Nessun progresso',
+  low_adherence: 'Scarsa aderenza',
+  mood_risk: 'Rischio umore/abbandono',
+  clinical: 'Clinico',
+  other: 'Altro',
+};
+const CATEGORY_CHIP: Record<string, string> = {
+  diet_blocked: 'red',
+  no_progress: 'amber',
+  low_adherence: 'gray',
+  mood_risk: 'amber',
+  clinical: 'violet',
+  other: 'gray',
+};
 
 export function Segnalazioni() {
   const navigate = useNavigate();
@@ -22,11 +40,16 @@ export function Segnalazioni() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  const [category, setCategory] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        setRows(await api<EscalationRow[]>(`/admin/escalations${status ? `?status=${status}` : ''}`));
+        const qs = new URLSearchParams();
+        if (status) qs.set('status', status);
+        if (category) qs.set('category', category);
+        const q = qs.toString();
+        setRows(await api<EscalationRow[]>(`/admin/escalations${q ? `?${q}` : ''}`));
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) setError('Sezione riservata.');
         else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -34,7 +57,7 @@ export function Segnalazioni() {
         setLoading(false);
       }
     })();
-  }, [status]);
+  }, [status, category]);
 
   async function changeStatus(id: string, next: string) {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, status: next } : r)));
@@ -53,12 +76,20 @@ export function Segnalazioni() {
     <>
       <div className="spread" style={{ marginBottom: 14 }}>
         <p className="muted" style={{ margin: 0 }}>Segnalazioni da screening, coach o motore. Presa in carico dal nutrizionista.</p>
-        <select className="select" style={{ width: 180 }} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">Tutti gli stati</option>
-          <option value="open">Aperte</option>
-          <option value="in_progress">In corso</option>
-          <option value="resolved">Risolte</option>
-        </select>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <select className="select" style={{ width: 200 }} value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">Tutte le categorie</option>
+            {Object.entries(CATEGORY_LABEL).map(([k, label]) => (
+              <option key={k} value={k}>{label}</option>
+            ))}
+          </select>
+          <select className="select" style={{ width: 180 }} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Tutti gli stati</option>
+            <option value="open">Aperte</option>
+            <option value="in_progress">In corso</option>
+            <option value="resolved">Risolte</option>
+          </select>
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
@@ -71,6 +102,7 @@ export function Segnalazioni() {
             <thead>
               <tr>
                 <th>Cliente</th>
+                <th>Categoria</th>
                 <th>Motivo</th>
                 <th>Origine</th>
                 <th>Presa in carico</th>
@@ -85,6 +117,13 @@ export function Segnalazioni() {
                     {r.client ? (
                       <span className="link" style={{ cursor: 'pointer' }} onClick={() => navigate(`/clienti/${r.client!.id}`)}>{name(r.client)}</span>
                     ) : '—'}
+                  </td>
+                  <td>
+                    {r.category ? (
+                      <span className={`chip ${CATEGORY_CHIP[r.category] ?? 'gray'}`}>{CATEGORY_LABEL[r.category] ?? r.category}</span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
                   </td>
                   <td style={{ maxWidth: 320 }}>{r.reason}</td>
                   <td className="muted">{SOURCE[r.source] ?? r.source}</td>

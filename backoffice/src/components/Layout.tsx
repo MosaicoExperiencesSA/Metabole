@@ -23,7 +23,7 @@ const NAV: NavSection[] = [
     group: 'Generale',
     items: [
       { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
-      { key: 'dashboard', label: 'Posta', to: '/posta', icon: 'ti-mail' },
+      { key: 'posta', label: 'Posta', to: '/posta', icon: 'ti-mail' },
       { key: 'charts', label: 'Grafici', to: '/grafici', icon: 'ti-chart-histogram' },
       // Impostazioni spostate nel menu utente in alto (avatar) → non più in sidebar.
     ],
@@ -74,8 +74,8 @@ const NAV: NavSection[] = [
     group: 'Contenuti',
     items: [
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
-      { key: 'diets_catalog', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
-      { key: 'diets_catalog', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
+      { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
+      { key: 'recipes', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
       { key: 'diets_catalog', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
       { key: 'engine_protocols', label: 'Protocolli motore', to: '/protocolli', icon: 'ti-cpu' },
     ],
@@ -153,7 +153,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         </div>
 
         {NAV.map((section) => {
-          const visible = section.items.filter((it) => it.key === 'dashboard' || can(it.key));
+          const visible = section.items.filter((it) => can(it.key));
           if (visible.length === 0) return null;
 
           if (section.collapsible) {
