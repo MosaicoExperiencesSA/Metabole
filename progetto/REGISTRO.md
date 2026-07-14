@@ -7,6 +7,8 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Prodotto]` **Estratto traduzioni sensibili RU/ZH/AR per revisore** (`marketing/Traduzioni_Revisione_RU_ZH_AR.md`) — 18 stringhe chiave del sito (claim hero, concept "non una dieta", banda, multiculturalità, CTA, coach/supervisione, testimonianze, form + **consenso privacy**) affiancate IT↔RU, IT↔ZH, IT↔AR, con colonna "Correzione". Nota: pagine legali (privacy/cookie/termini) da rivedere a parte nei loro file. Pronto da mandare a un madrelingua per lingua; manca solo il revisore.
+
 - `[Prodotto]` **Marketing — catalogo email al 100%** (`marketing/Metabole_Email_Ciclo_Vita.md` Parti 6–7 + tracker) — scritte anche le ultime email (obiezione prezzo, valore settimanale, upsell, win-back survey/stagionale, transazionali: verifica/reset/ricevuta/rinnovo/**dunning**/appuntamento, consensi: re-permission/preferenze). Tracker `Elenco_Email_Automatiche.md`: **48 email tutte 🟢** (copy pronta), zero residui. Prossimo passo (Sviluppo): traduzione nelle lingue dell'app + template Brevo agganciati ai trigger.
 
 - `[Prodotto]` **Marketing — completata la copy delle email in bozza** (`marketing/Metabole_Email_Ciclo_Vita.md` Parte 5) — scritte le email che restavano 🟡: conversione (profilo incompleto, **nurture 1–4**), retention (**onboarding G1/G2/G4/G7**, feedback ricette, riattivazione dropout, referral), **win-back T+3/T+7**. Tracker `email_automatiche/Elenco_Email_Automatiche.md` aggiornato: tutte 🟢 tranne le ⚪ (obiezione prezzo, valore settimanale, upsell, win-back survey/stagionale, transazionali/dunning, consensi). Prossimo passo: traduzione + template Brevo con i trigger.
