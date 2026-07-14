@@ -27,7 +27,7 @@ Sito + pagine legali. Le traduzioni ci sono, serve un controllo umano sulle ling
 Le copy le abbiamo (`marketing/email_automatiche/`). Restano da completare le bozze 🟡 e poi Simone costruisce i template in Brevo.
 - **Preparo io:** completo la copy mancante (nurture, onboarding giorni 1-7, win-back) e la porto tutta a "pronta".
 - **Serve da te:** ok sul tono; poi passaggio a Simone per Brevo.
-- **Stato:** ⏳ (3 richieste + eventi + rinnovo già pronte)
+- **Stato:** ✅ **copy al 100%** (48 email pronte). Resta a Simone: traduzione + template Brevo con i trigger.
 
 ## 5. Smoke test end-to-end (insieme a Simone)
 Prova reale del percorso cliente prima di aprire.
