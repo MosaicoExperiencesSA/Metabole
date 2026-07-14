@@ -40,6 +40,10 @@ segreti fuori dal repo, `docs/` pubblica, dati sanitari cifrati, soglie in `conf
   Privacy, Cookie, Termini + `favicon.svg` (mascotte Gaia). ✅
 - Collegato al backend (per `Istruzioni_Claude_Sito_Metabole.md`): stats/percorsi/testimonianze dinamici,
   form lead → CRM (honeypot verificato). CORS ok da metabole.eu e www. ✅
+- Contatori con **base storica Mosaico** in `/public/stats`: `stats_clients_base` (18.979) + abbonamenti
+  attivati, `stats_reached_base` (85.218) + lead CRM, `years` = 20 — da `config_param` (modificabile dal
+  backoffice), seed automatico al deploy. In attesa di push+deploy; poi ripubblicare il sito su SiteGround
+  per dicitura/fallback aggiornati (punto 2 di `Metabole_Istruzioni_Contatori_Simone.pdf`). 🔶
 - Aggiornamento: dopo ogni push dei file del sito, ricopiare su SiteGround (lo fa Claude Cowork su
   richiesta) e svuotare la Cache Dinamica. ✅
 

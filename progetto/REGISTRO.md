@@ -7,6 +7,8 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Contatori sito con base storica Mosaico** (`/public/stats`, gate n.1 di lancio) — `publicStats()` ora somma la base storica (`config_param`) ai conteggi reali: `clients = stats_clients_base (18.979) + abbonamenti attivati` (startDate valorizzata), `reached = stats_reached_base (85.218) + lead CRM`; `years` da `site_stats_years` (seed = 20). I 3 parametri sono nel seed (upsert: non tocca valori modificati dal backoffice) e il seed gira ad ogni deploy. Rimossi i vecchi override assoluti `site_stats_clients/reached`. Test aggiornati (somma base+reale, filtro abbonamenti attivati). File: `backend/src/catalog/catalog.service.ts`, `catalog.service.spec.ts`, `backend/prisma/seed.ts`. Dopo il deploy atteso `{clients:≥18979, reached:≥85218, methods:4, years:20}`; resta la ripubblicazione del sito su SiteGround per dicitura/fallback (punto 2 delle istruzioni).
+
 - `[Sviluppo]` **Backoffice — permessi completi, moduli dashboard, scheda lead** — ① ogni schermata ora è
   controllata dalla tabella permessi: nuova chiave `posta` (staff di default), Dashboard senza bypass,
   Ricette/Allergeni sulla chiave `recipes`; `syncDefaults` completa anche i ruoli personalizzati (ereditano

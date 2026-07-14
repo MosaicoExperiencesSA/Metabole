@@ -8,6 +8,7 @@ import { CatalogService } from './catalog.service';
 describe('CatalogService (flusso approvazione diete)', () => {
   let service: CatalogService;
   let prisma: any;
+  let config: any;
 
   beforeEach(async () => {
     prisma = {
@@ -27,15 +28,17 @@ describe('CatalogService (flusso approvazione diete)', () => {
         create: jest.fn().mockResolvedValue({ id: 'r1' }),
       },
       clientProfile: { count: jest.fn().mockResolvedValue(5) },
+      subscription: { count: jest.fn().mockResolvedValue(2) },
       crmRecord: { count: jest.fn().mockResolvedValue(12) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
+    config = { getNumber: jest.fn(async (_k: string, d?: number) => d ?? 0) };
     const moduleRef = await Test.createTestingModule({
       providers: [
         CatalogService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
-        { provide: ConfigParamsService, useValue: { getNumber: jest.fn(async (_k: string, d?: number) => d ?? 0) } },
+        { provide: ConfigParamsService, useValue: config },
       ],
     }).compile();
     service = moduleRef.get(CatalogService);
@@ -49,7 +52,7 @@ describe('CatalogService (flusso approvazione diete)', () => {
     ...over,
   });
 
-  it('publicStats: methods dedotti per stile, clients/reached da conteggi reali (fallback)', async () => {
+  it('publicStats: methods dedotti per stile; senza base configurata restano i conteggi reali', async () => {
     prisma.diet.findMany.mockResolvedValue([
       { id: 'd1', style: 'keto', name: 'Keto', clientVisible: true },
       { id: 'd2', style: 'mediterranean', name: 'Med', clientVisible: true },
@@ -57,9 +60,30 @@ describe('CatalogService (flusso approvazione diete)', () => {
     ]);
     const s = await service.publicStats();
     expect(s.methods).toBe(2); // 3 diete visibili ma 2 stili distinti
-    expect(s.clients).toBe(5); // fallback: clientProfile.count
-    expect(s.reached).toBe(12); // fallback: crmRecord.count
+    expect(s.clients).toBe(2); // base 0 + abbonamenti attivati (subscription.count)
+    expect(s.reached).toBe(12); // base 0 + lead nel CRM (crmRecord.count)
     expect(s.years).toBeUndefined(); // config 0 → campo omesso
+    // i clienti si contano sugli abbonamenti ATTIVATI (startDate valorizzata)
+    expect(prisma.subscription.count).toHaveBeenCalledWith({
+      where: { startDate: { not: null } },
+    });
+  });
+
+  it('publicStats: la base storica (config_param) si SOMMA ai conteggi reali', async () => {
+    const bases: Record<string, number> = {
+      stats_clients_base: 18979,
+      stats_reached_base: 85218,
+      site_stats_years: 20,
+    };
+    config.getNumber.mockImplementation(async (k: string, d?: number) => bases[k] ?? d ?? 0);
+    prisma.diet.findMany.mockResolvedValue([
+      { id: 'd1', style: 'keto', name: 'Keto', clientVisible: true },
+    ]);
+    const s = await service.publicStats();
+    expect(s.clients).toBe(18979 + 2); // base + abbonamenti attivati
+    expect(s.reached).toBe(85218 + 12); // base + lead CRM
+    expect(s.years).toBe(20);
+    expect(s.methods).toBe(1);
   });
 
   it('il capo approva una dieta in revisione di un altro autore', async () => {
