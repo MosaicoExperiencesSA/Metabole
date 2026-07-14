@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-14
 
+- `[Sviluppo]` **Obbligo cambio password al primo accesso + ruolo `sales` → "Responsabile Coach"** — nuovo
+  campo `must_change_password` su `user` (migrazione `20260714120000_must_change_password`, validata su
+  PG16, default false); `POST /admin/users` accetta `mustChangePassword`, il flag è esposto in `/me`,
+  nella lista utenti admin e nella risposta di login; `PATCH /me/password` lo azzera al primo cambio
+  riuscito. **Backoffice**: nuova schermata bloccante `CambioPasswordObbligatorio` (gate in `Protected`)
+  — finché la password provvisoria non viene cambiata nessuna pagina è raggiungibile; build Vite ok.
+  Etichetta del ruolo `sales` unificata a **"Responsabile Coach"** in backend e backoffice (era
+  "Commerciale"/"Resp. Coach Team": la voce "commerciale" nella tabella ruoli era un refuso storico).
+  +2 unit test su UsersService. Scopo: onboarding delle utenze staff reali (team coach + responsabili)
+  con password provvisoria consegnata a voce e cambio obbligatorio.
+
 - `[Sviluppo]` **Sito di presentazione LIVE su metabole.eu + favicon Gaia** — pubblicato su SiteGround
   (`public_html`) il sito v4 completo: home + Blog/Lavora/Privacy/Cookie/Termini; WordPress preinstallato
   accantonato senza cancellarlo (`DirectoryIndex index.html index.php` in `.htaccess`). Collaudo go-live da

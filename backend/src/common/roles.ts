@@ -24,7 +24,7 @@ export const SYSTEM_ROLE_LABELS: Record<Role, string> = {
   coach: 'Coach',
   nutritionist: 'Nutrizionista',
   head_nutritionist: 'Capo nutrizionista',
-  sales: 'Commerciale',
+  sales: 'Responsabile Coach',
   marketing: 'Marketing',
   head_marketing: 'Responsabile Marketing',
   admin: 'Admin',

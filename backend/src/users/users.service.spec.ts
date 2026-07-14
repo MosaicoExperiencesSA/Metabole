@@ -1,5 +1,6 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
 import { MailService } from '../mail/mail.service';
@@ -60,6 +61,36 @@ describe('UsersService (admin)', () => {
     expect(prisma.staff.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ displayName: 'coach' }),
+      }),
+    );
+  });
+
+  it('imposta mustChangePassword quando richiesto (default false)', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({ id: 'u4', email: 'x@y.it', role: 'coach' });
+    await service.create(
+      { email: 'x@y.it', password: 'password123', role: 'coach', mustChangePassword: true },
+      'admin-1',
+    );
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ mustChangePassword: true }) }),
+    );
+
+    prisma.user.create.mockResolvedValue({ id: 'u5', email: 'z@y.it', role: 'coach' });
+    await service.create({ email: 'z@y.it', password: 'password123', role: 'coach' }, 'admin-1');
+    expect(prisma.user.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ mustChangePassword: false }) }),
+    );
+  });
+
+  it('il cambio password azzera mustChangePassword', async () => {
+    const passwordHash = await argon2.hash('vecchia123');
+    prisma.user.findUnique.mockResolvedValue({ passwordHash });
+    await service.changePassword('u1', 'vecchia123', 'nuovapassword1');
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'u1' },
+        data: expect.objectContaining({ mustChangePassword: false }),
       }),
     );
   });

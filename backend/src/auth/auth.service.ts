@@ -456,6 +456,7 @@ export class AuthService {
     firstName?: string | null;
     lastName?: string | null;
     photoUrl?: string | null;
+    mustChangePassword?: boolean;
   }) {
     return {
       id: user.id,
@@ -464,6 +465,7 @@ export class AuthService {
       customRoleKey: user.customRoleKey ?? null,
       locale: user.locale,
       emailVerified: Boolean(user.emailVerifiedAt),
+      mustChangePassword: Boolean(user.mustChangePassword),
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
       photoUrl: user.photoUrl ?? null,

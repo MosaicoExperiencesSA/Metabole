@@ -267,6 +267,7 @@ model User {
   orders          Order[]
   crmRecord       CrmRecord?
   staffNotes      ClientNote[]
+  mailAccount     MailAccount?
 
   @@index([role])
   @@map("user")
@@ -1527,4 +1528,19 @@ model SocialPost {
   @@index([status])
   @@index([channel, scheduledAt])
   @@map("social_post")
+}
+
+// Casella di posta @metabole.eu dell'utente (MVP webmail, MVP: solo staff).
+// La password della casella è cifrata a riposo (AES-256-GCM, chiave FILE_ENCRYPTION_KEY).
+// I parametri server (IMAP/SMTP mail.metabole.eu) sono uguali per tutti → in env/config.
+model MailAccount {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email       String // indirizzo completo della casella (es. mario@metabole.eu)
+  encPassword String   @map("enc_password") // password casella cifrata (base64)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("mail_account")
 }

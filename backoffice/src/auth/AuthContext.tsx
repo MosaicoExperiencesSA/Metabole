@@ -20,6 +20,8 @@ export interface AuthUser {
   title?: string | null;
   theme?: string | null;
   photoUrl?: string | null;
+  /** true per gli account creati dall'admin: obbligo di cambio password al primo accesso. */
+  mustChangePassword?: boolean;
 }
 
 interface LoginResponse {

@@ -50,8 +50,13 @@ Clients, Commerce/CRM, Reports, Health/HealthArea, Escalations, Visits, Compensa
 Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (eventi)**, **Alerts (coda coach)**. ✅
 - Ruoli RBAC: client, coach, nutritionist, head_nutritionist, sales, **marketing, head_marketing**, admin. ✅
   (marketing = reparto in arrivo: ruoli+permessi+menu attivi, modulo funzionale da costruire).
+  **`sales` è etichettato "Responsabile Coach"** (14/7, backend+backoffice): è il ruolo del capo del team
+  coach — la vecchia voce "Commerciale" era un refuso della tabella ruoli originaria.
 - Gestione utenti: creazione staff, cambio ruolo/responsabile, sospendi, **archivia/ripristina** (soft-delete,
   con protezione dell'admin `ADMIN_EMAIL` e anti-auto-archiviazione). Foto profilo (avatar) in Impostazioni. ✅
+  **Obbligo cambio password al primo accesso** (14/7): flag `mustChangePassword` alla creazione admin,
+  esposto in login/`/me`, azzerato da `PATCH /me/password`; nel backoffice schermata bloccante finché
+  la password provvisoria non viene cambiata. ✅
 - Dati sanitari cifrati, accessibili solo a cliente + suo nutrizionista. ✅
 
 ## App cliente (React + Vite + Capacitor)

@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { ROLES, Role } from '../../common/roles';
 
 export class CreateUserDto {
@@ -20,6 +20,11 @@ export class CreateUserDto {
   @IsOptional()
   @IsIn(['it', 'en', 'fr', 'de', 'es'])
   locale?: string;
+
+  /** Se true, l'utente dovrà cambiare la password al primo accesso. */
+  @IsOptional()
+  @IsBoolean()
+  mustChangePassword?: boolean;
 
   /** Nome visibile per lo staff (coach, nutrizioniste…). Se assente, ricavato dall'email. */
   @IsOptional()
