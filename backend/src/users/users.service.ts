@@ -10,6 +10,19 @@ import { FinanceService } from '../commerce/finance.service';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomBytes } from 'crypto';
+
+/** Password provvisoria leggibile: niente caratteri ambigui (0/O/1/l/I), con cifre. */
+function genTempPassword(): string {
+  const alpha = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
+  const digits = '23456789';
+  const b = randomBytes(12);
+  let s = '';
+  for (let i = 0; i < 8; i++) s += alpha[b[i] % alpha.length];
+  s += digits[b[8] % digits.length];
+  s += digits[b[9] % digits.length];
+  return `Mb${s}`; // prefisso per soddisfare requisiti di complessità comuni
+}
 
 const PUBLIC_USER_SELECT = {
   id: true,
@@ -276,6 +289,47 @@ export class UsersService {
       metadata: { role: systemRole, customRoleKey },
     });
     return user;
+  }
+
+  /**
+   * Reset password da parte dell'admin. Imposta una password provvisoria (fornita
+   * dall'admin oppure generata), obbliga il cambio al primo accesso e revoca le sessioni
+   * attive. Ritorna la password in chiaro UNA VOLTA, così l'admin la comunica all'utente.
+   */
+  async resetPassword(
+    userId: string,
+    actorId: string,
+    newPassword?: string,
+  ): Promise<{ password: string; generated: boolean; email: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+    if (!user) throw new NotFoundException('Utente non trovato');
+
+    let password = (newPassword ?? '').trim();
+    const generated = password.length === 0;
+    if (generated) password = genTempPassword();
+    if (password.length < 8) throw new BadRequestException('La password deve avere almeno 8 caratteri.');
+
+    const passwordHash = await argon2.hash(password);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, mustChangePassword: true },
+    });
+    // Revoca le sessioni attive: l'utente rientra con la nuova password.
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.audit.log({
+      action: 'admin.user.reset_password',
+      actorId,
+      entityType: 'user',
+      entityId: userId,
+      metadata: { email: user.email, generated }, // MAI la password nei log
+    });
+    return { password, generated, email: user.email };
   }
 
   /** Traduce (ruolo di sistema | ruolo personalizzato) in { systemRole, customRoleKey }. */

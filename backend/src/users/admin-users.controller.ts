@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -22,6 +22,15 @@ class SetManagerDto {
   @IsOptional()
   @IsString()
   managerId?: string | null;
+}
+
+class ResetPasswordDto {
+  // Facoltativa: se assente, il server ne genera una provvisoria e la restituisce.
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  password?: string;
 }
 
 @Controller('admin/users')
@@ -77,6 +86,17 @@ export class AdminUsersController {
   @Post(':id/restore')
   restore(@Param('id') id: string, @CurrentUser() actor: AuthUser) {
     return this.users.restore(id, actor.sub);
+  }
+
+  /** Reset password: imposta una provvisoria (fornita o generata), obbliga il cambio
+   *  al primo accesso e revoca le sessioni. Ritorna la password in chiaro una volta. */
+  @Post(':id/reset-password')
+  resetPassword(
+    @Param('id') id: string,
+    @Body() dto: ResetPasswordDto,
+    @CurrentUser() actor: AuthUser,
+  ) {
+    return this.users.resetPassword(id, actor.sub, dto.password);
   }
 
   /** Imposta il responsabile diretto (manager coach / capo nutrizionista). */

@@ -36,6 +36,18 @@ export function Users() {
   const [roleFilter, setRoleFilter] = useState<Role | ''>('');
   const [showArchived, setShowArchived] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [pwdReset, setPwdReset] = useState<{ email: string; password: string } | null>(null);
+
+  async function resetPassword(u: User) {
+    if (!confirm(`Reset password per ${u.email}?\nVerrà generata una password provvisoria: l'utente dovrà cambiarla al primo accesso e le sessioni attive verranno chiuse.`)) return;
+    setError(null);
+    try {
+      const r = await api<{ password: string; email: string }>(`/admin/users/${u.id}/reset-password`, { method: 'POST', body: JSON.stringify({}) });
+      setPwdReset({ email: r.email, password: r.password });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reset password non riuscito.');
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -281,6 +293,11 @@ export function Users() {
                                 {u.status === 'active' ? 'Sospendi' : 'Riattiva'}
                               </button>
                             )}
+                            {canManage && (
+                              <button className="btn ghost sm" onClick={() => resetPassword(u)} title="Reset password (genera una provvisoria)">
+                                <i className="ti ti-key" />
+                              </button>
+                            )}
                             {canManage && !isSelf && (
                               <button className="btn ghost sm" onClick={() => archive(u)} title="Archivia (rimuovi) l'account">
                                 <i className="ti ti-archive" />
@@ -308,6 +325,19 @@ export function Users() {
             void load();
           }}
         />
+      )}
+
+      {pwdReset && (
+        <Modal title="Password provvisoria generata" onClose={() => setPwdReset(null)}>
+          <p style={{ marginTop: 0 }}>Nuova password per <b>{pwdReset.email}</b>. Comunicala all'utente: dovrà <b>cambiarla al primo accesso</b>. La vedi solo ora.</p>
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <code style={{ flex: 1, fontSize: 18, padding: '10px 14px', background: 'var(--chip,#f0ede8)', borderRadius: 8, letterSpacing: 1, userSelect: 'all' }}>{pwdReset.password}</code>
+            <button className="btn ghost sm" onClick={() => { void navigator.clipboard?.writeText(pwdReset.password); }} title="Copia"><i className="ti ti-copy" /> Copia</button>
+          </div>
+          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
+            <button className="btn" onClick={() => setPwdReset(null)}>Ho copiato, chiudi</button>
+          </div>
+        </Modal>
       )}
     </>
   );

@@ -83,6 +83,33 @@ describe('UsersService (admin)', () => {
     );
   });
 
+  it('reset password admin: genera provvisoria, forza il cambio, revoca le sessioni, non logga la password', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: 'coach@metabole.eu' });
+    prisma.user.update.mockResolvedValue({});
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 2 });
+    const r = await service.resetPassword('u1', 'admin-1');
+    expect(r.generated).toBe(true);
+    expect(r.password.length).toBeGreaterThanOrEqual(10);
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'u1' }, data: expect.objectContaining({ mustChangePassword: true }) }),
+    );
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }),
+    );
+    const call = audit.log.mock.calls.find((c) => c[0].action === 'admin.user.reset_password');
+    expect(call).toBeTruthy();
+    expect(JSON.stringify(call![0].metadata)).not.toContain(r.password); // MAI la password nei log
+  });
+
+  it('reset password admin: se fornita, usa quella (generated=false)', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', email: 'x@y.it' });
+    prisma.user.update.mockResolvedValue({});
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+    const r = await service.resetPassword('u1', 'admin-1', 'SceltaAdmin9');
+    expect(r.generated).toBe(false);
+    expect(r.password).toBe('SceltaAdmin9');
+  });
+
   it('il cambio password azzera mustChangePassword', async () => {
     const passwordHash = await argon2.hash('vecchia123');
     prisma.user.findUnique.mockResolvedValue({ passwordHash });

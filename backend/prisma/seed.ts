@@ -13,6 +13,12 @@ import { seedKetoCatalog } from './seed_keto';
 
 const prisma = new PrismaClient();
 
+// Interruttore dati DEMO: imposta SEED_DEMO=false su Render per NON reinserire i dati di
+// esempio (dieta demo, catalogo Keto, piani/prodotti demo, testimonianze demo) ai deploy
+// successivi — utile dopo la pulizia pre-lancio. Le strutture (permessi, pipeline, gruppi
+// di equivalenza, preset regole, template) vengono sempre seminate.
+const SEED_DEMO = process.env.SEED_DEMO !== 'false';
+
 // Estremi reali del conto (Wise, Mosaico Experiences SA). Non sono un segreto:
 // vengono inviati alla cliente via email a ogni acquisto con bonifico.
 // Restano modificabili dall'admin dal backoffice (config_param).
@@ -853,14 +859,19 @@ async function main(): Promise<void> {
   await ensureAdminFromEnv();
   await seedPipelineStages();
   await seedPermissions();
-  await seedDemoCatalog();
   await seedDietProductFields();
-  await seedTestimonials();
   await seedEquivalenceGroups();
   await seedRulePresets();
-  await seedKetoCatalog(prisma);
   await seedProtocols();
-  await seedCommerce();
+  // --- Dati DEMO/esempio: solo se SEED_DEMO non è "false" (vedi interruttore in alto) ---
+  if (SEED_DEMO) {
+    await seedDemoCatalog();
+    await seedTestimonials();
+    await seedKetoCatalog(prisma);
+    await seedCommerce();
+  } else {
+    console.log('Seed: SEED_DEMO=false → dati demo (dieta/keto/piani/testimonianze) NON reinseriti.');
+  }
   await backfillPaidClientsIntoCrm();
   await backfillCoachRefCodes();
   await seedEmailTemplates();
