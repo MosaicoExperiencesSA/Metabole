@@ -153,7 +153,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     assign_coach: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true },
     engine_config: { view: true, manage: true },
-    engine_rules: { view: true }, // l'admin vede le regole del motore (gestione al capo nutrizionista)
+    engine_rules: { view: true, manage: true }, // l'admin gestisce le regole del motore (oltre al capo nutrizionista)
     audit_logs: { view: true },
     permissions: { view: true, manage: true },
     email_templates: { view: true, manage: true },

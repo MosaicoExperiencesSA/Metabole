@@ -503,3 +503,10 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 - `[Sviluppo]` Backend API-first `/api/v1`: auth JWT+RBAC, onboarding, misure/obiettivi, catalogo,
   erogazione menu, motore a regole (M5), notifiche, CRM/commerce, permessi. Test verdi.
 - `[Prodotto]` Prototipo navigabile app cliente, sequenza schermate, specifiche backend, analisi.
+
+
+## 15 lug — notte (lavoro non presidiato)
+- **Sito**: aggiunto blocco SEO/social (canonical, robots, theme-color, OG, Twitter, JSON-LD Organization) + lazy-load su 12 immagini in `Metabole_Sito_Presentazione.html`. Da ricaricare su SiteGround.
+- **Diagnosi tasto Genera/anteprima mail**: codice presente e pushato (commit a51cbaa su origin/main); il backoffice live serve una build Vercel vecchia. Serve redeploy/verifica su Vercel (progetto metabole-backoffice). Dettagli in `progetto/BRIEF_MATTINA_20260715.md`.
+- **pages.ts**: admin → engine_rules { view, manage } (da committare).
+- Rimosso index.lock git bloccato (spostato in `_to_delete/`).
