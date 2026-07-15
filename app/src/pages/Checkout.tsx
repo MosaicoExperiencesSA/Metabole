@@ -28,6 +28,7 @@ export default function Checkout() {
 
   const subtotal = cart.subtotalCents;
   const total = applied ? applied.finalCents : subtotal;
+  const isFree = total <= 0;
 
   async function applyCode() {
     setErr(null);
@@ -54,8 +55,11 @@ export default function Checkout() {
       discountCode: applied?.code,
     };
     try {
-      const res = await api<{ checkoutUrl?: string; transferReference?: string }>('/me/checkout', { method: 'POST', body: JSON.stringify(body) });
-      if (method === 'card') {
+      const res = await api<{ checkoutUrl?: string; transferReference?: string; free?: boolean }>('/me/checkout', { method: 'POST', body: JSON.stringify(body) });
+      if (res.free) {
+        cart.clear();
+        setDone('Attivato! Il tuo accesso è pronto: nessun pagamento richiesto.');
+      } else if (method === 'card') {
         if (res.checkoutUrl) window.location.href = res.checkoutUrl;
         else setErr('Pagamento con carta non disponibile: prova col bonifico.');
       } else {
@@ -134,8 +138,12 @@ export default function Checkout() {
         {applied && <div className="muted" style={{ marginTop: 8, color: '#0e7c66', fontWeight: 600 }}>Buono applicato: −{euro(applied.discountCents)}</div>}
       </div>
 
-      {/* Metodo — solo quelli abilitati dal backoffice */}
-      <div className="sec">Come vuoi pagare?</div>
+      {isFree && (
+        <div className="card" style={{ marginTop: 12 }}><p className="muted" style={{ margin: 0, fontSize: 13 }}>Prodotto gratuito: nessun pagamento richiesto.</p></div>
+      )}
+
+      {!isFree && <div className="sec">Come vuoi pagare?</div>}
+      {!isFree && (
       <div className="opt-list">
         {methods.card && (
           <button type="button" className={`opt${method === 'card' ? ' on' : ''}`} onClick={() => setMethod('card')}>
@@ -153,6 +161,7 @@ export default function Checkout() {
           <div className="card"><p className="muted" style={{ margin: 0, fontSize: 13 }}>Nessun metodo di pagamento è attivo al momento. Riprova più tardi.</p></div>
         )}
       </div>
+      )}
 
       {/* Totale */}
       <div className="card" style={{ marginTop: 12 }}>
@@ -163,8 +172,8 @@ export default function Checkout() {
 
       {err && <div className="banner err" style={{ marginTop: 12 }}>{err}</div>}
 
-      <button className="btn" style={{ marginTop: 14 }} onClick={pay} disabled={busy || (!methods.card && !methods.bank_transfer)}>
-        {busy ? 'Attendi…' : method === 'card' ? `Paga ${euro(total)}` : 'Ricevi gli estremi'}
+      <button className="btn" style={{ marginTop: 14 }} onClick={pay} disabled={busy || (!isFree && !methods.card && !methods.bank_transfer)}>
+        {busy ? 'Attendi…' : isFree ? 'Attiva gratis' : method === 'card' ? `Paga ${euro(total)}` : 'Ricevi gli estremi'}
       </button>
     </div>
   );

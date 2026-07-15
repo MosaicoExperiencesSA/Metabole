@@ -14,6 +14,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { ArrayMaxSize, IsArray } from 'class-validator';
 import { CatalogService } from './catalog.service';
 import { SetRecipeAllergensDto } from './dto/allergens.dto';
 import {
@@ -133,6 +134,12 @@ export class HeadCatalogController {
 }
 
 /** Catalogo pubblicato (staff + admin). */
+class SetRegimesDto {
+  @IsArray()
+  @ArrayMaxSize(30)
+  regimes!: { code: string; label: string }[];
+}
+
 @Controller('catalog')
 @Roles('nutritionist', 'head_nutritionist', 'admin')
 export class CatalogController {
@@ -141,6 +148,19 @@ export class CatalogController {
   @Get()
   list() {
     return this.catalog.catalog();
+  }
+
+  /** Regimi (configurabili) + stili (dalle diete): opzioni per i form di dieta/ricetta. */
+  @Get('taxonomy')
+  taxonomy() {
+    return this.catalog.taxonomy();
+  }
+
+  /** Aggiorna la lista dei regimi (solo admin). */
+  @Roles('admin')
+  @Patch('regimes')
+  setRegimes(@Body() dto: SetRegimesDto, @CurrentUser() u: AuthUser) {
+    return this.catalog.setRegimes(dto.regimes, u.sub);
   }
 }
 

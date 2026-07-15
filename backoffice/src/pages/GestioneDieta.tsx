@@ -4,10 +4,10 @@ import { Banner, Spinner } from '../components/ui';
 import { Ricette } from './Ricette';
 import { TagAllergeni } from './TagAllergeni';
 import { GruppiEquivalenza } from './GruppiEquivalenza';
+import { useTaxonomy } from '../lib/taxonomy';
 
 interface DietRow { id: string; name: string; regime: string; status?: string }
 
-const REGIME: Record<string, string> = { omnivore: 'Onnivoro', vegetarian: 'Vegetariano', vegan: 'Vegano' };
 type Section = 'ricette' | 'allergeni' | 'gruppi';
 
 /**
@@ -17,6 +17,7 @@ type Section = 'ricette' | 'allergeni' | 'gruppi';
  * Riusa gli editor completi esistenti montandoli con lo scope della dieta scelta.
  */
 export function GestioneDieta() {
+  const { regimeLabel } = useTaxonomy();
   const [diets, setDiets] = useState<DietRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dietId, setDietId] = useState('');
@@ -50,7 +51,7 @@ export function GestioneDieta() {
           <span className="muted" style={{ fontSize: 13 }}>Dieta</span>
           <select className="select" style={{ minWidth: 300 }} value={dietId} onChange={(e) => setDietId(e.target.value)}>
             <option value="">— scegli una dieta —</option>
-            {diets.map((d) => <option key={d.id} value={d.id}>{d.name} · {REGIME[d.regime] ?? d.regime}</option>)}
+            {diets.map((d) => <option key={d.id} value={d.id}>{d.name} · {regimeLabel(d.regime)}</option>)}
           </select>
           {diets.length === 0 && <span className="muted" style={{ fontSize: 12 }}>Nessuna dieta: creane una dal Catalogo diete o dal wizard Creazione e validazione.</span>}
         </label>

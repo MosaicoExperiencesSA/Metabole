@@ -1,18 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsObject,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
 export class CreateDietDto {
   @IsString()
@@ -20,10 +7,10 @@ export class CreateDietDto {
   @MaxLength(120)
   name!: string;
 
-  @IsIn(['omnivore', 'vegetarian', 'vegan'])
+  @IsString() @MaxLength(40)
   regime!: string;
 
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
+  @IsString() @MaxLength(40)
   style!: string;
 
   @IsIn([3, 4, 5])
@@ -54,11 +41,11 @@ export class UpdateDietDto {
   name?: string;
 
   @IsOptional()
-  @IsIn(['omnivore', 'vegetarian', 'vegan'])
+  @IsString() @MaxLength(40)
   regime?: string;
 
   @IsOptional()
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
+  @IsString() @MaxLength(40)
   style?: string;
 
   @IsOptional()
@@ -162,7 +149,7 @@ export class CreateRecipeDto {
   @MaxLength(120)
   name!: string;
 
-  @IsIn(['omnivore', 'vegetarian', 'vegan'])
+  @IsString() @MaxLength(40)
   regime!: string;
 
   @IsIn(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'])
@@ -199,7 +186,7 @@ export class CreateRecipeDto {
 /** Modifica ricetta: tutti i campi opzionali (si aggiornano solo quelli inviati). */
 export class UpdateRecipeDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
-  @IsOptional() @IsIn(['omnivore', 'vegetarian', 'vegan']) regime?: string;
+  @IsOptional() @IsString() @MaxLength(40) regime?: string;
   @IsOptional() @IsIn(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']) mealSlot?: string;
   @IsOptional() @IsInt() @Min(30) @Max(2000) kcal?: number;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => IngredientDto) ingredients?: IngredientDto[];

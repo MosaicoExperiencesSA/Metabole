@@ -10,7 +10,10 @@ importi di provvigione PER RUOLO in centesimi (coach, manager coach, nutrizionis
 nutrizionista), impostabili dal Negozio. finance.service.generateCommissions li somma e li
 applica (sconti proporzionali, 0 = nessuna). Il vecchio commissionTeam è stato sostituito.
 
-## Coach — video di presentazione (da fare)
+## Coach — video di presentazione (da fare, ~2 settimane)
+DECISIONE (Simone): impostazione **via URL** — l'admin incolla il link a un video già
+ospitato nella scheda staff del backoffice, mostrato al cliente nella schermata onboarding
+"La tua coach". Da fare quando Simone avrà i filmati.
 Nella scheda di registrazione/profilo della coach (backoffice) aggiungere il supporto per
 il **caricamento del video di presentazione** (upload file video + storage + URL sul profilo).
 Il video viene mostrato al cliente nella schermata "La tua coach, Sara" durante l'onboarding

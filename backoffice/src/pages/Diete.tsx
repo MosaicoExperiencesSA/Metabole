@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
+import { useTaxonomy } from '../lib/taxonomy';
 
-const REGIMES = ['omnivore', 'vegetarian', 'vegan'];
-const STYLES = ['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'];
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 function slotsFor(mealsPerDay: number): string[] {
   if (mealsPerDay <= 3) return ['breakfast', 'lunch', 'dinner'];
@@ -31,8 +30,6 @@ interface DietRow {
   updatedAt: string;
 }
 
-const REGIME: Record<string, string> = { omnivore: 'Onnivora', vegetarian: 'Vegetariana', vegan: 'Vegana' };
-const STYLE: Record<string, string> = { mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto' };
 const STATUS: Record<string, { label: string; chip: string }> = {
   draft: { label: 'Bozza', chip: 'gray' },
   in_review: { label: 'In revisione', chip: 'amber' },
@@ -41,6 +38,7 @@ const STATUS: Record<string, { label: string; chip: string }> = {
 };
 
 export function Diete() {
+  const { regimeLabel, styleLabel } = useTaxonomy();
   const { permissions } = useAuth();
   const role = permissions?.role;
   const isHead = role === 'head_nutritionist';
@@ -139,8 +137,8 @@ export function Diete() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.name}</td>
-                  <td className="muted">{REGIME[r.regime] ?? r.regime}</td>
-                  <td className="muted">{STYLE[r.style] ?? r.style}</td>
+                  <td className="muted">{regimeLabel(r.regime)}</td>
+                  <td className="muted">{styleLabel(r.style)}</td>
                   <td className="muted">{r.mealsPerDay}</td>
                   <td className="muted">{r._count?.dayTemplates ?? 0}</td>
                   <td className="muted">{r.author?.displayName ?? '—'}</td>
@@ -253,6 +251,7 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
 }
 
 function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const { regimes, styles } = useTaxonomy();
   const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -285,9 +284,9 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         <label><span className="muted" style={{ fontSize: 12 }}>Nome</span>
           <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Es. Equilibrio Mediterraneo" /></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Regime</span>
-          <select className="select" value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })}>{REGIMES.map((r) => <option key={r} value={r}>{REGIME[r]}</option>)}</select></label>
+          <select className="select" value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })}>{regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}</select></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Stile</span>
-          <select className="select" value={f.style} onChange={(e) => setF({ ...f, style: e.target.value })}>{STYLES.map((s) => <option key={s} value={s}>{STYLE[s]}</option>)}</select></label>
+          <input className="input" list="diet-styles-list" value={f.style} onChange={(e) => setF({ ...f, style: e.target.value })} placeholder="Scegli o digita uno stile" /><datalist id="diet-styles-list">{styles.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</datalist></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Pasti al giorno</span>
           <select className="select" value={f.mealsPerDay} onChange={(e) => setF({ ...f, mealsPerDay: Number(e.target.value) })}>{[3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
 
@@ -328,6 +327,7 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
 }
 
 function DayEditorModal({ dietId, onClose, onSaved }: { dietId: string; onClose: () => void; onSaved: () => void }) {
+  const { regimeLabel } = useTaxonomy();
   const [diet, setDiet] = useState<DietDetail | null>(null);
   const [recipes, setRecipes] = useState<RecipeLite[]>([]);
   // days[dayIdx][slot] = recipeId
@@ -385,7 +385,7 @@ function DayEditorModal({ dietId, onClose, onSaved }: { dietId: string; onClose:
   return (
     <Modal title="Componi i giorni della dieta" onClose={onClose}>
       <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
-        {REGIME[diet.regime] ?? diet.regime} · {diet.mealsPerDay} pasti · assegna una ricetta a ogni pasto di ogni giorno. Salvando, la dieta torna in bozza da inviare in revisione.
+        {regimeLabel(diet.regime)} · {diet.mealsPerDay} pasti · assegna una ricetta a ogni pasto di ogni giorno. Salvando, la dieta torna in bozza da inviare in revisione.
       </p>
       {err && <Banner kind="err">{err}</Banner>}
 
@@ -417,7 +417,7 @@ function DayEditorModal({ dietId, onClose, onSaved }: { dietId: string; onClose:
         <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
         <button className="btn" onClick={save} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva giorni'}</button>
       </div>
-      {recipes.length === 0 && <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>Nessuna ricetta {REGIME[diet.regime]?.toLowerCase()} disponibile: creane prima nel Catalogo ricette.</p>}
+      {recipes.length === 0 && <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>Nessuna ricetta {regimeLabel(diet.regime).toLowerCase()} disponibile: creane prima nel Catalogo ricette.</p>}
     </Modal>
   );
 }

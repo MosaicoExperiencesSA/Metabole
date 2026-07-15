@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner, Toggle } from '../components/ui';
+import { useTaxonomy } from '../lib/taxonomy';
 
 interface Ingredient { name: string; qty?: number | null; unit?: string | null }
 interface CookingMethod { type: string; steps: string[] }
@@ -17,10 +18,8 @@ interface Recipe {
   active: boolean;
 }
 
-const REGIME: Record<string, string> = { omnivore: 'Onnivora', vegetarian: 'Vegetariana', vegan: 'Vegana' };
 const SLOT: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 const METHOD: Record<string, string> = { veloce: 'Veloce', forno: 'Al forno', meal_prep: 'Meal prep' };
-const REGIMES = Object.keys(REGIME);
 const SLOTS = Object.keys(SLOT);
 const METHODS = Object.keys(METHOD);
 
@@ -57,6 +56,7 @@ function toForm(r: Recipe): Form {
 
 export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
   const { permissions } = useAuth();
+  const { regimes, regimeLabel } = useTaxonomy();
   const canEdit = permissions?.role === 'nutritionist' || permissions?.role === 'head_nutritionist';
   const [rows, setRows] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +104,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
           {!scopeRegime && (
             <select className="select" style={{ width: 150 }} value={regime} onChange={(e) => setRegime(e.target.value)}>
               <option value="">Ogni regime</option>
-              {REGIMES.map((r) => <option key={r} value={r}>{REGIME[r]}</option>)}
+              {regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
             </select>
           )}
           <select className="select" style={{ width: 150 }} value={slot} onChange={(e) => setSlot(e.target.value)}>
@@ -132,7 +132,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.name}</td>
-                  <td className="muted">{REGIME[r.regime] ?? r.regime}</td>
+                  <td className="muted">{regimeLabel(r.regime)}</td>
                   <td className="muted">{SLOT[r.mealSlot] ?? r.mealSlot}</td>
                   <td className="muted">{r.kcal}</td>
                   <td className="muted">{(r.tags ?? []).join(', ') || '—'}</td>
@@ -165,6 +165,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
 }
 
 function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Recipe | null; defaultRegime?: string; onClose: () => void; onSaved: () => void }) {
+  const { regimes } = useTaxonomy();
   const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm(defaultRegime));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -211,7 +212,7 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
         <label style={{ gridColumn: '1 / -1' }}><span className="muted" style={{ fontSize: 12 }}>Nome</span>
           <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Es. Farro, pollo e verdure" /></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Regime</span>
-          <select className="select" value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })}>{REGIMES.map((r) => <option key={r} value={r}>{REGIME[r]}</option>)}</select></label>
+          <select className="select" value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })}>{regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}</select></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Pasto</span>
           <select className="select" value={f.mealSlot} onChange={(e) => setF({ ...f, mealSlot: e.target.value })}>{SLOTS.map((s) => <option key={s} value={s}>{SLOT[s]}</option>)}</select></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Kcal</span>

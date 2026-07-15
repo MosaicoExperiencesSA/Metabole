@@ -183,6 +183,77 @@ export function Parametri() {
           })}
         </div>
       ))}
+
+      <RegimiEditor />
     </>
+  );
+}
+
+interface RegimeRow { code: string; label: string }
+
+/** Editor dei regimi alimentari (configurazione di base, solo admin). */
+function RegimiEditor() {
+  const [rows, setRows] = useState<RegimeRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  function load() {
+    api<{ regimes: RegimeRow[] }>('/catalog/taxonomy')
+      .then((t) => setRows(t.regimes ?? []))
+      .catch((e) => setErr(e instanceof ApiError ? e.message : 'Caricamento non riuscito.'));
+  }
+  useEffect(load, []);
+
+  const setRow = (i: number, patch: Partial<RegimeRow>) =>
+    setRows((rs) => (rs ? rs.map((r, j) => (j === i ? { ...r, ...patch } : r)) : rs));
+  const add = () => setRows((rs) => [...(rs ?? []), { code: '', label: '' }]);
+  const remove = (i: number) => setRows((rs) => (rs ? rs.filter((_, j) => j !== i) : rs));
+
+  async function save() {
+    if (!rows) return;
+    const clean = rows.filter((r) => r.code.trim());
+    if (clean.length === 0) { setErr('Serve almeno un regime.'); return; }
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      await api('/catalog/regimes', { method: 'PATCH', body: JSON.stringify({ regimes: clean }) });
+      setMsg('Regimi salvati.');
+      load();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Regimi alimentari</h2>
+      <p className="hint" style={{ marginTop: 0 }}>
+        I regimi disponibili nei form di diete e ricette. Il <b>codice</b> è tecnico (minuscolo, senza spazi); l'<b>etichetta</b> è ciò che vedono gli operatori. Modificare un codice già in uso non rinomina i dati esistenti.
+      </p>
+      {err && <Banner kind="err">{err}</Banner>}
+      {msg && <Banner kind="ok">{msg}</Banner>}
+      {!rows ? (
+        <Spinner />
+      ) : (
+        <>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {rows.map((r, i) => (
+              <div key={i} className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <input className="input" style={{ width: 180 }} placeholder="codice (es. pescetarian)" value={r.code} onChange={(e) => setRow(i, { code: e.target.value })} />
+                <input className="input" style={{ flex: 1, minWidth: 140 }} placeholder="Etichetta (es. Pescetariana)" value={r.label} onChange={(e) => setRow(i, { label: e.target.value })} />
+                <button className="btn ghost sm" onClick={() => remove(i)} title="Rimuovi"><i className="ti ti-trash" /></button>
+              </div>
+            ))}
+            {rows.length === 0 && <div className="empty">Nessun regime: aggiungine almeno uno.</div>}
+          </div>
+          <div className="row" style={{ gap: 8, marginTop: 12 }}>
+            <button className="btn ghost sm" onClick={add}><i className="ti ti-plus" /> Aggiungi regime</button>
+            <button className="btn" disabled={busy} onClick={save}>{busy ? 'Salvo…' : 'Salva regimi'}</button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

@@ -503,4 +503,66 @@ export class CatalogService {
     });
     return recipe;
   }
+
+  // ---------- Tassonomia: regimi (configurabili) + stili (dalle diete) ----------
+
+  private static readonly DEFAULT_REGIMES = [
+    { code: 'omnivore', label: 'Onnivora' },
+    { code: 'vegetarian', label: 'Vegetariana' },
+    { code: 'vegan', label: 'Vegana' },
+  ];
+  private static readonly STYLE_LABELS: Record<string, string> = {
+    mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', dash: 'DASH',
+  };
+
+  private titleCase(v: string): string {
+    return v.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  /** Regimi alimentari: lista configurabile (config_param diet_regimes), con fallback ai 3 di default. */
+  async regimes(): Promise<{ code: string; label: string }[]> {
+    const raw = await this.config.getString('diet_regimes', '');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { code?: unknown; label?: unknown }[];
+        const list = (Array.isArray(parsed) ? parsed : [])
+          .filter((r) => r && typeof r.code === 'string' && (r.code as string).trim())
+          .map((r) => ({ code: String(r.code).trim(), label: String(r.label ?? r.code).trim() }));
+        if (list.length) return list;
+      } catch {
+        /* valore non valido → default */
+      }
+    }
+    return CatalogService.DEFAULT_REGIMES;
+  }
+
+  /** Stili disponibili: ricavati dagli stili effettivamente presenti nelle diete del catalogo. */
+  async styles(): Promise<{ code: string; label: string }[]> {
+    const rows = (await this.prisma.diet.findMany({ distinct: ['style'], select: { style: true }, orderBy: { style: 'asc' } })) as { style: string | null }[];
+    const codes = [...new Set(rows.map((r) => r.style).filter((x): x is string => !!x && !!x.trim()))];
+    return codes.map((code) => ({ code, label: CatalogService.STYLE_LABELS[code] ?? this.titleCase(code) }));
+  }
+
+  async taxonomy() {
+    const [regimes, styles] = await Promise.all([this.regimes(), this.styles()]);
+    return { regimes, styles };
+  }
+
+  /** Salva la lista dei regimi (solo admin). Normalizza i codici (minuscolo, underscore). */
+  async setRegimes(list: { code: string; label: string }[], actorId: string) {
+    const clean = (list ?? [])
+      .filter((r) => r && typeof r.code === 'string' && r.code.trim())
+      .map((r) => ({ code: r.code.trim().toLowerCase().replace(/\s+/g, '_'), label: (r.label ?? r.code).trim() || r.code.trim() }));
+    if (clean.length === 0) throw new BadRequestException('Serve almeno un regime.');
+    const seen = new Set<string>();
+    const dedup = clean.filter((r) => (seen.has(r.code) ? false : (seen.add(r.code), true)));
+    const value = JSON.stringify(dedup);
+    await this.prisma.configParam.upsert({
+      where: { key: 'diet_regimes' },
+      create: { key: 'diet_regimes', value, type: 'json' as never, description: 'Regimi alimentari (configurabili dalle impostazioni)', updatedById: actorId },
+      update: { value, updatedById: actorId },
+    });
+    await this.audit.log({ action: 'admin.config.update', actorId, entityType: 'config_param', entityId: 'diet_regimes', metadata: { count: dedup.length } });
+    return dedup;
+  }
 }

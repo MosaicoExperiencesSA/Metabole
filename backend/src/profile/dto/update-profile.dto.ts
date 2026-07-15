@@ -1,18 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsDateString,
-  IsIn,
-  IsInt,
-  IsObject,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
 class LifestylePatchDto {
   @IsOptional()
@@ -53,11 +40,11 @@ export class UpdateProfileDto {
   heightCm?: number;
 
   @IsOptional()
-  @IsIn(['omnivore', 'vegetarian', 'vegan'])
+  @IsString() @MaxLength(40)
   regime?: string;
 
   @IsOptional()
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
+  @IsString() @MaxLength(40)
   dietStyle?: string;
 
   @IsOptional()

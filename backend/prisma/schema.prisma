@@ -49,19 +49,7 @@ enum Sex {
   male
 }
 
-enum Regime {
-  omnivore
-  vegetarian
-  vegan
-}
 
-enum DietStyle {
-  mediterranean
-  protein
-  low_carb
-  flexible
-  keto
-}
 
 enum PathType {
   classic3
@@ -353,8 +341,8 @@ model ClientProfile {
   startWeightKg          Float?     @map("start_weight_kg")
   startWaistCm           Float?     @map("start_waist_cm")
   startHipsCm            Float?     @map("start_hips_cm")
-  regime                 Regime?
-  dietStyle              DietStyle? @map("diet_style")
+  regime                 String?
+  dietStyle              String? @map("diet_style")
   mealsPerDay            Int?       @map("meals_per_day")
   pathType               PathType?  @map("path_type")
   coachStyle             CoachStyle? @map("coach_style")
@@ -1042,8 +1030,8 @@ model EngineDecision {
 model Diet {
   id           String     @id @default(uuid())
   name         String
-  regime       Regime
-  style        DietStyle
+  regime       String
+  style        String
   mealsPerDay  Int        @map("meals_per_day")
   levels       Json? // es. [{level:1, kcal:1400}, {level:2, kcal:1600}]
   options      Json? // integratori, digiuno intermittente…
@@ -1129,7 +1117,7 @@ model RulePreset {
 model Recipe {
   id             String   @id @default(uuid())
   name           String
-  regime         Regime
+  regime         String
   mealSlot       MealSlot @map("meal_slot")
   kcal           Int
   ingredients    Json // [{name, qty, unit}]

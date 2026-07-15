@@ -284,7 +284,6 @@ export class CommerceService {
     input: { planId?: string; items?: { productId: string; qty: number }[]; method: 'card' | 'bank_transfer'; discountCode?: string },
   ) {
     const method: 'card' | 'bank_transfer' = input.method === 'card' ? 'card' : 'bank_transfer';
-    await this.assertMethodEnabled(method);
     let subtotal = 0;
 
     let plan: { id: string; name: string; priceCents: number } | null = null;
@@ -327,6 +326,8 @@ export class CommerceService {
       discountCodeId = res.codeId;
     }
     const totalCents = Math.max(0, subtotal - discountCents);
+    // Il metodo di pagamento serve solo se c'è un importo da pagare.
+    if (totalCents > 0) await this.assertMethodEnabled(method);
 
     let subscriptionId: string | null = null;
     if (plan) {
@@ -343,6 +344,41 @@ export class CommerceService {
 
     const parts = [plan ? `Abbonamento ${plan.name}` : null, detailed.length ? `${detailed.length} prodotti` : null].filter(Boolean);
     const description = parts.join(' + ') || 'Ordine';
+
+    // Prodotto/piano GRATUITO (totale 0): niente flusso di pagamento, attivazione diretta.
+    if (totalCents === 0) {
+      const freePayment = await this.prisma.payment.create({
+        data: {
+          clientId,
+          subscriptionId,
+          orderId,
+          amountCents: 0,
+          description,
+          method: 'manual' as never,
+          status: 'approved',
+          approvedAt: new Date(),
+          discountCodeId,
+          discountCents: discountCents || null,
+        },
+      });
+      const full = await this.prisma.payment.findUnique({
+        where: { id: freePayment.id },
+        include: {
+          subscription: { include: { plan: { select: { period: true } } } },
+          client: { select: { email: true, locale: true } },
+        },
+      });
+      // Attivazione identica a un pagamento approvato, ma senza provvigioni (è gratuito).
+      await this.finalizeApproval(full as never, clientId, 'gratuito', { skipCommissions: true });
+      await this.audit.log({
+        action: 'commerce.checkout_free',
+        actorId: clientId,
+        entityType: 'payment',
+        entityId: freePayment.id,
+        metadata: { planId: plan?.id, products: detailed.length },
+      });
+      return { free: true as const, paymentId: freePayment.id, totalCents: 0 };
+    }
 
     const payment = await this.prisma.payment.create({
       data: {

@@ -1,19 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsNumber,
-  IsObject,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
 class LifestyleDto {
   @IsOptional()
@@ -96,10 +82,10 @@ export class SubmitAnswersDto {
   @Max(200)
   startHipsCm?: number;
 
-  @IsIn(['omnivore', 'vegetarian', 'vegan'])
+  @IsString() @MaxLength(40)
   regime!: string;
 
-  @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto'])
+  @IsString() @MaxLength(40)
   dietStyle!: string;
 
   @IsOptional()

@@ -1,14 +1,4 @@
-import {
-  IsArray,
-  IsIn,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 /** Aggiornamento scheda cliente: anagrafica (User) + questionario (ClientProfile). Tutti i campi opzionali. */
 export class UpdateClientDto {
@@ -29,8 +19,8 @@ export class UpdateClientDto {
   @IsOptional() @IsNumber() @Min(35) @Max(250) startWeightKg?: number;
   @IsOptional() @IsNumber() @Min(40) @Max(200) startWaistCm?: number;
   @IsOptional() @IsNumber() @Min(40) @Max(200) startHipsCm?: number;
-  @IsOptional() @IsIn(['omnivore', 'vegetarian', 'vegan']) regime?: string;
-  @IsOptional() @IsIn(['mediterranean', 'protein', 'low_carb', 'flexible', 'keto']) dietStyle?: string;
+  @IsOptional() @IsString() @MaxLength(40) regime?: string;
+  @IsOptional() @IsString() @MaxLength(40) dietStyle?: string;
   @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   @IsOptional() @IsIn(['daily', 'when_needed', 'on_request']) coachStyle?: string;
