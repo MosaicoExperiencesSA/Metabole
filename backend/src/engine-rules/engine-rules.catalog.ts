@@ -52,6 +52,12 @@ export const ENGINE_RULES: EngineRule[] = [
   { code: 'agent_pre_event_days', label: 'Anticipo pre-evento (giorni)', description: 'Quanti giorni prima di un evento attivare la modalità pre-evento.', category: 'agente', kind: 'number', default: 3, min: 1, max: 14, step: 1, unit: 'giorni' },
   { code: 'agent_post_event_days', label: 'Durata post-evento (giorni)', description: 'Per quanti giorni dopo un evento restare in modalità recupero.', category: 'agente', kind: 'number', default: 2, min: 1, max: 14, step: 1, unit: 'giorni' },
   { code: 'agent_reentry_days', label: 'Durata rientro (giorni)', description: 'Per quanti giorni gestire il rientro dopo una pausa.', category: 'agente', kind: 'number', default: 3, min: 1, max: 14, step: 1, unit: 'giorni' },
+
+  // --- Sicurezza / segnalazioni (R12) ---
+  { code: 'stall_days_before_coach_alert', label: 'Giorni di stallo', description: 'Da quanti giorni la media mobile del peso non migliora prima di considerare uno stallo.', category: 'sicurezza', kind: 'number', default: 6, min: 2, max: 30, step: 1, unit: 'giorni' },
+  { code: 'no_progress_escalation', label: 'Segnala "Nessun progresso"', description: 'Se attivo, quando la cliente è in stallo (oltre i "Giorni di stallo") apre in automatico una segnalazione "Nessun progresso" al nutrizionista (coach informata). Di norma OFF.', category: 'sicurezza', kind: 'boolean', default: false },
+  { code: 'low_adherence_days', label: 'Giorni per "Scarsa aderenza"', description: 'Giorni consecutivi senza check-in oltre i quali aprire una segnalazione "Scarsa aderenza" alla coach. 0 = spenta.', category: 'sicurezza', kind: 'number', default: 0, min: 0, max: 60, step: 1, unit: 'giorni' },
+  { code: 'max_weight_change_alert_kg_week', label: 'Calo rapido (kg/settimana)', description: 'Ritmo di calo settimanale oltre il quale scatta l’allerta clinica al nutrizionista.', category: 'sicurezza', kind: 'number', default: 1.5, min: 0.5, max: 5, step: 0.1, unit: 'kg/sett' },
 ];
 
 export const ENGINE_RULE_BY_CODE = new Map(ENGINE_RULES.map((r) => [r.code, r]));

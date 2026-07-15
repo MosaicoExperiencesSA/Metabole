@@ -82,6 +82,8 @@ section:not(.hero)>.wrap{background:var(--card);border:1px solid var(--bd);borde
 .path{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:20px;border-top:4px solid var(--teal);flex:0 0 auto;width:clamp(240px,27%,290px)}
 .path .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;color:#fff}
 .path h3{font-size:17px;margin-bottom:4px}.path p{font-size:13px;color:var(--mut)}
+.path p.pclamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.path p.pclamp.open{-webkit-line-clamp:unset;display:block}
 .path .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .path .tags span{background:var(--bg);border:1px solid var(--bd);color:var(--deep);font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px}
 /* richiamo (teaser) */
@@ -687,8 +689,12 @@ function loadPaths(){
     var cols=['#12A386','#2F80ED','#6C4CD6','#E8A11B','#E86FA6','#E8825A'];
     var icons=['ti-salad','ti-meat','ti-bread','ti-avocado','ti-bowl','ti-leaf'];
     grid.innerHTML=list.map(function(p,i){var c=p.color||cols[i%cols.length];var ic=p.icon||icons[i%icons.length];
-      return '<div class="path" style="border-top-color:'+c+'"><div class="ic" style="background:'+c+'"><i class="ti '+ic+'" style="font-size:20px"></i></div><h3>'+(p.name||p.clientName||'')+'</h3><p>'+(p.desc||p.clientDescription||'')+'</p></div>';
+      return '<div class="path" style="border-top-color:'+c+'"><div class="ic" style="background:'+c+'"><i class="ti '+ic+'" style="font-size:20px"></i></div><h3>'+(p.name||p.clientName||'')+'</h3><p class="pclamp" title="Tocca per leggere tutto">'+(p.desc||p.clientDescription||'')+'</p></div>';
     }).join('');
+    /* descrizioni lunghe: 4 righe + "…", click/tap per espandere e richiudere */
+    [].forEach.call(grid.querySelectorAll('p.pclamp'),function(el){
+      el.addEventListener('click',function(){this.classList.toggle('open')});
+    });
     grid.style.transform='translateX(0)';
     STATS.methods=list.length;applyStats(document.documentElement.lang);
   }).catch(function(){});

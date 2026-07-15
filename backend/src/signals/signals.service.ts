@@ -10,6 +10,8 @@ import {
   CreateWaterDto,
 } from './dto/signals.dto';
 import { slopePerDay, weeklyLossRate } from './stats';
+import { ProgressService } from './progress.service';
+import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 
 /** Normalizza a mezzanotte UTC (colonna DATE). */
 export function toDateOnly(input?: string): Date {
@@ -31,6 +33,8 @@ export class SignalsService {
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
     private readonly dietLearning: DietLearningService,
+    private readonly progress: ProgressService,
+    private readonly routing: EscalationRoutingService,
   ) {}
 
   // ---------- Misure (segnale Corpo) ----------
@@ -90,6 +94,7 @@ export class SignalsService {
 
     const newMilestones = await this.evaluateMilestones(clientId);
     const alert = await this.checkRapidLossGuardrail(clientId);
+    await this.checkNoProgress(clientId).catch(() => undefined);
 
     return { measurement, newMilestones, rapidLossAlert: alert };
   }
@@ -143,6 +148,66 @@ export class SignalsService {
   }
 
   /** Traguardi automatici: prima misura, -1/-3/-5 kg, metà strada, obiettivo raggiunto. */
+  /**
+   * R12 — Nessun progresso: se abilitato (config `no_progress_escalation`) e la cliente
+   * è in stallo (oltre `stall_days_before_coach_alert`), apre una segnalazione
+   * "Nessun progresso" instradata al nutrizionista (coach informata). Idempotente.
+   */
+  private async checkNoProgress(clientId: string): Promise<void> {
+    const enabled = await this.configParams.getBool('no_progress_escalation', false);
+    if (!enabled) return;
+    try {
+      const p = (await this.progress.getProgress(clientId)) as { alerts?: { stalled?: boolean; stallDays?: number } };
+      if (!p.alerts?.stalled) return;
+      await this.routing.open({
+        clientId,
+        category: 'no_progress',
+        reason: `Nessun progresso: peso fermo da ${p.alerts.stallDays ?? '?'} giorni. Rivedere piano e aderenza.`,
+        source: 'engine',
+        dedupe: true,
+      });
+    } catch {
+      /* mai bloccare il salvataggio della misura */
+    }
+  }
+
+  /**
+   * R12 — Scarsa aderenza (cron giornaliero): per le clienti attive che avevano un
+   * check-in ma non ne fanno da `low_adherence_days` giorni, apre una segnalazione
+   * alla coach. Config 0 = spenta. Idempotente per (cliente, categoria).
+   */
+  async runAdherenceSweep(): Promise<{ opened: number; days: number }> {
+    const days = await this.configParams.getNumber('low_adherence_days', 0);
+    if (days <= 0) return { opened: 0, days: 0 };
+    const since = new Date(Date.now() - days * 86_400_000);
+    const clients = (await this.prisma.user.findMany({
+      where: { role: 'client', status: 'active', deletedAt: null },
+      select: { id: true },
+    })) as { id: string }[];
+    let opened = 0;
+    for (const c of clients) {
+      const last = (await this.prisma.dailyCheckin.findFirst({
+        where: { clientId: c.id },
+        orderBy: { date: 'desc' },
+        select: { date: true },
+      })) as { date: Date } | null;
+      if (!last || last.date >= since) continue; // mai iniziato o check-in recente
+      try {
+        await this.routing.open({
+          clientId: c.id,
+          category: 'low_adherence',
+          reason: `Scarsa aderenza: nessun check-in da almeno ${days} giorni.`,
+          source: 'coach',
+          dedupe: true,
+        });
+        opened++;
+      } catch {
+        /* prosegue con le altre clienti */
+      }
+    }
+    return { opened, days };
+  }
+
   private async evaluateMilestones(clientId: string): Promise<string[]> {
     const [profile, objective, count, latest] = await Promise.all([
       this.prisma.clientProfile.findUnique({

@@ -7,6 +7,10 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-15
 
+- `[Sviluppo]` **Sito — descrizioni card percorsi a 4 righe con "…" e click per espandere** — le note
+  cliniche lunghe non allungano più le card: CSS line-clamp a 4 righe con ellissi; click/tap sulla
+  descrizione la espande (e richiude). Solo `Metabole_Sito_Presentazione.html`, da ripubblicare su SiteGround.
+
 - `[Sviluppo]` **Sito — contatore "percorsi gestiti" e carosello collegati al catalogo Diete** —
   `GET /public/paths` ora restituisce le diete **APPROVATE** del catalogo (status `approved`, una card
   per dieta, senza dedup per stile) invece delle sole `clientVisible` raggruppate per stile;

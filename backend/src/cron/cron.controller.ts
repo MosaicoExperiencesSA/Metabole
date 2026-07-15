@@ -16,6 +16,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { EngineService } from '../engine/engine.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReportsService } from '../reports/reports.service';
+import { SignalsService } from '../signals/signals.service';
 
 /**
  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
@@ -35,6 +36,7 @@ export class CronController {
     private readonly alerts: AlertsService,
     private readonly summaries: ConversationSummaryService,
     private readonly commerce: CommerceService,
+    private readonly signals: SignalsService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -55,12 +57,13 @@ export class CronController {
     const conversationSummaries = await this.summaries.generateDailyBatch();
     const leadAssignments = await this.leadAssignment.expireStale();
     const stalePayments = await this.commerce.autoCancelStalePayments();
+    const adherence = await this.signals.runAdherenceSweep();
     // Il report mensile parte una volta al mese (il primo giorno).
     const monthlyReports = new Date().getDate() === 1 ? await this.reports.sendMonthlyBatch() : { sent: 0 };
     await this.audit.log({
       action: 'cron.daily',
-      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, monthlyReports } as Record<string, unknown>,
+      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, monthlyReports } as Record<string, unknown>,
     });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, monthlyReports };
+    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, monthlyReports };
   }
 }
