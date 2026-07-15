@@ -22,12 +22,35 @@ export function GestioneDieta() {
   const [error, setError] = useState<string | null>(null);
   const [dietId, setDietId] = useState('');
   const [section, setSection] = useState<Section>('ricette');
+  const [renameVal, setRenameVal] = useState('');
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     api<DietRow[]>('/diets')
       .then((d) => setDiets(d))
       .catch((e) => { setDiets([]); setError(e instanceof ApiError ? e.message : 'Caricamento diete non riuscito.'); });
   }, []);
+
+  // Precompila il campo rinomina col nome della dieta selezionata.
+  useEffect(() => {
+    const d = diets?.find((x) => x.id === dietId) ?? null;
+    setRenameVal(d?.name ?? '');
+  }, [dietId, diets]);
+
+  async function rename() {
+    const name = renameVal.trim();
+    const d = diets?.find((x) => x.id === dietId) ?? null;
+    if (!d || name.length < 2 || name === d.name) return;
+    setRenaming(true); setError(null);
+    try {
+      await api(`/diets/${d.id}/name`, { method: 'PATCH', body: JSON.stringify({ name }) });
+      setDiets((ds) => (ds ?? []).map((x) => (x.id === d.id ? { ...x, name } : x)));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Rinomina non riuscita.');
+    } finally {
+      setRenaming(false);
+    }
+  }
 
   if (diets === null) return <Spinner />;
 
@@ -55,6 +78,15 @@ export function GestioneDieta() {
           </select>
           {diets.length === 0 && <span className="muted" style={{ fontSize: 12 }}>Nessuna dieta: creane una dal Catalogo diete o dal wizard Creazione e validazione.</span>}
         </label>
+        {diet && (
+          <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+            <span className="muted" style={{ fontSize: 13 }}>Nome</span>
+            <input className="input" style={{ minWidth: 300 }} value={renameVal} onChange={(e) => setRenameVal(e.target.value)} placeholder="Nome della dieta" />
+            <button className="btn ghost sm" onClick={rename} disabled={renaming || renameVal.trim().length < 2 || renameVal.trim() === diet.name}>
+              <i className="ti ti-edit" /> Rinomina
+            </button>
+          </div>
+        )}
       </div>
 
       {!diet ? (
