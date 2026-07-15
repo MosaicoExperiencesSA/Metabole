@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
@@ -27,6 +28,7 @@ export class MarketingService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
   ) {}
 
   private conditions(f: SegmentFilters): Prisma.CrmRecordWhereInput[] {
@@ -72,15 +74,20 @@ export class MarketingService {
   }
 
   private async filterConsent(records: Recipient[]): Promise<Recipient[]> {
-    const clientIds = records.map((r) => r.clientId).filter((x): x is string => !!x);
-    if (!clientIds.length) return records;
+    // 1) opt-out per email (dal webhook Brevo: disiscrizioni/spam/bounce)
+    const optRows = await this.prisma.marketingOptOut.findMany({ select: { email: true } });
+    const optSet = new Set(optRows.map((o) => o.email.toLowerCase()));
+    let list = records.filter((r) => !r.email || !optSet.has(r.email.toLowerCase()));
+    // 2) opt-out dei clienti via notificationPrefs
+    const clientIds = list.map((r) => r.clientId).filter((x): x is string => !!x);
+    if (!clientIds.length) return list;
     const profiles = await this.prisma.clientProfile.findMany({ where: { userId: { in: clientIds } }, select: { userId: true, notificationPrefs: true } });
     const optedOut = new Set(
       profiles
         .filter((p) => { const n = p.notificationPrefs as Record<string, unknown> | null; return !!n && (n.marketing === false || n.marketingOptOut === true); })
         .map((p) => p.userId),
     );
-    return records.filter((r) => !r.clientId || !optedOut.has(r.clientId));
+    return list.filter((r) => !r.clientId || !optedOut.has(r.clientId));
   }
 
   async sendTest(templateKey: string, testEmail: string) {
@@ -162,5 +169,23 @@ export class MarketingService {
       spamReports: n('spamReports'),
       blocked: n('blocked'),
     };
+  }
+
+  /** Webhook Brevo: su disiscrizione/spam/bounce segna l'email come opt-out marketing. */
+  async handleBrevoWebhook(token: string | undefined, body: unknown) {
+    const secret = this.config.get<string>('BREVO_WEBHOOK_SECRET');
+    if (!secret || token !== secret) throw new UnauthorizedException('Token webhook non valido.');
+    const events = Array.isArray(body) ? body : [body];
+    const OPT_OUT = new Set(['unsubscribed', 'spam', 'hard_bounce', 'blocked', 'blacklisted', 'complaint']);
+    let optedOut = 0;
+    for (const ev of events) {
+      const e = (ev ?? {}) as Record<string, unknown>;
+      const event = String(e.event ?? '').toLowerCase();
+      const email = String(e.email ?? '').trim().toLowerCase();
+      if (!email || !OPT_OUT.has(event)) continue;
+      await this.prisma.marketingOptOut.upsert({ where: { email }, create: { email, reason: event, source: 'brevo' }, update: { reason: event } });
+      optedOut++;
+    }
+    return { ok: true, processed: events.length, optedOut };
   }
 }

@@ -1652,3 +1652,14 @@ model MarketingCampaign {
   @@index([createdAt])
   @@map("marketing_campaign")
 }
+
+/// Opt-out marketing per email (leads + clienti): alimentato dal webhook Brevo
+/// su disiscrizione/spam/bounce. Le campagne escludono queste email.
+model MarketingOptOut {
+  email     String   @id
+  reason    String?
+  source    String   @default("brevo")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("marketing_opt_out")
+}

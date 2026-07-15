@@ -19,13 +19,13 @@ Legenda: ✅ fatto · ⏳ in corso · ⬜ da fare · 🔴 gate (blocca il lancio
 
 ## 1. 🔴 Gate di lancio (oltre alla app)
 1. **Ricreare il catalogo** diete/ricette col **wizard** (era stato svuotato): generare, taggare i **14 allergeni UE**, approvare i **gruppi di equivalenza**, grammature reali + **firma nutrizionista sul Keto**. Ora è guidato dalla pagina Creazione e validazione. — [Sv/Nutrizionista]
-2. **Pubblicare il sito** aggiornato su SiteGround (SEO/lazy). — ⏳ [altra istanza]
+2. ✅ **Sito pubblicato** su SiteGround (15/7, altra istanza): 6 pagine 1:1 dal repo, verificate, cache svuotata. Resta solo la sostituzione delle **immagini placeholder** (servono asset reali). Nuova procedura: pubblicare via **API GitHub** (non raw CDN).
 3. **Smoke test end-to-end** (registrazione→email in inbox→onboarding→pagamento→**menu erogato**→test allergene→lead CRM). Richiede il catalogo del punto 1. — [Sv/Pr]
 4. **Igiene pre-apertura**: segreti Render (`AI_API_KEY` per il wizard, `BREVO_API_KEY` per marketing), **IBAN reale** (dato per inserito), conferma prezzi piani.
 
 ## 2. 📣 Marketing (il modulo è FATTO — restano contenuti/agganci)
 - **Template email in Brevo**: agganciare i 45 testi ai trigger transazionali (il modulo campagne usa i modelli dal DB, già pronti).
-- **Webhook Brevo → opt-out automatico** sulle disiscrizioni (oggi mostriamo il conteggio; l'auto-esclusione futura richiede il webhook, config su Brevo). Miglioria consigliata.
+- ✅ **Webhook Brevo → opt-out automatico**: endpoint `POST /api/v1/marketing/webhook/brevo?token=…` che su disiscrizione/spam/bounce segna l'email in `marketing_opt_out`; le campagne la escludono da sole. Richiede `BREVO_WEBHOOK_SECRET` su Render + configurazione webhook su Brevo.
 - **8 agenti AI di marketing + Giudice** (spec in `INTEGRAZIONE_MARKETING.md`): scheduler, fonti esterne, endpoint. **Publisher social**: servono le credenziali piattaforme.
 - **Casella mail backoffice**: collaudo con account reale.
 
