@@ -7,6 +7,7 @@ import {
 import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
+import { CrmService } from '../commerce/crm.service';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -58,6 +59,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly finance: FinanceService,
     private readonly mail: MailService,
+    private readonly crm: CrmService,
   ) {}
 
   async list(params: { role?: Role; staffOnly?: boolean; includeArchived?: boolean; page?: number; limit?: number }) {
@@ -322,6 +324,10 @@ export class UsersService {
       entityId: user.id,
       metadata: { role: systemRole, customRoleKey },
     });
+    // Anche i clienti creati da backoffice compaiono in Gestione lead (tutti sono lead).
+    if (systemRole === 'client') {
+      await this.crm.ensureLead(user.id, email, (data as { displayName?: string }).displayName ?? null);
+    }
     return user;
   }
 
