@@ -3,13 +3,16 @@
   --teal-dark: #10403a;
   --coral: #e8825a;
   --violet: #6c5ab7;
-  --cream: #faf8f3;
+  /* Palette grigio-fredda del prototipo (demo): sfondo pagina, riempimenti tenui, bordi. */
+  --bg: #eaedec;
+  --soft: #f2f5f4;
+  --cream: #eaedec; /* retrocompatibilità: puntato allo sfondo della demo */
   --card: #ffffff;
-  --ink: #17201d;
-  --muted: #7c8c88;
-  --line: #ece7dd;
+  --ink: #101826;
+  --muted: #8a938f;
+  --line: #e7ebe9;
   --radius: 18px;
-  --shadow: 0 6px 20px rgba(16, 64, 58, 0.06);
+  --shadow: 0 6px 20px rgba(16, 48, 42, 0.07);
   --tabbar-h: 64px;
 }
 
@@ -174,7 +177,7 @@ p { line-height: 1.5; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--cream);
+  background: var(--soft);
   color: var(--teal-dark);
   border-radius: 999px;
   padding: 5px 12px;
@@ -280,7 +283,7 @@ p { line-height: 1.5; }
 @keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* Segmenti (Percorso: Menu passati / Eventi) */
-.seg { display: flex; background: #F0F3F2; border-radius: 12px; padding: 3px; margin-bottom: 12px; }
+.seg { display: flex; background: var(--soft); border-radius: 12px; padding: 3px; margin-bottom: 12px; }
 .seg .s { flex: 1; text-align: center; font-size: 13px; font-weight: 600; color: #6E7B77; padding: 8px 0; border-radius: 9px; cursor: pointer; }
 .seg .s.on { background: #fff; color: var(--ink); box-shadow: 0 2px 6px rgba(16, 48, 42, 0.08); }
 .meal-row { display: flex; overflow: hidden; border: 1.5px solid #bfe0d2; border-radius: 16px; background: #fff; box-shadow: 0 4px 12px rgba(16, 64, 58, 0.08); }
@@ -292,7 +295,7 @@ p { line-height: 1.5; }
 .btn-recipe { border: none; background: var(--teal); color: #fff; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
 
 .qa-row { display: flex; gap: 7px; }
-.qa-chip { flex: 1; text-align: center; background: var(--cream); color: var(--teal-dark); border-radius: 999px; padding: 9px 4px; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.qa-chip { flex: 1; text-align: center; background: var(--soft); color: var(--teal-dark); border-radius: 999px; padding: 9px 4px; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 
 .event-card { display: flex; align-items: center; gap: 10px; background: #fbeee7; border: 1px solid #f3d6c7; border-radius: var(--radius); padding: 14px; cursor: pointer; }
 .event-ic { width: 32px; height: 32px; flex: none; border-radius: 10px; background: #e8825a; color: #fff; display: flex; align-items: center; justify-content: center; }

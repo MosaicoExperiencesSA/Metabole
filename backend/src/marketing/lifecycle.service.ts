@@ -49,9 +49,9 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'ev_plateau', label: 'Evento: plateau', when: 'Peso fermo', kind: 'event', implemented: false },
   { key: 'ev_morale', label: 'Evento: morale', when: 'Segnale morale basso', kind: 'event', implemented: false },
   { key: 'ev_misure', label: 'Evento: misure', when: 'Nuove misure', kind: 'event', implemented: false },
-  { key: 'ev_rientro', label: 'Evento: rientro vacanza', when: 'Rientro da modalità viaggio', kind: 'event', implemented: false },
+  { key: 'ev_rientro', label: 'Evento: rientro vacanza', when: 'Rientro da modalità viaggio (ultimi 7 giorni)', kind: 'event', implemented: true },
   { key: 'ev_compleanno', label: 'Evento: compleanno', when: 'Compleanno (da data di nascita)', kind: 'scheduled', implemented: true },
-  { key: 'ev_anniversario', label: 'Evento: anniversario', when: 'Anniversario iscrizione', kind: 'scheduled', implemented: false },
+  { key: 'ev_anniversario', label: 'Evento: anniversario', when: 'Anniversario inizio piano', kind: 'scheduled', implemented: true },
   { key: 'ev_pre_evento', label: 'Evento: pre-evento', when: 'Evento personale in arrivo', kind: 'scheduled', implemented: false },
   { key: 'ev_mantenimento', label: 'Evento: mantenimento', when: 'Passaggio a mantenimento', kind: 'event', implemented: false },
   { key: 'rin_t7', label: 'Rinnovo T-7', when: 'Rinnovo tra 7 giorni (date non tracciate)', kind: 'scheduled', implemented: false },
@@ -388,6 +388,62 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           vars: { nome: u.firstName ?? '', link: `${app}/` },
         });
         bump('ev_compleanno', r);
+      }
+    }
+
+    // 6) ev_rientro — clienti rientrati dalla vacanza negli ultimi 7 giorni
+    //    (evento travel_return); dedup per singolo evento di rientro.
+    if (on('ev_rientro')) {
+      const events = await this.prisma.analyticsEvent.findMany({
+        where: { name: 'travel_return', userId: { not: null }, receivedAt: { gte: this.daysAgo(7) } },
+        select: { id: true, userId: true },
+        orderBy: { receivedAt: 'desc' },
+        take: LifecycleService.BATCH,
+      });
+      const ids = [...new Set(events.map((e) => e.userId).filter((x): x is string => !!x))];
+      const users = ids.length
+        ? await this.prisma.user.findMany({ where: { id: { in: ids }, role: 'client', deletedAt: null }, select: { id: true, email: true, firstName: true } })
+        : [];
+      const byId = new Map(users.map((u) => [u.id, u]));
+      for (const ev of events) {
+        const u = ev.userId ? byId.get(ev.userId) : undefined;
+        if (!u) continue;
+        const r = await this.sendLifecycle({
+          userId: u.id,
+          email: u.email,
+          key: 'ev_rientro',
+          dedupeKey: `ev_rientro:${ev.id}`,
+          vars: { nome: u.firstName ?? '', link: `${app}/` },
+        });
+        bump('ev_rientro', r);
+      }
+    }
+
+    // 7) ev_anniversario — anniversario dell'inizio piano (stesso giorno/mese,
+    //    anni successivi al primo); dedup per anno.
+    if (on('ev_anniversario')) {
+      const today = new Date();
+      const aM = today.getUTCMonth();
+      const aD = today.getUTCDate();
+      const aY = today.getUTCFullYear();
+      const profs = await this.prisma.clientProfile.findMany({
+        where: { planStartDate: { not: null } },
+        select: { userId: true, name: true, planStartDate: true, user: { select: { email: true, firstName: true } } },
+        take: LifecycleService.BATCH,
+      });
+      for (const p of profs) {
+        const ps = p.planStartDate as Date | null;
+        if (!ps) continue;
+        const anni = aY - ps.getUTCFullYear();
+        if (anni < 1 || ps.getUTCMonth() !== aM || ps.getUTCDate() !== aD) continue;
+        const r = await this.sendLifecycle({
+          userId: p.userId,
+          email: p.user?.email ?? null,
+          key: 'ev_anniversario',
+          dedupeKey: `ev_anniversario:${aY}`,
+          vars: { nome: p.user?.firstName ?? p.name ?? '', anni: String(anni), link: `${app}/` },
+        });
+        bump('ev_anniversario', r);
       }
     }
 
