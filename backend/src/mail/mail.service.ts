@@ -227,8 +227,8 @@ export class MailService {
     return this.send({ to, subject, html, templateKey: 'refund_receipt', attachments });
   }
 
-  async sendPasswordReset(to: string, token: string, locale?: string | null): Promise<boolean> {
-    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
+  async sendPasswordReset(to: string, token: string, locale?: string | null, baseUrl?: string): Promise<boolean> {
+    const appUrl = baseUrl ?? this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
     const link = `${appUrl}/reset-password?token=${token}`;
     const vars = { link, token };
     const { subject, html } = await this.resolve('password_reset', {

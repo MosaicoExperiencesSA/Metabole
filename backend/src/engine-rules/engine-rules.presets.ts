@@ -133,4 +133,21 @@ export const SUGGESTED_PRESETS: PresetSeed[] = [
     clinicalNotes: 'Concentrare 2–3 pasti in 8 ore. (Richiede: finestra oraria di erogazione pasti; oggi solo mealsPerDay ridotto.)',
     source: 'Meta-analisi TRE 16:8 (Eur J Clin Nutr 2023).',
   },
+  // ---- Protocolli stagionali estate (luglio) ----
+  {
+    style: 'summer_holiday', label: 'Vacanze in Serenità', sortOrder: 5,
+    regime: null, objective: 'mantenimento',
+    description: 'Piano estivo di MANTENIMENTO per chi è in vacanza: difende il risultato senza restrizione né sensi di colpa. Piatti freschi, freddi e portabili, idratazione, porzioni consapevoli.',
+    rules: { ...R(0.15, 0.22, 20, 1.2, 0.4, 1.3, false), menu_daycombo_kcal_target: 1800 },
+    clinicalNotes: 'Obiettivo mantenimento, NON deficit: kcal ~ fabbisogno, tolleranza ampia. Priorità a piatti freddi/portabili (spiaggia, viaggio) e ad alto contenuto d’acqua (frutta/verdura); idratazione; per ogni pasto una nota “fuori casa/ristorante”. Nessun digiuno né taglio. Patologie/gravidanza/allattamento: piano validato dal nutrizionista.',
+    source: 'National Weight Control Registry — strategie di mantenimento nei periodi a rischio (auto-monitoraggio, attività regolare, niente restrizione).',
+  },
+  {
+    style: 'summer_return', label: 'Ritorno in Equilibrio', sortOrder: 6,
+    regime: null, objective: 'dimagrimento',
+    description: 'Ripartenza DOLCE post-vacanza: settimana 1 reset leggero (sgonfiare, reidratare, ordine in sonno/pasti), settimana 2 ritmo pieno verso l’obiettivo. Niente diete lampo.',
+    rules: { ...R(0.20, 0.28, 14, 1.3, 0.7, 1.1, false), menu_daycombo_kcal_target: 1600 },
+    clinicalNotes: 'Settimana 1 “reset”: verdure e fibra, ridurre il sodio e aumentare potassio/idratazione (attenua ritenzione/gonfiore), ritmo sonno-pasti, movimento leggero, misure gentili. Settimana 2: spinta efficacia graduale (stato “rientro”), porzioni standard, niente fame. Mai diete lampo o digiuni. Guardrail clinici come sopra. (Sodio/potassio: oggi in nota, non ancora parametri motore.)',
+    source: 'National Weight Control Registry (ripartenza graduale, no crash diet) + evidenze su ritenzione idrica (sodio/potassio/idratazione).',
+  },
 ];

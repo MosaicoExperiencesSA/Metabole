@@ -320,7 +320,9 @@ export class AuthService {
       entityId: user.id,
       ipAddress: ip,
     });
-    await this.mail.sendPasswordReset(normalized, token, user.locale);
+    // Lo staff reimposta dal BACKOFFICE, i clienti dalla app.
+    const resetBase = user.role === 'client' ? undefined : (process.env.BACKOFFICE_URL ?? 'https://backoffice.metabole.eu');
+    await this.mail.sendPasswordReset(normalized, token, user.locale, resetBase);
   }
 
   async confirmPasswordReset(token: string, newPassword: string, ip?: string): Promise<void> {

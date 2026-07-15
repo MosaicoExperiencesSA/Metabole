@@ -441,6 +441,8 @@ export function ClientDetail() {
         </div>
       </div>
 
+      <TravelCard clientId={id ?? ''} profile={p} />
+
       {/* Team assegnato: coach e nutrizionista (l'admin può cambiare/rimuovere) */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Team assegnato</h2>
@@ -820,5 +822,47 @@ export function ClientDetail() {
         </div>
       )}
     </>
+  );
+}
+
+
+function TravelCard({ clientId, profile }: { clientId: string; profile: { travelState?: string | null; travelStart?: string | null; travelEnd?: string | null } | null }) {
+  const [state, setState] = useState<string>(profile?.travelState ?? '');
+  const [start, setStart] = useState<string>(profile?.travelStart ? String(profile.travelStart).slice(0, 10) : '');
+  const [end, setEnd] = useState<string>(profile?.travelEnd ? String(profile.travelEnd).slice(0, 10) : '');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true); setErr(null); setMsg(null);
+    try {
+      await api(`/admin/clients/${clientId}/travel`, { method: 'PATCH', body: JSON.stringify({ state, start, end }) });
+      setMsg(state === 'in_vacanza' ? 'In vacanza: il popup misure è sospeso fino al rientro.' : state === 'rientrato' ? 'Rientro registrato: evento inviato al CRM/marketing.' : 'Modalità viaggio aggiornata.');
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Modalità viaggio (piani estate)</h2>
+      <p className="hint" style={{ marginTop: 0 }}>In vacanza il popup misure si sospende; al rientro parte un evento verso il CRM/marketing (campagna di rientro).</p>
+      {err && <Banner kind="err">{err}</Banner>}
+      {msg && <Banner kind="ok">{msg}</Banner>}
+      <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <label className="field" style={{ minWidth: 180 }}>
+          <span>Stato</span>
+          <select className="select" value={state} onChange={(e) => setState(e.target.value)}>
+            <option value="">— nessuna —</option>
+            <option value="in_partenza">In partenza</option>
+            <option value="in_vacanza">In vacanza</option>
+            <option value="rientrato">Rientrato/a</option>
+          </select>
+        </label>
+        <label className="field" style={{ maxWidth: 160 }}><span>Dal</span><input className="input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
+        <label className="field" style={{ maxWidth: 160 }}><span>Al</span><input className="input" type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+        <button className="btn" onClick={save} disabled={saving}><i className="ti ti-device-floppy" /> {saving ? 'Salvo…' : 'Salva'}</button>
+      </div>
+    </div>
   );
 }

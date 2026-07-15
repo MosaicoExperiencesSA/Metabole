@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
@@ -207,6 +208,27 @@ export class ClientsService {
     if (ops.length) await this.prisma.$transaction(ops as never);
     await this.audit.log({ action: 'client.update', actorId, entityType: 'user', entityId: userId });
     return { updated: true };
+  }
+
+  /** Modalità viaggio/estate (staff): imposta lo stato e le date; al rientro emette un evento per il CRM/marketing. */
+  async setTravel(userId: string, actorId: string, input: { state?: string; start?: string; end?: string }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (!user) throw new NotFoundException('Cliente non trovato.');
+    if (user.role !== 'client') throw new BadRequestException('Solo per i clienti.');
+    const VALID = ['in_partenza', 'in_vacanza', 'rientrato'];
+    const state = input.state && VALID.includes(input.state) ? input.state : null;
+    const toDate = (v?: string) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v) : null);
+    const data = { travelState: state, travelStart: toDate(input.start), travelEnd: toDate(input.end) };
+    await this.prisma.clientProfile.upsert({
+      where: { userId },
+      update: data as never,
+      create: { userId, ...data } as never,
+    });
+    if (state === 'rientrato') {
+      await this.prisma.analyticsEvent.create({ data: { eventId: randomUUID(), name: 'travel_return', userId, phase: 'app', data: {} as never } as never });
+    }
+    await this.audit.log({ action: 'client.travel.update', actorId, entityType: 'user', entityId: userId, metadata: { state } });
+    return { state };
   }
 
   /**

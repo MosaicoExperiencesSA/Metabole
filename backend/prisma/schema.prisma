@@ -373,6 +373,10 @@ model ClientProfile {
   screeningFlag          Boolean    @default(false) @map("screening_flag")
   onboardingAnswers      Json?      @map("onboarding_answers") // snapshot grezzo delle risposte
   onboardingCompletedAt  DateTime?  @map("onboarding_completed_at")
+  // Modalità viaggio/estate (piani stagionali): in_partenza | in_vacanza | rientrato + date.
+  travelState            String?    @map("travel_state")
+  travelStart            DateTime?  @map("travel_start")
+  travelEnd              DateTime?  @map("travel_end")
   createdAt              DateTime   @default(now()) @map("created_at")
   updatedAt              DateTime   @updatedAt @map("updated_at")
 

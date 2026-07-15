@@ -74,6 +74,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={loading ? <Spinner /> : user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/reset-password" element={<Login />} />
 
       <Route path="/" element={<Protected title="Home" pageKey="dashboard"><Home /></Protected>} />
       <Route path="/posta" element={<Protected title="Posta" pageKey="posta"><Posta /></Protected>} />

@@ -342,6 +342,9 @@ export class MenuService {
     last: { date: Date },
     daysPerDelivery: number,
   ): Promise<boolean> {
+    // Piani estate: in vacanza il popup misure NON blocca l'erogazione.
+    const prof = await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { travelState: true } });
+    if ((prof as { travelState?: string | null } | null)?.travelState === 'in_vacanza') return false;
     const today = toDateOnly();
     const cycleEnd = toDateOnly(last.date.toISOString());
     if (today.getTime() < cycleEnd.getTime()) return false; // non ancora al 2° giorno

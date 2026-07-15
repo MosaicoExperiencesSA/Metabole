@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api, ApiError } from '../api/client';
 
@@ -8,6 +8,7 @@ type Mode = 'login' | 'reset_request' | 'reset_confirm';
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>('login');
 
   const [email, setEmail] = useState('');
@@ -19,6 +20,12 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const t = searchParams.get('token');
+    if (t) { setCode(t); setMode('reset_confirm'); setNotice('Scegli la nuova password per completare il reset.'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function resetMessages() {
     setError(null);

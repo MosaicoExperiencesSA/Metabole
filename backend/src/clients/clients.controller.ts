@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post } from '@nestjs/common';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -11,6 +11,12 @@ class AddNoteDto {
   @MinLength(1)
   @MaxLength(5000)
   body!: string;
+}
+
+class TravelDto {
+  @IsOptional() @IsString() @MaxLength(20) state?: string;
+  @IsOptional() @IsString() @MaxLength(40) start?: string;
+  @IsOptional() @IsString() @MaxLength(40) end?: string;
 }
 
 /** Scheda cliente (staff che gestisce i clienti). */
@@ -58,6 +64,12 @@ export class ClientsController {
   @Patch(':id')
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateClientDto) {
     return this.clients.updateClient(id, user.sub, dto);
+  }
+
+  /** Modalità viaggio/estate: in vacanza il popup misure si sospende; al rientro scatta un evento CRM/marketing. */
+  @Patch(':id/travel')
+  setTravel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: TravelDto) {
+    return this.clients.setTravel(id, user.sub, dto);
   }
 
   /** Eliminazione definitiva del cliente/lead e di tutto il collegato: SOLO admin. */
