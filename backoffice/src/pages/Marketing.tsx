@@ -75,6 +75,8 @@ export function Marketing() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       {/* Segmentazione */}
+      <LifecycleAutomation />
+
       <div className="card">
         <h2 style={{ marginTop: 0 }}>1 · Crea il segmento</h2>
         <p className="hint" style={{ marginTop: 0 }}>Combina i filtri: appartenenza a una lista, etichette, stato pipeline e altri dati della scheda. Solo contatti con email.</p>
@@ -169,8 +171,6 @@ export function Marketing() {
         )}
       </div>
 
-      <LifecycleAutomation />
-
       {confirming && (
         <Modal title="Confermi l'invio?" onClose={() => setConfirming(false)}>
           <p>Stai per inviare <b>“{title}”</b> a <b>{preview?.total ?? 0}</b> destinatari (modello: {opts.templates.find((t) => t.key === templateKey)?.name}). L'operazione è irreversibile.</p>
@@ -256,11 +256,17 @@ interface LifecycleOverview { enabled: boolean; lastRunAt: string | null; catalo
 
 function LifecycleAutomation() {
   const [ov, setOv] = useState<LifecycleOverview | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  function load() { api<LifecycleOverview>('/marketing/lifecycle').then(setOv).catch(() => {}); }
+  function load() {
+    setErr(null);
+    api<LifecycleOverview>('/marketing/lifecycle')
+      .then((o) => { setOv(o); setLoaded(true); })
+      .catch((e) => { setLoaded(true); setErr(e instanceof Error ? e.message : 'Impossibile caricare l\'automazione.'); });
+  }
   useEffect(load, []);
 
   async function setEnabled(enabled: boolean) {
@@ -286,7 +292,20 @@ function LifecycleAutomation() {
     finally { setBusy(false); }
   }
 
-  if (!ov) return null;
+  if (!ov) {
+    return (
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Automazione email (ciclo di vita)</h2>
+        {!loaded && <div className="muted">Caricamento…</div>}
+        {loaded && err && (
+          <>
+            <div className="banner err" style={{ marginBottom: 8 }}>{err}</div>
+            <button className="btn ghost" onClick={load}>Riprova</button>
+          </>
+        )}
+      </div>
+    );
+  }
   const active = ov.catalog.filter((t) => t.implemented);
   const roadmap = ov.catalog.filter((t) => !t.implemented);
 
