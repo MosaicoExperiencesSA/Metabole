@@ -13,6 +13,7 @@ interface SendMailInput {
   html: string;
   templateKey?: string;
   attachments?: Attachment[];
+  tags?: string[]; // tag Brevo (es. campaign:ID) per le statistiche
 }
 
 /** Sostituisce i segnaposto {{var}} nel testo del template. */
@@ -95,6 +96,7 @@ export class MailService {
           subject: input.subject,
           htmlContent: input.html,
           ...(input.attachments?.length ? { attachment: input.attachments } : {}),
+          ...(input.tags?.length ? { tags: input.tags } : {}),
         }),
       });
       if (!res.ok) {
@@ -109,6 +111,22 @@ export class MailService {
       this.logger.error(`Invio email fallito (to=${input.to})`, err instanceof Error ? err.stack : String(err));
       await this.log(input.to, input.subject, 'failed', input.templateKey, err instanceof Error ? err.message : 'errore');
       return false;
+    }
+  }
+
+  /** Statistiche aggregate Brevo per un tag (es. campaign:ID): consegne, bounce, aperture, click, disiscrizioni. */
+  async aggregatedStats(tag: string): Promise<Record<string, number> | null> {
+    const key = this.apiKey;
+    if (!key) return null;
+    try {
+      const res = await fetch(`https://api.brevo.com/v3/smtp/statistics/aggregatedReport?days=90&tag=${encodeURIComponent(tag)}`, {
+        headers: { 'api-key': key, accept: 'application/json' },
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as Record<string, number>;
+    } catch (err) {
+      this.logger.warn(`Brevo stats non disponibili per tag=${tag}: ${err instanceof Error ? err.message : 'errore'}`);
+      return null;
     }
   }
 

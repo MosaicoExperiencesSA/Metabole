@@ -163,6 +163,12 @@ class UpdateLeadInfoDto {
   @IsString()
   @MaxLength(200)
   address?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(30)
+  tags?: string[];
 }
 
 class SetLeadListsDto {

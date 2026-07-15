@@ -35,6 +35,7 @@ interface LeadDetailData {
   historicalPaidCents: number | null;
   codiceFiscale: string | null;
   address: string | null;
+  tags: string[];
   lists: CrmList[];
   client: {
     email: string;
@@ -73,6 +74,8 @@ export function LeadDetail() {
   const [histPaidEuro, setHistPaidEuro] = useState('');
   const [codiceFiscale, setCodiceFiscale] = useState('');
   const [address, setAddress] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Liste CRM
@@ -104,6 +107,7 @@ export function LeadDetail() {
       setHistPaidEuro(l.historicalPaidCents != null ? String(l.historicalPaidCents / 100) : '');
       setCodiceFiscale(l.codiceFiscale ?? '');
       setAddress(l.address ?? '');
+      setTags(l.tags ?? []);
       if (canAssignCoach) { try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ } }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -137,10 +141,11 @@ export function LeadDetail() {
         historicalPaidCents: histCents,
         codiceFiscale: codiceFiscale.trim(),
         address: address.trim(),
+        tags,
       };
       if (valueCents !== undefined) body.valueCents = valueCents;
       const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/info`, { method: 'PATCH', body: JSON.stringify(body) });
-      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address });
+      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags });
       setNotice('Dati salvati.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Salvataggio non riuscito.');
@@ -415,6 +420,17 @@ export function LeadDetail() {
           <div className="field" style={{ minWidth: 260, flex: 1 }}>
             <label>Indirizzo</label>
             <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, Milano" maxLength={200} />
+          </div>
+        </div>
+        <div className="field" style={{ marginTop: 4 }}>
+          <label>Etichette (per la segmentazione marketing)</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
+            {tags.map((t) => (
+              <span key={t} className="chip" style={{ gap: 4 }}>{t}<i className="ti ti-x" style={{ cursor: 'pointer', fontSize: 12 }} onClick={() => setTags((ts) => ts.filter((x) => x !== t))} /></span>
+            ))}
+            <input className="input" value={newTag} onChange={(e) => setNewTag(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const v = newTag.trim(); if (v && !tags.includes(v)) setTags((ts) => [...ts, v]); setNewTag(''); } }}
+              placeholder="aggiungi etichetta + Invio" style={{ width: 200 }} maxLength={40} />
           </div>
         </div>
         <p className="hint">I campi "storico" arrivano dalle liste importate (esperienze precedenti del cliente): sono solo informativi, non entrano nella contabilità Metabole. Codice fiscale e indirizzo servono per fatturazione/spedizione.</p>

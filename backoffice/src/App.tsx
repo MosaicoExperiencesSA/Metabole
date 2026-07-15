@@ -35,6 +35,7 @@ import { ModelliEmail } from './pages/ModelliEmail';
 import { GraficaPdf } from './pages/GraficaPdf';
 import { Grafici } from './pages/Grafici';
 import { CreazioneValidazione } from './pages/CreazioneValidazione';
+import { Marketing } from './pages/Marketing';
 import { Impostazioni } from './pages/Impostazioni';
 import { Prelievi } from './pages/Prelievi';
 import { Parametri } from './pages/Parametri';
@@ -100,7 +101,7 @@ export default function App() {
       <Route path="/buoni-sconto" element={<Protected title="Buoni sconto" pageKey="discounts"><BuoniSconto /></Protected>} />
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
       <Route path="/contabilita" element={<Protected title="Contabilità" pageKey="accounting_costs"><Contabilita /></Protected>} />
-      <Route path="/marketing" element={<Protected title="Marketing" pageKey="marketing"><Placeholder title="Reparto Marketing" icon="ti-speakerphone" note="Campagne, segmenti, KPI e gestione consensi. Il modulo marketing è in arrivo; il ruolo e i permessi sono già attivi." /></Protected>} />
+      <Route path="/marketing" element={<Protected title="Marketing" pageKey="marketing"><Marketing /></Protected>} />
       <Route path="/testimonianze" element={<Protected title="Testimonianze" pageKey="testimonials"><Testimonianze /></Protected>} />
       <Route path="/publisher" element={<Protected title="Publisher social" pageKey="publisher"><Publisher /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />

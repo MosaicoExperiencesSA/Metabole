@@ -193,6 +193,7 @@ export class CrmService {
       historicalPaidCents?: number | null;
       codiceFiscale?: string | null;
       address?: string | null;
+      tags?: string[];
     },
   ) {
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
@@ -207,6 +208,7 @@ export class CrmService {
         ...(input.historicalPaidCents !== undefined ? { historicalPaidCents: input.historicalPaidCents } : {}),
         ...(input.codiceFiscale !== undefined ? { codiceFiscale: (input.codiceFiscale || '').trim().toUpperCase() || null } : {}),
         ...(input.address !== undefined ? { address: input.address || null } : {}),
+        ...(input.tags !== undefined ? { tags: Array.from(new Set(input.tags.map((t) => t.trim()).filter(Boolean))).slice(0, 30) } : {}),
       },
     });
     await this.audit.log({

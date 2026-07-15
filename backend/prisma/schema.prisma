@@ -568,6 +568,7 @@ model CrmRecord {
   // Anagrafica fiscale/indirizzo (dalle liste storiche o inserita a mano sulla scheda).
   codiceFiscale String? @map("codice_fiscale")
   address       String? // indirizzo (testo libero: via/città, come nelle liste storiche)
+  tags          String[] @default([]) // etichette libere per la segmentazione marketing (es. "mamma", "acquisto-2024")
   reminders  CrmReminder[]
   listMemberships CrmListMember[]
   createdAt  DateTime @default(now()) @map("created_at")
@@ -1629,4 +1630,25 @@ model MailAccount {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("mail_account")
+}
+
+/// Campagna marketing: segmento (filtri usati), destinatari CONGELATI al momento
+/// dell'invio, e la mail effettivamente inviata (snapshot subject+html).
+model MarketingCampaign {
+  id             String   @id @default(uuid())
+  title          String
+  templateKey    String   @map("template_key")
+  subject        String
+  bodyHtml       String   @map("body_html")
+  segment        Json     @default("{}") // criteri di filtro usati
+  recipients     Json     @default("[]") // [{email, name, recordId}] congelati all'invio
+  recipientCount Int      @default(0) @map("recipient_count")
+  sentCount      Int      @default(0) @map("sent_count")
+  failedCount    Int      @default(0) @map("failed_count")
+  status         String   @default("sent") // sent
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("marketing_campaign")
 }
