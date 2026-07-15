@@ -35,6 +35,7 @@ export function CreazioneValidazione() {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
 
+  const [days, setDays] = useState(28);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
   const [status, setStatus] = useState<ReviewStatus | null>(null);
 
@@ -76,7 +77,7 @@ export function CreazioneValidazione() {
     if (!activePresetId) { setError('Scegli o salva una regola prima di generare.'); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
-      const r = await api<{ dietId: string }>(`/engine-rules/presets/${activePresetId}/generate-catalog`, { method: 'POST', body: JSON.stringify({}) });
+      const r = await api<{ dietId: string }>(`/engine-rules/presets/${activePresetId}/generate-catalog`, { method: 'POST', body: JSON.stringify({ days }) });
       try { localStorage.setItem(LS_DIET, r.dietId); } catch { /* no-op */ }
       setDietId(r.dietId);
       setNotice('Catalogo bozza generato. Procedi con la validazione qui sotto.');
@@ -184,6 +185,13 @@ export function CreazioneValidazione() {
       <div className="card">
         <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>2</span> Genera il catalogo</h2>
         <p className="hint" style={{ marginTop: 0 }}>Crea una bozza (ricette, giornate, alternative, allergeni) dalla regola scelta. Può richiedere fino a un minuto.</p>
+        <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <span className="muted" style={{ fontSize: 13 }}>Giorni da generare</span>
+          <input className="input" type="number" min={1} max={60} value={days}
+            onChange={(e) => setDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+            style={{ width: 90 }} />
+          <span className="muted" style={{ fontSize: 12 }}>(consigliato 28 = un mese)</span>
+        </label>
         <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
           <i className="ti ti-sparkles" /> {busy && !status ? 'Genero…' : 'Genera catalogo bozza'}
         </button>

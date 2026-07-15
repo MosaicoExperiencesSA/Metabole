@@ -41,10 +41,33 @@ export const CATALOG: Shortcut[] = [
   { id: 'permessi', pageKey: 'permissions', to: '/permessi', icon: 'ti-lock-cog', label: 'Permessi', hint: 'Visibilità per ruolo' },
   { id: 'parametri', pageKey: 'engine_config', to: '/parametri', icon: 'ti-adjustments', label: 'Parametri', hint: 'Soglie motore' },
   { id: 'log', pageKey: 'audit_logs', to: '/log', icon: 'ti-history', label: 'Log attività', hint: 'Storico azioni' },
+  { id: 'creazione_validazione', pageKey: 'creation_validation', to: '/creazione-validazione', icon: 'ti-wand', label: 'Creazione e validazione', hint: 'Guida diete' },
+  { id: 'posta', pageKey: 'posta', to: '/posta', icon: 'ti-mail', label: 'Posta', hint: 'Caselle staff' },
+  { id: 'grafici', pageKey: 'charts', to: '/grafici', icon: 'ti-chart-histogram', label: 'Grafici', hint: 'Andamenti e KPI' },
+  { id: 'crm_inserimento', pageKey: 'crm_lead_new', to: '/crm/inserimento', icon: 'ti-user-plus', label: 'Inserimento lead', hint: 'Nuovo lead' },
+  { id: 'crm_import', pageKey: 'crm_import', to: '/crm/import', icon: 'ti-database-import', label: 'Import liste', hint: 'Carica CSV' },
+  { id: 'lead_da_accettare', pageKey: 'lead_acceptance', to: '/crm/da-accettare', icon: 'ti-user-check', label: 'Lead da accettare', hint: 'In attesa' },
+  { id: 'chat', pageKey: 'chat', to: '/chat', icon: 'ti-messages', label: 'Chat', hint: 'Messaggi clienti' },
+  { id: 'negozio', pageKey: 'shop', to: '/negozio', icon: 'ti-building-store', label: 'Negozio', hint: 'Piani e prodotti' },
+  { id: 'acquisti', pageKey: 'purchases', to: '/acquisti', icon: 'ti-shopping-cart', label: 'Acquisti', hint: 'Ordini clienti' },
+  { id: 'buoni_sconto', pageKey: 'discounts', to: '/buoni-sconto', icon: 'ti-ticket', label: 'Buoni sconto', hint: 'Codici sconto' },
+  { id: 'contabilita', pageKey: 'accounting_costs', to: '/contabilita', icon: 'ti-report-money', label: 'Contabilità', hint: 'Costi e P&L' },
+  { id: 'provvigioni', pageKey: 'commissions', to: '/provvigioni', icon: 'ti-percentage', label: 'Provvigioni', hint: 'Da liquidare' },
+  { id: 'prelievi', pageKey: 'withdrawals', to: '/prelievi', icon: 'ti-wallet', label: 'Richieste prelievo', hint: 'Staff' },
+  { id: 'marketing', pageKey: 'marketing', to: '/marketing', icon: 'ti-speakerphone', label: 'Marketing', hint: 'Campagne' },
+  { id: 'testimonianze', pageKey: 'testimonials', to: '/testimonianze', icon: 'ti-quote', label: 'Testimonianze', hint: 'Recensioni' },
+  { id: 'publisher', pageKey: 'publisher', to: '/publisher', icon: 'ti-send', label: 'Publisher social', hint: 'Pubblicazioni' },
+  { id: 'ricette', pageKey: 'recipes', to: '/ricette', icon: 'ti-tools-kitchen-2', label: 'Catalogo ricette', hint: 'Ricette' },
+  { id: 'allergeni', pageKey: 'allergens', to: '/tag-allergeni', icon: 'ti-alert-triangle', label: 'Allergeni ricette', hint: 'Tag allergeni' },
+  { id: 'gruppi_equivalenza', pageKey: 'equivalence_groups', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle', label: 'Gruppi di equivalenza', hint: 'Alternative' },
+  { id: 'regole_motore', pageKey: 'engine_rules', to: '/regole-motore', icon: 'ti-adjustments-cog', label: 'Regole motore', hint: 'Regole e preset' },
+  { id: 'email_modelli', pageKey: 'email_templates', to: '/email-modelli', icon: 'ti-mail-cog', label: 'Modelli email', hint: 'Template' },
+  { id: 'email_log', pageKey: 'email_log', to: '/email-log', icon: 'ti-mail-check', label: 'Log email', hint: 'Inviate' },
+  { id: 'grafica_pdf', pageKey: 'pdf_templates', to: '/grafica-pdf', icon: 'ti-file-type-pdf', label: 'Grafica PDF', hint: 'Template PDF' },
 ];
 
 // Predefinite se l'utente non ha ancora personalizzato.
-export const DEFAULT_IDS = ['clienti', 'crm_gestione', 'pagamenti', 'agenda', 'utenti', 'permessi'];
+export const DEFAULT_IDS = ['creazione_validazione', 'clienti', 'crm_gestione', 'pagamenti', 'agenda', 'utenti', 'permessi'];
 
 export function Dashboard() {
   const { user, permissions, can } = useAuth();

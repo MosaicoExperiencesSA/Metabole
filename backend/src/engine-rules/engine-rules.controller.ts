@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { IsBoolean, IsDefined, IsIn, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsDefined, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -21,6 +21,9 @@ class PresetDto {
   @IsOptional() @IsString() @MaxLength(1000) clinicalNotes?: string;
   @IsOptional() @IsString() @MaxLength(400) source?: string;
   @IsOptional() @IsBoolean() suggested?: boolean;
+}
+class GenerateCatalogDto {
+  @IsOptional() @IsInt() @Min(1) @Max(60) days?: number;
 }
 class ProposalDto {
   @IsOptional() @IsString() @MaxLength(160) title?: string;
@@ -80,8 +83,8 @@ export class EngineRulesController {
   /** Genera con l'AI una BOZZA di catalogo (ricette, giornate, alternative, allergeni)
    *  dal preset: tutto in bozza, il nutrizionista rivede e approva. */
   @Post('presets/:id/generate-catalog')
-  generateCatalog(@Param('id') id: string, @CurrentUser() u: AuthUser) {
-    return this.service.generateCatalogFromPreset(id, u.sub);
+  generateCatalog(@Param('id') id: string, @Body() dto: GenerateCatalogDto, @CurrentUser() u: AuthUser) {
+    return this.service.generateCatalogFromPreset(id, u.sub, dto.days);
   }
 
   @Get('diets/:id/review-status')

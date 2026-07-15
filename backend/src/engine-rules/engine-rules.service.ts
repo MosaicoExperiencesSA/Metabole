@@ -168,7 +168,7 @@ export class EngineRulesService {
    * non attivo: il nutrizionista rivede e approva (R7) e conferma gli allergeni (R8)
    * prima che il motore lo usi. Ritorna i conteggi e l'id della dieta generata.
    */
-  async generateCatalogFromPreset(presetId: string, actorId: string) {
+  async generateCatalogFromPreset(presetId: string, actorId: string, requestedDays = 28) {
     const preset = await this.prisma.rulePreset.findUnique({ where: { id: presetId } });
     if (!preset) throw new NotFoundException('Preset non trovato.');
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } })) as { id: string } | null;
@@ -181,8 +181,9 @@ export class EngineRulesService {
     const kcalTol = Number(rules.menu_kcal_balance_tolerance_pct ?? 15);
     const targetKcal = 1500;
     const slots = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
-    const perSlot = 4;
-    const days = 4;
+    const perSlot = 6;
+    const days = Math.max(1, Math.min(60, Math.round(requestedDays) || 28));
+    const aiDays = Math.min(days, 10); // l'AI produce giornate campione bilanciate; il resto lo completa il codice
 
     const regimeRule = regime === 'vegan' ? 'nessun alimento di origine animale' : regime === 'vegetarian' ? 'niente carne né pesce (uova/latticini sì)' : 'onnivoro';
     const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido, senza testo attorno. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
@@ -190,11 +191,11 @@ export class EngineRulesService {
 `Genera una bozza di catalogo per la dieta "${preset.label}" (stile ${preset.style}, regime ${regime}${preset.objective ? `, obiettivo ${preset.objective}` : ''}).
 Vincoli: proteine ${protMin}-${protMax}% delle kcal; giornata ~${targetKcal} kcal (tolleranza ±${kcalTol}%). Regime: ${regimeRule}.${preset.clinicalNotes ? ` Regole cliniche da rispettare: ${preset.clinicalNotes}` : ''}
 Per OGNI pasto tra [${slots.join(', ')}] genera ${perSlot} ricette. Ogni ricetta: {"ref":"slug-univoco","slot":"<pasto>","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"veloce|forno|meal_prep","steps":["passo 1","passo 2"]}]}.
-Poi ${days} giornate bilanciate ~${targetKcal} kcal: {"level":1,"dayIndex":<1..${days}>,"meals":[{"slot":"<pasto>","ref":"<ref di una ricetta di quel pasto>"}]}.
+Poi ${aiDays} giornate bilanciate ~${targetKcal} kcal: {"level":1,"dayIndex":<1..${aiDays}>,"meals":[{"slot":"<pasto>","ref":"<ref di una ricetta di quel pasto>"}]}.
 Infine gruppi di equivalenza (alimenti intercambiabili a struttura simile): [{"name":"es. Pesci bianchi","items":["branzino","orata","merluzzo"]}].
 Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
 
-    const gen = await this.ai.generateJson<{ recipes?: unknown[]; days?: unknown[]; equivalenceGroups?: unknown[] }>(system, user, 8000);
+    const gen = await this.ai.generateJson<{ recipes?: unknown[]; days?: unknown[]; equivalenceGroups?: unknown[] }>(system, user, 12000);
     if (!gen) throw new BadRequestException('Generazione non disponibile: verifica che AI_API_KEY sia configurata su Render e riprova.');
     const recipes = Array.isArray(gen.recipes) ? (gen.recipes as Record<string, unknown>[]) : [];
     if (recipes.length === 0) throw new BadRequestException('L\'AI non ha prodotto ricette valide: riprova.');
@@ -211,6 +212,7 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
     });
 
     const refToId = new Map<string, string>();
+    const bySlot = new Map<string, string[]>();
     let recCount = 0;
     for (const r of recipes) {
       const slot = validSlots.has(String(r.slot)) ? String(r.slot) : 'lunch';
@@ -230,17 +232,36 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
         } as never,
       });
       if (r.ref) refToId.set(String(r.ref), created.id);
+      const arr = bySlot.get(slot) ?? [];
+      arr.push(created.id);
+      bySlot.set(slot, arr);
       recCount++;
     }
 
     let dayCount = 0;
+    // Giornate bilanciate dall'AI (dayIndex sequenziale, per evitare collisioni).
     for (const d of (Array.isArray(gen.days) ? gen.days : []) as Record<string, unknown>[]) {
+      if (dayCount >= days) break;
       const meals = (Array.isArray(d.meals) ? d.meals : [])
         .map((m) => ({ slot: (m as Record<string, unknown>).slot, recipeId: refToId.get(String((m as Record<string, unknown>).ref)) }))
         .filter((m) => m.recipeId);
       if (meals.length === 0) continue;
       await this.prisma.dietDayTemplate.create({
-        data: { dietId: diet.id, level: Number(d.level) || 1, dayIndex: Number(d.dayIndex) || dayCount + 1, meals: meals as never },
+        data: { dietId: diet.id, level: 1, dayIndex: dayCount + 1, meals: meals as never },
+      });
+      dayCount++;
+    }
+    // Completa fino ai giorni richiesti ruotando il pool di ricette per slot (varietà).
+    while (dayCount < days) {
+      const meals = slots
+        .map((sl, k) => {
+          const pool = bySlot.get(sl) ?? [];
+          return pool.length ? { slot: sl, recipeId: pool[(dayCount + k) % pool.length] } : null;
+        })
+        .filter((mm): mm is { slot: string; recipeId: string } => !!mm);
+      if (meals.length === 0) break;
+      await this.prisma.dietDayTemplate.create({
+        data: { dietId: diet.id, level: 1, dayIndex: dayCount + 1, meals: meals as never },
       });
       dayCount++;
     }
