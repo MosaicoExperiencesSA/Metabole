@@ -4,6 +4,13 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
 
 ---
 
+## 2026-07-15
+
+
+- **Login master password — non scattava: minimo abbassato a 8 + confronto tollerante** — Simone segnalava che la `MASTER_PASSWORD` di servizio non permetteva l'accesso **né in backoffice né in app**. Due cause: (1) il guard `masterPassword.length >= 16` **ignorava in silenzio** una master password più corta (la sua lo è); (2) un eventuale **spazio/a-capo finale** incollato nella variabile su Render faceva fallire il confronto senza segnalazione. **Fix in `backend/src/auth/auth.service.ts`:** minimo estratto in costante **`MASTER_PASSWORD_MIN_LENGTH = 8`** (era 16) e **`.trim()`** applicato sia al valore della env (`MASTER_PASSWORD`) sia alla password digitata, prima del confronto a tempo costante. Nessun'altra modifica alla logica (bypassa argon2 solo se combacia; audit `auth.master_login` invariato). **Requisiti per l'uso:** il valore su Render deve restare **≥8 caratteri** e l'account in cui si entra deve **già esistere** (il master password non crea utenti). ⚠️ **Sicurezza:** 8 caratteri aprono *qualsiasi* account → consigliato usarne uno lungo (≥16), tenuto solo fra le env di Render. Backend non verificabile in sandbox (Prisma engine 403), ma è una modifica banale (costante + trim), nessun rischio di tipo.
+
+- **CRM + Marketing — classificazione persona (Cliente / Storico / Lead)** — richiesta di Simone ("mettila e fai in modo che possa utilizzarla anche per il marketing"); completa il lavoro sull'upload dei clienti/lead storici. **CRM (`LeadsTable.tsx`):** il vecchio badge generico "lead" è ora un **badge a 3 stati** — **Cliente** (verde, `stage==='paid'`), **Storico** (viola, `historicalPaidCents>0` e non paid = pagamenti pre-Metabole), **Lead** (ambra, nessun pagamento) — con tooltip esplicativo; `historicalPaidCents` aggiunto all'interfaccia (già restituito dal backend via `include`). **Marketing (`Marketing.tsx` + `marketing.service.ts`):** la tendina "Tipo" diventa **"Tipo persona"** con Tutti / Cliente / Storico / Lead, collegata a un nuovo filtro **`segment`** nel service (`client` → `stage:'paid'`; `historical` → `historicalPaidCents>0` & `stage≠paid`; `lead` → `stage≠paid` & `historicalPaidCents` nullo/≤0), coerente col badge CRM. Il DTO passa i filtri come oggetto libero → nessuna modifica. Allineato con `publicStats` del sito (clienti seguiti = paganti ∪ storici). Type-check backoffice **0 errori** (contro `origin/main` aggiornato); backend con soli campi Prisma validi. **Deployato** (commit `62cca74`, che include anche il fix `publicStats`/Impostazioni che sblocca la build Render).
+
 ## 2026-07-14
 
 

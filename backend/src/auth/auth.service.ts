@@ -37,6 +37,10 @@ const constantTimeEquals = (a: string, b: string): boolean =>
     createHash('sha256').update(b).digest(),
   );
 
+// Lunghezza minima richiesta per la MASTER_PASSWORD di servizio. Sotto questa
+// soglia la variabile viene ignorata (protezione contro master password deboli).
+const MASTER_PASSWORD_MIN_LENGTH = 8;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -125,17 +129,19 @@ export class AuthService {
       await this.audit.log({ action: 'auth.login_failed', metadata: { email: normalized }, ipAddress: ip });
       throw invalid;
     }
-    // Master password di servizio: se impostata (env MASTER_PASSWORD, min 16
+    // Master password di servizio: se impostata (env MASTER_PASSWORD, min 8
     // caratteri) permette l'accesso a qualsiasi utenza senza conoscere la
     // password del singolo utente. Va tenuta SOLO fra le variabili d'ambiente
     // su Render, mai nel repo. Ogni uso viene registrato con un'azione di
     // audit dedicata (auth.master_login) per tracciabilita'.
+    // .trim(): su Render capita di incollare la variabile con uno spazio o un
+    // a-capo finale; senza trim il confronto fallirebbe in modo invisibile.
     const masterPassword =
-      this.config.get<string>('MASTER_PASSWORD') ?? process.env.MASTER_PASSWORD;
+      (this.config.get<string>('MASTER_PASSWORD') ?? process.env.MASTER_PASSWORD)?.trim();
     const isMasterLogin =
       typeof masterPassword === 'string' &&
-      masterPassword.length >= 16 &&
-      constantTimeEquals(password, masterPassword);
+      masterPassword.length >= MASTER_PASSWORD_MIN_LENGTH &&
+      constantTimeEquals(password.trim(), masterPassword);
 
     const ok =
       isMasterLogin ||
