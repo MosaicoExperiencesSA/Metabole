@@ -52,14 +52,17 @@ describe('CatalogService (flusso approvazione diete)', () => {
     ...over,
   });
 
-  it('publicStats: methods dedotti per stile; senza base configurata restano i conteggi reali', async () => {
+  it('publicStats: methods = diete APPROVATE nel catalogo (una per dieta, senza dedup per stile)', async () => {
     prisma.diet.findMany.mockResolvedValue([
-      { id: 'd1', style: 'keto', name: 'Keto', clientVisible: true },
-      { id: 'd2', style: 'mediterranean', name: 'Med', clientVisible: true },
-      { id: 'd3', style: 'keto', name: 'Keto (bis)', clientVisible: true },
+      { id: 'd1', style: 'keto', name: 'Keto', status: 'approved' },
+      { id: 'd2', style: 'mediterranean', name: 'Med', status: 'approved' },
+      { id: 'd3', style: 'keto', name: 'Keto (bis)', status: 'approved' },
     ]);
     const s = await service.publicStats();
-    expect(s.methods).toBe(2); // 3 diete visibili ma 2 stili distinti
+    expect(s.methods).toBe(3); // ogni dieta approvata conta: 3 diete → 3 percorsi
+    expect(prisma.diet.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'approved' } }),
+    );
     expect(s.clients).toBe(2); // base 0 + abbonamenti attivati (subscription.count)
     expect(s.reached).toBe(12); // base 0 + lead nel CRM (crmRecord.count)
     expect(s.years).toBeUndefined(); // config 0 → campo omesso
@@ -77,7 +80,7 @@ describe('CatalogService (flusso approvazione diete)', () => {
     };
     config.getNumber.mockImplementation(async (k: string, d?: number) => bases[k] ?? d ?? 0);
     prisma.diet.findMany.mockResolvedValue([
-      { id: 'd1', style: 'keto', name: 'Keto', clientVisible: true },
+      { id: 'd1', style: 'keto', name: 'Keto', status: 'approved' },
     ]);
     const s = await service.publicStats();
     expect(s.clients).toBe(18979 + 2); // base + abbonamenti attivati

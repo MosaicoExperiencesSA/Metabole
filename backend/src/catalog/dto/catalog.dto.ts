@@ -33,6 +33,10 @@ export class CreateDietDto {
   @IsOptional() @IsBoolean() clientVisible?: boolean;
 }
 
+export class RenameDietDto {
+  @IsString() @MinLength(2) @MaxLength(120) name!: string;
+}
+
 export class UpdateDietDto {
   @IsOptional()
   @IsString()

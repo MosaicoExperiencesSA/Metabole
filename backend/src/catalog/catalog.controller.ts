@@ -17,17 +17,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ArrayMaxSize, IsArray } from 'class-validator';
 import { CatalogService } from './catalog.service';
 import { SetRecipeAllergensDto } from './dto/allergens.dto';
-import {
-  CreateDietDto,
-  CreateRecipeDto,
-  UpdateRecipeDto,
-  RejectDietDto,
-  SetDayTemplatesDto,
-  UpdateDietDto,
-  UpdateDietProductDto,
-  SetProductRulesDto,
-  RuleProposalDto,
-} from './dto/catalog.dto';
+import { CreateDietDto, CreateRecipeDto, UpdateRecipeDto, RejectDietDto, SetDayTemplatesDto, UpdateDietDto, UpdateDietProductDto, SetProductRulesDto, RuleProposalDto, RenameDietDto } from './dto/catalog.dto';
 
 /** Diete: il nutrizionista propone, il capo approva. */
 @Controller('diets')
@@ -56,6 +46,12 @@ export class DietsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateDietDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateDiet(user.sub, id, dto);
+  }
+
+  /** Rinomina rapida (anche su diete approvate): non azzera lo stato. */
+  @Patch(':id/name')
+  rename(@Param('id') id: string, @Body() dto: RenameDietDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.renameDiet(user.sub, id, dto.name);
   }
 
   @HttpCode(200)

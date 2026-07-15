@@ -5,6 +5,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-07-15
+
+- `[Sviluppo]` **Sito — contatore "percorsi gestiti" e carosello collegati al catalogo Diete** —
+  `GET /public/paths` ora restituisce le diete **APPROVATE** del catalogo (status `approved`, una card
+  per dieta, senza dedup per stile) invece delle sole `clientVisible` raggruppate per stile;
+  `GET /public/stats.methods` conta le stesse → il numero sulla home cresce quando il nutrizionista
+  approva una nuova dieta, senza deploy del sito. Aggiunto alias `desc` accanto a `description` nel
+  payload (il carosello del sito legge `p.desc`: ora le card mostrano anche la descrizione).
+  Test aggiornati (methods = n° approvate + verifica del filtro).
+
 ## 2026-07-14
 
 - `[Sviluppo]` **Modelli email — anteprima renderizzata** — l'editor dei modelli ora mostra l'email **renderizzata** (iframe isolato, come i PDF) con i segnaposto sostituiti da valori d'esempio, e un interruttore **Anteprima / Codice HTML**; finestra più larga, oggetto in anteprima, elenco segnaposto rilevati dal testo. Prima si vedeva solo l'HTML grezzo (inutilizzabile).

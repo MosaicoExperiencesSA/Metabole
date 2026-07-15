@@ -59,31 +59,31 @@ export class CatalogService {
 
   /**
    * Percorsi per il SITO pubblico (data-paths-endpoint). Nessuna autenticazione.
-   * Ritorna le diete clientVisible=true, una per stile, nel formato che il sito
-   * si aspetta: name (preferisce clientName), description, highlights, tag.
-   * Data-driven: aggiungere/modificare un prodotto NON richiede deploy del sito.
+   * Ritorna le diete del CATALOGO (status=approved, validate dal nutrizionista),
+   * una card per dieta, nel formato che il sito si aspetta: name (preferisce
+   * clientName), description (+ alias `desc` usato dal carosello), highlights, tag.
+   * Il contatore "percorsi gestiti" della home (publicStats.methods) conta queste.
+   * Data-driven: aggiungere/approvare una dieta NON richiede deploy del sito.
    */
   async publicPaths() {
     const diets = await this.prisma.diet.findMany({
-      where: { clientVisible: true } as never,
+      where: { status: 'approved' } as never,
       orderBy: { createdAt: 'asc' },
     });
-    const seen = new Set<string>();
     const paths: {
       style: string; name: string; clientName: string | null;
-      description: string | null; highlights: string[];
+      description: string | null; desc: string | null; highlights: string[];
       objective: string; seasonalTag: string | null;
     }[] = [];
     for (const d of diets as unknown as Array<Record<string, unknown>>) {
-      const style = String(d.style);
-      if (seen.has(style)) continue;
-      seen.add(style);
       const clientName = (d.clientName as string) ?? null;
+      const description = (d.clientDescription as string) ?? null;
       paths.push({
-        style,
+        style: String(d.style),
         name: clientName ?? String(d.name),
         clientName,
-        description: (d.clientDescription as string) ?? null,
+        description,
+        desc: description, // alias: il carosello del sito legge p.desc
         highlights: Array.isArray(d.highlights) ? (d.highlights as string[]) : [],
         objective: (d.objective as string) ?? 'dimagrimento',
         seasonalTag: (d.seasonalTag as string) ?? null,
@@ -101,7 +101,7 @@ export class CatalogService {
    *  - years   → anni di attività (config `site_stats_years`; omesso se 0/non impostato)
    *  - clients → `stats_clients_base` + n° abbonamenti attivati (startDate valorizzata)
    *  - reached → `stats_reached_base` + n° lead nel CRM
-   *  - methods → n° percorsi visibili (uno per stile), coerente con /public/paths
+   *  - methods → n° diete APPROVATE nel catalogo Diete, coerente con /public/paths
    */
   async publicStats() {
     // Persone RAGGIUNTE = tutte le schede CRM (lead + clienti + clienti storici).
@@ -186,6 +186,17 @@ export class CatalogService {
     ]);
     await this.audit.log({ action: 'catalog.diet.delete', actorId: userId, entityType: 'diet', entityId: id, metadata: { name: diet.name } });
     return { ok: true };
+  }
+
+  /** Rinomina la dieta (solo il nome). Consentito anche su diete approvate:
+   *  non tocca i menu né lo stato, cambia solo l'etichetta. */
+  async renameDiet(userId: string, id: string, name: string) {
+    const clean = name.trim().slice(0, 120);
+    if (clean.length < 2) throw new BadRequestException('Nome troppo corto.');
+    await this.getDiet(id); // 404 se non esiste
+    const updated = await this.prisma.diet.update({ where: { id }, data: { name: clean } });
+    await this.audit.log({ action: 'catalog.diet.rename', actorId: userId, entityType: 'diet', entityId: id, metadata: { name: clean } });
+    return updated;
   }
 
   async updateDiet(userId: string, id: string, dto: UpdateDietDto) {
