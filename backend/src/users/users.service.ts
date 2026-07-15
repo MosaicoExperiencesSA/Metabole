@@ -216,11 +216,12 @@ export class UsersService {
       dashboardModules: arr(prefs.dashboardModules),
       dashboardCharts: arr(prefs.dashboardCharts),
       menuOrder: arr(prefs.menuOrder),
+      showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
     };
   }
 
   /** Aggiorna scorciatoie / moduli / grafici della dashboard (solo i campi forniti). */
-  async updatePreferences(userId: string, input: { dashboardShortcuts?: string[]; dashboardModules?: string[]; dashboardCharts?: string[]; menuOrder?: string[] }) {
+  async updatePreferences(userId: string, input: { dashboardShortcuts?: string[]; dashboardModules?: string[]; dashboardCharts?: string[]; menuOrder?: string[]; showEarnings?: boolean }) {
     const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });
     if (!u) throw new NotFoundException('Utente non trovato');
     const clean = (keys: string[], max = 40) => Array.from(new Set(keys.filter((k) => typeof k === 'string'))).slice(0, max);
@@ -229,12 +230,14 @@ export class UsersService {
     if (input.dashboardModules !== undefined) prefs.dashboardModules = clean(input.dashboardModules);
     if (input.dashboardCharts !== undefined) prefs.dashboardCharts = clean(input.dashboardCharts, 3); // max 3 grafici
     if (input.menuOrder !== undefined) prefs.menuOrder = clean(input.menuOrder, 80);
+    if (input.showEarnings !== undefined) prefs.showEarnings = !!input.showEarnings;
     await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
     return {
       dashboardShortcuts: (prefs.dashboardShortcuts as string[]) ?? null,
       dashboardModules: (prefs.dashboardModules as string[]) ?? null,
       dashboardCharts: (prefs.dashboardCharts as string[]) ?? null,
       menuOrder: (prefs.menuOrder as string[]) ?? null,
+      showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
     };
   }
 

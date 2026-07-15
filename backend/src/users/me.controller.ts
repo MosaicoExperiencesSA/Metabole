@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Patch, Put } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { UsersService } from './users.service';
@@ -28,6 +28,11 @@ class UpdatePrefsDto {
   @IsString({ each: true })
   @ArrayMaxSize(80)
   menuOrder?: string[];
+
+  // Mostra i KPI "Guadagni" in dashboard (default off: attivabili dall'utente).
+  @IsOptional()
+  @IsBoolean()
+  showEarnings?: boolean;
 }
 
 class UpdateAccountDto {
@@ -102,6 +107,6 @@ export class MeController {
 
   @Put('preferences')
   setPreferences(@CurrentUser() user: AuthUser, @Body() dto: UpdatePrefsDto) {
-    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts, menuOrder: dto.menuOrder });
+    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts, menuOrder: dto.menuOrder, showEarnings: dto.showEarnings });
   }
 }

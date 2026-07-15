@@ -154,12 +154,14 @@ export function Impostazioni() {
   const [modules, setModules] = useState<string[] | null>(null);
   const [modMsg, setModMsg] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [showEarnings, setShowEarnings] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const prefs = await api<{ dashboardModules: string[] | null }>('/me/preferences');
+        const prefs = await api<{ dashboardModules: string[] | null; showEarnings?: boolean }>('/me/preferences');
         setModules(prefs.dashboardModules ?? DEFAULT_MODULE_IDS);
+        setShowEarnings(!!prefs.showEarnings);
       } catch { setModules(DEFAULT_MODULE_IDS); }
     })();
   }, []);
@@ -291,6 +293,16 @@ export function Impostazioni() {
         <h2 style={{ marginTop: 0 }}>Tema</h2>
         <p className="hint" style={{ marginTop: 0 }}>Il tema si applica subito e resta salvato sul tuo account.</p>
         <ThemeSelect />
+      </div>
+
+      {/* Guadagni in dashboard */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Guadagni in dashboard</h2>
+        <label className="row" style={{ gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+          <input type="checkbox" checked={showEarnings} onChange={(e) => saveEarnings(e.target.checked)} />
+          <span>Mostra i riquadri <b>Guadagni mese</b> e <b>Guadagni totale</b> nella mia dashboard</span>
+        </label>
+        <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>Di default sono nascosti. Il portafoglio (maturato, saldo, richiedi pagamento) resta comunque sempre visibile.</p>
       </div>
 
       {/* Moduli dashboard */}

@@ -60,23 +60,26 @@ export function CoachHome() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showEarnings, setShowEarnings] = useState(false);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const [d, c, a, asg, inv] = await Promise.all([
+      const [d, c, a, asg, inv, prefs] = await Promise.all([
         api<Dash>('/coach/dashboard'),
         api<{ clients: CoachClient[] }>('/coach/clients'),
         api<{ alerts: Alert[] }>('/coach/alerts'),
         api<Assignment[]>('/crm/my-assignments').catch(() => []),
         api<{ refCode: string; url: string }>('/crm/my-invite').catch(() => null),
+        api<{ showEarnings?: boolean }>('/me/preferences').catch(() => ({ showEarnings: false })),
       ]);
       setDash(d);
       setClients(c.clients ?? []);
       setAlerts(a.alerts ?? []);
       setAssignments(Array.isArray(asg) ? asg : []);
       setInvite(inv);
+      setShowEarnings(!!(prefs as { showEarnings?: boolean }).showEarnings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
     } finally {
@@ -138,8 +141,8 @@ export function CoachHome() {
         <Kpi label="Le mie clienti" value={String(dash?.clientsCount ?? 0)} icon="ti-users" />
         <Kpi label="Avvisi aperti" value={String(dash?.openAlerts ?? 0)} icon="ti-alert-triangle" color={dash && dash.openAlerts > 0 ? 'var(--coral-dark)' : undefined} />
         <Kpi label="Piani in scadenza" value={String(dash?.expiringPlans.length ?? 0)} icon="ti-clock" />
-        <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />
-        <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />
+        {showEarnings && <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />}
+        {showEarnings && <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />}
       </div>
 
       {/* Lead da accettare */}

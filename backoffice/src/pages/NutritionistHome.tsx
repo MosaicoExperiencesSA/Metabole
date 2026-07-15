@@ -50,19 +50,22 @@ export function NutritionistHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showEarnings, setShowEarnings] = useState(false);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const [d, p, q] = await Promise.all([
+      const [d, p, q, prefs] = await Promise.all([
         api<Dash>('/nutritionist/dashboard'),
         api<{ patients: Patient[] }>('/nutritionist/patients'),
         api<Queue>('/nutritionist/validation-queue'),
+        api<{ showEarnings?: boolean }>('/me/preferences').catch(() => ({ showEarnings: false })),
       ]);
       setDash(d);
       setPatients(p.patients ?? []);
       setQueue(q);
+      setShowEarnings(!!(prefs as { showEarnings?: boolean }).showEarnings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
     } finally {
@@ -110,8 +113,8 @@ export function NutritionistHome() {
 
       {/* Guadagni (come coach) */}
       <div className="card-row" style={{ marginTop: 12 }}>
-        <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />
-        <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />
+        {showEarnings && <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />}
+        {showEarnings && <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />}
       </div>
 
       <div className="card-row" style={{ marginTop: 16, alignItems: 'flex-start' }}>
