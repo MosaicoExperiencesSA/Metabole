@@ -867,12 +867,15 @@ async function main(): Promise<void> {
   await ensureAdminFromEnv();
   await seedPipelineStages();
   await seedPermissions();
-  await seedDietProductFields();
   await seedEquivalenceGroups();
   await seedRulePresets();
   await seedProtocols();
   // --- Dati DEMO/esempio: solo se SEED_DEMO non è "false" (vedi interruttore in alto) ---
   if (SEED_DEMO) {
+    // Diete-template per stile (Mediterranea/Proteica/Low-carb/Keto): dati di
+    // avvio/demo. In produzione (SEED_DEMO=false) il catalogo resta gestito dal
+    // nutrizionista e NON viene più forzato/sovrascritto a ogni deploy.
+    await seedDietProductFields();
     await seedDemoCatalog();
     await seedTestimonials();
     await seedKetoCatalog(prisma);

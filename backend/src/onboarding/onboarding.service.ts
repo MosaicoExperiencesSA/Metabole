@@ -127,13 +127,15 @@ export class OnboardingService {
 
     // 4. Profilo (upsert: il questionario si può rifare, aggiorna il profilo).
     const intolerances = (dto.intolerances ?? []).filter((i) => i !== 'none');
+    // "Preferisco non specificare" → nessun valore enum (colonna sex nullable).
+    const sexValue = (dto.sex === 'unspecified' ? null : dto.sex) as never;
     const profile = await this.prisma.clientProfile.upsert({
       where: { userId },
       create: {
         userId,
         name: dto.name,
         age: dto.age,
-        sex: dto.sex,
+        sex: sexValue,
         heightCm: dto.heightCm,
         startWeightKg: dto.startWeightKg,
         startWaistCm: dto.startWaistCm,
@@ -162,7 +164,7 @@ export class OnboardingService {
       update: {
         name: dto.name,
         age: dto.age,
-        sex: dto.sex,
+        sex: sexValue,
         heightCm: dto.heightCm,
         startWeightKg: dto.startWeightKg,
         startWaistCm: dto.startWaistCm,
@@ -193,6 +195,9 @@ export class OnboardingService {
         targetWeightKg,
         targetWaistCm: dto.startWaistCm && dto.objective.waistToLoseCm
           ? dto.startWaistCm - dto.objective.waistToLoseCm
+          : null,
+        targetHipsCm: dto.startHipsCm && dto.objective.hipsToLoseCm
+          ? dto.startHipsCm - dto.objective.hipsToLoseCm
           : null,
         targetDate,
         status: 'proposed',
@@ -319,11 +324,15 @@ export class OnboardingService {
       vegetarian: 'vegetariano',
       vegan: 'vegano',
     };
-    const tags = [
-      profile.pathType ? pathNames[profile.pathType] : null,
-      profile.regime ? regimeNames[profile.regime] : null,
-      profile.mealsPerDay ? `${profile.mealsPerDay} pasti` : null,
-    ].filter((t): t is string => Boolean(t));
+    const tags = Array.from(
+      new Set(
+        [
+          profile.pathType ? pathNames[profile.pathType] : null,
+          profile.regime ? regimeNames[profile.regime] : null,
+          profile.mealsPerDay ? `${profile.mealsPerDay} pasti` : null,
+        ].filter((t): t is string => Boolean(t)),
+      ),
+    );
     return {
       name: profile.dietStyle ? (styleNames[profile.dietStyle] ?? 'Percorso personalizzato') : 'Percorso personalizzato',
       tags,

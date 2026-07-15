@@ -194,7 +194,7 @@ function DateRangesInput({ field, value, onChange }: Props) {
     onChange(field.key, next);
   }
   function addRange() {
-    onChange(field.key, [...ranges, { start: '', end: '' }]);
+    onChange(field.key, [...ranges, { start: '', end: '', label: '' }]);
   }
   function removeRange(i: number) {
     onChange(field.key, ranges.filter((_, idx) => idx !== i));
@@ -203,13 +203,23 @@ function DateRangesInput({ field, value, onChange }: Props) {
   return (
     <div className="field">
       {ranges.map((r, i) => (
-        <div className="range-row" key={i}>
-          <input className="input" type="date" value={r.start} onChange={(e) => update(i, { start: e.target.value })} />
-          <span className="range-sep">→</span>
-          <input className="input" type="date" value={r.end} onChange={(e) => update(i, { end: e.target.value })} />
-          <button type="button" className="range-del" onClick={() => removeRange(i)} aria-label="Rimuovi periodo">
-            <i className="ti ti-trash" />
-          </button>
+        <div className="card" style={{ padding: 12, marginBottom: 10 }} key={i}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <input
+              className="input"
+              placeholder="Motivo (es. Natale, matrimonio…)"
+              value={r.label ?? ''}
+              onChange={(e) => update(i, { label: e.target.value })}
+            />
+            <button type="button" className="range-del" onClick={() => removeRange(i)} aria-label="Rimuovi periodo">
+              <i className="ti ti-trash" />
+            </button>
+          </div>
+          <div className="range-row" style={{ marginBottom: 0 }}>
+            <input className="input" type="date" value={r.start} onChange={(e) => update(i, { start: e.target.value })} />
+            <span className="range-sep">→</span>
+            <input className="input" type="date" value={r.end} onChange={(e) => update(i, { end: e.target.value })} />
+          </div>
         </div>
       ))}
       <button type="button" className="btn ghost" onClick={addRange}>

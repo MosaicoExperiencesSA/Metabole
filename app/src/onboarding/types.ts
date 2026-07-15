@@ -34,6 +34,8 @@ export interface Questions {
 export interface DateRange {
   start: string;
   end: string;
+  /** Motivo/nome del periodo (es. "Natale", "Matrimonio"). */
+  label?: string;
 }
 
 /** Risultato di GET /onboarding/result dopo il completamento. */

@@ -24,14 +24,14 @@ class HealthDto {
   @IsIn(['no', 'yes', 'tell_in_visit'])
   hasConditions!: string;
 
-  @IsIn(['no', 'yes'])
+  @IsIn(['no', 'yes', 'tell_in_visit'])
   takesMedications!: string;
 }
 
 class ObjectiveInputDto {
   @IsNumber()
   @Min(1)
-  @Max(20)
+  @Max(40)
   weightToLoseKg!: number;
 
   @IsInt()
@@ -44,6 +44,12 @@ class ObjectiveInputDto {
   @Min(0)
   @Max(40)
   waistToLoseCm?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(40)
+  hipsToLoseCm?: number;
 }
 
 export class SubmitAnswersDto {
@@ -57,8 +63,8 @@ export class SubmitAnswersDto {
   @Max(100)
   age!: number;
 
-  @IsIn(['female', 'male'])
-  sex!: 'female' | 'male';
+  @IsIn(['female', 'male', 'unspecified'])
+  sex!: 'female' | 'male' | 'unspecified';
 
   @IsInt()
   @Min(120)

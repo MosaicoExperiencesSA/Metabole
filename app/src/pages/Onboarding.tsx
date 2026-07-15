@@ -19,7 +19,7 @@ type Answers = Record<string, unknown>;
 // nomi/tab/intro/note e COLORI esatti dalla direttiva §3.
 const SECTIONS = [
   { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Partiamo dalla tua mente', note: 'Motivazione e carattere: come vuoi essere seguita.', desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C4CD6', soft: '#F3EFFB', voice: 'intro_testa', pages: ['why', 'coach_style', 'character'] },
-  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2F80ED', soft: '#EDF3FE', voice: 'intro_vita', pages: ['lifestyle', 'meals', 'path'] },
+  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2F80ED', soft: '#EDF3FE', voice: 'intro_vita', pages: ['lifestyle', 'path'] },
   { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', desc: 'Eventi e periodi speciali', icon: 'ti-calendar-heart', color: '#E8543C', soft: '#FDF0EC', voice: 'intro_agenda', pages: ['pause_periods'] },
   { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', desc: 'Regime, stile e cibi', icon: 'ti-tools-kitchen-2', color: '#E8A11B', soft: '#FEF7E8', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
   { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Per finire: i tuoi obiettivi', note: 'Peso e misure: il punto di partenza, senza giudizi.', desc: 'Peso, misure e obiettivo', icon: 'ti-target', color: '#12A386', soft: '#EAF7F2', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
@@ -137,12 +137,13 @@ function ObjectiveBlock({ page, answers, setAnswer }: { page: Page; answers: Ans
   else banner = { bg: '#F7DAD6', color: '#993C1D', text: `Troppo veloce. Ti propongo circa ${Math.ceil(kg / 0.7)} settimane.` };
 
   const waist = page.fields.find((f) => f.key === 'waistToLoseCm');
+  const hips = page.fields.find((f) => f.key === 'hipsToLoseCm');
   return (
     <>
       <div className="card">
         <div className="obj-row">
           <label>Peso da perdere</label>
-          <input type="range" min={1} max={20} value={kg} onChange={(e) => setAnswer('weightToLoseKg', Number(e.target.value))} />
+          <input type="range" min={1} max={40} value={kg} onChange={(e) => setAnswer('weightToLoseKg', Number(e.target.value))} />
           <span className="obj-val">{kg} kg</span>
         </div>
         <div className="obj-row">
@@ -152,7 +153,12 @@ function ObjectiveBlock({ page, answers, setAnswer }: { page: Page; answers: Ans
         </div>
         <div className="obj-banner" style={{ background: banner.bg, color: banner.color }}>{banner.text}</div>
       </div>
-      {waist && <FieldInput field={waist as Field} value={answers[waist.key]} onChange={setAnswer} />}
+      {(waist || hips) && (
+        <div className="fields-grid">
+          {waist && <FieldInput field={waist as Field} value={answers[waist.key]} onChange={setAnswer} />}
+          {hips && <FieldInput field={hips as Field} value={answers[hips.key]} onChange={setAnswer} />}
+        </div>
+      )}
     </>
   );
 }
@@ -164,11 +170,11 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [answers, setAnswers] = useState<Answers>({});
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [countdown, setCountdown] = useState(6);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardingResult | null>(null);
   const [muted, setMutedState] = useState(isMuted());
   const { user } = useAuth();
-  const nameKnown = Boolean(user?.firstName);
   // Bozza locale dell'onboarding: se l'utente perde la linea o chiude l'app a metà,
   // al rientro (anche dopo il logout, stesso dispositivo) riprende da dove era arrivato.
   const draftKey = user?.id ? `metabole_onb_draft_${user.id}` : null;
@@ -235,6 +241,14 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     if (c) document.documentElement.style.setProperty('--teal', c);
   }, [answers.themeColor]);
 
+  // Conto alla rovescia della schermata "Sto cucendo il tuo percorso".
+  useEffect(() => {
+    if (!submitting) return;
+    setCountdown(6);
+    const id = setInterval(() => setCountdown((c) => (c > 1 ? c - 1 : 1)), 1000);
+    return () => clearInterval(id);
+  }, [submitting]);
+
   const clip = useMemo(() => {
     if (result) return 'percorso';
     if (!cur) return undefined;
@@ -274,6 +288,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     setSubmitErr(null);
     setSubmitting(true);
     const a = answers;
+    // La schermata "Quanti pasti" non c'è più: il numero di pasti si deduce dal percorso scelto.
+    const mealsByPath: Record<string, number> = { five: 5, classic3: 3, supplements: 5, intermittent_fasting: 3 };
+    const mealsRaw = Number(a.mealsPerDay);
+    const mealsPerDay = mealsRaw >= 3 && mealsRaw <= 5 ? mealsRaw : (mealsByPath[String(a.pathType)] ?? 5);
     const dto: Record<string, unknown> = {
       name: a.name,
       age: Number(a.age),
@@ -282,7 +300,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       startWeightKg: Number(a.startWeightKg),
       regime: a.regime,
       dietStyle: a.dietStyle,
-      mealsPerDay: Number(a.mealsPerDay),
+      mealsPerDay,
       pathType: a.pathType,
       coachStyle: a.coachStyle,
       character: a.character,
@@ -291,6 +309,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
         weightToLoseKg: Number(a.weightToLoseKg),
         weeks: Number(a.weeks),
         waistToLoseCm: a.waistToLoseCm != null && a.waistToLoseCm !== '' ? Number(a.waistToLoseCm) : undefined,
+        hipsToLoseCm: a.hipsToLoseCm != null && a.hipsToLoseCm !== '' ? Number(a.hipsToLoseCm) : undefined,
       }),
       healthDataConsent: true,
     };
@@ -308,10 +327,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     const t0 = performance.now();
     try {
       const res = await api<OnboardingResult>('/onboarding/answers', { method: 'POST', body: JSON.stringify(dto) });
-      // Schermo 25 "Sto cucendo il tuo percorso": teniamo la transizione visibile
-      // almeno ~3,2s (come nel prototipo) anche se l'API risponde subito.
+      // Schermo "Sto cucendo il tuo percorso": teniamo la transizione visibile
+      // ~6s (durata della voce di Gaia) anche se l'API risponde subito.
       const elapsed = performance.now() - t0;
-      if (elapsed < 3200) await new Promise((r) => setTimeout(r, 3200 - elapsed));
+      if (elapsed < 6000) await new Promise((r) => setTimeout(r, 6000 - elapsed));
       // Onboarding completato: la bozza locale non serve più.
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch { /* ignora */ } }
       setResult(res);
@@ -345,12 +364,15 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     return (
       <div className="app-frame">
         <div className="screen no-tabbar center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 16, padding: 24 }}>
-          <Gaia size={120} controls={false} mouth="big" />
+          <Gaia clip="elaboro" size={120} controls={false} mouth="big" />
           <h1 style={{ margin: 0 }}>Sto cucendo il tuo percorso</h1>
           <div className="bubble" style={{ maxWidth: 320, borderRadius: 14, padding: '12px 14px' }}>
-            <TypeText segments={[{ t: 'Metto insieme ' }, { t: 'dieta, coach e obiettivi', b: true }, { t: ' su misura per te. Ci vuole solo un istante…' }]} />
+            <TypeText segments={[{ t: 'Dammi un momento: sto confrontando i protocolli, consulto il nutrizionista e ' }, { t: 'cucio il tuo percorso su misura', b: true }, { t: '.' }]} />
           </div>
-          <div className="spin" style={{ width: 34, height: 34, marginTop: 4 }} />
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 40, fontWeight: 800, color: 'var(--teal)', lineHeight: 1 }}>{countdown}</div>
+            <div className="muted" style={{ fontSize: 13 }}>second{countdown === 1 ? 'o' : 'i'}</div>
+          </div>
         </div>
       </div>
     );
@@ -436,7 +458,6 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                 <DietProductsBlock page={cur.page} value={answers.dietStyle} onChange={setAnswer} />
               ) : (
                 cur.page.fields
-                  .filter((f) => !(cur.page.key === 'identity' && f.key === 'name' && nameKnown))
                   .map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)
               )}
             </div>
