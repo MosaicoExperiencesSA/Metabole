@@ -17,8 +17,10 @@ export function MiniTrend({
   invertDelta?: boolean;
 }) {
   const W = 320, H = 76, pad = 8;
-  const n = values.length;
-  const safe = n > 0 ? values : [0];
+  // Robustezza: scarta valori non numerici (undefined/NaN) e gestisci la serie vuota (0 dati).
+  const nums = Array.isArray(values) ? values.map((v) => (typeof v === 'number' && isFinite(v) ? v : 0)) : [];
+  const n = nums.length;
+  const safe = n > 0 ? nums : [0];
   const max = Math.max(...safe);
   const min = Math.min(...safe);
   const range = max - min || 1;
@@ -41,8 +43,8 @@ export function MiniTrend({
     trend = `${x(0).toFixed(1)},${y(intercept).toFixed(1)} ${x(n - 1).toFixed(1)},${y(intercept + slope * (n - 1)).toFixed(1)}`;
   }
 
-  const current = safe[n - 1];
-  const prev = safe[n - 2] ?? current;
+  const current = safe[safe.length - 1];
+  const prev = safe[safe.length - 2] ?? current;
   const delta = current - prev;
   const up = delta > 0.0001;
   const down = delta < -0.0001;

@@ -22,6 +22,12 @@ class UpdatePrefsDto {
   @IsString({ each: true })
   @ArrayMaxSize(3)
   dashboardCharts?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(80)
+  menuOrder?: string[];
 }
 
 class UpdateAccountDto {
@@ -93,6 +99,6 @@ export class MeController {
 
   @Put('preferences')
   setPreferences(@CurrentUser() user: AuthUser, @Body() dto: UpdatePrefsDto) {
-    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts });
+    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts, menuOrder: dto.menuOrder });
   }
 }
