@@ -175,6 +175,15 @@ export function Impostazioni() {
     } catch { setModMsg('Salvataggio non riuscito.'); }
   }
 
+  async function saveEarnings(v: boolean) {
+    setShowEarnings(v);
+    setModMsg(null);
+    try {
+      await api('/me/preferences', { method: 'PUT', body: JSON.stringify({ showEarnings: v }) });
+      setModMsg('Preferenze dashboard salvate.');
+    } catch { setModMsg('Salvataggio non riuscito.'); }
+  }
+
   const chosen = (modules ?? DEFAULT_MODULE_IDS).filter((id) => availableModules.some((m) => m.id === id));
 
   function toggleModule(id: string) {
