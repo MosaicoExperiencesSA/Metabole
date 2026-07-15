@@ -420,6 +420,34 @@ export class CatalogService {
     return updated;
   }
 
+  /**
+   * Pubblicazione diretta del CAPO: quando è il responsabile stesso a generare e
+   * validare la dieta non serve la revisione di un terzo → draft/rejected/in_review
+   * → approved in un colpo solo. Consapevolmente SENZA il blocco "autore" di
+   * approveDiet (per i coach sotto resta il flusso submit → approve del capo).
+   */
+  async publishDiet(userId: string, id: string) {
+    const staff = await this.staffOf(userId);
+    const diet = await this.getDiet(id);
+    if (!['draft', 'rejected', 'in_review'].includes(diet.status)) {
+      throw new BadRequestException(`La dieta è in stato ${diet.status}: non pubblicabile`);
+    }
+    if (diet.dayTemplates.length === 0) {
+      throw new BadRequestException('Aggiungi almeno un template giornata prima di pubblicare');
+    }
+    const updated = await this.prisma.diet.update({
+      where: { id },
+      data: { status: 'approved', approvedById: staff.id, approvedAt: new Date() },
+    });
+    await this.audit.log({
+      action: 'catalog.diet.publish',
+      actorId: userId,
+      entityType: 'diet',
+      entityId: id,
+    });
+    return updated;
+  }
+
   async rejectDiet(userId: string, id: string, reason?: string) {
     const staff = await this.staffOf(userId);
     const diet = await this.getDiet(id);

@@ -109,6 +109,14 @@ export class DietsController {
     return this.catalog.approveDiet(user.sub, id);
   }
 
+  /** Pubblicazione diretta del capo su una PROPRIA dieta (nessuna revisione). */
+  @Roles('head_nutritionist')
+  @HttpCode(200)
+  @Post(':id/publish')
+  publish(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.catalog.publishDiet(user.sub, id);
+  }
+
   @Roles('head_nutritionist')
   @HttpCode(200)
   @Post(':id/reject')

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
 import { useTaxonomy } from '../lib/taxonomy';
+import { useAuth } from '../auth/AuthContext';
 
 type Preset = {
   id: string; style: string; label: string; description?: string | null;
@@ -40,6 +41,8 @@ export function CreazioneValidazione() {
   const [days, setDays] = useState(28);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
   const [status, setStatus] = useState<ReviewStatus | null>(null);
+  const { user } = useAuth();
+  const isResponsabile = user?.role === 'head_nutritionist'; // il capo pubblica direttamente
   const [preview, setPreview] = useState<{ dayIndex: number; meals: { slot: string; recipe: string; kcal: number }[] }[] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -111,12 +114,14 @@ export function CreazioneValidazione() {
     if (!dietId) return;
     setBusy(true); setError(null);
     try {
-      await api(`/diets/${dietId}/submit`, { method: 'POST', body: JSON.stringify({}) });
+      // Il responsabile (capo nutrizionista) approva e pubblica direttamente; i coach
+      // sotto inviano in revisione al capo.
+      await api(`/diets/${dietId}/${isResponsabile ? 'publish' : 'submit'}`, { method: 'POST', body: JSON.stringify({}) });
       try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
       setDietId(null); setStatus(null); setActivePresetId(null); setDirty(false);
       setForm({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
-      setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Invio non riuscito.'); }
+      setNotice(isResponsabile ? 'Dieta approvata e pubblicata ✓ La pagina è pronta per un nuovo lavoro.' : 'Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
+    } catch (e) { setError(e instanceof ApiError ? e.message : isResponsabile ? 'Pubblicazione non riuscita.' : 'Invio non riuscito.'); }
     finally { setBusy(false); }
   }
 
@@ -261,7 +266,7 @@ export function CreazioneValidazione() {
             </div>
             <div className="row" style={{ gap: 8, marginTop: 16 }}>
               <button className="btn" onClick={publish} disabled={busy || !allReady} title={allReady ? '' : 'Completa tutti i passi'}>
-                <i className="ti ti-send" /> Invia in revisione
+                <i className={`ti ${isResponsabile ? 'ti-rosette-discount-check' : 'ti-send'}`} /> {isResponsabile ? 'Approva e pubblica' : 'Invia in revisione'}
               </button>
               <button className="btn ghost" onClick={showPreview ? () => setShowPreview(false) : loadPreview} disabled={busy}>
                 <i className="ti ti-eye" /> {showPreview ? 'Nascondi anteprima' : 'Anteprima giornate'}
