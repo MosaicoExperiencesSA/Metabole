@@ -13,6 +13,8 @@ export type SegmentFilters = {
   historicalPaid?: boolean;
   city?: string;
   coachId?: string;
+  /** Classificazione persona: cliente attivo, cliente storico (pre-Metabole) o lead. */
+  segment?: 'client' | 'historical' | 'lead';
 };
 
 type Recipient = { id: string; name: string | null; email: string | null; clientId: string | null };
@@ -39,6 +41,11 @@ export class MarketingService {
     if (f.hasClient === true) c.push({ clientId: { not: null } });
     if (f.hasClient === false) c.push({ clientId: null });
     if (f.historicalPaid) c.push({ historicalPaidCents: { gt: 0 } });
+    // Classificazione persona (cliente / storico / lead), coerente con il badge CRM.
+    if (f.segment === 'client') c.push({ stage: 'paid' });
+    if (f.segment === 'historical') c.push({ historicalPaidCents: { gt: 0 }, stage: { not: 'paid' } });
+    if (f.segment === 'lead')
+      c.push({ stage: { not: 'paid' }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
     if (f.city && f.city.trim()) c.push({ address: { contains: f.city.trim(), mode: 'insensitive' } });
     if (f.coachId) c.push({ assignedCoachId: f.coachId });
     return c;

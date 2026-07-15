@@ -17,6 +17,7 @@ interface Lead {
   name: string | null;
   stage: string;
   valueCents: number | null;
+  historicalPaidCents: number | null;
   createdAt: string;
   owner: { displayName: string } | null;
   assignedCoachId: string | null;
@@ -34,6 +35,12 @@ function euro(cents: number | null): string {
 }
 function displayName(l: Lead): string {
   return l.client?.clientProfile?.name ?? l.name ?? l.client?.email ?? l.email ?? 'Senza nome';
+}
+// Classificazione persona coerente col marketing: cliente attivo, cliente storico (pre-Metabole) o lead.
+function classify(l: Lead): { label: string; chip: string; title: string } {
+  if (l.stage === 'paid') return { label: 'Cliente', chip: '', title: 'Cliente attivo Metabole' };
+  if ((l.historicalPaidCents ?? 0) > 0) return { label: 'Storico', chip: 'violet', title: 'Cliente storico (pagamenti pre-Metabole)' };
+  return { label: 'Lead', chip: 'amber', title: 'Lead: nessun pagamento registrato' };
 }
 
 export function LeadsTable() {
@@ -185,7 +192,7 @@ export function LeadsTable() {
                           {displayName(l)}
                         </Link>
                       )}
-                      {!l.client && <span className="chip amber" style={{ marginLeft: 8, fontSize: 10 }}>lead</span>}
+                      {(() => { const k = classify(l); return <span className={`chip ${k.chip}`} style={{ marginLeft: 8, fontSize: 10 }} title={k.title}>{k.label}</span>; })()}
                       {l.lists?.length > 0 && (
                         <div className="row" style={{ gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                           {l.lists.map((x) => (

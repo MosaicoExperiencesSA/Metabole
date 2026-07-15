@@ -9,11 +9,11 @@ type Options = {
   tags: string[];
   templates: { key: string; name: string; subject: string }[];
 };
-type Filters = { stages: string[]; tags: string[]; listIds: string[]; hasClient: boolean | null; historicalPaid: boolean; city: string };
+type Filters = { stages: string[]; tags: string[]; listIds: string[]; segment: '' | 'client' | 'historical' | 'lead'; historicalPaid: boolean; city: string };
 type Preview = { total: number; sample: { id: string; name: string | null; email: string | null; stage: string; tags: string[] }[] };
 type CampaignRow = { id: string; title: string; templateKey: string; subject: string; recipientCount: number; sentCount: number; failedCount: number; createdAt: string };
 
-const EMPTY: Filters = { stages: [], tags: [], listIds: [], hasClient: null, historicalPaid: false, city: '' };
+const EMPTY: Filters = { stages: [], tags: [], listIds: [], segment: '', historicalPaid: false, city: '' };
 
 export function Marketing() {
   const { user } = useAuth();
@@ -91,10 +91,11 @@ export function Marketing() {
             <span style={{ fontSize: 13 }}>Ha già pagato (storico)</span>
           </label>
           <label className="row" style={{ gap: 6, alignItems: 'center' }}>
-            <span style={{ fontSize: 13 }} className="muted">Tipo</span>
-            <select className="select" value={filters.hasClient === null ? '' : filters.hasClient ? 'client' : 'lead'} onChange={(e) => { const v = e.target.value; setFilters((f) => ({ ...f, hasClient: v === '' ? null : v === 'client' })); setPreview(null); }} style={{ width: 150 }}>
+            <span style={{ fontSize: 13 }} className="muted">Tipo persona</span>
+            <select className="select" value={filters.segment} onChange={(e) => { const v = e.target.value as Filters['segment']; setFilters((f) => ({ ...f, segment: v })); setPreview(null); }} style={{ width: 160 }} title="Cliente = attivo su Metabole · Storico = pagamenti pre-Metabole · Lead = nessun pagamento">
               <option value="">Tutti</option>
               <option value="client">Solo clienti</option>
+              <option value="historical">Solo clienti storici</option>
               <option value="lead">Solo lead</option>
             </select>
           </label>
