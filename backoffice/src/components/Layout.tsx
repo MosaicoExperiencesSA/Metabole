@@ -36,11 +36,11 @@ export const NAV: NavSection[] = [
     collapsible: true,
     items: [
       { key: 'crm_leads', label: 'Gestione lead', to: '/crm/gestione', icon: 'ti-list-details' },
-      { key: 'crm_leads', label: 'Inserimento lead', to: '/crm/inserimento', icon: 'ti-user-plus' },
-      { key: 'crm_leads', label: 'Import liste', to: '/crm/import', icon: 'ti-database-import' },
-      { key: 'crm_leads', label: 'Pipeline', to: '/crm/pipeline', icon: 'ti-layout-kanban' },
+      { key: 'crm_lead_new', label: 'Inserimento lead', to: '/crm/inserimento', icon: 'ti-user-plus' },
+      { key: 'crm_import', label: 'Import liste', to: '/crm/import', icon: 'ti-database-import' },
+      { key: 'crm_pipeline', label: 'Pipeline', to: '/crm/pipeline', icon: 'ti-layout-kanban' },
       { key: 'lead_acceptance', label: 'Lead da accettare', to: '/crm/da-accettare', icon: 'ti-user-check' },
-      { key: 'crm_leads', label: 'Calendario', to: '/crm/calendario', icon: 'ti-calendar-event' },
+      { key: 'crm_calendar', label: 'Calendario', to: '/crm/calendario', icon: 'ti-calendar-event' },
     ],
   },
   {
@@ -69,8 +69,8 @@ export const NAV: NavSection[] = [
     group: 'Marketing',
     items: [
       { key: 'marketing', label: 'Marketing', to: '/marketing', icon: 'ti-speakerphone' },
-      { key: 'marketing', label: 'Testimonianze', to: '/testimonianze', icon: 'ti-quote' },
-      { key: 'marketing', label: 'Publisher social', to: '/publisher', icon: 'ti-send' },
+      { key: 'testimonials', label: 'Testimonianze', to: '/testimonianze', icon: 'ti-quote' },
+      { key: 'publisher', label: 'Publisher social', to: '/publisher', icon: 'ti-send' },
     ],
   },
   {
@@ -78,8 +78,8 @@ export const NAV: NavSection[] = [
     items: [
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
       { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
-      { key: 'recipes', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
-      { key: 'diets_catalog', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
+      { key: 'allergens', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
+      { key: 'equivalence_groups', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
       { key: 'engine_protocols', label: 'Protocolli motore', to: '/protocolli', icon: 'ti-cpu' },
       { key: 'engine_rules', label: 'Regole motore', to: '/regole-motore', icon: 'ti-adjustments-cog' },
     ],
@@ -96,7 +96,7 @@ export const NAV: NavSection[] = [
     group: 'Amministrazione',
     items: [
       { key: 'users', label: 'Utenti', to: '/utenti', icon: 'ti-id-badge-2' },
-      { key: 'permissions', label: 'Ruoli', to: '/ruoli', icon: 'ti-shield-half' },
+      { key: 'roles', label: 'Ruoli', to: '/ruoli', icon: 'ti-shield-half' },
       { key: 'permissions', label: 'Permessi', to: '/permessi', icon: 'ti-lock-cog' },
       { key: 'engine_config', label: 'Parametri', to: '/parametri', icon: 'ti-adjustments' },
       { key: 'audit_logs', label: 'Log attività', to: '/log', icon: 'ti-history' },

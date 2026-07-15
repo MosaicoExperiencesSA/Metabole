@@ -7,7 +7,7 @@ import { fetchRoles, type RoleInfo } from '../lib/roles';
 
 export function Roles() {
   const { can } = useAuth();
-  const canManage = can('permissions', 'manage'); // la gestione ruoli segue i permessi
+  const canManage = can('roles', 'manage'); // la gestione ruoli ha il suo permesso dedicato
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

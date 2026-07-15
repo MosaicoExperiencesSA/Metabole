@@ -77,7 +77,7 @@ export default function App() {
       <Route path="/posta" element={<Protected title="Posta" pageKey="posta"><Posta /></Protected>} />
       <Route path="/utenti" element={<Protected title="Utenti" pageKey="users"><Users /></Protected>} />
       <Route path="/utenti/:id" element={<Protected title="Scheda utente" pageKey="users"><UserDetail /></Protected>} />
-      <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="permissions"><Roles /></Protected>} />
+      <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="roles"><Roles /></Protected>} />
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
 
       {/* Percorso cliente e CRM */}
@@ -86,10 +86,10 @@ export default function App() {
       <Route path="/crm" element={<Navigate to="/crm/gestione" replace />} />
       <Route path="/crm/gestione" element={<Protected title="Gestione lead" pageKey="crm_leads"><LeadsTable /></Protected>} />
       <Route path="/crm/lead/:id" element={<Protected title="Scheda lead" pageKey="crm_leads"><LeadDetail /></Protected>} />
-      <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_leads"><LeadForm /></Protected>} />
-      <Route path="/crm/import" element={<Protected title="Import liste" pageKey="crm_leads"><ImportaLead /></Protected>} />
-      <Route path="/crm/pipeline" element={<Protected title="Pipeline" pageKey="crm_leads"><Pipeline /></Protected>} />
-      <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_leads"><Calendar /></Protected>} />
+      <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_lead_new"><LeadForm /></Protected>} />
+      <Route path="/crm/import" element={<Protected title="Import liste" pageKey="crm_import"><ImportaLead /></Protected>} />
+      <Route path="/crm/pipeline" element={<Protected title="Pipeline" pageKey="crm_pipeline"><Pipeline /></Protected>} />
+      <Route path="/crm/calendario" element={<Protected title="Calendario CRM" pageKey="crm_calendar"><Calendar /></Protected>} />
       <Route path="/crm/da-accettare" element={<Protected title="Lead da accettare" pageKey="lead_acceptance"><LeadDaAccettare /></Protected>} />
       <Route path="/agenda" element={<Protected title="Agenda visite" pageKey="visits_agenda"><Agenda /></Protected>} />
       <Route path="/segnalazioni" element={<Protected title="Segnalazioni" pageKey="escalations"><Segnalazioni /></Protected>} />
@@ -100,14 +100,14 @@ export default function App() {
       <Route path="/pagamenti" element={<Protected title="Bonifici & contabilità" pageKey="accounting"><Payments /></Protected>} />
       <Route path="/contabilita" element={<Protected title="Contabilità" pageKey="accounting_costs"><Contabilita /></Protected>} />
       <Route path="/marketing" element={<Protected title="Marketing" pageKey="marketing"><Placeholder title="Reparto Marketing" icon="ti-speakerphone" note="Campagne, segmenti, KPI e gestione consensi. Il modulo marketing è in arrivo; il ruolo e i permessi sono già attivi." /></Protected>} />
-      <Route path="/testimonianze" element={<Protected title="Testimonianze" pageKey="marketing"><Testimonianze /></Protected>} />
-      <Route path="/publisher" element={<Protected title="Publisher social" pageKey="marketing"><Publisher /></Protected>} />
+      <Route path="/testimonianze" element={<Protected title="Testimonianze" pageKey="testimonials"><Testimonianze /></Protected>} />
+      <Route path="/publisher" element={<Protected title="Publisher social" pageKey="publisher"><Publisher /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
       <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="recipes"><Ricette /></Protected>} />
-      <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="recipes"><TagAllergeni /></Protected>} />
-      <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="diets_catalog"><GruppiEquivalenza /></Protected>} />
+      <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />
+      <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="equivalence_groups"><GruppiEquivalenza /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/regole-motore" element={<Protected title="Regole motore" pageKey="engine_rules"><RegoleMotore /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />

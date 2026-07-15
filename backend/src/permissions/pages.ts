@@ -39,6 +39,16 @@ export const BACKOFFICE_PAGES = [
   'pdf_templates',
   'charts',
   'withdrawals',
+  // Schermate separate per una gestione granulare dei permessi (ereditano l'accesso dalla pagina "genitore").
+  'crm_lead_new',       // Inserimento lead (da crm_leads)
+  'crm_import',         // Import liste (da crm_leads)
+  'crm_pipeline',       // Pipeline (da crm_leads)
+  'crm_calendar',       // Calendario CRM (da crm_leads)
+  'testimonials',       // Testimonianze (da marketing)
+  'publisher',          // Publisher social (da marketing)
+  'equivalence_groups', // Gruppi di equivalenza (da diets_catalog)
+  'allergens',          // Allergeni ricette (da recipes)
+  'roles',              // Ruoli (da permissions)
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -163,3 +173,28 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     withdrawals: { view: true, manage: true },
   },
 };
+
+/**
+ * Le schermate "figlie" ereditano di default l'accesso della loro pagina "genitore",
+ * così separare una schermata nei Permessi non toglie accesso a nessuno. L'admin può
+ * poi differenziarle a runtime dalla UI Permessi.
+ */
+const INHERIT_DEFAULTS: Record<string, PageKey> = {
+  crm_lead_new: 'crm_leads',
+  crm_import: 'crm_leads',
+  crm_pipeline: 'crm_leads',
+  crm_calendar: 'crm_leads',
+  testimonials: 'marketing',
+  publisher: 'marketing',
+  equivalence_groups: 'diets_catalog',
+  allergens: 'recipes',
+  roles: 'permissions',
+};
+
+for (const role of Object.keys(DEFAULT_PERMISSIONS) as Role[]) {
+  const perms = DEFAULT_PERMISSIONS[role];
+  for (const [child, parent] of Object.entries(INHERIT_DEFAULTS) as [PageKey, PageKey][]) {
+    const p = perms[parent];
+    if (p && !perms[child]) perms[child] = { ...p };
+  }
+}
