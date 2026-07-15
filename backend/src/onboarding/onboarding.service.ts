@@ -54,8 +54,35 @@ export class OnboardingService {
     return products;
   }
 
-  getQuestions() {
-    return ONBOARDING_QUESTIONS;
+  /** Regimi configurati (config_param diet_regimes) o null se non impostati. */
+  private async configuredRegimes(): Promise<{ code: string; label: string }[] | null> {
+    const raw = await this.configParams.getString('diet_regimes', '');
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { code?: unknown; label?: unknown }[];
+      const list = (Array.isArray(parsed) ? parsed : [])
+        .filter((r) => r && typeof r.code === 'string' && (r.code as string).trim())
+        .map((r) => ({ code: String(r.code).trim(), label: String(r.label ?? r.code).trim() }));
+      return list.length ? list : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getQuestions() {
+    const regimes = await this.configuredRegimes();
+    if (!regimes) return ONBOARDING_QUESTIONS;
+    // Clona (dati JSON-safe) e sostituisce le opzioni della domanda "regime".
+    const q = JSON.parse(JSON.stringify(ONBOARDING_QUESTIONS)) as typeof ONBOARDING_QUESTIONS;
+    const page = q.pages.find((p) => p.key === 'regime');
+    const field = page?.fields.find((fl) => (fl as { key?: string }).key === 'regime') as
+      | { options?: string[]; labels?: string[] }
+      | undefined;
+    if (field) {
+      field.options = regimes.map((r) => r.code);
+      field.labels = regimes.map((r) => r.label);
+    }
+    return q;
   }
 
   async submitAnswers(userId: string, dto: SubmitAnswersDto, ip?: string) {
