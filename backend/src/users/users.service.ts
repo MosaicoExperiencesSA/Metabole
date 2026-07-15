@@ -10,6 +10,7 @@ import { FinanceService } from '../commerce/finance.service';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseCodiceFiscale } from '../common/codice-fiscale.util';
 import { randomBytes } from 'crypto';
 
 /** Password provvisoria leggibile: niente caratteri ambigui (0/O/1/l/I), con cifre. */
@@ -99,22 +100,47 @@ export class UsersService {
       select: {
         email: true, secondaryEmail: true, firstName: true, lastName: true,
         addressLine: true, postalCode: true, city: true, province: true, country: true, phone: true,
+        birthDate: true, codiceFiscale: true,
         clientProfile: { select: { name: true } },
       },
     });
     if (!user) throw new NotFoundException('Utente non trovato');
-    const { clientProfile, ...rest } = user;
-    return { ...rest, nickname: clientProfile?.name ?? null };
+    const { clientProfile, birthDate, ...rest } = user;
+    return {
+      ...rest,
+      birthDate: birthDate ? birthDate.toISOString().slice(0, 10) : null,
+      nickname: clientProfile?.name ?? null,
+    };
   }
 
   /** La cliente aggiorna i propri dati (mai l'email: quella ha un flusso a parte con verifica). */
   async updateMyProfile(
     userId: string,
-    dto: { firstName?: string; lastName?: string; nickname?: string; addressLine?: string; postalCode?: string; city?: string; province?: string; country?: string; phone?: string },
+    dto: { firstName?: string; lastName?: string; nickname?: string; addressLine?: string; postalCode?: string; city?: string; province?: string; country?: string; phone?: string; birthDate?: string | null; codiceFiscale?: string | null },
   ) {
-    const userData: Record<string, string | null> = {};
+    const userData: Record<string, string | Date | null> = {};
     for (const k of ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'country', 'phone'] as const) {
       if (dto[k] !== undefined) userData[k] = dto[k]!.trim() || null;
+    }
+    // Codice fiscale: normalizzato in maiuscolo; se presente e la data di nascita
+    // non è stata fornita a mano, la ricaviamo automaticamente dal CF.
+    let cfDerivedBirth: Date | null = null;
+    if (dto.codiceFiscale !== undefined) {
+      const cf = (dto.codiceFiscale || '').trim().toUpperCase() || null;
+      userData.codiceFiscale = cf;
+      if (cf) cfDerivedBirth = parseCodiceFiscale(cf).birthDate;
+    }
+    if (dto.birthDate !== undefined) {
+      const raw = (dto.birthDate || '').trim();
+      if (!raw) {
+        userData.birthDate = null;
+      } else {
+        const d = new Date(`${raw}T00:00:00.000Z`);
+        if (!Number.isNaN(d.getTime())) userData.birthDate = d;
+        else if (cfDerivedBirth) userData.birthDate = cfDerivedBirth;
+      }
+    } else if (cfDerivedBirth) {
+      userData.birthDate = cfDerivedBirth;
     }
     if (Object.keys(userData).length) {
       await this.prisma.user.update({ where: { id: userId }, data: userData });

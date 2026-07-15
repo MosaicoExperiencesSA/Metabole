@@ -56,6 +56,9 @@ class UpdateMyProfileDto {
   @IsOptional() @IsString() @MaxLength(60) province?: string;
   @IsOptional() @IsString() @MaxLength(60) country?: string;
   @IsOptional() @IsString() @MaxLength(40) phone?: string;
+  // Data di nascita (ISO yyyy-mm-dd) o null per rimuoverla.
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(10) birthDate?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(20) codiceFiscale?: string | null;
 }
 
 @Controller('me')

@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { IsEmail, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { IsBoolean, IsEmail, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { MarketingService, SegmentFilters } from './marketing.service';
+import { LifecycleService } from './lifecycle.service';
 
 class PreviewDto {
   @IsOptional() @IsObject() filters?: Record<string, unknown>;
@@ -18,12 +19,19 @@ class TestDto {
   @IsString() @MaxLength(120) templateKey!: string;
   @IsEmail() testEmail!: string;
 }
+class LifecycleSettingsDto {
+  @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @IsObject() triggers?: Record<string, boolean>;
+}
 
 @Controller('marketing')
 @RequirePage('marketing')
 @Roles('marketing', 'head_marketing', 'admin')
 export class MarketingController {
-  constructor(private readonly service: MarketingService) {}
+  constructor(
+    private readonly service: MarketingService,
+    private readonly lifecycle: LifecycleService,
+  ) {}
 
   @Get('options')
   options() {
@@ -58,5 +66,22 @@ export class MarketingController {
   @Get('campaigns/:id/stats')
   stats(@Param('id') id: string) {
     return this.service.campaignStats(id);
+  }
+
+  // ---------- Automazione ciclo di vita ----------
+
+  @Get('lifecycle')
+  lifecycleOverview() {
+    return this.lifecycle.overview();
+  }
+
+  @Patch('lifecycle')
+  lifecycleUpdate(@Body() dto: LifecycleSettingsDto, @CurrentUser() u: AuthUser) {
+    return this.lifecycle.updateSettings({ enabled: dto.enabled, triggers: dto.triggers }, u.sub);
+  }
+
+  @Post('lifecycle/run')
+  lifecycleRun(@CurrentUser() u: AuthUser) {
+    return this.lifecycle.tick('manual', u.sub);
   }
 }

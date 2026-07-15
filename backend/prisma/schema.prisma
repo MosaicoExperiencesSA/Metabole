@@ -270,6 +270,8 @@ model User {
   crmRecord       CrmRecord?
   staffNotes      ClientNote[]
   mailAccount     MailAccount?
+  birthDate       DateTime?  @map("birth_date")
+  codiceFiscale   String?    @map("codice_fiscale")
 
   @@index([role])
   @@map("user")
@@ -1667,4 +1669,33 @@ model MarketingOptOut {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("marketing_opt_out")
+}
+
+/// Automazione email del ciclo di vita: impostazioni globali (riga singola
+/// "singleton"). enabled = interruttore master; triggers = mappa chiave→bool
+/// per accendere/spegnere ogni innesco; lastRunAt = ultima esecuzione dello scan.
+model LifecycleSettings {
+  id          String    @id @default("singleton")
+  enabled     Boolean   @default(false)
+  triggers    Json?
+  lastRunAt   DateTime? @map("last_run_at")
+  updatedById String?   @map("updated_by_id")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("lifecycle_settings")
+}
+
+/// Log/dedup degli invii ciclo di vita: garantisce che un innesco parta una sola
+/// volta per utente (dedupeKey = chiave, o chiave:anno per gli eventi ricorrenti).
+model LifecycleEmail {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  templateKey String   @map("template_key")
+  dedupeKey   String   @map("dedupe_key")
+  sentAt      DateTime @default(now()) @map("sent_at")
+
+  @@unique([userId, dedupeKey])
+  @@index([templateKey])
+  @@index([sentAt])
+  @@map("lifecycle_email")
 }

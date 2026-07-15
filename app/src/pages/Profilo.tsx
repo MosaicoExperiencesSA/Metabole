@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import AppHeader from '../components/AppHeader';
 import NotificationPrefs from '../components/NotificationPrefs';
+import { parseCodiceFiscale } from '../lib/codiceFiscale';
 
 const PHONE_PREFIXES = ['+39', '+41', '+33', '+49', '+43', '+44', '+34', '+32', '+31', '+351', '+386', '+1'];
 const COUNTRIES = ['Italia', 'Svizzera', 'Francia', 'Germania', 'Austria', 'Regno Unito', 'Spagna', 'Belgio', 'Paesi Bassi', 'Portogallo', 'Slovenia', 'Altro'];
@@ -25,6 +26,7 @@ function splitPhone(p: string | null): { prefix: string; number: string } {
 interface MyProfile {
   email: string; secondaryEmail: string | null; firstName: string | null; lastName: string | null; nickname: string | null;
   addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; country: string | null; phone: string | null;
+  birthDate: string | null; codiceFiscale: string | null;
 }
 interface Plan { name: string; period: string; priceCents: number; }
 interface Subscription { id: string; status: string; startDate: string | null; endDate: string | null; plan: Plan | null; }
@@ -138,6 +140,7 @@ export default function Profilo() {
         firstName: form.firstName ?? '', lastName: form.lastName ?? '', nickname: form.nickname ?? '',
         addressLine: form.addressLine ?? '', postalCode: form.postalCode ?? '', city: form.city ?? '',
         province: form.province ?? '', country: form.country ?? '', phone,
+        birthDate: form.birthDate ?? '', codiceFiscale: form.codiceFiscale ?? '',
       };
       const updated = await api<MyProfile>('/me/profile', { method: 'PATCH', body: JSON.stringify(body) });
       setProfile(updated);
@@ -278,6 +281,8 @@ export default function Profilo() {
               <div><span className="muted">Nickname:</span> <b>{profile.nickname || '—'}</b></div>
               <div><span className="muted">Indirizzo:</span> <b>{[profile.addressLine, profile.postalCode, profile.city, profile.province, profile.country].filter(Boolean).join(', ') || '—'}</b></div>
               <div><span className="muted">Telefono:</span> <b>{profile.phone || '—'}</b></div>
+              <div><span className="muted">Data di nascita:</span> <b>{profile.birthDate ? new Date(profile.birthDate + 'T00:00:00').toLocaleDateString('it-IT') : '—'}</b></div>
+              <div><span className="muted">Codice fiscale:</span> <b>{profile.codiceFiscale || '—'}</b></div>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
@@ -327,6 +332,32 @@ export default function Profilo() {
                 </select>
                 <input className="input" style={{ flex: 1, minWidth: 0 }} placeholder="Numero di telefono" inputMode="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
               </div>
+
+              <input
+                className="input"
+                placeholder="Codice fiscale (facoltativo)"
+                autoCapitalize="characters"
+                maxLength={16}
+                value={form.codiceFiscale ?? ''}
+                onChange={(e) => {
+                  const cf = e.target.value.toUpperCase();
+                  const parsed = parseCodiceFiscale(cf);
+                  setForm((f) => ({ ...f, codiceFiscale: cf, ...(parsed.birthDate ? { birthDate: parsed.birthDate } : {}) }));
+                }}
+              />
+              {form.codiceFiscale && parseCodiceFiscale(form.codiceFiscale).birthDate && (
+                <div className="muted" style={{ fontSize: 11, marginTop: -4 }}>Data di nascita ricavata dal codice fiscale.</div>
+              )}
+              <label className="muted" style={{ fontSize: 11, display: 'block', marginTop: 2 }}>
+                Data di nascita
+                <input
+                  className="input"
+                  type="date"
+                  style={{ marginTop: 4 }}
+                  value={form.birthDate ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, birthDate: e.target.value }))}
+                />
+              </label>
 
               <div className="muted" style={{ fontSize: 11 }}>L'email ({profile.email}) non si cambia da qui: servirà una verifica via link.</div>
               <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>

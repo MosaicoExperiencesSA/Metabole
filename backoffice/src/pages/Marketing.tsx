@@ -169,6 +169,8 @@ export function Marketing() {
         )}
       </div>
 
+      <LifecycleAutomation />
+
       {confirming && (
         <Modal title="Confermi l'invio?" onClose={() => setConfirming(false)}>
           <p>Stai per inviare <b>“{title}”</b> a <b>{preview?.total ?? 0}</b> destinatari (modello: {opts.templates.find((t) => t.key === templateKey)?.name}). L'operazione è irreversibile.</p>
@@ -244,6 +246,98 @@ function Stat({ label, v }: { label: string; v: number | boolean | undefined }) 
     <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px' }}>
       <div style={{ fontSize: 20, fontWeight: 800 }}>{typeof v === 'number' ? v.toLocaleString('it-IT') : 0}</div>
       <div className="muted" style={{ fontSize: 12 }}>{label}</div>
+    </div>
+  );
+}
+
+
+interface LifecycleTrigger { key: string; label: string; when: string; kind: 'event' | 'scheduled'; implemented: boolean; on: boolean; sent: number; }
+interface LifecycleOverview { enabled: boolean; lastRunAt: string | null; catalog: LifecycleTrigger[]; }
+
+function LifecycleAutomation() {
+  const [ov, setOv] = useState<LifecycleOverview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  function load() { api<LifecycleOverview>('/marketing/lifecycle').then(setOv).catch(() => {}); }
+  useEffect(load, []);
+
+  async function setEnabled(enabled: boolean) {
+    setBusy(true); setErr(null); setMsg(null);
+    try { await api('/marketing/lifecycle', { method: 'PATCH', body: JSON.stringify({ enabled }) }); load(); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.'); }
+    finally { setBusy(false); }
+  }
+  async function setTrigger(key: string, on: boolean) {
+    setBusy(true); setErr(null); setMsg(null);
+    try { await api('/marketing/lifecycle', { method: 'PATCH', body: JSON.stringify({ triggers: { [key]: on } }) }); load(); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.'); }
+    finally { setBusy(false); }
+  }
+  async function runNow() {
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      const r = await api<{ ran: boolean; counts: Record<string, number> }>('/marketing/lifecycle/run', { method: 'POST' });
+      const tot = Object.values(r.counts || {}).reduce((a, b) => a + b, 0);
+      setMsg(r.ran ? `Esecuzione completata: ${tot} email inviate.` : 'Nessun invio (nessun destinatario idoneo).');
+      load();
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Esecuzione non riuscita.'); }
+    finally { setBusy(false); }
+  }
+
+  if (!ov) return null;
+  const active = ov.catalog.filter((t) => t.implemented);
+  const roadmap = ov.catalog.filter((t) => !t.implemented);
+
+  return (
+    <div className="card">
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <h2 style={{ margin: 0 }}>Automazione email (ciclo di vita)</h2>
+        <label className="row" style={{ gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+          <input type="checkbox" checked={ov.enabled} disabled={busy} onChange={(e) => setEnabled(e.target.checked)} />
+          <span style={{ fontWeight: 600, color: ov.enabled ? 'var(--teal)' : 'var(--muted)' }}>{ov.enabled ? 'Automazione attiva' : 'Automazione in pausa'}</span>
+        </label>
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+        Con l'interruttore attivo, ogni ora il sistema invia da solo le email del ciclo di vita agli utenti idonei
+        (rispettando gli opt-out e senza mai duplicare). Puoi accendere o spegnere ogni singolo innesco.
+        {ov.lastRunAt && <> Ultima esecuzione: {new Date(ov.lastRunAt).toLocaleString('it-IT')}.</>}
+      </p>
+
+      {msg && <div className="banner ok" style={{ margin: '8px 0' }}>{msg}</div>}
+      {err && <div className="banner err" style={{ margin: '8px 0' }}>{err}</div>}
+
+      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+        {active.map((t) => (
+          <div key={t.key} className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--card)' }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <b style={{ display: 'block', fontSize: 13 }}>{t.label} <span className="chip" style={{ fontSize: 10 }}>{t.kind === 'event' ? 'evento' : 'programmata'}</span></b>
+              <span className="muted" style={{ fontSize: 11 }}>{t.when} · {t.sent} inviate</span>
+            </span>
+            <label className="row" style={{ gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+              <input type="checkbox" checked={t.on} disabled={busy || !ov.enabled} onChange={(e) => setTrigger(t.key, e.target.checked)} />
+              <span className="muted" style={{ fontSize: 11 }}>{t.on ? 'ON' : 'OFF'}</span>
+            </label>
+          </div>
+        ))}
+      </div>
+
+      <div className="row" style={{ gap: 10, marginTop: 12, alignItems: 'center' }}>
+        <button className="btn" disabled={busy} onClick={runNow}><i className="ti ti-player-play" /> Esegui ora</button>
+        <span className="muted" style={{ fontSize: 11 }}>Forza un giro subito (utile per una prova), anche a automazione in pausa.</span>
+      </div>
+
+      {roadmap.length > 0 && (
+        <details style={{ marginTop: 14 }}>
+          <summary className="muted" style={{ fontSize: 12, cursor: 'pointer' }}>In arrivo — {roadmap.length} inneschi che richiedono dati non ancora tracciati</summary>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+            {roadmap.map((t) => (
+              <span key={t.key} className="chip" style={{ fontSize: 11, opacity: 0.7 }} title={t.when}>{t.label}</span>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

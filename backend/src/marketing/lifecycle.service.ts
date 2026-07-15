@@ -1,0 +1,396 @@
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { AuditService } from '../audit/audit.service';
+
+export type LifecycleKind = 'event' | 'scheduled';
+
+export interface TriggerDef {
+  key: string; // = chiave del modello email (emailTemplate.key)
+  label: string;
+  when: string; // descrizione dell'innesco
+  kind: LifecycleKind;
+  implemented: boolean; // true = lo scan lo sa già inviare dai dati esistenti
+}
+
+/**
+ * Catalogo degli inneschi del ciclo di vita. Gli `implemented: true` sono già
+ * agganciati ai dati reali e vengono inviati dallo scan; gli altri sono in
+ * roadmap (richiedono dati non ancora tracciati: stato carrello, rinnovi,
+ * eventi peso/misure, data di nascita) e restano visibili come promemoria.
+ */
+export const LIFECYCLE_CATALOG: TriggerDef[] = [
+  { key: 'welcome', label: 'Benvenuto', when: 'Email verificata (ultimi 14 giorni)', kind: 'event', implemented: true },
+  { key: 'profilo_pronto', label: 'Il tuo profilo è pronto', when: 'Onboarding completato (ultimi 14 giorni)', kind: 'event', implemented: true },
+  { key: 'profilo_incompleto', label: 'Profilo incompleto', when: 'Registrata 1–14 giorni fa, onboarding non completato', kind: 'scheduled', implemented: true },
+  { key: 'piano_domani', label: 'Il piano inizia domani', when: 'Inizio piano = domani', kind: 'scheduled', implemented: true },
+  { key: 'onb_g1', label: 'Onboarding giorno 1', when: 'Inizio piano = 1 giorno fa', kind: 'scheduled', implemented: true },
+  { key: 'onb_g4', label: 'Onboarding giorno 4', when: 'Inizio piano = 4 giorni fa', kind: 'scheduled', implemented: true },
+  { key: 'onb_g7', label: 'Onboarding giorno 7', when: 'Inizio piano = 7 giorni fa', kind: 'scheduled', implemented: true },
+  // --- In roadmap: richiedono dati non ancora tracciati ---
+  { key: 'onb_g2', label: 'Onboarding giorno 2', when: 'Inizio piano = 2 giorni fa', kind: 'scheduled', implemented: false },
+  { key: 'cart_1h', label: 'Carrello +1h', when: 'Carrello abbandonato (stato carrello non tracciato)', kind: 'scheduled', implemented: false },
+  { key: 'cart_24h', label: 'Carrello +24h', when: 'Carrello abbandonato', kind: 'scheduled', implemented: false },
+  { key: 'cart_72h', label: 'Carrello +72h', when: 'Carrello abbandonato', kind: 'scheduled', implemented: false },
+  { key: 'nurture_1', label: 'Nurture 1', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
+  { key: 'nurture_2', label: 'Nurture 2', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
+  { key: 'nurture_3', label: 'Nurture 3', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
+  { key: 'nurture_4', label: 'Nurture 4', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
+  { key: 'obiezione_prezzo', label: 'Obiezione prezzo', when: 'Sequenza nurture (prezzo)', kind: 'scheduled', implemented: false },
+  { key: 'feedback_ricette', label: 'Feedback ricette', when: 'Dopo N giorni di menu', kind: 'scheduled', implemented: false },
+  { key: 'valore_settimanale', label: 'Valore settimanale', when: 'Riepilogo settimanale', kind: 'scheduled', implemented: false },
+  { key: 'riattiva_dropout', label: 'Riattiva dropout', when: 'Cliente inattiva', kind: 'scheduled', implemented: false },
+  { key: 'referral', label: 'Porta un’amica', when: 'Evento referral', kind: 'event', implemented: false },
+  { key: 'ev_peso_ok', label: 'Evento: peso ok', when: 'Traguardo peso', kind: 'event', implemented: false },
+  { key: 'ev_primo', label: 'Evento: primo traguardo', when: 'Primo check-in positivo', kind: 'event', implemented: false },
+  { key: 'ev_meta', label: 'Evento: meta raggiunta', when: 'Obiettivo raggiunto', kind: 'event', implemented: false },
+  { key: 'ev_costanza', label: 'Evento: costanza', when: 'Streak check-in', kind: 'event', implemented: false },
+  { key: 'ev_plateau', label: 'Evento: plateau', when: 'Peso fermo', kind: 'event', implemented: false },
+  { key: 'ev_morale', label: 'Evento: morale', when: 'Segnale morale basso', kind: 'event', implemented: false },
+  { key: 'ev_misure', label: 'Evento: misure', when: 'Nuove misure', kind: 'event', implemented: false },
+  { key: 'ev_rientro', label: 'Evento: rientro vacanza', when: 'Rientro da modalità viaggio', kind: 'event', implemented: false },
+  { key: 'ev_compleanno', label: 'Evento: compleanno', when: 'Compleanno (da data di nascita)', kind: 'scheduled', implemented: true },
+  { key: 'ev_anniversario', label: 'Evento: anniversario', when: 'Anniversario iscrizione', kind: 'scheduled', implemented: false },
+  { key: 'ev_pre_evento', label: 'Evento: pre-evento', when: 'Evento personale in arrivo', kind: 'scheduled', implemented: false },
+  { key: 'ev_mantenimento', label: 'Evento: mantenimento', when: 'Passaggio a mantenimento', kind: 'event', implemented: false },
+  { key: 'rin_t7', label: 'Rinnovo T-7', when: 'Rinnovo tra 7 giorni (date non tracciate)', kind: 'scheduled', implemented: false },
+  { key: 'rin_t3', label: 'Rinnovo T-3', when: 'Rinnovo tra 3 giorni', kind: 'scheduled', implemented: false },
+  { key: 'rin_t1', label: 'Rinnovo T-1', when: 'Rinnovo domani', kind: 'scheduled', implemented: false },
+  { key: 'upsell', label: 'Upsell', when: 'Opportunità upsell', kind: 'scheduled', implemented: false },
+  { key: 'wb_t3', label: 'Winback T-3', when: 'Disdetta +3 giorni', kind: 'scheduled', implemented: false },
+  { key: 'wb_t7', label: 'Winback T-7', when: 'Disdetta +7 giorni', kind: 'scheduled', implemented: false },
+  { key: 'wb_survey', label: 'Winback sondaggio', when: 'Dopo la disdetta', kind: 'scheduled', implemented: false },
+  { key: 'wb_stagionale', label: 'Winback stagionale', when: 'Campagna stagionale', kind: 'scheduled', implemented: false },
+  { key: 'tx_rinnovo_ok', label: 'TX rinnovo ok', when: 'Rinnovo pagato', kind: 'event', implemented: false },
+  { key: 'tx_dunning', label: 'TX dunning', when: 'Pagamento fallito', kind: 'event', implemented: false },
+  { key: 'tx_appuntamento', label: 'TX appuntamento', when: 'Promemoria appuntamento', kind: 'scheduled', implemented: false },
+  { key: 'repermission', label: 'Re-permission', when: 'Riconferma consenso', kind: 'scheduled', implemented: false },
+  { key: 'preferenze', label: 'Preferenze', when: 'Gestione preferenze', kind: 'event', implemented: false },
+];
+
+const DIET_LABEL: Record<string, string> = {
+  mediterranean: 'Mediterranea',
+  protein: 'Proteica',
+  low_carb: 'Low carb',
+  flexible: 'Flessibile',
+  keto: 'Chetogenica',
+};
+
+type SendOutcome = 'sent' | 'skipped' | 'duplicate' | 'failed';
+
+/**
+ * Motore di automazione email del ciclo di vita. Riusa l'infrastruttura del
+ * modulo marketing (invio via Brevo attraverso MailService, rispetto degli
+ * opt-out, modelli dal DB). Uno scheduler leggero interno (setInterval, nessuna
+ * dipendenza esterna) esegue lo scan a intervalli regolari SOLO se l'interruttore
+ * master è acceso su DB. Ogni innesco è accendibile/spegnibile dal backoffice e
+ * ogni invio è deduplicato (una volta per utente) tramite lifecycle_email.
+ */
+@Injectable()
+export class LifecycleService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(LifecycleService.name);
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private running = false;
+  private static readonly INTERVAL_MS = 60 * 60 * 1000; // ogni ora
+  private static readonly BATCH = 500; // limite prudente di destinatari per innesco per giro
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly audit: AuditService,
+    private readonly config: ConfigService,
+  ) {}
+
+  onModuleInit(): void {
+    // Scheduler interno: primo giro dopo 2 minuti (dà tempo al boot), poi ogni ora.
+    // Il giro è un no-op se l'interruttore master è spento su DB.
+    this.timer = setInterval(() => void this.tick('cron'), LifecycleService.INTERVAL_MS);
+    setTimeout(() => void this.tick('cron'), 2 * 60 * 1000).unref?.();
+    this.timer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  private merge(text: string, vars: Record<string, string>): string {
+    return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k: string) => vars[k] ?? '');
+  }
+
+  private appUrl(): string {
+    return this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
+  }
+
+  private dayRange(offsetDays: number): { gte: Date; lt: Date } {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() + offsetDays);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { gte: start, lt: end };
+  }
+
+  private daysAgo(n: number): Date {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d;
+  }
+
+  // ---------- Impostazioni ----------
+
+  async getSettings(): Promise<{ enabled: boolean; triggers: Record<string, boolean>; lastRunAt: Date | null }> {
+    const row = (await this.prisma.lifecycleSettings.findUnique({ where: { id: 'singleton' } })) as
+      | { enabled: boolean; triggers: unknown; lastRunAt: Date | null }
+      | null;
+    const triggers = (row?.triggers as Record<string, boolean> | null) ?? {};
+    return { enabled: row?.enabled ?? false, triggers, lastRunAt: row?.lastRunAt ?? null };
+  }
+
+  /** Un innesco è attivo se il master è ON e il suo flag non è esplicitamente false. */
+  private isTriggerOn(key: string, triggers: Record<string, boolean>): boolean {
+    return triggers[key] !== false;
+  }
+
+  async updateSettings(
+    input: { enabled?: boolean; triggers?: Record<string, boolean> },
+    actorId: string,
+  ): Promise<{ enabled: boolean; triggers: Record<string, boolean> }> {
+    const current = await this.getSettings();
+    const enabled = input.enabled ?? current.enabled;
+    const triggers = { ...current.triggers, ...(input.triggers ?? {}) };
+    await this.prisma.lifecycleSettings.upsert({
+      where: { id: 'singleton' },
+      create: { id: 'singleton', enabled, triggers: triggers as never, updatedById: actorId },
+      update: { enabled, triggers: triggers as never, updatedById: actorId },
+    });
+    await this.audit.log({ action: 'marketing.lifecycle.settings', actorId, entityType: 'lifecycle_settings', entityId: 'singleton', metadata: { enabled } });
+    return { enabled, triggers };
+  }
+
+  /** Catalogo + impostazioni + conteggi inviati per chiave (per la UI). */
+  async overview() {
+    const settings = await this.getSettings();
+    const grouped = await this.prisma.lifecycleEmail.groupBy({ by: ['templateKey'], _count: { _all: true } });
+    const sentByKey: Record<string, number> = {};
+    for (const g of grouped) sentByKey[g.templateKey] = g._count._all;
+    return {
+      enabled: settings.enabled,
+      lastRunAt: settings.lastRunAt,
+      catalog: LIFECYCLE_CATALOG.map((t) => ({
+        ...t,
+        on: this.isTriggerOn(t.key, settings.triggers),
+        sent: sentByKey[t.key] ?? 0,
+      })),
+    };
+  }
+
+  // ---------- Invio singolo (dedup + consenso) ----------
+
+  private async isOptedOut(email: string, clientUserId: string): Promise<boolean> {
+    const o = await this.prisma.marketingOptOut.findUnique({ where: { email: email.toLowerCase() } });
+    if (o) return true;
+    const prof = await this.prisma.clientProfile.findUnique({ where: { userId: clientUserId }, select: { notificationPrefs: true } });
+    const n = prof?.notificationPrefs as Record<string, unknown> | null;
+    return !!n && (n.marketing === false || n.marketingOptOut === true);
+  }
+
+  async sendLifecycle(params: {
+    userId: string;
+    email: string | null;
+    key: string;
+    dedupeKey: string;
+    vars: Record<string, string>;
+  }): Promise<SendOutcome> {
+    const { userId, email, key, dedupeKey, vars } = params;
+    const already = await this.prisma.lifecycleEmail.findUnique({ where: { userId_dedupeKey: { userId, dedupeKey } } });
+    if (already) return 'duplicate';
+    if (!email) return 'skipped';
+    const tpl = await this.prisma.emailTemplate.findUnique({ where: { key } });
+    if (!tpl || !tpl.active) return 'skipped';
+    if (await this.isOptedOut(email, userId)) return 'skipped';
+
+    const fullVars = { link_preferenze: `${this.appUrl()}/preferenze`, ...vars };
+    const html = this.merge(tpl.bodyHtml, fullVars);
+    const subject = this.merge(tpl.subject, fullVars);
+    const ok = await this.mail.send({ to: email, subject, html, templateKey: `lifecycle:${key}`, tags: [`lifecycle:${key}`] });
+    if (!ok) return 'failed';
+    try {
+      await this.prisma.lifecycleEmail.create({ data: { userId, templateKey: key, dedupeKey } });
+    } catch {
+      /* corsa fra istanze: un'altra ha già registrato l'invio */
+    }
+    return 'sent';
+  }
+
+  // ---------- Scan ----------
+
+  /** Esegue un giro. `manual` = lanciato a mano dall'admin (ignora il master OFF? no: rispetta comunque). */
+  async tick(source: 'cron' | 'manual', actorId?: string): Promise<{ ran: boolean; counts: Record<string, number> }> {
+    if (this.running) return { ran: false, counts: {} };
+    this.running = true;
+    try {
+      const settings = await this.getSettings();
+      // Il cron rispetta l'interruttore master; l'esecuzione manuale dell'admin
+      // parte comunque (azione esplicita), ma rispetta sempre i flag per-innesco.
+      if (source === 'cron' && !settings.enabled) return { ran: false, counts: {} };
+      const counts = await this.runScan(settings.triggers);
+      await this.prisma.lifecycleSettings.update({ where: { id: 'singleton' }, data: { lastRunAt: new Date() } }).catch(() => undefined);
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      if (total > 0 || source === 'manual') {
+        this.logger.log(`Lifecycle scan (${source}): ${total} email inviate ${JSON.stringify(counts)}`);
+        if (actorId) await this.audit.log({ action: 'marketing.lifecycle.run', actorId, metadata: { source, counts } });
+      }
+      return { ran: true, counts };
+    } catch (e) {
+      this.logger.error(`Lifecycle scan fallito: ${e instanceof Error ? e.message : e}`);
+      return { ran: false, counts: {} };
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async runScan(triggers: Record<string, boolean>): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    const app = this.appUrl();
+    const bump = (key: string, r: SendOutcome) => {
+      if (r === 'sent') counts[key] = (counts[key] ?? 0) + 1;
+    };
+    const on = (key: string) => this.isTriggerOn(key, triggers);
+
+    // 1) welcome — email verificata negli ultimi 14 giorni
+    if (on('welcome')) {
+      const users = await this.prisma.user.findMany({
+        where: { role: 'client', deletedAt: null, emailVerifiedAt: { gte: this.daysAgo(14) } },
+        select: { id: true, email: true, firstName: true },
+        take: LifecycleService.BATCH,
+      });
+      for (const u of users) {
+        const r = await this.sendLifecycle({ userId: u.id, email: u.email, key: 'welcome', dedupeKey: 'welcome', vars: { nome: u.firstName ?? '', link: `${app}/` } });
+        bump('welcome', r);
+      }
+    }
+
+    // 2) profilo_pronto — onboarding completato negli ultimi 14 giorni
+    if (on('profilo_pronto')) {
+      const profs = await this.prisma.clientProfile.findMany({
+        where: { onboardingCompletedAt: { gte: this.daysAgo(14) } },
+        select: {
+          userId: true,
+          name: true,
+          dietStyle: true,
+          regime: true,
+          user: { select: { email: true, firstName: true } },
+          assignedCoach: { select: { displayName: true } },
+          assignedNutritionist: { select: { displayName: true } },
+        },
+        take: LifecycleService.BATCH,
+      });
+      for (const p of profs) {
+        const piano = p.dietStyle ? DIET_LABEL[p.dietStyle] ?? String(p.dietStyle) : String(p.regime ?? 'personalizzato');
+        const r = await this.sendLifecycle({
+          userId: p.userId,
+          email: p.user?.email ?? null,
+          key: 'profilo_pronto',
+          dedupeKey: 'profilo_pronto',
+          vars: {
+            nome: p.user?.firstName ?? p.name ?? '',
+            piano,
+            coach: p.assignedCoach?.displayName ?? 'la tua coach',
+            nutrizionista: p.assignedNutritionist?.displayName ?? 'il tuo nutrizionista',
+            link: `${app}/`,
+          },
+        });
+        bump('profilo_pronto', r);
+      }
+    }
+
+    // 3) profilo_incompleto — registrata 1–14 giorni fa, email verificata, onboarding non completato
+    if (on('profilo_incompleto')) {
+      const users = await this.prisma.user.findMany({
+        where: {
+          role: 'client',
+          deletedAt: null,
+          emailVerifiedAt: { not: null },
+          createdAt: { gte: this.daysAgo(14), lte: this.daysAgo(1) },
+          clientProfile: { is: { onboardingCompletedAt: null } },
+        },
+        select: { id: true, email: true, firstName: true },
+        take: LifecycleService.BATCH,
+      });
+      for (const u of users) {
+        const r = await this.sendLifecycle({ userId: u.id, email: u.email, key: 'profilo_incompleto', dedupeKey: 'profilo_incompleto', vars: { nome: u.firstName ?? '', link: `${app}/` } });
+        bump('profilo_incompleto', r);
+      }
+    }
+
+    // 4) piano_domani + onboarding g1/g4/g7 — in base a plan_start_date
+    const dayTriggers: { key: string; offset: number }[] = [
+      { key: 'piano_domani', offset: 1 },
+      { key: 'onb_g1', offset: -1 },
+      { key: 'onb_g4', offset: -4 },
+      { key: 'onb_g7', offset: -7 },
+    ];
+    for (const dt of dayTriggers) {
+      if (!on(dt.key)) continue;
+      const range = this.dayRange(dt.offset);
+      const profs = await this.prisma.clientProfile.findMany({
+        where: { planStartDate: { gte: range.gte, lt: range.lt } },
+        select: {
+          userId: true,
+          name: true,
+          dietStyle: true,
+          regime: true,
+          user: { select: { email: true, firstName: true } },
+          assignedCoach: { select: { displayName: true } },
+          assignedNutritionist: { select: { displayName: true } },
+        },
+        take: LifecycleService.BATCH,
+      });
+      for (const p of profs) {
+        const piano = p.dietStyle ? DIET_LABEL[p.dietStyle] ?? String(p.dietStyle) : String(p.regime ?? 'personalizzato');
+        const r = await this.sendLifecycle({
+          userId: p.userId,
+          email: p.user?.email ?? null,
+          key: dt.key,
+          dedupeKey: dt.key,
+          vars: {
+            nome: p.user?.firstName ?? p.name ?? '',
+            piano,
+            coach: p.assignedCoach?.displayName ?? 'la tua coach',
+            nutrizionista: p.assignedNutritionist?.displayName ?? 'il tuo nutrizionista',
+            link: `${app}/`,
+          },
+        });
+        bump(dt.key, r);
+      }
+    }
+
+    // 5) ev_compleanno — clienti che compiono gli anni oggi (dedup per anno)
+    if (on('ev_compleanno')) {
+      const today = new Date();
+      const tM = today.getUTCMonth();
+      const tD = today.getUTCDate();
+      const year = today.getUTCFullYear();
+      const users = await this.prisma.user.findMany({
+        where: { role: 'client', deletedAt: null, birthDate: { not: null } },
+        select: { id: true, email: true, firstName: true, birthDate: true },
+        take: LifecycleService.BATCH,
+      });
+      for (const u of users) {
+        const b = u.birthDate as Date | null;
+        if (!b || b.getUTCMonth() !== tM || b.getUTCDate() !== tD) continue;
+        const r = await this.sendLifecycle({
+          userId: u.id,
+          email: u.email,
+          key: 'ev_compleanno',
+          dedupeKey: `ev_compleanno:${year}`,
+          vars: { nome: u.firstName ?? '', link: `${app}/` },
+        });
+        bump('ev_compleanno', r);
+      }
+    }
+
+    return counts;
+  }
+}
