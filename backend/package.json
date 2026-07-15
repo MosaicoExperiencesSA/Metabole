@@ -16,6 +16,8 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
     "cleanup:demo": "ts-node --transpile-only prisma/cleanup-demo.ts",
+    "cleanup:clients": "ts-node --transpile-only prisma/cleanup-clients.ts",
+    "fix:diet-names": "ts-node --transpile-only prisma/fix-diet-names.ts",
     "cleanup:content": "ts-node --transpile-only prisma/cleanup-content.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",

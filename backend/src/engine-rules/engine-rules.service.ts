@@ -210,7 +210,7 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
     const validSlots = new Set(slots);
     const diet = await this.prisma.diet.create({
       data: {
-        name: `${preset.label} — bozza generata`,
+        name: preset.label,
         regime, style: preset.style, mealsPerDay: 5,
         levels: [{ level: 1, kcal: targetKcal }], options: {},
         authorId: staff.id, status: 'draft',
