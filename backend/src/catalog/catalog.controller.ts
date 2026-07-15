@@ -103,6 +103,7 @@ export class DietsController {
 
   /** Approvazione riservata al capo (mai la propria dieta). */
   @Roles('head_nutritionist')
+  @RequirePage('diets_catalog', 'view')
   @HttpCode(200)
   @Post(':id/approve')
   approve(@Param('id') id: string, @CurrentUser() user: AuthUser) {
@@ -110,7 +111,11 @@ export class DietsController {
   }
 
   /** Pubblicazione diretta del capo su una PROPRIA dieta (nessuna revisione). */
+  // Livello 'view' sulla pagina: l'azione è già ristretta al capo da @Roles;
+  // il requisito 'manage' del controller bloccherebbe chi ha il catalogo in sola
+  // lettura pur essendo il responsabile.
   @Roles('head_nutritionist')
+  @RequirePage('diets_catalog', 'view')
   @HttpCode(200)
   @Post(':id/publish')
   publish(@Param('id') id: string, @CurrentUser() user: AuthUser) {
@@ -118,6 +123,7 @@ export class DietsController {
   }
 
   @Roles('head_nutritionist')
+  @RequirePage('diets_catalog', 'view')
   @HttpCode(200)
   @Post(':id/reject')
   reject(

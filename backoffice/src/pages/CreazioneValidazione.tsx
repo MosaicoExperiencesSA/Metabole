@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
 import { useTaxonomy } from '../lib/taxonomy';
@@ -42,6 +42,7 @@ export function CreazioneValidazione() {
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
   const [status, setStatus] = useState<ReviewStatus | null>(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isResponsabile = user?.role === 'head_nutritionist'; // il capo pubblica direttamente
   const [preview, setPreview] = useState<{ dayIndex: number; meals: { slot: string; recipe: string; kcal: number }[] }[] | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -118,10 +119,19 @@ export function CreazioneValidazione() {
       // sotto inviano in revisione al capo.
       await api(`/diets/${dietId}/${isResponsabile ? 'publish' : 'submit'}`, { method: 'POST', body: JSON.stringify({}) });
       try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
+      if (isResponsabile) {
+        // Approvata e pubblicata dal responsabile → porta alla Gestione dieta.
+        navigate('/gestione-dieta');
+        return;
+      }
       setDietId(null); setStatus(null); setActivePresetId(null); setDirty(false);
       setForm({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
-      setNotice(isResponsabile ? 'Dieta approvata e pubblicata ✓ La pagina è pronta per un nuovo lavoro.' : 'Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
-    } catch (e) { setError(e instanceof ApiError ? e.message : isResponsabile ? 'Pubblicazione non riuscita.' : 'Invio non riuscito.'); }
+      setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : isResponsabile ? 'Pubblicazione non riuscita.' : 'Invio non riuscito.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     finally { setBusy(false); }
   }
 
@@ -238,8 +248,23 @@ export function CreazioneValidazione() {
           <span className="muted" style={{ fontSize: 12 }}>(consigliato 28 = un mese)</span>
         </label>
         <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
-          <i className="ti ti-sparkles" /> {busy && !status ? 'Genero…' : 'Genera catalogo bozza'}
+          {busy && !status ? (
+            <>
+              <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.45)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginRight: 6, verticalAlign: '-2px' }} />
+              Genero…
+            </>
+          ) : (
+            <>
+              <i className="ti ti-sparkles" /> Genera catalogo bozza
+            </>
+          )}
         </button>
+        {busy && !status && (
+          <p className="muted" style={{ fontSize: 12, marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--line)', borderTopColor: 'var(--teal)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flex: 'none' }} />
+            Sto generando ricette, giornate, alternative e allergeni… può richiedere fino a un minuto.
+          </p>
+        )}
         {!canGenerate && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Scegli una dieta (o salvala se l'hai modificata) per abilitare la generazione.</p>}
       </div>
 
