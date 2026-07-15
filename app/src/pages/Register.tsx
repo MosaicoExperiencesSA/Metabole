@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError, apiPublic } from '../api/client';
 import Gaia from '../components/Gaia';
+import PasswordField from '../components/PasswordField';
 import { TypeText } from '../components/TypeText';
 
 /** Passo 3 di 34 — Crea il tuo account (minimale: l'indirizzo si prende al checkout). */
@@ -133,7 +134,7 @@ export default function Register() {
           </div>
           <div className="field">
             <label>Password</label>
-            <input className="input" type="password" value={f.password} onChange={(e) => up('password', e.target.value)} autoComplete="new-password" minLength={8} required />
+            <PasswordField value={f.password} onChange={(e) => up('password', e.target.value)} autoComplete="new-password" minLength={8} required />
           </div>
           <div className="field">
             <label>Codice invito (facoltativo)</label>

@@ -12,6 +12,8 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
+  /** Motivo dell'ultimo fallimento di generateJson (per messaggi d'errore veritieri). */
+  lastError: string | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -80,8 +82,9 @@ export class AiService {
    * non è disponibile / risposta non parsabile). Usata per generare bozze di catalogo.
    */
   async generateJson<T = unknown>(system: string, userPrompt: string, maxTokens = 4000): Promise<T | null> {
+    this.lastError = null;
     const key = this.config.get<string>('AI_API_KEY');
-    if (!key) return null;
+    if (!key) { this.lastError = 'AI_API_KEY non configurata sul server.'; return null; }
     const model = this.config.get<string>('AI_MODEL') ?? 'claude-haiku-4-5';
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 90_000);
@@ -93,7 +96,14 @@ export class AiService {
         signal: controller.signal,
       });
       if (!res.ok) {
-        this.logger.warn(`AI generateJson: risposta ${res.status}`);
+        const body = await res.text().catch(() => '');
+        const hint =
+          res.status === 401 ? 'chiave AI non valida' :
+          res.status === 404 ? `modello non trovato (${model})` :
+          res.status === 429 ? 'limite di richieste AI raggiunto, riprova tra poco' :
+          `l'AI ha risposto ${res.status}`;
+        this.lastError = `${hint}${body ? ` — ${body.slice(0, 160)}` : ''}`;
+        this.logger.warn(`AI generateJson: risposta ${res.status} ${body.slice(0, 200)}`);
         return null;
       }
       const data = (await res.json()) as { content?: { type: string; text?: string }[] };
@@ -102,7 +112,9 @@ export class AiService {
       const blob = fence ? fence[1] : (text.match(/[[{][\s\S]*[\]}]/)?.[0] ?? text);
       return JSON.parse(blob) as T;
     } catch (err) {
-      this.logger.warn(`AI generateJson non disponibile: ${err instanceof Error ? err.message : String(err)}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      this.lastError = /aborted/i.test(msg) ? 'timeout della richiesta AI (90s)' : msg;
+      this.logger.warn(`AI generateJson non disponibile: ${msg}`);
       return null;
     } finally {
       clearTimeout(timer);

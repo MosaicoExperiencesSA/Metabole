@@ -196,7 +196,7 @@ Infine gruppi di equivalenza (alimenti intercambiabili a struttura simile): [{"n
 Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
 
     const gen = await this.ai.generateJson<{ recipes?: unknown[]; days?: unknown[]; equivalenceGroups?: unknown[] }>(system, user, 12000);
-    if (!gen) throw new BadRequestException('Generazione non disponibile: verifica che AI_API_KEY sia configurata su Render e riprova.');
+    if (!gen) throw new BadRequestException(`Generazione non riuscita: ${this.ai.lastError ?? 'assistente AI non disponibile'}.`);
     const recipes = Array.isArray(gen.recipes) ? (gen.recipes as Record<string, unknown>[]) : [];
     if (recipes.length === 0) throw new BadRequestException('L\'AI non ha prodotto ricette valide: riprova.');
 

@@ -1,9 +1,14 @@
 
-## Shop backoffice (prodotti) — da fare
+## Shop backoffice (prodotti) — FATTO (superato)
 Quando si crea il backoffice dello shop (creazione prodotti), ogni prodotto deve
 avere un flag "provvigioni a": team coaching | team nutrizionisti | entrambi.
 Il motore provvigioni (finance.service) dovrà rispettare questo flag per decidere
 quali quote pagare.
+
+AGGIORNAMENTO: già implementato in modo più completo del flag: ogni piano/prodotto ha gli
+importi di provvigione PER RUOLO in centesimi (coach, manager coach, nutrizionista, capo
+nutrizionista), impostabili dal Negozio. finance.service.generateCommissions li somma e li
+applica (sconti proporzionali, 0 = nessuna). Il vecchio commissionTeam è stato sostituito.
 
 ## Coach — video di presentazione (da fare)
 Nella scheda di registrazione/profilo della coach (backoffice) aggiungere il supporto per

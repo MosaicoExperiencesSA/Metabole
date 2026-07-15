@@ -30,9 +30,9 @@ export default function Diversi() {
 
         {/* Bolla Gaia */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', margin: '10px 0 14px' }}>
-          <div style={{ flex: 'none' }}><Gaia size={48} controls={false} /></div>
+          <div style={{ flex: 'none' }}><Gaia clip="diversi" size={48} controls={false} /></div>
           <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: '14px 14px 14px 4px', padding: '10px 12px', fontSize: 14, boxShadow: 'var(--shadow)' }}>
-            <TypeText segments={[{ t: 'Prima di iniziare, lascia che ti spieghi in cosa siamo diversi.' }]} />
+            <TypeText segments={[{ t: 'Prima di iniziare, lascia che ti spieghi in cosa siamo diversi: cinque cose che, insieme, non trovi altrove.' }]} />
           </div>
         </div>
 
