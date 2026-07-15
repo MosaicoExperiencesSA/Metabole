@@ -104,13 +104,31 @@ export class CatalogService {
    *  - methods → n° percorsi visibili (uno per stile), coerente con /public/paths
    */
   async publicStats() {
-    const [paths, realClients, realReached] = await Promise.all([
+    // Persone RAGGIUNTE = tutte le schede CRM (lead + clienti + clienti storici).
+    // Clienti SEGUITI = clienti Metabole (abbonamento attivato almeno una volta)
+    //   + clienti storici (pagamento pregresso, historicalPaidCents > 0), senza doppioni.
+    const [paths, realReached, activeSubs] = await Promise.all([
       this.publicPaths(),
-      // "clienti seguiti" = abbonamenti attivati almeno una volta (startDate impostata
-      // all'attivazione e mai rimossa: conta anche i percorsi poi scaduti/disdetti).
-      this.prisma.subscription.count({ where: { startDate: { not: null } } }),
       this.prisma.crmRecord.count(),
+      this.prisma.subscription.findMany({
+        where: { startDate: { not: null }, clientId: { not: null } },
+        select: { clientId: true },
+        distinct: ['clientId'],
+      }),
     ]);
+    const activeClientIds = (activeSubs as { clientId: string | null }[])
+      .map((r) => r.clientId)
+      .filter((x): x is string => !!x);
+    const metaboleClients = activeClientIds.length;
+    // Clienti storici che NON sono già clienti Metabole (per non contarli due volte).
+    const storiciNotMetabole = await this.prisma.crmRecord.count({
+      where: {
+        historicalPaidCents: { gt: 0 },
+        OR: [{ clientId: null }, ...(activeClientIds.length ? [{ clientId: { notIn: activeClientIds } }] : [])],
+      },
+    });
+    const realClients = metaboleClients + storiciNotMetabole;
+
     const [years, clientsBase, reachedBase] = await Promise.all([
       this.config.getNumber('site_stats_years', 0),
       this.config.getNumber('stats_clients_base', 0),
