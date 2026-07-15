@@ -29,6 +29,7 @@ export const ENGINE_RULES: EngineRule[] = [
 
   // --- Macro / bilanciamento ---
   { code: 'menu_kcal_balance_tolerance_pct', label: 'Tolleranza kcal (%)', description: 'Scarto percentuale ammesso attorno alle kcal target del livello.', category: 'macro', kind: 'number', default: 15, min: 5, max: 30, step: 1, unit: '%', perDiet: true },
+  { code: 'menu_daycombo_kcal_target', label: 'Kcal target giornata', description: 'Kcal target della giornata usate dal generatore di catalogo/bozze e dalla composizione DayCombo (per-dieta).', category: 'macro', kind: 'number', default: 1500, min: 600, max: 4000, step: 10, unit: 'kcal', perDiet: true },
   { code: 'menu_daycombo_protein_min', label: 'Quota proteica minima', description: 'Frazione minima di proteine sui macro della giornata (0–1). Es. 0,20 = 20%.', category: 'macro', kind: 'number', default: 0.2, min: 0, max: 1, step: 0.01, unit: 'frazione', perDiet: true },
   { code: 'menu_daycombo_protein_max', label: 'Quota proteica massima', description: 'Frazione massima di proteine sui macro della giornata (0–1). Es. 0,40 = 40%.', category: 'macro', kind: 'number', default: 0.45, min: 0, max: 1, step: 0.01, unit: 'frazione', perDiet: true },
 
