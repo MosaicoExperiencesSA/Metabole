@@ -3,6 +3,7 @@ import { IsEmail, IsObject, IsOptional, IsString, MaxLength } from 'class-valida
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { MarketingService, SegmentFilters } from './marketing.service';
 
 class PreviewDto {
@@ -19,6 +20,7 @@ class TestDto {
 }
 
 @Controller('marketing')
+@RequirePage('marketing')
 @Roles('marketing', 'head_marketing', 'admin')
 export class MarketingController {
   constructor(private readonly service: MarketingService) {}

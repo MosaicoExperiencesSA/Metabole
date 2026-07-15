@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { CatalogService } from './catalog.service';
 import { SetRecipeAllergensDto } from './dto/allergens.dto';
@@ -29,6 +30,7 @@ import {
 
 /** Diete: il nutrizionista propone, il capo approva. */
 @Controller('diets')
+@RequirePage('diets_catalog')
 @Roles('nutritionist', 'head_nutritionist')
 export class DietsController {
   constructor(private readonly catalog: CatalogService) {}
@@ -144,6 +146,7 @@ export class CatalogController {
 
 /** Ricette: lettura anche per le clienti (dal menu), scrittura per nutrizionisti. */
 @Controller('recipes')
+@RequirePage('recipes')
 export class RecipesController {
   constructor(private readonly catalog: CatalogService) {}
 

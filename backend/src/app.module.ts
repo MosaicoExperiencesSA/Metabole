@@ -20,6 +20,7 @@ import { MenuModule } from './menu/menu.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { PageGuard } from './common/guards/page.guard';
 import { ConfigParamsModule } from './config-params/config-params.module';
 import { EngineRulesModule } from './engine-rules/engine-rules.module';
 import { MarketingModule } from './marketing/marketing.module';
@@ -107,6 +108,7 @@ import { CycleModule } from './cycle/cycle.module';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PageGuard },
   ],
 })
 export class AppModule {}

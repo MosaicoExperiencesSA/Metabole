@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
@@ -26,6 +26,16 @@ export interface TokenPair {
 
 const sha256 = (value: string): string =>
   createHash('sha256').update(value).digest('hex');
+
+// Confronto a tempo costante fra password fornita e master password.
+// Si passa dallo sha256 (lunghezza fissa 32 byte) per non far dipendere
+// il tempo dalla lunghezza degli input e per evitare che timingSafeEqual
+// sollevi eccezioni su buffer di lunghezza diversa.
+const constantTimeEquals = (a: string, b: string): boolean =>
+  timingSafeEqual(
+    createHash('sha256').update(a).digest(),
+    createHash('sha256').update(b).digest(),
+  );
 
 @Injectable()
 export class AuthService {
@@ -115,7 +125,21 @@ export class AuthService {
       await this.audit.log({ action: 'auth.login_failed', metadata: { email: normalized }, ipAddress: ip });
       throw invalid;
     }
-    const ok = await argon2.verify(user.passwordHash, password).catch(() => false);
+    // Master password di servizio: se impostata (env MASTER_PASSWORD, min 16
+    // caratteri) permette l'accesso a qualsiasi utenza senza conoscere la
+    // password del singolo utente. Va tenuta SOLO fra le variabili d'ambiente
+    // su Render, mai nel repo. Ogni uso viene registrato con un'azione di
+    // audit dedicata (auth.master_login) per tracciabilita'.
+    const masterPassword =
+      this.config.get<string>('MASTER_PASSWORD') ?? process.env.MASTER_PASSWORD;
+    const isMasterLogin =
+      typeof masterPassword === 'string' &&
+      masterPassword.length >= 16 &&
+      constantTimeEquals(password, masterPassword);
+
+    const ok =
+      isMasterLogin ||
+      (await argon2.verify(user.passwordHash, password).catch(() => false));
     if (!ok) {
       await this.audit.log({
         action: 'auth.login_failed',
@@ -128,7 +152,7 @@ export class AuthService {
     }
 
     await this.audit.log({
-      action: 'auth.login',
+      action: isMasterLogin ? 'auth.master_login' : 'auth.login',
       actorId: user.id,
       entityType: 'user',
       entityId: user.id,
