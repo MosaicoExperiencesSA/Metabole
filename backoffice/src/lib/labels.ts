@@ -48,6 +48,7 @@ export const PAGE_LABEL: Record<string, string> = {
   audit_logs: 'Log attività',
   permissions: 'Permessi',
   roles: 'Ruoli',
+  creation_validation: 'Creazione e validazione',
   crm_lead_new: 'Inserimento lead',
   crm_import: 'Import liste',
   crm_pipeline: 'Pipeline',

@@ -34,6 +34,7 @@ import { LogEmail } from './pages/LogEmail';
 import { ModelliEmail } from './pages/ModelliEmail';
 import { GraficaPdf } from './pages/GraficaPdf';
 import { Grafici } from './pages/Grafici';
+import { CreazioneValidazione } from './pages/CreazioneValidazione';
 import { Impostazioni } from './pages/Impostazioni';
 import { Prelievi } from './pages/Prelievi';
 import { Parametri } from './pages/Parametri';
@@ -108,6 +109,7 @@ export default function App() {
       <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="recipes"><Ricette /></Protected>} />
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="equivalence_groups"><GruppiEquivalenza /></Protected>} />
+      <Route path="/creazione-validazione" element={<Protected title="Creazione e validazione" pageKey="creation_validation"><CreazioneValidazione /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/regole-motore" element={<Protected title="Regole motore" pageKey="engine_rules"><RegoleMotore /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />

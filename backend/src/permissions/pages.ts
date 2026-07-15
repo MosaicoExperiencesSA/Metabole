@@ -49,6 +49,7 @@ export const BACKOFFICE_PAGES = [
   'equivalence_groups', // Gruppi di equivalenza (da diets_catalog)
   'allergens',          // Allergeni ricette (da recipes)
   'roles',              // Ruoli (da permissions)
+  'creation_validation', // Pagina guidata Creazione e validazione
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -189,6 +190,7 @@ const INHERIT_DEFAULTS: Record<string, PageKey> = {
   equivalence_groups: 'diets_catalog',
   allergens: 'recipes',
   roles: 'permissions',
+  creation_validation: 'diets_catalog',
 };
 
 for (const role of Object.keys(DEFAULT_PERMISSIONS) as Role[]) {

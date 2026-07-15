@@ -1,0 +1,239 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api, ApiError } from '../api/client';
+import { Banner, Spinner } from '../components/ui';
+
+type Preset = {
+  id: string; style: string; label: string; description?: string | null;
+  regime?: string | null; objective?: string | null; rules?: Record<string, unknown> | null;
+  clinicalNotes?: string | null; suggested?: boolean;
+};
+type ReviewStatus = {
+  dietId: string; name: string; status: string; mealsPerDay: number;
+  recipes: { total: number; active: number; allergensReviewed: number };
+  days: { total: number; complete: number };
+  groups: { total: number; approved: number };
+};
+
+const LS_DIET = 'metabole_bo_wizard_diet';
+const REGIMI = [{ v: 'omnivore', l: 'Onnivoro' }, { v: 'vegetarian', l: 'Vegetariano' }, { v: 'vegan', l: 'Vegano' }];
+const OBIETTIVI = [{ v: 'dimagrimento', l: 'Dimagrimento' }, { v: 'mantenimento', l: 'Mantenimento' }];
+
+/**
+ * Pagina guidata Creazione e validazione: dal preset suggerito → generazione bozza →
+ * validazione passo-passo (avanzamento automatico) → invio in revisione. A fine lavori
+ * la pagina si azzera. Le altre pagine (catalogo, regole, ecc.) restano.
+ */
+export function CreazioneValidazione() {
+  const [presets, setPresets] = useState<Preset[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [form, setForm] = useState({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '' });
+  const [sourceRules, setSourceRules] = useState<Record<string, unknown>>({});
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+
+  const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
+  const [status, setStatus] = useState<ReviewStatus | null>(null);
+
+  useEffect(() => {
+    api<Preset[]>('/engine-rules/presets').then(setPresets).catch((e) => { setPresets([]); setError(e instanceof Error ? e.message : 'Caricamento regole non riuscito.'); });
+  }, []);
+  useEffect(() => {
+    if (!dietId) { setStatus(null); return; }
+    api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`).then(setStatus).catch(() => setStatus(null));
+  }, [dietId]);
+
+  function pickPreset(p: Preset) {
+    setForm({ label: p.label, style: p.style, regime: (p.regime as string) || 'omnivore', objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '' });
+    setSourceRules((p.rules as Record<string, unknown>) || {});
+    setActivePresetId(p.id); setDirty(false); setNotice(null); setError(null);
+  }
+  function newPreset() {
+    setForm({ label: '', style: 'custom', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '' });
+    setSourceRules({}); setActivePresetId(null); setDirty(true); setNotice(null); setError(null);
+  }
+  function edit(k: 'label' | 'style' | 'regime' | 'objective' | 'clinicalNotes', v: string) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
+
+  async function saveAsNew() {
+    if (!form.label.trim()) { setError('Dai un nome alla regola.'); return; }
+    setBusy(true); setError(null);
+    try {
+      const created = await api<Preset>('/engine-rules/presets', { method: 'POST', body: JSON.stringify({
+        label: form.label.trim(), style: form.style || 'custom', regime: form.regime, objective: form.objective,
+        clinicalNotes: form.clinicalNotes || undefined, rules: sourceRules, suggested: false,
+      }) });
+      setActivePresetId(created.id); setDirty(false);
+      setPresets((ps) => (ps ? [created, ...ps] : [created]));
+      setNotice('Regola salvata. Ora puoi generare il catalogo.');
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
+    finally { setBusy(false); }
+  }
+
+  async function generate() {
+    if (!activePresetId) { setError('Scegli o salva una regola prima di generare.'); return; }
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const r = await api<{ dietId: string }>(`/engine-rules/presets/${activePresetId}/generate-catalog`, { method: 'POST', body: JSON.stringify({}) });
+      try { localStorage.setItem(LS_DIET, r.dietId); } catch { /* no-op */ }
+      setDietId(r.dietId);
+      setNotice('Catalogo bozza generato. Procedi con la validazione qui sotto.');
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
+    finally { setBusy(false); }
+  }
+
+  async function act(path: string) {
+    if (!dietId) return;
+    setBusy(true); setError(null);
+    try { setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/${path}`, { method: 'POST', body: JSON.stringify({}) })); }
+    catch (e) { setError(e instanceof ApiError ? e.message : 'Operazione non riuscita.'); }
+    finally { setBusy(false); }
+  }
+
+  async function publish() {
+    if (!dietId) return;
+    setBusy(true); setError(null);
+    try {
+      await api(`/diets/${dietId}/submit`, { method: 'POST', body: JSON.stringify({}) });
+      try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
+      setDietId(null); setStatus(null); setActivePresetId(null); setDirty(false);
+      setForm({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '' });
+      setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Invio non riuscito.'); }
+    finally { setBusy(false); }
+  }
+
+  function reset() {
+    try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
+    setDietId(null); setStatus(null); setNotice(null);
+  }
+
+  if (presets === null) return <Spinner />;
+
+  const canGenerate = !!activePresetId && !dirty;
+  const s = status;
+  const done = s ? {
+    recipes: s.recipes.total > 0 && s.recipes.active === s.recipes.total,
+    allergens: s.recipes.total > 0 && s.recipes.allergensReviewed === s.recipes.total,
+    days: s.days.total > 0 && s.days.complete === s.days.total,
+    groups: s.groups.total === 0 || s.groups.approved === s.groups.total,
+  } : null;
+  const allReady = !!done && done.recipes && done.allergens && done.days && done.groups;
+
+  return (
+    <>
+      {error && <Banner kind="err">{error}</Banner>}
+      {notice && <Banner kind="ok">{notice}</Banner>}
+
+      <div className="card" style={{ background: 'linear-gradient(120deg,var(--deep),var(--teal))', color: '#fff', border: 'none' }}>
+        <h2 style={{ color: '#fff', marginTop: 0 }}>Creazione e validazione</h2>
+        <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
+          Una guida passo-passo: parti da una regola suggerita, genera il catalogo bozza e validalo fino all'invio in revisione. A fine lavori questa pagina si azzera.
+        </p>
+      </div>
+
+      {/* PASSO 1 — Regola */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>1</span> Scegli la regola</h2>
+        <p className="hint" style={{ marginTop: 0 }}>Richiama una regola suggerita e modificala, salvala col suo nome, oppure creane una nuova.</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {presets.map((p) => (
+            <button key={p.id} className="chip" onClick={() => pickPreset(p)}
+              style={{ cursor: 'pointer', gap: 6, borderColor: activePresetId === p.id ? 'var(--teal)' : undefined, background: activePresetId === p.id ? 'var(--chip)' : undefined }}>
+              <i className="ti ti-bulb" /> {p.label}{p.suggested ? ' · suggerita' : ''}
+            </button>
+          ))}
+          <button className="chip" onClick={newPreset} style={{ cursor: 'pointer', gap: 6 }}><i className="ti ti-plus" /> Nuova regola</button>
+        </div>
+
+        {(activePresetId !== null || dirty) && (
+          <div style={{ display: 'grid', gap: 10, maxWidth: 560 }}>
+            <label style={{ display: 'block' }}>
+              <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Nome della regola</span>
+              <input className="input" value={form.label} onChange={(e) => edit('label', e.target.value)} placeholder="es. Mediterranea ipocalorica" />
+            </label>
+            <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+              <label style={{ flex: 1, minWidth: 160 }}>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Regime</span>
+                <select className="select" value={form.regime} onChange={(e) => edit('regime', e.target.value)}>
+                  {REGIMI.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
+                </select>
+              </label>
+              <label style={{ flex: 1, minWidth: 160 }}>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Obiettivo</span>
+                <select className="select" value={form.objective} onChange={(e) => edit('objective', e.target.value)}>
+                  {OBIETTIVI.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+                </select>
+              </label>
+            </div>
+            <label style={{ display: 'block' }}>
+              <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Note cliniche (opzionale)</span>
+              <textarea className="input" rows={2} value={form.clinicalNotes} onChange={(e) => edit('clinicalNotes', e.target.value)} placeholder="Vincoli o indicazioni da rispettare nella generazione" />
+            </label>
+            <div className="row" style={{ gap: 8 }}>
+              <button className="btn ghost" onClick={saveAsNew} disabled={busy}><i className="ti ti-device-floppy" /> Salva come nuova regola</button>
+              {dirty && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>Modifiche non salvate: salva per poter generare.</span>}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PASSO 2 — Genera */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>2</span> Genera il catalogo</h2>
+        <p className="hint" style={{ marginTop: 0 }}>Crea una bozza (ricette, giornate, alternative, allergeni) dalla regola scelta. Può richiedere fino a un minuto.</p>
+        <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
+          <i className="ti ti-sparkles" /> {busy && !status ? 'Genero…' : 'Genera catalogo bozza'}
+        </button>
+        {!canGenerate && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Scegli una regola (o salvala se l'hai modificata) per abilitare la generazione.</p>}
+      </div>
+
+      {/* PASSO 3 — Valida */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>3</span> Valida e pubblica</h2>
+        {!s ? (
+          <p className="muted" style={{ marginTop: 0 }}>Genera un catalogo per iniziare la validazione guidata.</p>
+        ) : (
+          <>
+            <p className="hint" style={{ marginTop: 0 }}>Bozza: <b>{s.name}</b> · stato {s.status}. Completa i passi (le spunte si aggiornano da sole).</p>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <StepRow ok={!!done?.recipes} title="Ricette" detail={`${s.recipes.active}/${s.recipes.total} attive`}
+                action={<button className="btn ghost sm" onClick={() => act('activate-recipes')} disabled={busy}>Attiva tutte</button>}
+                link={<Link className="btn ghost sm" to="/ricette">Rivedi</Link>} />
+              <StepRow ok={!!done?.allergens} title="Allergeni" detail={`${s.recipes.allergensReviewed}/${s.recipes.total} approvati`}
+                action={<button className="btn ghost sm" onClick={() => act('review-allergens')} disabled={busy}>Approva tutti</button>}
+                link={<Link className="btn ghost sm" to="/tag-allergeni">Rivedi</Link>} />
+              <StepRow ok={!!done?.days} title="Giornate" detail={`${s.days.complete}/${s.days.total} complete`}
+                link={<Link className="btn ghost sm" to="/diete">Componi</Link>} />
+              <StepRow ok={!!done?.groups} title="Gruppi di equivalenza" detail={s.groups.total === 0 ? 'nessuno' : `${s.groups.approved}/${s.groups.total} confermati`}
+                action={s.groups.total > 0 ? <button className="btn ghost sm" onClick={() => act('approve-groups')} disabled={busy}>Conferma tutti</button> : undefined}
+                link={<Link className="btn ghost sm" to="/gruppi-equivalenza">Rivedi</Link>} />
+            </div>
+            <div className="row" style={{ gap: 8, marginTop: 16 }}>
+              <button className="btn" onClick={publish} disabled={busy || !allReady} title={allReady ? '' : 'Completa tutti i passi'}>
+                <i className="ti ti-send" /> Invia in revisione
+              </button>
+              <button className="btn ghost" onClick={reset} disabled={busy}>Annulla questa bozza</button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function StepRow({ ok, title, detail, action, link }: { ok: boolean; title: string; detail: string; action?: React.ReactNode; link?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: ok ? 'var(--chip)' : 'var(--card)' }}>
+      <i className={`ti ${ok ? 'ti-circle-check' : 'ti-circle'}`} style={{ fontSize: 22, color: ok ? 'var(--ok-ink)' : 'var(--muted)', flex: 'none' }} />
+      <span style={{ flex: 1 }}>
+        <b style={{ display: 'block', fontSize: 14 }}>{title}</b>
+        <span className="muted" style={{ fontSize: 12 }}>{detail}</span>
+      </span>
+      {!ok && action}
+      {link}
+    </div>
+  );
+}

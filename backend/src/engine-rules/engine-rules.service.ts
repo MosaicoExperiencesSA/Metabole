@@ -250,7 +250,7 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
       const items = Array.isArray(g.items) ? g.items.map((x) => String(x)) : [];
       if (!g.name || items.length < 2) continue;
       await this.prisma.equivalenceGroup.create({
-        data: { name: String(g.name).slice(0, 120), productId: null, members: { items } as never, status: 'draft', version: 1 } as never,
+        data: { name: String(g.name).slice(0, 120), productId: diet.id, members: { items } as never, status: 'draft', version: 1 } as never,
       });
       grpCount++;
     }
@@ -269,6 +269,82 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
 
     await this.audit.log({ action: 'engine_rule.preset.generate_catalog', actorId, entityType: 'diet', entityId: diet.id, metadata: { presetId, recipes: recCount, days: dayCount, groups: grpCount } });
     return { dietId: diet.id, dietName: diet.name, recipes: recCount, days: dayCount, groups: grpCount };
+  }
+
+  // ---------- Creazione e validazione (wizard) ----------
+
+  private slotsForMeals(n: number): string[] {
+    return n <= 3
+      ? ['breakfast', 'lunch', 'dinner']
+      : n === 4
+        ? ['breakfast', 'lunch', 'afternoon_snack', 'dinner']
+        : ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
+  }
+
+  private async dietRecipeIds(dietId: string): Promise<string[]> {
+    const templates = (await this.prisma.dietDayTemplate.findMany({ where: { dietId }, select: { meals: true } })) as { meals: unknown }[];
+    const ids = new Set<string>();
+    for (const t of templates) {
+      for (const m of (Array.isArray(t.meals) ? t.meals : []) as { recipeId?: string }[]) {
+        if (m.recipeId) ids.add(m.recipeId);
+      }
+    }
+    return [...ids];
+  }
+
+  /** Avanzamento automatico della validazione di una dieta bozza. */
+  async dietReviewStatus(dietId: string) {
+    const diet = (await this.prisma.diet.findUnique({ where: { id: dietId }, include: { dayTemplates: { select: { meals: true } } } })) as
+      | { id: string; name: string; status: string; mealsPerDay: number; dayTemplates: { meals: unknown }[] }
+      | null;
+    if (!diet) throw new NotFoundException('Dieta non trovata.');
+    const needed = this.slotsForMeals(diet.mealsPerDay);
+    const ids = new Set<string>();
+    for (const t of diet.dayTemplates) {
+      for (const m of (Array.isArray(t.meals) ? t.meals : []) as { slot?: string; recipeId?: string }[]) {
+        if (m.recipeId) ids.add(m.recipeId);
+      }
+    }
+    const recipes = ids.size
+      ? ((await this.prisma.recipe.findMany({ where: { id: { in: [...ids] } }, select: { id: true, active: true, allergensReviewed: true } })) as { id: string; active: boolean; allergensReviewed: boolean }[])
+      : [];
+    const daysComplete = diet.dayTemplates.filter((t) => {
+      const meals = (Array.isArray(t.meals) ? t.meals : []) as { slot?: string; recipeId?: string }[];
+      return needed.every((sl) => meals.some((m) => m.slot === sl && !!m.recipeId));
+    }).length;
+    const groups = (await this.prisma.equivalenceGroup.findMany({ where: { productId: dietId }, select: { status: true } })) as { status: string }[];
+    return {
+      dietId: diet.id,
+      name: diet.name,
+      status: diet.status,
+      mealsPerDay: diet.mealsPerDay,
+      recipes: { total: recipes.length, active: recipes.filter((r) => r.active).length, allergensReviewed: recipes.filter((r) => r.allergensReviewed).length },
+      days: { total: diet.dayTemplates.length, complete: daysComplete },
+      groups: { total: groups.length, approved: groups.filter((g) => g.status === 'approved').length },
+    };
+  }
+
+  /** Attiva tutte le ricette della dieta (fine revisione ricette). */
+  async activateDietRecipes(dietId: string, actorId: string) {
+    const ids = await this.dietRecipeIds(dietId);
+    if (ids.length) await this.prisma.recipe.updateMany({ where: { id: { in: ids } }, data: { active: true } });
+    await this.audit.log({ action: 'engine_rule.review.activate_recipes', actorId, entityType: 'diet', entityId: dietId, metadata: { count: ids.length } });
+    return this.dietReviewStatus(dietId);
+  }
+
+  /** Segna gli allergeni come verificati per tutte le ricette della dieta. */
+  async reviewDietAllergens(dietId: string, actorId: string) {
+    const ids = await this.dietRecipeIds(dietId);
+    if (ids.length) await this.prisma.recipe.updateMany({ where: { id: { in: ids } }, data: { allergensReviewed: true } });
+    await this.audit.log({ action: 'engine_rule.review.allergens', actorId, entityType: 'diet', entityId: dietId, metadata: { count: ids.length } });
+    return this.dietReviewStatus(dietId);
+  }
+
+  /** Conferma (approva) i gruppi di equivalenza collegati alla dieta. */
+  async approveDietGroups(dietId: string, actorId: string) {
+    await this.prisma.equivalenceGroup.updateMany({ where: { productId: dietId }, data: { status: 'approved' } });
+    await this.audit.log({ action: 'engine_rule.review.approve_groups', actorId, entityType: 'diet', entityId: dietId });
+    return this.dietReviewStatus(dietId);
   }
 
   // ---------- Proposte di regole nuove ----------

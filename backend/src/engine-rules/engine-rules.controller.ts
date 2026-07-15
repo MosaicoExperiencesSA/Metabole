@@ -84,6 +84,26 @@ export class EngineRulesController {
     return this.service.generateCatalogFromPreset(id, u.sub);
   }
 
+  @Get('diets/:id/review-status')
+  reviewStatus(@Param('id') id: string) {
+    return this.service.dietReviewStatus(id);
+  }
+
+  @Post('diets/:id/activate-recipes')
+  activateRecipes(@Param('id') id: string, @CurrentUser() u: AuthUser) {
+    return this.service.activateDietRecipes(id, u.sub);
+  }
+
+  @Post('diets/:id/review-allergens')
+  reviewAllergens(@Param('id') id: string, @CurrentUser() u: AuthUser) {
+    return this.service.reviewDietAllergens(id, u.sub);
+  }
+
+  @Post('diets/:id/approve-groups')
+  approveGroups(@Param('id') id: string, @CurrentUser() u: AuthUser) {
+    return this.service.approveDietGroups(id, u.sub);
+  }
+
   @Get('proposals')
   proposals() {
     return this.service.listProposals();

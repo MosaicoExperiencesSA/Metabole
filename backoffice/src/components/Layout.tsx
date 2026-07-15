@@ -76,6 +76,7 @@ export const NAV: NavSection[] = [
   {
     group: 'Contenuti',
     items: [
+      { key: 'creation_validation', label: 'Creazione e validazione', to: '/creazione-validazione', icon: 'ti-wand' },
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
       { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
       { key: 'allergens', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
