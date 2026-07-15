@@ -817,9 +817,13 @@ async function seedEquivalenceGroups(): Promise<void> {
  * fatte dal capo nutrizionista ai preset.
  */
 async function seedRulePresets(): Promise<void> {
-  const existing = await prisma.rulePreset.count();
-  if (existing > 0) return;
+  // Idempotente: aggiunge solo i preset MANCANTI (per stile+etichetta), senza toccare
+  // quelli esistenti o le modifiche del nutrizionista. Così i nuovi preset compaiono
+  // ai deploy successivi anche se la tabella è già popolata.
+  let added = 0;
   for (const p of SUGGESTED_PRESETS) {
+    const exists = await prisma.rulePreset.findFirst({ where: { style: p.style, label: p.label }, select: { id: true } });
+    if (exists) continue;
     await prisma.rulePreset.create({
       data: {
         style: p.style,
@@ -834,8 +838,9 @@ async function seedRulePresets(): Promise<void> {
         sortOrder: p.sortOrder,
       },
     });
+    added++;
   }
-  console.log(`Seed: ${SUGGESTED_PRESETS.length} regole suggerite per tipo di nutrizione inserite (flag suggerita).`);
+  console.log(`Seed: ${added} nuove regole suggerite inserite (su ${SUGGESTED_PRESETS.length} totali, flag suggerita).`);
 }
 
 async function main(): Promise<void> {
