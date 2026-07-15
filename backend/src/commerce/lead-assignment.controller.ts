@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -8,6 +8,16 @@ import { LeadAssignmentService } from './lead-assignment.service';
 class AssignCoachDto {
   @IsUUID()
   coachStaffId!: string;
+}
+class AssignCoachBulkDto {
+  @IsUUID()
+  coachStaffId!: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  recordIds!: string[];
 }
 class AssignNutritionistDto {
   // stringa vuota = rimuovi; UUID = assegna quel nutrizionista.
@@ -40,6 +50,14 @@ export class LeadAssignmentController {
   @Post('leads/:id/assign-coach')
   assign(@Param('id') id: string, @Body() dto: AssignCoachDto, @CurrentUser() user: AuthUser) {
     return this.svc.assignCoach(id, dto.coachStaffId, user.sub);
+  }
+
+  /** Assegnazione massiva: piu' lead selezionati alla stessa coach in un passaggio. */
+  @Roles('coach', 'sales', 'head_nutritionist', 'admin')
+  @HttpCode(200)
+  @Post('leads/assign-coach-bulk')
+  assignBulk(@Body() dto: AssignCoachBulkDto, @CurrentUser() user: AuthUser) {
+    return this.svc.assignCoachMany(dto.recordIds, dto.coachStaffId, user.sub);
   }
 
   /** Elenco coach per il menu di assegnazione. */

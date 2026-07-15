@@ -23,14 +23,9 @@ export default function NutriDashboard() {
 
   return (
     <StaffShell
-      title="Dashboard"
+      title={`Ciao, Dr. ${user?.lastName || user?.firstName || ''}`.trim()}
       tabs={NUTRI_TABS}
       headerBadge={dash.data ? dash.data.pendingDocuments + dash.data.openEscalations : undefined}
-      right={
-        <span className="sf-header-brand" style={{ maxWidth: 90, textAlign: 'right' }}>
-          Dr. {user?.lastName || user?.firstName || ''}
-        </span>
-      }
     >
       <Async state={dash}>
         {(d) => (

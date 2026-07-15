@@ -57,6 +57,11 @@ export function LeadsTable() {
   const [allLists, setAllLists] = useState<CrmList[]>([]);
   const [listFilter, setListFilter] = useState(''); // '' = tutte
   const [showLists, setShowLists] = useState(false);
+  // Assegnazione massiva: id selezionati + coach scelta nella barra.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkCoach, setBulkCoach] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
 
   async function assignCoach(l: Lead, coachStaffId: string) {
     if (!coachStaffId) return;
@@ -80,6 +85,47 @@ export function LeadsTable() {
         : x)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Assegnazione non riuscita.');
+    }
+  }
+
+  function toggleSel(id: string) {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+  function toggleAllVisible() {
+    setSelected((prev) => {
+      const allSel = filtered.length > 0 && filtered.every((l) => prev.has(l.id));
+      const n = new Set(prev);
+      if (allSel) filtered.forEach((l) => n.delete(l.id));
+      else filtered.forEach((l) => n.add(l.id));
+      return n;
+    });
+  }
+  async function bulkAssign() {
+    const recordIds = filtered.filter((l) => selected.has(l.id)).map((l) => l.id);
+    if (!bulkCoach || recordIds.length === 0) return;
+    setBulkBusy(true);
+    setError(null);
+    setOkMsg(null);
+    try {
+      const res = await api<{ assigned: number }>('/crm/leads/assign-coach-bulk', {
+        method: 'POST',
+        body: JSON.stringify({ coachStaffId: bulkCoach, recordIds }),
+      });
+      const coach = coaches.find((c) => c.id === bulkCoach) ?? null;
+      const idset = new Set(recordIds);
+      setLeads((ls) => ls.map((x) => (idset.has(x.id) ? { ...x, assignedCoachId: bulkCoach, assignmentStatus: 'pending', assignedCoach: coach } : x)));
+      setSelected(new Set());
+      setBulkCoach('');
+      setOkMsg(`${res.assigned} lead assegnati a ${coach?.displayName ?? 'coach'}. La coach deve accettarli entro 2 giorni.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Assegnazione massiva non riuscita.');
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -158,6 +204,20 @@ export function LeadsTable() {
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
+      {okMsg && <Banner kind="ok">{okMsg}</Banner>}
+      {canAssignCoach && selected.size > 0 && (
+        <div className="card" style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span><b>{selected.size}</b> lead selezionati</span>
+          <select className="select" style={{ width: 200 }} value={bulkCoach} onChange={(e) => setBulkCoach(e.target.value)} title="Coach a cui assegnare i lead selezionati">
+            <option value="">— scegli coach —</option>
+            {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+          </select>
+          <button className="btn" onClick={bulkAssign} disabled={!bulkCoach || bulkBusy}>
+            <i className="ti ti-user-check" /> Assegna {selected.size} lead
+          </button>
+          <button className="btn ghost" onClick={() => setSelected(new Set())} disabled={bulkBusy}>Deseleziona</button>
+        </div>
+      )}
       {showLists && <ListsManager lists={allLists} onClose={() => setShowLists(false)} onChanged={load} />}
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
@@ -167,6 +227,16 @@ export function LeadsTable() {
           <table className="grid" style={{ minWidth: 920 }}>
             <thead>
               <tr>
+                {canAssignCoach && (
+                  <th style={{ width: 34 }}>
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && filtered.every((l) => selected.has(l.id))}
+                      onChange={toggleAllVisible}
+                      title="Seleziona/deseleziona tutti i visibili"
+                    />
+                  </th>
+                )}
                 <th>Nome</th>
                 <th>Email</th>
                 <th>Stato</th>
@@ -182,6 +252,11 @@ export function LeadsTable() {
                 const st = stageOf(l.stage);
                 return (
                   <tr key={l.id}>
+                    {canAssignCoach && (
+                      <td>
+                        <input type="checkbox" checked={selected.has(l.id)} onChange={() => toggleSel(l.id)} />
+                      </td>
+                    )}
                     <td>
                       {l.clientId ? (
                         <Link to={`/clienti/${l.clientId}`} style={{ fontWeight: 700, textDecoration: 'none' }}>

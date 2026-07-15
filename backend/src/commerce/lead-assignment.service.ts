@@ -65,6 +65,52 @@ export class LeadAssignmentService {
     return updated;
   }
 
+  /**
+   * Assegnazione MASSIVA: la responsabile seleziona piu' lead e li assegna in un
+   * colpo solo alla stessa coach (tutti in stato "pending", una sola notifica).
+   */
+  async assignCoachMany(recordIds: string[], coachStaffId: string, byUserId: string) {
+    const ids = Array.from(new Set((recordIds ?? []).filter(Boolean)));
+    if (ids.length === 0) throw new BadRequestException('Nessun lead selezionato.');
+
+    const coach = await this.prisma.staff.findFirst({
+      where: { id: coachStaffId, user: { role: 'coach' } },
+      include: { user: { select: { id: true } } },
+    });
+    if (!coach) throw new BadRequestException('Coach non valida.');
+
+    // Scarta gli id inesistenti cosi' il conteggio riflette solo i lead reali.
+    const existing = await this.prisma.crmRecord.findMany({ where: { id: { in: ids } }, select: { id: true } });
+    const existingIds = existing.map((r) => r.id);
+    if (existingIds.length === 0) throw new BadRequestException('Nessun lead valido da assegnare.');
+
+    const byStaff = await this.staffIdOf(byUserId);
+    await this.prisma.crmRecord.updateMany({
+      where: { id: { in: existingIds } },
+      data: { assignedCoachId: coachStaffId, assignmentStatus: 'pending', assignedAt: new Date(), assignedById: byStaff },
+    });
+
+    const n = existingIds.length;
+    await this.notifications.notify({
+      userId: coach.user.id,
+      type: 'lead_assigned',
+      title: n === 1 ? 'Nuovo lead da accettare' : `${n} nuovi lead da accettare`,
+      body:
+        n === 1
+          ? 'Ti è stato assegnato 1 lead. Hai 2 giorni per accettarlo, poi torna alla responsabile.'
+          : `Ti sono stati assegnati ${n} lead. Hai 2 giorni per accettarli, poi tornano alla responsabile.`,
+      payload: { recordIds: existingIds },
+    });
+    await this.audit.log({
+      action: 'crm.lead.assign_bulk',
+      actorId: byUserId,
+      entityType: 'crm_record',
+      entityId: existingIds[0],
+      metadata: { coachStaffId, count: n, recordIds: existingIds },
+    });
+    return { assigned: n, coachStaffId };
+  }
+
   /** La coach accetta il lead assegnato. */
   async accept(recordId: string, coachUserId: string) {
     const record = await this.prisma.crmRecord.findUnique({

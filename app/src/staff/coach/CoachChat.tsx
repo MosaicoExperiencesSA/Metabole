@@ -3,8 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import { fullName, hourOnly, relDays } from '../format';
 import { useApi } from '../hooks';
-import { Async, Avatar, BackBar, Card, Empty, StaffShell } from '../ui';
-import { COACH_TABS } from '../tabs';
+import { Async, Avatar, BackBar, Card, Empty, StaffShell, type TabItem } from '../ui';
 
 interface Thread {
   id: string;
@@ -19,11 +18,11 @@ interface Msg {
   sentAt: string;
 }
 
-export function CoachChatList() {
+export function CoachChatList({ tabs }: { tabs: TabItem[] }) {
   const nav = useNavigate();
   const state = useApi<Thread[]>('/staff/threads');
   return (
-    <StaffShell title="Chat" tabs={COACH_TABS}>
+    <StaffShell title="Chat" tabs={tabs}>
       <Async state={state} empty={<Empty icon="ti-message-off" text="Nessuna conversazione." />}>
         {(threads) => (
           <Card className="pad0">
@@ -53,7 +52,7 @@ export function CoachChatList() {
   );
 }
 
-export function CoachChatThread() {
+export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
   const { threadId } = useParams();
   const loc = useLocation();
   const name = (loc.state as { name?: string } | null)?.name || 'Conversazione';
@@ -82,7 +81,7 @@ export function CoachChatThread() {
   }
 
   return (
-    <StaffShell title={name} tabs={COACH_TABS}>
+    <StaffShell title={name} tabs={tabs}>
       <BackBar label="Chat" to="/chat" />
       <Async state={state} empty={<Empty icon="ti-message" text="Scrivi il primo messaggio." />}>
         {(msgs) => (

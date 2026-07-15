@@ -15,27 +15,32 @@ export function StaffShell({
   title,
   tabs,
   children,
-  right,
   headerBadge,
 }: {
   title: string;
   tabs: TabItem[];
   children: ReactNode;
-  right?: ReactNode;
   headerBadge?: number;
 }) {
   return (
     <div className="sf-frame">
       <header className="sf-header">
-        <div>
-          <div className="sf-header-brand">METABOLEAI</div>
+        <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+          <div className="sf-header-brand">
+            METABOLE<span style={{ color: '#E4DBFF' }}>AI</span>
+          </div>
           <div className="sf-header-title">{title}</div>
         </div>
         <div className="sf-header-actions">
-          {right}
           <NavLink to="/notifiche" className="sf-hicon" aria-label="Notifiche">
             <i className="ti ti-bell" />
             {headerBadge ? <span className="sf-hbadge">{headerBadge}</span> : null}
+          </NavLink>
+          <NavLink to="/chat" className="sf-hicon" aria-label="Messaggi">
+            <i className="ti ti-message-2" />
+          </NavLink>
+          <NavLink to="/profilo" className="sf-hicon sf-hicon-user" aria-label="Profilo">
+            <i className="ti ti-user" />
           </NavLink>
         </div>
       </header>

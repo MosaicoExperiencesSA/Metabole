@@ -31,14 +31,9 @@ export default function CoachDashboard() {
 
   return (
     <StaffShell
-      title="Dashboard"
+      title={`Ciao, ${user?.firstName || 'Coach'}`}
       tabs={COACH_TABS}
       headerBadge={dash.data?.openAlerts}
-      right={
-        <span className="sf-header-brand" style={{ maxWidth: 90, textAlign: 'right' }}>
-          Ciao {user?.firstName || 'Coach'}
-        </span>
-      }
     >
       <Async state={dash}>
         {(d) => (

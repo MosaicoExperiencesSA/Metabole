@@ -17,8 +17,8 @@ export default function CoachApp() {
       <Route path="/clienti" element={<CoachClienti />} />
       <Route path="/clienti/:id" element={<CoachClienteDetail />} />
       <Route path="/alert" element={<CoachAlert />} />
-      <Route path="/chat" element={<CoachChatList />} />
-      <Route path="/chat/:threadId" element={<CoachChatThread />} />
+      <Route path="/chat" element={<CoachChatList tabs={COACH_TABS} />} />
+      <Route path="/chat/:threadId" element={<CoachChatThread tabs={COACH_TABS} />} />
       <Route path="/agenda" element={<CoachAgenda />} />
       <Route path="/guadagni" element={<Guadagni tabs={COACH_TABS} />} />
       <Route path="/notifiche" element={<Notifiche tabs={COACH_TABS} />} />

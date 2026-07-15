@@ -8,6 +8,7 @@ import NutriPazienti from './NutriPazienti';
 import NutriPazienteDetail from './NutriPazienteDetail';
 import NutriDiete from './NutriDiete';
 import NutriAgenda from './NutriAgenda';
+import { CoachChatList, CoachChatThread } from '../coach/CoachChat';
 
 export default function NutriApp() {
   return (
@@ -17,6 +18,8 @@ export default function NutriApp() {
       <Route path="/pazienti/:id" element={<NutriPazienteDetail />} />
       <Route path="/diete" element={<NutriDiete />} />
       <Route path="/agenda" element={<NutriAgenda />} />
+      <Route path="/chat" element={<CoachChatList tabs={NUTRI_TABS} />} />
+      <Route path="/chat/:threadId" element={<CoachChatThread tabs={NUTRI_TABS} />} />
       <Route path="/guadagni" element={<Guadagni tabs={NUTRI_TABS} />} />
       <Route path="/notifiche" element={<Notifiche tabs={NUTRI_TABS} />} />
       <Route path="/profilo" element={<Profilo tabs={NUTRI_TABS} />} />
