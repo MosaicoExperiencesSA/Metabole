@@ -38,11 +38,18 @@ export function stop() {
   emit(false);
 }
 
+/** Clip rigenerate (voce Gaia): override del nome-file, fa anche da cache-buster. */
+const CLIP_VERSIONS: Record<string, string> = {
+  percorso: 'percorso_v02',
+  q_come_vuoi_essere_chiamata: 'q_come_vuoi_essere_chiamata_v02',
+};
+
 /** Riproduce la clip indicata (senza estensione). No-op se Gaia è silenziata. */
 export function play(key: string) {
   if (isMuted() || !key) return;
   stop();
-  const audio = new Audio(`/audio/${key}.mp3`);
+  const file = CLIP_VERSIONS[key] ?? key;
+  const audio = new Audio(`/audio/${file}.mp3`);
   current = audio;
   audio.onended = () => {
     if (current === audio) current = null;
