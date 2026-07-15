@@ -66,24 +66,42 @@ export class CatalogService {
    * Data-driven: aggiungere/approvare una dieta NON richiede deploy del sito.
    */
   async publicPaths() {
-    const diets = await this.prisma.diet.findMany({
-      where: { status: 'approved' } as never,
-      orderBy: { createdAt: 'asc' },
-    });
+    const [diets, presets] = await Promise.all([
+      this.prisma.diet.findMany({
+        where: { status: 'approved' } as never,
+        orderBy: { createdAt: 'asc' },
+      }),
+      // Note cliniche per stile dai preset regole (adottati prima dei suggeriti).
+      this.prisma.rulePreset.findMany({
+        orderBy: [{ suggested: 'asc' }, { sortOrder: 'asc' }] as never,
+        select: { style: true, clinicalNotes: true } as never,
+      }),
+    ]);
+    const notesByStyle = new Map<string, string>();
+    for (const p of presets as unknown as Array<Record<string, unknown>>) {
+      const st = String(p.style);
+      const notes = (p.clinicalNotes as string) ?? null;
+      if (notes && !notesByStyle.has(st)) notesByStyle.set(st, notes);
+    }
     const paths: {
       style: string; name: string; clientName: string | null;
-      description: string | null; desc: string | null; highlights: string[];
-      objective: string; seasonalTag: string | null;
+      description: string | null; desc: string | null; clinicalNotes: string | null;
+      highlights: string[]; objective: string; seasonalTag: string | null;
     }[] = [];
     for (const d of diets as unknown as Array<Record<string, unknown>>) {
+      const style = String(d.style);
       const clientName = (d.clientName as string) ?? null;
       const description = (d.clientDescription as string) ?? null;
+      const clinicalNotes = notesByStyle.get(style) ?? null;
       paths.push({
-        style: String(d.style),
+        style,
         name: clientName ?? String(d.name),
         clientName,
         description,
-        desc: description, // alias: il carosello del sito legge p.desc
+        // alias letto dal carosello del sito: sotto il nome, in piccolo, mostra
+        // la descrizione cliente se compilata, altrimenti le note cliniche del preset.
+        desc: description ?? clinicalNotes,
+        clinicalNotes,
         highlights: Array.isArray(d.highlights) ? (d.highlights as string[]) : [],
         objective: (d.objective as string) ?? 'dimagrimento',
         seasonalTag: (d.seasonalTag as string) ?? null,

@@ -13,7 +13,10 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   `GET /public/stats.methods` conta le stesse → il numero sulla home cresce quando il nutrizionista
   approva una nuova dieta, senza deploy del sito. Aggiunto alias `desc` accanto a `description` nel
   payload (il carosello del sito legge `p.desc`: ora le card mostrano anche la descrizione).
-  Test aggiornati (methods = n° approvate + verifica del filtro).
+  **Sotto il nome, in piccolo: note cliniche** — se la dieta non ha una descrizione cliente, la card
+  mostra le `clinicalNotes` del RulePreset dello stesso stile (adottati prima dei suggeriti);
+  la descrizione cliente, quando compilata, vince. Nuovo campo `clinicalNotes` nel payload.
+  Test: + fallback note cliniche.
 
 ## 2026-07-14
 

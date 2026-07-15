@@ -30,6 +30,7 @@ describe('CatalogService (flusso approvazione diete)', () => {
       clientProfile: { count: jest.fn().mockResolvedValue(5) },
       subscription: { count: jest.fn().mockResolvedValue(2) },
       crmRecord: { count: jest.fn().mockResolvedValue(12) },
+      rulePreset: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
     config = { getNumber: jest.fn(async (_k: string, d?: number) => d ?? 0) };
@@ -70,6 +71,20 @@ describe('CatalogService (flusso approvazione diete)', () => {
     expect(prisma.subscription.count).toHaveBeenCalledWith({
       where: { startDate: { not: null } },
     });
+  });
+
+  it('publicPaths: sotto il nome vanno le note cliniche del preset se manca la descrizione cliente', async () => {
+    prisma.diet.findMany.mockResolvedValue([
+      { id: 'd1', style: 'keto', name: 'Keto — bozza generata', status: 'approved' },
+      { id: 'd2', style: 'mediterranean', name: 'Med', clientDescription: 'Equilibrata e varia.', status: 'approved' },
+    ]);
+    prisma.rulePreset.findMany.mockResolvedValue([
+      { style: 'keto', clinicalNotes: 'Carboidrati < 50 g/die; grassi ≥ 65–70%.' },
+    ]);
+    const paths = await service.publicPaths();
+    expect(paths[0].desc).toBe('Carboidrati < 50 g/die; grassi ≥ 65–70%.'); // fallback note cliniche
+    expect(paths[0].clinicalNotes).toBe('Carboidrati < 50 g/die; grassi ≥ 65–70%.');
+    expect(paths[1].desc).toBe('Equilibrata e varia.'); // la descrizione cliente vince
   });
 
   it('publicStats: la base storica (config_param) si SOMMA ai conteggi reali', async () => {
