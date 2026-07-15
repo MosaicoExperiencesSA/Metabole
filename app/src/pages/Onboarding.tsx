@@ -169,6 +169,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [muted, setMutedState] = useState(isMuted());
   const { user } = useAuth();
   const nameKnown = Boolean(user?.firstName);
+  // Bozza locale dell'onboarding: se l'utente perde la linea o chiude l'app a metà,
+  // al rientro (anche dopo il logout, stesso dispositivo) riprende da dove era arrivato.
+  const draftKey = user?.id ? `metabole_onb_draft_${user.id}` : null;
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   useEffect(() => {
     api<Questions>('/onboarding/questions')
@@ -199,6 +203,32 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   }, [questions]);
 
   const cur = flow[idx];
+
+  // Ripristina la bozza salvata (risposte + passo) una volta caricato il questionario.
+  useEffect(() => {
+    if (draftLoaded || !questions || !draftKey || flow.length === 0) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw) as { answers?: Answers; idx?: number };
+        if (d.answers) setAnswers((prev) => ({ ...prev, ...d.answers }));
+        if (typeof d.idx === 'number') setIdx(Math.min(Math.max(0, d.idx), flow.length - 1));
+      }
+    } catch {
+      /* bozza corrotta: la ignoriamo e si riparte da capo */
+    }
+    setDraftLoaded(true);
+  }, [questions, draftKey, draftLoaded, flow.length]);
+
+  // Salva la bozza a ogni cambio di risposta o passo (solo dopo il caricamento iniziale).
+  useEffect(() => {
+    if (!draftLoaded || !draftKey || result) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ answers, idx }));
+    } catch {
+      /* quota piena o storage non disponibile: ignora */
+    }
+  }, [answers, idx, draftLoaded, draftKey, result]);
 
   useEffect(() => {
     const c = answers.themeColor as string | undefined;
@@ -282,6 +312,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       // almeno ~3,2s (come nel prototipo) anche se l'API risponde subito.
       const elapsed = performance.now() - t0;
       if (elapsed < 3200) await new Promise((r) => setTimeout(r, 3200 - elapsed));
+      // Onboarding completato: la bozza locale non serve più.
+      if (draftKey) { try { localStorage.removeItem(draftKey); } catch { /* ignora */ } }
       setResult(res);
     } catch (e) {
       setSubmitErr(e instanceof ApiError ? e.message : 'Qualcosa non ha funzionato. Riprova.');

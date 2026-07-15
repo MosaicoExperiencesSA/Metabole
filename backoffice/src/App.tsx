@@ -14,6 +14,7 @@ import { ClientDetail } from './pages/ClientDetail';
 import { Clienti } from './pages/Clienti';
 import { Compensi } from './pages/Compensi';
 import { Diete } from './pages/Diete';
+import { GestioneDieta } from './pages/GestioneDieta';
 import { Testimonianze } from './pages/Testimonianze';
 import { GruppiEquivalenza } from './pages/GruppiEquivalenza';
 import { Publisher } from './pages/Publisher';
@@ -112,6 +113,7 @@ export default function App() {
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="equivalence_groups"><GruppiEquivalenza /></Protected>} />
       <Route path="/creazione-validazione" element={<Protected title="Creazione e validazione" pageKey="creation_validation"><CreazioneValidazione /></Protected>} />
+      <Route path="/gestione-dieta" element={<Protected title="Gestione dieta" pageKey="diet_workspace"><GestioneDieta /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/regole-motore" element={<Protected title="Regole motore" pageKey="engine_rules"><RegoleMotore /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />

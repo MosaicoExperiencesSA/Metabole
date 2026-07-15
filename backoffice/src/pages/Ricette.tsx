@@ -36,8 +36,8 @@ interface Form {
   active: boolean;
 }
 
-const emptyForm = (): Form => ({
-  name: '', regime: 'omnivore', mealSlot: 'lunch', kcal: '', tags: '',
+const emptyForm = (regime = 'omnivore'): Form => ({
+  name: '', regime, mealSlot: 'lunch', kcal: '', tags: '',
   ingredients: [{ name: '', qty: null, unit: '' }],
   methods: [{ type: 'veloce', stepsText: '' }],
   active: true,
@@ -55,13 +55,13 @@ function toForm(r: Recipe): Form {
   };
 }
 
-export function Ricette() {
+export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
   const { permissions } = useAuth();
   const canEdit = permissions?.role === 'nutritionist' || permissions?.role === 'head_nutritionist';
   const [rows, setRows] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [regime, setRegime] = useState('');
+  const [regime, setRegime] = useState(scopeRegime ?? '');
   const [slot, setSlot] = useState('');
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
@@ -101,10 +101,12 @@ export function Ricette() {
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <input className="input" style={{ width: 200 }} placeholder="Cerca per nome…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void load(); }} />
-          <select className="select" style={{ width: 150 }} value={regime} onChange={(e) => setRegime(e.target.value)}>
-            <option value="">Ogni regime</option>
-            {REGIMES.map((r) => <option key={r} value={r}>{REGIME[r]}</option>)}
-          </select>
+          {!scopeRegime && (
+            <select className="select" style={{ width: 150 }} value={regime} onChange={(e) => setRegime(e.target.value)}>
+              <option value="">Ogni regime</option>
+              {REGIMES.map((r) => <option key={r} value={r}>{REGIME[r]}</option>)}
+            </select>
+          )}
           <select className="select" style={{ width: 150 }} value={slot} onChange={(e) => setSlot(e.target.value)}>
             <option value="">Ogni pasto</option>
             {SLOTS.map((s) => <option key={s} value={s}>{SLOT[s]}</option>)}
@@ -153,6 +155,7 @@ export function Ricette() {
       {editing && (
         <RecipeModal
           recipe={editing === 'new' ? null : editing}
+          defaultRegime={scopeRegime}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); void load(); }}
         />
@@ -161,8 +164,8 @@ export function Ricette() {
   );
 }
 
-function RecipeModal({ recipe, onClose, onSaved }: { recipe: Recipe | null; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm());
+function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Recipe | null; defaultRegime?: string; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm(defaultRegime));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 

@@ -231,7 +231,20 @@ export class AnalyticsService {
     const users = (await this.prisma.user.findMany({ where: { email: { endsWith: DEMO_DOMAIN } }, select: { id: true } })) as { id: string }[];
     const ids = users.map((u) => u.id);
     await this.prisma.ledgerEntry.deleteMany({ where: { note: DEMO_NOTE } });
+    // Lead CRM generati dai clienti demo: eliminarli PRIMA di cancellare gli utenti
+    // (finché il legame clientId esiste), e ripulire anche i "fantasmi" già orfani
+    // rimasti da pulizie precedenti (cliente demo cancellato → clientId a null,
+    // senza email/nome/telefono, in stato "paid"): firma esclusiva dei residui demo.
+    const leads = await this.prisma.crmRecord.deleteMany({
+      where: {
+        OR: [
+          ...(ids.length ? [{ clientId: { in: ids } }] : []),
+          { email: { endsWith: DEMO_DOMAIN } },
+          { clientId: null, email: null, name: null, phone: null, stage: 'paid' },
+        ],
+      },
+    });
     if (ids.length) await this.prisma.user.deleteMany({ where: { id: { in: ids } } });
-    return { removed: ids.length };
+    return { removed: ids.length, leadsRemoved: leads.count };
   }
 }

@@ -43,7 +43,7 @@ export function CreazioneValidazione() {
   const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
-    api<Preset[]>('/engine-rules/presets').then(setPresets).catch((e) => { setPresets([]); setError(e instanceof Error ? e.message : 'Caricamento regole non riuscito.'); });
+    api<Preset[]>('/engine-rules/presets').then(setPresets).catch((e) => { setPresets([]); setError(e instanceof Error ? e.message : 'Caricamento diete non riuscito.'); });
   }, []);
   useEffect(() => {
     setShowPreview(false); setPreview(null);
@@ -71,7 +71,7 @@ export function CreazioneValidazione() {
   function editNum(k: 'kcalTarget' | 'proteinMin' | 'proteinMax' | 'kcalTol', v: number) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
 
   async function saveAsNew() {
-    if (!form.label.trim()) { setError('Dai un nome alla regola.'); return; }
+    if (!form.label.trim()) { setError('Dai un nome alla dieta.'); return; }
     setBusy(true); setError(null);
     try {
       const created = await api<Preset>('/engine-rules/presets', { method: 'POST', body: JSON.stringify({
@@ -81,13 +81,13 @@ export function CreazioneValidazione() {
       }) });
       setActivePresetId(created.id); setDirty(false);
       setPresets((ps) => (ps ? [created, ...ps] : [created]));
-      setNotice('Regola salvata. Ora puoi generare il catalogo.');
+      setNotice('Dieta salvata. Ora puoi generare il catalogo.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
     finally { setBusy(false); }
   }
 
   async function generate() {
-    if (!activePresetId) { setError('Scegli o salva una regola prima di generare.'); return; }
+    if (!activePresetId) { setError('Scegli o salva una dieta prima di generare.'); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
       const r = await api<{ dietId: string }>(`/engine-rules/presets/${activePresetId}/generate-catalog`, { method: 'POST', body: JSON.stringify({ days }) });
@@ -152,14 +152,14 @@ export function CreazioneValidazione() {
       <div className="card" style={{ background: 'linear-gradient(120deg,var(--deep),var(--teal))', color: '#fff', border: 'none' }}>
         <h2 style={{ color: '#fff', marginTop: 0 }}>Creazione e validazione</h2>
         <p style={{ margin: 0, opacity: 0.9, fontSize: 14 }}>
-          Una guida passo-passo: parti da una regola suggerita, genera il catalogo bozza e validalo fino all'invio in revisione. A fine lavori questa pagina si azzera.
+          Una guida passo-passo: parti da una dieta suggerita, genera il catalogo bozza e validalo fino all'invio in revisione. A fine lavori questa pagina si azzera.
         </p>
       </div>
 
-      {/* PASSO 1 — Regola */}
+      {/* PASSO 1 — Dieta */}
       <div className="card">
-        <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>1</span> Scegli la regola</h2>
-        <p className="hint" style={{ marginTop: 0 }}>Richiama una regola suggerita e modificala, salvala col suo nome, oppure creane una nuova.</p>
+        <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>1</span> Scegli la dieta</h2>
+        <p className="hint" style={{ marginTop: 0 }}>Richiama una dieta suggerita e modificala, salvala col suo nome, oppure creane una nuova.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           {presets.map((p) => (
             <button key={p.id} className="chip" onClick={() => pickPreset(p)}
@@ -167,13 +167,13 @@ export function CreazioneValidazione() {
               <i className="ti ti-bulb" /> {p.label}{p.suggested ? ' · suggerita' : ''}
             </button>
           ))}
-          <button className="chip" onClick={newPreset} style={{ cursor: 'pointer', gap: 6 }}><i className="ti ti-plus" /> Nuova regola</button>
+          <button className="btn" onClick={newPreset} style={{ cursor: 'pointer', gap: 6, fontWeight: 700 }}><i className="ti ti-plus" /> Nuova dieta</button>
         </div>
 
         {(activePresetId !== null || dirty) && (
           <div style={{ display: 'grid', gap: 10, maxWidth: 560 }}>
             <label style={{ display: 'block' }}>
-              <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Nome della regola</span>
+              <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Nome della dieta</span>
               <input className="input" value={form.label} onChange={(e) => edit('label', e.target.value)} placeholder="es. Mediterranea ipocalorica" />
             </label>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
@@ -213,7 +213,7 @@ export function CreazioneValidazione() {
               <textarea className="input" rows={2} value={form.clinicalNotes} onChange={(e) => edit('clinicalNotes', e.target.value)} placeholder="Vincoli o indicazioni da rispettare nella generazione" />
             </label>
             <div className="row" style={{ gap: 8 }}>
-              <button className="btn ghost" onClick={saveAsNew} disabled={busy}><i className="ti ti-device-floppy" /> Salva come nuova regola</button>
+              <button className="btn ghost" onClick={saveAsNew} disabled={busy}><i className="ti ti-device-floppy" /> Salva come nuova dieta</button>
               {dirty && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>Modifiche non salvate: salva per poter generare.</span>}
             </div>
           </div>
@@ -223,7 +223,7 @@ export function CreazioneValidazione() {
       {/* PASSO 2 — Genera */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>2</span> Genera il catalogo</h2>
-        <p className="hint" style={{ marginTop: 0 }}>Crea una bozza (ricette, giornate, alternative, allergeni) dalla regola scelta. Può richiedere fino a un minuto.</p>
+        <p className="hint" style={{ marginTop: 0 }}>Crea una bozza (ricette, giornate, alternative, allergeni) dalla dieta scelta. Può richiedere fino a un minuto.</p>
         <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
           <span className="muted" style={{ fontSize: 13 }}>Giorni da generare</span>
           <input className="input" type="number" min={1} max={60} value={days}
@@ -234,7 +234,7 @@ export function CreazioneValidazione() {
         <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
           <i className="ti ti-sparkles" /> {busy && !status ? 'Genero…' : 'Genera catalogo bozza'}
         </button>
-        {!canGenerate && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Scegli una regola (o salvala se l'hai modificata) per abilitare la generazione.</p>}
+        {!canGenerate && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Scegli una dieta (o salvala se l'hai modificata) per abilitare la generazione.</p>}
       </div>
 
       {/* PASSO 3 — Valida */}

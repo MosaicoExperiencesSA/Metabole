@@ -16,7 +16,7 @@ interface EqGroup {
 const itemsOf = (g: EqGroup) => (Array.isArray(g.members?.items) ? g.members!.items! : []);
 
 /** Gruppi di equivalenza (R4/R8): il nutrizionista rivede e approva i sostituti. */
-export function GruppiEquivalenza() {
+export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string } = {}) {
   const [rows, setRows] = useState<EqGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +26,8 @@ export function GruppiEquivalenza() {
   async function load() {
     setLoading(true);
     try {
-      setRows(await api<EqGroup[]>('/equivalence-groups'));
+      const qs = scopeProductId ? `/equivalence-groups?productId=${encodeURIComponent(scopeProductId)}` : '/equivalence-groups';
+      setRows(await api<EqGroup[]>(qs));
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -34,7 +35,7 @@ export function GruppiEquivalenza() {
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeProductId]);
 
   async function toggleApprove(g: EqGroup) {
     const to = g.status === 'approved' ? 'unapprove' : 'approve';
@@ -116,6 +117,7 @@ export function GruppiEquivalenza() {
       {editing && (
         <GroupModal
           value={editing === 'new' ? null : editing}
+          scopeProductId={scopeProductId}
           onClose={() => setEditing(null)}
           onSaved={(msg) => { setEditing(null); setNotice(msg); void load(); }}
         />
@@ -126,10 +128,12 @@ export function GruppiEquivalenza() {
 
 function GroupModal({
   value,
+  scopeProductId,
   onClose,
   onSaved,
 }: {
   value: EqGroup | null;
+  scopeProductId?: string;
   onClose: () => void;
   onSaved: (msg: string) => void;
 }) {
@@ -152,7 +156,7 @@ function GroupModal({
         await api(`/equivalence-groups/${value!.id}`, { method: 'PATCH', body: JSON.stringify(payload) });
         onSaved(`Gruppo "${payload.name}" aggiornato.`);
       } else {
-        await api('/equivalence-groups', { method: 'POST', body: JSON.stringify(payload) });
+        await api('/equivalence-groups', { method: 'POST', body: JSON.stringify(scopeProductId ? { ...payload, productId: scopeProductId } : payload) });
         onSaved(`Gruppo "${payload.name}" creato.`);
       }
     } catch (err) {

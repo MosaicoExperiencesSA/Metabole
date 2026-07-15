@@ -22,6 +22,7 @@ export const PAGE_LABEL: Record<string, string> = {
   posta: 'Posta',
   clients: 'Clienti',
   diets_catalog: 'Catalogo diete',
+  diet_workspace: 'Gestione dieta',
   recipes: 'Catalogo ricette',
   engine_protocols: 'Protocolli motore',
   engine_reviews: 'Verifiche motore',

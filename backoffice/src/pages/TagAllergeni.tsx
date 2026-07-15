@@ -36,7 +36,7 @@ interface Suggestion { allergen: string; label: string; matched: string[] }
 interface SuggestResp { recipeId: string; name: string; current: string[]; reviewed: boolean; suggestions: Suggestion[] }
 
 /** Taggaggio allergeni delle ricette (R8): il nutrizionista conferma i tag (con pre-tag assistito). */
-export function TagAllergeni() {
+export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   const [rows, setRows] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +47,8 @@ export function TagAllergeni() {
   async function load() {
     setLoading(true);
     try {
-      setRows(await api<Recipe[]>('/recipes?includeInactive=false'));
+      const qs = scopeRegime ? `/recipes?includeInactive=false&regime=${encodeURIComponent(scopeRegime)}` : '/recipes?includeInactive=false';
+      setRows(await api<Recipe[]>(qs));
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata ai nutrizionisti.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -55,7 +56,7 @@ export function TagAllergeni() {
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeRegime]);
 
   async function del(r: Recipe) {
     if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;

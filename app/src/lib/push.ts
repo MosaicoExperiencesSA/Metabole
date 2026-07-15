@@ -11,6 +11,10 @@ let started = false;
 export async function initPush(): Promise<void> {
   if (started) return;
   if (Capacitor.getPlatform() === 'web') return;
+  // Le push restano SPENTE finché Firebase (google-services.json) non è configurato:
+  // su Android, registrarle senza Firebase può lanciare un'eccezione nativa che chiude
+  // l'app. Ad app collegata a Firebase, impostare VITE_ENABLE_PUSH=true e ricompilare.
+  if (import.meta.env.VITE_ENABLE_PUSH !== 'true') return;
   started = true;
 
   try {

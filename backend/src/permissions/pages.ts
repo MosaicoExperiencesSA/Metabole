@@ -50,6 +50,7 @@ export const BACKOFFICE_PAGES = [
   'allergens',          // Allergeni ricette (da recipes)
   'roles',              // Ruoli (da permissions)
   'creation_validation', // Pagina guidata Creazione e validazione
+  'diet_workspace',      // Gestione dieta: hub ricette/allergeni/gruppi per dieta (da diets_catalog)
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -191,6 +192,7 @@ const INHERIT_DEFAULTS: Record<string, PageKey> = {
   allergens: 'recipes',
   roles: 'permissions',
   creation_validation: 'diets_catalog',
+  diet_workspace: 'diets_catalog',
 };
 
 for (const role of Object.keys(DEFAULT_PERMISSIONS) as Role[]) {
