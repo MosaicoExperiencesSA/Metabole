@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
 
 interface LogRow {
   id: string;
@@ -69,6 +69,8 @@ export function LogEmail() {
 
   const filtered = useMemo(() => (status ? rows.filter((r) => r.status === status) : rows), [rows, status]);
 
+  const pg = usePagination(filtered, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -100,7 +102,7 @@ export function LogEmail() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {pg.pageItems.map((r) => (
                 <tr key={r.id} onClick={() => setOpenId(r.id)} style={{ cursor: 'pointer' }} title="Apri anteprima">
                   <td className="muted">{dateTime(r.createdAt)}</td>
                   <td>{r.to}</td>
@@ -115,6 +117,7 @@ export function LogEmail() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
       {openId && (

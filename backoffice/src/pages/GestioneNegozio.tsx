@@ -169,7 +169,7 @@ export function GestioneNegozio() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Fld label="Nome" v={planForm.name} on={(v) => setPlanForm({ ...planForm, name: v })} />
             <Fld label="Prezzo (€)" v={planForm.price} on={(v) => setPlanForm({ ...planForm, price: v })} />
-            <Fld label="Periodo (es. 3m, 6m, 12m)" v={planForm.period} on={(v) => setPlanForm({ ...planForm, period: v })} />
+            <Fld label="Periodo (es. 8d, 2w, 3m, 1y)" v={planForm.period} on={(v) => setPlanForm({ ...planForm, period: v })} />
             <Fld label="Pasti/giorno (opz.)" v={planForm.mealsPerDay} on={(v) => setPlanForm({ ...planForm, mealsPerDay: v })} />
             <Fld label="Caratteristiche (virgola)" v={planForm.features} on={(v) => setPlanForm({ ...planForm, features: v })} wide />
             <label style={fld}><span>Attivo</span>

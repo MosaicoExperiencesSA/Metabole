@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner, Toggle } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, Toggle, usePagination } from '../components/ui';
 
 interface Template {
   key: string;
@@ -42,6 +42,8 @@ export function ModelliEmail() {
   }
   useEffect(() => { void load(); }, []);
 
+  const pg = usePagination(rows, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -66,7 +68,7 @@ export function ModelliEmail() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((t) => (
+              {pg.pageItems.map((t) => (
                 <tr key={t.key}>
                   <td><b>{t.name}</b></td>
                   <td className="muted">{t.subject}</td>
@@ -79,6 +81,7 @@ export function ModelliEmail() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
       {editing && (

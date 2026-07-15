@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
 
 type Status = 'pending' | 'receipt_uploaded' | 'approved' | 'rejected' | 'cancelled';
 
@@ -171,6 +171,8 @@ export function Payments() {
     }
   }
 
+  const pg = usePagination(rows, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -224,7 +226,7 @@ export function Payments() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => (
+              {pg.pageItems.map((p) => (
                 <tr key={p.id}>
                   <td>
                     <b>{clientName(p)}</b>
@@ -267,6 +269,7 @@ export function Payments() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
       {receipt && (

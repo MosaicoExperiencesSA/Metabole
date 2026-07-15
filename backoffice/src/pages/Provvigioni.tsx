@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner, usePagination } from '../components/ui';
 
 interface Commission {
   id: string;
@@ -67,6 +67,8 @@ export function Provvigioni() {
 
   const total = filtered.reduce((a, r) => a + r.amountCents, 0);
 
+  const pg = usePagination(filtered, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -112,7 +114,7 @@ export function Provvigioni() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {pg.pageItems.map((r) => (
                 <tr key={r.id}>
                   <td className="muted">{date(r.date)}</td>
                   <td>{r.client}</td>
@@ -133,6 +135,7 @@ export function Provvigioni() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
     </>
   );

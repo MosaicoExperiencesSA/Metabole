@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
 
 interface Discount {
   id: string;
@@ -60,6 +60,8 @@ export function BuoniSconto() {
     }
   }
 
+  const pg = usePagination(rows, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -91,7 +93,7 @@ export function BuoniSconto() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((d) => (
+              {pg.pageItems.map((d) => (
                 <tr key={d.id}>
                   <td><b>{d.code}</b></td>
                   <td>{valueLabel(d)}</td>
@@ -110,6 +112,7 @@ export function BuoniSconto() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
       {showCreate && (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner, usePagination } from '../components/ui';
 
 interface VisitRow {
   id: string;
@@ -42,6 +42,8 @@ export function Agenda() {
 
   const name = (c: VisitRow['client']) => (c ? [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email : '—');
 
+  const pg = usePagination(rows, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -73,7 +75,7 @@ export function Agenda() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {pg.pageItems.map((r) => (
                 <tr key={r.id}>
                   <td>{dateTime(r.datetime)}</td>
                   <td>
@@ -89,6 +91,7 @@ export function Agenda() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
     </>
   );

@@ -33,6 +33,27 @@ type PrismaTx = Prisma.TransactionClient;
  * solo allora: abbonamento attivo (menu erogabile), income a ledger,
  * provvigioni generate, ricevuta via email.
  */
+/**
+ * Calcola la data di fine abbonamento dal periodo del piano.
+ * Suffissi: d=giorni, w=settimane, m=mesi, y=anni. Senza suffisso = mesi.
+ * Esempi: "8d"=8 giorni, "2w"=14 giorni, "3m"=3 mesi, "1y"=1 anno. Fallback 3 mesi.
+ */
+export function subscriptionEnd(start: Date, period: string): Date {
+  const end = new Date(start);
+  const m = String(period ?? '').trim().toLowerCase().match(/^(\d+)\s*([dwmy]?)$/);
+  const n = m ? parseInt(m[1], 10) : NaN;
+  const unit = m ? m[2] : '';
+  if (!m || !Number.isFinite(n) || n <= 0) {
+    end.setMonth(end.getMonth() + 3);
+    return end;
+  }
+  if (unit === 'd') end.setDate(end.getDate() + n);
+  else if (unit === 'w') end.setDate(end.getDate() + n * 7);
+  else if (unit === 'y') end.setFullYear(end.getFullYear() + n);
+  else end.setMonth(end.getMonth() + n);
+  return end;
+}
+
 @Injectable()
 export class CommerceService {
   private readonly receiptKey: Buffer;
@@ -582,10 +603,8 @@ export class CommerceService {
   ) {
     // Attivazione abbonamento (durata dal periodo del piano: es. "3m").
     if (payment.subscriptionId && payment.subscription) {
-      const months = parseInt(payment.subscription.plan.period, 10) || 3;
       const start = new Date();
-      const end = new Date(start);
-      end.setMonth(end.getMonth() + months);
+      const end = subscriptionEnd(start, payment.subscription.plan.period);
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },
         data: { status: 'active', startDate: start, endDate: end },

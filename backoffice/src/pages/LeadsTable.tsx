@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
 
 interface Stage {
   key: string;
@@ -62,6 +62,16 @@ export function LeadsTable() {
   const [bulkCoach, setBulkCoach] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  // Filtri per colonna (in AND fra loro e con ricerca/etichetta).
+  const [fName, setFName] = useState('');
+  const [fEmail, setFEmail] = useState('');
+  const [fStage, setFStage] = useState('');
+  const [fCoach, setFCoach] = useState(''); // '' tutti · 'none' non assegnato · else coachId
+  const [fNutri, setFNutri] = useState(''); // '' tutti · 'none' non assegnato · else nutriId
+  const [fTipo, setFTipo] = useState(''); // '' · client · historical · lead
+  function clearFilters() {
+    setFilter(''); setListFilter(''); setFName(''); setFEmail(''); setFStage(''); setFCoach(''); setFNutri(''); setFTipo('');
+  }
 
   async function assignCoach(l: Lead, coachStaffId: string) {
     if (!coachStaffId) return;
@@ -173,12 +183,26 @@ export function LeadsTable() {
   }
 
   const stageOf = (key: string) => stages.find((s) => s.key === key);
+  const tipoOf = (l: Lead) => (l.stage === 'paid' ? 'client' : (l.historicalPaidCents ?? 0) > 0 ? 'historical' : 'lead');
   const filtered = leads.filter((l) => {
     if (listFilter && !l.lists?.some((x) => x.id === listFilter)) return false;
-    if (!filter.trim()) return true;
-    const q = filter.toLowerCase();
-    return displayName(l).toLowerCase().includes(q) || (l.email ?? '').toLowerCase().includes(q) || (l.client?.email ?? '').toLowerCase().includes(q);
+    if (fStage && l.stage !== fStage) return false;
+    if (fCoach === 'none' && l.assignedCoachId) return false;
+    if (fCoach && fCoach !== 'none' && l.assignedCoachId !== fCoach) return false;
+    const nutriId = l.client?.clientProfile?.assignedNutritionistId ?? null;
+    if (fNutri === 'none' && nutriId) return false;
+    if (fNutri && fNutri !== 'none' && nutriId !== fNutri) return false;
+    if (fTipo && tipoOf(l) !== fTipo) return false;
+    const nq = fName.trim().toLowerCase();
+    if (nq && !displayName(l).toLowerCase().includes(nq)) return false;
+    const eq = fEmail.trim().toLowerCase();
+    if (eq && !((l.client?.email ?? l.email ?? '').toLowerCase().includes(eq) || (l.phone ?? '').includes(eq))) return false;
+    const q = filter.trim().toLowerCase();
+    if (q && !(displayName(l).toLowerCase().includes(q) || (l.email ?? '').toLowerCase().includes(q) || (l.client?.email ?? '').toLowerCase().includes(q))) return false;
+    return true;
   });
+
+  const pg = usePagination(filtered, 100);
 
   if (loading) return <Spinner />;
 
@@ -192,6 +216,9 @@ export function LeadsTable() {
             {allLists.map((l) => <option key={l.id} value={l.id}>{l.name}{l.memberCount != null ? ` (${l.memberCount})` : ''}</option>)}
           </select>
           <button className="btn ghost" onClick={() => setShowLists(true)}><i className="ti ti-tags" /> Gestisci liste</button>
+          {(filter || listFilter || fName || fEmail || fStage || fCoach || fNutri || fTipo) && (
+            <button className="btn ghost" onClick={clearFilters} title="Rimuovi tutti i filtri"><i className="ti ti-filter-off" /> Azzera filtri</button>
+          )}
         </div>
         <div className="row" style={{ gap: 8 }}>
           {can('accounting', 'manage') && (
@@ -246,9 +273,48 @@ export function LeadsTable() {
                 <th>Creato</th>
                 <th style={{ textAlign: 'right' }}>Azioni</th>
               </tr>
+              <tr>
+                {canAssignCoach && <th style={{ padding: '4px 6px' }} />}
+                <th style={{ padding: '4px 6px' }}>
+                  <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome…" value={fName} onChange={(e) => setFName(e.target.value)} />
+                </th>
+                <th style={{ padding: '4px 6px' }}>
+                  <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Email o tel…" value={fEmail} onChange={(e) => setFEmail(e.target.value)} />
+                </th>
+                <th style={{ padding: '4px 6px' }}>
+                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fStage} onChange={(e) => setFStage(e.target.value)}>
+                    <option value="">Tutti</option>
+                    {stages.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
+                  </select>
+                </th>
+                <th style={{ padding: '4px 6px' }}>
+                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fCoach} onChange={(e) => setFCoach(e.target.value)}>
+                    <option value="">Tutte</option>
+                    <option value="none">— non assegnato —</option>
+                    {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+                  </select>
+                </th>
+                <th style={{ padding: '4px 6px' }}>
+                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fNutri} onChange={(e) => setFNutri(e.target.value)}>
+                    <option value="">Tutti</option>
+                    <option value="none">— non assegnato —</option>
+                    {nutritionists.map((n) => <option key={n.id} value={n.id}>{n.displayName}</option>)}
+                  </select>
+                </th>
+                <th style={{ padding: '4px 6px' }}>
+                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fTipo} onChange={(e) => setFTipo(e.target.value)} title="Tipo persona">
+                    <option value="">Tutti</option>
+                    <option value="client">Cliente</option>
+                    <option value="historical">Storico</option>
+                    <option value="lead">Lead</option>
+                  </select>
+                </th>
+                <th style={{ padding: '4px 6px' }} />
+                <th style={{ padding: '4px 6px' }} />
+              </tr>
             </thead>
             <tbody>
-              {filtered.map((l) => {
+              {pg.pageItems.map((l) => {
                 const st = stageOf(l.stage);
                 return (
                   <tr key={l.id}>
@@ -349,6 +415,7 @@ export function LeadsTable() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
     </>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner, Toggle } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, Toggle, usePagination } from '../components/ui';
 import { useTaxonomy } from '../lib/taxonomy';
 
 interface Ingredient { name: string; qty?: number | null; unit?: string | null }
@@ -94,6 +94,8 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
     }
   }
 
+  const pg = usePagination(rows, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -129,7 +131,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {pg.pageItems.map((r) => (
                 <tr key={r.id}>
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>
@@ -150,6 +152,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
       {editing && (

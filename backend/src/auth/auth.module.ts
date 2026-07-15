@@ -20,7 +20,7 @@ import { AuthService } from './auth.service';
         if (!secret && process.env.NODE_ENV === 'production') {
           throw new Error('JWT_ACCESS_SECRET mancante: configurarla nelle variabili d\'ambiente');
         }
-        const ttl = config.get<string>('JWT_ACCESS_TTL') ?? '15m';
+        const ttl = config.get<string>('JWT_ACCESS_TTL') ?? '3h'; // sessione backoffice: min 3 ore
         return {
           secret: secret ?? 'dev-only-insecure-secret',
           // Il tipo di expiresIn è il template-literal del pacchetto "ms" ("15m", "1h", ...):

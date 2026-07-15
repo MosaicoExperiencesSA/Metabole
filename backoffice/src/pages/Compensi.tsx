@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner, usePagination } from '../components/ui';
 
 interface CompRow {
   staffId: string;
@@ -51,6 +51,8 @@ export function Compensi() {
     { commission: 0, compensation: 0, total: 0 },
   );
 
+  const pg = usePagination(rows, 100);
+
   return (
     <>
       <div className="spread" style={{ marginBottom: 14 }}>
@@ -81,7 +83,7 @@ export function Compensi() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {pg.pageItems.map((r) => (
                   <tr key={r.staffId}>
                     <td>{r.displayName}</td>
                     <td className="muted">{ROLE[r.role] ?? r.role}</td>
@@ -99,6 +101,7 @@ export function Compensi() {
               </tbody>
             </table>
           )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
         </div>
       )}
     </>

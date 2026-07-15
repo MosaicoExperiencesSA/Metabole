@@ -59,8 +59,8 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
 interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[]; seasonalTag: string | null }
 
 /** Schermo 16 "Stile che preferisci": prodotti (diete) letti dall'API a runtime (zero-redeploy).
- *  Ogni nome è toccabile → caratteristiche principali. Fallback statico se l'endpoint è vuoto. */
-function DietProductsBlock({ page, value, onChange }: { page: Page; value: unknown; onChange: (k: string, v: unknown) => void }) {
+ *  Ogni nome è toccabile → caratteristiche principali. Solo diete reali approvate: nessun ripiego statico. */
+function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: string, v: unknown) => void }) {
   const [products, setProducts] = useState<DietProduct[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 
@@ -72,9 +72,16 @@ function DietProductsBlock({ page, value, onChange }: { page: Page; value: unkno
 
   if (!products) return <div className="center" style={{ minHeight: 80 }}><div className="spin" /></div>;
 
-  // Fallback: se il catalogo prodotti è vuoto, uso il campo statico del questionario.
+  // Solo diete reali del catalogo (approvate e visibili al cliente): niente ripiego statico.
+  // Se non ce ne sono, lo diciamo — le pubblica il nutrizionista dal backoffice.
   if (products.length === 0) {
-    return <FieldInput field={page.fields[0]} value={value} onChange={onChange} />;
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '16px 14px' }}>
+        <p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+          Al momento non ci sono piani disponibili. Le diete vengono pubblicate dal nutrizionista dal catalogo.
+        </p>
+      </div>
+    );
   }
 
   const sel = String(value ?? '');
@@ -455,7 +462,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               {cur.t === 'page' && cur.page.key === 'objective' ? (
                 <ObjectiveBlock page={cur.page} answers={answers} setAnswer={setAnswer} />
               ) : cur.t === 'page' && cur.page.key === 'style' ? (
-                <DietProductsBlock page={cur.page} value={answers.dietStyle} onChange={setAnswer} />
+                <DietProductsBlock value={answers.dietStyle} onChange={setAnswer} />
               ) : (
                 cur.page.fields
                   .map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)

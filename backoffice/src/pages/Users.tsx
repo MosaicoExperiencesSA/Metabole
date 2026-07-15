@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, RoleChip, Spinner, StatusChip } from '../components/ui';
+import { Banner, Modal, Pager, RoleChip, Spinner, StatusChip, usePagination } from '../components/ui';
 import { ROLE_LABEL, STAFF_ROLES, type Role } from '../lib/labels';
 import { fetchRoles, type RoleInfo } from '../lib/roles';
 
@@ -151,6 +151,8 @@ export function Users() {
     }
   }
 
+  const pg = usePagination(users, 100);
+
   return (
     <>
       <div className="spread" style={{ marginBottom: 18 }}>
@@ -197,7 +199,7 @@ export function Users() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
+              {pg.pageItems.map((u) => {
                 const isSelf = u.id === me?.id;
                 const archived = !!u.deletedAt;
                 return (
@@ -314,6 +316,7 @@ export function Users() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
       {showCreate && (

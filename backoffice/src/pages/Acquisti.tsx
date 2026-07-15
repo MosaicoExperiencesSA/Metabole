@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
 
 interface Purchase {
   id: string;
@@ -143,6 +143,8 @@ export function Acquisti() {
     }
   }
 
+  const pg = usePagination(filtered, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -211,7 +213,7 @@ export function Acquisti() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {pg.pageItems.map((p) => (
                 <tr key={p.id}>
                   <td>
                     <b>{clientName(p)}</b>
@@ -257,6 +259,7 @@ export function Acquisti() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
       {showCreate && (

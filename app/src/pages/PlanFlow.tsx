@@ -22,7 +22,7 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
   const navigate = useNavigate();
   const name = user?.firstName || 'ciao';
   const coachName = result.team.coach?.displayName ?? null;
-  const nutriName = result.team.nutritionist?.displayName ?? null;
+  // Nutrizionista non mostrato per ora (richiesta): il percorso parla solo della coach.
   const [step, setStep] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planId, setPlanId] = useState<string | null>(null);
@@ -52,16 +52,14 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
               <Gaia size={62} controls={false} />
               <div className="bubble">
                 <TypeText segments={
-                  coachName || nutriName
+                  coachName
                     ? [
-                        { t: `${name}, il tuo percorso personalizzato è pronto. Settato secondo le indicazioni del nutrizionista e personalizzato sulle informazioni che hai fornito. La tua coach è ` },
-                        { t: coachName ?? 'in arrivo', b: true },
-                        { t: ' e il tuo nutrizionista è ' },
-                        { t: nutriName ?? 'in arrivo', b: true },
-                        { t: '. Sei pronta a partire?' },
+                        { t: `${name}, il tuo percorso personalizzato è pronto, costruito sulle informazioni che hai fornito. La tua coach è ` },
+                        { t: coachName, b: true },
+                        { t: ' e ti contatterà a breve. Sei pronta a partire?' },
                       ]
                     : [
-                        { t: `${name}, il tuo percorso personalizzato è pronto, costruito sulle informazioni che hai fornito. A breve il responsabile ti presenterà la tua coach e il tuo nutrizionista: sarà la nutrizionista a contattarti per organizzare la prima visita. Sei pronta a partire?` },
+                        { t: `${name}, il tuo percorso personalizzato è pronto, costruito sulle informazioni che hai fornito. La tua coach ti contatterà a breve. Sei pronta a partire?` },
                       ]
                 } />
               </div>
@@ -71,15 +69,12 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
               {result.path.tags.length > 0 && <div className="result-tags">{result.path.tags.map((t) => <span className="chip" key={t}>{t}</span>)}</div>}
             </div>
             <div className="card">
-              <h2>Il tuo team</h2>
+              <h2>La tua coach</h2>
               <p className="muted" style={{ margin: 0 }}>
-                {coachName || nutriName ? (
-                  <>
-                    Coach: <b>{coachName ?? 'in arrivo'}</b><br />
-                    Nutrizionista: <b>{nutriName ?? 'in arrivo'}</b>
-                  </>
+                {coachName ? (
+                  <>La tua coach è <b>{coachName}</b>. Ti contatterà a breve per iniziare.</>
                 ) : (
-                  <>Coach e nutrizionista ti verranno presentati a breve; la nutrizionista ti contatterà per organizzare la prima visita.</>
+                  <>La tua coach ti verrà presentata a breve e ti contatterà per iniziare.</>
                 )}
               </p>
             </div>

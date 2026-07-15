@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner, usePagination } from '../components/ui';
 
 interface AuditRow {
   id: string;
@@ -69,6 +69,8 @@ export function LogAttivita() {
     );
   }, [rows, filter]);
 
+  const pg = usePagination(filtered, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -95,7 +97,7 @@ export function LogAttivita() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {pg.pageItems.map((r) => (
                 <tr key={r.id}>
                   <td className="muted">{dateTime(r.createdAt)}</td>
                   <td>{ACTION_LABEL[r.action] ?? r.action}</td>
@@ -107,6 +109,7 @@ export function LogAttivita() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
     </>
   );

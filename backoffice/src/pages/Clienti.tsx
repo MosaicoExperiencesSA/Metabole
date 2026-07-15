@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner, usePagination } from '../components/ui';
 
 interface ClientRow {
   id: string;
@@ -43,6 +43,8 @@ export function Clienti() {
     return rows.filter((r) => name(r).toLowerCase().includes(q) || r.email.toLowerCase().includes(q));
   }, [rows, filter]);
 
+  const pg = usePagination(filtered, 100);
+
   if (loading) return <Spinner />;
 
   return (
@@ -69,7 +71,7 @@ export function Clienti() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {pg.pageItems.map((r) => (
                 <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clienti/${r.id}`)}>
                   <td>{name(r) || <span className="muted">—</span>}</td>
                   <td>{r.email}</td>
@@ -81,6 +83,7 @@ export function Clienti() {
             </tbody>
           </table>
         )}
+        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
     </>
   );

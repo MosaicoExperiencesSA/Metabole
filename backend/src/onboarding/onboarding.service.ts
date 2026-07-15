@@ -24,12 +24,13 @@ export class OnboardingService {
   ) {}
 
   /**
-   * Prodotti (diete) mostrati allo schermo 16: le Diet con clientVisible=true,
-   * una per stile. Data-driven: aggiungere/modificare un prodotto non richiede deploy.
+   * Prodotti (diete) mostrati allo schermo 16: le Diet approvate e visibili al cliente
+   * (clientVisible=true + status='approved'), una per stile. Le bozze/placeholder NON
+   * compaiono. Data-driven: aggiungere/modificare un prodotto non richiede deploy.
    */
   async dietProducts() {
     const diets = await this.prisma.diet.findMany({
-      where: { clientVisible: true } as never,
+      where: { clientVisible: true, status: 'approved' } as never,
       orderBy: { createdAt: 'asc' },
     });
     const seen = new Set<string>();

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
 import { MiniTrend } from '../components/MiniTrend';
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -123,6 +123,8 @@ export function Contabilita() {
     }
   }
 
+  const pg = usePagination(costs, 100);
+
   if (loading && !report) return <Spinner />;
 
   return (
@@ -214,7 +216,7 @@ export function Contabilita() {
                 </tr>
               </thead>
               <tbody>
-                {costs.map((c) => (
+                {pg.pageItems.map((c) => (
                   <tr key={c.id}>
                     <td>
                       <b>{c.label}</b>
@@ -238,6 +240,7 @@ export function Contabilita() {
                 ))}
               </tbody>
             </table>
+            <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
           </div>
         )}
       </div>
