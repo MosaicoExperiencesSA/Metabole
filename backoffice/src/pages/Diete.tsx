@@ -12,7 +12,7 @@ function slotsFor(mealsPerDay: number): string[] {
   return ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
 }
 
-interface RecipeLite { id: string; name: string; mealSlot: string }
+interface RecipeLite { id: string; name: string; mealSlot: string; active?: boolean }
 interface DietDetail {
   id: string; regime: string; mealsPerDay: number; status: string;
   dayTemplates: { level: number; dayIndex: number; meals: { slot: string; recipeId: string }[] }[];
@@ -345,7 +345,7 @@ function DayEditorModal({ dietId, onClose, onSaved }: { dietId: string; onClose:
           ? lvl1.map((t) => Object.fromEntries(t.meals.map((m) => [m.slot, m.recipeId])))
           : [Object.create(null) as Record<string, string>];
         setDays(initial);
-        setRecipes(await api<RecipeLite[]>(`/recipes?regime=${d.regime}`));
+        setRecipes(await api<RecipeLite[]>(`/recipes?regime=${d.regime}&includeInactive=true`));
       } catch (e) {
         setErr(e instanceof Error ? e.message : 'Caricamento non riuscito.');
       }
@@ -402,7 +402,7 @@ function DayEditorModal({ dietId, onClose, onSaved }: { dietId: string; onClose:
                   <span className="muted" style={{ fontSize: 12, width: 84, flex: 'none' }}>{SLOT_LABEL[s]}</span>
                   <select className="select" style={{ flex: 1 }} value={day[s] ?? ''} onChange={(e) => setMeal(i, s, e.target.value)}>
                     <option value="">— scegli —</option>
-                    {bySlot(s).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    {bySlot(s).map((r) => <option key={r.id} value={r.id}>{r.active === false ? `${r.name} (bozza)` : r.name}</option>)}
                   </select>
                 </label>
               ))}
