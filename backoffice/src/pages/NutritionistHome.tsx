@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
+import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
+
+const euro0 = (c: number) => '€ ' + Math.round(c / 100).toLocaleString('it-IT');
 
 interface Dash {
   isNutritionist: boolean;
@@ -92,12 +95,20 @@ export function NutritionistHome() {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
+      <DashboardShortcuts />
+
       {/* KPI clinici */}
       <div className="card-row">
         <Kpi label="Pazienti" value={String(dash?.patientsCount ?? 0)} icon="ti-users" />
         <Kpi label="Documenti da rivedere" value={String(dash?.pendingDocuments ?? 0)} icon="ti-file-description" color={dash && dash.pendingDocuments > 0 ? 'var(--coral-dark)' : undefined} />
         <Kpi label="Escalation aperte" value={String(dash?.openEscalations ?? 0)} icon="ti-alert-triangle" color={dash && dash.openEscalations > 0 ? 'var(--coral-dark)' : undefined} />
         <Kpi label="Visite in arrivo" value={String(dash?.upcomingVisits ?? 0)} icon="ti-calendar" />
+      </div>
+
+      {/* Guadagni (come coach) */}
+      <div className="card-row" style={{ marginTop: 12 }}>
+        <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />
+        <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />
       </div>
 
       <div className="card-row" style={{ marginTop: 16, alignItems: 'flex-start' }}>
@@ -197,6 +208,7 @@ export function NutritionistHome() {
           </div>
         </div>
       )}
+      <DashboardModules />
     </>
   );
 }

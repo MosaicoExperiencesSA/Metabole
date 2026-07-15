@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
+import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
 
 const euro0 = (c: number) => '€ ' + Math.round(c / 100).toLocaleString('it-IT');
 
@@ -127,12 +128,15 @@ export function CoachHome() {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
+      <DashboardShortcuts />
+
       {/* KPI */}
       <div className="card-row">
         <Kpi label="Le mie clienti" value={String(dash?.clientsCount ?? 0)} icon="ti-users" />
         <Kpi label="Avvisi aperti" value={String(dash?.openAlerts ?? 0)} icon="ti-alert-triangle" color={dash && dash.openAlerts > 0 ? 'var(--coral-dark)' : undefined} />
         <Kpi label="Piani in scadenza" value={String(dash?.expiringPlans.length ?? 0)} icon="ti-clock" />
         <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />
+        <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />
       </div>
 
       {/* Lead da accettare */}
@@ -263,6 +267,7 @@ export function CoachHome() {
           </div>
         )}
       </div>
+      <DashboardModules />
     </>
   );
 }

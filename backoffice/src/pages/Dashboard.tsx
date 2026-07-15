@@ -9,13 +9,13 @@ import { WalletWidget } from '../components/WalletWidget';
 import { MiniTrend } from '../components/MiniTrend';
 import { ReminderCalendar, type CalReminder } from '../components/ReminderCalendar';
 
-interface MonthPoint {
+export interface MonthPoint {
   label: string; kgLost: number; cmWaistLost: number; avgLossKg: number;
   newClients: number; activeSubscriptions: number; revenueCents: number; cumulativeRevenueCents: number;
 }
-type PreviewRow = { a: string; b?: string; sub?: string };
+export type PreviewRow = { a: string; b?: string; sub?: string };
 
-interface Shortcut {
+export interface Shortcut {
   id: string;
   pageKey: string;
   to: string;
@@ -25,7 +25,7 @@ interface Shortcut {
 }
 
 // Catalogo di tutte le scorciatoie possibili. Ognuna è filtrata per permesso.
-const CATALOG: Shortcut[] = [
+export const CATALOG: Shortcut[] = [
   { id: 'clienti', pageKey: 'clients', to: '/clienti', icon: 'ti-users', label: 'Clienti', hint: 'Percorsi in corso' },
   { id: 'crm_gestione', pageKey: 'crm_leads', to: '/crm/gestione', icon: 'ti-list-details', label: 'Gestione lead', hint: 'Lead e clienti' },
   { id: 'crm_pipeline', pageKey: 'crm_leads', to: '/crm/pipeline', icon: 'ti-layout-kanban', label: 'Pipeline', hint: 'Stato dei lead' },
@@ -44,7 +44,7 @@ const CATALOG: Shortcut[] = [
 ];
 
 // Predefinite se l'utente non ha ancora personalizzato.
-const DEFAULT_IDS = ['clienti', 'crm_gestione', 'pagamenti', 'agenda', 'utenti', 'permessi'];
+export const DEFAULT_IDS = ['clienti', 'crm_gestione', 'pagamenti', 'agenda', 'utenti', 'permessi'];
 
 export function Dashboard() {
   const { user, permissions, can } = useAuth();
@@ -165,7 +165,7 @@ export function Dashboard() {
   );
 }
 
-function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: PreviewRow[] | null }) {
+export function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: PreviewRow[] | null }) {
   return (
     <Link to={m.to} className="card" style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', margin: 0 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
@@ -195,7 +195,7 @@ function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: Previe
 }
 
 /** Modulo Grafici a tutta larghezza: fino a 3 grafici scelti dall'utente. */
-function GraficiModule({
+export function GraficiModule({
   module: m, monthly, chartKeys, onSave,
 }: {
   module: DashboardModule;
@@ -260,7 +260,7 @@ function GraficiModule({
 }
 
 /** Modulo Calendario a tutta larghezza: stesso selettore viste della pagina Calendario. */
-function CalendarModule({ module: m }: { module: DashboardModule }) {
+export function CalendarModule({ module: m }: { module: DashboardModule }) {
   const [reminders, setReminders] = useState<CalReminder[] | null>(null);
   useEffect(() => {
     api<CalReminder[]>('/crm/reminders?includeDone=false').then(setReminders).catch(() => setReminders([]));
@@ -329,7 +329,7 @@ function ChartPickerModal({ selected, onClose, onSaved }: { selected: string[]; 
   );
 }
 
-function CustomizeModal({
+export function CustomizeModal({
   available,
   selected,
   onClose,
