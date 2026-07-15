@@ -34,6 +34,26 @@ export class EmailTemplatesService {
   }
 
   logs(limit = 300) {
-    return this.prisma.emailLog.findMany({ orderBy: { createdAt: 'desc' }, take: limit });
+    // Lista leggera: NON include il corpo HTML (può essere grande).
+    return this.prisma.emailLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        to: true,
+        templateKey: true,
+        subject: true,
+        status: true,
+        error: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  /** Dettaglio di una singola email registrata, incluso il corpo HTML per l'anteprima. */
+  async logDetail(id: string) {
+    const row = await this.prisma.emailLog.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Email non trovata nel log.');
+    return row;
   }
 }

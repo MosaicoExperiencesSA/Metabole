@@ -41,4 +41,9 @@ export class EmailAdminController {
   log() {
     return this.emails.logs();
   }
+
+  @Get('log/:id')
+  logDetail(@Param('id') id: string) {
+    return this.emails.logDetail(id);
+  }
 }

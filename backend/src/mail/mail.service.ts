@@ -69,10 +69,24 @@ export class MailService {
     return defaults;
   }
 
-  private async log(to: string, subject: string, status: string, templateKey?: string, error?: string) {
+  private async log(
+    to: string,
+    subject: string,
+    status: string,
+    templateKey?: string,
+    error?: string,
+    html?: string,
+  ) {
     try {
       await this.prisma.emailLog.create({
-        data: { to, subject, status, templateKey: templateKey ?? null, error: error ?? null },
+        data: {
+          to,
+          subject,
+          status,
+          templateKey: templateKey ?? null,
+          error: error ?? null,
+          bodyHtml: html ?? null,
+        },
       });
     } catch {
       /* il log non deve mai bloccare l'invio */
@@ -83,7 +97,7 @@ export class MailService {
     const key = this.apiKey;
     if (!key) {
       this.logger.warn(`BREVO_API_KEY non configurata: email NON inviata. to=${input.to} subject="${input.subject}"`);
-      await this.log(input.to, input.subject, 'skipped', input.templateKey, 'BREVO_API_KEY non configurata');
+      await this.log(input.to, input.subject, 'skipped', input.templateKey, 'BREVO_API_KEY non configurata', input.html);
       return false;
     }
     try {
@@ -102,14 +116,14 @@ export class MailService {
       if (!res.ok) {
         const body = await res.text();
         this.logger.error(`Brevo ha risposto ${res.status}: ${body.slice(0, 300)}`);
-        await this.log(input.to, input.subject, 'failed', input.templateKey, `Brevo ${res.status}`);
+        await this.log(input.to, input.subject, 'failed', input.templateKey, `Brevo ${res.status}`, input.html);
         return false;
       }
-      await this.log(input.to, input.subject, 'sent', input.templateKey);
+      await this.log(input.to, input.subject, 'sent', input.templateKey, undefined, input.html);
       return true;
     } catch (err) {
       this.logger.error(`Invio email fallito (to=${input.to})`, err instanceof Error ? err.stack : String(err));
-      await this.log(input.to, input.subject, 'failed', input.templateKey, err instanceof Error ? err.message : 'errore');
+      await this.log(input.to, input.subject, 'failed', input.templateKey, err instanceof Error ? err.message : 'errore', input.html);
       return false;
     }
   }

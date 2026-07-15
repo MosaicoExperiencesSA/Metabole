@@ -1442,6 +1442,7 @@ model EmailLog {
   to          String
   templateKey String?  @map("template_key")
   subject     String
+  bodyHtml    String?  @map("body_html")
   status      String // sent | failed | skipped
   error       String?
   createdAt   DateTime @default(now()) @map("created_at")
