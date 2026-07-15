@@ -77,8 +77,9 @@ section:not(.hero)>.wrap{background:var(--card);border:1px solid var(--bd);borde
 .store span{display:flex;flex-direction:column;line-height:1.15;font-weight:600;font-size:15px}
 .store span small{font-size:10px;font-weight:500;opacity:.8;letter-spacing:.3px}
 /* percorsi alimentari */
-.paths{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:24px}
-.path{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:20px;border-top:4px solid var(--teal)}
+.paths-vp{overflow:hidden;margin-top:24px}
+.paths{display:flex;gap:16px;will-change:transform}
+.path{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:20px;border-top:4px solid var(--teal);flex:0 0 auto;width:clamp(240px,27%,290px)}
 .path .ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;color:#fff}
 .path h3{font-size:17px;margin-bottom:4px}.path p{font-size:13px;color:var(--mut)}
 .path .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -90,7 +91,7 @@ section:not(.hero)>.wrap{background:var(--card);border:1px solid var(--bd);borde
 .feat-art .pic{aspect-ratio:16/11;overflow:hidden}.feat-art .pic img{width:100%;height:100%;object-fit:cover}
 .feat-art .tx{padding:26px 30px 26px 0}
 @media(max-width:880px){.paths{grid-template-columns:1fr 1fr}.recall,.feat-art{grid-template-columns:1fr}.recall .btnrow{justify-content:flex-start}.feat-art .tx{padding:0 22px 24px}}
-@media(max-width:520px){.paths{grid-template-columns:1fr}}
+@media(max-width:520px){.path{width:80%}}
 header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--bd)}
 .nav{display:flex;align-items:center;gap:22px;height:68px}
 .logo{font-family:var(--serif);font-weight:600;font-size:22px;color:var(--deep)}
@@ -354,7 +355,7 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
       <div class="stat"><b id="statYears">20+</b><span data-i18n="stat1l">anni di esperienza del team</span></div>
       <div class="stat"><b id="statClients">18.979+</b><span data-i18n="stat2l">clienti seguiti</span></div>
       <div class="stat"><b id="statReached">85.218+</b><span data-i18n="stat3l">persone raggiunte</span></div>
-      <div class="stat"><b id="statMethods">4</b><span data-i18n="stat4l">metodi gestiti</span></div>
+      <div class="stat"><b id="statMethods">4</b><span data-i18n="stat4l">percorsi gestiti</span></div>
     </div>
     <p class="stats-note" data-i18n="stats_note">Numeri maturati attraverso i nostri prodotti di nutrizione e benessere — tra cui Nutriamo, Dimagriamo, Nutrilab — e oggi con MetaboleAI, nell'ambito di Mosaico Experiences SA.</p>
   </div>
@@ -416,12 +417,12 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
   <div class="kick" data-i18n="paths_k">Percorsi alimentari</div>
   <h2 data-i18n="paths_t">Un percorso per ogni obiettivo</h2>
   <p class="lead" data-i18n="paths_lead">I percorsi disponibili nell'app. Il nutrizionista sceglie con te quello giusto e lo personalizza.</p>
-  <div class="paths" id="pathsGrid">
+  <div class="paths-vp"><div class="paths" id="pathsGrid">
     <div class="path" style="border-top-color:#12A386"><div class="ic" style="background:#12A386"><i class="ti ti-salad" style="font-size:20px"></i></div><h3 data-i18n="p1t">Mediterranea</h3><p data-i18n="p1p">Equilibrata e varia, di stagione: la base della tradizione italiana.</p></div>
     <div class="path" style="border-top-color:#2F80ED"><div class="ic" style="background:#2F80ED"><i class="ti ti-meat" style="font-size:20px"></i></div><h3 data-i18n="p2t">Proteica</h3><p data-i18n="p2p">Più proteine per sazietà e tono muscolare, senza rinunce.</p></div>
     <div class="path" style="border-top-color:#6C4CD6"><div class="ic" style="background:#6C4CD6"><i class="ti ti-bread" style="font-size:20px"></i></div><h3 data-i18n="p3t">Low-carb</h3><p data-i18n="p3p">Pochi carboidrati per energia stabile e leggerezza.</p></div>
     <div class="path" style="border-top-color:#E8A11B"><div class="ic" style="background:#E8A11B"><i class="ti ti-avocado" style="font-size:20px"></i></div><h3 data-i18n="p4t">Keto</h3><p data-i18n="p4p">Grassi buoni e pochi zuccheri, sempre sotto controllo del nutrizionista.</p></div>
-  </div>
+  </div></div>
   <p class="stats-note" data-i18n="paths_note" style="margin-top:16px">I percorsi si aggiornano nell'app: il nutrizionista può attivarne di nuovi in base alle tue esigenze.</p>
 </div></section>
 
@@ -597,7 +598,7 @@ var EXTRA2={
 Object.keys(EXTRA2).forEach(function(l){var s=EXTRA2[l];for(var k in s){if(!I18N[l])I18N[l]={};I18N[l][k]=s[k];}});
 var NAVBLOG={it:'Blog',en:'Blog',es:'Blog',pt:'Blog',fr:'Blog',de:'Blog',ru:'Блог',zh:'博客',ar:'المدوّنة'};
 Object.keys(NAVBLOG).forEach(function(l){if(I18N[l])I18N[l].nav_blog=NAVBLOG[l];});
-var STAT4={it:'metodi gestiti',en:'methods managed',es:'métodos gestionados',pt:'métodos geridos',fr:'méthodes gérées',de:'verwaltete Methoden',ru:'методов в управлении',zh:'管理的方法',ar:'طرق مُدارة'};
+var STAT4={it:'percorsi gestiti',en:'journeys managed',es:'planes gestionados',pt:'percursos geridos',fr:'parcours gérés',de:'verwaltete Wege',ru:'программ в управлении',zh:'管理的方案',ar:'مسارات مُدارة'};
 Object.keys(STAT4).forEach(function(l){if(I18N[l])I18N[l].stat4l=STAT4[l];});
 var FERR={it:"Non è stato possibile inviare ora. Scrivici a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e ti ricontattiamo.",en:"We couldn't send it right now. Write to us at <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> and we'll get back to you.",es:"No se ha podido enviar ahora. Escríbenos a <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> y te contactamos.",pt:"Não foi possível enviar agora. Escreva para <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> e entramos em contacto.",fr:"L'envoi a échoué. Écrivez-nous à <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> et nous vous recontactons.",de:"Senden derzeit nicht möglich. Schreiben Sie an <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, wir melden uns.",ru:"Не удалось отправить. Напишите нам на <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>, и мы свяжемся с вами.",zh:"暂时无法发送。请写信至 <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a>，我们会与你联系。",ar:"تعذّر الإرسال الآن. راسِلنا على <a href=\"mailto:info@metabole.eu\" style=\"color:var(--deep)\">info@metabole.eu</a> وسنعاود التواصل معك."};
 Object.keys(FERR).forEach(function(l){if(I18N[l])I18N[l].f_err=FERR[l];});
@@ -633,12 +634,35 @@ function applyStats(l){
   if(r)r.textContent=fmtN(STATS.reached,l)+'+';
   if(m)m.textContent=fmtN(STATS.methods,l);
 }
+/* Il contatore "percorsi gestiti" = numero di percorsi mostrati (unica fonte di verità). */
+function syncMethods(){var g=document.getElementById('pathsGrid');if(!g)return;STATS.methods=g.querySelectorAll('.path').length;applyStats(document.documentElement.lang);}
+/* Carosello percorsi: scorrimento automatico continuo, pausa su hover/touch. */
+function startPathsCarousel(){
+  var track=document.getElementById('pathsGrid');if(!track)return;
+  var vp=track.parentElement;var x=0,speed=0.9,paused=false;
+  vp.addEventListener('mouseenter',function(){paused=true;});
+  vp.addEventListener('mouseleave',function(){paused=false;});
+  vp.addEventListener('touchstart',function(){paused=true;},{passive:true});
+  vp.addEventListener('touchend',function(){paused=false;},{passive:true});
+  function frame(){
+    if(!paused&&track.children.length>1&&track.scrollWidth>vp.clientWidth+4){
+      x-=speed;var guard=0;
+      while(track.children.length>1&&guard<12){
+        var first=track.children[0];var w=first.getBoundingClientRect().width+16;
+        if(-x>=w){x+=w;track.appendChild(first);}else break;guard++;
+      }
+      track.style.transform='translateX('+x+'px)';
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
 var STATS_ENDPOINT="";
 function loadStats(){
   STATS_ENDPOINT=document.body.getAttribute('data-stats-endpoint')||STATS_ENDPOINT;
   if(!STATS_ENDPOINT)return;
   fetch(STATS_ENDPOINT).then(function(r){return r.json()}).then(function(s){
-    if(s&&typeof s==='object'){if(s.years!=null)STATS.years=s.years;if(s.clients!=null)STATS.clients=s.clients;if(s.reached!=null)STATS.reached=s.reached;if(s.methods!=null)STATS.methods=s.methods;applyStats(document.documentElement.lang);}
+    if(s&&typeof s==='object'){if(s.years!=null)STATS.years=s.years;if(s.clients!=null)STATS.clients=s.clients;if(s.reached!=null)STATS.reached=s.reached;/* methods: guidato dai box percorsi, non da qui */applyStats(document.documentElement.lang);}
   }).catch(function(){});
 }
 /* --- Testimonianze dinamiche (dal marketing): ogni testimonianza approvata compare qui --- */
@@ -664,6 +688,7 @@ function loadPaths(){
     grid.innerHTML=list.map(function(p,i){var c=p.color||cols[i%cols.length];var ic=p.icon||icons[i%icons.length];
       return '<div class="path" style="border-top-color:'+c+'"><div class="ic" style="background:'+c+'"><i class="ti '+ic+'" style="font-size:20px"></i></div><h3>'+(p.name||p.clientName||'')+'</h3><p>'+(p.desc||p.clientDescription||'')+'</p></div>';
     }).join('');
+    grid.style.transform='translateX(0)';
     STATS.methods=list.length;applyStats(document.documentElement.lang);
   }).catch(function(){});
 }
@@ -672,7 +697,7 @@ var start=saved||(I18N[nav]?nav:'it');
 I18N_ENDPOINT=document.body.getAttribute('data-i18n-endpoint')||I18N_ENDPOINT;
 setLang(start);
 loadRemoteI18N(function(){setLang(document.documentElement.lang||start);});
-loadStats();loadPaths();loadTestimonials();
+loadStats();loadPaths();loadTestimonials();syncMethods();startPathsCarousel();
 document.getElementById('lang').addEventListener('change',function(){setLang(this.value)});
 // cookie banner
 if(!ls('mb_cookie')){document.getElementById('cookieBar').style.display='flex';}
@@ -713,7 +738,16 @@ f.addEventListener('submit',function(e){e.preventDefault();
   if(prev) prev.addEventListener('click',function(){ go(idx-1); });
   if(next) next.addEventListener('click',function(){ go(idx+1); });
   window.addEventListener('resize',function(){ go(idx); });
-  upd();
+  /* avanzamento automatico ogni 3s (pausa su hover/tocco, riparte dopo l'uso manuale) */
+  var auto=null;
+  function startAuto(){ stopAuto(); auto=setInterval(function(){ go((idx+1)%slides.length); },3000); }
+  function stopAuto(){ if(auto){ clearInterval(auto); auto=null; } }
+  track.addEventListener('mouseenter',stopAuto);
+  track.addEventListener('mouseleave',startAuto);
+  track.addEventListener('touchstart',stopAuto,{passive:true});
+  if(prev) prev.addEventListener('click',startAuto);
+  if(next) next.addEventListener('click',startAuto);
+  upd(); startAuto();
 })();
 </script>
 </body></html>
