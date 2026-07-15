@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner } from '../components/ui';
 import { ThemeSelect } from '../theme';
 import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
+import { MenuOrderCard } from '../components/MenuOrderCard';
 
 /** Riduce un'immagine a un quadrato 256×256 (cover, ritaglio centrato) e la ritorna come data URL JPEG. */
 function fileToAvatarDataUrl(file: File): Promise<string> {
@@ -336,6 +337,9 @@ export function Impostazioni() {
           </>
         )}
       </div>
+
+      {/* Ordine del menu */}
+      <MenuOrderCard />
     </>
   );
 }

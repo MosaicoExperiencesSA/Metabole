@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { UserMenu } from './UserMenu';
+import { api } from '../api/client';
+import { readMenuOrderCache, writeMenuOrderCache, orderNavItems } from '../lib/menuOrder';
 
 interface NavItem {
   key: string; // pageKey dei permessi
@@ -18,7 +20,7 @@ interface NavSection {
 }
 
 /** Voci del menu: sezione ↔ pageKey dei permessi ↔ rotta ↔ icona. */
-const NAV: NavSection[] = [
+export const NAV: NavSection[] = [
   {
     group: 'Generale',
     items: [
@@ -107,6 +109,12 @@ export function Layout({ title, children }: { title: string; children: ReactNode
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [menuOrder, setMenuOrder] = useState<string[] | null>(() => readMenuOrderCache());
+  useEffect(() => {
+    api<{ menuOrder: string[] | null }>('/me/preferences')
+      .then((p) => { const o = p.menuOrder && p.menuOrder.length ? p.menuOrder : null; setMenuOrder(o); writeMenuOrderCache(o); })
+      .catch(() => { /* uso la cache locale */ });
+  }, []);
   const [navOpen, setNavOpen] = useState<boolean>(() => {
     try { return localStorage.getItem('metabole_bo_nav') !== 'closed'; } catch { return true; }
   });
@@ -155,7 +163,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         </div>
 
         {NAV.map((section) => {
-          const visible = section.items.filter((it) => can(it.key));
+          const visible = orderNavItems(section.items.filter((it) => can(it.key)), menuOrder);
           if (visible.length === 0) return null;
 
           if (section.collapsible) {
