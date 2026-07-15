@@ -179,7 +179,7 @@ export class EngineRulesService {
     const protMin = Math.round(Number(rules.menu_daycombo_protein_min ?? 0.2) * 100);
     const protMax = Math.round(Number(rules.menu_daycombo_protein_max ?? 0.35) * 100);
     const kcalTol = Number(rules.menu_kcal_balance_tolerance_pct ?? 15);
-    const targetKcal = 1500;
+    const targetKcal = Math.max(600, Math.min(4000, Math.round(Number(rules.menu_daycombo_kcal_target ?? 1500)) || 1500));
     const slots = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
     const perSlot = 6;
     const days = Math.max(1, Math.min(60, Math.round(requestedDays) || 28));
@@ -343,6 +343,28 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
       days: { total: diet.dayTemplates.length, complete: daysComplete },
       groups: { total: groups.length, approved: groups.filter((g) => g.status === 'approved').length },
     };
+  }
+
+  /** Anteprima delle giornate generate (per il passo di validazione). */
+  async dietPreview(dietId: string) {
+    const templates = (await this.prisma.dietDayTemplate.findMany({ where: { dietId }, orderBy: { dayIndex: 'asc' }, select: { dayIndex: true, meals: true } })) as { dayIndex: number; meals: unknown }[];
+    const ids = new Set<string>();
+    for (const t of templates) {
+      for (const m of (Array.isArray(t.meals) ? t.meals : []) as { recipeId?: string }[]) {
+        if (m.recipeId) ids.add(m.recipeId);
+      }
+    }
+    const recipes = ids.size
+      ? ((await this.prisma.recipe.findMany({ where: { id: { in: [...ids] } }, select: { id: true, name: true, kcal: true } })) as { id: string; name: string; kcal: number }[])
+      : [];
+    const byId = new Map(recipes.map((r) => [r.id, r]));
+    return templates.map((t) => ({
+      dayIndex: t.dayIndex,
+      meals: ((Array.isArray(t.meals) ? t.meals : []) as { slot?: string; recipeId?: string }[]).map((m) => {
+        const r = m.recipeId ? byId.get(m.recipeId) : undefined;
+        return { slot: m.slot ?? '', recipe: r?.name ?? '—', kcal: r?.kcal ?? 0 };
+      }),
+    }));
   }
 
   /** Attiva tutte le ricette della dieta (fine revisione ricette). */

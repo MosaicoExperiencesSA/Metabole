@@ -18,6 +18,7 @@ type ReviewStatus = {
 const LS_DIET = 'metabole_bo_wizard_diet';
 const REGIMI = [{ v: 'omnivore', l: 'Onnivoro' }, { v: 'vegetarian', l: 'Vegetariano' }, { v: 'vegan', l: 'Vegano' }];
 const OBIETTIVI = [{ v: 'dimagrimento', l: 'Dimagrimento' }, { v: 'mantenimento', l: 'Mantenimento' }];
+const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 
 /**
  * Pagina guidata Creazione e validazione: dal preset suggerito → generazione bozza →
@@ -30,7 +31,7 @@ export function CreazioneValidazione() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [form, setForm] = useState({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '' });
+  const [form, setForm] = useState({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
   const [sourceRules, setSourceRules] = useState<Record<string, unknown>>({});
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -38,25 +39,36 @@ export function CreazioneValidazione() {
   const [days, setDays] = useState(28);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
   const [status, setStatus] = useState<ReviewStatus | null>(null);
+  const [preview, setPreview] = useState<{ dayIndex: number; meals: { slot: string; recipe: string; kcal: number }[] }[] | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     api<Preset[]>('/engine-rules/presets').then(setPresets).catch((e) => { setPresets([]); setError(e instanceof Error ? e.message : 'Caricamento regole non riuscito.'); });
   }, []);
   useEffect(() => {
+    setShowPreview(false); setPreview(null);
     if (!dietId) { setStatus(null); return; }
     api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`).then(setStatus).catch(() => setStatus(null));
   }, [dietId]);
 
   function pickPreset(p: Preset) {
-    setForm({ label: p.label, style: p.style, regime: (p.regime as string) || 'omnivore', objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '' });
-    setSourceRules((p.rules as Record<string, unknown>) || {});
+    const r = (p.rules as Record<string, unknown>) || {};
+    setForm({
+      label: p.label, style: p.style, regime: (p.regime as string) || 'omnivore', objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '',
+      kcalTarget: Math.round(Number(r.menu_daycombo_kcal_target ?? 1500)) || 1500,
+      proteinMin: Math.round(Number(r.menu_daycombo_protein_min ?? 0.2) * 100),
+      proteinMax: Math.round(Number(r.menu_daycombo_protein_max ?? 0.35) * 100),
+      kcalTol: Math.round(Number(r.menu_kcal_balance_tolerance_pct ?? 15)),
+    });
+    setSourceRules(r);
     setActivePresetId(p.id); setDirty(false); setNotice(null); setError(null);
   }
   function newPreset() {
-    setForm({ label: '', style: 'custom', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '' });
+    setForm({ label: '', style: 'custom', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
     setSourceRules({}); setActivePresetId(null); setDirty(true); setNotice(null); setError(null);
   }
   function edit(k: 'label' | 'style' | 'regime' | 'objective' | 'clinicalNotes', v: string) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
+  function editNum(k: 'kcalTarget' | 'proteinMin' | 'proteinMax' | 'kcalTol', v: number) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
 
   async function saveAsNew() {
     if (!form.label.trim()) { setError('Dai un nome alla regola.'); return; }
@@ -64,7 +76,8 @@ export function CreazioneValidazione() {
     try {
       const created = await api<Preset>('/engine-rules/presets', { method: 'POST', body: JSON.stringify({
         label: form.label.trim(), style: form.style || 'custom', regime: form.regime, objective: form.objective,
-        clinicalNotes: form.clinicalNotes || undefined, rules: sourceRules, suggested: false,
+        clinicalNotes: form.clinicalNotes || undefined, suggested: false,
+        rules: { ...sourceRules, menu_daycombo_kcal_target: form.kcalTarget, menu_daycombo_protein_min: form.proteinMin / 100, menu_daycombo_protein_max: form.proteinMax / 100, menu_kcal_balance_tolerance_pct: form.kcalTol },
       }) });
       setActivePresetId(created.id); setDirty(false);
       setPresets((ps) => (ps ? [created, ...ps] : [created]));
@@ -100,7 +113,7 @@ export function CreazioneValidazione() {
       await api(`/diets/${dietId}/submit`, { method: 'POST', body: JSON.stringify({}) });
       try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
       setDietId(null); setStatus(null); setActivePresetId(null); setDirty(false);
-      setForm({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '' });
+      setForm({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
       setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Invio non riuscito.'); }
     finally { setBusy(false); }
@@ -109,6 +122,14 @@ export function CreazioneValidazione() {
   function reset() {
     try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
     setDietId(null); setStatus(null); setNotice(null);
+  }
+
+  async function loadPreview() {
+    if (!dietId) return;
+    setBusy(true);
+    try { setPreview(await api<{ dayIndex: number; meals: { slot: string; recipe: string; kcal: number }[] }[]>(`/engine-rules/diets/${dietId}/preview`)); setShowPreview(true); }
+    catch { setPreview([]); setShowPreview(true); }
+    finally { setBusy(false); }
   }
 
   if (presets === null) return <Spinner />;
@@ -169,6 +190,24 @@ export function CreazioneValidazione() {
                 </select>
               </label>
             </div>
+            <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+              <label style={{ flex: 1, minWidth: 110 }}>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Kcal / giorno</span>
+                <input className="input" type="number" min={600} max={4000} step={50} value={form.kcalTarget} onChange={(e) => editNum('kcalTarget', Number(e.target.value) || 0)} />
+              </label>
+              <label style={{ flex: 1, minWidth: 110 }}>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Proteine min %</span>
+                <input className="input" type="number" min={5} max={60} value={form.proteinMin} onChange={(e) => editNum('proteinMin', Number(e.target.value) || 0)} />
+              </label>
+              <label style={{ flex: 1, minWidth: 110 }}>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Proteine max %</span>
+                <input className="input" type="number" min={5} max={60} value={form.proteinMax} onChange={(e) => editNum('proteinMax', Number(e.target.value) || 0)} />
+              </label>
+              <label style={{ flex: 1, minWidth: 110 }}>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Tolleranza kcal %</span>
+                <input className="input" type="number" min={0} max={40} value={form.kcalTol} onChange={(e) => editNum('kcalTol', Number(e.target.value) || 0)} />
+              </label>
+            </div>
             <label style={{ display: 'block' }}>
               <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Note cliniche (opzionale)</span>
               <textarea className="input" rows={2} value={form.clinicalNotes} onChange={(e) => edit('clinicalNotes', e.target.value)} placeholder="Vincoli o indicazioni da rispettare nella generazione" />
@@ -223,8 +262,32 @@ export function CreazioneValidazione() {
               <button className="btn" onClick={publish} disabled={busy || !allReady} title={allReady ? '' : 'Completa tutti i passi'}>
                 <i className="ti ti-send" /> Invia in revisione
               </button>
+              <button className="btn ghost" onClick={showPreview ? () => setShowPreview(false) : loadPreview} disabled={busy}>
+                <i className="ti ti-eye" /> {showPreview ? 'Nascondi anteprima' : 'Anteprima giornate'}
+              </button>
               <button className="btn ghost" onClick={reset} disabled={busy}>Annulla questa bozza</button>
             </div>
+            {showPreview && preview !== null && (
+              <div style={{ marginTop: 14 }}>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Anteprima delle {preview.length} giornate generate</div>
+                <div style={{ maxHeight: 360, overflowY: 'auto', display: 'grid', gap: 6 }}>
+                  {preview.map((d) => (
+                    <div key={d.dayIndex} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px' }}>
+                      <b style={{ fontSize: 13 }}>Giorno {d.dayIndex}</b>
+                      <div style={{ display: 'grid', gap: 2, marginTop: 4 }}>
+                        {d.meals.map((m, i) => (
+                          <div key={i} className="row" style={{ gap: 8, fontSize: 12.5 }}>
+                            <span className="muted" style={{ width: 84, flex: 'none' }}>{SLOT_LABEL[m.slot] ?? m.slot}</span>
+                            <span style={{ flex: 1 }}>{m.recipe}</span>
+                            <span className="muted">{m.kcal} kcal</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

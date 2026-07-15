@@ -87,6 +87,11 @@ export class EngineRulesController {
     return this.service.generateCatalogFromPreset(id, u.sub, dto.days);
   }
 
+  @Get('diets/:id/preview')
+  preview(@Param('id') id: string) {
+    return this.service.dietPreview(id);
+  }
+
   @Get('diets/:id/review-status')
   reviewStatus(@Param('id') id: string) {
     return this.service.dietReviewStatus(id);
