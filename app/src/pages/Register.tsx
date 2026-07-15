@@ -1,7 +1,7 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { ApiError } from '../api/client';
+import { ApiError, apiPublic } from '../api/client';
 import Gaia from '../components/Gaia';
 import { TypeText } from '../components/TypeText';
 
@@ -25,21 +25,49 @@ export default function Register() {
   });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Se l'email è già registrata, proponiamo il reset password invece del solo errore.
+  const [emailExists, setEmailExists] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   function up(k: keyof typeof f, v: string) {
     setF((s) => ({ ...s, [k]: v }));
   }
 
+  // Se l'utente cambia email, azzeriamo l'eventuale proposta di reset.
+  useEffect(() => { setEmailExists(false); setResetSent(false); }, [f.email]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErr(null);
+    setEmailExists(false);
+    setResetSent(false);
     setBusy(true);
     try {
       await register(f);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Registrazione non riuscita');
+      if (e instanceof ApiError && e.status === 409) {
+        // Email già registrata: niente errore secco, proponiamo il reset.
+        setEmailExists(true);
+      } else {
+        setErr(e instanceof ApiError ? e.message : 'Registrazione non riuscita');
+      }
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function requestReset() {
+    setResetBusy(true);
+    setErr(null);
+    try {
+      await apiPublic('/auth/password-reset', { method: 'POST', body: JSON.stringify({ email: f.email.trim() }) });
+      setResetSent(true);
+    } catch {
+      // Per privacy l'API risponde comunque 202; un errore qui è di rete.
+      setResetSent(true);
+    } finally {
+      setResetBusy(false);
     }
   }
 
@@ -66,6 +94,27 @@ export default function Register() {
         </div>
 
         {err && <div className="banner err">{err}</div>}
+
+        {emailExists && (
+          <div className="banner" style={{ background: 'var(--card, #fff)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
+            {!resetSent ? (
+              <>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Questa email è già registrata</div>
+                <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Se sei già iscritta puoi accedere, oppure reimpostare la password se non la ricordi.</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn" disabled={resetBusy} onClick={requestReset}>{resetBusy ? 'Invio…' : 'Reimposta la password'}</button>
+                  <button type="button" className="btn ghost" onClick={() => nav('/login')}>Accedi</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Controlla la tua email</div>
+                <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Se l'indirizzo è registrato, ti abbiamo inviato le istruzioni per reimpostare la password.</div>
+                <button type="button" className="btn ghost" onClick={() => nav('/login')}>Vai all'accesso</button>
+              </>
+            )}
+          </div>
+        )}
 
         <form onSubmit={onSubmit}>
           <div className="fields-grid">

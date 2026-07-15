@@ -23,7 +23,7 @@ Ogni NUOVA pagina del backoffice va aggiunta alla lista permessi:
 3. menu (Layout.tsx) e rotta (App.tsx) devono usare la nuova chiave pageKey
 Il seed (seedPermissions) crea le righe ruolo×pagina mancanti al deploy.
 
-## Registrazione con email già esistente — UX reset password (da fare)
+## Registrazione con email già esistente — UX reset password — FATTO
 Oggi la registrazione con una email già presente risponde solo con l'errore
 "Email già registrata" (ConflictException in auth.service.register). Migliorare
 la UX: riconoscere l'utente di ritorno e proporre "Questa email è già registrata:
@@ -32,3 +32,5 @@ vuoi reimpostare la password?" con link/azione diretta al flusso di reset
 troppo (enumerazione account) — valutare messaggio neutro lato API e gestione
 dell'offerta solo lato UI, oppure inviare comunque la mail di reset senza
 confermare esplicitamente l'esistenza dell'account.
+
+FATTO (app Register.tsx): su email già registrata (409) niente errore secco, ma un riquadro "Questa email è già registrata" con "Reimposta la password" (chiama POST /auth/password-reset, che risponde comunque 202 neutro) e "Accedi". L'enumerazione non peggiora perché la registrazione già rivelava l'esistenza; il reset resta neutro.
