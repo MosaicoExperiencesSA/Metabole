@@ -471,26 +471,37 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
         {cur.t === 'consent' && (
           <div className="onb-body">
-            <h1>Trattamento dei dati personali</h1>
             <div className="qbubble">
               <Gaia clip="privacy" size={62} controls={false} />
               <div className="bubble">
                 <TypeText segments={[{ t: 'Manca solo la tua approvazione al trattamento dei dati personali e potrò costruire il tuo percorso personalizzato di ' }, { t: 'MetaboleAI', b: true }, { t: '. Clicca su accetta e procedo.' }]} />
               </div>
             </div>
-            <p className="muted" style={{ fontSize: 13 }}>
-              Trattiamo alcuni dati sulla tua salute solo per costruire un percorso sicuro. Sono visibili
-              solo a te e al tuo nutrizionista.
-            </p>
+            <h1 style={{ marginBottom: 2 }}>Trattamento dei dati personali</h1>
+            <p className="muted" style={{ marginTop: 0, marginBottom: 12 }}>La tua privacy prima di tutto.</p>
+            <div className="card" style={{ padding: '12px 13px' }}>
+              {([
+                ['ti-shield-check', 'Dati trattati in Europa, secondo il GDPR.'],
+                ['ti-stethoscope', 'I dati sulla salute li vede solo il tuo nutrizionista.'],
+                ['ti-eye-off', 'Non usiamo i tuoi dati per scopi diversi dal servizio.'],
+                ['ti-rotate', 'Puoi revocare il consenso quando vuoi.'],
+              ] as [string, string][]).map(([icon, text]) => (
+                <div key={text} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0' }}>
+                  <i className={`ti ${icon}`} style={{ fontSize: 18, color: 'var(--teal)', flex: 'none', marginTop: 1 }} />
+                  <span style={{ fontSize: 13.5, lineHeight: 1.4 }}>{text}</span>
+                </div>
+              ))}
+            </div>
             {submitErr && <div className="banner err">{submitErr}</div>}
             <label className="consent">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              <span>Acconsento al trattamento dei miei dati sanitari (GDPR art. 9).</span>
+              <span>Ho letto e <b>accetto</b> il trattamento dei miei dati personali per l'erogazione del servizio.</span>
             </label>
+            <span className="link" style={{ display: 'inline-block', marginTop: 8, fontSize: 13 }}>Leggi l'informativa completa</span>
             <div className="onb-nav">
               <button className="btn ghost" onClick={back} disabled={submitting}>Indietro</button>
               <button className="btn" onClick={submit} disabled={!consent || submitting}>
-                {submitting ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Accetta e procedi'}
+                {submitting ? <span className="spin" style={{ width: 20, height: 20, borderColor: 'rgba(255,255,255,.4)', borderTopColor: '#fff' }} /> : 'Ho letto e accetto'}
               </button>
             </div>
           </div>

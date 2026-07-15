@@ -46,7 +46,10 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
             <h1>Il tuo percorso è pronto</h1>
             <p className="muted" style={{ marginTop: 2 }}>Costruito sulle tue risposte.</p>
             <div className="qbubble">
-              <Gaia clip="percorso" size={62} controls={false} />
+              {/* Audio 'percorso' disattivato: il file contiene ancora nomi di esempio
+                  (Giulia/Sara/Marini). Riattivare clip="percorso" quando il socio fornisce
+                  la registrazione corretta (senza nomi). Il testo a schermo è già dinamico. */}
+              <Gaia size={62} controls={false} />
               <div className="bubble">
                 <TypeText segments={
                   coachName || nutriName
