@@ -57,18 +57,45 @@ export class CrmService {
     return { ok: true, id: record.id };
   }
 
-  /** Registrazione → lead automatico (non blocca mai il flusso chiamante). */
-  async ensureLead(clientId: string, email: string): Promise<void> {
+  /**
+   * Registrazione (app o backoffice) → il cliente compare SEMPRE in Gestione lead.
+   * Regola: tutti sono lead, solo alcuni diventano clienti. Per non creare doppioni,
+   * se esiste già un lead "puro" con la stessa email lo si COLLEGA (clientId) invece
+   * di crearne uno nuovo; altrimenti si crea il record. Non blocca mai la registrazione.
+   */
+  async ensureLead(clientId: string, email: string, name?: string | null): Promise<void> {
     try {
-      await this.prisma.crmRecord.upsert({
-        where: { clientId },
-        create: {
+      // Già collegato a questo cliente: eventuale backfill soft di email/nome.
+      const linked = await this.prisma.crmRecord.findUnique({ where: { clientId } });
+      if (linked) {
+        if ((!linked.email && email) || (!linked.name && name)) {
+          await this.prisma.crmRecord.update({
+            where: { clientId },
+            data: { email: linked.email ?? email, name: linked.name ?? name ?? undefined },
+          });
+        }
+        return;
+      }
+      // Esiste un lead "puro" (non ancora registrato) con la stessa email? → lo collego.
+      const pure = email
+        ? await this.prisma.crmRecord.findFirst({ where: { clientId: null, email } })
+        : null;
+      if (pure) {
+        await this.prisma.crmRecord.update({
+          where: { id: pure.id },
+          data: { clientId, name: pure.name ?? name ?? undefined },
+        });
+        return;
+      }
+      // Nessun precedente: nuovo lead collegato al cliente.
+      await this.prisma.crmRecord.create({
+        data: {
           clientId,
           email,
+          name: name ?? undefined,
           stage: 'lead_in',
           stageDates: { lead_in: { at: new Date().toISOString(), byUserId: null } } as never,
         },
-        update: {},
       });
     } catch {
       /* il CRM non deve mai bloccare la registrazione */

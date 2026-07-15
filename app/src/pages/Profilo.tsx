@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import AppHeader from '../components/AppHeader';
+import BrandPicker from '../components/BrandPicker';
 import NotificationPrefs from '../components/NotificationPrefs';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
 
@@ -412,6 +413,16 @@ export default function Profilo() {
           </div>
         </>
       )}
+
+      {/* Colore dell'app */}
+      <div className="sec" style={{ marginTop: 4 }}>Colore dell'app</div>
+      <div className="card">
+        <p className="muted" style={{ margin: '0 0 12px', fontSize: 12.5 }}>Scegli il colore che preferisci: trasforma tutta l'app.</p>
+        <BrandPicker />
+        <p className="muted" style={{ margin: '12px 0 0', fontSize: 11 }}>
+          <i className="ti ti-sparkles" style={{ fontSize: 12, verticalAlign: '-1px' }} /> L'ultimo è <b>Auto</b>: un colore nuovo ogni due giorni.
+        </p>
+      </div>
 
       {/* Piano attivo */}
       <div className="sec" style={{ marginTop: 4 }}>Il mio piano</div>

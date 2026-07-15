@@ -2,8 +2,9 @@
    `sf-` per non collidere col tema dell'app cliente (caricato globalmente). */
 
 .sf-frame {
-  --sf-brand: #12a386;
-  --sf-brand-dark: #0e6e5a;
+  /* Segue il colore dell'app scelto nel profilo (--brand da lib/brand.ts). */
+  --sf-brand: var(--brand, #12a386);
+  --sf-brand-dark: var(--brand-dark, #0e6e5a);
   --sf-bg: #eef1f0;
   --sf-ink: #101826;
   --sf-muted: #8a938f;

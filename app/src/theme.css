@@ -1,6 +1,8 @@
 :root {
-  --teal: #12a386;
-  --teal-dark: #10403a;
+  /* --brand / --brand-dark sono impostati a runtime da lib/brand.ts (colore scelto
+     nel profilo). Se non impostati, si usa il verde di default. */
+  --teal: var(--brand, #12a386);
+  --teal-dark: var(--brand-dark, #10403a);
   --coral: #e8825a;
   --violet: #6c5ab7;
   /* Palette grigio-fredda del prototipo (demo): sfondo pagina, riempimenti tenui, bordi. */
@@ -47,7 +49,7 @@ body {
 .app-header {
   margin: calc(-1 * (env(safe-area-inset-top) + 16px)) -16px 14px;
   padding: calc(env(safe-area-inset-top) + 14px) 14px 18px;
-  background: linear-gradient(135deg, var(--teal), #0E6E5A);
+  background: linear-gradient(135deg, var(--teal), var(--brand-dark, #0E6E5A));
   border-radius: 0 0 24px 24px;
   box-shadow: 0 10px 26px rgba(16, 110, 90, 0.28);
   display: flex;
@@ -168,7 +170,7 @@ p { line-height: 1.5; }
 
 /* Intestazione con saluto + mascotte */
 .hero {
-  background: linear-gradient(135deg, #10403a, #12a386);
+  background: linear-gradient(135deg, var(--brand-dark, #10403a), var(--teal));
   color: #fff;
   border-radius: var(--radius);
   padding: 18px;
@@ -316,7 +318,7 @@ p { line-height: 1.5; }
 .addr-opt:last-child { border-bottom: none; }
 .addr-opt:hover { background: #F3F7F5; }
 .prog-track { height: 10px; border-radius: 6px; background: #E7EFE9; overflow: hidden; }
-.prog-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #12A386, #2AA7C4); transition: width .4s ease; }
+.prog-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--teal), #2AA7C4); transition: width .4s ease; }
 .storico-thumb { width: 30px; height: 30px; flex: none; border-radius: 9px; background: #f2efe8; color: #b3aFA4; display: flex; align-items: center; justify-content: center; }
 .storico-thumb.ok { background: #dcf0d8; color: #3b6d11; }
 

@@ -103,7 +103,7 @@ export class AuthService {
     });
 
     await this.issueEmailVerification(user.id, normalized, user.locale);
-    await this.crm.ensureLead(user.id, normalized); // CRM: lead_in automatico
+    await this.crm.ensureLead(user.id, normalized, [user.firstName, user.lastName].filter(Boolean).join(' ') || null); // CRM: lead_in automatico
     // Codice staff → auto-assegna la cliente alla coach o alla nutrizionista (immediata).
     if (trimmedRef && refKind === 'staff') {
       await this.leadAssignment.autoAssignByRefCode(user.id, trimmedRef);
