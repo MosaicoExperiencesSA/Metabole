@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { useTaxonomy } from '../lib/taxonomy';
 import { Banner, Modal, Spinner, Toggle } from '../components/ui';
 import { useAuth } from '../auth/AuthContext';
 
@@ -281,6 +282,7 @@ function PresetCard({ preset, catalog, canManage, generating, onGenerate, onEdit
 
 function PresetModal({ preset, catalog, onClose, onSaved, onError }: { preset: Preset | null; catalog: Catalog; onClose: () => void; onSaved: () => void; onError: (m: string) => void }) {
   const [label, setLabel] = useState(preset?.label ?? '');
+  const { regimes } = useTaxonomy();
   const [style, setStyle] = useState(preset?.style ?? 'mediterranean');
   const [description, setDescription] = useState(preset?.description ?? '');
   const [regime, setRegime] = useState(preset?.regime ?? '');
@@ -317,7 +319,7 @@ function PresetModal({ preset, catalog, onClose, onSaved, onError }: { preset: P
       <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
         <div className="field" style={{ minWidth: 150 }}><label>Regime</label>
           <select className="input" value={regime} onChange={(e) => setRegime(e.target.value)}>
-            <option value="">Qualsiasi</option>{['omnivore', 'vegetarian', 'vegan', 'pescetarian'].map((r) => <option key={r} value={r}>{r}</option>)}
+            <option value="">Qualsiasi</option>{regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
           </select>
         </div>
         <div className="field" style={{ minWidth: 150 }}><label>Obiettivo</label>

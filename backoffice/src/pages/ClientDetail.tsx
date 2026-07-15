@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
+import { useTaxonomy } from '../lib/taxonomy';
 
 interface Detail {
   user: {
@@ -98,6 +99,7 @@ const fldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column'
 
 /** Form di modifica della scheda (anagrafica + questionario). */
 function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void }) {
+  const { regimes, styles } = useTaxonomy();
   const up = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const T = (k: string, label: string, type = 'text') => (
     <label style={fldStyle}><span>{label}</span><input className="input" type={type} value={form[k] ?? ''} onChange={(e) => up(k, e.target.value)} /></label>
@@ -122,8 +124,8 @@ function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u
         {T('age', 'Età', 'number')}{S('sex', 'Sesso', [['female', 'Donna'], ['male', 'Uomo']])}
         {T('heightCm', 'Altezza (cm)', 'number')}{T('startWeightKg', 'Peso (kg)', 'number')}
         {T('startWaistCm', 'Vita (cm)', 'number')}{T('startHipsCm', 'Fianchi (cm)', 'number')}
-        {S('regime', 'Regime', [['omnivore', 'Onnivora'], ['vegetarian', 'Vegetariana'], ['vegan', 'Vegana']])}
-        {S('dietStyle', 'Stile', [['mediterranean', 'Mediterranea'], ['protein', 'Proteica'], ['low_carb', 'Low carb'], ['flexible', 'Flessibile']])}
+        {S('regime', 'Regime', regimes.map((r) => [r.code, r.label] as [string, string]))}
+        {S('dietStyle', 'Stile', styles.map((st) => [st.code, st.label] as [string, string]))}
         {S('mealsPerDay', 'Pasti', [['3', '3'], ['4', '4'], ['5', '5']])}
         {S('pathType', 'Percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['supplements', 'Con integratori'], ['intermittent_fasting', 'Digiuno interm.']])}
         {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
@@ -136,6 +138,7 @@ function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u
 }
 
 export function ClientDetail() {
+  const { regimeLabel, styleLabel } = useTaxonomy();
   const { id } = useParams();
   const navigate = useNavigate();
   const { can } = useAuth();
@@ -544,8 +547,8 @@ export function ClientDetail() {
             <Row label="Peso di partenza" value={p.startWeightKg ? `${p.startWeightKg} kg` : '—'} />
             <Row label="Vita" value={p.startWaistCm ? `${p.startWaistCm} cm` : '—'} />
             <Row label="Fianchi" value={p.startHipsCm ? `${p.startHipsCm} cm` : '—'} />
-            <Row label="Regime" value={lab('regime', p.regime)} />
-            <Row label="Stile alimentare" value={lab('dietStyle', p.dietStyle)} />
+            <Row label="Regime" value={p.regime ? regimeLabel(p.regime) : '—'} />
+            <Row label="Stile alimentare" value={p.dietStyle ? styleLabel(p.dietStyle) : '—'} />
             <Row label="Pasti al giorno" value={p.mealsPerDay ?? '—'} />
             <Row label="Percorso" value={lab('pathType', p.pathType)} />
             <Row label="Lavoro" value={lab('work', p.lifestyle?.work)} />

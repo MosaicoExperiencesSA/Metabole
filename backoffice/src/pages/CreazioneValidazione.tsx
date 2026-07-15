@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
+import { useTaxonomy } from '../lib/taxonomy';
 
 type Preset = {
   id: string; style: string; label: string; description?: string | null;
@@ -16,7 +17,6 @@ type ReviewStatus = {
 };
 
 const LS_DIET = 'metabole_bo_wizard_diet';
-const REGIMI = [{ v: 'omnivore', l: 'Onnivoro' }, { v: 'vegetarian', l: 'Vegetariano' }, { v: 'vegan', l: 'Vegano' }];
 const OBIETTIVI = [{ v: 'dimagrimento', l: 'Dimagrimento' }, { v: 'mantenimento', l: 'Mantenimento' }];
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 
@@ -27,6 +27,7 @@ const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_sna
  */
 export function CreazioneValidazione() {
   const [presets, setPresets] = useState<Preset[] | null>(null);
+  const { regimes } = useTaxonomy();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -180,7 +181,7 @@ export function CreazioneValidazione() {
               <label style={{ flex: 1, minWidth: 160 }}>
                 <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Regime</span>
                 <select className="select" value={form.regime} onChange={(e) => edit('regime', e.target.value)}>
-                  {REGIMI.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
+                  {regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
                 </select>
               </label>
               <label style={{ flex: 1, minWidth: 160 }}>
