@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
+import { WalletWidget } from '../components/WalletWidget';
 
 const euro0 = (c: number) => '€ ' + Math.round(c / 100).toLocaleString('it-IT');
 
@@ -127,6 +128,8 @@ export function CoachHome() {
       <h1 style={{ marginTop: 0 }}>Ciao {hello} 👋</h1>
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
+
+      <WalletWidget />
 
       <DashboardShortcuts />
 
