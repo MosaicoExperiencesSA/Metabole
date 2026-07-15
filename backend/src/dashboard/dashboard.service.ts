@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailboxService } from '../mailbox/mailbox.service';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const FINANCE_ROLES = ['admin', 'sales'];
@@ -13,7 +14,7 @@ type Row = { a: string; b?: string; sub?: string };
  */
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly mailbox: MailboxService) {}
 
   async previews(user: AuthUser): Promise<Record<string, Row[]>> {
     const out: Record<string, Row[]> = {};
@@ -123,6 +124,19 @@ export class DashboardService {
         sub: r.messages[0]?.body?.slice(0, 80),
       }));
     } catch { /* skip */ }
+
+    // Posta: ultimi messaggi ricevuti nella casella @metabole.eu (IMAP, con timeout per non bloccare la dashboard)
+    try {
+      const inbox = (await Promise.race([
+        this.mailbox.listInbox(user.sub, 5),
+        new Promise((_r, rej) => setTimeout(() => rej(new Error('timeout')), 4000)),
+      ])) as Array<{ from: string; fromName: string; subject: string; date: Date | string | null }>;
+      out.posta = inbox.slice(0, 5).map((m) => ({
+        a: m.subject || '(nessun oggetto)',
+        b: m.date ? dmy(new Date(m.date)) : undefined,
+        sub: m.fromName || m.from,
+      }));
+    } catch { /* casella non configurata o IMAP non disponibile: nessuna anteprima */ }
 
     // Testimonianze: le ultime inserite (marketing/admin)
     if (['marketing', 'head_marketing', 'admin'].includes(user.role)) {
