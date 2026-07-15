@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<rect width="1080" height="1350" fill="#FBF7EF"/>
+<rect x="44" y="44" width="992" height="1262" rx="28" fill="none" stroke="#0E5A49" stroke-width="3"/>
+<rect x="64" y="64" width="952" height="1222" rx="20" fill="none" stroke="#12A386" stroke-width="1.5"/>
+<text x="540" y="154" text-anchor="middle" font-family="Georgia,'DejaVu Serif',serif" font-size="40" fill="#0E5A49" letter-spacing="1">MetaboleAI</text>
+<text x="540" y="154" text-anchor="middle" font-family="Georgia,serif" font-size="16" fill="#5f716c" dx="134" dy="-16">®</text>
+<line x1="470" y1="178" x2="610" y2="178" stroke="#C9A24A" stroke-width="1.5"/>
+<text x="540" y="214" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" fill="#C9A24A" letter-spacing="7">BREVETTO DI BORDO</text>
+<text x="540" y="300" text-anchor="middle" font-family="Georgia,'DejaVu Serif',serif" font-size="61" font-weight="bold" fill="#16302C" letter-spacing="2">MARIASTELLA</text>
+<text x="540" y="346" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" fill="#5f716c" letter-spacing="4">VEDETTA</text>
+<circle cx="400" cy="382" r="9" fill="#C9A24A"/><line x1="400" y1="390" x2="400" y2="686" stroke="#0E5A49" stroke-width="8" stroke-linecap="round"/><path d="M408 405 C 480 390 560 420 690 404 L690 632 C 560 648 480 616 408 632 Z" fill="#FBF7EF" stroke="#C9A24A" stroke-width="2.5"/><path d="M408 405 C 480 390 560 420 690 404 L690 454 C 560 470 480 438 408 454 Z" fill="#12A386"/><text x="549" y="440" text-anchor="middle" font-family="Georgia,serif" font-size="25" fill="#FBF7EF" letter-spacing="1">MetaboleAI</text><path d="M470 402 C 468 500 470 560 468 634" stroke="#0E5A49" stroke-width="1.5" fill="none" opacity="0.10"/><path d="M612 408 C 614 500 612 560 614 638" stroke="#0E5A49" stroke-width="1.5" fill="none" opacity="0.10"/>
+<g transform="translate(549,552) scale(0.70) translate(-540,-650)"><g transform="translate(540,650) rotate(-22)"><path d="M-52 -11 L24 -16 L24 16 L-52 11 Z" fill="none" stroke="#0E5A49" stroke-width="5"/><path d="M-64 -8 L-52 -11 L-52 11 L-64 8 Z" fill="#0E5A49"/><path d="M24 -16 L38 -21 L38 21 L24 16 Z" fill="none" stroke="#0E5A49" stroke-width="5"/><line x1="-20" y1="-13.5" x2="-20" y2="13.5" stroke="#12A386" stroke-width="3"/></g></g>
+<text x="540" y="752" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="32" fill="#16302C">Un buon perché muove tutto.</text>
+<text x="540" y="792" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="32" fill="#16302C">Il tuo muoverà questa nave.</text>
+<text x="540" y="862" text-anchor="middle" font-family="Arial,sans-serif" font-size="25" fill="#0E5A49">Il tuo posto, a bordo, è pronto.</text>
+<line x1="360" y1="908" x2="720" y2="908" stroke="#C9A24A" stroke-width="1.2"/>
+<text x="540" y="948" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#12A386" letter-spacing="1">La nave è nuova. Ora si salpa.</text>
+<text x="540" y="1035" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="32" fill="#16302C">Il tuo capitano</text>
+<g transform="translate(540,1118)">
+  <circle r="40" fill="#C9A24A" opacity="0.16"/><circle r="40" fill="none" stroke="#C9A24A" stroke-width="2"/>
+  <path d="M0 -20 a6 6 0 1 1 -0.1 0 M0 -14 L0 18 M-14 6 A18 18 0 0 0 14 6 M-16 -6 L16 -6" fill="none" stroke="#C9A24A" stroke-width="3" stroke-linecap="round"/>
+</g>
+</svg>
