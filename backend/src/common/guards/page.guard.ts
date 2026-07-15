@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DEFAULT_PERMISSIONS, PageKey } from '../../permissions/pages';
+import { DEFAULT_PERMISSIONS, PAGE_GRANTS, PageKey } from '../../permissions/pages';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { PAGE_KEY, PageLevel } from '../decorators/require-page.decorator';
 import { AuthUser } from '../interfaces/auth-user.interface';
@@ -36,16 +36,28 @@ export class PageGuard implements CanActivate {
 
     const level: PageLevel = meta.level ?? (req.method === 'GET' ? 'view' : 'manage');
     try {
-      const row = await this.prisma.rolePagePermission.findUnique({
-        where: { role_pageKey: { role: user.role, pageKey: meta.pageKey } },
-        select: { canView: true, canManage: true },
-      });
-      let allowed: boolean;
-      if (row) {
-        allowed = level === 'view' ? row.canView : row.canManage;
-      } else {
-        const def = DEFAULT_PERMISSIONS[user.role as Role]?.[meta.pageKey as PageKey];
-        allowed = level === 'view' ? !!def?.view : !!def?.manage;
+      // Verifica il permesso di un singolo pageKey (riga DB o default di ruolo).
+      const has = async (key: string): Promise<boolean> => {
+        const row = await this.prisma.rolePagePermission.findUnique({
+          where: { role_pageKey: { role: user.role, pageKey: key } },
+          select: { canView: true, canManage: true },
+        });
+        if (row) return level === 'view' ? row.canView : row.canManage;
+        const def = DEFAULT_PERMISSIONS[user.role as Role]?.[key as PageKey];
+        return level === 'view' ? !!def?.view : !!def?.manage;
+      };
+      let allowed = await has(meta.pageKey);
+      // Fallback: chi ha una pagina "hub" (es. "Gestione dieta" o "Creazione e
+      // validazione") può usare le API dei domini che quell'hub concede
+      // (diets_catalog, recipes), pur senza il permesso diretto sulla pagina del
+      // singolo catalogo → così bastano poche voci di menu per gestire tutto.
+      if (!allowed) {
+        const grantors = Object.entries(PAGE_GRANTS)
+          .filter(([, granted]) => granted.includes(meta.pageKey as PageKey))
+          .map(([hub]) => hub);
+        for (const h of grantors) {
+          if (await has(h)) { allowed = true; break; }
+        }
       }
       if (!allowed) throw new ForbiddenException('Non hai il permesso per questa sezione.');
       return true;

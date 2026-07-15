@@ -9,6 +9,53 @@ import { ConfigParamsService } from '../config-params/config-params.service';
  * Vincoli di sicurezza: nessun consiglio medico/diagnosi; i temi sanitari
  * restano gestiti dal filtro deterministico (escalation al nutrizionista).
  */
+/**
+ * Ripara il JSON quasi-valido tipico degli LLM su output grandi: rimuove le
+ * virgole finali, inserisce virgole mancanti fra valori adiacenti e chiude
+ * eventuali parentesi/stringhe lasciate aperte (troncatura). Best-effort: gira
+ * solo quando JSON.parse ha già fallito.
+ */
+function repairJson(input: string): string {
+  const src = input.trim();
+  // Pass 1: escapa i caratteri di controllo dentro le stringhe e traccia le parentesi.
+  let out = '';
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    const code = src.charCodeAt(i);
+    if (inStr) {
+      if (esc) { out += ch; esc = false; continue; }
+      if (ch === '\\') { out += ch; esc = true; continue; }
+      if (ch === '"') { out += ch; inStr = false; continue; }
+      if (code < 0x20) {
+        out += ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : ch === '\t' ? '\\t' : ' ';
+        continue;
+      }
+      out += ch;
+      continue;
+    }
+    if (ch === '"') { inStr = true; out += ch; continue; }
+    if (ch === '{' || ch === '[') stack.push(ch);
+    else if (ch === '}' || ch === ']') stack.pop();
+    out += ch;
+  }
+  if (inStr) out += '"';
+  // Pass 2: virgole finali + virgole mancanti fra token strutturali (fuori dalle stringhe).
+  out = out
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/}(\s*)\{/g, '},$1{')
+    .replace(/](\s*)\[/g, '],$1[')
+    .replace(/}(\s*)"/g, '},$1"')
+    .replace(/](\s*)"/g, '],$1"')
+    .replace(/"(\s*\n\s*)"/g, '",$1"')
+    .replace(/(true|false|null|\d)(\s*\n\s*)"/g, '$1,$2"');
+  // Pass 3: chiude parentesi/graffe lasciate aperte (troncatura).
+  while (stack.length) { const b = stack.pop(); out += b === '{' ? '}' : ']'; }
+  return out;
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -110,7 +157,18 @@ export class AiService {
       const text = data.content?.find((c) => c.type === 'text')?.text ?? '';
       const fence = text.match(/```json\s*([\s\S]*?)```/i) ?? text.match(/```\s*([\s\S]*?)```/);
       const blob = fence ? fence[1] : (text.match(/[[{][\s\S]*[\]}]/)?.[0] ?? text);
-      return JSON.parse(blob) as T;
+      try {
+        return JSON.parse(blob) as T;
+      } catch {
+        // Secondo tentativo con riparazione (virgole mancanti/finali, troncature).
+        try {
+          return JSON.parse(repairJson(blob)) as T;
+        } catch (e) {
+          this.lastError = `l'AI non ha restituito JSON valido${e instanceof Error ? ` (${e.message})` : ''}`;
+          this.logger.warn('AI generateJson: JSON non valido anche dopo repair');
+          return null;
+        }
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.lastError = /aborted/i.test(msg) ? 'timeout della richiesta AI (90s)' : msg;

@@ -181,7 +181,20 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
  * così separare una schermata nei Permessi non toglie accesso a nessuno. L'admin può
  * poi differenziarle a runtime dalla UI Permessi.
  */
-const INHERIT_DEFAULTS: Record<string, PageKey> = {
+/**
+ * Pagine "hub": chi ha il permesso su di esse può usare anche le API dei domini
+ * collegati, così un ruolo può gestire tutto da poche voci di menu senza vedere
+ * le pagine dei singoli cataloghi. Es.: dando SOLO "Gestione dieta" +
+ * "Creazione e validazione" al nutrizionista, gli editor diete/ricette/allergeni
+ * dentro quegli hub funzionano lo stesso. (I gruppi di equivalenza non hanno
+ * @RequirePage, bastano già col ruolo.)
+ */
+export const PAGE_GRANTS: Record<string, PageKey[]> = {
+  diet_workspace: ['diets_catalog', 'recipes'],
+  creation_validation: ['diets_catalog', 'recipes'],
+};
+
+export const INHERIT_DEFAULTS: Record<string, PageKey> = {
   crm_lead_new: 'crm_leads',
   crm_import: 'crm_leads',
   crm_pipeline: 'crm_leads',

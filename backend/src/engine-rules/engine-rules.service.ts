@@ -181,12 +181,12 @@ export class EngineRulesService {
     const kcalTol = Number(rules.menu_kcal_balance_tolerance_pct ?? 15);
     const targetKcal = Math.max(600, Math.min(4000, Math.round(Number(rules.menu_daycombo_kcal_target ?? 1500)) || 1500));
     const slots = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
-    const perSlot = 6;
+    const perSlot = 5; // ridotto per output AI più piccolo e JSON più affidabile
     const days = Math.max(1, Math.min(60, Math.round(requestedDays) || 28));
     const aiDays = Math.min(days, 10); // l'AI produce giornate campione bilanciate; il resto lo completa il codice
 
     const regimeRule = regime === 'vegan' ? 'nessun alimento di origine animale' : regime === 'vegetarian' ? 'niente carne né pesce (uova/latticini sì)' : 'onnivoro';
-    const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido, senza testo attorno. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
+    const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido e minificato, senza testo attorno: ogni elemento di array/oggetto separato da virgola, nessuna virgola finale. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
     const user =
 `Genera una bozza di catalogo per la dieta "${preset.label}" (stile ${preset.style}, regime ${regime}${preset.objective ? `, obiettivo ${preset.objective}` : ''}).
 Vincoli: proteine ${protMin}-${protMax}% delle kcal; giornata ~${targetKcal} kcal (tolleranza ±${kcalTol}%). Regime: ${regimeRule}.${preset.clinicalNotes ? ` Regole cliniche da rispettare: ${preset.clinicalNotes}` : ''}
@@ -195,7 +195,14 @@ Poi ${aiDays} giornate bilanciate ~${targetKcal} kcal: {"level":1,"dayIndex":<1.
 Infine gruppi di equivalenza (alimenti intercambiabili a struttura simile): [{"name":"es. Pesci bianchi","items":["branzino","orata","merluzzo"]}].
 Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
 
-    const gen = await this.ai.generateJson<{ recipes?: unknown[]; days?: unknown[]; equivalenceGroups?: unknown[] }>(system, user, 12000);
+    type GenShape = { recipes?: unknown[]; days?: unknown[]; equivalenceGroups?: unknown[] };
+    // Su output grandi l'AI a volte restituisce JSON malformato (in punti diversi
+    // ogni volta): fino a 3 tentativi, poi si arrende con un errore chiaro.
+    let gen: GenShape | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      gen = await this.ai.generateJson<GenShape>(system, user, 12000);
+      if (gen && Array.isArray(gen.recipes) && gen.recipes.length > 0) break;
+    }
     if (!gen) throw new BadRequestException(`Generazione non riuscita: ${this.ai.lastError ?? 'assistente AI non disponibile'}.`);
     const recipes = Array.isArray(gen.recipes) ? (gen.recipes as Record<string, unknown>[]) : [];
     if (recipes.length === 0) throw new BadRequestException('L\'AI non ha prodotto ricette valide: riprova.');
