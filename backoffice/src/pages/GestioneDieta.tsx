@@ -6,9 +6,14 @@ import { TagAllergeni } from './TagAllergeni';
 import { GruppiEquivalenza } from './GruppiEquivalenza';
 import { useTaxonomy } from '../lib/taxonomy';
 
-interface DietRow { id: string; name: string; regime: string; status?: string; clientVisible?: boolean }
+interface DietRow { id: string; name: string; regime: string; objective?: string | null; status?: string; clientVisible?: boolean }
 
 type Section = 'ricette' | 'allergeni' | 'gruppi';
+
+// Etichetta dell'obiettivo/fase: distingue le varianti dimagrimento vs mantenimento
+// che altrimenti avrebbero nome+regime identici nella tendina.
+const OBIETTIVO_LABEL: Record<string, string> = { dimagrimento: 'Dimagrimento', mantenimento: 'Mantenimento' };
+const objSuffix = (o?: string | null) => (o ? ` · ${OBIETTIVO_LABEL[o] ?? o}` : '');
 
 /**
  * Gestione dieta: il nutrizionista sceglie una dieta dalla tendina e gestisce, in
@@ -121,7 +126,7 @@ export function GestioneDieta() {
           <span className="muted" style={{ fontSize: 13 }}>Dieta</span>
           <select className="select" style={{ minWidth: 300 }} value={dietId} onChange={(e) => setDietId(e.target.value)}>
             <option value="">— scegli una dieta —</option>
-            {[...diets].sort((a, b) => a.name.localeCompare(b.name, 'it')).map((d) => <option key={d.id} value={d.id}>{d.name} · {regimeLabel(d.regime)}</option>)}
+            {[...diets].sort((a, b) => a.name.localeCompare(b.name, 'it') || regimeLabel(a.regime).localeCompare(regimeLabel(b.regime), 'it') || (a.objective ?? '').localeCompare(b.objective ?? '')).map((d) => <option key={d.id} value={d.id}>{d.name} · {regimeLabel(d.regime)}{objSuffix(d.objective)}</option>)}
           </select>
           {diets.length === 0 && <span className="muted" style={{ fontSize: 12 }}>Nessuna dieta: creane una dal Catalogo diete o dal wizard Creazione e validazione.</span>}
         </label>

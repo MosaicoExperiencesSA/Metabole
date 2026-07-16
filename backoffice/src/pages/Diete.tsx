@@ -17,11 +17,14 @@ interface DietDetail {
   dayTemplates: { level: number; dayIndex: number; meals: { slot: string; recipeId: string }[] }[];
 }
 
+const OBIETTIVO_LABEL: Record<string, string> = { dimagrimento: 'Dimagrimento', mantenimento: 'Mantenimento' };
+
 interface DietRow {
   id: string;
   name: string;
   regime: string;
   style: string;
+  objective?: string | null;
   mealsPerDay: number;
   status: string;
   author: { displayName: string } | null;
@@ -126,6 +129,7 @@ export function Diete() {
                 <th>Nome</th>
                 <th>Regime</th>
                 <th>Stile</th>
+                <th>Obiettivo</th>
                 <th>Pasti</th>
                 <th>Giorni</th>
                 <th>Autore</th>
@@ -139,6 +143,7 @@ export function Diete() {
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>
                   <td className="muted">{styleLabel(r.style)}</td>
+                  <td className="muted">{OBIETTIVO_LABEL[r.objective ?? 'dimagrimento'] ?? r.objective}</td>
                   <td className="muted">{r.mealsPerDay}</td>
                   <td className="muted">{r._count?.dayTemplates ?? 0}</td>
                   <td className="muted">{r.author?.displayName ?? '—'}</td>
