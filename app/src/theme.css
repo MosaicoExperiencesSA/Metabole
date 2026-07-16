@@ -104,7 +104,7 @@ p { line-height: 1.5; }
   color: #fff;
 }
 .btn:disabled { opacity: 0.55; }
-.btn.ghost { background: transparent; color: var(--teal-dark); border: 1px solid var(--line); }
+.btn.ghost { background: #fff; color: var(--teal-dark); border: 1px solid var(--line); }
 .btn.coral { background: var(--coral); }
 
 .input {
