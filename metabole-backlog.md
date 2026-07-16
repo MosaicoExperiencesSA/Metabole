@@ -42,3 +42,14 @@ dell'offerta solo lato UI, oppure inviare comunque la mail di reset senza
 confermare esplicitamente l'esistenza dell'account.
 
 FATTO (app Register.tsx): su email già registrata (409) niente errore secco, ma un riquadro "Questa email è già registrata" con "Reimposta la password" (chiama POST /auth/password-reset, che risponde comunque 202 neutro) e "Accedi". L'enumerazione non peggiora perché la registrazione già rivelava l'esistenza; il reset resta neutro.
+
+## App cliente — mostrare la "fase" (dimagrimento/mantenimento) — DA FARE
+DECISIONE (Simone, 16/07): per ora la fase del cliente resta **solo staff**.
+Il campo `ClientProfile.objective` (dimagrimento | mantenimento) esiste già ed è
+gestito dallo staff nella scheda cliente del backoffice ("Fase (obiettivo dieta)");
+guida `pickDiet` a scegliere la variante giusta della famiglia (Fase 2, fatta).
+DA FARE quando si vuole: mostrare al cliente nell'app la sua fase attuale (es. badge
+"Mantenimento" nella home / schermata piano), e valutare se e come comunicargli il
+passaggio da dimagrimento a mantenimento (messaggio/notifica "Hai raggiunto il tuo
+obiettivo: si passa al mantenimento"). Nessuna azione lato cliente: resta decisione
+clinica dello staff, l'app la mostra soltanto.
