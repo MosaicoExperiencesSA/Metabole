@@ -34,7 +34,7 @@ export function CreazioneValidazione() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [form, setForm] = useState({ label: '', style: '', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+  const [form, setForm] = useState({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
   const [sourceRules, setSourceRules] = useState<Record<string, unknown>>({});
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [activeFamilyKey, setActiveFamilyKey] = useState<string | null>(null);
@@ -59,8 +59,10 @@ export function CreazioneValidazione() {
     api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`).then(setStatus).catch(() => setStatus(null));
   }, [dietId]);
 
-  // Una "famiglia" = diete con stesso nome+stile: le varianti di regime stanno insieme.
+  // Una "famiglia" = diete con stesso nome+stile: le varianti (regime × obiettivo) stanno insieme.
   const familyKeyOf = (label: string, style: string) => `${label}\u0000${style}`;
+  const comboKeyOf = (regime: string, objective: string) => `${regime}\u0000${objective}`;
+  const objLabel = (code: string) => OBIETTIVI.find((o) => o.v === code)?.l ?? code;
   const families: Family[] = (() => {
     const map = new Map<string, Family>();
     for (const p of presets ?? []) {
@@ -73,15 +75,16 @@ export function CreazioneValidazione() {
   })();
   const targetFamily = families.find((f) => f.key === familyKeyOf(form.label.trim(), form.style || 'custom')) ?? null;
   const activeFamily = families.find((f) => f.key === activeFamilyKey) ?? null;
-  const existingRegimes = new Set((targetFamily?.variants ?? []).map((v) => (v.regime as string) || 'omnivore'));
+  const existingCombos = new Set((targetFamily?.variants ?? []).map((v) => comboKeyOf((v.regime as string) || 'omnivore', (v.objective as string) || 'dimagrimento')));
 
   function pickFamily(fam: Family) {
     const p = fam.variants[0];
     const r = (p.rules as Record<string, unknown>) || {};
     setForm({
       label: fam.label, style: fam.style,
-      regimes: fam.variants.map((v) => (v.regime as string) || 'omnivore'),
-      objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '',
+      regimes: [...new Set(fam.variants.map((v) => (v.regime as string) || 'omnivore'))],
+      objectives: [...new Set(fam.variants.map((v) => (v.objective as string) || 'dimagrimento'))],
+      clinicalNotes: p.clinicalNotes || '',
       kcalTarget: Math.round(Number(r.menu_daycombo_kcal_target ?? 1500)) || 1500,
       proteinMin: Math.round(Number(r.menu_daycombo_protein_min ?? 0.2) * 100),
       proteinMax: Math.round(Number(r.menu_daycombo_protein_max ?? 0.35) * 100),
@@ -104,43 +107,52 @@ export function CreazioneValidazione() {
       ? `\n\n⚠️ ATTENZIONE: risultano ${generated} dieta/e GIÀ GENERATA/E da queste varianti. Le definizioni e le diete generate sono separate: dopo aver eliminato qui, elimina quelle diete anche da "Catalogo diete".`
       : '\nSe avevi già generato il catalogo, la dieta generata va eliminata a parte da Catalogo diete.';
     // eslint-disable-next-line no-alert
-    if (!confirm(`Eliminare la dieta "${fam.label}" e le sue ${fam.variants.length} variante/i di regime?${warn}`)) return;
+    if (!confirm(`Eliminare la dieta "${fam.label}" e le sue ${fam.variants.length} variante/i?${warn}`)) return;
     setBusy(true); setError(null);
     try {
       for (const v of fam.variants) await api(`/engine-rules/presets/${v.id}`, { method: 'DELETE' });
       const ids = new Set(fam.variants.map((v) => v.id));
       setPresets((ps) => (ps ?? []).filter((p) => !ids.has(p.id)));
-      if (activeFamilyKey === fam.key) { setActiveFamilyKey(null); setActivePresetId(null); setDirty(false); setForm((f) => ({ ...f, label: '', regimes: ['omnivore'] })); }
+      if (activeFamilyKey === fam.key) { setActiveFamilyKey(null); setActivePresetId(null); setDirty(false); setForm((f) => ({ ...f, label: '', regimes: ['omnivore'], objectives: ['dimagrimento'] })); }
       setNotice(`Eliminata "${fam.label}".`);
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Eliminazione non riuscita.'); }
     finally { setBusy(false); }
   }
 
   function newPreset() {
-    setForm({ label: '', style: 'custom', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+    setForm({ label: '', style: 'custom', regimes: ['omnivore'], objectives: ['dimagrimento'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
     setSourceRules({}); setActivePresetId(null); setActiveFamilyKey(null); setGenAll(false); setDirty(true); setNotice(null); setError(null);
   }
-  function edit(k: 'label' | 'style' | 'objective' | 'clinicalNotes', v: string) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
+  function edit(k: 'label' | 'style' | 'clinicalNotes', v: string) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
   function editNum(k: 'kcalTarget' | 'proteinMin' | 'proteinMax' | 'kcalTol', v: number) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
   function toggleRegime(code: string) {
     setForm((f) => ({ ...f, regimes: f.regimes.includes(code) ? f.regimes.filter((c) => c !== code) : [...f.regimes, code] }));
+    setDirty(true);
+  }
+  function toggleObjective(code: string) {
+    setForm((f) => ({ ...f, objectives: f.objectives.includes(code) ? f.objectives.filter((c) => c !== code) : [...f.objectives, code] }));
     setDirty(true);
   }
 
   async function saveAsNew() {
     if (!form.label.trim()) { setError('Dai un nome alla dieta.'); return; }
     if (form.regimes.length === 0) { setError('Seleziona almeno un regime.'); return; }
+    if (form.objectives.length === 0) { setError('Seleziona almeno un obiettivo.'); return; }
     const regLabel = (code: string) => regimes.find((r) => r.code === code)?.label ?? code;
-    const toCreate = form.regimes.filter((rc) => !existingRegimes.has(rc));
-    if (toCreate.length === 0) { setNotice('Tutti i regimi selezionati esistono già in questa dieta.'); setDirty(false); return; }
+    // Prodotto cartesiano regime × obiettivo, saltando le combinazioni già presenti.
+    const combos: { regime: string; objective: string }[] = [];
+    for (const rc of form.regimes) for (const oc of form.objectives) {
+      if (!existingCombos.has(comboKeyOf(rc, oc))) combos.push({ regime: rc, objective: oc });
+    }
+    if (combos.length === 0) { setNotice('Tutte le combinazioni regime × obiettivo selezionate esistono già in questa dieta.'); setDirty(false); return; }
     setBusy(true); setError(null);
     try {
       const rules = { ...sourceRules, menu_daycombo_kcal_target: form.kcalTarget, menu_daycombo_protein_min: form.proteinMin / 100, menu_daycombo_protein_max: form.proteinMax / 100, menu_kcal_balance_tolerance_pct: form.kcalTol };
       const createdList: Preset[] = [];
-      // Stesso nome e stile per tutte le varianti: le distingue il regime (niente suffisso).
-      for (const rc of toCreate) {
+      // Stesso nome e stile per tutte le varianti: le distinguono regime e obiettivo (niente suffisso).
+      for (const c of combos) {
         const created = await api<Preset>('/engine-rules/presets', { method: 'POST', body: JSON.stringify({
-          label: form.label.trim(), style: form.style || 'custom', regime: rc, objective: form.objective,
+          label: form.label.trim(), style: form.style || 'custom', regime: c.regime, objective: c.objective,
           clinicalNotes: form.clinicalNotes || undefined, suggested: false, rules,
         }) });
         createdList.push(created);
@@ -148,7 +160,7 @@ export function CreazioneValidazione() {
       setPresets((ps) => (ps ? [...createdList, ...ps] : createdList));
       setActiveFamilyKey(familyKeyOf(form.label.trim(), form.style || 'custom'));
       setActivePresetId(createdList[0].id); setDirty(false);
-      setNotice(`Aggiunte ${createdList.length} variante/i (${toCreate.map(regLabel).join(', ')}). Ora puoi generare i cataloghi.`);
+      setNotice(`Aggiunte ${createdList.length} variante/i (${combos.map((c) => `${regLabel(c.regime)} · ${objLabel(c.objective)}`).join(', ')}). Ora puoi generare i cataloghi.`);
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
     finally { setBusy(false); }
   }
@@ -167,7 +179,7 @@ export function CreazioneValidazione() {
       }
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
       setNotice(targets.length > 1
-        ? `Generati ${targets.length} cataloghi (una variante per regime): ricette, allergeni, giornate e gruppi di equivalenza. Validali uno a uno qui sotto o da Gestione dieta.`
+        ? `Generati ${targets.length} cataloghi (una variante per combinazione regime × obiettivo): ricette, allergeni, giornate e gruppi di equivalenza. Validali uno a uno qui sotto o da Gestione dieta.`
         : 'Catalogo bozza generato. Procedi con la validazione qui sotto.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
     finally { setBusy(false); }
@@ -195,7 +207,7 @@ export function CreazioneValidazione() {
         return;
       }
       setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null); setGenAll(false); setDirty(false);
-      setForm({ label: '', style: '', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+      setForm({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
       setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
@@ -221,6 +233,11 @@ export function CreazioneValidazione() {
   if (presets === null) return <Spinner />;
 
   const canGenerate = !!activePresetId && !dirty;
+  // Riepilogo combinazioni selezionate (regime × obiettivo): quante nuove, quante già presenti.
+  const selectedCombos: string[] = [];
+  for (const rc of form.regimes) for (const oc of form.objectives) selectedCombos.push(comboKeyOf(rc, oc));
+  const newCombosCount = selectedCombos.filter((k) => !existingCombos.has(k)).length;
+  const alreadyCombosCount = selectedCombos.length - newCombosCount;
   const s = status;
   const done = s ? {
     recipes: s.recipes.total > 0 && s.recipes.active === s.recipes.total,
@@ -254,7 +271,7 @@ export function CreazioneValidazione() {
                 style={{ cursor: 'pointer', gap: 6, display: 'inline-flex', alignItems: 'center', borderColor: active ? 'var(--teal)' : undefined, background: active ? 'var(--chip)' : undefined }}>
                 <span onClick={() => pickFamily(fam)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <i className="ti ti-bulb" /> {fam.label}{fam.suggested ? ' · suggerita' : ''}
-                  {fam.variants.length > 1 && <span style={{ fontSize: 10, opacity: 0.7 }}>· {fam.variants.length} regimi</span>}
+                  {fam.variants.length > 1 && <span style={{ fontSize: 10, opacity: 0.7 }}>· {fam.variants.length} varianti</span>}
                 </span>
                 <i className="ti ti-trash" title="Elimina questa dieta (tutte le varianti)"
                   onClick={(e) => { e.stopPropagation(); void deleteFamily(fam); }}
@@ -273,29 +290,43 @@ export function CreazioneValidazione() {
             </label>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
               <label style={{ flex: 1, minWidth: 160 }}>
-                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Regime <span style={{ opacity: 0.65 }}>· uno o più (crea una variante per regime)</span></span>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Regime <span style={{ opacity: 0.65 }}>· uno o più</span></span>
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                   {regimes.map((r) => {
                     const on = form.regimes.includes(r.code);
-                    const exists = existingRegimes.has(r.code);
                     return (
                       <button key={r.code} type="button" className={`btn ${on ? '' : 'ghost'} sm`}
-                        onClick={() => { if (!exists) toggleRegime(r.code); }}
-                        title={exists ? 'Regime già presente in questa dieta' : (on ? 'Rimuovi dalla selezione' : 'Aggiungi questo regime')}
-                        style={exists ? { opacity: 0.9, cursor: 'default' } : undefined}>
-                        {on && <i className="ti ti-check" />} {r.label}{exists ? ' · presente' : ''}
+                        onClick={() => toggleRegime(r.code)}
+                        title={on ? 'Rimuovi dalla selezione' : 'Aggiungi questo regime'}>
+                        {on && <i className="ti ti-check" />} {r.label}
                       </button>
                     );
                   })}
                 </div>
               </label>
               <label style={{ flex: 1, minWidth: 160 }}>
-                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Obiettivo</span>
-                <select className="select" value={form.objective} onChange={(e) => edit('objective', e.target.value)}>
-                  {OBIETTIVI.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
-                </select>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Obiettivo <span style={{ opacity: 0.65 }}>· uno o più</span></span>
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  {OBIETTIVI.map((o) => {
+                    const on = form.objectives.includes(o.v);
+                    return (
+                      <button key={o.v} type="button" className={`btn ${on ? '' : 'ghost'} sm`}
+                        onClick={() => toggleObjective(o.v)}
+                        title={on ? 'Rimuovi dalla selezione' : 'Aggiungi questo obiettivo'}>
+                        {on && <i className="ti ti-check" />} {o.l}
+                      </button>
+                    );
+                  })}
+                </div>
               </label>
             </div>
+            {selectedCombos.length > 0 && (
+              <div className="muted" style={{ fontSize: 12 }}>
+                <i className="ti ti-layers-intersect" style={{ marginRight: 4 }} />
+                {selectedCombos.length} combinazione/i regime × obiettivo: <b>{newCombosCount} da creare</b>
+                {alreadyCombosCount > 0 ? `, ${alreadyCombosCount} già presente/i (saltate)` : ''}.
+              </div>
+            )}
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
               <label style={{ flex: 1, minWidth: 110 }}>
                 <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Kcal / giorno</span>
@@ -333,7 +364,7 @@ export function CreazioneValidazione() {
         {activeFamily && activeFamily.variants.length > 1 && (
           <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
             <input type="checkbox" checked={genAll} onChange={(e) => setGenAll(e.target.checked)} />
-            <span style={{ fontSize: 13 }}>Genera <b>tutte le {activeFamily.variants.length} varianti</b> del gruppo (ricette, allergeni, giornate e gruppi di equivalenza per ogni regime)</span>
+            <span style={{ fontSize: 13 }}>Genera <b>tutte le {activeFamily.variants.length} varianti</b> del gruppo (ricette, allergeni, giornate e gruppi di equivalenza per ogni combinazione regime × obiettivo)</span>
           </label>
         )}
         <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
