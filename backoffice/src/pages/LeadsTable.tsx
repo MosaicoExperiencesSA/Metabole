@@ -69,8 +69,19 @@ export function LeadsTable() {
   const [fCoach, setFCoach] = useState(''); // '' tutti · 'none' non assegnato · else coachId
   const [fNutri, setFNutri] = useState(''); // '' tutti · 'none' non assegnato · else nutriId
   const [fTipo, setFTipo] = useState(''); // '' · client · historical · lead
+  const [fValMin, setFValMin] = useState('');
+  const [fValMax, setFValMax] = useState('');
+  const [fDateFrom, setFDateFrom] = useState('');
+  const [fDateTo, setFDateTo] = useState('');
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   function clearFilters() {
     setFilter(''); setListFilter(''); setFName(''); setFEmail(''); setFStage(''); setFCoach(''); setFNutri(''); setFTipo('');
+    setFValMin(''); setFValMax(''); setFDateFrom(''); setFDateTo('');
+  }
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
   }
 
   async function assignCoach(l: Lead, coachStaffId: string) {
@@ -184,6 +195,17 @@ export function LeadsTable() {
 
   const stageOf = (key: string) => stages.find((s) => s.key === key);
   const tipoOf = (l: Lead) => (l.stage === 'paid' ? 'client' : (l.historicalPaidCents ?? 0) > 0 ? 'historical' : 'lead');
+  const valueOf = (l: Lead) => l.valueCents ?? l.historicalPaidCents ?? null;
+  // Cerca in TUTTE le email (record + utente collegato) e nel nome: così trova
+  // anche i lead il cui utente è stato cancellato (email "deleted_..._deleted").
+  const emailBlob = (l: Lead) => `${l.email ?? ''} ${l.client?.email ?? ''}`.toLowerCase();
+  const nameBlob = (l: Lead) => `${displayName(l)} ${l.name ?? ''}`.toLowerCase();
+  const parseEuro = (v: string): number | null => { const n = parseFloat(v.replace(',', '.')); return v.trim() && !isNaN(n) ? Math.round(n * 100) : null; };
+  const minCents = parseEuro(fValMin);
+  const maxCents = parseEuro(fValMax);
+  const fromTime = fDateFrom ? new Date(fDateFrom + 'T00:00:00').getTime() : null;
+  const toTime = fDateTo ? new Date(fDateTo + 'T23:59:59').getTime() : null;
+
   const filtered = leads.filter((l) => {
     if (listFilter && !l.lists?.some((x) => x.id === listFilter)) return false;
     if (fStage && l.stage !== fStage) return false;
@@ -193,18 +215,52 @@ export function LeadsTable() {
     if (fNutri === 'none' && nutriId) return false;
     if (fNutri && fNutri !== 'none' && nutriId !== fNutri) return false;
     if (fTipo && tipoOf(l) !== fTipo) return false;
+    const val = valueOf(l);
+    if (minCents != null && (val == null || val < minCents)) return false;
+    if (maxCents != null && (val == null || val > maxCents)) return false;
+    const created = new Date(l.createdAt).getTime();
+    if (fromTime != null && created < fromTime) return false;
+    if (toTime != null && created > toTime) return false;
     const nq = fName.trim().toLowerCase();
-    if (nq && !displayName(l).toLowerCase().includes(nq)) return false;
+    if (nq && !nameBlob(l).includes(nq)) return false;
     const eq = fEmail.trim().toLowerCase();
-    if (eq && !((l.client?.email ?? l.email ?? '').toLowerCase().includes(eq) || (l.phone ?? '').includes(eq))) return false;
+    if (eq && !(emailBlob(l).includes(eq) || (l.phone ?? '').includes(eq))) return false;
     const q = filter.trim().toLowerCase();
-    if (q && !(displayName(l).toLowerCase().includes(q) || (l.email ?? '').toLowerCase().includes(q) || (l.client?.email ?? '').toLowerCase().includes(q))) return false;
+    if (q && !(nameBlob(l).includes(q) || emailBlob(l).includes(q) || (l.phone ?? '').includes(q))) return false;
     return true;
   });
 
-  const pg = usePagination(filtered, 100);
+  const sortValue = (l: Lead): string | number => {
+    switch (sortKey) {
+      case 'name': return nameBlob(l);
+      case 'email': return emailBlob(l);
+      case 'stage': return stageOf(l.stage)?.label ?? l.stage;
+      case 'coach': return (l.assignedCoach?.displayName ?? l.client?.clientProfile?.assignedCoach?.displayName ?? '').toLowerCase();
+      case 'nutri': return (l.client?.clientProfile?.assignedNutritionist?.displayName ?? '').toLowerCase();
+      case 'tipo': return tipoOf(l);
+      case 'value': return valueOf(l) ?? -1;
+      case 'created': return l.createdAt;
+      default: return 0;
+    }
+  };
+  const sorted = sortKey
+    ? [...filtered].sort((a, b) => {
+        const va = sortValue(a);
+        const vb = sortValue(b);
+        const c = va < vb ? -1 : va > vb ? 1 : 0;
+        return sortDir === 'asc' ? c : -c;
+      })
+    : filtered;
+
+  const pg = usePagination(sorted, 100);
 
   if (loading) return <Spinner />;
+
+  const th = (label: string, key: string) => (
+    <th style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => toggleSort(key)} title="Clicca per ordinare">
+      {label}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+    </th>
+  );
 
   return (
     <>
@@ -216,7 +272,7 @@ export function LeadsTable() {
             {allLists.map((l) => <option key={l.id} value={l.id}>{l.name}{l.memberCount != null ? ` (${l.memberCount})` : ''}</option>)}
           </select>
           <button className="btn ghost" onClick={() => setShowLists(true)}><i className="ti ti-tags" /> Gestisci liste</button>
-          {(filter || listFilter || fName || fEmail || fStage || fCoach || fNutri || fTipo) && (
+          {(filter || listFilter || fName || fEmail || fStage || fCoach || fNutri || fTipo || fValMin || fValMax || fDateFrom || fDateTo) && (
             <button className="btn ghost" onClick={clearFilters} title="Rimuovi tutti i filtri"><i className="ti ti-filter-off" /> Azzera filtri</button>
           )}
         </div>
@@ -261,14 +317,14 @@ export function LeadsTable() {
                     />
                   </th>
                 )}
-                <th>Nome</th>
-                <th>Email</th>
-                <th>Stato</th>
-                <th>Coach</th>
-                <th>Nutrizionista</th>
-                <th>Tipo</th>
-                <th>Valore</th>
-                <th>Creato</th>
+                {th('Nome', 'name')}
+                {th('Email', 'email')}
+                {th('Stato', 'stage')}
+                {th('Coach', 'coach')}
+                {th('Nutrizionista', 'nutri')}
+                {th('Tipo', 'tipo')}
+                {th('Valore', 'value')}
+                {th('Creato', 'created')}
                 <th style={{ textAlign: 'right' }}>Azioni</th>
               </tr>
               <tr>
@@ -307,8 +363,18 @@ export function LeadsTable() {
                     <option value="lead">Lead</option>
                   </select>
                 </th>
-                <th style={{ padding: '4px 6px' }} />
-                <th style={{ padding: '4px 6px' }} />
+                <th style={{ padding: '4px 6px' }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <input className="input" style={{ width: 58, padding: '4px 6px', fontWeight: 400 }} placeholder="min €" inputMode="decimal" value={fValMin} onChange={(e) => setFValMin(e.target.value)} title="Valore minimo (€)" />
+                    <input className="input" style={{ width: 58, padding: '4px 6px', fontWeight: 400 }} placeholder="max €" inputMode="decimal" value={fValMax} onChange={(e) => setFValMax(e.target.value)} title="Valore massimo (€)" />
+                  </div>
+                </th>
+                <th style={{ padding: '4px 6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <input className="input" style={{ width: 130, padding: '3px 6px', fontWeight: 400, fontSize: 11 }} type="date" value={fDateFrom} onChange={(e) => setFDateFrom(e.target.value)} title="Creato dal" />
+                    <input className="input" style={{ width: 130, padding: '3px 6px', fontWeight: 400, fontSize: 11 }} type="date" value={fDateTo} onChange={(e) => setFDateTo(e.target.value)} title="Creato al" />
+                  </div>
+                </th>
                 <th style={{ padding: '4px 6px' }} />
               </tr>
             </thead>
