@@ -59,6 +59,7 @@ const L: Record<string, Record<string, string>> = {
   sex: { female: 'Donna', male: 'Uomo' },
   regime: { omnivore: 'Onnivora', vegetarian: 'Vegetariana', vegan: 'Vegana' },
   dietStyle: { mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile' },
+  objective: { dimagrimento: 'Dimagrimento', mantenimento: 'Mantenimento' },
   pathType: { classic3: '3 pasti', five: '5 pasti', supplements: 'Con integratori', intermittent_fasting: 'Digiuno intermittente' },
   coachStyle: { daily: 'Contatto quotidiano', when_needed: 'Quando serve', on_request: 'Su richiesta' },
   character: { follows: 'Segue bene', needs_push: 'Va spronata', perseveres: 'Persevera', quits: 'Molla facilmente' },
@@ -127,6 +128,7 @@ function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u
         {S('regime', 'Regime', regimes.map((r) => [r.code, r.label] as [string, string]))}
         {S('dietStyle', 'Stile', styles.map((st) => [st.code, st.label] as [string, string]))}
         {S('mealsPerDay', 'Pasti', [['3', '3'], ['4', '4'], ['5', '5']])}
+        {S('objective', 'Fase (obiettivo dieta)', [['dimagrimento', 'Dimagrimento'], ['mantenimento', 'Mantenimento']])}
         {S('pathType', 'Percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['supplements', 'Con integratori'], ['intermittent_fasting', 'Digiuno interm.']])}
         {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
         {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
@@ -299,6 +301,7 @@ export function ClientDetail() {
       name: pr.name ?? '', age: pr.age ?? '', sex: pr.sex ?? '', heightCm: pr.heightCm ?? '',
       startWeightKg: pr.startWeightKg ?? '', startWaistCm: pr.startWaistCm ?? '', startHipsCm: pr.startHipsCm ?? '',
       regime: pr.regime ?? '', dietStyle: pr.dietStyle ?? '', mealsPerDay: pr.mealsPerDay ? String(pr.mealsPerDay) : '',
+      objective: pr.objective ?? 'dimagrimento',
       pathType: pr.pathType ?? '', coachStyle: pr.coachStyle ?? '', character: pr.character ?? '',
       intolerances: (pr.intolerances ?? []).join(', '), dislikedFoods: (pr.dislikedFoods ?? []).join(', '),
       themeColor: pr.themeColor ?? '',
@@ -317,6 +320,7 @@ export function ClientDetail() {
       addressLine: f.addressLine, postalCode: f.postalCode, city: f.city, province: f.province,
       name: f.name,
       sex: f.sex || undefined, regime: f.regime || undefined, dietStyle: f.dietStyle || undefined,
+      objective: f.objective || undefined,
       pathType: f.pathType || undefined, coachStyle: f.coachStyle || undefined, character: f.character || undefined,
       themeColor: f.themeColor || undefined,
       intolerances: list(f.intolerances), dislikedFoods: list(f.dislikedFoods),
@@ -550,6 +554,7 @@ export function ClientDetail() {
             <Row label="Regime" value={p.regime ? regimeLabel(p.regime) : '—'} />
             <Row label="Stile alimentare" value={p.dietStyle ? styleLabel(p.dietStyle) : '—'} />
             <Row label="Pasti al giorno" value={p.mealsPerDay ?? '—'} />
+            <Row label="Fase (obiettivo dieta)" value={lab('objective', p.objective ?? 'dimagrimento')} />
             <Row label="Percorso" value={lab('pathType', p.pathType)} />
             <Row label="Lavoro" value={lab('work', p.lifestyle?.work)} />
             <Row label="Tempo per cucinare" value={lab('cookingTime', p.lifestyle?.cookingTime)} />

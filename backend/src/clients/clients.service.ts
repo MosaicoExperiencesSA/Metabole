@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const;
-const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'mealsPerDay', 'pathType', 'coachStyle', 'character', 'intolerances', 'dislikedFoods', 'themeColor'] as const;
+const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'intolerances', 'dislikedFoods', 'themeColor'] as const;
 
 /**
  * Scheda cliente per lo staff: aggrega anagrafica, questionario, obiettivo,

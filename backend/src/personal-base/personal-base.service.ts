@@ -140,6 +140,7 @@ export class PersonalBaseService {
         regime: true,
         dietStyle: true,
         mealsPerDay: true,
+        objective: true,
         allergies: true,
         assignedNutritionistId: true,
       },
@@ -147,6 +148,7 @@ export class PersonalBaseService {
       regime: string | null;
       dietStyle: string | null;
       mealsPerDay: number | null;
+      objective: string | null;
       allergies: string[];
       assignedNutritionistId: string | null;
     } | null;
@@ -288,11 +290,18 @@ export class PersonalBaseService {
 
   // ---------- interni ----------
 
-  /** Dieta del cliente: match esatto regime+pasti+stile tra i prodotti approvati, con fallback. */
+  /**
+   * Dieta del cliente: match tra i prodotti approvati per regime+pasti, preferendo stile e
+   * OBIETTIVO (fase dimagrimento/mantenimento) del cliente, con fallback progressivi così da
+   * non lasciare mai il cliente senza dieta se la variante esatta non esiste ancora.
+   * Ordine di preferenza: (1) regime+pasti+stile+obiettivo → (2) regime+pasti+stile →
+   * (3) regime+pasti+obiettivo → (4) regime+pasti.
+   */
   private async pickDiet(profile: {
     regime: string | null;
     dietStyle: string | null;
     mealsPerDay: number | null;
+    objective?: string | null;
   }) {
     if (!profile.regime || !profile.mealsPerDay) return null;
     const base = {
@@ -300,12 +309,20 @@ export class PersonalBaseService {
       regime: profile.regime as never,
       mealsPerDay: profile.mealsPerDay,
     };
-    const exact = await this.prisma.diet.findFirst({
-      where: { ...base, ...(profile.dietStyle ? { style: profile.dietStyle as never } : {}) },
-      orderBy: { approvedAt: 'desc' },
-    });
+    const styleWhere = profile.dietStyle ? { style: profile.dietStyle as never } : {};
+    const objWhere = { objective: (profile.objective || 'dimagrimento') as never };
+    const order = { approvedAt: 'desc' as const };
+    // 1) più preciso: stile + obiettivo del cliente
+    const exact = await this.prisma.diet.findFirst({ where: { ...base, ...styleWhere, ...objWhere }, orderBy: order });
     if (exact) return exact;
-    return this.prisma.diet.findFirst({ where: base, orderBy: { approvedAt: 'desc' } });
+    // 2) stesso stile, qualsiasi obiettivo (variante di quell'obiettivo non ancora creata)
+    const byStyle = await this.prisma.diet.findFirst({ where: { ...base, ...styleWhere }, orderBy: order });
+    if (byStyle) return byStyle;
+    // 3) ignora lo stile ma tieni l'obiettivo
+    const byObjective = await this.prisma.diet.findFirst({ where: { ...base, ...objWhere }, orderBy: order });
+    if (byObjective) return byObjective;
+    // 4) fallback: qualsiasi dieta approvata compatibile con regime+pasti
+    return this.prisma.diet.findFirst({ where: base, orderBy: order });
   }
 
   private async openBlock(clientId: string): Promise<{ id: string } | null> {

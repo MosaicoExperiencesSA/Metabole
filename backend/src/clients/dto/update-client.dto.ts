@@ -28,4 +28,6 @@ export class UpdateClientDto {
   @IsOptional() @IsArray() @IsString({ each: true }) intolerances?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) dislikedFoods?: string[];
   @IsOptional() @IsString() @MaxLength(9) themeColor?: string;
+  // Fase attuale del cliente per l'abbinamento dieta (decisione clinica dello staff).
+  @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
 }

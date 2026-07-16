@@ -344,6 +344,10 @@ model ClientProfile {
   regime                 String?
   dietStyle              String? @map("diet_style")
   mealsPerDay            Int?       @map("meals_per_day")
+  // Fase attuale del cliente per l'abbinamento dieta: dimagrimento | mantenimento.
+  // Decisione clinica dello staff. Guida pickDiet a scegliere la variante giusta della
+  // famiglia (regime × obiettivo). Default dimagrimento: tutti partono in dimagrimento.
+  objective              String     @default("dimagrimento")
   pathType               PathType?  @map("path_type")
   coachStyle             CoachStyle? @map("coach_style")
   character              Character?
