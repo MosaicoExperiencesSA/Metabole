@@ -266,6 +266,7 @@ export function LeadsTable() {
                 <th>Stato</th>
                 <th>Coach</th>
                 <th>Nutrizionista</th>
+                <th>Tipo</th>
                 <th>Valore</th>
                 <th>Creato</th>
                 <th style={{ textAlign: 'right' }}>Azioni</th>
@@ -273,15 +274,7 @@ export function LeadsTable() {
               <tr>
                 {canAssignCoach && <th style={{ padding: '4px 6px' }} />}
                 <th style={{ padding: '4px 6px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome…" value={fName} onChange={(e) => setFName(e.target.value)} />
-                    <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fTipo} onChange={(e) => setFTipo(e.target.value)} title="Tipo persona (Cliente / Storico / Lead)">
-                      <option value="">Tutti i tipi</option>
-                      <option value="client">Cliente</option>
-                      <option value="historical">Storico</option>
-                      <option value="lead">Lead</option>
-                    </select>
-                  </div>
+                  <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome…" value={fName} onChange={(e) => setFName(e.target.value)} />
                 </th>
                 <th style={{ padding: '4px 6px' }}>
                   <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Email o tel…" value={fEmail} onChange={(e) => setFEmail(e.target.value)} />
@@ -306,6 +299,14 @@ export function LeadsTable() {
                     {nutritionists.map((n) => <option key={n.id} value={n.id}>{n.displayName}</option>)}
                   </select>
                 </th>
+                <th style={{ padding: '4px 6px' }}>
+                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fTipo} onChange={(e) => setFTipo(e.target.value)} title="Tipo persona">
+                    <option value="">Tutti i tipi</option>
+                    <option value="client">Cliente</option>
+                    <option value="historical">Storico</option>
+                    <option value="lead">Lead</option>
+                  </select>
+                </th>
                 <th style={{ padding: '4px 6px' }} />
                 <th style={{ padding: '4px 6px' }} />
                 <th style={{ padding: '4px 6px' }} />
@@ -314,7 +315,7 @@ export function LeadsTable() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canAssignCoach ? 9 : 8} className="empty" style={{ padding: 24, textAlign: 'center' }}>
+                  <td colSpan={canAssignCoach ? 10 : 9} className="empty" style={{ padding: 24, textAlign: 'center' }}>
                     {leads.length === 0
                       ? 'Nessun lead o cliente. Inseriscine uno con "Nuovo lead".'
                       : 'Nessun lead con questi filtri. Modifica o azzera i filtri qui sopra.'}
@@ -339,7 +340,6 @@ export function LeadsTable() {
                           {displayName(l)}
                         </Link>
                       )}
-                      {(() => { const k = classify(l); return <span className={`chip ${k.chip}`} style={{ marginLeft: 8, fontSize: 10 }} title={k.title}>{k.label}</span>; })()}
                       {l.lists?.length > 0 && (
                         <div className="row" style={{ gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                           {l.lists.map((x) => (
@@ -404,6 +404,7 @@ export function LeadsTable() {
                         <span className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</span>
                       )}
                     </td>
+                    <td>{(() => { const k = classify(l); return <span className={`chip ${k.chip}`} style={{ fontSize: 10 }} title={k.title}>{k.label}</span>; })()}</td>
                     <td>{euro(l.valueCents ?? l.historicalPaidCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
