@@ -85,31 +85,46 @@ export class CatalogService {
       const notes = (p.clinicalNotes as string) ?? null;
       if (notes && !notesByStyle.has(st)) notesByStyle.set(st, notes);
     }
-    const paths: {
+    type SitePath = {
       style: string; name: string; clientName: string | null;
       description: string | null; desc: string | null; clinicalNotes: string | null;
       highlights: string[]; objective: string; seasonalTag: string | null;
-    }[] = [];
+    };
+    // UNA card per FAMIGLIA (stesso nome+stile): le varianti regime × obiettivo sono
+    // dettagli interni del motore, sul sito il percorso è uno. Tra le varianti si
+    // tengono i campi compilati migliori (clientName/descrizione/highlights).
+    const byFamily = new Map<string, SitePath>();
     for (const d of diets as unknown as Array<Record<string, unknown>>) {
       const style = String(d.style);
+      const famKey = `${String(d.name)}\u0000${style}`;
       const clientName = (d.clientName as string) ?? null;
       const description = (d.clientDescription as string) ?? null;
       const clinicalNotes = notesByStyle.get(style) ?? null;
-      paths.push({
-        style,
-        name: clientName ?? String(d.name),
-        clientName,
-        description,
-        // alias letto dal carosello del sito: sotto il nome, in piccolo, mostra
-        // la descrizione cliente se compilata, altrimenti le note cliniche del preset.
-        desc: description ?? clinicalNotes,
-        clinicalNotes,
-        highlights: Array.isArray(d.highlights) ? (d.highlights as string[]) : [],
-        objective: (d.objective as string) ?? 'dimagrimento',
-        seasonalTag: (d.seasonalTag as string) ?? null,
-      });
+      const highlights = Array.isArray(d.highlights) ? (d.highlights as string[]) : [];
+      const existing = byFamily.get(famKey);
+      if (!existing) {
+        byFamily.set(famKey, {
+          style,
+          name: clientName ?? String(d.name),
+          clientName,
+          description,
+          // alias letto dal carosello del sito: sotto il nome, in piccolo, mostra
+          // la descrizione cliente se compilata, altrimenti le note cliniche del preset.
+          desc: description ?? clinicalNotes,
+          clinicalNotes,
+          highlights,
+          objective: (d.objective as string) ?? 'dimagrimento',
+          seasonalTag: (d.seasonalTag as string) ?? null,
+        });
+      } else {
+        // Completa i buchi con i dati delle altre varianti della stessa famiglia.
+        if (!existing.clientName && clientName) { existing.clientName = clientName; existing.name = clientName; }
+        if (!existing.description && description) { existing.description = description; existing.desc = description; }
+        if (!existing.highlights.length && highlights.length) existing.highlights = highlights;
+        if (!existing.seasonalTag && d.seasonalTag) existing.seasonalTag = d.seasonalTag as string;
+      }
     }
-    return paths;
+    return [...byFamily.values()];
   }
 
   /**
