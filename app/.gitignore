@@ -7,6 +7,10 @@ dist-ssr
 android
 ios
 
+# Firebase: chiave del client, va scaricata da Firebase e messa qui a mano.
+# Vive solo in iCloud (non nel repo): la sua presenza attiva le push al build.
+google-services.json
+
 # build / cache
 .vite
 .DS_Store

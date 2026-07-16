@@ -13,8 +13,9 @@ export async function initPush(): Promise<void> {
   if (Capacitor.getPlatform() === 'web') return;
   // Le push restano SPENTE finché Firebase (google-services.json) non è configurato:
   // su Android, registrarle senza Firebase può lanciare un'eccezione nativa che chiude
-  // l'app. Ad app collegata a Firebase, impostare VITE_ENABLE_PUSH=true e ricompilare.
-  if (import.meta.env.VITE_ENABLE_PUSH !== 'true') return;
+  // l'app. __ENABLE_PUSH__ è true SOLO se google-services.json era presente al build
+  // (vedi vite.config.ts): così si accendono da sole quando metti il file, niente flag.
+  if (!__ENABLE_PUSH__) return;
   started = true;
 
   try {
