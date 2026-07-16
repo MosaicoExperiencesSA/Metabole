@@ -207,6 +207,38 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
     const recipes = Array.isArray(gen.recipes) ? (gen.recipes as Record<string, unknown>[]) : [];
     if (recipes.length === 0) throw new BadRequestException('L\'AI non ha prodotto ricette valide: riprova.');
 
+    // RIGENERARE = SOSTITUIRE: se questa variante (stesso nome+stile+regime+obiettivo)
+    // era già stata generata, la versione precedente si elimina — con giornate, regole,
+    // gruppi e ricette generate non referenziate altrove — così non si accumulano doppioni
+    // nel catalogo. Le diete già usate in menu erogati NON si toccano (storia clienti).
+    const objective = preset.objective ?? 'dimagrimento';
+    const previous = (await this.prisma.diet.findMany({
+      where: { name: preset.label, style: preset.style, regime, objective } as never,
+      select: { id: true },
+    })) as { id: string }[];
+    for (const old of previous) {
+      const used = await this.prisma.menuDay.count({ where: { dietId: old.id } });
+      if (used > 0) continue;
+      // Ricette referenziate SOLO dalle giornate della vecchia versione (non da altre diete).
+      const oldTpls = (await this.prisma.dietDayTemplate.findMany({ where: { dietId: old.id }, select: { meals: true } })) as { meals: unknown }[];
+      const orphanIds = new Set<string>();
+      for (const t of oldTpls) for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) if (m.recipeId) orphanIds.add(m.recipeId);
+      const otherTpls = (await this.prisma.dietDayTemplate.findMany({ where: { dietId: { not: old.id } }, select: { meals: true } })) as { meals: unknown }[];
+      for (const t of otherTpls) for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) if (m.recipeId) orphanIds.delete(m.recipeId);
+      const ids = [...orphanIds];
+      await this.prisma.$transaction([
+        this.prisma.dietDayTemplate.deleteMany({ where: { dietId: old.id } }),
+        this.prisma.productRule.deleteMany({ where: { dietId: old.id } }),
+        this.prisma.equivalenceGroup.deleteMany({ where: { productId: old.id } as never }),
+        ...(ids.length ? [
+          this.prisma.recipeRating.deleteMany({ where: { recipeId: { in: ids } } }),
+          this.prisma.menuWeight.deleteMany({ where: { recipeId: { in: ids } } }),
+          this.prisma.recipe.deleteMany({ where: { id: { in: ids } } }),
+        ] : []),
+        this.prisma.diet.delete({ where: { id: old.id } }),
+      ]);
+    }
+
     const validSlots = new Set(slots);
     const diet = await this.prisma.diet.create({
       data: {
@@ -214,7 +246,7 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
         regime, style: preset.style, mealsPerDay: 5,
         levels: [{ level: 1, kcal: targetKcal }], options: {},
         authorId: staff.id, status: 'draft',
-        objective: preset.objective ?? 'dimagrimento', clientVisible: false,
+        objective, clientVisible: false,
       } as never,
     });
 
