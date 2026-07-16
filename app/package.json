@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "cap:sync": "cap sync",
     "android:init": "npm run build && cap add android",
-    "android:sync": "npm run build && cap sync android",
+    "android:sync": "npm run build && cap sync android && npm run android:widget",
+    "android:widget": "node ../scripts/install-widget.mjs",
     "android:open": "cap open android"
   },
   "dependencies": {
