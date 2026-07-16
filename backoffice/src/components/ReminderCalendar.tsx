@@ -10,7 +10,7 @@ export interface CalReminder {
   note?: string | null;
 }
 
-export type CalView = 'list' | 'week' | 'month';
+export type CalView = 'list' | 'day' | 'week' | 'month';
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -57,7 +57,7 @@ export function ReminderCalendar({
 
   const seg = (
     <div className="row" style={{ gap: 4, background: 'var(--chip)', padding: 3, borderRadius: 10 }}>
-      {(['list', 'week', 'month'] as CalView[]).map((v) => (
+      {(['list', 'day', 'week', 'month'] as CalView[]).map((v) => (
         <button
           key={v}
           onClick={() => setView(v)}
@@ -69,11 +69,39 @@ export function ReminderCalendar({
             fontWeight: view === v ? 700 : 500,
           }}
         >
-          {v === 'list' ? 'Lista' : v === 'week' ? 'Settimana' : 'Mese'}
+          {v === 'list' ? 'Lista' : v === 'day' ? 'Giorno' : v === 'week' ? 'Settimana' : 'Mese'}
         </button>
       ))}
     </div>
   );
+
+  // ---- Giorno: un solo giorno con frecce avanti/indietro (ci si arriva anche cliccando
+  //      una casella della vista Mese) ----
+  function DayView() {
+    const items = byDay.get(dayKey(selDay)) ?? [];
+    return (
+      <>
+        <div className="spread" style={{ marginBottom: 8 }}>
+          <button className="btn ghost sm" onClick={() => setSelDay(addDays(selDay, -1))}><i className="ti ti-chevron-left" /></button>
+          <b style={{ fontSize: compact ? 13 : 15, textTransform: 'capitalize' }}>
+            {dayLabel(selDay)}
+            {['Oggi', 'Domani', 'Ieri'].includes(dayLabel(selDay)) && (
+              <span className="muted" style={{ fontWeight: 500 }}> · {selDay.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+            )}
+          </b>
+          <button className="btn ghost sm" onClick={() => setSelDay(addDays(selDay, 1))}><i className="ti ti-chevron-right" /></button>
+        </div>
+        {items.length === 0
+          ? <div className="empty" style={{ padding: compact ? '14px' : '28px 20px' }}>Nessun promemoria in questo giorno.</div>
+          : items.map((r) => <div key={r.id}>{renderItem(r)}</div>)}
+        <div className="row" style={{ justifyContent: 'center', marginTop: 8 }}>
+          <button className="btn ghost sm" onClick={() => { setCursor(startOfDay(selDay)); setView('month'); }}>
+            <i className="ti ti-calendar-month" /> Torna al mese
+          </button>
+        </div>
+      </>
+    );
+  }
 
   // ---- Lista: giorni con promemoria, in ordine ----
   function ListView() {
@@ -127,12 +155,13 @@ export function ReminderCalendar({
     );
   }
 
-  // ---- Mese: griglia 6×7 + promemoria del giorno selezionato ----
+  // ---- Mese: griglia 6×7; i giorni con promemoria sono evidenziati (badge col numero)
+  //      e cliccando un giorno si passa alla vista Giorno ----
   function MonthView() {
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
     const gridStart = startOfWeek(first);
     const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-    const selItems = byDay.get(dayKey(selDay)) ?? [];
+    const now = Date.now();
     return (
       <>
         <div className="spread" style={{ marginBottom: 8 }}>
@@ -146,30 +175,42 @@ export function ReminderCalendar({
             const items = byDay.get(dayKey(d)) ?? [];
             const other = d.getMonth() !== cursor.getMonth();
             const today = sameDay(d, new Date());
-            const sel = sameDay(d, selDay);
             const pending = items.filter((r) => !r.done).length;
+            const late = items.some((r) => !r.done && new Date(r.dueAt).getTime() < now);
+            const has = items.length > 0;
+            // Colore del giorno: rosso se c'è uno scaduto, verde se c'è da fare, grigio se tutto completato.
+            const accent = late ? 'var(--danger)' : pending > 0 ? 'var(--teal)' : 'var(--muted)';
             return (
               <button
                 key={dayKey(d)}
-                onClick={() => setSelDay(startOfDay(d))}
+                onClick={() => { setSelDay(startOfDay(d)); setView('day'); }}
+                title={has ? `${items.length} promemoria — apri il giorno` : 'Apri il giorno'}
                 style={{
-                  aspectRatio: '1', minHeight: compact ? 30 : 38, border: sel ? '2px solid var(--teal)' : '1px solid var(--line)',
-                  borderRadius: 8, background: today ? 'var(--chip)' : 'var(--card)', color: other ? 'var(--muted)' : 'var(--ink)',
+                  aspectRatio: '1', minHeight: compact ? 30 : 38,
+                  border: has ? `2px solid ${accent}` : '1px solid var(--line)',
+                  borderRadius: 8,
+                  background: has ? (late ? 'rgba(229,72,77,.10)' : 'rgba(18,163,134,.12)') : today ? 'var(--chip)' : 'var(--card)',
+                  color: other ? 'var(--muted)' : 'var(--ink)',
                   cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, position: 'relative', padding: 0,
                 }}
               >
-                <span style={{ fontSize: 12, fontWeight: today ? 800 : 500 }}>{d.getDate()}</span>
-                {items.length > 0 && (
-                  <span style={{ width: 6, height: 6, borderRadius: 4, background: pending ? 'var(--teal)' : 'var(--muted)' }} />
+                <span style={{ fontSize: 12, fontWeight: today || has ? 800 : 500 }}>{d.getDate()}</span>
+                {has && (
+                  <span style={{
+                    minWidth: compact ? 14 : 17, height: compact ? 14 : 17, padding: '0 4px', borderRadius: 9,
+                    background: accent, color: '#fff', fontSize: compact ? 9 : 10.5, fontWeight: 800,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                  }}>{items.length}</span>
                 )}
+                {today && !has && <span style={{ width: 5, height: 5, borderRadius: 3, background: 'var(--teal)' }} />}
               </button>
             );
           })}
         </div>
-        <div style={{ marginTop: 10 }}>
-          <h3 style={{ fontSize: 13, color: 'var(--muted)', textTransform: 'capitalize', margin: '0 0 4px' }}>{dayLabel(selDay)}</h3>
-          {selItems.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>Nessun promemoria in questo giorno.</span> : selItems.map((r) => <div key={r.id}>{renderItem(r)}</div>)}
-        </div>
+        <p className="muted" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
+          Il numero indica i promemoria del giorno (<span style={{ color: 'var(--teal)', fontWeight: 700 }}>verde</span> da fare,
+          <span style={{ color: 'var(--danger)', fontWeight: 700 }}> rosso</span> scaduti). Clicca un giorno per aprirlo.
+        </p>
       </>
     );
   }
@@ -180,6 +221,7 @@ export function ReminderCalendar({
         {seg}
       </div>
       {view === 'list' && <ListView />}
+      {view === 'day' && <DayView />}
       {view === 'week' && <WeekView />}
       {view === 'month' && <MonthView />}
     </div>
