@@ -20,3 +20,6 @@ Thumbs.db
 # Log
 *.log
 npm-debug.log*
+
+# Cartella di lavoro temporanea Cowork (patch, lock rimossi): mai committare
+_to_delete/
