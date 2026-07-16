@@ -248,9 +248,6 @@ export function LeadsTable() {
       {showLists && <ListsManager lists={allLists} onClose={() => setShowLists(false)} onChanged={load} />}
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        {filtered.length === 0 ? (
-          <div className="empty">Nessun lead o cliente. Inseriscine uno con "Nuovo lead".</div>
-        ) : (
           <table className="grid" style={{ minWidth: 920 }}>
             <thead>
               <tr>
@@ -276,7 +273,15 @@ export function LeadsTable() {
               <tr>
                 {canAssignCoach && <th style={{ padding: '4px 6px' }} />}
                 <th style={{ padding: '4px 6px' }}>
-                  <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome…" value={fName} onChange={(e) => setFName(e.target.value)} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome…" value={fName} onChange={(e) => setFName(e.target.value)} />
+                    <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fTipo} onChange={(e) => setFTipo(e.target.value)} title="Tipo persona (Cliente / Storico / Lead)">
+                      <option value="">Tutti i tipi</option>
+                      <option value="client">Cliente</option>
+                      <option value="historical">Storico</option>
+                      <option value="lead">Lead</option>
+                    </select>
+                  </div>
                 </th>
                 <th style={{ padding: '4px 6px' }}>
                   <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Email o tel…" value={fEmail} onChange={(e) => setFEmail(e.target.value)} />
@@ -301,20 +306,21 @@ export function LeadsTable() {
                     {nutritionists.map((n) => <option key={n.id} value={n.id}>{n.displayName}</option>)}
                   </select>
                 </th>
-                <th style={{ padding: '4px 6px' }}>
-                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fTipo} onChange={(e) => setFTipo(e.target.value)} title="Tipo persona">
-                    <option value="">Tutti</option>
-                    <option value="client">Cliente</option>
-                    <option value="historical">Storico</option>
-                    <option value="lead">Lead</option>
-                  </select>
-                </th>
+                <th style={{ padding: '4px 6px' }} />
                 <th style={{ padding: '4px 6px' }} />
                 <th style={{ padding: '4px 6px' }} />
               </tr>
             </thead>
             <tbody>
-              {pg.pageItems.map((l) => {
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={canAssignCoach ? 9 : 8} className="empty" style={{ padding: 24, textAlign: 'center' }}>
+                    {leads.length === 0
+                      ? 'Nessun lead o cliente. Inseriscine uno con "Nuovo lead".'
+                      : 'Nessun lead con questi filtri. Modifica o azzera i filtri qui sopra.'}
+                  </td>
+                </tr>
+              ) : pg.pageItems.map((l) => {
                 const st = stageOf(l.stage);
                 return (
                   <tr key={l.id}>
@@ -398,7 +404,7 @@ export function LeadsTable() {
                         <span className="muted">{l.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</span>
                       )}
                     </td>
-                    <td>{euro(l.valueCents)}</td>
+                    <td>{euro(l.valueCents ?? l.historicalPaidCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {l.clientId ? (
@@ -414,7 +420,6 @@ export function LeadsTable() {
               })}
             </tbody>
           </table>
-        )}
         <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
     </>
