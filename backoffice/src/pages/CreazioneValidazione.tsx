@@ -93,8 +93,18 @@ export function CreazioneValidazione() {
   }
 
   async function deleteFamily(fam: Family) {
+    // Controlla se esistono diete GIÀ GENERATE da queste varianti (match per nome + regime).
+    let generated = 0;
+    try {
+      const diets = await api<{ id: string; name: string; regime: string }[]>('/diets');
+      const regs = new Set(fam.variants.map((v) => (v.regime as string) || 'omnivore'));
+      generated = (diets ?? []).filter((d) => d.name === fam.label && regs.has(d.regime)).length;
+    } catch { /* soft: se non riesco a controllare, avviso generico sotto */ }
+    const warn = generated > 0
+      ? `\n\n⚠️ ATTENZIONE: risultano ${generated} dieta/e GIÀ GENERATA/E da queste varianti. Le definizioni e le diete generate sono separate: dopo aver eliminato qui, elimina quelle diete anche da "Catalogo diete".`
+      : '\nSe avevi già generato il catalogo, la dieta generata va eliminata a parte da Catalogo diete.';
     // eslint-disable-next-line no-alert
-    if (!confirm(`Eliminare la dieta "${fam.label}" e le sue ${fam.variants.length} variante/i di regime?\nSe hai già generato il catalogo, la dieta generata va eliminata a parte da Catalogo diete.`)) return;
+    if (!confirm(`Eliminare la dieta "${fam.label}" e le sue ${fam.variants.length} variante/i di regime?${warn}`)) return;
     setBusy(true); setError(null);
     try {
       for (const v of fam.variants) await api(`/engine-rules/presets/${v.id}`, { method: 'DELETE' });
