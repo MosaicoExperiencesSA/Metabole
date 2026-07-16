@@ -16,10 +16,12 @@
  *   - Tutto il resto non-catalogo: clienti, staff, CRM, protocolli, config, negozio,
  *     email/PDF, testimonianze.
  *
- * PROTEZIONE: se qualche dieta è già collegata a DATI CLIENTE (menu erogati, cicli, pool,
- * certificati), lo script si FERMA senza cancellare nulla, per non spezzare la storia dei
- * clienti. In quel caso valuta prima prisma/cleanup-clients.ts (rimuove i clienti) oppure
- * prisma/cleanup-demo.ts (reset completo).
+ * PROTEZIONE: se una dieta è collegata a menu/cicli/pool/certificati di un cliente ANCORA
+ * ESISTENTE, lo script si FERMA senza cancellare nulla, per non spezzare la storia di quel
+ * cliente. In quel caso valuta prima prisma/cleanup-clients.ts (rimuove i clienti) oppure
+ * prisma/cleanup-demo.ts (reset completo). I collegamenti ORFANI (resti di clienti già
+ * cancellati, che queste tabelle non ripuliscono a cascata) NON bloccano: vengono rimossi
+ * insieme al catalogo, così il reset va a buon fine.
  *
  * DIFFERENZA da cleanup-content.ts: quello tiene TUTTI i preset; questo elimina anche i
  * preset personali (suggested=false), tenendo solo i suggeriti.
@@ -52,8 +54,17 @@ const STEPS: { label: string; name: string; where?: object }[] = [
   { label: 'RulePreset personali (suggested=false)', name: 'rulePreset', where: { suggested: false } },
 ];
 
-// Tabelle CLIENTE che referenziano una dieta: se hanno righe, NON si cancella.
-const CLIENT_REFS = ['menuDay', 'clientMenuPool', 'clientCycle', 'personalizationCertificate'];
+// Tabelle CLIENTE che referenziano una dieta. Se una riga punta a un cliente ANCORA
+// esistente è storia da proteggere → STOP. Se il cliente non c'è più (riga ORFANA,
+// resto di un cliente già cancellato: queste tabelle non hanno FK a cascata) allora è
+// spazzatura e va rimossa insieme al catalogo. MenuDay ha onDelete: Restrict verso Diet,
+// quindi va cancellata PRIMA delle diete: sta in cima a questa lista.
+const CLIENT_REF_STEPS: { label: string; name: string }[] = [
+  { label: 'MenuDay (menu erogati) — orfani', name: 'menuDay' },
+  { label: 'ClientCycle (cicli) — orfani', name: 'clientCycle' },
+  { label: 'ClientMenuPool (pool ricette) — orfani', name: 'clientMenuPool' },
+  { label: 'PersonalizationCertificate (certificati) — orfani', name: 'personalizationCertificate' },
+];
 
 async function main() {
   console.log('\n=== Metabole — svuota DIETE + CATALOGO + PRESET PERSONALI ===');
@@ -67,16 +78,24 @@ async function main() {
     total += c;
     console.log(`${String(c).padStart(8)}  ${s.label}`);
   }
-  console.log(`\nTotale righe da eliminare: ${total}`);
 
-  // Protezione: collegamenti a dati cliente sulle diete.
-  let clientRefs = 0;
-  const details: string[] = [];
-  for (const name of CLIENT_REFS) {
-    const c = await model(prisma, name).count();
-    clientRefs += c;
-    if (c > 0) details.push(`${name}=${c}`);
+  // Distingui i collegamenti a dati cliente: LIVE (cliente esistente → protetto) vs ORFANI.
+  const liveClients = await prisma.user.findMany({ where: { role: 'client' }, select: { id: true } });
+  const liveIds = liveClients.map((u: { id: string }) => u.id);
+  let liveRefs = 0; let orphanRefs = 0;
+  const liveDetails: string[] = []; const orphanDetails: string[] = [];
+  for (const s of CLIENT_REF_STEPS) {
+    const totalRows = await model(prisma, s.name).count();
+    const live = liveIds.length ? await model(prisma, s.name).count({ where: { clientId: { in: liveIds } } }) : 0;
+    const orphan = totalRows - live;
+    liveRefs += live; orphanRefs += orphan;
+    if (live > 0) liveDetails.push(`${s.name}=${live}`);
+    if (orphan > 0) orphanDetails.push(`${s.name}=${orphan}`);
   }
+  if (orphanRefs > 0) {
+    console.log(`${String(orphanRefs).padStart(8)}  Menu cliente ORFANI da rimuovere (${orphanDetails.join(', ')})`);
+  }
+  console.log(`\nTotale righe da eliminare: ${total + orphanRefs}`);
 
   const [presetsKept, clients, staff] = await Promise.all([
     prisma.rulePreset.count({ where: { suggested: true } }),
@@ -85,12 +104,15 @@ async function main() {
   ]);
   console.log(`\nTenuti (non toccati): preset suggeriti=${presetsKept}, clienti=${clients}, staff=${staff}, + CRM/protocolli/config/negozio.`);
 
-  if (clientRefs > 0) {
-    console.log(`\n⛔ STOP: ci sono ${clientRefs} collegamenti a DATI CLIENTE alle diete (${details.join(', ')}).`);
-    console.log('Svuotare il catalogo spezzerebbe la storia dei clienti. Nessuna cancellazione applicata.');
+  if (liveRefs > 0) {
+    console.log(`\n⛔ STOP: ci sono ${liveRefs} collegamenti a diete di CLIENTI ANCORA ESISTENTI (${liveDetails.join(', ')}).`);
+    console.log('Svuotare il catalogo spezzerebbe la storia di quei clienti. Nessuna cancellazione applicata.');
     console.log('Per rimuovere prima i clienti usa prisma/cleanup-clients.ts; per un reset COMPLETO usa prisma/cleanup-demo.ts.');
     await prisma.$disconnect();
     return;
+  }
+  if (orphanRefs > 0) {
+    console.log(`\nℹ️  Nessun cliente esistente è collegato: le ${orphanRefs} righe di menu sono ORFANE e verranno rimosse.`);
   }
 
   if (!CONFIRM) {
@@ -102,6 +124,12 @@ async function main() {
   console.log('\nCancellazione in corso (transazione unica; se un vincolo blocca, rollback totale)…');
   const deleted = await prisma.$transaction(async (tx) => {
     let n = 0;
+    // Prima i menu cliente orfani (sblocca il vincolo MenuDay → Diet), poi il catalogo e i preset.
+    for (const s of CLIENT_REF_STEPS) {
+      const r = await model(tx, s.name).deleteMany();
+      if (r.count > 0) console.log(`  - ${s.label}: ${r.count}`);
+      n += r.count;
+    }
     for (const s of STEPS) {
       const r = await model(tx, s.name).deleteMany(s.where ? { where: s.where } : undefined);
       if (r.count > 0) console.log(`  - ${s.label}: ${r.count}`);
