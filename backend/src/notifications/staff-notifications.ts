@@ -20,7 +20,7 @@ export interface StaffNotifType {
 const COACHES: Role[] = ['coach'];
 const NUTRIS: Role[] = ['nutritionist', 'head_nutritionist'];
 const CARE: Role[] = ['coach', 'nutritionist', 'head_nutritionist'];
-const RESP: Role[] = ['sales', 'coach']; // responsabile coach (sales) + coach che assegnano
+const RESP: Role[] = ['sales']; // solo la responsabile coach (sales) riceve gli esiti assegnazione
 
 export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
   // --- Segnalazioni cliente (arrivano sia alla coach sia alla nutrizionista assegnate) ---
@@ -33,6 +33,7 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
   { key: 'appointment_created', label: 'Appuntamento fissato', description: 'Nuovo appuntamento/visita in agenda.', roles: NUTRIS },
   { key: 'appointment_reminder', label: 'Promemoria appuntamento', description: 'Promemoria 30 minuti prima di ogni appuntamento.', roles: NUTRIS },
   { key: 'diet_approved', label: 'Dieta approvata', description: 'Il capo nutrizionista ha approvato una tua dieta.', roles: NUTRIS },
+  { key: 'diet_review_requested', label: 'Dieta da approvare', description: 'Un nutrizionista ha inviato una dieta in revisione: va approvata.', roles: ['head_nutritionist'] },
   { key: 'client_assigned_nutritionist', label: 'Nuova cliente assegnata', description: 'Ti è stata assegnata una nuova cliente.', roles: NUTRIS },
   // --- Coach ---
   { key: 'lead_assigned', label: 'Lead assegnato', description: 'Ti è stato assegnato un nuovo lead da accettare.', roles: COACHES },

@@ -443,7 +443,39 @@ export class CatalogService {
       entityType: 'diet',
       entityId: id,
     });
+    await this.notifyHeadOfReview(diet.authorId, updated.name);
     return updated;
+  }
+
+  /** Avvisa il capo nutrizionista che una dieta è in attesa di approvazione. */
+  private async notifyHeadOfReview(authorStaffId: string | null, dietName: string): Promise<void> {
+    let targets: string[] = [];
+    if (authorStaffId) {
+      const author = await this.prisma.staff.findUnique({
+        where: { id: authorStaffId },
+        select: { headNutritionist: { select: { userId: true } } },
+      });
+      if (author?.headNutritionist?.userId) targets = [author.headNutritionist.userId];
+    }
+    if (targets.length === 0) {
+      // Nessun capo diretto impostato: avvisa tutti i capi nutrizionisti.
+      const heads = await this.prisma.user.findMany({
+        where: { role: 'head_nutritionist', deletedAt: null } as never,
+        select: { id: true },
+      });
+      targets = heads.map((h: { id: string }) => h.id);
+    }
+    for (const uid of targets) {
+      await this.notifications
+        .notify({
+          userId: uid,
+          type: 'diet_review_requested',
+          title: 'Dieta da approvare',
+          body: `La dieta "${dietName}" è in attesa di approvazione.`,
+          payload: {},
+        })
+        .catch(() => undefined);
+    }
   }
 
   /** Approvazione: solo capo (guard sul controller) e MAI la propria dieta. */

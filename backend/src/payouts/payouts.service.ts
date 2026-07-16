@@ -102,6 +102,81 @@ export class PayoutsService {
     };
   }
 
+  /**
+   * Rendicontazione guadagni dello staff (per la schermata Guadagni, layout prototipo):
+   * totale del mese corrente + dettaglio (per cliente e per categoria) + storico mesi.
+   */
+  async myEarnings(userId: string) {
+    const staff = await this.prisma.staff.findUnique({ where: { userId }, select: { id: true } });
+    if (!staff) return { isStaff: false };
+
+    const now = new Date();
+    const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthStart = this.monthStart(now);
+
+    const entries = (await this.prisma.ledgerEntry.findMany({
+      where: {
+        staffId: staff.id,
+        type: 'expense' as never,
+        category: { in: COMMISSION_CATEGORIES },
+        date: { gte: monthStart },
+      },
+      select: { amountCents: true, category: true, clientId: true, date: true },
+      orderBy: { date: 'desc' },
+      take: 1000,
+    })) as { amountCents: number; category: string; clientId: string | null; date: Date }[];
+
+    const totalCents = entries.reduce((a, e) => a + e.amountCents, 0);
+
+    // Dettaglio per categoria (per il nutrizionista: Visite / Quota percorsi).
+    const CAT_LABEL: Record<string, string> = { visit_compensation: 'Visite', sales_commission: 'Quota percorsi' };
+    const catMap = new Map<string, number>();
+    for (const e of entries) catMap.set(e.category, (catMap.get(e.category) ?? 0) + e.amountCents);
+    const byCategory = [...catMap.entries()]
+      .map(([category, amountCents]) => ({ category, label: CAT_LABEL[category] ?? category, amountCents }))
+      .sort((a, b) => b.amountCents - a.amountCents);
+
+    // Dettaglio per cliente (per la coach).
+    const cliMap = new Map<string, { amountCents: number; lastDate: Date }>();
+    for (const e of entries) {
+      if (!e.clientId) continue;
+      const cur = cliMap.get(e.clientId);
+      if (cur) {
+        cur.amountCents += e.amountCents;
+        if (e.date > cur.lastDate) cur.lastDate = e.date;
+      } else {
+        cliMap.set(e.clientId, { amountCents: e.amountCents, lastDate: e.date });
+      }
+    }
+    const clientIds = [...cliMap.keys()];
+    const profiles = clientIds.length
+      ? ((await this.prisma.clientProfile.findMany({
+          where: { userId: { in: clientIds } },
+          select: { userId: true, name: true },
+        })) as { userId: string; name: string | null }[])
+      : [];
+    const nameOf = new Map(profiles.map((p) => [p.userId, p.name]));
+    const byClient = [...cliMap.entries()]
+      .map(([clientId, v]) => ({
+        clientId,
+        name: nameOf.get(clientId) ?? null,
+        amountCents: v.amountCents,
+        lastDate: v.lastDate.toISOString().slice(0, 10),
+      }))
+      .sort((a, b) => b.amountCents - a.amountCents);
+
+    // Storico mesi (mesi precedenti) dalle compensazioni già aggregate per periodo.
+    const comps = (await this.prisma.staffCompensation.findMany({
+      where: { staffId: staff.id, period: { not: period } },
+      orderBy: { period: 'desc' },
+      take: 6,
+      select: { period: true, amountCents: true },
+    })) as { period: string; amountCents: number }[];
+    const history = comps.map((c) => ({ period: c.period, amountCents: c.amountCents }));
+
+    return { isStaff: true, period, totalCents, byCategory, byClient, history };
+  }
+
   /** Richiesta di prelievo (staff): finestra giorni 1–7, importo ≤ prelevabile disponibile. */
   async requestWithdrawal(
     userId: string,

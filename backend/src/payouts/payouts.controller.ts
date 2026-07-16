@@ -32,6 +32,11 @@ export class WalletController {
     return this.payouts.myWallet(user.sub);
   }
 
+  @Get('earnings')
+  earnings(@CurrentUser() user: AuthUser) {
+    return this.payouts.myEarnings(user.sub);
+  }
+
   @HttpCode(201)
   @Post('withdrawals')
   request(@CurrentUser() user: AuthUser, @Body() dto: RequestWithdrawalDto) {

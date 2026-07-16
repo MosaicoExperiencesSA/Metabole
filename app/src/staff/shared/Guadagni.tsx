@@ -1,9 +1,25 @@
 import { useState } from 'react';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
-import { euro, shortDate } from '../format';
+import { euro, fullName, shortDate } from '../format';
 import { useApi, useAction } from '../hooks';
 import { Async, Card, Section, StaffShell, type TabItem } from '../ui';
+
+interface Earnings {
+  isStaff: boolean;
+  period: string;
+  totalCents: number;
+  byCategory: { category: string; label: string; amountCents: number }[];
+  byClient: { clientId: string; name: string | null; amountCents: number; lastDate: string }[];
+  history: { period: string; amountCents: number }[];
+}
+
+const MONTHS = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+function monthLabel(period: string): string {
+  const [y, m] = period.split('-').map(Number);
+  const name = MONTHS[(m || 1) - 1] ?? '';
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${y}`;
+}
 
 interface Withdrawal {
   id: string;
@@ -37,8 +53,10 @@ const STATUS: Record<Withdrawal['status'], [string, string, string]> = {
 
 export default function Guadagni({ tabs }: { tabs: TabItem[] }) {
   const { user } = useAuth();
-  const roleSub = user?.role && ['nutritionist', 'head_nutritionist'].includes(user.role) ? 'Nutrizionista' : 'Coach';
+  const isNutri = !!user?.role && ['nutritionist', 'head_nutritionist'].includes(user.role);
+  const roleSub = isNutri ? 'Nutrizionista' : 'Coach';
   const wallet = useApi<Wallet>('/me/wallet');
+  const earnings = useApi<Earnings>('/me/wallet/earnings');
   const [amount, setAmount] = useState('');
   const [iban, setIban] = useState('');
   const [request, reqState] = useAction(async (cents: number, ibanValue: string) => {
@@ -50,6 +68,55 @@ export default function Guadagni({ tabs }: { tabs: TabItem[] }) {
 
   return (
     <StaffShell title="Guadagni" subtitle={roleSub} tabs={tabs}>
+      <Async state={earnings}>
+        {(e) =>
+          !e.isStaff ? null : (
+            <>
+              <Section title="Mese corrente" />
+              <Card>
+                <div className="sf-kv" style={{ marginBottom: (isNutri ? e.byCategory.length : e.byClient.length) ? 6 : 0 }}>
+                  <span className="k" style={{ fontSize: 15, fontWeight: 700 }}>{monthLabel(e.period)}</span>
+                  <span className="v" style={{ fontSize: 19, fontWeight: 800, color: 'var(--sf-brand-dark)' }}>{euro(e.totalCents)}</span>
+                </div>
+                {(isNutri ? e.byCategory.length > 0 : e.byClient.length > 0) && (
+                  <div style={{ borderTop: '1px solid var(--sf-line)', marginTop: 6, paddingTop: 4 }}>
+                    {isNutri
+                      ? e.byCategory.map((r) => (
+                          <div key={r.category} className="sf-kv">
+                            <span className="k">{r.label}</span>
+                            <span className="v">{euro(r.amountCents)}</span>
+                          </div>
+                        ))
+                      : e.byClient.map((r) => (
+                          <div key={r.clientId} className="sf-kv">
+                            <span className="k">{fullName(r.name)}</span>
+                            <span className="v">{euro(r.amountCents)}</span>
+                          </div>
+                        ))}
+                  </div>
+                )}
+              </Card>
+
+              {e.history.length > 0 && (
+                <>
+                  <Section title="Storico mesi" />
+                  <Card className="pad0">
+                    {e.history.map((h) => (
+                      <div key={h.period} className="sf-row" style={{ cursor: 'default' }}>
+                        <div className="sf-row-main">
+                          <div className="sf-row-name">{monthLabel(h.period)}</div>
+                        </div>
+                        <span className="sf-row-name" style={{ color: 'var(--sf-brand-dark)' }}>{euro(h.amountCents)}</span>
+                      </div>
+                    ))}
+                  </Card>
+                </>
+              )}
+            </>
+          )
+        }
+      </Async>
+
       <Async state={wallet}>
         {(w) => {
           const ibanValue = iban || w.iban || '';
