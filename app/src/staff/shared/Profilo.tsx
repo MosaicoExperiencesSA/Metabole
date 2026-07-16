@@ -47,6 +47,11 @@ export default function Profilo({ tabs }: { tabs: TabItem[] }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  // Preferenze notifiche staff (attiva/disattiva ogni alert)
+  const [notifTypes, setNotifTypes] = useState<{ key: string; label: string; description: string }[] | null>(null);
+  const [notifDisabled, setNotifDisabled] = useState<string[]>([]);
+  const [notifBusy, setNotifBusy] = useState(false);
+
   useEffect(() => {
     if (prof.data) {
       setForm(prof.data);
@@ -76,6 +81,25 @@ export default function Profilo({ tabs }: { tabs: TabItem[] }) {
       setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    api<{ types: { key: string; label: string; description: string }[]; disabled: string[] }>('/me/notifications/staff-prefs')
+      .then((r) => { setNotifTypes(r.types ?? []); setNotifDisabled(Array.isArray(r.disabled) ? r.disabled : []); })
+      .catch(() => setNotifTypes([]));
+  }, []);
+
+  async function toggleAlert(key: string, on: boolean) {
+    const next = on ? notifDisabled.filter((k) => k !== key) : Array.from(new Set([...notifDisabled, key]));
+    setNotifDisabled(next);
+    setNotifBusy(true);
+    try {
+      await api('/me/notifications/staff-prefs', { method: 'PATCH', body: JSON.stringify({ disabled: next }) });
+    } catch {
+      setNotifDisabled((prev) => (on ? Array.from(new Set([...prev, key])) : prev.filter((k) => k !== key)));
+    } finally {
+      setNotifBusy(false);
     }
   }
 
@@ -151,6 +175,34 @@ export default function Profilo({ tabs }: { tabs: TabItem[] }) {
         <p className="sf-sub" style={{ margin: '12px 0 0', fontSize: 11 }}>
           <i className="ti ti-sparkles" style={{ fontSize: 12, verticalAlign: '-1px' }} /> L'ultimo è <b>Auto</b>: un colore nuovo ogni due giorni.
         </p>
+      </Card>
+
+      {/* Notifiche */}
+      <Section title="Notifiche" />
+      <Card>
+        <p className="sf-sub" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
+          Attiva o disattiva i singoli avvisi. Quelli attivi arrivano in app e come notifica sul telefono.
+        </p>
+        {notifTypes === null ? (
+          <p className="sf-sub" style={{ fontSize: 12 }}>Carico…</p>
+        ) : notifTypes.length === 0 ? (
+          <p className="sf-sub" style={{ fontSize: 12 }}>Nessun avviso configurabile per il tuo ruolo.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 2 }}>
+            {notifTypes.map((t) => {
+              const on = !notifDisabled.includes(t.key);
+              return (
+                <label key={t.key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--sf-line, #eef1f0)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={on} disabled={notifBusy} onChange={(e) => toggleAlert(t.key, e.target.checked)} style={{ marginTop: 2, flex: 'none' }} />
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontWeight: 600, fontSize: 13 }}>{t.label}</span>
+                    <span className="sf-sub" style={{ fontSize: 11.5, lineHeight: 1.4 }}>{t.description}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       {/* App */}

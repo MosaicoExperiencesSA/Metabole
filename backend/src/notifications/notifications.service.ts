@@ -3,7 +3,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { MailService } from '../mail/mail.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { toDateOnly } from '../signals/signals.service';
+import { toDateOnly } from '../common/date-only';
 import { MessageComposerService, MessageTone } from './message-composer.service';
 import { PushService } from './push.service';
 import { Role } from '../common/roles';

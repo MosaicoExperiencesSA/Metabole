@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { toDateOnly } from '../signals/signals.service';
+import { toDateOnly } from '../common/date-only';
 import {
   DEFAULT_ACTION,
   EngineRule,

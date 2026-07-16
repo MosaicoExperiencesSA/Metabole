@@ -3,7 +3,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { toDateOnly } from '../signals/signals.service';
+import { toDateOnly } from '../common/date-only';
 
 const DAY = 86_400_000;
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];

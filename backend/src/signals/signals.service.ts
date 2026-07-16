@@ -12,13 +12,7 @@ import {
 import { slopePerDay, weeklyLossRate } from './stats';
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
-
-/** Normalizza a mezzanotte UTC (colonna DATE). */
-export function toDateOnly(input?: string): Date {
-  const d = input ? new Date(input) : new Date();
-  if (Number.isNaN(d.getTime())) throw new BadRequestException('Data non valida');
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
+import { toDateOnly } from '../common/date-only';
 
 const MILESTONE_DEFS: { type: string; label: string; lostKg?: number }[] = [
   { type: 'lost_1kg', label: 'Primo chilo andato!', lostKg: 1 },

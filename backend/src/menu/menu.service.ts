@@ -4,7 +4,7 @@ import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { toDateOnly } from '../signals/signals.service';
+import { toDateOnly } from '../common/date-only';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 
 interface Substitution {

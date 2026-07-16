@@ -3,7 +3,7 @@ import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProgressService } from '../signals/progress.service';
-import { toDateOnly } from '../signals/signals.service';
+import { toDateOnly } from '../common/date-only';
 import { EngineSignals } from './rules-evaluator';
 
 const MOOD_SCORE: Record<string, number> = {

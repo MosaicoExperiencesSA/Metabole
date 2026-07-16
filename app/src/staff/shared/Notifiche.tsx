@@ -6,8 +6,7 @@ import { Async, Card, Empty, StaffShell, type TabItem } from '../ui';
 interface Notif {
   id: string;
   type: string;
-  title: string | null;
-  body: string | null;
+  payload?: { title?: string; body?: string } | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -47,9 +46,9 @@ export default function Notifiche({ tabs }: { tabs: TabItem[] }) {
                 </span>
                 <div className="sf-row-main">
                   <div className="sf-row-name" style={{ fontWeight: n.readAt ? 600 : 800 }}>
-                    {n.title || n.type}
+                    {n.payload?.title || n.type}
                   </div>
-                  {n.body && <div className="sf-row-sub">{n.body}</div>}
+                  {n.payload?.body && <div className="sf-row-sub">{n.payload.body}</div>}
                   <div className="sf-row-sub" style={{ opacity: 0.7 }}>
                     {relDays(n.createdAt)}
                   </div>

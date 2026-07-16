@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner } from '../components/ui';
+import { Banner, Toggle } from '../components/ui';
 import { ThemeSelect } from '../theme';
 import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
 import { MenuOrderCard } from '../components/MenuOrderCard';
@@ -156,6 +156,31 @@ export function Impostazioni() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [showEarnings, setShowEarnings] = useState(false);
 
+  // --- Preferenze notifiche (attiva/disattiva ogni alert) ---
+  const [notifTypes, setNotifTypes] = useState<{ key: string; label: string; description: string }[] | null>(null);
+  const [notifDisabled, setNotifDisabled] = useState<string[]>([]);
+  const [notifBusy, setNotifBusy] = useState(false);
+
+  useEffect(() => {
+    api<{ types: { key: string; label: string; description: string }[]; disabled: string[] }>('/me/notifications/staff-prefs')
+      .then((r) => { setNotifTypes(r.types ?? []); setNotifDisabled(Array.isArray(r.disabled) ? r.disabled : []); })
+      .catch(() => setNotifTypes([]));
+  }, []);
+
+  async function toggleAlert(key: string, on: boolean) {
+    const next = on ? notifDisabled.filter((k) => k !== key) : Array.from(new Set([...notifDisabled, key]));
+    setNotifDisabled(next);
+    setNotifBusy(true);
+    try {
+      await api('/me/notifications/staff-prefs', { method: 'PATCH', body: JSON.stringify({ disabled: next }) });
+    } catch {
+      // ripristina in caso di errore
+      setNotifDisabled((prev) => (on ? Array.from(new Set([...prev, key])) : prev.filter((k) => k !== key)));
+    } finally {
+      setNotifBusy(false);
+    }
+  }
+
   useEffect(() => {
     (async () => {
       try {
@@ -263,6 +288,34 @@ export function Impostazioni() {
         <button className="btn" style={{ marginTop: 14 }} onClick={changePassword} disabled={savingPw || !pw.current || !pw.next}>
           <i className="ti ti-key" /> {savingPw ? 'Aggiorno…' : 'Aggiorna password'}
         </button>
+      </div>
+
+      {/* Notifiche: attiva/disattiva ogni alert */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Notifiche</h2>
+        <p className="hint" style={{ marginTop: 0 }}>
+          Attiva o disattiva i singoli avvisi. Quelli attivi arrivano nella campanella in alto e come notifica push sul telefono (app installata).
+        </p>
+        {notifTypes === null ? (
+          <p className="muted" style={{ fontSize: 13 }}>Carico…</p>
+        ) : notifTypes.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13 }}>Per il tuo ruolo non ci sono avvisi configurabili.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {notifTypes.map((t) => {
+              const on = !notifDisabled.includes(t.key);
+              return (
+                <div key={t.key} className="row" style={{ gap: 12, alignItems: 'center', padding: '10px 2px', borderBottom: '1px solid var(--line, #f0f0f0)' }}>
+                  <Toggle on={on} disabled={notifBusy} onChange={(next) => toggleAlert(t.key, next)} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{t.label}</div>
+                    <div className="muted" style={{ fontSize: 12, lineHeight: 1.4 }}>{t.description}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Casella di posta @metabole.eu */}
