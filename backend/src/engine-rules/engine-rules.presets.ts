@@ -133,6 +133,14 @@ export const SUGGESTED_PRESETS: PresetSeed[] = [
     clinicalNotes: 'Concentrare 2–3 pasti in 8 ore. (Richiede: finestra oraria di erogazione pasti; oggi solo mealsPerDay ridotto.)',
     source: 'Meta-analisi TRE 16:8 (Eur J Clin Nutr 2023).',
   },
+  {
+    style: 'detox', label: 'Detossinante (reset depurativo)', sortOrder: 76,
+    description: 'Reset breve (1–2 settimane) che SOSTIENE i normali processi depurativi di fegato, reni e intestino: verdure (crucifere e amare), fibra alta, molta acqua, zero alcol, pochi zuccheri/sodio/ultra-processati. Poi si passa a uno stile di lungo periodo.',
+    rules: R(0.18, 0.25, 14, 2, 0.7, 1.2, false),
+    clinicalNotes:
+      'Impostazione EVIDENCE-BASED, senza claim medici: il corpo si depura da solo (fegato/reni); nessuna promessa di "eliminare tossine" — le detox commerciali (succhi/digiuni/integratori) non hanno evidenza clinica. Questo piano SUPPORTA gli organi emuntori: verdure ≥ 4–5 porzioni/die con crucifere (broccoli, cavolo) e foglie amare quotidiane; fibra ≥ 25–30 g/die; idratazione ~2 L acqua/die (acqua, tè verde/tisane non zuccherate); ALCOL ZERO per tutta la durata; zuccheri aggiunti < 5–10% kcal; sodio ≤ 2000 mg/die; niente ultra-processati e fritture; proteine adeguate 18–25% (gli enzimi epatici richiedono aminoacidi: MAI abbinare "detox" a proteine bassissime); kcal mai sotto il metabolismo basale, niente digiuni né soli liquidi. Durata 1–2 settimane, poi passaggio a mediterranea o flessibile. Controindicazioni (gravidanza/allattamento, patologie epato-renali, DCA): solo con validazione del nutrizionista. (Richiedono parametri motore: porzioni min verdura, fibre_min_g, cap sodio/zuccheri, flag no-alcol.)',
+    source: 'Klein & Kiat, Detox diets: critical review (J Hum Nutr Diet 2015) — nessuna evidenza per le detox commerciali; consenso dietetico (BDA/AND): supporto agli organi emuntori via fibra, idratazione, riduzione alcol/ultra-processati.',
+  },
   // ---- Protocolli stagionali estate (luglio) ----
   {
     style: 'summer_holiday', label: 'Vacanze in Serenità', sortOrder: 5,

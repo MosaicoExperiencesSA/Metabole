@@ -24,7 +24,9 @@ export function Clienti() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await api<{ items: ClientRow[] }>('/admin/users?role=client&limit=200');
+        // Endpoint con visibilità per ruolo: coach/nutrizionista ricevono SOLO i propri
+        // clienti assegnati; manager coach, capo nutrizionista e admin tutti.
+        const res = await api<{ items: ClientRow[] }>('/admin/clients');
         setRows(res.items);
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) setError('Sezione riservata.');

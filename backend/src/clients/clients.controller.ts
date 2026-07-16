@@ -25,6 +25,12 @@ class TravelDto {
 export class ClientsController {
   constructor(private readonly clients: ClientsService) {}
 
+  /** Elenco clienti: coach/nutrizionista vedono SOLO i propri assegnati; manager coach, capo nutrizionista e admin tutti. */
+  @Get()
+  list(@CurrentUser() user: AuthUser) {
+    return this.clients.listClients(user.sub);
+  }
+
   @Get(':id')
   detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.clients.getDetail(id, user.sub);

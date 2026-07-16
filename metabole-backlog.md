@@ -53,3 +53,25 @@ DA FARE quando si vuole: mostrare al cliente nell'app la sua fase attuale (es. b
 passaggio da dimagrimento a mantenimento (messaggio/notifica "Hai raggiunto il tuo
 obiettivo: si passa al mantenimento"). Nessuna azione lato cliente: resta decisione
 clinica dello staff, l'app la mostra soltanto.
+
+## Checkout — indirizzo di spedizione condizionale — DA FARE
+DECISIONE (Simone, 16/07): al momento dell'acquisto di un percorso, l'indirizzo di
+spedizione va chiesto SOLO se non è già in scheda.
+- Se via/CAP/città/provincia sono GIÀ presenti nel profilo del cliente → **saltare** il
+  passaggio "Indirizzo di spedizione" e andare dritti al pagamento (mostrare eventualmente
+  l'indirizzo salvato in sola lettura con opzione "modifica").
+- Se il dato MANCA → mostrare il form indirizzo (come nella schermata Checkout, Passo 32/35),
+  raccoglierlo e **salvarlo in scheda** così le volte successive si salta.
+Da verificare: dove vive l'indirizzo sul modello (ClientProfile / User?) e passarlo al
+Checkout per la logica condizionale; salvataggio all'invio dell'ordine.
+
+## Wizard famiglia — flusso da rivedere (PRIORITÀ domani 17/07)
+Simone (16/07 sera): "il flusso famiglia non funziona bene va rivisto".
+Sintomi noti finora:
+- Dopo "Valida e pubblica tutte le N varianti" la pagina NON si azzera (resta su
+  "Fatto: tutte le N varianti pubblicate"); la pubblicazione singola invece azzera.
+- Rivedere il flusso end-to-end del wizard con le famiglie: crea → genera tutte →
+  valida/pubblica tutte → reset pagina; stati/spunte riferiti a UNA dieta (dietId
+  singolo) mentre le azioni sono di famiglia → confonde.
+Fatto oggi (funziona): genera tutte le varianti; pubblica famiglia (2 passaggi);
+rigenerare = sostituire (no doppioni); dedupe-diets.ts; dedup sito per famiglia.

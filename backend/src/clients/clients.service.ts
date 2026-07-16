@@ -20,7 +20,56 @@ export class ClientsService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Visibilità per ruolo: coach e nutrizionista vedono SOLO i clienti assegnati a loro
+   * (ClientProfile.assignedCoachId / assignedNutritionistId); la manager delle coach
+   * (sales), il capo nutrizionista e l'admin vedono tutti.
+   * Ritorna il vincolo da applicare alle liste, o null se l'attore vede tutto.
+   */
+  private async clientScope(actorUserId: string): Promise<{ field: 'assignedCoachId' | 'assignedNutritionistId'; staffId: string } | null> {
+    const actor = await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } });
+    const role = actor?.role as string | undefined;
+    if (role !== 'coach' && role !== 'nutritionist') return null;
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    return {
+      field: role === 'coach' ? 'assignedCoachId' : 'assignedNutritionistId',
+      // Senza scheda staff → id impossibile: non vede nessun cliente, mai tutti per errore.
+      staffId: staff?.id ?? '00000000-0000-0000-0000-000000000000',
+    };
+  }
+
+  /** Blocca l'accesso alla scheda di un cliente non assegnato all'attore. */
+  private async assertClientAccess(actorUserId: string, clientUserId: string) {
+    const scope = await this.clientScope(actorUserId);
+    if (!scope) return;
+    const prof = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientUserId },
+      select: { assignedCoachId: true, assignedNutritionistId: true },
+    })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
+    if (!prof || prof[scope.field] !== scope.staffId) {
+      throw new ForbiddenException('Questo cliente non è assegnato a te.');
+    }
+  }
+
+  /** Elenco clienti per lo staff: coach/nutrizionista SOLO i propri; manager/capo/admin tutti. */
+  async listClients(actorUserId: string) {
+    const scope = await this.clientScope(actorUserId);
+    const where = {
+      role: 'client' as never,
+      deletedAt: null,
+      ...(scope ? { clientProfile: { [scope.field]: scope.staffId } } : {}),
+    };
+    const items = await this.prisma.user.findMany({
+      where: where as never,
+      select: { id: true, email: true, firstName: true, lastName: true, status: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    return { items, total: items.length };
+  }
+
   async getDetail(userId: string, actorId: string) {
+    await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
       select: {
@@ -116,6 +165,7 @@ export class ClientsService {
 
   /** Aggiunge una nota al log dello staff sul cliente. */
   async addNote(userId: string, actorId: string, body: string) {
+    await this.assertClientAccess(actorId, userId);
     const text = body.trim();
     if (!text) throw new BadRequestException('La nota è vuota.');
 
@@ -184,6 +234,7 @@ export class ClientsService {
 
   /** Aggiorna anagrafica (User) e questionario (ClientProfile) di un cliente. */
   async updateClient(userId: string, actorId: string, dto: UpdateClientDto) {
+    await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
     if (!user) throw new NotFoundException('Cliente non trovato.');
     if (user.role !== 'client') throw new BadRequestException('Modificabile solo per i clienti.');
@@ -212,6 +263,7 @@ export class ClientsService {
 
   /** Modalità viaggio/estate (staff): imposta lo stato e le date; al rientro emette un evento per il CRM/marketing. */
   async setTravel(userId: string, actorId: string, input: { state?: string; start?: string; end?: string }) {
+    await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user) throw new NotFoundException('Cliente non trovato.');
     if (user.role !== 'client') throw new BadRequestException('Solo per i clienti.');
@@ -237,6 +289,7 @@ export class ClientsService {
    * Raccoglie le voci di audit collegate a userId, profilo e record CRM.
    */
   async changeLog(userId: string, actorId: string) {
+    await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findFirst({ where: { id: userId }, select: { id: true } });
     if (!user) throw new NotFoundException('Utente non trovato.');
     const [profile, crm] = await Promise.all([

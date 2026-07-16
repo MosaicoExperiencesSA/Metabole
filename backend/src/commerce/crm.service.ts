@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PipelineService } from './pipeline.service';
@@ -15,6 +15,28 @@ export class CrmService {
     private readonly audit: AuditService,
     private readonly pipeline: PipelineService,
   ) {}
+
+  /**
+   * Visibilità per ruolo: la COACH vede e gestisce SOLO i lead assegnati a lei;
+   * la manager delle coach (sales), il capo nutrizionista e l'admin vedono tutto.
+   * Ritorna lo staffId a cui vincolare la query se l'attore è una coach, altrimenti null.
+   * (Coach senza scheda staff → id impossibile: non vede nulla, mai tutto per errore.)
+   */
+  private async coachScope(actorUserId?: string): Promise<string | null> {
+    if (!actorUserId) return null;
+    const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
+    if (u?.role !== 'coach') return null;
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    return staff?.id ?? '00000000-0000-0000-0000-000000000000';
+  }
+
+  /** Blocca l'accesso puntuale a un lead non assegnato alla coach (detail/modifiche). */
+  private async assertLeadAccess(actorUserId: string, recordId: string) {
+    const scopeId = await this.coachScope(actorUserId);
+    if (!scopeId) return;
+    const rec = (await this.prisma.crmRecord.findUnique({ where: { id: recordId }, select: { assignedCoachId: true } })) as { assignedCoachId: string | null } | null;
+    if (!rec || rec.assignedCoachId !== scopeId) throw new ForbiddenException('Questo lead non è assegnato a te.');
+  }
 
   /** Lead pubblico dai form del sito (contatti + "Lavora con noi"). Nessuna migrazione:
    *  i metadati vanno in stageDates.lead_in.meta. Dedup soft per email (lead non ancora cliente). */
@@ -141,7 +163,7 @@ export class CrmService {
     coachId?: string; nutriId?: string; tipo?: string;
     valueMin?: number; valueMax?: number; dateFrom?: string; dateTo?: string;
     sortKey?: string; sortDir?: string;
-  }) {
+  }, actorUserId?: string) {
     const page = Math.max(0, Math.floor(filter.page ?? 0));
     const pageSize = Math.min(500, Math.max(1, Math.floor(filter.pageSize ?? 100)));
     const q = filter.search?.trim();
@@ -159,7 +181,11 @@ export class CrmService {
       if (digits.length >= 3) or.push({ phone: { contains: digits } });
       AND.push({ OR: or });
     }
-    if (filter.coachId === 'none') AND.push({ assignedCoachId: null });
+    // Scope per ruolo: se l'attore è una coach, la query è INCHIODATA ai suoi lead
+    // (il filtro coach scelto in UI viene ignorato); manager/capo/admin filtrano liberi.
+    const scopeId = await this.coachScope(actorUserId);
+    if (scopeId) AND.push({ assignedCoachId: scopeId });
+    else if (filter.coachId === 'none') AND.push({ assignedCoachId: null });
     else if (filter.coachId) AND.push({ assignedCoachId: filter.coachId });
     if (filter.nutriId === 'none') AND.push({ NOT: { client: { clientProfile: { assignedNutritionistId: { not: null } } } } });
     else if (filter.nutriId) AND.push({ client: { clientProfile: { assignedNutritionistId: filter.nutriId } } });
@@ -227,7 +253,8 @@ export class CrmService {
   }
 
   /** Scheda di un singolo lead: anagrafica, storico stati, promemoria collegati. */
-  async detail(recordId: string) {
+  async detail(recordId: string, actorUserId?: string) {
+    if (actorUserId) await this.assertLeadAccess(actorUserId, recordId);
     const record = await this.prisma.crmRecord.findUnique({
       where: { id: recordId },
       include: {
@@ -273,6 +300,7 @@ export class CrmService {
       tags?: string[];
     },
   ) {
+    await this.assertLeadAccess(byUserId, recordId);
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
     if (!record) throw new NotFoundException('Lead non trovato');
     const updated = await this.prisma.crmRecord.update({
@@ -347,6 +375,7 @@ export class CrmService {
    * Un contatto può stare in più liste contemporaneamente.
    */
   async setLeadLists(actorId: string, recordId: string, listIds: string[]) {
+    await this.assertLeadAccess(actorId, recordId);
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId }, select: { id: true } });
     if (!record) throw new NotFoundException('Lead non trovato');
     const wanted = [...new Set(listIds)];
@@ -497,6 +526,7 @@ export class CrmService {
 
   /** Avanzamento manuale del commerciale: data + responsabile sempre registrati. */
   async advance(byUserId: string, recordId: string, input: { stage: string; ownerStaffId?: string; valueCents?: number }) {
+    await this.assertLeadAccess(byUserId, recordId);
     const stageKeys = await this.pipeline.stageKeys();
     if (!stageKeys.has(input.stage)) {
       throw new NotFoundException(`Stato sconosciuto: ${input.stage}`);

@@ -436,6 +436,7 @@ export class CrmController {
 
   @Get()
   list(
+    @CurrentUser() user: AuthUser,
     @Query('stage') stage?: string,
     @Query('listId') listId?: string,
     @Query('q') q?: string,
@@ -452,13 +453,14 @@ export class CrmController {
     @Query('sortDir') sortDir?: string,
   ) {
     const num = (v?: string) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : undefined);
+    // La coach vede SOLO i suoi lead (scope applicato nel service); manager coach/capo/admin tutti.
     return this.crm.list({
       stage, listId, search: q,
       page: num(page), pageSize: num(pageSize),
       coachId, nutriId, tipo,
       valueMin: num(valueMin), valueMax: num(valueMax),
       dateFrom, dateTo, sortKey, sortDir,
-    });
+    }, user.sub);
   }
 
   @Post()
@@ -467,8 +469,8 @@ export class CrmController {
   }
 
   @Get(':id')
-  detail(@Param('id') id: string) {
-    return this.crm.detail(id);
+  detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crm.detail(id, user.sub);
   }
 
   @Patch(':id')
