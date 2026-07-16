@@ -59,7 +59,11 @@ export default function CoachClienti() {
             fullName(c.name).toLowerCase().includes(q.trim().toLowerCase()),
           );
           if (list.length === 0)
-            return <Empty icon="ti-search" text="Nessuna cliente con questo nome." />;
+            return q.trim() ? (
+              <Empty icon="ti-search" text="Nessuna cliente con questo nome." />
+            ) : (
+              <Empty icon="ti-users" text={showLeads ? 'Nessuna cliente né lead assegnati.' : 'Nessuna cliente assegnata.'} />
+            );
           return (
             <Card className="pad0">
               {list.map((c) => {

@@ -33,7 +33,7 @@ export function CreazioneValidazione() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [form, setForm] = useState({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+  const [form, setForm] = useState({ label: '', style: '', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
   const [sourceRules, setSourceRules] = useState<Record<string, unknown>>({});
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -59,7 +59,7 @@ export function CreazioneValidazione() {
   function pickPreset(p: Preset) {
     const r = (p.rules as Record<string, unknown>) || {};
     setForm({
-      label: p.label, style: p.style, regime: (p.regime as string) || 'omnivore', objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '',
+      label: p.label, style: p.style, regimes: [(p.regime as string) || 'omnivore'], objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '',
       kcalTarget: Math.round(Number(r.menu_daycombo_kcal_target ?? 1500)) || 1500,
       proteinMin: Math.round(Number(r.menu_daycombo_protein_min ?? 0.2) * 100),
       proteinMax: Math.round(Number(r.menu_daycombo_protein_max ?? 0.35) * 100),
@@ -69,24 +69,39 @@ export function CreazioneValidazione() {
     setActivePresetId(p.id); setDirty(false); setNotice(null); setError(null);
   }
   function newPreset() {
-    setForm({ label: '', style: 'custom', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+    setForm({ label: '', style: 'custom', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
     setSourceRules({}); setActivePresetId(null); setDirty(true); setNotice(null); setError(null);
   }
-  function edit(k: 'label' | 'style' | 'regime' | 'objective' | 'clinicalNotes', v: string) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
+  function edit(k: 'label' | 'style' | 'objective' | 'clinicalNotes', v: string) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
   function editNum(k: 'kcalTarget' | 'proteinMin' | 'proteinMax' | 'kcalTol', v: number) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
+  function toggleRegime(code: string) {
+    setForm((f) => ({ ...f, regimes: f.regimes.includes(code) ? f.regimes.filter((c) => c !== code) : [...f.regimes, code] }));
+    setDirty(true);
+  }
 
   async function saveAsNew() {
     if (!form.label.trim()) { setError('Dai un nome alla dieta.'); return; }
+    if (form.regimes.length === 0) { setError('Seleziona almeno un regime.'); return; }
     setBusy(true); setError(null);
     try {
-      const created = await api<Preset>('/engine-rules/presets', { method: 'POST', body: JSON.stringify({
-        label: form.label.trim(), style: form.style || 'custom', regime: form.regime, objective: form.objective,
-        clinicalNotes: form.clinicalNotes || undefined, suggested: false,
-        rules: { ...sourceRules, menu_daycombo_kcal_target: form.kcalTarget, menu_daycombo_protein_min: form.proteinMin / 100, menu_daycombo_protein_max: form.proteinMax / 100, menu_kcal_balance_tolerance_pct: form.kcalTol },
-      }) });
-      setActivePresetId(created.id); setDirty(false);
-      setPresets((ps) => (ps ? [created, ...ps] : [created]));
-      setNotice('Dieta salvata. Ora puoi generare il catalogo.');
+      const rules = { ...sourceRules, menu_daycombo_kcal_target: form.kcalTarget, menu_daycombo_protein_min: form.proteinMin / 100, menu_daycombo_protein_max: form.proteinMax / 100, menu_kcal_balance_tolerance_pct: form.kcalTol };
+      const multi = form.regimes.length > 1;
+      const regLabel = (code: string) => regimes.find((r) => r.code === code)?.label ?? code;
+      const createdList: Preset[] = [];
+      // Una variante per ogni regime selezionato, sullo stesso stile/parametri.
+      for (const rc of form.regimes) {
+        const created = await api<Preset>('/engine-rules/presets', { method: 'POST', body: JSON.stringify({
+          label: multi ? `${form.label.trim()} · ${regLabel(rc)}` : form.label.trim(),
+          style: form.style || 'custom', regime: rc, objective: form.objective,
+          clinicalNotes: form.clinicalNotes || undefined, suggested: false, rules,
+        }) });
+        createdList.push(created);
+      }
+      setPresets((ps) => (ps ? [...createdList, ...ps] : createdList));
+      setActivePresetId(createdList[0].id); setDirty(false);
+      setNotice(multi
+        ? `Create ${createdList.length} varianti (una per regime): ${form.regimes.map(regLabel).join(', ')}. Seleziona una variante qui sopra per generarne il catalogo.`
+        : 'Dieta salvata. Ora puoi generare il catalogo.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
     finally { setBusy(false); }
   }
@@ -125,7 +140,7 @@ export function CreazioneValidazione() {
         return;
       }
       setDietId(null); setStatus(null); setActivePresetId(null); setDirty(false);
-      setForm({ label: '', style: '', regime: 'omnivore', objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+      setForm({ label: '', style: '', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
       setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
@@ -194,10 +209,17 @@ export function CreazioneValidazione() {
             </label>
             <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
               <label style={{ flex: 1, minWidth: 160 }}>
-                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Regime</span>
-                <select className="select" value={form.regime} onChange={(e) => edit('regime', e.target.value)}>
-                  {regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
-                </select>
+                <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Regime <span style={{ opacity: 0.65 }}>· uno o più (crea una variante per regime)</span></span>
+                <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  {regimes.map((r) => {
+                    const on = form.regimes.includes(r.code);
+                    return (
+                      <button key={r.code} type="button" className={`btn ${on ? '' : 'ghost'} sm`} onClick={() => toggleRegime(r.code)}>
+                        {on && <i className="ti ti-check" />} {r.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </label>
               <label style={{ flex: 1, minWidth: 160 }}>
                 <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Obiettivo</span>
@@ -229,7 +251,7 @@ export function CreazioneValidazione() {
               <textarea className="input" rows={2} value={form.clinicalNotes} onChange={(e) => edit('clinicalNotes', e.target.value)} placeholder="Vincoli o indicazioni da rispettare nella generazione" />
             </label>
             <div className="row" style={{ gap: 8 }}>
-              <button className="btn ghost" onClick={saveAsNew} disabled={busy}><i className="ti ti-device-floppy" /> Salva come nuova dieta</button>
+              <button className="btn ghost" onClick={saveAsNew} disabled={busy}><i className="ti ti-device-floppy" /> {form.regimes.length > 1 ? `Salva ${form.regimes.length} varianti` : 'Salva come nuova dieta'}</button>
               {dirty && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>Modifiche non salvate: salva per poter generare.</span>}
             </div>
           </div>

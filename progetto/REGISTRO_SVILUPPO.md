@@ -8,6 +8,10 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
 ## 2026-07-16
 
 
+- **Creazione e validazione — regime a selezione multipla: crea le varianti di uno stile per più regimi** — richiesta di Simone. Il regime è un filtro rigido (un cliente vegano riceve solo diete con regime vegano), quindi per coprire uno stile su più regimi servivano più diete. Nella pagina *Creazione e validazione* il campo **Regime** passa da tendina singola a **chip a selezione multipla** (Onnivora/Vegetariana/Vegana…): "Salva come nuova dieta" ora crea **una variante per ogni regime selezionato**, stesso stile e parametri, nome suffissato col regime quando sono più d'uno (es. "Low carb · Vegana"). Se l'onnivora esiste già, si selezionano solo gli altri regimi e si creano quelli. Solo frontend (`CreazioneValidazione.tsx`), riusa `createPreset` (un preset per regime); poi ogni variante si genera/valida come prima. Type-check backoffice pulito.
+
+
+
 - **Gestione lead — paginazione LATO SERVER (apertura veloce con 20.000+ lead)** — Simone: la pagina era lentissima ad aprirsi perché scaricava TUTTI i 20.000+ lead in un colpo (con includes pesanti) e li teneva in memoria. **Riscritta a paginazione server:** il backend (`CrmService.list`) ora accetta `page/pageSize` + tutti i filtri (search, stage, lista, coach, nutrizionista, tipo Cliente/Storico/Lead, valore min/max, intervallo date, ordinamento) tradotti in `where`/`orderBy` Prisma, restituisce `{ rows, total }` con `$transaction([findMany(skip/take), count])`; `CrmController GET /crm/leads` espone i parametri. Il **frontend** (`LeadsTable`) non carica più tutto: carica **solo la pagina corrente** (100 righe), con effetto debounced che al cambio filtro torna a pagina 0 e al cambio pagina mantiene i filtri; il paginatore usa il `total` reale del DB, filtri e ordinamento sono applicati dal server. Così la pagina apre in un lampo e filtri/ordinamento/ricerca lavorano su TUTTO il database, non sul solo caricato. Type-check: backoffice pulito; backend 0 errori sui file toccati (client Prisma rigenerato nel clone → validazione reale, non solo filtro).
 
 

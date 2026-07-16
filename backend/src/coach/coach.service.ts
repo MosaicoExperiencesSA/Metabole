@@ -77,7 +77,9 @@ export class CoachService {
       select: { userId: true, name: true, planStartDate: true, startWeightKg: true },
     })) as ProfileRow[];
     const ids = profiles.map((p) => p.userId);
-    if (ids.length === 0) return { clients: [] };
+    // Nessun cliente attivo: usciamo solo se NON sono richiesti i lead
+    // (altrimenti salteremmo la parte che elenca i lead assegnati).
+    if (ids.length === 0 && !includeLeads) return { clients: [] };
 
     const [subs, measures, alerts, objectives] = await Promise.all([
       this.prisma.subscription.findMany({
