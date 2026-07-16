@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
 
 interface Stage {
   key: string;
@@ -224,7 +225,19 @@ export function LeadsTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qkey, page]);
 
+  // Cambio verso "da ricontattare": prima si fissa l'appuntamento (obbligatorio).
+  const [pendingRecall, setPendingRecall] = useState<{ lead: Lead; stage: string; stageLabel: string } | null>(null);
+
   async function changeStage(lead: Lead, stage: string) {
+    const stageObj = stages.find((s) => s.key === stage) ?? null;
+    if (isRecallStage(stageObj)) {
+      setPendingRecall({ lead, stage, stageLabel: stageObj?.label ?? stage });
+      return; // il cambio avviene solo dopo la conferma dell'appuntamento
+    }
+    await doChangeStage(lead, stage);
+  }
+
+  async function doChangeStage(lead: Lead, stage: string) {
     try {
       await api(`/crm/leads/${lead.id}/stage`, { method: 'POST', body: JSON.stringify({ stage }) });
       setLeads((ls) => ls.map((l) => (l.id === lead.id ? { ...l, stage } : l)));
@@ -473,6 +486,19 @@ export function LeadsTable() {
           </table>
         <Pager page={page + 1} totalPages={totalPages} total={total} from={fromRow} to={toRow} onPage={(p) => setPage(p - 1)} />
       </div>
+      {pendingRecall && (
+        <AppointmentModal
+          leadName={pendingRecall.lead.client?.clientProfile?.name ?? pendingRecall.lead.name ?? pendingRecall.lead.email ?? 'lead'}
+          stageLabel={pendingRecall.stageLabel}
+          onCancel={() => setPendingRecall(null)}
+          onConfirm={async (title, dueAtIso, note) => {
+            await api('/crm/reminders', { method: 'POST', body: JSON.stringify({ title, dueAt: dueAtIso, note: note || undefined, crmRecordId: pendingRecall.lead.id }) });
+            const { lead, stage } = pendingRecall;
+            setPendingRecall(null);
+            await doChangeStage(lead, stage);
+          }}
+        />
+      )}
     </>
   );
 }

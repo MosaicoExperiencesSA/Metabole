@@ -80,6 +80,7 @@ export class RemindersService {
     });
     type R = {
       id: string; title: string; dueAt: Date; note: string | null; done: boolean; crmRecordId: string | null;
+      createdById: string | null;
       crmRecord: { name: string | null; email: string | null; client: { email: string; clientProfile: { name: string | null } | null } | null } | null;
     };
     return (rows as R[]).map((r) => ({
@@ -89,6 +90,7 @@ export class RemindersService {
       note: r.note,
       done: r.done,
       crmRecordId: r.crmRecordId,
+      createdById: r.createdById,
       linkedName: r.crmRecord
         ? r.crmRecord.client?.clientProfile?.name ?? r.crmRecord.name ?? r.crmRecord.client?.email ?? r.crmRecord.email ?? null
         : null,

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
+import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
 
 interface Stage {
   key: string;
@@ -212,7 +213,20 @@ export function LeadDetail() {
     }
   }
 
+  // Cambio verso "da ricontattare": prima si fissa l'appuntamento (obbligatorio).
+  const [pendingRecall, setPendingRecall] = useState<{ stage: string; stageLabel: string } | null>(null);
+
   async function changeStage(stage: string) {
+    if (!lead) return;
+    const stageObj = stages.find((s) => s.key === stage) ?? null;
+    if (isRecallStage(stageObj)) {
+      setPendingRecall({ stage, stageLabel: stageObj?.label ?? stage });
+      return; // il cambio avviene solo dopo la conferma dell'appuntamento
+    }
+    await doChangeStage(stage);
+  }
+
+  async function doChangeStage(stage: string) {
     if (!lead) return;
     setError(null);
     try {
@@ -654,6 +668,20 @@ export function LeadDetail() {
           </div>
         )}
       </div>
+      {pendingRecall && lead && (
+        <AppointmentModal
+          leadName={displayName}
+          stageLabel={pendingRecall.stageLabel}
+          onCancel={() => setPendingRecall(null)}
+          onConfirm={async (title, dueAtIso, note) => {
+            await api('/crm/reminders', { method: 'POST', body: JSON.stringify({ title, dueAt: dueAtIso, note: note || undefined, crmRecordId: lead.id }) });
+            const { stage } = pendingRecall;
+            setPendingRecall(null);
+            await doChangeStage(stage);
+            await load(); // aggiorna anche i promemoria in scheda
+          }}
+        />
+      )}
     </>
   );
 }

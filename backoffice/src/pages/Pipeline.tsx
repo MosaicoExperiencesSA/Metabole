@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
+import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
 
 interface Stage {
   key: string;
@@ -61,7 +62,24 @@ export function Pipeline() {
     void load();
   }, []);
 
+  // Spostamento verso uno stato "da ricontattare": prima si fissa l'appuntamento (obbligatorio).
+  const [pendingRecall, setPendingRecall] = useState<{ cardId: string; toStage: string; name: string; stageLabel: string } | null>(null);
+
   async function move(cardId: string, toStage: string) {
+    if (!board) return;
+    const from = Object.keys(board.cards).find((k) => board.cards[k].some((c) => c.id === cardId));
+    if (!from || from === toStage) return;
+    const toStageObj = board.stages.find((s) => s.key === toStage) ?? null;
+    if (isRecallStage(toStageObj)) {
+      const card = board.cards[from].find((c) => c.id === cardId);
+      setPendingRecall({ cardId, toStage, name: card?.name ?? 'lead', stageLabel: toStageObj?.label ?? toStage });
+      return; // lo spostamento avviene solo dopo la conferma dell'appuntamento
+    }
+    await doMove(cardId, toStage);
+  }
+
+  /** Spostamento vero e proprio (ottimistico + API), usato anche dopo la conferma del ricontatto. */
+  async function doMove(cardId: string, toStage: string) {
     if (!board) return;
     const from = Object.keys(board.cards).find((k) => board.cards[k].some((c) => c.id === cardId));
     if (!from || from === toStage) return;
@@ -189,6 +207,19 @@ export function Pipeline() {
         </Banner>
       )}
 
+      {pendingRecall && (
+        <AppointmentModal
+          leadName={pendingRecall.name}
+          stageLabel={pendingRecall.stageLabel}
+          onCancel={() => setPendingRecall(null)}
+          onConfirm={async (title, dueAtIso, note) => {
+            await api('/crm/reminders', { method: 'POST', body: JSON.stringify({ title, dueAt: dueAtIso, note: note || undefined, crmRecordId: pendingRecall.cardId }) });
+            const { cardId, toStage } = pendingRecall;
+            setPendingRecall(null);
+            await doMove(cardId, toStage);
+          }}
+        />
+      )}
       {showStages && (
         <StagesModal
           stages={board.stages}

@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { UserMenu } from './UserMenu';
 import { NotificationBell } from './NotificationBell';
+import { OverdueGate } from './RecallGuard';
 import { api } from '../api/client';
 import { readMenuOrderCache, writeMenuOrderCache, orderNavItems } from '../lib/menuOrder';
 
@@ -229,6 +230,8 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         </div>
         <div className="content">{children}</div>
       </div>
+      {/* Blocco globale: appuntamenti di ricontatto scaduti da gestire prima di proseguire. */}
+      <OverdueGate />
     </div>
   );
 }
