@@ -43,8 +43,8 @@ export class CoachController {
   constructor(private readonly coach: CoachService) {}
 
   @Get('clients')
-  clients(@CurrentUser() user: AuthUser) {
-    return this.coach.clients(user);
+  clients(@CurrentUser() user: AuthUser, @Query('leads') leads?: string) {
+    return this.coach.clients(user, leads === '1' || leads === 'true');
   }
 
   @Get('dashboard')

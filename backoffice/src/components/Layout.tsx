@@ -108,8 +108,18 @@ export const NAV: NavSection[] = [
   },
 ];
 
-/** Rotte con tabelle larghe: usano tutta la larghezza dello schermo (no cap 1180px). */
-const WIDE_CONTENT_ROUTES = ['/crm/gestione'];
+/** Pagine a tutta larghezza (tabelle/liste): niente cap 1180px, si adattano allo schermo.
+ *  Match ESATTO sul path, così le schede di dettaglio (es. /clienti/:id) e i form
+ *  restano a larghezza leggibile. */
+const WIDE_CONTENT_ROUTES = [
+  '/crm/gestione', '/crm/da-accettare', '/crm/pipeline', '/crm/calendario',
+  '/clienti', '/agenda', '/segnalazioni', '/chat', '/permessi', '/posta',
+  '/negozio', '/acquisti', '/buoni-sconto', '/pagamenti', '/contabilita',
+  '/provvigioni', '/compensi', '/prelievi',
+  '/marketing', '/testimonianze', '/publisher',
+  '/diete', '/ricette', '/tag-allergeni', '/gruppi-equivalenza', '/protocolli',
+  '/utenti', '/log', '/email-log', '/email-modelli', '/grafici',
+];
 
 export function Layout({ title, children }: { title: string; children: ReactNode }) {
   const { can, logout, impersonating, stopImpersonation } = useAuth();
@@ -230,7 +240,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
             <UserMenu />
           </div>
         </div>
-        <div className={`content${WIDE_CONTENT_ROUTES.some((r) => location.pathname.startsWith(r)) ? ' wide' : ''}`}>{children}</div>
+        <div className={`content${WIDE_CONTENT_ROUTES.includes(location.pathname) ? ' wide' : ''}`}>{children}</div>
       </div>
     </div>
   );

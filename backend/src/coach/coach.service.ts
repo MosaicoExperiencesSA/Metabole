@@ -34,6 +34,7 @@ interface ProfileRow {
   userId: string;
   name: string | null;
   planStartDate: Date | null;
+  startWeightKg: number | null;
 }
 interface SubRow {
   clientId: string;
@@ -67,18 +68,18 @@ export class CoachService {
   }
 
   /** Elenco delle clienti della coach con un riepilogo per la lista. */
-  async clients(user: AuthUser): Promise<{ clients: unknown[] }> {
+  async clients(user: AuthUser, includeLeads = false): Promise<{ clients: unknown[] }> {
     const staffId = await this.staffId(user.sub);
     if (!staffId) return { clients: [] };
 
     const profiles = (await this.prisma.clientProfile.findMany({
       where: { assignedCoachId: staffId },
-      select: { userId: true, name: true, planStartDate: true },
+      select: { userId: true, name: true, planStartDate: true, startWeightKg: true },
     })) as ProfileRow[];
     const ids = profiles.map((p) => p.userId);
     if (ids.length === 0) return { clients: [] };
 
-    const [subs, measures, alerts] = await Promise.all([
+    const [subs, measures, alerts, objectives] = await Promise.all([
       this.prisma.subscription.findMany({
         where: { clientId: { in: ids }, status: 'active' },
         select: { clientId: true, status: true, endDate: true },
@@ -93,16 +94,34 @@ export class CoachService {
         where: { coachId: staffId, status: 'open', clientId: { in: ids } },
         select: { clientId: true },
       }) as Promise<AlertRow[]>,
+      this.prisma.objective.findMany({
+        where: { clientId: { in: ids } },
+        orderBy: { createdAt: 'desc' },
+        distinct: ['clientId'],
+        select: { clientId: true, targetWeightKg: true },
+      }) as Promise<{ clientId: string; targetWeightKg: number | null }[]>,
     ]);
 
     const subByClient = new Map(subs.map((s) => [s.clientId, s]));
     const measByClient = new Map(measures.map((m) => [m.clientId, m]));
+    const objByClient = new Map(objectives.map((o) => [o.clientId, o]));
     const alertCount = new Map<string, number>();
     for (const a of alerts) alertCount.set(a.clientId, (alertCount.get(a.clientId) ?? 0) + 1);
 
     const clients = profiles.map((p) => {
       const sub = subByClient.get(p.userId);
       const meas = measByClient.get(p.userId);
+      const obj = objByClient.get(p.userId);
+      const start = p.startWeightKg ?? null;
+      const last = meas?.weightKg ?? null;
+      const target = obj?.targetWeightKg ?? null;
+      // Peso perso finora (positivo = calo) e % di avanzamento verso il target.
+      const weightDeltaKg = start != null && last != null ? Math.round((start - last) * 10) / 10 : null;
+      let progressPct: number | null = null;
+      if (start != null && last != null && target != null && start !== target) {
+        const pct = ((start - last) / (start - target)) * 100;
+        progressPct = Math.max(0, Math.min(100, Math.round(pct)));
+      }
       return {
         clientId: p.userId,
         name: p.name,
@@ -110,13 +129,46 @@ export class CoachService {
         planEndDate: sub?.endDate ? sub.endDate.toISOString().slice(0, 10) : null,
         planStartDate: p.planStartDate ? p.planStartDate.toISOString().slice(0, 10) : null,
         lastMeasureDate: meas?.date ? meas.date.toISOString().slice(0, 10) : null,
-        lastWeightKg: meas?.weightKg ?? null,
+        lastWeightKg: last,
+        weightDeltaKg,
+        progressPct,
         openAlerts: alertCount.get(p.userId) ?? 0,
       };
     });
     // Ordina: prima chi ha più alert aperti.
     clients.sort((a, b) => b.openAlerts - a.openAlerts);
-    return { clients };
+
+    // Lead assegnati alla coach (dalla pipeline CRM) non ancora clienti attivi:
+    // mostrati solo se richiesto dal flag, con badge "Lead".
+    let leads: unknown[] = [];
+    if (includeLeads) {
+      const activeIds = new Set(ids);
+      const crm = (await this.prisma.crmRecord.findMany({
+        where: { assignedCoachId: staffId },
+        orderBy: { assignedAt: 'desc' },
+        take: 200,
+        select: { id: true, clientId: true, name: true, email: true, stage: true },
+      })) as { id: string; clientId: string | null; name: string | null; email: string | null; stage: string }[];
+      leads = crm
+        .filter((r) => !r.clientId || !activeIds.has(r.clientId))
+        .map((r) => ({
+          clientId: r.clientId,
+          leadId: r.id,
+          name: r.name ?? r.email ?? 'Lead',
+          isLead: true,
+          stage: r.stage,
+          planActive: false,
+          planEndDate: null,
+          planStartDate: null,
+          lastMeasureDate: null,
+          lastWeightKg: null,
+          weightDeltaKg: null,
+          progressPct: null,
+          openAlerts: 0,
+        }));
+    }
+
+    return { clients: [...clients, ...leads] };
   }
 
   /** Riepilogo per la home della coach: clienti, piani in scadenza, guadagni, alert. */

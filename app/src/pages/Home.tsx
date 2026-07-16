@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
 import CheckinPopup from '../components/CheckinPopup';
+import MenuReviewPopup from '../components/MenuReviewPopup';
 import StartDatePrompt from '../components/StartDatePrompt';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
@@ -324,6 +325,8 @@ export default function Home() {
       {today && !today.checkinDone && !dismissed && (
         <CheckinPopup onMood={submitMood} onSkip={() => setDismissed(true)} busy={checkinBusy} />
       )}
+      {/* Popup "Com'è andata ieri?" — solo quando il check-in non è a schermo */}
+      {(!today || today.checkinDone || dismissed) && <MenuReviewPopup />}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
       {help && SHEETS[help] && (
         <Sheet onClose={() => setHelp(null)}>
