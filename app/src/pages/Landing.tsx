@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import Gaia from '../components/Gaia';
 import { TypeText } from '../components/TypeText';
+import VoiceToggle from '../components/VoiceToggle';
 
 /** Passo 1 di 34 — Benvenuto: brand MetaboleAI, assistente Gaia, prova sociale, testimonianze. */
 export default function Landing() {
@@ -27,7 +28,7 @@ export default function Landing() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <b style={{ fontSize: 15 }}>La tua assistente <span style={{ color: '#CDBBF2' }}>AI</span></b>
             <span style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,.22)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-              <i className="ti ti-volume" />
+              <VoiceToggle clip="benvenuto" size={17} />
             </span>
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center' }}>

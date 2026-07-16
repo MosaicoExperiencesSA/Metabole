@@ -6,6 +6,8 @@ import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
 import CheckinPopup from '../components/CheckinPopup';
 import MenuReviewPopup from '../components/MenuReviewPopup';
+import VoiceToggle from '../components/VoiceToggle';
+import { getTodaySteps } from '../lib/steps';
 import StartDatePrompt from '../components/StartDatePrompt';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
@@ -73,11 +75,13 @@ const HELP: [string, string, string, string][] = [
   ['ti-arrows-exchange', 'Sostituisci', 'sost', '#6C5AB7'],
 ];
 
-function KpiTile({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+function KpiTile({ icon, value, label, color, onClick, hint }: { icon: string; value: string; label: string; color: string; onClick?: () => void; hint?: string }) {
   // Come nel prototipo: sfondo a gradiente colorato + icona a tinta piena con
   // ombra colorata (leggero effetto 3D).
   return (
     <div
+      onClick={onClick}
+      title={hint}
       style={{
         flex: 1,
         minWidth: 0,
@@ -90,6 +94,7 @@ function KpiTile({ icon, value, label, color }: { icon: string; value: string; l
         borderRadius: 18,
         background: `linear-gradient(160deg, ${color}22, ${color}0a)`,
         border: `1px solid ${color}26`,
+        cursor: onClick ? 'pointer' : 'default',
       }}
     >
       <div
@@ -159,6 +164,7 @@ export default function Home() {
   const [meals, setMeals] = useState<ApiMeal[] | null>(null);
   const [nextAppt, setNextAppt] = useState<NextAppt | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [deviceSteps, setDeviceSteps] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const mealsRef = useRef<HTMLDivElement>(null);
@@ -176,6 +182,12 @@ export default function Home() {
       const t = startOfDay(new Date()).getTime();
       setEvents((evs ?? []).filter((e) => startOfDay(new Date(e.startDate)).getTime() >= t).sort((a, b) => a.startDate.localeCompare(b.startDate)));
     }).catch(() => setEvents([]));
+    // Passi dal sensore del telefono (solo su nativo): li mostriamo e li salviamo.
+    getTodaySteps().then((s) => {
+      if (s == null) return;
+      setDeviceSteps(s);
+      api('/me/steps', { method: 'POST', body: JSON.stringify({ steps: s }) }).catch(() => {});
+    });
   }, []);
 
   function onMealsScroll() {
@@ -193,6 +205,18 @@ export default function Home() {
     } finally {
       setCheckinBusy(false);
       setDismissed(true);
+    }
+  }
+
+  async function addWater() {
+    if (!today) return;
+    const prev = today.water.glasses;
+    const next = prev + 1;
+    setToday((t) => (t ? { ...t, water: { ...t.water, glasses: next } } : t));
+    try {
+      await api('/me/water', { method: 'POST', body: JSON.stringify({ glasses: next }) });
+    } catch {
+      setToday((t) => (t ? { ...t, water: { ...t.water, glasses: prev } } : t));
     }
   }
 
@@ -268,7 +292,7 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 'none' }}>
             <Gaia size={60} controls={false} mouth="big" eyes="open" />
-            <i className="ti ti-volume" style={{ fontSize: 17, opacity: 0.9 }} />
+            <VoiceToggle size={17} style={{ opacity: 0.9 }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 9.5, opacity: 0.9, fontWeight: 700, letterSpacing: '.4px' }}>
@@ -284,8 +308,8 @@ export default function Home() {
       {/* KPI di oggi: kcal · acqua · passi */}
       <div style={{ display: 'flex', gap: 9, margin: '12px 0' }}>
         <KpiTile icon="ti-flame" value={totKcal > 0 ? totKcal.toLocaleString('it-IT') : '—'} label="kcal" color="#E8825A" />
-        <KpiTile icon="ti-droplet" value={today ? `${today.water.glasses}/${today.water.goal}` : '—'} label="acqua" color="#2AA7C4" />
-        <KpiTile icon="ti-walk" value={today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
+        <KpiTile icon="ti-droplet" value={today ? `${today.water.glasses}/${today.water.goal}` : '—'} label="acqua" color="#2AA7C4" onClick={today ? addWater : undefined} hint="Tocca per aggiungere un bicchiere" />
+        <KpiTile icon="ti-walk" value={deviceSteps != null ? deviceSteps.toLocaleString('it-IT') : today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
       </div>
 
       {/* Help rapido */}
