@@ -177,6 +177,13 @@ class SetLeadListsDto {
   listIds!: string[];
 }
 
+class AddLeadNoteDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(5000)
+  body!: string;
+}
+
 // Nessun limite di lunghezza qui: i dati storici possono avere campi sporchi
 // (nomi concatenati, ecc.). Il servizio tronca i campi troppo lunghi invece di
 // far fallire l'intero lotto per una singola riga anomala.
@@ -488,6 +495,21 @@ export class CrmController {
   @HttpCode(200)
   setLists(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetLeadListsDto) {
     return this.crm.setLeadLists(user.sub, id, dto.listIds);
+  }
+
+  /** Nota dello staff sulla scheda lead (come le note della scheda cliente). */
+  @HttpCode(201)
+  @Post(':id/notes')
+  addNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddLeadNoteDto) {
+    return this.crm.addLeadNote(user.sub, id, dto.body);
+  }
+
+  /** Elimina una nota della scheda lead: solo admin (come nella scheda cliente). */
+  @Roles('admin')
+  @HttpCode(200)
+  @Delete(':id/notes/:noteId')
+  deleteNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('noteId') noteId: string) {
+    return this.crm.deleteLeadNote(user.sub, id, noteId);
   }
 
   /** Import liste storiche (solo admin): un lotto per volta, con dry-run per l'anteprima. */

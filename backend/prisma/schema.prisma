@@ -306,6 +306,8 @@ model Staff {
   authoredClientNotes   ClientNote[]        @relation("ClientNoteAuthor")
   withdrawals           CommissionWithdrawal[] @relation("StaffWithdrawals")
 
+  crmNotes CrmNote[] @relation("CrmNoteAuthor")
+
   @@map("staff")
 }
 
@@ -574,7 +576,24 @@ model CrmRecord {
 
   @@index([stage])
   @@index([assignedCoachId, assignmentStatus])
+  crmNotes CrmNote[]
+
   @@map("crm_record")
+}
+
+// Note dello staff sul LEAD (scheda CRM): come le note cliente, ma agganciate alla
+// scheda CRM così valgono anche per i lead puri senza account utente.
+model CrmNote {
+  id        String    @id @default(uuid())
+  recordId  String    @map("record_id")
+  record    CrmRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  authorId  String?   @map("author_id")
+  author    Staff?    @relation("CrmNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([recordId])
+  @@map("crm_note")
 }
 
 // Liste CRM: raggruppamenti manuali di lead/clienti (un contatto può stare in più

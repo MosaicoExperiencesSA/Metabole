@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PipelineService } from './pipeline.service';
@@ -279,10 +279,46 @@ export class CrmService {
           select: { id: true, title: true, dueAt: true, note: true, done: true },
         },
         listMemberships: { select: { list: { select: { id: true, name: true, color: true } } } },
-      },
+        crmNotes: {
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+          select: { id: true, body: true, createdAt: true, author: { select: { displayName: true } } },
+        },
+      } as never,
     });
     if (!record) throw new NotFoundException('Lead non trovato');
-    return this.withLists(record as Record<string, unknown>);
+    const rec = record as Record<string, unknown>;
+    const rawNotes = (rec.crmNotes ?? []) as { id: string; body: string; createdAt: Date; author: { displayName: string } | null }[];
+    delete rec.crmNotes;
+    return {
+      ...this.withLists(rec),
+      notes: rawNotes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt, author: n.author?.displayName ?? null })),
+    };
+  }
+
+  /** Aggiunge una nota dello staff sulla scheda del lead. */
+  async addLeadNote(actorUserId: string, recordId: string, body: string) {
+    await this.assertLeadAccess(actorUserId, recordId);
+    const text = body.trim();
+    if (!text) throw new BadRequestException('La nota è vuota.');
+    const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId }, select: { id: true } });
+    if (!record) throw new NotFoundException('Lead non trovato');
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true, displayName: true } })) as { id: string; displayName: string } | null;
+    const note = (await (this.prisma as unknown as { crmNote: { create: (a: object) => Promise<{ id: string; body: string; createdAt: Date }> } }).crmNote.create({
+      data: { recordId, authorId: staff?.id ?? null, body: text },
+    }));
+    await this.audit.log({ action: 'crm.lead.note.add', actorId: actorUserId, entityType: 'crm_record', entityId: recordId });
+    return { id: note.id, body: note.body, createdAt: note.createdAt, author: staff?.displayName ?? null };
+  }
+
+  /** Elimina una nota della scheda lead (solo admin, vincolo nel controller). */
+  async deleteLeadNote(actorUserId: string, recordId: string, noteId: string) {
+    const del = await (this.prisma as unknown as { crmNote: { deleteMany: (a: object) => Promise<{ count: number }> } }).crmNote.deleteMany({
+      where: { id: noteId, recordId },
+    });
+    if (del.count === 0) throw new NotFoundException('Nota non trovata.');
+    await this.audit.log({ action: 'crm.lead.note.delete', actorId: actorUserId, entityType: 'crm_record', entityId: recordId, metadata: { noteId } });
+    return { ok: true };
   }
 
   /** Modifica anagrafica del lead (nome, email, valore stimato, storico importato). */

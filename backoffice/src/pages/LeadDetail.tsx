@@ -17,6 +17,12 @@ interface Reminder {
   note: string | null;
   done: boolean;
 }
+interface LeadNote {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: string | null;
+}
 interface LeadDetailData {
   id: string;
   clientId: string | null;
@@ -44,6 +50,7 @@ interface LeadDetailData {
     clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null;
   } | null;
   reminders: Reminder[];
+  notes?: LeadNote[];
 }
 interface Coach { id: string; displayName: string }
 interface CrmList { id: string; name: string; color: string | null; memberCount?: number }
@@ -51,13 +58,29 @@ interface CrmList { id: string; name: string; color: string | null; memberCount?
 const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
 const fmtDateTime = (s?: string | null) =>
   s ? new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const euro = (cents?: number | null) => (cents != null ? `${(cents / 100).toLocaleString('it-IT')} €` : '—');
 
-/** Scheda di un lead puro (senza account cliente) o della parte CRM di un cliente. */
+/** Riga etichetta/valore in stile scheda cliente. */
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="spread" style={{ padding: '7px 0', borderBottom: '1px solid var(--line)', fontSize: 13.5, gap: 16 }}>
+      <span className="muted" style={{ flex: 'none' }}>{label}</span>
+      <span style={{ textAlign: 'right' }}>{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Scheda LEAD con la stessa struttura della scheda cliente: intestazione verde con
+ * Modifica/Salva, stato e assegnazione, NOTE dello staff (editor + storico), dati in
+ * lettura con modifica a scheda intera, liste, promemoria e storico stati.
+ */
 export function LeadDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { can, impersonate } = useAuth();
+  const { can, impersonate, user } = useAuth();
   const canAssignCoach = can('assign_coach', 'manage');
+  const isAdmin = user?.role === 'admin';
 
   const [lead, setLead] = useState<LeadDetailData | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -65,6 +88,7 @@ export function LeadDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   // Campi modificabili (solo lead puro: l'anagrafica del cliente vive nella scheda cliente)
   const [name, setName] = useState('');
@@ -77,6 +101,11 @@ export function LeadDetail() {
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Note dello staff (come scheda cliente)
+  const [notes, setNotes] = useState<LeadNote[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   // Liste CRM
   const [allLists, setAllLists] = useState<CrmList[]>([]);
@@ -100,6 +129,7 @@ export function LeadDetail() {
       setLead(l);
       setStages(st);
       setAllLists(lists);
+      setNotes(l.notes ?? []);
       setName(l.name ?? '');
       setEmail(l.email ?? '');
       setValueEuro(l.valueCents != null ? String(l.valueCents / 100) : '');
@@ -146,11 +176,39 @@ export function LeadDetail() {
       if (valueCents !== undefined) body.valueCents = valueCents;
       const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/info`, { method: 'PATCH', body: JSON.stringify(body) });
       setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags });
-      setNotice('Dati salvati.');
+      setEditing(false);
+      setNotice('Scheda aggiornata.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Salvataggio non riuscito.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function addNote() {
+    if (!lead || !newNote.trim()) return;
+    setSavingNote(true);
+    setError(null);
+    try {
+      const created = await api<LeadNote>(`/crm/leads/${lead.id}/notes`, { method: 'POST', body: JSON.stringify({ body: newNote.trim() }) });
+      setNotes((ns) => [created, ...ns]);
+      setNewNote('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Salvataggio della nota non riuscito.');
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function deleteNote(noteId: string) {
+    if (!lead) return;
+    // eslint-disable-next-line no-alert
+    if (!confirm('Eliminare questa nota?')) return;
+    try {
+      await api(`/crm/leads/${lead.id}/notes/${noteId}`, { method: 'DELETE' });
+      setNotes((ns) => ns.filter((n) => n.id !== noteId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
     }
   }
 
@@ -262,62 +320,86 @@ export function LeadDetail() {
   const history = Object.entries(lead.stageDates ?? {})
     .map(([key, v]) => ({ key, at: v?.at, byUserId: v?.byUserId, meta: v?.meta }))
     .sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
+  const leadEmail = lead.client?.email ?? lead.email;
+  const leadPhone = lead.client?.phone ?? lead.phone;
 
   return (
     <>
-      <div className="spread" style={{ marginBottom: 16 }}>
-        <Link to="/crm/gestione" className="btn ghost sm"><i className="ti ti-arrow-left" /> Gestione lead</Link>
-        {lead.clientId && (
-          <div className="row" style={{ gap: 8 }}>
-            <Link to={`/clienti/${lead.clientId}`} className="btn ghost sm"><i className="ti ti-user" /> Scheda cliente</Link>
-            <button className="btn ghost sm" onClick={doImpersonate} title="Entra nell'app come questa cliente">
-              <i className="ti ti-eye" /> Entra come
-            </button>
-          </div>
-        )}
-      </div>
+      <button className="btn ghost sm" onClick={() => navigate(-1)} style={{ marginBottom: 14 }}>
+        <i className="ti ti-arrow-left" /> Indietro
+      </button>
 
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
-      <div className="card">
-        <div className="spread" style={{ alignItems: 'flex-start' }}>
+      {/* Intestazione — stessa grafica della scheda cliente */}
+      <div className="card" style={{ background: 'linear-gradient(120deg,#10403a,#12a386)', color: '#fff', border: 'none' }}>
+        <div className="spread">
           <div>
-            <h2 style={{ marginTop: 0, marginBottom: 4 }}>{displayName}</h2>
-            <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-              {lead.client?.email ?? lead.email ?? '—'}
-              {(lead.client?.phone ?? lead.phone) && <span> · {lead.client?.phone ?? lead.phone}</span>}
-              {!lead.client && <span className="chip amber" style={{ marginLeft: 8, fontSize: 10 }}>lead</span>}
-            </p>
-            {lead.lists.length > 0 && (
-              <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                {lead.lists.map((l) => (
-                  <span key={l.id} className="chip" style={{ fontSize: 11, borderColor: l.color ?? undefined, color: l.color ?? undefined }}>
-                    <i className="ti ti-tag" style={{ fontSize: 12, marginRight: 3 }} />{l.name}
-                  </span>
-                ))}
-              </div>
+            <h2 style={{ color: '#fff', fontSize: 22, margin: 0 }}>{displayName}</h2>
+            {leadEmail && <p style={{ margin: '4px 0 0', opacity: 0.9 }}>{leadEmail}</p>}
+            {leadPhone && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-phone" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {leadPhone}</p>}
+            {lead.address && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-map-pin" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {lead.address}</p>}
+            <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
+                CRM: {st?.label ?? lead.stage}
+              </span>
+              <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
+                {lead.client ? 'Cliente registrato' : 'Lead'}
+              </span>
+              {(lead.historicalPaidCents ?? 0) > 0 && (
+                <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>Storico: {euro(lead.historicalPaidCents)}</span>
+              )}
+              {lead.lists.map((l) => (
+                <span key={l.id} className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff', fontSize: 11 }}>
+                  <i className="ti ti-tag" style={{ fontSize: 12, marginRight: 3 }} />{l.name}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {!editing ? (
+              <button className="btn ghost" onClick={() => setEditing(true)} style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-edit" /> Modifica
+              </button>
+            ) : (
+              <>
+                <button className="btn" onClick={saveInfo} disabled={saving} style={{ background: '#fff', color: '#0e7c66' }}>
+                  <i className="ti ti-device-floppy" /> {saving ? 'Salvo…' : 'Salva'}
+                </button>
+                <button className="btn ghost" onClick={() => setEditing(false)} disabled={saving} style={{ background: 'rgba(255,255,255,.9)' }}>Annulla</button>
+              </>
+            )}
+            {lead.clientId && !editing && (
+              <>
+                <Link to={`/clienti/${lead.clientId}`} className="btn ghost" style={{ background: 'rgba(255,255,255,.9)' }}>
+                  <i className="ti ti-user" /> Scheda cliente
+                </Link>
+                <button className="btn ghost" onClick={doImpersonate} title="Entra nell'app come questa cliente" style={{ background: 'rgba(255,255,255,.9)' }}>
+                  <i className="ti ti-eye" /> Entra come
+                </button>
+              </>
             )}
           </div>
-          <div style={{ textAlign: 'right', fontSize: 13 }} className="muted">
-            <div>Creato il {fmtDate(lead.createdAt)}</div>
-            {lead.owner && <div>Responsabile: {lead.owner.displayName}</div>}
-          </div>
         </div>
+      </div>
 
-        <div className="row" style={{ gap: 20, marginTop: 14, flexWrap: 'wrap' }}>
-          <div className="field" style={{ minWidth: 200 }}>
-            <label>Stato</label>
-            <select className="select" style={{ borderColor: st?.color ?? undefined }} value={lead.stage} onChange={(e) => changeStage(e.target.value)}>
+      {/* Stato e assegnazione — come "Team assegnato" della scheda cliente */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Stato e assegnazione</h2>
+        <div className="row" style={{ gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Stato</div>
+            <select className="select" style={{ width: '100%', borderColor: st?.color ?? undefined }} value={lead.stage} onChange={(e) => changeStage(e.target.value)}>
               {stages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
               {!st && <option value={lead.stage}>{lead.stage} (stato rimosso)</option>}
             </select>
           </div>
-          <div className="field" style={{ minWidth: 200 }}>
-            <label>Coach</label>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Coach</div>
             {canAssignCoach ? (
               <>
-                <select className="select" value={lead.assignedCoachId ?? ''} onChange={(e) => assignCoach(e.target.value)} title="Assegna la coach (dovrà accettare entro 2 giorni)">
+                <select className="select" style={{ width: '100%' }} value={lead.assignedCoachId ?? ''} onChange={(e) => assignCoach(e.target.value)} title="Assegna la coach (dovrà accettare entro 2 giorni)">
                   <option value="">— assegna —</option>
                   {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
                   {lead.assignedCoachId && !coaches.some((c) => c.id === lead.assignedCoachId) && (
@@ -328,17 +410,155 @@ export function LeadDetail() {
                 {lead.assignmentStatus === 'accepted' && <span className="chip" style={{ fontSize: 10, marginTop: 4 }}>accettato</span>}
               </>
             ) : (
-              <span style={{ paddingTop: 8 }}>{lead.assignedCoach?.displayName ?? lead.client?.clientProfile?.assignedCoach?.displayName ?? '—'}</span>
+              <b>{lead.assignedCoach?.displayName ?? lead.client?.clientProfile?.assignedCoach?.displayName ?? '—'}</b>
             )}
           </div>
-          {lead.client?.clientProfile?.assignedNutritionist && (
-            <div className="field" style={{ minWidth: 200 }}>
-              <label>Nutrizionista</label>
-              <span style={{ paddingTop: 8 }}>{lead.client.clientProfile.assignedNutritionist.displayName}</span>
-            </div>
-          )}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Nutrizionista</div>
+            <b>{lead.client?.clientProfile?.assignedNutritionist?.displayName ?? '—'}</b>
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Responsabile</div>
+            <b>{lead.owner?.displayName ?? '—'}</b>
+          </div>
         </div>
       </div>
+
+      {/* Note dello staff: editor a sinistra, storico a destra — come la scheda cliente */}
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>Note</h2>
+        <div className="row" style={{ gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <textarea
+              className="input"
+              style={{ width: '100%', minHeight: 120, resize: 'vertical' }}
+              placeholder="Scrivi una nota su questo contatto: telefonate, accordi, preferenze…"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+            />
+            <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
+              <button className="btn" onClick={addNote} disabled={savingNote || !newNote.trim()}>
+                <i className="ti ti-device-floppy" /> {savingNote ? 'Salvataggio…' : 'Salva nota'}
+              </button>
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <div className="muted" style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Storico note</div>
+            {notes.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13, margin: 0 }}>Nessuna nota ancora.</p>
+            ) : (
+              <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {notes.map((n) => (
+                  <div key={n.id} style={{ position: 'relative', border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px' }}>
+                    {isAdmin && (
+                      <button
+                        onClick={() => deleteNote(n.id)}
+                        title="Elimina nota"
+                        style={{ position: 'absolute', top: 4, right: 4, border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}
+                      >
+                        <i className="ti ti-x" />
+                      </button>
+                    )}
+                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', paddingRight: isAdmin ? 20 : 0 }}>{n.body}</div>
+                    <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                      {n.author ?? 'Staff'} · {fmtDateTime(n.createdAt)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Dati: lettura come la scheda cliente; "Modifica" apre la scheda campi */}
+      {!editing ? (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Dati del contatto</h2>
+          {lead.clientId && (
+            <p className="hint" style={{ marginTop: 0 }}>
+              Questo contatto è diventato cliente: l'anagrafica completa si gestisce dalla <Link to={`/clienti/${lead.clientId}`}>scheda cliente</Link>.
+            </p>
+          )}
+          <Row label="Nome" value={displayName} />
+          <Row label="Email" value={leadEmail ?? '—'} />
+          <Row label="Telefono" value={leadPhone ?? '—'} />
+          <Row label="Valore stimato" value={euro(lead.valueCents)} />
+          <Row label="Stato precedente (storico)" value={lead.previousStatus ?? '—'} />
+          <Row label="Totale già pagato (storico)" value={euro(lead.historicalPaidCents)} />
+          <Row label="Codice fiscale" value={lead.codiceFiscale ?? '—'} />
+          <Row label="Indirizzo" value={lead.address ?? '—'} />
+          <Row label="Etichette" value={lead.tags.length ? lead.tags.join(', ') : '—'} />
+          <Row label="Creato il" value={fmtDate(lead.createdAt)} />
+        </div>
+      ) : (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Modifica scheda</h2>
+          {lead.clientId ? (
+            <p className="hint">
+              Questo lead è diventato cliente: l'anagrafica si gestisce dalla <Link to={`/clienti/${lead.clientId}`}>scheda cliente</Link>. Qui puoi aggiornare il valore stimato e i dati storici.
+            </p>
+          ) : (
+            <p className="hint">Contatto non ancora registrato: puoi correggere nome, email e valore stimato.</p>
+          )}
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
+            {!lead.clientId && (
+              <>
+                <div className="field" style={{ minWidth: 200 }}>
+                  <label>Nome</label>
+                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Anna Bianchi" />
+                </div>
+                <div className="field" style={{ minWidth: 220 }}>
+                  <label>Email</label>
+                  <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anna@example.com" />
+                </div>
+              </>
+            )}
+            <div className="field" style={{ maxWidth: 160 }}>
+              <label>Valore stimato (€)</label>
+              <input className="input" inputMode="decimal" value={valueEuro} onChange={(e) => setValueEuro(e.target.value)} placeholder="Es. 290" />
+            </div>
+          </div>
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 4 }}>
+            <div className="field" style={{ minWidth: 220 }}>
+              <label>Stato precedente (storico)</label>
+              <input className="input" value={prevStatus} onChange={(e) => setPrevStatus(e.target.value)} placeholder="Es. Cliente 2023, disdetto" />
+            </div>
+            <div className="field" style={{ maxWidth: 180 }}>
+              <label>Totale già pagato (storico €)</label>
+              <input className="input" inputMode="decimal" value={histPaidEuro} onChange={(e) => setHistPaidEuro(e.target.value)} placeholder="Es. 1490" />
+            </div>
+          </div>
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 4 }}>
+            <div className="field" style={{ maxWidth: 220 }}>
+              <label>Codice fiscale</label>
+              <input className="input" value={codiceFiscale} onChange={(e) => setCodiceFiscale(e.target.value.toUpperCase())} placeholder="RSSMRA80A01H501U" maxLength={20} style={{ textTransform: 'uppercase' }} />
+            </div>
+            <div className="field" style={{ minWidth: 260, flex: 1 }}>
+              <label>Indirizzo</label>
+              <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, Milano" maxLength={200} />
+            </div>
+          </div>
+          <div className="field" style={{ marginTop: 4 }}>
+            <label>Etichette (per la segmentazione marketing)</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
+              {tags.map((t) => (
+                <span key={t} className="chip" style={{ gap: 4 }}>{t}<i className="ti ti-x" style={{ cursor: 'pointer', fontSize: 12 }} onClick={() => setTags((ts) => ts.filter((x) => x !== t))} /></span>
+              ))}
+              <input className="input" value={newTag} onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const v = newTag.trim(); if (v && !tags.includes(v)) setTags((ts) => [...ts, v]); setNewTag(''); } }}
+                placeholder="aggiungi etichetta + Invio" style={{ width: 200 }} maxLength={40} />
+            </div>
+          </div>
+          <p className="hint">I campi "storico" arrivano dalle liste importate (esperienze precedenti del cliente): sono solo informativi, non entrano nella contabilità Metabole. Codice fiscale e indirizzo servono per fatturazione/spedizione.</p>
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+            <button className="btn ghost" onClick={() => setEditing(false)} disabled={saving}>Annulla</button>
+            <button className="btn" onClick={saveInfo} disabled={saving}>
+              <i className="ti ti-device-floppy" /> {saving ? 'Salvataggio…' : 'Salva'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Liste</h2>
@@ -371,72 +591,6 @@ export function LeadDetail() {
           </div>
           <button className="btn ghost" onClick={createAndAddList} disabled={listBusy || !newListName.trim()} style={{ marginBottom: 14 }}>
             <i className="ti ti-plus" /> Crea e aggiungi
-          </button>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 style={{ marginTop: 0 }}>Dati del lead</h2>
-        {lead.clientId ? (
-          <p className="hint">
-            Questo lead è diventato cliente: l'anagrafica si gestisce dalla <Link to={`/clienti/${lead.clientId}`}>scheda cliente</Link>. Qui puoi aggiornare il valore stimato.
-          </p>
-        ) : (
-          <p className="hint">Contatto non ancora registrato: puoi correggere nome, email e valore stimato.</p>
-        )}
-        <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
-          {!lead.clientId && (
-            <>
-              <div className="field" style={{ minWidth: 200 }}>
-                <label>Nome</label>
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Anna Bianchi" />
-              </div>
-              <div className="field" style={{ minWidth: 220 }}>
-                <label>Email</label>
-                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anna@example.com" />
-              </div>
-            </>
-          )}
-          <div className="field" style={{ maxWidth: 160 }}>
-            <label>Valore stimato (€)</label>
-            <input className="input" inputMode="decimal" value={valueEuro} onChange={(e) => setValueEuro(e.target.value)} placeholder="Es. 290" />
-          </div>
-        </div>
-        <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 4 }}>
-          <div className="field" style={{ minWidth: 220 }}>
-            <label>Stato precedente (storico)</label>
-            <input className="input" value={prevStatus} onChange={(e) => setPrevStatus(e.target.value)} placeholder="Es. Cliente 2023, disdetto" />
-          </div>
-          <div className="field" style={{ maxWidth: 180 }}>
-            <label>Totale già pagato (storico €)</label>
-            <input className="input" inputMode="decimal" value={histPaidEuro} onChange={(e) => setHistPaidEuro(e.target.value)} placeholder="Es. 1490" />
-          </div>
-        </div>
-        <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 4 }}>
-          <div className="field" style={{ maxWidth: 220 }}>
-            <label>Codice fiscale</label>
-            <input className="input" value={codiceFiscale} onChange={(e) => setCodiceFiscale(e.target.value.toUpperCase())} placeholder="RSSMRA80A01H501U" maxLength={20} style={{ textTransform: 'uppercase' }} />
-          </div>
-          <div className="field" style={{ minWidth: 260, flex: 1 }}>
-            <label>Indirizzo</label>
-            <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, Milano" maxLength={200} />
-          </div>
-        </div>
-        <div className="field" style={{ marginTop: 4 }}>
-          <label>Etichette (per la segmentazione marketing)</label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
-            {tags.map((t) => (
-              <span key={t} className="chip" style={{ gap: 4 }}>{t}<i className="ti ti-x" style={{ cursor: 'pointer', fontSize: 12 }} onClick={() => setTags((ts) => ts.filter((x) => x !== t))} /></span>
-            ))}
-            <input className="input" value={newTag} onChange={(e) => setNewTag(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const v = newTag.trim(); if (v && !tags.includes(v)) setTags((ts) => [...ts, v]); setNewTag(''); } }}
-              placeholder="aggiungi etichetta + Invio" style={{ width: 200 }} maxLength={40} />
-          </div>
-        </div>
-        <p className="hint">I campi "storico" arrivano dalle liste importate (esperienze precedenti del cliente): sono solo informativi, non entrano nella contabilità Metabole. Codice fiscale e indirizzo servono per fatturazione/spedizione.</p>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button className="btn" onClick={saveInfo} disabled={saving}>
-            <i className="ti ti-device-floppy" /> {saving ? 'Salvataggio…' : 'Salva'}
           </button>
         </div>
       </div>
