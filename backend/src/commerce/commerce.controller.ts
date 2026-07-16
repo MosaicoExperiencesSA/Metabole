@@ -435,8 +435,8 @@ export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
   @Get()
-  list(@Query('stage') stage?: string, @Query('listId') listId?: string) {
-    return this.crm.list({ stage, listId });
+  list(@Query('stage') stage?: string, @Query('listId') listId?: string, @Query('q') q?: string) {
+    return this.crm.list({ stage, listId, search: q });
   }
 
   @Post()

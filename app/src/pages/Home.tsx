@@ -73,13 +73,41 @@ const HELP: [string, string, string, string][] = [
 ];
 
 function KpiTile({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+  // Come nel prototipo: sfondo a gradiente colorato + icona a tinta piena con
+  // ombra colorata (leggero effetto 3D).
   return (
-    <div className="card" style={{ flex: 1, margin: 0, textAlign: 'center', padding: '12px 4px' }}>
-      <div style={{ width: 40, height: 40, borderRadius: 13, background: color + '1f', color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px' }}>
-        <i className={`ti ${icon}`} style={{ fontSize: 21 }} />
+    <div
+      style={{
+        flex: 1,
+        minWidth: 0,
+        aspectRatio: '1',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '10px 6px',
+        borderRadius: 18,
+        background: `linear-gradient(160deg, ${color}22, ${color}0a)`,
+        border: `1px solid ${color}26`,
+      }}
+    >
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 12,
+          background: color,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 9,
+          boxShadow: `0 6px 14px ${color}55`,
+        }}
+      >
+        <i className={`ti ${icon}`} style={{ fontSize: 18, color: '#fff' }} />
       </div>
-      <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1 }}>{value}</div>
-      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#101826', lineHeight: 1 }}>{value}</div>
+      <div className="muted" style={{ fontSize: 10, marginTop: 5 }}>{label}</div>
     </div>
   );
 }

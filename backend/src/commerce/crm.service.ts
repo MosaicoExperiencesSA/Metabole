@@ -136,12 +136,22 @@ export class CrmService {
     }
   }
 
-  async list(filter: { stage?: string; listId?: string }) {
+  async list(filter: { stage?: string; listId?: string; search?: string }) {
+    const q = filter.search?.trim();
+    const or: Record<string, unknown>[] = [];
+    if (q) {
+      or.push({ email: { contains: q, mode: 'insensitive' } });
+      or.push({ name: { contains: q, mode: 'insensitive' } });
+      or.push({ client: { email: { contains: q, mode: 'insensitive' } } });
+      const digits = q.replace(/\D/g, '');
+      if (digits.length >= 3) or.push({ phone: { contains: digits } });
+    }
     const rows = await this.prisma.crmRecord.findMany({
       where: {
         ...(filter.stage ? { stage: filter.stage as never } : {}),
         ...(filter.listId ? { listMemberships: { some: { listId: filter.listId } } } : {}),
-      },
+        ...(or.length ? { OR: or } : {}),
+      } as never,
       orderBy: { updatedAt: 'desc' },
       include: {
         owner: { select: { displayName: true } },

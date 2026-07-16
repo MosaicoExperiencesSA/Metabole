@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -62,6 +62,9 @@ export function LeadsTable() {
   const [bulkCoach, setBulkCoach] = useState('');
   const [bulkBusy, setBulkBusy] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const searchSeq = useRef(0);
+  const firstSearch = useRef(true);
   // Filtri per colonna (in AND fra loro e con ricerca/etichetta).
   const [fName, setFName] = useState('');
   const [fEmail, setFEmail] = useState('');
@@ -184,6 +187,27 @@ export function LeadsTable() {
     void load();
   }, []);
 
+  // Ricerca lato server: con oltre 20.000 lead non basta filtrare il caricato.
+  // Digitando nella barra "Cerca" il backend cerca in TUTTO il database (email/nome/telefono).
+  useEffect(() => {
+    if (firstSearch.current) { firstSearch.current = false; return; }
+    const q = filter.trim();
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const seq = ++searchSeq.current;
+      try {
+        const url = q.length >= 2 ? `/crm/leads?q=${encodeURIComponent(q)}` : '/crm/leads';
+        const r = await api<Lead[]>(url);
+        if (seq === searchSeq.current) setLeads(Array.isArray(r) ? r : []);
+      } catch {
+        /* mantieni i dati correnti */
+      } finally {
+        if (seq === searchSeq.current) setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [filter]);
+
   async function changeStage(lead: Lead, stage: string) {
     try {
       await api(`/crm/leads/${lead.id}/stage`, { method: 'POST', body: JSON.stringify({ stage }) });
@@ -266,7 +290,8 @@ export function LeadsTable() {
     <>
       <div className="spread" style={{ marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
         <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-          <input className="input" style={{ maxWidth: 260 }} placeholder="Cerca per nome o email…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input className="input" style={{ maxWidth: 260 }} placeholder="Cerca in tutto il DB (nome, email, tel)…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          {searching && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>cerco nel database…</span>}
           <select className="select" style={{ maxWidth: 220 }} value={listFilter} onChange={(e) => setListFilter(e.target.value)} title="Filtra per lista">
             <option value="">Tutte le liste</option>
             {allLists.map((l) => <option key={l.id} value={l.id}>{l.name}{l.memberCount != null ? ` (${l.memberCount})` : ''}</option>)}
