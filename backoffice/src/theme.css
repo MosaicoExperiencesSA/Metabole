@@ -214,6 +214,8 @@ a {
 }
 /* A barra nascosta il contenuto usa tutta la larghezza (utile per le tabelle larghe). */
 .app-shell.nav-closed .content { max-width: none; }
+/* Pagine con tabelle larghe (es. Gestione lead): sempre a tutta larghezza. */
+.content.wide { max-width: none; }
 
 /* ---------- Componenti ---------- */
 .card {

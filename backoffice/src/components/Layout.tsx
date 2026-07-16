@@ -108,6 +108,9 @@ export const NAV: NavSection[] = [
   },
 ];
 
+/** Rotte con tabelle larghe: usano tutta la larghezza dello schermo (no cap 1180px). */
+const WIDE_CONTENT_ROUTES = ['/crm/gestione'];
+
 export function Layout({ title, children }: { title: string; children: ReactNode }) {
   const { can, logout, impersonating, stopImpersonation } = useAuth();
   const navigate = useNavigate();
@@ -227,7 +230,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
             <UserMenu />
           </div>
         </div>
-        <div className="content">{children}</div>
+        <div className={`content${WIDE_CONTENT_ROUTES.some((r) => location.pathname.startsWith(r)) ? ' wide' : ''}`}>{children}</div>
       </div>
     </div>
   );

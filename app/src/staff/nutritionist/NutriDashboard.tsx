@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { euro } from '../format';
 import { useApi } from '../hooks';
-import { Async, Kpi, Section, StaffShell } from '../ui';
+import { Async, Card, Kpi, Section, StaffShell } from '../ui';
 import { NUTRI_TABS } from '../tabs';
 
 interface Dash {
@@ -15,9 +15,15 @@ interface Dash {
   earningsTotalCents: number;
 }
 
+interface ValidationQueue {
+  engineDecisions: { id: string; patientName: string | null; flagReason: string | null; rule: { name: string } | null }[];
+  protocolsPending: { id: string; name: string }[];
+}
+
 export default function NutriDashboard() {
   const nav = useNavigate();
   const dash = useApi<Dash>('/nutritionist/dashboard');
+  const queue = useApi<ValidationQueue>('/nutritionist/validation-queue');
 
   return (
     <StaffShell
@@ -77,25 +83,63 @@ export default function NutriDashboard() {
               />
             </div>
 
-            <Section title="Priorità cliniche" />
-            <div className="sf-kpi-row">
-              <Kpi
-                icon="ti-alert-triangle"
-                value={d.openEscalations}
-                label="Escalation aperte"
-                bg="#EFEAF9"
-                fg="#6C4CD6"
-                onClick={() => nav('/pazienti')}
-              />
-              <Kpi
-                icon="ti-clipboard-list"
-                value={d.protocolsToValidate}
-                label="Protocolli/decisioni"
-                bg="#FDF3DD"
-                fg="#B8863B"
-                onClick={() => nav('/diete')}
-              />
-            </div>
+            <Section
+              title="Priorità cliniche"
+              action={
+                <span className="sf-sub" style={{ cursor: 'pointer' }} onClick={() => nav('/diete')}>
+                  Vedi tutte
+                </span>
+              }
+            />
+            <Async state={queue}>
+              {(q) => {
+                const rows = [
+                  ...q.engineDecisions.map((e) => ({
+                    id: `d-${e.id}`,
+                    icon: 'ti-report-medical',
+                    bg: '#FBE3E3',
+                    fg: '#B4491F',
+                    title: e.rule?.name ?? 'Decisione da rivedere',
+                    sub: [e.patientName, e.flagReason].filter(Boolean).join(' · ') || 'Da validare',
+                  })),
+                  ...q.protocolsPending.map((p) => ({
+                    id: `p-${p.id}`,
+                    icon: 'ti-clipboard-check',
+                    bg: '#E7EEF6',
+                    fg: '#3A6EA5',
+                    title: p.name || 'Protocollo da validare',
+                    sub: 'Protocollo in attesa di validazione',
+                  })),
+                ].slice(0, 5);
+                if (rows.length === 0) {
+                  return (
+                    <Card>
+                      <div className="sf-sub" style={{ textAlign: 'center', padding: 8 }}>
+                        Nessuna priorità clinica. Ottimo lavoro! 🎉
+                      </div>
+                    </Card>
+                  );
+                }
+                return (
+                  <Card className="pad0">
+                    {rows.map((r) => (
+                      <div key={r.id} className="sf-row" onClick={() => nav('/diete')} style={{ alignItems: 'flex-start' }}>
+                        <span
+                          style={{ width: 34, height: 34, borderRadius: 11, background: r.bg, color: r.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
+                        >
+                          <i className={`ti ${r.icon}`} style={{ fontSize: 18 }} />
+                        </span>
+                        <div className="sf-row-main">
+                          <div className="sf-row-name">{r.title}</div>
+                          <div className="sf-row-sub">{r.sub}</div>
+                        </div>
+                        <i className="ti ti-chevron-right chev" />
+                      </div>
+                    ))}
+                  </Card>
+                );
+              }}
+            </Async>
           </>
         )}
       </Async>
