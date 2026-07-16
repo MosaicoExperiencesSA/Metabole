@@ -65,7 +65,7 @@ spedizione va chiesto SOLO se non è già in scheda.
 Da verificare: dove vive l'indirizzo sul modello (ClientProfile / User?) e passarlo al
 Checkout per la logica condizionale; salvataggio all'invio dell'ordine.
 
-## Wizard famiglia — flusso da rivedere (PRIORITÀ domani 17/07)
+## Wizard famiglia — flusso da rivedere — FATTO (17/07)
 Simone (16/07 sera): "il flusso famiglia non funziona bene va rivisto".
 Sintomi noti finora:
 - Dopo "Valida e pubblica tutte le N varianti" la pagina NON si azzera (resta su

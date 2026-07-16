@@ -78,6 +78,37 @@ export function CreazioneValidazione() {
   const targetFamily = families.find((f) => f.key === familyKeyOf(form.label.trim(), form.style || 'custom')) ?? null;
   const activeFamily = families.find((f) => f.key === activeFamilyKey) ?? null;
   const existingCombos = new Set((targetFamily?.variants ?? []).map((v) => comboKeyOf((v.regime as string) || 'omnivore', (v.objective as string) || 'dimagrimento')));
+  const regLabelOf = (code: string) => regimes.find((r) => r.code === code)?.label ?? code;
+
+  // Stato di TUTTE le varianti generate della famiglia attiva (per il passo 3):
+  // una riga per dieta generata con "pronta" (tutti i passi ok) e "pubblicata".
+  type FamVariant = { dietId: string; regime: string; objective: string; status: string; ready: boolean };
+  const [famVariants, setFamVariants] = useState<FamVariant[]>([]);
+
+  async function loadFamilyStatuses(fam?: Family | null) {
+    const f = fam ?? activeFamily;
+    if (!f) { setFamVariants([]); return; }
+    try {
+      const all = await api<{ id: string; name: string; regime: string; style: string; objective?: string | null; status: string }[]>('/diets');
+      const diets = (all ?? []).filter((d) => d.name === f.label && d.style === f.style);
+      const out: FamVariant[] = [];
+      for (const d of diets) {
+        let ready = false;
+        try {
+          const s = await api<ReviewStatus>(`/engine-rules/diets/${d.id}/review-status`);
+          ready = s.recipes.total > 0 && s.recipes.active === s.recipes.total
+            && s.recipes.allergensReviewed === s.recipes.total
+            && s.days.total > 0 && s.days.complete === s.days.total
+            && (s.groups.total === 0 || s.groups.approved === s.groups.total);
+        } catch { /* resta false */ }
+        out.push({ dietId: d.id, regime: d.regime, objective: (d.objective as string) || 'dimagrimento', status: d.status, ready });
+      }
+      out.sort((a, b) => regLabelOf(a.regime).localeCompare(regLabelOf(b.regime), 'it') || a.objective.localeCompare(b.objective));
+      setFamVariants(out);
+    } catch { setFamVariants([]); }
+  }
+
+  useEffect(() => { void loadFamilyStatuses(); }, [activeFamilyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function pickFamily(fam: Family) {
     const p = fam.variants[0];
@@ -180,8 +211,9 @@ export function CreazioneValidazione() {
         if (!firstDietId) firstDietId = r.dietId;
       }
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
+      void loadFamilyStatuses();
       setNotice(targets.length > 1
-        ? `Generati ${targets.length} cataloghi (una variante per combinazione regime × obiettivo): ricette, allergeni, giornate e gruppi di equivalenza. Validali uno a uno qui sotto o da Gestione dieta.`
+        ? `Generati ${targets.length} cataloghi (una variante per combinazione regime × obiettivo). Validali e pubblicali tutti insieme al passo 3.`
         : 'Catalogo bozza generato. Procedi con la validazione qui sotto.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
     finally { setBusy(false); }
@@ -219,12 +251,23 @@ export function CreazioneValidazione() {
         done += 1;
       } catch (e) { errs.push(`${tag(v)} (${isResponsabile ? 'pubblica' : 'invio'}): ${e instanceof ApiError ? e.message : 'errore'}`); }
     }
-    if (dietId) { try { setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`)); } catch { /* no-op */ } }
     setFamBusy(false);
     const verb = isResponsabile ? 'pubblicate' : 'inviate in revisione';
-    setFamMsg(errs.length
-      ? `Completate ${done}/${fam.length} varianti (${verb}). Da rivedere: ${errs.join(' · ')}`
-      : `Fatto: tutte le ${fam.length} varianti ${verb}.`);
+    if (errs.length) {
+      // Qualcosa da rivedere: la pagina resta aperta con gli stati aggiornati.
+      setFamMsg(`Completate ${done}/${fam.length} varianti (${verb}). Da rivedere: ${errs.join(' · ')}`);
+      void loadFamilyStatuses();
+      if (dietId) { try { setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`)); } catch { /* no-op */ } }
+      return;
+    }
+    // Tutto ok → la pagina si AZZERA, pronta per la prossima famiglia (come la pubblicazione singola).
+    const famLabel = activeFamily?.label ?? '';
+    try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
+    setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null);
+    setGenAll(false); setDirty(false); setFamVariants([]); setFamMsg(null);
+    setForm({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+    setNotice(`Famiglia "${famLabel}" completata ✓ tutte le ${fam.length} varianti ${verb}. La pagina è pronta per un nuovo lavoro.`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function act(path: string) {
@@ -440,6 +483,29 @@ export function CreazioneValidazione() {
       {/* PASSO 3 — Valida */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>3</span> Valida e pubblica</h2>
+        {famVariants.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+              Varianti generate della famiglia: <b>{famVariants.filter((v) => v.ready).length}/{famVariants.length} pronte</b> · {famVariants.filter((v) => v.status === 'approved').length} pubblicate.
+              Clicca una variante per vederne i passi qui sotto.
+            </div>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {famVariants.map((v) => {
+                const sel = v.dietId === dietId;
+                return (
+                  <button key={v.dietId} type="button" className={`chip ${sel ? '' : 'gray'}`}
+                    onClick={() => { try { localStorage.setItem(LS_DIET, v.dietId); } catch { /* no-op */ } setDietId(v.dietId); }}
+                    style={{ cursor: 'pointer', borderColor: sel ? 'var(--teal)' : undefined }}
+                    title={v.status === 'approved' ? 'Pubblicata' : v.ready ? 'Pronta da pubblicare' : 'Passi da completare'}>
+                    <i className={`ti ${v.status === 'approved' ? 'ti-rosette-discount-check' : v.ready ? 'ti-circle-check' : 'ti-progress'}`}
+                      style={{ marginRight: 4, color: v.status === 'approved' || v.ready ? 'var(--ok-ink)' : undefined }} />
+                    {regLabelOf(v.regime)} · {objLabel(v.objective)}{v.status === 'approved' ? ' · pubblicata' : v.ready ? ' · pronta' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {!s ? (
           <p className="muted" style={{ marginTop: 0 }}>Genera un catalogo per iniziare la validazione guidata.</p>
         ) : (
