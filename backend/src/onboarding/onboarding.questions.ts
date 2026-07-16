@@ -58,8 +58,8 @@ export const ONBOARDING_QUESTIONS = {
           label: 'Allergie — le evito sempre, anche tracce e derivati',
           // I 14 allergeni UE (allineati al backend src/catalog/allergens.ts): il motore
           // esclusioni può filtrare in sicurezza solo se arrivano codificate come le ricette.
-          options: ['glutine', 'crostacei', 'uova', 'pesce', 'arachidi', 'soia', 'latte', 'frutta_a_guscio', 'sedano', 'senape', 'sesamo', 'solfiti', 'lupini', 'molluschi'],
-          labels: ['Glutine', 'Crostacei', 'Uova', 'Pesce', 'Arachidi', 'Soia', 'Latte e derivati', 'Frutta a guscio', 'Sedano', 'Senape', 'Sesamo', 'Solfiti', 'Lupini', 'Molluschi'],
+          options: ['glutine', 'crostacei', 'uova', 'pesce', 'arachidi', 'soia', 'latte', 'frutta_a_guscio', 'sedano', 'senape', 'sesamo', 'solfiti', 'lupini', 'molluschi', 'altro'],
+          labels: ['Glutine', 'Crostacei', 'Uova', 'Pesce', 'Arachidi', 'Soia', 'Latte e derivati', 'Frutta a guscio', 'Sedano', 'Senape', 'Sesamo', 'Solfiti', 'Lupini', 'Molluschi', 'Altro'],
         },
         { key: 'allergiesOther', type: 'tags', label: 'Altra allergia non in elenco (la verifica il nutrizionista)' },
         { key: 'intolerances', type: 'multi_choice', options: ['gluten', 'lactose', 'nuts', 'none', 'other'], labels: ['Glutine', 'Lattosio', 'Frutta secca', 'Nessuna', 'Altro'] },

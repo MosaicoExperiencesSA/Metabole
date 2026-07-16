@@ -443,6 +443,8 @@ p { line-height: 1.5; }
 .sec-name { font-size: 13px; opacity: 0.9; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; }
 .sec-headline { font-size: 22px; font-weight: 700; line-height: 1.25; margin-top: 6px; padding: 0 6px; }
 .sec-note { font-size: 13px; opacity: 0.92; margin-top: 10px; padding: 0 10px; line-height: 1.5; }
+.sec-say { font-size: 13px; font-style: italic; opacity: 0.98; margin-top: 14px; padding: 0 12px; line-height: 1.55; text-align: center; min-height: 66px; }
+.sec-say .type-caret { font-style: normal; }
 
 /* barra sezioni in cima alle domande */
 .secbar { display: flex; gap: 5px; margin-bottom: 6px; }

@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { BRAND_PALETTE, getBrand, setBrand, type Brand } from '../lib/brand';
+import { autoColor, BRAND_PALETTE, getBrand, setBrand, type Brand } from '../lib/brand';
 
 /**
  * Selettore "Colore dell'app": i 6 colori della palette + il pulsante "Auto"
- * (un colore nuovo ogni due giorni). Riutilizzato nel profilo cliente e staff.
+ * (un colore nuovo ogni due giorni). Riutilizzato nel profilo cliente e staff
+ * e nello step onboarding "Scegli il colore della tua app".
+ * `onPick` riceve il valore scelto ('auto' o hex) e il colore effettivo applicato.
  */
-export default function BrandPicker() {
+export default function BrandPicker({ onPick }: { onPick?: (value: Brand, resolved: string) => void }) {
   const [sel, setSel] = useState<Brand>(getBrand());
 
   function pick(b: Brand) {
     setSel(b);
     setBrand(b);
+    onPick?.(b, b === 'auto' ? autoColor() : b);
   }
 
   return (

@@ -41,6 +41,49 @@ const FRASI = [
   'La costanza batte la perfezione.',
 ];
 
+interface EventItem { id: string; type: string; label: string | null; startDate: string; mode: string }
+const EV: Record<string, [string, string, string, string]> = {
+  // tipo → [etichetta, icona, bg, colore]
+  wedding: ['Matrimonio', 'ti-heart', '#FBEEE7', '#E8825A'],
+  baptism: ['Battesimo', 'ti-heart', '#FBEEE7', '#E8825A'],
+  dinner: ['Cena', 'ti-glass-full', '#F3E8DC', '#B8863B'],
+  monthly_cheat: ['Sgarro', 'ti-cake', '#F3E8DC', '#B8863B'],
+  vacation: ['Vacanza', 'ti-umbrella', '#E7EEF6', '#3A6EA5'],
+  other: ['Evento', 'ti-calendar-heart', '#E7EEF6', '#3A6EA5'],
+};
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+function whenLabel(iso: string): string {
+  const days = Math.round((startOfDay(new Date(iso)).getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
+  if (days === 0) return 'oggi';
+  if (days === 1) return 'domani';
+  if (days > 1) return `tra ${days} giorni`;
+  return new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+}
+
+/** Testi di aiuto rapido (come nel prototipo). */
+const SHEETS: Record<string, { t: string; b: string; cta: string }> = {
+  fame: { t: 'Ho fame adesso', b: "Bevi un bicchiere d'acqua e prendi un frutto o dei semi: spesso la fame passa in 15 minuti. Se ti capita spesso di pomeriggio, lo segnalo alla tua coach e anticipiamo lo spuntino.", cta: 'Chiedi alla coach' },
+  fuori: { t: 'Mangio fuori', b: 'Scegli una proteina con verdure, evita bevande zuccherate e concediti un piccolo piacere senza sensi di colpa. Domani ti preparo un rientro morbido, tranquilla.', cta: 'Ok, grazie' },
+  sost: { t: 'Sostituisci un ingrediente', b: 'Non hai un ingrediente o non ti piace? Alternativa equivalente: al posto del farro, quinoa o orzo. Vuoi che aggiorni la ricetta di oggi?', cta: 'Aggiorna ricetta' },
+};
+const HELP: [string, string, string, string][] = [
+  ['ti-mood-sad', 'Ho fame', 'fame', '#E8825A'],
+  ['ti-tools-kitchen-2', 'Mangio fuori', 'fuori', '#3A6EA5'],
+  ['ti-arrows-exchange', 'Sostituisci', 'sost', '#6C5AB7'],
+];
+
+function KpiTile({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+  return (
+    <div className="card" style={{ flex: 1, margin: 0, textAlign: 'center', padding: '12px 4px' }}>
+      <div style={{ width: 40, height: 40, borderRadius: 13, background: color + '1f', color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px' }}>
+        <i className={`ti ${icon}`} style={{ fontSize: 21 }} />
+      </div>
+      <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1 }}>{value}</div>
+      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
 interface SpesaItem { name: string; qty?: number | null; unit?: string | null; checked: boolean }
 function SpesaList() {
   const [list, setList] = useState<{ id?: string; items: SpesaItem[] } | null>(null);
@@ -82,9 +125,11 @@ export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sheet, setSheet] = useState<null | 'spesa'>(null);
+  const [help, setHelp] = useState<string | null>(null);
   const [today, setToday] = useState<Today | null>(null);
   const [meals, setMeals] = useState<ApiMeal[] | null>(null);
   const [nextAppt, setNextAppt] = useState<NextAppt | null>(null);
+  const [events, setEvents] = useState<EventItem[]>([]);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const mealsRef = useRef<HTMLDivElement>(null);
@@ -98,6 +143,10 @@ export default function Home() {
       setMeals(day?.meals ?? []);
     }).catch(() => setMeals([]));
     api<{ next: NextAppt | null }>('/me/agenda?next=1').then((r) => setNextAppt(r.next)).catch(() => setNextAppt(null));
+    api<EventItem[]>('/me/events').then((evs) => {
+      const t = startOfDay(new Date()).getTime();
+      setEvents((evs ?? []).filter((e) => startOfDay(new Date(e.startDate)).getTime() >= t).sort((a, b) => a.startDate.localeCompare(b.startDate)));
+    }).catch(() => setEvents([]));
   }, []);
 
   function onMealsScroll() {
@@ -167,6 +216,46 @@ export default function Home() {
         </div>
       )}
 
+      {/* KPI di oggi: kcal · acqua · passi */}
+      <div style={{ display: 'flex', gap: 9, marginBottom: 12 }}>
+        <KpiTile icon="ti-flame" value={totKcal > 0 ? totKcal.toLocaleString('it-IT') : '—'} label="kcal" color="#E8825A" />
+        <KpiTile icon="ti-droplet" value={today ? `${today.water.glasses}/${today.water.goal}` : '—'} label="acqua" color="#2AA7C4" />
+        <KpiTile icon="ti-walk" value={today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
+      </div>
+
+      {/* Help rapido */}
+      <div className="sec" style={{ margin: '4px 2px 8px' }}>Help</div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+        {HELP.map(([icon, lbl, key, color]) => (
+          <div key={key} className="card" style={{ flex: 1, margin: 0, textAlign: 'center', padding: '12px 4px', cursor: 'pointer' }} onClick={() => setHelp(key)}>
+            <div style={{ width: 40, height: 40, borderRadius: 13, background: color + '1f', color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 7px' }}>
+              <i className={`ti ${icon}`} style={{ fontSize: 21 }} />
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600 }}>{lbl}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* In arrivo: eventi/periodi speciali */}
+      {events.length > 0 && (
+        <>
+          <div className="sec" style={{ margin: '14px 2px 8px' }}>In arrivo</div>
+          {events.slice(0, 3).map((ev) => {
+            const [lbl, icon, bg, color] = EV[ev.type] ?? EV.other;
+            return (
+              <div key={ev.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer', marginBottom: 10 }} onClick={() => navigate('/percorso')}>
+                <span className="event-ic" style={{ background: bg, color, flex: 'none' }}><i className={`ti ${icon}`} /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.label || lbl} {whenLabel(ev.startDate)}</div>
+                  <div className="muted" style={{ fontSize: 11 }}>Ti preparo per arrivarci al meglio</div>
+                </div>
+                <i className="ti ti-chevron-right" style={{ color: '#C6CFCB' }} />
+              </div>
+            );
+          })}
+        </>
+      )}
+
       {/* PROSSIMO APPUNTAMENTO */}
       {nextAppt && (
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 14 }} onClick={() => navigate('/calendario')}>
@@ -208,6 +297,16 @@ export default function Home() {
         <CheckinPopup onMood={submitMood} onSkip={() => setDismissed(true)} busy={checkinBusy} />
       )}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
+      {help && SHEETS[help] && (
+        <Sheet onClose={() => setHelp(null)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+            <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
+            <b style={{ fontSize: 15 }}>{SHEETS[help].t}</b>
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{SHEETS[help].b}</div>
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={() => setHelp(null)}>{SHEETS[help].cta}</button>
+        </Sheet>
+      )}
     </div>
   );
 }

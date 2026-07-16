@@ -4,6 +4,8 @@ import { clipForPage, isMuted, setMuted } from '../audio/gaia';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import { TypeText } from '../components/TypeText';
+import BrandPicker from '../components/BrandPicker';
+import { applyBrand } from '../lib/brand';
 import FieldInput from '../onboarding/Field';
 import PlanFlow from './PlanFlow';
 import type { Field, OnboardingResult, Page, Questions } from '../onboarding/types';
@@ -18,11 +20,11 @@ type Answers = Record<string, unknown>;
 // Sezioni allineate 1:1 al prototipo (docs/): ordine testa·vita·agenda·gusto·corpo,
 // nomi/tab/intro/note e COLORI esatti dalla direttiva §3.
 const SECTIONS = [
-  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Partiamo dalla tua mente', note: 'Motivazione e carattere: come vuoi essere seguita.', desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C4CD6', soft: '#F3EFFB', voice: 'intro_testa', pages: ['why', 'coach_style', 'character'] },
-  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2F80ED', soft: '#EDF3FE', voice: 'intro_vita', pages: ['lifestyle', 'path'] },
-  { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', desc: 'Eventi e periodi speciali', icon: 'ti-calendar-heart', color: '#E8543C', soft: '#FDF0EC', voice: 'intro_agenda', pages: ['pause_periods'] },
-  { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', desc: 'Regime, stile e cibi', icon: 'ti-tools-kitchen-2', color: '#E8A11B', soft: '#FEF7E8', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
-  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Per finire: i tuoi obiettivi', note: 'Peso e misure: il punto di partenza, senza giudizi.', desc: 'Peso, misure e obiettivo', icon: 'ti-target', color: '#12A386', soft: '#EAF7F2', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
+  { key: 'testa', tab: 'Mente', name: 'La mente', intro: 'Partiamo dalla tua mente', note: 'Motivazione e carattere: come vuoi essere seguita.', say: "Per prima cosa, cosa c'è nella tua mente? L'equilibrio mentale è il primo passo per ritrovare la forma fisica corretta. Rispondi pure alle prossime domande.", desc: 'Motivazione e carattere', icon: 'ti-mood-smile', color: '#6C4CD6', soft: '#F3EFFB', voice: 'intro_testa', pages: ['why', 'coach_style', 'character'] },
+  { key: 'vita', tab: 'Vita', name: 'La vita', intro: 'La tua vita di tutti i giorni', note: 'Lavoro, tempo e ritmo dei pasti.', say: 'Ora è importante capire le tue abitudini nella vita reale: lavoro, tempo e abitudini. Così posso predisporre un piano adeguato alle tue esigenze.', desc: 'Lavoro, pasti e tempo', icon: 'ti-briefcase', color: '#2F80ED', soft: '#EDF3FE', voice: 'intro_vita', pages: ['lifestyle', 'path'] },
+  { key: 'agenda', tab: 'Agenda', name: "L'agenda", intro: 'Eventi e periodi speciali', note: 'Vacanze e feste in cui non segui la dieta.', say: 'Parliamo della tua agenda: feste, cene, viaggi. Non sono ideali per fare diete, ma questi momenti piacevoli si gestiscono: basta pianificarli.', desc: 'Eventi e periodi speciali', icon: 'ti-calendar-heart', color: '#E8543C', soft: '#FDF0EC', voice: 'intro_agenda', pages: ['pause_periods'] },
+  { key: 'gusto', tab: 'Gusto', name: 'Il gusto', intro: 'Adesso i tuoi gusti', note: 'Regime, stile e cibi che eviti.', say: 'E il gusto: cosa ami e cosa eviti. Mangiare bene deve piacerti, o non dura.', desc: 'Regime, stile e cibi', icon: 'ti-tools-kitchen-2', color: '#E8A11B', soft: '#FEF7E8', voice: 'intro_gusto', pages: ['regime', 'style', 'tastes'] },
+  { key: 'corpo', tab: 'Corpo', name: 'Il corpo', intro: 'Per finire: i tuoi obiettivi', note: 'Peso e misure: il punto di partenza, senza giudizi.', say: 'Bene, ora so tutto di te, tranne quali sono i tuoi obiettivi: peso e misure sono obiettivi, senza giudizi. Dimmi dove sei e dove vuoi arrivare.', desc: 'Peso, misure e obiettivo', icon: 'ti-target', color: '#12A386', soft: '#EAF7F2', voice: 'intro_corpo', pages: ['identity', 'baseline', 'intolerances', 'health', 'objective'] },
 ] as const;
 
 type Section = (typeof SECTIONS)[number];
@@ -57,6 +59,15 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
 }
 
 interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[]; seasonalTag: string | null }
+
+/** Etichette leggibili di ripiego se una dieta non ha un nome cliente impostato:
+ *  così non mostriamo mai il codice grezzo (es. "low_carb") ma "Low carb". */
+const STYLE_LABELS: Record<string, string> = {
+  mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile',
+  keto: 'Chetogenica', vegan: 'Vegana', vegetarian: 'Vegetariana', balanced: 'Equilibrata',
+  summer_return: 'Rientro estivo', summer_holiday: 'Vacanza estiva', detox: 'Detox',
+};
+const prettyStyle = (s: string) => STYLE_LABELS[s] ?? s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
 /** Schermo 16 "Stile che preferisci": prodotti (diete) letti dall'API a runtime (zero-redeploy).
  *  Ogni nome è toccabile → caratteristiche principali. Solo diete reali approvate: nessun ripiego statico. */
@@ -94,7 +105,7 @@ function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: 
           <div key={p.style} className="card" style={{ display: 'block', border: on ? '2px solid var(--teal)' : undefined }}>
             <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => onChange('dietStyle', p.style)}>
               <b style={{ fontSize: 15 }}>
-                {p.name}
+                {p.name && p.name !== p.style ? p.name : prettyStyle(p.style)}
                 {p.seasonalTag && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: 'var(--teal)', background: 'rgba(51,177,144,.12)', padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{p.seasonalTag}</span>}
               </b>
               {on
@@ -166,6 +177,22 @@ function ObjectiveBlock({ page, answers, setAnswer }: { page: Page; answers: Ans
           {hips && <FieldInput field={hips as Field} value={answers[hips.key]} onChange={setAnswer} />}
         </div>
       )}
+    </>
+  );
+}
+
+/** Step "Scegli il colore della tua app": selettore reale (6 colori + Auto) che
+ *  applica e salva il colore scelto. Registra la scelta in answers.themeColor. */
+function ThemeBlock({ onChange }: { onChange: (k: string, v: unknown) => void }) {
+  return (
+    <>
+      <p className="muted" style={{ marginTop: -4, marginBottom: 14 }}>Il tema dell'app, diverso dai colori delle sezioni.</p>
+      <div className="card">
+        <BrandPicker onPick={(_value, resolved) => onChange('themeColor', resolved)} />
+        <p className="muted" style={{ margin: '12px 0 0', fontSize: 11.5 }}>
+          <i className="ti ti-sparkles" style={{ fontSize: 12, verticalAlign: '-1px' }} /> L'ultimo pulsante è <b>Auto</b>: un colore nuovo ogni due giorni.
+        </p>
+      </div>
     </>
   );
 }
@@ -245,7 +272,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     const c = answers.themeColor as string | undefined;
-    if (c) document.documentElement.style.setProperty('--teal', c);
+    if (c) applyBrand(c);
   }, [answers.themeColor]);
 
   // Conto alla rovescia della schermata "Sto cucendo il tuo percorso".
@@ -275,7 +302,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     setMutedState(n);
   }
 
-  const activePage = cur && (cur.t === 'page' || cur.t === 'theme') ? cur.page : null;
+  // Solo le pagine "vere" hanno validazione sui campi; lo step tema ha sempre un colore valido.
+  const activePage = cur && cur.t === 'page' ? cur.page : null;
   // Controllo intervalli (min/max) per dare un messaggio chiaro qui, non un errore del backend alla fine.
   const rangeIssue = activePage
     ? activePage.fields.map((f) => (isFilled(answers[f.key]) ? fieldIssue(f, answers[f.key]) : null)).find(Boolean) ?? null
@@ -322,8 +350,13 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     };
     if (a.startWaistCm != null && a.startWaistCm !== '') dto.startWaistCm = Number(a.startWaistCm);
     if (a.startHipsCm != null && a.startHipsCm !== '') dto.startHipsCm = Number(a.startHipsCm);
-    if (Array.isArray(a.allergies) && a.allergies.length) dto.allergies = a.allergies;
-    if (Array.isArray(a.allergiesOther) && a.allergiesOther.length) dto.allergiesOther = a.allergiesOther;
+    // "altro" è solo un flag UI per mostrare il campo libero: non è un allergene reale.
+    const hasOtherAllergy = Array.isArray(a.allergies) && (a.allergies as string[]).includes('altro');
+    if (Array.isArray(a.allergies) && a.allergies.length) {
+      const real = (a.allergies as string[]).filter((x) => x !== 'altro');
+      if (real.length) dto.allergies = real;
+    }
+    if (hasOtherAllergy && Array.isArray(a.allergiesOther) && a.allergiesOther.length) dto.allergiesOther = a.allergiesOther;
     if (Array.isArray(a.intolerances) && a.intolerances.length) dto.intolerances = a.intolerances;
     if (Array.isArray(a.dislikedFoods) && a.dislikedFoods.length) dto.dislikedFoods = a.dislikedFoods;
     const lifestyle = cleanObj({ work: a.work, cookingTime: a.cookingTime, weekdayLunch: a.weekdayLunch, motivation: a.why });
@@ -395,7 +428,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             <Gaia clip={clip} size={140} controls={false} />
             <div className="sec-name">{cur.sec.name}</div>
             <div className="sec-headline">{cur.sec.intro}</div>
-            <TypeText key={`sec-${cur.sec.key}`} className="sec-note" segments={[{ t: cur.sec.note }]} />
+            <div className="sec-note">{cur.sec.note}</div>
+            <TypeText key={`say-${cur.sec.key}`} className="sec-say" segments={[{ t: cur.sec.say }]} />
           </div>
           <button className="btn" style={{ background: '#fff', color: cur.sec.color }} onClick={next}>Iniziamo</button>
         </div>
@@ -455,16 +489,20 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <div className="onb-body">
             <div className="qbubble">
               <Gaia clip={clip} size={62} controls={false} />
-              <div className="bubble"><TypeText key={idx} segments={[{ t: cur.page.subtitle || "Rispondi con calma, non c'è fretta." }]} /></div>
+              <div className="bubble"><TypeText key={idx} segments={[{ t: cur.t === 'theme' ? 'Anche i colori sono importanti: seleziona quello che ti piace di più e trasformerò la app secondo la tua scelta.' : (cur.page.subtitle || "Rispondi con calma, non c'è fretta.") }]} /></div>
             </div>
-            <h1>{cur.page.title}</h1>
-            <div className={`onb-fields${cur.page.key === 'baseline' ? ' fields-grid' : ''}`}>
-              {cur.t === 'page' && cur.page.key === 'objective' ? (
+            <h1>{cur.t === 'theme' ? 'Scegli il colore della tua app' : cur.page.title}</h1>
+            <div className={`onb-fields${cur.t === 'page' && cur.page.key === 'baseline' ? ' fields-grid' : ''}`}>
+              {cur.t === 'theme' ? (
+                <ThemeBlock onChange={setAnswer} />
+              ) : cur.page.key === 'objective' ? (
                 <ObjectiveBlock page={cur.page} answers={answers} setAnswer={setAnswer} />
-              ) : cur.t === 'page' && cur.page.key === 'style' ? (
+              ) : cur.page.key === 'style' ? (
                 <DietProductsBlock value={answers.dietStyle} onChange={setAnswer} />
               ) : (
                 cur.page.fields
+                  // "Altra allergia non in elenco" appare solo se ho spuntato "Altro" tra le allergie.
+                  .filter((f) => f.key !== 'allergiesOther' || (Array.isArray(answers.allergies) && (answers.allergies as string[]).includes('altro')))
                   .map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)
               )}
             </div>

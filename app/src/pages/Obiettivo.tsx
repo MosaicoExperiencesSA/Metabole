@@ -15,6 +15,7 @@ interface Objective {
   targetWeightKg: number | null;
   targetWaistCm: number | null;
   targetHipsCm: number | null;
+  targetDate: string | null;
 }
 
 const d1 = (n: number) => n.toFixed(1).replace('.', ',');
@@ -136,6 +137,36 @@ export default function Obiettivo() {
   return (
     <div className="home">
       <AppHeader title="I tuoi obiettivi" />
+
+      {/* Obiettivo attuale (dai dati di registrazione) */}
+      {objective && (() => {
+        const sorted = [...measurements].sort((a, b) => a.date.localeCompare(b.date));
+        const start = sorted[0];
+        const dW = objective.targetWeightKg != null && start ? start.weightKg - objective.targetWeightKg : null;
+        const dWa = objective.targetWaistCm != null && start?.waistCm != null ? start.waistCm - objective.targetWaistCm : null;
+        const dH = objective.targetHipsCm != null && start?.hipsCm != null ? start.hipsCm - objective.targetHipsCm : null;
+        const cm = dWa ?? dH;
+        const weeks = objective.targetDate ? Math.max(1, Math.round((new Date(objective.targetDate).getTime() - Date.now()) / (7 * 86_400_000))) : null;
+        const rate = dW != null && weeks ? dW / weeks : null;
+        const sust = rate == null ? null : rate <= 0.7 ? { t: 'sostenibile', c: '#3B6D11' } : rate <= 1 ? { t: 'ambizioso', c: '#8A5A0B' } : { t: 'molto ambizioso', c: '#993C1D' };
+        if (dW == null && cm == null) return null;
+        return (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div className="row-between">
+              <div>
+                <div className="muted" style={{ fontSize: 11 }}>Obiettivo attuale</div>
+                <div style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }}>
+                  {dW != null ? `-${d1(dW)} kg` : ''}{dW != null && cm != null ? ' · ' : ''}{cm != null ? `-${d1(cm)} cm` : ''}
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                  {weeks ? `entro ${weeks} settimane` : ''}{weeks && sust ? ' · ' : ''}{sust && <span style={{ color: sust.c, fontWeight: 600 }}>{sust.t}</span>}
+                </div>
+              </div>
+              <span className="event-ic" style={{ background: '#EAF6F1', color: '#0E7C66', flex: 'none' }}><i className="ti ti-target" /></span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Misure di oggi */}
       <div className="card">

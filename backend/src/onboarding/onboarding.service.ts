@@ -215,6 +215,27 @@ export class OnboardingService {
       },
     });
 
+    // 5-bis. Prima misura = punto di partenza dichiarato nell'onboarding.
+    // Così la schermata "I tuoi obiettivi" si popola subito (grafici e progressi)
+    // invece di restare vuota. Non sovrascrive eventuali misure già inserite.
+    try {
+      const startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      await this.prisma.measurement.upsert({
+        where: { clientId_date: { clientId: userId, date: startDate } },
+        create: {
+          clientId: userId,
+          date: startDate,
+          weightKg: dto.startWeightKg,
+          waistCm: dto.startWaistCm ?? null,
+          hipsCm: dto.startHipsCm ?? null,
+        },
+        update: {},
+      });
+    } catch {
+      /* la misura di partenza è best-effort: non deve bloccare l'onboarding */
+    }
+
     // 6. Screening → presa in carico dal nutrizionista assegnato.
     if (screeningFlag) {
       await this.prisma.escalation.create({

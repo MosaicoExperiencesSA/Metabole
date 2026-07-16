@@ -64,8 +64,12 @@ function Mascot({ size, eyes, mouth, cheek, talking }: { size: number; eyes: Eye
             </>
           ) : (
             <>
-              <path d="M84 132 Q100 112 116 132" stroke="#25384A" strokeWidth="6" strokeLinecap="round" fill="none" />
-              <path d="M124 132 Q140 112 156 132" stroke="#25384A" strokeWidth="6" strokeLinecap="round" fill="none" />
+              <g className="cmEye" style={{ transformOrigin: 'center' }}>
+                <path d="M84 132 Q100 112 116 132" stroke="#25384A" strokeWidth="6" strokeLinecap="round" fill="none" />
+              </g>
+              <g className="cmEye" style={{ transformOrigin: 'center' }}>
+                <path d="M124 132 Q140 112 156 132" stroke="#25384A" strokeWidth="6" strokeLinecap="round" fill="none" />
+              </g>
             </>
           )}
           <path className="cmMouth" d={mouthD} stroke="#25384A" strokeWidth="5" strokeLinecap="round" fill="none" />
