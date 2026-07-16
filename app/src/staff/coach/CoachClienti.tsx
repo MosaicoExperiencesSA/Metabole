@@ -58,6 +58,7 @@ export default function CoachClienti() {
                       <div className="sf-row-sub">
                         {c.lastWeightKg != null ? `${c.lastWeightKg} kg · ` : ''}
                         ultima misura {relDays(c.lastMeasureDate)}
+                        {c.openAlerts > 0 ? ` · ${c.openAlerts} alert` : ''}
                       </div>
                     </div>
                     <span className="sf-pill" style={{ background: s[0], color: s[1] }}>

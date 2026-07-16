@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import { euro, shortDate } from '../format';
 import { useApi, useAction } from '../hooks';
 import { Async, Card, Section, StaffShell, type TabItem } from '../ui';
@@ -35,6 +36,8 @@ const STATUS: Record<Withdrawal['status'], [string, string, string]> = {
 };
 
 export default function Guadagni({ tabs }: { tabs: TabItem[] }) {
+  const { user } = useAuth();
+  const roleSub = user?.role && ['nutritionist', 'head_nutritionist'].includes(user.role) ? 'Nutrizionista' : 'Coach';
   const wallet = useApi<Wallet>('/me/wallet');
   const [amount, setAmount] = useState('');
   const [iban, setIban] = useState('');
@@ -46,7 +49,7 @@ export default function Guadagni({ tabs }: { tabs: TabItem[] }) {
   });
 
   return (
-    <StaffShell title="Guadagni" tabs={tabs}>
+    <StaffShell title="Guadagni" subtitle={roleSub} tabs={tabs}>
       <Async state={wallet}>
         {(w) => {
           const ibanValue = iban || w.iban || '';

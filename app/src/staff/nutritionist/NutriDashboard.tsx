@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../auth/AuthContext';
 import { euro } from '../format';
 import { useApi } from '../hooks';
 import { Async, Kpi, Section, StaffShell } from '../ui';
@@ -18,12 +17,12 @@ interface Dash {
 
 export default function NutriDashboard() {
   const nav = useNavigate();
-  const { user } = useAuth();
   const dash = useApi<Dash>('/nutritionist/dashboard');
 
   return (
     <StaffShell
-      title={`Ciao, Dr. ${user?.lastName || user?.firstName || ''}`.trim()}
+      title="Dashboard"
+      subtitle="Nutrizionista"
       tabs={NUTRI_TABS}
       headerBadge={dash.data ? dash.data.pendingDocuments + dash.data.openEscalations : undefined}
     >
@@ -36,7 +35,7 @@ export default function NutriDashboard() {
                 <div className="val">{euro(d.earningsTotalCents)}</div>
               </div>
               <div className="sf-earn g2">
-                <div className="lab">Questo mese</div>
+                <div className="lab">Guadagno del mese</div>
                 <div className="val">{euro(d.earningsMonthCents)}</div>
               </div>
             </div>
@@ -63,7 +62,7 @@ export default function NutriDashboard() {
               <Kpi
                 icon="ti-calendar-heart"
                 value={d.upcomingVisits}
-                label="Visite in arrivo"
+                label="Visite oggi"
                 bg="#FBEEE7"
                 fg="#E8825A"
                 onClick={() => nav('/agenda')}

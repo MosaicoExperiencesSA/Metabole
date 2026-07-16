@@ -255,7 +255,14 @@
   background: linear-gradient(135deg, var(--sf-brand-dark), var(--sf-brand));
 }
 .sf-earn.g2 {
-  background: #101826;
+  background: #fff;
+  color: var(--sf-ink);
+  border: 1px solid var(--sf-line);
+  box-shadow: 0 6px 16px rgba(16, 48, 42, 0.06);
+}
+.sf-earn.g2 .lab {
+  opacity: 1;
+  color: var(--sf-muted);
 }
 
 /* Righe lista */

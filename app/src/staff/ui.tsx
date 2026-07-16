@@ -13,11 +13,13 @@ export interface TabItem {
 /** Guscio schermata staff: header teal + contenuto scrollabile + tab bar. */
 export function StaffShell({
   title,
+  subtitle,
   tabs,
   children,
   headerBadge,
 }: {
   title: string;
+  subtitle?: string;
   tabs: TabItem[];
   children: ReactNode;
   headerBadge?: number;
@@ -28,6 +30,7 @@ export function StaffShell({
         <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
           <div className="sf-header-brand">
             METABOLE<span style={{ color: '#E4DBFF' }}>AI</span>
+            {subtitle ? <span> · {subtitle.toUpperCase()}</span> : null}
           </div>
           <div className="sf-header-title">{title}</div>
         </div>

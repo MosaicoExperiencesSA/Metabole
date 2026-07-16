@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../auth/AuthContext';
 import { euro, fullName, relDays } from '../format';
 import { useApi } from '../hooks';
 import { Async, Card, Kpi, Section, StaffShell } from '../ui';
@@ -25,13 +24,13 @@ interface Alert {
 
 export default function CoachDashboard() {
   const nav = useNavigate();
-  const { user } = useAuth();
   const dash = useApi<Dash>('/coach/dashboard');
   const alerts = useApi<{ alerts: Alert[] }>('/coach/alerts?priority=high');
 
   return (
     <StaffShell
-      title={`Ciao, ${user?.firstName || 'Coach'}`}
+      title="Dashboard"
+      subtitle="Coach"
       tabs={COACH_TABS}
       headerBadge={dash.data?.openAlerts}
     >
@@ -44,7 +43,7 @@ export default function CoachDashboard() {
                 <div className="val">{euro(d.earningsTotalCents)}</div>
               </div>
               <div className="sf-earn g2">
-                <div className="lab">Questo mese</div>
+                <div className="lab">Guadagno del mese</div>
                 <div className="val">{euro(d.earningsMonthCents)}</div>
               </div>
             </div>

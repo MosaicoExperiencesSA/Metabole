@@ -266,7 +266,7 @@ export default function Home() {
       <div style={{ background: 'var(--teal)', borderRadius: 20, padding: '14px 16px', color: '#fff', marginBottom: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 'none' }}>
-            <Gaia size={60} controls={false} mouth="big" />
+            <Gaia size={60} controls={false} mouth="big" eyes="open" />
             <i className="ti ti-volume" style={{ fontSize: 17, opacity: 0.9 }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>

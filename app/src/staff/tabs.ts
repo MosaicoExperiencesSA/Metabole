@@ -1,10 +1,11 @@
 import type { TabItem } from './ui';
 
-/** Tab bar del coach (come nel prototipo: dashboard, clienti, alert, chat, agenda). */
+/** Tab bar del coach (come nel prototipo: dashboard, guadagni, clienti, chat, agenda).
+ *  Gli alert restano raggiungibili dalla dashboard ("Vedi tutte"). */
 export const COACH_TABS: TabItem[] = [
   { to: '/', icon: 'ti-layout-dashboard', label: 'Dashboard', end: true },
+  { to: '/guadagni', icon: 'ti-wallet', label: 'Guadagni' },
   { to: '/clienti', icon: 'ti-users', label: 'Clienti' },
-  { to: '/alert', icon: 'ti-alert-triangle', label: 'Alert' },
   { to: '/chat', icon: 'ti-message-2', label: 'Chat' },
   { to: '/agenda', icon: 'ti-calendar-heart', label: 'Agenda' },
 ];

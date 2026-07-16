@@ -191,7 +191,8 @@ export function LeadsTable() {
   // Digitando nella barra "Cerca" il backend cerca in TUTTO il database (email/nome/telefono).
   useEffect(() => {
     if (firstSearch.current) { firstSearch.current = false; return; }
-    const q = filter.trim();
+    // La ricerca sul server scatta dalla barra in alto O dai filtri colonna Nome/Email.
+    const q = (filter.trim() || fEmail.trim() || fName.trim());
     setSearching(true);
     const t = setTimeout(async () => {
       const seq = ++searchSeq.current;
@@ -206,7 +207,7 @@ export function LeadsTable() {
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [filter]);
+  }, [filter, fName, fEmail]);
 
   async function changeStage(lead: Lead, stage: string) {
     try {
