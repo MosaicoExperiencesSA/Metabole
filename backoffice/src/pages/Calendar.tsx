@@ -94,8 +94,12 @@ export function Calendar() {
   }, [showDone]);
 
   // Anagrafica lead per risolvere i contatti (telefono/email) del promemoria.
+  // NB: /crm/leads è paginato lato server ({ rows, total }): si leggono le rows
+  // (ultimi 500 lead). Robusto anche al vecchio formato array.
   useEffect(() => {
-    api<LeadOption[]>('/crm/leads').then(setLeads).catch(() => setLeads([]));
+    api<{ rows?: LeadOption[] } | LeadOption[]>('/crm/leads?pageSize=500')
+      .then((r) => setLeads(Array.isArray(r) ? r : (r.rows ?? [])))
+      .catch(() => setLeads([]));
   }, []);
 
   function contactFor(r: Reminder): { phone: string | null; email: string | null } {
@@ -306,7 +310,10 @@ function CreateReminderModal({ onClose, onCreated }: { onClose: () => void; onCr
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<LeadOption[]>('/crm/leads').then(setLeads).catch(() => setLeads([]));
+    // /crm/leads è paginato ({ rows, total }): il selettore mostra gli ultimi 500 lead.
+    api<{ rows?: LeadOption[] } | LeadOption[]>('/crm/leads?pageSize=500')
+      .then((r) => setLeads(Array.isArray(r) ? r : (r.rows ?? [])))
+      .catch(() => setLeads([]));
   }, []);
 
   function leadName(l: LeadOption) {
