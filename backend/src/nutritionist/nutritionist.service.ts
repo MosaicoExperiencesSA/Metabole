@@ -68,7 +68,7 @@ export class NutritionistService {
     const nameOf = new Map(profiles.map((p) => [p.userId, p.name]));
     const now = new Date();
 
-    const [measures, escalations, documents, visits] = await Promise.all([
+    const [measures, escalations, documents, visits, users] = await Promise.all([
       this.prisma.measurement.findMany({
         where: { clientId: { in: ids } },
         orderBy: { date: 'desc' },
@@ -88,9 +88,14 @@ export class NutritionistService {
         orderBy: { datetime: 'asc' },
         select: { clientId: true, datetime: true, type: true },
       }) as Promise<VisitRow[]>,
+      this.prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, email: true, phone: true },
+      }) as Promise<{ id: string; email: string; phone: string | null }[]>,
     ]);
 
     const measOf = new Map(measures.map((m) => [m.clientId, m.date]));
+    const userById = new Map(users.map((u) => [u.id, u]));
     const escCount = new Map<string, number>();
     for (const e of escalations) escCount.set(e.clientId, (escCount.get(e.clientId) ?? 0) + 1);
     const docCount = new Map<string, number>();
@@ -101,9 +106,12 @@ export class NutritionistService {
     const patients = profiles.map((p) => {
       const meas = measOf.get(p.userId);
       const nv = nextVisitOf.get(p.userId);
+      const u = userById.get(p.userId);
       return {
         clientId: p.userId,
         name: nameOf.get(p.userId),
+        phone: u?.phone ?? null,
+        email: u?.email ?? null,
         lastMeasureDate: meas ? meas.toISOString().slice(0, 10) : null,
         openEscalations: escCount.get(p.userId) ?? 0,
         pendingDocuments: docCount.get(p.userId) ?? 0,

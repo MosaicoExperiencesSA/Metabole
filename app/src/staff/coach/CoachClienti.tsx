@@ -4,6 +4,7 @@ import { fullName, relDays } from '../format';
 import { useApi } from '../hooks';
 import { Async, Avatar, Card, Empty, StaffShell } from '../ui';
 import { COACH_TABS } from '../tabs';
+import ContactActions from '../shared/ContactActions';
 
 interface CoachClient {
   clientId: string | null;
@@ -11,6 +12,8 @@ interface CoachClient {
   isLead?: boolean;
   stage?: string;
   name: string | null;
+  phone: string | null;
+  email: string | null;
   planActive: boolean;
   planEndDate: string | null;
   lastMeasureDate: string | null;
@@ -100,6 +103,7 @@ export default function CoachClienti() {
                             : `ultima misura ${relDays(c.lastMeasureDate)}`}
                         {!c.isLead && c.openAlerts > 0 ? ` · ${c.openAlerts} alert` : ''}
                       </div>
+                      <ContactActions name={fullName(c.name)} phone={c.phone} email={c.email} crmRecordId={c.leadId} />
                     </div>
                   </div>
                 );

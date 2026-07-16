@@ -10,6 +10,7 @@ type Preset = {
   regime?: string | null; objective?: string | null; rules?: Record<string, unknown> | null;
   clinicalNotes?: string | null; suggested?: boolean;
 };
+type Family = { key: string; label: string; style: string; suggested: boolean; variants: Preset[] };
 type ReviewStatus = {
   dietId: string; name: string; status: string; mealsPerDay: number;
   recipes: { total: number; active: number; allergensReviewed: number };
@@ -36,6 +37,8 @@ export function CreazioneValidazione() {
   const [form, setForm] = useState({ label: '', style: '', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
   const [sourceRules, setSourceRules] = useState<Record<string, unknown>>({});
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [activeFamilyKey, setActiveFamilyKey] = useState<string | null>(null);
+  const [genAll, setGenAll] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   const [days, setDays] = useState(28);
@@ -55,6 +58,53 @@ export function CreazioneValidazione() {
     if (!dietId) { setStatus(null); return; }
     api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`).then(setStatus).catch(() => setStatus(null));
   }, [dietId]);
+
+  // Una "famiglia" = diete con stesso nome+stile: le varianti di regime stanno insieme.
+  const familyKeyOf = (label: string, style: string) => `${label}\u0000${style}`;
+  const families: Family[] = (() => {
+    const map = new Map<string, Family>();
+    for (const p of presets ?? []) {
+      const key = familyKeyOf(p.label, p.style);
+      let fam = map.get(key);
+      if (!fam) { fam = { key, label: p.label, style: p.style, suggested: !!p.suggested, variants: [] }; map.set(key, fam); }
+      fam.variants.push(p);
+    }
+    return [...map.values()];
+  })();
+  const targetFamily = families.find((f) => f.key === familyKeyOf(form.label.trim(), form.style || 'custom')) ?? null;
+  const activeFamily = families.find((f) => f.key === activeFamilyKey) ?? null;
+  const existingRegimes = new Set((targetFamily?.variants ?? []).map((v) => (v.regime as string) || 'omnivore'));
+
+  function pickFamily(fam: Family) {
+    const p = fam.variants[0];
+    const r = (p.rules as Record<string, unknown>) || {};
+    setForm({
+      label: fam.label, style: fam.style,
+      regimes: fam.variants.map((v) => (v.regime as string) || 'omnivore'),
+      objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '',
+      kcalTarget: Math.round(Number(r.menu_daycombo_kcal_target ?? 1500)) || 1500,
+      proteinMin: Math.round(Number(r.menu_daycombo_protein_min ?? 0.2) * 100),
+      proteinMax: Math.round(Number(r.menu_daycombo_protein_max ?? 0.35) * 100),
+      kcalTol: Math.round(Number(r.menu_kcal_balance_tolerance_pct ?? 15)),
+    });
+    setSourceRules(r);
+    setActivePresetId(p.id); setActiveFamilyKey(fam.key); setGenAll(false);
+    setDirty(false); setNotice(null); setError(null);
+  }
+
+  async function deleteFamily(fam: Family) {
+    // eslint-disable-next-line no-alert
+    if (!confirm(`Eliminare la dieta "${fam.label}" e le sue ${fam.variants.length} variante/i di regime?\nSe hai già generato il catalogo, la dieta generata va eliminata a parte da Catalogo diete.`)) return;
+    setBusy(true); setError(null);
+    try {
+      for (const v of fam.variants) await api(`/engine-rules/presets/${v.id}`, { method: 'DELETE' });
+      const ids = new Set(fam.variants.map((v) => v.id));
+      setPresets((ps) => (ps ?? []).filter((p) => !ids.has(p.id)));
+      if (activeFamilyKey === fam.key) { setActiveFamilyKey(null); setActivePresetId(null); setDirty(false); setForm((f) => ({ ...f, label: '', regimes: ['omnivore'] })); }
+      setNotice(`Eliminata "${fam.label}".`);
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Eliminazione non riuscita.'); }
+    finally { setBusy(false); }
+  }
 
   function pickPreset(p: Preset) {
     const r = (p.rules as Record<string, unknown>) || {};

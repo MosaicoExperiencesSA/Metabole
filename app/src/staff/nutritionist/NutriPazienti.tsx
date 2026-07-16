@@ -4,10 +4,13 @@ import { dateTime, fullName, relDays } from '../format';
 import { useApi } from '../hooks';
 import { Async, Avatar, Card, Empty, StaffShell } from '../ui';
 import { NUTRI_TABS } from '../tabs';
+import ContactActions from '../shared/ContactActions';
 
 interface Patient {
   clientId: string;
   name: string | null;
+  phone: string | null;
+  email: string | null;
   lastMeasureDate: string | null;
   openEscalations: number;
   pendingDocuments: number;
@@ -64,6 +67,7 @@ export default function NutriPazienti() {
                         </span>
                       )}
                     </div>
+                    <ContactActions name={fullName(p.name)} phone={p.phone} email={p.email} />
                   </div>
                   <i className="ti ti-chevron-right chev" />
                 </div>

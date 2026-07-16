@@ -81,7 +81,7 @@ export class CoachService {
     // (altrimenti salteremmo la parte che elenca i lead assegnati).
     if (ids.length === 0 && !includeLeads) return { clients: [] };
 
-    const [subs, measures, alerts, objectives] = await Promise.all([
+    const [subs, measures, alerts, objectives, users] = await Promise.all([
       this.prisma.subscription.findMany({
         where: { clientId: { in: ids }, status: 'active' },
         select: { clientId: true, status: true, endDate: true },
@@ -102,11 +102,16 @@ export class CoachService {
         distinct: ['clientId'],
         select: { clientId: true, targetWeightKg: true },
       }) as Promise<{ clientId: string; targetWeightKg: number | null }[]>,
+      this.prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, email: true, phone: true },
+      }) as Promise<{ id: string; email: string; phone: string | null }[]>,
     ]);
 
     const subByClient = new Map(subs.map((s) => [s.clientId, s]));
     const measByClient = new Map(measures.map((m) => [m.clientId, m]));
     const objByClient = new Map(objectives.map((o) => [o.clientId, o]));
+    const userById = new Map(users.map((u) => [u.id, u]));
     const alertCount = new Map<string, number>();
     for (const a of alerts) alertCount.set(a.clientId, (alertCount.get(a.clientId) ?? 0) + 1);
 
@@ -124,9 +129,12 @@ export class CoachService {
         const pct = ((start - last) / (start - target)) * 100;
         progressPct = Math.max(0, Math.min(100, Math.round(pct)));
       }
+      const u = userById.get(p.userId);
       return {
         clientId: p.userId,
         name: p.name,
+        phone: u?.phone ?? null,
+        email: u?.email ?? null,
         planActive: !!sub,
         planEndDate: sub?.endDate ? sub.endDate.toISOString().slice(0, 10) : null,
         planStartDate: p.planStartDate ? p.planStartDate.toISOString().slice(0, 10) : null,
@@ -149,14 +157,16 @@ export class CoachService {
         where: { assignedCoachId: staffId },
         orderBy: { assignedAt: 'desc' },
         take: 200,
-        select: { id: true, clientId: true, name: true, email: true, stage: true },
-      })) as { id: string; clientId: string | null; name: string | null; email: string | null; stage: string }[];
+        select: { id: true, clientId: true, name: true, email: true, phone: true, stage: true },
+      })) as { id: string; clientId: string | null; name: string | null; email: string | null; phone: string | null; stage: string }[];
       leads = crm
         .filter((r) => !r.clientId || !activeIds.has(r.clientId))
         .map((r) => ({
           clientId: r.clientId,
           leadId: r.id,
           name: r.name ?? r.email ?? 'Lead',
+          phone: r.phone ?? null,
+          email: r.email ?? null,
           isLead: true,
           stage: r.stage,
           planActive: false,

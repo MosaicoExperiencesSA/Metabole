@@ -47,7 +47,7 @@ class UpdateReminderDto {
 
 /** Calendario CRM (coach, commerciale, capo, admin). */
 @Controller('crm/reminders')
-@Roles('coach', 'sales', 'head_nutritionist', 'admin')
+@Roles('coach', 'sales', 'nutritionist', 'head_nutritionist', 'admin')
 export class RemindersController {
   constructor(private readonly reminders: RemindersService) {}
 
