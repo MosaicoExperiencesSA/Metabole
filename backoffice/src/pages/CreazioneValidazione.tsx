@@ -69,7 +69,7 @@ export function CreazioneValidazione() {
       if (!fam) { fam = { key, label: p.label, style: p.style, suggested: !!p.suggested, variants: [] }; map.set(key, fam); }
       fam.variants.push(p);
     }
-    return [...map.values()];
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, 'it'));
   })();
   const targetFamily = families.find((f) => f.key === familyKeyOf(form.label.trim(), form.style || 'custom')) ?? null;
   const activeFamily = families.find((f) => f.key === activeFamilyKey) ?? null;
@@ -106,21 +106,9 @@ export function CreazioneValidazione() {
     finally { setBusy(false); }
   }
 
-  function pickPreset(p: Preset) {
-    const r = (p.rules as Record<string, unknown>) || {};
-    setForm({
-      label: p.label, style: p.style, regimes: [(p.regime as string) || 'omnivore'], objective: (p.objective as string) || 'dimagrimento', clinicalNotes: p.clinicalNotes || '',
-      kcalTarget: Math.round(Number(r.menu_daycombo_kcal_target ?? 1500)) || 1500,
-      proteinMin: Math.round(Number(r.menu_daycombo_protein_min ?? 0.2) * 100),
-      proteinMax: Math.round(Number(r.menu_daycombo_protein_max ?? 0.35) * 100),
-      kcalTol: Math.round(Number(r.menu_kcal_balance_tolerance_pct ?? 15)),
-    });
-    setSourceRules(r);
-    setActivePresetId(p.id); setDirty(false); setNotice(null); setError(null);
-  }
   function newPreset() {
     setForm({ label: '', style: 'custom', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
-    setSourceRules({}); setActivePresetId(null); setDirty(true); setNotice(null); setError(null);
+    setSourceRules({}); setActivePresetId(null); setActiveFamilyKey(null); setGenAll(false); setDirty(true); setNotice(null); setError(null);
   }
   function edit(k: 'label' | 'style' | 'objective' | 'clinicalNotes', v: string) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
   function editNum(k: 'kcalTarget' | 'proteinMin' | 'proteinMax' | 'kcalTol', v: number) { setForm((f) => ({ ...f, [k]: v })); setDirty(true); }
@@ -132,38 +120,45 @@ export function CreazioneValidazione() {
   async function saveAsNew() {
     if (!form.label.trim()) { setError('Dai un nome alla dieta.'); return; }
     if (form.regimes.length === 0) { setError('Seleziona almeno un regime.'); return; }
+    const regLabel = (code: string) => regimes.find((r) => r.code === code)?.label ?? code;
+    const toCreate = form.regimes.filter((rc) => !existingRegimes.has(rc));
+    if (toCreate.length === 0) { setNotice('Tutti i regimi selezionati esistono già in questa dieta.'); setDirty(false); return; }
     setBusy(true); setError(null);
     try {
       const rules = { ...sourceRules, menu_daycombo_kcal_target: form.kcalTarget, menu_daycombo_protein_min: form.proteinMin / 100, menu_daycombo_protein_max: form.proteinMax / 100, menu_kcal_balance_tolerance_pct: form.kcalTol };
-      const multi = form.regimes.length > 1;
-      const regLabel = (code: string) => regimes.find((r) => r.code === code)?.label ?? code;
       const createdList: Preset[] = [];
-      // Una variante per ogni regime selezionato, sullo stesso stile/parametri.
-      for (const rc of form.regimes) {
+      // Stesso nome e stile per tutte le varianti: le distingue il regime (niente suffisso).
+      for (const rc of toCreate) {
         const created = await api<Preset>('/engine-rules/presets', { method: 'POST', body: JSON.stringify({
-          label: multi ? `${form.label.trim()} · ${regLabel(rc)}` : form.label.trim(),
-          style: form.style || 'custom', regime: rc, objective: form.objective,
+          label: form.label.trim(), style: form.style || 'custom', regime: rc, objective: form.objective,
           clinicalNotes: form.clinicalNotes || undefined, suggested: false, rules,
         }) });
         createdList.push(created);
       }
       setPresets((ps) => (ps ? [...createdList, ...ps] : createdList));
+      setActiveFamilyKey(familyKeyOf(form.label.trim(), form.style || 'custom'));
       setActivePresetId(createdList[0].id); setDirty(false);
-      setNotice(multi
-        ? `Create ${createdList.length} varianti (una per regime): ${form.regimes.map(regLabel).join(', ')}. Seleziona una variante qui sopra per generarne il catalogo.`
-        : 'Dieta salvata. Ora puoi generare il catalogo.');
+      setNotice(`Aggiunte ${createdList.length} variante/i (${toCreate.map(regLabel).join(', ')}). Ora puoi generare i cataloghi.`);
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
     finally { setBusy(false); }
   }
 
   async function generate() {
-    if (!activePresetId) { setError('Scegli o salva una dieta prima di generare.'); return; }
+    const targets: Preset[] = (genAll && activeFamily)
+      ? activeFamily.variants
+      : ((presets ?? []).filter((p) => p.id === activePresetId));
+    if (targets.length === 0) { setError('Scegli o salva una dieta prima di generare.'); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
-      const r = await api<{ dietId: string }>(`/engine-rules/presets/${activePresetId}/generate-catalog`, { method: 'POST', body: JSON.stringify({ days }) });
-      try { localStorage.setItem(LS_DIET, r.dietId); } catch { /* no-op */ }
-      setDietId(r.dietId);
-      setNotice('Catalogo bozza generato. Procedi con la validazione qui sotto.');
+      let firstDietId: string | null = null;
+      for (const t of targets) {
+        const r = await api<{ dietId: string }>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ days }) });
+        if (!firstDietId) firstDietId = r.dietId;
+      }
+      if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
+      setNotice(targets.length > 1
+        ? `Generati ${targets.length} cataloghi (una variante per regime): ricette, allergeni, giornate e gruppi di equivalenza. Validali uno a uno qui sotto o da Gestione dieta.`
+        : 'Catalogo bozza generato. Procedi con la validazione qui sotto.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
     finally { setBusy(false); }
   }
@@ -189,7 +184,7 @@ export function CreazioneValidazione() {
         navigate('/gestione-dieta');
         return;
       }
-      setDietId(null); setStatus(null); setActivePresetId(null); setDirty(false);
+      setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null); setGenAll(false); setDirty(false);
       setForm({ label: '', style: '', regimes: ['omnivore'], objective: 'dimagrimento', clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
       setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -242,12 +237,21 @@ export function CreazioneValidazione() {
         <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>1</span> Scegli la dieta</h2>
         <p className="hint" style={{ marginTop: 0 }}>Richiama una dieta suggerita e modificala, salvala col suo nome, oppure creane una nuova.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          {presets.map((p) => (
-            <button key={p.id} className="chip" onClick={() => pickPreset(p)}
-              style={{ cursor: 'pointer', gap: 6, borderColor: activePresetId === p.id ? 'var(--teal)' : undefined, background: activePresetId === p.id ? 'var(--chip)' : undefined }}>
-              <i className="ti ti-bulb" /> {p.label}{p.suggested ? ' · suggerita' : ''}
-            </button>
-          ))}
+          {families.map((fam) => {
+            const active = activeFamilyKey === fam.key;
+            return (
+              <span key={fam.key} className="chip"
+                style={{ cursor: 'pointer', gap: 6, display: 'inline-flex', alignItems: 'center', borderColor: active ? 'var(--teal)' : undefined, background: active ? 'var(--chip)' : undefined }}>
+                <span onClick={() => pickFamily(fam)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <i className="ti ti-bulb" /> {fam.label}{fam.suggested ? ' · suggerita' : ''}
+                  {fam.variants.length > 1 && <span style={{ fontSize: 10, opacity: 0.7 }}>· {fam.variants.length} regimi</span>}
+                </span>
+                <i className="ti ti-trash" title="Elimina questa dieta (tutte le varianti)"
+                  onClick={(e) => { e.stopPropagation(); void deleteFamily(fam); }}
+                  style={{ marginLeft: 4, fontSize: 13, color: 'var(--danger)', cursor: 'pointer' }} />
+              </span>
+            );
+          })}
           <button className="btn" onClick={newPreset} style={{ cursor: 'pointer', gap: 6, fontWeight: 700 }}><i className="ti ti-plus" /> Nuova dieta</button>
         </div>
 
@@ -263,9 +267,13 @@ export function CreazioneValidazione() {
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                   {regimes.map((r) => {
                     const on = form.regimes.includes(r.code);
+                    const exists = existingRegimes.has(r.code);
                     return (
-                      <button key={r.code} type="button" className={`btn ${on ? '' : 'ghost'} sm`} onClick={() => toggleRegime(r.code)}>
-                        {on && <i className="ti ti-check" />} {r.label}
+                      <button key={r.code} type="button" className={`btn ${on ? '' : 'ghost'} sm`}
+                        onClick={() => { if (!exists) toggleRegime(r.code); }}
+                        title={exists ? 'Regime già presente in questa dieta' : (on ? 'Rimuovi dalla selezione' : 'Aggiungi questo regime')}
+                        style={exists ? { opacity: 0.9, cursor: 'default' } : undefined}>
+                        {on && <i className="ti ti-check" />} {r.label}{exists ? ' · presente' : ''}
                       </button>
                     );
                   })}
@@ -301,7 +309,7 @@ export function CreazioneValidazione() {
               <textarea className="input" rows={2} value={form.clinicalNotes} onChange={(e) => edit('clinicalNotes', e.target.value)} placeholder="Vincoli o indicazioni da rispettare nella generazione" />
             </label>
             <div className="row" style={{ gap: 8 }}>
-              <button className="btn ghost" onClick={saveAsNew} disabled={busy}><i className="ti ti-device-floppy" /> {form.regimes.length > 1 ? `Salva ${form.regimes.length} varianti` : 'Salva come nuova dieta'}</button>
+              <button className="btn ghost" onClick={saveAsNew} disabled={busy}><i className="ti ti-device-floppy" /> Salva dieta</button>
               {dirty && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>Modifiche non salvate: salva per poter generare.</span>}
             </div>
           </div>
@@ -312,6 +320,12 @@ export function CreazioneValidazione() {
       <div className="card">
         <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>2</span> Genera il catalogo</h2>
         <p className="hint" style={{ marginTop: 0 }}>Crea una bozza (ricette, giornate, alternative, allergeni) dalla dieta scelta. Può richiedere fino a un minuto.</p>
+        {activeFamily && activeFamily.variants.length > 1 && (
+          <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
+            <input type="checkbox" checked={genAll} onChange={(e) => setGenAll(e.target.checked)} />
+            <span style={{ fontSize: 13 }}>Genera <b>tutte le {activeFamily.variants.length} varianti</b> del gruppo (ricette, allergeni, giornate e gruppi di equivalenza per ogni regime)</span>
+          </label>
+        )}
         <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
           <span className="muted" style={{ fontSize: 13 }}>Giorni da generare</span>
           <input className="input" type="number" min={1} max={60} value={days}

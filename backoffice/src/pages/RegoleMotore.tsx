@@ -96,7 +96,7 @@ export function RegoleMotore() {
             {canManage && <button className="btn" onClick={() => setEditPreset('new')}><i className="ti ti-plus" /> Nuova regola</button>}
           </div>
           <div style={{ display: 'grid', gap: 12 }}>
-            {presets.map((p) => (
+            {[...presets].sort((a, b) => a.label.localeCompare(b.label, 'it')).map((p) => (
               <PresetCard key={p.id} preset={p} catalog={catalog} canManage={canManage}
                 generating={generating === p.id}
                 onGenerate={() => generateCatalog(p)}

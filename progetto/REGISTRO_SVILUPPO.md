@@ -8,6 +8,12 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
 ## 2026-07-16
 
 
+- **Creazione e validazione — diete raggruppate per famiglia + "genera tutte le varianti" + cestino + ordine alfabetico** — evoluzione del regime multi-selezione. **Vincolo motore chiarito:** ogni regime è per forza una dieta separata (il motore abbina il cliente per regime), non è possibile una sola dieta multi-regime. **UX ripensata** in `CreazioneValidazione.tsx` per non fare "casino": (1) niente più suffisso nel nome (le varianti si chiamano tutte uguale, il regime le distingue); (2) i chip sono **raggruppati per famiglia** (stesso nome+stile) — un chip per famiglia con "· N regimi", cliccandolo si apre la famiglia; (3) il multi-select regime mostra quali regimi **esistono già** (badge "presente", non togglabili) e permette di aggiungere solo i mancanti — "Salva" crea solo i nuovi (niente doppioni); (4) **cestino** su ogni chip per eliminare una dieta e tutte le sue varianti di regime (`DELETE /engine-rules/presets/:id` in loop); (5) flag **"Genera tutte le varianti"** che, con un click, genera per ogni regime della famiglia il catalogo completo (ricette, allergeni, giornate, gruppi di equivalenza — loop di `generate-catalog`); (6) famiglie in **ordine alfabetico**. Solo frontend (il backend di generazione/cancellazione preset esisteva già).
+
+- **Ordine alfabetico diete** — su richiesta: la tendina diete in **Gestione dieta** e l'elenco **Regole suggerite** in Regole motore sono ora ordinati alfabeticamente (`localeCompare 'it'`).
+
+
+
 - **CRM — creazione liste/stati riservata all'admin (le coach usano ma non gestiscono)** — scelta di Simone: solo l'admin ha i comandi "Gestisci liste" e "Gestisci stati"; le coach possono **cambiare stato** di un lead e **assegnarlo/toglierlo dalle liste**, ma **non creare/eliminare** liste o stati. **Backend:** su `CrmListsController` gli endpoint create/update/delete (POST/PATCH/DELETE `/crm/lists`) portati a `@Roles('admin')`; il GET resta per tutti (le coach devono vedere le liste per assegnarle) e `POST /crm/leads/:id/lists` (assegnazione lead↔lista) resta accessibile alle coach. Gli **stati** erano già solo-admin (create/update/delete `@Roles('admin')`, cambio stato aperto alle coach). **Frontend:** il pulsante "Gestisci liste" in Gestione lead ora è nascosto ai non-admin (`can('permissions','manage')`, come già "Gestisci stati" nella Pipeline). Type-check backend/backoffice pulito.
 
 
