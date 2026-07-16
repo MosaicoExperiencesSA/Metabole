@@ -116,12 +116,12 @@ header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdro
 .ring{fill:none;stroke:#CDE7DE;stroke-width:1.5;stroke-dasharray:3 8;transform-origin:200px 200px;animation:spin 40s linear infinite}
 .ring2{fill:none;stroke:#EAD9F5;stroke-width:1.5;transform-origin:200px 200px;animation:spin 60s linear infinite reverse}
 .spoke{stroke:#DCEAE5;stroke-width:1.5}
-.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38%;aspect-ratio:1;border-radius:50%;overflow:hidden;border:5px solid #fff;box-shadow:0 18px 40px rgba(16,64,58,.22);z-index:3}
+.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38%;aspect-ratio:1;border-radius:50%;overflow:hidden;border:5px solid #fff;box-shadow:0 18px 40px rgba(16,64,58,.22);z-index:3;animation:centerglow 22s linear infinite}
 .center img{width:100%;height:100%;object-fit:cover}
 .center .lbl{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(14,64,58,.72));color:#fff;font-size:12px;font-weight:600;text-align:center;padding:14px 4px 7px}
 .node{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--bd);border-radius:14px;padding:9px 13px;display:flex;align-items:center;gap:8px;box-shadow:0 10px 26px rgba(16,64,58,.12);z-index:4;font-size:13px;font-weight:600;white-space:nowrap;color:#0E5A49;animation:float 6s ease-in-out infinite}
 .node i{font-size:18px}
-.node.n1{left:50%;top:9%}.node.n2{left:88%;top:32%;animation-delay:.8s}.node.n3{left:82%;top:80%;animation-delay:1.6s}.node.n4{left:18%;top:80%;animation-delay:2.4s}.node.n5{left:12%;top:32%;animation-delay:3.2s}
+.node.n1{left:50%;top:10%}.node.n2{left:88%;top:37.6%;animation-delay:.8s}.node.n3{left:73.5%;top:82.4%;animation-delay:1.6s}.node.n4{left:26.5%;top:82.4%;animation-delay:2.4s}.node.n5{left:12%;top:37.6%;animation-delay:3.2s}
 .gwrap{position:absolute;inset:0;transform-origin:50% 50%;animation:spin 22s linear infinite;z-index:5}
 .gaia{position:absolute;left:50%;top:5%;transform:translate(-50%,-50%);width:62px;height:62px;border-radius:50%;background:#fff;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 26px rgba(18,163,134,.28);animation:cspin 22s linear infinite;padding:6px}
 .gaia .mascot .body{animation:none}
@@ -131,7 +131,21 @@ header{position:sticky;top:0;z-index:30;background:rgba(251,250,246,.82);backdro
 @keyframes float{0%,100%{translate:0 0}50%{translate:0 -7px}}
 .flow{stroke-width:3.6;stroke-linecap:round;stroke-dasharray:15 100;stroke-dashoffset:100;opacity:0;animation:flow 22s linear infinite}
 @keyframes flow{0%{stroke-dashoffset:100;opacity:0}2%{opacity:1}10%{stroke-dashoffset:0;opacity:1}15%{opacity:0}100%{stroke-dashoffset:0;opacity:0}}
-@media(prefers-reduced-motion:reduce){.ring,.ring2,.gwrap,.gaia,.node,.flow{animation:none}.flow{opacity:0}}
+/* il contorno della foto "Tu" si illumina quando arriva ogni fascio (nel colore dell'operatore) */
+@keyframes centerglow{
+ 0%,8%{box-shadow:0 18px 40px rgba(16,64,58,.22)}
+ 11%{box-shadow:0 0 0 3px #12A386,0 0 26px 9px rgba(18,163,134,.75),0 18px 40px rgba(16,64,58,.22)}
+ 15%,28%{box-shadow:0 18px 40px rgba(16,64,58,.22)}
+ 31%{box-shadow:0 0 0 3px #E8825A,0 0 26px 9px rgba(232,130,90,.75),0 18px 40px rgba(16,64,58,.22)}
+ 35%,48%{box-shadow:0 18px 40px rgba(16,64,58,.22)}
+ 51%{box-shadow:0 0 0 3px #274b73,0 0 26px 9px rgba(39,75,115,.75),0 18px 40px rgba(16,64,58,.22)}
+ 55%,68%{box-shadow:0 18px 40px rgba(16,64,58,.22)}
+ 71%{box-shadow:0 0 0 3px #E8A11B,0 0 26px 9px rgba(232,161,27,.75),0 18px 40px rgba(16,64,58,.22)}
+ 75%,88%{box-shadow:0 18px 40px rgba(16,64,58,.22)}
+ 91%{box-shadow:0 0 0 3px #6C4CD6,0 0 26px 9px rgba(108,76,214,.75),0 18px 40px rgba(16,64,58,.22)}
+ 95%,100%{box-shadow:0 18px 40px rgba(16,64,58,.22)}
+}
+@media(prefers-reduced-motion:reduce){.ring,.ring2,.gwrap,.gaia,.node,.flow,.center{animation:none}.flow{opacity:0}}
 .orbit-cap{text-align:center;margin-top:12px;color:var(--mut);font-size:14px}
 /* stats */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
@@ -326,12 +340,12 @@ html[dir=rtl] .stats-note,html[dir=rtl] .orbit-cap{text-align:center}
     <div class="orbit">
       <svg viewBox="0 0 400 400" aria-hidden="true">
         <circle class="ring" cx="200" cy="200" r="150"></circle><circle class="ring2" cx="200" cy="200" r="110"></circle>
-        <line class="spoke" x1="200" y1="200" x2="200" y2="52"></line><line class="spoke" x1="200" y1="200" x2="330" y2="128"></line><line class="spoke" x1="200" y1="200" x2="312" y2="312"></line><line class="spoke" x1="200" y1="200" x2="88" y2="312"></line><line class="spoke" x1="200" y1="200" x2="70" y2="128"></line>
-        <line class="flow" pathLength="100" x1="200" y1="52"  x2="200" y2="200" stroke="#12A386" style="animation-delay:0s"></line>
-        <line class="flow" pathLength="100" x1="330" y1="128" x2="200" y2="200" stroke="#E8825A" style="animation-delay:3.7s"></line>
-        <line class="flow" pathLength="100" x1="312" y1="312" x2="200" y2="200" stroke="#274b73" style="animation-delay:7.3s"></line>
-        <line class="flow" pathLength="100" x1="88"  y1="312" x2="200" y2="200" stroke="#E8A11B" style="animation-delay:14.7s"></line>
-        <line class="flow" pathLength="100" x1="70"  y1="128" x2="200" y2="200" stroke="#6C4CD6" style="animation-delay:18.3s"></line>
+        <line class="spoke" x1="200" y1="200" x2="200" y2="50"></line><line class="spoke" x1="200" y1="200" x2="343" y2="154"></line><line class="spoke" x1="200" y1="200" x2="288" y2="321"></line><line class="spoke" x1="200" y1="200" x2="112" y2="321"></line><line class="spoke" x1="200" y1="200" x2="57" y2="154"></line>
+        <line class="flow" pathLength="100" x1="200" y1="50"  x2="200" y2="200" stroke="#12A386" style="animation-delay:0s"></line>
+        <line class="flow" pathLength="100" x1="343" y1="154" x2="200" y2="200" stroke="#E8825A" style="animation-delay:4.4s"></line>
+        <line class="flow" pathLength="100" x1="288" y1="321" x2="200" y2="200" stroke="#274b73" style="animation-delay:8.8s"></line>
+        <line class="flow" pathLength="100" x1="112" y1="321" x2="200" y2="200" stroke="#E8A11B" style="animation-delay:13.2s"></line>
+        <line class="flow" pathLength="100" x1="57"  y1="154" x2="200" y2="200" stroke="#6C4CD6" style="animation-delay:17.6s"></line>
       </svg>
       <div class="center">
         <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80" alt="" onerror="this.onerror=null;this.src='https://picsum.photos/seed/metaboleyou/400/400'">
