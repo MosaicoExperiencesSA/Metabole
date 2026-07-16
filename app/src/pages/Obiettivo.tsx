@@ -83,10 +83,35 @@ export default function Obiettivo() {
   const [msg, setMsg] = useState<string | null>(null);
   const chartsRef = useRef<HTMLDivElement>(null);
   const [chartIdx, setChartIdx] = useState(0);
+  // Modifica obiettivo
+  const [editObj, setEditObj] = useState(false);
+  const [objKg, setObjKg] = useState('');
+  const [objWeeks, setObjWeeks] = useState('');
+  const [objBusy, setObjBusy] = useState(false);
+  const [objErr, setObjErr] = useState<string | null>(null);
 
   function onChartsScroll() {
     const el = chartsRef.current;
     if (el) setChartIdx(Math.round(el.scrollLeft / el.clientWidth));
+  }
+
+  async function saveObjective() {
+    setObjBusy(true);
+    setObjErr(null);
+    try {
+      const body: Record<string, number> = {};
+      const kg = parseNum(objKg);
+      const wk = Number(objWeeks);
+      if (kg != null) body.weightToLoseKg = kg;
+      if (Number.isFinite(wk) && wk > 0) body.weeks = wk;
+      await api('/me/objective', { method: 'PATCH', body: JSON.stringify(body) });
+      setEditObj(false);
+      await load();
+    } catch (e) {
+      setObjErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setObjBusy(false);
+    }
   }
 
   async function load() {
@@ -164,9 +189,37 @@ export default function Obiettivo() {
               </div>
               <span className="event-ic" style={{ background: '#EAF6F1', color: '#0E7C66', flex: 'none' }}><i className="ti ti-target" /></span>
             </div>
+            <button
+              className="btn-recipe"
+              style={{ marginTop: 10 }}
+              onClick={() => { setObjKg(dW != null ? d1(dW) : ''); setObjWeeks(weeks ? String(weeks) : ''); setObjErr(null); setEditObj(true); }}
+            >
+              <i className="ti ti-pencil" /> Modifica o fissa un nuovo obiettivo
+            </button>
           </div>
         );
       })()}
+
+      {editObj && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <b style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Modifica obiettivo</b>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso da perdere (kg)</div>
+              <input className="input" inputMode="decimal" value={objKg} onChange={(e) => setObjKg(e.target.value)} />
+            </div>
+            <div>
+              <div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Entro (settimane)</div>
+              <input className="input" inputMode="numeric" value={objWeeks} onChange={(e) => setObjWeeks(e.target.value)} />
+            </div>
+          </div>
+          {objErr && <div className="muted" style={{ color: '#B3261E', fontSize: 12, marginTop: 8 }}>{objErr}</div>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+            <button className="btn" style={{ flex: 1 }} onClick={saveObjective} disabled={objBusy}>{objBusy ? 'Salvo…' : 'Salva obiettivo'}</button>
+            <button className="btn ghost" style={{ flex: 1 }} onClick={() => setEditObj(false)}>Annulla</button>
+          </div>
+        </div>
+      )}
 
       {/* Misure di oggi */}
       <div className="card">

@@ -136,49 +136,86 @@ export class CrmService {
     }
   }
 
-  async list(filter: { stage?: string; listId?: string; search?: string }) {
+  async list(filter: {
+    page?: number; pageSize?: number; search?: string; stage?: string; listId?: string;
+    coachId?: string; nutriId?: string; tipo?: string;
+    valueMin?: number; valueMax?: number; dateFrom?: string; dateTo?: string;
+    sortKey?: string; sortDir?: string;
+  }) {
+    const page = Math.max(0, Math.floor(filter.page ?? 0));
+    const pageSize = Math.min(500, Math.max(1, Math.floor(filter.pageSize ?? 100)));
     const q = filter.search?.trim();
-    const or: Record<string, unknown>[] = [];
+
+    const AND: Record<string, unknown>[] = [];
+    if (filter.stage) AND.push({ stage: filter.stage });
+    if (filter.listId) AND.push({ listMemberships: { some: { listId: filter.listId } } });
     if (q) {
-      or.push({ email: { contains: q, mode: 'insensitive' } });
-      or.push({ name: { contains: q, mode: 'insensitive' } });
-      or.push({ client: { email: { contains: q, mode: 'insensitive' } } });
       const digits = q.replace(/\D/g, '');
+      const or: Record<string, unknown>[] = [
+        { email: { contains: q, mode: 'insensitive' } },
+        { name: { contains: q, mode: 'insensitive' } },
+        { client: { email: { contains: q, mode: 'insensitive' } } },
+      ];
       if (digits.length >= 3) or.push({ phone: { contains: digits } });
+      AND.push({ OR: or });
     }
-    const rows = await this.prisma.crmRecord.findMany({
-      where: {
-        ...(filter.stage ? { stage: filter.stage as never } : {}),
-        ...(filter.listId ? { listMemberships: { some: { listId: filter.listId } } } : {}),
-        ...(or.length ? { OR: or } : {}),
-      } as never,
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        owner: { select: { displayName: true } },
-        assignedCoach: { select: { id: true, displayName: true } },
-        listMemberships: { select: { list: { select: { id: true, name: true, color: true } } } },
-        client: {
-          select: {
-            email: true,
-            phone: true,
-            clientProfile: {
-              select: {
-                name: true,
-                assignedCoach: { select: { displayName: true } },
-                assignedNutritionistId: true,
-                assignedNutritionist: { select: { id: true, displayName: true } },
+    if (filter.coachId === 'none') AND.push({ assignedCoachId: null });
+    else if (filter.coachId) AND.push({ assignedCoachId: filter.coachId });
+    if (filter.nutriId === 'none') AND.push({ NOT: { client: { clientProfile: { assignedNutritionistId: { not: null } } } } });
+    else if (filter.nutriId) AND.push({ client: { clientProfile: { assignedNutritionistId: filter.nutriId } } });
+    if (filter.tipo === 'client') AND.push({ stage: 'paid' });
+    else if (filter.tipo === 'historical') AND.push({ stage: { not: 'paid' }, historicalPaidCents: { gt: 0 } });
+    else if (filter.tipo === 'lead') AND.push({ stage: { not: 'paid' }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
+    if (filter.valueMin != null || filter.valueMax != null) {
+      const range: Record<string, number> = {};
+      if (filter.valueMin != null) range.gte = filter.valueMin;
+      if (filter.valueMax != null) range.lte = filter.valueMax;
+      AND.push({ OR: [{ valueCents: range }, { AND: [{ valueCents: null }, { historicalPaidCents: range }] }] });
+    }
+    if (filter.dateFrom) AND.push({ createdAt: { gte: new Date(filter.dateFrom + 'T00:00:00') } });
+    if (filter.dateTo) AND.push({ createdAt: { lte: new Date(filter.dateTo + 'T23:59:59') } });
+    const where = (AND.length ? { AND } : {}) as never;
+
+    const dir = filter.sortDir === 'asc' ? 'asc' : 'desc';
+    const sortMap: Record<string, unknown> = {
+      name: { name: dir },
+      email: { email: dir },
+      stage: { stage: dir },
+      created: { createdAt: dir },
+      value: { valueCents: dir },
+      coach: { assignedCoach: { displayName: dir } },
+    };
+    const orderBy = (filter.sortKey && sortMap[filter.sortKey] ? sortMap[filter.sortKey] : { updatedAt: 'desc' }) as never;
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.crmRecord.findMany({
+        where,
+        orderBy,
+        include: {
+          owner: { select: { displayName: true } },
+          assignedCoach: { select: { id: true, displayName: true } },
+          listMemberships: { select: { list: { select: { id: true, name: true, color: true } } } },
+          client: {
+            select: {
+              email: true,
+              phone: true,
+              clientProfile: {
+                select: {
+                  name: true,
+                  assignedCoach: { select: { displayName: true } },
+                  assignedNutritionistId: true,
+                  assignedNutritionist: { select: { id: true, displayName: true } },
+                },
               },
             },
           },
         },
-      },
-      // Nessun taglio "silenzioso": la tabella Gestione lead deve mostrare TUTTI i lead
-      // (inclusi gli storici importati). Cap alto solo come rete di sicurezza; la
-      // paginazione avviene lato frontend. Oltre questa soglia servirà la paginazione server.
-      take: 20000,
-    });
-    // Appiattisce le appartenenze in un array `lists` comodo per il frontend.
-    return rows.map((r: Record<string, unknown>) => this.withLists(r));
+        skip: page * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.crmRecord.count({ where }),
+    ]);
+    return { rows: rows.map((r: Record<string, unknown>) => this.withLists(r)), total, page, pageSize };
   }
 
   /** Trasforma listMemberships → lists: [{id,name,color}] per il frontend. */

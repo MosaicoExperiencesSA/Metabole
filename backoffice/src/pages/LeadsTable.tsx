@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
 
 interface Stage {
   key: string;
@@ -33,6 +33,7 @@ interface CrmList { id: string; name: string; color: string | null; memberCount?
 function euro(cents: number | null): string {
   return cents == null ? '—' : '€ ' + (cents / 100).toFixed(2).replace('.', ',');
 }
+function parseEuro(v: string): number | null { const n = parseFloat(v.replace(',', '.')); return v.trim() && !isNaN(n) ? Math.round(n * 100) : null; }
 function displayName(l: Lead): string {
   return l.client?.clientProfile?.name ?? l.name ?? l.client?.email ?? l.email ?? 'Senza nome';
 }
@@ -64,7 +65,9 @@ export function LeadsTable() {
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const searchSeq = useRef(0);
-  const firstSearch = useRef(true);
+  const prevQkey = useRef('');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   // Filtri per colonna (in AND fra loro e con ricerca/etichetta).
   const [fName, setFName] = useState('');
   const [fEmail, setFEmail] = useState('');
@@ -80,7 +83,7 @@ export function LeadsTable() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   function clearFilters() {
     setFilter(''); setListFilter(''); setFName(''); setFEmail(''); setFStage(''); setFCoach(''); setFNutri(''); setFTipo('');
-    setFValMin(''); setFValMax(''); setFDateFrom(''); setFDateTo('');
+    setFValMin(''); setFValMax(''); setFDateFrom(''); setFDateTo(''); setPage(0);
   }
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -122,15 +125,15 @@ export function LeadsTable() {
   }
   function toggleAllVisible() {
     setSelected((prev) => {
-      const allSel = filtered.length > 0 && filtered.every((l) => prev.has(l.id));
+      const allSel = leads.length > 0 && leads.every((l) => prev.has(l.id));
       const n = new Set(prev);
-      if (allSel) filtered.forEach((l) => n.delete(l.id));
-      else filtered.forEach((l) => n.add(l.id));
+      if (allSel) leads.forEach((l) => n.delete(l.id));
+      else leads.forEach((l) => n.add(l.id));
       return n;
     });
   }
   async function bulkAssign() {
-    const recordIds = filtered.filter((l) => selected.has(l.id)).map((l) => l.id);
+    const recordIds = leads.filter((l) => selected.has(l.id)).map((l) => l.id);
     if (!bulkCoach || recordIds.length === 0) return;
     setBulkBusy(true);
     setError(null);
@@ -164,22 +167,44 @@ export function LeadsTable() {
   }
 
   async function load() {
-    setLoading(true);
     try {
-      const [ls, st, lists] = await Promise.all([
-        api<Lead[]>('/crm/leads'),
+      const [st, lists] = await Promise.all([
         api<Stage[]>('/crm/stages'),
         api<CrmList[]>('/crm/lists').catch(() => [] as CrmList[]),
       ]);
-      setLeads(ls);
       setStages(st);
       setAllLists(lists);
       if (canAssignCoach) { try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ } }
       if (canAssignNutri) { try { setNutritionists(await api<Coach[]>('/crm/nutritionists')); } catch { /* elenco nutrizionisti opzionale */ } }
+    } catch { /* stage/liste non bloccano la tabella */ }
+  }
+
+  // Carica UNA pagina dal server, coi filtri/ordinamento applicati lato DB.
+  async function fetchLeads(p: number) {
+    const seq = ++searchSeq.current;
+    setSearching(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(p));
+      params.set('pageSize', '100');
+      const qv = filter.trim() || fEmail.trim() || fName.trim();
+      if (qv) params.set('q', qv);
+      if (fStage) params.set('stage', fStage);
+      if (listFilter) params.set('listId', listFilter);
+      if (fCoach) params.set('coachId', fCoach);
+      if (fNutri) params.set('nutriId', fNutri);
+      if (fTipo) params.set('tipo', fTipo);
+      const mn = parseEuro(fValMin); if (mn != null) params.set('valueMin', String(mn));
+      const mx = parseEuro(fValMax); if (mx != null) params.set('valueMax', String(mx));
+      if (fDateFrom) params.set('dateFrom', fDateFrom);
+      if (fDateTo) params.set('dateTo', fDateTo);
+      if (sortKey) { params.set('sortKey', sortKey); params.set('sortDir', sortDir); }
+      const r = await api<{ rows: Lead[]; total: number }>(`/crm/leads?${params.toString()}`);
+      if (seq === searchSeq.current) { setLeads(r.rows ?? []); setTotal(r.total ?? 0); }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+      if (seq === searchSeq.current) setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
     } finally {
-      setLoading(false);
+      if (seq === searchSeq.current) { setSearching(false); setLoading(false); }
     }
   }
 
@@ -187,27 +212,17 @@ export function LeadsTable() {
     void load();
   }, []);
 
-  // Ricerca lato server: con oltre 20.000 lead non basta filtrare il caricato.
-  // Digitando nella barra "Cerca" il backend cerca in TUTTO il database (email/nome/telefono).
+  // Paginazione + filtri + ordinamento LATO SERVER: si carica solo la pagina corrente.
+  // Cambiando un filtro si torna a pagina 0; cambiando pagina si mantiene il filtro.
+  const qkey = JSON.stringify([filter, fName, fEmail, fStage, fCoach, fNutri, fTipo, fValMin, fValMax, fDateFrom, fDateTo, listFilter, sortKey, sortDir]);
   useEffect(() => {
-    if (firstSearch.current) { firstSearch.current = false; return; }
-    // La ricerca sul server scatta dalla barra in alto O dai filtri colonna Nome/Email.
-    const q = (filter.trim() || fEmail.trim() || fName.trim());
-    setSearching(true);
-    const t = setTimeout(async () => {
-      const seq = ++searchSeq.current;
-      try {
-        const url = q.length >= 2 ? `/crm/leads?q=${encodeURIComponent(q)}` : '/crm/leads';
-        const r = await api<Lead[]>(url);
-        if (seq === searchSeq.current) setLeads(Array.isArray(r) ? r : []);
-      } catch {
-        /* mantieni i dati correnti */
-      } finally {
-        if (seq === searchSeq.current) setSearching(false);
-      }
-    }, 400);
+    const filtersChanged = prevQkey.current !== qkey;
+    prevQkey.current = qkey;
+    if (filtersChanged && page !== 0) { setPage(0); return; }
+    const t = setTimeout(() => { void fetchLeads(page); }, 300);
     return () => clearTimeout(t);
-  }, [filter, fName, fEmail]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qkey, page]);
 
   async function changeStage(lead: Lead, stage: string) {
     try {
@@ -219,65 +234,10 @@ export function LeadsTable() {
   }
 
   const stageOf = (key: string) => stages.find((s) => s.key === key);
-  const tipoOf = (l: Lead) => (l.stage === 'paid' ? 'client' : (l.historicalPaidCents ?? 0) > 0 ? 'historical' : 'lead');
-  const valueOf = (l: Lead) => l.valueCents ?? l.historicalPaidCents ?? null;
-  // Cerca in TUTTE le email (record + utente collegato) e nel nome: così trova
-  // anche i lead il cui utente è stato cancellato (email "deleted_..._deleted").
-  const emailBlob = (l: Lead) => `${l.email ?? ''} ${l.client?.email ?? ''}`.toLowerCase();
-  const nameBlob = (l: Lead) => `${displayName(l)} ${l.name ?? ''}`.toLowerCase();
-  const parseEuro = (v: string): number | null => { const n = parseFloat(v.replace(',', '.')); return v.trim() && !isNaN(n) ? Math.round(n * 100) : null; };
-  const minCents = parseEuro(fValMin);
-  const maxCents = parseEuro(fValMax);
-  const fromTime = fDateFrom ? new Date(fDateFrom + 'T00:00:00').getTime() : null;
-  const toTime = fDateTo ? new Date(fDateTo + 'T23:59:59').getTime() : null;
-
-  const filtered = leads.filter((l) => {
-    if (listFilter && !l.lists?.some((x) => x.id === listFilter)) return false;
-    if (fStage && l.stage !== fStage) return false;
-    if (fCoach === 'none' && l.assignedCoachId) return false;
-    if (fCoach && fCoach !== 'none' && l.assignedCoachId !== fCoach) return false;
-    const nutriId = l.client?.clientProfile?.assignedNutritionistId ?? null;
-    if (fNutri === 'none' && nutriId) return false;
-    if (fNutri && fNutri !== 'none' && nutriId !== fNutri) return false;
-    if (fTipo && tipoOf(l) !== fTipo) return false;
-    const val = valueOf(l);
-    if (minCents != null && (val == null || val < minCents)) return false;
-    if (maxCents != null && (val == null || val > maxCents)) return false;
-    const created = new Date(l.createdAt).getTime();
-    if (fromTime != null && created < fromTime) return false;
-    if (toTime != null && created > toTime) return false;
-    const nq = fName.trim().toLowerCase();
-    if (nq && !nameBlob(l).includes(nq)) return false;
-    const eq = fEmail.trim().toLowerCase();
-    if (eq && !(emailBlob(l).includes(eq) || (l.phone ?? '').includes(eq))) return false;
-    const q = filter.trim().toLowerCase();
-    if (q && !(nameBlob(l).includes(q) || emailBlob(l).includes(q) || (l.phone ?? '').includes(q))) return false;
-    return true;
-  });
-
-  const sortValue = (l: Lead): string | number => {
-    switch (sortKey) {
-      case 'name': return nameBlob(l);
-      case 'email': return emailBlob(l);
-      case 'stage': return stageOf(l.stage)?.label ?? l.stage;
-      case 'coach': return (l.assignedCoach?.displayName ?? l.client?.clientProfile?.assignedCoach?.displayName ?? '').toLowerCase();
-      case 'nutri': return (l.client?.clientProfile?.assignedNutritionist?.displayName ?? '').toLowerCase();
-      case 'tipo': return tipoOf(l);
-      case 'value': return valueOf(l) ?? -1;
-      case 'created': return l.createdAt;
-      default: return 0;
-    }
-  };
-  const sorted = sortKey
-    ? [...filtered].sort((a, b) => {
-        const va = sortValue(a);
-        const vb = sortValue(b);
-        const c = va < vb ? -1 : va > vb ? 1 : 0;
-        return sortDir === 'asc' ? c : -c;
-      })
-    : filtered;
-
-  const pg = usePagination(sorted, 100);
+  const pageSize = 100;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const fromRow = total === 0 ? 0 : page * pageSize + 1;
+  const toRow = Math.min(total, (page + 1) * pageSize);
 
   if (loading) return <Spinner />;
 
@@ -337,7 +297,7 @@ export function LeadsTable() {
                   <th style={{ width: 34 }}>
                     <input
                       type="checkbox"
-                      checked={filtered.length > 0 && filtered.every((l) => selected.has(l.id))}
+                      checked={leads.length > 0 && leads.every((l) => selected.has(l.id))}
                       onChange={toggleAllVisible}
                       title="Seleziona/deseleziona tutti i visibili"
                     />
@@ -405,15 +365,13 @@ export function LeadsTable() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {leads.length === 0 ? (
                 <tr>
                   <td colSpan={canAssignCoach ? 10 : 9} className="empty" style={{ padding: 24, textAlign: 'center' }}>
-                    {leads.length === 0
-                      ? 'Nessun lead o cliente. Inseriscine uno con "Nuovo lead".'
-                      : 'Nessun lead con questi filtri. Modifica o azzera i filtri qui sopra.'}
+                    {searching ? 'Carico…' : 'Nessun lead con questi filtri. Modifica o azzera i filtri qui sopra.'}
                   </td>
                 </tr>
-              ) : pg.pageItems.map((l) => {
+              ) : leads.map((l) => {
                 const st = stageOf(l.stage);
                 return (
                   <tr key={l.id}>
@@ -513,7 +471,7 @@ export function LeadsTable() {
               })}
             </tbody>
           </table>
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager page={page + 1} totalPages={totalPages} total={total} from={fromRow} to={toRow} onPage={(p) => setPage(p - 1)} />
       </div>
     </>
   );

@@ -435,8 +435,30 @@ export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
   @Get()
-  list(@Query('stage') stage?: string, @Query('listId') listId?: string, @Query('q') q?: string) {
-    return this.crm.list({ stage, listId, search: q });
+  list(
+    @Query('stage') stage?: string,
+    @Query('listId') listId?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('coachId') coachId?: string,
+    @Query('nutriId') nutriId?: string,
+    @Query('tipo') tipo?: string,
+    @Query('valueMin') valueMin?: string,
+    @Query('valueMax') valueMax?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('sortKey') sortKey?: string,
+    @Query('sortDir') sortDir?: string,
+  ) {
+    const num = (v?: string) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : undefined);
+    return this.crm.list({
+      stage, listId, search: q,
+      page: num(page), pageSize: num(pageSize),
+      coachId, nutriId, tipo,
+      valueMin: num(valueMin), valueMax: num(valueMax),
+      dateFrom, dateTo, sortKey, sortDir,
+    });
   }
 
   @Post()

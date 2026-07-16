@@ -79,7 +79,45 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
               </p>
             </div>
             <button className="btn" style={{ marginTop: 18 }} onClick={() => setStep(1)}>Scegli il piano</button>
-            <button className="btn ghost" style={{ marginTop: 10 }} onClick={onDone}>Lo faccio dopo</button>
+            <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => setStep(2)}>Lo faccio dopo</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Step finale onboarding: "Tutto pronto!" con date d'esempio (il piano vero
+  // parte dopo il pagamento; qui è la schermata celebrativa di fine setup).
+  if (step === 2) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const start = new Date(today); start.setDate(start.getDate() + 3);
+    const visible = new Date(start); visible.setDate(visible.getDate() - 2);
+    const daysToVisible = Math.max(0, Math.round((visible.getTime() - today.getTime()) / 86_400_000));
+    const fmt = (d: Date) => d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    const capName = name.charAt(0).toUpperCase() + name.slice(1);
+    return (
+      <div className="app-frame">
+        <div className="screen no-tabbar onb">
+          <div className="onb-body" style={{ paddingTop: 12 }}>
+            <div style={{ textAlign: 'center' }}>
+              <span className="big-badge" style={{ background: '#DCF0D8', color: '#3B6D11', margin: '0 auto 12px' }}><i className="ti ti-circle-check" /></span>
+              <h1 style={{ marginBottom: 4 }}>Tutto pronto, {capName}!</h1>
+              <p className="muted" style={{ marginTop: 0, textTransform: 'capitalize' }}>Il tuo piano inizia {fmt(start)}.</p>
+            </div>
+            <div className="card" style={{ textAlign: 'center' }}>
+              <div className="muted" style={{ fontSize: 11 }}>Il menu si sblocca tra</div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--teal)', lineHeight: 1.1, margin: '4px 0' }}>{daysToVisible} <span style={{ fontSize: 14, color: '#7C8C88' }}>giorni</span></div>
+              <div className="muted" style={{ fontSize: 11, textTransform: 'capitalize' }}><i className="ti ti-lock" style={{ fontSize: 12 }} /> visibile dal {fmt(visible)}</div>
+            </div>
+            <div className="card">
+              <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>Nel frattempo</div>
+              {([['ti-ruler-2', 'Registra le tue misure iniziali'], ['ti-basket', 'Prepara la spesa consigliata']] as [string, string][]).map((r) => (
+                <div key={r[1]} style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7, fontSize: 12.5 }}>
+                  <i className={`ti ${r[0]}`} style={{ fontSize: 16, color: '#0E7C66' }} />{r[1]}
+                </div>
+              ))}
+            </div>
+            <button className="btn" style={{ width: '100%' }} onClick={onDone}>Vai alla home</button>
           </div>
         </div>
       </div>
@@ -120,7 +158,7 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
           })}
 
           <button className="btn" style={{ marginTop: 16 }} onClick={goCheckout} disabled={!planId}>Vai al pagamento</button>
-          <button className="btn ghost" style={{ marginTop: 10 }} onClick={onDone}>Lo faccio dopo</button>
+          <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => setStep(2)}>Lo faccio dopo</button>
         </div>
       </div>
     </div>
