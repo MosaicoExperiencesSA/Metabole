@@ -8,6 +8,10 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
 ## 2026-07-16
 
 
+- **CRM — creazione liste/stati riservata all'admin (le coach usano ma non gestiscono)** — scelta di Simone: solo l'admin ha i comandi "Gestisci liste" e "Gestisci stati"; le coach possono **cambiare stato** di un lead e **assegnarlo/toglierlo dalle liste**, ma **non creare/eliminare** liste o stati. **Backend:** su `CrmListsController` gli endpoint create/update/delete (POST/PATCH/DELETE `/crm/lists`) portati a `@Roles('admin')`; il GET resta per tutti (le coach devono vedere le liste per assegnarle) e `POST /crm/leads/:id/lists` (assegnazione lead↔lista) resta accessibile alle coach. Gli **stati** erano già solo-admin (create/update/delete `@Roles('admin')`, cambio stato aperto alle coach). **Frontend:** il pulsante "Gestisci liste" in Gestione lead ora è nascosto ai non-admin (`can('permissions','manage')`, come già "Gestisci stati" nella Pipeline). Type-check backend/backoffice pulito.
+
+
+
 - **Creazione e validazione — regime a selezione multipla: crea le varianti di uno stile per più regimi** — richiesta di Simone. Il regime è un filtro rigido (un cliente vegano riceve solo diete con regime vegano), quindi per coprire uno stile su più regimi servivano più diete. Nella pagina *Creazione e validazione* il campo **Regime** passa da tendina singola a **chip a selezione multipla** (Onnivora/Vegetariana/Vegana…): "Salva come nuova dieta" ora crea **una variante per ogni regime selezionato**, stesso stile e parametri, nome suffissato col regime quando sono più d'uno (es. "Low carb · Vegana"). Se l'onnivora esiste già, si selezionano solo gli altri regimi e si creano quelli. Solo frontend (`CreazioneValidazione.tsx`), riusa `createPreset` (un preset per regime); poi ogni variante si genera/valida come prima. Type-check backoffice pulito.
 
 

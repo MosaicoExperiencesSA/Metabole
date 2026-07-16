@@ -257,7 +257,7 @@ export function LeadsTable() {
             <option value="">Tutte le liste</option>
             {allLists.map((l) => <option key={l.id} value={l.id}>{l.name}{l.memberCount != null ? ` (${l.memberCount})` : ''}</option>)}
           </select>
-          <button className="btn ghost" onClick={() => setShowLists(true)}><i className="ti ti-tags" /> Gestisci liste</button>
+          {can('permissions', 'manage') && <button className="btn ghost" onClick={() => setShowLists(true)}><i className="ti ti-tags" /> Gestisci liste</button>}
           {(filter || listFilter || fName || fEmail || fStage || fCoach || fNutri || fTipo || fValMin || fValMax || fDateFrom || fDateTo) && (
             <button className="btn ghost" onClick={clearFilters} title="Rimuovi tutti i filtri"><i className="ti ti-filter-off" /> Azzera filtri</button>
           )}

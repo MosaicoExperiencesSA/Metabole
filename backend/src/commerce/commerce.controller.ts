@@ -508,16 +508,19 @@ export class CrmListsController {
     return this.crm.listLists();
   }
 
+  @Roles('admin')
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateCrmListDto) {
     return this.crm.createList(user.sub, dto);
   }
 
+  @Roles('admin')
   @Patch(':id')
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateCrmListDto) {
     return this.crm.updateList(user.sub, id, dto);
   }
 
+  @Roles('admin')
   @Delete(':id')
   @HttpCode(200)
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
