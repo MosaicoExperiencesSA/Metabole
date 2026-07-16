@@ -121,19 +121,41 @@ export class PayoutsService {
         category: { in: COMMISSION_CATEGORIES },
         date: { gte: monthStart },
       },
-      select: { amountCents: true, category: true, clientId: true, date: true },
+      select: { amountCents: true, category: true, clientId: true, date: true, ref: true },
       orderBy: { date: 'desc' },
       take: 1000,
-    })) as { amountCents: number; category: string; clientId: string | null; date: Date }[];
+    })) as { amountCents: number; category: string; clientId: string | null; date: Date; ref: string | null }[];
 
     const totalCents = entries.reduce((a, e) => a + e.amountCents, 0);
 
-    // Dettaglio per categoria (per il nutrizionista: Visite / Quota percorsi).
-    const CAT_LABEL: Record<string, string> = { visit_compensation: 'Visite', sales_commission: 'Quota percorsi' };
-    const catMap = new Map<string, number>();
-    for (const e of entries) catMap.set(e.category, (catMap.get(e.category) ?? 0) + e.amountCents);
-    const byCategory = [...catMap.entries()]
-      .map(([category, amountCents]) => ({ category, label: CAT_LABEL[category] ?? category, amountCents }))
+    // Dettaglio per tipo: i compensi visita (visit_compensation) sono raggruppati per
+    // TIPO DI VISITA risalendo all'appuntamento (ref → Appointment.type); le provvigioni
+    // percorso (sales_commission) sotto "Quota percorsi".
+    const visitRefs = entries.filter((e) => e.category === 'visit_compensation' && e.ref).map((e) => e.ref as string);
+    const apptType = new Map<string, string>();
+    if (visitRefs.length) {
+      const appts = (await this.prisma.appointment.findMany({
+        where: { id: { in: [...new Set(visitRefs)] } },
+        select: { id: true, type: true },
+      })) as { id: string; type: string }[];
+      for (const a of appts) apptType.set(a.id, a.type);
+    }
+    const TYPE_LABEL: Record<string, string> = { televisit: 'Televisite', in_person: 'Visite in presenza', call: 'Chiamate' };
+    const detMap = new Map<string, number>();
+    for (const e of entries) {
+      let label: string;
+      if (e.category === 'visit_compensation') {
+        const t = e.ref ? apptType.get(e.ref) : undefined;
+        label = (t && TYPE_LABEL[t]) || 'Visite';
+      } else if (e.category === 'sales_commission') {
+        label = 'Quota percorsi';
+      } else {
+        label = e.category;
+      }
+      detMap.set(label, (detMap.get(label) ?? 0) + e.amountCents);
+    }
+    const byCategory = [...detMap.entries()]
+      .map(([label, amountCents]) => ({ category: label, label, amountCents }))
       .sort((a, b) => b.amountCents - a.amountCents);
 
     // Dettaglio per cliente (per la coach).
