@@ -106,8 +106,8 @@ export function Login() {
         {mode === 'login' && (
           <form onSubmit={doLogin}>
             <div className="field">
-              <label htmlFor="email">Email</label>
-              <input id="email" className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+              <label htmlFor="email">Email o telefono</label>
+              <input id="email" className="input" type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
             </div>
             <div className="field">
               <label htmlFor="password">Password</label>

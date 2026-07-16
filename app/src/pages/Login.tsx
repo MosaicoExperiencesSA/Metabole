@@ -55,11 +55,11 @@ export default function Login() {
 
           <form onSubmit={onSubmit}>
             <div className="field">
-              <label>Email o username</label>
+              <label>Email o telefono</label>
               <input
                 className="input"
-                type="email"
-                autoComplete="email"
+                type="text"
+                autoComplete="username"
                 inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

@@ -65,13 +65,16 @@ spedizione va chiesto SOLO se non è già in scheda.
 Da verificare: dove vive l'indirizzo sul modello (ClientProfile / User?) e passarlo al
 Checkout per la logica condizionale; salvataggio all'invio dell'ordine.
 
-## Wizard famiglia — flusso da rivedere — FATTO (17/07)
-Simone (16/07 sera): "il flusso famiglia non funziona bene va rivisto".
-Sintomi noti finora:
-- Dopo "Valida e pubblica tutte le N varianti" la pagina NON si azzera (resta su
-  "Fatto: tutte le N varianti pubblicate"); la pubblicazione singola invece azzera.
-- Rivedere il flusso end-to-end del wizard con le famiglie: crea → genera tutte →
-  valida/pubblica tutte → reset pagina; stati/spunte riferiti a UNA dieta (dietId
-  singolo) mentre le azioni sono di famiglia → confonde.
-Fatto oggi (funziona): genera tutte le varianti; pubblica famiglia (2 passaggi);
-rigenerare = sostituire (no doppioni); dedupe-diets.ts; dedup sito per famiglia.
+## Registrazione — telefono con prefisso + regola "mail o telefono" — DA FARE
+DECISIONE (Simone, 16/07): in fase di registrazione, sotto il campo email aggiungere il
+**numero di telefono** = casella a discesa per il **prefisso internazionale** (+39, +41, …)
++ campo numero.
+Validazione: **almeno uno tra email e telefono è obbligatorio** (mail sola, telefono solo,
+o entrambi vanno bene; non si può lasciare entrambi vuoti).
+Da verificare/prevedere:
+- lato app (Register.tsx): dropdown prefissi (lista paesi/prefissi), campo numero, validazione
+  "email || telefono", normalizzazione numero in formato E.164 (prefisso + numero) per il salvataggio;
+- lato backend: rendere email non più strettamente obbligatoria da sola, accettare telefono come
+  identificativo alternativo, gestire unicità telefono, e adeguare auth/register (oggi la
+  registrazione ruota attorno all'email → impatti su login, verifica, reset password);
+- decidere se il telefono diventa anche canale di login/verifica (OTP SMS?) o solo dato di contatto.

@@ -136,11 +136,35 @@ export class AuthService {
 
   async login(email: string, password: string, ip?: string) {
     const normalized = email.trim().toLowerCase();
-    // Accetta sia l'email principale sia quella secondaria (login alternativo).
-    const user = await this.prisma.user.findFirst({
-      where: { OR: [{ email: normalized }, { secondaryEmail: normalized }] },
-    });
     const invalid = new UnauthorizedException('Credenziali non valide');
+    // Si può accedere con l'email (principale o secondaria) OPPURE col numero di
+    // telefono. Il telefono si confronta sulle sole cifre (può essere salvato con
+    // spazi o prefisso +39): match esatto o per suffisso, e deve essere UNIVOCO —
+    // se più utenti condividono il numero si chiede di usare l'email.
+    let user: Awaited<ReturnType<typeof this.prisma.user.findFirst>> = null;
+    if (normalized.includes('@')) {
+      user = await this.prisma.user.findFirst({
+        where: { OR: [{ email: normalized }, { secondaryEmail: normalized }] },
+      });
+    } else {
+      const digits = normalized.replace(/\D/g, '');
+      if (digits.length >= 6) {
+        const candidates = (await this.prisma.user.findMany({
+          where: { phone: { not: null }, deletedAt: null },
+          select: { id: true, phone: true },
+        })) as { id: string; phone: string | null }[];
+        const matches = candidates.filter((c) => {
+          const d = (c.phone ?? '').replace(/\D/g, '');
+          return d.length >= 6 && (d === digits || d.endsWith(digits) || digits.endsWith(d));
+        });
+        if (matches.length === 1) {
+          user = await this.prisma.user.findUnique({ where: { id: matches[0].id } });
+        } else if (matches.length > 1) {
+          await this.audit.log({ action: 'auth.login_failed', metadata: { phone: digits, reason: 'telefono non univoco' }, ipAddress: ip });
+          throw new UnauthorizedException('Più account usano questo numero: accedi con la tua email.');
+        }
+      }
+    }
     if (!user || user.status !== 'active' || user.deletedAt) {
       await this.audit.log({ action: 'auth.login_failed', metadata: { email: normalized }, ipAddress: ip });
       throw invalid;

@@ -631,7 +631,18 @@ export class CommerceService {
         amountCents: payment.amountCents,
       });
     }
-    await this.crm.autoAdvance(payment.clientId, 'paid', byUserId, payment.amountCents);
+    // CRM: prodotto GRATUITO (totale 0) → stato "Prova" (trial); pagamento vero →
+    // "Acquisito" (key 'paid'). Chi è già Acquisito non retrocede a Prova per un omaggio.
+    if (payment.amountCents > 0) {
+      await this.crm.autoAdvance(payment.clientId, 'paid', byUserId, payment.amountCents);
+    } else {
+      const rec = await this.prisma.crmRecord
+        .findUnique({ where: { clientId: payment.clientId }, select: { stage: true } })
+        .catch(() => null);
+      if ((rec as { stage?: string } | null)?.stage !== 'paid') {
+        await this.crm.autoAdvance(payment.clientId, 'trial', byUserId);
+      }
+    }
 
     // Riscatto del buono sconto (se applicato): incrementa gli utilizzi.
     if (payment.discountCodeId) {

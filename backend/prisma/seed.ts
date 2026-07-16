@@ -1005,7 +1005,10 @@ async function seedPipelineStages(): Promise<void> {
   const stages = [
     { key: 'lead_in', label: 'Nuovo contatto', color: '#7c8c88', order: 0, isSystem: true },
     { key: 'worked', label: 'Lavorato', color: '#3a6ea5', order: 1, isSystem: false },
-    { key: 'paid', label: 'Pagato', color: '#0e7c66', order: 2, isSystem: true },
+    // "Prova": cliente che ha attivato un prodotto GRATUITO (checkout a 0). Al primo
+    // pagamento vero passa ad "Acquisito" (key 'paid', usata dalle query di sistema).
+    { key: 'trial', label: 'Prova', color: '#b8863b', order: 2, isSystem: true },
+    { key: 'paid', label: 'Acquisito', color: '#0e7c66', order: 2, isSystem: true },
     { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 3, isSystem: false },
     { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 4, isSystem: false },
     { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 5, isSystem: false },
@@ -1019,6 +1022,9 @@ async function seedPipelineStages(): Promise<void> {
       update: { isSystem: s.isSystem }, // non tocca label/color/order scelti dall'admin
     });
   }
+  // Rinomina una tantum: se lo stato 'paid' ha ancora l'etichetta di default "Pagato",
+  // diventa "Acquisito" (se l'admin l'ha già personalizzata, non si tocca).
+  await prisma.pipelineStage.updateMany({ where: { key: 'paid', label: 'Pagato' }, data: { label: 'Acquisito' } });
   console.log(`Seed: ${stages.length} stati pipeline verificati.`);
 }
 
