@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -13,7 +13,45 @@ export class RemindersService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(filter: { from?: string; to?: string; includeDone?: boolean }) {
+  /**
+   * Visibilità per ruolo: coach e nutrizionista vedono SOLO i promemoria creati da
+   * loro o legati ai loro assegnati (lead per la coach, clienti per il nutrizionista);
+   * manager coach (sales), capo nutrizionista e admin vedono tutto.
+   * Ritorna il where-OR da applicare, o null se l'attore vede tutto.
+   */
+  private async reminderScope(actorUserId?: string): Promise<Record<string, unknown>[] | null> {
+    if (!actorUserId) return null;
+    const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
+    const role = u?.role;
+    if (role !== 'coach' && role !== 'nutritionist') return null;
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    const staffId = staff?.id ?? '00000000-0000-0000-0000-000000000000';
+    return role === 'coach'
+      ? [{ createdById: actorUserId }, { crmRecord: { assignedCoachId: staffId } }]
+      : [{ createdById: actorUserId }, { crmRecord: { client: { clientProfile: { assignedNutritionistId: staffId } } } }];
+  }
+
+  /** Blocca modifica/eliminazione dei promemoria fuori dal proprio perimetro. */
+  private async assertReminderAccess(actorUserId: string, reminder: { createdById: string | null; crmRecordId: string | null }) {
+    const scope = await this.reminderScope(actorUserId);
+    if (!scope) return; // manager/capo/admin
+    if (reminder.createdById === actorUserId) return;
+    if (reminder.crmRecordId) {
+      const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
+      const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+      const rec = (await this.prisma.crmRecord.findUnique({
+        where: { id: reminder.crmRecordId },
+        select: { assignedCoachId: true, client: { select: { clientProfile: { select: { assignedNutritionistId: true } } } } },
+      })) as { assignedCoachId: string | null; client: { clientProfile: { assignedNutritionistId: string | null } | null } | null } | null;
+      const ok = u?.role === 'coach'
+        ? rec?.assignedCoachId === staff?.id
+        : rec?.client?.clientProfile?.assignedNutritionistId === staff?.id;
+      if (ok) return;
+    }
+    throw new ForbiddenException('Questo promemoria non è tuo né dei tuoi assegnati.');
+  }
+
+  async list(filter: { from?: string; to?: string; includeDone?: boolean }, actorUserId?: string) {
     const where: Record<string, unknown> = {};
     if (filter.from || filter.to) {
       where.dueAt = {
@@ -22,6 +60,8 @@ export class RemindersService {
       };
     }
     if (!filter.includeDone) where.done = false;
+    const scope = await this.reminderScope(actorUserId);
+    if (scope) where.OR = scope;
 
     const rows = await this.prisma.crmReminder.findMany({
       where,
@@ -72,6 +112,7 @@ export class RemindersService {
   async update(id: string, input: { title?: string; dueAt?: string; note?: string; done?: boolean }, actorId: string) {
     const existing = await this.prisma.crmReminder.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Promemoria non trovato.');
+    await this.assertReminderAccess(actorId, existing as { createdById: string | null; crmRecordId: string | null });
     const updated = await this.prisma.crmReminder.update({
       where: { id },
       data: {
@@ -88,6 +129,7 @@ export class RemindersService {
   async remove(id: string, actorId: string) {
     const existing = await this.prisma.crmReminder.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Promemoria non trovato.');
+    await this.assertReminderAccess(actorId, existing as { createdById: string | null; crmRecordId: string | null });
     await this.prisma.crmReminder.delete({ where: { id } });
     await this.audit.log({ action: 'crm.reminder.delete', actorId, entityType: 'crm_reminder', entityId: id });
     return { removed: id };

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,6 +27,23 @@ export class ReportsService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
   ) {}
+
+  /**
+   * Visibilità per ruolo: coach/nutrizionista possono vedere e inviare il report SOLO
+   * dei clienti assegnati a loro; manager coach (sales), capo nutrizionista e admin tutti.
+   */
+  async assertReportAccess(actorUserId: string, clientId: string) {
+    const actor = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
+    const role = actor?.role;
+    if (role !== 'coach' && role !== 'nutritionist') return;
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    const prof = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { assignedCoachId: true, assignedNutritionistId: true },
+    })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
+    const ok = role === 'coach' ? prof?.assignedCoachId === staff?.id : prof?.assignedNutritionistId === staff?.id;
+    if (!ok) throw new ForbiddenException('Questo cliente non è assegnato a te.');
+  }
 
   /** Calcola il riepilogo del mese per una cliente. */
   async buildMonthlyReport(clientId: string): Promise<MonthlyReport> {

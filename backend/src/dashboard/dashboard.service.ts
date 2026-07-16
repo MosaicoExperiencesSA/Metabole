@@ -38,9 +38,18 @@ export class DashboardService {
       out.clients = rows.map((r) => ({ a: r.clientProfile?.name ?? r.email, b: dmy(r.createdAt) }));
     } catch { /* skip */ }
 
-    // CRM: lead recenti (con coach e nutrizionista assegnati)
+    // CRM: lead recenti (con coach e nutrizionista assegnati).
+    // Scope per ruolo: la coach vede SOLO i suoi lead; il nutrizionista solo quelli
+    // dei suoi clienti; manager/capo/admin tutti.
+    const leadWhere: Record<string, unknown> = {};
+    if (!scopeAll) {
+      if (user.role === 'coach' && staff) leadWhere.assignedCoachId = staff.id;
+      else if (user.role === 'nutritionist' && staff) leadWhere.client = { clientProfile: { assignedNutritionistId: staff.id } };
+      else leadWhere.id = '__none__';
+    }
     try {
       const rows = (await this.prisma.crmRecord.findMany({
+        where: leadWhere as never,
         orderBy: { updatedAt: 'desc' }, take: 5,
         select: {
           name: true, email: true, stage: true,

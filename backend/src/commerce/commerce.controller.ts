@@ -528,8 +528,9 @@ export class CrmListsController {
   constructor(private readonly crm: CrmService) {}
 
   @Get()
-  list() {
-    return this.crm.listLists();
+  list(@CurrentUser() user: AuthUser) {
+    // La coach vede i conteggi dei SOLI suoi lead (scope nel service).
+    return this.crm.listLists(user.sub);
   }
 
   @Roles('admin')

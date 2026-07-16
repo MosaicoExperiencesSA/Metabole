@@ -368,10 +368,18 @@ export class CrmService {
   // ---------- Liste CRM (raggruppamenti manuali) ----------
 
   /** Tutte le liste con il numero di membri. */
-  async listLists() {
+  async listLists(actorUserId?: string) {
+    // La coach vede il conteggio dei SOLI suoi lead in ogni lista (non i totali aziendali).
+    const scopeId = await this.coachScope(actorUserId);
     const lists = await this.prisma.crmList.findMany({
       orderBy: { name: 'asc' },
-      include: { _count: { select: { members: true } } },
+      include: {
+        _count: {
+          select: {
+            members: (scopeId ? { where: { record: { assignedCoachId: scopeId } } } : true) as never,
+          },
+        },
+      },
     });
     return lists.map((l: Record<string, unknown>) => {
       const { _count, ...rest } = l;

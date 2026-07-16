@@ -52,8 +52,9 @@ export class RemindersController {
   constructor(private readonly reminders: RemindersService) {}
 
   @Get()
-  list(@Query('from') from?: string, @Query('to') to?: string, @Query('includeDone') includeDone?: string) {
-    return this.reminders.list({ from, to, includeDone: includeDone === 'true' });
+  list(@CurrentUser() user: AuthUser, @Query('from') from?: string, @Query('to') to?: string, @Query('includeDone') includeDone?: string) {
+    // Coach/nutrizionista vedono SOLO i promemoria propri o dei loro assegnati (scope nel service).
+    return this.reminders.list({ from, to, includeDone: includeDone === 'true' }, user.sub);
   }
 
   @Post()

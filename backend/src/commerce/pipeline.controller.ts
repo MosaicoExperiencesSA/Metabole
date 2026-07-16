@@ -54,8 +54,9 @@ export class PipelineController {
   ) {}
 
   @Get('pipeline')
-  board() {
-    return this.pipeline.board();
+  board(@CurrentUser() user: AuthUser) {
+    // La coach vede SOLO i suoi lead (scope nel service); manager coach/capo/admin tutti.
+    return this.pipeline.board(user.sub);
   }
 
   @Get('stages')

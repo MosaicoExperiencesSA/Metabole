@@ -32,11 +32,26 @@ export class PipelineService {
     return new Set(rows.map((r: { key: string }) => r.key));
   }
 
-  /** Board completa: stati (colonne) + schede raggruppate. */
-  async board() {
+  /**
+   * Visibilità per ruolo (come CrmService.coachScope): la COACH vede solo i suoi lead;
+   * manager coach (sales), capo nutrizionista e admin tutti. Coach senza scheda staff
+   * → id impossibile: board vuota, mai tutta per errore.
+   */
+  private async coachScope(actorUserId?: string): Promise<string | null> {
+    if (!actorUserId) return null;
+    const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
+    if (u?.role !== 'coach') return null;
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    return staff?.id ?? '00000000-0000-0000-0000-000000000000';
+  }
+
+  /** Board completa: stati (colonne) + schede raggruppate. La coach vede SOLO i suoi lead. */
+  async board(actorUserId?: string) {
+    const scopeId = await this.coachScope(actorUserId);
     const [stages, records] = await Promise.all([
       this.listStages(),
       this.prisma.crmRecord.findMany({
+        where: (scopeId ? { assignedCoachId: scopeId } : {}) as never,
         orderBy: { updatedAt: 'desc' },
         include: {
           owner: { select: { displayName: true } },
