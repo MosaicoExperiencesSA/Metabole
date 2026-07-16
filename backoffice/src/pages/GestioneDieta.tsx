@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner, Toggle } from '../components/ui';
+import { Banner, Spinner } from '../components/ui';
 import { Ricette } from './Ricette';
 import { TagAllergeni } from './TagAllergeni';
 import { GruppiEquivalenza } from './GruppiEquivalenza';
 import { useTaxonomy } from '../lib/taxonomy';
+import { useAuth } from '../auth/AuthContext';
 
-interface DietRow { id: string; name: string; regime: string; objective?: string | null; status?: string; clientVisible?: boolean }
+interface DietRow { id: string; name: string; regime: string; style: string; objective?: string | null; status?: string; clientVisible?: boolean; siteVisible?: boolean }
 
 type Section = 'ricette' | 'allergeni' | 'gruppi';
 
@@ -23,18 +24,17 @@ const objSuffix = (o?: string | null) => (o ? ` · ${OBIETTIVO_LABEL[o] ?? o}` :
  */
 export function GestioneDieta() {
   const { regimeLabel } = useTaxonomy();
+  const { user } = useAuth();
+  const canManageVisibility = user?.role === 'head_nutritionist';
   const [diets, setDiets] = useState<DietRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dietId, setDietId] = useState('');
   const [section, setSection] = useState<Section>('ricette');
   const [renameVal, setRenameVal] = useState('');
   const [renaming, setRenaming] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [visBusy, setVisBusy] = useState(false);
-  const [visMsg, setVisMsg] = useState<string | null>(null);
-  const [siteVisible, setSiteVisible] = useState(false);
-  const [siteBusy, setSiteBusy] = useState(false);
-  const [siteMsg, setSiteMsg] = useState<string | null>(null);
+  const [famBusy, setFamBusy] = useState(false);
+  const [famMsg, setFamMsg] = useState<string | null>(null);
+  const [famProgress, setFamProgress] = useState('');
 
   useEffect(() => {
     api<DietRow[]>('/diets')
@@ -48,45 +48,56 @@ export function GestioneDieta() {
     setRenameVal(d?.name ?? '');
   }, [dietId, diets]);
 
-  // Carica lo stato "Visibile ai clienti" della dieta scelta.
-  useEffect(() => {
-    setVisMsg(null); setSiteMsg(null);
-    if (!dietId) { setVisible(false); setSiteVisible(false); return; }
-    let alive = true;
-    api<{ clientVisible?: boolean; siteVisible?: boolean }>(`/diets/${dietId}`)
-      .then((d) => { if (alive) { setVisible(!!d.clientVisible); setSiteVisible(!!d.siteVisible); } })
-      .catch(() => { if (alive) { setVisible(false); setSiteVisible(false); } });
-    return () => { alive = false; };
-  }, [dietId]);
+  // Azzera i messaggi della famiglia quando cambia la dieta selezionata.
+  useEffect(() => { setFamMsg(null); setFamProgress(''); }, [dietId]);
 
-  async function toggleVisible(next: boolean) {
-    if (!dietId) return;
-    setVisBusy(true); setVisMsg(null);
-    try {
-      await api(`/diets/${dietId}/product`, { method: 'PATCH', body: JSON.stringify({ clientVisible: next }) });
-      setVisible(next);
-      setDiets((ds) => (ds ?? []).map((x) => (x.id === dietId ? { ...x, clientVisible: next } : x)));
-      setVisMsg(next ? 'La dieta è ora visibile alle clienti nell\'onboarding.' : 'La dieta non è più visibile alle clienti.');
-    } catch (e) {
-      // Gate di sicurezza R8: allergeni non confermati o nessun gruppo di equivalenza approvato.
-      setVisMsg(e instanceof ApiError ? e.message : 'Impossibile cambiare la visibilità.');
-    } finally {
-      setVisBusy(false);
-    }
+  // Le varianti (regime × obiettivo) della stessa famiglia = stesso nome + stile.
+  function familyOf(sel: DietRow): DietRow[] {
+    return (diets ?? []).filter((d) => d.name === sel.name && d.style === sel.style);
   }
 
-  async function toggleSite(next: boolean) {
-    if (!dietId) return;
-    setSiteBusy(true); setSiteMsg(null);
-    try {
-      await api(`/diets/${dietId}/product`, { method: 'PATCH', body: JSON.stringify({ siteVisible: next }) });
-      setSiteVisible(next);
-      setSiteMsg(next ? 'La dieta è ora mostrata sul sito.' : 'La dieta non è più mostrata sul sito.');
-    } catch (e) {
-      setSiteMsg(e instanceof ApiError ? e.message : 'Impossibile cambiare la visibilità sul sito.');
-    } finally {
-      setSiteBusy(false);
+  /**
+   * Valida, pubblica e rende visibile TUTTA la famiglia in un colpo. Per ogni variante:
+   * attiva ricette → conferma allergeni → approva gruppi (pass 1), poi pubblica e accende
+   * clienti+sito (pass 2, così quando controlla il gate R8 i gruppi sono già approvati).
+   */
+  async function runFamily() {
+    const sel = (diets ?? []).find((d) => d.id === dietId);
+    if (!sel) return;
+    const fam = familyOf(sel);
+    if (!fam.length) return;
+    // eslint-disable-next-line no-alert
+    if (!confirm(`Validare, pubblicare e rendere visibili TUTTE le ${fam.length} varianti della famiglia "${sel.name}"?\n\nPer ogni variante: attiva le ricette, conferma gli allergeni, approva i gruppi, pubblica e accende la visibilità (clienti + sito).`)) return;
+    setFamBusy(true); setFamMsg(null); setFamProgress('');
+    const errs: string[] = [];
+    // Pass 1 — contenuti (ricette, allergeni, gruppi) su ogni variante.
+    for (const v of fam) {
+      try {
+        await api(`/engine-rules/diets/${v.id}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
+        await api(`/engine-rules/diets/${v.id}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
+        await api(`/engine-rules/diets/${v.id}/approve-groups`, { method: 'POST', body: JSON.stringify({}) });
+      } catch (e) {
+        errs.push(`${regimeLabel(v.regime)}${objSuffix(v.objective)} (validazione): ${e instanceof ApiError ? e.message : 'errore'}`);
+      }
     }
+    // Pass 2 — pubblica + visibilità (gruppi già approvati → gate R8 soddisfatto).
+    let done = 0;
+    for (const v of fam) {
+      try {
+        if ((v.status ?? '') !== 'approved') await api(`/diets/${v.id}/publish`, { method: 'POST', body: JSON.stringify({}) });
+        await api(`/diets/${v.id}/product`, { method: 'PATCH', body: JSON.stringify({ siteVisible: true }) });
+        await api(`/diets/${v.id}/product`, { method: 'PATCH', body: JSON.stringify({ clientVisible: true }) });
+        done += 1;
+        setFamProgress(`${done}/${fam.length}`);
+      } catch (e) {
+        errs.push(`${regimeLabel(v.regime)}${objSuffix(v.objective)} (pubblica/visibilità): ${e instanceof ApiError ? e.message : 'errore'}`);
+      }
+    }
+    try { setDiets(await api<DietRow[]>('/diets')); } catch { /* no-op */ }
+    setFamBusy(false);
+    setFamMsg(errs.length
+      ? `Completate ${done}/${fam.length} varianti. Da rivedere: ${errs.join(' · ')}`
+      : `Fatto: tutte le ${fam.length} varianti sono pubblicate e visibili (clienti + sito).`);
   }
 
   async function rename() {
@@ -139,30 +150,39 @@ export function GestioneDieta() {
             </button>
           </div>
         )}
-        {diet && (
-          <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-            <Toggle on={visible} disabled={visBusy} onChange={toggleVisible} />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>Visibile ai clienti</div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                Se attivo, la dieta compare nell'onboarding (schermo "Stile che preferisci"). Richiede allergeni confermati e almeno un gruppo di equivalenza approvato.
+        {diet && (() => {
+          const fam = familyOf(diet);
+          const approved = fam.filter((d) => (d.status ?? '') === 'approved').length;
+          const clientOn = fam.filter((d) => d.clientVisible).length;
+          const siteOn = fam.filter((d) => d.siteVisible).length;
+          return (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>Pubblicazione e visibilità — tutta la famiglia</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                Famiglia <b>{diet.name}</b> · {fam.length} variante/i (regime × obiettivo) — {approved} approvate, {clientOn} visibili ai clienti, {siteOn} sul sito.
+                Le clienti scelgono lo stile e il motore pesca la variante giusta per il loro regime e obiettivo, quindi conviene pubblicare tutte le varianti insieme.
               </div>
+              {!canManageVisibility ? (
+                <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+                  <i className="ti ti-lock" style={{ marginRight: 4 }} />
+                  Solo il <b>capo nutrizionista</b> può pubblicare e gestire la visibilità delle diete.
+                </div>
+              ) : (
+                <button className="btn" onClick={runFamily} disabled={famBusy || fam.length === 0} style={{ marginTop: 10 }}>
+                  {famBusy ? (
+                    <>
+                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.45)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginRight: 6, verticalAlign: '-2px' }} />
+                      Lavoro… {famProgress}
+                    </>
+                  ) : (
+                    <><i className="ti ti-rosette-discount-check" /> Valida, pubblica e mostra tutta la famiglia</>
+                  )}
+                </button>
+              )}
+              {famMsg && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{famMsg}</div>}
             </div>
-            {visMsg && <span className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{visMsg}</span>}
-          </div>
-        )}
-        {diet && (
-          <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-            <Toggle on={siteVisible} disabled={siteBusy} onChange={toggleSite} />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>Visibile sul sito</div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                Se attivo, la dieta compare tra i percorsi mostrati sul sito pubblico. Indipendente da "Visibile ai clienti".
-              </div>
-            </div>
-            {siteMsg && <span className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{siteMsg}</span>}
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {!diet ? (

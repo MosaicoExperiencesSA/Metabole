@@ -60,7 +60,12 @@ export class DietsController {
     return this.catalog.deleteDiet(user.sub, id);
   }
 
-  /** Modifica la sola scheda cliente (schermo 16), anche su diete approvate. */
+  /**
+   * Modifica la sola scheda cliente (schermo 16), anche su diete approvate.
+   * Visibilità clienti/sito riservata al CAPO nutrizionista: coerente con l'approvazione
+   * (anch'essa solo del capo), è lui a decidere cosa va in vetrina a clienti e sito.
+   */
+  @Roles('head_nutritionist')
   @Patch(':id/product')
   updateProduct(@Param('id') id: string, @Body() dto: UpdateDietProductDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateDietProduct(user.sub, id, dto);

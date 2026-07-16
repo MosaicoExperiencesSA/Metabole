@@ -40,6 +40,8 @@ export function CreazioneValidazione() {
   const [activeFamilyKey, setActiveFamilyKey] = useState<string | null>(null);
   const [genAll, setGenAll] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [famBusy, setFamBusy] = useState(false);
+  const [famMsg, setFamMsg] = useState<string | null>(null);
 
   const [days, setDays] = useState(28);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
@@ -183,6 +185,46 @@ export function CreazioneValidazione() {
         : 'Catalogo bozza generato. Procedi con la validazione qui sotto.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
     finally { setBusy(false); }
+  }
+
+  /**
+   * Valida e pubblica/invia TUTTE le varianti generate della famiglia in un colpo
+   * (gemello di "Genera tutte le varianti"). Per ogni dieta della famiglia (match nome+stile):
+   * attiva ricette → conferma allergeni → approva gruppi, poi pubblica (capo) o invia in revisione.
+   */
+  async function publishAllFamily() {
+    if (!activeFamily) return;
+    setFamBusy(true); setFamMsg(null); setError(null); setNotice(null);
+    let fam: { id: string; name: string; regime: string; style: string; objective?: string | null }[] = [];
+    try {
+      const all = await api<{ id: string; name: string; regime: string; style: string; objective?: string | null }[]>('/diets');
+      fam = (all ?? []).filter((d) => d.name === activeFamily.label && d.style === activeFamily.style);
+    } catch { setFamBusy(false); setError('Impossibile leggere le diete della famiglia.'); return; }
+    if (!fam.length) { setFamBusy(false); setFamMsg('Nessuna dieta generata per questa famiglia: genera prima le varianti (passo 2).'); return; }
+    const errs: string[] = [];
+    const tag = (v: { regime: string; objective?: string | null }) => `${v.regime}${v.objective ? ' · ' + v.objective : ''}`;
+    // Pass 1 — contenuti (ricette, allergeni, gruppi) su ogni variante.
+    for (const v of fam) {
+      try {
+        await api(`/engine-rules/diets/${v.id}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
+        await api(`/engine-rules/diets/${v.id}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
+        await api(`/engine-rules/diets/${v.id}/approve-groups`, { method: 'POST', body: JSON.stringify({}) });
+      } catch (e) { errs.push(`${tag(v)} (validazione): ${e instanceof ApiError ? e.message : 'errore'}`); }
+    }
+    // Pass 2 — pubblica (capo) o invia in revisione, dopo che i gruppi sono approvati.
+    let done = 0;
+    for (const v of fam) {
+      try {
+        await api(`/diets/${v.id}/${isResponsabile ? 'publish' : 'submit'}`, { method: 'POST', body: JSON.stringify({}) });
+        done += 1;
+      } catch (e) { errs.push(`${tag(v)} (${isResponsabile ? 'pubblica' : 'invio'}): ${e instanceof ApiError ? e.message : 'errore'}`); }
+    }
+    if (dietId) { try { setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`)); } catch { /* no-op */ } }
+    setFamBusy(false);
+    const verb = isResponsabile ? 'pubblicate' : 'inviate in revisione';
+    setFamMsg(errs.length
+      ? `Completate ${done}/${fam.length} varianti (${verb}). Da rivedere: ${errs.join(' · ')}`
+      : `Fatto: tutte le ${fam.length} varianti ${verb}.`);
   }
 
   async function act(path: string) {
@@ -416,9 +458,28 @@ export function CreazioneValidazione() {
                 action={s.groups.total > 0 ? <button className="btn ghost sm" onClick={() => act('approve-groups')} disabled={busy}>Conferma tutti</button> : undefined}
                 link={<Link className="btn ghost sm" to="/gruppi-equivalenza">Rivedi</Link>} />
             </div>
+            {activeFamily && activeFamily.variants.length > 1 && (
+              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, border: '1px solid var(--teal)', background: 'var(--chip)' }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Tutta la famiglia in un colpo</div>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                  Valida (ricette, allergeni, gruppi) e {isResponsabile ? 'pubblica' : 'invia in revisione'} <b>tutte le {activeFamily.variants.length} varianti</b> (regime × obiettivo) della famiglia, senza farlo una per una. Le clienti scelgono lo stile e il motore pesca la variante giusta per regime e obiettivo.
+                </div>
+                <button className="btn" onClick={publishAllFamily} disabled={busy || famBusy} style={{ marginTop: 8 }}>
+                  {famBusy ? (
+                    <>
+                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.45)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginRight: 6, verticalAlign: '-2px' }} />
+                      Lavoro…
+                    </>
+                  ) : (
+                    <><i className="ti ti-stack-2" /> {isResponsabile ? `Valida e pubblica tutte le ${activeFamily.variants.length} varianti` : `Valida e invia tutte le ${activeFamily.variants.length} varianti`}</>
+                  )}
+                </button>
+                {famMsg && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{famMsg}</div>}
+              </div>
+            )}
             <div className="row" style={{ gap: 8, marginTop: 16 }}>
               <button className="btn" onClick={publish} disabled={busy || !allReady} title={allReady ? '' : 'Completa tutti i passi'}>
-                <i className={`ti ${isResponsabile ? 'ti-rosette-discount-check' : 'ti-send'}`} /> {isResponsabile ? 'Approva e pubblica' : 'Invia in revisione'}
+                <i className={`ti ${isResponsabile ? 'ti-rosette-discount-check' : 'ti-send'}`} /> {isResponsabile ? 'Approva e pubblica (solo questa)' : 'Invia in revisione (solo questa)'}
               </button>
               <button className="btn ghost" onClick={showPreview ? () => setShowPreview(false) : loadPreview} disabled={busy}>
                 <i className="ti ti-eye" /> {showPreview ? 'Nascondi anteprima' : 'Anteprima giornate'}

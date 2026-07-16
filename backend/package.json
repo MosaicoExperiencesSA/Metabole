@@ -20,6 +20,7 @@
     "fix:diet-names": "ts-node --transpile-only prisma/fix-diet-names.ts",
     "cleanup:content": "ts-node --transpile-only prisma/cleanup-content.ts",
     "cleanup:diets": "ts-node --transpile-only prisma/cleanup-diets.ts",
+    "approve:diets": "ts-node --transpile-only prisma/approve-diets.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"
