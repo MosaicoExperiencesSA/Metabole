@@ -31,6 +31,7 @@ export class CreateDietDto {
   @IsOptional() @IsString() @MaxLength(40) seasonalTag?: string;
   @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
   @IsOptional() @IsBoolean() clientVisible?: boolean;
+  @IsOptional() @IsBoolean() siteVisible?: boolean;
 }
 
 export class RenameDietDto {

@@ -162,7 +162,10 @@ export class CrmService {
           },
         },
       },
-      take: 200,
+      // Nessun taglio "silenzioso": la tabella Gestione lead deve mostrare TUTTI i lead
+      // (inclusi gli storici importati). Cap alto solo come rete di sicurezza; la
+      // paginazione avviene lato frontend. Oltre questa soglia servirà la paginazione server.
+      take: 20000,
     });
     // Appiattisce le appartenenze in un array `lists` comodo per il frontend.
     return rows.map((r: Record<string, unknown>) => this.withLists(r));

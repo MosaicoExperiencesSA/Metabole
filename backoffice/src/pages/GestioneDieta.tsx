@@ -27,6 +27,9 @@ export function GestioneDieta() {
   const [visible, setVisible] = useState(false);
   const [visBusy, setVisBusy] = useState(false);
   const [visMsg, setVisMsg] = useState<string | null>(null);
+  const [siteVisible, setSiteVisible] = useState(false);
+  const [siteBusy, setSiteBusy] = useState(false);
+  const [siteMsg, setSiteMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api<DietRow[]>('/diets')
@@ -42,12 +45,12 @@ export function GestioneDieta() {
 
   // Carica lo stato "Visibile ai clienti" della dieta scelta.
   useEffect(() => {
-    setVisMsg(null);
-    if (!dietId) { setVisible(false); return; }
+    setVisMsg(null); setSiteMsg(null);
+    if (!dietId) { setVisible(false); setSiteVisible(false); return; }
     let alive = true;
-    api<{ clientVisible?: boolean }>(`/diets/${dietId}`)
-      .then((d) => { if (alive) setVisible(!!d.clientVisible); })
-      .catch(() => { if (alive) setVisible(false); });
+    api<{ clientVisible?: boolean; siteVisible?: boolean }>(`/diets/${dietId}`)
+      .then((d) => { if (alive) { setVisible(!!d.clientVisible); setSiteVisible(!!d.siteVisible); } })
+      .catch(() => { if (alive) { setVisible(false); setSiteVisible(false); } });
     return () => { alive = false; };
   }, [dietId]);
 
@@ -64,6 +67,20 @@ export function GestioneDieta() {
       setVisMsg(e instanceof ApiError ? e.message : 'Impossibile cambiare la visibilità.');
     } finally {
       setVisBusy(false);
+    }
+  }
+
+  async function toggleSite(next: boolean) {
+    if (!dietId) return;
+    setSiteBusy(true); setSiteMsg(null);
+    try {
+      await api(`/diets/${dietId}/product`, { method: 'PATCH', body: JSON.stringify({ siteVisible: next }) });
+      setSiteVisible(next);
+      setSiteMsg(next ? 'La dieta è ora mostrata sul sito.' : 'La dieta non è più mostrata sul sito.');
+    } catch (e) {
+      setSiteMsg(e instanceof ApiError ? e.message : 'Impossibile cambiare la visibilità sul sito.');
+    } finally {
+      setSiteBusy(false);
     }
   }
 
@@ -127,6 +144,18 @@ export function GestioneDieta() {
               </div>
             </div>
             {visMsg && <span className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{visMsg}</span>}
+          </div>
+        )}
+        {diet && (
+          <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+            <Toggle on={siteVisible} disabled={siteBusy} onChange={toggleSite} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Visibile sul sito</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Se attivo, la dieta compare tra i percorsi mostrati sul sito pubblico. Indipendente da "Visibile ai clienti".
+              </div>
+            </div>
+            {siteMsg && <span className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{siteMsg}</span>}
           </div>
         )}
       </div>

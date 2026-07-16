@@ -70,7 +70,7 @@ export class CatalogService {
   async publicPaths() {
     const [diets, presets] = await Promise.all([
       this.prisma.diet.findMany({
-        where: { status: 'approved' } as never,
+        where: { status: 'approved', siteVisible: true } as never,
         orderBy: { createdAt: 'asc' },
       }),
       // Note cliniche per stile dai preset regole (adottati prima dei suggeriti).

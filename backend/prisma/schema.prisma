@@ -1051,6 +1051,7 @@ model Diet {
   seasonalTag       String?  @map("seasonal_tag")
   objective         String   @default("dimagrimento") // dimagrimento | mantenimento
   clientVisible     Boolean  @default(false) @map("client_visible")
+  siteVisible       Boolean  @default(false) @map("site_visible") // mostrata sul SITO pubblico (indipendente da clientVisible dell'app)
 
   dayTemplates DietDayTemplate[]
   menuDays     MenuDay[]
@@ -1058,6 +1059,7 @@ model Diet {
   @@index([status])
   @@index([regime, mealsPerDay, status])
   @@index([clientVisible])
+  @@index([siteVisible])
   @@map("diet")
 }
 
