@@ -204,7 +204,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [answers, setAnswers] = useState<Answers>({});
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [countdown, setCountdown] = useState(6);
+  const [countdown, setCountdown] = useState(15);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardingResult | null>(null);
   const [muted, setMutedState] = useState(isMuted());
@@ -278,7 +278,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   // Conto alla rovescia della schermata "Sto cucendo il tuo percorso".
   useEffect(() => {
     if (!submitting) return;
-    setCountdown(6);
+    setCountdown(15);
     const id = setInterval(() => setCountdown((c) => (c > 1 ? c - 1 : 1)), 1000);
     return () => clearInterval(id);
   }, [submitting]);
@@ -368,9 +368,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     try {
       const res = await api<OnboardingResult>('/onboarding/answers', { method: 'POST', body: JSON.stringify(dto) });
       // Schermo "Sto cucendo il tuo percorso": teniamo la transizione visibile
-      // ~6s (durata della voce di Gaia) anche se l'API risponde subito.
+      // ~15s anche se l'API risponde subito.
       const elapsed = performance.now() - t0;
-      if (elapsed < 6000) await new Promise((r) => setTimeout(r, 6000 - elapsed));
+      if (elapsed < 15000) await new Promise((r) => setTimeout(r, 15000 - elapsed));
       // Onboarding completato: la bozza locale non serve più.
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch { /* ignora */ } }
       setResult(res);

@@ -10,7 +10,15 @@
 const MUTE_KEY = 'metabole_gaia_muted';
 
 let current: HTMLAudioElement | null = null;
+let talkTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<(speaking: boolean) => void>();
+
+function clearTalkTimer() {
+  if (talkTimer) {
+    clearTimeout(talkTimer);
+    talkTimer = null;
+  }
+}
 
 function emit(speaking: boolean) {
   listeners.forEach((l) => l(speaking));
@@ -31,6 +39,7 @@ export function setMuted(muted: boolean) {
 }
 
 export function stop() {
+  clearTalkTimer();
   if (current) {
     current.pause();
     current = null;
@@ -51,24 +60,33 @@ export function play(key: string) {
   const file = CLIP_VERSIONS[key] ?? key;
   const audio = new Audio(`/audio/${file}.mp3`);
   current = audio;
-  audio.onended = () => {
+  const finish = () => {
     if (current === audio) current = null;
+    clearTalkTimer();
     emit(false);
   };
+  audio.onended = finish;
   audio.onerror = () => {
     // clip di pagina mancante → ripiego sulla frase generica
     if (key.startsWith('q_') && key !== 'q_generic') {
       play('q_generic');
     } else {
-      if (current === audio) current = null;
-      emit(false);
+      finish();
     }
   };
   emit(true);
+  // La bocca (e gli occhi aperti) si animano per tutta la durata della clip.
+  // Fallback: se l'autoplay è bloccato dal browser o la durata non è nota, Gaia
+  // "parla" comunque visibilmente per qualche secondo.
+  talkTimer = setTimeout(finish, 4500);
+  audio.addEventListener('loadedmetadata', () => {
+    if (current !== audio) return;
+    clearTalkTimer();
+    const ms = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 + 250 : 4500;
+    talkTimer = setTimeout(finish, ms);
+  });
   audio.play().catch(() => {
-    // autoplay bloccato dal browser: resterà in attesa del prossimo gesto
-    if (current === audio) current = null;
-    emit(false);
+    // autoplay bloccato: lasciamo il fallback animare la bocca, senza spegnere subito
   });
 }
 

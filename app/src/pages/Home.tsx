@@ -216,8 +216,44 @@ export default function Home() {
         </div>
       )}
 
+      {/* PROSSIMO APPUNTAMENTO */}
+      {nextAppt && (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 14 }} onClick={() => navigate('/calendario')}>
+          <span className="event-ic" style={{ background: '#EAF6F1', color: '#0E7C66', flex: 'none' }}>
+            <i className="ti ti-calendar-event" />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="muted" style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.3px' }}>PROSSIMO APPUNTAMENTO</div>
+            <div style={{ fontWeight: 700, fontSize: 13.5 }}>
+              {apptWhen(nextAppt.datetime)}
+              {nextAppt.staffName ? ` · ${nextAppt.staffName}` : ''}
+            </div>
+            <div className="muted" style={{ fontSize: 11 }}>{APPT_TYPE_LABEL[nextAppt.type] ?? 'Appuntamento'}</div>
+          </div>
+          <i className="ti ti-chevron-right" style={{ color: '#C6CFCB' }} />
+        </div>
+      )}
+
+      {/* GAIA · LA FRASE DI OGGI */}
+      <div style={{ background: 'var(--teal)', borderRadius: 20, padding: '14px 16px', color: '#fff', marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 'none' }}>
+            <Gaia size={60} controls={false} mouth="big" />
+            <i className="ti ti-volume" style={{ fontSize: 17, opacity: 0.9 }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9.5, opacity: 0.9, fontWeight: 700, letterSpacing: '.4px' }}>
+              <i className="ti ti-sparkles" style={{ fontSize: 10, verticalAlign: '-1px' }} /> GAIA · LA FRASE DI OGGI
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, marginTop: 5 }}>
+              "<TypeText key={frase} segments={[{ t: frase }]} />"
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* KPI di oggi: kcal · acqua · passi */}
-      <div style={{ display: 'flex', gap: 9, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 9, margin: '12px 0' }}>
         <KpiTile icon="ti-flame" value={totKcal > 0 ? totKcal.toLocaleString('it-IT') : '—'} label="kcal" color="#E8825A" />
         <KpiTile icon="ti-droplet" value={today ? `${today.water.glasses}/${today.water.goal}` : '—'} label="acqua" color="#2AA7C4" />
         <KpiTile icon="ti-walk" value={today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
@@ -255,42 +291,6 @@ export default function Home() {
           })}
         </>
       )}
-
-      {/* PROSSIMO APPUNTAMENTO */}
-      {nextAppt && (
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', marginBottom: 14 }} onClick={() => navigate('/calendario')}>
-          <span className="event-ic" style={{ background: '#EAF6F1', color: '#0E7C66', flex: 'none' }}>
-            <i className="ti ti-calendar-event" />
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="muted" style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.3px' }}>PROSSIMO APPUNTAMENTO</div>
-            <div style={{ fontWeight: 700, fontSize: 13.5 }}>
-              {apptWhen(nextAppt.datetime)}
-              {nextAppt.staffName ? ` · ${nextAppt.staffName}` : ''}
-            </div>
-            <div className="muted" style={{ fontSize: 11 }}>{APPT_TYPE_LABEL[nextAppt.type] ?? 'Appuntamento'}</div>
-          </div>
-          <i className="ti ti-chevron-right" style={{ color: '#C6CFCB' }} />
-        </div>
-      )}
-
-      {/* GAIA · LA FRASE DI OGGI */}
-      <div style={{ background: 'var(--teal)', borderRadius: 20, padding: '14px 16px', color: '#fff', marginBottom: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: 'none' }}>
-            <Gaia size={60} controls={false} mouth="big" />
-            <i className="ti ti-volume" style={{ fontSize: 17, opacity: 0.9 }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 9.5, opacity: 0.9, fontWeight: 700, letterSpacing: '.4px' }}>
-              <i className="ti ti-sparkles" style={{ fontSize: 10, verticalAlign: '-1px' }} /> GAIA · LA FRASE DI OGGI
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, marginTop: 5 }}>
-              "<TypeText key={frase} segments={[{ t: frase }]} />"
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Popup check-in giornaliero */}
       {today && !today.checkinDone && !dismissed && (

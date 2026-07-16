@@ -10,6 +10,8 @@ type Mouth = 'big' | 'smile' | 'flat';
  */
 function Mascot({ size, eyes, mouth, cheek, talking }: { size: number; eyes: Eyes; mouth: Mouth; cheek: boolean; talking: boolean }) {
   const mouthD = mouth === 'big' ? 'M102 152 Q120 174 138 152' : mouth === 'flat' ? 'M106 158 L134 158' : 'M104 156 Q120 166 136 156';
+  // Mentre parla, Gaia apre gli occhi (come nel prototipo); a riposo usa l'espressione richiesta.
+  const shownEyes: Eyes = talking && eyes !== 'sleep' ? 'open' : eyes;
   return (
     <svg viewBox="0 0 240 250" width={size} height={size} aria-hidden className={talking ? 'gaia talking' : 'gaia'}>
       <defs>
@@ -46,12 +48,12 @@ function Mascot({ size, eyes, mouth, cheek, talking }: { size: number; eyes: Eye
               <ellipse cx="154" cy="150" rx="12" ry="7.5" fill="#FF9DB0" opacity=".7" />
             </>
           )}
-          {eyes === 'sleep' ? (
+          {shownEyes === 'sleep' ? (
             <>
               <path d="M84 126 Q100 136 116 126" stroke="#25384A" strokeWidth="5" strokeLinecap="round" fill="none" />
               <path d="M124 126 Q140 136 156 126" stroke="#25384A" strokeWidth="5" strokeLinecap="round" fill="none" />
             </>
-          ) : eyes === 'open' ? (
+          ) : shownEyes === 'open' ? (
             <>
               <g className="cmEye" style={{ transformOrigin: '100px 128px' }}>
                 <ellipse cx="100" cy="128" rx="16" ry="19" fill="#25384A" />

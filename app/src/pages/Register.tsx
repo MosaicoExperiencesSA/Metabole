@@ -158,17 +158,6 @@ export default function Register() {
           </button>
         </form>
 
-        {/* Social login (in arrivo) */}
-        <p className="muted" style={{ textAlign: 'center', margin: '16px 0 8px', fontSize: 13 }}>oppure registrati con</p>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn ghost" style={{ flex: 1 }} onClick={() => setErr('Accesso con Apple in arrivo: per ora usa email e password.')}>
-            <i className="ti ti-brand-apple" /> Apple
-          </button>
-          <button className="btn ghost" style={{ flex: 1 }} onClick={() => setErr('Accesso con Google in arrivo: per ora usa email e password.')}>
-            <i className="ti ti-brand-google" /> Google
-          </button>
-        </div>
-
         <p className="muted" style={{ textAlign: 'center', marginTop: 18 }}>
           Hai già un account? <Link className="link" to="/login">Accedi</Link>
         </p>
