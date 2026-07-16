@@ -38,6 +38,7 @@ import { Grafici } from './pages/Grafici';
 import { CreazioneValidazione } from './pages/CreazioneValidazione';
 import { Marketing } from './pages/Marketing';
 import { Impostazioni } from './pages/Impostazioni';
+import { Notifiche } from './pages/Notifiche';
 import { Prelievi } from './pages/Prelievi';
 import { Parametri } from './pages/Parametri';
 import { RegoleMotore } from './pages/RegoleMotore';
@@ -123,6 +124,7 @@ export default function App() {
       <Route path="/grafica-pdf" element={<Protected title="Grafica PDF" pageKey="pdf_templates"><GraficaPdf /></Protected>} />
       <Route path="/grafici" element={<Protected title="Grafici" pageKey="charts"><Grafici /></Protected>} />
       <Route path="/impostazioni" element={<Protected title="Impostazioni"><Impostazioni /></Protected>} />
+      <Route path="/notifiche" element={<Protected title="Notifiche" pageKey="notifications"><Notifiche /></Protected>} />
       <Route path="/prelievi" element={<Protected title="Richieste di prelievo" pageKey="withdrawals"><Prelievi /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

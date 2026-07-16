@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { CommerceModule } from '../commerce/commerce.module';
 import { ReferralModule } from '../referral/referral.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminImpersonateController } from './admin-impersonate.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -11,6 +12,7 @@ import { AuthService } from './auth.service';
   imports: [
     CommerceModule,
     ReferralModule,
+    NotificationsModule,
     JwtModule.registerAsync({
       global: true,
       imports: [ConfigModule],

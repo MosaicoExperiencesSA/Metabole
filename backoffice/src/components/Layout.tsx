@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { UserMenu } from './UserMenu';
+import { NotificationBell } from './NotificationBell';
 import { api } from '../api/client';
 import { readMenuOrderCache, writeMenuOrderCache, orderNavItems } from '../lib/menuOrder';
 
@@ -27,6 +28,7 @@ export const NAV: NavSection[] = [
       { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
       { key: 'posta', label: 'Posta', to: '/posta', icon: 'ti-mail' },
       { key: 'charts', label: 'Grafici', to: '/grafici', icon: 'ti-chart-histogram' },
+      { key: 'notifications', label: 'Notifiche', to: '/notifiche', icon: 'ti-bell' },
       // Impostazioni spostate nel menu utente in alto (avatar) → non più in sidebar.
     ],
   },
@@ -220,7 +222,8 @@ export function Layout({ title, children }: { title: string; children: ReactNode
             </button>
             <h1>{title}</h1>
           </div>
-          <div className="row">
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <NotificationBell />
             <UserMenu />
           </div>
         </div>

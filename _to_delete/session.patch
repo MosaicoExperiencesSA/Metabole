@@ -1,0 +1,1168 @@
+diff --git a/backend/src/auth/auth.module.ts b/backend/src/auth/auth.module.ts
+index 1107be3..9e58abc 100644
+--- a/backend/src/auth/auth.module.ts
++++ b/backend/src/auth/auth.module.ts
+@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
+ import { JwtModule } from '@nestjs/jwt';
+ import { CommerceModule } from '../commerce/commerce.module';
+ import { ReferralModule } from '../referral/referral.module';
++import { NotificationsModule } from '../notifications/notifications.module';
+ import { AdminImpersonateController } from './admin-impersonate.controller';
+ import { AuthController } from './auth.controller';
+ import { AuthService } from './auth.service';
+@@ -11,6 +12,7 @@ import { AuthService } from './auth.service';
+   imports: [
+     CommerceModule,
+     ReferralModule,
++    NotificationsModule,
+     JwtModule.registerAsync({
+       global: true,
+       imports: [ConfigModule],
+diff --git a/backend/src/auth/auth.service.ts b/backend/src/auth/auth.service.ts
+index b78c886..1a0f6e4 100644
+--- a/backend/src/auth/auth.service.ts
++++ b/backend/src/auth/auth.service.ts
+@@ -17,6 +17,7 @@ import { Role } from '../common/roles';
+ import { MailService } from '../mail/mail.service';
+ import { PrismaService } from '../prisma/prisma.service';
+ import { ReferralService } from '../referral/referral.service';
++import { NotificationsService } from '../notifications/notifications.service';
+ import { RegisterDto } from './dto/register.dto';
+ 
+ export interface TokenPair {
+@@ -52,6 +53,7 @@ export class AuthService {
+     private readonly crm: CrmService,
+     private readonly leadAssignment: LeadAssignmentService,
+     private readonly referral: ReferralService,
++    private readonly notifications: NotificationsService,
+   ) {}
+ 
+   // ---------- Registrazione ----------
+@@ -107,6 +109,20 @@ export class AuthService {
+     // Codice staff → auto-assegna la cliente alla coach o alla nutrizionista (immediata).
+     if (trimmedRef && refKind === 'staff') {
+       await this.leadAssignment.autoAssignByRefCode(user.id, trimmedRef);
++      // Notifica allo staff proprietario del codice: nuova registrazione col tuo codice.
++      const owner = await this.leadAssignment.resolveByRefCode(trimmedRef);
++      if (owner) {
++        const who = [user.firstName, user.lastName].filter(Boolean).join(' ') || normalized;
++        await this.notifications
++          .notify({
++            userId: owner.userId,
++            type: 'new_signup_referral',
++            title: 'Nuova registrazione col tuo codice',
++            body: `${who} si è registrata usando il tuo codice.`,
++            payload: { clientId: user.id },
++          })
++          .catch(() => undefined);
++      }
+     }
+     // Codice cliente → registra l'invito "porta un'amica" (ricompensa alla conversione).
+     if (trimmedRef && refKind === 'client') {
+diff --git a/backend/src/catalog/catalog.module.ts b/backend/src/catalog/catalog.module.ts
+index e6be7e4..c2604d7 100644
+--- a/backend/src/catalog/catalog.module.ts
++++ b/backend/src/catalog/catalog.module.ts
+@@ -1,4 +1,5 @@
+ import { Module } from '@nestjs/common';
++import { NotificationsModule } from '../notifications/notifications.module';
+ import {
+   CatalogController,
+   DietsController,
+@@ -16,6 +17,7 @@ import { PublicCatalogController } from './public-catalog.controller';
+     RecipesController,
+     PublicCatalogController,
+   ],
++  imports: [NotificationsModule],
+   providers: [CatalogService],
+   exports: [CatalogService],
+ })
+diff --git a/backend/src/catalog/catalog.service.ts b/backend/src/catalog/catalog.service.ts
+index 0fed76f..5a549c1 100644
+--- a/backend/src/catalog/catalog.service.ts
++++ b/backend/src/catalog/catalog.service.ts
+@@ -7,6 +7,7 @@ import {
+ import { AuditService } from '../audit/audit.service';
+ import { ConfigParamsService } from '../config-params/config-params.service';
+ import { PrismaService } from '../prisma/prisma.service';
++import { NotificationsService } from '../notifications/notifications.service';
+ import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
+ import {
+   CreateDietDto,
+@@ -29,6 +30,7 @@ export class CatalogService {
+     private readonly prisma: PrismaService,
+     private readonly audit: AuditService,
+     private readonly config: ConfigParamsService,
++    private readonly notifications: NotificationsService,
+   ) {}
+ 
+   /** Scheda Staff dell'utente corrente (richiesta per operare sul catalogo). */
+@@ -295,6 +297,24 @@ export class CatalogService {
+     }
+   }
+ 
++  /**
++   * Alla pubblicazione/approvazione rende la dieta visibile alle clienti (schermo 16),
++   * ma SOLO se supera il gate di sicurezza R8. Non solleva: se il gate fallisce lascia
++   * la dieta nascosta e restituisce il motivo, così l'approvazione non viene bloccata.
++   */
++  private async tryMakeClientVisible(id: string): Promise<{ clientVisible: boolean; visibilityWarning?: string }> {
++    try {
++      await this.assertActivatable(id);
++    } catch (e) {
++      return {
++        clientVisible: false,
++        visibilityWarning: e instanceof Error ? e.message : 'Dieta non ancora attivabile ai clienti.',
++      };
++    }
++    await this.prisma.diet.update({ where: { id }, data: { clientVisible: true } as never });
++    return { clientVisible: true };
++  }
++
+   /** Elimina una ricetta e le sue valutazioni/pesi appresi. */
+   async deleteRecipe(userId: string, id: string) {
+     const recipe = await this.prisma.recipe.findUnique({ where: { id }, select: { id: true, name: true } });
+@@ -446,7 +466,9 @@ export class CatalogService {
+       entityType: 'diet',
+       entityId: id,
+     });
+-    return updated;
++    await this.notifyDietApproved(diet.authorId, staff.id, updated.name);
++    const vis = await this.tryMakeClientVisible(id);
++    return { ...updated, clientVisible: vis.clientVisible, visibilityWarning: vis.visibilityWarning };
+   }
+ 
+   /**
+@@ -474,7 +496,9 @@ export class CatalogService {
+       entityType: 'diet',
+       entityId: id,
+     });
+-    return updated;
++    await this.notifyDietApproved(diet.authorId, staff.id, updated.name);
++    const vis = await this.tryMakeClientVisible(id);
++    return { ...updated, clientVisible: vis.clientVisible, visibilityWarning: vis.visibilityWarning };
+   }
+ 
+   async rejectDiet(userId: string, id: string, reason?: string) {
+@@ -626,4 +650,23 @@ export class CatalogService {
+     await this.audit.log({ action: 'admin.config.update', actorId, entityType: 'config_param', entityId: 'diet_regimes', metadata: { count: dedup.length } });
+     return dedup;
+   }
++
++  /** Avvisa l'autore della dieta quando qualcun altro la approva/pubblica. */
++  private async notifyDietApproved(authorStaffId: string | null, approverStaffId: string, dietName: string): Promise<void> {
++    if (!authorStaffId || authorStaffId === approverStaffId) return;
++    const author = await this.prisma.staff.findUnique({
++      where: { id: authorStaffId },
++      select: { userId: true },
++    });
++    if (!author) return;
++    await this.notifications
++      .notify({
++        userId: author.userId,
++        type: 'diet_approved',
++        title: 'Dieta approvata',
++        body: `La dieta "${dietName}" è stata approvata e pubblicata.`,
++        payload: {},
++      })
++      .catch(() => undefined);
++  }
+ }
+diff --git a/backend/src/commerce/commerce.service.ts b/backend/src/commerce/commerce.service.ts
+index 5f4d993..c69997a 100644
+--- a/backend/src/commerce/commerce.service.ts
++++ b/backend/src/commerce/commerce.service.ts
+@@ -656,6 +656,8 @@ export class CommerceService {
+       messageKey: payment.subscriptionId ? 'payment_approved_subscription' : 'payment_approved_order',
+       payload: { method: methodLabel },
+     });
++    // Notifica alla coach della struttura: una sua cliente ha pagato.
++    await this.notifyCoachOfPayment(payment.clientId, payment.amountCents).catch(() => undefined);
+     await this.audit.log({
+       action: 'commerce.payment.approve',
+       actorId: byUserId,
+@@ -1204,4 +1206,28 @@ export class CommerceService {
+       contentBase64: buffer.toString('base64'),
+     };
+   }
++
++  /** Avvisa la coach assegnata quando una sua cliente effettua un pagamento. */
++  private async notifyCoachOfPayment(clientId: string, amountCents: number): Promise<void> {
++    const profile = await this.prisma.clientProfile.findUnique({
++      where: { userId: clientId },
++      select: { name: true, assignedCoachId: true },
++    });
++    if (!profile?.assignedCoachId) return;
++    const coach = await this.prisma.staff.findUnique({
++      where: { id: profile.assignedCoachId },
++      select: { userId: true },
++    });
++    if (!coach) return;
++    const euro = (amountCents / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
++    await this.notifications
++      .notify({
++        userId: coach.userId,
++        type: 'payment_in_structure',
++        title: 'Pagamento nella tua struttura',
++        body: `${profile.name ?? 'Una tua cliente'} ha effettuato un pagamento di € ${euro}.`,
++        payload: { clientId },
++      })
++      .catch(() => undefined);
++  }
+ }
+diff --git a/backend/src/cron/cron.controller.ts b/backend/src/cron/cron.controller.ts
+index ce906f1..e8c58f8 100644
+--- a/backend/src/cron/cron.controller.ts
++++ b/backend/src/cron/cron.controller.ts
+@@ -17,6 +17,7 @@ import { EngineService } from '../engine/engine.service';
+ import { NotificationsService } from '../notifications/notifications.service';
+ import { ReportsService } from '../reports/reports.service';
+ import { SignalsService } from '../signals/signals.service';
++import { VisitsService } from '../health-area/visits.service';
+ 
+ /**
+  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
+@@ -37,6 +38,7 @@ export class CronController {
+     private readonly summaries: ConversationSummaryService,
+     private readonly commerce: CommerceService,
+     private readonly signals: SignalsService,
++    private readonly visits: VisitsService,
+   ) {}
+ 
+   private assertSecret(secret?: string): void {
+@@ -66,4 +68,17 @@ export class CronController {
+     });
+     return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, monthlyReports };
+   }
++
++  /**
++   * Promemoria appuntamenti: parte spesso (ogni ~10 min via Render Cron) per
++   * avvisare la nutrizionista 30 minuti prima di ogni visita. Idempotente.
++   */
++  @Public()
++  @HttpCode(200)
++  @Post('reminders')
++  async reminders(@Headers('x-cron-secret') secret?: string) {
++    this.assertSecret(secret);
++    const appointmentReminders = await this.visits.sendUpcomingReminders();
++    return { appointmentReminders };
++  }
+ }
+diff --git a/backend/src/cron/cron.module.ts b/backend/src/cron/cron.module.ts
+index a3892a7..a555fca 100644
+--- a/backend/src/cron/cron.module.ts
++++ b/backend/src/cron/cron.module.ts
+@@ -3,13 +3,14 @@ import { AlertsModule } from '../alerts/alerts.module';
+ import { ChatModule } from '../chat/chat.module';
+ import { CommerceModule } from '../commerce/commerce.module';
+ import { EngineModule } from '../engine/engine.module';
++import { HealthAreaModule } from '../health-area/health-area.module';
+ import { NotificationsModule } from '../notifications/notifications.module';
+ import { ReportsModule } from '../reports/reports.module';
+ import { SignalsModule } from '../signals/signals.module';
+ import { CronController } from './cron.controller';
+ 
+ @Module({
+-  imports: [EngineModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule],
++  imports: [EngineModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule],
+   controllers: [CronController],
+ })
+ export class CronModule {}
+diff --git a/backend/src/escalations/escalation-routing.service.ts b/backend/src/escalations/escalation-routing.service.ts
+index 13dd2d9..20e4c4d 100644
+--- a/backend/src/escalations/escalation-routing.service.ts
++++ b/backend/src/escalations/escalation-routing.service.ts
+@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
+ import { AuditService } from '../audit/audit.service';
+ import { PrismaService } from '../prisma/prisma.service';
+ import { EscalationCategory, ESCALATION_ROUTING } from './escalation-routing';
++import { NotificationsService } from '../notifications/notifications.service';
++import { ESCALATION_NOTIF } from '../notifications/staff-notifications';
+ 
+ interface OpenInput {
+   clientId: string;
+@@ -24,6 +26,7 @@ export class EscalationRoutingService {
+   constructor(
+     private readonly prisma: PrismaService,
+     private readonly audit: AuditService,
++    private readonly notifications: NotificationsService,
+   ) {}
+ 
+   async open(input: OpenInput) {
+@@ -42,7 +45,7 @@ export class EscalationRoutingService {
+ 
+     const profile = await this.prisma.clientProfile.findUnique({
+       where: { userId: input.clientId },
+-      select: { assignedCoachId: true, assignedNutritionistId: true },
++      select: { assignedCoachId: true, assignedNutritionistId: true, name: true },
+     });
+     const assignedToId =
+       routing.primary === 'nutritionist' ? profile?.assignedNutritionistId : profile?.assignedCoachId;
+@@ -63,6 +66,40 @@ export class EscalationRoutingService {
+       entityId: created.id,
+       metadata: { category: input.category, primary: routing.primary },
+     });
++
++    // Notifica staff: la segnalazione arriva SIA alla coach SIA alla nutrizionista
++    // assegnate alla cliente (l'opt-out per tipo nel profilo è rispettato in notify()).
++    await this.notifyAssignedStaff(input.category, profile, input.reason).catch(() => undefined);
+     return created;
+   }
++
++  /** Avvisa coach e nutrizionista assegnate della nuova segnalazione. */
++  private async notifyAssignedStaff(
++    category: EscalationCategory,
++    profile: { assignedCoachId: string | null; assignedNutritionistId: string | null; name: string | null } | null,
++    reason: string,
++  ): Promise<void> {
++    if (!profile) return;
++    const staffIds = [profile.assignedCoachId, profile.assignedNutritionistId].filter(
++      (v): v is string => !!v,
++    );
++    if (staffIds.length === 0) return;
++    const staff = await this.prisma.staff.findMany({
++      where: { id: { in: staffIds } },
++      select: { userId: true },
++    });
++    const info = ESCALATION_NOTIF[category];
++    const who = profile.name ?? 'una cliente';
++    for (const s of staff) {
++      await this.notifications
++        .notify({
++          userId: s.userId,
++          type: info.type,
++          title: info.title,
++          body: `${info.title} · ${who}${reason ? `: ${reason}` : ''}`,
++          payload: { category },
++        })
++        .catch(() => undefined);
++    }
++  }
+ }
+diff --git a/backend/src/escalations/escalations.module.ts b/backend/src/escalations/escalations.module.ts
+index e2ebb1e..cdd55ed 100644
+--- a/backend/src/escalations/escalations.module.ts
++++ b/backend/src/escalations/escalations.module.ts
+@@ -1,8 +1,10 @@
+ import { Module } from '@nestjs/common';
++import { NotificationsModule } from '../notifications/notifications.module';
+ import { EscalationRoutingService } from './escalation-routing.service';
+ import { EscalationsController } from './escalations.controller';
+ 
+ @Module({
++  imports: [NotificationsModule],
+   controllers: [EscalationsController],
+   providers: [EscalationRoutingService],
+   exports: [EscalationRoutingService],
+diff --git a/backend/src/health-area/health-area.module.ts b/backend/src/health-area/health-area.module.ts
+index 0980b9f..e689f2a 100644
+--- a/backend/src/health-area/health-area.module.ts
++++ b/backend/src/health-area/health-area.module.ts
+@@ -1,5 +1,6 @@
+ import { Module } from '@nestjs/common';
+ import { CommerceModule } from '../commerce/commerce.module';
++import { NotificationsModule } from '../notifications/notifications.module';
+ import { ClinicalNotesService } from './clinical-notes.service';
+ import { DocumentsService } from './documents.service';
+ import {
+@@ -10,7 +11,7 @@ import {
+ import { VisitsService } from './visits.service';
+ 
+ @Module({
+-  imports: [CommerceModule],
++  imports: [CommerceModule, NotificationsModule],
+   controllers: [MyHealthController, DocumentsController, NutritionistController],
+   providers: [VisitsService, DocumentsService, ClinicalNotesService],
+   exports: [VisitsService],
+diff --git a/backend/src/health-area/visits.service.ts b/backend/src/health-area/visits.service.ts
+index 4c88ad3..e78ca61 100644
+--- a/backend/src/health-area/visits.service.ts
++++ b/backend/src/health-area/visits.service.ts
+@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
+ import { FinanceService } from '../commerce/finance.service';
+ import { AuthUser } from '../common/interfaces/auth-user.interface';
+ import { PrismaService } from '../prisma/prisma.service';
++import { NotificationsService } from '../notifications/notifications.service';
+ 
+ /**
+  * Visite (spec sez. 11): la PRIMA visita è SEMPRE in presenza — il modulo
+@@ -21,6 +22,7 @@ export class VisitsService {
+     private readonly prisma: PrismaService,
+     private readonly audit: AuditService,
+     private readonly finance: FinanceService,
++    private readonly notifications: NotificationsService,
+   ) {}
+ 
+   /** Scheda staff + verifica che la cliente sia in carico (il capo vede tutte). */
+@@ -107,6 +109,18 @@ export class VisitsService {
+       entityId: visit.id,
+       metadata: { clientId: input.clientId, type: input.type, first: previousVisits === 0 },
+     });
++    // Notifica alla nutrizionista dell'appuntamento fissato.
++    const clientName = await this.clientName(input.clientId);
++    const whenLabel = this.dateLabel(when);
++    await this.notifications
++      .notify({
++        userId: user.sub,
++        type: 'appointment_created',
++        title: 'Appuntamento fissato',
++        body: `${input.type === 'televisit' ? 'Televisita' : 'Visita'} con ${clientName} · ${whenLabel}`,
++        payload: { visitId: visit.id, clientId: input.clientId },
++      })
++      .catch(() => undefined);
+     return visit;
+   }
+ 
+@@ -195,4 +209,69 @@ export class VisitsService {
+     });
+     return { visit: updated, objectiveReconfirmed };
+   }
++
++  /** Nome leggibile della cliente per i testi delle notifiche. */
++  private async clientName(clientId: string): Promise<string> {
++    const profile = await this.prisma.clientProfile.findUnique({
++      where: { userId: clientId },
++      select: { name: true },
++    });
++    if (profile?.name) return profile.name;
++    const u = await this.prisma.user.findUnique({
++      where: { id: clientId },
++      select: { firstName: true, lastName: true },
++    });
++    const full = [u?.firstName, u?.lastName].filter(Boolean).join(' ');
++    return full || 'una cliente';
++  }
++
++  private dateLabel(d: Date): string {
++    return d.toLocaleString('it-IT', {
++      timeZone: 'Europe/Rome',
++      day: '2-digit',
++      month: '2-digit',
++      hour: '2-digit',
++      minute: '2-digit',
++    });
++  }
++
++  /**
++   * Promemoria appuntamenti: chiamato dal cron ogni pochi minuti. Avvisa la
++   * nutrizionista degli appuntamenti che iniziano entro ~30 minuti, una sola
++   * volta per appuntamento (dedup sulla notifica gia' creata).
++   */
++  async sendUpcomingReminders(): Promise<{ sent: number }> {
++    const now = new Date();
++    const until = new Date(now.getTime() + 35 * 60 * 1000);
++    const visits = await this.prisma.visit.findMany({
++      where: { status: 'scheduled', datetime: { gte: now, lte: until } },
++      select: {
++        id: true,
++        datetime: true,
++        type: true,
++        clientId: true,
++        nutritionist: { select: { userId: true } },
++      },
++    });
++    let sent = 0;
++    for (const v of visits) {
++      const already = await this.prisma.notification.findFirst({
++        where: { type: 'appointment_reminder', payload: { path: ['visitId'], equals: v.id } },
++        select: { id: true },
++      });
++      if (already) continue;
++      const clientName = await this.clientName(v.clientId);
++      await this.notifications
++        .notify({
++          userId: v.nutritionist.userId,
++          type: 'appointment_reminder',
++          title: 'Promemoria appuntamento',
++          body: `Tra poco: ${v.type === 'televisit' ? 'televisita' : 'visita'} con ${clientName} · ${this.dateLabel(v.datetime)}`,
++          payload: { visitId: v.id, clientId: v.clientId },
++        })
++        .catch(() => undefined);
++      sent++;
++    }
++    return { sent };
++  }
+ }
+diff --git a/backend/src/notifications/notifications.controller.ts b/backend/src/notifications/notifications.controller.ts
+index 1f37c20..88fed64 100644
+--- a/backend/src/notifications/notifications.controller.ts
++++ b/backend/src/notifications/notifications.controller.ts
+@@ -31,6 +31,12 @@ class UpdatePrefsDto {
+   emailEnabled?: boolean;
+ }
+ 
++class StaffPrefsDto {
++  @IsArray()
++  @IsString({ each: true })
++  disabled!: string[];
++}
++
+ /** Notifiche in-app: clienti e staff leggono le proprie. */
+ @Controller('me/notifications')
+ export class NotificationsController {
+@@ -54,6 +60,17 @@ export class NotificationsController {
+     return this.notifications.updatePrefs(user.sub, dto);
+   }
+ 
++  /** Alert dello staff: catalogo + stato per il ruolo corrente (tabella profilo). */
++  @Get('staff-prefs')
++  getStaffPrefs(@CurrentUser() user: AuthUser) {
++    return this.notifications.getStaffPrefs(user.sub, user.role);
++  }
++
++  @Patch('staff-prefs')
++  setStaffPrefs(@CurrentUser() user: AuthUser, @Body() dto: StaffPrefsDto) {
++    return this.notifications.setStaffPrefs(user.sub, dto.disabled);
++  }
++
+   @Patch(':id/read')
+   markRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+     return this.notifications.markRead(user.sub, id);
+diff --git a/backend/src/notifications/notifications.service.ts b/backend/src/notifications/notifications.service.ts
+index 48a8157..9eb6571 100644
+--- a/backend/src/notifications/notifications.service.ts
++++ b/backend/src/notifications/notifications.service.ts
+@@ -6,6 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
+ import { toDateOnly } from '../signals/signals.service';
+ import { MessageComposerService, MessageTone } from './message-composer.service';
+ import { PushService } from './push.service';
++import { Role } from '../common/roles';
++import { STAFF_NOTIFICATION_TYPES, staffTypesForRole } from './staff-notifications';
+ 
+ interface NotifyInput {
+   userId: string;
+@@ -29,6 +31,16 @@ export interface NotificationPrefs {
+ /** Tipi che, se l'utente attiva l'email nelle preferenze, arrivano anche via Brevo. */
+ const EMAILABLE_TYPES = new Set(['visit_reminder', 'payment_approved', 'payment_rejected', 'pre_event']);
+ 
++/** Chiavi di tutti i tipi noti dello staff (per validare l'opt-out). */
++const STAFF_TYPE_KEYS = new Set(STAFF_NOTIFICATION_TYPES.map((t) => t.key));
++
++/** Legge i tipi disattivati dello staff da User.prefs.notificationsDisabled. */
++function staffDisabledTypes(prefs: unknown): string[] {
++  const p = (prefs as Record<string, unknown> | null) ?? {};
++  const raw = p['notificationsDisabled'];
++  return Array.isArray(raw) ? (raw as unknown[]).filter((x): x is string => typeof x === 'string') : [];
++}
++
+ /**
+  * Notifiche personalizzate (spec sez. 9): contenuto, tono e orario decisi dai
+  * segnali; canali in-app + email opzionale (push col frontend); preferenze e
+@@ -113,8 +125,10 @@ export class NotificationsService {
+ 
+   /** Notifica diretta (eventi, es. assegnazione lead): niente dedup giornaliero. */
+   async notify(input: { userId: string; type: string; title: string; body: string; payload?: Record<string, unknown> }): Promise<void> {
+-    const recipient = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { id: true } });
++    const recipient = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { id: true, prefs: true } });
+     if (!recipient) return;
++    // Opt-out per tipo dello staff (tabella nel profilo). Le clienti non usano questo path.
++    if (staffDisabledTypes(recipient.prefs).includes(input.type)) return;
+     await this.prisma.notification.create({
+       data: {
+         userId: input.userId,
+@@ -172,6 +186,26 @@ export class NotificationsService {
+     return next;
+   }
+ 
++  // ---------- Preferenze staff (opt-out per singolo alert) ----------
++
++  /** Catalogo alert + stato disattivato per il ruolo dell'utente (tabella profilo). */
++  async getStaffPrefs(userId: string, role: Role): Promise<{ types: { key: string; label: string; description: string }[]; disabled: string[] }> {
++    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { prefs: true } });
++    const disabled = staffDisabledTypes(u?.prefs ?? null);
++    const types = staffTypesForRole(role).map((t) => ({ key: t.key, label: t.label, description: t.description }));
++    return { types, disabled };
++  }
++
++  /** Salva l'elenco degli alert disattivati (solo chiavi note) in User.prefs. */
++  async setStaffPrefs(userId: string, disabled: string[]): Promise<{ disabled: string[] }> {
++    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { prefs: true } });
++    const prefs = { ...((u?.prefs as Record<string, unknown> | null) ?? {}) };
++    const clean = Array.from(new Set((disabled ?? []).filter((k) => STAFF_TYPE_KEYS.has(k))));
++    prefs['notificationsDisabled'] = clean;
++    await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
++    return { disabled: clean };
++  }
++
+   // ---------- Generazione giornaliera (chiamata dal cron) ----------
+ 
+   async generateDailyForClient(clientId: string): Promise<string[]> {
+diff --git a/backend/src/notifications/staff-notifications.ts b/backend/src/notifications/staff-notifications.ts
+new file mode 100644
+index 0000000..9a77db4
+--- /dev/null
++++ b/backend/src/notifications/staff-notifications.ts
+@@ -0,0 +1,60 @@
++import { Role } from '../common/roles';
++import { EscalationCategory } from '../escalations/escalation-routing';
++
++/**
++ * Catalogo delle notifiche per i ruoli tecnici (staff). È l'unica fonte di verità
++ * per: (a) le etichette mostrate nella campanella/lista, (b) la tabella di
++ * attivazione/disattivazione nel profilo, (c) il filtro opt-out in notify().
++ *
++ * L'opt-out per tipo dello staff vive in `User.prefs.notificationsDisabled`
++ * (array di `key`). Le clienti hanno un sistema separato (clientProfile.notificationPrefs).
++ */
++export interface StaffNotifType {
++  key: string;
++  label: string;
++  description: string;
++  /** Ruoli che possono ricevere/gestire questo alert (per la tabella profilo). */
++  roles: Role[];
++}
++
++const COACHES: Role[] = ['coach'];
++const NUTRIS: Role[] = ['nutritionist', 'head_nutritionist'];
++const CARE: Role[] = ['coach', 'nutritionist', 'head_nutritionist'];
++const RESP: Role[] = ['sales', 'coach']; // responsabile coach (sales) + coach che assegnano
++
++export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
++  // --- Segnalazioni cliente (arrivano sia alla coach sia alla nutrizionista assegnate) ---
++  { key: 'escalation_diet_blocked', label: 'Dieta bloccata', description: 'Il motore non riesce a comporre un piano sicuro per una cliente assegnata.', roles: CARE },
++  { key: 'escalation_no_progress', label: 'Nessun progresso', description: 'Una cliente assegnata è in stallo da più cicli.', roles: CARE },
++  { key: 'escalation_low_adherence', label: 'Bassa aderenza', description: 'Check-in o misure mancanti da parte di una cliente assegnata.', roles: CARE },
++  { key: 'escalation_mood_risk', label: 'Umore a rischio', description: 'Umore basso o rischio di abbandono di una cliente assegnata.', roles: CARE },
++  { key: 'escalation_clinical', label: 'Segnalazione clinica', description: 'Dato clinico o farmacologico da valutare su una cliente assegnata.', roles: CARE },
++  // --- Nutrizionista ---
++  { key: 'appointment_created', label: 'Appuntamento fissato', description: 'Nuovo appuntamento/visita in agenda.', roles: NUTRIS },
++  { key: 'appointment_reminder', label: 'Promemoria appuntamento', description: 'Promemoria 30 minuti prima di ogni appuntamento.', roles: NUTRIS },
++  { key: 'diet_approved', label: 'Dieta approvata', description: 'Il capo nutrizionista ha approvato una tua dieta.', roles: NUTRIS },
++  { key: 'client_assigned_nutritionist', label: 'Nuova cliente assegnata', description: 'Ti è stata assegnata una nuova cliente.', roles: NUTRIS },
++  // --- Coach ---
++  { key: 'lead_assigned', label: 'Lead assegnato', description: 'Ti è stato assegnato un nuovo lead da accettare.', roles: COACHES },
++  { key: 'payment_in_structure', label: 'Pagamento nella tua struttura', description: 'Una tua cliente ha effettuato un pagamento.', roles: COACHES },
++  { key: 'new_signup_referral', label: 'Nuova registrazione col tuo codice', description: 'Una nuova cliente si è registrata usando il tuo codice.', roles: ['coach', 'nutritionist'] },
++  // --- Responsabile coach (assegnazioni lead) ---
++  { key: 'lead_accepted', label: 'Lead accettato', description: 'Una coach ha accettato un lead che le hai assegnato.', roles: RESP },
++  { key: 'lead_rejected', label: 'Lead rifiutato', description: 'Una coach ha rifiutato un lead: va riassegnato.', roles: RESP },
++  { key: 'lead_assignment_expired', label: 'Lead non accettato in tempo', description: 'Un lead assegnato non è stato accettato entro i termini: va riassegnato.', roles: RESP },
++];
++
++/** Tipi disponibili per un ruolo (per la tabella nel profilo). */
++export function staffTypesForRole(role: Role): StaffNotifType[] {
++  return STAFF_NOTIFICATION_TYPES.filter((t) => t.roles.includes(role));
++}
++
++/** Mappa categoria segnalazione → tipo notifica + testo. */
++export const ESCALATION_NOTIF: Record<EscalationCategory, { type: string; title: string }> = {
++  diet_blocked: { type: 'escalation_diet_blocked', title: 'Dieta bloccata' },
++  no_progress: { type: 'escalation_no_progress', title: 'Nessun progresso' },
++  low_adherence: { type: 'escalation_low_adherence', title: 'Bassa aderenza' },
++  mood_risk: { type: 'escalation_mood_risk', title: 'Umore a rischio' },
++  clinical: { type: 'escalation_clinical', title: 'Segnalazione clinica' },
++  other: { type: 'escalation_other', title: 'Segnalazione' },
++};
+diff --git a/backend/src/permissions/pages.ts b/backend/src/permissions/pages.ts
+index abb7a2f..76ca7a2 100644
+--- a/backend/src/permissions/pages.ts
++++ b/backend/src/permissions/pages.ts
+@@ -6,6 +6,7 @@ import { Role } from '../common/roles';
+  */
+ export const BACKOFFICE_PAGES = [
+   'dashboard',
++  'notifications',
+   'posta',
+   'clients',
+   'diets_catalog',
+@@ -69,6 +70,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
+   client: {},
+   coach: {
+     dashboard: { view: true },
++    notifications: { view: true },
+     posta: { view: true },
+     charts: { view: true },
+     clients: { view: true },
+@@ -80,6 +82,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
+   },
+   nutritionist: {
+     dashboard: { view: true },
++    notifications: { view: true },
+     posta: { view: true },
+     charts: { view: true },
+     clients: { view: true, manage: true },
+@@ -94,6 +97,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
+   },
+   head_nutritionist: {
+     dashboard: { view: true },
++    notifications: { view: true },
+     posta: { view: true },
+     charts: { view: true },
+     clients: { view: true, manage: true },
+@@ -113,6 +117,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
+   },
+   sales: {
+     dashboard: { view: true },
++    notifications: { view: true },
+     posta: { view: true },
+     charts: { view: true },
+     crm_leads: { view: true, manage: true },
+@@ -124,6 +129,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
+   // Reparto Marketing (nessun accesso a dati sanitari): campagne, segmenti, KPI, consensi.
+   marketing: {
+     dashboard: { view: true },
++    notifications: { view: true },
+     posta: { view: true },
+     charts: { view: true },
+     crm_leads: { view: true }, // vede i lead (fonte/canale/campagna), non gestisce la pipeline clinica
+@@ -131,6 +137,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
+   },
+   head_marketing: {
+     dashboard: { view: true },
++    notifications: { view: true },
+     posta: { view: true },
+     charts: { view: true },
+     crm_leads: { view: true, manage: true },
+@@ -141,6 +148,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
+   },
+   admin: {
+     dashboard: { view: true, manage: true },
++    notifications: { view: true },
+     posta: { view: true },
+     clients: { view: true },
+     diets_catalog: { view: true, manage: true },
+diff --git a/backoffice/src/App.tsx b/backoffice/src/App.tsx
+index bcd1236..51a0e82 100644
+--- a/backoffice/src/App.tsx
++++ b/backoffice/src/App.tsx
+@@ -38,6 +38,7 @@ import { Grafici } from './pages/Grafici';
+ import { CreazioneValidazione } from './pages/CreazioneValidazione';
+ import { Marketing } from './pages/Marketing';
+ import { Impostazioni } from './pages/Impostazioni';
++import { Notifiche } from './pages/Notifiche';
+ import { Prelievi } from './pages/Prelievi';
+ import { Parametri } from './pages/Parametri';
+ import { RegoleMotore } from './pages/RegoleMotore';
+@@ -123,6 +124,7 @@ export default function App() {
+       <Route path="/grafica-pdf" element={<Protected title="Grafica PDF" pageKey="pdf_templates"><GraficaPdf /></Protected>} />
+       <Route path="/grafici" element={<Protected title="Grafici" pageKey="charts"><Grafici /></Protected>} />
+       <Route path="/impostazioni" element={<Protected title="Impostazioni"><Impostazioni /></Protected>} />
++      <Route path="/notifiche" element={<Protected title="Notifiche" pageKey="notifications"><Notifiche /></Protected>} />
+       <Route path="/prelievi" element={<Protected title="Richieste di prelievo" pageKey="withdrawals"><Prelievi /></Protected>} />
+ 
+       <Route path="*" element={<Navigate to="/" replace />} />
+diff --git a/backoffice/src/components/Layout.tsx b/backoffice/src/components/Layout.tsx
+index d14eeb0..55505bf 100644
+--- a/backoffice/src/components/Layout.tsx
++++ b/backoffice/src/components/Layout.tsx
+@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+ import { useAuth } from '../auth/AuthContext';
+ import { ROLE_LABEL } from '../lib/labels';
+ import { UserMenu } from './UserMenu';
++import { NotificationBell } from './NotificationBell';
+ import { api } from '../api/client';
+ import { readMenuOrderCache, writeMenuOrderCache, orderNavItems } from '../lib/menuOrder';
+ 
+@@ -27,6 +28,7 @@ export const NAV: NavSection[] = [
+       { key: 'dashboard', label: 'Dashboard', to: '/', icon: 'ti-layout-dashboard' },
+       { key: 'posta', label: 'Posta', to: '/posta', icon: 'ti-mail' },
+       { key: 'charts', label: 'Grafici', to: '/grafici', icon: 'ti-chart-histogram' },
++      { key: 'notifications', label: 'Notifiche', to: '/notifiche', icon: 'ti-bell' },
+       // Impostazioni spostate nel menu utente in alto (avatar) → non più in sidebar.
+     ],
+   },
+@@ -220,7 +222,8 @@ export function Layout({ title, children }: { title: string; children: ReactNode
+             </button>
+             <h1>{title}</h1>
+           </div>
+-          <div className="row">
++          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
++            <NotificationBell />
+             <UserMenu />
+           </div>
+         </div>
+diff --git a/backoffice/src/components/NotificationBell.tsx b/backoffice/src/components/NotificationBell.tsx
+new file mode 100644
+index 0000000..f200fd5
+--- /dev/null
++++ b/backoffice/src/components/NotificationBell.tsx
+@@ -0,0 +1,181 @@
++import { useEffect, useRef, useState } from 'react';
++import { useNavigate } from 'react-router-dom';
++import { api } from '../api/client';
++
++interface Notif {
++  id: string;
++  type: string;
++  payload?: { title?: string; body?: string } | null;
++  readAt: string | null;
++  createdAt: string;
++}
++
++function relTime(iso: string): string {
++  const then = new Date(iso).getTime();
++  const diff = Date.now() - then;
++  const min = Math.round(diff / 60000);
++  if (min < 1) return 'ora';
++  if (min < 60) return `${min} min fa`;
++  const h = Math.round(min / 60);
++  if (h < 24) return `${h} h fa`;
++  const d = Math.round(h / 24);
++  if (d < 7) return `${d} g fa`;
++  return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
++}
++
++/**
++ * Campanella notifiche nell'header del backoffice: badge non lette, dropdown con
++ * le ultime notifiche, segna letta al clic, link al modulo Notifiche.
++ */
++export function NotificationBell() {
++  const navigate = useNavigate();
++  const [items, setItems] = useState<Notif[]>([]);
++  const [open, setOpen] = useState(false);
++  const ref = useRef<HTMLDivElement>(null);
++
++  async function load() {
++    try {
++      const r = await api<Notif[]>('/me/notifications');
++      setItems(Array.isArray(r) ? r : []);
++    } catch {
++      /* silenzioso: la campanella non deve mai rompere l'header */
++    }
++  }
++
++  useEffect(() => {
++    void load();
++    const t = setInterval(() => void load(), 60_000);
++    return () => clearInterval(t);
++  }, []);
++
++  useEffect(() => {
++    if (!open) return;
++    function onDown(e: MouseEvent) {
++      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
++    }
++    function onKey(e: KeyboardEvent) {
++      if (e.key === 'Escape') setOpen(false);
++    }
++    document.addEventListener('mousedown', onDown);
++    document.addEventListener('keydown', onKey);
++    return () => {
++      document.removeEventListener('mousedown', onDown);
++      document.removeEventListener('keydown', onKey);
++    };
++  }, [open]);
++
++  const unread = items.filter((n) => !n.readAt).length;
++
++  async function markRead(n: Notif) {
++    if (n.readAt) return;
++    setItems((list) => list.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
++    try {
++      await api(`/me/notifications/${n.id}/read`, { method: 'PATCH' });
++    } catch {
++      /* la spunta è già applicata localmente */
++    }
++  }
++
++  async function markAll() {
++    const toMark = items.filter((n) => !n.readAt);
++    setItems((list) => list.map((x) => (x.readAt ? x : { ...x, readAt: new Date().toISOString() })));
++    await Promise.all(toMark.map((n) => api(`/me/notifications/${n.id}/read`, { method: 'PATCH' }).catch(() => {})));
++  }
++
++  return (
++    <div className="notif-bell" ref={ref} style={{ position: 'relative' }}>
++      <button
++        type="button"
++        className="nav-toggle"
++        title="Notifiche"
++        onClick={() => setOpen((v) => !v)}
++        style={{ position: 'relative' }}
++      >
++        <i className="ti ti-bell" />
++        {unread > 0 && (
++          <span
++            style={{
++              position: 'absolute',
++              top: 2,
++              right: 2,
++              minWidth: 16,
++              height: 16,
++              padding: '0 4px',
++              borderRadius: 8,
++              background: '#e5484d',
++              color: '#fff',
++              fontSize: 10,
++              fontWeight: 700,
++              lineHeight: '16px',
++              textAlign: 'center',
++            }}
++          >
++            {unread > 9 ? '9+' : unread}
++          </span>
++        )}
++      </button>
++      {open && (
++        <div
++          style={{
++            position: 'absolute',
++            right: 0,
++            top: 'calc(100% + 8px)',
++            width: 340,
++            maxWidth: '90vw',
++            background: 'var(--card, #fff)',
++            border: '1px solid var(--line, #e5e5e5)',
++            borderRadius: 12,
++            boxShadow: '0 10px 30px rgba(0,0,0,.12)',
++            zIndex: 60,
++            overflow: 'hidden',
++          }}
++        >
++          <div className="row-between" style={{ padding: '10px 12px', borderBottom: '1px solid var(--line, #eee)' }}>
++            <b style={{ fontSize: 14 }}>Notifiche</b>
++            {unread > 0 && (
++              <button className="link" style={{ background: 'none', border: 0, cursor: 'pointer', fontSize: 12, color: 'var(--teal, #12a386)' }} onClick={markAll}>
++                Segna tutte lette
++              </button>
++            )}
++          </div>
++          <div style={{ maxHeight: 380, overflowY: 'auto' }}>
++            {items.length === 0 ? (
++              <div className="muted" style={{ padding: '22px 12px', textAlign: 'center', fontSize: 13 }}>
++                Nessuna notifica.
++              </div>
++            ) : (
++              items.slice(0, 15).map((n) => (
++                <div
++                  key={n.id}
++                  onClick={() => markRead(n)}
++                  style={{
++                    display: 'flex',
++                    gap: 10,
++                    padding: '10px 12px',
++                    borderBottom: '1px solid var(--line, #f0f0f0)',
++                    cursor: n.readAt ? 'default' : 'pointer',
++                    background: n.readAt ? 'transparent' : 'rgba(18,163,134,.06)',
++                  }}
++                >
++                  <span style={{ flex: 'none', width: 8, height: 8, borderRadius: '50%', marginTop: 6, background: n.readAt ? 'transparent' : '#12a386' }} />
++                  <div style={{ minWidth: 0, flex: 1 }}>
++                    <div style={{ fontWeight: n.readAt ? 500 : 700, fontSize: 13 }}>{n.payload?.title || n.type}</div>
++                    {n.payload?.body && <div className="muted" style={{ fontSize: 12, lineHeight: 1.4 }}>{n.payload.body}</div>}
++                    <div className="muted" style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{relTime(n.createdAt)}</div>
++                  </div>
++                </div>
++              ))
++            )}
++          </div>
++          <button
++            type="button"
++            onClick={() => { setOpen(false); navigate('/notifiche'); }}
++            style={{ width: '100%', padding: '10px 12px', background: 'none', border: 0, borderTop: '1px solid var(--line, #eee)', cursor: 'pointer', fontSize: 13, color: 'var(--teal, #12a386)', fontWeight: 600 }}
++          >
++            Vedi tutte
++          </button>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/backoffice/src/lib/labels.ts b/backoffice/src/lib/labels.ts
+index 0c7e93b..05681c9 100644
+--- a/backoffice/src/lib/labels.ts
++++ b/backoffice/src/lib/labels.ts
+@@ -19,6 +19,7 @@ export const ALL_ROLES: Role[] = ['admin', 'head_nutritionist', 'nutritionist',
+ 
+ export const PAGE_LABEL: Record<string, string> = {
+   dashboard: 'Dashboard',
++  notifications: 'Notifiche',
+   posta: 'Posta',
+   clients: 'Clienti',
+   diets_catalog: 'Catalogo diete',
+diff --git a/backoffice/src/pages/GestioneDieta.tsx b/backoffice/src/pages/GestioneDieta.tsx
+index 2acfa8f..d5b2154 100644
+--- a/backoffice/src/pages/GestioneDieta.tsx
++++ b/backoffice/src/pages/GestioneDieta.tsx
+@@ -1,12 +1,12 @@
+ import { useEffect, useState } from 'react';
+ import { api, ApiError } from '../api/client';
+-import { Banner, Spinner } from '../components/ui';
++import { Banner, Spinner, Toggle } from '../components/ui';
+ import { Ricette } from './Ricette';
+ import { TagAllergeni } from './TagAllergeni';
+ import { GruppiEquivalenza } from './GruppiEquivalenza';
+ import { useTaxonomy } from '../lib/taxonomy';
+ 
+-interface DietRow { id: string; name: string; regime: string; status?: string }
++interface DietRow { id: string; name: string; regime: string; status?: string; clientVisible?: boolean }
+ 
+ type Section = 'ricette' | 'allergeni' | 'gruppi';
+ 
+@@ -24,6 +24,9 @@ export function GestioneDieta() {
+   const [section, setSection] = useState<Section>('ricette');
+   const [renameVal, setRenameVal] = useState('');
+   const [renaming, setRenaming] = useState(false);
++  const [visible, setVisible] = useState(false);
++  const [visBusy, setVisBusy] = useState(false);
++  const [visMsg, setVisMsg] = useState<string | null>(null);
+ 
+   useEffect(() => {
+     api<DietRow[]>('/diets')
+@@ -37,6 +40,33 @@ export function GestioneDieta() {
+     setRenameVal(d?.name ?? '');
+   }, [dietId, diets]);
+ 
++  // Carica lo stato "Visibile ai clienti" della dieta scelta.
++  useEffect(() => {
++    setVisMsg(null);
++    if (!dietId) { setVisible(false); return; }
++    let alive = true;
++    api<{ clientVisible?: boolean }>(`/diets/${dietId}`)
++      .then((d) => { if (alive) setVisible(!!d.clientVisible); })
++      .catch(() => { if (alive) setVisible(false); });
++    return () => { alive = false; };
++  }, [dietId]);
++
++  async function toggleVisible(next: boolean) {
++    if (!dietId) return;
++    setVisBusy(true); setVisMsg(null);
++    try {
++      await api(`/diets/${dietId}/product`, { method: 'PATCH', body: JSON.stringify({ clientVisible: next }) });
++      setVisible(next);
++      setDiets((ds) => (ds ?? []).map((x) => (x.id === dietId ? { ...x, clientVisible: next } : x)));
++      setVisMsg(next ? 'La dieta è ora visibile alle clienti nell\'onboarding.' : 'La dieta non è più visibile alle clienti.');
++    } catch (e) {
++      // Gate di sicurezza R8: allergeni non confermati o nessun gruppo di equivalenza approvato.
++      setVisMsg(e instanceof ApiError ? e.message : 'Impossibile cambiare la visibilità.');
++    } finally {
++      setVisBusy(false);
++    }
++  }
++
+   async function rename() {
+     const name = renameVal.trim();
+     const d = diets?.find((x) => x.id === dietId) ?? null;
+@@ -87,6 +117,18 @@ export function GestioneDieta() {
+             </button>
+           </div>
+         )}
++        {diet && (
++          <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
++            <Toggle on={visible} disabled={visBusy} onChange={toggleVisible} />
++            <div>
++              <div style={{ fontWeight: 600, fontSize: 13 }}>Visibile ai clienti</div>
++              <div className="muted" style={{ fontSize: 12 }}>
++                Se attivo, la dieta compare nell'onboarding (schermo "Stile che preferisci"). Richiede allergeni confermati e almeno un gruppo di equivalenza approvato.
++              </div>
++            </div>
++            {visMsg && <span className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{visMsg}</span>}
++          </div>
++        )}
+       </div>
+ 
+       {!diet ? (
+diff --git a/backoffice/src/pages/Notifiche.tsx b/backoffice/src/pages/Notifiche.tsx
+new file mode 100644
+index 0000000..1749d32
+--- /dev/null
++++ b/backoffice/src/pages/Notifiche.tsx
+@@ -0,0 +1,88 @@
++import { useEffect, useState } from 'react';
++import { api } from '../api/client';
++import { Spinner } from '../components/ui';
++
++interface Notif {
++  id: string;
++  type: string;
++  payload?: { title?: string; body?: string } | null;
++  readAt: string | null;
++  createdAt: string;
++}
++
++const dateTime = (s: string) =>
++  new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
++
++/** Modulo Notifiche del backoffice: elenco completo delle notifiche dell'utente. */
++export function Notifiche() {
++  const [items, setItems] = useState<Notif[] | null>(null);
++
++  async function load() {
++    try {
++      const r = await api<Notif[]>('/me/notifications');
++      setItems(Array.isArray(r) ? r : []);
++    } catch {
++      setItems([]);
++    }
++  }
++
++  useEffect(() => { void load(); }, []);
++
++  async function markRead(n: Notif) {
++    if (n.readAt) return;
++    setItems((list) => (list ?? []).map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
++    try {
++      await api(`/me/notifications/${n.id}/read`, { method: 'PATCH' });
++    } catch {
++      /* spunta già applicata localmente */
++    }
++  }
++
++  async function markAll() {
++    const toMark = (items ?? []).filter((n) => !n.readAt);
++    setItems((list) => (list ?? []).map((x) => (x.readAt ? x : { ...x, readAt: new Date().toISOString() })));
++    await Promise.all(toMark.map((n) => api(`/me/notifications/${n.id}/read`, { method: 'PATCH' }).catch(() => {})));
++  }
++
++  if (items === null) return <Spinner />;
++  const unread = items.filter((n) => !n.readAt).length;
++
++  return (
++    <div className="card">
++      <div className="row-between" style={{ marginBottom: 10 }}>
++        <h2 style={{ margin: 0 }}>Notifiche</h2>
++        {unread > 0 && (
++          <button className="btn ghost sm" onClick={markAll}>
++            <i className="ti ti-checks" /> Segna tutte lette
++          </button>
++        )}
++      </div>
++      {items.length === 0 ? (
++        <div className="empty">Nessuna notifica.</div>
++      ) : (
++        <div style={{ display: 'flex', flexDirection: 'column' }}>
++          {items.map((n) => (
++            <div
++              key={n.id}
++              onClick={() => markRead(n)}
++              style={{
++                display: 'flex',
++                gap: 12,
++                padding: '12px 4px',
++                borderBottom: '1px solid var(--line, #f0f0f0)',
++                cursor: n.readAt ? 'default' : 'pointer',
++              }}
++            >
++              <span style={{ flex: 'none', width: 9, height: 9, borderRadius: '50%', marginTop: 6, background: n.readAt ? 'var(--line, #ddd)' : '#12a386' }} />
++              <div style={{ minWidth: 0, flex: 1 }}>
++                <div style={{ fontWeight: n.readAt ? 500 : 700, fontSize: 14 }}>{n.payload?.title || n.type}</div>
++                {n.payload?.body && <div className="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>{n.payload.body}</div>}
++                <div className="muted" style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{dateTime(n.createdAt)}</div>
++              </div>
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/render.yaml b/render.yaml
+index 6ef62b0..a94206e 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -81,3 +81,15 @@ services:
+     startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/daily'
+     envVars:
+       - fromGroup: metabole-shared
++
++  # Promemoria appuntamenti: ogni 10 minuti avvisa la nutrizionista ~30 min prima delle visite.
++  - type: cron
++    name: metabole-cron-reminders
++    runtime: node
++    region: frankfurt
++    schedule: '*/10 * * * *'
++    rootDir: backend
++    buildCommand: 'echo cron pronto'
++    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/reminders'
++    envVars:
++      - fromGroup: metabole-shared

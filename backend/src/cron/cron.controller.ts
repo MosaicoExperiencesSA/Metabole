@@ -17,6 +17,7 @@ import { EngineService } from '../engine/engine.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReportsService } from '../reports/reports.service';
 import { SignalsService } from '../signals/signals.service';
+import { VisitsService } from '../health-area/visits.service';
 
 /**
  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
@@ -37,6 +38,7 @@ export class CronController {
     private readonly summaries: ConversationSummaryService,
     private readonly commerce: CommerceService,
     private readonly signals: SignalsService,
+    private readonly visits: VisitsService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -65,5 +67,18 @@ export class CronController {
       metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, monthlyReports } as Record<string, unknown>,
     });
     return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, monthlyReports };
+  }
+
+  /**
+   * Promemoria appuntamenti: parte spesso (ogni ~10 min via Render Cron) per
+   * avvisare la nutrizionista 30 minuti prima di ogni visita. Idempotente.
+   */
+  @Public()
+  @HttpCode(200)
+  @Post('reminders')
+  async reminders(@Headers('x-cron-secret') secret?: string) {
+    this.assertSecret(secret);
+    const appointmentReminders = await this.visits.sendUpcomingReminders();
+    return { appointmentReminders };
   }
 }

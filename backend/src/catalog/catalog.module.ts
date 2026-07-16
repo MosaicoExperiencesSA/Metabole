@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import {
   CatalogController,
   DietsController,
@@ -16,6 +17,7 @@ import { PublicCatalogController } from './public-catalog.controller';
     RecipesController,
     PublicCatalogController,
   ],
+  imports: [NotificationsModule],
   providers: [CatalogService],
   exports: [CatalogService],
 })

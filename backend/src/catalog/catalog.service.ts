@@ -7,6 +7,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
 import {
   CreateDietDto,
@@ -29,6 +30,7 @@ export class CatalogService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly config: ConfigParamsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Scheda Staff dell'utente corrente (richiesta per operare sul catalogo). */
@@ -295,6 +297,24 @@ export class CatalogService {
     }
   }
 
+  /**
+   * Alla pubblicazione/approvazione rende la dieta visibile alle clienti (schermo 16),
+   * ma SOLO se supera il gate di sicurezza R8. Non solleva: se il gate fallisce lascia
+   * la dieta nascosta e restituisce il motivo, così l'approvazione non viene bloccata.
+   */
+  private async tryMakeClientVisible(id: string): Promise<{ clientVisible: boolean; visibilityWarning?: string }> {
+    try {
+      await this.assertActivatable(id);
+    } catch (e) {
+      return {
+        clientVisible: false,
+        visibilityWarning: e instanceof Error ? e.message : 'Dieta non ancora attivabile ai clienti.',
+      };
+    }
+    await this.prisma.diet.update({ where: { id }, data: { clientVisible: true } as never });
+    return { clientVisible: true };
+  }
+
   /** Elimina una ricetta e le sue valutazioni/pesi appresi. */
   async deleteRecipe(userId: string, id: string) {
     const recipe = await this.prisma.recipe.findUnique({ where: { id }, select: { id: true, name: true } });
@@ -446,7 +466,9 @@ export class CatalogService {
       entityType: 'diet',
       entityId: id,
     });
-    return updated;
+    await this.notifyDietApproved(diet.authorId, staff.id, updated.name);
+    const vis = await this.tryMakeClientVisible(id);
+    return { ...updated, clientVisible: vis.clientVisible, visibilityWarning: vis.visibilityWarning };
   }
 
   /**
@@ -474,7 +496,9 @@ export class CatalogService {
       entityType: 'diet',
       entityId: id,
     });
-    return updated;
+    await this.notifyDietApproved(diet.authorId, staff.id, updated.name);
+    const vis = await this.tryMakeClientVisible(id);
+    return { ...updated, clientVisible: vis.clientVisible, visibilityWarning: vis.visibilityWarning };
   }
 
   async rejectDiet(userId: string, id: string, reason?: string) {
@@ -625,5 +649,24 @@ export class CatalogService {
     });
     await this.audit.log({ action: 'admin.config.update', actorId, entityType: 'config_param', entityId: 'diet_regimes', metadata: { count: dedup.length } });
     return dedup;
+  }
+
+  /** Avvisa l'autore della dieta quando qualcun altro la approva/pubblica. */
+  private async notifyDietApproved(authorStaffId: string | null, approverStaffId: string, dietName: string): Promise<void> {
+    if (!authorStaffId || authorStaffId === approverStaffId) return;
+    const author = await this.prisma.staff.findUnique({
+      where: { id: authorStaffId },
+      select: { userId: true },
+    });
+    if (!author) return;
+    await this.notifications
+      .notify({
+        userId: author.userId,
+        type: 'diet_approved',
+        title: 'Dieta approvata',
+        body: `La dieta "${dietName}" è stata approvata e pubblicata.`,
+        payload: {},
+      })
+      .catch(() => undefined);
   }
 }

@@ -6,6 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../signals/signals.service';
 import { MessageComposerService, MessageTone } from './message-composer.service';
 import { PushService } from './push.service';
+import { Role } from '../common/roles';
+import { STAFF_NOTIFICATION_TYPES, staffTypesForRole } from './staff-notifications';
 
 interface NotifyInput {
   userId: string;
@@ -28,6 +30,16 @@ export interface NotificationPrefs {
 
 /** Tipi che, se l'utente attiva l'email nelle preferenze, arrivano anche via Brevo. */
 const EMAILABLE_TYPES = new Set(['visit_reminder', 'payment_approved', 'payment_rejected', 'pre_event']);
+
+/** Chiavi di tutti i tipi noti dello staff (per validare l'opt-out). */
+const STAFF_TYPE_KEYS = new Set(STAFF_NOTIFICATION_TYPES.map((t) => t.key));
+
+/** Legge i tipi disattivati dello staff da User.prefs.notificationsDisabled. */
+function staffDisabledTypes(prefs: unknown): string[] {
+  const p = (prefs as Record<string, unknown> | null) ?? {};
+  const raw = p['notificationsDisabled'];
+  return Array.isArray(raw) ? (raw as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+}
 
 /**
  * Notifiche personalizzate (spec sez. 9): contenuto, tono e orario decisi dai
@@ -113,8 +125,10 @@ export class NotificationsService {
 
   /** Notifica diretta (eventi, es. assegnazione lead): niente dedup giornaliero. */
   async notify(input: { userId: string; type: string; title: string; body: string; payload?: Record<string, unknown> }): Promise<void> {
-    const recipient = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { id: true } });
+    const recipient = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { id: true, prefs: true } });
     if (!recipient) return;
+    // Opt-out per tipo dello staff (tabella nel profilo). Le clienti non usano questo path.
+    if (staffDisabledTypes(recipient.prefs).includes(input.type)) return;
     await this.prisma.notification.create({
       data: {
         userId: input.userId,
@@ -170,6 +184,26 @@ export class NotificationsService {
       data: { notificationPrefs: next as never },
     });
     return next;
+  }
+
+  // ---------- Preferenze staff (opt-out per singolo alert) ----------
+
+  /** Catalogo alert + stato disattivato per il ruolo dell'utente (tabella profilo). */
+  async getStaffPrefs(userId: string, role: Role): Promise<{ types: { key: string; label: string; description: string }[]; disabled: string[] }> {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { prefs: true } });
+    const disabled = staffDisabledTypes(u?.prefs ?? null);
+    const types = staffTypesForRole(role).map((t) => ({ key: t.key, label: t.label, description: t.description }));
+    return { types, disabled };
+  }
+
+  /** Salva l'elenco degli alert disattivati (solo chiavi note) in User.prefs. */
+  async setStaffPrefs(userId: string, disabled: string[]): Promise<{ disabled: string[] }> {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { prefs: true } });
+    const prefs = { ...((u?.prefs as Record<string, unknown> | null) ?? {}) };
+    const clean = Array.from(new Set((disabled ?? []).filter((k) => STAFF_TYPE_KEYS.has(k))));
+    prefs['notificationsDisabled'] = clean;
+    await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
+    return { disabled: clean };
   }
 
   // ---------- Generazione giornaliera (chiamata dal cron) ----------

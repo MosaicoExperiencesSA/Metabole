@@ -7,6 +7,11 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-07-15
 
+- `[Sviluppo]` **Sito — separatore delle migliaia su tutti i contatori** — `fmtN` ora forza il
+  raggruppamento (`useGrouping:'always'`): l'italiano per standard CLDR non separa i numeri a 4 cifre
+  (6729 restava senza punto mentre 86.310 lo aveva). Ora 6.729+ / 86.310+ in tutte le 9 lingue, con
+  fallback regex per browser datati. Solo `Metabole_Sito_Presentazione.html`, da ripubblicare su SiteGround.
+
 - `[Sviluppo]` **Sito — descrizioni card percorsi a 4 righe con "…" e click per espandere** — le note
   cliniche lunghe non allungano più le card: CSS line-clamp a 4 righe con ellissi; click/tap sulla
   descrizione la espande (e richiude). Solo `Metabole_Sito_Presentazione.html`, da ripubblicare su SiteGround.

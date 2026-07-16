@@ -31,6 +31,12 @@ class UpdatePrefsDto {
   emailEnabled?: boolean;
 }
 
+class StaffPrefsDto {
+  @IsArray()
+  @IsString({ each: true })
+  disabled!: string[];
+}
+
 /** Notifiche in-app: clienti e staff leggono le proprie. */
 @Controller('me/notifications')
 export class NotificationsController {
@@ -52,6 +58,17 @@ export class NotificationsController {
   @Patch('prefs')
   updatePrefs(@CurrentUser() user: AuthUser, @Body() dto: UpdatePrefsDto) {
     return this.notifications.updatePrefs(user.sub, dto);
+  }
+
+  /** Alert dello staff: catalogo + stato per il ruolo corrente (tabella profilo). */
+  @Get('staff-prefs')
+  getStaffPrefs(@CurrentUser() user: AuthUser) {
+    return this.notifications.getStaffPrefs(user.sub, user.role);
+  }
+
+  @Patch('staff-prefs')
+  setStaffPrefs(@CurrentUser() user: AuthUser, @Body() dto: StaffPrefsDto) {
+    return this.notifications.setStaffPrefs(user.sub, dto.disabled);
   }
 
   @Patch(':id/read')

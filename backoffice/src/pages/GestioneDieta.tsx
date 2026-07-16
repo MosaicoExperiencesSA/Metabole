@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Spinner, Toggle } from '../components/ui';
 import { Ricette } from './Ricette';
 import { TagAllergeni } from './TagAllergeni';
 import { GruppiEquivalenza } from './GruppiEquivalenza';
 import { useTaxonomy } from '../lib/taxonomy';
 
-interface DietRow { id: string; name: string; regime: string; status?: string }
+interface DietRow { id: string; name: string; regime: string; status?: string; clientVisible?: boolean }
 
 type Section = 'ricette' | 'allergeni' | 'gruppi';
 
@@ -24,6 +24,9 @@ export function GestioneDieta() {
   const [section, setSection] = useState<Section>('ricette');
   const [renameVal, setRenameVal] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [visBusy, setVisBusy] = useState(false);
+  const [visMsg, setVisMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api<DietRow[]>('/diets')
@@ -36,6 +39,33 @@ export function GestioneDieta() {
     const d = diets?.find((x) => x.id === dietId) ?? null;
     setRenameVal(d?.name ?? '');
   }, [dietId, diets]);
+
+  // Carica lo stato "Visibile ai clienti" della dieta scelta.
+  useEffect(() => {
+    setVisMsg(null);
+    if (!dietId) { setVisible(false); return; }
+    let alive = true;
+    api<{ clientVisible?: boolean }>(`/diets/${dietId}`)
+      .then((d) => { if (alive) setVisible(!!d.clientVisible); })
+      .catch(() => { if (alive) setVisible(false); });
+    return () => { alive = false; };
+  }, [dietId]);
+
+  async function toggleVisible(next: boolean) {
+    if (!dietId) return;
+    setVisBusy(true); setVisMsg(null);
+    try {
+      await api(`/diets/${dietId}/product`, { method: 'PATCH', body: JSON.stringify({ clientVisible: next }) });
+      setVisible(next);
+      setDiets((ds) => (ds ?? []).map((x) => (x.id === dietId ? { ...x, clientVisible: next } : x)));
+      setVisMsg(next ? 'La dieta è ora visibile alle clienti nell\'onboarding.' : 'La dieta non è più visibile alle clienti.');
+    } catch (e) {
+      // Gate di sicurezza R8: allergeni non confermati o nessun gruppo di equivalenza approvato.
+      setVisMsg(e instanceof ApiError ? e.message : 'Impossibile cambiare la visibilità.');
+    } finally {
+      setVisBusy(false);
+    }
+  }
 
   async function rename() {
     const name = renameVal.trim();
@@ -85,6 +115,18 @@ export function GestioneDieta() {
             <button className="btn ghost sm" onClick={rename} disabled={renaming || renameVal.trim().length < 2 || renameVal.trim() === diet.name}>
               <i className="ti ti-edit" /> Rinomina
             </button>
+          </div>
+        )}
+        {diet && (
+          <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+            <Toggle on={visible} disabled={visBusy} onChange={toggleVisible} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Visibile ai clienti</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Se attivo, la dieta compare nell'onboarding (schermo "Stile che preferisci"). Richiede allergeni confermati e almeno un gruppo di equivalenza approvato.
+              </div>
+            </div>
+            {visMsg && <span className="muted" style={{ fontSize: 12, flexBasis: '100%' }}>{visMsg}</span>}
           </div>
         )}
       </div>

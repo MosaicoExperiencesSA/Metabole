@@ -81,3 +81,15 @@ services:
     startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/daily'
     envVars:
       - fromGroup: metabole-shared
+
+  # Promemoria appuntamenti: ogni 10 minuti avvisa la nutrizionista ~30 min prima delle visite.
+  - type: cron
+    name: metabole-cron-reminders
+    runtime: node
+    region: frankfurt
+    schedule: '*/10 * * * *'
+    rootDir: backend
+    buildCommand: 'echo cron pronto'
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/reminders'
+    envVars:
+      - fromGroup: metabole-shared

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscalationCategory, ESCALATION_ROUTING } from './escalation-routing';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ESCALATION_NOTIF } from '../notifications/staff-notifications';
 
 interface OpenInput {
   clientId: string;
@@ -24,6 +26,7 @@ export class EscalationRoutingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async open(input: OpenInput) {
@@ -42,7 +45,7 @@ export class EscalationRoutingService {
 
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: input.clientId },
-      select: { assignedCoachId: true, assignedNutritionistId: true },
+      select: { assignedCoachId: true, assignedNutritionistId: true, name: true },
     });
     const assignedToId =
       routing.primary === 'nutritionist' ? profile?.assignedNutritionistId : profile?.assignedCoachId;
@@ -63,6 +66,40 @@ export class EscalationRoutingService {
       entityId: created.id,
       metadata: { category: input.category, primary: routing.primary },
     });
+
+    // Notifica staff: la segnalazione arriva SIA alla coach SIA alla nutrizionista
+    // assegnate alla cliente (l'opt-out per tipo nel profilo è rispettato in notify()).
+    await this.notifyAssignedStaff(input.category, profile, input.reason).catch(() => undefined);
     return created;
+  }
+
+  /** Avvisa coach e nutrizionista assegnate della nuova segnalazione. */
+  private async notifyAssignedStaff(
+    category: EscalationCategory,
+    profile: { assignedCoachId: string | null; assignedNutritionistId: string | null; name: string | null } | null,
+    reason: string,
+  ): Promise<void> {
+    if (!profile) return;
+    const staffIds = [profile.assignedCoachId, profile.assignedNutritionistId].filter(
+      (v): v is string => !!v,
+    );
+    if (staffIds.length === 0) return;
+    const staff = await this.prisma.staff.findMany({
+      where: { id: { in: staffIds } },
+      select: { userId: true },
+    });
+    const info = ESCALATION_NOTIF[category];
+    const who = profile.name ?? 'una cliente';
+    for (const s of staff) {
+      await this.notifications
+        .notify({
+          userId: s.userId,
+          type: info.type,
+          title: info.title,
+          body: `${info.title} · ${who}${reason ? `: ${reason}` : ''}`,
+          payload: { category },
+        })
+        .catch(() => undefined);
+    }
   }
 }

@@ -629,7 +629,7 @@ function setLang(l){
 }
 /* --- Contatori dinamici (dal DB): persone raggiunte +1 per lead, clienti +1 per acquisto piano --- */
 var STATS={years:20,clients:18979,reached:85218,methods:4};
-function fmtN(n,l){try{return n.toLocaleString(l||'it')}catch(e){return String(n)}}
+function fmtN(n,l){try{return n.toLocaleString(l||'it',{useGrouping:'always'})}catch(e){}try{return n.toLocaleString(l||'it')}catch(e){}return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'.')}
 function applyStats(l){
   var y=document.getElementById('statYears'),c=document.getElementById('statClients'),r=document.getElementById('statReached'),m=document.getElementById('statMethods');
   if(y)y.textContent=fmtN(STATS.years,l)+'+';

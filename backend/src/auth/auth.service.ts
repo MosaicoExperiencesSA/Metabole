@@ -17,6 +17,7 @@ import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReferralService } from '../referral/referral.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterDto } from './dto/register.dto';
 
 export interface TokenPair {
@@ -52,6 +53,7 @@ export class AuthService {
     private readonly crm: CrmService,
     private readonly leadAssignment: LeadAssignmentService,
     private readonly referral: ReferralService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ---------- Registrazione ----------
@@ -107,6 +109,20 @@ export class AuthService {
     // Codice staff → auto-assegna la cliente alla coach o alla nutrizionista (immediata).
     if (trimmedRef && refKind === 'staff') {
       await this.leadAssignment.autoAssignByRefCode(user.id, trimmedRef);
+      // Notifica allo staff proprietario del codice: nuova registrazione col tuo codice.
+      const owner = await this.leadAssignment.resolveByRefCode(trimmedRef);
+      if (owner) {
+        const who = [user.firstName, user.lastName].filter(Boolean).join(' ') || normalized;
+        await this.notifications
+          .notify({
+            userId: owner.userId,
+            type: 'new_signup_referral',
+            title: 'Nuova registrazione col tuo codice',
+            body: `${who} si è registrata usando il tuo codice.`,
+            payload: { clientId: user.id },
+          })
+          .catch(() => undefined);
+      }
     }
     // Codice cliente → registra l'invito "porta un'amica" (ricompensa alla conversione).
     if (trimmedRef && refKind === 'client') {

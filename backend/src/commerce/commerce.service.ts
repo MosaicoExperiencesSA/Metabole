@@ -656,6 +656,8 @@ export class CommerceService {
       messageKey: payment.subscriptionId ? 'payment_approved_subscription' : 'payment_approved_order',
       payload: { method: methodLabel },
     });
+    // Notifica alla coach della struttura: una sua cliente ha pagato.
+    await this.notifyCoachOfPayment(payment.clientId, payment.amountCents).catch(() => undefined);
     await this.audit.log({
       action: 'commerce.payment.approve',
       actorId: byUserId,
@@ -1203,5 +1205,29 @@ export class CommerceService {
       mimeType: 'application/pdf',
       contentBase64: buffer.toString('base64'),
     };
+  }
+
+  /** Avvisa la coach assegnata quando una sua cliente effettua un pagamento. */
+  private async notifyCoachOfPayment(clientId: string, amountCents: number): Promise<void> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { name: true, assignedCoachId: true },
+    });
+    if (!profile?.assignedCoachId) return;
+    const coach = await this.prisma.staff.findUnique({
+      where: { id: profile.assignedCoachId },
+      select: { userId: true },
+    });
+    if (!coach) return;
+    const euro = (amountCents / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    await this.notifications
+      .notify({
+        userId: coach.userId,
+        type: 'payment_in_structure',
+        title: 'Pagamento nella tua struttura',
+        body: `${profile.name ?? 'Una tua cliente'} ha effettuato un pagamento di € ${euro}.`,
+        payload: { clientId },
+      })
+      .catch(() => undefined);
   }
 }

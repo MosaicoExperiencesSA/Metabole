@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * Visite (spec sez. 11): la PRIMA visita è SEMPRE in presenza — il modulo
@@ -21,6 +22,7 @@ export class VisitsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly finance: FinanceService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Scheda staff + verifica che la cliente sia in carico (il capo vede tutte). */
@@ -107,6 +109,18 @@ export class VisitsService {
       entityId: visit.id,
       metadata: { clientId: input.clientId, type: input.type, first: previousVisits === 0 },
     });
+    // Notifica alla nutrizionista dell'appuntamento fissato.
+    const clientName = await this.clientName(input.clientId);
+    const whenLabel = this.dateLabel(when);
+    await this.notifications
+      .notify({
+        userId: user.sub,
+        type: 'appointment_created',
+        title: 'Appuntamento fissato',
+        body: `${input.type === 'televisit' ? 'Televisita' : 'Visita'} con ${clientName} · ${whenLabel}`,
+        payload: { visitId: visit.id, clientId: input.clientId },
+      })
+      .catch(() => undefined);
     return visit;
   }
 
@@ -194,5 +208,70 @@ export class VisitsService {
       metadata: { objectiveReconfirmed },
     });
     return { visit: updated, objectiveReconfirmed };
+  }
+
+  /** Nome leggibile della cliente per i testi delle notifiche. */
+  private async clientName(clientId: string): Promise<string> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { name: true },
+    });
+    if (profile?.name) return profile.name;
+    const u = await this.prisma.user.findUnique({
+      where: { id: clientId },
+      select: { firstName: true, lastName: true },
+    });
+    const full = [u?.firstName, u?.lastName].filter(Boolean).join(' ');
+    return full || 'una cliente';
+  }
+
+  private dateLabel(d: Date): string {
+    return d.toLocaleString('it-IT', {
+      timeZone: 'Europe/Rome',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  /**
+   * Promemoria appuntamenti: chiamato dal cron ogni pochi minuti. Avvisa la
+   * nutrizionista degli appuntamenti che iniziano entro ~30 minuti, una sola
+   * volta per appuntamento (dedup sulla notifica gia' creata).
+   */
+  async sendUpcomingReminders(): Promise<{ sent: number }> {
+    const now = new Date();
+    const until = new Date(now.getTime() + 35 * 60 * 1000);
+    const visits = await this.prisma.visit.findMany({
+      where: { status: 'scheduled', datetime: { gte: now, lte: until } },
+      select: {
+        id: true,
+        datetime: true,
+        type: true,
+        clientId: true,
+        nutritionist: { select: { userId: true } },
+      },
+    });
+    let sent = 0;
+    for (const v of visits) {
+      const already = await this.prisma.notification.findFirst({
+        where: { type: 'appointment_reminder', payload: { path: ['visitId'], equals: v.id } },
+        select: { id: true },
+      });
+      if (already) continue;
+      const clientName = await this.clientName(v.clientId);
+      await this.notifications
+        .notify({
+          userId: v.nutritionist.userId,
+          type: 'appointment_reminder',
+          title: 'Promemoria appuntamento',
+          body: `Tra poco: ${v.type === 'televisit' ? 'televisita' : 'visita'} con ${clientName} · ${this.dateLabel(v.datetime)}`,
+          payload: { visitId: v.id, clientId: v.clientId },
+        })
+        .catch(() => undefined);
+      sent++;
+    }
+    return { sent };
   }
 }
