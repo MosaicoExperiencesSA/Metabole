@@ -3,12 +3,12 @@
 Pagina unica, sempre aggiornata: **"cosa manca per aprire"**. Guarda qui.
 Legenda: ✅ fatto · ⏳ in corso · ⬜ da fare · 🔴 gate (blocca il lancio pubblico).
 Responsabili: **[Ops]** pannelli servizi · **[Sv]** Simone · **[Pr]** Antonio.
-Ultimo aggiornamento: **2026-07-14 sera** (riallineamento: contatori LIVE, Stripe LIVE configurato, sito ripubblicato con restyling+galleria, motore R8–R12 completo).
+Ultimo aggiornamento: **2026-07-16** (smoke test end-to-end **fatto**; rifiniture sito: percorsi "gestiti"+carosello, galleria app 5 schermate auto-scroll, orbita Gaia allineata + bagliore centro; audio Gaia v02; 19 stendardi equipaggio).
 
 ---
 
 ## 🟢 Semaforo
-**Tecnicamente pronti.** Pagamento reale **testato e confermato** (14/07). Restano lo smoke test end-to-end completo (registrazione → email in inbox → onboarding → menu → allergene → lead CRM) e l'igiene pre-apertura.
+**VIA LIBERA: tutti i gate chiusi (16/07).** Pagamento reale testato, smoke test end-to-end fatto, igiene pre-apertura completata. **Si può aprire al pubblico.** Restano solo voci di contenuto (non bloccanti): foto/CV team, testimonianze, revisione madrelingua RU/ZH/AR, grammature + firma nutrizionista sul Keto + tagging allergeni.
 
 ## ✅ Già fatto (verificato live)
 - Backend in produzione (`/health` ok) · **DB Neon prod seedato** (3 piani reali €297/€497/€797).
@@ -26,8 +26,8 @@ Ultimo aggiornamento: **2026-07-14 sera** (riallineamento: contatori LIVE, Strip
 | # | Cosa | Chi | Stato |
 |---|---|---|---|
 | 1 | **Pagamento reale di prova** (piano più economico, carta vera) → webhook 200 → abbonamento attivo; poi rimborso da Stripe + sistemazione abbonamento a mano | [Sv] | ✅ testato e confermato 14/07 |
-| 2 | **Smoke test end-to-end** (registrazione→email **in inbox**→onboarding→pagamento (=n.1)→menu→allergene→lead CRM) | [Pr]/[Sv] | ⬜ |
-| 3 | **Igiene pre-apertura**: lead di prova "Test GoLive Claude" via dal CRM · segreti Render (`ADMIN_*`, `AI_API_KEY` se serve) · **IBAN reale** in `bank_transfer_details` · conferma prezzi | [Sv]/[Ops] | ⬜ |
+| 2 | **Smoke test end-to-end** (registrazione→email **in inbox**→onboarding→pagamento (=n.1)→menu→allergene→lead CRM) | [Pr]/[Sv] | ✅ fatto 16/07 |
+| 3 | **Igiene pre-apertura**: lead di prova via dal CRM · segreti Render (`ADMIN_*`, `AI_API_KEY` se serve) · **IBAN reale** in `bank_transfer_details` · conferma prezzi | [Sv]/[Ops] | ✅ fatto 16/07 |
 
 ## 🟠 Consigliati prima dell'apertura (non strettamente bloccanti)
 | Cosa | Chi | Stato |
