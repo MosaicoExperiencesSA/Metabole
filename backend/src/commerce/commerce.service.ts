@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -711,6 +712,72 @@ export class CommerceService {
   }
 
   /** Catena post-approvazione condivisa: attivazione, ledger, provvigioni, CRM, ricevuta. */
+  /** Evento di funnel del lancio (trial_started, trial_expired, …) su analytics_event. */
+  private async funnelEvent(userId: string, name: string, data?: Record<string, unknown>): Promise<void> {
+    await this.prisma.analyticsEvent
+      .create({ data: { eventId: randomUUID(), name, userId, phase: 'funnel', data: (data ?? {}) as never } as never })
+      .catch(() => undefined); // il tracciamento non deve mai rompere il flusso
+  }
+
+  /** Il piano è la PROVA GRATUITA? (prezzo 0: senza carta per definizione). */
+  private isTrialPlanPrice(priceCents: number | null | undefined): boolean {
+    return (priceCents ?? -1) === 0;
+  }
+
+  /**
+   * CRON giornaliero della prova gratuita (handoff Prezzi/Prova, punto 2):
+   * 1) SCADENZA AUTOMATICA: le prove attive oltre la fine (endDate) passano a
+   *    `expired` → evento `trial_expired` (una sola volta: è la transizione di stato).
+   * 2) PURGE a +7 giorni: se dopo una settimana dalla scadenza il cliente NON ha
+   *    convertito (nessun abbonamento attivo/in attesa e nessun pagamento vero),
+   *    il profilo personalizzato che Gaia ha imparato viene CANCELLATO DAVVERO
+   *    (pesi menu, valutazioni ricette, base personale, cicli, certificato) →
+   *    evento `profile_purged`. "La leva di conversione più forte deve essere vera."
+   *    Restano: anagrafica, misure e documenti (retention sanitaria separata).
+   */
+  async expireTrialsAndPurge(): Promise<{ expired: number; purged: number }> {
+    const now = new Date();
+    // 1) Scadenza prova.
+    const dueTrials = (await this.prisma.subscription.findMany({
+      where: { status: 'active', endDate: { lt: now }, plan: { priceCents: 0 } } as never,
+      select: { id: true, clientId: true, endDate: true },
+    })) as { id: string; clientId: string; endDate: Date | null }[];
+    for (const sub of dueTrials) {
+      await this.prisma.subscription.update({ where: { id: sub.id }, data: { status: 'expired' } });
+      await this.funnelEvent(sub.clientId, 'trial_expired', { subscriptionId: sub.id });
+      await this.audit.log({ action: 'trial.expired', actorId: sub.clientId, entityType: 'subscription', entityId: sub.id });
+    }
+
+    // 2) Purge del profilo personalizzato a +7 giorni senza conversione.
+    const cutoff = new Date(now.getTime() - 7 * 86_400_000);
+    const staleTrials = (await this.prisma.subscription.findMany({
+      where: { status: 'expired', endDate: { lt: cutoff }, plan: { priceCents: 0 } } as never,
+      select: { clientId: true },
+      distinct: ['clientId'] as never,
+    })) as { clientId: string }[];
+    let purged = 0;
+    for (const t of staleTrials) {
+      // Ha convertito? (abbonamento attivo/in attesa o un pagamento vero approvato)
+      const [activeSub, paid, alreadyPurged] = await Promise.all([
+        this.prisma.subscription.findFirst({ where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } }, select: { id: true } }),
+        this.prisma.payment.findFirst({ where: { clientId: t.clientId, status: 'approved', amountCents: { gt: 0 } } as never, select: { id: true } }),
+        this.prisma.analyticsEvent.findFirst({ where: { userId: t.clientId, name: 'profile_purged' } as never, select: { id: true } }),
+      ]);
+      if (activeSub || paid || alreadyPurged) continue;
+      await this.prisma.$transaction([
+        this.prisma.menuWeight.deleteMany({ where: { clientId: t.clientId } }),
+        this.prisma.recipeRating.deleteMany({ where: { clientId: t.clientId } }),
+        this.prisma.clientMenuPool.deleteMany({ where: { clientId: t.clientId } }),
+        this.prisma.clientCycle.deleteMany({ where: { clientId: t.clientId } }),
+        this.prisma.personalizationCertificate.deleteMany({ where: { clientId: t.clientId } }),
+      ] as never);
+      await this.funnelEvent(t.clientId, 'profile_purged', {});
+      await this.audit.log({ action: 'trial.profile_purged', actorId: t.clientId, entityType: 'user', entityId: t.clientId });
+      purged++;
+    }
+    return { expired: dueTrials.length, purged };
+  }
+
   private async finalizeApproval(
     payment: {
       id: string;
@@ -757,6 +824,21 @@ export class CommerceService {
         clientId: payment.clientId,
         amountCents: payment.amountCents,
       });
+    }
+    // Funnel del lancio: attivazione prova → trial_started; pagamento vero dopo
+    // una prova → trial_converted (idempotente: solo se non già emesso).
+    if (payment.subscriptionId) {
+      if (payment.amountCents === 0) {
+        await this.funnelEvent(payment.clientId, 'trial_started', { subscriptionId: payment.subscriptionId });
+      } else {
+        const [hadTrial, alreadyConverted] = await Promise.all([
+          this.prisma.analyticsEvent.findFirst({ where: { userId: payment.clientId, name: 'trial_started' } as never, select: { id: true } }),
+          this.prisma.analyticsEvent.findFirst({ where: { userId: payment.clientId, name: 'trial_converted' } as never, select: { id: true } }),
+        ]);
+        if (hadTrial && !alreadyConverted) {
+          await this.funnelEvent(payment.clientId, 'trial_converted', { paymentId: payment.id, amountCents: payment.amountCents });
+        }
+      }
     }
     // CRM: prodotto GRATUITO (totale 0) → stato "Prova" (trial); pagamento vero →
     // "Acquisito" (key 'paid'). Chi è già Acquisito non retrocede a Prova per un omaggio.

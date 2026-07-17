@@ -263,6 +263,8 @@ model User {
 
   @@index([role])
   pauseRequests         PauseRequest[]
+  coachTasks            CoachTask[]
+  clientReports         ClientReport[]
 
   @@map("user")
 }
@@ -1823,4 +1825,52 @@ model AgentLog {
 
   @@index([agentRunId, ts])
   @@map("agent_log")
+}
+
+// ---------- Task coach (handoff Prezzi/Prova, punto 5: "la coach deve vedere cosa fare e quando") ----------
+
+// Task operativi generati in automatico dal cron sui momenti chiave della prova e
+// dei piani (G0 misure, G1 benvenuto, G4 aderenza, G7 chiusura, fine piano, +7 ultima
+// chiamata). Stato gestito dalla coach: da fare / fatto / saltato.
+model CoachTask {
+  id          String    @id @default(uuid())
+  clientId    String    @map("client_id")
+  client      User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind        String // trial_g0_measures | trial_g1_welcome | trial_g4_adherence | trial_g7_closing | plan_end_report | trial_post7_lastcall
+  refId       String    @default("") @map("ref_id") // es. subscription.id (per l'unicità sui piani ripetuti)
+  title       String
+  description String?
+  dueDate     DateTime  @map("due_date") @db.Date
+  status      String    @default("todo") // todo | done | skipped
+  doneById    String?   @map("done_by_id")
+  doneAt      DateTime? @map("done_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([clientId, kind, refId])
+  @@index([status, dueDate])
+  @@index([clientId])
+  @@map("coach_task")
+}
+
+// ---------- Report di fine piano (handoff Prezzi/Prova, punto 4) ----------
+
+// Snapshot del report A→B generato in automatico a OGNI fine piano (prova inclusa).
+// Consegna IN APP (dati sanitari: mai allegato a email/WhatsApp). I dati sono
+// congelati in `data` al momento della generazione: il report resta leggibile
+// anche dopo il purge del profilo personalizzato.
+model ClientReport {
+  id             String    @id @default(uuid())
+  clientId       String    @map("client_id")
+  client         User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subscriptionId String    @unique @map("subscription_id") // un report per piano concluso
+  kind           String // trial | plan
+  periodStart    DateTime  @map("period_start") @db.Date
+  periodEnd      DateTime  @map("period_end") @db.Date
+  data           Json
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([clientId, createdAt])
+  @@map("client_report")
 }

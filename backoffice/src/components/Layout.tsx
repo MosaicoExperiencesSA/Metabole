@@ -44,6 +44,7 @@ export const NAV: NavSection[] = [
       { key: 'crm_pipeline', label: 'Pipeline', to: '/crm/pipeline', icon: 'ti-layout-kanban' },
       { key: 'lead_acceptance', label: 'Lead da accettare', to: '/crm/da-accettare', icon: 'ti-user-check' },
       { key: 'crm_calendar', label: 'Calendario', to: '/crm/calendario', icon: 'ti-calendar-event' },
+      { key: 'coach_tasks', label: 'Attività coach', to: '/attivita-coach', icon: 'ti-checklist' },
     ],
   },
   {

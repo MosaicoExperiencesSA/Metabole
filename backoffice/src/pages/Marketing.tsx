@@ -104,8 +104,6 @@ export function Marketing() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       {/* Segmentazione */}
-      <LifecycleAutomation />
-
       <div className="card">
         <h2 style={{ marginTop: 0 }}>1 · Crea il segmento</h2>
         <p className="hint" style={{ marginTop: 0 }}>Combina i filtri: appartenenza a una lista, etichette, stato pipeline e altri dati della scheda. Solo contatti con email.</p>
@@ -275,6 +273,9 @@ export function Marketing() {
           </div>
         </Modal>
       )}
+
+      {/* Automazione cicli: in fondo alla pagina (richiesta di Simone). */}
+      <LifecycleAutomation />
 
       {openId && <CampaignDetail id={openId} onClose={() => setOpenId(null)} />}
     </>

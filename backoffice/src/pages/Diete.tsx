@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
@@ -41,6 +41,8 @@ const STATUS: Record<string, { label: string; chip: string }> = {
   approved: { label: 'Approvata', chip: '' },
   rejected: { label: 'Rifiutata', chip: 'red' },
 };
+// Ordine "di lavorazione" per l'ordinamento della colonna Stato.
+const STATUS_ORDER: Record<string, number> = { draft: 0, in_review: 1, approved: 2, rejected: 3 };
 
 export function Diete() {
   const { regimeLabel, styleLabel } = useTaxonomy();
@@ -56,6 +58,13 @@ export function Diete() {
   const [createOpen, setCreateOpen] = useState(false);
   const [daysId, setDaysId] = useState<string | null>(null);
   const [productId, setProductId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  }
 
   async function load() {
     try {
@@ -101,7 +110,38 @@ export function Diete() {
 
   const showActions = isNutri; // nutrizionisti/capo vedono la colonna azioni
 
+  // Ordinamento client-side (la lista arriva intera): si ordina su ciò che si VEDE (etichette tradotte).
+  const sorted = useMemo(() => {
+    if (!sortKey) return rows;
+    const val = (r: DietRow): string | number => {
+      switch (sortKey) {
+        case 'name': return r.name.toLowerCase();
+        case 'regime': return regimeLabel(r.regime).toLowerCase();
+        case 'style': return styleLabel(r.style).toLowerCase();
+        case 'objective': return (OBIETTIVO_LABEL[r.objective ?? 'dimagrimento'] ?? r.objective ?? '').toLowerCase();
+        case 'meals': return r.mealsPerDay + (r.fasting ? 0.5 : 0); // a parità di pasti, il digiuno dopo
+        case 'days': return r._count?.dayTemplates ?? 0;
+        case 'author': return (r.author?.displayName ?? '').toLowerCase();
+        case 'status': return STATUS_ORDER[r.status] ?? 99;
+        default: return 0;
+      }
+    };
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const va = val(a); const vb = val(b);
+      if (va < vb) return -dir;
+      if (va > vb) return dir;
+      return a.name.localeCompare(b.name); // spareggio stabile sul nome
+    });
+  }, [rows, sortKey, sortDir, regimeLabel, styleLabel]);
+
   if (loading) return <Spinner />;
+
+  const th = (label: string, key: string) => (
+    <th style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => toggleSort(key)} title="Clicca per ordinare">
+      {label}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+    </th>
+  );
 
   return (
     <>
@@ -128,19 +168,19 @@ export function Diete() {
           <table className="grid">
             <thead>
               <tr>
-                <th>Nome</th>
-                <th>Regime</th>
-                <th>Stile</th>
-                <th>Obiettivo</th>
-                <th>Pasti</th>
-                <th>Giorni</th>
-                <th>Autore</th>
-                <th>Stato</th>
+                {th('Nome', 'name')}
+                {th('Regime', 'regime')}
+                {th('Stile', 'style')}
+                {th('Obiettivo', 'objective')}
+                {th('Pasti', 'meals')}
+                {th('Giorni', 'days')}
+                {th('Autore', 'author')}
+                {th('Stato', 'status')}
                 {showActions && <th>Azioni</th>}
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {sorted.map((r) => (
                 <tr key={r.id}>
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>

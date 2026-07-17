@@ -15,6 +15,7 @@ import Diversi from './pages/Diversi';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
 import Percorso from './pages/Percorso';
+import Report from './pages/Report';
 import Contatti from './pages/Contatti';
 import Calendario from './pages/Calendario';
 import Obiettivo from './pages/Obiettivo';
@@ -51,6 +52,8 @@ function Shell() {
           <Route path="/" element={<Home />} />
           <Route path="/menu" element={<Menu />} />
           <Route path="/percorso" element={<Percorso />} />
+          <Route path="/report" element={<Report />} />
+          <Route path="/report/:id" element={<Report />} />
           <Route path="/contatti" element={<Contatti />} />
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/obiettivo" element={<Obiettivo />} />

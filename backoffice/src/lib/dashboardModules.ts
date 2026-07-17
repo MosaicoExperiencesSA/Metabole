@@ -18,6 +18,7 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   { id: 'm_crm', pageKey: 'crm_leads', to: '/crm/gestione', icon: 'ti-list-details', label: 'CRM / Lead', preview: 'Lead, pipeline e conversioni.' },
   { id: 'm_lead_accept', pageKey: 'lead_acceptance', previewKey: 'lead_accept', to: '/crm/da-accettare', icon: 'ti-user-check', label: 'Lead da accettare', preview: 'Lead assegnati in attesa di accettazione.' },
   { id: 'm_calendario', pageKey: 'crm_leads', to: '/crm/calendario', icon: 'ti-calendar-event', label: 'Calendario', preview: 'Promemoria e appuntamenti: lista, settimana o mese.' },
+  { id: 'm_attivita_coach', pageKey: 'coach_tasks', to: '/attivita-coach', icon: 'ti-checklist', label: 'Attività coach', preview: 'Cosa fare e quando: benvenuto G1, misure, chiusura prova, report di fine piano.' },
   { id: 'm_agenda', pageKey: 'visits_agenda', to: '/agenda', icon: 'ti-calendar', label: 'Agenda visite', preview: 'Televisite e appuntamenti in programma.' },
   { id: 'm_segnalazioni', pageKey: 'escalations', to: '/segnalazioni', icon: 'ti-alert-triangle', label: 'Segnalazioni', preview: 'Situazioni del motore da gestire.' },
   { id: 'm_diete', pageKey: 'diets_catalog', to: '/diete', icon: 'ti-salad', label: 'Catalogo diete', preview: 'Diete e ricette approvate.' },
