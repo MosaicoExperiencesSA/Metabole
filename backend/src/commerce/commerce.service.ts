@@ -503,6 +503,76 @@ export class CommerceService {
     return this.publicPayment(updated);
   }
 
+  /**
+   * La COACH carica la contabile PER CONTO della cliente (utile per le clienti in
+   * difficoltà con l'app). Separazione dei poteri garantita per costruzione: questo
+   * porta il pagamento solo a 'receipt_uploaded' — l'approvazione resta un endpoint
+   * a parte riservato ad admin/responsabile, che la coach non può chiamare.
+   * Scope: la coach solo sulle SUE clienti assegnate; responsabile (sales) e admin tutte.
+   * L'audit registra CHI ha caricato (lo staff, non la cliente).
+   */
+  async uploadReceiptByStaff(
+    actorUserId: string,
+    paymentId: string,
+    input: { fileName: string; mimeType: string; contentBase64: string },
+  ) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new NotFoundException('Pagamento non trovato');
+    await this.assertStaffPaymentAccess(actorUserId, payment.clientId);
+    if (payment.status !== 'pending' && payment.status !== 'receipt_uploaded' && payment.status !== 'rejected') {
+      throw new BadRequestException('Questo pagamento non attende una contabile');
+    }
+    if (!RECEIPT_MIME.includes(input.mimeType)) {
+      throw new BadRequestException('Formato non supportato (PDF o immagine)');
+    }
+    const plain = Buffer.from(input.contentBase64, 'base64');
+    if (plain.length === 0 || plain.length > RECEIPT_MAX_BYTES) {
+      throw new BadRequestException('Dimensione contabile non valida (max 5 MB)');
+    }
+    const updated = await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        receiptData: new Uint8Array(encryptBuffer(plain, this.receiptKey)),
+        receiptMime: input.mimeType,
+        receiptName: input.fileName,
+        status: 'receipt_uploaded',
+        rejectReason: null,
+      },
+    });
+    await this.audit.log({
+      action: 'commerce.receipt_uploaded',
+      actorId: actorUserId,
+      entityType: 'payment',
+      entityId: paymentId,
+      metadata: { byStaff: true, clientId: payment.clientId }, // tracciabile: caricata dallo staff
+    });
+    return this.publicPayment(updated);
+  }
+
+  /** La contabile vista dallo staff (stesso scope dell'upload: coach solo sue clienti). */
+  async downloadReceiptByStaff(actorUserId: string, paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new NotFoundException('Pagamento non trovato');
+    await this.assertStaffPaymentAccess(actorUserId, payment.clientId);
+    if (!payment.receiptData) throw new NotFoundException('Contabile non presente');
+    return {
+      fileName: payment.receiptName,
+      mimeType: payment.receiptMime,
+      contentBase64: decryptBuffer(Buffer.from(payment.receiptData as unknown as Uint8Array), this.receiptKey).toString('base64'),
+    };
+  }
+
+  /** Coach → solo clienti assegnate a lei; responsabile coach (sales) e admin → tutte. */
+  private async assertStaffPaymentAccess(actorUserId: string, clientId: string): Promise<void> {
+    const actor = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
+    if (actor?.role !== 'coach') return; // sales/admin: la guardia ruoli del controller ha già filtrato
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    const prof = (await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { assignedCoachId: true } })) as { assignedCoachId: string | null } | null;
+    if (!staff || !prof || prof.assignedCoachId !== staff.id) {
+      throw new ForbiddenException('Questa cliente non è assegnata a te.');
+    }
+  }
+
   async myPayments(clientId: string) {
     const payments = await this.prisma.payment.findMany({
       where: { clientId },

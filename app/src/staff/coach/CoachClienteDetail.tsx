@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { api, ApiError } from '../../api/client';
 import { fullName, shortDate, waLink } from '../format';
 import { useApi } from '../hooks';
 import { Async, Avatar, BackBar, Card, Section, StaffShell } from '../ui';
@@ -32,13 +34,40 @@ interface Detail {
   measurements: Measurement[];
   checkins: Checkin[];
   subscription: { plan?: { name?: string } | null; status?: string } | null;
+  payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string }[];
 }
+
+const PAY_STATUS: Record<string, string> = { pending: 'In attesa', receipt_uploaded: 'Contabile caricata', approved: 'Approvato', rejected: 'Rifiutato' };
 
 const MOOD = ['—', '😞', '😕', '😐', '🙂', '😄'];
 
 export default function CoachClienteDetail() {
   const { id } = useParams();
   const state = useApi<Detail>(id ? `/admin/clients/${id}` : null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [payMsg, setPayMsg] = useState<string | null>(null);
+  const [payErr, setPayErr] = useState<string | null>(null);
+
+  /** Carica la contabile del bonifico per conto della cliente (l'approvazione resta all'amministrazione). */
+  async function uploadReceipt(paymentId: string, file: File) {
+    if (file.size > 5 * 1024 * 1024) { setPayErr('La contabile supera i 5 MB.'); return; }
+    setUploading(paymentId); setPayErr(null); setPayMsg(null);
+    try {
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+        r.onerror = () => reject(new Error('Lettura del file non riuscita.'));
+        r.readAsDataURL(file);
+      });
+      await api(`/staff/payments/${paymentId}/receipt`, { method: 'POST', body: JSON.stringify({ fileName: file.name, mimeType: file.type || 'application/pdf', contentBase64 }) });
+      setPayMsg('Contabile caricata: ora attende la verifica dell\'amministrazione.');
+      state.reload();
+    } catch (e) {
+      setPayErr(e instanceof ApiError ? e.message : 'Caricamento non riuscito.');
+    } finally {
+      setUploading(null);
+    }
+  }
 
   return (
     <StaffShell title="Scheda cliente" tabs={COACH_TABS}>
@@ -112,6 +141,38 @@ export default function CoachClienteDetail() {
                       <span>Energia {lastCheckin.energy ?? '—'}/5</span>
                       <span>Stress {lastCheckin.stress ?? '—'}/5</span>
                     </div>
+                  </Card>
+                </>
+              )}
+
+              {(d.payments ?? []).some((p) => p.method === 'bank_transfer' && (p.status === 'pending' || p.status === 'rejected' || p.status === 'receipt_uploaded')) && (
+                <>
+                  <Section title="Bonifici da completare" />
+                  {payErr && <Card><div style={{ color: '#B3261E', fontSize: 13 }}>{payErr}</div></Card>}
+                  {payMsg && <Card><div style={{ color: '#0E7C66', fontSize: 13 }}>{payMsg}</div></Card>}
+                  <Card className="pad0">
+                    {(d.payments ?? [])
+                      .filter((p) => p.method === 'bank_transfer' && (p.status === 'pending' || p.status === 'rejected' || p.status === 'receipt_uploaded'))
+                      .map((p) => (
+                        <div key={p.id} className="sf-row" style={{ cursor: 'default' }}>
+                          <div className="sf-row-main">
+                            <div className="sf-row-name">{p.description}</div>
+                            <div className="sf-row-sub">
+                              € {(p.amountCents / 100).toFixed(2).replace('.', ',')} · {PAY_STATUS[p.status] ?? p.status} · {shortDate(p.createdAt)}
+                            </div>
+                          </div>
+                          <label className="sf-mini b" style={{ cursor: 'pointer' }} title="Carica la contabile per conto della cliente: l'approvazione resta all'amministrazione">
+                            <i className="ti ti-file-upload" /> {uploading === p.id ? 'Carico…' : p.status === 'receipt_uploaded' ? 'Sostituisci' : 'Carica contabile'}
+                            <input
+                              type="file"
+                              accept="application/pdf,image/jpeg,image/png,image/heic"
+                              style={{ display: 'none' }}
+                              disabled={uploading === p.id}
+                              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void uploadReceipt(p.id, f); }}
+                            />
+                          </label>
+                        </div>
+                      ))}
                   </Card>
                 </>
               )}

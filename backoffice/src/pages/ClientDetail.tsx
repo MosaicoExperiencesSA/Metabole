@@ -142,9 +142,12 @@ export function ClientDetail() {
   const { regimeLabel, styleLabel } = useTaxonomy();
   const { id } = useParams();
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const { can, user: me } = useAuth();
   const isAdmin = can('permissions'); // il reset password è azione admin
+  // Chi può caricare la contabile per conto della cliente (mai approvarla da qui).
+  const canUploadReceipt = me?.role === 'coach' || me?.role === 'sales' || me?.role === 'admin';
   const [d, setD] = useState<Detail | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -376,6 +379,29 @@ export function ClientDetail() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Solo un admin può eliminare le note.');
       else setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+    }
+  }
+
+  /** La coach carica la contabile del bonifico per conto della cliente (mai approvazione da qui). */
+  async function uploadReceiptFor(paymentId: string, file: File) {
+    if (file.size > 5 * 1024 * 1024) { setError('La contabile supera i 5 MB.'); return; }
+    const mime = file.type || 'application/pdf';
+    setUploadingReceipt(paymentId); setError(null); setNotice(null);
+    try {
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+        r.onerror = () => reject(new Error('Lettura del file non riuscita.'));
+        r.readAsDataURL(file);
+      });
+      await api(`/staff/payments/${paymentId}/receipt`, { method: 'POST', body: JSON.stringify({ fileName: file.name, mimeType: mime, contentBase64 }) });
+      setNotice('Contabile caricata: ora è in attesa di verifica e approvazione (admin/responsabile).');
+      const data = await api<Detail>(`/admin/clients/${id}`);
+      setD(data);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Caricamento della contabile non riuscito.');
+    } finally {
+      setUploadingReceipt(null);
     }
   }
 
@@ -775,21 +801,42 @@ export function ClientDetail() {
           <div className="empty">Nessun pagamento.</div>
         ) : (
           <table className="grid">
-            <thead><tr><th>Descrizione</th><th>Importo</th><th>Metodo</th><th>Stato</th><th>Data</th></tr></thead>
+            <thead><tr><th>Descrizione</th><th>Importo</th><th>Metodo</th><th>Stato</th><th>Data</th>{canUploadReceipt && <th>Contabile</th>}</tr></thead>
             <tbody>
-              {d.payments.map((pay) => (
-                <tr key={pay.id}>
-                  <td>{pay.description}</td>
-                  <td>{euro(pay.amountCents)}</td>
-                  <td className="muted">{lab('method', pay.method)}</td>
-                  <td>
-                    <span className={`chip ${pay.status === 'approved' ? '' : pay.status === 'rejected' ? 'red' : 'amber'}`}>
-                      {lab('payStatus', pay.status)}
-                    </span>
-                  </td>
-                  <td className="muted">{date(pay.createdAt)}</td>
-                </tr>
-              ))}
+              {d.payments.map((pay) => {
+                const needsReceipt = pay.method === 'bank_transfer' && (pay.status === 'pending' || pay.status === 'rejected' || pay.status === 'receipt_uploaded');
+                return (
+                  <tr key={pay.id}>
+                    <td>{pay.description}</td>
+                    <td>{euro(pay.amountCents)}</td>
+                    <td className="muted">{lab('method', pay.method)}</td>
+                    <td>
+                      <span className={`chip ${pay.status === 'approved' ? '' : pay.status === 'rejected' ? 'red' : 'amber'}`}>
+                        {lab('payStatus', pay.status)}
+                      </span>
+                    </td>
+                    <td className="muted">{date(pay.createdAt)}</td>
+                    {canUploadReceipt && (
+                      <td>
+                        {needsReceipt ? (
+                          <label className="btn ghost sm" style={{ cursor: 'pointer' }} title="Carica la contabile del bonifico per conto della cliente (l'approvazione resta all'amministrazione)">
+                            <i className="ti ti-file-upload" /> {uploadingReceipt === pay.id ? 'Carico…' : pay.status === 'receipt_uploaded' ? 'Sostituisci' : 'Carica contabile'}
+                            <input
+                              type="file"
+                              accept="application/pdf,image/jpeg,image/png,image/heic"
+                              style={{ display: 'none' }}
+                              disabled={uploadingReceipt === pay.id}
+                              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void uploadReceiptFor(pay.id, f); }}
+                            />
+                          </label>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

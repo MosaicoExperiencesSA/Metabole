@@ -431,6 +431,31 @@ export class AdminPaymentsController {
   }
 }
 
+/**
+ * Pagamenti lato STAFF: la coach può CARICARE la contabile del bonifico per conto
+ * di una cliente in difficoltà (solo le sue assegnate; responsabile/admin tutte).
+ * NON può approvare né rifiutare: quelle rotte restano in AdminPaymentsController
+ * (admin + sales) — separazione dei poteri per costruzione.
+ */
+@Controller('staff/payments')
+@Roles('coach', 'sales', 'admin')
+export class StaffPaymentsController {
+  constructor(private readonly commerce: CommerceService) {}
+
+  /** Carica (o sostituisce) la contabile del bonifico per conto della cliente. */
+  @HttpCode(200)
+  @Post(':id/receipt')
+  uploadReceipt(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UploadReceiptDto) {
+    return this.commerce.uploadReceiptByStaff(user.sub, id, dto);
+  }
+
+  /** Vede la contabile caricata (stesso scope dell'upload). */
+  @Get(':id/receipt')
+  receipt(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.commerce.downloadReceiptByStaff(user.sub, id);
+  }
+}
+
 /** Webhook Stripe (spec: POST /payments/webhook). Firma verificata, idempotente. */
 @SkipThrottle() // la firma Stripe è la protezione; niente rate limit sui webhook
 @Controller('payments')

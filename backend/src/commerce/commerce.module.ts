@@ -12,6 +12,7 @@ import {
   CrmListsController,
   FinanceController,
   MyCommerceController,
+  StaffPaymentsController,
   StripeWebhookController,
 } from './commerce.controller';
 import { CommerceService } from './commerce.service';
@@ -37,6 +38,7 @@ import { StripeService } from './stripe.service';
     AdminPurchasesController,
     AdminShopController,
     StripeWebhookController,
+    StaffPaymentsController,
     CrmController,
     CrmListsController,
     PipelineController,
