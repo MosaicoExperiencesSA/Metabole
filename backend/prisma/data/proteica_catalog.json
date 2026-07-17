@@ -1,0 +1,4942 @@
+{
+  "product": "proteica",
+  "style": "proteica",
+  "regime": "omnivore",
+  "mealsPerDay": 5,
+  "levels": [
+    {
+      "level": 1,
+      "kcal": 1700
+    }
+  ],
+  "objective": "dimagrimento",
+  "clientName": "Proteica",
+  "note": "Base Proteica sportiva da approvare — isolata per prodotto (regola ferrea: mai mischiata con altri percorsi). Carboidrati concentrati a pranzo (attorno all'allenamento).",
+  "counts": {
+    "breakfast": 28,
+    "lunch": 32,
+    "dinner": 31,
+    "morning_snack": 21,
+    "afternoon_snack": 6
+  },
+  "recipes": [
+    {
+      "id": "COL01",
+      "name": "Porridge d'avena con whey e frutti di bosco",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Fiocchi d'avena"
+        },
+        {
+          "name": "proteine whey"
+        },
+        {
+          "name": "frutti di bosco"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL02",
+      "name": "Frittata di albumi con spinaci e pomodorini",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 340,
+      "ingredients": [
+        {
+          "name": "Albumi"
+        },
+        {
+          "name": "spinaci"
+        },
+        {
+          "name": "pomodorini"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL03",
+      "name": "Yogurt greco 0% con muesli proteico e mandorle",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Yogurt greco 0%"
+        },
+        {
+          "name": "muesli proteico"
+        },
+        {
+          "name": "mandorle"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL04",
+      "name": "Pancake proteici di avena, albumi e banana",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 410,
+      "ingredients": [
+        {
+          "name": "Fiocchi d'avena"
+        },
+        {
+          "name": "albumi"
+        },
+        {
+          "name": "banana"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL05",
+      "name": "Uova strapazzate con pane integrale e avocado",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 420,
+      "ingredients": [
+        {
+          "name": "Uova"
+        },
+        {
+          "name": "pane integrale"
+        },
+        {
+          "name": "avocado"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL06",
+      "name": "Skyr con fiocchi d'avena, semi di chia e mirtilli",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 360,
+      "ingredients": [
+        {
+          "name": "Skyr"
+        },
+        {
+          "name": "fiocchi d'avena"
+        },
+        {
+          "name": "semi di chia"
+        },
+        {
+          "name": "mirtilli"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL07",
+      "name": "Toast integrale con ricotta magra e bresaola",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 370,
+      "ingredients": [
+        {
+          "name": "Pane integrale"
+        },
+        {
+          "name": "ricotta magra"
+        },
+        {
+          "name": "bresaola"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL08",
+      "name": "Overnight oats con whey e burro d'arachidi",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 420,
+      "ingredients": [
+        {
+          "name": "Fiocchi d'avena"
+        },
+        {
+          "name": "proteine whey"
+        },
+        {
+          "name": "burro d'arachidi"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL09",
+      "name": "Omelette con petto di tacchino e zucchine",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Uova"
+        },
+        {
+          "name": "petto di tacchino"
+        },
+        {
+          "name": "zucchine"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL10",
+      "name": "Ricotta magra con pane integrale e miele",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 360,
+      "ingredients": [
+        {
+          "name": "Ricotta magra"
+        },
+        {
+          "name": "pane integrale"
+        },
+        {
+          "name": "miele"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL11",
+      "name": "Smoothie bowl proteico con whey, banana e spinaci",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Proteine whey"
+        },
+        {
+          "name": "banana"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL12",
+      "name": "Uova sode con gallette di riso e avocado",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 370,
+      "ingredients": [
+        {
+          "name": "Uova"
+        },
+        {
+          "name": "gallette di riso"
+        },
+        {
+          "name": "avocado"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL13",
+      "name": "Porridge di quinoa con yogurt e frutta secca",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Quinoa"
+        },
+        {
+          "name": "yogurt greco"
+        },
+        {
+          "name": "frutta secca"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL14",
+      "name": "Fette biscottate integrali con albumi strapazzati",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 350,
+      "ingredients": [
+        {
+          "name": "Fette biscottate integrali"
+        },
+        {
+          "name": "albumi"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL15",
+      "name": "Yogurt greco con granola proteica e kiwi",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 360,
+      "ingredients": [
+        {
+          "name": "Yogurt greco"
+        },
+        {
+          "name": "granola proteica"
+        },
+        {
+          "name": "kiwi"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL16",
+      "name": "Pane proteico con fiocchi di latte e pomodoro",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 340,
+      "ingredients": [
+        {
+          "name": "Pane proteico"
+        },
+        {
+          "name": "fiocchi di latte"
+        },
+        {
+          "name": "pomodoro"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL17",
+      "name": "Frittata al forno con albumi, funghi e prezzemolo",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 340,
+      "ingredients": [
+        {
+          "name": "Albumi"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "prezzemolo"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL18",
+      "name": "Budino di semi di chia con whey e lamponi",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 370,
+      "ingredients": [
+        {
+          "name": "Semi di chia"
+        },
+        {
+          "name": "proteine whey"
+        },
+        {
+          "name": "lamponi"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL19",
+      "name": "Porridge d'avena con cacao e proteine",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Fiocchi d'avena"
+        },
+        {
+          "name": "cacao amaro"
+        },
+        {
+          "name": "proteine whey"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL20",
+      "name": "Toast integrale con uovo in camicia e salmone",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 420,
+      "ingredients": [
+        {
+          "name": "Pane integrale"
+        },
+        {
+          "name": "uovo"
+        },
+        {
+          "name": "salmone affumicato"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL21",
+      "name": "Wrap integrale con albumi e verdure",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Piadina integrale"
+        },
+        {
+          "name": "albumi"
+        },
+        {
+          "name": "verdure miste"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "COL22",
+      "name": "Yogurt greco con avena, mela e cannella",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 360,
+      "ingredients": [
+        {
+          "name": "Yogurt greco"
+        },
+        {
+          "name": "fiocchi d'avena"
+        },
+        {
+          "name": "mela"
+        },
+        {
+          "name": "cannella"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL23",
+      "name": "Uova strapazzate con feta light e spinaci",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 360,
+      "ingredients": [
+        {
+          "name": "Uova"
+        },
+        {
+          "name": "feta light"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL24",
+      "name": "Muesli proteico con latte scremato e banana",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 380,
+      "ingredients": [
+        {
+          "name": "Muesli proteico"
+        },
+        {
+          "name": "latte scremato"
+        },
+        {
+          "name": "banana"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL25",
+      "name": "Crepe proteica con ricotta e frutti di bosco",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 390,
+      "ingredients": [
+        {
+          "name": "Albumi"
+        },
+        {
+          "name": "farina d'avena"
+        },
+        {
+          "name": "ricotta magra"
+        },
+        {
+          "name": "frutti di bosco"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "COL26",
+      "name": "Pane integrale tostato con hummus e tacchino",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 370,
+      "ingredients": [
+        {
+          "name": "Pane integrale"
+        },
+        {
+          "name": "hummus"
+        },
+        {
+          "name": "petto di tacchino"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "COL27",
+      "name": "Porridge d'avena con albicocche secche e whey",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 400,
+      "ingredients": [
+        {
+          "name": "Fiocchi d'avena"
+        },
+        {
+          "name": "albicocche secche"
+        },
+        {
+          "name": "proteine whey"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "COL28",
+      "name": "Fiocchi di latte con gallette e marmellata senza zucchero",
+      "regime": "omnivore",
+      "mealSlot": "breakfast",
+      "kcal": 340,
+      "ingredients": [
+        {
+          "name": "Fiocchi di latte"
+        },
+        {
+          "name": "gallette"
+        },
+        {
+          "name": "marmellata senza zucchero"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR01",
+      "name": "Petto di pollo alla griglia con riso basmati e broccoli",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "riso basmati"
+        },
+        {
+          "name": "broccoli"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR02",
+      "name": "Insalata di pollo, quinoa, avocado e mandorle",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "quinoa"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "mandorle"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR03",
+      "name": "Tacchino alla piastra con patate dolci e spinaci",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Petto di tacchino"
+        },
+        {
+          "name": "patate dolci"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR04",
+      "name": "Salmone al forno con riso integrale e asparagi",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 560,
+      "ingredients": [
+        {
+          "name": "Salmone"
+        },
+        {
+          "name": "riso integrale"
+        },
+        {
+          "name": "asparagi"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR05",
+      "name": "Manzo magro con quinoa e verdure grigliate",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Manzo magro"
+        },
+        {
+          "name": "quinoa"
+        },
+        {
+          "name": "verdure grigliate"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR06",
+      "name": "Pasta integrale con tonno, pomodorini e rucola",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Pasta integrale"
+        },
+        {
+          "name": "tonno al naturale"
+        },
+        {
+          "name": "pomodorini"
+        },
+        {
+          "name": "rucola"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR07",
+      "name": "Riso venere con gamberi e zucchine",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Riso venere"
+        },
+        {
+          "name": "gamberi"
+        },
+        {
+          "name": "zucchine"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR08",
+      "name": "Bowl di pollo, riso, fagioli neri e mais",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "riso"
+        },
+        {
+          "name": "fagioli neri"
+        },
+        {
+          "name": "mais"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR09",
+      "name": "Filetto di merluzzo con patate al forno e fagiolini",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 480,
+      "ingredients": [
+        {
+          "name": "Merluzzo"
+        },
+        {
+          "name": "patate"
+        },
+        {
+          "name": "fagiolini"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR10",
+      "name": "Tagliata di manzo con rucola e patate dolci",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Manzo magro"
+        },
+        {
+          "name": "rucola"
+        },
+        {
+          "name": "patate dolci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR11",
+      "name": "Petto di pollo, cous cous integrale e peperoni",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "cous cous integrale"
+        },
+        {
+          "name": "peperoni"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR12",
+      "name": "Insalata di ceci, tonno, pomodori e cetrioli",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Ceci"
+        },
+        {
+          "name": "tonno al naturale"
+        },
+        {
+          "name": "pomodori"
+        },
+        {
+          "name": "cetrioli"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR13",
+      "name": "Frittata di albumi con riso e verdure saltate",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 490,
+      "ingredients": [
+        {
+          "name": "Albumi"
+        },
+        {
+          "name": "riso"
+        },
+        {
+          "name": "verdure miste"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "PR14",
+      "name": "Tacchino al curry con riso basmati e piselli",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Petto di tacchino"
+        },
+        {
+          "name": "riso basmati"
+        },
+        {
+          "name": "piselli"
+        },
+        {
+          "name": "curry"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR15",
+      "name": "Pasta integrale al pesto con petto di pollo",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Pasta integrale"
+        },
+        {
+          "name": "pesto"
+        },
+        {
+          "name": "petto di pollo"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR16",
+      "name": "Poke bowl di salmone, riso e edamame",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Salmone"
+        },
+        {
+          "name": "riso"
+        },
+        {
+          "name": "edamame"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR17",
+      "name": "Orata al cartoccio con quinoa e zucchine",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Orata"
+        },
+        {
+          "name": "quinoa"
+        },
+        {
+          "name": "zucchine"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR18",
+      "name": "Bresaola, grana e rucola con pane integrale",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 480,
+      "ingredients": [
+        {
+          "name": "Bresaola"
+        },
+        {
+          "name": "grana"
+        },
+        {
+          "name": "rucola"
+        },
+        {
+          "name": "pane integrale"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR19",
+      "name": "Pollo teriyaki light con riso e broccoli",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "riso"
+        },
+        {
+          "name": "broccoli"
+        },
+        {
+          "name": "salsa teriyaki"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR20",
+      "name": "Lenticchie con riso e petto di pollo",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Lenticchie"
+        },
+        {
+          "name": "riso"
+        },
+        {
+          "name": "petto di pollo"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR21",
+      "name": "Insalata di farro, gamberi e pomodorini",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Farro"
+        },
+        {
+          "name": "gamberi"
+        },
+        {
+          "name": "pomodorini"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR22",
+      "name": "Vitello magro con pure di patate dolci e spinaci",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Vitello magro"
+        },
+        {
+          "name": "patate dolci"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR23",
+      "name": "Wrap integrale di pollo, verdure e yogurt",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Piadina integrale"
+        },
+        {
+          "name": "petto di pollo"
+        },
+        {
+          "name": "verdure"
+        },
+        {
+          "name": "yogurt greco"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR24",
+      "name": "Riso integrale con sgombro, olive e pomodoro",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Riso integrale"
+        },
+        {
+          "name": "sgombro"
+        },
+        {
+          "name": "olive"
+        },
+        {
+          "name": "pomodoro"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR25",
+      "name": "Petto di tacchino con patate e cavolfiore arrosto",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 490,
+      "ingredients": [
+        {
+          "name": "Petto di tacchino"
+        },
+        {
+          "name": "patate"
+        },
+        {
+          "name": "cavolfiore"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR26",
+      "name": "Bowl di quinoa, uova, avocado e spinaci",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 510,
+      "ingredients": [
+        {
+          "name": "Quinoa"
+        },
+        {
+          "name": "uova"
+        },
+        {
+          "name": "avocado"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR27",
+      "name": "Pasta integrale con ragu di tacchino",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Pasta integrale"
+        },
+        {
+          "name": "macinato di tacchino"
+        },
+        {
+          "name": "pomodoro"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR28",
+      "name": "Insalata di riso con pollo, piselli e carote",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 520,
+      "ingredients": [
+        {
+          "name": "Riso"
+        },
+        {
+          "name": "petto di pollo"
+        },
+        {
+          "name": "piselli"
+        },
+        {
+          "name": "carote"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "PR29",
+      "name": "Trota al forno con patate novelle e fagiolini",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 490,
+      "ingredients": [
+        {
+          "name": "Trota"
+        },
+        {
+          "name": "patate novelle"
+        },
+        {
+          "name": "fagiolini"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR30",
+      "name": "Hamburger di manzo magro con pane integrale e insalata",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 540,
+      "ingredients": [
+        {
+          "name": "Manzo magro"
+        },
+        {
+          "name": "pane integrale"
+        },
+        {
+          "name": "insalata"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR31",
+      "name": "Cous cous con ceci, feta light e verdure",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 500,
+      "ingredients": [
+        {
+          "name": "Cous cous"
+        },
+        {
+          "name": "ceci"
+        },
+        {
+          "name": "feta light"
+        },
+        {
+          "name": "verdure"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "PR32",
+      "name": "Petto di pollo con farro e ratatouille",
+      "regime": "omnivore",
+      "mealSlot": "lunch",
+      "kcal": 510,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "farro"
+        },
+        {
+          "name": "ratatouille"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE01",
+      "name": "Salmone al vapore con broccoli e insalata mista",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 460,
+      "ingredients": [
+        {
+          "name": "Salmone"
+        },
+        {
+          "name": "broccoli"
+        },
+        {
+          "name": "insalata mista"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE02",
+      "name": "Petto di pollo al forno con zucchine e melanzane",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 440,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "zucchine"
+        },
+        {
+          "name": "melanzane"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE03",
+      "name": "Merluzzo al cartoccio con pomodorini e spinaci",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 430,
+      "ingredients": [
+        {
+          "name": "Merluzzo"
+        },
+        {
+          "name": "pomodorini"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE04",
+      "name": "Tacchino alla piastra con insalata e avocado",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Petto di tacchino"
+        },
+        {
+          "name": "insalata"
+        },
+        {
+          "name": "avocado"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE05",
+      "name": "Frittata di albumi con verdure grigliate",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 430,
+      "ingredients": [
+        {
+          "name": "Albumi"
+        },
+        {
+          "name": "verdure grigliate"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE06",
+      "name": "Gamberi saltati con zucchine e insalata",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 440,
+      "ingredients": [
+        {
+          "name": "Gamberi"
+        },
+        {
+          "name": "zucchine"
+        },
+        {
+          "name": "insalata"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE07",
+      "name": "Orata al forno con fagiolini e carote",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Orata"
+        },
+        {
+          "name": "fagiolini"
+        },
+        {
+          "name": "carote"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE08",
+      "name": "Bistecca di manzo magro con spinaci saltati",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 480,
+      "ingredients": [
+        {
+          "name": "Manzo magro"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE09",
+      "name": "Filetto di platessa al vapore con broccoli",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 430,
+      "ingredients": [
+        {
+          "name": "Platessa"
+        },
+        {
+          "name": "broccoli"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE10",
+      "name": "Polpette di tacchino al sugo con insalata",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Macinato di tacchino"
+        },
+        {
+          "name": "pomodoro"
+        },
+        {
+          "name": "insalata"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE11",
+      "name": "Tonno scottato con misticanza e pomodori",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 460,
+      "ingredients": [
+        {
+          "name": "Tonno fresco"
+        },
+        {
+          "name": "misticanza"
+        },
+        {
+          "name": "pomodori"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE12",
+      "name": "Petto di pollo al limone con asparagi",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 440,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "limone"
+        },
+        {
+          "name": "asparagi"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE13",
+      "name": "Sgombro al forno con cicoria ripassata",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Sgombro"
+        },
+        {
+          "name": "cicoria"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE14",
+      "name": "Uova sode e frittata con insalata e feta light",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Uova"
+        },
+        {
+          "name": "insalata"
+        },
+        {
+          "name": "feta light"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE15",
+      "name": "Spiedini di pollo e verdure alla griglia",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "peperoni"
+        },
+        {
+          "name": "zucchine"
+        },
+        {
+          "name": "cipolla"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE16",
+      "name": "Seppie in umido con piselli e insalata",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 440,
+      "ingredients": [
+        {
+          "name": "Seppie"
+        },
+        {
+          "name": "piselli"
+        },
+        {
+          "name": "insalata"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE17",
+      "name": "Salmone alla griglia con finocchi e rucola",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Salmone"
+        },
+        {
+          "name": "finocchi"
+        },
+        {
+          "name": "rucola"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE18",
+      "name": "Tagliata di tacchino con radicchio e grana",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 460,
+      "ingredients": [
+        {
+          "name": "Petto di tacchino"
+        },
+        {
+          "name": "radicchio"
+        },
+        {
+          "name": "grana"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE19",
+      "name": "Branzino al cartoccio con zucchine",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 440,
+      "ingredients": [
+        {
+          "name": "Branzino"
+        },
+        {
+          "name": "zucchine"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE20",
+      "name": "Petto di pollo con caponata leggera",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "melanzane"
+        },
+        {
+          "name": "pomodoro"
+        },
+        {
+          "name": "sedano"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE21",
+      "name": "Calamari alla griglia con insalata e ceci",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 460,
+      "ingredients": [
+        {
+          "name": "Calamari"
+        },
+        {
+          "name": "insalata"
+        },
+        {
+          "name": "ceci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE22",
+      "name": "Vitello ai ferri con spinaci e pomodorini",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 460,
+      "ingredients": [
+        {
+          "name": "Vitello magro"
+        },
+        {
+          "name": "spinaci"
+        },
+        {
+          "name": "pomodorini"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE23",
+      "name": "Insalatona di pollo, uova, tonno e verdure",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Petto di pollo"
+        },
+        {
+          "name": "uova"
+        },
+        {
+          "name": "tonno al naturale"
+        },
+        {
+          "name": "verdure"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE24",
+      "name": "Frittata di albumi con funghi e insalata",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 430,
+      "ingredients": [
+        {
+          "name": "Albumi"
+        },
+        {
+          "name": "funghi"
+        },
+        {
+          "name": "insalata"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "CE25",
+      "name": "Trota salmonata al vapore con broccoletti",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 460,
+      "ingredients": [
+        {
+          "name": "Trota salmonata"
+        },
+        {
+          "name": "broccoletti"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE26",
+      "name": "Petto di tacchino con peperoni e melanzane",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 440,
+      "ingredients": [
+        {
+          "name": "Petto di tacchino"
+        },
+        {
+          "name": "peperoni"
+        },
+        {
+          "name": "melanzane"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE27",
+      "name": "Gamberi e verdure al curry leggero",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Gamberi"
+        },
+        {
+          "name": "verdure miste"
+        },
+        {
+          "name": "curry"
+        },
+        {
+          "name": "latte di cocco light"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE28",
+      "name": "Filetto di maiale magro con insalata e finocchi",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Lonza di maiale"
+        },
+        {
+          "name": "insalata"
+        },
+        {
+          "name": "finocchi"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE29",
+      "name": "Merluzzo gratinato leggero con spinaci",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Merluzzo"
+        },
+        {
+          "name": "pangrattato"
+        },
+        {
+          "name": "spinaci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE30",
+      "name": "Polpo con patate lesse e prezzemolo",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 470,
+      "ingredients": [
+        {
+          "name": "Polpo"
+        },
+        {
+          "name": "patate"
+        },
+        {
+          "name": "prezzemolo"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "CE31",
+      "name": "Hamburger di pollo con insalata e pomodori",
+      "regime": "omnivore",
+      "mealSlot": "dinner",
+      "kcal": 450,
+      "ingredients": [
+        {
+          "name": "Macinato di pollo"
+        },
+        {
+          "name": "insalata"
+        },
+        {
+          "name": "pomodori"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "SP01",
+      "name": "Yogurt greco 0% con mirtilli",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Yogurt greco 0%"
+        },
+        {
+          "name": "mirtilli"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP02",
+      "name": "Shaker di whey con acqua",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 130,
+      "ingredients": [
+        {
+          "name": "Proteine whey"
+        },
+        {
+          "name": "acqua"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP03",
+      "name": "Uovo sodo e gallette di riso",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 160,
+      "ingredients": [
+        {
+          "name": "Uovo"
+        },
+        {
+          "name": "gallette di riso"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP04",
+      "name": "Fiocchi di latte con pomodorini",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Fiocchi di latte"
+        },
+        {
+          "name": "pomodorini"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP05",
+      "name": "Mandorle (30 g)",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Mandorle"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP06",
+      "name": "Skyr alla vaniglia",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 130,
+      "ingredients": [
+        {
+          "name": "Skyr"
+        },
+        {
+          "name": "vaniglia"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP07",
+      "name": "Bresaola con grana a scaglie",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 170,
+      "ingredients": [
+        {
+          "name": "Bresaola"
+        },
+        {
+          "name": "grana"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP08",
+      "name": "Barretta proteica",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 190,
+      "ingredients": [
+        {
+          "name": "Barretta proteica"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP09",
+      "name": "Frutta secca mista (25 g)",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 160,
+      "ingredients": [
+        {
+          "name": "Frutta secca mista"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP10",
+      "name": "Yogurt greco con semi di chia",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 160,
+      "ingredients": [
+        {
+          "name": "Yogurt greco"
+        },
+        {
+          "name": "semi di chia"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP11",
+      "name": "Ricotta magra con cannella",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Ricotta magra"
+        },
+        {
+          "name": "cannella"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP12",
+      "name": "Petto di tacchino a fette con gallette",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 160,
+      "ingredients": [
+        {
+          "name": "Petto di tacchino"
+        },
+        {
+          "name": "gallette"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP13",
+      "name": "Frullato proteico con banana",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 190,
+      "ingredients": [
+        {
+          "name": "Proteine whey"
+        },
+        {
+          "name": "banana"
+        },
+        {
+          "name": "latte scremato"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP14",
+      "name": "Edamame lessati",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Edamame"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "forno"
+        },
+        {
+          "type": "griglia"
+        },
+        {
+          "type": "padella"
+        },
+        {
+          "type": "vapore"
+        },
+        {
+          "type": "cartoccio"
+        }
+      ]
+    },
+    {
+      "id": "SP15",
+      "name": "Noci (25 g)",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 170,
+      "ingredients": [
+        {
+          "name": "Noci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP16",
+      "name": "Yogurt greco con cacao amaro",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 150,
+      "ingredients": [
+        {
+          "name": "Yogurt greco"
+        },
+        {
+          "name": "cacao amaro"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP17",
+      "name": "Cracker integrali con hummus",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 170,
+      "ingredients": [
+        {
+          "name": "Cracker integrali"
+        },
+        {
+          "name": "hummus"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP18",
+      "name": "Uovo sodo e pomodori",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 140,
+      "ingredients": [
+        {
+          "name": "Uovo"
+        },
+        {
+          "name": "pomodori"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP19",
+      "name": "Parmigiano a scaglie (30 g)",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 170,
+      "ingredients": [
+        {
+          "name": "Parmigiano"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP20",
+      "name": "Smoothie di frutti di bosco e whey",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Frutti di bosco"
+        },
+        {
+          "name": "proteine whey"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "SP21",
+      "name": "Fiocchi di latte con noci",
+      "regime": "omnivore",
+      "mealSlot": "morning_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Fiocchi di latte"
+        },
+        {
+          "name": "noci"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "ME01",
+      "name": "Pancake proteico con marmellata senza zucchero",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 190,
+      "ingredients": [
+        {
+          "name": "Albumi"
+        },
+        {
+          "name": "farina d'avena"
+        },
+        {
+          "name": "marmellata senza zucchero"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "padella"
+        },
+        {
+          "type": "forno"
+        },
+        {
+          "type": "vapore"
+        }
+      ]
+    },
+    {
+      "id": "ME02",
+      "name": "Yogurt greco con granola proteica",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Yogurt greco"
+        },
+        {
+          "name": "granola proteica"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "ME03",
+      "name": "Budino proteico al cioccolato",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 170,
+      "ingredients": [
+        {
+          "name": "Budino proteico"
+        },
+        {
+          "name": "cacao"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "ME04",
+      "name": "Barretta proteica ai cereali",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 190,
+      "ingredients": [
+        {
+          "name": "Barretta proteica"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "ME05",
+      "name": "Frullato whey, latte scremato e cacao",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 180,
+      "ingredients": [
+        {
+          "name": "Proteine whey"
+        },
+        {
+          "name": "latte scremato"
+        },
+        {
+          "name": "cacao"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    },
+    {
+      "id": "ME06",
+      "name": "Ricotta magra con frutti di bosco",
+      "regime": "omnivore",
+      "mealSlot": "afternoon_snack",
+      "kcal": 160,
+      "ingredients": [
+        {
+          "name": "Ricotta magra"
+        },
+        {
+          "name": "frutti di bosco"
+        }
+      ],
+      "tags": [
+        "proteica",
+        "sportiva"
+      ],
+      "cookingMethods": [
+        {
+          "type": "crudo"
+        },
+        {
+          "type": "freddo"
+        }
+      ]
+    }
+  ],
+  "dayTemplates": [
+    {
+      "level": 1,
+      "dayIndex": 1,
+      "kcalTotal": 1720,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL24",
+          "name": "Muesli proteico con latte scremato e banana"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR02",
+          "name": "Insalata di pollo, quinoa, avocado e mandorle"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE01",
+          "name": "Salmone al vapore con broccoli e insalata mista"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP21",
+          "name": "Fiocchi di latte con noci"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Frullato whey, latte scremato e cacao"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 2,
+      "kcalTotal": 1710,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL27",
+          "name": "Porridge d'avena con albicocche secche e whey"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR15",
+          "name": "Pasta integrale al pesto con petto di pollo"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE25",
+          "name": "Trota salmonata al vapore con broccoletti"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP01",
+          "name": "Yogurt greco 0% con mirtilli"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME06",
+          "name": "Ricotta magra con frutti di bosco"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 3,
+      "kcalTotal": 1690,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL12",
+          "name": "Uova sode con gallette di riso e avocado"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR20",
+          "name": "Lenticchie con riso e petto di pollo"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE09",
+          "name": "Filetto di platessa al vapore con broccoli"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP13",
+          "name": "Frullato proteico con banana"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME02",
+          "name": "Yogurt greco con granola proteica"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 4,
+      "kcalTotal": 1680,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL11",
+          "name": "Smoothie bowl proteico con whey, banana e spinaci"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR25",
+          "name": "Petto di tacchino con patate e cavolfiore arrosto"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE10",
+          "name": "Polpette di tacchino al sugo con insalata"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP17",
+          "name": "Cracker integrali con hummus"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME03",
+          "name": "Budino proteico al cioccolato"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 5,
+      "kcalTotal": 1690,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL23",
+          "name": "Uova strapazzate con feta light e spinaci"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR24",
+          "name": "Riso integrale con sgombro, olive e pomodoro"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE28",
+          "name": "Filetto di maiale magro con insalata e finocchi"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP11",
+          "name": "Ricotta magra con cannella"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME01",
+          "name": "Pancake proteico con marmellata senza zucchero"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 6,
+      "kcalTotal": 1690,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL02",
+          "name": "Frittata di albumi con spinaci e pomodorini"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR28",
+          "name": "Insalata di riso con pollo, piselli e carote"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE30",
+          "name": "Polpo con patate lesse e prezzemolo"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP15",
+          "name": "Noci (25 g)"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME04",
+          "name": "Barretta proteica ai cereali"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 7,
+      "kcalTotal": 1680,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL06",
+          "name": "Skyr con fiocchi d'avena, semi di chia e mirtilli"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR21",
+          "name": "Insalata di farro, gamberi e pomodorini"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE21",
+          "name": "Calamari alla griglia con insalata e ceci"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP05",
+          "name": "Mandorle (30 g)"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Frullato whey, latte scremato e cacao"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 8,
+      "kcalTotal": 1670,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL28",
+          "name": "Fiocchi di latte con gallette e marmellata senza zucchero"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR19",
+          "name": "Pollo teriyaki light con riso e broccoli"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE15",
+          "name": "Spiedini di pollo e verdure alla griglia"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP20",
+          "name": "Smoothie di frutti di bosco e whey"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME06",
+          "name": "Ricotta magra con frutti di bosco"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 9,
+      "kcalTotal": 1690,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL20",
+          "name": "Toast integrale con uovo in camicia e salmone"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR13",
+          "name": "Frittata di albumi con riso e verdure saltate"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE19",
+          "name": "Branzino al cartoccio con zucchine"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP07",
+          "name": "Bresaola con grana a scaglie"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME03",
+          "name": "Budino proteico al cioccolato"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 10,
+      "kcalTotal": 1720,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL14",
+          "name": "Fette biscottate integrali con albumi strapazzati"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR16",
+          "name": "Poke bowl di salmone, riso e edamame"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE23",
+          "name": "Insalatona di pollo, uova, tonno e verdure"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP19",
+          "name": "Parmigiano a scaglie (30 g)"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME01",
+          "name": "Pancake proteico con marmellata senza zucchero"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 11,
+      "kcalTotal": 1710,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL10",
+          "name": "Ricotta magra con pane integrale e miele"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR03",
+          "name": "Tacchino alla piastra con patate dolci e spinaci"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE22",
+          "name": "Vitello ai ferri con spinaci e pomodorini"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP21",
+          "name": "Fiocchi di latte con noci"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME04",
+          "name": "Barretta proteica ai cereali"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 12,
+      "kcalTotal": 1670,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL18",
+          "name": "Budino di semi di chia con whey e lamponi"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR30",
+          "name": "Hamburger di manzo magro con pane integrale e insalata"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE27",
+          "name": "Gamberi e verdure al curry leggero"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP04",
+          "name": "Fiocchi di latte con pomodorini"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME06",
+          "name": "Ricotta magra con frutti di bosco"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 13,
+      "kcalTotal": 1670,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL17",
+          "name": "Frittata al forno con albumi, funghi e prezzemolo"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR01",
+          "name": "Petto di pollo alla griglia con riso basmati e broccoli"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE11",
+          "name": "Tonno scottato con misticanza e pomodori"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP14",
+          "name": "Edamame lessati"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME02",
+          "name": "Yogurt greco con granola proteica"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 14,
+      "kcalTotal": 1680,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL01",
+          "name": "Porridge d'avena con whey e frutti di bosco"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR31",
+          "name": "Cous cous con ceci, feta light e verdure"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE07",
+          "name": "Orata al forno con fagiolini e carote"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP18",
+          "name": "Uovo sodo e pomodori"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME01",
+          "name": "Pancake proteico con marmellata senza zucchero"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 15,
+      "kcalTotal": 1710,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL08",
+          "name": "Overnight oats con whey e burro d'arachidi"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR32",
+          "name": "Petto di pollo con farro e ratatouille"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE14",
+          "name": "Uova sode e frittata con insalata e feta light"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP01",
+          "name": "Yogurt greco 0% con mirtilli"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Frullato whey, latte scremato e cacao"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 16,
+      "kcalTotal": 1700,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL22",
+          "name": "Yogurt greco con avena, mela e cannella"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR06",
+          "name": "Pasta integrale con tonno, pomodorini e rucola"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE04",
+          "name": "Tacchino alla piastra con insalata e avocado"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP20",
+          "name": "Smoothie di frutti di bosco e whey"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME03",
+          "name": "Budino proteico al cioccolato"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 17,
+      "kcalTotal": 1690,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL07",
+          "name": "Toast integrale con ricotta magra e bresaola"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR27",
+          "name": "Pasta integrale con ragu di tacchino"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE02",
+          "name": "Petto di pollo al forno con zucchine e melanzane"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP16",
+          "name": "Yogurt greco con cacao amaro"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME04",
+          "name": "Barretta proteica ai cereali"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 18,
+      "kcalTotal": 1700,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL13",
+          "name": "Porridge di quinoa con yogurt e frutta secca"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR08",
+          "name": "Bowl di pollo, riso, fagioli neri e mais"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE12",
+          "name": "Petto di pollo al limone con asparagi"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP03",
+          "name": "Uovo sodo e gallette di riso"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME06",
+          "name": "Ricotta magra con frutti di bosco"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 19,
+      "kcalTotal": 1700,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL21",
+          "name": "Wrap integrale con albumi e verdure"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR07",
+          "name": "Riso venere con gamberi e zucchine"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE16",
+          "name": "Seppie in umido con piselli e insalata"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP08",
+          "name": "Barretta proteica"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME01",
+          "name": "Pancake proteico con marmellata senza zucchero"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 20,
+      "kcalTotal": 1670,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL15",
+          "name": "Yogurt greco con granola proteica e kiwi"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR26",
+          "name": "Bowl di quinoa, uova, avocado e spinaci"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE13",
+          "name": "Sgombro al forno con cicoria ripassata"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP11",
+          "name": "Ricotta magra con cannella"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Frullato whey, latte scremato e cacao"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 21,
+      "kcalTotal": 1700,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL16",
+          "name": "Pane proteico con fiocchi di latte e pomodoro"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR04",
+          "name": "Salmone al forno con riso integrale e asparagi"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE17",
+          "name": "Salmone alla griglia con finocchi e rucola"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP10",
+          "name": "Yogurt greco con semi di chia"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME03",
+          "name": "Budino proteico al cioccolato"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 22,
+      "kcalTotal": 1690,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL04",
+          "name": "Pancake proteici di avena, albumi e banana"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR10",
+          "name": "Tagliata di manzo con rucola e patate dolci"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE26",
+          "name": "Petto di tacchino con peperoni e melanzane"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP18",
+          "name": "Uovo sodo e pomodori"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME06",
+          "name": "Ricotta magra con frutti di bosco"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 23,
+      "kcalTotal": 1670,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL09",
+          "name": "Omelette con petto di tacchino e zucchine"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR23",
+          "name": "Wrap integrale di pollo, verdure e yogurt"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE29",
+          "name": "Merluzzo gratinato leggero con spinaci"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP05",
+          "name": "Mandorle (30 g)"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME04",
+          "name": "Barretta proteica ai cereali"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 24,
+      "kcalTotal": 1700,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL03",
+          "name": "Yogurt greco 0% con muesli proteico e mandorle"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR05",
+          "name": "Manzo magro con quinoa e verdure grigliate"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE24",
+          "name": "Frittata di albumi con funghi e insalata"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP17",
+          "name": "Cracker integrali con hummus"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Frullato whey, latte scremato e cacao"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 25,
+      "kcalTotal": 1680,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL25",
+          "name": "Crepe proteica con ricotta e frutti di bosco"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR09",
+          "name": "Filetto di merluzzo con patate al forno e fagiolini"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE20",
+          "name": "Petto di pollo con caponata leggera"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP07",
+          "name": "Bresaola con grana a scaglie"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME01",
+          "name": "Pancake proteico con marmellata senza zucchero"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 26,
+      "kcalTotal": 1670,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL26",
+          "name": "Pane integrale tostato con hummus e tacchino"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR11",
+          "name": "Petto di pollo, cous cous integrale e peperoni"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE06",
+          "name": "Gamberi saltati con zucchine e insalata"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP15",
+          "name": "Noci (25 g)"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME03",
+          "name": "Budino proteico al cioccolato"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 27,
+      "kcalTotal": 1670,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL19",
+          "name": "Porridge d'avena con cacao e proteine"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR17",
+          "name": "Orata al cartoccio con quinoa e zucchine"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE03",
+          "name": "Merluzzo al cartoccio con pomodorini e spinaci"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP03",
+          "name": "Uovo sodo e gallette di riso"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME02",
+          "name": "Yogurt greco con granola proteica"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "dayIndex": 28,
+      "kcalTotal": 1720,
+      "meals": [
+        {
+          "slot": "breakfast",
+          "recipeId": "COL05",
+          "name": "Uova strapazzate con pane integrale e avocado"
+        },
+        {
+          "slot": "lunch",
+          "recipeId": "PR18",
+          "name": "Bresaola, grana e rucola con pane integrale"
+        },
+        {
+          "slot": "dinner",
+          "recipeId": "CE08",
+          "name": "Bistecca di manzo magro con spinaci saltati"
+        },
+        {
+          "slot": "morning_snack",
+          "recipeId": "SP09",
+          "name": "Frutta secca mista (25 g)"
+        },
+        {
+          "slot": "afternoon_snack",
+          "recipeId": "ME05",
+          "name": "Frullato whey, latte scremato e cacao"
+        }
+      ]
+    }
+  ]
+}
