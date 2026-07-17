@@ -22,6 +22,7 @@ interface Card {
   owner: string | null;
   valueCents: number | null;
   daysInStage: number | null;
+  planDaysLeft: number | null;
   reminderAt: string | null;
   reminderOverdue: boolean;
   isClient: boolean;
@@ -204,6 +205,16 @@ export function Pipeline() {
                       </b>
                     )}
                     {!c.isClient && <span className="chip amber" style={{ fontSize: 10 }}>lead</span>}
+                    {(c.stage === 'trial' || c.stage === 'paid') && c.planDaysLeft != null && (
+                      <span
+                        className={`chip ${c.planDaysLeft <= 3 ? 'red' : c.planDaysLeft <= 7 ? 'amber' : ''}`}
+                        style={{ fontSize: 10 }}
+                        title="Giorni alla fine del piano"
+                      >
+                        <i className="ti ti-hourglass" style={{ fontSize: 10 }} />{' '}
+                        {c.planDaysLeft < 0 ? 'piano scaduto' : c.planDaysLeft === 0 ? 'scade oggi' : `${c.planDaysLeft} gg al termine`}
+                      </span>
+                    )}
                   </div>
                   {c.email && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{c.email}</div>}
                   {c.reminderAt && (

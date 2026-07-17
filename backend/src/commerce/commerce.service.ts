@@ -91,10 +91,20 @@ export class CommerceService {
    * articoli non riacquistabili nello shop di quel cliente.
    */
   private async purchasedIds(clientId: string): Promise<{ plans: Set<string>; products: Set<string> }> {
-    const pays = (await this.prisma.payment.findMany({
-      where: { clientId, status: 'approved' as never },
-      select: { subscription: { select: { planId: true } }, order: { select: { items: true } } },
-    })) as { subscription: { planId: string } | null; order: { items: unknown } | null }[];
+    const [pays, subs] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { clientId, status: 'approved' as never },
+        select: { subscription: { select: { planId: true } }, order: { select: { items: true } } },
+      }) as Promise<{ subscription: { planId: string } | null; order: { items: unknown } | null }[]>,
+      // Anche gli ABBONAMENTI consumati (attivi, in pausa o scaduti) contano come
+      // "acquistato": copre gli acquisti storici (es. settimana gratuita presa col
+      // vecchio flusso) dove il pagamento non risulta 'approved'. Pending escluso
+      // (ordine ancora annullabile), cancelled escluso (mai goduto).
+      this.prisma.subscription.findMany({
+        where: { clientId, status: { in: ['active', 'paused', 'expired'] as never } },
+        select: { planId: true },
+      }) as Promise<{ planId: string }[]>,
+    ]);
     const plans = new Set<string>();
     const products = new Set<string>();
     for (const p of pays) {
@@ -102,6 +112,7 @@ export class CommerceService {
       const items = Array.isArray(p.order?.items) ? (p.order!.items as { productId?: string }[]) : [];
       for (const it of items) if (it.productId) products.add(it.productId);
     }
+    for (const sub of subs) plans.add(sub.planId);
     return { plans, products };
   }
 

@@ -4,6 +4,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { AgentOrchestratorService } from './agent-orchestrator.service';
 import { AgentRunnerService } from './agent-runner.service';
 import { AGENT_DEPARTMENTS, AGENT_ENGINES, AGENT_TYPES, AgentsService } from './agents.service';
 
@@ -23,6 +24,9 @@ class AgentDto {
   @IsOptional() @IsBoolean() enabled?: boolean;
   @IsOptional() @IsBoolean() humanInLoop?: boolean;
   @IsOptional() @IsInt() @Min(0) monthlyBudgetCents?: number;
+  // Esecuzione automatica giornaliera (cron): accodata ogni giorno con questo input.
+  @IsOptional() @IsBoolean() dailyEnabled?: boolean;
+  @IsOptional() @IsString() @MaxLength(2000) dailyInput?: string;
 }
 
 /**
@@ -36,6 +40,7 @@ export class AgentsController {
   constructor(
     private readonly agents: AgentsService,
     private readonly runner: AgentRunnerService,
+    private readonly orchestrator: AgentOrchestratorService,
   ) {}
 
   @Get()
@@ -70,6 +75,14 @@ export class AgentsController {
   @Post(':id/run')
   run(@Param('id') id: string, @Body() dto: RunAgentDto, @CurrentUser() u: AuthUser) {
     return this.runner.run(id, dto.input, u.sub);
+  }
+
+  /** Accoda un'esecuzione (parte entro un minuto dal ticker dell'orchestratore). */
+  @Roles('head_marketing', 'admin')
+  @HttpCode(202)
+  @Post(':id/enqueue')
+  enqueue(@Param('id') id: string, @Body() dto: RunAgentDto) {
+    return this.orchestrator.enqueue(id, dto.input);
   }
 
   @Get(':id/runs')

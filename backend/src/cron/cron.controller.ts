@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
+import { AgentOrchestratorService } from '../agents/agent-orchestrator.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { AuditService } from '../audit/audit.service';
@@ -39,6 +40,7 @@ export class CronController {
     private readonly commerce: CommerceService,
     private readonly signals: SignalsService,
     private readonly visits: VisitsService,
+    private readonly agentOrchestrator: AgentOrchestratorService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -60,13 +62,15 @@ export class CronController {
     const leadAssignments = await this.leadAssignment.expireStale();
     const stalePayments = await this.commerce.autoCancelStalePayments();
     const adherence = await this.signals.runAdherenceSweep();
+    // Agenti AI con esecuzione giornaliera attiva: accodati qui, processati dal ticker.
+    const agents = await this.agentOrchestrator.enqueueDaily();
     // Il report mensile parte una volta al mese (il primo giorno).
     const monthlyReports = new Date().getDate() === 1 ? await this.reports.sendMonthlyBatch() : { sent: 0 };
     await this.audit.log({
       action: 'cron.daily',
-      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, monthlyReports } as Record<string, unknown>,
+      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, agents, monthlyReports } as Record<string, unknown>,
     });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, monthlyReports };
+    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, agents, monthlyReports };
   }
 
   /**

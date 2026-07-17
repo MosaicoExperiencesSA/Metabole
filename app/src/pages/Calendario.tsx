@@ -12,7 +12,7 @@ import Sheet from '../components/Sheet';
 
 interface EventItem { id: string; type: string; label: string | null; startDate: string; endDate: string; mode: string }
 interface Appt { id: string; staffRole: string; staffName: string | null; type: string; datetime: string; note: string | null }
-interface Sub { status: string; endDate: string | null; plan?: { name: string; period: string } | null }
+interface Sub { status: string; endDate: string | null; plan?: { name: string; period: string; repurchasable?: boolean } | null }
 interface PauseReq { id: string; startDate: string; endDate: string; days: number; status: string }
 
 const PAUSE_STATUS: Record<string, { label: string; bg: string; color: string }> = {
@@ -241,7 +241,9 @@ export default function Calendario() {
                 </div>
               )}
             </div>
-            <button className="btn" style={{ marginTop: 12 }} onClick={() => nav('/shop')}>Rinnova</button>
+            {sub.plan?.repurchasable !== false && (
+              <button className="btn" style={{ marginTop: 12 }} onClick={() => nav('/shop')}>Rinnova</button>
+            )}
           </div>
         </>
       )}

@@ -13,9 +13,17 @@ interface Agent {
   id: string; key: string; name: string; type: string; department: string;
   task: string; rule: string; engine: string; enabled: boolean; humanInLoop: boolean;
   monthlyBudgetCents: number; archivedAt: string | null;
+  tools?: { daily?: { enabled?: boolean; input?: string } } | unknown[];
 }
-interface RunResult { runId: string; output: string; model: string; inputTokens: number; outputTokens: number; costCents: number; humanInLoop: boolean; budget: { spentCents: number; limitCents: number } }
-interface RunRow { id: string; startedAt: string; finishedAt: string | null; status: string; model: string | null; inputTokens: number; outputTokens: number; costCents: number; error: string | null }
+interface RunResult { runId: string; output: string; model: string; inputTokens: number; outputTokens: number; costCents: number; humanInLoop: boolean; verdict: string | null; verdictReason: string | null; budget: { spentCents: number; limitCents: number } }
+interface RunRow { id: string; startedAt: string; finishedAt: string | null; status: string; model: string | null; inputTokens: number; outputTokens: number; costCents: number; verdict: string | null; error: string | null }
+
+const dailyOf = (a: Agent) => (Array.isArray(a.tools) ? undefined : a.tools?.daily);
+const VERDICT_CHIP: Record<string, { label: string; chip: string }> = {
+  approva: { label: 'Giudice: approva', chip: '' },
+  rivedi: { label: 'Giudice: rivedi', chip: 'amber' },
+  blocca: { label: 'Giudice: blocca', chip: 'red' },
+};
 interface Costs { totalCents: number; items: { agentId: string; name: string; runs: number; costCents: number }[] }
 
 const DEPT: Record<string, { label: string; color: string }> = {
@@ -40,7 +48,7 @@ const ICON: Record<string, string> = {
   tts: 'ti-microphone', deterministic: 'ti-salad',
 };
 
-const EMPTY_FORM = { name: '', type: 'generative', department: 'marketing', engine: 'claude-haiku-4-5', task: '', rule: '', humanInLoop: false, monthlyBudgetEuro: 50 };
+const EMPTY_FORM = { name: '', type: 'generative', department: 'marketing', engine: 'claude-haiku-4-5', task: '', rule: '', humanInLoop: false, monthlyBudgetEuro: 50, dailyEnabled: false, dailyInput: '' };
 
 export function Agenti() {
   const { can } = useAuth();
@@ -140,6 +148,7 @@ export function Agenti() {
                 <span className="chip" style={{ fontSize: 11 }}>{a.engine.startsWith('claude') ? <b>{ENGINE_LABEL[a.engine]}</b> : ENGINE_LABEL[a.engine] ?? a.engine}</span>
                 {a.humanInLoop && <span className="chip amber" style={{ fontSize: 10 }} title="L'output richiede approvazione umana">umano nel ciclo</span>}
                 {a.monthlyBudgetCents > 0 && <span className="chip" style={{ fontSize: 10 }} title="Tetto di spesa mensile">€ {(a.monthlyBudgetCents / 100).toFixed(0)}/mese</span>}
+                {dailyOf(a)?.enabled && <span className="chip" style={{ fontSize: 10 }} title="Esecuzione automatica ogni giorno (cron)"><i className="ti ti-clock" style={{ fontSize: 10 }} /> ogni giorno</span>}
               </div>
               <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>{a.task}</div>
               {a.rule && (
@@ -218,7 +227,15 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
               <span className="chip" style={{ fontSize: 11 }}>budget € {(result.budget.spentCents / 100).toFixed(2)} / {(result.budget.limitCents / 100).toFixed(0)}</span>
             )}
             {result.humanInLoop && <span className="chip amber" style={{ fontSize: 10 }}>output da approvare (umano nel ciclo)</span>}
+            {result.verdict && (
+              <span className={`chip ${VERDICT_CHIP[result.verdict]?.chip ?? 'gray'}`} style={{ fontSize: 10 }} title={result.verdictReason ?? undefined}>
+                <i className="ti ti-gavel" style={{ fontSize: 10 }} /> {VERDICT_CHIP[result.verdict]?.label ?? result.verdict}
+              </span>
+            )}
           </div>
+          {result.verdictReason && result.verdict !== 'approva' && (
+            <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}><i className="ti ti-gavel" /> {result.verdictReason}</p>
+          )}
           <div style={{ maxHeight: 320, overflowY: 'auto', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.55, border: '1px solid var(--line)', borderRadius: 10, padding: 12, background: 'var(--card)' }}>
             {result.output || '(nessun testo)'}
           </div>
@@ -248,12 +265,13 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
       ) : (
         <div style={{ maxHeight: 380, overflowY: 'auto' }}>
           <table className="grid">
-            <thead><tr><th>Quando</th><th>Stato</th><th>Token</th><th>Costo</th></tr></thead>
+            <thead><tr><th>Quando</th><th>Stato</th><th>Giudice</th><th>Token</th><th>Costo</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} title={r.error ?? undefined}>
                   <td className="muted" style={{ fontSize: 12 }}>{new Date(r.startedAt).toLocaleString('it-IT')}</td>
                   <td><span className={`chip ${ST[r.status]?.chip ?? 'gray'}`} style={{ fontSize: 11 }}>{ST[r.status]?.label ?? r.status}</span></td>
+                  <td>{r.verdict ? <span className={`chip ${VERDICT_CHIP[r.verdict]?.chip ?? 'gray'}`} style={{ fontSize: 10 }}>{r.verdict}</span> : <span className="muted">—</span>}</td>
                   <td className="muted" style={{ fontSize: 12 }}>{r.inputTokens + r.outputTokens}</td>
                   <td className="muted" style={{ fontSize: 12 }}>€ {(r.costCents / 100).toFixed(2)}</td>
                 </tr>
@@ -268,7 +286,7 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
 
 function AgentModal({ agent, onClose, onSaved }: { agent: Agent | null; onClose: () => void; onSaved: (msg: string) => void }) {
   const [f, setF] = useState(() => agent
-    ? { name: agent.name, type: agent.type, department: agent.department, engine: agent.engine, task: agent.task, rule: agent.rule, humanInLoop: agent.humanInLoop, monthlyBudgetEuro: Math.round(agent.monthlyBudgetCents / 100) }
+    ? { name: agent.name, type: agent.type, department: agent.department, engine: agent.engine, task: agent.task, rule: agent.rule, humanInLoop: agent.humanInLoop, monthlyBudgetEuro: Math.round(agent.monthlyBudgetCents / 100), dailyEnabled: dailyOf(agent)?.enabled ?? false, dailyInput: dailyOf(agent)?.input ?? '' }
     : EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -278,10 +296,12 @@ function AgentModal({ agent, onClose, onSaved }: { agent: Agent | null; onClose:
     if (f.name.trim().length < 2) { setErr('Dai un nome all\'agente.'); return; }
     if (!f.task.trim()) { setErr('Descrivi cosa fa l\'agente.'); return; }
     setBusy(true);
+    if (f.dailyEnabled && !f.dailyInput.trim()) { setErr('Scrivi l\'input per l\'esecuzione giornaliera.'); return; }
     const body = {
       name: f.name.trim(), type: f.type, department: f.department, engine: f.engine,
       task: f.task.trim(), rule: f.rule.trim(), humanInLoop: f.humanInLoop,
       monthlyBudgetCents: Math.max(0, Math.round(f.monthlyBudgetEuro * 100)),
+      dailyEnabled: f.dailyEnabled, dailyInput: f.dailyInput.trim(),
     };
     try {
       if (agent) {
@@ -331,6 +351,16 @@ function AgentModal({ agent, onClose, onSaved }: { agent: Agent | null; onClose:
           <input className="input" type="number" min={0} max={100000} value={f.monthlyBudgetEuro} onChange={(e) => setF({ ...f, monthlyBudgetEuro: Math.max(0, Number(e.target.value) || 0) })} style={{ width: 100 }} />
           <span className="muted" style={{ fontSize: 11 }}>(0 = nessun tetto)</span>
         </label>
+      </div>
+      <div style={{ borderTop: '1px solid var(--line)', marginTop: 10, paddingTop: 10 }}>
+        <label className="row" style={{ gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+          <input type="checkbox" checked={f.dailyEnabled} onChange={(e) => setF({ ...f, dailyEnabled: e.target.checked })} />
+          <span style={{ fontSize: 13 }}>Esecuzione automatica ogni giorno <span className="muted" style={{ fontSize: 11 }}>(cron: accodata la mattina, contenuti passano dal Giudice)</span></span>
+        </label>
+        {f.dailyEnabled && (
+          <div className="field" style={{ marginTop: 8 }}><label>Input giornaliero</label>
+            <textarea className="input" rows={2} value={f.dailyInput} onChange={(e) => setF({ ...f, dailyInput: e.target.value })} placeholder="Il compito che riceve ogni giorno (es. 'Scrivi 3 hook per il tema della settimana…')" /></div>
+        )}
       </div>
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>

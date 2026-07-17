@@ -21,6 +21,15 @@ function costCentsOf(model: string, inputTokens: number, outputTokens: number): 
   return usd > 0 ? Math.max(1, Math.ceil(usd * 100)) : 0;
 }
 
+/** Marcatore delle esecuzioni accodate dal cron giornaliero (per l'idempotenza). */
+export const CRON_INPUT_PREFIX = '[cron] ';
+
+type AgentRow = {
+  id: string; key: string; name: string; type: string; department: string;
+  task: string; rule: string; engine: string; systemPrompt: string | null;
+  enabled: boolean; humanInLoop: boolean; monthlyBudgetCents: number; archivedAt: Date | null;
+};
+
 export interface AgentRunResult {
   runId: string;
   status: 'done';
@@ -30,15 +39,19 @@ export interface AgentRunResult {
   outputTokens: number;
   costCents: number;
   humanInLoop: boolean;
+  verdict: string | null;
+  verdictReason: string | null;
   budget: { spentCents: number; limitCents: number };
 }
 
 /**
- * Runtime degli agenti (fase 2 della spec Metabole_Agenti_AI_Spec_Sviluppo.md):
+ * Runtime degli agenti (spec Metabole_Agenti_AI_Spec_Sviluppo.md §3):
  * esegue un agente sul suo motore Claude, conta token e costo su AgentRun,
- * rispetta il TETTO DI BUDGET mensile per agente (guardrail: oltre il tetto
- * l'esecuzione viene BLOCCATA, non eseguita) e scrive l'audit su AgentLog.
- * L'orchestratore (code/cron/Giudice in pipeline) arriverà nella fase 3.
+ * rispetta il TETTO DI BUDGET mensile (oltre → esecuzione BLOCCATA), scrive
+ * l'audit su AgentLog e — per i CONTENUTI (generativi/redattori dei reparti
+ * marketing/comunicazione) — passa l'output dal GIUDICE, che emette un verdetto
+ * (approva/rivedi/blocca) salvato sull'esecuzione. L'orchestratore (coda+cron)
+ * vive in AgentOrchestratorService.
  */
 @Injectable()
 export class AgentRunnerService {
@@ -72,108 +85,213 @@ export class AgentRunnerService {
       .catch(() => undefined); // l'audit non deve mai far fallire l'esecuzione
   }
 
-  /**
-   * Esecuzione MANUALE di un agente (POST /agents/:id/run). Il chiamante è già
-   * filtrato dal controller (responsabile marketing/admin). Ritorna output e costi.
-   */
-  async run(agentId: string, input: string, actorUserId: string): Promise<AgentRunResult> {
-    const agent = await this.prisma.agent.findUnique({ where: { id: agentId } });
-    if (!agent || agent.archivedAt) throw new NotFoundException('Agente non trovato.');
-    if (!agent.enabled) throw new BadRequestException('Questo agente è disattivato: riattivalo prima di eseguirlo.');
-    const text = (input ?? '').trim();
-    if (!text) throw new BadRequestException('Scrivi un input per l\'agente.');
-
-    // Motore: solo Claude è eseguibile da qui (ElevenLabs e deterministici hanno pipeline proprie).
-    const engine = agent.engine?.startsWith('claude')
-      ? agent.engine
-      : agent.engine === 'none' || agent.engine === 'elevenlabs'
-        ? null
-        : await this.configString('agent_default_model', 'claude-haiku-4-5');
-    if (!engine) {
-      throw new BadRequestException(
-        agent.engine === 'elevenlabs'
-          ? 'La voce (ElevenLabs) ha una pipeline dedicata: non si esegue da qui.'
-          : 'Questo agente è deterministico (nessun LLM): non si esegue da qui.',
-      );
-    }
-    const model = agent.type === 'judge' ? await this.configString('agent_judge_model', engine) : engine;
-
+  /** Chiamata al modello Claude: ritorna testo e token (o lancia con motivo chiaro). */
+  private async callClaude(model: string, system: string, user: string): Promise<{ output: string; inputTokens: number; outputTokens: number }> {
     const apiKey = this.config.get<string>('AI_API_KEY');
-    if (!apiKey) throw new BadRequestException('AI non configurata sul server (AI_API_KEY mancante su Render).');
-
-    // GUARDRAIL BUDGET: oltre il tetto mensile l'esecuzione è bloccata (spec §6).
-    const limitCents = agent.monthlyBudgetCents ?? 0;
-    const spentCents = limitCents > 0 ? await this.monthlySpentCents(agentId) : 0;
-    if (limitCents > 0 && spentCents >= limitCents) {
-      const blocked = await this.prisma.agentRun.create({
-        data: { agentId, status: 'blocked', model, inputRef: text.slice(0, 2000), finishedAt: new Date(), error: 'budget mensile superato' },
-      });
-      await this.log(blocked.id, 'warn', `Esecuzione bloccata: budget mensile superato (${spentCents}/${limitCents} cent).`);
-      throw new BadRequestException(
-        `Budget mensile dell'agente superato (€ ${(spentCents / 100).toFixed(2)} su € ${(limitCents / 100).toFixed(2)}): alza il tetto o attendi il nuovo mese.`,
-      );
-    }
-
-    // Prompt di sistema: quello versionato sull'agente, altrimenti composto da compito+regola.
-    const system = agent.systemPrompt?.trim()
-      || `Sei "${agent.name}", un agente del sistema Metabole (reparto ${agent.department}).\nCOMPITO: ${agent.task}\nREGOLA VINCOLANTE (non violarla mai): ${agent.rule || 'nessuna regola aggiuntiva'}\nRispondi in italiano, in modo concreto e utilizzabile.`;
-
-    const run = await this.prisma.agentRun.create({
-      data: { agentId, status: 'running', model, inputRef: text.slice(0, 2000) },
-    });
-    await this.log(run.id, 'info', 'Esecuzione avviata', { actorUserId, model });
-
+    if (!apiKey) throw new Error('AI non configurata sul server (AI_API_KEY mancante su Render)');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 90_000);
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model, max_tokens: 4000, system, messages: [{ role: 'user', content: text }] }),
+        body: JSON.stringify({ model, max_tokens: 4000, system, messages: [{ role: 'user', content: user }] }),
         signal: controller.signal,
       });
       if (!res.ok) {
-        const reason = res.status === 401 ? 'chiave API non valida' : res.status === 404 ? `modello non trovato (${model})` : res.status === 429 ? 'limite di richieste raggiunto' : `errore ${res.status}`;
-        throw new Error(reason);
+        throw new Error(res.status === 401 ? 'chiave API non valida' : res.status === 404 ? `modello non trovato (${model})` : res.status === 429 ? 'limite di richieste raggiunto' : `errore ${res.status}`);
       }
-      const data = (await res.json()) as {
-        content?: { type: string; text?: string }[];
-        usage?: { input_tokens?: number; output_tokens?: number };
-      };
-      const output = (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('\n').trim();
-      const inputTokens = data.usage?.input_tokens ?? 0;
-      const outputTokens = data.usage?.output_tokens ?? 0;
-      const costCents = costCentsOf(model, inputTokens, outputTokens);
-
-      await this.prisma.agentRun.update({
-        where: { id: run.id },
-        data: { status: 'done', finishedAt: new Date(), outputRef: output.slice(0, 50_000), inputTokens, outputTokens, costCents },
-      });
-      await this.log(run.id, 'info', 'Esecuzione completata', { inputTokens, outputTokens, costCents });
-      await this.audit.log({ action: 'agent.run', actorId: actorUserId, entityType: 'agent', entityId: agentId, metadata: { runId: run.id, model, costCents } });
-
+      const data = (await res.json()) as { content?: { type: string; text?: string }[]; usage?: { input_tokens?: number; output_tokens?: number } };
       return {
-        runId: run.id,
+        output: (data.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('\n').trim(),
+        inputTokens: data.usage?.input_tokens ?? 0,
+        outputTokens: data.usage?.output_tokens ?? 0,
+      };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') throw new Error('timeout (90s)');
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Motore effettivo dell'agente (null = non eseguibile da qui). */
+  private async resolveModel(agent: AgentRow): Promise<string | null> {
+    if (agent.engine === 'none' || agent.engine === 'elevenlabs') return null;
+    const engine = agent.engine?.startsWith('claude') ? agent.engine : await this.configString('agent_default_model', 'claude-haiku-4-5');
+    return agent.type === 'judge' ? await this.configString('agent_judge_model', engine) : engine;
+  }
+
+  private systemPromptOf(agent: AgentRow): string {
+    return agent.systemPrompt?.trim()
+      || `Sei "${agent.name}", un agente del sistema Metabole (reparto ${agent.department}).\nCOMPITO: ${agent.task}\nREGOLA VINCOLANTE (non violarla mai): ${agent.rule || 'nessuna regola aggiuntiva'}\nRispondi in italiano, in modo concreto e utilizzabile.`;
+  }
+
+  /**
+   * PIPELINE GIUDICE (spec §2.2): i contenuti prodotti dagli agenti generativi/
+   * redattori dei reparti marketing/comunicazione vengono valutati dal Giudice
+   * PRIMA di qualsiasi uso: verdetto approva/rivedi/blocca + motivo, salvato
+   * sull'esecuzione originale e loggato (audit difendibile). Il giro del Giudice
+   * è a sua volta un AgentRun (costi tracciati). Best effort: se il Giudice non
+   * è disponibile il contenuto resta SENZA verdetto (mai auto-approvato).
+   */
+  private async maybeJudge(agent: AgentRow, runId: string, output: string): Promise<{ verdict: string; reason: string } | null> {
+    if (agent.type === 'judge') return null; // il Giudice non giudica sé stesso
+    if (!['marketing', 'communication'].includes(agent.department)) return null;
+    if (!['generative', 'writer'].includes(agent.type)) return null;
+    if (!output.trim()) return null;
+
+    const giudice = (await this.prisma.agent.findUnique({ where: { key: 'giudice' } })) as AgentRow | null;
+    if (!giudice || giudice.archivedAt || !giudice.enabled) {
+      await this.log(runId, 'warn', 'Giudice non disponibile: contenuto SENZA verdetto (non usare senza revisione umana).');
+      return null;
+    }
+    // Budget del Giudice: se sforato, niente verdetto automatico (mai auto-approvare).
+    const limit = giudice.monthlyBudgetCents ?? 0;
+    if (limit > 0 && (await this.monthlySpentCents(giudice.id)) >= limit) {
+      await this.log(runId, 'warn', 'Budget del Giudice superato: contenuto SENZA verdetto.');
+      return null;
+    }
+
+    const model = (await this.resolveModel(giudice)) ?? 'claude-sonnet-5';
+    const judgeRun = await this.prisma.agentRun.create({
+      data: { agentId: giudice.id, status: 'running', model, inputRef: `giudizio su run ${runId} (${agent.key})` },
+    });
+    try {
+      const system = this.systemPromptOf(giudice);
+      const user =
+`Valuta questo contenuto prodotto dall'agente "${agent.name}" (${agent.department}) PRIMA della pubblicazione.
+Checklist: policy social (Meta/TikTok/Google: niente prima/dopo, niente seconda persona su attributi fisici, niente promesse a tempo), rischio ban, veridicità dei claim (claim di salute → va escalato al nutrizionista capo), coerenza brand Metabole ("persone vere + AI", "senza fame", trasparenza, 18+).
+Rispondi SOLO con JSON minificato: {"verdetto":"approva"|"rivedi"|"blocca","motivo":"max 300 caratteri, concreto"}.
+
+CONTENUTO DA VALUTARE:
+${output.slice(0, 12_000)}`;
+      const res = await this.callClaude(model, system, user);
+      const cost = costCentsOf(model, res.inputTokens, res.outputTokens);
+      // Parse tollerante del verdetto.
+      let verdict = 'rivedi';
+      let reason = 'verdetto non leggibile: rivedere a mano';
+      const m = res.output.match(/\{[\s\S]*\}/);
+      if (m) {
+        try {
+          const j = JSON.parse(m[0]) as { verdetto?: string; motivo?: string };
+          if (j.verdetto && ['approva', 'rivedi', 'blocca'].includes(j.verdetto)) verdict = j.verdetto;
+          if (j.motivo) reason = String(j.motivo).slice(0, 300);
+        } catch { /* resta rivedi */ }
+      }
+      await this.prisma.agentRun.update({
+        where: { id: judgeRun.id },
+        data: { status: 'done', finishedAt: new Date(), outputRef: res.output.slice(0, 5_000), inputTokens: res.inputTokens, outputTokens: res.outputTokens, costCents: cost, verdict },
+      });
+      await this.prisma.agentRun.update({ where: { id: runId }, data: { verdict } });
+      await this.log(runId, 'decision', `Giudice: ${verdict.toUpperCase()} — ${reason}`, { judgeRunId: judgeRun.id, verdict });
+      await this.log(judgeRun.id, 'decision', `Verdetto su run ${runId}: ${verdict} — ${reason}`);
+      return { verdict, reason };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.prisma.agentRun.update({ where: { id: judgeRun.id }, data: { status: 'error', finishedAt: new Date(), error: message.slice(0, 500) } });
+      await this.log(runId, 'warn', `Giudice non riuscito (${message}): contenuto SENZA verdetto.`);
+      return null;
+    }
+  }
+
+  /** Guardie comuni: agente eseguibile? budget ok? Ritorna modello o lancia/marca. */
+  private async guardAndModel(agent: AgentRow, runId: string | null, inputForBlockedRun: string): Promise<{ model: string; spentCents: number; limitCents: number }> {
+    const model = await this.resolveModel(agent);
+    if (!model) {
+      throw new BadRequestException(
+        agent.engine === 'elevenlabs'
+          ? 'La voce (ElevenLabs) ha una pipeline dedicata: non si esegue da qui.'
+          : 'Questo agente è deterministico (nessun LLM): non si esegue da qui.',
+      );
+    }
+    const limitCents = agent.monthlyBudgetCents ?? 0;
+    const spentCents = limitCents > 0 ? await this.monthlySpentCents(agent.id) : 0;
+    if (limitCents > 0 && spentCents >= limitCents) {
+      const blocked = runId
+        ? await this.prisma.agentRun.update({ where: { id: runId }, data: { status: 'blocked', finishedAt: new Date(), error: 'budget mensile superato' } })
+        : await this.prisma.agentRun.create({ data: { agentId: agent.id, status: 'blocked', model, inputRef: inputForBlockedRun.slice(0, 2000), finishedAt: new Date(), error: 'budget mensile superato' } });
+      await this.log(blocked.id, 'warn', `Esecuzione bloccata: budget mensile superato (${spentCents}/${limitCents} cent).`);
+      throw new BadRequestException(
+        `Budget mensile dell'agente superato (€ ${(spentCents / 100).toFixed(2)} su € ${(limitCents / 100).toFixed(2)}): alza il tetto o attendi il nuovo mese.`,
+      );
+    }
+    return { model, spentCents, limitCents };
+  }
+
+  /** Cuore dell'esecuzione: run già in stato running → chiamata, costi, giudizio. */
+  private async execute(agent: AgentRow, runId: string, model: string, input: string, spentCents: number, limitCents: number, actorUserId: string | null): Promise<AgentRunResult> {
+    await this.log(runId, 'info', 'Esecuzione avviata', { actorUserId, model });
+    try {
+      const res = await this.callClaude(model, this.systemPromptOf(agent), input);
+      const costCents = costCentsOf(model, res.inputTokens, res.outputTokens);
+      await this.prisma.agentRun.update({
+        where: { id: runId },
+        data: { status: 'done', finishedAt: new Date(), outputRef: res.output.slice(0, 50_000), inputTokens: res.inputTokens, outputTokens: res.outputTokens, costCents },
+      });
+      await this.log(runId, 'info', 'Esecuzione completata', { inputTokens: res.inputTokens, outputTokens: res.outputTokens, costCents });
+      if (actorUserId) {
+        await this.audit.log({ action: 'agent.run', actorId: actorUserId, entityType: 'agent', entityId: agent.id, metadata: { runId, model, costCents } });
+      }
+      const judged = await this.maybeJudge(agent, runId, res.output);
+      return {
+        runId,
         status: 'done',
-        output,
+        output: res.output,
         model,
-        inputTokens,
-        outputTokens,
+        inputTokens: res.inputTokens,
+        outputTokens: res.outputTokens,
         costCents,
         humanInLoop: agent.humanInLoop,
+        verdict: judged?.verdict ?? null,
+        verdictReason: judged?.reason ?? null,
         budget: { spentCents: spentCents + costCents, limitCents },
       };
     } catch (err) {
-      const message = err instanceof Error ? (err.name === 'AbortError' ? 'timeout (90s)' : err.message) : String(err);
-      await this.prisma.agentRun.update({
-        where: { id: run.id },
-        data: { status: 'error', finishedAt: new Date(), error: message.slice(0, 500) },
-      });
-      await this.log(run.id, 'error', `Esecuzione fallita: ${message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      await this.prisma.agentRun.update({ where: { id: runId }, data: { status: 'error', finishedAt: new Date(), error: message.slice(0, 500) } });
+      await this.log(runId, 'error', `Esecuzione fallita: ${message}`);
       this.logger.warn(`Agente ${agent.key}: ${message}`);
       throw new BadRequestException(`Esecuzione non riuscita: ${message}.`);
-    } finally {
-      clearTimeout(timer);
+    }
+  }
+
+  /** Esecuzione MANUALE sincrona (POST /agents/:id/run, responsabile marketing/admin). */
+  async run(agentId: string, input: string, actorUserId: string): Promise<AgentRunResult> {
+    const agent = (await this.prisma.agent.findUnique({ where: { id: agentId } })) as AgentRow | null;
+    if (!agent || agent.archivedAt) throw new NotFoundException('Agente non trovato.');
+    if (!agent.enabled) throw new BadRequestException('Questo agente è disattivato: riattivalo prima di eseguirlo.');
+    const text = (input ?? '').trim();
+    if (!text) throw new BadRequestException('Scrivi un input per l\'agente.');
+
+    const { model, spentCents, limitCents } = await this.guardAndModel(agent, null, text);
+    const run = await this.prisma.agentRun.create({ data: { agentId, status: 'running', model, inputRef: text.slice(0, 2000) } });
+    return this.execute(agent, run.id, model, text, spentCents, limitCents, actorUserId);
+  }
+
+  /**
+   * Esecuzione di una run GIÀ RECLAMATA dalla coda (l'orchestratore ha portato
+   * queued → running). Non lancia mai: gli errori restano marcati sulla run.
+   */
+  async executeClaimedRun(runId: string): Promise<void> {
+    const run = await this.prisma.agentRun.findUnique({ where: { id: runId } });
+    if (!run || run.status !== 'running') return;
+    const agent = (await this.prisma.agent.findUnique({ where: { id: run.agentId } })) as AgentRow | null;
+    if (!agent || agent.archivedAt || !agent.enabled) {
+      await this.prisma.agentRun.update({ where: { id: runId }, data: { status: 'error', finishedAt: new Date(), error: 'agente non disponibile' } });
+      return;
+    }
+    const input = (run.inputRef ?? '').replace(CRON_INPUT_PREFIX, '').trim();
+    if (!input) {
+      await this.prisma.agentRun.update({ where: { id: runId }, data: { status: 'error', finishedAt: new Date(), error: 'input vuoto' } });
+      return;
+    }
+    try {
+      const { model, spentCents, limitCents } = await this.guardAndModel(agent, runId, input);
+      await this.prisma.agentRun.update({ where: { id: runId }, data: { model } });
+      await this.execute(agent, runId, model, input, spentCents, limitCents, null);
+    } catch {
+      // guardAndModel/execute hanno già marcato la run (blocked/error) e loggato.
     }
   }
 }

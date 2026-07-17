@@ -18,6 +18,9 @@ export interface AgentInput {
   enabled?: boolean;
   humanInLoop?: boolean;
   monthlyBudgetCents?: number;
+  /** Esecuzione automatica giornaliera (cron): salvata in tools.daily. */
+  dailyEnabled?: boolean;
+  dailyInput?: string;
 }
 
 /**
@@ -77,6 +80,9 @@ export class AgentsService {
         enabled: input.enabled ?? true,
         humanInLoop: input.humanInLoop ?? false,
         monthlyBudgetCents: Math.max(0, Math.round(input.monthlyBudgetCents ?? 0)),
+        tools: (input.dailyEnabled !== undefined || input.dailyInput !== undefined
+          ? { daily: { enabled: input.dailyEnabled ?? false, input: (input.dailyInput ?? '').trim() } }
+          : []) as never,
         createdById: actorId,
       } as never,
     });
@@ -104,6 +110,17 @@ export class AgentsService {
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         ...(input.humanInLoop !== undefined ? { humanInLoop: input.humanInLoop } : {}),
         ...(input.monthlyBudgetCents !== undefined ? { monthlyBudgetCents: Math.max(0, Math.round(input.monthlyBudgetCents)) } : {}),
+        ...(input.dailyEnabled !== undefined || input.dailyInput !== undefined
+          ? {
+              tools: {
+                ...((agent.tools ?? {}) as Record<string, unknown>),
+                daily: {
+                  enabled: input.dailyEnabled ?? ((agent.tools as { daily?: { enabled?: boolean } })?.daily?.enabled ?? false),
+                  input: (input.dailyInput ?? (agent.tools as { daily?: { input?: string } })?.daily?.input ?? '').trim(),
+                },
+              } as never,
+            }
+          : {}),
       },
     });
     await this.audit.log({ action: 'agent.update', actorId, entityType: 'agent', entityId: id });

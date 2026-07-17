@@ -96,10 +96,28 @@ export class PipelineService {
       if (!cur || rm.dueAt.getTime() < cur.getTime()) nextReminder.set(rm.crmRecordId, rm.dueAt);
     }
 
+    // Scadenza del piano per le colonne Prova/Acquisito: ultimo abbonamento con
+    // scadenza per ogni cliente in board → giorni mancanti alla fine del piano.
+    const clientIds = (records as Rec[]).map((r) => r.clientId).filter((x): x is string => !!x);
+    const subEnd = new Map<string, Date>();
+    if (clientIds.length) {
+      const subs = (await this.prisma.subscription.findMany({
+        where: { clientId: { in: clientIds }, endDate: { not: null } } as never,
+        orderBy: { createdAt: 'desc' },
+        select: { clientId: true, endDate: true },
+      })) as { clientId: string; endDate: Date | null }[];
+      for (const sub of subs) {
+        if (sub.endDate && !subEnd.has(sub.clientId)) subEnd.set(sub.clientId, sub.endDate); // il più recente vince
+      }
+    }
+
     const cards = (records as Rec[]).map((r) => {
       const enteredAt = r.stageDates?.[r.stage]?.at;
       const daysInStage = enteredAt ? Math.floor((now - new Date(enteredAt).getTime()) / 86_400_000) : null;
       const rem = nextReminder.get(r.id) ?? null;
+      const end = r.clientId ? subEnd.get(r.clientId) ?? null : null;
+      // Giorni alla fine del piano (può essere negativo = scaduto). null = nessun piano con scadenza.
+      const planDaysLeft = end ? Math.ceil((end.getTime() - now) / 86_400_000) : null;
       return {
         id: r.id,
         clientId: r.clientId,
@@ -110,6 +128,7 @@ export class PipelineService {
         owner: r.owner?.displayName ?? null,
         valueCents: r.valueCents ?? null,
         daysInStage,
+        planDaysLeft,
         reminderAt: rem ? rem.toISOString() : null,
         reminderOverdue: rem ? rem.getTime() < now : false,
         isClient: Boolean(r.client),
@@ -125,13 +144,22 @@ export class PipelineService {
       if (a.reminderAt && b.reminderAt && a.reminderAt !== b.reminderAt) return a.reminderAt < b.reminderAt ? -1 : 1;
       return (b.daysInStage ?? -1) - (a.daysInStage ?? -1);
     });
+    // Colonne Prova e Acquisito: in alto chi è PIÙ VICINO alla scadenza del piano
+    // (giorni mancanti crescenti, senza scadenza in fondo); a parità l'ordine standard.
+    const sortByPlanEnd = (list: typeof cards) => [...list].sort((a, b) => {
+      const av = a.planDaysLeft ?? Number.MAX_SAFE_INTEGER;
+      const bv = b.planDaysLeft ?? Number.MAX_SAFE_INTEGER;
+      if (av !== bv) return av - bv;
+      if (a.reminderOverdue !== b.reminderOverdue) return a.reminderOverdue ? -1 : 1;
+      return (b.daysInStage ?? -1) - (a.daysInStage ?? -1);
+    });
 
     const known = new Set(stages.map((s) => s.key));
     const byStage: Record<string, typeof cards> = {};
     for (const s of stages) byStage[s.key] = [];
     const orphans: typeof cards = [];
     for (const c of cards) (byStage[c.stage] ?? orphans).push(c);
-    for (const k of Object.keys(byStage)) byStage[k] = sortCol(byStage[k]);
+    for (const k of Object.keys(byStage)) byStage[k] = k === 'trial' || k === 'paid' ? sortByPlanEnd(byStage[k]) : sortCol(byStage[k]);
 
     return { stages, cards: byStage, orphans: sortCol(orphans), total: cards.length, unknownStages: orphans.length > 0 && orphans.some((o) => !known.has(o.stage)) };
   }
