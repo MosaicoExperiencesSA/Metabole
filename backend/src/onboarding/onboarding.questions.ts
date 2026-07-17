@@ -82,19 +82,13 @@ export const ONBOARDING_QUESTIONS = {
       ],
     },
     {
-      key: 'meals',
-      title: 'Quanti pasti riesci a fare?',
-      subtitle: 'Scegli il ritmo che riesci a seguire.',
-      fields: [
-        { key: 'mealsPerDay', type: 'choice', options: [3, 5], labels: ['3 pasti', '5 pasti'], required: true },
-      ],
-    },
-    {
+      // Un'unica scelta pasti/percorso: il numero di pasti si deduce da qui
+      // (classic3 e digiuno → 3, five → 5), non c'è più una domanda "Quanti pasti" separata.
       key: 'path',
-      title: 'Che percorso preferisci?',
-      subtitle: 'Tre pasti classico, cinque pasti o digiuno intermittente.',
+      title: 'Quanti pasti / che percorso preferisci?',
+      subtitle: 'Tre pasti, cinque pasti o digiuno intermittente.',
       fields: [
-        { key: 'pathType', type: 'choice', options: ['classic3', 'five', 'intermittent_fasting'], labels: ['3 pasti classico', '5 pasti', 'Digiuno intermittente'], required: true },
+        { key: 'pathType', type: 'choice', options: ['classic3', 'five', 'intermittent_fasting'], labels: ['3 pasti', '5 pasti', 'Digiuno intermittente'], required: true },
       ],
     },
     {

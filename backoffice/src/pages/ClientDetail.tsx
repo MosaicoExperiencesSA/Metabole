@@ -127,9 +127,8 @@ function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u
         {T('startWaistCm', 'Vita (cm)', 'number')}{T('startHipsCm', 'Fianchi (cm)', 'number')}
         {S('regime', 'Regime', regimes.map((r) => [r.code, r.label] as [string, string]))}
         {S('dietStyle', 'Stile', styles.map((st) => [st.code, st.label] as [string, string]))}
-        {S('mealsPerDay', 'Pasti', [['3', '3'], ['5', '5']])}
         {S('objective', 'Fase (obiettivo dieta)', [['dimagrimento', 'Dimagrimento'], ['mantenimento', 'Mantenimento']])}
-        {S('pathType', 'Percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['intermittent_fasting', 'Digiuno interm.']])}
+        {S('pathType', 'Pasti / percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['intermittent_fasting', 'Digiuno intermittente']])}
         {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
         {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
         {T('intolerances', 'Intolleranze (virgola)')}{T('dislikedFoods', 'Cibi non graditi (virgola)')}
@@ -330,7 +329,9 @@ export function ClientDetail() {
     const w = num(f.startWeightKg); if (w !== undefined) dto.startWeightKg = w;
     const wa = num(f.startWaistCm); if (wa !== undefined) dto.startWaistCm = wa;
     const hi = num(f.startHipsCm); if (hi !== undefined) dto.startHipsCm = hi;
-    if (f.mealsPerDay) dto.mealsPerDay = Number(f.mealsPerDay);
+    // Pasti dedotti dall'unica scelta "Pasti / percorso": classic3 e digiuno → 3, five → 5.
+    const mealsByPath: Record<string, number> = { classic3: 3, five: 5, intermittent_fasting: 3, supplements: 5 };
+    if (f.pathType && mealsByPath[f.pathType]) dto.mealsPerDay = mealsByPath[f.pathType];
     try {
       await api(`/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(dto) });
       const data = await api<Detail>(`/admin/clients/${id}`);
@@ -555,9 +556,8 @@ export function ClientDetail() {
             <Row label="Fianchi" value={p.startHipsCm ? `${p.startHipsCm} cm` : '—'} />
             <Row label="Regime" value={p.regime ? regimeLabel(p.regime) : '—'} />
             <Row label="Stile alimentare" value={p.dietStyle ? styleLabel(p.dietStyle) : '—'} />
-            <Row label="Pasti al giorno" value={p.mealsPerDay ?? '—'} />
             <Row label="Fase (obiettivo dieta)" value={lab('objective', p.objective ?? 'dimagrimento')} />
-            <Row label="Percorso" value={lab('pathType', p.pathType)} />
+            <Row label="Pasti / percorso" value={lab('pathType', p.pathType)} />
             <Row label="Lavoro" value={lab('work', p.lifestyle?.work)} />
             <Row label="Tempo per cucinare" value={lab('cookingTime', p.lifestyle?.cookingTime)} />
             <Row label="Pranzo nei feriali" value={lab('weekdayLunch', p.lifestyle?.weekdayLunch)} />
