@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -95,8 +96,28 @@ export class SignalsService {
     const newMilestones = await this.evaluateMilestones(clientId);
     const alert = await this.checkRapidLossGuardrail(clientId);
     await this.checkNoProgress(clientId).catch(() => undefined);
+    await this.maybeTrackTrialMeasures(clientId).catch(() => undefined);
 
     return { measurement, newMilestones, rapidLossAlert: alert };
+  }
+
+  /**
+   * Funnel prova gratuita: alla PRIMA misura inserita con una prova attiva emette
+   * `trial_measures_ok` (il punto A del report A→B esiste). Idempotente.
+   */
+  private async maybeTrackTrialMeasures(clientId: string): Promise<void> {
+    const count = await this.prisma.measurement.count({ where: { clientId } });
+    if (count !== 1) return; // solo alla prima misura
+    const trial = await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active', plan: { priceCents: 0 } } as never,
+      select: { id: true },
+    });
+    if (!trial) return;
+    const already = await this.prisma.analyticsEvent.findFirst({ where: { userId: clientId, name: 'trial_measures_ok' } as never, select: { id: true } });
+    if (already) return;
+    await this.prisma.analyticsEvent.create({
+      data: { eventId: randomUUID(), name: 'trial_measures_ok', userId: clientId, phase: 'funnel', data: {} as never } as never,
+    });
   }
 
   /**

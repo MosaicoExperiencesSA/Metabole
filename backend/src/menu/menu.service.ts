@@ -123,14 +123,23 @@ export class MenuService {
     if (!profile?.planStartDate) return []; // senza data di inizio niente menu
 
     // Il piano alimentare si genera SOLO con abbonamento attivo (approvazione bonifico).
-    const activeSubscription = await this.prisma.subscription.findFirst({
+    const activeSubscription = (await this.prisma.subscription.findFirst({
       where: { clientId, status: 'active' },
-    });
+      include: { plan: { select: { priceCents: true } } },
+    })) as ({ plan: { priceCents: number } | null } & Record<string, unknown>) | null;
     if (!activeSubscription) return [];
 
     // Periodo senza dieta attivo: erogazione sospesa (il monitoraggio continua).
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return [];
+
+    // PROVA GRATUITA (handoff Prezzi/Prova): le MISURE INIZIALI sono obbligatorie al
+    // giorno 0 — senza punto A non esiste il report A→B. Finché non arrivano, il menu
+    // resta trattenuto (il popup misure dell'app guida la cliente a inserirle).
+    if (activeSubscription.plan?.priceCents === 0) {
+      const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
+      if (hasMeasure === 0) return [];
+    }
 
     const today = toDateOnly();
     const start = toDateOnly(profile.planStartDate.toISOString());

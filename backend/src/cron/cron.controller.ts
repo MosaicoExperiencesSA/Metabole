@@ -61,6 +61,8 @@ export class CronController {
     const conversationSummaries = await this.summaries.generateDailyBatch();
     const leadAssignments = await this.leadAssignment.expireStale();
     const stalePayments = await this.commerce.autoCancelStalePayments();
+    // Prova gratuita: scadenza automatica + purge del profilo a +7 giorni (handoff lancio).
+    const trials = await this.commerce.expireTrialsAndPurge();
     const adherence = await this.signals.runAdherenceSweep();
     // Agenti AI con esecuzione giornaliera attiva: accodati qui, processati dal ticker.
     const agents = await this.agentOrchestrator.enqueueDaily();
@@ -68,9 +70,9 @@ export class CronController {
     const monthlyReports = new Date().getDate() === 1 ? await this.reports.sendMonthlyBatch() : { sent: 0 };
     await this.audit.log({
       action: 'cron.daily',
-      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, agents, monthlyReports } as Record<string, unknown>,
+      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, adherence, agents, monthlyReports } as Record<string, unknown>,
     });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, adherence, agents, monthlyReports };
+    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, adherence, agents, monthlyReports };
   }
 
   /**
