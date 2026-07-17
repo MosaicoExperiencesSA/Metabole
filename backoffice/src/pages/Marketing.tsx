@@ -26,6 +26,15 @@ export function Marketing() {
   const { user } = useAuth();
   const [opts, setOpts] = useState<Options | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY);
+  // Importo storico speso (in euro, campi liberi): convertito in centesimi nel payload.
+  const [histMin, setHistMin] = useState('');
+  const [histMax, setHistMax] = useState('');
+
+  const euroToCents = (v: string): number | undefined => {
+    const n = Number(v.replace(',', '.'));
+    return v.trim() !== '' && Number.isFinite(n) && n > 0 ? Math.round(n * 100) : undefined;
+  };
+  const filtersPayload = () => ({ ...filters, historicalPaidMinCents: euroToCents(histMin), historicalPaidMaxCents: euroToCents(histMax) });
   const [preview, setPreview] = useState<Preview | null>(null);
   const [templateKey, setTemplateKey] = useState('');
   const [title, setTitle] = useState('');
@@ -55,7 +64,7 @@ export function Marketing() {
 
   async function doPreview() {
     setBusy(true); setError(null);
-    try { setPreview(await api<Preview>('/marketing/segments/preview', { method: 'POST', body: JSON.stringify({ filters }) })); }
+    try { setPreview(await api<Preview>('/marketing/segments/preview', { method: 'POST', body: JSON.stringify({ filters: filtersPayload() }) })); }
     catch (e) { setError(e instanceof ApiError ? e.message : 'Anteprima non riuscita.'); }
     finally { setBusy(false); }
   }
@@ -71,7 +80,7 @@ export function Marketing() {
 
   async function sendCampaign() {
     setConfirming(false); setBusy(true); setError(null); setNotice(null);
-    const body: Record<string, unknown> = { title, templateKey, filters };
+    const body: Record<string, unknown> = { title, templateKey, filters: filtersPayload() };
     if (sendMode === 'scheduled' && scheduledFor) body.scheduledFor = new Date(scheduledFor).toISOString();
     if (throttle) { body.batchSize = batchSize; body.pauseMinutes = pauseMinutes; }
     try {
@@ -125,6 +134,12 @@ export function Marketing() {
               <option value="historical">Solo clienti storici</option>
               <option value="lead">Solo lead</option>
             </select>
+          </label>
+          <label className="row" style={{ gap: 6, alignItems: 'center' }} title="Totale già pagato pre-Metabole (dalla scheda/import). Chi non ha lo storico resta fuori dal range.">
+            <span style={{ fontSize: 13 }} className="muted">Storico speso da €</span>
+            <input className="input" inputMode="decimal" value={histMin} onChange={(e) => { setHistMin(e.target.value); setPreview(null); }} placeholder="es. 100" style={{ width: 90 }} />
+            <span style={{ fontSize: 13 }} className="muted">a €</span>
+            <input className="input" inputMode="decimal" value={histMax} onChange={(e) => { setHistMax(e.target.value); setPreview(null); }} placeholder="es. 1000" style={{ width: 90 }} />
           </label>
           <label className="row" style={{ gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 13 }} className="muted">Città contiene</span>

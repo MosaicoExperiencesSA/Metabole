@@ -21,6 +21,9 @@ export type SegmentFilters = {
   listIds?: string[];
   hasClient?: boolean | null;
   historicalPaid?: boolean;
+  /** Importo storico speso (pre-Metabole), in centesimi: da/a. */
+  historicalPaidMinCents?: number | null;
+  historicalPaidMaxCents?: number | null;
   city?: string;
   coachId?: string;
   /** Classificazione persona: cliente attivo, cliente storico (pre-Metabole) o lead. */
@@ -192,6 +195,9 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     if (f.hasClient === true) c.push({ clientId: { not: null } });
     if (f.hasClient === false) c.push({ clientId: null });
     if (f.historicalPaid) c.push({ historicalPaidCents: { gt: 0 } });
+    // Importo storico speso: chi non ha lo storico (campo vuoto) resta fuori dal range.
+    if (f.historicalPaidMinCents != null && f.historicalPaidMinCents > 0) c.push({ historicalPaidCents: { gte: Math.round(f.historicalPaidMinCents) } });
+    if (f.historicalPaidMaxCents != null && f.historicalPaidMaxCents > 0) c.push({ historicalPaidCents: { lte: Math.round(f.historicalPaidMaxCents) } });
     // Classificazione persona (cliente / storico / lead), coerente con il badge CRM.
     if (f.segment === 'client') c.push({ stage: 'paid' });
     if (f.segment === 'historical') c.push({ historicalPaidCents: { gt: 0 }, stage: { not: 'paid' } });
