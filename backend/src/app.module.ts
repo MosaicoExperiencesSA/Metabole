@@ -18,6 +18,7 @@ import { HealthAreaModule } from './health-area/health-area.module';
 import { I18nModule } from './i18n/i18n.module';
 import { MenuModule } from './menu/menu.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PauseModule } from './pause/pause.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PageGuard } from './common/guards/page.guard';
@@ -102,6 +103,7 @@ import { CycleModule } from './cycle/cycle.module';
     MailboxModule,
     PersonalBaseModule,
     CycleModule,
+    PauseModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

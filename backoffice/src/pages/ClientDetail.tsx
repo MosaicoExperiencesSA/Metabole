@@ -450,6 +450,8 @@ export function ClientDetail() {
 
       <TravelCard clientId={id ?? ''} profile={p} />
 
+      <PauseRequestsCard clientId={id ?? ''} clientName={p?.name ?? d.user.email} />
+
       {/* Team assegnato: coach e nutrizionista (l'admin può cambiare/rimuovere) */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}>Team assegnato</h2>
@@ -833,6 +835,82 @@ export function ClientDetail() {
   );
 }
 
+
+interface PauseReq { id: string; clientId: string; name: string; startDate: string; endDate: string; days: number; createdAt: string }
+
+/**
+ * Richieste di pausa (congelamento vacanza) di questa cliente in attesa di
+ * approvazione. Compaiono solo quelle >20 giorni: coach/nutrizionista assegnati
+ * (o capo nutrizionista/admin) possono approvare o rifiutare.
+ */
+function PauseRequestsCard({ clientId, clientName }: { clientId: string; clientName: string }) {
+  const [rows, setRows] = useState<PauseReq[]>([]);
+  const [note, setNote] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const fmt = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+
+  async function load() {
+    try {
+      const all = await api<PauseReq[]>('/staff/pause-requests');
+      setRows(all.filter((r) => r.clientId === clientId));
+    } catch { /* ignora */ }
+  }
+  useEffect(() => { load(); }, [clientId]);
+
+  async function decide(id: string, approve: boolean) {
+    setBusy(id); setErr(null); setMsg(null);
+    try {
+      await api(`/staff/pause-requests/${id}/decide`, {
+        method: 'POST',
+        body: JSON.stringify({ approve, note: note[id]?.trim() || undefined }),
+      });
+      setMsg(approve ? `Pausa approvata: la scadenza di ${clientName} è stata spostata in avanti.` : 'Richiesta rifiutata: la cliente è stata avvisata.');
+      setRows((rs) => rs.filter((r) => r.id !== id));
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Operazione non riuscita.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (rows.length === 0 && !msg) return null;
+
+  return (
+    <div className="card" style={{ borderLeft: '4px solid #E8825A' }}>
+      <h2 style={{ marginTop: 0 }}><i className="ti ti-snowflake" style={{ verticalAlign: '-2px', color: '#E8825A' }} /> Richieste di pausa</h2>
+      <p className="hint" style={{ marginTop: 0 }}>Pausa oltre i 20 giorni: se approvi, il piano si congela e la scadenza slitta in avanti dei giorni richiesti.</p>
+      {err && <Banner kind="err">{err}</Banner>}
+      {msg && <Banner kind="ok">{msg}</Banner>}
+      {rows.map((r) => (
+        <div key={r.id} className="card" style={{ background: '#FFF8F4', boxShadow: 'none', marginBottom: 8 }}>
+          <div className="spread" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <b>{fmt(r.startDate)} – {fmt(r.endDate)}</b>
+              <div className="muted" style={{ fontSize: 12 }}>{r.days} giorni · richiesta il {fmt(r.createdAt)}</div>
+            </div>
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <input
+                className="input"
+                style={{ maxWidth: 220 }}
+                placeholder="Nota (facoltativa)"
+                value={note[r.id] ?? ''}
+                onChange={(e) => setNote({ ...note, [r.id]: e.target.value })}
+              />
+              <button className="btn" onClick={() => decide(r.id, true)} disabled={busy === r.id} style={{ background: '#0e7c66' }}>
+                <i className="ti ti-check" /> {busy === r.id ? '…' : 'Approva'}
+              </button>
+              <button className="btn ghost" onClick={() => decide(r.id, false)} disabled={busy === r.id} style={{ color: '#b3261e' }}>
+                <i className="ti ti-x" /> Rifiuta
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function TravelCard({ clientId, profile }: { clientId: string; profile: { travelState?: string | null; travelStart?: string | null; travelEnd?: string | null } | null }) {
   const [state, setState] = useState<string>(profile?.travelState ?? '');

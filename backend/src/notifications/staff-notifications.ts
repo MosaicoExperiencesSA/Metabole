@@ -35,6 +35,7 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
   { key: 'diet_approved', label: 'Dieta approvata', description: 'Il capo nutrizionista ha approvato una tua dieta.', roles: NUTRIS },
   { key: 'diet_review_requested', label: 'Dieta da approvare', description: 'Un nutrizionista ha inviato una dieta in revisione: va approvata.', roles: ['head_nutritionist'] },
   { key: 'client_assigned_nutritionist', label: 'Nuova cliente assegnata', description: 'Ti è stata assegnata una nuova cliente.', roles: NUTRIS },
+  { key: 'pause_request', label: 'Richiesta di pausa (vacanza)', description: 'Una cliente assegnata chiede una pausa più lunga di 20 giorni: va approvata o rifiutata.', roles: CARE },
   // --- Coach ---
   { key: 'lead_assigned', label: 'Lead assegnato', description: 'Ti è stato assegnato un nuovo lead da accettare.', roles: COACHES },
   { key: 'payment_in_structure', label: 'Pagamento nella tua struttura', description: 'Una tua cliente ha effettuato un pagamento.', roles: COACHES },

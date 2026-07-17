@@ -262,6 +262,8 @@ model User {
   codiceFiscale   String?    @map("codice_fiscale")
 
   @@index([role])
+  pauseRequests         PauseRequest[]
+
   @@map("user")
 }
 
@@ -1715,4 +1717,28 @@ model LifecycleEmail {
   @@index([templateKey])
   @@index([sentAt])
   @@map("lifecycle_email")
+}
+
+
+// Richiesta di PAUSA/congelamento dell'abbonamento (modalità vacanza).
+// ≤ FREEZE_AUTO_MAX_DAYS giorni: auto-approvata (la scadenza slitta subito).
+// Oltre: resta "pending" finché coach o nutrizionista assegnato non approva.
+model PauseRequest {
+  id               String    @id @default(uuid())
+  clientId         String    @map("client_id")
+  client           User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  startDate        DateTime  @map("start_date") @db.Date
+  endDate          DateTime  @map("end_date") @db.Date
+  days             Int
+  status           String    @default("pending") // pending | auto_approved | approved | rejected
+  eventId          String?   @map("event_id") // Event pausa creato all'approvazione
+  decidedByStaffId String?   @map("decided_by_staff_id")
+  decidedAt        DateTime? @map("decided_at")
+  staffNote        String?   @map("staff_note")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([status])
+  @@map("pause_request")
 }

@@ -13,6 +13,15 @@ import Sheet from '../components/Sheet';
 interface EventItem { id: string; type: string; label: string | null; startDate: string; endDate: string; mode: string }
 interface Appt { id: string; staffRole: string; staffName: string | null; type: string; datetime: string; note: string | null }
 interface Sub { status: string; endDate: string | null; plan?: { name: string; period: string } | null }
+interface PauseReq { id: string; startDate: string; endDate: string; days: number; status: string }
+
+const PAUSE_STATUS: Record<string, { label: string; bg: string; color: string }> = {
+  auto_approved: { label: 'Piano congelato', bg: '#DCF0D8', color: '#3B6D11' },
+  approved: { label: 'Approvata', bg: '#DCF0D8', color: '#3B6D11' },
+  pending: { label: 'In attesa dello staff', bg: '#FDECC8', color: '#8A5A00' },
+  rejected: { label: 'Non approvata', bg: '#FBE0DE', color: '#B3261E' },
+};
+const AUTO_MAX = 20;
 
 const TYPES: [string, string][] = [
   ['wedding', 'Matrimonio'], ['baptism', 'Battesimo'], ['dinner', 'Cena'],
@@ -78,6 +87,57 @@ export default function Calendario() {
   const [book, setBook] = useState(false);
   const [f, setF] = useState({ type: 'dinner', label: '', startDate: '', endDate: '', mode: 'single_event' });
 
+  const [pauses, setPauses] = useState<PauseReq[]>([]);
+  const [pauseForm, setPauseForm] = useState({ open: false, startDate: '', endDate: '' });
+  const [pauseBusy, setPauseBusy] = useState(false);
+  const [pauseErr, setPauseErr] = useState<string | null>(null);
+  const [pauseMsg, setPauseMsg] = useState<string | null>(null);
+
+  async function loadPauses() {
+    try {
+      setPauses(await api<PauseReq[]>('/me/pause-requests'));
+    } catch {
+      /* ignora */
+    }
+  }
+
+  const pauseDays = (() => {
+    if (!pauseForm.startDate || !pauseForm.endDate) return 0;
+    const s = startOfDay(new Date(pauseForm.startDate)).getTime();
+    const e = startOfDay(new Date(pauseForm.endDate)).getTime();
+    if (e < s) return 0;
+    return Math.floor((e - s) / 86_400_000) + 1;
+  })();
+
+  async function requestPause() {
+    setPauseErr(null);
+    setPauseMsg(null);
+    if (!pauseForm.startDate || !pauseForm.endDate) { setPauseErr('Scegli inizio e fine della pausa.'); return; }
+    if (pauseDays <= 0) { setPauseErr('La fine non può precedere l\'inizio.'); return; }
+    setPauseBusy(true);
+    try {
+      const res = await api<{ status: string; days: number; newEndDate?: string | null }>('/me/pause-requests', {
+        method: 'POST',
+        body: JSON.stringify({ startDate: pauseForm.startDate, endDate: pauseForm.endDate }),
+      });
+      if (res.status === 'pending') {
+        setPauseMsg('Richiesta inviata: il tuo staff la esaminerà a breve. Ti avviseremo con la decisione.');
+      } else {
+        setPauseMsg(
+          res.newEndDate
+            ? `Piano congelato per ${res.days} giorni: la scadenza è stata spostata al ${date(res.newEndDate)}.`
+            : `Piano congelato per ${res.days} giorni.`,
+        );
+      }
+      setPauseForm({ open: false, startDate: '', endDate: '' });
+      await Promise.all([loadPauses(), api<Sub>('/me/subscription').then(setSub).catch(() => {})]);
+    } catch (e) {
+      setPauseErr(e instanceof ApiError ? e.message : 'Richiesta non riuscita.');
+    } finally {
+      setPauseBusy(false);
+    }
+  }
+
   async function load() {
     try {
       setEvents(await api<EventItem[]>('/me/events'));
@@ -91,6 +151,7 @@ export default function Calendario() {
     load();
     api<{ appointments: Appt[]; planEndDate: string | null }>('/me/agenda').then((r) => setAppts(r.appointments ?? [])).catch(() => setAppts([]));
     api<Sub>('/me/subscription').then(setSub).catch(() => setSub(null));
+    loadPauses();
   }, []);
 
   async function add() {
@@ -182,6 +243,62 @@ export default function Calendario() {
             </div>
             <button className="btn" style={{ marginTop: 12 }} onClick={() => nav('/shop')}>Rinnova</button>
           </div>
+        </>
+      )}
+
+      {/* Congelamento piano (vacanza) */}
+      {sub && (
+        <>
+          <div className="sec" style={{ margin: '14px 2px 8px' }}>Congela il piano (vacanza)</div>
+          <p className="muted" style={{ margin: '0 2px 8px', fontSize: 12 }}>
+            Se parti per più giorni puoi mettere in pausa il piano: la scadenza slitta in avanti dei giorni di pausa, così non perdi nulla.
+            Fino a {AUTO_MAX} giorni è automatico; oltre serve l'ok del tuo staff.
+          </p>
+
+          {pauseMsg && <div className="card" style={{ background: '#DCEBE3', boxShadow: 'none', fontSize: 12, color: '#0E7C66' }}>{pauseMsg}</div>}
+
+          {pauses.map((p) => {
+            const st = PAUSE_STATUS[p.status] ?? { label: p.status, bg: '#EEF1F0', color: '#5B6B66' };
+            return (
+              <div className="card" key={p.id} style={{ padding: 12 }}>
+                <div className="row-between" style={{ alignItems: 'center' }}>
+                  <div>
+                    <b style={{ fontSize: 13 }}>{date(p.startDate)} – {date(p.endDate)}</b>
+                    <div className="muted" style={{ fontSize: 11 }}>{p.days} giorni</div>
+                  </div>
+                  <span className="meal-tag" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                </div>
+              </div>
+            );
+          })}
+
+          {pauseForm.open ? (
+            <div className="card">
+              <b style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Nuova pausa</b>
+              {pauseErr && <div className="banner err">{pauseErr}</div>}
+              <div className="field">
+                <label>Dal</label>
+                <input className="input" type="date" value={pauseForm.startDate} onChange={(e) => setPauseForm({ ...pauseForm, startDate: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Al</label>
+                <input className="input" type="date" value={pauseForm.endDate} onChange={(e) => setPauseForm({ ...pauseForm, endDate: e.target.value })} />
+              </div>
+              {pauseDays > 0 && (
+                <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+                  {pauseDays} giorni · {pauseDays <= AUTO_MAX ? 'congelamento automatico' : 'serve l\'approvazione dello staff'}
+                </p>
+              )}
+              <div className="onb-nav">
+                <button className="btn ghost" onClick={() => { setPauseForm({ open: false, startDate: '', endDate: '' }); setPauseErr(null); }}>Annulla</button>
+                <button className="btn" onClick={requestPause} disabled={pauseBusy}>{pauseBusy ? 'Invio…' : pauseDays > AUTO_MAX ? 'Richiedi' : 'Congela'}</button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn ghost" style={{ marginTop: 4 }} onClick={() => { setPauseForm({ open: true, startDate: '', endDate: '' }); setPauseMsg(null); }}>
+              <i className="ti ti-snowflake" /> Metti in pausa il piano
+            </button>
+          )}
         </>
       )}
 
