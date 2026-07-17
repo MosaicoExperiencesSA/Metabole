@@ -106,7 +106,7 @@ export class FinanceService {
                   commissionManagerPct: true,
                   commissionNutritionistPct: true,
                   commissionHeadNutritionistPct: true,
-                } as never,
+                },
               },
             },
           },
