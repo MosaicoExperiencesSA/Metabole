@@ -569,6 +569,30 @@ export class CatalogService {
     return updated;
   }
 
+  /**
+   * Archivia una dieta del catalogo (anche approvata/pubblicata): la porta in stato
+   * 'rejected' — usato qui come "archivio", così NON serve una migrazione — e ne azzera
+   * la visibilità. Effetto: esce dai menu (pickDiet richiede 'approved'), dallo schermo 16
+   * e dal sito. Serve ad ALLINEARE il catalogo quando si toglie un'opzione dal generatore
+   * (es. le varianti 3/5 pasti create per errore sotto "Digiuno intermittente").
+   */
+  async archiveDiet(userId: string, id: string) {
+    await this.staffOf(userId); // solo staff
+    const diet = await this.getDiet(id);
+    const updated = await this.prisma.diet.update({
+      where: { id },
+      data: { status: 'rejected', clientVisible: false, siteVisible: false, approvedById: null, approvedAt: null },
+    });
+    await this.audit.log({
+      action: 'catalog.diet.archive',
+      actorId: userId,
+      entityType: 'diet',
+      entityId: id,
+      metadata: { from: diet.status },
+    });
+    return updated;
+  }
+
   // ---------- Ricette ----------
 
   async listRecipes(filter: { regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean }) {

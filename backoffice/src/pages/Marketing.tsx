@@ -275,6 +275,8 @@ export function Marketing() {
       )}
 
       {/* Automazione cicli: in fondo alla pagina (richiesta di Simone). */}
+      <FunnelLancio />
+
       <LifecycleAutomation />
 
       {openId && <CampaignDetail id={openId} onClose={() => setOpenId(null)} />}
@@ -349,6 +351,90 @@ function Stat({ label, v }: { label: string; v: number | boolean | undefined }) 
 
 interface LifecycleTrigger { key: string; label: string; when: string; kind: 'event' | 'scheduled'; implemented: boolean; on: boolean; sent: number; }
 interface LifecycleOverview { enabled: boolean; lastRunAt: string | null; catalog: LifecycleTrigger[]; }
+
+/**
+ * Funnel del lancio (handoff punto 6): raggiunti → prova → convertiti → rinnovi →
+ * mantenimento, spezzati per SEGMENTO di provenienza e CANALE. Persone uniche.
+ */
+function FunnelLancio() {
+  interface FunnelData {
+    days: number;
+    events: { name: string; total: number; bySegment: Record<string, number>; byChannel: Record<string, number> }[];
+    consent: { si: number; no: number; maiChiesto: number };
+  }
+  const EVENT_LABEL: Record<string, string> = {
+    trial_started: 'Prova attivata', trial_measures_ok: 'Misure G0 inserite',
+    trial_day6_offer_sent: 'Offerta G6 inviata', trial_converted: 'Convertite',
+    plan_renewed: 'Rinnovi', maintenance_started: 'Mantenimento', trial_expired: 'Prove scadute', profile_purged: 'Profili cancellati',
+  };
+  const SEGMENTS = [['ex_cliente', 'Ex cliente'], ['lead_caldo', 'Lead caldo'], ['lead_freddo', 'Lead freddo'], ['sconosciuto', '—']] as const;
+  const [data, setData] = useState<FunnelData | null>(null);
+  const [days, setDays] = useState(30);
+  const [view, setView] = useState<'segmento' | 'canale'>('segmento');
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<FunnelData>(`/marketing/funnel?days=${days}`).then(setData).catch((e) => setErr(e instanceof Error ? e.message : 'Caricamento non riuscito.'));
+  }, [days]);
+
+  const channels = data ? [...new Set(data.events.flatMap((e) => Object.keys(e.byChannel)))].sort() : [];
+
+  return (
+    <div className="card" style={{ marginTop: 18 }}>
+      <div className="spread" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <h2 style={{ margin: 0 }}>Funnel del lancio</h2>
+        <div className="row" style={{ gap: 8 }}>
+          <select className="select" style={{ width: 120 }} value={view} onChange={(e) => setView(e.target.value as 'segmento' | 'canale')}>
+            <option value="segmento">Per segmento</option>
+            <option value="canale">Per canale</option>
+          </select>
+          <select className="select" style={{ width: 130 }} value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value={7}>Ultimi 7 giorni</option>
+            <option value={30}>Ultimi 30 giorni</option>
+            <option value={90}>Ultimi 90 giorni</option>
+            <option value={365}>Ultimo anno</option>
+          </select>
+        </div>
+      </div>
+      <p className="muted" style={{ fontSize: 12, margin: '6px 0 10px' }}>
+        Persone uniche per passaggio. Segmento dalla scheda CRM (o derivato da storico/stage); canale dalla provenienza del contatto.
+      </p>
+      {err && <Banner kind="err">{err}</Banner>}
+      {!data ? <Spinner /> : (
+        <>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Passaggio</th>
+                  <th style={{ textAlign: 'right' }}>Totale</th>
+                  {view === 'segmento'
+                    ? SEGMENTS.map(([k, l]) => <th key={k} style={{ textAlign: 'right' }}>{l}</th>)
+                    : channels.map((c) => <th key={c} style={{ textAlign: 'right' }}>{c}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {data.events.map((e) => (
+                  <tr key={e.name}>
+                    <td>{EVENT_LABEL[e.name] ?? e.name}</td>
+                    <td style={{ textAlign: 'right' }}><b>{e.total}</b></td>
+                    {view === 'segmento'
+                      ? SEGMENTS.map(([k]) => <td key={k} style={{ textAlign: 'right' }} className="muted">{e.bySegment[k] ?? 0}</td>)
+                      : channels.map((c) => <td key={c} style={{ textAlign: 'right' }} className="muted">{e.byChannel[c] ?? 0}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+            <b>Consensi marketing:</b> Sì {data.consent.si} · No {data.consent.no} · mai chiesto {data.consent.maiChiesto}.
+            {data.consent.maiChiesto > 0 && ' Per lo storico importato serve il ri-opt-in prima di qualsiasi invio massivo (parametro marketing_require_consent).'}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
 
 function LifecycleAutomation() {
   const [ov, setOv] = useState<LifecycleOverview | null>(null);

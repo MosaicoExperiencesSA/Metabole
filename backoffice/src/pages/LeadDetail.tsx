@@ -43,6 +43,10 @@ interface LeadDetailData {
   codiceFiscale: string | null;
   address: string | null;
   tags: string[];
+  segment?: string | null;
+  channel?: string | null;
+  marketingConsent?: boolean | null;
+  consentChannels?: string[];
   lists: CrmList[];
   client: {
     email: string;
@@ -100,6 +104,10 @@ export function LeadDetail() {
   const [codiceFiscale, setCodiceFiscale] = useState('');
   const [address, setAddress] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [segment, setSegment] = useState('');
+  const [channel, setChannel] = useState('');
+  const [consent, setConsent] = useState<'' | 'si' | 'no'>('');
+  const [consentChannels, setConsentChannels] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -141,6 +149,10 @@ export function LeadDetail() {
       setCodiceFiscale(l.codiceFiscale ?? '');
       setAddress(l.address ?? '');
       setTags(l.tags ?? []);
+      setSegment(l.segment ?? '');
+      setChannel(l.channel ?? '');
+      setConsent(l.marketingConsent == null ? '' : l.marketingConsent ? 'si' : 'no');
+      setConsentChannels(l.consentChannels ?? []);
       if (canAssignCoach) { try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ } }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -175,10 +187,14 @@ export function LeadDetail() {
         codiceFiscale: codiceFiscale.trim(),
         address: address.trim(),
         tags,
+        segment,
+        channel,
+        consentChannels,
       };
+      if (consent !== '') body.marketingConsent = consent === 'si';
       if (valueCents !== undefined) body.valueCents = valueCents;
       const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/info`, { method: 'PATCH', body: JSON.stringify(body) });
-      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags });
+      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags, segment: updated.segment, channel: updated.channel, marketingConsent: updated.marketingConsent, consentChannels: updated.consentChannels });
       setEditing(false);
       setNotice('Scheda aggiornata.');
     } catch (err) {
@@ -549,6 +565,9 @@ export function LeadDetail() {
           <Row label="Codice fiscale" value={lead.codiceFiscale ?? '—'} />
           <Row label="Indirizzo" value={lead.address ?? '—'} />
           <Row label="Etichette" value={lead.tags.length ? lead.tags.join(', ') : '—'} />
+          <Row label="Segmento" value={lead.segment === 'ex_cliente' ? 'Ex cliente' : lead.segment === 'lead_caldo' ? 'Lead caldo' : lead.segment === 'lead_freddo' ? 'Lead freddo' : 'automatico (da storico/stage)'} />
+          <Row label="Canale" value={lead.channel ?? '—'} />
+          <Row label="Consenso marketing" value={lead.marketingConsent == null ? 'mai chiesto' : lead.marketingConsent ? `Sì${(lead.consentChannels ?? []).length ? ' · ' + (lead.consentChannels ?? []).join(', ') : ''}` : 'No'} />
           <Row label="Creato il" value={fmtDate(lead.createdAt)} />
         </div>
       ) : (
@@ -598,6 +617,51 @@ export function LeadDetail() {
               <label>Indirizzo</label>
               <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Via Roma 1, Milano" maxLength={200} />
             </div>
+          </div>
+          <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 4 }}>
+            <div className="field" style={{ maxWidth: 200 }}>
+              <label>Segmento (funnel)</label>
+              <select className="select" value={segment} onChange={(e) => setSegment(e.target.value)}>
+                <option value="">Automatico (da storico/stage)</option>
+                <option value="ex_cliente">Ex cliente</option>
+                <option value="lead_caldo">Lead caldo</option>
+                <option value="lead_freddo">Lead freddo</option>
+              </select>
+            </div>
+            <div className="field" style={{ maxWidth: 180 }}>
+              <label>Canale di provenienza</label>
+              <select className="select" value={channel} onChange={(e) => setChannel(e.target.value)}>
+                <option value="">—</option>
+                <option value="email">Email</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="sms">SMS</option>
+                <option value="coach">Coach</option>
+                <option value="retargeting">Retargeting</option>
+                <option value="organico">Organico</option>
+              </select>
+            </div>
+            <div className="field" style={{ maxWidth: 170 }}>
+              <label>Consenso marketing</label>
+              <select className="select" value={consent} onChange={(e) => setConsent(e.target.value as '' | 'si' | 'no')}>
+                <option value="">Mai chiesto</option>
+                <option value="si">Sì</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            {consent === 'si' && (
+              <div className="field">
+                <label>Canali autorizzati</label>
+                <div className="row" style={{ gap: 10, marginTop: 6 }}>
+                  {(['email', 'whatsapp', 'sms'] as const).map((c) => (
+                    <label key={c} className="row" style={{ gap: 4, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={consentChannels.includes(c)}
+                        onChange={(e) => setConsentChannels((cs) => e.target.checked ? [...cs, c] : cs.filter((x) => x !== c))} />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="field" style={{ marginTop: 4 }}>
             <label>Etichette (per la segmentazione marketing)</label>

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsBoolean, IsEmail, IsInt, IsISO8601, IsObject, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -33,6 +33,13 @@ class LifecycleSettingsDto {
 @RequirePage('marketing')
 @Roles('marketing', 'head_marketing', 'admin')
 export class MarketingController {
+
+  /** Funnel del lancio (handoff punto 6): conteggi per evento × segmento × canale. */
+  @Get('funnel')
+  funnel(@Query('days') days?: string) {
+    const n = Number(days);
+    return this.service.funnelOverview(Number.isFinite(n) && n > 0 ? n : 30);
+  }
   constructor(
     private readonly service: MarketingService,
     private readonly lifecycle: LifecycleService,

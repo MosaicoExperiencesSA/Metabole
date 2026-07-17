@@ -16,6 +16,7 @@ import Home from './pages/Home';
 import Menu from './pages/Menu';
 import Percorso from './pages/Percorso';
 import Report from './pages/Report';
+import Preferenze from './pages/Preferenze';
 import Contatti from './pages/Contatti';
 import Calendario from './pages/Calendario';
 import Obiettivo from './pages/Obiettivo';
@@ -63,6 +64,8 @@ function Shell() {
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/conferma-email" element={<ConfermaEmail />} />
           <Route path="/verifica-email" element={<VerificaEmail />} />
+        <Route path="/preferenze" element={<Preferenze />} />
+          <Route path="/preferenze" element={<Preferenze />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment/success" element={<PaymentResult ok />} />
           <Route path="/payment/cancelled" element={<PaymentResult ok={false} />} />

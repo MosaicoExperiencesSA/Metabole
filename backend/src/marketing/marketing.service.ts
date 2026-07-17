@@ -12,6 +12,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import { deriveSegment, prefsToken, verifyPrefsToken } from '../common/funnel-segment';
 
 export type SegmentFilters = {
   stages?: string[];
@@ -47,7 +49,128 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly configParams: ConfigParamsService,
   ) {}
+
+  // ---------- Preferenze marketing (handoff punto 6: disiscrizione facile) ----------
+
+  private prefsSecret(): string {
+    return this.config.get<string>('PREFS_TOKEN_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-only-insecure-secret';
+  }
+
+  private appUrl(): string {
+    return this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
+  }
+
+  /** Link personale alla pagina preferenze/disiscrizione (token firmato, senza login). */
+  prefsLink(recordId: string): string {
+    return `${this.appUrl()}/preferenze?t=${prefsToken(recordId, this.prefsSecret())}`;
+  }
+
+  /** Stato consensi per la pagina pubblica (token firmato al posto del login). */
+  async getPrefsByToken(token: string) {
+    const recordId = verifyPrefsToken(token ?? '', this.prefsSecret());
+    if (!recordId) throw new UnauthorizedException('Link non valido.');
+    const rec = (await this.prisma.crmRecord.findUnique({
+      where: { id: recordId },
+      select: { id: true, name: true, email: true, marketingConsent: true, consentChannels: true } as never,
+    })) as { id: string; name: string | null; email: string | null; marketingConsent: boolean | null; consentChannels: string[] } | null;
+    if (!rec) throw new NotFoundException('Contatto non trovato.');
+    // Email mascherata: la pagina è raggiungibile da chiunque abbia il link.
+    const masked = rec.email ? rec.email.replace(/^(.).*(@.*)$/, '$1***$2') : null;
+    return { name: rec.name, email: masked, marketingConsent: rec.marketingConsent, consentChannels: rec.consentChannels ?? [] };
+  }
+
+  /**
+   * Salva la scelta della persona: consenso marketing sì/no + canali autorizzati.
+   * Aggiorna anche l'opt-out per email (tabella marketing_opt_out) e, se il
+   * contatto è una cliente registrata, le sue notificationPrefs.
+   */
+  async setPrefsByToken(token: string, input: { marketingConsent: boolean; channels?: string[] }) {
+    const recordId = verifyPrefsToken(token ?? '', this.prefsSecret());
+    if (!recordId) throw new UnauthorizedException('Link non valido.');
+    const rec = (await this.prisma.crmRecord.findUnique({
+      where: { id: recordId },
+      select: { id: true, email: true, clientId: true } as never,
+    })) as { id: string; email: string | null; clientId: string | null } | null;
+    if (!rec) throw new NotFoundException('Contatto non trovato.');
+    const ALLOWED = ['email', 'whatsapp', 'sms'];
+    const channels = input.marketingConsent
+      ? Array.from(new Set((input.channels ?? []).filter((c) => ALLOWED.includes(c))))
+      : [];
+    await this.prisma.crmRecord.update({
+      where: { id: rec.id },
+      data: {
+        marketingConsent: input.marketingConsent,
+        consentChannels: channels,
+        consentAt: new Date(),
+        consentSource: 'preferenze',
+      } as never,
+    });
+    if (rec.email) {
+      const email = rec.email.toLowerCase();
+      if (input.marketingConsent) {
+        await this.prisma.marketingOptOut.deleteMany({ where: { email } });
+      } else {
+        await this.prisma.marketingOptOut.upsert({ where: { email }, create: { email, reason: 'preferenze', source: 'prefs_page' }, update: { reason: 'preferenze', source: 'prefs_page' } });
+      }
+    }
+    if (rec.clientId) {
+      const prof = await this.prisma.clientProfile.findUnique({ where: { userId: rec.clientId }, select: { notificationPrefs: true } });
+      const prefs = (prof?.notificationPrefs as Record<string, unknown> | null) ?? {};
+      await this.prisma.clientProfile.updateMany({
+        where: { userId: rec.clientId },
+        data: { notificationPrefs: { ...prefs, marketing: input.marketingConsent } as never },
+      });
+    }
+    await this.audit.log({ action: input.marketingConsent ? 'marketing.consent.optin' : 'marketing.consent.optout', entityType: 'crm_record', entityId: rec.id, metadata: { channels } as Record<string, unknown> });
+    return { saved: true, marketingConsent: input.marketingConsent, consentChannels: channels };
+  }
+
+  // ---------- Funnel del lancio (handoff punto 6) ----------
+
+  /** Ordine canonico degli anelli del funnel per la vista in backoffice. */
+  private static readonly FUNNEL_EVENTS = [
+    'trial_started', 'trial_measures_ok', 'trial_day6_offer_sent', 'trial_converted',
+    'plan_renewed', 'maintenance_started', 'trial_expired', 'profile_purged',
+  ];
+
+  /**
+   * Conteggi del funnel per evento × segmento e per evento × canale (finestra in
+   * giorni). Persone uniche per evento, non occorrenze.
+   */
+  async funnelOverview(days = 30) {
+    const from = new Date(Date.now() - Math.min(365, Math.max(1, days)) * 86_400_000);
+    const rows = (await this.prisma.analyticsEvent.findMany({
+      where: { phase: 'funnel', receivedAt: { gte: from }, name: { in: MarketingService.FUNNEL_EVENTS } },
+      select: { name: true, userId: true, data: true },
+      take: 50_000,
+    })) as { name: string; userId: string | null; data: unknown }[];
+    const events = MarketingService.FUNNEL_EVENTS.map((name) => {
+      const mine = rows.filter((r) => r.name === name);
+      const users = new Set(mine.map((r) => r.userId ?? 'anon'));
+      const bySegment: Record<string, number> = {};
+      const byChannel: Record<string, number> = {};
+      const seenSeg = new Set<string>();
+      const seenCh = new Set<string>();
+      for (const r of mine) {
+        const d = (r.data ?? {}) as { segment?: string; channel?: string };
+        const uid = r.userId ?? 'anon';
+        const seg = d.segment ?? 'sconosciuto';
+        const ch = d.channel ?? 'sconosciuto';
+        if (!seenSeg.has(`${uid}:${seg}`)) { seenSeg.add(`${uid}:${seg}`); bySegment[seg] = (bySegment[seg] ?? 0) + 1; }
+        if (!seenCh.has(`${uid}:${ch}`)) { seenCh.add(`${uid}:${ch}`); byChannel[ch] = (byChannel[ch] ?? 0) + 1; }
+      }
+      return { name, total: users.size, bySegment, byChannel };
+    });
+    // Consensi: fotografia dello stato dei contatti CRM (per il pannello).
+    const [consentYes, consentNo, consentNull] = await Promise.all([
+      this.prisma.crmRecord.count({ where: { marketingConsent: true } as never }),
+      this.prisma.crmRecord.count({ where: { marketingConsent: false } as never }),
+      this.prisma.crmRecord.count({ where: { marketingConsent: null } as never }),
+    ]);
+    return { days, events, consent: { si: consentYes, no: consentNo, maiChiesto: consentNull } };
+  }
 
   onModuleInit(): void {
     // Scheduler interno leggero (come LifecycleService): nessuna dipendenza esterna.
@@ -122,7 +245,26 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
         .filter((p) => { const n = p.notificationPrefs as Record<string, unknown> | null; return !!n && (n.marketing === false || n.marketingOptOut === true); })
         .map((p) => p.userId),
     );
-    return list.filter((r) => !r.clientId || !optedOut.has(r.clientId));
+    list = list.filter((r) => !r.clientId || !optedOut.has(r.clientId));
+    // 3) Consenso marketing esplicito (handoff punto 6): chi ha detto NO è sempre
+    //    escluso; con `marketing_require_consent` acceso (da Parametri) i lead PURI
+    //    senza consenso esplicito (mai chiesto) sono esclusi — da accendere PRIMA
+    //    di lavorare lo storico importato (ri-opt-in obbligatorio).
+    const ids = list.map((r) => r.id);
+    if (!ids.length) return list;
+    const consentRows = (await this.prisma.crmRecord.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, clientId: true, marketingConsent: true } as never,
+    })) as { id: string; clientId: string | null; marketingConsent: boolean | null }[];
+    const byId = new Map(consentRows.map((r) => [r.id, r]));
+    const requireConsent = await this.configParams.getBool('marketing_require_consent', false);
+    return list.filter((r) => {
+      const c = byId.get(r.id);
+      if (!c) return true;
+      if (c.marketingConsent === false) return false; // no esplicito: mai
+      if (requireConsent && !c.clientId && c.marketingConsent !== true) return false; // lead puro senza base giuridica
+      return true;
+    });
   }
 
   async sendTest(templateKey: string, testEmail: string) {
@@ -257,8 +399,11 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     let failed = 0;
     for (const r of slice) {
       if (!r.email) { failed++; continue; }
-      const html = this.merge(c.bodyHtml, { name: r.name ?? '' });
-      const ok = await this.mail.send({ to: r.email, subject: c.subject, html, templateKey: `campaign:${c.templateKey}`, tags: [tag] });
+      // Merge per destinatario: nome + link preferenze PERSONALE (disiscrizione facile).
+      const vars = { name: r.name ?? '', nome: r.name ?? '', link_preferenze: this.prefsLink(r.recordId) };
+      const html = this.merge(c.bodyHtml, vars);
+      const subject = this.merge(c.subject, vars);
+      const ok = await this.mail.send({ to: r.email, subject, html, templateKey: `campaign:${c.templateKey}`, tags: [tag] });
       if (ok) sent++; else failed++;
     }
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, METHOD_LABEL, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
+import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 
 /**
  * Menu / diario — dati REALI dal backend:
@@ -117,10 +118,11 @@ export default function Menu() {
   const mealsRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
   const [blocked, setBlocked] = useState<{ active: boolean; reason: string | null } | null>(null);
+  const [status, setStatus] = useState<MenuStatus | null>(null);
 
   useEffect(() => {
-    api<{ delivered: string[]; days: ApiMenuDay[]; blocked?: { active: boolean; reason: string | null } }>('/me/menu')
-      .then((r) => { setDays(r.days ?? []); setBlocked(r.blocked ?? null); })
+    api<{ delivered: string[]; days: ApiMenuDay[]; blocked?: { active: boolean; reason: string | null }; status?: MenuStatus }>('/me/menu')
+      .then((r) => { setDays(r.days ?? []); setBlocked(r.blocked ?? null); setStatus(r.status ?? null); })
       .catch(() => setDays([]));
   }, []);
 
@@ -152,7 +154,7 @@ export default function Menu() {
     <div className="home">
       <AppHeader title="Il tuo menu" />
 
-      {blocked?.active && (
+      {blocked?.active && !status && (
         <div className="card" style={{ background: '#FBF0D6', border: '1px solid #EAD8A6', display: 'flex', gap: 10, alignItems: 'center' }}>
           <span className="event-ic" style={{ background: '#F2B705', color: '#fff', flex: 'none' }}><i className="ti ti-heart-handshake" /></span>
           <div style={{ fontSize: 13, color: '#7A5B12' }}>{blocked.reason ?? 'Stiamo sistemando il tuo piano con la nutrizionista.'}</div>
@@ -160,9 +162,13 @@ export default function Menu() {
       )}
 
       {upcoming.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center' }}>
-          <p className="muted" style={{ margin: 0 }}>Il tuo menu non è ancora disponibile. Si sblocca quando parte il tuo piano (e dopo i check-in).</p>
-        </div>
+        status && status.state !== 'available' ? (
+          <MenuStatusBanner status={status} />
+        ) : (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <p className="muted" style={{ margin: 0 }}>Il tuo menu non è ancora disponibile. Si sblocca quando parte il tuo piano (e dopo i check-in).</p>
+          </div>
+        )
       ) : (
         <>
           <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
