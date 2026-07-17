@@ -218,21 +218,21 @@ export class RecipesController {
     return this.catalog.getRecipe(id);
   }
 
-  @Roles('nutritionist', 'head_nutritionist')
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
   @RequirePage('recipes')
   @Post()
   create(@Body() dto: CreateRecipeDto, @CurrentUser() user: AuthUser) {
     return this.catalog.createRecipe(user.sub, dto);
   }
 
-  @Roles('nutritionist', 'head_nutritionist')
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
   @RequirePage('recipes')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateRecipeDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateRecipe(user.sub, id, dto);
   }
 
-  @Roles('nutritionist', 'head_nutritionist')
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
   @RequirePage('recipes')
   @HttpCode(200)
   @Delete(':id')
@@ -241,7 +241,7 @@ export class RecipesController {
   }
 
   /** Pre-tag allergeni assistito (suggerimenti dagli ingredienti + stato attuale). */
-  @Roles('nutritionist', 'head_nutritionist')
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
   @RequirePage('recipes')
   @Get(':id/allergen-suggestions')
   allergenSuggestions(@Param('id') id: string) {
@@ -249,7 +249,7 @@ export class RecipesController {
   }
 
   /** Conferma degli allergeni della ricetta da parte del nutrizionista (reviewed=true). */
-  @Roles('nutritionist', 'head_nutritionist')
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
   @RequirePage('recipes')
   @Patch(':id/allergens')
   setAllergens(@Param('id') id: string, @Body() dto: SetRecipeAllergensDto, @CurrentUser() user: AuthUser) {

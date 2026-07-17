@@ -57,7 +57,7 @@ function toForm(r: Recipe): Form {
 export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
   const { permissions } = useAuth();
   const { regimes, regimeLabel } = useTaxonomy();
-  const canEdit = permissions?.role === 'nutritionist' || permissions?.role === 'head_nutritionist';
+  const canEdit = permissions?.role === 'nutritionist' || permissions?.role === 'head_nutritionist' || permissions?.role === 'admin';
   const [rows, setRows] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +132,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
             </thead>
             <tbody>
               {pg.pageItems.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la ricetta">
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>
                   <td className="muted">{SLOT[r.mealSlot] ?? r.mealSlot}</td>
@@ -142,8 +142,8 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
                   {canEdit && (
                     <td>
                       <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
-                        <button className="btn ghost sm" onClick={() => setEditing(r)}><i className="ti ti-edit" /> Modifica</button>
-                        {canEdit && <button className="btn ghost sm" title="Elimina ricetta" style={{ color: 'var(--danger)' }} onClick={() => del(r)}><i className="ti ti-trash" /></button>}
+                        <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><i className="ti ti-edit" /> Modifica</button>
+                        {canEdit && <button className="btn ghost sm" title="Elimina ricetta" style={{ color: 'var(--danger)' }} onClick={(e) => { e.stopPropagation(); del(r); }}><i className="ti ti-trash" /></button>}
                       </div>
                     </td>
                   )}
