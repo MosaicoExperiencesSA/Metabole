@@ -1,99 +1,86 @@
 # Addendum all'Handoff — Allineamento prezzi a DB (dettaglio tecnico)
 
-Integra `progetto/Handoff_Simone_Prezzi_Prova.md` §1. Nasce da una verifica del repo del **17/07/2026**.
-Riferimenti letti: `backend/prisma/seed.ts` (righe 707–727) · `backend/prisma/schema.prisma` (model `Plan` 431–453, `DiscountCode` 1403–1420, `Subscription` 455–472).
+Integra `progetto/Handoff_Simone_Prezzi_Prova.md` §1. Nato da una verifica del repo del **17/07/2026**.
+Riferimenti: `backend/prisma/seed.ts` · `backend/prisma/schema.prisma` (model `Plan`, `DiscountCode`, `Subscription`) · commit **`28b7486`**.
+
+> **AGGIORNAMENTO 17/07 (pomeriggio).** Il barrato listino + scadenza (§1) è **già stato implementato da Simone** nel commit `28b7486` — Opzione A. Questo addendum ora serve solo per i **5 punti ancora aperti** elencati in §7 (il grosso è: aggiornare i **dati** a DB, il codice c'è).
 
 ---
 
-## 0. Stato verificato (non ancora fatto)
+## 0. Stato
 
-- **A DB ci sono ancora i vecchi prezzi**: `29700 / 49700 / 79700` (piani "3/6/12 mesi" = €297/€497/€797), definiti in `seed.ts` righe 711–713.
-- **Il seed NON aggiorna la produzione.** `seedCommerce()` crea i piani **solo se la tabella è vuota** (`if (await prisma.plan.count()) === 0`). Il DB prod è già popolato, quindi modificare `seed.ts` non cambia nulla in prod.
-- **Conseguenza:** l'allineamento va fatto **direttamente sui dati di produzione** — pannello admin piani, oppure uno script dedicato di UPDATE/upsert (vedi §5). Non basta editare il seed.
-
----
-
-## 1. Il nodo da decidere prima: il barrato "founding" (Omnibus)
-
-L'handoff chiede "prezzo di listino + prezzo promo con **data di scadenza**", perché il barrato €299→€249 deve essere *vero* (Direttiva Omnibus: quando annunci una riduzione devi indicare il prezzo minimo dei 30 giorni precedenti). **Il modello `Plan` oggi non lo rappresenta**: ha un solo campo `priceCents`, nessun listino né scadenza promo.
-
-Due strade:
-
-**Opzione A — campi sul `Plan` (consigliata).** Nuova migrazione che aggiunge a `Plan`:
-- `listPriceCents Int?` → prezzo pieno (barrato)
-- `promoPriceCents Int?` → prezzo founding
-- `promoEndsAt DateTime?` → quando il founding finisce da solo
-
-Vantaggi: il barrato è nativo e mostrabile ovunque (checkout, report, email) leggendo lo stesso record; alla scadenza il prezzo pieno subentra senza intervento. È la più pulita per l'Omnibus.
-
-**Opzione B — sconto via `DiscountCode`.** `Plan.priceCents` = prezzo pieno; il founding è un codice sconto a scadenza (il model `DiscountCode` ha già `expiresAt`, `maxTotalUses`, `maxPerClient`). Meno lavoro di schema, ma il prezzo "di default" mostrato resta il pieno e il barrato dipende dall'applicazione del codice: per l'Omnibus il prezzo di riferimento va comunque calcolato a parte. Meno lineare.
-
-➡️ **Raccomandazione: Opzione A.** (I codici sconto personali del §3 dell'handoff — es. `GIULIA-FOUND` — restano comunque, ma per lo sconto *personale/urgenza a 48h*, non per il listino founding di base.)
+- **Codice: fatto.** `28b7486 feat(lancio): prezzi promo con listino barrato e scadenza`.
+- **Dati: da fare.** A DB restano i vecchi `29700 / 49700 / 79700` (€297/€497/€797). Vanno aggiornati da **backoffice → Gestione Negozio** dopo il deploy (il seed è idempotente e non tocca la prod).
 
 ---
 
-## 2. I record piano esatti da avere a DB
+## 1. Barrato "founding" (Omnibus) — ✅ FATTO in `28b7486`
 
-Importi in **centesimi**. Listino = prezzo pieno (barrato); Promo = founding.
+L'handoff chiedeva "listino + promo con **data di scadenza**" per rispettare l'Omnibus. Simone ha implementato l'**Opzione A**, in modo pulito:
 
-| name | period | listPriceCents | promoPriceCents | Tipo | Note |
+- Schema `Plan`: aggiunti `listPriceCents` (listino barrato) e `promoEndsAt` (fine founding). `priceCents` = prezzo di **vendita** in promo. Migrazione `20260718110000_plan_promo_pricing`.
+- `planPricing()`: promo attiva → vende a `priceCents` col barrato; **promo scaduta → prezzo torna da solo al listino, senza toccare il DB**.
+- Applicato **ovunque si vende** (subscribe, checkout carrello, acquisto manuale), con **sconti ricalcolati sul prezzo effettivo**. `listPlans` espone `effectivePriceCents` + `promoActive`; app (Negozio, PlanFlow) e backoffice mostrano il barrato.
+
+*(I codici sconto personali del §3 dell'handoff — es. `GIULIA-FOUND` — restano per lo sconto personale/urgenza a 48h, distinto dal listino founding.)*
+
+---
+
+## 2. I record piano esatti da mettere a DB (da Gestione Negozio)
+
+Importi in **centesimi**. `priceCents` = promo (vendita); `listPriceCents` = listino barrato; `promoEndsAt` = data fine founding (**sempre valorizzata**, vedi §7.2).
+
+| name | period | listPriceCents | priceCents (promo) | Tipo | Note |
 |---|---|---:|---:|---|---|
 | Percorso Metabole 1 mese | `1m` | 13000 (€130) | 9900 (€99) | ricorrente mensile | porta bassa / flessibile |
 | **Percorso Metabole 3 mesi** | `3m` | 29900 (€299) | 24900 (€249) | una tantum | **consigliato / default** |
-| Mantenimento | `maintenance` | 3900 (€39) | 2900 (€29) | ricorrente mensile | attivo dopo il percorso |
+| Mantenimento | `maintenance` | 3900 (€39) | 2900 (€29) | ricorrente mensile | dopo il percorso |
 
 Fuori dalla tabella `plan`:
-- **Prova gratuita (8 giorni)** — **non è un `Plan` a pagamento**: è lo stato *trial* (senza carta, misure al G0, purge a 7 giorni — vedi handoff §2). Se lo shop ha bisogno di un record, usare `priceCents = 0`, ma il flusso è quello della prova, non un acquisto.
-- **Visita nutrizionista €50** — **non è un `Plan`**: è un `Product` una-tantum (`priceCents = 5000`). Il model `Product` esiste già (schema 511). Emergenze/patologie.
+- **Prova gratuita (8 giorni)** — stato *trial* (senza carta, misure al G0, purge a 7 giorni, handoff §2). Non un acquisto; se serve un record shop, `priceCents = 0`.
+- **Visita nutrizionista €50** — `Product` una-tantum (`priceCents = 5000`). Vedi §7.3.
 
-**Vecchi piani (6m €497, 12m €797):** **NON cancellarli.** `Subscription.plan` ha `onDelete: Restrict` (schema 460): un piano con abbonamenti collegati non è cancellabile. `Plan` ha il campo `active` → **disattivarli** (`active = false`) così spariscono dallo shop ma le sottoscrizioni storiche restano integre. Il piano "3 mesi" esistente si può **aggiornare** ai nuovi valori invece di crearne uno nuovo.
-
----
-
-## 3. Provvigioni sui nuovi piani
-
-`Plan` porta i campi provvigione in centesimi (`commissionCoachCents`, `commissionManagerCoachCents`, `commissionNutritionistCents`, `commissionHeadNutritionistCents`) e lo schema nota che vanno **riscalate sull'importo effettivamente pagato in caso di sconto**. Vanno **definiti anche per i piani nuovi** (1 mese, 3 mesi, mantenimento), altrimenti le commissioni sulle vendite di lancio risultano a zero.
+**Vecchi piani (6m €497, 12m €797):** **NON cancellarli** (`Subscription.plan` ha `onDelete: Restrict`). Metterli `active = false`. Il "3 mesi" esistente si può **aggiornare** invece di ricrearlo.
 
 ---
 
-## 4. Coerenza dei numeri (nessun prezzo hardcodato)
+## 3. Provvigioni sui piani nuovi
 
-Un solo numero, letto dal DB, ovunque:
-- **Checkout** (Stripe LIVE prende i prezzi dal DB, nessun prodotto su Stripe).
-- **Report cliente** (`marketing/report_cliente/…`) — cita €249/€299: dopo l'allineamento combacia.
-- **Email G6** ("oggi €249 invece di €299, codice XXX, scade tra 48h").
+`Plan` porta le provvigioni in centesimi (`commissionCoachCents`, `commissionManagerCoachCents`, `commissionNutritionistCents`, `commissionHeadNutritionistCents`), riscalate sull'importo effettivamente pagato. Vanno **impostate anche sui piani nuovi**, altrimenti le vendite di lancio danno commissione zero.
 
-Regola: **nessun prezzo deve differire tra email, report e checkout.** Se qualche testo ha il prezzo scritto a mano, va reso dinamico.
+---
+
+## 4. Coerenza dei numeri — ✅ verificata lato codice
+
+Grep del repo (17/07): **nessun prezzo hardcodato** nei sorgenti backend né nei template vivi. L'unico `€249/€299` scritto a mano è in `marketing/Piano_Operativo_Lancio.md` (doc di piano, non un template). Il checkout usa già il prezzo effettivo dal DB.
+
+Da verificare solo in fase di automazione: che **email G6** e **report cliente** peschino il prezzo dal piano (`effectivePriceCents`) e non un numero fisso.
 
 ---
 
 ## 5. Come aggiornare la produzione
 
-Preferibile uno **script idempotente dedicato** (non il seed), rilanciabile senza rischio, es. `backend/prisma/scripts/align-prices.ts`:
-1. `upsert` dei 3 piani nuovi per `period` (1m / 3m / maintenance) con listino + promo + `promoEndsAt` + provvigioni.
-2. `update` dei vecchi 6m/12m → `active = false`.
-3. `upsert` del `Product` "Visita nutrizionista" a 5000.
-4. Log finale di ciò che ha toccato.
-
-In alternativa, se il **pannello admin** ha già l'editor prezzi piani, si fa a mano da lì (più veloce, ma verificare che esponga listino + promo + scadenza dopo la migrazione dell'Opzione A).
+Via **backoffice → Gestione Negozio** (Simone ha aggiunto i campi listino/fine promo): aggiorna i 3 piani, disattiva i vecchi, aggiungi il Product visita e imposta le provvigioni. In alternativa uno script idempotente dedicato (non il seed) se si preferisce farlo in batch.
 
 ---
 
-## 6. Checklist (ordine)
+## 6. Nota tecnica sul comportamento della promo
 
-- [ ] **Decisione barrato**: Opzione A (campi su `Plan`) vs B (codice sconto). *Consigliata A.*
-- [ ] Se A → migrazione `Plan`: `listPriceCents`, `promoPriceCents`, `promoEndsAt`.
-- [ ] Estendere il vocabolario `period` con `1m` e `maintenance` (oggi solo `3m/6m/12m`).
-- [ ] Definire trattamento ricorrente vs una-tantum (3 mesi = una tantum; 1 mese e mantenimento = ricorrenti mensili).
-- [ ] Script `align-prices.ts`: nuovi piani + disattiva vecchi + Product visita €50.
-- [ ] Provvigioni impostate sui piani nuovi.
-- [ ] Prova gratuita gestita come *trial* (non piano a pagamento).
-- [ ] Verifica coerenza: checkout = report = email (stesso numero dal DB).
-- [ ] Aggiornare `progetto/STATO_LANCIO.md` quando fatto.
+In `planPricing`, se `listPriceCents` è valorizzato ma `promoEndsAt` è **null**, la promo risulta **attiva a tempo indeterminato** → il barrato non scade mai. Per l'Omnibus è proprio ciò da evitare: **valorizzare sempre `promoEndsAt`** quando si imposta un listino founding.
 
 ---
 
-## Punti aperti (da confermare con Antonio prima)
+## 7. Punti aperti (to-do)
 
-- **Mantenimento "a vita" vs "finché resti attiva"** (già segnalato in `CONTESTO_CHAT.md`): impatta il testo dell'offerta e la logica del prezzo bloccato.
-- **Listino mantenimento €39**: preso da `Offerta_Pricing_v2.md`; l'handoff §1 lo lascia senza listino. Confermare se mostrare il barrato €39→€29 o solo €29.
+1. **Aggiornare i piani a DB** da Gestione Negozio (i valori di §2), **disattivare** i vecchi 6m/12m, impostare le **provvigioni** sui nuovi.
+2. **`promoEndsAt` sempre valorizzato** sui piani in promo (vedi §6).
+3. **Visita nutrizionista €50** come `Product` una-tantum (non è nel commit `28b7486`).
+4. **Ricorrente vs una-tantum:** `28b7486` non tocca la logica di rinnovo (subscribe crea un pagamento singolo). Confermare con Simone come si rinnovano **1 mese** e **mantenimento**.
+5. **Coerenza email G6 / report:** verificare che leggano il prezzo effettivo dal piano al momento dell'automazione (vedi §4).
+
+---
+
+## Da confermare con Antonio
+
+- **Mantenimento "a vita" vs "finché resti attiva"** (segnalato in `CONTESTO_CHAT.md`): impatta testo offerta e prezzo bloccato.
+- **Listino mantenimento €39** (da `Offerta_Pricing_v2.md`): mostrare il barrato €39→€29 o solo €29?
