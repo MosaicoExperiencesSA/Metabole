@@ -36,6 +36,10 @@ const META: Record<string, Meta> = {
   water_goal_glasses: { label: 'Obiettivo acqua (ripiego)', group: 'Obiettivi cliente', kind: 'number', unit: 'bicchieri/giorno', help: 'Usato solo quando il peso della cliente non è ancora noto. Altrimenti l’obiettivo è personalizzato sul peso.' },
   steps_goal: { label: 'Obiettivo passi', group: 'Obiettivi cliente', kind: 'number', unit: 'passi/giorno' },
 
+  agent_default_model: { label: 'Modello di default', group: 'Agenti AI', kind: 'text', help: 'Modello Claude usato dagli agenti ad alto volume (es. claude-haiku-4-5). Cambia senza redeploy.' },
+  agent_judge_model: { label: 'Modello del Giudice', group: 'Agenti AI', kind: 'text', help: 'Modello Claude del Giudice compliance (es. claude-sonnet-5): qualità di giudizio sui contenuti.' },
+  agent_default_budget_cents: { label: 'Budget mensile default per agente', group: 'Agenti AI', kind: 'euro', help: 'Tetto di spesa mensile assegnato ai nuovi agenti (0 = nessun tetto).' },
+
   sustainable_rate_max_kg_week: { label: 'Ritmo sostenibile massimo', group: 'Motore · ritmo e sicurezza', kind: 'number', unit: 'kg/sett.', help: 'Oltre questo ritmo l’obiettivo è considerato ambizioso.' },
   ambitious_rate_max_kg_week: { label: 'Ritmo ambizioso massimo', group: 'Motore · ritmo e sicurezza', kind: 'number', unit: 'kg/sett.', help: 'Oltre questo ritmo l’obiettivo è irreale.' },
   min_daily_kcal: { label: 'Calorie minime giornaliere', group: 'Motore · ritmo e sicurezza', kind: 'number', unit: 'kcal' },

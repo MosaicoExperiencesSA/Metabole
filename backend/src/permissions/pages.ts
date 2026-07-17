@@ -47,6 +47,7 @@ export const BACKOFFICE_PAGES = [
   'crm_calendar',       // Calendario CRM (da crm_leads)
   'testimonials',       // Testimonianze (da marketing)
   'publisher',          // Publisher social (da marketing)
+  'agents',             // Registro Agenti AI (da marketing)
   'equivalence_groups', // Gruppi di equivalenza (da diets_catalog)
   'allergens',          // Allergeni ricette (da recipes)
   'roles',              // Ruoli (da permissions)
@@ -134,6 +135,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     charts: { view: true },
     crm_leads: { view: true }, // vede i lead (fonte/canale/campagna), non gestisce la pipeline clinica
     marketing: { view: true, manage: true },
+    agents: { view: true },
   },
   head_marketing: {
     dashboard: { view: true },
@@ -142,6 +144,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     charts: { view: true },
     crm_leads: { view: true, manage: true },
     marketing: { view: true, manage: true },
+    agents: { view: true, manage: true },
     accounting: { view: true }, // budget/spesa marketing (dashboard incassi/conversioni)
     email_templates: { view: true, manage: true },
     email_log: { view: true },

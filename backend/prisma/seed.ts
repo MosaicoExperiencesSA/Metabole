@@ -150,6 +150,24 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Obiettivo giornaliero passi',
   },
   {
+    key: 'agent_default_model',
+    value: 'claude-haiku-4-5',
+    type: 'string',
+    description: 'Sistema agenti AI: modello di default (alto volume, costo basso)',
+  },
+  {
+    key: 'agent_judge_model',
+    value: 'claude-sonnet-5',
+    type: 'string',
+    description: 'Sistema agenti AI: modello del Giudice compliance (qualità di giudizio)',
+  },
+  {
+    key: 'agent_default_budget_cents',
+    value: '5000',
+    type: 'number',
+    description: 'Sistema agenti AI: tetto di spesa mensile di default per agente (centesimi; 0 = nessun tetto)',
+  },
+  {
     key: 'low_energy_chronic_threshold',
     value: '2.5',
     type: 'number',
@@ -893,6 +911,7 @@ async function main(): Promise<void> {
   await backfillPaidClientsIntoCrm();
   await backfillCoachRefCodes();
   await seedStaffMailboxes();
+  await seedAgents();
   await seedEmailTemplates();
   await seedPdfTemplates();
   const count = await prisma.configParam.count();
@@ -982,6 +1001,40 @@ async function seedStaffMailboxes(): Promise<void> {
     created++;
   }
   if (created) console.log(`Seed: collegate ${created} caselle di posta staff (coach + responsabile).`);
+}
+
+/**
+ * Registro Agenti AI (Metabole_Agenti_AI_Spec_Sviluppo.md §5 + prototipo dashboard):
+ * 13 agenti seminati SOLO se mancanti (upsert per key che non tocca le righe esistenti,
+ * così le modifiche fatte dal backoffice non vengono mai sovrascritte al deploy).
+ */
+async function seedAgents(): Promise<void> {
+  const AGENTS: Array<{ key: string; name: string; type: string; department: string; engine: string; humanInLoop?: boolean; task: string; rule: string }> = [
+    { key: 'gaia', name: 'Gaia', type: 'conversational', department: 'app', engine: 'claude-sonnet-5', task: 'Accompagna il cliente: dialogo, spiegazioni del menu e dei consigli, motivazione. Il menu vero è calcolato dal motore dieta (deterministico); Gaia lo racconta e risponde.', rule: 'Non dà diagnosi né prescrizioni: qualsiasi tema clinico è escalato al nutrizionista. Tono empatico, niente numeri/promesse.' },
+    { key: 'motore_dieta', name: 'Motore dieta', type: 'deterministic', department: 'app', engine: 'none', task: 'Compone i menu su regole, catalogo e vincoli (gusti, stagione, cultura, allergie). Non usa LLM: costo ~0.', rule: 'Le soglie stanno in config_param (mai hardcodate). Ogni menu è validato dal nutrizionista.' },
+    { key: 'voce_gaia', name: 'Voce di Gaia', type: 'tts', department: 'app', engine: 'elevenlabs', task: 'Genera le frasi parlate di Gaia. Le frasi sono pre-generate per chiave (non in tempo reale), quindi il costo non scala col numero di utenti.', rule: 'Si rigenera solo la chiave modificata (mai tutte). Testo approvato prima della sintesi.' },
+    { key: 'stratega', name: 'Stratega', type: 'planner', department: 'marketing', engine: 'claude-sonnet-5', task: 'Legge KPI, stagionalità e segmenti; decide temi, angoli e priorità per canale e fase. Produce i brief creativi.', rule: 'Rispetta i micro-pubblici e il calendario opportunità; nessun claim non conforme entra nei brief.' },
+    { key: 'creativo', name: 'Creativo (art)', type: 'generative', department: 'marketing', engine: 'claude-sonnet-5', humanInLoop: true, task: 'Genera concept visivi: vignette, illustrazioni, storyboard, format carosello, copertine.', rule: 'Vietate immagini prima/dopo o che idealizzano il corpo. Sì a stile di vita sano.' },
+    { key: 'copywriter', name: 'Copywriter', type: 'generative', department: 'marketing', engine: 'claude-haiku-4-5', task: 'Scrive hook, caption, script video, email, SMS e adv nel tono del brand, in più varianti.', rule: 'Niente promesse a tempo, numeri garantiti o seconda persona su attributi fisici. 18+.' },
+    { key: 'giudice', name: 'Giudice (compliance)', type: 'judge', department: 'marketing', engine: 'claude-sonnet-5', task: 'Valuta ogni contenuto prima della pubblicazione: policy social, rischio ban, veridicità, coerenza brand. Verdetto: Approva / Rivedi / Blocca.', rule: 'Ogni claim di salute è escalato al nutrizionista capo. Ogni decisione è loggata (audit).' },
+    { key: 'publisher', name: 'Publisher', type: 'orchestrator', department: 'marketing', engine: 'claude-haiku-4-5', task: 'Programma e pubblica sui canali via API ufficiali; gestisce calendario e test A/B.', rule: 'Pubblica solo contenuti approvati dal Giudice (o dall\'umano per i casi sensibili).' },
+    { key: 'lead', name: 'Lead', type: 'analyst', department: 'crm', engine: 'claude-haiku-4-5', task: 'Cattura i lead da form/ads/social, deduplica, applica il consenso, attribuisce la fonte e li versa nel CRM.', rule: 'Nessun lead entra senza consenso valido (LPD/GDPR). Fonte sempre tracciata.' },
+    { key: 'analista', name: 'Analista', type: 'analyst', department: 'marketing', engine: 'claude-haiku-4-5', task: 'Misura le performance, capisce cosa funziona, alimenta lo Stratega e la memoria della macchina.', rule: 'Non accede ai dati sanitari. Lavora su metriche aggregate.' },
+    { key: 'contesto_tempismo', name: 'Contesto & Tempismo', type: 'planner', department: 'marketing', engine: 'claude-sonnet-5', task: 'Decide il momento giusto per ogni pubblicazione in base a stagione, eventi e micro-pubblici.', rule: 'Segue il calendario opportunità; niente sfruttamento di temi sensibili.' },
+    { key: 'redattore_blog', name: 'Redattore blog', type: 'writer', department: 'communication', engine: 'claude-sonnet-5', humanInLoop: true, task: 'Scrive gli articoli del blog da una knowledge base validata; produce SEO e traduzioni. Un articolo al giorno dopo l\'approvazione.', rule: 'Solo fonti curate (non web libero). Bozza → Giudice → approvazione responsabile marketing. Claim salute → nutrizionista capo.' },
+    { key: 'orchestratore', name: 'Orchestratore', type: 'orchestrator', department: 'system', engine: 'claude-haiku-4-5', task: 'Coordina gli agenti, instrada i compiti, applica quota e budget per contenere i costi.', rule: 'Rispetta i limiti di spesa e i permessi (RBAC) di ogni reparto.' },
+  ];
+  const budget = Number((await prisma.configParam.findUnique({ where: { key: 'agent_default_budget_cents' } }))?.value ?? 5000) || 0;
+  let created = 0;
+  for (const a of AGENTS) {
+    const exists = await prisma.agent.findUnique({ where: { key: a.key }, select: { id: true } });
+    if (exists) continue; // mai sovrascrivere le modifiche fatte dal backoffice
+    await prisma.agent.create({
+      data: { ...a, humanInLoop: a.humanInLoop ?? false, monthlyBudgetCents: a.engine === 'none' ? 0 : budget },
+    });
+    created++;
+  }
+  if (created) console.log(`Seed: registrati ${created} agenti AI.`);
 }
 
 /**

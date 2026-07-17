@@ -48,30 +48,31 @@ slot giusti (3 = colazione/pranzo/cena; digiuno 16:8 = pranzo/merenda/cena fines
 pickDiet (menu + personal-base) instrada `pathType=intermittent_fasting` → varianti fasting e 3/5
 sul numero pasti, con fallback per regime (nessuna cliente resta senza menu); "rigenerare = integra"
 (le varianti esistenti non si toccano, si aggiungono solo le mancanti); campo Pasti allineato a 3/5
-in scheda cliente e Nuova dieta (+ flag digiuno).
+in scheda cliente e Nuova dieta (+ flag digiuno). Le due domande onboarding "Pasti al giorno" e
+"Percorso" sono state UNIFICATE in un'unica scelta 3/5/digiuno (mealsPerDay dedotto dal percorso).
 DA FARE (lato NUTRIZIONISTA/dati): aprire le famiglie esistenti nel wizard, spuntare **3 pasti** e
 **Digiuno intermittente**, "Genera tutte le varianti" (aggiunge SOLO le mancanti), validare e
 pubblicare. Le vecchie diete "Digiuno intermittente (16:8)" a 5 pasti nel catalogo andranno
 sostituite/archiviate a mano.
 
-## Lead da backoffice — creare l'account con credenziali provvisorie — FATTO (17/07, Cowork)
-Riferimento: `Metabole_Handoff_Lead_Backoffice_Password.md`. Il socio ha GIÀ fatto app + backend del
-flusso password: al primo login il lead senza questionario parte dall'onboarding; a fine questionario,
-se `mustChangePassword=true`, l'app impone "Imposta la tua password" (`PATCH /me/password/initial`,
-schermata SetPassword) e azzera il flag. (Ha usato il campo ESISTENTE `mustChangePassword`, non serve
-il nuovo `mustResetPassword` dell'handoff.)
-FATTO (17/07, Cowork): pulsante **"Crea account cliente"** nella scheda lead (visibile per i lead
-puri con email) → `POST /crm/leads/:id/create-account`:
-- crea `User` con: email reale del lead, `passwordHash` argon2 di una password provvisoria CASUALE E
-  UNICA (min 8 char, mai fissa), `role=client`, `status=active`, `emailVerifiedAt=now()`,
-  `mustChangePassword=true`;
-- NESSUN ClientProfile / `onboardingCompletedAt` (è il marcatore che manda l'app al questionario);
-- collega il lead (`CrmRecord.clientId`) al nuovo utente;
-- invia l'email al lead con email + password provvisoria + riga "al primo accesso completerai un
-  breve questionario e poi imposterai la tua password personale";
-- se l'email non parte (Brevo non configurato), la password resta visibile UNA volta nel popup
-  all'operatore; scope coach rispettato (una coach lo fa solo sui suoi lead); email rifiutata se
-  già usata da un altro account (principale o secondaria).
+## Lead da backoffice — invia credenziali — FATTO (17/07)
+CONCETTO (Simone, 17/07): NON "crea cliente" ma "invia credenziali". Un lead diventa cliente
+("Acquisito") SOLO al pagamento (verificato: `crm.autoAdvance('paid')` in commerce.service);
+"invia credenziali" crea solo l'accesso, il lead resta lead.
+FATTO (17/07, Cowork — commit 311f84a):
+- `crm.sendCredentials(leadId)`: se il lead non ha account lo crea (email reale, password provvisoria
+  argon2 CASUALE `genTempPassword`, `role=client`, `mustChangePassword=true`, `emailVerifiedAt=now`,
+  nome/telefono dal lead) oppure rigenera la provvisoria se esiste già; collega `CrmRecord.clientId`;
+  NON cambia lo stage. Endpoint `POST /crm/leads/:id/send-credentials` + flag `sendCredentials` sul create.
+- Email `lead_credentials` (mail.service + i18n `mail.credentials.*`, modello editabile dal backoffice):
+  nome, email, password provvisoria, link app, nota su questionario/reset password.
+- UI in 3 punti: app rubrica staff (ContactActions → "Invia credenziali"); backoffice "Inserisci e
+  invia credenziali" (LeadForm) e "Invia credenziali" nella barra verde (LeadDetail).
+Si aggancia a `mustChangePassword`: a fine questionario l'app impone la password personale
+(`PATCH /me/password/initial`, schermata SetPassword). Nessuna migration.
+NOTA MERGE: il socio aveva costruito in parallelo "Crea account cliente" (endpoint `create-account`,
+commit `ed1ac9f`); nel merge è rimasta la versione "invia credenziali" (quella richiesta da Simone).
+Il vecchio `Metabole_Handoff_Lead_Backoffice_Password.md` è superato da questa implementazione.
 
 ## Checkout — indirizzo di spedizione condizionale — FATTO (17/07)
 Checkout ora carica /me/profile: se via/CAP/città/provincia sono già in scheda mostra l'indirizzo in

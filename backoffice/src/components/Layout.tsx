@@ -74,6 +74,7 @@ export const NAV: NavSection[] = [
       { key: 'marketing', label: 'Marketing', to: '/marketing', icon: 'ti-speakerphone' },
       { key: 'testimonials', label: 'Testimonianze', to: '/testimonianze', icon: 'ti-quote' },
       { key: 'publisher', label: 'Publisher social', to: '/publisher', icon: 'ti-send' },
+      { key: 'agents', label: 'Agenti AI', to: '/agenti', icon: 'ti-robot' },
     ],
   },
   {

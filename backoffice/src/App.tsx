@@ -18,6 +18,7 @@ import { GestioneDieta } from './pages/GestioneDieta';
 import { Testimonianze } from './pages/Testimonianze';
 import { GruppiEquivalenza } from './pages/GruppiEquivalenza';
 import { Publisher } from './pages/Publisher';
+import { Agenti } from './pages/Agenti';
 import { Ricette } from './pages/Ricette';
 import { TagAllergeni } from './pages/TagAllergeni';
 import { GestioneNegozio } from './pages/GestioneNegozio';
@@ -107,6 +108,7 @@ export default function App() {
       <Route path="/marketing" element={<Protected title="Marketing" pageKey="marketing"><Marketing /></Protected>} />
       <Route path="/testimonianze" element={<Protected title="Testimonianze" pageKey="testimonials"><Testimonianze /></Protected>} />
       <Route path="/publisher" element={<Protected title="Publisher social" pageKey="publisher"><Publisher /></Protected>} />
+      <Route path="/agenti" element={<Protected title="Agenti AI" pageKey="agents"><Agenti /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />

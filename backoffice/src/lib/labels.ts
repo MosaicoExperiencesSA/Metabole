@@ -57,6 +57,7 @@ export const PAGE_LABEL: Record<string, string> = {
   crm_calendar: 'Calendario CRM',
   testimonials: 'Testimonianze',
   publisher: 'Publisher social',
+  agents: 'Agenti AI',
   equivalence_groups: 'Gruppi di equivalenza',
   allergens: 'Allergeni ricette',
   email_templates: 'Modelli email',

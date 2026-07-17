@@ -1751,3 +1751,72 @@ model PauseRequest {
   @@index([status])
   @@map("pause_request")
 }
+
+// ---------- Sistema Agenti AI (Metabole_Agenti_AI_Spec_Sviluppo.md) ----------
+
+// Registro degli agenti: la sezione backoffice "Agenti" fa CRUD su questa tabella.
+// I nomi dei modelli NON sono hardcodati: default in config_param (agent_default_model…).
+model Agent {
+  id                String    @id @default(uuid())
+  key               String    @unique // slug (gaia, giudice, redattore_blog…)
+  name              String
+  type              String // conversational|generative|judge|rag|planner|analyst|writer|orchestrator|tts|deterministic
+  department        String // app|marketing|communication|crm|system
+  task              String // "cosa fa"
+  rule              String // "regola" (vincolo sempre valido)
+  engine            String // claude-haiku-4-5|claude-sonnet-5|claude-opus-4-8|elevenlabs|none
+  systemPrompt      String?   @map("system_prompt") // prompt di sistema versionato
+  tools             Json      @default("[]") // tool/endpoint che può usare
+  enabled           Boolean   @default(true)
+  humanInLoop       Boolean   @default(false) @map("human_in_loop")
+  monthlyBudgetCents Int      @default(0) @map("monthly_budget_cents") // 0 = nessun tetto
+  archivedAt        DateTime? @map("archived_at") // soft delete
+  createdById       String?   @map("created_by_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  runs AgentRun[]
+
+  @@index([department])
+  @@index([enabled])
+  @@map("agent")
+}
+
+// Esecuzioni degli agenti: token, costi, verdetti (per dashboard costi e audit).
+model AgentRun {
+  id           String    @id @default(uuid())
+  agentId      String    @map("agent_id")
+  agent        Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  startedAt    DateTime  @default(now()) @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+  status       String    @default("queued") // queued|running|done|error|blocked
+  inputRef     String?   @map("input_ref")
+  outputRef    String?   @map("output_ref")
+  model        String?
+  inputTokens  Int       @default(0) @map("input_tokens")
+  outputTokens Int       @default(0) @map("output_tokens")
+  costCents    Int       @default(0) @map("cost_cents")
+  verdict      String? // per il Giudice: approva|rivedi|blocca
+  approvedById String?   @map("approved_by_id")
+  error        String?
+
+  logs AgentLog[]
+
+  @@index([agentId, startedAt])
+  @@index([status])
+  @@map("agent_run")
+}
+
+// Audit append-only delle esecuzioni (obbligatorio per il Giudice e le decisioni sui contenuti).
+model AgentLog {
+  id         String   @id @default(uuid())
+  agentRunId String   @map("agent_run_id")
+  run        AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  ts         DateTime @default(now())
+  level      String   @default("info") // info|warn|error|decision
+  message    String
+  payload    Json?
+
+  @@index([agentRunId, ts])
+  @@map("agent_log")
+}
