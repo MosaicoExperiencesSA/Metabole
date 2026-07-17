@@ -33,5 +33,34 @@ Audio Gaia rigenerati **v02** (`percorso_v02.mp3`, `q_come_vuoi_essere_chiamata_
 ## Limiti strumenti (importante)
 Canva = **quota esaurita**. **ElevenLabs e Nano Banana non sono collegati**: li usa Antonio a mano. Le **immagini incollate in chat non arrivano come file** → vanno salvate nella cartella **`App dimagrimento`** sul Desktop.
 
-## Prossimo passo (in corso)
-**Reparto marketing + struttura email/messaggi** (48 email del ciclo di vita già scritte). Offerta: **prova gratuita di 4 menu = 8 giorni**. Obiettivo: rendere profittevole il lancio → funnel prova→pagante, sequenze email/WhatsApp/SMS (i numeri ci sono), retargeting, coach 1:1, stime di fatturato. Presidiare **consenso marketing (GDPR)** e **deliverability** (warm-up dominio).
+## LANCIO E MARKETING — stato al 17/07 (è qui che siamo)
+
+**Prezzi decisi** (sostituiscono €297/€497/€797 a DB):
+| Prodotto | Listino | Lancio |
+|---|---|---|
+| Prova gratuita | — | **€0 · 8 giorni = 4 menu** (senza carta) |
+| 1 mese | €130 | **€99** (rinnovabile) |
+| 3 mesi | €299 | **€249** (da spingere: =€83/mese) |
+| Mantenimento | — | **€29/mese** ricorrente |
+| Visita nutrizionista | — | **€50** in app (patologie/emergenze) |
+
+**L'idea guida:** *la settimana gratuita non serve a far provare, serve a far imparare Gaia.* Dopo 8 giorni il motore conosce gusti, esclusioni, ritmi e cosa funziona su quel corpo: **quello** è ciò che il cliente perde se smette. È la leva di conversione (e il differenziatore che nessuno può copiare).
+
+**Documenti già pronti:**
+- `progetto/Handoff_Simone_Prezzi_Prova.md` — cosa deve costruire Simone (prezzi a DB, prova 8gg senza carta + misure obbligatorie + **purge profilo a 7 giorni**, codici sconto a scadenza, **report automatico consegnato in app** perché sono dati sanitari, **task/notifiche in dashboard coach**, tracciamento funnel, consensi).
+- `marketing/Piano_Operativo_Lancio.md` — segmenti **A (10k ex clienti) → B (lead caldi) → C (freddi)**, sequenze pre-prova / prova G0–G8 / post-prova / fine piano con canale e responsabile, KPI, stime.
+- `marketing/report_cliente/MetaboleAI_Report_Cliente.pdf` — report A→B di fine piano (anche fine prova). Da automatizzare.
+- `marketing/vignette/Gaia_Impara_Chi_Sei.png` — vignetta per tutor e clienti.
+- 48 email del ciclo di vita già scritte: `marketing/Metabole_Email_Ciclo_Vita.md`.
+
+**Momenti chiave del funnel:** **G1** = messaggio personale della coach (decide tutto) · **G6** = email chiave *"oggi €249 invece di €299, codice XXX, scade tra 48h"* · **G8** = report A→B + ultimo giorno offerta · **+7gg** = il profilo si cancella davvero.
+
+**Stime Ago–Dic:** prudente ~€110k · **base ~€300k** (~1.270 paganti su ~5.900 prove) · ottimistico ~€690k. Il vero valore è la base ricorrente: ~500 clienti a €29 = **~€15k/mese** (~€180k/anno) dal 2027. *Il lancio si giudica sulla base ricorrente che lascia, non sui 5 mesi.*
+
+**Punti aperti da decidere:**
+1. **Capacità delle coach** (il vincolo vero): 5.900 prove ÷ 12 tutor = ~490 a testa, ognuna con messaggio G1 personale. Gli inviti vanno **scaglionati sulla capacità reale**, non sulla dimensione del database. Meglio 800 prove seguite bene che 3.000 abbandonate.
+2. Il report cita €249/€299: **i prezzi a DB vanno allineati prima** di mandarlo a un cliente vero.
+3. "Mantenimento €29 **a vita**": impegno pesante, valutare *"finché resti attiva"*.
+4. Nella vignetta la mascotte **non è la nostra Gaia** (è una mela generica): va sostituita con quella vera.
+
+**Note storiche che contano:** €3,77M incassati **senza una sola email** → il database non è mai stato lavorato: tutto upside. Ma **consenso GDPR** e **deliverability** (warm-up dominio) sono condizioni non negoziabili.
