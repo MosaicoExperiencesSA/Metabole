@@ -15,7 +15,8 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 /** Ruoli assegnabili allo staff dal backoffice (il cliente si registra da sé). */
-export const STAFF_ROLES: Role[] = ['coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin'];
+// Stesso ordine della matrice permessi: la catena di pagamento, admin in fondo.
+export const STAFF_ROLES: Role[] = ['coach', 'coach_coordinator', 'sales', 'nutritionist', 'head_nutritionist', 'marketing', 'head_marketing', 'admin'];
 export const ALL_ROLES: Role[] = ['admin', 'head_nutritionist', 'nutritionist', 'coach_coordinator', 'coach', 'sales', 'head_marketing', 'marketing', 'client'];
 
 export const PAGE_LABEL: Record<string, string> = {

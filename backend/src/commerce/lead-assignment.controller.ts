@@ -63,8 +63,8 @@ export class LeadAssignmentController {
   /** Elenco coach per il menu di assegnazione. */
   @Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
   @Get('coaches')
-  coaches() {
-    return this.svc.listCoaches();
+  coaches(@CurrentUser() user: AuthUser) {
+    return this.svc.listCoaches(user.sub);
   }
 
   /** Il capo nutrizionisti (o admin) assegna il nutrizionista a una cliente. */

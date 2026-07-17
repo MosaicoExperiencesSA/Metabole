@@ -87,6 +87,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
   // (la portata "propria + team" è applicata nei servizi, non qui).
   coach_coordinator: {
     coach_tasks: { view: true, manage: true },
+    assign_coach: { view: true, manage: true }, // assegna i lead del SUO perimetro alle SUE coach
+
     dashboard: { view: true },
     notifications: { view: true },
     posta: { view: true },

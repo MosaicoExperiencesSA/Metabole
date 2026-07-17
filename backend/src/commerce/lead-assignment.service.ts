@@ -4,6 +4,7 @@ import { nextRuleCode, refCodeBase, splitDisplayName } from '../common/ref-code'
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope } from '../common/coach-team';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -49,6 +50,16 @@ export class LeadAssignmentService {
     });
     if (!coach) throw new BadRequestException('Coach non valida.');
 
+    // Coordinatrice (e coach): può muovere SOLO i lead già suoi o del suo team,
+    // e SOLO verso una coach del suo team (sé compresa). Responsabile/capo/admin: tutto.
+    const scope = await coachTeamScope(this.prisma, byUserId);
+    if (scope) {
+      if (!scope.includes(coachStaffId)) throw new ForbiddenException('Puoi assegnare solo alle coach del tuo team.');
+      if (!record.assignedCoachId || !scope.includes(record.assignedCoachId)) {
+        throw new ForbiddenException('Questo lead non è del tuo perimetro: chiedi alla responsabile.');
+      }
+    }
+
     const byStaff = await this.staffIdOf(byUserId);
     const updated = await this.prisma.crmRecord.update({
       where: { id: recordId },
@@ -79,10 +90,20 @@ export class LeadAssignmentService {
     });
     if (!coach) throw new BadRequestException('Coach non valida.');
 
+    // Perimetro coordinatrice/coach anche in massa: target nel team, lead già del team.
+    const scope = await coachTeamScope(this.prisma, byUserId);
+    if (scope && !scope.includes(coachStaffId)) throw new ForbiddenException('Puoi assegnare solo alle coach del tuo team.');
+
     // Scarta gli id inesistenti cosi' il conteggio riflette solo i lead reali.
-    const existing = await this.prisma.crmRecord.findMany({ where: { id: { in: ids } }, select: { id: true } });
+    const existing = await this.prisma.crmRecord.findMany({
+      where: {
+        id: { in: ids },
+        ...(scope ? { assignedCoachId: { in: scope } } : {}),
+      } as never,
+      select: { id: true },
+    }) as { id: string }[];
     const existingIds = existing.map((r) => r.id);
-    if (existingIds.length === 0) throw new BadRequestException('Nessun lead valido da assegnare.');
+    if (existingIds.length === 0) throw new BadRequestException(scope ? 'Nessuno dei lead selezionati è del tuo perimetro.' : 'Nessun lead valido da assegnare.');
 
     const byStaff = await this.staffIdOf(byUserId);
     await this.prisma.crmRecord.updateMany({
@@ -213,10 +234,15 @@ export class LeadAssignmentService {
     return { expired: stale.length };
   }
 
-  /** Elenco coach (per il menu di assegnazione). */
-  async listCoaches() {
+  /** Elenco coach per il menu di assegnazione (coordinatrice → solo il suo team). */
+  async listCoaches(actorUserId?: string) {
+    const scope = actorUserId ? await coachTeamScope(this.prisma, actorUserId) : null;
     const rows = await this.prisma.staff.findMany({
-      where: { user: { role: { in: ['coach', 'coach_coordinator'] as never }, status: 'active' }, active: true },
+      where: {
+        user: { role: { in: ['coach', 'coach_coordinator'] as never }, status: 'active' },
+        active: true,
+        ...(scope ? { id: { in: scope } } : {}),
+      } as never,
       select: { id: true, displayName: true },
       orderBy: { displayName: 'asc' },
     });

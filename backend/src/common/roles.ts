@@ -17,7 +17,9 @@ export const ROLES = [
 export type Role = (typeof ROLES)[number];
 
 /** Ruoli assegnabili allo staff (il cliente si registra da sé, non si assegna). */
-export const STAFF_ROLES: Role[] = ['coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin'];
+// Ordine della matrice permessi (e liste ruoli): la catena provvigionale coach →
+// coordinatrice → responsabile, poi nutrizionista → capo, marketing, admin in fondo.
+export const STAFF_ROLES: Role[] = ['coach', 'coach_coordinator', 'sales', 'nutritionist', 'head_nutritionist', 'marketing', 'head_marketing', 'admin'];
 
 /** Etichette leggibili dei ruoli di sistema (per liste e matrice permessi). */
 export const SYSTEM_ROLE_LABELS: Record<Role, string> = {
