@@ -102,6 +102,7 @@ export function LeadDetail() {
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Note dello staff (come scheda cliente)
   const [notes, setNotes] = useState<LeadNote[]>([]);
@@ -326,6 +327,21 @@ export function LeadDetail() {
     }
   }
 
+  async function deleteLead() {
+    if (!lead) return;
+    // eslint-disable-next-line no-alert
+    if (!confirm(`Eliminare definitivamente il lead "${displayName}"? Vengono rimosse anche le sue note e le appartenenze alle liste.`)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api(`/crm/leads/${lead.id}`, { method: 'DELETE' });
+      navigate('/crm/gestione');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita.');
+      setDeleting(false);
+    }
+  }
+
   if (loading) return <Spinner />;
   if (!lead) return <Banner kind="err">{error ?? 'Lead non trovato.'}</Banner>;
 
@@ -393,6 +409,11 @@ export function LeadDetail() {
                   <i className="ti ti-eye" /> Entra come
                 </button>
               </>
+            )}
+            {isAdmin && !editing && !lead.clientId && (
+              <button className="btn ghost" onClick={deleteLead} disabled={deleting} title="Elimina definitivamente questo lead" style={{ background: 'rgba(255,255,255,.9)', color: '#b3261e' }}>
+                <i className="ti ti-trash" /> {deleting ? 'Elimino…' : 'Elimina'}
+              </button>
             )}
           </div>
         </div>

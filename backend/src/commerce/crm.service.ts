@@ -551,9 +551,19 @@ export class CrmService {
   }
 
   async create(byUserId: string, input: { email: string; name?: string; phone?: string }) {
+    const email = input.email.trim();
+    // Anti-doppione: niente due schede CRM con la stessa email (confronto case-insensitive),
+    // sia lead "puri" sia clienti già collegati. Coerente con import e registrazione.
+    const dupe = (await this.prisma.crmRecord.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } } as never,
+      select: { id: true },
+    })) as { id: string } | null;
+    if (dupe) {
+      throw new BadRequestException('Esiste già un contatto con questa email. Cercalo in Gestione lead invece di crearne uno nuovo.');
+    }
     const record = await this.prisma.crmRecord.create({
       data: {
-        email: input.email,
+        email,
         name: input.name,
         phone: input.phone?.trim() || null,
         stage: 'lead_in',
@@ -567,6 +577,26 @@ export class CrmService {
       entityId: record.id,
     });
     return record;
+  }
+
+  /**
+   * Elimina una scheda lead (solo admin, vincolo nel controller). Se il lead è già un
+   * CLIENTE (clientId valorizzato) NON si elimina da qui: l'eliminazione del cliente e di
+   * tutti i suoi dati si fa dalla scheda cliente. Per un lead "puro" la cancellazione
+   * porta con sé note e appartenenze a liste (cascade) e slega i promemoria.
+   */
+  async deleteLead(actorUserId: string, recordId: string) {
+    const rec = (await this.prisma.crmRecord.findUnique({
+      where: { id: recordId },
+      select: { id: true, clientId: true },
+    })) as { id: string; clientId: string | null } | null;
+    if (!rec) throw new NotFoundException('Lead non trovato');
+    if (rec.clientId) {
+      throw new BadRequestException('Questo contatto è un cliente registrato: eliminalo dalla sua scheda cliente (elimina anche i dati collegati).');
+    }
+    await this.prisma.crmRecord.delete({ where: { id: recordId } });
+    await this.audit.log({ action: 'crm.lead.delete', actorId: actorUserId, entityType: 'crm_record', entityId: recordId });
+    return { ok: true };
   }
 
   /** Avanzamento manuale del commerciale: data + responsabile sempre registrati. */

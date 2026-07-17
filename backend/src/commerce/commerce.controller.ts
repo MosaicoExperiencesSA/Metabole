@@ -502,6 +502,14 @@ export class CrmController {
     return this.crm.advance(user.sub, id, dto);
   }
 
+  /** Elimina la scheda lead: SOLO admin (un lead che è già cliente si elimina dalla scheda cliente). */
+  @Roles('admin')
+  @HttpCode(200)
+  @Delete(':id')
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crm.deleteLead(user.sub, id);
+  }
+
   @Patch(':id/info')
   updateInfo(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateLeadInfoDto) {
     return this.crm.updateInfo(user.sub, id, dto);
