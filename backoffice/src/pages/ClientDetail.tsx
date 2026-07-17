@@ -19,7 +19,7 @@ interface Detail {
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
   subscription: any | null;
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string; approvedAt: string | null }[];
-  crm: { stage: string; valueCents: number | null } | null;
+  crm: { stage: string; stageLabel?: string | null; valueCents: number | null } | null;
   notes: { id: string; body: string; createdAt: string; author: string | null }[];
   pendingCommissions: { id: string; role: string; amountCents: number; createdAt: string }[];
 }
@@ -440,7 +440,7 @@ export function ClientDetail() {
                 {d.user.status === 'active' ? 'Attivo' : 'Sospeso'}
               </span>
               {p?.screeningFlag && <span className="chip red">Percorso supervisionato</span>}
-              {d.crm && <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>CRM: {d.crm.stage}</span>}
+              {d.crm && <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>CRM: {d.crm.stageLabel ?? d.crm.stage}</span>}
             </div>
           </div>
           <div className="row" style={{ gap: 8 }}>

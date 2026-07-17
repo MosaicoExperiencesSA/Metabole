@@ -223,13 +223,15 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
   }
 
   async options() {
+    // Stati: TUTTI quelli definiti in pipeline (nell'ordine scelto dall'admin),
+    // non solo quelli già usati da qualche scheda. Etichette: quelle sulle schede.
     const [lists, stageRows, tagRows, templates] = await Promise.all([
       this.prisma.crmList.findMany({ select: { id: true, name: true, color: true }, orderBy: { name: 'asc' } }),
-      this.prisma.crmRecord.findMany({ distinct: ['stage'], select: { stage: true } }),
+      this.prisma.pipelineStage.findMany({ select: { key: true, label: true }, orderBy: { order: 'asc' } }),
       this.prisma.crmRecord.findMany({ where: { tags: { isEmpty: false } }, select: { tags: true }, take: 5000 }),
       this.prisma.emailTemplate.findMany({ where: { active: true }, select: { key: true, name: true, subject: true }, orderBy: { name: 'asc' } }),
     ]);
-    const stages = [...new Set(stageRows.map((r) => r.stage))].sort();
+    const stages = (stageRows as { key: string; label: string }[]).map((s) => ({ key: s.key, label: s.label }));
     const tags = [...new Set(tagRows.flatMap((r) => r.tags))].sort();
     return { lists, stages, tags, templates };
   }

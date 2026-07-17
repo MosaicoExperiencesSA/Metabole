@@ -143,6 +143,13 @@ export class ClientsService {
 
     await this.audit.log({ action: 'client.detail.view', actorId, entityType: 'user', entityId: userId });
 
+    // Nome leggibile dello stato pipeline (es. "Prova" invece della chiave "trial") per il badge CRM.
+    const stageLabel = crm
+      ? ((await this.prisma.pipelineStage
+          .findUnique({ where: { key: (crm as { stage: string }).stage }, select: { label: true } })
+          .catch(() => null)) as { label: string } | null)?.label ?? null
+      : null;
+
     return {
       user,
       profile, // include onboardingAnswers, consents, screeningFlag, ecc.
@@ -153,7 +160,7 @@ export class ClientsService {
       stepLogs,
       subscription,
       payments,
-      crm,
+      crm: crm ? { ...(crm as Record<string, unknown>), stageLabel } : null,
       notes: (notes as { id: string; body: string; createdAt: Date; author: { displayName: string } | null }[]).map((n) => ({
         id: n.id,
         body: n.body,

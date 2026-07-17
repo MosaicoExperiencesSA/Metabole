@@ -5,7 +5,8 @@ import { Banner, Modal, Spinner } from '../components/ui';
 
 type Options = {
   lists: { id: string; name: string; color: string | null }[];
-  stages: string[];
+  // Tutti gli stati definiti in pipeline, nell'ordine dell'admin.
+  stages: { key: string; label: string }[];
   tags: string[];
   templates: { key: string; name: string; subject: string }[];
 };
@@ -50,7 +51,7 @@ export function Marketing() {
   const [throttle, setThrottle] = useState(true);
   const [batchSize, setBatchSize] = useState(50);
   const [pauseMinutes, setPauseMinutes] = useState(10);
-  // Azione post-invio: sui destinatari effettivamente inviati aggiungi un'etichetta e/o cambia stato pipeline.
+  // Azione post-invio: sui destinatari effettivamente inviati aggiungi un tag e/o cambia stato pipeline.
   const [postTag, setPostTag] = useState('');
   const [postStage, setPostStage] = useState('');
 
@@ -120,14 +121,14 @@ export function Marketing() {
       {/* Segmentazione */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}>1 · Crea il segmento</h2>
-        <p className="hint" style={{ marginTop: 0 }}>Combina i filtri: appartenenza a una lista, etichette, stato pipeline e altri dati della scheda. Solo contatti con email.</p>
+        <p className="hint" style={{ marginTop: 0 }}>Combina i filtri: appartenenza a una lista, tag, stato pipeline e altri dati della scheda. Solo contatti con email.</p>
 
         <ChipGroup label="Liste" empty="Nessuna lista" items={opts.lists.map((l) => ({ v: l.id, l: l.name }))} sel={filters.listIds} onToggle={(v) => toggle('listIds', v)} />
-        <ChipGroup label="Etichette" empty="Nessuna etichetta sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.tags} onToggle={(v) => toggle('tags', v)} />
-        <ChipGroup label="Stato (pipeline)" empty="—" items={opts.stages.map((s) => ({ v: s, l: s }))} sel={filters.stages} onToggle={(v) => toggle('stages', v)} />
-        {/* Esclusioni: utili con l'azione post-invio (es. escludi chi ha già l'etichetta della campagna precedente). */}
-        <ChipGroup label="Escludi etichette" empty="Nessuna etichetta sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.excludeTags} onToggle={(v) => toggle('excludeTags', v)} />
-        <ChipGroup label="Escludi stati" empty="—" items={opts.stages.map((s) => ({ v: s, l: s }))} sel={filters.excludeStages} onToggle={(v) => toggle('excludeStages', v)} />
+        <ChipGroup label="Includi tag" empty="Nessun tag sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.tags} onToggle={(v) => toggle('tags', v)} />
+        <ChipGroup label="Includi stati (pipeline)" empty="—" items={opts.stages.map((s) => ({ v: s.key, l: s.label }))} sel={filters.stages} onToggle={(v) => toggle('stages', v)} />
+        {/* Esclusioni: utili con l'azione post-invio (es. escludi chi ha già il tag della campagna precedente). */}
+        <ChipGroup label="Escludi tag" empty="Nessun tag sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.excludeTags} onToggle={(v) => toggle('excludeTags', v)} />
+        <ChipGroup label="Escludi stati" empty="—" items={opts.stages.map((s) => ({ v: s.key, l: s.label }))} sel={filters.excludeStages} onToggle={(v) => toggle('excludeStages', v)} />
 
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
           <label className="row" style={{ gap: 6, alignItems: 'center' }}>
@@ -169,7 +170,7 @@ export function Marketing() {
                   <div key={r.id} className="row" style={{ gap: 8, fontSize: 12.5, padding: '4px 8px', borderRadius: 8, background: 'var(--chip)' }}>
                     <span style={{ flex: 1 }}>{r.name || '—'}</span>
                     <span className="muted">{r.email}</span>
-                    <span className="muted">{r.stage}</span>
+                    <span className="muted">{opts.stages.find((s) => s.key === r.stage)?.label ?? r.stage}</span>
                   </div>
                 ))}
                 <span className="muted" style={{ fontSize: 11 }}>(anteprima dei primi {preview.sample.length})</span>
@@ -238,7 +239,7 @@ export function Marketing() {
             <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Dopo l'invio (facoltativo)</span>
             <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <label className="row" style={{ gap: 6, alignItems: 'center' }}>
-                <span className="muted" style={{ fontSize: 12 }}>Aggiungi etichetta</span>
+                <span className="muted" style={{ fontSize: 12 }}>Aggiungi tag</span>
                 <input className="input" list="post-tag-options" value={postTag} onChange={(e) => setPostTag(e.target.value)} placeholder="es. promo-set-26" maxLength={40} style={{ width: 180 }} />
                 <datalist id="post-tag-options">
                   {opts.tags.map((t) => <option key={t} value={t} />)}
@@ -248,12 +249,12 @@ export function Marketing() {
                 <span className="muted" style={{ fontSize: 12 }}>Sposta allo stato</span>
                 <select className="select" value={postStage} onChange={(e) => setPostStage(e.target.value)} style={{ width: 180 }}>
                   <option value="">— non cambiare —</option>
-                  {opts.stages.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {opts.stages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                 </select>
               </label>
             </div>
             <p className="muted" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
-              L'azione si applica solo ai contatti a cui l'email è stata inviata davvero (le fallite restano com'erano). Con l'etichetta puoi poi escluderli dalla campagna successiva usando «Escludi etichette» nel segmento.
+              L'azione si applica solo ai contatti a cui l'email è stata inviata davvero (le fallite restano com'erano). Con il tag puoi poi escluderli dalla campagna successiva usando «Escludi tag» nel segmento.
             </p>
           </div>
         </div>
@@ -312,7 +313,7 @@ export function Marketing() {
               ? <> Invio a lotti: <b>{batchSize}</b> e-mail, poi pausa di <b>{pauseMinutes}</b> minuti.</>
               : <> Tutte le e-mail partiranno insieme.</>}
             {(postTag.trim() || postStage) && (
-              <> Dopo l'invio: {postTag.trim() && <>etichetta <b>{postTag.trim()}</b></>}{postTag.trim() && postStage && ' e '}{postStage && <>stato <b>{postStage}</b></>} sui contatti raggiunti.</>
+              <> Dopo l'invio: {postTag.trim() && <>tag <b>{postTag.trim()}</b></>}{postTag.trim() && postStage && ' e '}{postStage && <>stato <b>{opts.stages.find((s) => s.key === postStage)?.label ?? postStage}</b></>} sui contatti raggiunti.</>
             )}
           </p>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
