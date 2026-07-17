@@ -13,6 +13,7 @@ interface Discount {
   active: boolean;
   expiresAt: string | null;
   createdAt: string;
+  clientId?: string | null; // valorizzato = codice PERSONALE di una cliente (giorno 6 prova)
 }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -95,7 +96,7 @@ export function BuoniSconto() {
             <tbody>
               {pg.pageItems.map((d) => (
                 <tr key={d.id}>
-                  <td><b>{d.code}</b></td>
+                  <td><b>{d.code}</b>{d.clientId && <span className="chip amber" style={{ marginLeft: 6, fontSize: 10 }} title="Codice personale di una cliente (inviato al giorno 6 della prova)">personale</span>}</td>
                   <td>{valueLabel(d)}</td>
                   <td className="muted">{d.usedCount}{d.maxTotalUses != null ? ` / ${d.maxTotalUses}` : ' / ∞'}</td>
                   <td className="muted">{d.maxPerClient}</td>

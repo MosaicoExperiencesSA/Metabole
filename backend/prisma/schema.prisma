@@ -1411,6 +1411,9 @@ model DiscountCode {
   code         String    @unique // codice inserito dal cliente (maiuscolo)
   type         String // percent | fixed
   value        Int // percent (es. 10) oppure importo in centesimi
+  // Codice PERSONALE (handoff punto 3 "Codici sconto personali"): se valorizzato,
+  // solo questa cliente può usarlo (es. GIULIA-FOUND inviato al giorno 6 della prova).
+  clientId     String?   @map("client_id")
   maxTotalUses Int?      @map("max_total_uses") // null = illimitato
   maxPerClient Int       @default(1) @map("max_per_client")
   usedCount    Int       @default(0) @map("used_count")
@@ -1422,6 +1425,7 @@ model DiscountCode {
 
   redemptions DiscountRedemption[]
 
+  @@index([clientId])
   @@map("discount_code")
 }
 

@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
+import { randomUUID } from 'crypto';
+import { DiscountsService } from '../commerce/discounts.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 
 export type LifecycleKind = 'event' | 'scheduled';
 
@@ -28,6 +31,7 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'onb_g1', label: 'Onboarding giorno 1', when: 'Inizio piano = 1 giorno fa', kind: 'scheduled', implemented: true },
   { key: 'onb_g4', label: 'Onboarding giorno 4', when: 'Inizio piano = 4 giorni fa', kind: 'scheduled', implemented: true },
   { key: 'onb_g7', label: 'Onboarding giorno 7', when: 'Inizio piano = 7 giorni fa', kind: 'scheduled', implemented: true },
+  { key: 'trial_g6_offer', label: 'Prova G6 — offerta con codice personale', when: 'Prova gratuita attiva iniziata 6 giorni fa (codice 48h)', kind: 'scheduled', implemented: true },
   // --- In roadmap: richiedono dati non ancora tracciati ---
   { key: 'onb_g2', label: 'Onboarding giorno 2', when: 'Inizio piano = 2 giorni fa', kind: 'scheduled', implemented: false },
   { key: 'cart_1h', label: 'Carrello +1h', when: 'Carrello abbandonato (stato carrello non tracciato)', kind: 'scheduled', implemented: false },
@@ -100,6 +104,8 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly discounts: DiscountsService,
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   onModuleInit(): void {
@@ -363,6 +369,82 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           },
         });
         bump(dt.key, r);
+      }
+    }
+
+    // 4-bis) trial_g6_offer — prova gratuita al GIORNO 6: codice sconto personale
+    //        con scadenza 48h (handoff lancio, punto 5). Il codice è idempotente
+    //        (stessa scadenza a ogni ritentativo) e l'email è deduplicata per
+    //        abbonamento; all'invio si traccia il funnel `trial_day6_offer_sent`.
+    if (on('trial_g6_offer')) {
+      const range6 = this.dayRange(-6);
+      const trials = (await this.prisma.subscription.findMany({
+        where: {
+          status: 'active',
+          plan: { priceCents: 0 },
+          startDate: { gte: range6.gte, lt: range6.lt },
+        } as never,
+        select: {
+          id: true,
+          clientId: true,
+          client: { select: { email: true, firstName: true, clientProfile: { select: { name: true } } } },
+        },
+        take: LifecycleService.BATCH,
+      })) as { id: string; clientId: string; client: { email: string; firstName: string | null; clientProfile: { name: string | null } | null } | null }[];
+      if (trials.length > 0) {
+        const [codeHours, discType, discValue] = await Promise.all([
+          this.configParams.getNumber('trial_offer_code_hours', 48),
+          this.configParams.getString('trial_offer_discount_type', 'percent'),
+          this.configParams.getNumber('trial_offer_discount_value', 10),
+        ]);
+        // Piano proposto nell'email: il percorso principale (3 mesi se esiste).
+        const plans = (await this.prisma.plan.findMany({
+          where: { active: true, priceCents: { gt: 0 } },
+          orderBy: { priceCents: 'desc' },
+          select: { name: true, priceCents: true, listPriceCents: true, promoEndsAt: true, period: true },
+        })) as { name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: Date | null; period: string }[];
+        const offerPlan = plans.find((pl) => pl.period === '3m') ?? plans[0] ?? null;
+        for (const t of trials) {
+          if (!t.client?.email) continue;
+          const personal = await this.discounts.ensurePersonalTrialCode(t.clientId, {
+            type: discType === 'fixed' ? 'fixed' : 'percent',
+            value: discValue,
+            validHours: codeHours,
+          });
+          const scad = personal.expiresAt
+            ? personal.expiresAt.toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+            : '48 ore';
+          const promoOn = offerPlan?.listPriceCents != null && offerPlan.listPriceCents > offerPlan.priceCents
+            && (offerPlan.promoEndsAt == null || offerPlan.promoEndsAt.getTime() > Date.now());
+          const r = await this.sendLifecycle({
+            userId: t.clientId,
+            email: t.client.email,
+            key: 'trial_g6_offer',
+            dedupeKey: `trial_g6_offer:${t.id}`,
+            vars: {
+              nome: t.client.firstName ?? t.client.clientProfile?.name ?? '',
+              codice: personal.code,
+              scadenza: scad,
+              piano: offerPlan?.name ?? 'Percorso 3 mesi',
+              prezzo: offerPlan ? `€ ${Math.round((promoOn ? offerPlan.priceCents : (offerPlan.listPriceCents ?? offerPlan.priceCents)) / 100)}` : '',
+              prezzo_listino: promoOn && offerPlan?.listPriceCents != null ? `€ ${Math.round(offerPlan.listPriceCents / 100)}` : '',
+              link: `${app}/negozio`,
+            },
+          });
+          bump('trial_g6_offer', r);
+          if (r === 'sent') {
+            // Stato funnel richiesto dall'handoff: trial_day6_offer_sent.
+            await this.prisma.analyticsEvent.create({
+              data: {
+                eventId: randomUUID(),
+                name: 'trial_day6_offer_sent',
+                userId: t.clientId,
+                phase: 'funnel',
+                data: { subscriptionId: t.id, code: personal.code, expiresAt: personal.expiresAt } as never,
+              } as never,
+            }).catch(() => undefined);
+          }
+        }
       }
     }
 

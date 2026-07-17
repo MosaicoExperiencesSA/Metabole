@@ -18,7 +18,7 @@ interface ReportFull {
   objective: { targetWeightKg: number | null; toGoKg: number | null };
   gaia: string[];
   coach: { name: string; phone: string | null } | null;
-  offer: { planId: string; planName: string; priceCents: number; listPriceCents: number | null; promoActive: boolean; promoEndsAt: string | null; period: string; code: string | null } | null;
+  offer: { planId: string; planName: string; priceCents: number; listPriceCents: number | null; promoActive: boolean; promoEndsAt: string | null; period: string; code: string | null; codeExpiresAt?: string | null } | null;
 }
 
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
@@ -159,6 +159,11 @@ export default function Report() {
                 <div style={{ border: '1.5px dashed #E8825A', borderRadius: 10, textAlign: 'center', padding: '8px 10px', marginTop: 10 }}>
                   <div className="muted" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px' }}>CODICE RISERVATO A TE</div>
                   <div style={{ fontWeight: 800, letterSpacing: '2px', color: '#E8825A', fontSize: 16 }}>{r.offer.code}</div>
+                  {r.offer.codeExpiresAt && (
+                    <div className="muted" style={{ fontSize: 10.5, marginTop: 2 }}>
+                      valido fino al {new Date(r.offer.codeExpiresAt).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
                 </div>
               )}
               <button className="btn" style={{ width: '100%', marginTop: 12 }} onClick={() => nav('/negozio')}>
