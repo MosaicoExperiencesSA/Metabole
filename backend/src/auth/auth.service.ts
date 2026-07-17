@@ -63,6 +63,22 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email: normalized } });
     if (existing) throw new ConflictException('Email già registrata');
 
+    // Telefono obbligatorio insieme all'email. Deve essere UNIVOCO sulle cifre, così
+    // il login-per-telefono (auth.login) resta non ambiguo: se un numero è già usato
+    // — anche solo come suffisso — la registrazione viene rifiutata.
+    const phone = dto.phone.trim();
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 6) throw new BadRequestException('Numero di telefono non valido');
+    const phoneOwners = (await this.prisma.user.findMany({
+      where: { phone: { not: null }, deletedAt: null },
+      select: { phone: true },
+    })) as { phone: string | null }[];
+    const phoneClash = phoneOwners.some((u) => {
+      const d = (u.phone ?? '').replace(/\D/g, '');
+      return d.length >= 6 && (d === phoneDigits || d.endsWith(phoneDigits) || phoneDigits.endsWith(d));
+    });
+    if (phoneClash) throw new ConflictException('Numero di telefono già registrato');
+
     // Se è indicato un codice invito, lo validiamo PRIMA di creare l'utente,
     // così un codice errato dà un errore chiaro invece di un account "orfano".
     // Un codice invito può essere di uno STAFF (coach o nutrizionista: ref code →
@@ -89,6 +105,7 @@ export class AuthService {
         locale: dto.locale ?? 'it',
         firstName: dto.firstName?.trim() || null,
         lastName: dto.lastName?.trim() || null,
+        phone,
         addressLine: dto.addressLine?.trim() || null,
         postalCode: dto.postalCode?.trim() || null,
         city: dto.city?.trim() || null,

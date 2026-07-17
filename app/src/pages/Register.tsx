@@ -6,6 +6,26 @@ import Gaia from '../components/Gaia';
 import PasswordField from '../components/PasswordField';
 import { TypeText } from '../components/TypeText';
 
+// Prefissi internazionali per il telefono (Italia + paesi più comuni per le clienti).
+const PHONE_PREFIXES = [
+  { code: '+39', name: 'Italia' },
+  { code: '+41', name: 'Svizzera' },
+  { code: '+378', name: 'San Marino' },
+  { code: '+377', name: 'Monaco' },
+  { code: '+33', name: 'Francia' },
+  { code: '+49', name: 'Germania' },
+  { code: '+34', name: 'Spagna' },
+  { code: '+44', name: 'Regno Unito' },
+  { code: '+43', name: 'Austria' },
+  { code: '+32', name: 'Belgio' },
+  { code: '+31', name: 'Paesi Bassi' },
+  { code: '+351', name: 'Portogallo' },
+  { code: '+30', name: 'Grecia' },
+  { code: '+353', name: 'Irlanda' },
+  { code: '+352', name: 'Lussemburgo' },
+  { code: '+1', name: 'USA / Canada' },
+];
+
 /** Passo 3 di 34 — Crea il tuo account (minimale: l'indirizzo si prende al checkout). */
 export default function Register() {
   const { register } = useAuth();
@@ -24,6 +44,9 @@ export default function Register() {
     password: '',
     refCode: invitedCode,
   });
+  // Telefono: prefisso (a discesa) + numero, obbligatori insieme all'email.
+  const [phonePrefix, setPhonePrefix] = useState('+39');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Se l'email è già registrata, proponiamo il reset password invece del solo errore.
@@ -45,11 +68,16 @@ export default function Register() {
     setResetSent(false);
     setBusy(true);
     try {
-      await register(f);
+      await register({ ...f, phone: `${phonePrefix} ${phoneNumber.trim()}` });
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
-        // Email già registrata: niente errore secco, proponiamo il reset.
-        setEmailExists(true);
+        // 409 = conflitto: distinguiamo telefono già usato dall'email già registrata.
+        if (/telefono|numero/i.test(e.message)) {
+          setErr(e.message);
+        } else {
+          // Email già registrata: niente errore secco, proponiamo il reset.
+          setEmailExists(true);
+        }
       } else {
         setErr(e instanceof ApiError ? e.message : 'Registrazione non riuscita');
       }
@@ -131,6 +159,33 @@ export default function Register() {
           <div className="field">
             <label>Email</label>
             <input className="input" type="email" value={f.email} onChange={(e) => up('email', e.target.value)} inputMode="email" autoComplete="email" required />
+          </div>
+          <div className="field">
+            <label>Telefono</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select
+                className="input"
+                style={{ flex: '0 0 42%' }}
+                value={phonePrefix}
+                onChange={(e) => setPhonePrefix(e.target.value)}
+                aria-label="Prefisso internazionale"
+              >
+                {PHONE_PREFIXES.map((p) => (
+                  <option key={p.code} value={p.code}>{p.name} ({p.code})</option>
+                ))}
+              </select>
+              <input
+                className="input"
+                style={{ flex: 1 }}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel-national"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^\d\s]/g, ''))}
+                placeholder="Numero"
+                required
+              />
+            </div>
           </div>
           <div className="field">
             <label>Password</label>

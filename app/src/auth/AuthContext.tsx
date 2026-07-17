@@ -40,6 +40,8 @@ export interface RegisterPayload {
   city?: string;
   province?: string;
   email: string;
+  // Telefono già combinato (prefisso + numero), obbligatorio con l'email.
+  phone: string;
   password: string;
   refCode?: string;
 }
@@ -101,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
       email: data.email.trim(),
+      phone: data.phone.trim(),
       password: data.password,
     };
     if (data.addressLine?.trim()) body.addressLine = data.addressLine.trim();
