@@ -130,10 +130,10 @@ export class PauseService {
   private async staffScope(actorUserId: string): Promise<{ field: 'assignedCoachId' | 'assignedNutritionistId'; staffId: string } | null> {
     const actor = await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } });
     const role = actor?.role as string | undefined;
-    if (role !== 'coach' && role !== 'nutritionist') return null;
+    if (role !== 'coach' && role !== 'coach_coordinator' && role !== 'nutritionist') return null;
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
     return {
-      field: role === 'coach' ? 'assignedCoachId' : 'assignedNutritionistId',
+      field: role === 'nutritionist' ? 'assignedNutritionistId' : 'assignedCoachId',
       staffId: staff?.id ?? '00000000-0000-0000-0000-000000000000',
     };
   }

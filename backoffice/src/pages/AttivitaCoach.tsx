@@ -20,6 +20,7 @@ const KIND_ICON: Record<string, string> = {
   trial_g0_measures: 'ti-ruler-measure', trial_g1_welcome: 'ti-heart-handshake',
   trial_g4_adherence: 'ti-phone', trial_g6_code: 'ti-discount-2', trial_g7_closing: 'ti-brand-whatsapp',
   plan_end_report: 'ti-report', trial_post7_lastcall: 'ti-phone-call',
+  plan_expiry_heads_up: 'ti-calendar-due', maintenance_regain: 'ti-scale',
 };
 
 export function AttivitaCoach() {

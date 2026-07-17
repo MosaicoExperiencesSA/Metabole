@@ -7,6 +7,12 @@ interface Commissions {
   commissionManagerCoachCents: number;
   commissionNutritionistCents: number;
   commissionHeadNutritionistCents: number;
+  // Rete a differenza: percentuali per livello (0 = livello non pagato).
+  commissionCoachPct?: number;
+  commissionCoordinatorPct?: number;
+  commissionManagerPct?: number;
+  commissionNutritionistPct?: number;
+  commissionHeadNutritionistPct?: number;
 }
 interface Plan extends Commissions { id: string; name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: string | null; promoActive?: boolean; period: string; mealsPerDay: number | null; features: string[]; active: boolean; repurchasable: boolean; }
 interface Product extends Commissions { id: string; name: string; priceCents: number; description: string | null; active: boolean; repurchasable: boolean; }
@@ -18,6 +24,16 @@ const fromCents = (c: number | null | undefined) => (c ? (c / 100).toString().re
 /** Riepilogo compatto delle provvigioni per la tabella (mostra solo le quote > 0). */
 function commSummary(c: Commissions): string {
   const parts: string[] = [];
+  // Rete a differenza (percentuali): se impostate, vincono sugli importi fissi legacy.
+  const pct = (c.commissionCoachPct ?? 0) || (c.commissionCoordinatorPct ?? 0) || (c.commissionManagerPct ?? 0) || (c.commissionNutritionistPct ?? 0) || (c.commissionHeadNutritionistPct ?? 0);
+  if (pct) {
+    if (c.commissionCoachPct) parts.push(`Coach ${c.commissionCoachPct}%`);
+    if (c.commissionCoordinatorPct) parts.push(`Coord. ${c.commissionCoordinatorPct}%`);
+    if (c.commissionManagerPct) parts.push(`Mgr ${c.commissionManagerPct}%`);
+    if (c.commissionNutritionistPct) parts.push(`Nutriz. ${c.commissionNutritionistPct}%`);
+    if (c.commissionHeadNutritionistPct) parts.push(`Capo n. ${c.commissionHeadNutritionistPct}%`);
+    return parts.join(' · ') + ' (a differenza)';
+  }
   if (c.commissionCoachCents) parts.push(`Coach ${euro(c.commissionCoachCents)}`);
   if (c.commissionManagerCoachCents) parts.push(`Mgr coach ${euro(c.commissionManagerCoachCents)}`);
   if (c.commissionNutritionistCents) parts.push(`Nutriz. ${euro(c.commissionNutritionistCents)}`);
@@ -25,31 +41,42 @@ function commSummary(c: Commissions): string {
   return parts.length ? parts.join(' · ') : '—';
 }
 
-/** I 4 campi provvigione in €, condivisi dai form piano e prodotto. */
+/**
+ * Provvigioni della RETE A DIFFERENZA: percentuali per livello sull'importo pagato.
+ * Ognuno incassa la differenza col livello sotto (25/35/45 → 25+10+10 a rete
+ * completa; coach sotto la manager senza coordinatrice → 25+20). Stessa logica
+ * nutrizionista → capo. Con tutte le percentuali a 0 valgono ancora gli importi
+ * fissi legacy già salvati sull'articolo.
+ */
 function CommissionInputs({ form, set }: { form: Record<string, string>; set: (f: Record<string, string>) => void }) {
   return (
     <>
       <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-        Provvigioni per questo articolo (importi fissi in €, 0 = nessuna). In caso di sconto sono ridotte in proporzione.
+        Provvigioni a DIFFERENZA (in % sull'importo pagato): ogni livello incassa la differenza col livello sotto.
+        Es. 25 / 35 / 45 → coach 25%, coordinatrice 10%, manager 10%. Tutte a 0 = valgono gli eventuali importi fissi storici.
       </div>
-      <Fld label="Provv. coach (€)" v={form.cCoach} on={(v) => set({ ...form, cCoach: v })} />
-      <Fld label="Provv. manager coach (€)" v={form.cMgrCoach} on={(v) => set({ ...form, cMgrCoach: v })} />
-      <Fld label="Provv. nutrizionista (€)" v={form.cNutri} on={(v) => set({ ...form, cNutri: v })} />
-      <Fld label="Provv. capo nutrizionista (€)" v={form.cHeadNutri} on={(v) => set({ ...form, cHeadNutri: v })} />
+      <Fld label="Coach (%)" v={form.pCoach} on={(v) => set({ ...form, pCoach: v })} />
+      <Fld label="Coordinatrice (%)" v={form.pCoord} on={(v) => set({ ...form, pCoord: v })} />
+      <Fld label="Manager (%)" v={form.pMgr} on={(v) => set({ ...form, pMgr: v })} />
+      <Fld label="Nutrizionista (%)" v={form.pNutri} on={(v) => set({ ...form, pNutri: v })} />
+      <Fld label="Capo nutrizionista (%)" v={form.pHeadNutri} on={(v) => set({ ...form, pHeadNutri: v })} />
     </>
   );
 }
+const toPct = (s: string) => Math.max(0, Math.min(100, Math.round(Number((s ?? '').replace(',', '.')) || 0)));
 const commBody = (f: Record<string, string>) => ({
-  commissionCoachCents: toCents(f.cCoach ?? '0'),
-  commissionManagerCoachCents: toCents(f.cMgrCoach ?? '0'),
-  commissionNutritionistCents: toCents(f.cNutri ?? '0'),
-  commissionHeadNutritionistCents: toCents(f.cHeadNutri ?? '0'),
+  commissionCoachPct: toPct(f.pCoach ?? '0'),
+  commissionCoordinatorPct: toPct(f.pCoord ?? '0'),
+  commissionManagerPct: toPct(f.pMgr ?? '0'),
+  commissionNutritionistPct: toPct(f.pNutri ?? '0'),
+  commissionHeadNutritionistPct: toPct(f.pHeadNutri ?? '0'),
 });
 const commFormFrom = (c: Commissions) => ({
-  cCoach: fromCents(c.commissionCoachCents),
-  cMgrCoach: fromCents(c.commissionManagerCoachCents),
-  cNutri: fromCents(c.commissionNutritionistCents),
-  cHeadNutri: fromCents(c.commissionHeadNutritionistCents),
+  pCoach: c.commissionCoachPct ? String(c.commissionCoachPct) : '',
+  pCoord: c.commissionCoordinatorPct ? String(c.commissionCoordinatorPct) : '',
+  pMgr: c.commissionManagerPct ? String(c.commissionManagerPct) : '',
+  pNutri: c.commissionNutritionistPct ? String(c.commissionNutritionistPct) : '',
+  pHeadNutri: c.commissionHeadNutritionistPct ? String(c.commissionHeadNutritionistPct) : '',
 });
 
 export function GestioneNegozio() {

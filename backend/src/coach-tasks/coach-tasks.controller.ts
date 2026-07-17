@@ -14,7 +14,7 @@ class SetStatusDto {
 /** Task coach: la coach vede i SUOI (clienti assegnate); responsabile coach e admin tutti. */
 @Controller('staff/coach-tasks')
 @RequirePage('coach_tasks')
-@Roles('coach', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'sales', 'admin')
 export class CoachTasksController {
   constructor(private readonly tasks: CoachTasksService) {}
 

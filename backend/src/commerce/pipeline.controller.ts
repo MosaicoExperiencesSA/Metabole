@@ -46,7 +46,7 @@ class ReorderDto {
  * admin. Gestione degli STATI (crea/rinomina/riordina/elimina): solo admin.
  */
 @Controller('crm')
-@Roles('coach', 'sales', 'head_nutritionist', 'admin')
+@Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
 export class PipelineController {
   constructor(
     private readonly pipeline: PipelineService,

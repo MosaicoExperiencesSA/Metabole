@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope, isCoachLike } from '../common/coach-team';
 
 const DAY = 86_400_000;
 const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
@@ -67,13 +68,19 @@ export class CoachService {
     return staff?.id ?? null;
   }
 
+  /** Portata clienti: coach → sé stessa; coordinatrice → sé + coach del suo team. */
+  private async scopeIds(userId: string): Promise<string[]> {
+    return (await coachTeamScope(this.prisma, userId)) ?? [];
+  }
+
   /** Elenco delle clienti della coach con un riepilogo per la lista. */
   async clients(user: AuthUser, includeLeads = false): Promise<{ clients: unknown[] }> {
     const staffId = await this.staffId(user.sub);
     if (!staffId) return { clients: [] };
+    const scope = await this.scopeIds(user.sub);
 
     const profiles = (await this.prisma.clientProfile.findMany({
-      where: { assignedCoachId: staffId },
+      where: { assignedCoachId: { in: scope } },
       select: { userId: true, name: true, planStartDate: true, startWeightKg: true },
     })) as ProfileRow[];
     const ids = profiles.map((p) => p.userId);
@@ -154,7 +161,7 @@ export class CoachService {
     if (includeLeads) {
       const activeIds = new Set(ids);
       const crm = (await this.prisma.crmRecord.findMany({
-        where: { assignedCoachId: staffId },
+        where: { assignedCoachId: { in: scope } },
         orderBy: { assignedAt: 'desc' },
         take: 200,
         select: { id: true, clientId: true, name: true, email: true, phone: true, stage: true },
@@ -187,6 +194,7 @@ export class CoachService {
   async dashboard(user: AuthUser) {
     const staffId = await this.staffId(user.sub);
     if (!staffId) return { isCoach: false };
+    const scope = await this.scopeIds(user.sub);
 
     const expiringDays = await this.configParams.getNumber('expiring_plan_days', 14);
     const now = new Date();
@@ -194,12 +202,12 @@ export class CoachService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [clientsCount, expiring, openAlerts, monthAgg, totalAgg] = await Promise.all([
-      this.prisma.clientProfile.count({ where: { assignedCoachId: staffId } }),
+      this.prisma.clientProfile.count({ where: { assignedCoachId: { in: scope } } }),
       this.prisma.subscription.findMany({
         where: {
           status: 'active',
           endDate: { gte: now, lte: horizon },
-          client: { clientProfile: { assignedCoachId: staffId } },
+          client: { clientProfile: { assignedCoachId: { in: scope } } },
         },
         select: { clientId: true, endDate: true, client: { select: { clientProfile: { select: { name: true } } } } },
         orderBy: { endDate: 'asc' },
@@ -246,7 +254,7 @@ export class CoachService {
     if (!staffId) return { appointments: [] };
 
     const profiles = (await this.prisma.clientProfile.findMany({
-      where: { assignedCoachId: staffId },
+      where: { assignedCoachId: { in: await this.scopeIds(user.sub) } },
       select: { userId: true, name: true },
     })) as { userId: string; name: string | null }[];
     const ids = profiles.map((p) => p.userId);
@@ -293,8 +301,9 @@ export class CoachService {
     if (!profile) throw new NotFoundException('Cliente non trovata');
 
     let staffRole: 'coach' | 'nutritionist';
-    if (user.role === 'coach') {
-      if (profile.assignedCoachId !== staffId) throw new ForbiddenException('Non è una tua cliente');
+    if (isCoachLike(user.role)) {
+      const scope = await this.scopeIds(user.sub);
+      if (!profile.assignedCoachId || !scope.includes(profile.assignedCoachId)) throw new ForbiddenException('Non è una tua cliente');
       staffRole = 'coach';
     } else if (user.role === 'nutritionist') {
       if (profile.assignedNutritionistId !== staffId) throw new ForbiddenException('Non è una tua paziente');

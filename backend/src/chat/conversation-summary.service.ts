@@ -100,7 +100,7 @@ export class ConversationSummaryService {
 
   /** "Conversazioni passate" lato staff: solo clienti assegnati; la coach NON vede il nutrizionista. */
   async listForStaff(user: AuthUser, clientId: string, counterpart: string) {
-    if (user.role === 'coach' && counterpart === 'nutritionist') {
+    if ((user.role === 'coach' || user.role === 'coach_coordinator') && counterpart === 'nutritionist') {
       throw new ForbiddenException('La coach non accede alle conversazioni col nutrizionista');
     }
     if (!MANAGER_ROLES.includes(user.role)) {
@@ -110,7 +110,7 @@ export class ConversationSummaryService {
         select: { assignedCoachId: true, assignedNutritionistId: true },
       });
       const owns =
-        (user.role === 'coach' && profile?.assignedCoachId === staff?.id) ||
+        ((user.role === 'coach' || user.role === 'coach_coordinator') && profile?.assignedCoachId === staff?.id) ||
         (user.role === 'nutritionist' && profile?.assignedNutritionistId === staff?.id);
       if (!staff || !profile || !owns) throw new ForbiddenException('Cliente non tra i tuoi assegnati');
     }

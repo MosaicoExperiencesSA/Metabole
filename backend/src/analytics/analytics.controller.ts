@@ -6,7 +6,7 @@ import { AnalyticsService } from './analytics.service';
 
 /** Pagina Grafici: metriche aggregate, con scope per ruolo. */
 @Controller('admin/charts')
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}
 

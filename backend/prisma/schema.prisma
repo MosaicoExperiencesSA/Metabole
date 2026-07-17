@@ -17,6 +17,7 @@ datasource db {
 enum Role {
   client
   coach
+  coach_coordinator
   nutritionist
   head_nutritionist
   sales
@@ -444,8 +445,18 @@ model Plan {
   active      Boolean  @default(true)
   // Se false: dopo l'acquisto il piano scompare dallo shop di QUEL cliente (non riacquistabile).
   repurchasable Boolean @default(true)
-  // Provvigioni in CENTESIMI di € per questo piano (importi fissi, non percentuali).
-  // Riscalate sull'importo effettivamente pagato in caso di sconto.
+  // RETE PROVVIGIONALE A DIFFERENZA (decisione 17/07): percentuali per LIVELLO
+  // sull'importo effettivamente pagato. Ognuno incassa la differenza col livello
+  // sotto (es. coach 25 / coordinatrice 35 / manager 45 → 25+10+10 a rete completa;
+  // coach direttamente sotto la manager → 25+20). Stessa logica per nutrizionista →
+  // capo. Se tutte le percentuali sono 0 valgono ancora gli importi fissi sotto.
+  commissionCoachPct            Int @default(0) @map("commission_coach_pct")
+  commissionCoordinatorPct      Int @default(0) @map("commission_coordinator_pct")
+  commissionManagerPct          Int @default(0) @map("commission_manager_pct")
+  commissionNutritionistPct     Int @default(0) @map("commission_nutritionist_pct")
+  commissionHeadNutritionistPct Int @default(0) @map("commission_head_nutritionist_pct")
+  // Provvigioni in CENTESIMI di € per questo piano (importi fissi, LEGACY:
+  // usate solo se le percentuali qui sopra sono tutte a zero).
   commissionCoachCents            Int @default(0) @map("commission_coach_cents")
   commissionManagerCoachCents     Int @default(0) @map("commission_manager_coach_cents")
   commissionNutritionistCents     Int @default(0) @map("commission_nutritionist_cents")
@@ -522,9 +533,18 @@ model Product {
   active      Boolean  @default(true)
   // Se false: dopo l'acquisto il prodotto scompare dallo shop di QUEL cliente (non riacquistabile).
   repurchasable Boolean @default(true)
-  // Provvigioni in CENTESIMI di € per unità di questo prodotto (importi fissi).
-  // Sostituiscono il vecchio flag commissionTeam: 0 su un lato = niente provvigione
-  // a quel lato. Riscalate sull'importo pagato in caso di sconto.
+  // RETE PROVVIGIONALE A DIFFERENZA (decisione 17/07): percentuali per LIVELLO
+  // sull'importo effettivamente pagato. Ognuno incassa la differenza col livello
+  // sotto (es. coach 25 / coordinatrice 35 / manager 45 → 25+10+10 a rete completa;
+  // coach direttamente sotto la manager → 25+20). Stessa logica per nutrizionista →
+  // capo. Se tutte le percentuali sono 0 valgono ancora gli importi fissi sotto.
+  commissionCoachPct            Int @default(0) @map("commission_coach_pct")
+  commissionCoordinatorPct      Int @default(0) @map("commission_coordinator_pct")
+  commissionManagerPct          Int @default(0) @map("commission_manager_pct")
+  commissionNutritionistPct     Int @default(0) @map("commission_nutritionist_pct")
+  commissionHeadNutritionistPct Int @default(0) @map("commission_head_nutritionist_pct")
+  // Provvigioni in CENTESIMI per unità (importi fissi, LEGACY: usate solo se le
+  // percentuali qui sopra sono tutte a zero). Riscalate sull'importo pagato.
   commissionCoachCents            Int @default(0) @map("commission_coach_cents")
   commissionManagerCoachCents     Int @default(0) @map("commission_manager_coach_cents")
   commissionNutritionistCents     Int @default(0) @map("commission_nutritionist_cents")

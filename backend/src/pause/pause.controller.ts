@@ -42,7 +42,7 @@ export class MePauseController {
 
 /** Approvazione richieste di pausa lato staff (backoffice). */
 @Controller('staff/pause-requests')
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class StaffPauseController {
   constructor(private readonly pause: PauseService) {}
 

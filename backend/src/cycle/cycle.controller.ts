@@ -20,7 +20,7 @@ export class CycleController {
   }
 
   @Get('clients/:id/cycle')
-  @Roles('coach', 'nutritionist', 'head_nutritionist', 'admin')
+  @Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'admin')
   forClient(@Param('id') clientId: string) {
     return this.cycle.getActiveCycle(clientId);
   }

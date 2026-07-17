@@ -38,7 +38,7 @@ class UpdateAppointmentDto {
 
 /** API dell'app Coach (clienti, dashboard, agenda). RBAC: coach + manager. */
 @Controller('coach')
-@Roles('coach', 'head_nutritionist', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'head_nutritionist', 'sales', 'admin')
 export class CoachController {
   constructor(private readonly coach: CoachService) {}
 
@@ -61,7 +61,7 @@ export class CoachController {
 
 /** Creazione/gestione appuntamenti (staff). */
 @Controller('appointments')
-@Roles('coach', 'nutritionist')
+@Roles('coach', 'coach_coordinator', 'nutritionist')
 export class AppointmentsController {
   constructor(private readonly coach: CoachService) {}
 

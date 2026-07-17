@@ -44,7 +44,7 @@ export class LeadAssignmentService {
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
     if (!record) throw new NotFoundException('Lead non trovato.');
     const coach = await this.prisma.staff.findFirst({
-      where: { id: coachStaffId, user: { role: 'coach' } },
+      where: { id: coachStaffId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       include: { user: { select: { id: true } } },
     });
     if (!coach) throw new BadRequestException('Coach non valida.');
@@ -74,7 +74,7 @@ export class LeadAssignmentService {
     if (ids.length === 0) throw new BadRequestException('Nessun lead selezionato.');
 
     const coach = await this.prisma.staff.findFirst({
-      where: { id: coachStaffId, user: { role: 'coach' } },
+      where: { id: coachStaffId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       include: { user: { select: { id: true } } },
     });
     if (!coach) throw new BadRequestException('Coach non valida.');
@@ -216,7 +216,7 @@ export class LeadAssignmentService {
   /** Elenco coach (per il menu di assegnazione). */
   async listCoaches() {
     const rows = await this.prisma.staff.findMany({
-      where: { user: { role: 'coach', status: 'active' }, active: true },
+      where: { user: { role: { in: ['coach', 'coach_coordinator'] as never }, status: 'active' }, active: true },
       select: { id: true, displayName: true },
       orderBy: { displayName: 'asc' },
     });
@@ -301,7 +301,7 @@ export class LeadAssignmentService {
    */
   async generateRefCode(staffUserId: string, actorId: string, desired?: string): Promise<{ refCode: string }> {
     const staff = await this.prisma.staff.findFirst({
-      where: { userId: staffUserId, user: { role: 'coach' } },
+      where: { userId: staffUserId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       select: { id: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
     if (!staff) throw new BadRequestException('Il ref code è disponibile solo per le coach.');
@@ -371,7 +371,7 @@ export class LeadAssignmentService {
    */
   async myInvite(coachUserId: string): Promise<{ refCode: string; url: string }> {
     const staff = await this.prisma.staff.findFirst({
-      where: { userId: coachUserId, user: { role: 'coach' } },
+      where: { userId: coachUserId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       select: { id: true, refCode: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
     if (!staff) throw new BadRequestException('L\'invito è disponibile solo per le coach.');
@@ -397,8 +397,9 @@ export class LeadAssignmentService {
       where: { refCode: (code ?? '').trim().toUpperCase() },
       include: { user: { select: { id: true, role: true } } },
     });
-    if (!staff || (staff.user.role !== 'coach' && staff.user.role !== 'nutritionist')) return null;
-    return { staffId: staff.id, userId: staff.user.id, role: staff.user.role };
+    if (!staff || (staff.user.role !== 'coach' && staff.user.role !== 'coach_coordinator' && staff.user.role !== 'nutritionist')) return null;
+    // La coordinatrice, ai fini dell'assegnazione via ref code, conta come coach.
+    return { staffId: staff.id, userId: staff.user.id, role: staff.user.role === 'nutritionist' ? 'nutritionist' : 'coach' };
   }
 
   /**

@@ -12,7 +12,7 @@ class UpdateAlertDto {
 
 /** Coda alert per la coach (app coach) + azioni di gestione. */
 @Controller()
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class AlertsController {
   constructor(private readonly alerts: AlertsService) {}
 

@@ -17,7 +17,7 @@ import { MailboxService } from './mailbox.service';
 
 /** Casella di posta @metabole.eu dell'operatore (MVP: staff nel backoffice). */
 @Controller('me/mailbox')
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin')
 export class MailboxController {
   constructor(private readonly mailbox: MailboxService) {}
 

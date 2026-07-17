@@ -21,7 +21,7 @@ class TravelDto {
 
 /** Scheda cliente (staff che gestisce i clienti). */
 @Controller('admin/clients')
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class ClientsController {
   constructor(private readonly clients: ClientsService) {}
 

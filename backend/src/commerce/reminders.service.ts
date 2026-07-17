@@ -23,10 +23,10 @@ export class RemindersService {
     if (!actorUserId) return null;
     const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
     const role = u?.role;
-    if (role !== 'coach' && role !== 'nutritionist') return null;
+    if (role !== 'coach' && role !== 'coach_coordinator' && role !== 'nutritionist') return null;
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
     const staffId = staff?.id ?? '00000000-0000-0000-0000-000000000000';
-    return role === 'coach'
+    return role === 'coach' || role === 'coach_coordinator'
       ? [{ createdById: actorUserId }, { crmRecord: { assignedCoachId: staffId } }]
       : [{ createdById: actorUserId }, { crmRecord: { client: { clientProfile: { assignedNutritionistId: staffId } } } }];
   }
@@ -43,7 +43,7 @@ export class RemindersService {
         where: { id: reminder.crmRecordId },
         select: { assignedCoachId: true, client: { select: { clientProfile: { select: { assignedNutritionistId: true } } } } },
       })) as { assignedCoachId: string | null; client: { clientProfile: { assignedNutritionistId: string | null } | null } | null } | null;
-      const ok = u?.role === 'coach'
+      const ok = u?.role === 'coach' || u?.role === 'coach_coordinator'
         ? rec?.assignedCoachId === staff?.id
         : rec?.client?.clientProfile?.assignedNutritionistId === staff?.id;
       if (ok) return;

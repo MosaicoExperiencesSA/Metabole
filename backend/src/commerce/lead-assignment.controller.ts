@@ -45,7 +45,7 @@ export class LeadAssignmentController {
   constructor(private readonly svc: LeadAssignmentService) {}
 
   /** La responsabile assegna un lead a una coach. */
-  @Roles('coach', 'sales', 'head_nutritionist', 'admin')
+  @Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
   @HttpCode(200)
   @Post('leads/:id/assign-coach')
   assign(@Param('id') id: string, @Body() dto: AssignCoachDto, @CurrentUser() user: AuthUser) {
@@ -53,7 +53,7 @@ export class LeadAssignmentController {
   }
 
   /** Assegnazione massiva: piu' lead selezionati alla stessa coach in un passaggio. */
-  @Roles('coach', 'sales', 'head_nutritionist', 'admin')
+  @Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
   @HttpCode(200)
   @Post('leads/assign-coach-bulk')
   assignBulk(@Body() dto: AssignCoachBulkDto, @CurrentUser() user: AuthUser) {
@@ -61,7 +61,7 @@ export class LeadAssignmentController {
   }
 
   /** Elenco coach per il menu di assegnazione. */
-  @Roles('coach', 'sales', 'head_nutritionist', 'admin')
+  @Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
   @Get('coaches')
   coaches() {
     return this.svc.listCoaches();
@@ -83,27 +83,27 @@ export class LeadAssignmentController {
   }
 
   /** Lead in attesa di accettazione per la coach corrente (vuoto per chi non è coach). */
-  @Roles('coach', 'sales', 'head_nutritionist', 'admin')
+  @Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
   @Get('my-assignments')
   mine(@CurrentUser() user: AuthUser) {
     return this.svc.myPending(user.sub);
   }
 
   /** Invito della coach: proprio ref code + link di registrazione precompilato (backlog #2). */
-  @Roles('coach')
+  @Roles('coach', 'coach_coordinator')
   @Get('my-invite')
   myInvite(@CurrentUser() user: AuthUser) {
     return this.svc.myInvite(user.sub);
   }
 
-  @Roles('coach')
+  @Roles('coach', 'coach_coordinator')
   @HttpCode(200)
   @Post('leads/:id/accept')
   accept(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.svc.accept(id, user.sub);
   }
 
-  @Roles('coach')
+  @Roles('coach', 'coach_coordinator')
   @HttpCode(200)
   @Post('leads/:id/reject')
   reject(@Param('id') id: string, @Body() dto: RejectDto, @CurrentUser() user: AuthUser) {

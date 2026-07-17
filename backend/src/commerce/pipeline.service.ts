@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope } from '../common/coach-team';
 
 export interface StageInfo {
   key: string;
@@ -37,12 +38,8 @@ export class PipelineService {
    * manager coach (sales), capo nutrizionista e admin tutti. Coach senza scheda staff
    * → id impossibile: board vuota, mai tutta per errore.
    */
-  private async coachScope(actorUserId?: string): Promise<string | null> {
-    if (!actorUserId) return null;
-    const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
-    if (u?.role !== 'coach') return null;
-    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
-    return staff?.id ?? '00000000-0000-0000-0000-000000000000';
+  private async coachScope(actorUserId?: string): Promise<string[] | null> {
+    return coachTeamScope(this.prisma, actorUserId);
   }
 
   /** Board completa: stati (colonne) + schede raggruppate. La coach vede SOLO i suoi lead. */
@@ -51,7 +48,7 @@ export class PipelineService {
     const [stages, records] = await Promise.all([
       this.listStages(),
       this.prisma.crmRecord.findMany({
-        where: (scopeId ? { assignedCoachId: scopeId } : {}) as never,
+        where: (scopeId ? { assignedCoachId: { in: scopeId } } : {}) as never,
         orderBy: { updatedAt: 'desc' },
         include: {
           owner: { select: { displayName: true } },

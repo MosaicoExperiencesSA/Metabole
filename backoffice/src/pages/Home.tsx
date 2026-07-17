@@ -11,7 +11,7 @@ import { NutritionistHome } from './NutritionistHome';
 export function Home() {
   const { user, permissions } = useAuth();
   const role = permissions?.role ?? user?.role;
-  if (role === 'coach') return <CoachHome />;
+  if (role === 'coach' || role === 'coach_coordinator') return <CoachHome />;
   if (role === 'nutritionist' || role === 'head_nutritionist') return <NutritionistHome />;
   return <Dashboard />;
 }

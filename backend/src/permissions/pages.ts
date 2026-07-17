@@ -83,6 +83,21 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     chat: { view: true, manage: true },
     visits_agenda: { view: true },
   },
+  // Coordinatrice Coach: come una coach (le SUE clienti) + visibilità sul suo team
+  // (la portata "propria + team" è applicata nei servizi, non qui).
+  coach_coordinator: {
+    coach_tasks: { view: true, manage: true },
+    dashboard: { view: true },
+    notifications: { view: true },
+    posta: { view: true },
+    charts: { view: true },
+    clients: { view: true },
+    crm_leads: { view: true, manage: true },
+    lead_acceptance: { view: true, manage: true },
+    escalations: { view: true, manage: true },
+    chat: { view: true, manage: true },
+    visits_agenda: { view: true },
+  },
   nutritionist: {
     dashboard: { view: true },
     notifications: { view: true },

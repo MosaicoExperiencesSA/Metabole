@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const;
@@ -28,16 +29,18 @@ export class ClientsService {
    * (sales), il capo nutrizionista e l'admin vedono tutti.
    * Ritorna il vincolo da applicare alle liste, o null se l'attore vede tutto.
    */
-  private async clientScope(actorUserId: string): Promise<{ field: 'assignedCoachId' | 'assignedNutritionistId'; staffId: string } | null> {
+  private async clientScope(actorUserId: string): Promise<{ field: 'assignedCoachId' | 'assignedNutritionistId'; staffIds: string[] } | null> {
     const actor = await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } });
     const role = actor?.role as string | undefined;
-    if (role !== 'coach' && role !== 'nutritionist') return null;
+    if (isCoachLike(role)) {
+      // Coach → le sue; coordinatrice → sue + del suo team.
+      const ids = (await coachTeamScope(this.prisma, actorUserId)) ?? [];
+      return { field: 'assignedCoachId', staffIds: ids };
+    }
+    if (role !== 'nutritionist') return null;
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
-    return {
-      field: role === 'coach' ? 'assignedCoachId' : 'assignedNutritionistId',
-      // Senza scheda staff → id impossibile: non vede nessun cliente, mai tutti per errore.
-      staffId: staff?.id ?? '00000000-0000-0000-0000-000000000000',
-    };
+    // Senza scheda staff → id impossibile: non vede nessun cliente, mai tutti per errore.
+    return { field: 'assignedNutritionistId', staffIds: [staff?.id ?? '00000000-0000-0000-0000-000000000000'] };
   }
 
   /** Blocca l'accesso alla scheda di un cliente non assegnato all'attore. */
@@ -48,7 +51,8 @@ export class ClientsService {
       where: { userId: clientUserId },
       select: { assignedCoachId: true, assignedNutritionistId: true },
     })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
-    if (!prof || prof[scope.field] !== scope.staffId) {
+    const assigned = prof?.[scope.field] ?? null;
+    if (!assigned || !scope.staffIds.includes(assigned)) {
       throw new ForbiddenException('Questo cliente non è assegnato a te.');
     }
   }
@@ -59,7 +63,7 @@ export class ClientsService {
     const where = {
       role: 'client' as never,
       deletedAt: null,
-      ...(scope ? { clientProfile: { [scope.field]: scope.staffId } } : {}),
+      ...(scope ? { clientProfile: { [scope.field]: { in: scope.staffIds } } } : {}),
     };
     const items = await this.prisma.user.findMany({
       where: where as never,
