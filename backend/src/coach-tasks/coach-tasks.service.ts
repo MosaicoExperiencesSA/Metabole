@@ -111,7 +111,7 @@ export class CoachTasksService {
     let notConverted = 0;
     for (const t of expiredTrials) {
       const active = await this.prisma.subscription.findFirst({
-        where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } },
+        where: { clientId: t.clientId, status: { in: ['active', 'pending'] as never } }, // 'paused' non è uno stato Subscription valido (enum) → causava 500
         select: { id: true },
       });
       if (!active) notConverted++;
@@ -209,7 +209,7 @@ export class CoachTasksService {
       // +7 dopo la scadenza — ultima chiamata (solo se NON convertita).
       if (t.status === 'expired' && t.endDate && now.getTime() >= this.day(new Date(t.endDate), 7).getTime()) {
         const converted = await this.prisma.subscription.findFirst({
-          where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } },
+          where: { clientId: t.clientId, status: { in: ['active', 'pending'] as never } }, // 'paused' non è uno stato Subscription valido (enum) → causava 500
           select: { id: true },
         });
         if (!converted) {

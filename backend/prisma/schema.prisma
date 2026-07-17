@@ -1882,14 +1882,18 @@ model ClientReport {
   id             String    @id @default(uuid())
   clientId       String    @map("client_id")
   client         User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  subscriptionId String    @unique @map("subscription_id") // un report per piano concluso
-  kind           String // trial | plan
+  subscriptionId String    @map("subscription_id")
+  // Un report FINALE per piano ('final') + eventuali report MENSILI ('m1','m2',…)
+  // per i piani più lunghi di un mese: stesso impianto, cadenza diversa.
+  periodKey      String    @default("final") @map("period_key")
+  kind           String // trial | plan | monthly
   periodStart    DateTime  @map("period_start") @db.Date
   periodEnd      DateTime  @map("period_end") @db.Date
   data           Json
   readAt         DateTime? @map("read_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
+  @@unique([subscriptionId, periodKey])
   @@index([clientId, createdAt])
   @@map("client_report")
 }

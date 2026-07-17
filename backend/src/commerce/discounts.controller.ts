@@ -47,6 +47,16 @@ class ValidateDiscountDto {
   @IsInt()
   @Min(0)
   amountCents!: number;
+
+  // Piano nel carrello: serve ai codici con prezzo TARGET per piano (Opzione B).
+  @IsOptional()
+  @IsString()
+  planId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  planPriceCents?: number;
 }
 
 /** Gestione buoni sconto (admin). */
@@ -85,6 +95,6 @@ export class MyDiscountsController {
   @HttpCode(200)
   @Post('validate')
   validate(@CurrentUser() user: AuthUser, @Body() dto: ValidateDiscountDto) {
-    return this.discounts.validate(dto.code, user.sub, dto.amountCents);
+    return this.discounts.validate(dto.code, user.sub, dto.amountCents, { planId: dto.planId ?? null, planPriceCents: dto.planPriceCents ?? null });
   }
 }

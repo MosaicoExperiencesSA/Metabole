@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { MailService } from '../mail/mail.service';
+import { PdfService } from '../pdf/pdf.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface MonthlyReport {
@@ -26,6 +27,7 @@ export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly pdfTemplates: PdfService,
   ) {}
 
   /**
@@ -143,10 +145,28 @@ export class ReportsService {
     });
   }
 
-  /** Invia il report mensile via email (con PDF allegato). */
+  /** PDF del report con la GRAFICA dell'editor (Grafica PDF -> "Report mensile"). */
+  private async templatePdf(r: MonthlyReport): Promise<Buffer> {
+    const kg = (n: number | null) => (n == null ? '—' : `${n} kg`);
+    return this.pdfTemplates.renderTemplatePdf('monthly_report', {
+      name: r.name,
+      period: r.periodLabel,
+      lostThisMonth: kg(r.lostThisMonthKg),
+      lostTotal: kg(r.lostTotalKg),
+      currentWeight: kg(r.currentWeightKg),
+      target: kg(r.targetWeightKg),
+      checkins: String(r.checkins),
+      measurements: String(r.measurements),
+      trend: this.trendText(r),
+    });
+  }
+
+  /** Invia il report mensile via email (con PDF allegato) — SOLO invio manuale dello staff. */
   async sendMonthlyReport(clientId: string): Promise<MonthlyReport> {
     const r = await this.buildMonthlyReport(clientId);
-    const pdf = await this.buildPdf(r).catch(() => null);
+    // Grafica allineata al modello (editor "Grafica PDF"); il vecchio PDFkit resta
+    // come ripiego se Chromium non fosse disponibile a runtime.
+    const pdf = await this.templatePdf(r).catch(() => this.buildPdf(r).catch(() => null));
     await this.mail.sendMonthlyReport(
       r.email,
       {

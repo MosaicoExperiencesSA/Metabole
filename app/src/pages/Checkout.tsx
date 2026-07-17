@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { track } from '../lib/track';
 import { useCart } from '../cart/CartContext';
 
 const euro = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
@@ -19,6 +20,19 @@ export default function Checkout() {
   const [addr, setAddr] = useState({ addressLine: '', postalCode: '', city: '', province: '' });
   const [hasAddress, setHasAddress] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
+
+  // Carrello abbandonato: segnala l'inizio del checkout (una volta per apertura).
+  // Se non si conclude l'acquisto, partono i recuperi automatici a +1h/+24h/+72h.
+  useEffect(() => {
+    if (cart.plan || cart.products.length > 0) {
+      track('checkout_started', {
+        planId: cart.plan?.id ?? null,
+        products: cart.products.length,
+        totalCents: cart.subtotalCents,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     api<{ addressLine?: string | null; postalCode?: string | null; city?: string | null; province?: string | null }>('/me/profile')
@@ -55,7 +69,8 @@ export default function Checkout() {
     try {
       const res = await api<{ code: string; discountCents: number; finalCents: number }>('/me/discounts/validate', {
         method: 'POST',
-        body: JSON.stringify({ code: code.trim(), amountCents: subtotal }),
+        // planId/planPriceCents: servono ai codici col prezzo target per piano (Opzione B).
+        body: JSON.stringify({ code: code.trim(), amountCents: subtotal, planId: cart.plan?.id ?? undefined, planPriceCents: cart.plan?.priceCents ?? undefined }),
       });
       setApplied(res);
     } catch (e) {

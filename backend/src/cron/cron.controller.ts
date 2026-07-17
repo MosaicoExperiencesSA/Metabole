@@ -74,8 +74,9 @@ export class CronController {
     const adherence = await this.signals.runAdherenceSweep();
     // Agenti AI con esecuzione giornaliera attiva: accodati qui, processati dal ticker.
     const agents = await this.agentOrchestrator.enqueueDaily();
-    // Il report mensile parte una volta al mese (il primo giorno).
-    const monthlyReports = new Date().getDate() === 1 ? await this.reports.sendMonthlyBatch() : { sent: 0 };
+    // Report MENSILE in app al "mesiversario" di ogni piano attivo (stesso impianto
+    // del report di fine piano; sostituisce il PDF via email — dati sanitari).
+    const monthlyReports = await this.planReports.generateMonthly();
     await this.audit.log({
       action: 'cron.daily',
       metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports } as Record<string, unknown>,

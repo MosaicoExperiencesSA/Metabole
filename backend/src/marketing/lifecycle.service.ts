@@ -32,12 +32,14 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'onb_g1', label: 'Onboarding giorno 1', when: 'Inizio piano = 1 giorno fa', kind: 'scheduled', implemented: true },
   { key: 'onb_g4', label: 'Onboarding giorno 4', when: 'Inizio piano = 4 giorni fa', kind: 'scheduled', implemented: true },
   { key: 'onb_g7', label: 'Onboarding giorno 7', when: 'Inizio piano = 7 giorni fa', kind: 'scheduled', implemented: true },
-  { key: 'trial_g6_offer', label: 'Prova G6 — offerta con codice personale', when: 'Prova gratuita attiva iniziata 6 giorni fa (codice 48h)', kind: 'scheduled', implemented: true },
+  // SPENTO DI DEFAULT (decisione 17/07 sera: per ora codici ad hoc dalle coach, non automatici):
+  // si attiva SOLO accendendo esplicitamente l'interruttore in Marketing → Automazione.
+  { key: 'trial_g6_offer', label: 'Prova G6 — offerta con codice personale (spento di default)', when: 'Prova gratuita attiva iniziata 6 giorni fa (codice 48h)', kind: 'scheduled', implemented: true },
   // --- In roadmap: richiedono dati non ancora tracciati ---
   { key: 'onb_g2', label: 'Onboarding giorno 2', when: 'Inizio piano = 2 giorni fa', kind: 'scheduled', implemented: false },
-  { key: 'cart_1h', label: 'Carrello +1h', when: 'Carrello abbandonato (stato carrello non tracciato)', kind: 'scheduled', implemented: false },
-  { key: 'cart_24h', label: 'Carrello +24h', when: 'Carrello abbandonato', kind: 'scheduled', implemented: false },
-  { key: 'cart_72h', label: 'Carrello +72h', when: 'Carrello abbandonato', kind: 'scheduled', implemented: false },
+  { key: 'cart_1h', label: 'Carrello +1h', when: 'Checkout iniziato da 1h senza acquisto', kind: 'scheduled', implemented: true },
+  { key: 'cart_24h', label: 'Carrello +24h', when: 'Checkout iniziato da 24h senza acquisto', kind: 'scheduled', implemented: true },
+  { key: 'cart_72h', label: 'Carrello +72h', when: 'Checkout iniziato da 72h senza acquisto', kind: 'scheduled', implemented: true },
   { key: 'nurture_1', label: 'Nurture 1', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
   { key: 'nurture_2', label: 'Nurture 2', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
   { key: 'nurture_3', label: 'Nurture 3', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
@@ -58,13 +60,13 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'ev_compleanno', label: 'Evento: compleanno', when: 'Compleanno (da data di nascita)', kind: 'scheduled', implemented: true },
   { key: 'ev_anniversario', label: 'Evento: anniversario', when: 'Anniversario inizio piano', kind: 'scheduled', implemented: true },
   { key: 'ev_pre_evento', label: 'Evento: pre-evento', when: 'Evento personale in arrivo', kind: 'scheduled', implemented: false },
-  { key: 'ev_mantenimento', label: 'Evento: mantenimento', when: 'Passaggio a mantenimento', kind: 'event', implemented: false },
-  { key: 'rin_t7', label: 'Rinnovo T-7', when: 'Rinnovo tra 7 giorni (date non tracciate)', kind: 'scheduled', implemented: false },
-  { key: 'rin_t3', label: 'Rinnovo T-3', when: 'Rinnovo tra 3 giorni', kind: 'scheduled', implemented: false },
-  { key: 'rin_t1', label: 'Rinnovo T-1', when: 'Rinnovo domani', kind: 'scheduled', implemented: false },
+  { key: 'ev_mantenimento', label: 'Evento: mantenimento', when: 'Mantenimento attivato (ultimi 7 giorni)', kind: 'event', implemented: true },
+  { key: 'rin_t7', label: 'Rinnovo T-7', when: 'Piano a pagamento in scadenza tra 7 giorni', kind: 'scheduled', implemented: true },
+  { key: 'rin_t3', label: 'Rinnovo T-3', when: 'Piano a pagamento in scadenza tra 3 giorni', kind: 'scheduled', implemented: true },
+  { key: 'rin_t1', label: 'Rinnovo T-1', when: 'Piano a pagamento in scadenza domani', kind: 'scheduled', implemented: true },
   { key: 'upsell', label: 'Upsell', when: 'Opportunità upsell', kind: 'scheduled', implemented: false },
-  { key: 'wb_t3', label: 'Winback T-3', when: 'Disdetta +3 giorni', kind: 'scheduled', implemented: false },
-  { key: 'wb_t7', label: 'Winback T-7', when: 'Disdetta +7 giorni', kind: 'scheduled', implemented: false },
+  { key: 'wb_t3', label: 'Winback T+3', when: 'Piano scaduto da 3 giorni senza rinnovo', kind: 'scheduled', implemented: true },
+  { key: 'wb_t7', label: 'Winback T+7', when: 'Piano scaduto da 7 giorni senza rinnovo', kind: 'scheduled', implemented: true },
   { key: 'wb_survey', label: 'Winback sondaggio', when: 'Dopo la disdetta', kind: 'scheduled', implemented: false },
   { key: 'wb_stagionale', label: 'Winback stagionale', when: 'Campagna stagionale', kind: 'scheduled', implemented: false },
   { key: 'tx_rinnovo_ok', label: 'TX rinnovo ok', when: 'Rinnovo pagato', kind: 'event', implemented: false },
@@ -161,8 +163,13 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     return { enabled: row?.enabled ?? false, triggers, lastRunAt: row?.lastRunAt ?? null };
   }
 
-  /** Un innesco è attivo se il master è ON e il suo flag non è esplicitamente false. */
+  /** Inneschi che partono SOLO se accesi esplicitamente (opt-in, non opt-out). */
+  private static readonly DEFAULT_OFF = new Set(['trial_g6_offer']);
+
+  /** Un innesco è attivo se il master è ON e il suo flag non è esplicitamente false
+   *  (eccezione: gli inneschi DEFAULT_OFF richiedono un sì esplicito). */
   private isTriggerOn(key: string, triggers: Record<string, boolean>): boolean {
+    if (LifecycleService.DEFAULT_OFF.has(key)) return triggers[key] === true;
     return triggers[key] !== false;
   }
 
@@ -478,6 +485,190 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
             }).catch(() => undefined);
           }
         }
+      }
+    }
+
+    // 4-bis2) CARRELLO ABBANDONATO — evento `checkout_started` dell'app (tracking
+    //         punto 6) SENZA acquisto successivo. Si guarda l'EPISODIO più recente
+    //         per cliente e si manda solo lo scalino raggiunto (+1h → +24h → +72h),
+    //         una volta ciascuno per episodio; se riapre il checkout, la scala riparte.
+    if (on('cart_1h') || on('cart_24h') || on('cart_72h')) {
+      const cartEvents = (await this.prisma.analyticsEvent.findMany({
+        where: { name: 'checkout_started', userId: { not: null }, receivedAt: { gte: this.daysAgo(10) } },
+        select: { id: true, userId: true, receivedAt: true, data: true },
+        orderBy: { receivedAt: 'desc' },
+        take: LifecycleService.BATCH,
+      })) as { id: string; userId: string | null; receivedAt: Date; data: unknown }[];
+      // Ultimo episodio per cliente (gli eventi arrivano già dal più recente).
+      const latestByUser = new Map<string, { id: string; receivedAt: Date; data: unknown }>();
+      for (const ev of cartEvents) {
+        if (ev.userId && !latestByUser.has(ev.userId)) latestByUser.set(ev.userId, ev);
+      }
+      const cartUserIds = [...latestByUser.keys()];
+      type CUser = { id: string; email: string; firstName: string | null; deletedAt: Date | null; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null };
+      const cartUsers = (cartUserIds.length
+        ? await this.prisma.user.findMany({
+            where: { id: { in: cartUserIds }, role: 'client', deletedAt: null },
+            select: { id: true, email: true, firstName: true, deletedAt: true, clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } }, assignedNutritionist: { select: { displayName: true } } } } },
+          })
+        : []) as CUser[];
+      const cartById = new Map(cartUsers.map((u) => [u.id, u]));
+      const now = Date.now();
+      for (const [uid, ev] of latestByUser) {
+        const u = cartById.get(uid);
+        if (!u) continue;
+        // Ha comprato dopo? (abbonamento in corso, oppure pagamento approvato dopo l'evento)
+        const bought = await this.prisma.subscription.findFirst({
+          where: { clientId: uid, status: { in: ['active', 'pending'] as never }, createdAt: { gte: ev.receivedAt } },
+          select: { id: true },
+        });
+        if (bought) continue;
+        const paid = await this.prisma.payment.findFirst({
+          where: { clientId: uid, status: 'approved', createdAt: { gte: ev.receivedAt } } as never,
+          select: { id: true },
+        });
+        if (paid) continue;
+        const ageH = (now - ev.receivedAt.getTime()) / 3_600_000;
+        const key = ageH >= 72 ? 'cart_72h' : ageH >= 24 ? 'cart_24h' : ageH >= 1 ? 'cart_1h' : null;
+        if (!key || !on(key)) continue;
+        // Nome del piano nel carrello (se c'era) per il merge {{piano}}.
+        const planId = (ev.data as { planId?: string | null } | null)?.planId ?? null;
+        let pianoName = 'il tuo percorso';
+        if (planId) {
+          const pl = await this.prisma.plan.findUnique({ where: { id: planId }, select: { name: true } }).catch(() => null);
+          if (pl?.name) pianoName = pl.name;
+        }
+        const r = await this.sendLifecycle({
+          userId: uid,
+          email: u.email,
+          key,
+          dedupeKey: `${key}:${ev.id}`,
+          vars: {
+            nome: u.firstName ?? u.clientProfile?.name ?? '',
+            piano: pianoName,
+            coach: u.clientProfile?.assignedCoach?.displayName ?? 'la tua coach',
+            nutrizionista: u.clientProfile?.assignedNutritionist?.displayName ?? 'il tuo nutrizionista',
+            link: `${app}/checkout`,
+          },
+        });
+        bump(key, r);
+      }
+    }
+
+    // 4-ter) RINNOVI (handoff: rinnovo T-7/T-3/T-1) — piani A PAGAMENTO attivi in
+    //        scadenza; dedup per abbonamento, così un rinnovo nuovo riparte pulito.
+    const renewalTriggers: { key: string; offset: number }[] = [
+      { key: 'rin_t7', offset: 7 },
+      { key: 'rin_t3', offset: 3 },
+      { key: 'rin_t1', offset: 1 },
+    ];
+    for (const rt of renewalTriggers) {
+      if (!on(rt.key)) continue;
+      const range = this.dayRange(rt.offset);
+      const subs = (await this.prisma.subscription.findMany({
+        where: {
+          status: 'active',
+          plan: { priceCents: { gt: 0 } },
+          endDate: { gte: range.gte, lt: range.lt },
+        } as never,
+        select: {
+          id: true,
+          clientId: true,
+          plan: { select: { name: true } },
+          client: { select: { email: true, firstName: true, deletedAt: true, clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } }, assignedNutritionist: { select: { displayName: true } } } } } },
+        },
+        take: LifecycleService.BATCH,
+      })) as { id: string; clientId: string; plan: { name: string }; client: { email: string; firstName: string | null; deletedAt: Date | null; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null } | null }[];
+      for (const sub of subs) {
+        if (!sub.client || sub.client.deletedAt) continue;
+        const r = await this.sendLifecycle({
+          userId: sub.clientId,
+          email: sub.client.email,
+          key: rt.key,
+          dedupeKey: `${rt.key}:${sub.id}`,
+          vars: {
+            nome: sub.client.firstName ?? sub.client.clientProfile?.name ?? '',
+            piano: sub.plan.name,
+            coach: sub.client.clientProfile?.assignedCoach?.displayName ?? 'la tua coach',
+            nutrizionista: sub.client.clientProfile?.assignedNutritionist?.displayName ?? 'il tuo nutrizionista',
+            link: `${app}/negozio`,
+          },
+        });
+        bump(rt.key, r);
+      }
+    }
+
+    // 4-quater) WIN-BACK T+3 / T+7 — piano a pagamento scaduto da 3/7 giorni e
+    //           NESSUN abbonamento attivo/in attesa oggi (non ha rinnovato).
+    const winbackTriggers: { key: string; offset: number }[] = [
+      { key: 'wb_t3', offset: -3 },
+      { key: 'wb_t7', offset: -7 },
+    ];
+    for (const wt of winbackTriggers) {
+      if (!on(wt.key)) continue;
+      const range = this.dayRange(wt.offset);
+      const subs = (await this.prisma.subscription.findMany({
+        where: {
+          status: 'expired',
+          plan: { priceCents: { gt: 0 } },
+          endDate: { gte: range.gte, lt: range.lt },
+        } as never,
+        select: { id: true, clientId: true, client: { select: { email: true, firstName: true, deletedAt: true, clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } } } } } } },
+        take: LifecycleService.BATCH,
+      })) as { id: string; clientId: string; client: { email: string; firstName: string | null; deletedAt: Date | null; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null } | null } | null }[];
+      for (const sub of subs) {
+        if (!sub.client || sub.client.deletedAt) continue;
+        const stillOut = await this.prisma.subscription.findFirst({
+          where: { clientId: sub.clientId, status: { in: ['active', 'pending'] as never } },
+          select: { id: true },
+        });
+        if (stillOut) continue; // ha già rinnovato o sta pagando: niente win-back
+        const r = await this.sendLifecycle({
+          userId: sub.clientId,
+          email: sub.client.email,
+          key: wt.key,
+          dedupeKey: `${wt.key}:${sub.id}`,
+          vars: {
+            nome: sub.client.firstName ?? sub.client.clientProfile?.name ?? '',
+            coach: sub.client.clientProfile?.assignedCoach?.displayName ?? 'la tua coach',
+            link: `${app}/negozio`,
+          },
+        });
+        bump(wt.key, r);
+      }
+    }
+
+    // 4-quinquies) ev_mantenimento — mantenimento attivato negli ultimi 7 giorni
+    //              (dal funnel `maintenance_started`); dedup per evento.
+    if (on('ev_mantenimento')) {
+      const events = (await this.prisma.analyticsEvent.findMany({
+        where: { name: 'maintenance_started', userId: { not: null }, receivedAt: { gte: this.daysAgo(7) } },
+        select: { id: true, userId: true },
+        orderBy: { receivedAt: 'desc' },
+        take: LifecycleService.BATCH,
+      })) as { id: string; userId: string | null }[];
+      const mIds = [...new Set(events.map((e) => e.userId).filter((x): x is string => !!x))];
+      type MUser = { id: string; email: string; firstName: string | null; clientProfile: { assignedCoach: { displayName: string } | null } | null };
+      const mUsers = (mIds.length
+        ? await this.prisma.user.findMany({ where: { id: { in: mIds }, role: 'client', deletedAt: null }, select: { id: true, email: true, firstName: true, clientProfile: { select: { assignedCoach: { select: { displayName: true } } } } } })
+        : []) as MUser[];
+      const mById = new Map(mUsers.map((u) => [u.id, u]));
+      for (const ev of events) {
+        const uu = ev.userId ? mById.get(ev.userId) : undefined;
+        if (!uu) continue;
+        const r = await this.sendLifecycle({
+          userId: uu.id,
+          email: uu.email,
+          key: 'ev_mantenimento',
+          dedupeKey: `ev_mantenimento:${ev.id}`,
+          vars: {
+            nome: uu.firstName ?? '',
+            piano: 'Mantenimento',
+            coach: uu.clientProfile?.assignedCoach?.displayName ?? 'la tua coach',
+            link: `${app}/`,
+          },
+        });
+        bump('ev_mantenimento', r);
       }
     }
 

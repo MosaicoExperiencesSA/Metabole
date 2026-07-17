@@ -48,22 +48,62 @@ const RECEIPT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${
   <div class="foot">Documento generato automaticamente da Metabole. Non costituisce fattura fiscale.</div>
 </div></body></html>`;
 
-const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head>
-<body><div class="doc">
-  <div class="brand">Metabole</div>
-  <div class="sub">Report mensile · {{period}}</div>
-  <hr class="rule"/>
-  <p style="font-size:14px">Ciao <b>{{name}}</b>, ecco il tuo riepilogo di <b>{{period}}</b>.</p>
-  <div class="cards">
-    <div class="card"><div class="lab">Perso questo mese</div><div class="val">{{lostThisMonth}}</div></div>
-    <div class="card"><div class="lab">Perso dall'inizio</div><div class="val">{{lostTotal}}</div></div>
-    <div class="card"><div class="lab">Peso attuale</div><div class="val">{{currentWeight}}</div></div>
-    <div class="card"><div class="lab">Obiettivo</div><div class="val">{{target}}</div></div>
-    <div class="card"><div class="lab">Check-in</div><div class="val">{{checkins}}</div></div>
-    <div class="card"><div class="lab">Pesate</div><div class="val">{{measurements}}</div></div>
+const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #1F2933; margin: 0; background: #F4F1EA; }
+  .page { padding: 26px 28px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .brand { color: #0E7C66; font-size: 22px; font-weight: 800; }
+  .brand small { display: block; color: #7c8c88; font-size: 8px; letter-spacing: 2px; font-weight: 700; margin-top: 2px; }
+  .head .right { text-align: right; color: #7c8c88; font-size: 10px; line-height: 1.5; }
+  .head .right b { color: #1F2933; }
+  .kicker { color: #0E7C66; font-size: 9px; font-weight: 800; letter-spacing: 1.5px; margin: 22px 0 4px; }
+  h1 { font-size: 22px; line-height: 1.25; margin: 0 0 6px; color: #1F2933; }
+  h1 .teal { color: #0E7C66; }
+  .lead { color: #5c6a66; font-size: 11px; margin: 0 0 14px; }
+  .cards { display: flex; gap: 8px; }
+  .stat { flex: 1; background: #EAF4EF; border-radius: 12px; padding: 12px 10px; text-align: center; }
+  .stat .num { font-size: 19px; font-weight: 800; color: #0E7C66; }
+  .stat .lab { color: #5c6a66; font-size: 9px; font-weight: 700; margin-top: 3px; }
+  .stat .sub { color: #8a968f; font-size: 8px; margin-top: 2px; }
+  .band { background: #0E7C66; color: #fff; border-radius: 12px; padding: 12px 16px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .band .k { font-size: 8px; letter-spacing: 1px; font-weight: 700; opacity: .85; }
+  .band .v { font-size: 16px; font-weight: 800; margin-top: 2px; }
+  .panel { background: #fff; border: 1px solid #E8E4DA; border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
+  .panel .t { font-weight: 800; font-size: 12px; margin-bottom: 5px; }
+  .panel .g { display: inline-flex; width: 16px; height: 16px; border-radius: 8px; background: #0E7C66; color: #fff; font-size: 10px; font-weight: 800; align-items: center; justify-content: center; margin-right: 6px; vertical-align: -3px; }
+  .panel p { margin: 0; font-size: 11px; line-height: 1.55; color: #3D4C48; }
+  .foot { color: #9aa39f; font-size: 8px; line-height: 1.5; margin-top: 26px; border-top: 1px solid #E8E4DA; padding-top: 8px; }
+</style></head>
+<body><div class="page">
+  <div class="head">
+    <div class="brand">MetaboleAI<small>C O A C H &nbsp; & &nbsp; N U T R I Z I O N E &nbsp; A I</small></div>
+    <div class="right">Report di percorso<br/><b>{{period}}</b></div>
   </div>
-  <p style="font-size:13px; margin-top:16px">{{trend}}</p>
-  <div class="foot">Documento generato automaticamente da Metabole.</div>
+
+  <div class="kicker">IL TUO PUNTO A → PUNTO B</div>
+  <h1>{{name}}, ecco la strada<br/><span class="teal">che hai fatto questo mese.</span></h1>
+  <p class="lead">Il riepilogo di {{period}} del tuo percorso con la tua coach e con Gaia — e cosa serve ora per arrivare al tuo obiettivo.</p>
+
+  <div class="cards">
+    <div class="stat"><div class="num">{{lostThisMonth}}</div><div class="lab">Perso questo mese</div></div>
+    <div class="stat"><div class="num">{{lostTotal}}</div><div class="lab">Perso dall'inizio</div></div>
+    <div class="stat"><div class="num">{{currentWeight}}</div><div class="lab">Peso attuale</div></div>
+    <div class="stat"><div class="num">{{checkins}}</div><div class="lab">Check-in nel mese</div><div class="sub">{{measurements}} pesate</div></div>
+  </div>
+
+  <div class="band">
+    <div><div class="k">IL TUO OBIETTIVO</div><div class="v">{{target}}</div></div>
+    <div style="text-align:right"><div class="k">IL TUO RITMO</div><div class="v" style="font-size:12px">un passo alla volta, insieme</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="t"><span class="g">G</span>La tua traiettoria</div>
+    <p>{{trend}}</p>
+  </div>
+
+  <div class="foot">MetaboleAI · Report generato automaticamente per {{name}} — Il calo di peso può variare da persona a persona e includere una quota di liquidi.
+  Questo documento non sostituisce un parere medico: per patologie è disponibile la visita con il nutrizionista in app. Il report completo, con misure e dettagli, è sempre nella tua app.</div>
 </div></body></html>`;
 
 export const DEFAULT_PDF_TEMPLATES: PdfTemplateDefault[] = [
