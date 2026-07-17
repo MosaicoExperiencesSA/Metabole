@@ -11,6 +11,7 @@ import { getTodaySteps } from '../lib/steps';
 import { DEFAULT_WATER_UNIT, isWaterUnit, waterIcon, waterStep, waterValue, type WaterUnit } from '../lib/water';
 import StartDatePrompt from '../components/StartDatePrompt';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
+import PendingBankTransfers from '../components/PendingBankTransfers';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 import { TypeText } from '../components/TypeText';
@@ -263,6 +264,9 @@ export default function Home() {
       )}
 
       <StartDatePrompt />
+
+      {/* Bonifico da completare: dati per pagare + carica contabile, direttamente in dashboard. */}
+      <PendingBankTransfers />
 
       {/* Menu non ancora visibile: spiega perché e quando arriva (niente banner se c'è già il menu di oggi). */}
       {menuStatus && (!meals || meals.length === 0) && <MenuStatusBanner status={menuStatus} />}

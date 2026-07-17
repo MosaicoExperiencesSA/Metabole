@@ -615,7 +615,26 @@ export class CommerceService {
       where: { clientId },
       orderBy: { createdAt: 'desc' },
     });
-    return payments.map((p: Record<string, unknown>) => this.publicPayment(p));
+    const list = payments.map((p: Record<string, unknown>) => this.publicPayment(p)) as Array<
+      Record<string, unknown> & { id: string; method: string; status: string; subscriptionId?: string | null }
+    >;
+    // Per i bonifici ancora da saldare (in attesa o con contabile già caricata) alleghiamo
+    // i dati per pagare — IBAN e causale — così la cliente li vede anche in app (finora
+    // erano solo nell'email) e può caricare la contabile dalla dashboard.
+    const needsTransfer = list.some((p) => p.method === 'bank_transfer' && (p.status === 'pending' || p.status === 'receipt_uploaded'));
+    if (!needsTransfer) return list;
+    const bankDetails = await this.configParams.getString('bank_transfer_details', 'IBAN: da configurare in Parametri (bank_transfer_details)');
+    const [profile, user] = await Promise.all([
+      this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { name: true } }),
+      this.prisma.user.findUnique({ where: { id: clientId }, select: { email: true } }),
+    ]);
+    const payer = profile?.name ?? user?.email ?? 'Metabole';
+    return list.map((p) => {
+      if (p.method !== 'bank_transfer' || (p.status !== 'pending' && p.status !== 'receipt_uploaded')) return p;
+      const code = String(p.id).slice(0, 8).toUpperCase();
+      const transferReference = p.subscriptionId ? `${payer} — ${code}` : `Ordine ${code}`;
+      return { ...p, bankDetails, transferReference };
+    });
   }
 
   async mySubscription(clientId: string) {
