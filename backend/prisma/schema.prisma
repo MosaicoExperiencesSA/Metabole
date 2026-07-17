@@ -749,6 +749,7 @@ model StaffCompensation {
   period  String // YYYY-MM
   amountCents Int @default(0) @map("amount_cents")
   items   Json   @default("[]") // [{at, kind, amountCents, ref}]
+  settledAt DateTime? @map("settled_at") // quando il compenso del periodo è stato PAGATO allo staff (null = ancora accantonato)
 
   @@unique([staffId, period])
   @@map("staff_compensation")
