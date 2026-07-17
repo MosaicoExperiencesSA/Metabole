@@ -22,6 +22,12 @@ const MILESTONE_DEFS: { type: string; label: string; lostKg?: number }[] = [
 
 @Injectable()
 export class SignalsService {
+  /** Volume di un bicchiere da cucina (ml): stessa base di app/src/lib/water.ts. */
+  private static readonly GLASS_ML = 250;
+  /** Limiti prudenti dell'obiettivo acqua in bicchieri: 6 = 1,5 L, 16 = 4 L. */
+  private static readonly WATER_GOAL_MIN = 6;
+  private static readonly WATER_GOAL_MAX = 16;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
@@ -308,7 +314,7 @@ export class SignalsService {
       this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { objective: true } }),
     ]);
     const [waterGoal, stepsGoal] = await Promise.all([
-      this.configParams.getNumber('water_goal_glasses', 8),
+      this.waterGoalFor(clientId),
       this.configParams.getNumber('steps_goal', 8000),
     ]);
     return {
@@ -325,9 +331,33 @@ export class SignalsService {
 
   // ---------- Acqua e passi (segnale Vita) ----------
 
+  /**
+   * Obiettivo giornaliero d'acqua PERSONALIZZATO sul peso della cliente, espresso
+   * in BICCHIERI da 250 ml (stessa unità di storage delle unità display: 1 bicchiere
+   * = 250 ml, le bottiglie sono solo un modo di visualizzarlo — app/src/lib/water.ts).
+   * Formula: ~33 ml/kg (`water_ml_per_kg`, admin-configurabile) diviso il volume di
+   * un bicchiere da cucina (250 ml), arrotondato e limitato a un intervallo sensato
+   * (6–16 bicchieri = 1,5–4 L). Peso preso dall'ultima misura, poi dal peso iniziale
+   * del profilo; se il peso non è noto si usa il globale `water_goal_glasses` (8 = 2 L).
+   */
+  private async waterGoalFor(clientId: string): Promise<number> {
+    const [mlPerKg, fallback] = await Promise.all([
+      this.configParams.getNumber('water_ml_per_kg', 33),
+      this.configParams.getNumber('water_goal_glasses', 8),
+    ]);
+    const [lastMeasure, profile] = await Promise.all([
+      this.prisma.measurement.findFirst({ where: { clientId }, orderBy: { date: 'desc' }, select: { weightKg: true } }),
+      this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { startWeightKg: true } }),
+    ]);
+    const weight = lastMeasure?.weightKg ?? profile?.startWeightKg ?? null;
+    if (!weight || weight <= 0) return fallback;
+    const glasses = Math.round((weight * mlPerKg) / SignalsService.GLASS_ML);
+    return Math.min(SignalsService.WATER_GOAL_MAX, Math.max(SignalsService.WATER_GOAL_MIN, glasses));
+  }
+
   async upsertWater(clientId: string, dto: CreateWaterDto) {
     const date = toDateOnly(dto.date);
-    const goal = await this.configParams.getNumber('water_goal_glasses', 8);
+    const goal = await this.waterGoalFor(clientId);
     return this.prisma.waterLog.upsert({
       where: { clientId_date: { clientId, date } },
       create: { clientId, date, glasses: dto.glasses, goal },
