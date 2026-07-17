@@ -11,6 +11,7 @@ import { DEFAULT_PDF_TEMPLATES } from '../src/pdf/pdf.defaults';
 import { SUGGESTED_PRESETS } from '../src/engine-rules/engine-rules.presets';
 import { MARKETING_EMAIL_TEMPLATES } from './seed_email_marketing';
 import { seedKetoCatalog } from './seed_keto';
+import { deriveKey, encryptBuffer } from '../src/health-area/crypto.util';
 
 const prisma = new PrismaClient();
 
@@ -885,6 +886,7 @@ async function main(): Promise<void> {
   }
   await backfillPaidClientsIntoCrm();
   await backfillCoachRefCodes();
+  await seedStaffMailboxes();
   await seedEmailTemplates();
   await seedPdfTemplates();
   const count = await prisma.configParam.count();
@@ -940,6 +942,40 @@ async function backfillCoachRefCodes(): Promise<void> {
     await prisma.staff.update({ where: { id: c.id }, data: { refCode: ref } });
   }
   if (coaches.length) console.log(`Seed: generati ${coaches.length} ref code coach.`);
+}
+
+/**
+ * Casella di posta collegata di default per lo staff commerciale: ogni COACH e
+ * la RESPONSABILE COACH (ruolo `sales`) ricevono la casella già configurata,
+ * con user = email di login e la password di default aziendale.
+ * - Non tocca chi ha già una casella impostata (potrebbe averla cambiata da sé):
+ *   agisce solo su chi non ce l'ha (`mailAccount: null`).
+ * - La password è cifrata a riposo con la stessa chiave del MailboxService
+ *   (AES-256-GCM, FILE_ENCRYPTION_KEY). Non viene mai loggata.
+ * - Override della password di default via env `STAFF_DEFAULT_MAILBOX_PASSWORD`.
+ * - Se manca FILE_ENCRYPTION_KEY salta senza bloccare il deploy.
+ * Idempotente.
+ */
+async function seedStaffMailboxes(): Promise<void> {
+  const secret = process.env.FILE_ENCRYPTION_KEY;
+  if (!secret) {
+    console.log('Seed: FILE_ENCRYPTION_KEY assente → caselle staff non collegate (salto).');
+    return;
+  }
+  const key = deriveKey(secret);
+  const password = process.env.STAFF_DEFAULT_MAILBOX_PASSWORD || 'Qwerty2026!';
+  const enc = () => encryptBuffer(Buffer.from(password, 'utf8'), key).toString('base64');
+  const staff = await prisma.user.findMany({
+    where: { role: { in: ['coach', 'sales'] }, deletedAt: null, mailAccount: { is: null } },
+    select: { id: true, email: true },
+  });
+  let created = 0;
+  for (const u of staff) {
+    if (!u.email) continue;
+    await prisma.mailAccount.create({ data: { userId: u.id, email: u.email, encPassword: enc() } });
+    created++;
+  }
+  if (created) console.log(`Seed: collegate ${created} caselle di posta staff (coach + responsabile).`);
 }
 
 /**

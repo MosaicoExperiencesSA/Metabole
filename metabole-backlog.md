@@ -54,27 +54,28 @@ passaggio da dimagrimento a mantenimento (messaggio/notifica "Hai raggiunto il t
 obiettivo: si passa al mantenimento"). Nessuna azione lato cliente: resta decisione
 clinica dello staff, l'app la mostra soltanto.
 
-## Checkout — indirizzo di spedizione condizionale — DA FARE
-DECISIONE (Simone, 16/07): al momento dell'acquisto di un percorso, l'indirizzo di
-spedizione va chiesto SOLO se non è già in scheda.
-- Se via/CAP/città/provincia sono GIÀ presenti nel profilo del cliente → **saltare** il
-  passaggio "Indirizzo di spedizione" e andare dritti al pagamento (mostrare eventualmente
-  l'indirizzo salvato in sola lettura con opzione "modifica").
-- Se il dato MANCA → mostrare il form indirizzo (come nella schermata Checkout, Passo 32/35),
-  raccoglierlo e **salvarlo in scheda** così le volte successive si salta.
-Da verificare: dove vive l'indirizzo sul modello (ClientProfile / User?) e passarlo al
-Checkout per la logica condizionale; salvataggio all'invio dell'ordine.
+## Catalogo diete — mancano i tagli a 3 e 4 pasti — DA FARE (importante)
+DIAGNOSI (17/07): un cliente che nell'onboarding sceglie il percorso a 3 (o 4) pasti resta
+SENZA MENU. Causa: menu.service.pickDiet cerca una dieta approvata con mealsPerDay ESATTAMENTE
+uguale al profilo (il filtro `mealsPerDay` è in tutte le query, anche nei fallback), ma nel
+Catalogo diete esistono SOLO diete a 5 pasti → pickDiet ritorna null → deliverIfEligible non
+genera nulla → nessun menu (e il tile kcal resta "—").
+Verificato dal vivo su sim1one.salogni@gmail.com (Onnivora, 3 pasti): sbloccata temporaneamente
+portando i suoi "Pasti" a 5 dalla scheda backoffice (match con "DASH Onnivora Dimagrimento 5").
+DA FARE (una delle due):
+  (a) far creare e approvare al capo nutrizionista le varianti a 3 e 4 pasti (almeno Onnivora,
+      meglio tutti i regimi), oppure
+  (b) se si vuole offrire solo 5 pasti, togliere dall'onboarding la scelta 3/4 pasti.
+Opzionale: valutare un fallback in pickDiet più tollerante sul numero pasti (con cautela: darebbe
+un piano con un numero di pasti diverso da quello scelto dal cliente).
 
-## Registrazione — telefono con prefisso + regola "mail o telefono" — DA FARE
-DECISIONE (Simone, 16/07): in fase di registrazione, sotto il campo email aggiungere il
-**numero di telefono** = casella a discesa per il **prefisso internazionale** (+39, +41, …)
-+ campo numero.
-Validazione: **almeno uno tra email e telefono è obbligatorio** (mail sola, telefono solo,
-o entrambi vanno bene; non si può lasciare entrambi vuoti).
-Da verificare/prevedere:
-- lato app (Register.tsx): dropdown prefissi (lista paesi/prefissi), campo numero, validazione
-  "email || telefono", normalizzazione numero in formato E.164 (prefisso + numero) per il salvataggio;
-- lato backend: rendere email non più strettamente obbligatoria da sola, accettare telefono come
-  identificativo alternativo, gestire unicità telefono, e adeguare auth/register (oggi la
-  registrazione ruota attorno all'email → impatti su login, verifica, reset password);
-- decidere se il telefono diventa anche canale di login/verifica (OTP SMS?) o solo dato di contatto.
+## Checkout — indirizzo di spedizione condizionale — DA FARE
+(re-inserito: perso in un sync del backlog il 17/07)
+All'acquisto di un percorso l'indirizzo di spedizione va chiesto SOLO se non è già in scheda.
+Se via/CAP/città/provincia sono già nel profilo → saltare il passaggio e andare al pagamento
+(mostrare l'indirizzo salvato in sola lettura con "modifica"). Se manca → mostrare il form
+(come Checkout, Passo 32/35), raccoglierlo e salvarlo in scheda per le volte successive.
+
+## Registrazione — telefono con prefisso + login email/telefono — FATTO (17/07)
+Telefono obbligatorio in registrazione (prefisso a discesa + numero, unicità sulle cifre); login
+con email o telefono (quest'ultimo già lato socio). Consegnato in iCloud.
