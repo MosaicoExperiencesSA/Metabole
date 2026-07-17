@@ -9,11 +9,11 @@ type Options = {
   tags: string[];
   templates: { key: string; name: string; subject: string }[];
 };
-type Filters = { stages: string[]; tags: string[]; listIds: string[]; segment: '' | 'client' | 'historical' | 'lead'; historicalPaid: boolean; city: string };
+type Filters = { stages: string[]; tags: string[]; listIds: string[]; excludeTags: string[]; excludeStages: string[]; segment: '' | 'client' | 'historical' | 'lead'; historicalPaid: boolean; city: string };
 type Preview = { total: number; sample: { id: string; name: string | null; email: string | null; stage: string; tags: string[] }[] };
 type CampaignRow = { id: string; title: string; templateKey: string; subject: string; recipientCount: number; sentCount: number; failedCount: number; status?: string; scheduledFor?: string | null; nextBatchAt?: string | null; batchSize?: number; pauseMinutes?: number; cursor?: number; createdAt: string };
 
-const EMPTY: Filters = { stages: [], tags: [], listIds: [], segment: '', historicalPaid: false, city: '' };
+const EMPTY: Filters = { stages: [], tags: [], listIds: [], excludeTags: [], excludeStages: [], segment: '', historicalPaid: false, city: '' };
 
 const CAMPAIGN_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   scheduled: { label: 'Programmata', color: '#8A5A00', bg: '#FDECC8' },
@@ -50,6 +50,9 @@ export function Marketing() {
   const [throttle, setThrottle] = useState(true);
   const [batchSize, setBatchSize] = useState(50);
   const [pauseMinutes, setPauseMinutes] = useState(10);
+  // Azione post-invio: sui destinatari effettivamente inviati aggiungi un'etichetta e/o cambia stato pipeline.
+  const [postTag, setPostTag] = useState('');
+  const [postStage, setPostStage] = useState('');
 
   useEffect(() => {
     api<Options>('/marketing/options').then(setOpts).catch((e) => setError(e instanceof Error ? e.message : 'Caricamento non riuscito.'));
@@ -57,7 +60,7 @@ export function Marketing() {
   }, []);
   function loadCampaigns() { api<CampaignRow[]>('/marketing/campaigns').then(setCampaigns).catch(() => {}); }
 
-  function toggle(key: 'stages' | 'tags' | 'listIds', v: string) {
+  function toggle(key: 'stages' | 'tags' | 'listIds' | 'excludeTags' | 'excludeStages', v: string) {
     setFilters((f) => ({ ...f, [key]: f[key].includes(v) ? f[key].filter((x) => x !== v) : [...f[key], v] }));
     setPreview(null);
   }
@@ -83,6 +86,8 @@ export function Marketing() {
     const body: Record<string, unknown> = { title, templateKey, filters: filtersPayload() };
     if (sendMode === 'scheduled' && scheduledFor) body.scheduledFor = new Date(scheduledFor).toISOString();
     if (throttle) { body.batchSize = batchSize; body.pauseMinutes = pauseMinutes; }
+    if (postTag.trim()) body.postTag = postTag.trim();
+    if (postStage) body.postStage = postStage;
     try {
       const r = await api<{ recipientCount: number; sent?: number; failed?: number; scheduled?: boolean; scheduledFor?: string; done?: boolean }>('/marketing/campaigns', { method: 'POST', body: JSON.stringify(body) });
       if (r.scheduled) {
@@ -92,7 +97,7 @@ export function Marketing() {
       } else {
         setNotice(`Campagna "${title}" avviata: primo lotto di ${r.sent} inviate${r.failed ? `, ${r.failed} fallite` : ''}. I ${r.recipientCount} destinatari verranno completati a lotti.`);
       }
-      setTitle(''); setPreview(null); setScheduledFor(''); loadCampaigns();
+      setTitle(''); setPreview(null); setScheduledFor(''); setPostTag(''); setPostStage(''); loadCampaigns();
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Invio non riuscito.'); }
     finally { setBusy(false); }
   }
@@ -120,6 +125,9 @@ export function Marketing() {
         <ChipGroup label="Liste" empty="Nessuna lista" items={opts.lists.map((l) => ({ v: l.id, l: l.name }))} sel={filters.listIds} onToggle={(v) => toggle('listIds', v)} />
         <ChipGroup label="Etichette" empty="Nessuna etichetta sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.tags} onToggle={(v) => toggle('tags', v)} />
         <ChipGroup label="Stato (pipeline)" empty="—" items={opts.stages.map((s) => ({ v: s, l: s }))} sel={filters.stages} onToggle={(v) => toggle('stages', v)} />
+        {/* Esclusioni: utili con l'azione post-invio (es. escludi chi ha già l'etichetta della campagna precedente). */}
+        <ChipGroup label="Escludi etichette" empty="Nessuna etichetta sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.excludeTags} onToggle={(v) => toggle('excludeTags', v)} />
+        <ChipGroup label="Escludi stati" empty="—" items={opts.stages.map((s) => ({ v: s, l: s }))} sel={filters.excludeStages} onToggle={(v) => toggle('excludeStages', v)} />
 
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
           <label className="row" style={{ gap: 6, alignItems: 'center' }}>
@@ -224,6 +232,30 @@ export function Marketing() {
                 : 'Tutte le e-mail partono insieme: veloce, ma su liste grandi può penalizzare la consegna.'}
             </p>
           </div>
+
+          {/* Azione post-invio: applicata solo a chi ha ricevuto davvero l'email */}
+          <div>
+            <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Dopo l'invio (facoltativo)</span>
+            <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <span className="muted" style={{ fontSize: 12 }}>Aggiungi etichetta</span>
+                <input className="input" list="post-tag-options" value={postTag} onChange={(e) => setPostTag(e.target.value)} placeholder="es. promo-set-26" maxLength={40} style={{ width: 180 }} />
+                <datalist id="post-tag-options">
+                  {opts.tags.map((t) => <option key={t} value={t} />)}
+                </datalist>
+              </label>
+              <label className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <span className="muted" style={{ fontSize: 12 }}>Sposta allo stato</span>
+                <select className="select" value={postStage} onChange={(e) => setPostStage(e.target.value)} style={{ width: 180 }}>
+                  <option value="">— non cambiare —</option>
+                  {opts.stages.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+            </div>
+            <p className="muted" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
+              L'azione si applica solo ai contatti a cui l'email è stata inviata davvero (le fallite restano com'erano). Con l'etichetta puoi poi escluderli dalla campagna successiva usando «Escludi etichette» nel segmento.
+            </p>
+          </div>
         </div>
         <div className="row" style={{ gap: 8, marginTop: 14 }}>
           <button className="btn ghost" onClick={sendTest} disabled={busy || !templateKey}><i className="ti ti-send" /> Invia una prova a me</button>
@@ -279,6 +311,9 @@ export function Marketing() {
             {throttle
               ? <> Invio a lotti: <b>{batchSize}</b> e-mail, poi pausa di <b>{pauseMinutes}</b> minuti.</>
               : <> Tutte le e-mail partiranno insieme.</>}
+            {(postTag.trim() || postStage) && (
+              <> Dopo l'invio: {postTag.trim() && <>etichetta <b>{postTag.trim()}</b></>}{postTag.trim() && postStage && ' e '}{postStage && <>stato <b>{postStage}</b></>} sui contatti raggiunti.</>
+            )}
           </p>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
             <button className="btn ghost" onClick={() => setConfirming(false)}>Annulla</button>

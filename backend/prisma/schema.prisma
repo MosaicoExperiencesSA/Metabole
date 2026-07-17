@@ -1725,6 +1725,10 @@ model MarketingCampaign {
   pauseMinutes   Int      @default(0) @map("pause_minutes") // pausa tra un lotto e il successivo
   cursor         Int      @default(0) // destinatari già processati (indice nell'array congelato)
   nextBatchAt    DateTime? @map("next_batch_at") // quando è dovuto il prossimo lotto (usato dal ticker)
+  // Azione POST-INVIO sui destinatari effettivamente inviati: aggiungi etichetta
+  // e/o cambia stato pipeline (entrambe facoltative, applicate per lotto).
+  postTag        String?  @map("post_tag")
+  postStage      String?  @map("post_stage")
   createdById    String?  @map("created_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
