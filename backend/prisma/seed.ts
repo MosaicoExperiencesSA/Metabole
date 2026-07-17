@@ -135,7 +135,13 @@ const CONFIG_PARAMS: SeedParam[] = [
     key: 'water_goal_glasses',
     value: '8',
     type: 'number',
-    description: 'Obiettivo giornaliero bicchieri d\'acqua',
+    description: 'Obiettivo acqua di ripiego (bicchieri da 250 ml) quando il peso della cliente non è noto — altrimenti personalizzato sul peso via water_ml_per_kg',
+  },
+  {
+    key: 'water_ml_per_kg',
+    value: '33',
+    type: 'number',
+    description: 'Acqua giornaliera per kg di peso (ml/kg) per personalizzare l\'obiettivo — 30-35 tipico; obiettivo bicchieri = peso × questo / 250, limitato 6-16 bicchieri (1,5-4 L)',
   },
   {
     key: 'steps_goal',

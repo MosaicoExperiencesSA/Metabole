@@ -10,15 +10,9 @@ importi di provvigione PER RUOLO in centesimi (coach, manager coach, nutrizionis
 nutrizionista), impostabili dal Negozio. finance.service.generateCommissions li somma e li
 applica (sconti proporzionali, 0 = nessuna). Il vecchio commissionTeam è stato sostituito.
 
-## Coach — video di presentazione (da fare, ~2 settimane)
-DECISIONE (Simone): impostazione **via URL** — l'admin incolla il link a un video già
-ospitato nella scheda staff del backoffice, mostrato al cliente nella schermata onboarding
-"La tua coach". Da fare quando Simone avrà i filmati.
-Nella scheda di registrazione/profilo della coach (backoffice) aggiungere il supporto per
-il **caricamento del video di presentazione** (upload file video + storage + URL sul profilo).
-Il video viene mostrato al cliente nella schermata "La tua coach, Sara" durante l'onboarding
-(oggi nel prototipo è un player finto). Prevedere: campo `intro_video_url` sul profilo coach,
-upload da dashboard, formato/durata consigliati e fallback se assente.
+## Coach — video di presentazione — ANNULLATO (17/07)
+Idea abbandonata (Simone, 17/07): il video di presentazione della coach NON si fa. Non era
+comunque implementato nell'app (nessun player), quindi niente da rimuovere lato codice.
 
 ## Impostazioni backoffice — moduli dashboard trascinabili — FATTO
 Riordino drag & drop dei moduli in Impostazioni (lista trascinabile + chip "Aggiungi");
@@ -32,50 +26,33 @@ Ogni NUOVA pagina del backoffice va aggiunta alla lista permessi:
 Il seed (seedPermissions) crea le righe ruolo×pagina mancanti al deploy.
 
 ## Registrazione con email già esistente — UX reset password — FATTO
-Oggi la registrazione con una email già presente risponde solo con l'errore
-"Email già registrata" (ConflictException in auth.service.register). Migliorare
-la UX: riconoscere l'utente di ritorno e proporre "Questa email è già registrata:
-vuoi reimpostare la password?" con link/azione diretta al flusso di reset
-(app: /reset-password; staff: backoffice). Attenzione sicurezza: non rivelare
-troppo (enumerazione account) — valutare messaggio neutro lato API e gestione
-dell'offerta solo lato UI, oppure inviare comunque la mail di reset senza
-confermare esplicitamente l'esistenza dell'account.
+Su email già registrata (409) niente errore secco, ma un riquadro "Questa email è già registrata"
+con "Reimposta la password" (POST /auth/password-reset, risposta 202 neutra) e "Accedi".
 
-FATTO (app Register.tsx): su email già registrata (409) niente errore secco, ma un riquadro "Questa email è già registrata" con "Reimposta la password" (chiama POST /auth/password-reset, che risponde comunque 202 neutro) e "Accedi". L'enumerazione non peggiora perché la registrazione già rivelava l'esistenza; il reset resta neutro.
+## App cliente — mostrare la "fase" (dimagrimento/mantenimento) — FATTO (17/07)
+`/me/today` ora espone `objective` (dimagrimento | mantenimento) dal ClientProfile; la Home mostra
+un badge con la fase attuale (Dimagrimento / Mantenimento). Resta gestita dallo staff (sola lettura
+lato cliente). NON ancora fatto (opzionale, se si vorrà): notifica al passaggio dimagrimento →
+mantenimento ("Hai raggiunto il tuo obiettivo").
 
-## App cliente — mostrare la "fase" (dimagrimento/mantenimento) — DA FARE
-DECISIONE (Simone, 16/07): per ora la fase del cliente resta **solo staff**.
-Il campo `ClientProfile.objective` (dimagrimento | mantenimento) esiste già ed è
-gestito dallo staff nella scheda cliente del backoffice ("Fase (obiettivo dieta)");
-guida `pickDiet` a scegliere la variante giusta della famiglia (Fase 2, fatta).
-DA FARE quando si vuole: mostrare al cliente nell'app la sua fase attuale (es. badge
-"Mantenimento" nella home / schermata piano), e valutare se e come comunicargli il
-passaggio da dimagrimento a mantenimento (messaggio/notifica "Hai raggiunto il tuo
-obiettivo: si passa al mantenimento"). Nessuna azione lato cliente: resta decisione
-clinica dello staff, l'app la mostra soltanto.
+## Catalogo diete — servono i tagli a 3 pasti e digiuno intermittente — DA FARE (importante, DATI)
+DIAGNOSI (17/07): un cliente che sceglie 3 pasti resta SENZA MENU perché menu.service.pickDiet cerca
+una dieta approvata con mealsPerDay ESATTAMENTE uguale al profilo, ma il Catalogo diete ha solo
+diete a 5 pasti → pickDiet ritorna null → nessun menu.
+FATTO lato onboarding (17/07): le opzioni pasti ora sono **3 / 5 / digiuno intermittente** (tolti
+"4 pasti" e "Con integratori").
+DA FARE (lato NUTRIZIONISTA/dati): creare e approvare nel catalogo le diete a **3 pasti** e per il
+**digiuno intermittente** (almeno Onnivora, meglio tutti i regimi), altrimenti chi sceglie 3 pasti o
+digiuno resta comunque senza menu. Da chiarire: a quale mealsPerDay mappa il digiuno intermittente
+(oggi le diete "Digiuno intermittente (16:8)" a catalogo sono a 5 pasti).
+NOTA: nel backoffice la scheda cliente ha ancora il campo "Pasti" con opzione 4 → allinearlo a 3/5
+(codice del socio).
 
-## Catalogo diete — mancano i tagli a 3 e 4 pasti — DA FARE (importante)
-DIAGNOSI (17/07): un cliente che nell'onboarding sceglie il percorso a 3 (o 4) pasti resta
-SENZA MENU. Causa: menu.service.pickDiet cerca una dieta approvata con mealsPerDay ESATTAMENTE
-uguale al profilo (il filtro `mealsPerDay` è in tutte le query, anche nei fallback), ma nel
-Catalogo diete esistono SOLO diete a 5 pasti → pickDiet ritorna null → deliverIfEligible non
-genera nulla → nessun menu (e il tile kcal resta "—").
-Verificato dal vivo su sim1one.salogni@gmail.com (Onnivora, 3 pasti): sbloccata temporaneamente
-portando i suoi "Pasti" a 5 dalla scheda backoffice (match con "DASH Onnivora Dimagrimento 5").
-DA FARE (una delle due):
-  (a) far creare e approvare al capo nutrizionista le varianti a 3 e 4 pasti (almeno Onnivora,
-      meglio tutti i regimi), oppure
-  (b) se si vuole offrire solo 5 pasti, togliere dall'onboarding la scelta 3/4 pasti.
-Opzionale: valutare un fallback in pickDiet più tollerante sul numero pasti (con cautela: darebbe
-un piano con un numero di pasti diverso da quello scelto dal cliente).
-
-## Checkout — indirizzo di spedizione condizionale — DA FARE
-(re-inserito: perso in un sync del backlog il 17/07)
-All'acquisto di un percorso l'indirizzo di spedizione va chiesto SOLO se non è già in scheda.
-Se via/CAP/città/provincia sono già nel profilo → saltare il passaggio e andare al pagamento
-(mostrare l'indirizzo salvato in sola lettura con "modifica"). Se manca → mostrare il form
-(come Checkout, Passo 32/35), raccoglierlo e salvarlo in scheda per le volte successive.
+## Checkout — indirizzo di spedizione condizionale — FATTO (17/07)
+Checkout ora carica /me/profile: se via/CAP/città/provincia sono già in scheda mostra l'indirizzo in
+sola lettura con "Modifica"; se manca, apre il form (via, CAP, città, provincia) e al pagamento lo
+salva in scheda (PATCH /me/profile) prima di procedere.
 
 ## Registrazione — telefono con prefisso + login email/telefono — FATTO (17/07)
 Telefono obbligatorio in registrazione (prefisso a discesa + numero, unicità sulle cifre); login
-con email o telefono (quest'ultimo già lato socio). Consegnato in iCloud.
+con email o telefono (quest'ultimo già lato socio).

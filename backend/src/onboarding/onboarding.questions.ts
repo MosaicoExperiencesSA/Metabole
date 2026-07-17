@@ -84,17 +84,17 @@ export const ONBOARDING_QUESTIONS = {
     {
       key: 'meals',
       title: 'Quanti pasti riesci a fare?',
-      subtitle: 'Alcuni percorsi ne prevedono 5-6.',
+      subtitle: 'Scegli il ritmo che riesci a seguire.',
       fields: [
-        { key: 'mealsPerDay', type: 'choice', options: [3, 4, 5], labels: ['3 pasti', '4 pasti', '5-6 pasti'], required: true },
+        { key: 'mealsPerDay', type: 'choice', options: [3, 5], labels: ['3 pasti', '5 pasti'], required: true },
       ],
     },
     {
       key: 'path',
       title: 'Che percorso preferisci?',
-      subtitle: 'Quale percorso preferisci: cinque pasti, tre pasti classico, o con integratori? Il digiuno intermittente arriverà presto.',
+      subtitle: 'Tre pasti classico, cinque pasti o digiuno intermittente.',
       fields: [
-        { key: 'pathType', type: 'choice', options: ['classic3', 'five', 'supplements', 'intermittent_fasting'], labels: ['3 pasti classico', '5 pasti', 'Con integratori', 'Digiuno intermittente'], required: true },
+        { key: 'pathType', type: 'choice', options: ['classic3', 'five', 'intermittent_fasting'], labels: ['3 pasti classico', '5 pasti', 'Digiuno intermittente'], required: true },
       ],
     },
     {

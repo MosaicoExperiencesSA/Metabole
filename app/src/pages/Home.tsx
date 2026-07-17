@@ -19,7 +19,14 @@ interface Today {
   measurementDone: boolean;
   water: { glasses: number; goal: number };
   steps: { steps: number; goal: number };
+  objective?: string | null; // fase attuale: 'dimagrimento' | 'mantenimento'
 }
+
+// Badge della fase attuale (gestita dallo staff): dimagrimento o mantenimento.
+const PHASE_BADGE: Record<string, { label: string; icon: string; color: string }> = {
+  dimagrimento: { label: 'Dimagrimento', icon: 'ti-trending-down', color: '#12A386' },
+  mantenimento: { label: 'Mantenimento', icon: 'ti-equal', color: '#2F80ED' },
+};
 interface NextAppt { id: string; staffRole: string; staffName: string | null; type: string; datetime: string; note: string | null }
 
 const APPT_TYPE_LABEL: Record<string, string> = { call: 'Chiamata', televisit: 'Televisita', in_person: 'In presenza' };
@@ -234,6 +241,23 @@ export default function Home() {
   return (
     <div className="home">
       <AppHeader title={`Ciao, ${name}`} />
+
+      {/* Fase attuale del percorso (dimagrimento / mantenimento), decisa dallo staff. */}
+      {today?.objective && PHASE_BADGE[today.objective] && (
+        <div style={{ display: 'flex', marginBottom: 10 }}>
+          <span
+            className="chip"
+            style={{
+              background: `${PHASE_BADGE[today.objective].color}18`,
+              color: PHASE_BADGE[today.objective].color,
+              fontWeight: 700,
+              fontSize: 12,
+            }}
+          >
+            <i className={`ti ${PHASE_BADGE[today.objective].icon}`} style={{ fontSize: 13 }} /> {PHASE_BADGE[today.objective].label}
+          </span>
+        </div>
+      )}
 
       <StartDatePrompt />
 

@@ -15,6 +15,25 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Indirizzo di spedizione: si chiede SOLO se non è già in scheda.
+  const [addr, setAddr] = useState({ addressLine: '', postalCode: '', city: '', province: '' });
+  const [hasAddress, setHasAddress] = useState(false);
+  const [editAddr, setEditAddr] = useState(false);
+
+  useEffect(() => {
+    api<{ addressLine?: string | null; postalCode?: string | null; city?: string | null; province?: string | null }>('/me/profile')
+      .then((p) => {
+        const a = { addressLine: p.addressLine ?? '', postalCode: p.postalCode ?? '', city: p.city ?? '', province: p.province ?? '' };
+        setAddr(a);
+        const complete = !!(a.addressLine && a.postalCode && a.city && a.province);
+        setHasAddress(complete);
+        setEditAddr(!complete); // se manca, il form parte già aperto
+      })
+      .catch(() => setEditAddr(true));
+  }, []);
+
+  const addrComplete = !!(addr.addressLine.trim() && addr.postalCode.trim() && addr.city.trim() && addr.province.trim());
+  function upAddr(k: keyof typeof addr, v: string) { setAddr((s) => ({ ...s, [k]: v })); }
 
   // Mostra solo i metodi abilitati dal backoffice (Parametri).
   useEffect(() => {
@@ -48,6 +67,20 @@ export default function Checkout() {
   async function pay() {
     setBusy(true);
     setErr(null);
+    // Se l'indirizzo è stato inserito/modificato ora, lo salviamo in scheda prima di pagare.
+    if (editAddr) {
+      if (!addrComplete) { setErr('Completa l’indirizzo di spedizione.'); setBusy(false); return; }
+      try {
+        await api('/me/profile', { method: 'PATCH', body: JSON.stringify({
+          addressLine: addr.addressLine.trim(), postalCode: addr.postalCode.trim(),
+          city: addr.city.trim(), province: addr.province.trim().toUpperCase(),
+        }) });
+      } catch (e) {
+        setErr(e instanceof ApiError ? e.message : 'Non è stato possibile salvare l’indirizzo.');
+        setBusy(false);
+        return;
+      }
+    }
     const body = {
       planId: cart.plan?.id,
       items: cart.products.map((p) => ({ productId: p.id, qty: p.qty })),
@@ -142,6 +175,29 @@ export default function Checkout() {
         <div className="card" style={{ marginTop: 12 }}><p className="muted" style={{ margin: 0, fontSize: 13 }}>Prodotto gratuito: nessun pagamento richiesto.</p></div>
       )}
 
+      {/* Indirizzo di spedizione: chiesto solo se non è già in scheda. */}
+      <div className="sec">Indirizzo di spedizione</div>
+      {hasAddress && !editAddr ? (
+        <div className="card">
+          <div className="row-between" style={{ alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 13 }}>
+              <div style={{ fontWeight: 600 }}>{addr.addressLine}</div>
+              <div className="muted" style={{ marginTop: 2 }}>{addr.postalCode} {addr.city} ({addr.province})</div>
+            </div>
+            <button type="button" className="btn-recipe" style={{ padding: '4px 10px' }} onClick={() => setEditAddr(true)}>Modifica</button>
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <input className="input" placeholder="Via e numero civico" value={addr.addressLine} onChange={(e) => upAddr('addressLine', e.target.value)} autoComplete="address-line1" />
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            <input className="input" style={{ flex: '0 0 34%' }} placeholder="CAP" inputMode="numeric" value={addr.postalCode} onChange={(e) => upAddr('postalCode', e.target.value)} autoComplete="postal-code" />
+            <input className="input" style={{ flex: 1 }} placeholder="Città" value={addr.city} onChange={(e) => upAddr('city', e.target.value)} autoComplete="address-level2" />
+          </div>
+          <input className="input" style={{ marginTop: 8 }} placeholder="Provincia (es. MI)" maxLength={4} value={addr.province} onChange={(e) => upAddr('province', e.target.value.toUpperCase())} autoComplete="address-level1" />
+        </div>
+      )}
+
       {!isFree && <div className="sec">Come vuoi pagare?</div>}
       {!isFree && (
       <div className="opt-list">
@@ -172,7 +228,7 @@ export default function Checkout() {
 
       {err && <div className="banner err" style={{ marginTop: 12 }}>{err}</div>}
 
-      <button className="btn" style={{ marginTop: 14 }} onClick={pay} disabled={busy || (!isFree && !methods.card && !methods.bank_transfer)}>
+      <button className="btn" style={{ marginTop: 14 }} onClick={pay} disabled={busy || (editAddr && !addrComplete) || (!isFree && !methods.card && !methods.bank_transfer)}>
         {busy ? 'Attendi…' : isFree ? 'Attiva gratis' : method === 'card' ? `Paga ${euro(total)}` : 'Ricevi gli estremi'}
       </button>
     </div>

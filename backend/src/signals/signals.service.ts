@@ -300,11 +300,12 @@ export class SignalsService {
   /** Per il popup "una volta al giorno, alla prima apertura". */
   async todayStatus(clientId: string) {
     const today = toDateOnly();
-    const [checkin, measurement, water, steps] = await Promise.all([
+    const [checkin, measurement, water, steps, profile] = await Promise.all([
       this.prisma.dailyCheckin.findUnique({ where: { clientId_date: { clientId, date: today } } }),
       this.prisma.measurement.findUnique({ where: { clientId_date: { clientId, date: today } } }),
       this.prisma.waterLog.findUnique({ where: { clientId_date: { clientId, date: today } } }),
       this.prisma.stepLog.findUnique({ where: { clientId_date: { clientId, date: today } } }),
+      this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { objective: true } }),
     ]);
     const [waterGoal, stepsGoal] = await Promise.all([
       this.configParams.getNumber('water_goal_glasses', 8),
@@ -317,6 +318,8 @@ export class SignalsService {
       measurementDone: Boolean(measurement),
       water: water ?? { glasses: 0, goal: waterGoal },
       steps: steps ?? { steps: 0, goal: stepsGoal },
+      // Fase attuale del cliente (dimagrimento | mantenimento), gestita dallo staff.
+      objective: profile?.objective ?? null,
     };
   }
 

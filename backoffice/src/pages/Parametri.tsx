@@ -32,7 +32,8 @@ const META: Record<string, Meta> = {
   // definiti su ogni piano/prodotto in Gestione negozio. Resta solo il compenso visita.
   visit_compensation_amount_cents: { label: 'Compenso per visita', group: 'Provvigioni e compensi', kind: 'euro', help: 'Compenso alla nutrizionista per ogni visita completata.' },
 
-  water_goal_glasses: { label: 'Obiettivo acqua', group: 'Obiettivi cliente', kind: 'number', unit: 'bicchieri/giorno' },
+  water_ml_per_kg: { label: 'Acqua per kg di peso', group: 'Obiettivi cliente', kind: 'number', unit: 'ml/kg', help: 'Personalizza l’obiettivo acqua sul peso della cliente (30-35 tipico). Obiettivo = peso × ml/kg ÷ 250 ml (bicchiere), limitato 6-16 bicchieri (1,5-4 L).' },
+  water_goal_glasses: { label: 'Obiettivo acqua (ripiego)', group: 'Obiettivi cliente', kind: 'number', unit: 'bicchieri/giorno', help: 'Usato solo quando il peso della cliente non è ancora noto. Altrimenti l’obiettivo è personalizzato sul peso.' },
   steps_goal: { label: 'Obiettivo passi', group: 'Obiettivi cliente', kind: 'number', unit: 'passi/giorno' },
 
   sustainable_rate_max_kg_week: { label: 'Ritmo sostenibile massimo', group: 'Motore · ritmo e sicurezza', kind: 'number', unit: 'kg/sett.', help: 'Oltre questo ritmo l’obiettivo è considerato ambizioso.' },
