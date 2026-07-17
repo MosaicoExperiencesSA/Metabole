@@ -1671,11 +1671,18 @@ model MarketingCampaign {
   recipientCount Int      @default(0) @map("recipient_count")
   sentCount      Int      @default(0) @map("sent_count")
   failedCount    Int      @default(0) @map("failed_count")
-  status         String   @default("sent") // sent
+  status         String   @default("sent") // scheduled | sending | sent | canceled (righe storiche: sent)
+  // Invio programmato + throttle a lotti (invia N e-mail, poi pausa di M minuti).
+  scheduledFor   DateTime? @map("scheduled_for") // quando far partire (null = subito)
+  batchSize      Int      @default(0) @map("batch_size") // e-mail per lotto (0 = tutte insieme)
+  pauseMinutes   Int      @default(0) @map("pause_minutes") // pausa tra un lotto e il successivo
+  cursor         Int      @default(0) // destinatari già processati (indice nell'array congelato)
+  nextBatchAt    DateTime? @map("next_batch_at") // quando è dovuto il prossimo lotto (usato dal ticker)
   createdById    String?  @map("created_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([createdAt])
+  @@index([status, nextBatchAt])
   @@map("marketing_campaign")
 }
 

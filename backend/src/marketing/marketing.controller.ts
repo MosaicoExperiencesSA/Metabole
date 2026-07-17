@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { IsBoolean, IsEmail, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsISO8601, IsObject, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -14,6 +14,11 @@ class SendCampaignDto {
   @IsString() @MaxLength(160) title!: string;
   @IsString() @MaxLength(120) templateKey!: string;
   @IsOptional() @IsObject() filters?: Record<string, unknown>;
+  // Invio programmato: data/ora ISO (assente = invia ora).
+  @IsOptional() @IsISO8601() scheduledFor?: string;
+  // Throttle a lotti: invia N e-mail, poi pausa di M minuti (0 = tutte insieme).
+  @IsOptional() @IsInt() @Min(0) @Max(5000) batchSize?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(1440) pauseMinutes?: number;
 }
 class TestDto {
   @IsString() @MaxLength(120) templateKey!: string;
@@ -50,7 +55,22 @@ export class MarketingController {
 
   @Post('campaigns')
   send(@Body() dto: SendCampaignDto, @CurrentUser() u: AuthUser) {
-    return this.service.sendCampaign({ title: dto.title, templateKey: dto.templateKey, filters: (dto.filters ?? {}) as SegmentFilters }, u.sub);
+    return this.service.sendCampaign(
+      {
+        title: dto.title,
+        templateKey: dto.templateKey,
+        filters: (dto.filters ?? {}) as SegmentFilters,
+        scheduledFor: dto.scheduledFor ?? null,
+        batchSize: dto.batchSize,
+        pauseMinutes: dto.pauseMinutes,
+      },
+      u.sub,
+    );
+  }
+
+  @Post('campaigns/:id/cancel')
+  cancel(@Param('id') id: string, @CurrentUser() u: AuthUser) {
+    return this.service.cancelCampaign(id, u.sub);
   }
 
   @Get('campaigns')

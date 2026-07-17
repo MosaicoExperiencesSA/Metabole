@@ -495,6 +495,7 @@ export class UsersService {
     id: string,
     data: {
       role?: Role; customRoleKey?: string | null; status?: 'active' | 'suspended'; locale?: string;
+      email?: string;
       firstName?: string | null; lastName?: string | null; displayName?: string;
       phone?: string | null; title?: string | null; addressLine?: string | null; country?: string | null;
     },
@@ -508,12 +509,33 @@ export class UsersService {
         ? await this.resolveRole((data.role ?? current.role) as Role, data.customRoleKey)
         : null;
 
+    // Correzione email di login (solo admin, endpoint già ristretto). Normalizzo,
+    // valido il formato e rifiuto se già in uso da un altro utente (come principale
+    // o secondaria). Non tocca la protezione dell'admin di sistema.
+    let emailChange: string | undefined;
+    if (data.email !== undefined) {
+      const email = data.email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException('Email non valida.');
+      if (email !== current.email.toLowerCase()) {
+        if (current.email.toLowerCase() === this.protectedAdminEmail()) {
+          throw new BadRequestException('Non si può cambiare l\'email dell\'admin di sistema da qui.');
+        }
+        const clash = await this.prisma.user.findFirst({
+          where: { OR: [{ email }, { secondaryEmail: email }], NOT: { id } },
+          select: { id: true },
+        });
+        if (clash) throw new BadRequestException('Esiste già un utente con questa email.');
+        emailChange = email;
+      }
+    }
+
     const norm = (v?: string | null) => (v === undefined ? undefined : (v?.trim() || null));
     const user = await this.prisma.user.update({
       where: { id },
       data: {
         ...(data.status !== undefined ? { status: data.status } : {}),
         ...(data.locale !== undefined ? { locale: data.locale } : {}),
+        ...(emailChange !== undefined ? { email: emailChange } : {}),
         ...(roleChange ? { role: roleChange.systemRole, customRoleKey: roleChange.customRoleKey } : {}),
         ...(data.firstName !== undefined ? { firstName: norm(data.firstName) } : {}),
         ...(data.lastName !== undefined ? { lastName: norm(data.lastName) } : {}),
@@ -524,12 +546,20 @@ export class UsersService {
       },
       select: PUBLIC_USER_SELECT,
     });
+    // Se l'utente ha la casella di posta collegata (staff), allineo l'indirizzo alla nuova
+    // email di login solo se la casella usava ancora quella vecchia (non tocco chi l'ha personalizzata).
+    if (emailChange) {
+      await this.prisma.mailAccount.updateMany({
+        where: { userId: id, email: current.email },
+        data: { email: emailChange },
+      });
+    }
     // Nome mostrato (scheda Staff), se l'utente ha una scheda staff.
     if (data.displayName !== undefined && user.staff) {
       await this.prisma.staff.update({ where: { id: user.staff.id }, data: { displayName: data.displayName.trim() || user.email.split('@')[0] } });
     }
-    if (data.status === 'suspended' || roleChange) {
-      // Cambi di ruolo o sospensione: revoca le sessioni attive.
+    if (data.status === 'suspended' || roleChange || emailChange) {
+      // Cambi di ruolo, sospensione o email di login: revoca le sessioni attive.
       await this.prisma.refreshToken.updateMany({
         where: { userId: id, revokedAt: null },
         data: { revokedAt: new Date() },

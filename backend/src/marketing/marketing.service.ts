@@ -1,4 +1,12 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,13 +33,33 @@ type Recipient = { id: string; name: string | null; email: string | null; client
  * opt-out) e storico campagne con destinatari CONGELATI al momento dell'invio.
  */
 @Injectable()
-export class MarketingService {
+export class MarketingService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(MarketingService.name);
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private ticking = false;
+  /** Il ticker controlla ogni minuto le campagne programmate e i lotti dovuti. */
+  private static readonly TICK_MS = 60 * 1000;
+  /** Tetto di destinatari processati per singolo giro del ticker (prudenza). */
+  private static readonly MAX_PER_TICK = 500;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
   ) {}
+
+  onModuleInit(): void {
+    // Scheduler interno leggero (come LifecycleService): nessuna dipendenza esterna.
+    // Primo giro dopo 30s (dà tempo al boot), poi ogni minuto.
+    this.timer = setInterval(() => void this.processDueCampaigns(), MarketingService.TICK_MS);
+    this.timer.unref?.();
+    setTimeout(() => void this.processDueCampaigns(), 30 * 1000).unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+  }
 
   private conditions(f: SegmentFilters): Prisma.CrmRecordWhereInput[] {
     const c: Prisma.CrmRecordWhereInput[] = [];
@@ -106,10 +134,43 @@ export class MarketingService {
     return { test: true, to: testEmail };
   }
 
-  async sendCampaign(input: { title: string; templateKey: string; filters: SegmentFilters }, actorId: string) {
+  /**
+   * Crea una campagna e la avvia: subito ("invia ora") oppure a una data/ora
+   * futura ("programma"). In entrambi i casi l'invio può essere diluito a lotti
+   * (throttle): invia `batchSize` e-mail, poi fa una pausa di `pauseMinutes`
+   * minuti prima del lotto successivo. `batchSize` 0 = tutte insieme.
+   *
+   * "Invia ora" manda subito il PRIMO lotto (feedback immediato) e lascia i
+   * successivi al ticker. "Programma" congela i destinatari ora e li invia dal
+   * momento scelto in poi.
+   */
+  async sendCampaign(
+    input: {
+      title: string;
+      templateKey: string;
+      filters: SegmentFilters;
+      scheduledFor?: string | null;
+      batchSize?: number;
+      pauseMinutes?: number;
+    },
+    actorId: string,
+  ) {
     if (!input.title?.trim()) throw new BadRequestException('Dai un titolo alla campagna.');
     const tpl = await this.prisma.emailTemplate.findUnique({ where: { key: input.templateKey } });
     if (!tpl) throw new BadRequestException('Modello email non trovato.');
+
+    const batchSize = Math.max(0, Math.min(5000, Math.floor(input.batchSize ?? 0)));
+    const pauseMinutes = Math.max(0, Math.min(1440, Math.floor(input.pauseMinutes ?? 0)));
+
+    let scheduledFor: Date | null = null;
+    if (input.scheduledFor) {
+      const d = new Date(input.scheduledFor);
+      if (Number.isNaN(d.getTime())) throw new BadRequestException('Data di invio non valida.');
+      // Tolleranza di 1 minuto: una data appena passata vale "adesso".
+      if (d.getTime() < Date.now() - 60_000) throw new BadRequestException('La data di invio è nel passato.');
+      scheduledFor = d;
+    }
+
     const records = await this.prisma.crmRecord.findMany({ where: this.whereWithEmail(input.filters), select: { id: true, name: true, email: true, clientId: true } });
     const recipients = await this.filterConsent(records);
     if (recipients.length === 0) throw new BadRequestException('Nessun destinatario con email valida (dopo gli opt-out).');
@@ -126,30 +187,137 @@ export class MarketingService {
         recipientCount: recipients.length,
         sentCount: 0,
         failedCount: 0,
-        status: 'sending',
+        cursor: 0,
+        batchSize,
+        pauseMinutes,
+        scheduledFor,
+        status: scheduledFor ? 'scheduled' : 'sending',
+        nextBatchAt: scheduledFor ?? new Date(),
         createdById: actorId,
       } as never,
     });
-    const tag = `campaign:${campaign.id}`;
+
+    await this.audit.log({
+      action: scheduledFor ? 'marketing.campaign.schedule' : 'marketing.campaign.send',
+      actorId,
+      entityType: 'marketing_campaign',
+      entityId: campaign.id,
+      metadata: { recipients: recipients.length, batchSize, pauseMinutes, scheduledFor: scheduledFor?.toISOString() ?? null },
+    });
+
+    // Programmata → il ticker la farà partire al momento giusto.
+    if (scheduledFor) {
+      return { id: campaign.id, recipientCount: recipients.length, scheduled: true, scheduledFor: scheduledFor.toISOString() };
+    }
+
+    // Invio ora → manda subito il primo lotto (o tutto, se senza throttle).
+    const res = await this.runBatch(campaign.id);
+    return { id: campaign.id, recipientCount: recipients.length, scheduled: false, sent: res.sent, failed: res.failed, done: res.done };
+  }
+
+  /** Annulla una campagna programmata o in corso (i lotti non ancora inviati non partono). */
+  async cancelCampaign(id: string, actorId: string) {
+    const c = await this.prisma.marketingCampaign.findUnique({ where: { id } });
+    if (!c) throw new NotFoundException('Campagna non trovata.');
+    if (c.status !== 'scheduled' && c.status !== 'sending') {
+      throw new BadRequestException('Questa campagna è già conclusa o annullata.');
+    }
+    await this.prisma.marketingCampaign.update({ where: { id }, data: { status: 'canceled', nextBatchAt: null } });
+    await this.audit.log({ action: 'marketing.campaign.cancel', actorId, entityType: 'marketing_campaign', entityId: id });
+    return { id, status: 'canceled' as const };
+  }
+
+  /**
+   * Invia UN lotto della campagna: da `cursor` per `batchSize` destinatari
+   * (o tutti i rimanenti se batchSize=0). Aggiorna contatori e stato; se restano
+   * destinatari, programma il prossimo lotto tra `pauseMinutes` minuti.
+   */
+  private async runBatch(campaignId: string): Promise<{ sent: number; failed: number; done: boolean }> {
+    const now = new Date();
+    // Claim atomico: sposto nextBatchAt su un "lease" a 10 minuti e vinco la corsa solo
+    // se ero effettivamente dovuto. Evita doppi invii tra "invia ora" inline e il ticker
+    // (o tra più istanze). Se il processo muore a metà, il lease scade e il lotto si ritenta.
+    const lease = new Date(now.getTime() + 10 * 60_000);
+    const claim = await this.prisma.marketingCampaign.updateMany({
+      where: { id: campaignId, status: { in: ['scheduled', 'sending'] }, nextBatchAt: { lte: now } },
+      data: { status: 'sending', nextBatchAt: lease },
+    });
+    if (claim.count === 0) return { sent: 0, failed: 0, done: true };
+
+    const c = await this.prisma.marketingCampaign.findUnique({ where: { id: campaignId } });
+    if (!c) return { sent: 0, failed: 0, done: true };
+
+    const recipients = (c.recipients as Array<{ email: string | null; name: string | null; recordId: string }>) ?? [];
+    const start = c.cursor ?? 0;
+    const size = c.batchSize && c.batchSize > 0 ? c.batchSize : recipients.length;
+    const slice = recipients.slice(start, start + size);
+    const tag = `campaign:${c.id}`;
 
     let sent = 0;
     let failed = 0;
-    for (const r of recipients) {
+    for (const r of slice) {
       if (!r.email) { failed++; continue; }
-      const html = this.merge(tpl.bodyHtml, { name: r.name ?? '' });
-      const ok = await this.mail.send({ to: r.email, subject: tpl.subject, html, templateKey: `campaign:${tpl.key}`, tags: [tag] });
+      const html = this.merge(c.bodyHtml, { name: r.name ?? '' });
+      const ok = await this.mail.send({ to: r.email, subject: c.subject, html, templateKey: `campaign:${c.templateKey}`, tags: [tag] });
       if (ok) sent++; else failed++;
     }
 
-    await this.prisma.marketingCampaign.update({ where: { id: campaign.id }, data: { sentCount: sent, failedCount: failed, status: 'sent' } });
-    await this.audit.log({ action: 'marketing.campaign.send', actorId, entityType: 'marketing_campaign', entityId: campaign.id, metadata: { recipients: recipients.length, sent, failed } });
-    return { id: campaign.id, recipientCount: recipients.length, sent, failed };
+    const newCursor = start + slice.length;
+    const done = newCursor >= recipients.length;
+    // updateMany con guardia status!=canceled: se la campagna è stata annullata durante
+    // il lotto, l'aggiornamento è un no-op e resta "canceled" (i lotti futuri non partono).
+    await this.prisma.marketingCampaign.updateMany({
+      where: { id: c.id, status: { not: 'canceled' } },
+      data: {
+        sentCount: (c.sentCount ?? 0) + sent,
+        failedCount: (c.failedCount ?? 0) + failed,
+        cursor: newCursor,
+        status: done ? 'sent' : 'sending',
+        nextBatchAt: done ? null : new Date(Date.now() + (c.pauseMinutes ?? 0) * 60_000),
+      },
+    });
+    return { sent, failed, done };
+  }
+
+  /**
+   * Ticker interno (ogni minuto): fa partire le campagne programmate arrivate a
+   * scadenza e manda il lotto successivo di quelle in corso, rispettando la pausa.
+   */
+  async processDueCampaigns(): Promise<{ processed: number }> {
+    if (this.ticking) return { processed: 0 };
+    this.ticking = true;
+    let processed = 0;
+    try {
+      const now = new Date();
+      const due = await this.prisma.marketingCampaign.findMany({
+        where: { status: { in: ['scheduled', 'sending'] }, nextBatchAt: { lte: now } },
+        orderBy: { nextBatchAt: 'asc' },
+        select: { id: true },
+        take: 50,
+      });
+      for (const d of due) {
+        if (processed >= MarketingService.MAX_PER_TICK) break;
+        try {
+          const res = await this.runBatch(d.id);
+          processed += res.sent + res.failed;
+        } catch (e) {
+          this.logger.warn(`Lotto campagna ${d.id} fallito: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    } finally {
+      this.ticking = false;
+    }
+    return { processed };
   }
 
   listCampaigns() {
     return this.prisma.marketingCampaign.findMany({
       orderBy: { createdAt: 'desc' }, take: 100,
-      select: { id: true, title: true, templateKey: true, subject: true, recipientCount: true, sentCount: true, failedCount: true, createdAt: true },
+      select: {
+        id: true, title: true, templateKey: true, subject: true, recipientCount: true,
+        sentCount: true, failedCount: true, status: true, scheduledFor: true, nextBatchAt: true,
+        batchSize: true, pauseMinutes: true, cursor: true, createdAt: true,
+      },
     });
   }
 

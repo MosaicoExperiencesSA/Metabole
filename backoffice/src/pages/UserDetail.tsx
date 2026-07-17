@@ -35,7 +35,7 @@ export function UserDetail() {
   const [saving, setSaving] = useState(false);
   const [pwd, setPwd] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ displayName: '', firstName: '', lastName: '', phone: '', title: '', addressLine: '', country: '' });
+  const [form, setForm] = useState({ email: '', displayName: '', firstName: '', lastName: '', phone: '', title: '', addressLine: '', country: '' });
 
   async function load() {
     setLoading(true); setError(null);
@@ -43,6 +43,7 @@ export function UserDetail() {
       const d = await api<UserData>(`/admin/users/${id}`);
       setU(d);
       setForm({
+        email: d.email ?? '',
         displayName: d.staff?.displayName ?? '',
         firstName: d.firstName ?? '', lastName: d.lastName ?? '',
         phone: d.phone ?? '', title: d.title ?? '',
@@ -63,6 +64,9 @@ export function UserDetail() {
         phone: form.phone.trim(), title: form.title.trim(),
         addressLine: form.addressLine.trim(), country: form.country.trim(),
       };
+      // Email di login: la invio solo se davvero cambiata (correzione admin).
+      const newEmail = form.email.trim().toLowerCase();
+      if (newEmail && newEmail !== u.email.toLowerCase()) body.email = newEmail;
       if (u.staff) body.displayName = form.displayName.trim();
       await api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify(body) });
       setNotice('Dati salvati.');
@@ -111,6 +115,12 @@ export function UserDetail() {
           </div>
         </div>
 
+        <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+          <div className="field" style={{ minWidth: 240, flex: 1 }}><label>Email di login</label>
+            <input className="input" type="email" value={form.email} disabled={!canManage} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="nome@metabole.eu" />
+            <span className="muted" style={{ fontSize: 11 }}>Cambiandola, l’utente accede con la nuova email e le sessioni attive vengono chiuse.</span>
+          </div>
+        </div>
         <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
           {u.staff && (
             <div className="field" style={{ minWidth: 200, flex: 1 }}><label>Nome mostrato</label>

@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { ROLES, Role } from '../../common/roles';
 
 export class UpdateUserDto {
@@ -19,6 +19,9 @@ export class UpdateUserDto {
   @IsOptional()
   @IsIn(['it', 'en', 'fr', 'de', 'es'])
   locale?: string;
+
+  // Email di login (correzione da parte dell'admin; deve essere unica).
+  @IsOptional() @IsEmail() @MaxLength(160) email?: string;
 
   // Anagrafica (modificabile dall'admin nella scheda utente).
   @IsOptional() @IsString() @MaxLength(80) firstName?: string | null;

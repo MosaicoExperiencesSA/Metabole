@@ -11,9 +11,16 @@ type Options = {
 };
 type Filters = { stages: string[]; tags: string[]; listIds: string[]; segment: '' | 'client' | 'historical' | 'lead'; historicalPaid: boolean; city: string };
 type Preview = { total: number; sample: { id: string; name: string | null; email: string | null; stage: string; tags: string[] }[] };
-type CampaignRow = { id: string; title: string; templateKey: string; subject: string; recipientCount: number; sentCount: number; failedCount: number; createdAt: string };
+type CampaignRow = { id: string; title: string; templateKey: string; subject: string; recipientCount: number; sentCount: number; failedCount: number; status?: string; scheduledFor?: string | null; nextBatchAt?: string | null; batchSize?: number; pauseMinutes?: number; cursor?: number; createdAt: string };
 
 const EMPTY: Filters = { stages: [], tags: [], listIds: [], segment: '', historicalPaid: false, city: '' };
+
+const CAMPAIGN_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  scheduled: { label: 'Programmata', color: '#8A5A00', bg: '#FDECC8' },
+  sending: { label: 'In invio', color: '#1F5FA8', bg: '#DCE9F8' },
+  sent: { label: 'Inviata', color: '#3B6D11', bg: '#DCF0D8' },
+  canceled: { label: 'Annullata', color: '#B3261E', bg: '#FBE0DE' },
+};
 
 export function Marketing() {
   const { user } = useAuth();
@@ -28,6 +35,12 @@ export function Marketing() {
   const [confirming, setConfirming] = useState(false);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  // Invio: subito o programmato + throttle a lotti (invia N, pausa M minuti).
+  const [sendMode, setSendMode] = useState<'now' | 'scheduled'>('now');
+  const [scheduledFor, setScheduledFor] = useState('');
+  const [throttle, setThrottle] = useState(true);
+  const [batchSize, setBatchSize] = useState(50);
+  const [pauseMinutes, setPauseMinutes] = useState(10);
 
   useEffect(() => {
     api<Options>('/marketing/options').then(setOpts).catch((e) => setError(e instanceof Error ? e.message : 'Caricamento non riuscito.'));
@@ -58,15 +71,31 @@ export function Marketing() {
 
   async function sendCampaign() {
     setConfirming(false); setBusy(true); setError(null); setNotice(null);
+    const body: Record<string, unknown> = { title, templateKey, filters };
+    if (sendMode === 'scheduled' && scheduledFor) body.scheduledFor = new Date(scheduledFor).toISOString();
+    if (throttle) { body.batchSize = batchSize; body.pauseMinutes = pauseMinutes; }
     try {
-      const r = await api<{ recipientCount: number; sent: number; failed: number }>('/marketing/campaigns', { method: 'POST', body: JSON.stringify({ title, templateKey, filters }) });
-      setNotice(`Campagna "${title}" inviata: ${r.sent} inviate, ${r.failed} fallite su ${r.recipientCount} destinatari.`);
-      setTitle(''); setPreview(null); loadCampaigns();
+      const r = await api<{ recipientCount: number; sent?: number; failed?: number; scheduled?: boolean; scheduledFor?: string; done?: boolean }>('/marketing/campaigns', { method: 'POST', body: JSON.stringify(body) });
+      if (r.scheduled) {
+        setNotice(`Campagna "${title}" programmata per ${new Date(r.scheduledFor ?? scheduledFor).toLocaleString('it-IT')} su ${r.recipientCount} destinatari.`);
+      } else if (r.done) {
+        setNotice(`Campagna "${title}" inviata: ${r.sent} inviate, ${r.failed} fallite su ${r.recipientCount} destinatari.`);
+      } else {
+        setNotice(`Campagna "${title}" avviata: primo lotto di ${r.sent} inviate${r.failed ? `, ${r.failed} fallite` : ''}. I ${r.recipientCount} destinatari verranno completati a lotti.`);
+      }
+      setTitle(''); setPreview(null); setScheduledFor(''); loadCampaigns();
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Invio non riuscito.'); }
     finally { setBusy(false); }
   }
 
-  const canSend = title.trim().length > 0 && !!templateKey && (preview?.total ?? 0) > 0;
+  async function cancelCampaign(id: string) {
+    if (!confirm('Annullare la campagna? I lotti non ancora inviati non partiranno.')) return;
+    try { await api(`/marketing/campaigns/${id}/cancel`, { method: 'POST' }); loadCampaigns(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : 'Annullamento non riuscito.'); }
+  }
+
+  const scheduleValid = sendMode === 'now' || (!!scheduledFor && new Date(scheduledFor).getTime() > Date.now() - 60_000);
+  const canSend = title.trim().length > 0 && !!templateKey && (preview?.total ?? 0) > 0 && scheduleValid;
   if (!opts) return <Spinner />;
 
   return (
@@ -144,11 +173,49 @@ export function Marketing() {
               {opts.templates.map((t) => <option key={t.key} value={t.key}>{t.name}</option>)}
             </select>
           </label>
+
+          {/* Quando inviare: subito o programmato */}
+          <div>
+            <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Quando inviare</span>
+            <div className="row" style={{ gap: 6 }}>
+              <button type="button" className="chip" onClick={() => setSendMode('now')} style={{ cursor: 'pointer', borderColor: sendMode === 'now' ? 'var(--teal)' : undefined, background: sendMode === 'now' ? 'var(--chip)' : undefined }}>
+                <i className="ti ti-bolt" /> Invia ora
+              </button>
+              <button type="button" className="chip" onClick={() => setSendMode('scheduled')} style={{ cursor: 'pointer', borderColor: sendMode === 'scheduled' ? 'var(--teal)' : undefined, background: sendMode === 'scheduled' ? 'var(--chip)' : undefined }}>
+                <i className="ti ti-calendar-clock" /> Programma
+              </button>
+            </div>
+            {sendMode === 'scheduled' && (
+              <input className="input" type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} style={{ marginTop: 8, maxWidth: 260 }} />
+            )}
+          </div>
+
+          {/* Throttle: invia N e-mail, poi pausa di M minuti */}
+          <div>
+            <label className="row" style={{ gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+              <input type="checkbox" checked={throttle} onChange={(e) => setThrottle(e.target.checked)} />
+              <span style={{ fontSize: 13 }}>Invia a lotti (consigliato)</span>
+            </label>
+            {throttle && (
+              <div className="row" style={{ gap: 10, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                <span className="muted" style={{ fontSize: 12 }}>invia</span>
+                <input className="input" type="number" min={1} max={5000} value={batchSize} onChange={(e) => setBatchSize(Math.max(1, Number(e.target.value) || 1))} style={{ width: 90 }} />
+                <span className="muted" style={{ fontSize: 12 }}>e-mail, poi pausa di</span>
+                <input className="input" type="number" min={0} max={1440} value={pauseMinutes} onChange={(e) => setPauseMinutes(Math.max(0, Number(e.target.value) || 0))} style={{ width: 80 }} />
+                <span className="muted" style={{ fontSize: 12 }}>minuti</span>
+              </div>
+            )}
+            <p className="muted" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
+              {throttle
+                ? `~${pauseMinutes > 0 ? Math.round((batchSize / pauseMinutes) * 60) : batchSize} e-mail/ora: invii diluiti, meglio per la reputazione del mittente.`
+                : 'Tutte le e-mail partono insieme: veloce, ma su liste grandi può penalizzare la consegna.'}
+            </p>
+          </div>
         </div>
         <div className="row" style={{ gap: 8, marginTop: 14 }}>
           <button className="btn ghost" onClick={sendTest} disabled={busy || !templateKey}><i className="ti ti-send" /> Invia una prova a me</button>
-          <button className="btn" onClick={() => setConfirming(true)} disabled={busy || !canSend} title={canSend ? '' : 'Servono titolo, modello e un segmento con destinatari'}>
-            <i className="ti ti-mail-forward" /> Invia campagna
+          <button className="btn" onClick={() => setConfirming(true)} disabled={busy || !canSend} title={canSend ? '' : 'Servono titolo, modello, un segmento con destinatari e (se programmata) una data futura'}>
+            <i className="ti ti-mail-forward" /> {sendMode === 'scheduled' ? 'Programma campagna' : 'Invia campagna'}
           </button>
         </div>
       </div>
@@ -158,26 +225,53 @@ export function Marketing() {
         <h2 style={{ marginTop: 0 }}>Storico campagne</h2>
         {campaigns.length === 0 ? <div className="empty">Nessuna campagna inviata.</div> : (
           <div style={{ display: 'grid', gap: 6 }}>
-            {campaigns.map((c) => (
-              <button key={c.id} onClick={() => setOpenId(c.id)} style={{ textAlign: 'left', display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)', cursor: 'pointer' }}>
-                <i className="ti ti-mail" style={{ fontSize: 18, color: 'var(--deep)' }} />
-                <span style={{ flex: 1 }}>
-                  <b style={{ display: 'block', fontSize: 14 }}>{c.title}</b>
-                  <span className="muted" style={{ fontSize: 12 }}>{new Date(c.createdAt).toLocaleString('it-IT')} · {c.recipientCount} destinatari · {c.sentCount} inviate{c.failedCount ? ` · ${c.failedCount} fallite` : ''}</span>
-                </span>
-                <i className="ti ti-chevron-right" style={{ color: 'var(--muted)' }} />
-              </button>
-            ))}
+            {campaigns.map((c) => {
+              const st = c.status ? CAMPAIGN_STATUS[c.status] : null;
+              const active = c.status === 'scheduled' || c.status === 'sending';
+              return (
+                <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--card)' }}>
+                  <button onClick={() => setOpenId(c.id)} style={{ flex: 1, textAlign: 'left', display: 'flex', gap: 10, alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <i className="ti ti-mail" style={{ fontSize: 18, color: 'var(--deep)' }} />
+                    <span style={{ flex: 1 }}>
+                      <b style={{ display: 'block', fontSize: 14 }}>
+                        {c.title}
+                        {st && <span className="chip" style={{ marginLeft: 8, fontSize: 10, color: st.color, background: st.bg, borderColor: 'transparent' }}>{st.label}</span>}
+                      </b>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {c.status === 'scheduled' && c.scheduledFor
+                          ? `Programmata per ${new Date(c.scheduledFor).toLocaleString('it-IT')} · ${c.recipientCount} destinatari`
+                          : `${new Date(c.createdAt).toLocaleString('it-IT')} · ${c.recipientCount} destinatari · ${c.sentCount} inviate${c.failedCount ? ` · ${c.failedCount} fallite` : ''}`}
+                        {c.status === 'sending' && ` · ${c.cursor ?? 0}/${c.recipientCount} elaborati`}
+                      </span>
+                    </span>
+                  </button>
+                  {active && (
+                    <button className="btn ghost sm" onClick={() => cancelCampaign(c.id)} style={{ color: '#b3261e' }} title="Annulla campagna">
+                      <i className="ti ti-x" /> Annulla
+                    </button>
+                  )}
+                  <button onClick={() => setOpenId(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><i className="ti ti-chevron-right" style={{ color: 'var(--muted)' }} /></button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
       {confirming && (
-        <Modal title="Confermi l'invio?" onClose={() => setConfirming(false)}>
-          <p>Stai per inviare <b>“{title}”</b> a <b>{preview?.total ?? 0}</b> destinatari (modello: {opts.templates.find((t) => t.key === templateKey)?.name}). L'operazione è irreversibile.</p>
+        <Modal title={sendMode === 'scheduled' ? 'Confermi la programmazione?' : "Confermi l'invio?"} onClose={() => setConfirming(false)}>
+          <p>
+            {sendMode === 'scheduled' ? 'Programmi' : 'Stai per inviare'} <b>“{title}”</b> a <b>{preview?.total ?? 0}</b> destinatari (modello: {opts.templates.find((t) => t.key === templateKey)?.name}).
+            {sendMode === 'scheduled' && scheduledFor && <> Partirà il <b>{new Date(scheduledFor).toLocaleString('it-IT')}</b>.</>}
+            {throttle
+              ? <> Invio a lotti: <b>{batchSize}</b> e-mail, poi pausa di <b>{pauseMinutes}</b> minuti.</>
+              : <> Tutte le e-mail partiranno insieme.</>}
+          </p>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
             <button className="btn ghost" onClick={() => setConfirming(false)}>Annulla</button>
-            <button className="btn" onClick={sendCampaign}><i className="ti ti-mail-forward" /> Invia ora</button>
+            <button className="btn" onClick={sendCampaign}>
+              <i className={sendMode === 'scheduled' ? 'ti ti-calendar-clock' : 'ti ti-mail-forward'} /> {sendMode === 'scheduled' ? 'Programma' : 'Invia ora'}
+            </button>
           </div>
         </Modal>
       )}
