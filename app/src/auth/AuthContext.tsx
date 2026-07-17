@@ -27,6 +27,9 @@ export interface User {
   emailVerifiedAt: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  // true per gli account provvisori (es. lead creati da backoffice con password di
+  // default): l'app forza l'impostazione di una password personale a fine questionario.
+  mustChangePassword?: boolean;
 }
 
 export interface RegisterPayload {
@@ -47,23 +50,9 @@ interface AuthResponse {
   refreshToken: string;
 }
 
-export interface PagePerm {
-  pageKey: string;
-  canView: boolean;
-  canManage: boolean;
-}
-export interface Permissions {
-  role: string;
-  pages: PagePerm[];
-}
-
 interface AuthValue {
   user: User | null;
   loading: boolean;
-  /** Permessi per pagina (solo staff; null per le clienti o finché non caricati). */
-  permissions: Permissions | null;
-  /** true se lo staff può vedere/gestire una sezione. Permissivo se i permessi non sono ancora caricati. */
-  can: (pageKey: string, level?: 'view' | 'manage') => boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
@@ -74,21 +63,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [loading, setLoading] = useState(true);
-
-  /** Per lo staff carica la matrice permessi; per le clienti la azzera. */
-  async function loadPermissions(role: string | undefined) {
-    if (!role || role === 'client') {
-      setPermissions(null);
-      return;
-    }
-    try {
-      setPermissions(await api<Permissions>('/me/permissions'));
-    } catch {
-      setPermissions({ role, pages: [] });
-    }
-  }
 
   useEffect(() => {
     (async () => {
@@ -97,9 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const me = await api<User>('/me'); // l'api rinnova l'access token in automatico
-        setUser(me);
-        await loadPermissions(me.role);
+        setUser(await api<User>('/me')); // l'api rinnova l'access token in automatico
         void syncWidgetToken();
       } catch {
         setRefreshToken(null);
@@ -114,16 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(res.accessToken);
     setRefreshToken(res.refreshToken);
     setUser(res.user);
-    void loadPermissions(res.user?.role);
     void syncWidgetToken();
-  }
-
-  function can(pageKey: string, level: 'view' | 'manage' = 'view'): boolean {
-    // Permissivo finché i permessi non sono caricati: il backend resta l'autorità.
-    if (!permissions) return true;
-    const p = permissions.pages.find((x) => x.pageKey === pageKey);
-    if (!p) return false;
-    return level === 'manage' ? p.canManage : p.canView;
   }
 
   async function login(email: string, password: string) {
@@ -166,22 +130,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRefreshToken(null);
     setAccessToken(null);
     setUser(null);
-    setPermissions(null);
     if (Capacitor.isNativePlatform()) { try { await Preferences.remove({ key: WIDGET_TOKEN_KEY }); } catch { /* ignora */ } }
   }
 
   async function refreshMe() {
     try {
-      const me = await api<User>('/me');
-      setUser(me);
-      await loadPermissions(me.role);
+      setUser(await api<User>('/me'));
     } catch {
       /* ignora */
     }
   }
 
   return (
-    <AuthContext.Provider value={{ user, permissions, can, loading, login, register, logout, refreshMe }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshMe }}>
       {children}
     </AuthContext.Provider>
   );

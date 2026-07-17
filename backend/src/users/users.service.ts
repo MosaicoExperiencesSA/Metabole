@@ -206,6 +206,25 @@ export class UsersService {
     return { changed: true };
   }
 
+  /**
+   * Imposta la password al PRIMO accesso per un account provvisorio
+   * (mustChangePassword=true, es. lead creato da backoffice con password di default).
+   * A differenza di changePassword NON richiede la password attuale: l'utente è già
+   * autenticato e il flag prova che è un primo cambio forzato. Azzera il flag.
+   * Se il flag non è attivo, si deve usare il cambio password normale.
+   */
+  async setInitialPassword(userId: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 8) throw new BadRequestException('La nuova password deve avere almeno 8 caratteri.');
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { mustChangePassword: true, role: true } });
+    if (!user) throw new NotFoundException('Utente non trovato');
+    if (user.role === 'admin') throw new BadRequestException("La password dell'amministratore si gestisce solo dalla variabile ADMIN_PASSWORD su Render, non dall'app.");
+    if (!user.mustChangePassword) throw new BadRequestException('La password è già stata impostata: usa il cambio password normale.');
+    const passwordHash = await argon2.hash(newPassword);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: false } });
+    await this.audit.log({ action: 'me.password.initial', actorId: userId, entityType: 'user', entityId: userId });
+    return { changed: true };
+  }
+
   /** Preferenze UI dell'utente (es. scorciatoie dashboard scelte). */
   async getPreferences(userId: string) {
     const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });

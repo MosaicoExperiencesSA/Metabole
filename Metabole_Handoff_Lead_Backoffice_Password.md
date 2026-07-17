@@ -41,7 +41,7 @@ Quando il collega crea un lead da backoffice, l'account (`User`) va creato così
 | `role` | `client` | è una cliente |
 | `status` | `active` | può accedere subito |
 | `emailVerifiedAt` | **adesso** (`now()`) | l'email l'ha messa un collega: la diamo per verificata, niente link di conferma |
-| `mustResetPassword` | **`true`** | dice all'app che la password è provvisoria e va cambiata a fine questionario |
+| `mustChangePassword` | **`true`** | dice all'app che la password è provvisoria e va cambiata a fine questionario |
 
 E **NON** va creato/compilato il questionario:
 
@@ -49,20 +49,25 @@ E **NON** va creato/compilato il questionario:
   `ClientProfile.onboardingCompletedAt` deve restare **nullo** (o il `ClientProfile` non esistere
   ancora): è esattamente ciò che fa capire all'app "questo utente non ha mai fatto il questionario".
 
-### Nuovo campo da aggiungere: `User.mustResetPassword`
+### Il campo `User.mustChangePassword` ESISTE GIÀ — niente migration nuova
 
-Non esiste ancora. Va aggiunto allo schema Prisma condiviso:
+Buona notizia: il flag è già nello schema Prisma condiviso e ha già la sua migration
+(`20260714120000_must_change_password`):
 
 ```prisma
-mustResetPassword Boolean @default(false) @map("must_reset_password")
+mustChangePassword Boolean @default(false) @map("must_change_password")
 ```
 
-**Coordinamento (importante per non fare due migration in conflitto):** questo campo serve anche
-al flusso app (la richiesta di reset a fine questionario). Per evitare che backoffice e app
-scrivano due migration diverse sulla tabella `User`, **lo aggiungo io lato backend con la sua
-migration**, e il backoffice si limita a **impostarlo a `true`** quando crea il lead. Se preferite
-farlo voi, ditecelo così io non lo tocco: l'importante è che il nome del campo sia esattamente
-`must_reset_password` (colonna) / `mustResetPassword` (Prisma), altrimenti l'app non lo legge.
+Ed è già tutto pronto lato backend:
+- `UsersService.createUser(...)` accetta già `mustChangePassword` → alla creazione del lead da
+  backoffice basta passarlo a **`true`**.
+- Il flag viene già **azzerato** quando l'utente imposta la password (endpoint app dedicato, sotto).
+- Il flag è già esposto nell'utente pubblico (`toPublicUser`), quindi l'app lo riceve al login.
+
+Quindi al backoffice **non serve creare nessun campo**: basta che, nella creazione del lead cliente,
+imposti `mustChangePassword: true` ed `emailVerifiedAt` = adesso, e non compili il questionario.
+(La parte app che consuma il flag — endpoint `PATCH /me/password/initial` + schermata a fine
+questionario — l'abbiamo già implementata noi.)
 
 ## 4. L'email al lead (parte del collega)
 
@@ -79,8 +84,8 @@ Contenuto minimo:
   di auto-registrazione), quindi il lead da backoffice non la vede per costruzione.
 - Questa logica vale **sia** per il lead da backoffice **sia** per un utente che si era registrato
   ma aveva abbandonato prima di finire il questionario: in entrambi i casi riprende dal questionario.
-- **A fine questionario**, se `mustResetPassword = true`, l'app mostra "Imposta la tua password".
-  Quando la reimposta, azzeriamo `mustResetPassword` (→ `false`). Per gli utenti auto-registrati il
+- **A fine questionario**, se `mustChangePassword = true`, l'app mostra "Imposta la tua password".
+  Quando la reimposta, azzeriamo `mustChangePassword` (→ `false`). Per gli utenti auto-registrati il
   flag è `false`, quindi non vedono nessuna richiesta di reset.
 
 ## 6. Regole password (allineamento tecnico)
@@ -92,6 +97,6 @@ Contenuto minimo:
 ## In una riga
 
 Il backoffice crea il lead con email reale, una password provvisoria casuale (argon2), email già
-verificata e `mustResetPassword = true`, **senza** compilare il questionario; l'app lo riconosce
+verificata e `mustChangePassword = true`, **senza** compilare il questionario; l'app lo riconosce
 dal questionario non completato, lo fa partire da lì saltando le credenziali, e a fine questionario
 gli fa impostare la password definitiva azzerando il flag.

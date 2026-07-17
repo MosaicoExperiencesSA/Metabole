@@ -5,7 +5,6 @@ import { track } from './lib/track';
 import { initPush } from './lib/push';
 import { useAuth } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
-import StaffApp from './staff/StaffApp';
 import TabBar from './components/TabBar';
 import MeasuresGate from './components/MeasuresGate';
 import Landing from './pages/Landing';
@@ -23,6 +22,7 @@ import Negozio from './pages/Negozio';
 import Profilo from './pages/Profilo';
 import Checkout from './pages/Checkout';
 import Onboarding from './pages/Onboarding';
+import SetPassword from './pages/SetPassword';
 import PaymentResult from './pages/PaymentResult';
 import ConfermaEmail from './pages/ConfermaEmail';
 import VerificaEmail from './pages/VerificaEmail';
@@ -73,8 +73,13 @@ function Shell() {
 
 /** Area autenticata: controlla se l'onboarding è stato completato. */
 function AuthedApp() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [status, setStatus] = useState<'loading' | 'todo' | 'done'>('loading');
+  // Account provvisori (lead da backoffice): dopo il questionario si impone di
+  // impostare una password personale. Vale anche per un utente con onboarding già
+  // fatto a cui l'admin ha resettato la password (mustChangePassword=true).
+  const [pwDone, setPwDone] = useState(false);
+  const needsPassword = !!user?.mustChangePassword && !pwDone;
 
   // L'app cliente è riservata alle clienti: le rotte /onboarding sono @Roles('client').
   const isClient = !user?.role || user.role === 'client';
@@ -93,14 +98,31 @@ function AuthedApp() {
     };
   }, [isClient]);
 
-  // Staff (coach, nutrizionista, ecc.): app mobile dedicata smistata per ruolo.
   if (!isClient) {
-    return <StaffApp />;
+    return (
+      <div className="app-frame">
+        <div className="onb-body" style={{ textAlign: 'center', paddingTop: 40 }}>
+          <span className="big-badge" style={{ background: '#F3E8DC', color: '#B8863B', margin: '0 auto 14px' }}><i className="ti ti-briefcase" /></span>
+          <h1>Account staff</h1>
+          <p className="muted">
+            Questo è un account dello staff ({user?.role}). L'app è riservata alle clienti;
+            per la gestione usa il backoffice su backoffice.metabole.eu.
+          </p>
+          <button className="btn" style={{ marginTop: 8 }} onClick={() => logout()}>Esci</button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <CartProvider>
-      {status === 'loading' ? <Centered /> : status === 'todo' ? <Onboarding onDone={() => setStatus('done')} /> : <Shell />}
+      {status === 'loading'
+        ? <Centered />
+        : status === 'todo'
+          ? <Onboarding onDone={() => setStatus('done')} />
+          : needsPassword
+            ? <SetPassword onDone={() => setPwDone(true)} />
+            : <Shell />}
     </CartProvider>
   );
 }

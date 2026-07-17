@@ -51,6 +51,10 @@ class ChangePasswordDto {
   @IsString() @MinLength(8) @MaxLength(200) newPassword!: string;
 }
 
+class SetInitialPasswordDto {
+  @IsString() @MinLength(8) @MaxLength(200) newPassword!: string;
+}
+
 class UpdateMyProfileDto {
   @IsOptional() @IsString() @MaxLength(80) firstName?: string;
   @IsOptional() @IsString() @MaxLength(80) lastName?: string;
@@ -97,6 +101,12 @@ export class MeController {
   @Patch('password')
   changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
     return this.users.changePassword(user.sub, dto.currentPassword, dto.newPassword);
+  }
+
+  /** Imposta la password al primo accesso (account provvisorio con mustChangePassword). */
+  @Patch('password/initial')
+  setInitialPassword(@CurrentUser() user: AuthUser, @Body() dto: SetInitialPasswordDto) {
+    return this.users.setInitialPassword(user.sub, dto.newPassword);
   }
 
   /** Preferenze UI (scorciatoie dashboard). */
