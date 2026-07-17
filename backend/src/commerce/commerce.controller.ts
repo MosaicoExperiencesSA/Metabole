@@ -436,6 +436,29 @@ export class AdminPaymentsController {
   }
 }
 
+/**
+ * Lo staff (coach/sales/admin) carica la contabile del bonifico per conto della
+ * cliente — stesso scope di visibilità dei lead/clienti.
+ */
+@Controller('staff/payments')
+@Roles('coach', 'sales', 'admin')
+export class StaffPaymentsController {
+  constructor(private readonly commerce: CommerceService) {}
+
+  /** Carica (o sostituisce) la contabile del bonifico per conto della cliente. */
+  @HttpCode(200)
+  @Post(':id/receipt')
+  uploadReceipt(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UploadReceiptDto) {
+    return this.commerce.uploadReceiptByStaff(user.sub, id, dto);
+  }
+
+  /** Vede la contabile caricata (stesso scope dell'upload). */
+  @Get(':id/receipt')
+  receipt(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.commerce.downloadReceiptByStaff(user.sub, id);
+  }
+}
+
 /** Webhook Stripe (spec: POST /payments/webhook). Firma verificata, idempotente. */
 @SkipThrottle() // la firma Stripe è la protezione; niente rate limit sui webhook
 @Controller('payments')
