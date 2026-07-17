@@ -44,6 +44,8 @@ export function CreazioneValidazione() {
   const [dirty, setDirty] = useState(false);
   const [famBusy, setFamBusy] = useState(false);
   const [famMsg, setFamMsg] = useState<string | null>(null);
+  // Barra di avanzamento per le lavorazioni lunghe (genera tutte / valida e pubblica tutte).
+  const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
 
   const [days, setDays] = useState(28);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
@@ -214,10 +216,14 @@ export function CreazioneValidazione() {
       : ((presets ?? []).filter((p) => p.id === activePresetId));
     if (targets.length === 0) { setError('Scegli o salva una dieta prima di generare.'); return; }
     setBusy(true); setError(null); setNotice(null);
+    const variantTag = (t: Preset) => `${regLabelOf((t.regime as string) || 'omnivore')} · ${objLabel((t.objective as string) || 'dimagrimento')} · ${mealLabel((t.meals as string) || '5')}`;
     try {
       let firstDietId: string | null = null;
       let generated = 0; let kept = 0;
+      let idx = 0;
       for (const t of targets) {
+        if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Genero ${idx + 1} di ${targets.length}: ${variantTag(t)}…` });
+        idx += 1;
         // INTEGRA, non sovrascrive: una variante già generata viene lasciata intatta.
         // Solo sul singolo (non "genera tutte") si può scegliere di sostituirla.
         let r = await api<{ dietId: string; alreadyExists?: boolean }>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ days }) });
@@ -238,7 +244,7 @@ export function CreazioneValidazione() {
           ? 'Catalogo bozza generato. Procedi con la validazione qui sotto.'
           : 'La variante aveva già il suo catalogo: lasciato intatto.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setProgress(null); }
   }
 
   /**
@@ -249,47 +255,70 @@ export function CreazioneValidazione() {
   async function publishAllFamily() {
     if (!activeFamily) return;
     setFamBusy(true); setFamMsg(null); setError(null); setNotice(null);
-    let fam: { id: string; name: string; regime: string; style: string; objective?: string | null; mealsPerDay?: number; fasting?: boolean }[] = [];
+    type FamDiet = { id: string; name: string; regime: string; style: string; objective?: string | null; mealsPerDay?: number; fasting?: boolean; status: string };
+    let fam: FamDiet[] = [];
     try {
-      const all = await api<{ id: string; name: string; regime: string; style: string; objective?: string | null; mealsPerDay?: number; fasting?: boolean }[]>('/diets');
+      const all = await api<FamDiet[]>('/diets');
       fam = (all ?? []).filter((d) => d.name === activeFamily.label && d.style === activeFamily.style);
     } catch { setFamBusy(false); setError('Impossibile leggere le diete della famiglia.'); return; }
     if (!fam.length) { setFamBusy(false); setFamMsg('Nessuna dieta generata per questa famiglia: genera prima le varianti (passo 2).'); return; }
+
+    const verb = isResponsabile ? 'pubblicate' : 'inviate in revisione';
+    const resetPage = (msg: string) => {
+      try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
+      setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null);
+      setGenAll(false); setDirty(false); setFamVariants([]); setFamMsg(null);
+      setForm({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], meals: ['5'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
+      setNotice(msg);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Le varianti GIÀ pubblicate si saltano (ripubblicarle darebbe solo errori
+    // "stato approved: non pubblicabile" e la pagina non si azzererebbe mai).
+    const toWork = fam.filter((d) => d.status !== 'approved');
+    const already = fam.length - toWork.length;
+    const famLabel = activeFamily.label;
+    if (toWork.length === 0) {
+      setFamBusy(false);
+      resetPage(`Famiglia "${famLabel}" completata ✓ tutte le ${fam.length} varianti erano già ${verb}. La pagina è pronta per un nuovo lavoro.`);
+      return;
+    }
+
     const errs: string[] = [];
     const tag = (v: { regime: string; objective?: string | null; mealsPerDay?: number; fasting?: boolean }) => `${v.regime}${v.objective ? ' · ' + v.objective : ''}${v.fasting ? ' · digiuno' : v.mealsPerDay ? ` · ${v.mealsPerDay} pasti` : ''}`;
-    // Pass 1 — contenuti (ricette, allergeni, gruppi) su ogni variante.
-    for (const v of fam) {
+    const total = toWork.length * 2; // due passate: validazione + pubblicazione
+    let step = 0;
+    // Pass 1 — contenuti (ricette, allergeni, gruppi) su ogni variante non ancora pubblicata.
+    for (const v of toWork) {
+      setProgress({ done: step, total, label: `Valido ${tag(v)}…` });
       try {
         await api(`/engine-rules/diets/${v.id}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
         await api(`/engine-rules/diets/${v.id}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
         await api(`/engine-rules/diets/${v.id}/approve-groups`, { method: 'POST', body: JSON.stringify({}) });
       } catch (e) { errs.push(`${tag(v)} (validazione): ${e instanceof ApiError ? e.message : 'errore'}`); }
+      step += 1;
     }
     // Pass 2 — pubblica (capo) o invia in revisione, dopo che i gruppi sono approvati.
     let done = 0;
-    for (const v of fam) {
+    for (const v of toWork) {
+      setProgress({ done: step, total, label: `${isResponsabile ? 'Pubblico' : 'Invio'} ${tag(v)}…` });
       try {
         await api(`/diets/${v.id}/${isResponsabile ? 'publish' : 'submit'}`, { method: 'POST', body: JSON.stringify({}) });
         done += 1;
       } catch (e) { errs.push(`${tag(v)} (${isResponsabile ? 'pubblica' : 'invio'}): ${e instanceof ApiError ? e.message : 'errore'}`); }
+      step += 1;
     }
+    setProgress(null);
     setFamBusy(false);
-    const verb = isResponsabile ? 'pubblicate' : 'inviate in revisione';
     if (errs.length) {
       // Qualcosa da rivedere: la pagina resta aperta con gli stati aggiornati.
-      setFamMsg(`Completate ${done}/${fam.length} varianti (${verb}). Da rivedere: ${errs.join(' · ')}`);
+      setFamMsg(`Completate ${done + already}/${fam.length} varianti (${verb}${already ? `, ${already} già fatte` : ''}). Da rivedere: ${errs.join(' · ')}`);
       void loadFamilyStatuses();
       if (dietId) { try { setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`)); } catch { /* no-op */ } }
       return;
     }
     // Tutto ok → la pagina si AZZERA, pronta per la prossima famiglia (come la pubblicazione singola).
-    const famLabel = activeFamily?.label ?? '';
-    try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
-    setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null);
-    setGenAll(false); setDirty(false); setFamVariants([]); setFamMsg(null);
-    setForm({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], meals: ['5'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
-    setNotice(`Famiglia "${famLabel}" completata ✓ tutte le ${fam.length} varianti ${verb}. La pagina è pronta per un nuovo lavoro.`);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    resetPage(`Famiglia "${famLabel}" completata ✓ tutte le ${fam.length} varianti ${verb}${already ? ` (${already} lo erano già)` : ''}. La pagina è pronta per un nuovo lavoro.`);
   }
 
   async function act(path: string) {
@@ -508,7 +537,8 @@ export function CreazioneValidazione() {
             </>
           )}
         </button>
-        {busy && !status && (
+        {busy && !status && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
+        {busy && !status && !progress && (
           <p className="muted" style={{ fontSize: 12, marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--line)', borderTopColor: 'var(--teal)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flex: 'none' }} />
             Sto generando ricette, giornate, alternative e allergeni… può richiedere fino a un minuto.
@@ -577,6 +607,7 @@ export function CreazioneValidazione() {
                     <><i className="ti ti-stack-2" /> {isResponsabile ? `Valida e pubblica tutte le ${activeFamily.variants.length} varianti` : `Valida e invia tutte le ${activeFamily.variants.length} varianti`}</>
                   )}
                 </button>
+                {famBusy && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
                 {famMsg && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{famMsg}</div>}
               </div>
             )}
@@ -614,6 +645,22 @@ export function CreazioneValidazione() {
         )}
       </div>
     </>
+  );
+}
+
+/** Barra di avanzamento delle lavorazioni lunghe (X di N + percentuale). */
+function ProgressBar({ done, total, label }: { done: number; total: number; label: string }) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline', gap: 8, fontSize: 12, marginBottom: 4 }}>
+        <span className="muted" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+        <b style={{ flex: 'none' }}>{pct}%</b>
+      </div>
+      <div style={{ height: 8, borderRadius: 6, background: 'var(--line)', overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: 'var(--teal)', transition: 'width .3s ease' }} />
+      </div>
+    </div>
   );
 }
 
