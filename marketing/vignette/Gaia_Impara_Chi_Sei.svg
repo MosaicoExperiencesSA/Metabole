@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<rect width="1080" height="1350" fill="#FBF7EF"/>
+<rect x="40" y="40" width="1000" height="1270" rx="28" fill="none" stroke="#0E5A49" stroke-width="3"/>
+<rect x="58" y="58" width="964" height="1234" rx="20" fill="none" stroke="#12A386" stroke-width="1.5"/>
+
+<text x="540" y="140" text-anchor="middle" font-family="Georgia,'DejaVu Serif',serif" font-size="34" fill="#0E5A49" letter-spacing="1">MetaboleAI</text>
+<text x="540" y="140" text-anchor="middle" font-family="Georgia,serif" font-size="14" fill="#5f716c" dx="116" dy="-14">®</text>
+<line x1="470" y1="162" x2="610" y2="162" stroke="#C9A24A" stroke-width="1.5"/>
+<text x="540" y="226" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" fill="#C9A24A" letter-spacing="6">LA SETTIMANA GRATUITA</text>
+
+<text x="540" y="304" text-anchor="middle" font-family="Georgia,serif" font-size="38" fill="#5f716c">Non serve a farti provare.</text>
+<text x="540" y="370" text-anchor="middle" font-family="Georgia,'DejaVu Serif',serif" font-size="52" font-weight="bold" fill="#16302C">Serve a farti conoscere.</text>
+
+<path d="M537 425 q -5 -30 20 -38 q 7 25 -14 38 Z" fill="#12A386" stroke="#0E5A49" stroke-width="3"/><circle cx="540" cy="505" r="84" fill="#8FD9BE" stroke="#0E5A49" stroke-width="4"/><circle cx="511" cy="503" r="13" fill="#16302C"/><circle cx="569" cy="503" r="13" fill="#16302C"/><circle cx="516" cy="497" r="4" fill="#fff"/><circle cx="573" cy="497" r="4" fill="#fff"/><path d="M522 530 q 18 17 37 0" fill="none" stroke="#16302C" stroke-width="4" stroke-linecap="round"/><circle cx="488" cy="525" r="8" fill="#F7B2C4" opacity=".75"/><circle cx="592" cy="525" r="8" fill="#F7B2C4" opacity=".75"/>
+
+<text x="540" y="640" text-anchor="middle" font-family="Arial,sans-serif" font-size="25" fill="#0E5A49">In 8 giorni Gaia impara:</text>
+
+<rect x="150" y="678" width="780" height="86" rx="16" fill="#FFFFFF" stroke="#D9E6E1" stroke-width="2"/><circle cx="196" cy="721" r="23" fill="#12A386" opacity=".14"/><path d="M196 730 C 180 718 183 705 190 705 C 194 705 196 709 196 711 C 196 709 198 705 202 705 C 209 705 212 718 196 730 Z" fill="#0E5A49"/><text x="234" y="730" font-family="Arial,sans-serif" font-size="24" fill="#16302C">i tuoi gusti — cosa ami e cosa no</text>
+<rect x="150" y="778" width="780" height="86" rx="16" fill="#FFFFFF" stroke="#D9E6E1" stroke-width="2"/><circle cx="196" cy="821" r="23" fill="#12A386" opacity=".14"/><circle cx="196" cy="821" r="14" fill="none" stroke="#0E5A49" stroke-width="3.5"/><line x1="196" y1="814" x2="196" y2="823" stroke="#0E5A49" stroke-width="3.5" stroke-linecap="round"/><circle cx="196" cy="829" r="2.2" fill="#0E5A49"/><text x="234" y="830" font-family="Arial,sans-serif" font-size="24" fill="#16302C">cosa devi evitare — allergie e intolleranze</text>
+<rect x="150" y="878" width="780" height="86" rx="16" fill="#FFFFFF" stroke="#D9E6E1" stroke-width="2"/><circle cx="196" cy="921" r="23" fill="#12A386" opacity=".14"/><circle cx="196" cy="921" r="14" fill="none" stroke="#0E5A49" stroke-width="3.5"/><line x1="196" y1="921" x2="196" y2="913" stroke="#0E5A49" stroke-width="3" stroke-linecap="round"/><line x1="196" y1="921" x2="203" y2="924" stroke="#0E5A49" stroke-width="3" stroke-linecap="round"/><text x="234" y="930" font-family="Arial,sans-serif" font-size="24" fill="#16302C">i tuoi ritmi — orari, lavoro, imprevisti</text>
+<rect x="150" y="978" width="780" height="86" rx="16" fill="#FFFFFF" stroke="#D9E6E1" stroke-width="2"/><circle cx="196" cy="1021" r="23" fill="#12A386" opacity=".14"/><path d="M185 1022 l 7 8 l 15 -17" fill="none" stroke="#0E5A49" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><text x="234" y="1030" font-family="Arial,sans-serif" font-size="24" fill="#16302C">cosa funziona sul tuo corpo — i risultati</text>
+
+<line x1="220" y1="1108" x2="860" y2="1108" stroke="#C9A24A" stroke-width="1.2"/>
+<text x="540" y="1160" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="31" fill="#16302C">Da lì in poi la dieta è tua.</text>
+<text x="540" y="1204" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="31" fill="#16302C">E cambia insieme a te.</text>
+<text x="540" y="1258" text-anchor="middle" font-family="Arial,sans-serif" font-size="21" fill="#12A386" letter-spacing="1">Se ti fermi, si ricomincia da zero.</text>
+</svg>
