@@ -238,11 +238,12 @@ export class UsersService {
       dashboardCharts: arr(prefs.dashboardCharts),
       menuOrder: arr(prefs.menuOrder),
       showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
+      waterUnit: ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(prefs.waterUnit as string) ? (prefs.waterUnit as string) : 'glass',
     };
   }
 
   /** Aggiorna scorciatoie / moduli / grafici della dashboard (solo i campi forniti). */
-  async updatePreferences(userId: string, input: { dashboardShortcuts?: string[]; dashboardModules?: string[]; dashboardCharts?: string[]; menuOrder?: string[]; showEarnings?: boolean }) {
+  async updatePreferences(userId: string, input: { dashboardShortcuts?: string[]; dashboardModules?: string[]; dashboardCharts?: string[]; menuOrder?: string[]; showEarnings?: boolean; waterUnit?: string }) {
     const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });
     if (!u) throw new NotFoundException('Utente non trovato');
     const clean = (keys: string[], max = 40) => Array.from(new Set(keys.filter((k) => typeof k === 'string'))).slice(0, max);
@@ -252,6 +253,7 @@ export class UsersService {
     if (input.dashboardCharts !== undefined) prefs.dashboardCharts = clean(input.dashboardCharts, 3); // max 3 grafici
     if (input.menuOrder !== undefined) prefs.menuOrder = clean(input.menuOrder, 80);
     if (input.showEarnings !== undefined) prefs.showEarnings = !!input.showEarnings;
+    if (input.waterUnit !== undefined && ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(input.waterUnit)) prefs.waterUnit = input.waterUnit;
     await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
     return {
       dashboardShortcuts: (prefs.dashboardShortcuts as string[]) ?? null,
@@ -259,6 +261,7 @@ export class UsersService {
       dashboardCharts: (prefs.dashboardCharts as string[]) ?? null,
       menuOrder: (prefs.menuOrder as string[]) ?? null,
       showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
+      waterUnit: ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(prefs.waterUnit as string) ? (prefs.waterUnit as string) : 'glass',
     };
   }
 

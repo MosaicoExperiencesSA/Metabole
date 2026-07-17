@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import AppHeader from '../components/AppHeader';
 import BrandPicker from '../components/BrandPicker';
+import WaterUnitPicker from '../components/WaterUnitPicker';
 import NotificationPrefs from '../components/NotificationPrefs';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
 
@@ -422,6 +423,13 @@ export default function Profilo() {
         <p className="muted" style={{ margin: '12px 0 0', fontSize: 11 }}>
           <i className="ti ti-sparkles" style={{ fontSize: 12, verticalAlign: '-1px' }} /> L'ultimo è <b>Auto</b>: un colore nuovo ogni due giorni.
         </p>
+      </div>
+
+      {/* Acqua: come visualizzarla in dashboard */}
+      <div className="sec" style={{ marginTop: 4 }}>Acqua</div>
+      <div className="card">
+        <p className="muted" style={{ margin: '0 0 12px', fontSize: 12.5 }}>Come vuoi contare l'acqua in dashboard? Cambia solo come la vedi: l'obiettivo resta lo stesso.</p>
+        <WaterUnitPicker />
       </div>
 
       {/* Piano attivo */}

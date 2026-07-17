@@ -8,6 +8,7 @@ import CheckinPopup from '../components/CheckinPopup';
 import MenuReviewPopup from '../components/MenuReviewPopup';
 import VoiceToggle from '../components/VoiceToggle';
 import { getTodaySteps } from '../lib/steps';
+import { DEFAULT_WATER_UNIT, isWaterUnit, waterIcon, waterStep, waterValue, type WaterUnit } from '../lib/water';
 import StartDatePrompt from '../components/StartDatePrompt';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
@@ -165,6 +166,7 @@ export default function Home() {
   const [nextAppt, setNextAppt] = useState<NextAppt | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [deviceSteps, setDeviceSteps] = useState<number | null>(null);
+  const [waterUnit, setWaterUnit] = useState<WaterUnit>(DEFAULT_WATER_UNIT);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
   const mealsRef = useRef<HTMLDivElement>(null);
@@ -188,6 +190,10 @@ export default function Home() {
       setDeviceSteps(s);
       api('/me/steps', { method: 'POST', body: JSON.stringify({ steps: s }) }).catch(() => {});
     });
+    // Unità di visualizzazione dell'acqua scelta dal cliente (bicchieri / bottiglie).
+    api<{ waterUnit?: string }>('/me/preferences').then((p) => {
+      if (isWaterUnit(p.waterUnit)) setWaterUnit(p.waterUnit);
+    }).catch(() => {});
   }, []);
 
   function onMealsScroll() {
@@ -211,7 +217,7 @@ export default function Home() {
   async function addWater() {
     if (!today) return;
     const prev = today.water.glasses;
-    const next = prev + 1;
+    const next = prev + waterStep(waterUnit); // +1 bicchiere, o l'equivalente in bottiglie
     setToday((t) => (t ? { ...t, water: { ...t.water, glasses: next } } : t));
     try {
       await api('/me/water', { method: 'POST', body: JSON.stringify({ glasses: next }) });
@@ -308,7 +314,7 @@ export default function Home() {
       {/* KPI di oggi: kcal · acqua · passi */}
       <div style={{ display: 'flex', gap: 9, margin: '12px 0' }}>
         <KpiTile icon="ti-flame" value={totKcal > 0 ? totKcal.toLocaleString('it-IT') : '—'} label="kcal" color="#E8825A" />
-        <KpiTile icon="ti-droplet" value={today ? `${today.water.glasses}/${today.water.goal}` : '—'} label="acqua" color="#2AA7C4" onClick={today ? addWater : undefined} hint="Tocca per aggiungere un bicchiere" />
+        <KpiTile icon={waterIcon(waterUnit)} value={today ? `${waterValue(today.water.glasses, waterUnit)}/${waterValue(today.water.goal, waterUnit)}` : '—'} label="acqua" color="#2AA7C4" onClick={today ? addWater : undefined} hint={`Tocca per aggiungere ${waterUnit === 'glass' ? 'un bicchiere' : 'una bottiglia'}`} />
         <KpiTile icon="ti-walk" value={deviceSteps != null ? deviceSteps.toLocaleString('it-IT') : today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
       </div>
 

@@ -33,6 +33,12 @@ class UpdatePrefsDto {
   @IsOptional()
   @IsBoolean()
   showEarnings?: boolean;
+
+  // Unità di visualizzazione dell'acqua in dashboard (solo display: il dato resta
+  // in bicchieri). glass = bicchieri · bottle05/1/15 = bottiglie da 0,5/1/1,5 L.
+  @IsOptional()
+  @IsIn(['glass', 'bottle05', 'bottle1', 'bottle15'])
+  waterUnit?: string;
 }
 
 class UpdateAccountDto {
@@ -117,6 +123,6 @@ export class MeController {
 
   @Put('preferences')
   setPreferences(@CurrentUser() user: AuthUser, @Body() dto: UpdatePrefsDto) {
-    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts, menuOrder: dto.menuOrder, showEarnings: dto.showEarnings });
+    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts, menuOrder: dto.menuOrder, showEarnings: dto.showEarnings, waterUnit: dto.waterUnit });
   }
 }

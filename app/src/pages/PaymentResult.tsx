@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import WidgetInstall from '../components/WidgetInstall';
 
 /**
  * Ritorno da Stripe Checkout: /payment/success e /payment/cancelled.
@@ -105,7 +106,9 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
           </div>
         ))}
       </div>
-      <button className="btn" style={{ width: '100%' }} onClick={() => nav('/')}>Vai alla home</button>
+      {/* Suggerimento widget: aggiungilo alla home del telefono (guida nel foglio). */}
+      <div style={{ marginBottom: 10 }}><WidgetInstall /></div>
+      <button className="btn ghost" style={{ width: '100%' }} onClick={() => nav('/')}>Vai alla home</button>
     </div>
   );
 }
