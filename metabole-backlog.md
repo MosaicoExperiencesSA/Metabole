@@ -32,8 +32,9 @@ con "Reimposta la password" (POST /auth/password-reset, risposta 202 neutra) e "
 ## App cliente — mostrare la "fase" (dimagrimento/mantenimento) — FATTO (17/07)
 `/me/today` ora espone `objective` (dimagrimento | mantenimento) dal ClientProfile; la Home mostra
 un badge con la fase attuale (Dimagrimento / Mantenimento). Resta gestita dallo staff (sola lettura
-lato cliente). NON ancora fatto (opzionale, se si vorrà): notifica al passaggio dimagrimento →
-mantenimento ("Hai raggiunto il tuo obiettivo").
+lato cliente). FATTO anche l'opzionale (17/07, Cowork): al passaggio di fase dimagrimento →
+mantenimento dalla scheda cliente, la cliente riceve la notifica "Hai raggiunto il tuo obiettivo! 🎉"
+(in-app + push, tipo `objective_reached`, best effort: mai bloccante per il salvataggio).
 
 ## Catalogo diete — tagli a 3 pasti e digiuno intermittente — CODICE FATTO (17/07), restano i DATI
 DIAGNOSI (17/07): un cliente che sceglie 3 pasti resta SENZA MENU perché menu.service.pickDiet cerca

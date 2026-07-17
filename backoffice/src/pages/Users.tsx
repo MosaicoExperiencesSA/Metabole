@@ -19,6 +19,8 @@ interface User {
   staff: { id: string; displayName: string; managerId: string | null; refCode: string | null } | null;
 }
 
+type SortKey = 'email' | 'role' | 'manager' | 'refcode' | 'status' | 'locale';
+
 /** Traduce la scelta di un ruolo (chiave) nel payload {role, customRoleKey}. */
 function rolePayload(selectedKey: string, roles: RoleInfo[]): { role: Role; customRoleKey: string | null } {
   const info = roles.find((r) => r.key === selectedKey);
@@ -36,6 +38,11 @@ export function Users() {
   const [notice, setNotice] = useState<string | null>(null);
   const [roleFilter, setRoleFilter] = useState<Role | ''>('');
   const [showArchived, setShowArchived] = useState(false);
+  // Filtri locali (sulla lista caricata) + ordinamento per colonna.
+  const [q, setQ] = useState('');
+  const [managerFilter, setManagerFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'suspended'>('');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [pwdReset, setPwdReset] = useState<{ email: string; password: string } | null>(null);
 
@@ -151,7 +158,56 @@ export function Users() {
     }
   }
 
-  const pg = usePagination(users, 100);
+  // Responsabili presenti in lista (per il filtro).
+  const managerOptions = (() => {
+    const ids = new Set(users.map((u) => u.staff?.managerId).filter((x): x is string => !!x));
+    return [...ids]
+      .map((id) => ({ id, name: users.find((x) => x.staff?.id === id)?.staff?.displayName ?? id }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+  })();
+
+  const roleLabelOf = (u: User) => u.customRole?.label ?? ROLE_LABEL[u.role] ?? u.role;
+  const managerNameOf = (u: User) => (u.staff?.managerId ? users.find((x) => x.staff?.id === u.staff!.managerId)?.staff?.displayName ?? '' : '');
+
+  const needle = q.trim().toLowerCase();
+  const filtered = users.filter((u) => {
+    if (managerFilter && u.staff?.managerId !== managerFilter) return false;
+    if (statusFilter && u.status !== statusFilter) return false;
+    if (needle) {
+      const hay = `${u.email} ${u.staff?.displayName ?? ''} ${u.staff?.refCode ?? ''}`.toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    return true;
+  });
+
+  const sorted = sort
+    ? [...filtered].sort((a, b) => {
+        const val = (u: User): string => {
+          switch (sort.key) {
+            case 'email': return u.email;
+            case 'role': return roleLabelOf(u);
+            case 'manager': return managerNameOf(u);
+            case 'refcode': return u.staff?.refCode ?? '';
+            case 'status': return u.status;
+            case 'locale': return u.locale;
+          }
+        };
+        return val(a).localeCompare(val(b), 'it') * sort.dir;
+      })
+    : filtered;
+
+  function toggleSort(key: SortKey) {
+    setSort((s0) => (!s0 || s0.key !== key ? { key, dir: 1 } : s0.dir === 1 ? { key, dir: -1 } : null));
+  }
+
+  const Th = ({ k, children, right }: { k: SortKey; children: React.ReactNode; right?: boolean }) => (
+    <th onClick={() => toggleSort(k)} style={{ cursor: 'pointer', userSelect: 'none', textAlign: right ? 'right' : undefined }} title="Ordina per questa colonna">
+      {children}
+      {sort?.key === k && <i className={`ti ${sort.dir === 1 ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: 12, marginLeft: 4, verticalAlign: '-1px' }} />}
+    </th>
+  );
+
+  const pg = usePagination(sorted, 100);
 
   return (
     <>
@@ -165,10 +221,31 @@ export function Users() {
               </option>
             ))}
           </select>
+          <input
+            className="input"
+            style={{ width: 240 }}
+            placeholder="Cerca email, nome o ref code…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select className="select" style={{ width: 180 }} value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} title="Filtra per responsabile">
+            <option value="">Tutti i responsabili</option>
+            {managerOptions.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <select className="select" style={{ width: 140 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'suspended')} title="Filtra per stato">
+            <option value="">Tutti gli stati</option>
+            <option value="active">Attivi</option>
+            <option value="suspended">Sospesi</option>
+          </select>
           <label className="row" style={{ gap: 6, fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Mostra archiviati
           </label>
+          {(q || managerFilter || statusFilter) && (
+            <button className="btn ghost sm" onClick={() => { setQ(''); setManagerFilter(''); setStatusFilter(''); }} title="Pulisci i filtri">
+              <i className="ti ti-x" /> Pulisci
+            </button>
+          )}
         </div>
         {canManage && (
           <button className="btn" onClick={() => setShowCreate(true)}>
@@ -183,18 +260,18 @@ export function Users() {
       <div className="card" style={{ padding: 0 }}>
         {loading ? (
           <Spinner />
-        ) : users.length === 0 ? (
-          <div className="empty">Nessun membro dello staff per questo filtro.</div>
+        ) : sorted.length === 0 ? (
+          <div className="empty">Nessun membro dello staff per questi filtri.</div>
         ) : (
           <table className="grid">
             <thead>
               <tr>
-                <th>Email</th>
-                <th>Ruolo</th>
-                <th>Responsabile</th>
-                <th>Ref code</th>
-                <th>Stato</th>
-                <th>Lingua</th>
+                <Th k="email">Email</Th>
+                <Th k="role">Ruolo</Th>
+                <Th k="manager">Responsabile</Th>
+                <Th k="refcode">Ref code</Th>
+                <Th k="status">Stato</Th>
+                <Th k="locale">Lingua</Th>
                 <th style={{ textAlign: 'right' }}>Azioni</th>
               </tr>
             </thead>

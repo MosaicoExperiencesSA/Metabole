@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateClientDto } from './dto/update-client.dto';
 
@@ -18,6 +19,7 @@ export class ClientsService {
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -245,6 +247,11 @@ export class ClientsService {
     const profileData: Record<string, unknown> = {};
     for (const k of PROFILE_FIELDS) if (d[k] !== undefined) profileData[k] = d[k] === '' ? null : d[k];
 
+    // Fase precedente: serve per accorgersi del passaggio dimagrimento → mantenimento.
+    const prevObjective = profileData.objective !== undefined
+      ? ((await this.prisma.clientProfile.findUnique({ where: { userId }, select: { objective: true } }))?.objective ?? null)
+      : null;
+
     const ops: unknown[] = [];
     if (Object.keys(userData).length) ops.push(this.prisma.user.update({ where: { id: userId }, data: userData as never }));
     if (Object.keys(profileData).length) {
@@ -258,6 +265,20 @@ export class ClientsService {
     }
     if (ops.length) await this.prisma.$transaction(ops as never);
     await this.audit.log({ action: 'client.update', actorId, entityType: 'user', entityId: userId });
+
+    // Passaggio di fase dimagrimento → mantenimento: festeggia con la cliente
+    // (in-app + push, best effort: non deve mai bloccare il salvataggio).
+    if (profileData.objective === 'mantenimento' && prevObjective === 'dimagrimento') {
+      await this.notifications
+        .notify({
+          userId,
+          type: 'objective_reached',
+          title: 'Hai raggiunto il tuo obiettivo! 🎉',
+          body: 'Da oggi si passa alla fase di mantenimento: il piano cambia ritmo per aiutarti a consolidare i risultati. Complimenti!',
+          payload: { from: 'dimagrimento', to: 'mantenimento' },
+        })
+        .catch(() => undefined);
+    }
     return { updated: true };
   }
 
