@@ -116,7 +116,11 @@ export class CommerceService {
       // vecchio flusso) dove il pagamento non risulta 'approved'. Pending escluso
       // (ordine ancora annullabile), cancelled escluso (mai goduto).
       this.prisma.subscription.findMany({
-        where: { clientId, status: { in: ['active', 'paused', 'expired'] as never } },
+        // NB: 'paused' NON è uno stato di Subscription (l'enum è pending|active|
+        // cancelled|expired; le pause vivono nella tabella pause_request). Inserirlo
+        // faceva rifiutare la query da Prisma → 500 su /me/plans e /me/products.
+        // Un abbonamento "in pausa" resta 'active', quindi active+expired bastano.
+        where: { clientId, status: { in: ['active', 'expired'] as never } },
         select: { planId: true },
       }) as Promise<{ planId: string }[]>,
     ]);
@@ -779,7 +783,7 @@ export class CommerceService {
     for (const t of staleTrials) {
       // Ha convertito? (abbonamento attivo/in attesa o un pagamento vero approvato)
       const [activeSub, paid, alreadyPurged] = await Promise.all([
-        this.prisma.subscription.findFirst({ where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } }, select: { id: true } }),
+        this.prisma.subscription.findFirst({ where: { clientId: t.clientId, status: { in: ['active', 'pending'] as never } }, select: { id: true } }), // 'paused' non è uno stato valido (enum), faceva 500
         this.prisma.payment.findFirst({ where: { clientId: t.clientId, status: 'approved', amountCents: { gt: 0 } } as never, select: { id: true } }),
         this.prisma.analyticsEvent.findFirst({ where: { userId: t.clientId, name: 'profile_purged' } as never, select: { id: true } }),
       ]);
