@@ -21,8 +21,8 @@ export default function Negozio() {
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
-    api<Plan[]>('/plans').then(setPlans).catch(() => {});
-    api<Product[]>('/products').then(setProducts).catch(() => {});
+    api<Plan[]>('/me/plans').then(setPlans).catch(() => {});
+    api<Product[]>('/me/products').then(setProducts).catch(() => {});
   }, []);
 
   return (

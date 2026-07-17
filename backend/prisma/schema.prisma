@@ -434,6 +434,8 @@ model Plan {
   mealsPerDay Int?     @map("meals_per_day")
   features    String[] @default([])
   active      Boolean  @default(true)
+  // Se false: dopo l'acquisto il piano scompare dallo shop di QUEL cliente (non riacquistabile).
+  repurchasable Boolean @default(true)
   // Provvigioni in CENTESIMI di € per questo piano (importi fissi, non percentuali).
   // Riscalate sull'importo effettivamente pagato in caso di sconto.
   commissionCoachCents            Int @default(0) @map("commission_coach_cents")
@@ -510,6 +512,8 @@ model Product {
   priceCents  Int      @map("price_cents")
   description String?
   active      Boolean  @default(true)
+  // Se false: dopo l'acquisto il prodotto scompare dallo shop di QUEL cliente (non riacquistabile).
+  repurchasable Boolean @default(true)
   // Provvigioni in CENTESIMI di € per unità di questo prodotto (importi fissi).
   // Sostituiscono il vecchio flag commissionTeam: 0 su un lato = niente provvigione
   // a quel lato. Riscalate sull'importo pagato in caso di sconto.

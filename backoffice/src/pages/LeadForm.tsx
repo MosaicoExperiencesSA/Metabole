@@ -7,6 +7,7 @@ export function LeadForm() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -20,10 +21,11 @@ export function LeadForm() {
     }
     setBusy(true);
     try {
-      await api('/crm/leads', { method: 'POST', body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined }) });
+      await api('/crm/leads', { method: 'POST', body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone: phone.trim() || undefined }) });
       setOk(`Lead "${name.trim() || email.trim()}" inserito. Lo trovi in Gestione lead e nella Pipeline.`);
       setEmail('');
       setName('');
+      setPhone('');
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) setError(err.message);
       else setError(err instanceof Error ? err.message : 'Inserimento non riuscito.');
@@ -47,6 +49,10 @@ export function LeadForm() {
       <div className="field">
         <label>Email</label>
         <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anna@example.com" />
+      </div>
+      <div className="field">
+        <label>Telefono (facoltativo)</label>
+        <input className="input" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Es. 333 1234567" maxLength={30} />
       </div>
 
       <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>

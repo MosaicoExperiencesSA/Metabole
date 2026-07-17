@@ -17,6 +17,7 @@ export class CreateProductDto extends CommissionFields {
   @Type(() => Number) @IsInt() @Min(0) priceCents!: number;
   @IsOptional() @IsString() @MaxLength(500) description?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsBoolean() repurchasable?: boolean;
 }
 
 export class UpdateProductDto extends CommissionFields {
@@ -24,6 +25,7 @@ export class UpdateProductDto extends CommissionFields {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) priceCents?: number;
   @IsOptional() @IsString() @MaxLength(500) description?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsBoolean() repurchasable?: boolean;
 }
 
 export class CreatePlanDto extends CommissionFields {
@@ -33,6 +35,7 @@ export class CreatePlanDto extends CommissionFields {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) mealsPerDay?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) features?: string[];
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsBoolean() repurchasable?: boolean;
 }
 
 export class UpdatePlanDto extends CommissionFields {
@@ -42,4 +45,5 @@ export class UpdatePlanDto extends CommissionFields {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) mealsPerDay?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) features?: string[];
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsBoolean() repurchasable?: boolean;
 }

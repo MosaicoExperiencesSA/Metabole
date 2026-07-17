@@ -112,6 +112,11 @@ class CreateLeadDto {
   @IsString()
   @MaxLength(120)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  phone?: string;
 }
 
 class AdvanceLeadDto {
@@ -250,6 +255,18 @@ export class CatalogCommerceController {
 @Roles('client')
 export class MyCommerceController {
   constructor(private readonly commerce: CommerceService) {}
+
+  /** Piani visibili a QUESTO cliente: nasconde i piani non riacquistabili già presi. */
+  @Get('plans')
+  myPlans(@CurrentUser() user: AuthUser) {
+    return this.commerce.listPlansForClient(user.sub);
+  }
+
+  /** Prodotti visibili a QUESTO cliente: nasconde i prodotti non riacquistabili già presi. */
+  @Get('products')
+  myProducts(@CurrentUser() user: AuthUser) {
+    return this.commerce.listProductsForClient(user.sub);
+  }
 
   @Post('subscribe')
   subscribe(@CurrentUser() user: AuthUser, @Body() dto: SubscribeDto) {

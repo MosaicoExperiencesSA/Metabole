@@ -8,8 +8,8 @@ interface Commissions {
   commissionNutritionistCents: number;
   commissionHeadNutritionistCents: number;
 }
-interface Plan extends Commissions { id: string; name: string; priceCents: number; period: string; mealsPerDay: number | null; features: string[]; active: boolean; }
-interface Product extends Commissions { id: string; name: string; priceCents: number; description: string | null; active: boolean; }
+interface Plan extends Commissions { id: string; name: string; priceCents: number; period: string; mealsPerDay: number | null; features: string[]; active: boolean; repurchasable: boolean; }
+interface Product extends Commissions { id: string; name: string; priceCents: number; description: string | null; active: boolean; repurchasable: boolean; }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const toCents = (s: string) => Math.round((Number((s ?? '').replace(',', '.')) || 0) * 100);
@@ -91,6 +91,7 @@ export function GestioneNegozio() {
       period: planForm.period || '3m',
       features: (planForm.features ?? '').split(',').map((s) => s.trim()).filter(Boolean),
       active: planForm.active !== 'false',
+      repurchasable: planForm.repurchasable !== 'false',
       ...commBody(planForm),
     };
     if (planForm.mealsPerDay) body.mealsPerDay = Number(planForm.mealsPerDay);
@@ -116,6 +117,7 @@ export function GestioneNegozio() {
       priceCents: toCents(prodForm.price ?? '0'),
       description: prodForm.description || undefined,
       active: prodForm.active !== 'false',
+      repurchasable: prodForm.repurchasable !== 'false',
       ...commBody(prodForm),
     };
     try {
@@ -160,7 +162,7 @@ export function GestioneNegozio() {
       {/* Piani */}
       <div className="spread" style={{ marginBottom: 10 }}>
         <h2 style={{ margin: 0 }}>Piani</h2>
-        <button className="btn sm" onClick={() => setPlanForm({ period: '3m', active: 'true' })}><i className="ti ti-plus" /> Nuovo piano</button>
+        <button className="btn sm" onClick={() => setPlanForm({ period: '3m', active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo piano</button>
       </div>
 
       {planForm && (
@@ -175,6 +177,11 @@ export function GestioneNegozio() {
             <label style={fld}><span>Attivo</span>
               <select className="select" value={planForm.active ?? 'true'} onChange={(e) => setPlanForm({ ...planForm, active: e.target.value })}>
                 <option value="true">Sì</option><option value="false">No</option>
+              </select>
+            </label>
+            <label style={fld}><span>Riacquistabile</span>
+              <select className="select" value={planForm.repurchasable ?? 'true'} onChange={(e) => setPlanForm({ ...planForm, repurchasable: e.target.value })} title="Se No: dopo l'acquisto scompare dallo shop di quel cliente">
+                <option value="true">Sì (sempre visibile)</option><option value="false">No (sparisce dopo l'acquisto)</option>
               </select>
             </label>
             <CommissionInputs form={planForm} set={setPlanForm} />
@@ -198,7 +205,7 @@ export function GestioneNegozio() {
                 <td className="muted" style={{ fontSize: 12 }}>{commSummary(p)}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), period: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), ...commFormFrom(p) })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), period: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delPlan(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>
@@ -210,7 +217,7 @@ export function GestioneNegozio() {
       {/* Prodotti */}
       <div className="spread" style={{ margin: '22px 0 10px' }}>
         <h2 style={{ margin: 0 }}>Integratori / prodotti</h2>
-        <button className="btn sm" onClick={() => setProdForm({ active: 'true' })}><i className="ti ti-plus" /> Nuovo prodotto</button>
+        <button className="btn sm" onClick={() => setProdForm({ active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo prodotto</button>
       </div>
 
       {prodForm && (
@@ -223,6 +230,11 @@ export function GestioneNegozio() {
             <label style={fld}><span>Attivo</span>
               <select className="select" value={prodForm.active ?? 'true'} onChange={(e) => setProdForm({ ...prodForm, active: e.target.value })}>
                 <option value="true">Sì</option><option value="false">No</option>
+              </select>
+            </label>
+            <label style={fld}><span>Riacquistabile</span>
+              <select className="select" value={prodForm.repurchasable ?? 'true'} onChange={(e) => setProdForm({ ...prodForm, repurchasable: e.target.value })} title="Se No: dopo l'acquisto scompare dallo shop di quel cliente">
+                <option value="true">Sì (sempre visibile)</option><option value="false">No (sparisce dopo l'acquisto)</option>
               </select>
             </label>
             <CommissionInputs form={prodForm} set={setProdForm} />
@@ -245,7 +257,7 @@ export function GestioneNegozio() {
                 <td className="muted" style={{ fontSize: 12 }}>{commSummary(p)}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setProdForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), description: p.description ?? '', active: String(p.active), ...commFormFrom(p) })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setProdForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), description: p.description ?? '', active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delProduct(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>

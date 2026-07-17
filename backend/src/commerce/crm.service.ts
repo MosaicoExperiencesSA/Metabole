@@ -550,11 +550,12 @@ export class CrmService {
     return { created, merged, skipped, coachAssigned, listLinks, newLists: dryRun ? [...newLists] : [] };
   }
 
-  async create(byUserId: string, input: { email: string; name?: string }) {
+  async create(byUserId: string, input: { email: string; name?: string; phone?: string }) {
     const record = await this.prisma.crmRecord.create({
       data: {
         email: input.email,
         name: input.name,
+        phone: input.phone?.trim() || null,
         stage: 'lead_in',
         stageDates: { lead_in: { at: new Date().toISOString(), byUserId } } as never,
       },

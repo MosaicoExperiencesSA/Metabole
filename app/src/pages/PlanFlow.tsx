@@ -28,7 +28,7 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
   const [planId, setPlanId] = useState<string | null>(null);
 
   useEffect(() => {
-    api<Plan[]>('/plans').then((ps) => { setPlans(ps); if (ps[0]) setPlanId(ps[0].id); }).catch(() => {});
+    api<Plan[]>('/me/plans').then((ps) => { setPlans(ps); if (ps[0]) setPlanId(ps[0].id); }).catch(() => {});
   }, []);
 
   function goCheckout() {

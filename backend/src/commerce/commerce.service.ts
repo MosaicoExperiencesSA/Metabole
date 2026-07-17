@@ -85,6 +85,38 @@ export class CommerceService {
     return this.prisma.product.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
 
+  /**
+   * Articoli GIÀ acquistati dal cliente (pagamento approvato): id dei piani via
+   * abbonamento e id dei prodotti via righe d'ordine. Usato per nascondere gli
+   * articoli non riacquistabili nello shop di quel cliente.
+   */
+  private async purchasedIds(clientId: string): Promise<{ plans: Set<string>; products: Set<string> }> {
+    const pays = (await this.prisma.payment.findMany({
+      where: { clientId, status: 'approved' as never },
+      select: { subscription: { select: { planId: true } }, order: { select: { items: true } } },
+    })) as { subscription: { planId: string } | null; order: { items: unknown } | null }[];
+    const plans = new Set<string>();
+    const products = new Set<string>();
+    for (const p of pays) {
+      if (p.subscription?.planId) plans.add(p.subscription.planId);
+      const items = Array.isArray(p.order?.items) ? (p.order!.items as { productId?: string }[]) : [];
+      for (const it of items) if (it.productId) products.add(it.productId);
+    }
+    return { plans, products };
+  }
+
+  /** Piani visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso. */
+  async listPlansForClient(clientId: string) {
+    const [plans, bought] = await Promise.all([this.listPlans(), this.purchasedIds(clientId)]);
+    return (plans as { id: string; repurchasable?: boolean }[]).filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
+  }
+
+  /** Prodotti visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso. */
+  async listProductsForClient(clientId: string) {
+    const [products, bought] = await Promise.all([this.listProducts(), this.purchasedIds(clientId)]);
+    return (products as { id: string; repurchasable?: boolean }[]).filter((p) => p.repurchasable !== false || !bought.products.has(p.id));
+  }
+
   // ---------- Metodi di pagamento abilitati (Parametri) ----------
 
   /** Quali metodi di pagamento sono attivi (configurabili dai Parametri del backoffice). */
@@ -117,7 +149,7 @@ export class CommerceService {
     return this.prisma.product.findMany({ orderBy: { name: 'asc' } });
   }
 
-  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
+  async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; repurchasable?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
     const product = await this.prisma.product.create({ data: { ...dto, active: dto.active ?? true } });
     await this.audit.log({ action: 'shop.product.create', actorId, entityType: 'product', entityId: product.id });
     return product;
@@ -137,7 +169,7 @@ export class CommerceService {
     return { deleted: true };
   }
 
-  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
+  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean; repurchasable?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
     const plan = await this.prisma.plan.create({ data: { ...dto, features: dto.features ?? [], active: dto.active ?? true } });
     await this.audit.log({ action: 'shop.plan.create', actorId, entityType: 'plan', entityId: plan.id });
     return plan;
