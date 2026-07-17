@@ -1,13 +1,13 @@
-import { randomBytes } from 'crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PipelineService } from './pipeline.service';
 
-/** Password provvisoria CASUALE E UNICA per il lead (mai fissa: handoff socio 17/07). */
-function genLeadTempPassword(): string {
+/** Password provvisoria leggibile: niente caratteri ambigui, con cifre (come users.service). */
+function genTempPassword(): string {
   const alpha = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
   const digits = '23456789';
   const b = randomBytes(12);
@@ -15,7 +15,7 @@ function genLeadTempPassword(): string {
   for (let i = 0; i < 8; i++) s += alpha[b[i] % alpha.length];
   s += digits[b[8] % digits.length];
   s += digits[b[9] % digits.length];
-  return `Mb${s}`; // stesso formato del reset admin (users.service)
+  return `Mb${s}`;
 }
 
 /**
@@ -31,6 +31,72 @@ export class CrmService {
     private readonly pipeline: PipelineService,
     private readonly mail: MailService,
   ) {}
+
+  /**
+   * "Invia credenziali" a un lead: crea l'accesso (account role client con password
+   * provvisoria auto-generata, mustChangePassword=true, email già verificata) se non
+   * esiste, oppure rigenera la provvisoria se l'account c'è già; collega il lead
+   * all'utente e invia l'email con le credenziali. NON cambia lo stage: il lead
+   * diventa cliente solo con l'acquisto.
+   */
+  async sendCredentials(recordId: string, actorId: string): Promise<{ sent: boolean; email: string }> {
+    await this.assertLeadAccess(actorId, recordId);
+    const rec = (await this.prisma.crmRecord.findUnique({
+      where: { id: recordId },
+      select: { id: true, email: true, name: true, phone: true, clientId: true },
+    })) as { id: string; email: string | null; name: string | null; phone: string | null; clientId: string | null } | null;
+    if (!rec) throw new NotFoundException('Lead non trovato');
+    if (!rec.email || !rec.email.includes('@')) {
+      throw new BadRequestException('Il lead non ha un\'email valida: aggiungila prima di inviare le credenziali.');
+    }
+    const email = rec.email.trim().toLowerCase();
+    const password = genTempPassword();
+    const passwordHash = await argon2.hash(password);
+    const firstName = rec.name?.trim().split(/\s+/)[0] || null;
+
+    let userId = rec.clientId;
+    if (!userId) {
+      // Se l'email è già di un altro account, lo colleghiamo invece di duplicare.
+      const existing = (await this.prisma.user.findUnique({ where: { email }, select: { id: true } })) as { id: string } | null;
+      userId = existing?.id ?? null;
+    }
+
+    if (userId) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash, mustChangePassword: true, emailVerifiedAt: new Date() },
+      });
+      // Revoca le sessioni: rientra con la nuova provvisoria.
+      await this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    } else {
+      const user = await this.prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          role: 'client',
+          locale: 'it',
+          firstName,
+          phone: rec.phone?.trim() || null,
+          mustChangePassword: true,
+          emailVerifiedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      userId = user.id;
+    }
+    // Collega il lead all'account (senza toccare lo stage).
+    await this.prisma.crmRecord.update({ where: { id: recordId }, data: { clientId: userId } });
+
+    await this.mail.sendLeadCredentials(email, { name: rec.name, email, password }, 'it');
+    await this.audit.log({
+      action: 'crm.lead.send_credentials',
+      actorId,
+      entityType: 'crm_record',
+      entityId: recordId,
+      metadata: { email }, // MAI la password nei log
+    });
+    return { sent: true, email };
+  }
 
   /**
    * Visibilità per ruolo: la COACH vede e gestisce SOLO i lead assegnati a lei;
@@ -613,84 +679,6 @@ export class CrmService {
     await this.prisma.crmRecord.delete({ where: { id: recordId } });
     await this.audit.log({ action: 'crm.lead.delete', actorId: actorUserId, entityType: 'crm_record', entityId: recordId });
     return { ok: true };
-  }
-
-  /**
-   * Crea l'ACCOUNT CLIENTE dal lead (handoff socio 17/07 — Metabole_Handoff_Lead_Backoffice_Password.md):
-   * User con email reale del lead, password provvisoria CASUALE E UNICA (argon2),
-   * email già verificata e `mustChangePassword=true`; NESSUN ClientProfile (il
-   * questionario non compilato è ciò che manda l'app dritta all'onboarding, e a
-   * fine questionario l'app impone la password personale — flusso già fatto dal socio).
-   * Collega il lead (clientId) e invia le credenziali via email.
-   * Ritorna la password in chiaro UNA VOLTA (come il reset admin), così chi crea
-   * l'account può comunicarla a voce se l'email non parte.
-   */
-  async createClientAccount(actorUserId: string, recordId: string) {
-    await this.assertLeadAccess(actorUserId, recordId);
-    const rec = (await this.prisma.crmRecord.findUnique({
-      where: { id: recordId },
-      select: { id: true, clientId: true, email: true, name: true, phone: true },
-    })) as { id: string; clientId: string | null; email: string | null; name: string | null; phone: string | null } | null;
-    if (!rec) throw new NotFoundException('Lead non trovato');
-    if (rec.clientId) throw new BadRequestException('Questo lead ha già un account cliente collegato.');
-    const email = (rec.email ?? '').trim().toLowerCase();
-    if (!email || !email.includes('@')) throw new BadRequestException('Il lead non ha un\'email valida: aggiungila prima alla scheda.');
-
-    // L'email non deve appartenere già a un utente (come principale o secondaria).
-    const clash = await this.prisma.user.findFirst({
-      where: { OR: [{ email }, { secondaryEmail: email }] },
-      select: { id: true },
-    });
-    if (clash) throw new BadRequestException('Esiste già un account con questa email.');
-
-    const password = genLeadTempPassword();
-    const passwordHash = await argon2.hash(password);
-    // Nome/cognome dal nome del lead (best effort: prima parola = nome, resto = cognome).
-    const parts = (rec.name ?? '').trim().split(/\s+/).filter(Boolean);
-    const firstName = parts[0] ?? null;
-    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : null;
-
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        role: 'client',
-        status: 'active' as never,
-        locale: 'it',
-        emailVerifiedAt: new Date(), // l'email l'ha inserita un collega: niente link di conferma
-        mustChangePassword: true, // l'app imporrà la password personale a fine questionario
-        firstName,
-        lastName,
-        phone: rec.phone ?? null,
-      } as never,
-      select: { id: true, email: true },
-    });
-    // NESSUN ClientProfile: onboardingCompletedAt nullo = l'app parte dal questionario.
-
-    await this.prisma.crmRecord.update({ where: { id: recordId }, data: { clientId: user.id } });
-
-    // Email con le credenziali (best effort: se Brevo non è configurato, la password
-    // resta visibile UNA volta a chi ha creato l'account).
-    const appUrl = process.env.APP_URL ?? 'https://app.metabole.eu';
-    const html = [
-      `<p>Ciao${firstName ? ` ${firstName}` : ''},</p>`,
-      '<p>ti abbiamo preparato l\'accesso alla tua area personale Metabole.</p>',
-      `<p><b>Email:</b> ${email}<br/><b>Password provvisoria:</b> ${password}</p>`,
-      `<p>Entra da <a href="${appUrl}">${appUrl}</a>: al primo accesso completerai un breve questionario e poi potrai impostare la tua password personale.</p>`,
-      '<p>A presto!<br/>Il team Metabole</p>',
-    ].join('');
-    const mailSent = await this.mail
-      .send({ to: email, subject: 'Il tuo accesso a Metabole', html, templateKey: 'lead_account_credentials' })
-      .catch(() => false);
-
-    await this.audit.log({
-      action: 'crm.lead.create_account',
-      actorId: actorUserId,
-      entityType: 'crm_record',
-      entityId: recordId,
-      metadata: { userId: user.id, email, mailSent }, // MAI la password nei log
-    });
-    return { userId: user.id, email, password, mailSent };
   }
 
   /** Avanzamento manuale del commerciale: data + responsabile sempre registrati. */

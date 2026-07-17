@@ -33,11 +33,26 @@ function ActionIcon({ icon, href, external, onClick, title }: { icon: string; hr
  * collegati al lead via crmRecordId quando disponibile).
  */
 export default function ContactActions({ name, phone, email, crmRecordId }: { name: string; phone: string | null; email: string | null; crmRecordId?: string }) {
-  const [modal, setModal] = useState<'nota' | 'promemoria' | null>(null);
+  const [modal, setModal] = useState<'nota' | 'promemoria' | 'credenziali' | null>(null);
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [credDone, setCredDone] = useState(false);
+
+  async function sendCredentials() {
+    if (!crmRecordId) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      await api(`/crm/leads/${crmRecordId}/send-credentials`, { method: 'POST' });
+      setCredDone(true);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Invio non riuscito.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -71,9 +86,42 @@ export default function ContactActions({ name, phone, email, crmRecordId }: { na
         <ActionIcon icon="ti-mail" title="Email" href={email ? `mailto:${email}` : undefined} />
         <ActionIcon icon="ti-note" title="Inserisci nota" onClick={() => { setText(''); setErr(null); setModal('nota'); }} />
         <ActionIcon icon="ti-bell-plus" title="Promemoria" onClick={() => { setText(''); setDue(''); setErr(null); setModal('promemoria'); }} />
+        {crmRecordId && email && (
+          <ActionIcon icon="ti-key" title="Invia credenziali" onClick={() => { setErr(null); setCredDone(false); setModal('credenziali'); }} />
+        )}
       </div>
 
-      {modal && (
+      {modal === 'credenziali' && (
+        <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
+          <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-grab" />
+            {!credDone ? (
+              <>
+                <b style={{ fontSize: 15 }}>Invia credenziali · {name}</b>
+                <p className="sf-sub" style={{ marginTop: 8 }}>
+                  Creiamo l'accesso per <b>{email}</b> con una password provvisoria e la inviamo via email.
+                  Il lead resta lead finché non fa un acquisto.
+                </p>
+                {err && <div className="sf-sub" style={{ color: '#B4491F', marginTop: 8 }}>{err}</div>}
+                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                  <button className="sf-btn p" style={{ flex: 1 }} disabled={saving} onClick={sendCredentials}>
+                    {saving ? 'Invio…' : 'Invia credenziali'}
+                  </button>
+                  <button className="sf-btn g" style={{ flex: 1 }} onClick={() => setModal(null)}>Annulla</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <b style={{ fontSize: 15 }}>Credenziali inviate ✓</b>
+                <p className="sf-sub" style={{ marginTop: 8 }}>Abbiamo inviato l'accesso a <b>{email}</b>.</p>
+                <button className="sf-btn p" style={{ width: '100%', marginTop: 12 }} onClick={() => setModal(null)}>Chiudi</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {modal && modal !== 'credenziali' && (
         <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
           <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-grab" />

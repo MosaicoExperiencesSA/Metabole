@@ -34,7 +34,7 @@ export function LeadForm() {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
-  async function submit() {
+  async function submit(withCredentials = false) {
     setError(null);
     setOk(null);
     if (!email.includes('@')) {
@@ -45,8 +45,10 @@ export function LeadForm() {
     // Numero completo col prefisso internazionale (come la registrazione app).
     const phone = phoneNumber.trim() ? `${phonePrefix} ${phoneNumber.trim()}` : undefined;
     try {
-      await api('/crm/leads', { method: 'POST', body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone }) });
-      setOk(`Lead "${name.trim() || email.trim()}" inserito. Lo trovi in Gestione lead e nella Pipeline.`);
+      await api('/crm/leads', { method: 'POST', body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone, sendCredentials: withCredentials }) });
+      setOk(withCredentials
+        ? `Lead "${name.trim() || email.trim()}" inserito e credenziali inviate a ${email.trim()}.`
+        : `Lead "${name.trim() || email.trim()}" inserito. Lo trovi in Gestione lead e nella Pipeline.`);
       setEmail('');
       setName('');
       setPhoneNumber('');
@@ -101,11 +103,14 @@ export function LeadForm() {
         </div>
       </div>
 
-      <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+      <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
         <button className="btn ghost" onClick={() => navigate('/crm/gestione')} disabled={busy}>
           Vai alla gestione
         </button>
-        <button className="btn" onClick={submit} disabled={busy || !email}>
+        <button className="btn ghost" onClick={() => submit(true)} disabled={busy || !email} title="Crea il lead e gli invia subito email + password provvisoria">
+          {busy ? 'Attendi…' : 'Inserisci e invia credenziali'}
+        </button>
+        <button className="btn" onClick={() => submit(false)} disabled={busy || !email}>
           {busy ? 'Inserisco…' : 'Inserisci lead'}
         </button>
       </div>

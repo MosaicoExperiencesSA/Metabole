@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Spinner } from '../components/ui';
 import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
 
 interface Stage {
@@ -103,6 +103,7 @@ export function LeadDetail() {
   const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingCreds, setSendingCreds] = useState(false);
 
   // Note dello staff (come scheda cliente)
   const [notes, setNotes] = useState<LeadNote[]>([]);
@@ -342,24 +343,22 @@ export function LeadDetail() {
     }
   }
 
-  // Crea l'account cliente dal lead (password provvisoria casuale + email credenziali).
-  const [creatingAccount, setCreatingAccount] = useState(false);
-  const [accountResult, setAccountResult] = useState<{ email: string; password: string; mailSent: boolean } | null>(null);
-
-  async function createAccount() {
+  async function sendCredentials() {
     if (!lead) return;
+    const target = lead.email || lead.client?.email || '';
     // eslint-disable-next-line no-alert
-    if (!confirm(`Creare l'account cliente per "${displayName}"?\nVerrà generata una password provvisoria e inviata via email al lead; al primo accesso farà il questionario e poi imposterà la sua password.`)) return;
-    setCreatingAccount(true);
+    if (!confirm(`Inviare le credenziali di accesso a ${target}? Creiamo l'accesso con una password provvisoria e la inviamo via email. Il lead resta lead finché non fa un acquisto.`)) return;
+    setSendingCreds(true);
     setError(null);
+    setNotice(null);
     try {
-      const r = await api<{ email: string; password: string; mailSent: boolean }>(`/crm/leads/${lead.id}/create-account`, { method: 'POST', body: JSON.stringify({}) });
-      setAccountResult(r);
-      void load();
+      await api(`/crm/leads/${lead.id}/send-credentials`, { method: 'POST' });
+      setNotice(`Credenziali inviate a ${target}.`);
+      await load(); // il lead ora ha un account collegato
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Creazione account non riuscita.');
+      setError(err instanceof Error ? err.message : 'Invio credenziali non riuscito.');
     } finally {
-      setCreatingAccount(false);
+      setSendingCreds(false);
     }
   }
 
@@ -421,6 +420,11 @@ export function LeadDetail() {
                 <button className="btn ghost" onClick={() => setEditing(false)} disabled={saving} style={{ background: 'rgba(255,255,255,.9)' }}>Annulla</button>
               </>
             )}
+            {!editing && (lead.email || lead.client?.email) && (
+              <button className="btn ghost" onClick={sendCredentials} disabled={sendingCreds} title="Crea/rigenera l'accesso e invia email + password provvisoria" style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-key" /> {sendingCreds ? 'Invio…' : 'Invia credenziali'}
+              </button>
+            )}
             {lead.clientId && !editing && (
               <>
                 <Link to={`/clienti/${lead.clientId}`} className="btn ghost" style={{ background: 'rgba(255,255,255,.9)' }}>
@@ -430,11 +434,6 @@ export function LeadDetail() {
                   <i className="ti ti-eye" /> Entra come
                 </button>
               </>
-            )}
-            {!editing && !lead.clientId && (lead.email ?? '').includes('@') && (
-              <button className="btn ghost" onClick={createAccount} disabled={creatingAccount} title="Crea l'account cliente: password provvisoria via email, questionario al primo accesso" style={{ background: 'rgba(255,255,255,.9)' }}>
-                <i className="ti ti-user-plus" /> {creatingAccount ? 'Creo…' : 'Crea account cliente'}
-              </button>
             )}
             {isAdmin && !editing && !lead.clientId && (
               <button className="btn ghost" onClick={deleteLead} disabled={deleting} title="Elimina definitivamente questo lead" style={{ background: 'rgba(255,255,255,.9)', color: '#b3261e' }}>
@@ -715,25 +714,6 @@ export function LeadDetail() {
           </div>
         )}
       </div>
-      {accountResult && (
-        <Modal title="Account cliente creato" onClose={() => setAccountResult(null)}>
-          <p style={{ marginTop: 0 }}>
-            {accountResult.mailSent
-              ? <>Le credenziali sono state inviate a <b>{accountResult.email}</b>.</>
-              : <>⚠️ L'email NON è partita (verifica BREVO_API_KEY): comunica tu le credenziali al lead.</>}
-          </p>
-          <p>
-            <b>Email:</b> {accountResult.email}<br />
-            <b>Password provvisoria:</b> <code style={{ fontSize: 15 }}>{accountResult.password}</code>
-          </p>
-          <p className="muted" style={{ fontSize: 12 }}>
-            La vedi solo ora. Al primo accesso il lead farà il questionario e poi imposterà la sua password personale.
-          </p>
-          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-            <button className="btn" onClick={() => setAccountResult(null)}>Ho capito</button>
-          </div>
-        </Modal>
-      )}
       {pendingRecall && lead && (
         <AppointmentModal
           leadName={displayName}

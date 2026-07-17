@@ -169,6 +169,13 @@ const it: Catalog = {
       '<p>Hai chiesto di reimpostare la password del tuo account Metabole.</p><p>Usa questo codice: <code>{token}</code> (oppure il link: <a href="{link}">reimposta password</a>)</p><p>Il codice scade tra 1 ora. Se non l\'hai richiesto tu, ignora questa email: la password resta invariata.</p>',
     ],
   },
+  'mail.credentials.subject': { title: '', variants: ['Metabole — le tue credenziali di accesso'] },
+  'mail.credentials.body': {
+    title: '',
+    variants: [
+      '<p>Ciao {name},</p><p>Ti abbiamo creato l\'accesso a <strong>Metabole</strong>. Ecco le tue credenziali:</p><p>Email: <strong>{email}</strong><br>Password provvisoria: <code>{password}</code></p><p>Accedi dall\'app: <a href="{link}">{link}</a></p><p>Al primo accesso completerai un breve questionario e poi potrai impostare una tua password personale.</p><p>A presto!</p>',
+    ],
+  },
   'mail.bank.subject': { title: '', variants: ['Metabole — estremi per il bonifico ({description})'] },
   'mail.bank.body': {
     title: '',

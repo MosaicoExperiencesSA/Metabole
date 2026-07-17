@@ -117,6 +117,11 @@ class CreateLeadDto {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  // "Inserisci lead e invia credenziali": crea il lead E manda subito l'accesso.
+  @IsOptional()
+  @IsBoolean()
+  sendCredentials?: boolean;
 }
 
 class AdvanceLeadDto {
@@ -431,31 +436,6 @@ export class AdminPaymentsController {
   }
 }
 
-/**
- * Pagamenti lato STAFF: la coach può CARICARE la contabile del bonifico per conto
- * di una cliente in difficoltà (solo le sue assegnate; responsabile/admin tutte).
- * NON può approvare né rifiutare: quelle rotte restano in AdminPaymentsController
- * (admin + sales) — separazione dei poteri per costruzione.
- */
-@Controller('staff/payments')
-@Roles('coach', 'sales', 'admin')
-export class StaffPaymentsController {
-  constructor(private readonly commerce: CommerceService) {}
-
-  /** Carica (o sostituisce) la contabile del bonifico per conto della cliente. */
-  @HttpCode(200)
-  @Post(':id/receipt')
-  uploadReceipt(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UploadReceiptDto) {
-    return this.commerce.uploadReceiptByStaff(user.sub, id, dto);
-  }
-
-  /** Vede la contabile caricata (stesso scope dell'upload). */
-  @Get(':id/receipt')
-  receipt(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.commerce.downloadReceiptByStaff(user.sub, id);
-  }
-}
-
 /** Webhook Stripe (spec: POST /payments/webhook). Firma verificata, idempotente. */
 @SkipThrottle() // la firma Stripe è la protezione; niente rate limit sui webhook
 @Controller('payments')
@@ -513,8 +493,21 @@ export class CrmController {
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateLeadDto) {
-    return this.crm.create(user.sub, dto);
+  async create(@CurrentUser() user: AuthUser, @Body() dto: CreateLeadDto) {
+    const record = await this.crm.create(user.sub, dto);
+    let credentialsSent = false;
+    if (dto.sendCredentials) {
+      await this.crm.sendCredentials(record.id, user.sub);
+      credentialsSent = true;
+    }
+    return { ...record, credentialsSent };
+  }
+
+  /** Crea/rigenera l'accesso per un lead e invia le credenziali via email. */
+  @Post(':id/send-credentials')
+  @HttpCode(200)
+  sendCredentials(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crm.sendCredentials(id, user.sub);
   }
 
   @Get(':id')
@@ -545,13 +538,6 @@ export class CrmController {
   @HttpCode(200)
   setLists(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetLeadListsDto) {
     return this.crm.setLeadLists(user.sub, id, dto.listIds);
-  }
-
-  /** Crea l'account cliente dal lead: password provvisoria casuale + email con le credenziali. */
-  @HttpCode(201)
-  @Post(':id/create-account')
-  createAccount(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.crm.createClientAccount(user.sub, id);
   }
 
   /** Nota dello staff sulla scheda lead (come le note della scheda cliente). */

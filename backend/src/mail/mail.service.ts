@@ -156,6 +156,25 @@ export class MailService {
     return this.send({ to, subject, html, templateKey: 'email_verification' });
   }
 
+  /**
+   * Credenziali di accesso inviate a un lead ("Invia credenziali"): email +
+   * password provvisoria (generata a monte). Modello editabile dal backoffice
+   * (chiave `lead_credentials`), altrimenti default i18n.
+   */
+  async sendLeadCredentials(
+    to: string,
+    input: { name?: string | null; email: string; password: string },
+    locale?: string | null,
+  ): Promise<boolean> {
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
+    const vars = { name: input.name?.trim() || '', email: input.email, password: input.password, link: appUrl };
+    const { subject, html } = await this.resolve('lead_credentials', {
+      subject: this.i18n.text(locale, 'mail.credentials.subject'),
+      html: this.i18n.text(locale, 'mail.credentials.body', vars),
+    }, vars);
+    return this.send({ to, subject, html, templateKey: 'lead_credentials' });
+  }
+
   /** Verifica della NUOVA email nel cambio email: il link apre una pagina dell'app. */
   async sendEmailChangeVerification(to: string, token: string, locale?: string | null): Promise<boolean> {
     const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
