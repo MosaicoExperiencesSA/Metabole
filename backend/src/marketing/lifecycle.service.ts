@@ -37,9 +37,9 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'trial_g6_offer', label: 'Prova G6 — offerta con codice personale (spento di default)', when: 'Prova gratuita attiva iniziata 6 giorni fa (codice 48h)', kind: 'scheduled', implemented: true },
   // --- In roadmap: richiedono dati non ancora tracciati ---
   { key: 'onb_g2', label: 'Onboarding giorno 2', when: 'Inizio piano = 2 giorni fa', kind: 'scheduled', implemented: false },
-  { key: 'cart_1h', label: 'Carrello +1h', when: 'Carrello abbandonato (stato carrello non tracciato)', kind: 'scheduled', implemented: false },
-  { key: 'cart_24h', label: 'Carrello +24h', when: 'Carrello abbandonato', kind: 'scheduled', implemented: false },
-  { key: 'cart_72h', label: 'Carrello +72h', when: 'Carrello abbandonato', kind: 'scheduled', implemented: false },
+  { key: 'cart_1h', label: 'Carrello +1h', when: 'Checkout iniziato da 1h senza acquisto', kind: 'scheduled', implemented: true },
+  { key: 'cart_24h', label: 'Carrello +24h', when: 'Checkout iniziato da 24h senza acquisto', kind: 'scheduled', implemented: true },
+  { key: 'cart_72h', label: 'Carrello +72h', when: 'Checkout iniziato da 72h senza acquisto', kind: 'scheduled', implemented: true },
   { key: 'nurture_1', label: 'Nurture 1', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
   { key: 'nurture_2', label: 'Nurture 2', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
   { key: 'nurture_3', label: 'Nurture 3', when: 'Sequenza nurture lead', kind: 'scheduled', implemented: false },
@@ -488,6 +488,73 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
+    // 4-bis2) CARRELLO ABBANDONATO — evento `checkout_started` dell'app (tracking
+    //         punto 6) SENZA acquisto successivo. Si guarda l'EPISODIO più recente
+    //         per cliente e si manda solo lo scalino raggiunto (+1h → +24h → +72h),
+    //         una volta ciascuno per episodio; se riapre il checkout, la scala riparte.
+    if (on('cart_1h') || on('cart_24h') || on('cart_72h')) {
+      const cartEvents = (await this.prisma.analyticsEvent.findMany({
+        where: { name: 'checkout_started', userId: { not: null }, receivedAt: { gte: this.daysAgo(10) } },
+        select: { id: true, userId: true, receivedAt: true, data: true },
+        orderBy: { receivedAt: 'desc' },
+        take: LifecycleService.BATCH,
+      })) as { id: string; userId: string | null; receivedAt: Date; data: unknown }[];
+      // Ultimo episodio per cliente (gli eventi arrivano già dal più recente).
+      const latestByUser = new Map<string, { id: string; receivedAt: Date; data: unknown }>();
+      for (const ev of cartEvents) {
+        if (ev.userId && !latestByUser.has(ev.userId)) latestByUser.set(ev.userId, ev);
+      }
+      const cartUserIds = [...latestByUser.keys()];
+      type CUser = { id: string; email: string; firstName: string | null; deletedAt: Date | null; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null };
+      const cartUsers = (cartUserIds.length
+        ? await this.prisma.user.findMany({
+            where: { id: { in: cartUserIds }, role: 'client', deletedAt: null },
+            select: { id: true, email: true, firstName: true, deletedAt: true, clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } }, assignedNutritionist: { select: { displayName: true } } } } },
+          })
+        : []) as CUser[];
+      const cartById = new Map(cartUsers.map((u) => [u.id, u]));
+      const now = Date.now();
+      for (const [uid, ev] of latestByUser) {
+        const u = cartById.get(uid);
+        if (!u) continue;
+        // Ha comprato dopo? (abbonamento in corso, oppure pagamento approvato dopo l'evento)
+        const bought = await this.prisma.subscription.findFirst({
+          where: { clientId: uid, status: { in: ['active', 'pending'] as never }, createdAt: { gte: ev.receivedAt } },
+          select: { id: true },
+        });
+        if (bought) continue;
+        const paid = await this.prisma.payment.findFirst({
+          where: { clientId: uid, status: 'approved', createdAt: { gte: ev.receivedAt } } as never,
+          select: { id: true },
+        });
+        if (paid) continue;
+        const ageH = (now - ev.receivedAt.getTime()) / 3_600_000;
+        const key = ageH >= 72 ? 'cart_72h' : ageH >= 24 ? 'cart_24h' : ageH >= 1 ? 'cart_1h' : null;
+        if (!key || !on(key)) continue;
+        // Nome del piano nel carrello (se c'era) per il merge {{piano}}.
+        const planId = (ev.data as { planId?: string | null } | null)?.planId ?? null;
+        let pianoName = 'il tuo percorso';
+        if (planId) {
+          const pl = await this.prisma.plan.findUnique({ where: { id: planId }, select: { name: true } }).catch(() => null);
+          if (pl?.name) pianoName = pl.name;
+        }
+        const r = await this.sendLifecycle({
+          userId: uid,
+          email: u.email,
+          key,
+          dedupeKey: `${key}:${ev.id}`,
+          vars: {
+            nome: u.firstName ?? u.clientProfile?.name ?? '',
+            piano: pianoName,
+            coach: u.clientProfile?.assignedCoach?.displayName ?? 'la tua coach',
+            nutrizionista: u.clientProfile?.assignedNutritionist?.displayName ?? 'il tuo nutrizionista',
+            link: `${app}/checkout`,
+          },
+        });
+        bump(key, r);
+      }
+    }
+
     // 4-ter) RINNOVI (handoff: rinnovo T-7/T-3/T-1) — piani A PAGAMENTO attivi in
     //        scadenza; dedup per abbonamento, così un rinnovo nuovo riparte pulito.
     const renewalTriggers: { key: string; offset: number }[] = [
@@ -552,7 +619,7 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       for (const sub of subs) {
         if (!sub.client || sub.client.deletedAt) continue;
         const stillOut = await this.prisma.subscription.findFirst({
-          where: { clientId: sub.clientId, status: { in: ['active', 'pending', 'paused'] as never } },
+          where: { clientId: sub.clientId, status: { in: ['active', 'pending'] as never } },
           select: { id: true },
         });
         if (stillOut) continue; // ha già rinnovato o sta pagando: niente win-back
