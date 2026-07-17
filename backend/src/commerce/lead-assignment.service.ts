@@ -188,14 +188,17 @@ export class LeadAssignmentService {
   async myPending(coachUserId: string) {
     const staffId = await this.staffIdOf(coachUserId);
     if (!staffId) return [];
+    // Coordinatrice: vede i lead in attesa di TUTTO il suo perimetro (lei + team),
+    // così può riassegnarli in massa alle sue coach; la coach vede solo i propri.
+    const scope = (await coachTeamScope(this.prisma, coachUserId)) ?? [staffId];
     const rows = await this.prisma.crmRecord.findMany({
-      where: { assignedCoachId: staffId, assignmentStatus: 'pending' },
+      where: { assignedCoachId: { in: scope }, assignmentStatus: 'pending' },
       orderBy: { assignedAt: 'asc' },
-      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } }, assignedBy: { select: { displayName: true } } },
+      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } }, assignedBy: { select: { displayName: true } }, assignedCoach: { select: { id: true, displayName: true } } },
     });
     const now = Date.now();
     const windowMs = await this.acceptWindowMs();
-    type Row = { id: string; name: string | null; email: string | null; assignedAt: Date | null; client: { email: string; clientProfile: { name: string | null } | null } | null; assignedBy: { displayName: string } | null };
+    type Row = { id: string; name: string | null; email: string | null; assignedAt: Date | null; client: { email: string; clientProfile: { name: string | null } | null } | null; assignedBy: { displayName: string } | null; assignedCoach: { id: string; displayName: string } | null };
     return (rows as Row[]).map((r) => {
       const deadline = r.assignedAt ? new Date(r.assignedAt.getTime() + windowMs) : null;
       const hoursLeft = deadline ? Math.max(0, Math.round((deadline.getTime() - now) / 3_600_000)) : null;
@@ -206,6 +209,9 @@ export class LeadAssignmentService {
         assignedBy: r.assignedBy?.displayName ?? null,
         assignedAt: r.assignedAt,
         hoursLeft,
+        // Per la vista della coordinatrice: su quale coach è in attesa, e se è "mio".
+        coachName: r.assignedCoach?.displayName ?? null,
+        mine: r.assignedCoach?.id === staffId,
       };
     });
   }
