@@ -10,6 +10,7 @@ import VoiceToggle from '../components/VoiceToggle';
 import { getTodaySteps } from '../lib/steps';
 import { DEFAULT_WATER_UNIT, isWaterUnit, waterIcon, waterStep, waterValue, type WaterUnit } from '../lib/water';
 import StartDatePrompt from '../components/StartDatePrompt';
+import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 import { TypeText } from '../components/TypeText';
@@ -176,15 +177,17 @@ export default function Home() {
   const [waterUnit, setWaterUnit] = useState<WaterUnit>(DEFAULT_WATER_UNIT);
   const [dismissed, setDismissed] = useState(false);
   const [checkinBusy, setCheckinBusy] = useState(false);
+  const [menuStatus, setMenuStatus] = useState<MenuStatus | null>(null);
   const mealsRef = useRef<HTMLDivElement>(null);
   const [mealIdx, setMealIdx] = useState(0);
 
   useEffect(() => {
     api<Today>('/me/today').then(setToday).catch(() => {});
-    api<{ days: ApiMenuDay[] }>('/me/menu').then((r) => {
+    api<{ days: ApiMenuDay[]; status?: MenuStatus }>('/me/menu').then((r) => {
       const iso = new Date().toISOString().slice(0, 10);
       const day = (r.days ?? []).find((d) => d.date.slice(0, 10) === iso) ?? (r.days ?? [])[0];
       setMeals(day?.meals ?? []);
+      setMenuStatus(r.status ?? null);
     }).catch(() => setMeals([]));
     api<{ next: NextAppt | null }>('/me/agenda?next=1').then((r) => setNextAppt(r.next)).catch(() => setNextAppt(null));
     api<EventItem[]>('/me/events').then((evs) => {
@@ -260,6 +263,9 @@ export default function Home() {
       )}
 
       <StartDatePrompt />
+
+      {/* Menu non ancora visibile: spiega perché e quando arriva (niente banner se c'è già il menu di oggi). */}
+      {menuStatus && (!meals || meals.length === 0) && <MenuStatusBanner status={menuStatus} />}
 
       {/* IL MENU DI OGGI */}
       {meals && meals.length > 0 && (

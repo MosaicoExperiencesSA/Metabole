@@ -107,7 +107,83 @@ export class MenuService {
       take: 30,
     });
     const blocked = await this.dietBlock(clientId);
-    return { delivered, days: menuDays, blocked };
+    const status = await this.menuStatus(clientId, menuDays.some((d) => d.date.getTime() >= today.getTime()));
+    return { delivered, days: menuDays, blocked, status };
+  }
+
+  /**
+   * Stato del menu per la dashboard cliente: serve a spiegare — quando il menu non è
+   * ancora visibile — PERCHÉ e QUANDO arriverà, così la cliente non pensa che l'app sia
+   * rotta. Non ha effetti collaterali (non eroga nulla).
+   *
+   * Stati:
+   * - `available`       → ci sono giorni di menu visibili (nessun messaggio da mostrare);
+   * - `awaiting_visit`  → percorso supervisionato (screening): il menu dipende dalla
+   *                       visita col nutrizionista → messaggio dedicato;
+   * - `scheduled`       → idoneo ma non ancora nella finestra: `availableFrom` = data in
+   *                       cui il menu diventa visibile → "Il tuo menu arriverà il …";
+   * - `awaiting_measures` → prova gratuita senza misure iniziali (punto A mancante);
+   * - `paused`          → periodo senza dieta attivo;
+   * - `blocked`         → piano in sistemazione col nutrizionista (esclusioni);
+   * - `preparing`       → idoneo ora / data non ancora impostata: menu in preparazione.
+   */
+  async menuStatus(
+    clientId: string,
+    hasVisibleMenu?: boolean,
+  ): Promise<{ state: string; availableFrom: string | null; planStartDate: string | null }> {
+    const today = toDateOnly();
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { planStartDate: true, screeningFlag: true },
+    });
+    const planStartDate = profile?.planStartDate ? profile.planStartDate.toISOString().slice(0, 10) : null;
+
+    // 1) Menu già visibile (oggi o nei prossimi giorni): nessun messaggio.
+    const visible =
+      hasVisibleMenu ??
+      Boolean(
+        await this.prisma.menuDay.findFirst({
+          where: { clientId, visibleFrom: { lte: today }, date: { gte: today } },
+          select: { id: true },
+        }),
+      );
+    if (visible) return { state: 'available', availableFrom: null, planStartDate };
+
+    // 2) Percorso supervisionato: il menu dipende dalla visita col nutrizionista.
+    if (profile?.screeningFlag) return { state: 'awaiting_visit', availableFrom: null, planStartDate };
+
+    // 3) Senza data di inizio piano non c'è ancora una data da mostrare.
+    if (!profile?.planStartDate) return { state: 'preparing', availableFrom: null, planStartDate: null };
+
+    // 4) Periodo senza dieta (modalità viaggio) attivo.
+    const pause = await this.events.activePausePeriod(clientId);
+    if (pause) return { state: 'paused', availableFrom: null, planStartDate };
+
+    // 5) Prova gratuita: senza misure iniziali il menu resta trattenuto.
+    const activeSubscription = (await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
+      include: { plan: { select: { priceCents: true } } },
+    })) as ({ plan: { priceCents: number } | null }) | null;
+    if (activeSubscription?.plan?.priceCents === 0) {
+      const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
+      if (hasMeasure === 0) return { state: 'awaiting_measures', availableFrom: null, planStartDate };
+    }
+
+    // 6) Idoneo ma troppo presto: mostro la data in cui il menu comparirà.
+    const visibleDaysBefore = await this.configParams.getNumber('menu_visible_days_before_start', 2);
+    const start = toDateOnly(profile.planStartDate.toISOString());
+    const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
+    const availableFrom = visibleFrom.toISOString().slice(0, 10);
+    if (today.getTime() < visibleFrom.getTime()) {
+      return { state: 'scheduled', availableFrom, planStartDate };
+    }
+
+    // 7) Piano in sistemazione col nutrizionista (esclusioni non sostituibili).
+    const block = await this.dietBlock(clientId);
+    if (block.active) return { state: 'blocked', availableFrom: null, planStartDate };
+
+    // 8) Idoneo ora ma nessun giorno ancora: si sta preparando, comparirà a breve.
+    return { state: 'preparing', availableFrom: null, planStartDate };
   }
 
   /**

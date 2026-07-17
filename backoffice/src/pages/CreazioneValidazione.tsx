@@ -70,6 +70,10 @@ export function CreazioneValidazione() {
   const comboKeyOf = (regime: string, objective: string, meals: string) => `${regime}\u0000${objective}\u0000${meals}`;
   const objLabel = (code: string) => OBIETTIVI.find((o) => o.v === code)?.l ?? code;
   const mealLabel = (code: string) => PASTI.find((m) => m.v === code)?.l ?? `${code} pasti`;
+  // Una famiglia "Digiuno intermittente" deve avere SOLO la struttura digiuno: le
+  // varianti 3/5 pasti non hanno senso qui (il motore le abbinerebbe a clienti
+  // non-digiuno con una struttura 16:8). Riconosciuta dal nome della dieta.
+  const isFastingFamily = /digiuno|intermittent|16\s*:?\s*8/i.test(form.label);
   const families: Family[] = (() => {
     const map = new Map<string, Family>();
     for (const p of presets ?? []) {
@@ -111,6 +115,23 @@ export function CreazioneValidazione() {
       out.sort((a, b) => regLabelOf(a.regime).localeCompare(regLabelOf(b.regime), 'it') || a.objective.localeCompare(b.objective) || a.meals.localeCompare(b.meals));
       setFamVariants(out);
     } catch { setFamVariants([]); }
+  }
+
+  // Archivia una variante GENERATA (es. il 3-pasti creato per errore in una famiglia
+  // digiuno): esce dai menu e dallo schermo 16 senza cancellarla (recuperabile). Così il
+  // catalogo resta allineato a ciò che c'è nel generatore.
+  async function archiveVariant(v: FamVariant) {
+    const tag = `${regLabelOf(v.regime)} · ${objLabel(v.objective)} · ${mealLabel(v.meals)}`;
+    // eslint-disable-next-line no-alert
+    if (!confirm(`Archiviare la variante ${tag}?\nUscirà dai menu e dallo schermo 16 (recuperabile ripubblicandola dal Catalogo diete).`)) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await api(`/diets/${v.dietId}/archive`, { method: 'POST', body: JSON.stringify({}) });
+      if (dietId === v.dietId) { try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ } setDietId(null); }
+      await loadFamilyStatuses();
+      setNotice(`Variante archiviata: ${tag}.`);
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Archiviazione non riuscita.'); }
+    finally { setBusy(false); }
   }
 
   useEffect(() => { void loadFamilyStatuses(); }, [activeFamilyKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -173,6 +194,8 @@ export function CreazioneValidazione() {
     setDirty(true);
   }
   function toggleMeal(code: string) {
+    // Famiglia digiuno: solo la struttura "digiuno" è consentita (niente 3/5 pasti).
+    if (isFastingFamily && code !== 'fasting') return;
     setForm((f) => ({ ...f, meals: f.meals.includes(code) ? f.meals.filter((c) => c !== code) : [...f.meals, code] }));
     setDirty(true);
   }
@@ -183,10 +206,13 @@ export function CreazioneValidazione() {
     if (form.objectives.length === 0) { setError('Seleziona almeno un obiettivo.'); return; }
     if (form.meals.length === 0) { setError('Seleziona almeno una struttura pasti (3, 5 o digiuno).'); return; }
     const regLabel = (code: string) => regimes.find((r) => r.code === code)?.label ?? code;
+    // Famiglia digiuno: forziamo la sola struttura "digiuno" (difesa: niente 3/5 pasti
+    // anche se lo stato ne contenesse per errore).
+    const effMeals = isFastingFamily ? ['fasting'] : form.meals;
     // Prodotto cartesiano regime × obiettivo × pasti, saltando le combinazioni già presenti
     // (INTEGRA: le varianti esistenti non si toccano, si aggiungono solo le mancanti).
     const combos: { regime: string; objective: string; meals: string }[] = [];
-    for (const rc of form.regimes) for (const oc of form.objectives) for (const mc of form.meals) {
+    for (const rc of form.regimes) for (const oc of form.objectives) for (const mc of effMeals) {
       if (!existingCombos.has(comboKeyOf(rc, oc, mc))) combos.push({ regime: rc, objective: oc, meals: mc });
     }
     if (combos.length === 0) { setNotice('Tutte le combinazioni regime × obiettivo × pasti selezionate esistono già in questa dieta.'); setDirty(false); return; }
@@ -371,7 +397,8 @@ export function CreazioneValidazione() {
   const canGenerate = !!activePresetId && !dirty;
   // Riepilogo combinazioni selezionate (regime × obiettivo): quante nuove, quante già presenti.
   const selectedCombos: string[] = [];
-  for (const rc of form.regimes) for (const oc of form.objectives) for (const mc of form.meals) selectedCombos.push(comboKeyOf(rc, oc, mc));
+  const selMeals = isFastingFamily ? ['fasting'] : form.meals;
+  for (const rc of form.regimes) for (const oc of form.objectives) for (const mc of selMeals) selectedCombos.push(comboKeyOf(rc, oc, mc));
   const newCombosCount = selectedCombos.filter((k) => !existingCombos.has(k)).length;
   const alreadyCombosCount = selectedCombos.length - newCombosCount;
   const s = status;
@@ -459,16 +486,25 @@ export function CreazioneValidazione() {
                 <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Pasti <span style={{ opacity: 0.65 }}>· uno o più</span></span>
                 <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                   {PASTI.map((m) => {
-                    const on = form.meals.includes(m.v);
+                    // Digiuno intermittente come nome → solo la struttura "digiuno".
+                    const locked = isFastingFamily && m.v !== 'fasting';
+                    const on = isFastingFamily ? m.v === 'fasting' : form.meals.includes(m.v);
                     return (
-                      <button key={m.v} type="button" className={`btn ${on ? '' : 'ghost'} sm`}
+                      <button key={m.v} type="button" className={`btn ${on ? '' : 'ghost'} sm`} disabled={locked}
+                        style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                         onClick={() => toggleMeal(m.v)}
-                        title={on ? 'Rimuovi dalla selezione' : m.v === 'fasting' ? 'Digiuno intermittente 16:8 (pasti nella finestra 12-20)' : 'Aggiungi questa struttura pasti'}>
+                        title={locked ? 'Non disponibile per una dieta a digiuno intermittente' : on ? 'Rimuovi dalla selezione' : m.v === 'fasting' ? 'Digiuno intermittente 16:8 (pasti nella finestra 12-20)' : 'Aggiungi questa struttura pasti'}>
                         {on && <i className="ti ti-check" />} {m.l}
                       </button>
                     );
                   })}
                 </div>
+                {isFastingFamily && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                    <i className="ti ti-info-circle" style={{ marginRight: 4 }} />
+                    Dieta a digiuno intermittente: si genera solo la struttura digiuno (3/5 pasti disattivati).
+                  </div>
+                )}
               </label>
             </div>
             {selectedCombos.length > 0 && (
@@ -559,15 +595,24 @@ export function CreazioneValidazione() {
             <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
               {famVariants.map((v) => {
                 const sel = v.dietId === dietId;
+                const archived = v.status === 'rejected';
                 return (
-                  <button key={v.dietId} type="button" className={`chip ${sel ? '' : 'gray'}`}
-                    onClick={() => { try { localStorage.setItem(LS_DIET, v.dietId); } catch { /* no-op */ } setDietId(v.dietId); }}
-                    style={{ cursor: 'pointer', borderColor: sel ? 'var(--teal)' : undefined }}
-                    title={v.status === 'approved' ? 'Pubblicata' : v.ready ? 'Pronta da pubblicare' : 'Passi da completare'}>
-                    <i className={`ti ${v.status === 'approved' ? 'ti-rosette-discount-check' : v.ready ? 'ti-circle-check' : 'ti-progress'}`}
-                      style={{ marginRight: 4, color: v.status === 'approved' || v.ready ? 'var(--ok-ink)' : undefined }} />
-                    {regLabelOf(v.regime)} · {objLabel(v.objective)} · {mealLabel(v.meals)}{v.status === 'approved' ? ' · pubblicata' : v.ready ? ' · pronta' : ''}
-                  </button>
+                  <div key={v.dietId} className="row" style={{ gap: 2, alignItems: 'center' }}>
+                    <button type="button" className={`chip ${sel ? '' : 'gray'}`}
+                      onClick={() => { try { localStorage.setItem(LS_DIET, v.dietId); } catch { /* no-op */ } setDietId(v.dietId); }}
+                      style={{ cursor: 'pointer', borderColor: sel ? 'var(--teal)' : undefined, opacity: archived ? 0.5 : undefined }}
+                      title={archived ? 'Archiviata (fuori dai menu)' : v.status === 'approved' ? 'Pubblicata' : v.ready ? 'Pronta da pubblicare' : 'Passi da completare'}>
+                      <i className={`ti ${archived ? 'ti-archive' : v.status === 'approved' ? 'ti-rosette-discount-check' : v.ready ? 'ti-circle-check' : 'ti-progress'}`}
+                        style={{ marginRight: 4, color: !archived && (v.status === 'approved' || v.ready) ? 'var(--ok-ink)' : undefined }} />
+                      {regLabelOf(v.regime)} · {objLabel(v.objective)} · {mealLabel(v.meals)}{archived ? ' · archiviata' : v.status === 'approved' ? ' · pubblicata' : v.ready ? ' · pronta' : ''}
+                    </button>
+                    {!archived && (
+                      <button type="button" className="btn ghost sm" title="Archivia questa variante (fuori dai menu)" disabled={busy}
+                        style={{ padding: '2px 6px', color: 'var(--danger)' }} onClick={() => archiveVariant(v)}>
+                        <i className="ti ti-archive" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>

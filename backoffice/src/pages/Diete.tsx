@@ -45,7 +45,7 @@ const STATUS: Record<string, { label: string; chip: string }> = {
 const STATUS_ORDER: Record<string, number> = { draft: 0, in_review: 1, approved: 2, rejected: 3 };
 
 export function Diete() {
-  const { regimeLabel, styleLabel } = useTaxonomy();
+  const { regimeLabel, styleLabel, regimes } = useTaxonomy();
   const { permissions } = useAuth();
   const role = permissions?.role;
   const isHead = role === 'head_nutritionist';
@@ -54,6 +54,7 @@ export function Diete() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  const [regimeF, setRegimeF] = useState(''); // filtro per regime (il catalogo è lungo)
   const [busy, setBusy] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [daysId, setDaysId] = useState<string | null>(null);
@@ -135,6 +136,10 @@ export function Diete() {
     });
   }, [rows, sortKey, sortDir, regimeLabel, styleLabel]);
 
+  // Filtro per regime: il catalogo è lungo, mostrarne uno alla volta lo rende leggibile
+  // (in combinazione con l'ordinamento per colonna: clicca "Regime" o "Pasti").
+  const shown = regimeF ? sorted.filter((r) => r.regime === regimeF) : sorted;
+
   if (loading) return <Spinner />;
 
   const th = (label: string, key: string) => (
@@ -148,6 +153,10 @@ export function Diete() {
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <p className="muted" style={{ margin: 0 }}>Diete del catalogo (create dai nutrizionisti, approvate dal capo).</p>
         <div className="row" style={{ gap: 8 }}>
+          <select className="select" style={{ width: 160 }} value={regimeF} onChange={(e) => setRegimeF(e.target.value)}>
+            <option value="">Tutti i regimi</option>
+            {regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
+          </select>
           <select className="select" style={{ width: 170 }} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Tutti gli stati</option>
             <option value="draft">Bozze</option>
@@ -180,7 +189,7 @@ export function Diete() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((r) => (
+              {shown.map((r) => (
                 <tr key={r.id}>
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>

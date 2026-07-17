@@ -134,6 +134,15 @@ export class DietsController {
   ) {
     return this.catalog.rejectDiet(user.sub, id, dto.reason);
   }
+
+  /** Archivia una dieta generata (anche approvata): esce da menu, schermo 16 e sito.
+   *  Serve ad allineare il catalogo quando si toglie un'opzione dal generatore. */
+  @RequirePage('diets_catalog', 'view')
+  @HttpCode(200)
+  @Post(':id/archive')
+  archive(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.catalog.archiveDiet(user.sub, id);
+  }
 }
 
 /** Vista del capo: coda di revisione e catalogo pubblicato. */
@@ -179,13 +188,19 @@ export class CatalogController {
   }
 }
 
-/** Ricette: lettura anche per le clienti (dal menu), scrittura per nutrizionisti. */
+/**
+ * Ricette: il dettaglio (`GET :id`) è leggibile da QUALSIASI utente autenticato —
+ * serve alle clienti che aprono una ricetta dal proprio menu. Le rotte di gestione
+ * (elenco/creazione/modifica) restano riservate ai nutrizionisti con il permesso di
+ * pagina `recipes` (perciò `@RequirePage` è sui singoli metodi staff, NON sulla classe:
+ * sulla classe bloccherebbe anche la lettura delle clienti → ricetta vuota in app).
+ */
 @Controller('recipes')
-@RequirePage('recipes')
 export class RecipesController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes')
   @Get()
   list(
     @Query('regime') regime?: string,
@@ -196,24 +211,29 @@ export class RecipesController {
     return this.catalog.listRecipes({ regime, mealSlot, q, includeInactive: includeInactive === 'true' });
   }
 
+  // Dettaglio ricetta: aperto a ogni utente autenticato (cliente inclusa) — NIENTE
+  // @RequirePage qui, altrimenti la cliente riceve 403 e la ricetta si apre vuota.
   @Get(':id')
   get(@Param('id') id: string) {
     return this.catalog.getRecipe(id);
   }
 
   @Roles('nutritionist', 'head_nutritionist')
+  @RequirePage('recipes')
   @Post()
   create(@Body() dto: CreateRecipeDto, @CurrentUser() user: AuthUser) {
     return this.catalog.createRecipe(user.sub, dto);
   }
 
   @Roles('nutritionist', 'head_nutritionist')
+  @RequirePage('recipes')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateRecipeDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateRecipe(user.sub, id, dto);
   }
 
   @Roles('nutritionist', 'head_nutritionist')
+  @RequirePage('recipes')
   @HttpCode(200)
   @Delete(':id')
   delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
@@ -222,6 +242,7 @@ export class RecipesController {
 
   /** Pre-tag allergeni assistito (suggerimenti dagli ingredienti + stato attuale). */
   @Roles('nutritionist', 'head_nutritionist')
+  @RequirePage('recipes')
   @Get(':id/allergen-suggestions')
   allergenSuggestions(@Param('id') id: string) {
     return this.catalog.recipeAllergenSuggestions(id);
@@ -229,6 +250,7 @@ export class RecipesController {
 
   /** Conferma degli allergeni della ricetta da parte del nutrizionista (reviewed=true). */
   @Roles('nutritionist', 'head_nutritionist')
+  @RequirePage('recipes')
   @Patch(':id/allergens')
   setAllergens(@Param('id') id: string, @Body() dto: SetRecipeAllergensDto, @CurrentUser() user: AuthUser) {
     return this.catalog.setRecipeAllergens(user.sub, id, dto.allergens);
