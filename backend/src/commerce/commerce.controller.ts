@@ -522,6 +522,13 @@ export class CrmController {
     return this.crm.setLeadLists(user.sub, id, dto.listIds);
   }
 
+  /** Crea l'account cliente dal lead: password provvisoria casuale + email con le credenziali. */
+  @HttpCode(201)
+  @Post(':id/create-account')
+  createAccount(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crm.createClientAccount(user.sub, id);
+  }
+
   /** Nota dello staff sulla scheda lead (come le note della scheda cliente). */
   @HttpCode(201)
   @Post(':id/notes')

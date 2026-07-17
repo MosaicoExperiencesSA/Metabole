@@ -53,20 +53,24 @@ DA FARE (lato NUTRIZIONISTA/dati): aprire le famiglie esistenti nel wizard, spun
 pubblicare. Le vecchie diete "Digiuno intermittente (16:8)" a 5 pasti nel catalogo andranno
 sostituite/archiviate a mano.
 
-## Lead da backoffice — creare l'account con credenziali provvisorie — DA FARE (handoff socio 17/07)
+## Lead da backoffice — creare l'account con credenziali provvisorie — FATTO (17/07, Cowork)
 Riferimento: `Metabole_Handoff_Lead_Backoffice_Password.md`. Il socio ha GIÀ fatto app + backend del
 flusso password: al primo login il lead senza questionario parte dall'onboarding; a fine questionario,
 se `mustChangePassword=true`, l'app impone "Imposta la tua password" (`PATCH /me/password/initial`,
 schermata SetPassword) e azzera il flag. (Ha usato il campo ESISTENTE `mustChangePassword`, non serve
 il nuovo `mustResetPassword` dell'handoff.)
-DA FARE (lato BACKOFFICE/Cowork): pulsante/flusso "Crea account cliente" dal lead (scheda lead o CRM):
+FATTO (17/07, Cowork): pulsante **"Crea account cliente"** nella scheda lead (visibile per i lead
+puri con email) → `POST /crm/leads/:id/create-account`:
 - crea `User` con: email reale del lead, `passwordHash` argon2 di una password provvisoria CASUALE E
   UNICA (min 8 char, mai fissa), `role=client`, `status=active`, `emailVerifiedAt=now()`,
   `mustChangePassword=true`;
 - NESSUN ClientProfile / `onboardingCompletedAt` (è il marcatore che manda l'app al questionario);
 - collega il lead (`CrmRecord.clientId`) al nuovo utente;
 - invia l'email al lead con email + password provvisoria + riga "al primo accesso completerai un
-  breve questionario e poi imposterai la tua password personale".
+  breve questionario e poi imposterai la tua password personale";
+- se l'email non parte (Brevo non configurato), la password resta visibile UNA volta nel popup
+  all'operatore; scope coach rispettato (una coach lo fa solo sui suoi lead); email rifiutata se
+  già usata da un altro account (principale o secondaria).
 
 ## Checkout — indirizzo di spedizione condizionale — FATTO (17/07)
 Checkout ora carica /me/profile: se via/CAP/città/provincia sono già in scheda mostra l'indirizzo in
