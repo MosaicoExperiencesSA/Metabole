@@ -185,7 +185,7 @@ export function Calendar() {
 
       {reminders.length > 0 && (
         <div className="card">
-          <ReminderCalendar reminders={reminders} renderItem={(r) => <Row r={r as Reminder} />} />
+          <ReminderCalendar reminders={reminders} renderItem={(r) => <Row r={r as Reminder} />} persistKey="metabole_cal_view" />
         </div>
       )}
 

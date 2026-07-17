@@ -33,18 +33,36 @@ function dayLabel(d: Date): string {
  * Settimana o Mese. La resa del singolo promemoria è delegata a `renderItem`
  * (così la pagina può aggiungere azioni e il modulo dashboard resta compatto).
  */
+const VIEWS: CalView[] = ['list', 'day', 'week', 'month'];
+/** Legge la vista salvata (se `persistKey` è passato e valida), altrimenti null. */
+function readSavedView(persistKey?: string): CalView | null {
+  if (!persistKey) return null;
+  try {
+    const v = localStorage.getItem(persistKey);
+    return v && (VIEWS as string[]).includes(v) ? (v as CalView) : null;
+  } catch { return null; }
+}
+
 export function ReminderCalendar({
   reminders,
   renderItem,
   compact = false,
   initialView = 'list',
+  persistKey,
 }: {
   reminders: CalReminder[];
   renderItem: (r: CalReminder) => ReactNode;
   compact?: boolean;
   initialView?: CalView;
+  /** Se passato, la vista scelta (mese/giorno/settimana/lista) viene ricordata in localStorage. */
+  persistKey?: string;
 }) {
-  const [view, setView] = useState<CalView>(initialView);
+  // All'apertura riparte dall'ultima vista scelta dall'utente (se memorizzata).
+  const [view, setViewState] = useState<CalView>(() => readSavedView(persistKey) ?? initialView);
+  const setView = (v: CalView) => {
+    setViewState(v);
+    if (persistKey) { try { localStorage.setItem(persistKey, v); } catch { /* storage non disponibile */ } }
+  };
   const [cursor, setCursor] = useState<Date>(startOfDay(new Date()));
   const [selDay, setSelDay] = useState<Date>(startOfDay(new Date()));
 

@@ -307,6 +307,7 @@ export function CalendarModule({ module: m }: { module: DashboardModule }) {
         <ReminderCalendar
           reminders={reminders}
           compact
+          persistKey="metabole_cal_view"
           renderItem={(r) => (
             <div className="spread" style={{ fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
