@@ -26,7 +26,7 @@ const label = (map: Record<string, string>, code: string | null | undefined): st
 export interface MeasurePoint { date: string; weightKg: number; waistCm: number | null; hipsCm: number | null }
 
 export interface PlanReportData {
-  kind: 'trial' | 'plan';
+  kind: 'trial' | 'plan' | 'monthly';
   planName: string;
   periodStart: string;
   periodEnd: string;
@@ -77,25 +77,51 @@ export class PlanReportService {
     return { effectivePriceCents: promoActive ? p.priceCents : (p.listPriceCents ?? p.priceCents), promoActive };
   }
 
+  /** Mese calendario dopo `d` (31/1 + 1 mese → 28/2, non 3/3). */
+  private addMonths(d: Date, n: number): Date {
+    const x = this.day0(d);
+    const day = x.getDate();
+    x.setDate(1);
+    x.setMonth(x.getMonth() + n);
+    const lastDay = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+    x.setDate(Math.min(day, lastDay));
+    return x;
+  }
+
   /**
-   * Genera (se non esiste già) il report per un abbonamento concluso.
-   * Idempotente: unicità su subscriptionId. Crea anche la notifica in-app.
+   * Genera (se non esiste già) il report FINALE per un abbonamento concluso.
+   * Idempotente: unicità su (subscriptionId, periodKey). Crea la notifica in-app.
    */
   async generateForSubscription(subscriptionId: string): Promise<{ created: boolean; reportId: string | null }> {
-    const exists = await this.prisma.clientReport.findUnique({ where: { subscriptionId }, select: { id: true } });
-    if (exists) return { created: false, reportId: exists.id };
-
     const sub = (await this.prisma.subscription.findUnique({
       where: { id: subscriptionId },
       include: { plan: true },
     })) as { id: string; clientId: string; startDate: Date | null; endDate: Date | null; plan: { name: string; priceCents: number } } | null;
     if (!sub?.startDate || !sub.endDate) return { created: false, reportId: null };
-
-    const clientId = sub.clientId;
-    const start = this.day0(sub.startDate);
-    const end = this.day0(sub.endDate);
-    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
     const kind: 'trial' | 'plan' = sub.plan.priceCents === 0 ? 'trial' : 'plan';
+    return this.buildAndSave(sub.clientId, sub.id, sub.plan.name, this.day0(sub.startDate), this.day0(sub.endDate), kind, 'final');
+  }
+
+  /**
+   * Costruisce lo snapshot del periodo [start, end] e lo salva (se non esiste già
+   * per quel periodKey). Stesso impianto per finale e mensile: cambia solo la cadenza.
+   */
+  private async buildAndSave(
+    clientId: string,
+    subscriptionId: string,
+    planName: string,
+    start: Date,
+    end: Date,
+    kind: 'trial' | 'plan' | 'monthly',
+    periodKey: string,
+  ): Promise<{ created: boolean; reportId: string | null }> {
+    const exists = (await this.prisma.clientReport.findFirst({
+      where: { subscriptionId, periodKey } as never,
+      select: { id: true },
+    })) as { id: string } | null;
+    if (exists) return { created: false, reportId: exists.id };
+
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
 
     const profile = (await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
@@ -208,7 +234,7 @@ export class PlanReportService {
 
     const data: PlanReportData = {
       kind,
-      planName: sub.plan.name,
+      planName,
       periodStart: start.toISOString().slice(0, 10),
       periodEnd: end.toISOString().slice(0, 10),
       days,
@@ -230,7 +256,7 @@ export class PlanReportService {
     };
 
     const report = await this.prisma.clientReport.create({
-      data: { clientId, subscriptionId, kind, periodStart: start, periodEnd: end, data: data as never },
+      data: { clientId, subscriptionId, kind, periodKey, periodStart: start, periodEnd: end, data: data as never } as never,
     });
 
     // Avviso in app (MAI il contenuto: solo la notifica che il report è pronto).
@@ -239,10 +265,12 @@ export class PlanReportService {
         userId: clientId,
         type: 'plan_report',
         payload: {
-          title: 'Il tuo report è pronto 📊',
+          title: kind === 'monthly' ? 'Il report del tuo mese è pronto 📊' : 'Il tuo report è pronto 📊',
           body: kind === 'trial'
             ? 'La tua settimana è finita: guarda cosa è cambiato e cosa ha imparato Gaia su di te.'
-            : 'Il tuo piano si è concluso: guarda i risultati A→B e i prossimi passi.',
+            : kind === 'monthly'
+              ? 'Un altro mese di strada: guarda i progressi A→B e cosa ha imparato Gaia.'
+              : 'Il tuo piano si è concluso: guarda i risultati A→B e i prossimi passi.',
           reportId: report.id,
         } as never,
         channel: 'inapp',
@@ -274,6 +302,43 @@ export class PlanReportService {
       try {
         const r = await this.generateForSubscription(s.id);
         if (r.created) created++;
+      } catch { /* un errore su un piano non blocca gli altri */ }
+    }
+    return { created };
+  }
+
+  /**
+   * Report MENSILE in app (stesso impianto del finale): per ogni abbonamento a
+   * pagamento ATTIVO più lungo di un mese, a ogni "mesiversario" dall'inizio si
+   * genera lo snapshot del mese appena chiuso ('m1','m2',…). L'ultimo tratto è
+   * coperto dal report finale (niente doppione a ridosso della scadenza).
+   * Idempotente; sostituisce il vecchio report mensile via email (dati sanitari:
+   * la notifica in app contiene solo l'avviso).
+   */
+  async generateMonthly(): Promise<{ created: number }> {
+    const today = this.day0(new Date());
+    const subs = (await this.prisma.subscription.findMany({
+      where: {
+        status: 'active',
+        startDate: { not: null },
+        endDate: { not: null },
+        plan: { priceCents: { gt: 0 } },
+      } as never,
+      select: { id: true, clientId: true, startDate: true, endDate: true, plan: { select: { name: true } } },
+    })) as { id: string; clientId: string; startDate: Date; endDate: Date; plan: { name: string } }[];
+    let created = 0;
+    for (const sub of subs) {
+      try {
+        const start = this.day0(sub.startDate);
+        const end = this.day0(sub.endDate);
+        for (let i = 1; i <= 24; i++) {
+          const boundary = this.addMonths(start, i);
+          if (boundary.getTime() > today.getTime()) break; // mese non ancora chiuso
+          // Se il piano finisce entro pochi giorni dal mesiversario ci pensa il finale.
+          if (boundary.getTime() >= end.getTime() - 3 * 86_400_000) break;
+          const r = await this.buildAndSave(sub.clientId, sub.id, sub.plan.name, this.addMonths(start, i - 1), boundary, 'monthly', `m${i}`);
+          if (r.created) created++;
+        }
       } catch { /* un errore su un piano non blocca gli altri */ }
     }
     return { created };
