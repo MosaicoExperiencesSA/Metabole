@@ -1062,6 +1062,7 @@ model Diet {
   regime       String
   style        String
   mealsPerDay  Int        @map("meals_per_day")
+  fasting      Boolean    @default(false) // digiuno intermittente 16:8 (pasti nella finestra 12-20)
   levels       Json? // es. [{level:1, kcal:1400}, {level:2, kcal:1600}]
   options      Json? // integratori, digiuno intermittente…
   authorId     String?    @map("author_id")
@@ -1133,6 +1134,7 @@ model RulePreset {
   description   String?
   regime        String? // omnivore | vegetarian | vegan | pescetarian | null = qualsiasi
   objective     String? // dimagrimento | mantenimento | null
+  meals         String? // '3' | '5' | 'fasting' (digiuno intermittente 16:8) | null = 5 (storico)
   rules         Json     @default("{}") // { ruleCode: number|boolean }
   clinicalNotes String?  @map("clinical_notes") // regole cliniche non ancora parametrizzabili
   source        String? // fonte in letteratura

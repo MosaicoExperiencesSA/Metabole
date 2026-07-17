@@ -17,6 +17,8 @@ class PresetDto {
   @IsOptional() @IsString() @MaxLength(600) description?: string;
   @IsOptional() @IsString() @MaxLength(40) regime?: string | null;
   @IsOptional() @IsString() @MaxLength(40) objective?: string | null;
+  // Variante pasti della famiglia: '3' | '5' | 'fasting' (digiuno intermittente 16:8).
+  @IsOptional() @IsIn(['3', '5', 'fasting']) meals?: string | null;
   @IsOptional() @IsObject() rules?: Record<string, unknown>;
   @IsOptional() @IsString() @MaxLength(1000) clinicalNotes?: string;
   @IsOptional() @IsString() @MaxLength(400) source?: string;
@@ -24,6 +26,8 @@ class PresetDto {
 }
 class GenerateCatalogDto {
   @IsOptional() @IsInt() @Min(1) @Max(60) days?: number;
+  // true = sostituisce la variante già generata (default: integra, non tocca l'esistente).
+  @IsOptional() @IsBoolean() replace?: boolean;
 }
 class ProposalDto {
   @IsOptional() @IsString() @MaxLength(160) title?: string;
@@ -84,7 +88,7 @@ export class EngineRulesController {
    *  dal preset: tutto in bozza, il nutrizionista rivede e approva. */
   @Post('presets/:id/generate-catalog')
   generateCatalog(@Param('id') id: string, @Body() dto: GenerateCatalogDto, @CurrentUser() u: AuthUser) {
-    return this.service.generateCatalogFromPreset(id, u.sub, dto.days);
+    return this.service.generateCatalogFromPreset(id, u.sub, dto.days, dto.replace ?? false);
   }
 
   @Get('diets/:id/preview')

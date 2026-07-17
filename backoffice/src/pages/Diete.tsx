@@ -26,6 +26,7 @@ interface DietRow {
   style: string;
   objective?: string | null;
   mealsPerDay: number;
+  fasting?: boolean;
   status: string;
   author: { displayName: string } | null;
   approvedBy: { displayName: string } | null;
@@ -144,7 +145,7 @@ export function Diete() {
                   <td className="muted">{regimeLabel(r.regime)}</td>
                   <td className="muted">{styleLabel(r.style)}</td>
                   <td className="muted">{OBIETTIVO_LABEL[r.objective ?? 'dimagrimento'] ?? r.objective}</td>
-                  <td className="muted">{r.mealsPerDay}</td>
+                  <td className="muted">{r.fasting ? `${r.mealsPerDay} · digiuno` : r.mealsPerDay}</td>
                   <td className="muted">{r._count?.dayTemplates ?? 0}</td>
                   <td className="muted">{r.author?.displayName ?? '—'}</td>
                   <td><span className={`chip ${STATUS[r.status]?.chip ?? 'gray'}`}>{STATUS[r.status]?.label ?? r.status}</span></td>

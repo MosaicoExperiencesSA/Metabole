@@ -7,7 +7,7 @@ import { GruppiEquivalenza } from './GruppiEquivalenza';
 import { useTaxonomy } from '../lib/taxonomy';
 import { useAuth } from '../auth/AuthContext';
 
-interface DietRow { id: string; name: string; regime: string; style: string; objective?: string | null; status?: string; clientVisible?: boolean; siteVisible?: boolean }
+interface DietRow { id: string; name: string; regime: string; style: string; objective?: string | null; mealsPerDay?: number; fasting?: boolean; status?: string; clientVisible?: boolean; siteVisible?: boolean }
 
 type Section = 'ricette' | 'allergeni' | 'gruppi';
 
@@ -15,6 +15,8 @@ type Section = 'ricette' | 'allergeni' | 'gruppi';
 // che altrimenti avrebbero nome+regime identici nella tendina.
 const OBIETTIVO_LABEL: Record<string, string> = { dimagrimento: 'Dimagrimento', mantenimento: 'Mantenimento' };
 const objSuffix = (o?: string | null) => (o ? ` · ${OBIETTIVO_LABEL[o] ?? o}` : '');
+// Etichetta pasti: distingue le varianti 3/5 pasti e digiuno intermittente della stessa famiglia.
+const mealSuffix = (d: { mealsPerDay?: number; fasting?: boolean }) => (d.fasting ? ' · Digiuno' : d.mealsPerDay ? ` · ${d.mealsPerDay} pasti` : '');
 
 /**
  * Gestione dieta: il nutrizionista sceglie una dieta dalla tendina e gestisce, in
@@ -137,7 +139,7 @@ export function GestioneDieta() {
           <span className="muted" style={{ fontSize: 13 }}>Dieta</span>
           <select className="select" style={{ minWidth: 300 }} value={dietId} onChange={(e) => setDietId(e.target.value)}>
             <option value="">— scegli una dieta —</option>
-            {[...diets].sort((a, b) => a.name.localeCompare(b.name, 'it') || regimeLabel(a.regime).localeCompare(regimeLabel(b.regime), 'it') || (a.objective ?? '').localeCompare(b.objective ?? '')).map((d) => <option key={d.id} value={d.id}>{d.name} · {regimeLabel(d.regime)}{objSuffix(d.objective)}</option>)}
+            {[...diets].sort((a, b) => a.name.localeCompare(b.name, 'it') || regimeLabel(a.regime).localeCompare(regimeLabel(b.regime), 'it') || (a.objective ?? '').localeCompare(b.objective ?? '') || (a.mealsPerDay ?? 0) - (b.mealsPerDay ?? 0)).map((d) => <option key={d.id} value={d.id}>{d.name} · {regimeLabel(d.regime)}{objSuffix(d.objective)}{mealSuffix(d)}</option>)}
           </select>
           {diets.length === 0 && <span className="muted" style={{ fontSize: 12 }}>Nessuna dieta: creane una dal Catalogo diete o dal wizard Creazione e validazione.</span>}
         </label>

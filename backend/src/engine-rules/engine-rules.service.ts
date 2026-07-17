@@ -85,7 +85,7 @@ export class EngineRulesService {
   }
 
   async createPreset(
-    input: { style: string; label: string; description?: string; regime?: string | null; objective?: string | null; rules?: Record<string, unknown>; clinicalNotes?: string; source?: string; suggested?: boolean },
+    input: { style: string; label: string; description?: string; regime?: string | null; objective?: string | null; meals?: string | null; rules?: Record<string, unknown>; clinicalNotes?: string; source?: string; suggested?: boolean },
     actorId: string,
   ) {
     if (!input.style?.trim() || !input.label?.trim()) throw new BadRequestException('Stile ed etichetta obbligatori.');
@@ -96,6 +96,7 @@ export class EngineRulesService {
         description: input.description ?? null,
         regime: input.regime ?? null,
         objective: input.objective ?? null,
+        meals: ['3', '5', 'fasting'].includes(input.meals ?? '') ? input.meals : '5',
         rules: this.cleanRules(input.rules) as never,
         clinicalNotes: input.clinicalNotes ?? null,
         source: input.source ?? null,
@@ -108,7 +109,7 @@ export class EngineRulesService {
 
   async updatePreset(
     id: string,
-    input: { label?: string; description?: string; regime?: string | null; objective?: string | null; rules?: Record<string, unknown>; clinicalNotes?: string; source?: string; suggested?: boolean },
+    input: { label?: string; description?: string; regime?: string | null; objective?: string | null; meals?: string | null; rules?: Record<string, unknown>; clinicalNotes?: string; source?: string; suggested?: boolean },
     actorId: string,
   ) {
     const existing = await this.prisma.rulePreset.findUnique({ where: { id } });
@@ -120,6 +121,7 @@ export class EngineRulesService {
         ...(input.description !== undefined ? { description: input.description || null } : {}),
         ...(input.regime !== undefined ? { regime: input.regime || null } : {}),
         ...(input.objective !== undefined ? { objective: input.objective || null } : {}),
+        ...(input.meals !== undefined ? { meals: ['3', '5', 'fasting'].includes(input.meals ?? '') ? input.meals : '5' } : {}),
         ...(input.rules !== undefined ? { rules: this.cleanRules(input.rules) as never } : {}),
         ...(input.clinicalNotes !== undefined ? { clinicalNotes: input.clinicalNotes || null } : {}),
         ...(input.source !== undefined ? { source: input.source || null } : {}),
@@ -168,7 +170,7 @@ export class EngineRulesService {
    * non attivo: il nutrizionista rivede e approva (R7) e conferma gli allergeni (R8)
    * prima che il motore lo usi. Ritorna i conteggi e l'id della dieta generata.
    */
-  async generateCatalogFromPreset(presetId: string, actorId: string, requestedDays = 28) {
+  async generateCatalogFromPreset(presetId: string, actorId: string, requestedDays = 28, replace = false) {
     const preset = await this.prisma.rulePreset.findUnique({ where: { id: presetId } });
     if (!preset) throw new NotFoundException('Preset non trovato.');
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } })) as { id: string } | null;
@@ -180,16 +182,40 @@ export class EngineRulesService {
     const protMax = Math.round(Number(rules.menu_daycombo_protein_max ?? 0.35) * 100);
     const kcalTol = Number(rules.menu_kcal_balance_tolerance_pct ?? 15);
     const targetKcal = Math.max(600, Math.min(4000, Math.round(Number(rules.menu_daycombo_kcal_target ?? 1500)) || 1500));
-    const slots = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
+    // Dimensione PASTI della variante: 3 pasti, 5 pasti (storico/default) o digiuno
+    // intermittente 16:8 (3 pasti nella finestra 12-20, niente colazione).
+    const meals = ['3', '5', 'fasting'].includes((preset as { meals?: string | null }).meals ?? '') ? String((preset as { meals?: string | null }).meals) : '5';
+    const fasting = meals === 'fasting';
+    const slots = meals === '5'
+      ? ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']
+      : fasting
+        ? ['lunch', 'afternoon_snack', 'dinner']
+        : ['breakfast', 'lunch', 'dinner'];
+    const mealsPerDay = slots.length;
     const perSlot = 5; // ridotto per output AI più piccolo e JSON più affidabile
     const days = Math.max(1, Math.min(60, Math.round(requestedDays) || 28));
     const aiDays = Math.min(days, 10); // l'AI produce giornate campione bilanciate; il resto lo completa il codice
 
+    // RIGENERARE = INTEGRARE: se questa variante (stesso nome+stile+regime+obiettivo+pasti)
+    // esiste già, di default NON si tocca (si integrano solo le varianti mancanti della
+    // famiglia). La sostituzione avviene solo su richiesta esplicita (replace=true).
+    const objective = preset.objective ?? 'dimagrimento';
+    const variantWhere = { name: preset.label, style: preset.style, regime, objective, mealsPerDay, fasting } as never;
+    const existingVariant = (await this.prisma.diet.findFirst({ where: variantWhere, select: { id: true } })) as { id: string } | null;
+    if (existingVariant && !replace) {
+      return { alreadyExists: true as const, dietId: existingVariant.id, dietName: preset.label, recipes: 0, days: 0, groups: 0 };
+    }
+
+    const mealPlanRule = fasting
+      ? 'DIGIUNO INTERMITTENTE 16:8: tutti i pasti nella finestra 12:00-20:00 (niente colazione né spuntino mattutino); pranzo e cena più sostanziosi per coprire il fabbisogno.'
+      : mealsPerDay === 3
+        ? '3 PASTI: colazione, pranzo e cena, senza spuntini; ogni pasto copre di più del fabbisogno.'
+        : '5 PASTI: colazione, spuntino, pranzo, merenda e cena.';
     const regimeRule = regime === 'vegan' ? 'nessun alimento di origine animale' : regime === 'vegetarian' ? 'niente carne né pesce (uova/latticini sì)' : 'onnivoro';
     const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido e minificato, senza testo attorno: ogni elemento di array/oggetto separato da virgola, nessuna virgola finale. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
     const user =
 `Genera una bozza di catalogo per la dieta "${preset.label}" (stile ${preset.style}, regime ${regime}${preset.objective ? `, obiettivo ${preset.objective}` : ''}).
-Vincoli: proteine ${protMin}-${protMax}% delle kcal; giornata ~${targetKcal} kcal (tolleranza ±${kcalTol}%). Regime: ${regimeRule}.${preset.clinicalNotes ? ` Regole cliniche da rispettare: ${preset.clinicalNotes}` : ''}
+Vincoli: proteine ${protMin}-${protMax}% delle kcal; giornata ~${targetKcal} kcal (tolleranza ±${kcalTol}%). Regime: ${regimeRule}. Struttura pasti: ${mealPlanRule}${preset.clinicalNotes ? ` Regole cliniche da rispettare: ${preset.clinicalNotes}` : ''}
 Per OGNI pasto tra [${slots.join(', ')}] genera ${perSlot} ricette. Ogni ricetta: {"ref":"slug-univoco","slot":"<pasto>","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"veloce|forno|meal_prep","steps":["passo 1","passo 2"]}]}.
 Poi ${aiDays} giornate bilanciate ~${targetKcal} kcal: {"level":1,"dayIndex":<1..${aiDays}>,"meals":[{"slot":"<pasto>","ref":"<ref di una ricetta di quel pasto>"}]}.
 Infine gruppi di equivalenza (alimenti intercambiabili a struttura simile): [{"name":"es. Pesci bianchi","items":["branzino","orata","merluzzo"]}].
@@ -207,13 +233,12 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
     const recipes = Array.isArray(gen.recipes) ? (gen.recipes as Record<string, unknown>[]) : [];
     if (recipes.length === 0) throw new BadRequestException('L\'AI non ha prodotto ricette valide: riprova.');
 
-    // RIGENERARE = SOSTITUIRE: se questa variante (stesso nome+stile+regime+obiettivo)
-    // era già stata generata, la versione precedente si elimina — con giornate, regole,
+    // SOSTITUZIONE ESPLICITA (replace=true): la versione precedente di QUESTA variante
+    // (stesso nome+stile+regime+obiettivo+pasti) si elimina — con giornate, regole,
     // gruppi e ricette generate non referenziate altrove — così non si accumulano doppioni
     // nel catalogo. Le diete già usate in menu erogati NON si toccano (storia clienti).
-    const objective = preset.objective ?? 'dimagrimento';
     const previous = (await this.prisma.diet.findMany({
-      where: { name: preset.label, style: preset.style, regime, objective } as never,
+      where: variantWhere,
       select: { id: true },
     })) as { id: string }[];
     for (const old of previous) {
@@ -243,8 +268,8 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
     const diet = await this.prisma.diet.create({
       data: {
         name: preset.label,
-        regime, style: preset.style, mealsPerDay: 5,
-        levels: [{ level: 1, kcal: targetKcal }], options: {},
+        regime, style: preset.style, mealsPerDay, fasting,
+        levels: [{ level: 1, kcal: targetKcal }], options: fasting ? { intermittentFasting: '16:8', window: '12-20' } : {},
         authorId: staff.id, status: 'draft',
         objective, clientVisible: false,
       } as never,
