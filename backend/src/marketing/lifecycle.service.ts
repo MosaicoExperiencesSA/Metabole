@@ -32,7 +32,9 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'onb_g1', label: 'Onboarding giorno 1', when: 'Inizio piano = 1 giorno fa', kind: 'scheduled', implemented: true },
   { key: 'onb_g4', label: 'Onboarding giorno 4', when: 'Inizio piano = 4 giorni fa', kind: 'scheduled', implemented: true },
   { key: 'onb_g7', label: 'Onboarding giorno 7', when: 'Inizio piano = 7 giorni fa', kind: 'scheduled', implemented: true },
-  { key: 'trial_g6_offer', label: 'Prova G6 — offerta con codice personale', when: 'Prova gratuita attiva iniziata 6 giorni fa (codice 48h)', kind: 'scheduled', implemented: true },
+  // SPENTO DI DEFAULT (decisione 17/07 sera: per ora codici ad hoc dalle coach, non automatici):
+  // si attiva SOLO accendendo esplicitamente l'interruttore in Marketing → Automazione.
+  { key: 'trial_g6_offer', label: 'Prova G6 — offerta con codice personale (spento di default)', when: 'Prova gratuita attiva iniziata 6 giorni fa (codice 48h)', kind: 'scheduled', implemented: true },
   // --- In roadmap: richiedono dati non ancora tracciati ---
   { key: 'onb_g2', label: 'Onboarding giorno 2', when: 'Inizio piano = 2 giorni fa', kind: 'scheduled', implemented: false },
   { key: 'cart_1h', label: 'Carrello +1h', when: 'Carrello abbandonato (stato carrello non tracciato)', kind: 'scheduled', implemented: false },
@@ -161,8 +163,13 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     return { enabled: row?.enabled ?? false, triggers, lastRunAt: row?.lastRunAt ?? null };
   }
 
-  /** Un innesco è attivo se il master è ON e il suo flag non è esplicitamente false. */
+  /** Inneschi che partono SOLO se accesi esplicitamente (opt-in, non opt-out). */
+  private static readonly DEFAULT_OFF = new Set(['trial_g6_offer']);
+
+  /** Un innesco è attivo se il master è ON e il suo flag non è esplicitamente false
+   *  (eccezione: gli inneschi DEFAULT_OFF richiedono un sì esplicito). */
   private isTriggerOn(key: string, triggers: Record<string, boolean>): boolean {
+    if (LifecycleService.DEFAULT_OFF.has(key)) return triggers[key] === true;
     return triggers[key] !== false;
   }
 
