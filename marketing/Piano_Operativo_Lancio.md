@@ -85,6 +85,27 @@ Non elencarli: **falli succedere durante la prova.**
 
 ---
 
+## Capacità delle coach — il vincolo che decide tutto
+
+Ogni prova richiede un **messaggio personale al G1** (più G4 condizionale e G7). Non è automatizzabile: è esattamente ciò che converte. Quindi la capacità delle coach — non la dimensione del database — è il vero limite del lancio.
+
+**Il conto:** scenario base ~5.900 prove. Con **12 tutor** sono **~490 prove a testa**, cioè **~30 messaggi personali a settimana** ciascuna, oltre al lavoro sui clienti già attivi.
+
+> **Regola: gli inviti si scaglionano sulla capacità reale delle coach, non su quanti contatti abbiamo.**
+> Meglio **800 prove seguite bene che 3.000 abbandonate**: una prova senza il G1 non converte **e brucia il contatto** — quella persona non la riattivi più.
+
+**Come si governa:**
+1. Si fissa la **capacità settimanale per coach** (proposta di partenza: **15–25 prove nuove a settimana** ciascuna).
+2. Capacità × coach attive = **tetto settimanale di inviti**.
+3. Il sistema invita **solo fino al tetto**; il resto va in **coda** e slitta alla settimana dopo.
+4. La dashboard mostra **prove attive per coach** e **blocca l'assegnazione oltre soglia**.
+
+**Semaforo settimanale:** se la percentuale di **G1 fatti entro 24h scende sotto il ~90%**, sei oltre la capacità: **rallenta gli inviti**. Gli altri segnali da guardare sono aderenza media e % prova→pagante: quando calano insieme, è quasi sempre saturazione delle coach, non un problema di offerta.
+
+**Conseguenza sul calendario:** con 12 coach a 20 prove/settimana il tetto è ~240 prove a settimana (~1.000 al mese). Per arrivare alle ~5.900 prove dello scenario base servono ~6 mesi di inviti continui, oppure più coach. Questo va deciso **prima** di aprire i rubinetti: è ciò che separa i €300k da un funnel che si inceppa.
+
+---
+
 ## KPI da guardare ogni settimana
 Consegna e spam-rate · % raggiunti che attivano la prova (per segmento) · **misure inserite al G0** · aderenza media · **% prova → pagante** · mix piani (3 mesi vs mensile) · rinnovi · **passaggi a mantenimento**.
 
