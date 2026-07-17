@@ -1,44 +1,47 @@
-# Registro modifiche — Contabilità: provvigioni maturate, pagate e accantonamento
+# Registro modifiche — Contabilità: provvigioni maturate, prelievi pagati e accantonamento
 
 **Data:** 17 luglio 2026 · Base: origin/main 6154499.
 
 ## Summary
-In **Contabilità** tre nuovi indicatori sulle provvigioni: **accantonate** (maturate nel mese),
-**pagate** (saldate nel mese) e **accantonamento provvigioni** (totale maturate − totale pagate,
-cioè quanto c'è "nel fondo" ancora da versare allo staff). Per distinguerle serviva l'atto di
-pagamento, che prima non esisteva: nella pagina **Compensi**, scelto un mese, ora si segna il
-compenso di ciascuna persona come **Pagato** (e si può annullare).
+In **Contabilità** tre nuovi indicatori sulle provvigioni, agganciati al **flusso prelievi già
+esistente** (lo staff richiede dal portafoglio, l'admin paga e conferma in "Prelievi", parte
+l'email e i fondi passano da Saldo a Prelevato): **Provvigioni accantonate** (maturate nel mese),
+**Provvigioni pagate** (prelievi confermati nel mese) e **Accantonamento provvigioni**
+(maturate totali − prelevate totali = il fondo ancora da versare). Alla conferma del prelievo
+ora parte anche la **notifica in app** allo staff, oltre all'email.
+
+## Verifica flusso esistente (nessuna modifica, solo conferma)
+- **App staff (Guadagni)**: portafoglio con In maturazione / Saldo prelevabile / Prelevato,
+  richiesta di prelievo (finestra giorni 1–7 del mese, IBAN, ricevuta) e **Storico prelievi**.
+- **Backoffice**: widget Portafoglio per lo staff (con storico richieste) e pagina **Prelievi**
+  (admin) con richieste in attesa, verifica di congruità col saldo, Conferma/Rifiuta e storico
+  per stato.
+- **Conferma** (`payout.confirm`): stato → paid, `paidAt`, email di pagamento avvenuto; il
+  "passaggio da Saldo a Prelevato" è automatico perché il portafoglio è calcolato dal ledger
+  meno i prelievi pagati.
 
 ## Description
 
 Backend
-- **schema.prisma + migration `20260719090000_compensation_settlement`**: colonna `settled_at`
-  (nullable) su `staff_compensation` = quando il compenso del periodo (persona+mese) è stato
-  pagato; null = ancora accantonato.
-- **compensation.controller**:
-  - `GET /admin/compensation?period=YYYY-MM` ora restituisce anche `compensationId` e `settledAt`
-    (solo in vista mensile) per il toggle.
-  - Nuovo `PATCH /admin/compensation/:id/paid` con `{ paid: true|false }`: imposta/azzera
-    `settledAt`, con audit (`compensation.paid`/`compensation.unpaid` + importo e periodo).
 - **accounting.service.report()**: nuovo blocco `commissions` nel report:
   `accruedPeriodCents` (uscite a ledger `sales_commission`+`visit_compensation` nel periodo),
-  `paidPeriodCents` (compensi con `settledAt` nel periodo), `accruedTotalCents`/`paidTotalCents`
-  (totali storici), `reserveCents` = accantonamento (maturate tot. − pagate tot.),
-  `pendingCents` = provvigioni in attesa di assegnazione (pending_commission).
-  Le stesse voci compaiono nel **CSV** e nel **PDF** del report (sezione "Provvigioni").
+  `paidPeriodCents` (prelievi `paid` con `paidAt` nel periodo), `accruedTotalCents` /
+  `paidTotalCents` (storici), `reserveCents` = accantonamento (maturate tot. − prelevate tot.),
+  `requestedCents` (richieste di prelievo in attesa), `pendingCents` (provvigioni in attesa di
+  assegnazione coach/nutrizionista). Stesse voci in **CSV** e **PDF** (sezione "Provvigioni").
+- **payouts.service.confirmWithdrawal**: oltre all'email, **notifica in app** `payout_paid`
+  allo staff ("Prelievo pagato 💸", importo + ultime 4 cifre IBAN), best-effort.
 
 Backoffice
-- **Contabilita.tsx**: nuova riga di card sotto i KPI: "Provvigioni accantonate" (maturate nel
-  mese, incl. compensi visite), "Provvigioni pagate" (saldate nel mese), "Accantonamento
-  provvigioni" (rosso se > 0, verde a zero; nota con l'eventuale importo in attesa di
-  assegnazione).
-- **Compensi.tsx**: con un mese selezionato, colonna "Pagamento": bottone **"Segna pagato"** →
-  chip verde "Pagato gg/mm/aaaa" (cliccabile per tornare a "da pagare"). Nella vista "Tutto" il
-  toggle non c'è (si paga per mese). Aggiunto il ruolo Coordinatrice coach alle etichette.
+- **Contabilita.tsx**: riga di card sotto i KPI: "Provvigioni accantonate" (maturate nel mese,
+  incl. compensi visite), "Provvigioni pagate" (prelievi confermati nel mese), "Accantonamento
+  provvigioni" (rosso se > 0, verde a zero; nella nota gli eventuali importi "richiesti da
+  pagare" e "in attesa di assegnazione").
 
 ## Note
-- **Serve la migration** al deploy (preDeploy la applica): un ADD COLUMN, nessun dato toccato.
-- Il perimetro è lo stesso su entrambi i lati del saldo: provvigioni vendita + compensi visite
-  (il fondo è unico, come nella pagina Compensi).
-- Le provvigioni "in attesa di assegnazione" (cliente senza coach/nutrizionista) non sono ancora
-  nel maturato: entrano a ledger quando vengono assegnate; in Contabilità si vedono come nota.
+- **Nessuna migration**: la prima versione di questa feature aggiungeva `settled_at` su
+  `staff_compensation` con un toggle manuale in Compensi; è stata SCARTATA (Compensi e
+  compensation.controller tornati com'erano) perché il pagamento passa dal flusso prelievi.
+  Se sul disco è rimasta la cartella `backend/prisma/migrations/20260719090000_compensation_settlement`,
+  va eliminata prima del commit.
+- Il perimetro è lo stesso del portafoglio staff: provvigioni vendita + compensi visite.

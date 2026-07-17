@@ -9,15 +9,11 @@ interface CompRow {
   commissionCents: number;
   compensationCents: number;
   totalCents: number;
-  // Solo in vista mensile: id dell'accantonamento del periodo + stato pagamento.
-  compensationId: string | null;
-  settledAt: string | null;
 }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const ROLE: Record<string, string> = {
   coach: 'Coach',
-  coach_coordinator: 'Coordinatrice coach',
   manager_coach: 'Manager coach',
   nutritionist: 'Nutrizionista',
   head_nutritionist: 'Capo nutrizionista',
@@ -35,54 +31,32 @@ export function Compensi() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('');
-  const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function load() {
-    try {
-      setRows(await api<CompRow[]>(`/admin/compensation${period ? `?period=${period}` : ''}`));
-      setError(null);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) setError('Sezione riservata agli amministratori.');
-      else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
-    } finally {
-      setLoading(false);
-    }
-  }
   useEffect(() => {
     setLoading(true);
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    (async () => {
+      try {
+        setRows(await api<CompRow[]>(`/admin/compensation${period ? `?period=${period}` : ''}`));
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 403) setError('Sezione riservata agli amministratori.');
+        else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [period]);
-
-  /** Segna il compenso del mese (persona) come pagato / da pagare: alimenta il saldo in Contabilità. */
-  async function togglePaid(r: CompRow) {
-    if (!r.compensationId) return;
-    setBusyId(r.compensationId);
-    try {
-      await api(`/admin/compensation/${r.compensationId}/paid`, { method: 'PATCH', body: JSON.stringify({ paid: !r.settledAt }) });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   const totals = rows.reduce(
     (acc, r) => ({ commission: acc.commission + r.commissionCents, compensation: acc.compensation + r.compensationCents, total: acc.total + r.totalCents }),
     { commission: 0, compensation: 0, total: 0 },
   );
-  const monthView = !!period;
 
   const pg = usePagination(rows, 100);
 
   return (
     <>
       <div className="spread" style={{ marginBottom: 14 }}>
-        <p className="muted" style={{ margin: 0 }}>
-          Quanto spetta a ciascuno (provvigioni vendita + compensi visite).
-          {monthView ? ' Quando versi il compenso, segnalo come pagato: alimenta l\'accantonamento in Contabilità.' : ' Scegli un mese per segnare i compensi come pagati.'}
-        </p>
+        <p className="muted" style={{ margin: 0 }}>Quanto spetta a ciascuno (provvigioni vendita + compensi visite).</p>
         <div className="row" style={{ gap: 8, alignItems: 'center' }}>
           <input className="input" type="month" value={period || currentMonth()} onChange={(e) => setPeriod(e.target.value)} style={{ width: 160 }} />
           <button className="btn ghost sm" onClick={() => setPeriod('')}>Tutto</button>
@@ -106,7 +80,6 @@ export function Compensi() {
                   <th style={{ textAlign: 'right' }}>Provvigioni</th>
                   <th style={{ textAlign: 'right' }}>Compensi visite</th>
                   <th style={{ textAlign: 'right' }}>Totale</th>
-                  {monthView && <th style={{ textAlign: 'right' }}>Pagamento</th>}
                 </tr>
               </thead>
               <tbody>
@@ -117,25 +90,6 @@ export function Compensi() {
                     <td style={{ textAlign: 'right' }} className="muted">{euro(r.commissionCents)}</td>
                     <td style={{ textAlign: 'right' }} className="muted">{euro(r.compensationCents)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(r.totalCents)}</td>
-                    {monthView && (
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {r.compensationId ? (
-                          r.settledAt ? (
-                            <button className="btn ghost sm" disabled={busyId === r.compensationId} onClick={() => void togglePaid(r)} title="Cliccando torna 'da pagare'">
-                              <span className="chip" style={{ fontSize: 11, color: '#3B6D11', background: '#DCF0D8', borderColor: 'transparent' }}>
-                                <i className="ti ti-check" /> Pagato {new Date(r.settledAt).toLocaleDateString('it-IT')}
-                              </span>
-                            </button>
-                          ) : (
-                            <button className="btn sm" disabled={busyId === r.compensationId} onClick={() => void togglePaid(r)}>
-                              <i className="ti ti-cash" /> Segna pagato
-                            </button>
-                          )
-                        ) : (
-                          <span className="muted" style={{ fontSize: 12 }}>—</span>
-                        )}
-                      </td>
-                    )}
                   </tr>
                 ))}
                 <tr>
@@ -143,7 +97,6 @@ export function Compensi() {
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.commission)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.compensation)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.total)}</td>
-                  {monthView && <td />}
                 </tr>
               </tbody>
             </table>

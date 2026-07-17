@@ -291,7 +291,7 @@ export class PayoutsService {
   async confirmWithdrawal(operator: AuthUser, id: string) {
     const w = await this.prisma.commissionWithdrawal.findUnique({
       where: { id },
-      include: { staff: { select: { id: true, displayName: true, user: { select: { email: true, locale: true } } } } },
+      include: { staff: { select: { id: true, userId: true, displayName: true, user: { select: { email: true, locale: true } } } } },
     });
     if (!w) throw new NotFoundException('Richiesta non trovata.');
     if (w.status !== 'requested') throw new BadRequestException('Questa richiesta non è in attesa.');
@@ -314,6 +314,22 @@ export class PayoutsService {
         { amountCents: w.amountCents, iban: w.iban, date: new Date() },
         w.staff.user.locale,
       );
+    }
+    // Notifica in app allo staff: pagamento avvenuto, fondi passati da Saldo a Prelevato.
+    if (w.staff?.userId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: w.staff.userId,
+          type: 'payout_paid',
+          payload: {
+            title: 'Prelievo pagato 💸',
+            body: `Il tuo prelievo di € ${(w.amountCents / 100).toFixed(2).replace('.', ',')} è stato pagato sull'IBAN …${w.iban.slice(-4)}. Lo trovi nello storico prelievi.`,
+          } as never,
+          channel: 'inapp',
+          scheduledFor: new Date(),
+          sentAt: new Date(),
+        },
+      }).catch(() => undefined);
     }
     await this.audit.log({ action: 'payout.confirm', actorId: operator.sub, entityType: 'commission_withdrawal', entityId: id, metadata: { amountCents: w.amountCents } });
     return this.publicWithdrawal(updated);
