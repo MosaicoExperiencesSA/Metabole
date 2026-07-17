@@ -248,13 +248,14 @@ export class CommerceService {
       );
     }
 
-    const existing = await this.prisma.subscription.findFirst({
-      where: { clientId, status: { in: ['pending', 'active'] as never } },
+    // Si può acquistare un nuovo abbonamento ANCHE con uno attivo: il nuovo parte in
+    // coda (alla scadenza di quello attuale, impostata all'approvazione del pagamento).
+    // Blocchiamo solo se c'è già una richiesta NON pagata, per non aprire due ordini insieme.
+    const pending = await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'pending' as never },
     });
-    if (existing) {
-      throw new BadRequestException(
-        existing.status === 'active' ? 'Hai già un abbonamento attivo.' : 'Hai già una richiesta in corso: carica la contabile o attendi l\'approvazione.',
-      );
+    if (pending) {
+      throw new BadRequestException('Hai già una richiesta in corso: carica la contabile o attendi l\'approvazione.');
     }
 
     const subscription = await this.prisma.subscription.create({
@@ -379,9 +380,11 @@ export class CommerceService {
       if (!consents.healthDataConsent?.accepted) {
         throw new BadRequestException("Per il piano serve il consenso ai dati sanitari: completa prima il questionario.");
       }
-      const existing = await this.prisma.subscription.findFirst({ where: { clientId, status: { in: ['pending', 'active'] as never } } });
-      if (existing) {
-        throw new BadRequestException(existing.status === 'active' ? 'Hai già un abbonamento attivo.' : 'Hai già una richiesta di abbonamento in corso.');
+      // Nuovo abbonamento consentito anche con uno attivo (parte in coda). Blocca solo
+      // una richiesta non ancora pagata, per non aprire due ordini insieme.
+      const pending = await this.prisma.subscription.findFirst({ where: { clientId, status: 'pending' as never } });
+      if (pending) {
+        throw new BadRequestException('Hai già una richiesta di abbonamento in corso.');
       }
       subtotal += this.planPricing(plan).effectivePriceCents;
     }
@@ -821,7 +824,16 @@ export class CommerceService {
   ) {
     // Attivazione abbonamento (durata dal periodo del piano: es. "3m").
     if (payment.subscriptionId && payment.subscription) {
-      const start = new Date();
+      const now = new Date();
+      // CODA: se la cliente ha già un altro abbonamento attivo che termina nel futuro,
+      // il nuovo NON parte subito ma alla scadenza di quello (rinnovo/secondo piano in
+      // coda). Altrimenti parte oggi. Così può comprare in anticipo senza sovrapporre.
+      const activeAhead = (await this.prisma.subscription.findFirst({
+        where: { clientId: payment.clientId, id: { not: payment.subscriptionId }, status: 'active', endDate: { gt: now } } as never,
+        orderBy: { endDate: 'desc' },
+        select: { endDate: true },
+      })) as { endDate: Date | null } | null;
+      const start = activeAhead?.endDate ?? now;
       const end = subscriptionEnd(start, payment.subscription.plan.period);
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },

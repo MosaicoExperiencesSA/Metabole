@@ -118,8 +118,10 @@ describe('CommerceService (flusso bonifico)', () => {
       await expect(service.subscribe('client-1', 'plan1', 'g@t.it')).rejects.toThrow(BadRequestException);
     });
 
-    it('con richiesta già in corso o abbonamento attivo → bloccato', async () => {
-      prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-x', status: 'active' });
+    it('con una richiesta NON pagata (pending) in corso → bloccato', async () => {
+      // Solo il pending blocca (per non aprire due ordini insieme). Un abbonamento
+      // ATTIVO invece NON blocca: il nuovo acquisto è consentito e parte in coda.
+      prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-x', status: 'pending' });
       await expect(service.subscribe('client-1', 'plan1', 'g@t.it')).rejects.toThrow(BadRequestException);
     });
   });
