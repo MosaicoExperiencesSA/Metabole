@@ -80,9 +80,26 @@ export class PipelineService {
       owner: { displayName: string } | null;
       client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null } | null } | null;
     };
+    // Promemoria/appuntamenti da fare (non completati) per dare evidenza nella board:
+    // per ogni scheda si tiene la scadenza più vicina e se è già passata (in ritardo).
+    const recIds = (records as Rec[]).map((r) => r.id);
+    const reminders = recIds.length
+      ? ((await this.prisma.crmReminder.findMany({
+          where: { crmRecordId: { in: recIds }, done: false } as never,
+          select: { crmRecordId: true, dueAt: true },
+        })) as { crmRecordId: string | null; dueAt: Date }[])
+      : [];
+    const nextReminder = new Map<string, Date>();
+    for (const rm of reminders) {
+      if (!rm.crmRecordId) continue;
+      const cur = nextReminder.get(rm.crmRecordId);
+      if (!cur || rm.dueAt.getTime() < cur.getTime()) nextReminder.set(rm.crmRecordId, rm.dueAt);
+    }
+
     const cards = (records as Rec[]).map((r) => {
       const enteredAt = r.stageDates?.[r.stage]?.at;
       const daysInStage = enteredAt ? Math.floor((now - new Date(enteredAt).getTime()) / 86_400_000) : null;
+      const rem = nextReminder.get(r.id) ?? null;
       return {
         id: r.id,
         clientId: r.clientId,
@@ -93,8 +110,20 @@ export class PipelineService {
         owner: r.owner?.displayName ?? null,
         valueCents: r.valueCents ?? null,
         daysInStage,
+        reminderAt: rem ? rem.toISOString() : null,
+        reminderOverdue: rem ? rem.getTime() < now : false,
         isClient: Boolean(r.client),
       };
+    });
+
+    // Ordine dentro ogni colonna: 1) chi ha un appuntamento scaduto, 2) chi ne ha uno in
+    // programma (il più vicino prima), 3) a parità, chi è da più giorni nello stato (in cima).
+    const sortCol = (list: typeof cards) => [...list].sort((a, b) => {
+      if (a.reminderOverdue !== b.reminderOverdue) return a.reminderOverdue ? -1 : 1;
+      const ah = a.reminderAt ? 1 : 0, bh = b.reminderAt ? 1 : 0;
+      if (ah !== bh) return bh - ah;
+      if (a.reminderAt && b.reminderAt && a.reminderAt !== b.reminderAt) return a.reminderAt < b.reminderAt ? -1 : 1;
+      return (b.daysInStage ?? -1) - (a.daysInStage ?? -1);
     });
 
     const known = new Set(stages.map((s) => s.key));
@@ -102,8 +131,9 @@ export class PipelineService {
     for (const s of stages) byStage[s.key] = [];
     const orphans: typeof cards = [];
     for (const c of cards) (byStage[c.stage] ?? orphans).push(c);
+    for (const k of Object.keys(byStage)) byStage[k] = sortCol(byStage[k]);
 
-    return { stages, cards: byStage, orphans, total: cards.length, unknownStages: orphans.length > 0 && orphans.some((o) => !known.has(o.stage)) };
+    return { stages, cards: byStage, orphans: sortCol(orphans), total: cards.length, unknownStages: orphans.length > 0 && orphans.some((o) => !known.has(o.stage)) };
   }
 
   // ---------- Gestione stati (admin) ----------

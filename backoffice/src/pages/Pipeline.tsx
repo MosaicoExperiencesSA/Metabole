@@ -22,6 +22,8 @@ interface Card {
   owner: string | null;
   valueCents: number | null;
   daysInStage: number | null;
+  reminderAt: string | null;
+  reminderOverdue: boolean;
   isClient: boolean;
 }
 interface Board {
@@ -34,6 +36,26 @@ interface Board {
 function euro(cents: number | null): string | null {
   if (cents == null) return null;
   return '€ ' + (cents / 100).toFixed(0);
+}
+
+/** Colore del contatore "giorni nello stato": grigio < 7, ambra 7–13, rosso ≥ 14. */
+function stageAgeColor(days: number): string {
+  if (days >= 14) return 'var(--danger)';
+  if (days >= 7) return 'var(--gold, #b8863b)';
+  return 'var(--muted)';
+}
+
+/** Etichetta breve del prossimo promemoria: "oggi 15:30", "dom 12", "12/08". */
+function reminderLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((day.getTime() - today.getTime()) / 86_400_000);
+  const time = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  if (diff === 0) return `oggi ${time}`;
+  if (diff === 1) return `domani ${time}`;
+  if (diff === -1) return `ieri ${time}`;
+  return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
 }
 
 export function Pipeline() {
@@ -184,12 +206,23 @@ export function Pipeline() {
                     {!c.isClient && <span className="chip amber" style={{ fontSize: 10 }}>lead</span>}
                   </div>
                   {c.email && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{c.email}</div>}
-                  <div className="row" style={{ gap: 8, marginTop: 8, fontSize: 12 }}>
+                  {c.reminderAt && (
+                    <div style={{ marginTop: 6 }}>
+                      <span className={`chip ${c.reminderOverdue ? 'red' : ''}`} style={{ fontSize: 11 }}
+                        title={c.reminderOverdue ? 'Appuntamento/promemoria scaduto' : 'Prossimo appuntamento/promemoria'}>
+                        <i className={`ti ${c.reminderOverdue ? 'ti-alarm' : 'ti-calendar-due'}`} style={{ marginRight: 3 }} />
+                        {c.reminderOverdue ? 'Scaduto ' : ''}{reminderLabel(c.reminderAt)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="row" style={{ gap: 8, marginTop: 8, fontSize: 12, alignItems: 'center' }}>
                     {c.coach && (
                       <span className="muted"><i className="ti ti-user" /> {c.coach}</span>
                     )}
                     {c.daysInStage != null && (
-                      <span className="muted" title="giorni in questo stato"><i className="ti ti-clock" /> {c.daysInStage}g</span>
+                      <span title="Da quanti giorni la scheda è ferma in questo stato" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: stageAgeColor(c.daysInStage), fontWeight: c.daysInStage >= 7 ? 700 : 400 }}>
+                        <i className="ti ti-clock" /> {c.daysInStage === 0 ? 'oggi' : `${c.daysInStage} gg qui`}
+                      </span>
                     )}
                     {euro(c.valueCents) && <span className="chip" style={{ fontSize: 11 }}>{euro(c.valueCents)}</span>}
                   </div>
