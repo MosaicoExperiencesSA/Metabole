@@ -391,10 +391,13 @@ export class SignalsService {
     ];
     const [profile, user, todayStatus] = await Promise.all([
       this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { name: true } }),
-      this.prisma.user.findUnique({ where: { id: clientId }, select: { firstName: true } }),
+      this.prisma.user.findUnique({ where: { id: clientId }, select: { firstName: true, prefs: true } }),
       this.todayStatus(clientId),
     ]);
     const name = (profile?.name ?? user?.firstName ?? '').trim();
+    // Unità acqua scelta dal cliente (per il widget: icona + valore come in dashboard).
+    const prefs = (user?.prefs as Record<string, unknown> | null) ?? {};
+    const waterUnit = ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(prefs.waterUnit as string) ? (prefs.waterUnit as string) : 'glass';
     const now = new Date();
     const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', hour: '2-digit', hour12: false }).format(now));
     const day = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', day: '2-digit' }).format(now));
@@ -458,6 +461,7 @@ export class SignalsService {
       phrase,
       nextMeal,
       water: todayStatus.water,
+      waterUnit,
       steps: todayStatus.steps,
       weightLostKg,
       progressPercent,

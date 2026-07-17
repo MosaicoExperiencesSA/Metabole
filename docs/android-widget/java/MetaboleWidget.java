@@ -116,8 +116,12 @@ public class MetaboleWidget extends AppWidgetProvider {
 
             JSONObject water = d.optJSONObject("water");
             JSONObject steps = d.optJSONObject("steps");
+            // Unità acqua scelta dal cliente: icona + valore come in dashboard.
+            String waterUnit = d.optString("waterUnit", "glass");
+            int perGlasses = waterUnitGlasses(waterUnit);
             setText(v, R.id.widget_water, water != null
-                    ? water.optInt("glasses") + "/" + water.optInt("goal") : "0/8");
+                    ? waterVal(water.optInt("glasses"), perGlasses) + "/" + waterVal(water.optInt("goal"), perGlasses) : "0/8");
+            setText(v, R.id.widget_water_icon, waterEmoji(waterUnit));
             setText(v, R.id.widget_steps, steps != null ? thousands(steps.optInt("steps")) : "0");
 
             JSONObject meal = d.optJSONObject("nextMeal");
@@ -186,5 +190,28 @@ public class MetaboleWidget extends AppWidgetProvider {
             if (++c % 3 == 0 && i > 0) out.insert(0, '.');
         }
         return out.toString();
+    }
+
+    // ---- Unità acqua (stessa logica di app/src/lib/water.ts): 1 bicchiere = 250 ml.
+    // glass=1, bottle05=2, bottle1=4, bottle15=6 bicchieri per unità.
+    private int waterUnitGlasses(String unit) {
+        switch (unit) {
+            case "bottle05": return 2;
+            case "bottle1": return 4;
+            case "bottle15": return 6;
+            default: return 1; // glass
+        }
+    }
+
+    private String waterEmoji(String unit) {
+        return "glass".equals(unit) ? "💧" : "🍶"; // goccia per i bicchieri, bottiglia per le bottiglie
+    }
+
+    // Converte i bicchieri nell'unità scelta: intero se tondo, altrimenti 1 decimale (virgola).
+    private String waterVal(int glasses, int per) {
+        if (per <= 1) return String.valueOf(glasses);
+        double vv = (double) glasses / per;
+        if (vv == Math.floor(vv)) return String.valueOf((int) vv);
+        return String.format(java.util.Locale.ITALY, "%.1f", vv);
     }
 }

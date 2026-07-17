@@ -61,7 +61,7 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp"
             android:background="@drawable/widget_meal_bg">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            <TextView android:id="@+id/widget_water_icon" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:textSize="15sp" android:text="💧" />
             <TextView android:id="@+id/widget_water" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:textColor="#FFFFFF" android:textSize="12sp" android:textStyle="bold" android:layout_marginTop="2dp" android:text="0/8" />
