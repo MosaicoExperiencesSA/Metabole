@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../api/client';
 import { euro, fullName, relDays } from '../format';
 import { useApi } from '../hooks';
 import { Async, Card, Kpi, Section, StaffShell } from '../ui';
@@ -21,11 +23,52 @@ interface Alert {
   clientId: string;
   clientName: string | null;
 }
+interface CoachTask {
+  id: string;
+  clientId: string;
+  kind: string;
+  title: string;
+  description: string | null;
+  dueDate: string;
+  overdue: boolean;
+  status: string;
+  clientName: string;
+}
+interface TasksSummary {
+  openTasks: number;
+  overdueTasks: number;
+  trialsActive: number;
+  expiringToday: number;
+  expiringTomorrow: number;
+  notConverted: number;
+}
 
 export default function CoachDashboard() {
   const nav = useNavigate();
   const dash = useApi<Dash>('/coach/dashboard');
   const alerts = useApi<{ alerts: Alert[] }>('/coach/alerts?priority=high');
+  const tasks = useApi<CoachTask[]>('/staff/coach-tasks?status=todo&limit=20');
+  const tasksSummary = useApi<TasksSummary>('/staff/coach-tasks/summary');
+  const [taskBusy, setTaskBusy] = useState<string | null>(null);
+
+  async function markTask(id: string, status: 'done' | 'skipped') {
+    setTaskBusy(id);
+    try {
+      await api(`/staff/coach-tasks/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      tasks.reload();
+      tasksSummary.reload();
+    } catch {
+      // errore silenzioso: la lista resta invariata
+    } finally {
+      setTaskBusy(null);
+    }
+  }
+
+  const fmtDue = (iso: string) =>
+    new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
 
   return (
     <StaffShell
@@ -66,6 +109,59 @@ export default function CoachDashboard() {
                 onClick={() => nav('/alert')}
               />
             </div>
+
+            {tasksSummary.data && tasksSummary.data.trialsActive > 0 && (
+              <Card>
+                <div className="sf-sub" style={{ lineHeight: 1.6 }}>
+                  <b style={{ color: 'var(--ink, #1F2933)' }}>
+                    Prove attive: {tasksSummary.data.trialsActive}
+                  </b>
+                  {' · '}in scadenza oggi:{' '}
+                  <b style={{ color: tasksSummary.data.expiringToday > 0 ? '#B3261E' : undefined }}>
+                    {tasksSummary.data.expiringToday}
+                  </b>
+                  {' · '}domani: <b>{tasksSummary.data.expiringTomorrow}</b>
+                  {' · '}non convertite: <b>{tasksSummary.data.notConverted}</b>
+                </div>
+              </Card>
+            )}
+
+            {tasks.data && tasks.data.length > 0 && (
+              <>
+                <Section
+                  title={`Da fare (${tasks.data.length})`}
+                />
+                <Card className="pad0">
+                  {tasks.data.slice(0, 6).map((t) => (
+                    <div key={t.id} className="sf-row" style={{ alignItems: 'flex-start' }}>
+                      <div
+                        className="sf-row-main"
+                        onClick={() => nav(`/clienti/${t.clientId}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <div className="sf-row-name">
+                          {t.title}
+                          {t.overdue && (
+                            <span style={{ color: '#B3261E', fontWeight: 600 }}> · in ritardo</span>
+                          )}
+                        </div>
+                        <div className="sf-row-sub">
+                          {fullName(t.clientName)} · entro il {fmtDue(t.dueDate)}
+                        </div>
+                      </div>
+                      <button
+                        className="sf-btn g"
+                        style={{ flex: 'none', padding: '6px 10px', fontSize: 13 }}
+                        disabled={taskBusy === t.id}
+                        onClick={() => markTask(t.id, 'done')}
+                      >
+                        <i className="ti ti-check" /> Fatto
+                      </button>
+                    </div>
+                  ))}
+                </Card>
+              </>
+            )}
 
             {d.expiringPlans.length > 0 && (
               <>

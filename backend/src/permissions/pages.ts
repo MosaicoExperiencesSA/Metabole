@@ -48,6 +48,7 @@ export const BACKOFFICE_PAGES = [
   'testimonials',       // Testimonianze (da marketing)
   'publisher',          // Publisher social (da marketing)
   'agents',             // Registro Agenti AI (da marketing)
+  'coach_tasks',        // Attività coach (task generati dal cron: prova, fine piano)
   'equivalence_groups', // Gruppi di equivalenza (da diets_catalog)
   'allergens',          // Allergeni ricette (da recipes)
   'roles',              // Ruoli (da permissions)
@@ -70,6 +71,7 @@ type Perm = { view?: true; manage?: true };
 export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> = {
   client: {},
   coach: {
+    coach_tasks: { view: true, manage: true },
     dashboard: { view: true },
     notifications: { view: true },
     posta: { view: true },
@@ -117,6 +119,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     lead_acceptance: { view: true },
   },
   sales: {
+    coach_tasks: { view: true, manage: true },
     dashboard: { view: true },
     notifications: { view: true },
     posta: { view: true },

@@ -58,6 +58,7 @@ export const PAGE_LABEL: Record<string, string> = {
   testimonials: 'Testimonianze',
   publisher: 'Publisher social',
   agents: 'Agenti AI',
+  coach_tasks: 'Attività coach',
   equivalence_groups: 'Gruppi di equivalenza',
   allergens: 'Allergeni ricette',
   email_templates: 'Modelli email',

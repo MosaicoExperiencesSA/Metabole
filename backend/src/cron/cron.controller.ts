@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AgentOrchestratorService } from '../agents/agent-orchestrator.service';
+import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { AuditService } from '../audit/audit.service';
@@ -41,6 +42,7 @@ export class CronController {
     private readonly signals: SignalsService,
     private readonly visits: VisitsService,
     private readonly agentOrchestrator: AgentOrchestratorService,
+    private readonly coachTasks: CoachTasksService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -63,6 +65,8 @@ export class CronController {
     const stalePayments = await this.commerce.autoCancelStalePayments();
     // Prova gratuita: scadenza automatica + purge del profilo a +7 giorni (handoff lancio).
     const trials = await this.commerce.expireTrialsAndPurge();
+    // Task coach sui momenti chiave (G0/G1/G4/G7, fine piano, +7). Dopo l'expire, così vede gli stati aggiornati.
+    const coachTasks = await this.coachTasks.generateDaily();
     const adherence = await this.signals.runAdherenceSweep();
     // Agenti AI con esecuzione giornaliera attiva: accodati qui, processati dal ticker.
     const agents = await this.agentOrchestrator.enqueueDaily();
@@ -70,9 +74,9 @@ export class CronController {
     const monthlyReports = new Date().getDate() === 1 ? await this.reports.sendMonthlyBatch() : { sent: 0 };
     await this.audit.log({
       action: 'cron.daily',
-      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, adherence, agents, monthlyReports } as Record<string, unknown>,
+      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, adherence, agents, monthlyReports } as Record<string, unknown>,
     });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, adherence, agents, monthlyReports };
+    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, adherence, agents, monthlyReports };
   }
 
   /**
