@@ -4,7 +4,12 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { AgentRunnerService } from './agent-runner.service';
 import { AGENT_DEPARTMENTS, AGENT_ENGINES, AGENT_TYPES, AgentsService } from './agents.service';
+
+class RunAgentDto {
+  @IsString() @MinLength(1) @MaxLength(20000) input!: string;
+}
 
 class AgentDto {
   @IsOptional() @IsString() @MaxLength(40) key?: string;
@@ -28,7 +33,10 @@ class AgentDto {
 @RequirePage('agents')
 @Roles('marketing', 'head_marketing', 'admin')
 export class AgentsController {
-  constructor(private readonly agents: AgentsService) {}
+  constructor(
+    private readonly agents: AgentsService,
+    private readonly runner: AgentRunnerService,
+  ) {}
 
   @Get()
   list(@Query('includeArchived') includeArchived?: string) {
@@ -54,6 +62,14 @@ export class AgentsController {
   @Get('costs')
   costs(@Query('from') from?: string, @Query('to') to?: string) {
     return this.agents.costs(from, to);
+  }
+
+  /** Esecuzione MANUALE (responsabile marketing/admin): conta token e costo, rispetta il budget. */
+  @Roles('head_marketing', 'admin')
+  @HttpCode(200)
+  @Post(':id/run')
+  run(@Param('id') id: string, @Body() dto: RunAgentDto, @CurrentUser() u: AuthUser) {
+    return this.runner.run(id, dto.input, u.sub);
   }
 
   @Get(':id/runs')

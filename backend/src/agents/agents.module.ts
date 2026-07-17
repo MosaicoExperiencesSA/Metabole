@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
+import { AgentRunnerService } from './agent-runner.service';
 import { AgentsController } from './agents.controller';
 import { AgentsService } from './agents.service';
 
-/** Registro Agenti AI (fondamenta): CRUD + costi. Il runtime (orchestratore) arriverà qui. */
+/** Registro + runtime Agenti AI: CRUD, esecuzione con costi/budget. L'orchestratore (code/cron) arriverà qui. */
 @Module({
   controllers: [AgentsController],
-  providers: [AgentsService],
-  exports: [AgentsService],
+  providers: [AgentsService, AgentRunnerService],
+  exports: [AgentsService, AgentRunnerService],
 })
 export class AgentsModule {}

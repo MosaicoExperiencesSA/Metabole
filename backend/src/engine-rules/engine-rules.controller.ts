@@ -20,7 +20,8 @@ class PresetDto {
   // Variante pasti della famiglia: '3' | '5' | 'fasting' (digiuno intermittente 16:8).
   @IsOptional() @IsIn(['3', '5', 'fasting']) meals?: string | null;
   @IsOptional() @IsObject() rules?: Record<string, unknown>;
-  @IsOptional() @IsString() @MaxLength(1000) clinicalNotes?: string;
+  // Limite ampio: le note evidence-based dei preset (es. Detossinante) superano i 1000 caratteri.
+  @IsOptional() @IsString() @MaxLength(4000) clinicalNotes?: string;
   @IsOptional() @IsString() @MaxLength(400) source?: string;
   @IsOptional() @IsBoolean() suggested?: boolean;
 }

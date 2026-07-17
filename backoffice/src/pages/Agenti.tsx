@@ -14,6 +14,9 @@ interface Agent {
   task: string; rule: string; engine: string; enabled: boolean; humanInLoop: boolean;
   monthlyBudgetCents: number; archivedAt: string | null;
 }
+interface RunResult { runId: string; output: string; model: string; inputTokens: number; outputTokens: number; costCents: number; humanInLoop: boolean; budget: { spentCents: number; limitCents: number } }
+interface RunRow { id: string; startedAt: string; finishedAt: string | null; status: string; model: string | null; inputTokens: number; outputTokens: number; costCents: number; error: string | null }
+interface Costs { totalCents: number; items: { agentId: string; name: string; runs: number; costCents: number }[] }
 
 const DEPT: Record<string, { label: string; color: string }> = {
   app: { label: 'App cliente', color: '#12A386' },
@@ -49,9 +52,13 @@ export function Agenti() {
   const [editing, setEditing] = useState<Agent | null>(null);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [running, setRunning] = useState<Agent | null>(null);
+  const [runsOf, setRunsOf] = useState<Agent | null>(null);
+  const [costs, setCosts] = useState<Costs | null>(null);
 
   function load() {
     api<Agent[]>('/agents').then(setAgents).catch((e) => { setAgents([]); setError(e instanceof Error ? e.message : 'Caricamento non riuscito.'); });
+    api<Costs>('/agents/costs').then(setCosts).catch(() => setCosts(null));
   }
   useEffect(() => { load(); }, []);
 
@@ -99,6 +106,16 @@ export function Agenti() {
         Tutti gli agenti <b>Claude</b> del sistema: dove lavorano, cosa fanno e la regola che li governa.
         I modelli di default si cambiano dai Parametri (agent_default_model, agent_judge_model) senza redeploy.
       </p>
+      {costs && costs.items.length > 0 && (
+        <div className="card" style={{ padding: '12px 16px', marginBottom: 14 }}>
+          <div className="row" style={{ gap: 14, alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <b style={{ fontSize: 13 }}><i className="ti ti-coins" /> Costi ultimi 30 giorni: € {(costs.totalCents / 100).toFixed(2)}</b>
+            {[...costs.items].sort((a, b) => b.costCents - a.costCents).slice(0, 5).map((c) => (
+              <span key={c.agentId} className="muted" style={{ fontSize: 12 }}>{c.name} € {(c.costCents / 100).toFixed(2)} · {c.runs} esec.</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
@@ -131,7 +148,11 @@ export function Agenti() {
                 </div>
               )}
               {canManage && (
-                <div className="row" style={{ gap: 6, marginTop: 'auto', paddingTop: 4 }}>
+                <div className="row" style={{ gap: 6, marginTop: 'auto', paddingTop: 4, flexWrap: 'wrap' }}>
+                  {a.engine.startsWith('claude') && a.enabled && (
+                    <button className="btn sm" onClick={() => setRunning(a)} disabled={busyId === a.id} title="Esecuzione manuale (conta token e costo)"><i className="ti ti-player-play" /> Esegui</button>
+                  )}
+                  <button className="btn ghost sm" onClick={() => setRunsOf(a)} disabled={busyId === a.id} title="Storico esecuzioni e costi"><i className="ti ti-history" /></button>
                   <button className="btn ghost sm" onClick={() => setEditing(a)} disabled={busyId === a.id}><i className="ti ti-edit" /> Modifica</button>
                   <button className="btn ghost sm" onClick={() => toggleEnabled(a)} disabled={busyId === a.id}>
                     <i className={`ti ${a.enabled ? 'ti-player-pause' : 'ti-player-play'}`} /> {a.enabled ? 'Disattiva' : 'Attiva'}
@@ -154,7 +175,94 @@ export function Agenti() {
           onSaved={(msg) => { setCreating(false); setEditing(null); setNotice(msg); load(); }}
         />
       )}
+      {running && <RunModal agent={running} onClose={() => { setRunning(null); load(); }} />}
+      {runsOf && <RunsModal agent={runsOf} onClose={() => setRunsOf(null)} />}
     </>
+  );
+}
+
+/** Esecuzione manuale: input → output con token e costo (rispetta il budget mensile). */
+function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [result, setResult] = useState<RunResult | null>(null);
+
+  async function run() {
+    if (!input.trim()) { setErr('Scrivi un input per l\'agente.'); return; }
+    setBusy(true); setErr(null); setResult(null);
+    try {
+      setResult(await api<RunResult>(`/agents/${agent.id}/run`, { method: 'POST', body: JSON.stringify({ input: input.trim() }) }));
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Esecuzione non riuscita.'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title={`Esegui — ${agent.name}`} onClose={onClose}>
+      <p className="hint" style={{ marginTop: 0 }}>{agent.task}</p>
+      {err && <Banner kind="err">{err}</Banner>}
+      <div className="field"><label>Input</label>
+        <textarea className="input" rows={4} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Cosa deve fare in questa esecuzione? (brief, testo da valutare, domanda…)" /></div>
+      <div className="row" style={{ justifyContent: 'flex-end', gap: 8 }}>
+        <button className="btn ghost" onClick={onClose} disabled={busy}>Chiudi</button>
+        <button className="btn" onClick={run} disabled={busy}>{busy ? 'Eseguo…' : 'Esegui'}</button>
+      </div>
+      {busy && <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Esecuzione in corso… può richiedere fino a un minuto.</p>}
+      {result && (
+        <div style={{ marginTop: 14 }}>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            <span className="chip" style={{ fontSize: 11 }}>{result.model}</span>
+            <span className="chip" style={{ fontSize: 11 }}>{result.inputTokens + result.outputTokens} token</span>
+            <span className="chip" style={{ fontSize: 11 }}>€ {(result.costCents / 100).toFixed(2)}</span>
+            {result.budget.limitCents > 0 && (
+              <span className="chip" style={{ fontSize: 11 }}>budget € {(result.budget.spentCents / 100).toFixed(2)} / {(result.budget.limitCents / 100).toFixed(0)}</span>
+            )}
+            {result.humanInLoop && <span className="chip amber" style={{ fontSize: 10 }}>output da approvare (umano nel ciclo)</span>}
+          </div>
+          <div style={{ maxHeight: 320, overflowY: 'auto', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.55, border: '1px solid var(--line)', borderRadius: 10, padding: 12, background: 'var(--card)' }}>
+            {result.output || '(nessun testo)'}
+          </div>
+          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
+            <button className="btn ghost sm" onClick={() => { void navigator.clipboard?.writeText(result.output); }}><i className="ti ti-copy" /> Copia output</button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/** Storico esecuzioni di un agente (stato, token, costo). */
+function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
+  const [rows, setRows] = useState<RunRow[] | null>(null);
+  useEffect(() => {
+    api<RunRow[]>(`/agents/${agent.id}/runs`).then(setRows).catch(() => setRows([]));
+  }, [agent.id]);
+  const ST: Record<string, { label: string; chip: string }> = {
+    done: { label: 'Completata', chip: '' }, running: { label: 'In corso', chip: 'amber' },
+    error: { label: 'Errore', chip: 'red' }, blocked: { label: 'Bloccata (budget)', chip: 'red' }, queued: { label: 'In coda', chip: 'gray' },
+  };
+  return (
+    <Modal title={`Esecuzioni — ${agent.name}`} onClose={onClose}>
+      {!rows ? <Spinner /> : rows.length === 0 ? (
+        <div className="empty">Nessuna esecuzione ancora: usa "Esegui" sulla card dell'agente.</div>
+      ) : (
+        <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+          <table className="grid">
+            <thead><tr><th>Quando</th><th>Stato</th><th>Token</th><th>Costo</th></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} title={r.error ?? undefined}>
+                  <td className="muted" style={{ fontSize: 12 }}>{new Date(r.startedAt).toLocaleString('it-IT')}</td>
+                  <td><span className={`chip ${ST[r.status]?.chip ?? 'gray'}`} style={{ fontSize: 11 }}>{ST[r.status]?.label ?? r.status}</span></td>
+                  <td className="muted" style={{ fontSize: 12 }}>{r.inputTokens + r.outputTokens}</td>
+                  <td className="muted" style={{ fontSize: 12 }}>€ {(r.costCents / 100).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
   );
 }
 
