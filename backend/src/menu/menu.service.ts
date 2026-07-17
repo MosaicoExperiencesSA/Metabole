@@ -703,6 +703,64 @@ export class MenuService {
     return { slots, poolBySlot };
   }
 
+  /**
+   * "Sostituisci un ingrediente" (card in dashboard): la cliente indica un ingrediente
+   * che non gradisce → lo aggiungiamo ai suoi `dislikedFoods` (così lo evita anche nei
+   * prossimi giorni) e ri-applichiamo le sostituzioni sicure al menu di OGGI, annotando i
+   * pasti (from→to, gli stessi che mostra la pagina Menu). Ritorna le sostituzioni
+   * applicate; se oggi non c'è quell'ingrediente o non ha un sostituto noto, resta
+   * comunque registrato per i menu successivi (i cibi non graditi non bloccano mai).
+   */
+  async substituteDislikedForToday(
+    clientId: string,
+    rawIngredient: string,
+  ): Promise<{ applied: { from: string; to: string }[]; disliked: string; message: string }> {
+    const ingredient = (rawIngredient ?? '').trim();
+    if (ingredient.length < 2) throw new BadRequestException("Scrivi l'ingrediente che non gradisci.");
+
+    // 1) Aggiungilo ai non graditi (se non c'è già).
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { dislikedFoods: true },
+    });
+    const current = ((profile?.dislikedFoods ?? []) as string[]);
+    const already = current.some((s) => s.toLowerCase().trim() === ingredient.toLowerCase());
+    if (!already) {
+      await this.prisma.clientProfile.update({
+        where: { userId: clientId },
+        data: { dislikedFoods: [...current, ingredient] },
+      });
+    }
+
+    // 2) Ri-applica le sostituzioni al menu di OGGI, se erogato e visibile.
+    const today = toDateOnly();
+    const day = await this.prisma.menuDay.findFirst({
+      where: { clientId, visibleFrom: { lte: today }, date: { gte: today } },
+      orderBy: { date: 'asc' },
+    });
+    if (!day) {
+      return { applied: [], disliked: ingredient, message: 'Preferenza salvata: la terrò presente nei prossimi menu.' };
+    }
+    const meals = ((day.meals as unknown as MealSnapshot[]) ?? []);
+    const { subsByRecipe } = await this.evaluateMeals(clientId, meals);
+    const applied: { from: string; to: string }[] = [];
+    const updated = meals.map((m) => {
+      const subs = subsByRecipe[m.recipeId];
+      if (subs && subs.length) {
+        for (const s of subs) applied.push({ from: s.from, to: s.to });
+        return { ...m, substitutions: subs };
+      }
+      return m;
+    });
+    if (applied.length) {
+      await this.prisma.menuDay.update({ where: { id: day.id }, data: { meals: updated as never } });
+    }
+    const message = applied.length
+      ? `Fatto: nel menu di oggi ${applied.map((s) => `«${s.from}» → «${s.to}»`).join(', ')}.`
+      : "Preferenza salvata: nel menu di oggi non c'è quell'ingrediente, la terrò presente nei prossimi.";
+    return { applied, disliked: ingredient, message };
+  }
+
   // ---------- Sicurezza: esclusioni (intolleranze/allergie) → blocco + escalation ----------
 
   /**
