@@ -431,7 +431,11 @@ model Escalation {
 model Plan {
   id          String   @id @default(uuid())
   name        String
-  priceCents  Int      @map("price_cents")
+  priceCents  Int      @map("price_cents") // prezzo di VENDITA in promo (o unico, se niente listino)
+  // Prezzo pieno di listino (barrato, es. €299→€249) + fine della promo "founding":
+  // scaduta la promo, il prezzo effettivo torna al listino automaticamente.
+  listPriceCents Int?     @map("list_price_cents")
+  promoEndsAt    DateTime? @map("promo_ends_at")
   period      String // es. 3m | 6m | 12m
   mealsPerDay Int?     @map("meals_per_day")
   features    String[] @default([])

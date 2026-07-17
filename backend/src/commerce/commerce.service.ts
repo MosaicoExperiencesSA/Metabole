@@ -77,8 +77,21 @@ export class CommerceService {
 
   // ---------- Piani e prodotti ----------
 
+  /**
+   * Prezzo EFFETTIVO di vendita di un piano (handoff Prezzi lancio):
+   * finché la promo è attiva (listino presente e `promoEndsAt` nel futuro o assente)
+   * si vende a `priceCents` col listino barrato; scaduta la promo si torna
+   * AUTOMATICAMENTE al listino pieno, senza toccare il DB.
+   */
+  private planPricing(plan: { priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null }): { effectivePriceCents: number; promoActive: boolean } {
+    const hasList = plan.listPriceCents != null && plan.listPriceCents > plan.priceCents;
+    const promoActive = Boolean(hasList && (!plan.promoEndsAt || plan.promoEndsAt.getTime() > Date.now()));
+    return { effectivePriceCents: hasList && !promoActive ? (plan.listPriceCents as number) : plan.priceCents, promoActive };
+  }
+
   async listPlans() {
-    return this.prisma.plan.findMany({ where: { active: true }, orderBy: { priceCents: 'asc' } });
+    const plans = await this.prisma.plan.findMany({ where: { active: true }, orderBy: { priceCents: 'asc' } });
+    return (plans as { priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null }[]).map((p) => ({ ...p, ...this.planPricing(p) }));
   }
 
   async listProducts() {
@@ -119,7 +132,7 @@ export class CommerceService {
   /** Piani visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso. */
   async listPlansForClient(clientId: string) {
     const [plans, bought] = await Promise.all([this.listPlans(), this.purchasedIds(clientId)]);
-    return (plans as { id: string; repurchasable?: boolean }[]).filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
+    return (plans as unknown as { id: string; repurchasable?: boolean }[]).filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
   }
 
   /** Prodotti visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso. */
@@ -241,11 +254,12 @@ export class CommerceService {
     const subscription = await this.prisma.subscription.create({
       data: { clientId, planId, status: 'pending' },
     });
+    const planPrice = this.planPricing(plan as never).effectivePriceCents;
     const payment = await this.prisma.payment.create({
       data: {
         clientId,
         subscriptionId: subscription.id,
-        amountCents: plan.priceCents,
+        amountCents: planPrice,
         description: `Abbonamento ${plan.name}`,
         method: method as never,
         status: 'pending',
@@ -256,7 +270,7 @@ export class CommerceService {
       actorId: clientId,
       entityType: 'payment',
       entityId: payment.id,
-      metadata: { planId, amountCents: plan.priceCents, method },
+      metadata: { planId, amountCents: planPrice, method },
     });
 
     if (method === 'card') {
@@ -350,9 +364,9 @@ export class CommerceService {
     const method: 'card' | 'bank_transfer' = input.method === 'card' ? 'card' : 'bank_transfer';
     let subtotal = 0;
 
-    let plan: { id: string; name: string; priceCents: number } | null = null;
+    let plan: { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null } | null = null;
     if (input.planId) {
-      plan = await this.prisma.plan.findFirst({ where: { id: input.planId, active: true }, select: { id: true, name: true, priceCents: true } });
+      plan = await this.prisma.plan.findFirst({ where: { id: input.planId, active: true }, select: { id: true, name: true, priceCents: true, listPriceCents: true, promoEndsAt: true } });
       if (!plan) throw new NotFoundException('Piano non trovato');
       const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { consents: true } });
       const consents = (profile?.consents ?? {}) as { healthDataConsent?: { accepted?: boolean } };
@@ -363,7 +377,7 @@ export class CommerceService {
       if (existing) {
         throw new BadRequestException(existing.status === 'active' ? 'Hai già un abbonamento attivo.' : 'Hai già una richiesta di abbonamento in corso.');
       }
-      subtotal += plan.priceCents;
+      subtotal += this.planPricing(plan).effectivePriceCents;
     }
 
     let detailed: { productId: string; name: string; priceCents: number; qty: number }[] = [];
@@ -919,11 +933,12 @@ export class CommerceService {
     });
     if (!client) throw new NotFoundException('Cliente non trovato');
 
-    // Buono sconto (facoltativo).
-    let amountCents = plan.priceCents;
+    // Prezzo effettivo (promo/listino) + buono sconto (facoltativo).
+    const manualPlanPrice = this.planPricing(plan as never).effectivePriceCents;
+    let amountCents = manualPlanPrice;
     let discount: { codeId: string; discountCents: number } | null = null;
     if (input.discountCode && input.discountCode.trim()) {
-      const d = await this.discounts.validate(input.discountCode, client.id, plan.priceCents);
+      const d = await this.discounts.validate(input.discountCode, client.id, manualPlanPrice);
       discount = { codeId: d.codeId, discountCents: d.discountCents };
       amountCents = d.finalCents;
     }
@@ -969,7 +984,7 @@ export class CommerceService {
       actorId: operator.sub,
       entityType: 'payment',
       entityId: payment.id,
-      metadata: { planId: plan.id, amountCents: plan.priceCents, generateCommissions: input.generateCommissions },
+      metadata: { planId: plan.id, amountCents, generateCommissions: input.generateCommissions },
     });
     return this.publicPayment(payment);
   }

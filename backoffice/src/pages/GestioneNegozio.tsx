@@ -8,7 +8,7 @@ interface Commissions {
   commissionNutritionistCents: number;
   commissionHeadNutritionistCents: number;
 }
-interface Plan extends Commissions { id: string; name: string; priceCents: number; period: string; mealsPerDay: number | null; features: string[]; active: boolean; repurchasable: boolean; }
+interface Plan extends Commissions { id: string; name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: string | null; promoActive?: boolean; period: string; mealsPerDay: number | null; features: string[]; active: boolean; repurchasable: boolean; }
 interface Product extends Commissions { id: string; name: string; priceCents: number; description: string | null; active: boolean; repurchasable: boolean; }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -88,6 +88,9 @@ export function GestioneNegozio() {
     const body: Record<string, unknown> = {
       name: planForm.name,
       priceCents: toCents(planForm.price ?? '0'),
+      // Listino barrato + fine promo (vuoti = nessuna promo / promo senza scadenza).
+      listPriceCents: planForm.listPrice?.trim() ? toCents(planForm.listPrice) : null,
+      promoEndsAt: planForm.promoEndsAt?.trim() ? new Date(planForm.promoEndsAt).toISOString() : null,
       period: planForm.period || '3m',
       features: (planForm.features ?? '').split(',').map((s) => s.trim()).filter(Boolean),
       active: planForm.active !== 'false',
@@ -170,7 +173,11 @@ export function GestioneNegozio() {
           <h3 style={{ marginTop: 0 }}>{planForm.id ? 'Modifica piano' : 'Nuovo piano'}</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Fld label="Nome" v={planForm.name} on={(v) => setPlanForm({ ...planForm, name: v })} />
-            <Fld label="Prezzo (€)" v={planForm.price} on={(v) => setPlanForm({ ...planForm, price: v })} />
+            <Fld label="Prezzo di vendita (€)" v={planForm.price} on={(v) => setPlanForm({ ...planForm, price: v })} />
+            <Fld label="Prezzo di listino barrato (€, opz.)" v={planForm.listPrice} on={(v) => setPlanForm({ ...planForm, listPrice: v })} />
+            <label style={fld}><span>Fine promo (opz. — scaduta, torna il listino)</span>
+              <input className="input" type="datetime-local" value={planForm.promoEndsAt ?? ''} onChange={(e) => setPlanForm({ ...planForm, promoEndsAt: e.target.value })} />
+            </label>
             <Fld label="Periodo (es. 8d, 2w, 3m, 1y)" v={planForm.period} on={(v) => setPlanForm({ ...planForm, period: v })} />
             <Fld label="Pasti/giorno (opz.)" v={planForm.mealsPerDay} on={(v) => setPlanForm({ ...planForm, mealsPerDay: v })} />
             <Fld label="Caratteristiche (virgola)" v={planForm.features} on={(v) => setPlanForm({ ...planForm, features: v })} wide />
@@ -200,12 +207,20 @@ export function GestioneNegozio() {
             {plans.map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
-                <td>{euro(p.priceCents)}</td>
+                <td>
+                  {p.listPriceCents != null && p.listPriceCents > p.priceCents ? (
+                    <>
+                      <s className="muted" style={{ marginRight: 6 }}>{euro(p.listPriceCents)}</s>
+                      <b>{euro(p.priceCents)}</b>
+                      {p.promoEndsAt && <div className="muted" style={{ fontSize: 10 }}>promo fino al {new Date(p.promoEndsAt).toLocaleDateString('it-IT')}</div>}
+                    </>
+                  ) : euro(p.priceCents)}
+                </td>
                 <td className="muted">{p.period}</td>
                 <td className="muted" style={{ fontSize: 12 }}>{commSummary(p)}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), period: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), listPrice: p.listPriceCents != null ? fromCents(p.listPriceCents) : '', promoEndsAt: p.promoEndsAt ? p.promoEndsAt.slice(0, 16) : '', period: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delPlan(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsInt, IsOptional, IsString, Min, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Min, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 /**
  * Le 4 quote provvigionali in centesimi di €, condivise da piani e prodotti.
@@ -31,6 +31,9 @@ export class UpdateProductDto extends CommissionFields {
 export class CreatePlanDto extends CommissionFields {
   @IsString() @MinLength(1) @MaxLength(120) name!: string;
   @Type(() => Number) @IsInt() @Min(0) priceCents!: number;
+  // Prezzo pieno di listino (barrato) + fine promo: null = nessun barrato / promo senza scadenza.
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Type(() => Number) @IsInt() @Min(0) listPriceCents?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() promoEndsAt?: string | null;
   @IsString() @MinLength(1) @MaxLength(10) period!: string; // es. 3m | 6m | 12m
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) mealsPerDay?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) features?: string[];
@@ -41,6 +44,8 @@ export class CreatePlanDto extends CommissionFields {
 export class UpdatePlanDto extends CommissionFields {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(120) name?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) priceCents?: number;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @Type(() => Number) @IsInt() @Min(0) listPriceCents?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() promoEndsAt?: string | null;
   @IsOptional() @IsString() @MinLength(1) @MaxLength(10) period?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) mealsPerDay?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) features?: string[];

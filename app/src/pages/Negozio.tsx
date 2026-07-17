@@ -6,7 +6,7 @@ import AppHeader from '../components/AppHeader';
 
 /** Negozio — piani e integratori. Si aggiunge al carrello, poi checkout unico. */
 
-interface Plan { id: string; name: string; priceCents: number; period: string; features: string[]; }
+interface Plan { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoActive?: boolean; period: string; features: string[]; }
 interface Product { id: string; name: string; priceCents: number; description: string | null; }
 
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
@@ -41,7 +41,12 @@ export default function Negozio() {
                 <div className="muted" style={{ fontSize: 12 }}>{PERIOD[p.period] ?? p.period}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 17, fontWeight: 700 }}>{euro(p.priceCents)}</div>
+                <div style={{ fontSize: 17, fontWeight: 700 }}>
+                  {p.promoActive && p.listPriceCents != null && (
+                    <s style={{ color: '#8A938F', fontWeight: 500, fontSize: 13, marginRight: 6 }}>{euro(p.listPriceCents)}</s>
+                  )}
+                  {euro(p.priceCents)}
+                </div>
                 {inCart ? (
                   <span className="chip" style={{ marginTop: 5, background: '#DCF0D8', color: '#3B6D11' }}><i className="ti ti-check" /> Nel carrello</span>
                 ) : (

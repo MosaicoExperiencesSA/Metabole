@@ -12,7 +12,7 @@ import type { OnboardingResult } from '../onboarding/types';
  * e si prosegue al checkout unico (dove si sceglie metodo, sconto e si paga).
  */
 
-interface Plan { id: string; name: string; priceCents: number; period: string; features: string[]; }
+interface Plan { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoActive?: boolean; period: string; features: string[]; }
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
 const PERIOD: Record<string, string> = { '3m': '3 mesi', '6m': '6 mesi', '12m': '12 mesi' };
 
@@ -144,7 +144,12 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
                     <div className="muted" style={{ fontSize: 12 }}>{PERIOD[p.period] ?? p.period}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>{euro(p.priceCents)}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>
+                      {p.promoActive && p.listPriceCents != null && (
+                        <s style={{ color: '#8A938F', fontWeight: 500, fontSize: 13, marginRight: 6 }}>{euro(p.listPriceCents)}</s>
+                      )}
+                      {euro(p.priceCents)}
+                    </div>
                     {sel && <i className="ti ti-circle-check" style={{ color: 'var(--teal)', fontSize: 20 }} />}
                   </div>
                 </div>
