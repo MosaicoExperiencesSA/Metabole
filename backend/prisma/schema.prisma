@@ -580,6 +580,17 @@ model CrmRecord {
   // Anagrafica fiscale/indirizzo (dalle liste storiche o inserita a mano sulla scheda).
   codiceFiscale String? @map("codice_fiscale")
   address       String? // indirizzo (testo libero: via/città, come nelle liste storiche)
+  // Handoff punto 6 — tracciamento e consensi.
+  // segment: ex_cliente | lead_caldo | lead_freddo (se vuoto si deriva da storico/stage).
+  // channel: canale di provenienza/contatto (email | whatsapp | sms | coach | retargeting | organico).
+  segment          String?
+  channel          String?
+  // Consenso marketing (GDPR): null = mai chiesto (per lo storico serve ri-opt-in),
+  // true/false = scelta esplicita; consentChannels = canali autorizzati (email|whatsapp|sms).
+  marketingConsent Boolean?  @map("marketing_consent")
+  consentChannels  String[]  @default([]) @map("consent_channels")
+  consentAt        DateTime? @map("consent_at")
+  consentSource    String?   @map("consent_source") // es. form-sito | preferenze | import | operatore
   tags          String[] @default([]) // etichette libere per la segmentazione marketing (es. "mamma", "acquisto-2024")
   reminders  CrmReminder[]
   listMemberships CrmListMember[]

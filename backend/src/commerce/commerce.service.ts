@@ -19,6 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ReferralService } from '../referral/referral.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
+import { deriveSegment } from '../common/funnel-segment';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 
@@ -715,10 +716,26 @@ export class CommerceService {
   }
 
   /** Catena post-approvazione condivisa: attivazione, ledger, provvigioni, CRM, ricevuta. */
-  /** Evento di funnel del lancio (trial_started, trial_expired, …) su analytics_event. */
+  /**
+   * Evento di funnel del lancio (trial_started, trial_expired, …) su analytics_event.
+   * Handoff punto 6: ogni evento porta anche SEGMENTO di provenienza (ex cliente /
+   * lead caldo / lead freddo) e CANALE, letti dalla scheda CRM del cliente.
+   */
   private async funnelEvent(userId: string, name: string, data?: Record<string, unknown>): Promise<void> {
+    let segment: string | null = null;
+    let channel: string | null = null;
+    try {
+      const rec = (await this.prisma.crmRecord.findUnique({
+        where: { clientId: userId },
+        select: { segment: true, channel: true, previousStatus: true, historicalPaidCents: true, stage: true } as never,
+      })) as { segment: string | null; channel: string | null; previousStatus: string | null; historicalPaidCents: number | null; stage: string } | null;
+      if (rec) {
+        segment = deriveSegment(rec);
+        channel = rec.channel ?? null;
+      }
+    } catch { /* l'arricchimento non deve mai bloccare l'evento */ }
     await this.prisma.analyticsEvent
-      .create({ data: { eventId: randomUUID(), name, userId, phase: 'funnel', data: (data ?? {}) as never } as never })
+      .create({ data: { eventId: randomUUID(), name, userId, phase: 'funnel', data: { ...(data ?? {}), ...(segment ? { segment } : {}), ...(channel ? { channel } : {}) } as never } as never })
       .catch(() => undefined); // il tracciamento non deve mai rompere il flusso
   }
 
@@ -840,6 +857,27 @@ export class CommerceService {
         ]);
         if (hadTrial && !alreadyConverted) {
           await this.funnelEvent(payment.clientId, 'trial_converted', { paymentId: payment.id, amountCents: payment.amountCents });
+        }
+        // Handoff punto 6 — anelli successivi del funnel: rinnovi e mantenimento.
+        const subPlan = (await this.prisma.subscription.findUnique({
+          where: { id: payment.subscriptionId },
+          select: { createdAt: true, plan: { select: { period: true, priceCents: true } } },
+        })) as { createdAt: Date; plan: { period: string; priceCents: number } } | null;
+        if (subPlan?.plan.period === 'maintenance') {
+          await this.funnelEvent(payment.clientId, 'maintenance_started', { subscriptionId: payment.subscriptionId, amountCents: payment.amountCents });
+        } else if (subPlan) {
+          // Rinnovo = nuovo acquisto a pagamento quando esisteva già un abbonamento
+          // a pagamento precedente (qualunque stato: la prova non conta).
+          const prior = await this.prisma.subscription.findFirst({
+            where: {
+              clientId: payment.clientId,
+              id: { not: payment.subscriptionId },
+              createdAt: { lt: subPlan.createdAt },
+              plan: { priceCents: { gt: 0 } },
+            } as never,
+            select: { id: true },
+          });
+          if (prior) await this.funnelEvent(payment.clientId, 'plan_renewed', { subscriptionId: payment.subscriptionId, amountCents: payment.amountCents });
         }
       }
     }

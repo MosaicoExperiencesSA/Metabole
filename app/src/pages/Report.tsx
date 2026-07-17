@@ -123,6 +123,20 @@ export default function Report() {
             </div>
           </div>
 
+          {/* Pannello onesto (solo prova): il profilo si cancella davvero a +7 giorni. */}
+          {r.kind === 'trial' && (
+            <div className="card" style={{ background: '#FFF7F0', border: '1px solid #F3D9C4', boxShadow: 'none', marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <i className="ti ti-clock-exclamation" style={{ color: '#B4491F', fontSize: 18, marginTop: 1, flex: 'none' }} />
+                <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                  <b>Una cosa detta con onestà:</b> se non continui, ciò che Gaia ha imparato su di te
+                  viene <b>cancellato davvero 7 giorni dopo la fine della prova</b> (è una promessa di privacy,
+                  non una minaccia). Le tue misure e i tuoi documenti restano al sicuro.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Coach */}
           {r.coach && (
             <div className="card" style={{ marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center' }}>

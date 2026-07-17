@@ -174,6 +174,24 @@ class UpdateLeadInfoDto {
   @MaxLength(200)
   address?: string | null;
 
+  // Handoff punto 6 — tracciamento e consensi.
+  @IsOptional()
+  @IsIn(['ex_cliente', 'lead_caldo', 'lead_freddo', ''])
+  segment?: string | null;
+
+  @IsOptional()
+  @IsIn(['email', 'whatsapp', 'sms', 'coach', 'retargeting', 'organico', ''])
+  channel?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  marketingConsent?: boolean | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(['email', 'whatsapp', 'sms'], { each: true })
+  consentChannels?: string[];
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

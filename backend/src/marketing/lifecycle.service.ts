@@ -5,6 +5,7 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { randomUUID } from 'crypto';
 import { DiscountsService } from '../commerce/discounts.service';
+import { deriveSegment, prefsToken } from '../common/funnel-segment';
 import { ConfigParamsService } from '../config-params/config-params.service';
 
 export type LifecycleKind = 'event' | 'scheduled';
@@ -124,6 +125,13 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k: string) => vars[k] ?? '');
   }
 
+  /** Link preferenze PERSONALE (token firmato) se la persona ha una scheda CRM. */
+  private async prefsLinkFor(userId: string): Promise<string> {
+    const secret = this.config.get<string>('PREFS_TOKEN_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-only-insecure-secret';
+    const rec = await this.prisma.crmRecord.findUnique({ where: { clientId: userId }, select: { id: true } }).catch(() => null);
+    return rec ? `${this.appUrl()}/preferenze?t=${prefsToken(rec.id, secret)}` : `${this.appUrl()}/preferenze`;
+  }
+
   private appUrl(): string {
     return this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
   }
@@ -216,7 +224,7 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     if (!tpl || !tpl.active) return 'skipped';
     if (await this.isOptedOut(email, userId)) return 'skipped';
 
-    const fullVars = { link_preferenze: `${this.appUrl()}/preferenze`, ...vars };
+    const fullVars = { link_preferenze: await this.prefsLinkFor(userId), ...vars };
     const html = this.merge(tpl.bodyHtml, fullVars);
     const subject = this.merge(tpl.subject, fullVars);
     const ok = await this.mail.send({ to: email, subject, html, templateKey: `lifecycle:${key}`, tags: [`lifecycle:${key}`] });
@@ -451,14 +459,21 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           });
           bump('trial_g6_offer', r);
           if (r === 'sent') {
-            // Stato funnel richiesto dall'handoff: trial_day6_offer_sent.
+            // Stato funnel richiesto dall'handoff: trial_day6_offer_sent (+ segmento/canale, punto 6).
+            const rec = (await this.prisma.crmRecord.findUnique({
+              where: { clientId: t.clientId },
+              select: { segment: true, channel: true, previousStatus: true, historicalPaidCents: true, stage: true } as never,
+            }).catch(() => null)) as { segment: string | null; channel: string | null; previousStatus: string | null; historicalPaidCents: number | null; stage: string } | null;
             await this.prisma.analyticsEvent.create({
               data: {
                 eventId: randomUUID(),
                 name: 'trial_day6_offer_sent',
                 userId: t.clientId,
                 phase: 'funnel',
-                data: { subscriptionId: t.id, code: personal.code, expiresAt: personal.expiresAt } as never,
+                data: {
+                  subscriptionId: t.id, code: personal.code, expiresAt: personal.expiresAt,
+                  ...(rec ? { segment: deriveSegment(rec), ...(rec.channel ? { channel: rec.channel } : {}) } : {}),
+                } as never,
               } as never,
             }).catch(() => undefined);
           }

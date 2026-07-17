@@ -416,6 +416,10 @@ export class CrmService {
       codiceFiscale?: string | null;
       address?: string | null;
       tags?: string[];
+      segment?: string | null;
+      channel?: string | null;
+      marketingConsent?: boolean | null;
+      consentChannels?: string[];
     },
   ) {
     await this.assertLeadAccess(byUserId, recordId);
@@ -432,7 +436,12 @@ export class CrmService {
         ...(input.codiceFiscale !== undefined ? { codiceFiscale: (input.codiceFiscale || '').trim().toUpperCase() || null } : {}),
         ...(input.address !== undefined ? { address: input.address || null } : {}),
         ...(input.tags !== undefined ? { tags: Array.from(new Set(input.tags.map((t) => t.trim()).filter(Boolean))).slice(0, 30) } : {}),
-      },
+        // Handoff punto 6: segmento/canale e consenso marketing modificabili dalla scheda.
+        ...(input.segment !== undefined ? { segment: input.segment || null } : {}),
+        ...(input.channel !== undefined ? { channel: input.channel || null } : {}),
+        ...(input.marketingConsent !== undefined ? { marketingConsent: input.marketingConsent, consentAt: new Date(), consentSource: 'operatore' } : {}),
+        ...(input.consentChannels !== undefined ? { consentChannels: input.consentChannels.filter((c) => ['email', 'whatsapp', 'sms'].includes(c)) } : {}),
+      } as never,
     });
     await this.audit.log({
       action: 'crm.lead.update_info',
