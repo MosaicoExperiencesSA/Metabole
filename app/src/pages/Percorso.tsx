@@ -10,6 +10,7 @@ import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
  */
 
 interface EventItem { id: string; type: string; label: string | null; startDate: string; mode: string }
+interface ReportHead { id: string; read: boolean }
 
 const EV: Record<string, [string, string, string, string]> = {
   // tipo → [etichetta, icona, bg, colore]
@@ -35,6 +36,7 @@ export default function Percorso() {
   const [days, setDays] = useState<ApiMenuDay[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tab, setTab] = useState<'past' | 'fut'>('past');
+  const [reports, setReports] = useState<ReportHead[]>([]);
 
   useEffect(() => {
     api<{ days: ApiMenuDay[] }>('/me/menu').then((r) => setDays(r.days ?? [])).catch(() => setDays([]));
@@ -42,6 +44,8 @@ export default function Percorso() {
       const t = startOfDay(new Date()).getTime();
       setEvents((evs ?? []).filter((e) => startOfDay(new Date(e.startDate)).getTime() >= t).sort((a, b) => a.startDate.localeCompare(b.startDate)));
     }).catch(() => setEvents([]));
+    // Report di fine piano: se ce n'è uno, lo segnaliamo in cima al percorso.
+    api<ReportHead[]>('/me/reports').then((rs) => setReports(rs ?? [])).catch(() => setReports([]));
   }, []);
 
   const iso = new Date().toISOString().slice(0, 10);
@@ -56,6 +60,21 @@ export default function Percorso() {
   return (
     <div className="home">
       <AppHeader title="Il tuo percorso" />
+
+      {/* Report di fine piano pronto (handoff punto 4) */}
+      {reports.length > 0 && (
+        <div className="card" onClick={() => nav('/report')}
+          style={{ display: 'flex', gap: 12, alignItems: 'center', cursor: 'pointer', marginBottom: 12, border: reports.some((r) => !r.read) ? '2px solid var(--teal)' : undefined }}>
+          <div style={{ width: 38, height: 38, borderRadius: 12, background: '#EAF6F1', color: '#0E7C66', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+            <i className="ti ti-report" style={{ fontSize: 19 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5 }}>{reports.some((r) => !r.read) ? 'Il tuo report è pronto 📊' : 'I tuoi report'}</div>
+            <div className="muted" style={{ fontSize: 12 }}>Punto A → punto B: misure, aderenza e cosa ha imparato Gaia.</div>
+          </div>
+          <i className="ti ti-chevron-right" style={{ color: '#9AA6A2' }} />
+        </div>
+      )}
 
       {/* IL MENU DI OGGI */}
       {meals.length > 0 && (

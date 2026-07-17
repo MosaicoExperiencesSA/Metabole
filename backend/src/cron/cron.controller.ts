@@ -18,6 +18,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { EngineService } from '../engine/engine.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReportsService } from '../reports/reports.service';
+import { PlanReportService } from '../reports/plan-report.service';
 import { SignalsService } from '../signals/signals.service';
 import { VisitsService } from '../health-area/visits.service';
 
@@ -36,6 +37,7 @@ export class CronController {
     private readonly audit: AuditService,
     private readonly leadAssignment: LeadAssignmentService,
     private readonly reports: ReportsService,
+    private readonly planReports: PlanReportService,
     private readonly alerts: AlertsService,
     private readonly summaries: ConversationSummaryService,
     private readonly commerce: CommerceService,
@@ -67,6 +69,8 @@ export class CronController {
     const trials = await this.commerce.expireTrialsAndPurge();
     // Task coach sui momenti chiave (G0/G1/G4/G7, fine piano, +7). Dopo l'expire, così vede gli stati aggiornati.
     const coachTasks = await this.coachTasks.generateDaily();
+    // Report di fine piano (handoff punto 4): uno per ogni piano concluso, consegnato in app.
+    const planReports = await this.planReports.generateDaily();
     const adherence = await this.signals.runAdherenceSweep();
     // Agenti AI con esecuzione giornaliera attiva: accodati qui, processati dal ticker.
     const agents = await this.agentOrchestrator.enqueueDaily();
@@ -74,9 +78,9 @@ export class CronController {
     const monthlyReports = new Date().getDate() === 1 ? await this.reports.sendMonthlyBatch() : { sent: 0 };
     await this.audit.log({
       action: 'cron.daily',
-      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, adherence, agents, monthlyReports } as Record<string, unknown>,
+      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports } as Record<string, unknown>,
     });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, adherence, agents, monthlyReports };
+    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports };
   }
 
   /**
