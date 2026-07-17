@@ -615,7 +615,9 @@ export class CommerceService {
       where: { clientId },
       orderBy: { createdAt: 'desc' },
     });
-    const list = payments.map((p: Record<string, unknown>) => this.publicPayment(p)) as Array<
+    // Cast via unknown: publicPayment ritorna un tipo stretto ({hasReceipt}) che non
+    // "sovrappone" abbastanza per un cast diretto (TS2352 → build Render rossa).
+    const list = payments.map((p: Record<string, unknown>) => this.publicPayment(p)) as unknown as Array<
       Record<string, unknown> & { id: string; method: string; status: string; subscriptionId?: string | null }
     >;
     // Per i bonifici ancora da saldare (in attesa o con contabile già caricata) alleghiamo
