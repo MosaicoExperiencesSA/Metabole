@@ -392,30 +392,48 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
         take: LifecycleService.BATCH,
       })) as { id: string; clientId: string; client: { email: string; firstName: string | null; clientProfile: { name: string | null } | null } | null }[];
       if (trials.length > 0) {
-        const [codeHours, discType, discValue] = await Promise.all([
+        const [codeHours, discType, discValue, target1m, target3m] = await Promise.all([
           this.configParams.getNumber('trial_offer_code_hours', 48),
           this.configParams.getString('trial_offer_discount_type', 'percent'),
           this.configParams.getNumber('trial_offer_discount_value', 10),
+          // Opzione B (decisione 17/07): il codice porta i piani a prezzi TARGET esatti.
+          this.configParams.getNumber('trial_offer_target_1m', 9900), // 1 mese €130 → €99
+          this.configParams.getNumber('trial_offer_target_3m', 24900), // 3 mesi €299 → €249
         ]);
         // Piano proposto nell'email: il percorso principale (3 mesi se esiste).
         const plans = (await this.prisma.plan.findMany({
           where: { active: true, priceCents: { gt: 0 } },
           orderBy: { priceCents: 'desc' },
-          select: { name: true, priceCents: true, listPriceCents: true, promoEndsAt: true, period: true },
-        })) as { name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: Date | null; period: string }[];
+          select: { id: true, name: true, priceCents: true, listPriceCents: true, promoEndsAt: true, period: true },
+        })) as { id: string; name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: Date | null; period: string }[];
         const offerPlan = plans.find((pl) => pl.period === '3m') ?? plans[0] ?? null;
+        // Target per piano: solo dove il target è sotto il prezzo pieno (altrimenti niente sconto).
+        const planTargets: Record<string, number> = {};
+        for (const pl of plans) {
+          const target = pl.period === '3m' ? target3m : pl.period === '1m' ? target1m : null;
+          if (target != null && target > 0 && target < pl.priceCents) planTargets[pl.id] = target;
+        }
+        const hasTargets = Object.keys(planTargets).length > 0;
         for (const t of trials) {
           if (!t.client?.email) continue;
           const personal = await this.discounts.ensurePersonalTrialCode(t.clientId, {
             type: discType === 'fixed' ? 'fixed' : 'percent',
             value: discValue,
             validHours: codeHours,
+            // Opzione B: target esatti per piano (fallback percent/fixed se i piani non sono allineati).
+            planTargets: hasTargets ? planTargets : null,
           });
           const scad = personal.expiresAt
             ? personal.expiresAt.toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
             : '48 ore';
+          // Prezzo nell'email (Opzione B): pieno barrato → prezzo col codice (target).
+          const offerTarget = offerPlan ? planTargets[offerPlan.id] : undefined;
           const promoOn = offerPlan?.listPriceCents != null && offerPlan.listPriceCents > offerPlan.priceCents
             && (offerPlan.promoEndsAt == null || offerPlan.promoEndsAt.getTime() > Date.now());
+          const shown = offerPlan ? (offerTarget ?? (promoOn ? offerPlan.priceCents : offerPlan.priceCents)) : null;
+          const struck = offerPlan
+            ? (offerTarget != null ? offerPlan.priceCents : (promoOn ? offerPlan.listPriceCents : null))
+            : null;
           const r = await this.sendLifecycle({
             userId: t.clientId,
             email: t.client.email,
@@ -426,8 +444,8 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
               codice: personal.code,
               scadenza: scad,
               piano: offerPlan?.name ?? 'Percorso 3 mesi',
-              prezzo: offerPlan ? `€ ${Math.round((promoOn ? offerPlan.priceCents : (offerPlan.listPriceCents ?? offerPlan.priceCents)) / 100)}` : '',
-              prezzo_listino: promoOn && offerPlan?.listPriceCents != null ? `€ ${Math.round(offerPlan.listPriceCents / 100)}` : '',
+              prezzo: shown != null ? `€ ${Math.round(shown / 100)}` : '',
+              prezzo_listino: struck != null && struck > (shown ?? 0) ? `€ ${Math.round(struck / 100)}` : '',
               link: `${app}/negozio`,
             },
           });

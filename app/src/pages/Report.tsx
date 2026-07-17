@@ -18,7 +18,7 @@ interface ReportFull {
   objective: { targetWeightKg: number | null; toGoKg: number | null };
   gaia: string[];
   coach: { name: string; phone: string | null } | null;
-  offer: { planId: string; planName: string; priceCents: number; listPriceCents: number | null; promoActive: boolean; promoEndsAt: string | null; period: string; code: string | null; codeExpiresAt?: string | null } | null;
+  offer: { planId: string; planName: string; priceCents: number; listPriceCents: number | null; promoActive: boolean; promoEndsAt: string | null; period: string; code: string | null; codeExpiresAt?: string | null; codePriceCents?: number | null } | null;
 }
 
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
@@ -150,9 +150,15 @@ export default function Report() {
               )}
               <div style={{ fontWeight: 800, fontSize: 15, marginTop: 2 }}>{r.offer.planName}</div>
               <div style={{ marginTop: 4 }}>
-                <span style={{ fontSize: 24, fontWeight: 800, color: '#0E7C66' }}>{euro(r.offer.priceCents)}</span>
-                {r.offer.listPriceCents != null && (
+                {/* Col codice personale (Opzione B): prezzo target grande, pieno barrato. */}
+                <span style={{ fontSize: 24, fontWeight: 800, color: '#0E7C66' }}>{euro(r.offer.codePriceCents ?? r.offer.priceCents)}</span>
+                {r.offer.codePriceCents != null ? (
+                  <span className="muted" style={{ fontSize: 15, textDecoration: 'line-through', marginLeft: 8 }}>{euro(r.offer.priceCents)}</span>
+                ) : r.offer.listPriceCents != null && (
                   <span className="muted" style={{ fontSize: 15, textDecoration: 'line-through', marginLeft: 8 }}>{euro(r.offer.listPriceCents)}</span>
+                )}
+                {r.offer.codePriceCents != null && (
+                  <span className="muted" style={{ fontSize: 11, marginLeft: 8 }}>col tuo codice</span>
                 )}
               </div>
               {r.offer.code && (

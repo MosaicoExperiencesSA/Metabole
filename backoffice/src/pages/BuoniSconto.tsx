@@ -14,11 +14,12 @@ interface Discount {
   expiresAt: string | null;
   createdAt: string;
   clientId?: string | null; // valorizzato = codice PERSONALE di una cliente (giorno 6 prova)
+  planTargets?: Record<string, number> | null; // Opzione B: prezzo target per piano
 }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
-const valueLabel = (d: Discount) => (d.type === 'percent' ? `${d.value}%` : euro(d.value));
+const valueLabel = (d: Discount) => (d.planTargets && Object.keys(d.planTargets).length ? Object.values(d.planTargets).map((c) => '→ ' + euro(c)).join(' · ') : d.type === 'percent' ? `${d.value}%` : euro(d.value));
 
 export function BuoniSconto() {
   const [rows, setRows] = useState<Discount[]>([]);

@@ -400,7 +400,10 @@ export class CommerceService {
     let discountCents = 0;
     let discountCodeId: string | null = null;
     if (input.discountCode?.trim()) {
-      const res = await this.discounts.validate(input.discountCode, clientId, subtotal);
+      const res = await this.discounts.validate(input.discountCode, clientId, subtotal, {
+        planId: plan?.id ?? null,
+        planPriceCents: plan ? this.planPricing(plan).effectivePriceCents : null,
+      });
       discountCents = res.discountCents;
       discountCodeId = res.codeId;
     }
@@ -1020,7 +1023,7 @@ export class CommerceService {
     let amountCents = manualPlanPrice;
     let discount: { codeId: string; discountCents: number } | null = null;
     if (input.discountCode && input.discountCode.trim()) {
-      const d = await this.discounts.validate(input.discountCode, client.id, manualPlanPrice);
+      const d = await this.discounts.validate(input.discountCode, client.id, manualPlanPrice, { planId: plan.id, planPriceCents: manualPlanPrice });
       discount = { codeId: d.codeId, discountCents: d.discountCents };
       amountCents = d.finalCents;
     }

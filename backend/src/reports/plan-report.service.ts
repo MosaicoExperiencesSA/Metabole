@@ -53,6 +53,8 @@ export interface PlanReportData {
     period: string;
     code: string | null; // codice sconto personale (punto 5 dell'handoff)
     codeExpiresAt: string | null;
+    // Opzione B: prezzo che il piano proposto assume COL codice (target esatto, es. €249).
+    codePriceCents: number | null;
   } | null;
 }
 
@@ -173,8 +175,8 @@ export class PlanReportService {
     const personal = (await this.prisma.discountCode.findFirst({
       where: { clientId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } as never,
       orderBy: { createdAt: 'desc' },
-      select: { code: true, expiresAt: true, maxTotalUses: true, usedCount: true },
-    })) as { code: string; expiresAt: Date | null; maxTotalUses: number | null; usedCount: number } | null;
+      select: { code: true, expiresAt: true, maxTotalUses: true, usedCount: true, planTargets: true } as never,
+    })) as { code: string; expiresAt: Date | null; maxTotalUses: number | null; usedCount: number; planTargets?: unknown } | null;
     const personalOk = personal && (personal.maxTotalUses == null || personal.usedCount < personal.maxTotalUses) ? personal : null;
 
     // Offerta: il piano da proporre ora (una tantum col prezzo promo se attiva, altrimenti il più rilevante).
@@ -196,6 +198,11 @@ export class PlanReportService {
         period: offerPlan.period,
         code: personalOk?.code ?? null,
         codeExpiresAt: personalOk?.expiresAt ? personalOk.expiresAt.toISOString() : null,
+        codePriceCents: (() => {
+          const targets = (personalOk?.planTargets ?? null) as Record<string, number> | null;
+          const t = targets?.[offerPlan.id];
+          return t != null && t < pr.effectivePriceCents ? t : null;
+        })(),
       };
     })() : null;
 

@@ -79,8 +79,18 @@ export class DiscountsService {
     return { removed: id };
   }
 
-  /** Valida un codice per un cliente e un importo; ritorna lo sconto calcolato. */
-  async validate(codeStr: string, clientId: string, amountCents: number): Promise<DiscountResult> {
+  /**
+   * Valida un codice per un cliente e un importo; ritorna lo sconto calcolato.
+   * `opts.planId`/`opts.planPriceCents`: piano nel carrello — servono ai codici con
+   * TARGET per piano (Opzione B): il codice porta il piano al prezzo target esatto
+   * (es. 3 mesi €299→€249, 1 mese €130→€99), sconto calcolato sul prezzo pieno.
+   */
+  async validate(
+    codeStr: string,
+    clientId: string,
+    amountCents: number,
+    opts?: { planId?: string | null; planPriceCents?: number | null },
+  ): Promise<DiscountResult> {
     const code = (codeStr ?? '').trim().toUpperCase();
     const dc = await this.prisma.discountCode.findUnique({ where: { code } });
     if (!dc || !dc.active) throw new BadRequestException('Buono sconto non valido.');
@@ -94,7 +104,18 @@ export class DiscountsService {
     if (usedByClient >= dc.maxPerClient) {
       throw new BadRequestException('Hai già usato questo buono il numero massimo di volte.');
     }
-    let discountCents = dc.type === 'percent' ? Math.round((amountCents * dc.value) / 100) : dc.value;
+    const targets = ((dc as { planTargets?: unknown }).planTargets ?? null) as Record<string, number> | null;
+    let discountCents: number;
+    if (targets && Object.keys(targets).length > 0) {
+      // Codice a TARGET: vale solo se nel carrello c'è uno dei piani previsti.
+      const planId = opts?.planId ?? null;
+      const target = planId ? targets[planId] : undefined;
+      if (planId == null || target == null) throw new BadRequestException('Questo codice vale solo sui percorsi in offerta.');
+      const planPrice = opts?.planPriceCents ?? amountCents;
+      discountCents = Math.max(0, planPrice - Math.max(0, Math.round(target)));
+    } else {
+      discountCents = dc.type === 'percent' ? Math.round((amountCents * dc.value) / 100) : dc.value;
+    }
     if (discountCents > amountCents) discountCents = amountCents; // mai sotto zero
     return { codeId: dc.id, code: dc.code, discountCents, finalCents: amountCents - discountCents };
   }
@@ -107,7 +128,7 @@ export class DiscountsService {
    */
   async ensurePersonalTrialCode(
     clientId: string,
-    opts: { type: 'percent' | 'fixed'; value: number; validHours: number },
+    opts: { type: 'percent' | 'fixed'; value: number; validHours: number; planTargets?: Record<string, number> | null },
   ): Promise<{ id: string; code: string; expiresAt: Date | null; created: boolean }> {
     const existing = (await this.prisma.discountCode.findFirst({
       where: { clientId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } as never,
@@ -130,15 +151,18 @@ export class DiscountsService {
       code = `${base}${i}-FOUND`;
     }
     const expiresAt = new Date(Date.now() + opts.validHours * 3_600_000);
+    const hasTargets = !!opts.planTargets && Object.keys(opts.planTargets).length > 0;
     const created = await this.prisma.discountCode.create({
       data: {
         code,
-        type: opts.type,
-        value: opts.value,
+        // Con i target per piano (Opzione B) type/value non contano: il prezzo finale è il target.
+        type: hasTargets ? 'fixed' : opts.type,
+        value: hasTargets ? 0 : opts.value,
         maxTotalUses: 1,
         maxPerClient: 1,
         expiresAt,
         clientId,
+        ...(hasTargets ? { planTargets: opts.planTargets } : {}),
       } as never,
     });
     await this.audit.log({ action: 'discount.personal_create', entityType: 'discount_code', entityId: created.id, metadata: { clientId, code, expiresAt } as Record<string, unknown> });
@@ -146,15 +170,15 @@ export class DiscountsService {
   }
 
   /** Ultimo codice personale ancora valido della cliente (per report/app). */
-  async activePersonalCode(clientId: string): Promise<{ code: string; expiresAt: Date | null; type: string; value: number } | null> {
+  async activePersonalCode(clientId: string): Promise<{ code: string; expiresAt: Date | null; type: string; value: number; planTargets: Record<string, number> | null } | null> {
     const dc = (await this.prisma.discountCode.findFirst({
       where: { clientId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } as never,
       orderBy: { createdAt: 'desc' },
-      select: { code: true, expiresAt: true, type: true, value: true, maxTotalUses: true, usedCount: true },
-    })) as { code: string; expiresAt: Date | null; type: string; value: number; maxTotalUses: number | null; usedCount: number } | null;
+      select: { code: true, expiresAt: true, type: true, value: true, maxTotalUses: true, usedCount: true, planTargets: true } as never,
+    })) as { code: string; expiresAt: Date | null; type: string; value: number; maxTotalUses: number | null; usedCount: number; planTargets?: unknown } | null;
     if (!dc) return null;
     if (dc.maxTotalUses != null && dc.usedCount >= dc.maxTotalUses) return null;
-    return { code: dc.code, expiresAt: dc.expiresAt, type: dc.type, value: dc.value };
+    return { code: dc.code, expiresAt: dc.expiresAt, type: dc.type, value: dc.value, planTargets: (dc.planTargets ?? null) as Record<string, number> | null };
   }
 
   /** Registra l'utilizzo del buono (all'esito positivo del pagamento). */

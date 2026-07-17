@@ -192,6 +192,13 @@ export class CoachTasksService {
             this.day(start, 4));
         }
       }
+      // G6 — il codice founding è partito (email automatica): la voce della coach vale di più.
+      if (t.status === 'active' && dayN >= 6) {
+        created += await this.ensureTask(t.clientId, 'trial_g6_code', t.id,
+          'Codice founding inviato: sentila (G6)',
+          'Oggi le è arrivato il codice personale valido 48h (1 mese €99 · 3 mesi €249): un tuo messaggio vale più dell\'email.',
+          this.day(start, 6));
+      }
       // G7 — chiusura: "domani finisce, ti va di continuare?".
       if (t.status === 'active' && dayN >= 7) {
         created += await this.ensureTask(t.clientId, 'trial_g7_closing', t.id,
