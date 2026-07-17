@@ -23,7 +23,7 @@ const label = (map: Record<string, string>, code: string | null | undefined): st
   return map[code] ?? code.charAt(0).toUpperCase() + code.slice(1).replace(/_/g, ' ');
 };
 
-interface MeasurePoint { date: string; weightKg: number; waistCm: number | null; hipsCm: number | null }
+export interface MeasurePoint { date: string; weightKg: number; waistCm: number | null; hipsCm: number | null }
 
 export interface PlanReportData {
   kind: 'trial' | 'plan';
