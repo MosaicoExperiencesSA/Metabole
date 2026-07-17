@@ -51,7 +51,10 @@ export interface PlanReportData {
     promoActive: boolean;
     promoEndsAt: string | null;
     period: string;
-    code: string | null; // codice sconto personale (arriverà col punto 5 dell'handoff)
+    code: string | null; // codice sconto personale (punto 5 dell'handoff)
+    codeExpiresAt: string | null;
+    // Opzione B: prezzo che il piano proposto assume COL codice (target esatto, es. €249).
+    codePriceCents: number | null;
   } | null;
 }
 
@@ -168,6 +171,14 @@ export class PlanReportService {
     if (cycles > 0) gaia.push('Ritmi: ciclo bigiornaliero con 2 cotture, per non annoiarti e non farti cucinare ogni giorno');
     if (gaia.length === 0) gaia.push('Gaia ha iniziato a conoscerti: più la usi, più i menu diventano tuoi');
 
+    // Codice sconto personale ancora valido (inviato al giorno 6): compare nel report.
+    const personal = (await this.prisma.discountCode.findFirst({
+      where: { clientId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } as never,
+      orderBy: { createdAt: 'desc' },
+      select: { code: true, expiresAt: true, maxTotalUses: true, usedCount: true, planTargets: true } as never,
+    })) as { code: string; expiresAt: Date | null; maxTotalUses: number | null; usedCount: number; planTargets?: unknown } | null;
+    const personalOk = personal && (personal.maxTotalUses == null || personal.usedCount < personal.maxTotalUses) ? personal : null;
+
     // Offerta: il piano da proporre ora (una tantum col prezzo promo se attiva, altrimenti il più rilevante).
     const plans = (await this.prisma.plan.findMany({
       where: { active: true, priceCents: { gt: 0 } },
@@ -185,7 +196,13 @@ export class PlanReportService {
         promoActive: pr.promoActive,
         promoEndsAt: offerPlan.promoEndsAt ? offerPlan.promoEndsAt.toISOString() : null,
         period: offerPlan.period,
-        code: null, // codice personale: punto 5 dell'handoff
+        code: personalOk?.code ?? null,
+        codeExpiresAt: personalOk?.expiresAt ? personalOk.expiresAt.toISOString() : null,
+        codePriceCents: (() => {
+          const targets = (personalOk?.planTargets ?? null) as Record<string, number> | null;
+          const t = targets?.[offerPlan.id];
+          return t != null && t < pr.effectivePriceCents ? t : null;
+        })(),
       };
     })() : null;
 

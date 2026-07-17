@@ -13,11 +13,13 @@ interface Discount {
   active: boolean;
   expiresAt: string | null;
   createdAt: string;
+  clientId?: string | null; // valorizzato = codice PERSONALE di una cliente (giorno 6 prova)
+  planTargets?: Record<string, number> | null; // Opzione B: prezzo target per piano
 }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
-const valueLabel = (d: Discount) => (d.type === 'percent' ? `${d.value}%` : euro(d.value));
+const valueLabel = (d: Discount) => (d.planTargets && Object.keys(d.planTargets).length ? Object.values(d.planTargets).map((c) => '→ ' + euro(c)).join(' · ') : d.type === 'percent' ? `${d.value}%` : euro(d.value));
 
 export function BuoniSconto() {
   const [rows, setRows] = useState<Discount[]>([]);
@@ -95,7 +97,7 @@ export function BuoniSconto() {
             <tbody>
               {pg.pageItems.map((d) => (
                 <tr key={d.id}>
-                  <td><b>{d.code}</b></td>
+                  <td><b>{d.code}</b>{d.clientId && <span className="chip amber" style={{ marginLeft: 6, fontSize: 10 }} title="Codice personale di una cliente (inviato al giorno 6 della prova)">personale</span>}</td>
                   <td>{valueLabel(d)}</td>
                   <td className="muted">{d.usedCount}{d.maxTotalUses != null ? ` / ${d.maxTotalUses}` : ' / ∞'}</td>
                   <td className="muted">{d.maxPerClient}</td>

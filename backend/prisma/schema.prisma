@@ -1411,6 +1411,13 @@ model DiscountCode {
   code         String    @unique // codice inserito dal cliente (maiuscolo)
   type         String // percent | fixed
   value        Int // percent (es. 10) oppure importo in centesimi
+  // Codice PERSONALE (handoff punto 3 "Codici sconto personali"): se valorizzato,
+  // solo questa cliente può usarlo (es. GIULIA-FOUND inviato al giorno 6 della prova).
+  clientId     String?   @map("client_id")
+  // Opzione B (decisione 17/07): target esatti PER PIANO — { planId: prezzoTargetCents }.
+  // Se valorizzato, il codice vale solo per quei piani e porta il piano al prezzo target
+  // (es. 3 mesi 29900→24900, 1 mese 13000→9900), sconto calcolato sul prezzo pieno.
+  planTargets  Json?     @map("plan_targets")
   maxTotalUses Int?      @map("max_total_uses") // null = illimitato
   maxPerClient Int       @default(1) @map("max_per_client")
   usedCount    Int       @default(0) @map("used_count")
@@ -1422,6 +1429,7 @@ model DiscountCode {
 
   redemptions DiscountRedemption[]
 
+  @@index([clientId])
   @@map("discount_code")
 }
 
@@ -1836,7 +1844,7 @@ model CoachTask {
   id          String    @id @default(uuid())
   clientId    String    @map("client_id")
   client      User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  kind        String // trial_g0_measures | trial_g1_welcome | trial_g4_adherence | trial_g7_closing | plan_end_report | trial_post7_lastcall
+  kind        String // trial_g0_measures | trial_g1_welcome | trial_g4_adherence | trial_g6_code | trial_g7_closing | plan_end_report | trial_post7_lastcall
   refId       String    @default("") @map("ref_id") // es. subscription.id (per l'unicità sui piani ripetuti)
   title       String
   description String?

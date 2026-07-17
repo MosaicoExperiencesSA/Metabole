@@ -79,20 +79,106 @@ export class DiscountsService {
     return { removed: id };
   }
 
-  /** Valida un codice per un cliente e un importo; ritorna lo sconto calcolato. */
-  async validate(codeStr: string, clientId: string, amountCents: number): Promise<DiscountResult> {
+  /**
+   * Valida un codice per un cliente e un importo; ritorna lo sconto calcolato.
+   * `opts.planId`/`opts.planPriceCents`: piano nel carrello — servono ai codici con
+   * TARGET per piano (Opzione B): il codice porta il piano al prezzo target esatto
+   * (es. 3 mesi €299→€249, 1 mese €130→€99), sconto calcolato sul prezzo pieno.
+   */
+  async validate(
+    codeStr: string,
+    clientId: string,
+    amountCents: number,
+    opts?: { planId?: string | null; planPriceCents?: number | null },
+  ): Promise<DiscountResult> {
     const code = (codeStr ?? '').trim().toUpperCase();
     const dc = await this.prisma.discountCode.findUnique({ where: { code } });
     if (!dc || !dc.active) throw new BadRequestException('Buono sconto non valido.');
+    // Codice personale: vale SOLO per la cliente a cui è stato assegnato (non si rivela l'esistenza).
+    if ((dc as { clientId?: string | null }).clientId && (dc as { clientId?: string | null }).clientId !== clientId) {
+      throw new BadRequestException('Buono sconto non valido.');
+    }
     if (dc.expiresAt && dc.expiresAt.getTime() < Date.now()) throw new BadRequestException('Buono sconto scaduto.');
     if (dc.maxTotalUses != null && dc.usedCount >= dc.maxTotalUses) throw new BadRequestException('Buono sconto esaurito.');
     const usedByClient = await this.prisma.discountRedemption.count({ where: { codeId: dc.id, clientId } });
     if (usedByClient >= dc.maxPerClient) {
       throw new BadRequestException('Hai già usato questo buono il numero massimo di volte.');
     }
-    let discountCents = dc.type === 'percent' ? Math.round((amountCents * dc.value) / 100) : dc.value;
+    const targets = ((dc as { planTargets?: unknown }).planTargets ?? null) as Record<string, number> | null;
+    let discountCents: number;
+    if (targets && Object.keys(targets).length > 0) {
+      // Codice a TARGET: vale solo se nel carrello c'è uno dei piani previsti.
+      const planId = opts?.planId ?? null;
+      const target = planId ? targets[planId] : undefined;
+      if (planId == null || target == null) throw new BadRequestException('Questo codice vale solo sui percorsi in offerta.');
+      const planPrice = opts?.planPriceCents ?? amountCents;
+      discountCents = Math.max(0, planPrice - Math.max(0, Math.round(target)));
+    } else {
+      discountCents = dc.type === 'percent' ? Math.round((amountCents * dc.value) / 100) : dc.value;
+    }
     if (discountCents > amountCents) discountCents = amountCents; // mai sotto zero
     return { codeId: dc.id, code: dc.code, discountCents, finalCents: amountCents - discountCents };
+  }
+
+  /**
+   * Codice sconto PERSONALE per la cliente (handoff lancio: es. GIULIA-FOUND,
+   * inviato al giorno 6 della prova con scadenza 48h). Idempotente: se la cliente
+   * ha già un codice personale attivo e non scaduto, ritorna quello (stessa
+   * scadenza in ogni invio: niente reset furbi del countdown).
+   */
+  async ensurePersonalTrialCode(
+    clientId: string,
+    opts: { type: 'percent' | 'fixed'; value: number; validHours: number; planTargets?: Record<string, number> | null },
+  ): Promise<{ id: string; code: string; expiresAt: Date | null; created: boolean }> {
+    const existing = (await this.prisma.discountCode.findFirst({
+      where: { clientId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } as never,
+      orderBy: { createdAt: 'desc' },
+    })) as { id: string; code: string; expiresAt: Date | null } | null;
+    if (existing) return { ...existing, created: false };
+
+    // Base del codice: nome della cliente (senza accenti/simboli), es. GIULIA-FOUND.
+    const u = (await this.prisma.user.findUnique({ where: { id: clientId }, select: { firstName: true } })) as { firstName: string | null } | null;
+    const base = (u?.firstName ?? 'CLIENTE')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '')
+      .slice(0, 12) || 'CLIENTE';
+    let code = `${base}-FOUND`;
+    for (let i = 2; i <= 99; i++) {
+      const taken = await this.prisma.discountCode.findUnique({ where: { code }, select: { id: true } });
+      if (!taken) break;
+      code = `${base}${i}-FOUND`;
+    }
+    const expiresAt = new Date(Date.now() + opts.validHours * 3_600_000);
+    const hasTargets = !!opts.planTargets && Object.keys(opts.planTargets).length > 0;
+    const created = await this.prisma.discountCode.create({
+      data: {
+        code,
+        // Con i target per piano (Opzione B) type/value non contano: il prezzo finale è il target.
+        type: hasTargets ? 'fixed' : opts.type,
+        value: hasTargets ? 0 : opts.value,
+        maxTotalUses: 1,
+        maxPerClient: 1,
+        expiresAt,
+        clientId,
+        ...(hasTargets ? { planTargets: opts.planTargets } : {}),
+      } as never,
+    });
+    await this.audit.log({ action: 'discount.personal_create', entityType: 'discount_code', entityId: created.id, metadata: { clientId, code, expiresAt } as Record<string, unknown> });
+    return { id: created.id, code, expiresAt, created: true };
+  }
+
+  /** Ultimo codice personale ancora valido della cliente (per report/app). */
+  async activePersonalCode(clientId: string): Promise<{ code: string; expiresAt: Date | null; type: string; value: number; planTargets: Record<string, number> | null } | null> {
+    const dc = (await this.prisma.discountCode.findFirst({
+      where: { clientId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } as never,
+      orderBy: { createdAt: 'desc' },
+      select: { code: true, expiresAt: true, type: true, value: true, maxTotalUses: true, usedCount: true, planTargets: true } as never,
+    })) as { code: string; expiresAt: Date | null; type: string; value: number; maxTotalUses: number | null; usedCount: number; planTargets?: unknown } | null;
+    if (!dc) return null;
+    if (dc.maxTotalUses != null && dc.usedCount >= dc.maxTotalUses) return null;
+    return { code: dc.code, expiresAt: dc.expiresAt, type: dc.type, value: dc.value, planTargets: (dc.planTargets ?? null) as Record<string, number> | null };
   }
 
   /** Registra l'utilizzo del buono (all'esito positivo del pagamento). */
