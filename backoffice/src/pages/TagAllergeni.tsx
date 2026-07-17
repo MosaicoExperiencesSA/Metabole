@@ -105,7 +105,7 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
             </thead>
             <tbody>
               {shown.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la revisione allergeni">
                   <td><b>{r.name}</b></td>
                   <td className="muted">{MEAL[r.mealSlot] ?? r.mealSlot}</td>
                   <td className="muted">{(r.allergens ?? []).map((a) => LABEL.get(a) ?? a).join(', ') || '—'}</td>
@@ -114,8 +114,8 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
-                      <button className="btn ghost sm" onClick={() => setEditing(r)}>{r.allergensReviewed ? 'Modifica' : 'Rivedi'}</button>
-                      <button className="btn ghost sm" title="Elimina ricetta" style={{ color: 'var(--danger)' }} onClick={() => del(r)}><i className="ti ti-trash" /></button>
+                      <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); setEditing(r); }}>{r.allergensReviewed ? 'Modifica' : 'Rivedi'}</button>
+                      <button className="btn ghost sm" title="Elimina ricetta" style={{ color: 'var(--danger)' }} onClick={(e) => { e.stopPropagation(); del(r); }}><i className="ti ti-trash" /></button>
                     </div>
                   </td>
                 </tr>

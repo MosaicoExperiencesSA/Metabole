@@ -95,7 +95,7 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
             </thead>
             <tbody>
               {rows.map((g) => (
-                <tr key={g.id}>
+                <tr key={g.id} onClick={() => setEditing(g)} style={{ cursor: 'pointer' }} title="Apri il gruppo">
                   <td><b>{g.name}</b>{g.members?.note && <div className="muted" style={{ fontSize: 12 }}>{g.members.note}</div>}</td>
                   <td className="muted" style={{ maxWidth: 460 }}>{itemsOf(g).join(', ')}</td>
                   <td className="muted">{g.productId ? 'Prodotto' : 'Globale'}</td>
@@ -103,9 +103,9 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
                     <span className={`chip ${g.status === 'approved' ? '' : 'gray'}`}>{g.status === 'approved' ? 'Approvato' : 'Bozza'}</span>
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn ghost sm" onClick={() => toggleApprove(g)}>{g.status === 'approved' ? 'Rimetti in bozza' : 'Approva'}</button>
-                    <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setEditing(g)}>Modifica</button>
-                    <button className="btn danger sm" style={{ marginLeft: 6 }} onClick={() => remove(g)}>Elimina</button>
+                    <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); toggleApprove(g); }}>{g.status === 'approved' ? 'Rimetti in bozza' : 'Approva'}</button>
+                    <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={(e) => { e.stopPropagation(); setEditing(g); }}>Modifica</button>
+                    <button className="btn danger sm" style={{ marginLeft: 6 }} onClick={(e) => { e.stopPropagation(); remove(g); }}>Elimina</button>
                   </td>
                 </tr>
               ))}
