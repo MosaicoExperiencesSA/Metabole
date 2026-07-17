@@ -35,18 +35,38 @@ un badge con la fase attuale (Dimagrimento / Mantenimento). Resta gestita dallo 
 lato cliente). NON ancora fatto (opzionale, se si vorrà): notifica al passaggio dimagrimento →
 mantenimento ("Hai raggiunto il tuo obiettivo").
 
-## Catalogo diete — servono i tagli a 3 pasti e digiuno intermittente — DA FARE (importante, DATI)
+## Catalogo diete — tagli a 3 pasti e digiuno intermittente — CODICE FATTO (17/07), restano i DATI
 DIAGNOSI (17/07): un cliente che sceglie 3 pasti resta SENZA MENU perché menu.service.pickDiet cerca
 una dieta approvata con mealsPerDay ESATTAMENTE uguale al profilo, ma il Catalogo diete ha solo
 diete a 5 pasti → pickDiet ritorna null → nessun menu.
 FATTO lato onboarding (17/07): le opzioni pasti ora sono **3 / 5 / digiuno intermittente** (tolti
 "4 pasti" e "Con integratori").
-DA FARE (lato NUTRIZIONISTA/dati): creare e approvare nel catalogo le diete a **3 pasti** e per il
-**digiuno intermittente** (almeno Onnivora, meglio tutti i regimi), altrimenti chi sceglie 3 pasti o
-digiuno resta comunque senza menu. Da chiarire: a quale mealsPerDay mappa il digiuno intermittente
-(oggi le diete "Digiuno intermittente (16:8)" a catalogo sono a 5 pasti).
-NOTA: nel backoffice la scheda cliente ha ancora il campo "Pasti" con opzione 4 → allinearlo a 3/5
-(codice del socio).
+FATTO lato codice (17/07, Cowork): terza dimensione **Pasti** (3/5/digiuno) nel wizard famiglie
+(`RulePreset.meals` + `Diet.fasting`, migrazione `20260717230000_meals_variant`); generazione con
+slot giusti (3 = colazione/pranzo/cena; digiuno 16:8 = pranzo/merenda/cena finestra 12-20);
+pickDiet (menu + personal-base) instrada `pathType=intermittent_fasting` → varianti fasting e 3/5
+sul numero pasti, con fallback per regime (nessuna cliente resta senza menu); "rigenerare = integra"
+(le varianti esistenti non si toccano, si aggiungono solo le mancanti); campo Pasti allineato a 3/5
+in scheda cliente e Nuova dieta (+ flag digiuno).
+DA FARE (lato NUTRIZIONISTA/dati): aprire le famiglie esistenti nel wizard, spuntare **3 pasti** e
+**Digiuno intermittente**, "Genera tutte le varianti" (aggiunge SOLO le mancanti), validare e
+pubblicare. Le vecchie diete "Digiuno intermittente (16:8)" a 5 pasti nel catalogo andranno
+sostituite/archiviate a mano.
+
+## Lead da backoffice — creare l'account con credenziali provvisorie — DA FARE (handoff socio 17/07)
+Riferimento: `Metabole_Handoff_Lead_Backoffice_Password.md`. Il socio ha GIÀ fatto app + backend del
+flusso password: al primo login il lead senza questionario parte dall'onboarding; a fine questionario,
+se `mustChangePassword=true`, l'app impone "Imposta la tua password" (`PATCH /me/password/initial`,
+schermata SetPassword) e azzera il flag. (Ha usato il campo ESISTENTE `mustChangePassword`, non serve
+il nuovo `mustResetPassword` dell'handoff.)
+DA FARE (lato BACKOFFICE/Cowork): pulsante/flusso "Crea account cliente" dal lead (scheda lead o CRM):
+- crea `User` con: email reale del lead, `passwordHash` argon2 di una password provvisoria CASUALE E
+  UNICA (min 8 char, mai fissa), `role=client`, `status=active`, `emailVerifiedAt=now()`,
+  `mustChangePassword=true`;
+- NESSUN ClientProfile / `onboardingCompletedAt` (è il marcatore che manda l'app al questionario);
+- collega il lead (`CrmRecord.clientId`) al nuovo utente;
+- invia l'email al lead con email + password provvisoria + riga "al primo accesso completerai un
+  breve questionario e poi imposterai la tua password personale".
 
 ## Checkout — indirizzo di spedizione condizionale — FATTO (17/07)
 Checkout ora carica /me/profile: se via/CAP/città/provincia sono già in scheda mostra l'indirizzo in

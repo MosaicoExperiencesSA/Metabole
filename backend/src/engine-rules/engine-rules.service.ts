@@ -358,7 +358,8 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
 
   // ---------- Creazione e validazione (wizard) ----------
 
-  private slotsForMeals(n: number): string[] {
+  private slotsForMeals(n: number, fasting = false): string[] {
+    if (fasting) return ['lunch', 'afternoon_snack', 'dinner']; // 16:8, finestra 12-20
     return n <= 3
       ? ['breakfast', 'lunch', 'dinner']
       : n === 4
@@ -380,10 +381,10 @@ Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
   /** Avanzamento automatico della validazione di una dieta bozza. */
   async dietReviewStatus(dietId: string) {
     const diet = (await this.prisma.diet.findUnique({ where: { id: dietId }, include: { dayTemplates: { select: { meals: true } } } })) as
-      | { id: string; name: string; status: string; mealsPerDay: number; dayTemplates: { meals: unknown }[] }
+      | { id: string; name: string; status: string; mealsPerDay: number; fasting?: boolean; dayTemplates: { meals: unknown }[] }
       | null;
     if (!diet) throw new NotFoundException('Dieta non trovata.');
-    const needed = this.slotsForMeals(diet.mealsPerDay);
+    const needed = this.slotsForMeals(diet.mealsPerDay, diet.fasting ?? false);
     const ids = new Set<string>();
     for (const t of diet.dayTemplates) {
       for (const m of (Array.isArray(t.meals) ? t.meals : []) as { slot?: string; recipeId?: string }[]) {

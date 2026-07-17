@@ -13,8 +13,13 @@ export class CreateDietDto {
   @IsString() @MaxLength(40)
   style!: string;
 
-  @IsIn([3, 4, 5])
+  @IsIn([3, 5])
   mealsPerDay!: number;
+
+  // Digiuno intermittente 16:8 (pasti nella finestra 12-20, niente colazione).
+  @IsOptional()
+  @IsBoolean()
+  fasting?: boolean;
 
   @IsOptional()
   @IsArray()
@@ -54,8 +59,13 @@ export class UpdateDietDto {
   style?: string;
 
   @IsOptional()
-  @IsIn([3, 4, 5])
+  @IsIn([3, 5])
   mealsPerDay?: number;
+
+  // Digiuno intermittente 16:8.
+  @IsOptional()
+  @IsBoolean()
+  fasting?: boolean;
 
   @IsOptional()
   @IsArray()

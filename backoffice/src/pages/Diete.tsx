@@ -5,7 +5,8 @@ import { Banner, Modal, Spinner } from '../components/ui';
 import { useTaxonomy } from '../lib/taxonomy';
 
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
-function slotsFor(mealsPerDay: number): string[] {
+function slotsFor(mealsPerDay: number, fasting = false): string[] {
+  if (fasting) return ['lunch', 'afternoon_snack', 'dinner']; // digiuno 16:8, finestra 12-20
   if (mealsPerDay <= 3) return ['breakfast', 'lunch', 'dinner'];
   if (mealsPerDay === 4) return ['breakfast', 'lunch', 'afternoon_snack', 'dinner'];
   return ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
@@ -13,7 +14,7 @@ function slotsFor(mealsPerDay: number): string[] {
 
 interface RecipeLite { id: string; name: string; mealSlot: string; active?: boolean }
 interface DietDetail {
-  id: string; regime: string; mealsPerDay: number; status: string;
+  id: string; regime: string; mealsPerDay: number; fasting?: boolean; status: string;
   dayTemplates: { level: number; dayIndex: number; meals: { slot: string; recipeId: string }[] }[];
 }
 
@@ -258,7 +259,7 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
 
 function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { regimes, styles } = useTaxonomy();
-  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false });
+  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, fasting: false, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -269,7 +270,7 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     try {
       const highlights = f.highlights.split('\n').map((h) => h.trim()).filter(Boolean).slice(0, 6);
       await api('/diets', { method: 'POST', body: JSON.stringify({
-        name: f.name.trim(), regime: f.regime, style: f.style, mealsPerDay: f.mealsPerDay,
+        name: f.name.trim(), regime: f.regime, style: f.style, mealsPerDay: f.mealsPerDay, fasting: f.fasting,
         clientName: f.clientName.trim() || undefined,
         clientDescription: f.clientDescription.trim() || undefined,
         highlights: highlights.length ? highlights : undefined,
@@ -294,7 +295,11 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         <label><span className="muted" style={{ fontSize: 12 }}>Stile</span>
           <input className="input" list="diet-styles-list" value={f.style} onChange={(e) => setF({ ...f, style: e.target.value })} placeholder="Scegli o digita uno stile" /><datalist id="diet-styles-list">{styles.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</datalist></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Pasti al giorno</span>
-          <select className="select" value={f.mealsPerDay} onChange={(e) => setF({ ...f, mealsPerDay: Number(e.target.value) })}>{[3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+          <select className="select" value={f.mealsPerDay} onChange={(e) => setF({ ...f, mealsPerDay: Number(e.target.value) })}>{[3, 5].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+        <label className="row" style={{ gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+          <input type="checkbox" checked={f.fasting} onChange={(e) => setF({ ...f, fasting: e.target.checked, mealsPerDay: e.target.checked ? 3 : f.mealsPerDay })} />
+          <span style={{ fontSize: 13 }}>Digiuno intermittente 16:8 <span className="muted" style={{ fontSize: 11 }}>(pasti nella finestra 12-20, niente colazione)</span></span>
+        </label>
 
         <div style={{ borderTop: '1px solid var(--line)', margin: '4px 0 0', paddingTop: 10 }}>
           <b style={{ fontSize: 13 }}>Scheda cliente (schermo 16)</b>
@@ -361,7 +366,7 @@ function DayEditorModal({ dietId, onClose, onSaved }: { dietId: string; onClose:
   if (err && !diet) return <Modal title="Componi giorni" onClose={onClose}><Banner kind="err">{err}</Banner></Modal>;
   if (!diet) return <Modal title="Componi giorni" onClose={onClose}><Spinner /></Modal>;
 
-  const slots = slotsFor(diet.mealsPerDay);
+  const slots = slotsFor(diet.mealsPerDay, diet.fasting ?? false);
   const bySlot = (slot: string) => recipes.filter((r) => r.mealSlot === slot);
 
   function setMeal(dayI: number, slot: string, recipeId: string) {

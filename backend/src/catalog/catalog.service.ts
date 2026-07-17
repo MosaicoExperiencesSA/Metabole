@@ -185,6 +185,7 @@ export class CatalogService {
         regime: dto.regime as never,
         style: dto.style as never,
         mealsPerDay: dto.mealsPerDay,
+        fasting: dto.fasting ?? false,
         levels: (dto.levels ?? [{ level: 1 }]) as never,
         options: (dto.options ?? {}) as never,
         authorId: staff.id,

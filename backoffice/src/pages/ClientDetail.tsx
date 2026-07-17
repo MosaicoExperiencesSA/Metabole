@@ -127,9 +127,9 @@ function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u
         {T('startWaistCm', 'Vita (cm)', 'number')}{T('startHipsCm', 'Fianchi (cm)', 'number')}
         {S('regime', 'Regime', regimes.map((r) => [r.code, r.label] as [string, string]))}
         {S('dietStyle', 'Stile', styles.map((st) => [st.code, st.label] as [string, string]))}
-        {S('mealsPerDay', 'Pasti', [['3', '3'], ['4', '4'], ['5', '5']])}
+        {S('mealsPerDay', 'Pasti', [['3', '3'], ['5', '5']])}
         {S('objective', 'Fase (obiettivo dieta)', [['dimagrimento', 'Dimagrimento'], ['mantenimento', 'Mantenimento']])}
-        {S('pathType', 'Percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['supplements', 'Con integratori'], ['intermittent_fasting', 'Digiuno interm.']])}
+        {S('pathType', 'Percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['intermittent_fasting', 'Digiuno interm.']])}
         {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
         {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
         {T('intolerances', 'Intolleranze (virgola)')}{T('dislikedFoods', 'Cibi non graditi (virgola)')}
