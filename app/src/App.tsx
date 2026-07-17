@@ -5,6 +5,7 @@ import { track } from './lib/track';
 import { initPush } from './lib/push';
 import { useAuth } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
+import StaffApp from './staff/StaffApp';
 import TabBar from './components/TabBar';
 import MeasuresGate from './components/MeasuresGate';
 import Landing from './pages/Landing';
@@ -73,7 +74,7 @@ function Shell() {
 
 /** Area autenticata: controlla se l'onboarding è stato completato. */
 function AuthedApp() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [status, setStatus] = useState<'loading' | 'todo' | 'done'>('loading');
   // Account provvisori (lead da backoffice): dopo il questionario si impone di
   // impostare una password personale. Vale anche per un utente con onboarding già
@@ -98,20 +99,9 @@ function AuthedApp() {
     };
   }, [isClient]);
 
+  // Staff (coach, nutrizionista, ecc.): app mobile dedicata smistata per ruolo.
   if (!isClient) {
-    return (
-      <div className="app-frame">
-        <div className="onb-body" style={{ textAlign: 'center', paddingTop: 40 }}>
-          <span className="big-badge" style={{ background: '#F3E8DC', color: '#B8863B', margin: '0 auto 14px' }}><i className="ti ti-briefcase" /></span>
-          <h1>Account staff</h1>
-          <p className="muted">
-            Questo è un account dello staff ({user?.role}). L'app è riservata alle clienti;
-            per la gestione usa il backoffice su backoffice.metabole.eu.
-          </p>
-          <button className="btn" style={{ marginTop: 8 }} onClick={() => logout()}>Esci</button>
-        </div>
-      </div>
-    );
+    return <StaffApp />;
   }
 
   return (
