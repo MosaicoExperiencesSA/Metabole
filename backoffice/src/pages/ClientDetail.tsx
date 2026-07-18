@@ -9,7 +9,7 @@ interface Detail {
   user: {
     id: string; email: string; status: string; locale: string; emailVerifiedAt: string | null; createdAt: string;
     firstName: string | null; lastName: string | null;
-    addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null;
+    addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null; codiceFiscale: string | null;
   };
   profile: any | null;
   objective: any | null;
@@ -145,7 +145,8 @@ function EditCard({ form, setForm, lockDietType }: { form: Record<string, string
       <h2 style={{ marginTop: 0 }}>Modifica scheda</h2>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {T('firstName', 'Nome')}{T('lastName', 'Cognome')}
-        {T('phone', 'Telefono')}{T('addressLine', 'Via e n. civico')}
+        {T('phone', 'Telefono')}{T('codiceFiscale', 'Codice fiscale')}
+        {T('addressLine', 'Via e n. civico')}
         {T('postalCode', 'CAP')}{T('city', 'Città')}
         {T('province', 'Provincia')}{T('name', 'Nome nel percorso')}
         {T('age', 'Età', 'number')}{S('sex', 'Sesso', [['female', 'Donna'], ['male', 'Uomo']])}
@@ -394,7 +395,7 @@ export function ClientDetail() {
     const pr = d.profile ?? {};
     setForm({
       firstName: u.firstName ?? '', lastName: u.lastName ?? '', phone: u.phone ?? '',
-      addressLine: u.addressLine ?? '', postalCode: u.postalCode ?? '', city: u.city ?? '', province: u.province ?? '',
+      addressLine: u.addressLine ?? '', postalCode: u.postalCode ?? '', city: u.city ?? '', province: u.province ?? '', codiceFiscale: u.codiceFiscale ?? '',
       name: pr.name ?? '', age: pr.age ?? '', sex: pr.sex ?? '', heightCm: pr.heightCm ?? '',
       startWeightKg: pr.startWeightKg ?? '', startWaistCm: pr.startWaistCm ?? '', startHipsCm: pr.startHipsCm ?? '',
       regime: pr.regime ?? '', dietStyle: pr.dietStyle ?? '', mealsPerDay: pr.mealsPerDay ? String(pr.mealsPerDay) : '',
@@ -414,7 +415,7 @@ export function ClientDetail() {
     const list = (v: string) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []);
     const dto: Record<string, unknown> = {
       firstName: f.firstName, lastName: f.lastName, phone: f.phone,
-      addressLine: f.addressLine, postalCode: f.postalCode, city: f.city, province: f.province,
+      addressLine: f.addressLine, postalCode: f.postalCode, city: f.city, province: f.province, codiceFiscale: f.codiceFiscale || undefined,
       name: f.name,
       sex: f.sex || undefined, regime: f.regime || undefined, dietStyle: f.dietStyle || undefined,
       objective: f.objective || undefined,
@@ -530,6 +531,7 @@ export function ClientDetail() {
             <p style={{ margin: '4px 0 0', opacity: 0.9 }}>{d.user.email}</p>
             {d.user.phone && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-phone" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {d.user.phone}</p>}
             {fullAddress && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-map-pin" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {fullAddress}</p>}
+            {d.user.codiceFiscale && <p style={{ margin: '2px 0 0', opacity: 0.9, fontSize: 13 }}><i className="ti ti-id" style={{ verticalAlign: '-2px', fontSize: 14 }} /> CF: {d.user.codiceFiscale}</p>}
             <div className="row" style={{ gap: 8, marginTop: 10 }}>
               <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
                 {d.user.status === 'active' ? 'Attivo' : 'Sospeso'}

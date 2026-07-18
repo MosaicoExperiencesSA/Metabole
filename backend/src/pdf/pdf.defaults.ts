@@ -29,23 +29,64 @@ const BASE_CSS = `
   .card .val { font-size: 17px; font-weight: 700; color: #10403a; }
 `;
 
-const RECEIPT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head>
-<body><div class="doc">
-  <img src="{{logo}}" alt="MetaboleAI" style="height:46px;display:block;margin-bottom:4px" />
-  <div class="sub">Ricevuta di pagamento</div>
-  <hr class="rule"/>
-  <table class="kv">
-    <tr><td class="k">Numero ricevuta</td><td>{{number}}</td></tr>
-    <tr><td class="k">Data</td><td>{{date}}</td></tr>
-    <tr><td class="k">Cliente</td><td>{{clientName}}</td></tr>
-    <tr><td class="k">Email</td><td>{{email}}</td></tr>
-    <tr><td class="k">Descrizione</td><td>{{description}}</td></tr>
-    <tr><td class="k">Metodo</td><td>{{method}}</td></tr>
-    <tr><td class="k">Stato</td><td>{{status}}</td></tr>
-  </table>
-  <hr class="rule"/>
-  <div class="total">Totale: {{total}}</div>
-  <div class="foot">Documento generato automaticamente da Metabole. Non costituisce fattura fiscale.</div>
+const RECEIPT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #122019; margin: 0; background: #f6faf7; }
+  .page { padding: 30px 32px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .head .right { text-align: right; color: #5b6b63; font-size: 10px; line-height: 1.6; }
+  .head .right b { color: #0d5a3e; font-size: 12px; }
+  .band { background: linear-gradient(135deg, #0d5a3e, #137a55); color: #fff; border-radius: 14px; padding: 14px 18px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
+  .band .k { font-size: 8px; letter-spacing: 1.2px; font-weight: 700; opacity: .85; text-transform: uppercase; }
+  .band .v { font-size: 15px; font-weight: 800; margin-top: 2px; letter-spacing: .3px; }
+  .panel { background: #fff; border: 1px solid #e4ebe6; border-radius: 14px; margin-top: 14px; overflow: hidden; }
+  .panel .hd { background: #eaf6f0; padding: 9px 16px; font-weight: 800; font-size: 11.5px; color: #0d5a3e; letter-spacing: .3px; }
+  table.kv { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.kv td { padding: 9px 16px; vertical-align: top; border-top: 1px solid #f0f5f1; }
+  table.kv tr:first-child td { border-top: 0; }
+  table.kv td.k { color: #5b6b63; font-weight: 700; width: 34%; }
+  .total { margin-top: 16px; background: #fff; border: 2px solid #137a55; border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: baseline; }
+  .total .lab { color: #0d5a3e; font-weight: 800; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; }
+  .total .val { color: #0d5a3e; font-weight: 800; font-size: 24px; letter-spacing: -.5px; }
+  .paid { display: inline-block; margin-left: 10px; font-size: 9px; font-weight: 800; color: #0d5a3e; background: #d9efe4; padding: 3px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: .5px; }
+  .foot { color: #93a29a; font-size: 8.5px; line-height: 1.6; margin-top: 26px; border-top: 1px solid #e4ebe6; padding-top: 9px; text-align: center; }
+</style></head>
+<body><div class="page">
+  <div class="head">
+    <div><img src="{{logo}}" alt="MetaboleAI" style="height:52px;display:block" /></div>
+    <div class="right">Ricevuta di pagamento<br/><b>{{number}}</b><br/>{{date}}</div>
+  </div>
+
+  <div class="band">
+    <div><div class="k">Documento</div><div class="v">Ricevuta {{number}}</div></div>
+    <div style="text-align:right"><div class="k">Data</div><div class="v">{{date}}</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="hd">Intestatario</div>
+    <table class="kv">
+      <tr><td class="k">Cliente</td><td>{{clientName}}</td></tr>
+      <tr><td class="k">Email</td><td>{{email}}</td></tr>
+      {{addressRow}}
+      {{taxCodeRow}}
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="hd">Dettaglio</div>
+    <table class="kv">
+      <tr><td class="k">Descrizione</td><td>{{description}}</td></tr>
+      <tr><td class="k">Metodo di pagamento</td><td>{{method}}</td></tr>
+      <tr><td class="k">Stato</td><td><span class="paid">{{status}}</span></td></tr>
+    </table>
+  </div>
+
+  <div class="total">
+    <span class="lab">Totale</span>
+    <span class="val">{{total}}</span>
+  </div>
+
+  <div class="foot">MetaboleAI · Documento generato automaticamente. Non costituisce fattura fiscale: per la fattura scrivi ad amministrazione.<br/>Ricevuta {{number}} · emessa il {{date}} · intestata a {{clientName}}</div>
 </div></body></html>`;
 
 // Allineato al modello del socio "Diario del Percorso" (marketing/report_cliente/
@@ -116,7 +157,7 @@ const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><s
 </div></body></html>`;
 
 export const DEFAULT_PDF_TEMPLATES: PdfTemplateDefault[] = [
-  { key: 'receipt', name: 'Ricevuta di pagamento', html: RECEIPT_HTML, placeholders: ['logo', 'number', 'date', 'clientName', 'email', 'description', 'method', 'status', 'total'] },
+  { key: 'receipt', name: 'Ricevuta di pagamento', html: RECEIPT_HTML, placeholders: ['logo', 'number', 'date', 'clientName', 'email', 'address', 'taxCode', 'addressRow', 'taxCodeRow', 'description', 'method', 'status', 'total'] },
   { key: 'monthly_report', name: 'Report mensile', html: MONTHLY_REPORT_HTML, placeholders: ['logo', 'name', 'period', 'lostThisMonth', 'lostTotal', 'currentWeight', 'target', 'checkins', 'measurements', 'trend', 'waterAvg', 'waterGoal', 'waterBars', 'stepsAvg', 'stepsGoal', 'stepsBars'] },
 ];
 
@@ -135,6 +176,9 @@ function sampleBars(values: number[], goal: number, color: string): string {
 export const PDF_PREVIEW_SAMPLE: Record<string, Record<string, string>> = {
   receipt: {
     number: 'RIC-2026-ABCD1234', date: '11/07/2026', clientName: 'Mario Rossi', email: 'mario@example.com',
+    address: 'Via Roma 1, 20100 Milano (MI)', taxCode: 'RSSMRA80A01F205X',
+    addressRow: '<tr><td class="k">Indirizzo</td><td>Via Roma 1, 20100 Milano (MI)</td></tr>',
+    taxCodeRow: '<tr><td class="k">Codice fiscale</td><td>RSSMRA80A01F205X</td></tr>',
     description: 'Abbonamento Percorso Metabole 12 mesi', method: 'Carta', status: 'Pagato', total: '€ 797,00',
   },
   monthly_report: {

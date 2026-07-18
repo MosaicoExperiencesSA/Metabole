@@ -10,7 +10,7 @@ import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
 import { Role } from '../common/roles';
 import { UpdateClientDto } from './dto/update-client.dto';
 
-const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const;
+const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
 const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'intolerances', 'dislikedFoods', 'themeColor'] as const;
 
 /**
@@ -83,7 +83,7 @@ export class ClientsService {
       where: { id: userId, deletedAt: null },
       select: {
         id: true, email: true, role: true, status: true, locale: true, emailVerifiedAt: true, createdAt: true,
-        firstName: true, lastName: true, addressLine: true, postalCode: true, city: true, province: true, phone: true,
+        firstName: true, lastName: true, addressLine: true, postalCode: true, city: true, province: true, phone: true, codiceFiscale: true,
       },
     });
     if (!user) throw new NotFoundException('Utente non trovato.');
