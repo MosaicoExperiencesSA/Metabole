@@ -34,12 +34,13 @@ Backoffice
   dalla matrice.
 - Il questionario del CLIENTE lato app non è toccato: qui si parla solo della scheda staff.
 
-## Aggiunta — fix: tendine Regime/Stile vuote per la coordinatrice
-Con "Cambia tipo di dieta" abilitato a un ruolo non-nutrizionista (es. Coordinatrice coach),
-le tendine mostravano solo "—": le voci arrivano da `GET /catalog/taxonomy`, che era riservato
-a nutrizionisti e admin (403 → lista vuota). Fix doppio:
-- **catalog.controller**: `taxonomy` (sole etichette, nessun dato sensibile) ora leggibile da
-  tutto lo staff;
-- **taxonomy.ts (backoffice)**: fallback con gli stili standard (Mediterranea, Proteica,
-  Low carb, Flessibile, Keto, DASH) se l'API fallisse o il catalogo fosse vuoto — le tendine
-  restano sempre usabili.
+## Aggiunta — data inizio piano in "Acquisti" (permesso "Cambia data inizio piano")
+- **Nuovo permesso `change_plan_start`** nella matrice (default: solo admin; Simone lo abilita
+  ai ruoli che vuole).
+- **Scheda cliente → Acquisti**: sotto l'intestazione compare "Inizio piano: gg/mm/aaaa · fine
+  gg/mm/aaaa"; chi ha il permesso vede la matita e può spostare l'inizio (accetta AAAA-MM-GG o
+  GG/MM/AAAA, max ±1 anno).
+- **Backend `PATCH /admin/clients/:id/plan-start`** (@RequirePage change_plan_start): sposta
+  l'inizio dell'abbonamento mostrato in scheda (attivo > in attesa > più recente), **ricalcola
+  la fine** dalla durata del piano e **allinea la base dei menu** (profile.planStartDate), in
+  transazione. Audit `client.plan_start.change` con prima/dopo.

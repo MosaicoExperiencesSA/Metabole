@@ -229,6 +229,28 @@ export function ClientDetail() {
 
   // Correzione misure inserite male dal cliente (permesso dedicato "Correggi misure cliente")
   const canFixMeasures = can('fix_measures', 'manage');
+  // Cambio data inizio piano (permesso dedicato "Cambia data inizio piano")
+  const canChangePlanStart = can('change_plan_start', 'manage');
+
+  /** Sposta la data di inizio del piano: la fine si ricalcola e i menu ripartono da lì. */
+  async function changePlanStart() {
+    const cur = d?.subscription?.startDate ? String(d.subscription.startDate).slice(0, 10) : '';
+    const input = prompt('Nuova data di INIZIO del piano (AAAA-MM-GG).\nLa data di fine viene ricalcolata dalla durata del piano e i menu ripartono dalla nuova data.', cur);
+    if (input === null) return;
+    const val = input.trim();
+    // Accetta anche GG/MM/AAAA e lo converte.
+    const m = val.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const iso = m ? `${m[3]}-${m[2]}-${m[1]}` : val;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { setError('Data non valida: usa AAAA-MM-GG (o GG/MM/AAAA).'); return; }
+    setError(null); setNotice(null);
+    try {
+      const r = await api<{ startDate: string; endDate: string }>(`/admin/clients/${id}/plan-start`, { method: 'PATCH', body: JSON.stringify({ date: iso }) });
+      setNotice(`Inizio piano spostato al ${date(r.startDate)} (fine ricalcolata: ${date(r.endDate)}).`);
+      void loadDetail();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Cambio data non riuscito.');
+    }
+  }
   const [fixing, setFixing] = useState<Detail['measurements'][number] | null>(null);
 
   // Team: liste coach/nutrizionisti per l'assegnazione (solo admin)
@@ -898,6 +920,18 @@ export function ClientDetail() {
             </button>
           )}
         </div>
+        {/* Data di inizio piano: visibile a tutti, modificabile col permesso dedicato. */}
+        {d.subscription?.startDate && (
+          <div className="muted" style={{ padding: '0 20px 8px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+            Inizio piano: <b style={{ color: 'var(--ink, #1F2933)' }}>{date(d.subscription.startDate)}</b>
+            {d.subscription.endDate && <> · fine {date(d.subscription.endDate)}</>}
+            {canChangePlanStart && (
+              <button className="btn ghost sm" onClick={() => void changePlanStart()} title="Cambia la data di inizio (la fine si ricalcola e i menu ripartono da lì)">
+                <i className="ti ti-pencil" />
+              </button>
+            )}
+          </div>
+        )}
         {d.payments.length === 0 ? (
           <div className="empty">Nessun pagamento.</div>
         ) : (

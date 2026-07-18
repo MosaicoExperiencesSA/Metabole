@@ -5,6 +5,7 @@ import { AuthService } from '../auth/auth.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
+import { subscriptionEnd } from '../commerce/commerce.service';
 import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
 import { Role } from '../common/roles';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -461,6 +462,62 @@ export class ClientsService {
       },
     });
     return updated;
+  }
+
+  /**
+   * Cambio della DATA DI INIZIO del piano (permesso dedicato "change_plan_start"):
+   * sposta l'inizio dell'abbonamento mostrato in scheda (attivo > in attesa > più
+   * recente), ricalcola la FINE dalla durata del piano e allinea la base dei menu
+   * (profile.planStartDate). Tutto in audit con prima/dopo.
+   */
+  async updatePlanStart(userId: string, actorId: string, dateIso: string) {
+    await this.assertClientAccess(actorId, userId);
+    const d = new Date(String(dateIso).slice(0, 10) + 'T00:00:00.000Z');
+    if (Number.isNaN(d.getTime())) throw new BadRequestException('Data non valida (formato AAAA-MM-GG).');
+    const now = Date.now();
+    if (Math.abs(d.getTime() - now) > 366 * 86_400_000) throw new BadRequestException('Data fuori intervallo (max un anno da oggi).');
+
+    const subs = (await this.prisma.subscription.findMany({
+      where: { clientId: userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { name: true, period: true } } },
+    })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string; period: string } }[];
+    const sub = subs.find((x) => x.status === 'active') ?? subs.find((x) => x.status === 'pending') ?? subs[0] ?? null;
+    if (!sub) throw new NotFoundException('Nessun abbonamento su cui spostare la data.');
+
+    const newEnd = subscriptionEnd(d, sub.plan.period);
+    const prevProfile = (await this.prisma.clientProfile.findUnique({
+      where: { userId },
+      select: { planStartDate: true },
+    })) as { planStartDate: Date | null } | null;
+
+    await this.prisma.$transaction([
+      this.prisma.subscription.update({ where: { id: sub.id }, data: { startDate: d, endDate: newEnd } }),
+      this.prisma.clientProfile.upsert({
+        where: { userId },
+        update: { planStartDate: d } as never,
+        create: { userId, planStartDate: d } as never,
+      }),
+    ] as never);
+
+    await this.audit.log({
+      action: 'client.plan_start.change',
+      actorId,
+      entityType: 'subscription',
+      entityId: sub.id,
+      metadata: {
+        clientId: userId,
+        plan: sub.plan.name,
+        before: {
+          startDate: sub.startDate?.toISOString().slice(0, 10) ?? null,
+          endDate: sub.endDate?.toISOString().slice(0, 10) ?? null,
+          planStartDate: prevProfile?.planStartDate?.toISOString().slice(0, 10) ?? null,
+        },
+        after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10) },
+      },
+    });
+    return { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10) };
   }
 
   /** Modalità viaggio/estate (staff): imposta lo stato e le date; al rientro emette un evento per il CRM/marketing. */
