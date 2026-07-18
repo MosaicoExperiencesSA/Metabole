@@ -165,9 +165,11 @@
   .sbox{ border-radius:13px; padding:9px 13px; }
   .sbox.rinnovo{ border:2px solid var(--green); background:#f2faf6; }
   .sbox.mant{ border:1.5px solid var(--coral); background:#fff7f5; }
+  .sbox.monit{ border:1.5px solid var(--gold); background:#fbf6ea; }
   .sb-tag{ font-size:8px; text-transform:uppercase; letter-spacing:.6px; font-weight:800; }
   .sbox.rinnovo .sb-tag{ color:var(--green-d); }
   .sbox.mant .sb-tag{ color:var(--coral-d); }
+  .sbox.monit .sb-tag{ color:var(--gold); }
   .sb-h{ font-size:12.5px; font-weight:800; color:var(--ink); margin-top:2px; }
   .sb-price{ font-size:9.5px; color:var(--muted); margin-top:1px; }
   .sb-price b{ color:var(--ink); font-size:11.5px; }
@@ -296,8 +298,8 @@
   </div>
 
   <div class="card">
-    <h2>A che punto sei</h2>
-    <div class="lead">La parte piena è il percorso fatto finora. La tratteggiata è la stima al ritmo attuale: a questo passo l'obiettivo è a portata di mano.</div>
+    <h2>I tuoi passi verso l'obiettivo</h2>
+    <div class="lead">Ogni tappa del percorso, con il peso raggiunto — dai primi 8 giorni gratuiti fino a oggi. La tratteggiata è la stima al ritmo attuale.</div>
     <div class="chart-wrap">
       <svg viewBox="0 0 720 235" width="100%" preserveAspectRatio="xMidYMid meet">
         <g stroke="#eef3f0" stroke-width="1">
@@ -313,25 +315,35 @@
           <text x="46" y="184">68</text>
         </g>
         <line x1="52" y1="210" x2="700" y2="210" stroke="#cdd9d2" stroke-width="1.5"/>
-        <g fill="#93a29a" font-size="10" font-family="Arial" text-anchor="middle">
-          <text x="72" y="226">inizio</text>
-          <text x="250" y="226">1 mese fa</text>
-          <text x="430" y="226">oggi</text>
-          <text x="645" y="226">obiettivo</text>
+        <g fill="#93a29a" font-size="9.5" font-family="Arial" text-anchor="middle">
+          <text x="64" y="226">inizio</text>
+          <text x="170" y="226">8 giorni</text>
+          <text x="310" y="226">1 mese</text>
+          <text x="450" y="226">2 mesi</text>
+          <text x="575" y="226">3 mesi</text>
+          <text x="680" y="226">obiettivo</text>
         </g>
         <line x1="52" y1="180" x2="700" y2="180" stroke="#ef6b53" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.7"/>
-        <path d="M72,36 L250,69 L430,109" fill="none" stroke="#137a55" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M430,109 C 510,132 580,162 645,180" fill="none" stroke="#2fb27a" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
-        <circle cx="72" cy="36" r="4.5" fill="#0d5a3e"/>
-        <text x="80" y="28" fill="#0d5a3e" font-size="10.5" font-family="Arial" font-weight="bold" text-anchor="start">79,5</text>
-        <circle cx="430" cy="109" r="5.5" fill="#137a55" stroke="#fff" stroke-width="2"/>
-        <text x="430" y="100" fill="#137a55" font-size="11" font-family="Arial" font-weight="bold" text-anchor="middle">73,7 kg · oggi</text>
-        <circle cx="645" cy="180" r="6" fill="#ef6b53" stroke="#fff" stroke-width="2"/>
-        <text x="645" y="170" fill="#d9482f" font-size="11" font-family="Arial" font-weight="bold" text-anchor="middle">68,0 kg</text>
+        <path d="M64,36 L170,52 L310,68 L450,90 L575,109" fill="none" stroke="#137a55" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M575,109 C 615,128 655,160 680,180" fill="none" stroke="#2fb27a" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+        <g font-family="Arial" text-anchor="middle">
+          <circle cx="64" cy="36" r="4" fill="#0d5a3e"/>
+          <text x="64" y="27" font-size="9.5" font-weight="bold" fill="#0d5a3e">79,5</text>
+          <circle cx="170" cy="52" r="4.5" fill="#137a55"/>
+          <text x="170" y="43" font-size="9.5" font-weight="bold" fill="#137a55">78,2</text>
+          <circle cx="310" cy="68" r="4.5" fill="#137a55"/>
+          <text x="310" y="59" font-size="9.5" font-weight="bold" fill="#137a55">77,0</text>
+          <circle cx="450" cy="90" r="4.5" fill="#137a55"/>
+          <text x="450" y="81" font-size="9.5" font-weight="bold" fill="#137a55">75,2</text>
+          <circle cx="575" cy="109" r="5.5" fill="#137a55" stroke="#fff" stroke-width="2"/>
+          <text x="575" y="100" font-size="10.5" font-weight="bold" fill="#137a55">73,7 · oggi</text>
+          <circle cx="680" cy="180" r="6" fill="#ef6b53" stroke="#fff" stroke-width="2"/>
+          <text x="680" y="171" font-size="10.5" font-weight="bold" fill="#d9482f">68,0</text>
+        </g>
       </svg>
     </div>
     <div class="legend">
-      <span class="solid"><i></i>Percorso fatto finora</span>
+      <span class="solid"><i></i>Peso a ogni tappa</span>
       <span class="dash"><i></i>Stima al ritmo attuale</span>
       <span class="goal"><i></i>Il tuo obiettivo</span>
     </div>
@@ -382,15 +394,17 @@
       <div class="sbox rinnovo">
         <div class="sb-tag">Consigliato · ti mancano 5,7 kg</div>
         <div class="sb-h">Rinnova il percorso</div>
-        <div class="sb-price">3 mesi <b>€349</b> · mensile <b>€130</b></div>
-        <div class="sb-d">Gaia riparte dal punto in cui sei e ti porta a 68 kg.</div>
-        <a class="sb-cta">Rinnova con Martina →</a>
+        <div class="sb-d">Arriva a 68 kg. 3 mesi <b>€349</b> · mensile <b>€130</b>. Gaia riparte dal punto in cui sei.</div>
       </div>
       <div class="sbox mant">
-        <div class="sb-tag">Oppure · una pausa</div>
+        <div class="sb-tag">Una pausa</div>
         <div class="sb-h">Mantenimento · €29/mese</div>
         <div class="sb-d">Riposati dalla dieta: tieni il peso e rientri quando vuoi.</div>
-        <a class="sb-cta">Passa al mantenimento →</a>
+      </div>
+      <div class="sbox monit">
+        <div class="sb-tag">Gratis · 1 mese</div>
+        <div class="sb-h">Monitoraggio</div>
+        <div class="sb-d">Per un mese Gaia resta in allerta e ti chiede le misure. Se riprendi peso, i tuoi <b>8 menu di rientro sono €29</b>. Il tuo storico resta salvato per quando torni.</div>
       </div>
     </div>
   </div>
