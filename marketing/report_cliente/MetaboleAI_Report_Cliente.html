@@ -64,6 +64,27 @@
   .stat .l{ font-size:9px; color:var(--muted); margin-top:3px; line-height:1.3; }
   .stat .delta{ display:inline-block; margin-top:5px; font-size:8.5px; font-weight:700; color:var(--green-d); background:#d9efe4; padding:2px 7px; border-radius:20px; }
 
+  /* movimento & idratazione */
+  .habits{ display:flex; gap:9px; margin-top:9px; }
+  .habit{ flex:1; display:flex; gap:11px; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:11px 12px; }
+  .habit .hi{ flex:none; width:34px; height:34px; border-radius:10px; background:var(--mint); display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .habit .hv{ font-size:18px; font-weight:800; letter-spacing:-.3px; color:var(--green-d); }
+  .habit .hv small{ font-size:9.5px; font-weight:700; color:var(--muted); }
+  .habit .hl{ font-size:8.5px; color:var(--muted); margin-top:1px; }
+  .habit .hc{ font-size:9px; line-height:1.4; margin-top:6px; color:var(--ink); border-top:1px dashed var(--line); padding-top:5px; }
+  .habit .hc b{ color:var(--green-d); }
+
+  /* Gaia consiglia */
+  .advise{ margin-top:14px; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .advise .hd{ background:var(--mint); padding:10px 16px; display:flex; align-items:center; gap:9px; }
+  .advise .hd .dot{ width:20px; height:20px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .advise .hd b{ font-size:13px; color:var(--green-d); }
+  .advise .ai{ display:flex; gap:11px; padding:9px 16px; border-top:1px solid var(--line); align-items:flex-start; }
+  .advise .ai:first-of-type{ border-top:0; }
+  .advise .aic{ flex:none; width:28px; height:28px; border-radius:8px; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .advise .aix{ font-size:10px; line-height:1.5; color:var(--ink); padding-top:2px; }
+  .advise .aix b{ color:var(--green-d); }
+
   .foot{ position:absolute; left:14mm; right:14mm; bottom:8mm; font-size:8px; color:#93a29a; border-top:1px solid var(--line); padding-top:6px; line-height:1.4; }
 
   /* PAGE 2 */
@@ -176,15 +197,26 @@
       <div class="l">Fianchi<br>102 → 99 cm</div>
       <div class="delta">▼ misure</div>
     </div>
-    <div class="stat">
-      <div class="v">92<small>%</small></div>
-      <div class="l">Aderenza ai menu<br>8/8 giorni completati</div>
-      <div class="delta">22/24 pasti</div>
+  </div>
+
+  <div class="advise">
+    <div class="hd"><span class="dot">G</span><b>Gaia consiglia</b></div>
+    <div class="ai">
+      <div class="aic">🍽️</div>
+      <div class="aix"><b>Aderenza ai menu: 92% — bravissima.</b> È proprio la costanza che porta al risultato: continua così, sei sulla strada giusta.</div>
+    </div>
+    <div class="ai">
+      <div class="aic">💧</div>
+      <div class="aix"><b>Acqua — la tua media è 1,6 litri al giorno.</b> Sul tuo peso l'obiettivo è circa <b>2,3 litri al giorno</b>: tieni una bottiglia a portata di mano e bevi anche lontano dai pasti.</div>
+    </div>
+    <div class="ai">
+      <div class="aic">👟</div>
+      <div class="aix"><b>Passi — la tua media è 5.400 al giorno.</b> Per i tuoi 40 anni e 76,9 kg, punta ad <b>almeno 8.000 passi al giorno</b>: bastano ~20 minuti di camminata in più per accelerare il risultato.</div>
     </div>
   </div>
 
   <div class="foot">
-    MetaboleAI · Report generato il 16/07/2026 per Giulia M. — Il calo della prima settimana può includere una quota di liquidi ed è fisiologicamente normale. I risultati variano da persona a persona. Questo documento non sostituisce un parere medico: per patologie è disponibile la visita con il nutrizionista in app.
+    MetaboleAI · Report generato il 16/07/2026 per Giulia M. — Il calo della prima settimana può includere una quota di liquidi ed è fisiologicamente normale. Gli obiettivi di passi e acqua sono indicativi e personalizzati su età e peso; per patologie è disponibile la visita con il nutrizionista in app. Questo documento non sostituisce un parere medico.
   </div>
 </div>
 
@@ -293,7 +325,7 @@
     <div class="renew">
       <div class="badge">Codice personale · in scadenza</div>
       <h3>Percorso 3 mesi</h3>
-      <div class="price"><span class="now">€249</span><span class="was">€299</span><span class="per">una tantum, col tuo codice</span></div>
+      <div class="price"><span class="now">€269</span><span class="was">€349</span><span class="per">una tantum, col tuo codice</span></div>
       <ul>
         <li>Coach dal vivo + Gaia AI per 90 giorni</li>
         <li>Riparti dal tuo profilo, non da zero</li>
@@ -303,13 +335,13 @@
       <div class="code">
         <div class="lb">Il codice che ti ha dato Martina</div>
         <div class="cd">GIULIA-FOUND</div>
-        <div class="exp">scade il 18/07/2026 · poi il prezzo torna a €299</div>
+        <div class="exp">scade il 18/07/2026 · poi il prezzo torna a €349</div>
       </div>
     </div>
   </div>
 
   <div class="foot">
-    Il prezzo pieno del Percorso 3 mesi è €299. Il tuo codice personale lo porta a €249 fino alla scadenza indicata. Preferisci la formula flessibile? Il piano mensile è €130 (€99 con il codice). Attiva in app o chiedi a Martina di farlo per te.
+    Il prezzo pieno del Percorso 3 mesi è €349. Il tuo codice personale lo porta a €269 fino alla scadenza indicata. Preferisci la formula flessibile? Il piano mensile è €130 (€99 con il codice). Attiva in app o chiedi a Martina di farlo per te.
   </div>
 </div>
 
