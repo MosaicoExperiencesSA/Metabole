@@ -69,6 +69,7 @@ export const PAGE_LABEL: Record<string, string> = {
   charts: 'Grafici',
   withdrawals: 'Richieste prelievo',
   fix_measures: 'Correggi misure cliente',
+  change_diet_type: 'Cambia tipo di dieta',
 };
 
 export function pageLabel(key: string): string {

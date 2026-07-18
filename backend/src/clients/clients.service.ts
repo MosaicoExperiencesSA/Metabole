@@ -5,6 +5,8 @@ import { AuthService } from '../auth/auth.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
+import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
+import { Role } from '../common/roles';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const;
@@ -253,6 +255,20 @@ export class ClientsService {
     return { deleted: true };
   }
 
+  /**
+   * Vero se il ruolo può GESTIRE la pagina/permesso indicato: stessa logica del
+   * PageGuard (riga della matrice se esiste, altrimenti default; admin sempre sì).
+   */
+  private async roleCanManage(role: string, pageKey: string): Promise<boolean> {
+    if (role === 'admin') return true;
+    const row = (await this.prisma.rolePagePermission
+      .findUnique({ where: { role_pageKey: { role, pageKey } }, select: { canManage: true } })
+      .catch(() => null)) as { canManage: boolean } | null;
+    if (row) return row.canManage;
+    const def = DEFAULT_PERMISSIONS[role as Role]?.[pageKey as PageKey];
+    return !!def?.manage;
+  }
+
   /** Aggiorna anagrafica (User) e questionario (ClientProfile) di un cliente. */
   async updateClient(userId: string, actorId: string, dto: UpdateClientDto) {
     await this.assertClientAccess(actorId, userId);
@@ -265,6 +281,31 @@ export class ClientsService {
     for (const k of USER_FIELDS) if (d[k] !== undefined) userData[k] = d[k] === '' ? null : d[k];
     const profileData: Record<string, unknown> = {};
     for (const k of PROFILE_FIELDS) if (d[k] !== undefined) profileData[k] = d[k] === '' ? null : d[k];
+
+    // TIPO DI DIETA (regime + stile): cambiarlo richiede il permesso dedicato
+    // "change_diet_type" (default: nutrizionisti e admin). Il resto della scheda
+    // resta modificabile da chi ha accesso, come prima.
+    const DIET_TYPE_FIELDS = ['regime', 'dietStyle'] as const;
+    let dietTypeChange: { before: Record<string, unknown>; after: Record<string, unknown> } | null = null;
+    if (DIET_TYPE_FIELDS.some((k) => profileData[k] !== undefined)) {
+      const current = (await this.prisma.clientProfile.findUnique({
+        where: { userId },
+        select: { regime: true, dietStyle: true },
+      })) as { regime: string | null; dietStyle: string | null } | null;
+      const changedKeys = DIET_TYPE_FIELDS.filter(
+        (k) => profileData[k] !== undefined && (profileData[k] ?? null) !== (current?.[k] ?? null),
+      );
+      if (changedKeys.length > 0) {
+        const actor = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
+        if (!(await this.roleCanManage(actor?.role ?? '', 'change_diet_type'))) {
+          throw new ForbiddenException('Cambiare il tipo di dieta richiede il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).');
+        }
+        dietTypeChange = {
+          before: { regime: current?.regime ?? null, dietStyle: current?.dietStyle ?? null },
+          after: { regime: profileData.regime ?? current?.regime ?? null, dietStyle: profileData.dietStyle ?? current?.dietStyle ?? null },
+        };
+      }
+    }
 
     // Fase precedente: serve per accorgersi del passaggio dimagrimento → mantenimento.
     const prevObjective = profileData.objective !== undefined
@@ -284,6 +325,16 @@ export class ClientsService {
     }
     if (ops.length) await this.prisma.$transaction(ops as never);
     await this.audit.log({ action: 'client.update', actorId, entityType: 'user', entityId: userId });
+    // Cambio del tipo di dieta: voce di audit dedicata con prima/dopo (visibile nel Log modifiche).
+    if (dietTypeChange) {
+      await this.audit.log({
+        action: 'client.diet_type.change',
+        actorId,
+        entityType: 'user',
+        entityId: userId,
+        metadata: dietTypeChange as never,
+      });
+    }
 
     // Passaggio di fase dimagrimento → mantenimento: festeggia con la cliente
     // (in-app + push, best effort: non deve mai bloccare il salvataggio).

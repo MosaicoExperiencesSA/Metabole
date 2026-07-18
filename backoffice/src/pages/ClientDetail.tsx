@@ -56,6 +56,7 @@ interface ChangeLogRow {
 
 const CHANGE_ACTION_LABEL: Record<string, string> = {
   'client.update': 'Modifica scheda',
+  'client.diet_type.change': 'Cambio tipo di dieta',
   'me.profile.update': 'Modifica dati (dal cliente)',
   'admin.assignment.update': 'Assegnazione coach / nutrizionista',
   'crm.nutritionist.assign': 'Assegnazione nutrizionista',
@@ -120,21 +121,25 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 const fldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' };
 
 /** Form di modifica della scheda (anagrafica + questionario). */
-function EditCard({ form, setForm }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void }) {
+function EditCard({ form, setForm, lockDietType }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean }) {
   const { regimes, styles } = useTaxonomy();
   const up = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const T = (k: string, label: string, type = 'text') => (
     <label style={fldStyle}><span>{label}</span><input className="input" type={type} value={form[k] ?? ''} onChange={(e) => up(k, e.target.value)} /></label>
   );
-  const S = (k: string, label: string, opts: [string, string][]) => (
-    <label style={fldStyle}>
-      <span>{label}</span>
-      <select className="select" value={form[k] ?? ''} onChange={(e) => up(k, e.target.value)}>
-        <option value="">—</option>
-        {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
-    </label>
-  );
+  // Regime e Stile = TIPO DI DIETA: modificabili solo col permesso "Cambia tipo di dieta".
+  const S = (k: string, label: string, opts: [string, string][]) => {
+    const locked = !!lockDietType && (k === 'regime' || k === 'dietStyle');
+    return (
+      <label style={fldStyle} title={locked ? 'Il tipo di dieta lo cambia chi ha il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).' : undefined}>
+        <span>{label}{locked && <i className="ti ti-lock" style={{ marginLeft: 4, fontSize: 11 }} />}</span>
+        <select className="select" value={form[k] ?? ''} disabled={locked} onChange={(e) => up(k, e.target.value)}>
+          <option value="">—</option>
+          {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </label>
+    );
+  };
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Modifica scheda</h2>
@@ -610,7 +615,7 @@ export function ClientDetail() {
         </div>
       </div>
 
-      {editing && <EditCard form={form} setForm={setForm} />}
+      {editing && <EditCard form={form} setForm={setForm} lockDietType={!can('change_diet_type', 'manage')} />}
 
       {/* Questionario / profilo */}
       {!editing && (
