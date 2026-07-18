@@ -15,10 +15,8 @@ export default function Landing() {
           <div style={{ width: '3%', height: '100%', background: 'var(--teal)', borderRadius: 999 }} />
         </div>
 
-        {/* Brand */}
-        <h1 style={{ textAlign: 'center', fontSize: 34, fontWeight: 800, margin: '2px 0' }}>
-          <span style={{ color: 'var(--teal)' }}>Metabole</span><span style={{ color: '#6C5AB7' }}>AI</span>
-        </h1>
+        {/* Brand: logo definitivo (marketing/brand) */}
+        <img src="/brand/logo.png" alt="MetaboleAI" style={{ height: 84, display: 'block', margin: '2px auto 0' }} />
         <p className="muted" style={{ textAlign: 'center', marginTop: 6, lineHeight: 1.45 }}>
           Non una dieta: un<span style={{ color: '#6C5AB7', fontWeight: 700 }}>'AI</span> che cuce il tuo percorso su misura, insieme a coach e nutrizionista.
         </p>

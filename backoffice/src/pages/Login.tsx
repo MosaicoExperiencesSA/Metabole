@@ -94,10 +94,8 @@ export function Login() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="logo">
-          <i className="ti ti-leaf" />
-        </div>
-        <h1>Metabole</h1>
+        <img src="/brand/logo.png" alt="MetaboleAI" style={{ height: 74, display: 'block', margin: '0 auto 10px' }} />
+        <h1 style={{ display: 'none' }}>MetaboleAI</h1>
         <div className="sub">Backoffice · accesso staff</div>
 
         {error && <div className="banner err">{error}</div>}

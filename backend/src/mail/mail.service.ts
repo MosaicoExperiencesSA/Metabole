@@ -93,6 +93,19 @@ export class MailService {
     }
   }
 
+  /**
+   * Intestazione con il LOGO in cima a OGNI email in uscita (transazionali,
+   * cicli di vita e campagne): usa l'URL pubblico dell'app (i client di posta
+   * bloccano spesso i data URI). Se l'HTML contiene già il logo non lo duplica.
+   */
+  private withLogo(html: string): string {
+    if (html.includes('brand/logo.png') || html.includes('id="metabole-logo"')) return html;
+    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
+    const header = `<div style="text-align:center;padding:18px 0 6px;"><img id="metabole-logo" src="${appUrl}/brand/logo.png" alt="MetaboleAI" width="150" style="max-width:150px;height:auto;border:0;" /></div>`;
+    const m = html.match(/<body[^>]*>/i);
+    return m ? html.replace(m[0], m[0] + header) : header + html;
+  }
+
   async send(input: SendMailInput): Promise<boolean> {
     const key = this.apiKey;
     if (!key) {
@@ -108,7 +121,7 @@ export class MailService {
           sender: this.sender,
           to: [{ email: input.to }],
           subject: input.subject,
-          htmlContent: input.html,
+          htmlContent: this.withLogo(input.html),
           ...(input.attachments?.length ? { attachment: input.attachments } : {}),
           ...(input.tags?.length ? { tags: input.tags } : {}),
         }),

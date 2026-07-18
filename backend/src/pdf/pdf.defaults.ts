@@ -31,7 +31,7 @@ const BASE_CSS = `
 
 const RECEIPT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}</style></head>
 <body><div class="doc">
-  <div class="brand">Metabole</div>
+  <img src="{{logo}}" alt="MetaboleAI" style="height:46px;display:block;margin-bottom:4px" />
   <div class="sub">Ricevuta di pagamento</div>
   <hr class="rule"/>
   <table class="kv">
@@ -84,7 +84,7 @@ const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><s
 </style></head>
 <body><div class="page">
   <div class="head">
-    <div class="brand">MetaboleAI<small>C O A C H &nbsp; & &nbsp; N U T R I Z I O N E &nbsp; A I</small></div>
+    <div class="brand"><img src="{{logo}}" alt="MetaboleAI" style="height:48px;display:block" /><small>C O A C H &nbsp; & &nbsp; N U T R I Z I O N E &nbsp; A I</small></div>
     <div class="right">Il tuo diario del percorso<br/><b>{{period}}</b></div>
   </div>
 
@@ -116,8 +116,8 @@ const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><s
 </div></body></html>`;
 
 export const DEFAULT_PDF_TEMPLATES: PdfTemplateDefault[] = [
-  { key: 'receipt', name: 'Ricevuta di pagamento', html: RECEIPT_HTML, placeholders: ['number', 'date', 'clientName', 'email', 'description', 'method', 'status', 'total'] },
-  { key: 'monthly_report', name: 'Report mensile', html: MONTHLY_REPORT_HTML, placeholders: ['name', 'period', 'lostThisMonth', 'lostTotal', 'currentWeight', 'target', 'checkins', 'measurements', 'trend', 'waterAvg', 'waterGoal', 'waterBars', 'stepsAvg', 'stepsGoal', 'stepsBars'] },
+  { key: 'receipt', name: 'Ricevuta di pagamento', html: RECEIPT_HTML, placeholders: ['logo', 'number', 'date', 'clientName', 'email', 'description', 'method', 'status', 'total'] },
+  { key: 'monthly_report', name: 'Report mensile', html: MONTHLY_REPORT_HTML, placeholders: ['logo', 'name', 'period', 'lostThisMonth', 'lostTotal', 'currentWeight', 'target', 'checkins', 'measurements', 'trend', 'waterAvg', 'waterGoal', 'waterBars', 'stepsAvg', 'stepsGoal', 'stepsBars'] },
 ];
 
 /** Mini-grafico a barre d'esempio per l'anteprima (stessa resa di reports.service.barsHtml). */
