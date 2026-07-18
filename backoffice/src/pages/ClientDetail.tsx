@@ -13,7 +13,7 @@ interface Detail {
   };
   profile: any | null;
   objective: any | null;
-  measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null }[];
+  measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null }[];
   checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
   waterLogs: { id: string; date: string; glasses: number; goal: number }[];
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
@@ -22,6 +22,27 @@ interface Detail {
   crm: { stage: string; stageLabel?: string | null; valueCents: number | null } | null;
   notes: { id: string; body: string; createdAt: string; author: string | null }[];
   pendingCommissions: { id: string; role: string; amountCents: number; createdAt: string }[];
+}
+
+/** Menu del cliente per la revisione: piatto + stelline date dal cliente. */
+interface MenuMeal { slot: string | null; name: string; kcal: number | null; stars: number | null; ratedSameDay: boolean | null; ratedOn: string | null }
+interface MenuDayRow { id: string; date: string; level: number; status: string; dietName: string | null; meals: MenuMeal[] }
+
+const SLOT_LABEL: Record<string, string> = {
+  breakfast: 'Colazione',
+  morning_snack: 'Spuntino',
+  lunch: 'Pranzo',
+  afternoon_snack: 'Merenda',
+  dinner: 'Cena',
+};
+
+/** Stelline 1–5 (valutazione del cliente). */
+function Stars({ n }: { n: number }) {
+  return (
+    <span title={`${n}/5`} style={{ color: '#b8863b', letterSpacing: 1, whiteSpace: 'nowrap' }}>
+      {'★'.repeat(n)}<span style={{ opacity: 0.25 }}>{'★'.repeat(5 - n)}</span>
+    </span>
+  );
 }
 
 interface ChangeLogRow {
@@ -181,6 +202,30 @@ export function ClientDetail() {
     }
   }
 
+  // Menu del cliente (revisione nutrizionista): giorni + piatti + stelline del cliente
+  const [menusOpen, setMenusOpen] = useState(false);
+  const [menusLoading, setMenusLoading] = useState(false);
+  const [menuDays, setMenuDays] = useState<MenuDayRow[]>([]);
+  const [menusErr, setMenusErr] = useState<string | null>(null);
+
+  async function openMenus() {
+    setMenusOpen(true);
+    setMenusLoading(true);
+    setMenusErr(null);
+    try {
+      const r = await api<{ days: MenuDayRow[] }>(`/admin/clients/${id}/menus`);
+      setMenuDays(r.days);
+    } catch (err) {
+      setMenusErr(err instanceof ApiError ? err.message : 'Caricamento dei menu non riuscito.');
+    } finally {
+      setMenusLoading(false);
+    }
+  }
+
+  // Correzione misure inserite male dal cliente (permesso dedicato "Correggi misure cliente")
+  const canFixMeasures = can('fix_measures', 'manage');
+  const [fixing, setFixing] = useState<Detail['measurements'][number] | null>(null);
+
   // Team: liste coach/nutrizionisti per l'assegnazione (solo admin)
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
   const [nutritionists, setNutritionists] = useState<{ id: string; name: string }[]>([]);
@@ -211,19 +256,21 @@ export function ClientDetail() {
     }
   }
 
+  async function loadDetail(initial = false) {
+    if (initial) setLoading(true);
+    try {
+      const data = await api<Detail>(`/admin/clients/${id}`);
+      setD(data);
+      setNotes(data.notes ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+    } finally {
+      if (initial) setLoading(false);
+    }
+  }
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await api<Detail>(`/admin/clients/${id}`);
-        setD(data);
-        setNotes(data.notes ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    void loadDetail(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -641,7 +688,7 @@ export function ClientDetail() {
           <div className="empty">Nessuna pesata registrata.</div>
         ) : (
           <table className="grid">
-            <thead><tr><th>Data</th><th>Peso</th><th>Vita</th><th>Fianchi</th></tr></thead>
+            <thead><tr><th>Data</th><th>Peso</th><th>Vita</th><th>Fianchi</th>{canFixMeasures && <th />}</tr></thead>
             <tbody>
               {d.measurements.map((m) => (
                 <tr key={m.id}>
@@ -649,6 +696,13 @@ export function ClientDetail() {
                   <td><b>{m.weightKg} kg</b></td>
                   <td className="muted">{m.waistCm ? `${m.waistCm} cm` : '—'}</td>
                   <td className="muted">{m.hipsCm ? `${m.hipsCm} cm` : '—'}</td>
+                  {canFixMeasures && (
+                    <td style={{ textAlign: 'right' }}>
+                      <button className="btn ghost sm" title="Correggi la misura (se inserita male dal cliente)" onClick={() => setFixing(m)}>
+                        <i className="ti ti-pencil" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -794,7 +848,14 @@ export function ClientDetail() {
         <div style={{ padding: '18px 20px 4px' }} className="spread">
           <h2 style={{ margin: 0 }}>Acquisti</h2>
           {d.subscription && (
-            <span className="chip">{d.subscription.plan?.name} · {lab('subStatus', d.subscription.status)}</span>
+            <button
+              className="chip"
+              onClick={openMenus}
+              title="Apri i menu del cliente per controllarli (con le stelline date ai piatti)"
+              style={{ cursor: 'pointer', border: '1px solid var(--line)' }}
+            >
+              {d.subscription.plan?.name} · {lab('subStatus', d.subscription.status)} <i className="ti ti-tools-kitchen-2" style={{ marginLeft: 4 }} />
+            </button>
           )}
         </div>
         {d.payments.length === 0 ? (
@@ -841,6 +902,69 @@ export function ClientDetail() {
           </table>
         )}
       </div>
+
+      {/* Popup: Menu del cliente (revisione nutrizionista, con stelline) */}
+      {menusOpen && (
+        <div className="overlay" onClick={() => setMenusOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, maxHeight: '82vh', overflowY: 'auto' }}>
+            <div className="spread" style={{ marginBottom: 12 }}>
+              <h2 style={{ margin: 0 }}><i className="ti ti-tools-kitchen-2" /> Menu del cliente</h2>
+              <button className="btn ghost sm" onClick={() => setMenusOpen(false)}><i className="ti ti-x" /> Chiudi</button>
+            </div>
+            <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+              Ultime 8 settimane e prossimi 7 giorni. Le stelline sono le valutazioni date dal cliente ai piatti; quando la valutazione è di un altro giorno lo indichiamo.
+            </p>
+            {menusErr && <Banner kind="err">{menusErr}</Banner>}
+            {menusLoading ? (
+              <Spinner />
+            ) : menuDays.length === 0 ? (
+              <div className="empty">Nessun menu generato per questo cliente.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {menuDays.map((day) => (
+                  <div key={day.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 14px' }}>
+                    <div className="spread" style={{ marginBottom: 6 }}>
+                      <b>{date(day.date)}</b>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {day.dietName ?? '—'} · livello {day.level}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      {day.meals.map((meal, i) => (
+                        <div key={i} className="row" style={{ gap: 8, fontSize: 13, alignItems: 'baseline' }}>
+                          <span className="muted" style={{ width: 84, flexShrink: 0, fontSize: 12 }}>{(meal.slot && SLOT_LABEL[meal.slot]) ?? meal.slot ?? '—'}</span>
+                          <span style={{ flex: 1 }}>{meal.name}</span>
+                          {meal.kcal != null && <span className="muted" style={{ fontSize: 11.5 }}>{meal.kcal} kcal</span>}
+                          {meal.stars != null ? (
+                            <span>
+                              <Stars n={meal.stars} />
+                              {meal.ratedSameDay === false && meal.ratedOn && (
+                                <span className="muted" style={{ fontSize: 10.5, marginLeft: 4 }} title="Valutazione data alla stessa ricetta in un altro giorno">({date(meal.ratedOn)})</span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="muted" style={{ fontSize: 11 }}>non valutato</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Popup: correzione misura (permesso "Correggi misure cliente") */}
+      {fixing && (
+        <FixMeasureModal
+          measure={fixing}
+          onClose={() => setFixing(null)}
+          onSaved={() => { setFixing(null); setNotice('Misura corretta.'); void loadDetail(); }}
+          clientId={id!}
+        />
+      )}
 
       {/* Popup: Log modifiche */}
       {logOpen && (
@@ -995,6 +1119,82 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
         <label className="field" style={{ maxWidth: 160 }}><span>Dal</span><input className="input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
         <label className="field" style={{ maxWidth: 160 }}><span>Al</span><input className="input" type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
         <button className="btn" onClick={save} disabled={saving}><i className="ti ti-device-floppy" /> {saving ? 'Salvo…' : 'Salva'}</button>
+      </div>
+    </div>
+  );
+}
+
+/** Correzione di una misura inserita male dal cliente (tracciata in audit con prima/dopo). */
+function FixMeasureModal({ clientId, measure, onClose, onSaved }: {
+  clientId: string;
+  measure: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null };
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toS = (v: number | null) => (v != null ? String(v).replace('.', ',') : '');
+  const [weight, setWeight] = useState(toS(measure.weightKg));
+  const [waist, setWaist] = useState(toS(measure.waistCm));
+  const [hips, setHips] = useState(toS(measure.hipsCm));
+  const [thighs, setThighs] = useState(toS(measure.thighsCm));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  /** '' → null (svuota il dato) · numero valido → numero · altro → undefined (errore). */
+  const num = (v: string): number | null | undefined => {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t.replace(',', '.'));
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  async function save() {
+    setErr(null);
+    const w = num(weight);
+    if (w == null) { setErr('Il peso è obbligatorio e deve essere un numero (kg).'); return; }
+    const body: Record<string, unknown> = { weightKg: w };
+    for (const [key, val, label] of [['waistCm', waist, 'Vita'], ['hipsCm', hips, 'Fianchi'], ['thighsCm', thighs, 'Cosce']] as const) {
+      const parsed = num(val);
+      if (parsed === undefined) { setErr(`${label}: valore non valido.`); return; }
+      body[key] = parsed;
+    }
+    setBusy(true);
+    try {
+      await api(`/admin/clients/${clientId}/measurements/${measure.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
+      setBusy(false);
+    }
+  }
+
+  const F = (label: string, v: string, set: (x: string) => void, unit: string) => (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
+      <span>{label} ({unit})</span>
+      <input className="input" inputMode="decimal" value={v} onChange={(e) => set(e.target.value)} placeholder="—" />
+    </label>
+  );
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="spread" style={{ marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}><i className="ti ti-pencil" /> Correggi misura</h2>
+          <button className="btn ghost sm" onClick={onClose}><i className="ti ti-x" /> Chiudi</button>
+        </div>
+        <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+          Pesata del <b>{date(measure.date)}</b>. Lascia vuota una circonferenza per rimuovere il dato. La correzione resta tracciata nel log (prima/dopo).
+        </p>
+        {err && <Banner kind="err">{err}</Banner>}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {F('Peso', weight, setWeight, 'kg')}
+          {F('Vita', waist, setWaist, 'cm')}
+          {F('Fianchi', hips, setHips, 'cm')}
+          {F('Cosce', thighs, setThighs, 'cm')}
+        </div>
+        <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+          <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
+          <button className="btn" onClick={save} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva correzione'}</button>
+        </div>
       </div>
     </div>
   );

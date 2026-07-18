@@ -54,6 +54,7 @@ export const BACKOFFICE_PAGES = [
   'roles',              // Ruoli (da permissions)
   'creation_validation', // Pagina guidata Creazione e validazione
   'diet_workspace',      // Gestione dieta: hub ricette/allergeni/gruppi per dieta (da diets_catalog)
+  'fix_measures',        // Correzione misure del cliente dalla scheda (flag dedicato, richiesta Simone)
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -106,6 +107,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     posta: { view: true },
     charts: { view: true },
     clients: { view: true, manage: true },
+    fix_measures: { view: true, manage: true }, // corregge le misure inserite male dal cliente
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
@@ -121,6 +123,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     posta: { view: true },
     charts: { view: true },
     clients: { view: true, manage: true },
+    fix_measures: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
@@ -204,6 +207,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     pdf_templates: { view: true, manage: true },
     charts: { view: true, manage: true },
     withdrawals: { view: true, manage: true },
+    fix_measures: { view: true, manage: true },
   },
 };
 

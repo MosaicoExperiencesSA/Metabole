@@ -293,6 +293,117 @@ export class ClientsService {
     return { updated: true };
   }
 
+  /**
+   * Menu del cliente per la revisione del nutrizionista: giorni di menu (ultime ~8
+   * settimane + prossimi 7 giorni) con i piatti e le STELLINE date dal cliente.
+   * Per ogni piatto: valutazione del giorno esatto se c'è, altrimenti l'ultima
+   * valutazione data a quella ricetta (contrassegnata come "altro giorno").
+   */
+  async getMenus(userId: string, actorId: string) {
+    await this.assertClientAccess(actorId, userId);
+    const from = new Date();
+    from.setDate(from.getDate() - 56);
+    const to = new Date();
+    to.setDate(to.getDate() + 7);
+
+    const [days, ratings] = await Promise.all([
+      this.prisma.menuDay.findMany({
+        where: { clientId: userId, date: { gte: from, lte: to } },
+        orderBy: { date: 'desc' },
+        take: 70,
+        select: { id: true, date: true, level: true, status: true, meals: true, diet: { select: { id: true, name: true } } },
+      }) as Promise<{ id: string; date: Date; level: number; status: string; meals: unknown; diet: { id: string; name: string } | null }[]>,
+      this.prisma.recipeRating.findMany({
+        where: { clientId: userId },
+        orderBy: { date: 'desc' },
+        take: 800,
+        select: { recipeId: true, date: true, stars: true, tags: true },
+      }) as Promise<{ recipeId: string; date: Date; stars: number; tags: string[] }[]>,
+    ]);
+
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+    const exact = new Map<string, { stars: number; tags: string[] }>();
+    const latest = new Map<string, { stars: number; tags: string[]; date: string }>();
+    for (const r of ratings) {
+      exact.set(`${r.recipeId}|${dayKey(r.date)}`, { stars: r.stars, tags: r.tags });
+      if (!latest.has(r.recipeId)) latest.set(r.recipeId, { stars: r.stars, tags: r.tags, date: dayKey(r.date) }); // già ordinate per data desc
+    }
+
+    const out = days.map((d) => {
+      const key = dayKey(d.date);
+      const meals = (Array.isArray(d.meals) ? d.meals : []) as { slot?: string; recipeId?: string; name?: string; kcal?: number }[];
+      return {
+        id: d.id,
+        date: key,
+        level: d.level,
+        status: d.status,
+        dietName: d.diet?.name ?? null,
+        meals: meals.map((m) => {
+          const ex = m.recipeId ? exact.get(`${m.recipeId}|${key}`) : undefined;
+          const la = !ex && m.recipeId ? latest.get(m.recipeId) : undefined;
+          return {
+            slot: m.slot ?? null,
+            name: m.name ?? '—',
+            kcal: m.kcal ?? null,
+            stars: ex?.stars ?? la?.stars ?? null,
+            ratingTags: ex?.tags ?? la?.tags ?? [],
+            // true = valutato proprio quel giorno; false = ultima valutazione della stessa ricetta in un altro giorno.
+            ratedSameDay: ex ? true : la ? false : null,
+            ratedOn: ex ? key : la?.date ?? null,
+          };
+        }),
+      };
+    });
+    await this.audit.log({ action: 'client.menus.view', actorId, entityType: 'user', entityId: userId });
+    return { days: out };
+  }
+
+  /**
+   * Correzione di una misura inserita male dal cliente (permesso dedicato
+   * "fix_measures" nella matrice Permessi). Tutto tracciato in audit con prima/dopo.
+   */
+  async updateMeasurement(
+    userId: string,
+    actorId: string,
+    measurementId: string,
+    input: { weightKg?: number; waistCm?: number | null; hipsCm?: number | null; thighsCm?: number | null },
+  ) {
+    await this.assertClientAccess(actorId, userId);
+    const m = (await this.prisma.measurement.findFirst({
+      where: { id: measurementId, clientId: userId },
+    })) as { id: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; date: Date } | null;
+    if (!m) throw new NotFoundException('Misura non trovata per questo cliente.');
+
+    const data: Record<string, unknown> = {};
+    if (input.weightKg !== undefined) {
+      if (typeof input.weightKg !== 'number' || input.weightKg < 25 || input.weightKg > 400) throw new BadRequestException('Peso non plausibile (25–400 kg).');
+      data.weightKg = Math.round(input.weightKg * 10) / 10;
+    }
+    for (const k of ['waistCm', 'hipsCm', 'thighsCm'] as const) {
+      const v = input[k];
+      if (v === undefined) continue;
+      if (v === null) { data[k] = null; continue; }
+      if (typeof v !== 'number' || v < 20 || v > 300) throw new BadRequestException('Circonferenza non plausibile (20–300 cm).');
+      data[k] = Math.round(v * 10) / 10;
+    }
+    if (Object.keys(data).length === 0) throw new BadRequestException('Nessuna modifica indicata.');
+
+    const updated = await this.prisma.measurement.update({ where: { id: m.id }, data: data as never });
+    await this.audit.log({
+      action: 'client.measurement.fix',
+      actorId,
+      entityType: 'measurement',
+      entityId: m.id,
+      metadata: {
+        clientId: userId,
+        date: m.date.toISOString().slice(0, 10),
+        before: { weightKg: m.weightKg, waistCm: m.waistCm, hipsCm: m.hipsCm, thighsCm: m.thighsCm },
+        after: data,
+      },
+    });
+    return updated;
+  }
+
   /** Modalità viaggio/estate (staff): imposta lo stato e le date; al rientro emette un evento per il CRM/marketing. */
   async setTravel(userId: string, actorId: string, input: { state?: string; start?: string; end?: string }) {
     await this.assertClientAccess(actorId, userId);

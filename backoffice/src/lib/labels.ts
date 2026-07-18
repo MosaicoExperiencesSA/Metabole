@@ -68,6 +68,7 @@ export const PAGE_LABEL: Record<string, string> = {
   pdf_templates: 'Grafica PDF',
   charts: 'Grafici',
   withdrawals: 'Richieste prelievo',
+  fix_measures: 'Correggi misure cliente',
 };
 
 export function pageLabel(key: string): string {
