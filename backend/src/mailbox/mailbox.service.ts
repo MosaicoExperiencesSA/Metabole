@@ -75,8 +75,24 @@ export class MailboxService {
     try {
       await client.connect();
       await client.logout();
-    } catch {
-      throw new BadRequestException('Connessione alla casella non riuscita: controlla indirizzo e password.');
+    } catch (err) {
+      // Messaggio PARLANTE: distinguere password sbagliata da server giù cambia tutto
+      // per chi deve sistemare (prima usciva sempre "controlla indirizzo e password").
+      const e = err as { authenticationFailed?: boolean; code?: string; message?: string; responseText?: string };
+      this.logger.warn(`Collegamento casella ${email} fallito: code=${e?.code ?? '-'} auth=${e?.authenticationFailed ?? '-'} msg=${e?.message ?? '-'}`);
+      const msg = e?.message ?? '';
+      const detail = e?.authenticationFailed || /auth|login|credentials/i.test(e?.responseText ?? '')
+        ? 'il server ha RIFIUTATO indirizzo o password (verifica le credenziali, es. dal webmail)'
+        : e?.code === 'ENOTFOUND'
+          ? 'server di posta non trovato (DNS): verifica mail.metabole.eu'
+          : e?.code === 'ETIMEDOUT' || /timeout/i.test(msg)
+            ? 'il server di posta NON RISPONDE (timeout): probabile problema lato hosting, non di password'
+            : e?.code === 'ECONNREFUSED'
+              ? 'connessione RIFIUTATA dal server (porta chiusa o servizio fermo lato hosting)'
+              : /certificate|tls|ssl/i.test(msg)
+                ? 'problema di certificato SSL del server di posta'
+                : `errore: ${e?.responseText || msg || 'sconosciuto'}`;
+      throw new BadRequestException(`Connessione alla casella non riuscita: ${detail}.`);
     }
     await this.prisma.mailAccount.upsert({
       where: { userId },
