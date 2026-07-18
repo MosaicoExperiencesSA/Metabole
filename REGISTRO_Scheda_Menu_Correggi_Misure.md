@@ -41,3 +41,9 @@ Backoffice
 - Nessuna migration. Al deploy il seed permessi crea la riga `fix_measures` con i default; come
   sempre, i permessi già personalizzati a mano non vengono toccati.
 - La coach di default NON ha il permesso: si può dare dai Permessi (vede+gestisce) se serve.
+
+## Aggiunta — chip abbonamento in "Acquisti" (fix)
+Il chip mostrava l'abbonamento **più recente per data di creazione**, qualunque fosse lo stato:
+un checkout "Percorso 1 mese" creato e poi annullato copriva la Prova gratuita ATTIVA.
+Ora la scheda mostra: **attivo** → altrimenti **in attesa** → altrimenti il più recente
+(clients.service.getDetail: findMany + scelta, al posto del findFirst per createdAt).

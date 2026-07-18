@@ -88,7 +88,7 @@ export class ClientsService {
       throw new ForbiddenException('Questa scheda è disponibile solo per i clienti.');
     }
 
-    const [profile, objective, measurements, checkins, waterLogs, stepLogs, subscription, payments, crm, notes, pending] = await Promise.all([
+    const [profile, objective, measurements, checkins, waterLogs, stepLogs, subscriptions, payments, crm, notes, pending] = await Promise.all([
       this.prisma.clientProfile.findUnique({
         where: { userId },
         include: {
@@ -116,9 +116,13 @@ export class ClientsService {
         take: 60,
         select: { id: true, date: true, steps: true, goal: true },
       }),
-      this.prisma.subscription.findFirst({
+      // Ultimi abbonamenti: in scheda si mostra prima l'ATTIVO, poi l'in attesa e
+      // solo in mancanza il più recente (prima vinceva sempre il più recente per data:
+      // un checkout annullato copriva la prova gratuita attiva).
+      this.prisma.subscription.findMany({
         where: { clientId: userId },
         orderBy: { createdAt: 'desc' },
+        take: 10,
         include: { plan: { select: { name: true, priceCents: true, period: true } } },
       }),
       this.prisma.payment.findMany({
@@ -142,6 +146,10 @@ export class ClientsService {
     ]);
 
     await this.audit.log({ action: 'client.detail.view', actorId, entityType: 'user', entityId: userId });
+
+    // Abbonamento "principale" della scheda: attivo > in attesa > più recente.
+    const subs = subscriptions as { status: string }[];
+    const subscription = subs.find((s) => s.status === 'active') ?? subs.find((s) => s.status === 'pending') ?? subs[0] ?? null;
 
     // Nome leggibile dello stato pipeline (es. "Prova" invece della chiave "trial") per il badge CRM.
     const stageLabel = crm
