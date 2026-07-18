@@ -44,3 +44,17 @@ Backoffice
   l'inizio dell'abbonamento mostrato in scheda (attivo > in attesa > più recente), **ricalcola
   la fine** dalla durata del piano e **allinea la base dei menu** (profile.planStartDate), in
   transazione. Audit `client.plan_start.change` con prima/dopo.
+
+## Aggiunta — fix: "Inizio piano" mostrava la data di attivazione, non quella scelta
+Caso reale di Simone: scheda con "Inizio piano 17/07" ma menu dal 20/07. Esistono due date:
+`subscription.startDate` (attivazione = approvazione pagamento) e `profile.planStartDate`
+(data di inizio SCELTA dalla cliente nell'onboarding, che guida i menu). La riga in Acquisti
+mostrava la prima. Fix su due livelli:
+- **Scheda**: "Inizio piano" ora è la data SCELTA (planStartDate); se l'attivazione è avvenuta
+  in un giorno diverso compare accanto "· attivato il gg/mm" con tooltip. La matita parte
+  dalla data scelta e (come già faceva) allinea TUTTO: inizio abbonamento, fine ricalcolata e
+  base menu.
+- **Alla radice (commerce, attivazione pagamento)**: se la cliente ha scelto un inizio nel
+  FUTURO (max 60 giorni), l'abbonamento parte da quella data (e la scadenza di conseguenza),
+  non dal giorno dell'approvazione. Le clienti esistenti disallineate si sistemano con la
+  matita (un colpo solo).

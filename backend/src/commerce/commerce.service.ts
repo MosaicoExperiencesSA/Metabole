@@ -862,7 +862,20 @@ export class CommerceService {
         orderBy: { endDate: 'desc' },
         select: { endDate: true },
       })) as { endDate: Date | null } | null;
-      const start = activeAhead?.endDate ?? now;
+      // Inizio effettivo: in coda dopo un piano attivo; altrimenti la DATA DI INIZIO
+      // SCELTA dalla cliente nell'onboarding (planStartDate) se è nel futuro (max 60
+      // giorni); altrimenti oggi. Così scheda, scadenza e menu raccontano la stessa data.
+      let start = activeAhead?.endDate ?? now;
+      if (!activeAhead?.endDate) {
+        const prof = (await this.prisma.clientProfile.findUnique({
+          where: { userId: payment.clientId },
+          select: { planStartDate: true },
+        })) as { planStartDate: Date | null } | null;
+        const chosen = prof?.planStartDate ?? null;
+        if (chosen && chosen.getTime() > now.getTime() && chosen.getTime() - now.getTime() <= 60 * 86_400_000) {
+          start = chosen;
+        }
+      }
       const end = subscriptionEnd(start, payment.subscription.plan.period);
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },

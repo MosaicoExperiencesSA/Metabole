@@ -235,7 +235,9 @@ export function ClientDetail() {
 
   /** Sposta la data di inizio del piano: la fine si ricalcola e i menu ripartono da lì. */
   async function changePlanStart() {
-    const cur = d?.subscription?.startDate ? String(d.subscription.startDate).slice(0, 10) : '';
+    const cur = d?.profile?.planStartDate
+      ? String(d.profile.planStartDate).slice(0, 10)
+      : d?.subscription?.startDate ? String(d.subscription.startDate).slice(0, 10) : '';
     const input = prompt('Nuova data di INIZIO del piano (AAAA-MM-GG).\nLa data di fine viene ricalcolata dalla durata del piano e i menu ripartono dalla nuova data.', cur);
     if (input === null) return;
     const val = input.trim();
@@ -922,11 +924,15 @@ export function ClientDetail() {
             </button>
           )}
         </div>
-        {/* Data di inizio piano: visibile a tutti, modificabile col permesso dedicato. */}
-        {d.subscription?.startDate && (
-          <div className="muted" style={{ padding: '0 20px 8px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
-            Inizio piano: <b style={{ color: 'var(--ink, #1F2933)' }}>{date(d.subscription.startDate)}</b>
-            {d.subscription.endDate && <> · fine {date(d.subscription.endDate)}</>}
+        {/* Data di inizio piano: quella SCELTA dalla cliente (planStartDate, guida i menu);
+            se l'abbonamento è stato attivato in un giorno diverso lo indichiamo accanto. */}
+        {(d.profile?.planStartDate || d.subscription?.startDate) && (
+          <div className="muted" style={{ padding: '0 20px 8px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            Inizio piano: <b style={{ color: 'var(--ink, #1F2933)' }}>{date(d.profile?.planStartDate ?? d.subscription?.startDate)}</b>
+            {d.subscription?.startDate && d.profile?.planStartDate && String(d.profile.planStartDate).slice(0, 10) !== String(d.subscription.startDate).slice(0, 10) && (
+              <span title="L'abbonamento è stato attivato in questa data (approvazione pagamento); i menu partono dall'inizio piano.">· attivato il {date(d.subscription.startDate)}</span>
+            )}
+            {d.subscription?.endDate && <> · fine {date(d.subscription.endDate)}</>}
             {canChangePlanStart && (
               <button className="btn ghost sm" onClick={() => void changePlanStart()} title="Cambia la data di inizio (la fine si ricalcola e i menu ripartono da lì)">
                 <i className="ti ti-pencil" />
