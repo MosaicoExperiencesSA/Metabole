@@ -1313,6 +1313,10 @@ model Measurement {
   waistCm  Float?   @map("waist_cm")
   hipsCm   Float?   @map("hips_cm")
   thighsCm Float?   @map("thighs_cm")
+  // Correzione stesso giorno (una sola volta): snapshot della misura PRECEDENTE ("sostituita").
+  // I valori correnti restano quelli buoni → grafici e report usano i correnti e NON conteggiano
+  // la sostituita. replacedSnapshot != null ⇒ la misura di quel giorno è già stata corretta.
+  replacedSnapshot Json?   @map("replaced_snapshot")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

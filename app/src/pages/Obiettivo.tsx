@@ -10,6 +10,7 @@ interface Measurement {
   weightKg: number;
   waistCm: number | null;
   hipsCm: number | null;
+  replacedSnapshot?: unknown | null; // valorizzato ⇒ misura del giorno già corretta una volta
 }
 interface Objective {
   targetWeightKg: number | null;
@@ -80,7 +81,8 @@ export default function Obiettivo() {
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
   const [busy, setBusy] = useState(false);
-  const [dirty, setDirty] = useState(false); // input modificati dopo l'ultimo salvataggio
+  const [correcting, setCorrecting] = useState(false); // modalità "cambia misure" attiva
+  const [confirmCorrect, setConfirmCorrect] = useState(false); // sto mostrando "Sei sicuro?"
   const [msg, setMsg] = useState<string | null>(null);
   const chartsRef = useRef<HTMLDivElement>(null);
   const [chartIdx, setChartIdx] = useState(0);
@@ -132,7 +134,8 @@ export default function Obiettivo() {
       setWaist(last.waistCm != null ? d1(last.waistCm) : '');
       setHips(last.hipsCm != null ? d1(last.hipsCm) : '');
     }
-    setDirty(false);
+    setCorrecting(false);
+    setConfirmCorrect(false);
     setLoading(false);
   }
   useEffect(() => {
@@ -163,6 +166,32 @@ export default function Obiettivo() {
     }
   }
 
+  /** Correzione della misura di OGGI (una sola volta): la precedente resta "sostituita". */
+  async function correct() {
+    setMsg(null);
+    const w = parseNum(weight);
+    if (w === undefined) {
+      setMsg('Inserisci almeno il peso.');
+      return;
+    }
+    setBusy(true);
+    const body: Record<string, number> = { weightKg: w };
+    const wa = parseNum(waist);
+    const hi = parseNum(hips);
+    if (wa !== undefined) body.waistCm = wa;
+    if (hi !== undefined) body.hipsCm = hi;
+    try {
+      await api('/me/measurements/correct', { method: 'POST', body: JSON.stringify(body) });
+      await load();
+      setMsg('Misure corrette. La misura precedente è stata sostituita.');
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : 'Correzione non riuscita.');
+    } finally {
+      setBusy(false);
+      setConfirmCorrect(false);
+    }
+  }
+
   if (loading) return <div className="center"><div className="spin" /></div>;
 
   // Misura di oggi già inviata? (le misure sono ordinate crescenti → l'ultima è la più
@@ -170,6 +199,11 @@ export default function Obiettivo() {
   const todayIso = new Date().toISOString().slice(0, 10);
   const lastMeas = measurements[measurements.length - 1];
   const sentToday = !!lastMeas && String(lastMeas.date).slice(0, 10) === todayIso;
+  // Misura di oggi già corretta una volta? Allora niente altre modifiche dalla cliente.
+  const correctedToday = sentToday && !!lastMeas?.replacedSnapshot;
+  // Gli input si modificano: quando NON hai ancora inviato oggi, oppure quando hai premuto
+  // "Cambia misure" (correcting) e non l'hai già corretta.
+  const inputsEnabled = !busy && (!sentToday || (correcting && !correctedToday));
 
   return (
     <div className="home">
@@ -237,15 +271,46 @@ export default function Obiettivo() {
       <div className="card">
         <b style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Misure di oggi</b>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} onChange={(e) => { setWeight(e.target.value); setDirty(true); }} /></div>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} onChange={(e) => { setWaist(e.target.value); setDirty(true); }} /></div>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} onChange={(e) => { setHips(e.target.value); setDirty(true); }} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} disabled={!inputsEnabled} onChange={(e) => setWeight(e.target.value)} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} disabled={!inputsEnabled} onChange={(e) => setWaist(e.target.value)} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} disabled={!inputsEnabled} onChange={(e) => setHips(e.target.value)} /></div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy || (sentToday && !dirty)}>
-              <i className={`ti ${sentToday && !dirty ? 'ti-check' : 'ti-send'}`} /> {busy ? 'Salvo…' : sentToday && !dirty ? 'Inviato oggi' : sentToday ? 'Aggiorna' : 'Invia'}
-            </button>
+            {!sentToday ? (
+              <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy}>
+                <i className="ti ti-send" /> {busy ? 'Salvo…' : 'Invia'}
+              </button>
+            ) : correctedToday ? (
+              <button className="btn" style={{ padding: 11 }} disabled>
+                <i className="ti ti-check" /> Corretta oggi
+              </button>
+            ) : !correcting ? (
+              <button className="btn ghost" style={{ padding: 11 }} onClick={() => { setMsg(null); setCorrecting(true); }} disabled={busy}>
+                <i className="ti ti-pencil" /> Cambia misure
+              </button>
+            ) : (
+              <button className="btn" style={{ padding: 11 }} onClick={() => setConfirmCorrect(true)} disabled={busy}>
+                <i className="ti ti-send" /> {busy ? 'Salvo…' : 'Salva correzione'}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Conferma sostituzione ("Sei sicuro?") */}
+        {confirmCorrect && (
+          <div className="card" style={{ marginTop: 10, background: '#FBF0D6', border: '1px solid #EAD8A6', boxShadow: 'none' }}>
+            <div style={{ fontSize: 13, color: '#7A5B12', marginBottom: 8 }}>
+              Sei sicuro? Le misure di oggi verranno sostituite con quelle nuove. <b>Puoi correggerle una sola volta</b>; dopo, solo lo staff può modificarle.
+            </div>
+            <div className="row" style={{ gap: 8 }}>
+              <button className="btn" style={{ flex: 1, padding: 10 }} onClick={correct} disabled={busy}>{busy ? 'Salvo…' : 'Sì, sostituisci'}</button>
+              <button className="btn ghost" style={{ flex: 1, padding: 10 }} onClick={() => setConfirmCorrect(false)} disabled={busy}>Annulla</button>
+            </div>
+          </div>
+        )}
+
+        {sentToday && !correctedToday && !correcting && (
+          <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>Hai inviato le misure di oggi. Se hai sbagliato puoi correggerle una volta.</div>
+        )}
         {msg && <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>{msg}</div>}
       </div>
 

@@ -13,7 +13,7 @@ interface Detail {
   };
   profile: any | null;
   objective: any | null;
-  measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null }[];
+  measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; replacedSnapshot?: { weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm?: number | null; replacedAt?: string } | null }[];
   checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
   waterLogs: { id: string; date: string; glasses: number; goal: number }[];
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
@@ -692,7 +692,16 @@ export function ClientDetail() {
             <tbody>
               {d.measurements.map((m) => (
                 <tr key={m.id}>
-                  <td>{date(m.date)}</td>
+                  <td>
+                    {date(m.date)}
+                    {m.replacedSnapshot && (
+                      <div className="muted" style={{ fontSize: 11, marginTop: 2, color: '#B4491F' }} title="La cliente ha corretto la misura di questo giorno. Il valore sostituito NON viene conteggiato in grafici e report.">
+                        <i className="ti ti-replace" style={{ fontSize: 12, verticalAlign: '-1px' }} /> sostituita · era {m.replacedSnapshot.weightKg} kg
+                        {m.replacedSnapshot.waistCm ? ` · ${m.replacedSnapshot.waistCm} cm vita` : ''}
+                        {m.replacedSnapshot.hipsCm ? ` · ${m.replacedSnapshot.hipsCm} cm fianchi` : ''}
+                      </div>
+                    )}
+                  </td>
                   <td><b>{m.weightKg} kg</b></td>
                   <td className="muted">{m.waistCm ? `${m.waistCm} cm` : '—'}</td>
                   <td className="muted">{m.hipsCm ? `${m.hipsCm} cm` : '—'}</td>

@@ -34,6 +34,12 @@ export class SignalsController {
     return this.signals.upsertMeasurement(user.sub, dto);
   }
 
+  // Correzione della misura di OGGI (una sola volta): la precedente resta "sostituita".
+  @Post('measurements/correct')
+  correctMeasurement(@CurrentUser() user: AuthUser, @Body() dto: CreateMeasurementDto) {
+    return this.signals.correctTodayMeasurement(user.sub, dto);
+  }
+
   // Check-in
   @Get('checkins')
   listCheckins(

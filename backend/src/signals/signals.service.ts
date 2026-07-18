@@ -110,6 +110,69 @@ export class SignalsService {
   }
 
   /**
+   * Correzione della misura di OGGI da parte della cliente: consentita UNA SOLA VOLTA.
+   * La misura precedente viene salvata in `replacedSnapshot` (marcata "sostituita"): i valori
+   * correnti diventano quelli nuovi, quindi grafici e report (che leggono i valori correnti)
+   * non conteggiano la sostituita. Ulteriori correzioni le fa lo staff dal backoffice (permesso
+   * "fix_measures"). Registra l'evento audit `measurement.replaced`.
+   */
+  async correctTodayMeasurement(clientId: string, dto: CreateMeasurementDto) {
+    const today = toDateOnly();
+    const existing = await this.prisma.measurement.findUnique({
+      where: { clientId_date: { clientId, date: today } },
+    });
+    if (!existing) {
+      throw new BadRequestException("Non c'è una misura di oggi da correggere.");
+    }
+    if ((existing as { replacedSnapshot?: unknown }).replacedSnapshot) {
+      throw new BadRequestException('Hai già corretto le misure di oggi. Per altre modifiche scrivi al tuo staff.');
+    }
+    const snapshot = {
+      weightKg: existing.weightKg,
+      waistCm: existing.waistCm,
+      hipsCm: existing.hipsCm,
+      thighsCm: existing.thighsCm,
+      replacedAt: new Date().toISOString(),
+    };
+    const measurement = await this.prisma.measurement.update({
+      where: { clientId_date: { clientId, date: today } },
+      data: {
+        weightKg: dto.weightKg,
+        waistCm: dto.waistCm,
+        hipsCm: dto.hipsCm,
+        thighsCm: dto.thighsCm,
+        replacedSnapshot: snapshot as never,
+      },
+    });
+    await this.audit.log({
+      action: 'measurement.replaced',
+      actorId: clientId,
+      entityType: 'measurement',
+      entityId: existing.id,
+      metadata: {
+        date: today.toISOString().slice(0, 10),
+        old: snapshot,
+        new: { weightKg: dto.weightKg, waistCm: dto.waistCm ?? null, hipsCm: dto.hipsCm ?? null, thighsCm: dto.thighsCm ?? null },
+      },
+    });
+    // Stessi effetti a valle di un salvataggio misura (learning, milestone, erogazione menu).
+    try {
+      await this.dietLearning.onCycleClose(clientId, {
+        date: measurement.date,
+        weightKg: measurement.weightKg,
+        waistCm: measurement.waistCm,
+        hipsCm: measurement.hipsCm,
+      });
+    } catch {
+      /* learning best-effort */
+    }
+    await this.evaluateMilestones(clientId).catch(() => undefined);
+    await this.checkRapidLossGuardrail(clientId).catch(() => undefined);
+    await this.menu.deliverIfEligible(clientId).catch(() => undefined);
+    return { measurement };
+  }
+
+  /**
    * Funnel prova gratuita: alla PRIMA misura inserita con una prova attiva emette
    * `trial_measures_ok` (il punto A del report A→B esiste). Idempotente.
    */
