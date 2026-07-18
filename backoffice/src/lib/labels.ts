@@ -1,10 +1,11 @@
 // Etichette in italiano per ruoli e sezioni del backoffice.
 
-export type Role = 'client' | 'coach' | 'nutritionist' | 'head_nutritionist' | 'sales' | 'marketing' | 'head_marketing' | 'admin';
+export type Role = 'client' | 'coach' | 'coach_coordinator' | 'nutritionist' | 'head_nutritionist' | 'sales' | 'marketing' | 'head_marketing' | 'admin';
 
 export const ROLE_LABEL: Record<Role, string> = {
   client: 'Cliente',
   coach: 'Coach',
+  coach_coordinator: 'Coordinatrice Coach',
   nutritionist: 'Nutrizionista',
   head_nutritionist: 'Capo nutrizionista',
   sales: 'Responsabile Coach',
@@ -14,8 +15,9 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 /** Ruoli assegnabili allo staff dal backoffice (il cliente si registra da sé). */
-export const STAFF_ROLES: Role[] = ['coach', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin'];
-export const ALL_ROLES: Role[] = ['admin', 'head_nutritionist', 'nutritionist', 'coach', 'sales', 'head_marketing', 'marketing', 'client'];
+// Stesso ordine della matrice permessi: la catena di pagamento, admin in fondo.
+export const STAFF_ROLES: Role[] = ['coach', 'coach_coordinator', 'sales', 'nutritionist', 'head_nutritionist', 'marketing', 'head_marketing', 'admin'];
+export const ALL_ROLES: Role[] = ['admin', 'head_nutritionist', 'nutritionist', 'coach_coordinator', 'coach', 'sales', 'head_marketing', 'marketing', 'client'];
 
 export const PAGE_LABEL: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -66,6 +68,7 @@ export const PAGE_LABEL: Record<string, string> = {
   pdf_templates: 'Grafica PDF',
   charts: 'Grafici',
   withdrawals: 'Richieste prelievo',
+  fix_measures: 'Correggi misure cliente',
 };
 
 export function pageLabel(key: string): string {

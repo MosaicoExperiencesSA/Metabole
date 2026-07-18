@@ -21,10 +21,16 @@ export type SegmentFilters = {
   listIds?: string[];
   hasClient?: boolean | null;
   historicalPaid?: boolean;
+  /** Importo storico speso (pre-Metabole), in centesimi: da/a. */
+  historicalPaidMinCents?: number | null;
+  historicalPaidMaxCents?: number | null;
   city?: string;
   coachId?: string;
   /** Classificazione persona: cliente attivo, cliente storico (pre-Metabole) o lead. */
   segment?: 'client' | 'historical' | 'lead';
+  /** Esclusioni: chi ha una di queste etichette (o stati) NON entra nel segmento. */
+  excludeTags?: string[];
+  excludeStages?: string[];
 };
 
 type Recipient = { id: string; name: string | null; email: string | null; clientId: string | null };
@@ -192,6 +198,9 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     if (f.hasClient === true) c.push({ clientId: { not: null } });
     if (f.hasClient === false) c.push({ clientId: null });
     if (f.historicalPaid) c.push({ historicalPaidCents: { gt: 0 } });
+    // Importo storico speso: chi non ha lo storico (campo vuoto) resta fuori dal range.
+    if (f.historicalPaidMinCents != null && f.historicalPaidMinCents > 0) c.push({ historicalPaidCents: { gte: Math.round(f.historicalPaidMinCents) } });
+    if (f.historicalPaidMaxCents != null && f.historicalPaidMaxCents > 0) c.push({ historicalPaidCents: { lte: Math.round(f.historicalPaidMaxCents) } });
     // Classificazione persona (cliente / storico / lead), coerente con il badge CRM.
     if (f.segment === 'client') c.push({ stage: 'paid' });
     if (f.segment === 'historical') c.push({ historicalPaidCents: { gt: 0 }, stage: { not: 'paid' } });
@@ -199,6 +208,9 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       c.push({ stage: { not: 'paid' }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
     if (f.city && f.city.trim()) c.push({ address: { contains: f.city.trim(), mode: 'insensitive' } });
     if (f.coachId) c.push({ assignedCoachId: f.coachId });
+    // Esclusioni: utile con l'azione post-invio (es. non rimandare a chi ha già l'etichetta della campagna precedente).
+    if (f.excludeTags?.length) c.push({ NOT: { tags: { hasSome: f.excludeTags } } });
+    if (f.excludeStages?.length) c.push({ stage: { notIn: f.excludeStages } });
     return c;
   }
 
@@ -211,13 +223,15 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
   }
 
   async options() {
+    // Stati: TUTTI quelli definiti in pipeline (nell'ordine scelto dall'admin),
+    // non solo quelli già usati da qualche scheda. Etichette: quelle sulle schede.
     const [lists, stageRows, tagRows, templates] = await Promise.all([
       this.prisma.crmList.findMany({ select: { id: true, name: true, color: true }, orderBy: { name: 'asc' } }),
-      this.prisma.crmRecord.findMany({ distinct: ['stage'], select: { stage: true } }),
+      this.prisma.pipelineStage.findMany({ select: { key: true, label: true }, orderBy: { order: 'asc' } }),
       this.prisma.crmRecord.findMany({ where: { tags: { isEmpty: false } }, select: { tags: true }, take: 5000 }),
       this.prisma.emailTemplate.findMany({ where: { active: true }, select: { key: true, name: true, subject: true }, orderBy: { name: 'asc' } }),
     ]);
-    const stages = [...new Set(stageRows.map((r) => r.stage))].sort();
+    const stages = (stageRows as { key: string; label: string }[]).map((s) => ({ key: s.key, label: s.label }));
     const tags = [...new Set(tagRows.flatMap((r) => r.tags))].sort();
     return { lists, stages, tags, templates };
   }
@@ -294,6 +308,9 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       scheduledFor?: string | null;
       batchSize?: number;
       pauseMinutes?: number;
+      // Azione POST-INVIO (facoltativa): etichetta e/o stato pipeline sui destinatari inviati.
+      postTag?: string;
+      postStage?: string;
     },
     actorId: string,
   ) {
@@ -303,6 +320,12 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
 
     const batchSize = Math.max(0, Math.min(5000, Math.floor(input.batchSize ?? 0)));
     const pauseMinutes = Math.max(0, Math.min(1440, Math.floor(input.pauseMinutes ?? 0)));
+    const postTag = (input.postTag ?? '').trim().slice(0, 40) || null;
+    const postStage = (input.postStage ?? '').trim() || null;
+    if (postStage) {
+      const stageOk = await this.prisma.pipelineStage.findFirst({ where: { key: postStage }, select: { key: true } }).catch(() => null);
+      if (!stageOk) throw new BadRequestException('Stato pipeline non valido per l\'azione post-invio.');
+    }
 
     let scheduledFor: Date | null = null;
     if (input.scheduledFor) {
@@ -335,6 +358,8 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
         scheduledFor,
         status: scheduledFor ? 'scheduled' : 'sending',
         nextBatchAt: scheduledFor ?? new Date(),
+        postTag,
+        postStage,
         createdById: actorId,
       } as never,
     });
@@ -344,7 +369,7 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       actorId,
       entityType: 'marketing_campaign',
       entityId: campaign.id,
-      metadata: { recipients: recipients.length, batchSize, pauseMinutes, scheduledFor: scheduledFor?.toISOString() ?? null },
+      metadata: { recipients: recipients.length, batchSize, pauseMinutes, postTag, postStage, scheduledFor: scheduledFor?.toISOString() ?? null },
     });
 
     // Programmata → il ticker la farà partire al momento giusto.
@@ -397,6 +422,7 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
 
     let sent = 0;
     let failed = 0;
+    const sentRecordIds: string[] = [];
     for (const r of slice) {
       if (!r.email) { failed++; continue; }
       // Merge per destinatario: nome + link preferenze PERSONALE (disiscrizione facile).
@@ -404,8 +430,11 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       const html = this.merge(c.bodyHtml, vars);
       const subject = this.merge(c.subject, vars);
       const ok = await this.mail.send({ to: r.email, subject, html, templateKey: `campaign:${c.templateKey}`, tags: [tag] });
-      if (ok) sent++; else failed++;
+      if (ok) { sent++; sentRecordIds.push(r.recordId); } else failed++;
     }
+
+    // Azione POST-INVIO (solo sui destinatari effettivamente inviati di questo lotto).
+    await this.applyPostActions(c as unknown as { postTag: string | null; postStage: string | null; createdById: string | null }, sentRecordIds);
 
     const newCursor = start + slice.length;
     const done = newCursor >= recipients.length;
@@ -422,6 +451,42 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       },
     });
     return { sent, failed, done };
+  }
+
+  /**
+   * Azione post-invio della campagna: aggiunge l'etichetta e/o imposta lo stato
+   * pipeline (con lo storico in stageDates) sulle schede dei destinatari inviati.
+   * Best-effort: un errore su una scheda non blocca la campagna.
+   */
+  private async applyPostActions(
+    c: { postTag: string | null; postStage: string | null; createdById: string | null },
+    recordIds: string[],
+  ): Promise<void> {
+    const tagVal = (c.postTag ?? '').trim();
+    const stageVal = (c.postStage ?? '').trim();
+    if ((!tagVal && !stageVal) || recordIds.length === 0) return;
+    const rows = (await this.prisma.crmRecord.findMany({
+      where: { id: { in: recordIds } },
+      select: { id: true, tags: true, stage: true, stageDates: true },
+    }).catch(() => [])) as { id: string; tags: string[]; stage: string; stageDates: unknown }[];
+    for (const r of rows) {
+      try {
+        const data: Record<string, unknown> = {};
+        if (tagVal && !(r.tags ?? []).includes(tagVal)) {
+          data.tags = [...(r.tags ?? []), tagVal].slice(0, 30);
+        }
+        if (stageVal && r.stage !== stageVal) {
+          data.stage = stageVal;
+          data.stageDates = {
+            ...((r.stageDates as Record<string, unknown>) ?? {}),
+            [stageVal]: { at: new Date().toISOString(), byUserId: c.createdById ?? null, meta: { source: 'campaign' } },
+          };
+        }
+        if (Object.keys(data).length > 0) {
+          await this.prisma.crmRecord.update({ where: { id: r.id }, data: data as never });
+        }
+      } catch { /* una scheda che fallisce non ferma le altre */ }
+    }
   }
 
   /**

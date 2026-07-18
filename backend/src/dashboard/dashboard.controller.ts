@@ -6,7 +6,7 @@ import { DashboardService } from './dashboard.service';
 
 /** Anteprime dei moduli della dashboard (ultimi dati per pagina). */
 @Controller('admin/dashboard')
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'marketing', 'head_marketing', 'admin')
 export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 

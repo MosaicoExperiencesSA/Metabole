@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope, isCoachLike } from '../common/coach-team';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -25,7 +26,7 @@ export class AnalyticsService {
 
     const where: Record<string, unknown> = { role: 'client', deletedAt: null };
     if (!scopeAll) {
-      if (user.role === 'coach' && staff) where.clientProfile = { assignedCoachId: staff.id };
+      if (isCoachLike(user.role) && staff) where.clientProfile = { assignedCoachId: { in: (await coachTeamScope(this.prisma, user.sub)) ?? [] } };
       else if (user.role === 'nutritionist' && staff) where.clientProfile = { assignedNutritionistId: staff.id };
       else where.id = '__none__';
     }

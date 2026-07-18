@@ -6,7 +6,7 @@ import { ReportsService } from './reports.service';
 
 /** Report mensile della cliente (anteprima + invio). */
 @Controller('admin/reports')
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 

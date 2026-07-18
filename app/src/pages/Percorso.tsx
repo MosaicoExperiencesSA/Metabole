@@ -56,6 +56,11 @@ export default function Percorso() {
     .filter((d) => d.date.slice(0, 10) < iso)
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 8);
+  // Menu futuri: i giorni già erogati con data SUCCESSIVA a oggi (di norma i
+  // prossimi 1-2 giorni sbloccati dall'ultima misura). Ordinati dal più vicino.
+  const future = days
+    .filter((d) => d.date.slice(0, 10) > iso)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="home">
@@ -104,6 +109,40 @@ export default function Percorso() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MENU FUTURI — i prossimi giorni già erogati (sbloccati dall'invio misure) */}
+      {future.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div className="sec" style={{ margin: '0 2px 9px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <i className="ti ti-calendar" style={{ fontSize: 15, color: 'var(--teal)' }} /> Menu futuri
+          </div>
+          <div className="meals-col">
+            {future.map((d) => {
+              const dm = d.meals ?? [];
+              const kcal = dm.reduce((a, m) => a + (m.kcal || 0), 0);
+              const label = whenLabel(d.date);
+              const names = dm.map((m) => m.name).filter(Boolean).join(' · ');
+              return (
+                <div key={d.id} className="card" onClick={() => nav('/menu')}
+                  style={{ display: 'flex', gap: 11, alignItems: 'center', cursor: 'pointer' }}>
+                  <span style={{ width: 44, height: 44, borderRadius: 13, background: '#EAF6F1', color: '#0E7C66', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                    <i className="ti ti-tools-kitchen-2" style={{ fontSize: 22 }} />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>
+                      {label} · {dm.length} pasti{kcal > 0 ? ` · ${kcal.toLocaleString('it-IT')} kcal` : ''}
+                    </div>
+                    {names && (
+                      <div className="muted" style={{ fontSize: 11, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{names}</div>
+                    )}
+                  </div>
+                  <i className="ti ti-chevron-right" style={{ color: '#9AA6A2', flex: 'none' }} />
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit';
 import { MailService } from '../mail/mail.service';
 import { PdfService } from '../pdf/pdf.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope } from '../common/coach-team';
 
 export interface MonthlyReport {
   clientId: string;
@@ -37,14 +38,19 @@ export class ReportsService {
   async assertReportAccess(actorUserId: string, clientId: string) {
     const actor = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
     const role = actor?.role;
-    if (role !== 'coach' && role !== 'nutritionist') return;
-    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    if (role !== 'coach' && role !== 'coach_coordinator' && role !== 'nutritionist') return;
     const prof = (await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
       select: { assignedCoachId: true, assignedNutritionistId: true },
     })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
-    const ok = role === 'coach' ? prof?.assignedCoachId === staff?.id : prof?.assignedNutritionistId === staff?.id;
-    if (!ok) throw new ForbiddenException('Questo cliente non è assegnato a te.');
+    if (role === 'nutritionist') {
+      const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+      if (prof?.assignedNutritionistId !== staff?.id) throw new ForbiddenException('Questo cliente non è assegnato a te.');
+      return;
+    }
+    // Coach → sue clienti; coordinatrice → sue + del suo team.
+    const ids = (await coachTeamScope(this.prisma, actorUserId)) ?? [];
+    if (!prof?.assignedCoachId || !ids.includes(prof.assignedCoachId)) throw new ForbiddenException('Questo cliente non è assegnato a te.');
   }
 
   /** Calcola il riepilogo del mese per una cliente. */

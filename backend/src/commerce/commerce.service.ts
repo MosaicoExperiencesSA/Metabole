@@ -20,6 +20,7 @@ import { ReferralService } from '../referral/referral.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { deriveSegment } from '../common/funnel-segment';
+import { coachTeamScope } from '../common/coach-team';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 
@@ -180,7 +181,7 @@ export class CommerceService {
   }
 
   async createProduct(actorId: string, dto: { name: string; priceCents: number; description?: string; active?: boolean; repurchasable?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
-    const product = await this.prisma.product.create({ data: { ...dto, active: dto.active ?? true } });
+    const product = await this.prisma.product.create({ data: { ...dto, active: dto.active ?? true } as never });
     await this.audit.log({ action: 'shop.product.create', actorId, entityType: 'product', entityId: product.id });
     return product;
   }
@@ -200,7 +201,7 @@ export class CommerceService {
   }
 
   async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean; repurchasable?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
-    const plan = await this.prisma.plan.create({ data: { ...dto, features: dto.features ?? [], active: dto.active ?? true } });
+    const plan = await this.prisma.plan.create({ data: { ...dto, features: dto.features ?? [], active: dto.active ?? true } as never });
     await this.audit.log({ action: 'shop.plan.create', actorId, entityType: 'plan', entityId: plan.id });
     return plan;
   }
@@ -601,11 +602,11 @@ export class CommerceService {
 
   /** Coach → solo clienti assegnate a lei; responsabile coach (sales) e admin → tutte. */
   private async assertStaffPaymentAccess(actorUserId: string, clientId: string): Promise<void> {
-    const actor = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
-    if (actor?.role !== 'coach') return; // sales/admin: la guardia ruoli del controller ha già filtrato
-    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
+    // Coach → sue clienti; coordinatrice → sue + team; sales/admin: già filtrati dal controller.
+    const ids = await coachTeamScope(this.prisma, actorUserId);
+    if (!ids) return;
     const prof = (await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { assignedCoachId: true } })) as { assignedCoachId: string | null } | null;
-    if (!staff || !prof || prof.assignedCoachId !== staff.id) {
+    if (!prof?.assignedCoachId || !ids.includes(prof.assignedCoachId)) {
       throw new ForbiddenException('Questa cliente non è assegnata a te.');
     }
   }

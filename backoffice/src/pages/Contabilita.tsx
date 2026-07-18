@@ -49,6 +49,7 @@ interface Report {
   byCategory: { category: string; amountCents: number; source: 'ledger' | 'manual' }[];
   series: { month: string; incomeCents: number; costsCents: number }[];
   kpi: { newClients: number; payingClients: number; marketingCostCents: number; cacCents: number | null; arpuCents: number | null };
+  commissions: { accruedPeriodCents: number; paidPeriodCents: number; accruedTotalCents: number; paidTotalCents: number; reserveCents: number; requestedCents: number; pendingCents: number };
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -172,6 +173,21 @@ export function Contabilita() {
             <Kpi label="ARPU (ricavo medio)" value={report.kpi.arpuCents != null ? euro(report.kpi.arpuCents) : '—'} sub={`${report.kpi.payingClients} clienti paganti`} />
             <Kpi label="Spesa marketing" value={euro0(report.kpi.marketingCostCents)} />
           </div>
+
+          {/* Provvigioni: maturate nel mese, prelievi pagati nel mese, accantonamento (fondo da versare).
+              "Pagate" = flusso prelievi (richiesta staff → conferma admin, pagina Prelievi). */}
+          {report.commissions && (
+            <div className="card-row" style={{ marginTop: 12 }}>
+              <Kpi label="Provvigioni accantonate" value={euro(report.commissions.accruedPeriodCents)} sub="maturate nel mese (incl. compensi visite)" />
+              <Kpi label="Provvigioni pagate" value={euro(report.commissions.paidPeriodCents)} sub="prelievi confermati nel mese" color="var(--teal)" />
+              <Kpi
+                label="Accantonamento provvigioni"
+                value={euro(report.commissions.reserveCents)}
+                color={report.commissions.reserveCents > 0 ? 'var(--coral)' : 'var(--ok-ink)'}
+                sub={`maturate totali − prelevate totali${report.commissions.requestedCents > 0 ? ` · ${euro(report.commissions.requestedCents)} richiesti da pagare` : ''}${report.commissions.pendingCents > 0 ? ` · ${euro(report.commissions.pendingCents)} in attesa di assegnazione` : ''}`}
+              />
+            </div>
+          )}
 
           {/* Grafici mensili (un asse per grafico: incassi, costi, utile) */}
           {report.series.length > 0 && (

@@ -1091,13 +1091,15 @@ async function ensureAdminFromEnv(): Promise<void> {
 }
 
 /**
- * Stati predefiniti della pipeline CRM (chiavi stabili = ciclo di vita della
- * specifica). Create-only: l'admin può rinominare/riordinare/aggiungere dal
- * backoffice senza che il seed sovrascriva. lead_in e paid sono "di sistema"
- * (referenziati dall'automazione: registrazione e approvazione pagamento).
+ * Stati predefiniti della pipeline CRM. Il set completo viene creato SOLO alla
+ * prima installazione (tabella vuota): da lì in poi gli stati sono dell'admin
+ * (rinomina, riordina, aggiunge, ELIMINA) e il seed non li ricrea più.
+ * Unica eccezione: i 3 stati di sistema (lead_in, trial, paid), referenziati
+ * dall'automazione (registrazione, checkout gratuito, pagamento): se mancano
+ * vengono ripristinati, perché senza di loro l'automazione si romperebbe.
  */
 async function seedPipelineStages(): Promise<void> {
-  const stages = [
+  const defaults = [
     { key: 'lead_in', label: 'Nuovo contatto', color: '#7c8c88', order: 0, isSystem: true },
     { key: 'worked', label: 'Lavorato', color: '#3a6ea5', order: 1, isSystem: false },
     // "Prova": cliente che ha attivato un prodotto GRATUITO (checkout a 0). Al primo
@@ -1110,17 +1112,25 @@ async function seedPipelineStages(): Promise<void> {
     { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 6, isSystem: false },
     { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 7, isSystem: false },
   ];
-  for (const s of stages) {
+  const existing = await prisma.pipelineStage.count();
+  if (existing === 0) {
+    for (const s of defaults) await prisma.pipelineStage.create({ data: s });
+    console.log(`Seed: creati ${defaults.length} stati pipeline (prima installazione).`);
+    return;
+  }
+  // Installazione già avviata: NON ricreo gli stati eliminati dall'admin.
+  // Verifico solo che i 3 di sistema esistano ancora e siano marcati tali.
+  for (const s of defaults.filter((d) => d.isSystem)) {
     await prisma.pipelineStage.upsert({
       where: { key: s.key },
       create: s,
-      update: { isSystem: s.isSystem }, // non tocca label/color/order scelti dall'admin
+      update: { isSystem: true }, // non tocca label/color/order scelti dall'admin
     });
   }
   // Rinomina una tantum: se lo stato 'paid' ha ancora l'etichetta di default "Pagato",
   // diventa "Acquisito" (se l'admin l'ha già personalizzata, non si tocca).
   await prisma.pipelineStage.updateMany({ where: { key: 'paid', label: 'Pagato' }, data: { label: 'Acquisito' } });
-  console.log(`Seed: ${stages.length} stati pipeline verificati.`);
+  console.log('Seed: stati pipeline dell\'admin lasciati intatti (verificati i 3 di sistema).');
 }
 
 main()

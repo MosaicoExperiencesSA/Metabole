@@ -40,7 +40,7 @@ export class MyThreadsController {
 }
 
 @Controller('staff/threads')
-@Roles('coach', 'nutritionist', 'head_nutritionist')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist')
 export class StaffThreadsController {
   constructor(
     private readonly chat: ChatService,

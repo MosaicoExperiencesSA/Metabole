@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { coachTeamScope } from '../common/coach-team';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PipelineService } from './pipeline.service';
@@ -104,12 +105,8 @@ export class CrmService {
    * Ritorna lo staffId a cui vincolare la query se l'attore è una coach, altrimenti null.
    * (Coach senza scheda staff → id impossibile: non vede nulla, mai tutto per errore.)
    */
-  private async coachScope(actorUserId?: string): Promise<string | null> {
-    if (!actorUserId) return null;
-    const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
-    if (u?.role !== 'coach') return null;
-    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
-    return staff?.id ?? '00000000-0000-0000-0000-000000000000';
+  private async coachScope(actorUserId?: string): Promise<string[] | null> {
+    return coachTeamScope(this.prisma, actorUserId);
   }
 
   /** Blocca l'accesso puntuale a un lead non assegnato alla coach (detail/modifiche). */
@@ -117,7 +114,7 @@ export class CrmService {
     const scopeId = await this.coachScope(actorUserId);
     if (!scopeId) return;
     const rec = (await this.prisma.crmRecord.findUnique({ where: { id: recordId }, select: { assignedCoachId: true } })) as { assignedCoachId: string | null } | null;
-    if (!rec || rec.assignedCoachId !== scopeId) throw new ForbiddenException('Questo lead non è assegnato a te.');
+    if (!rec || !rec.assignedCoachId || !scopeId.includes(rec.assignedCoachId)) throw new ForbiddenException('Questo lead non è assegnato a te.');
   }
 
   /** Lead pubblico dai form del sito (contatti + "Lavora con noi"). Nessuna migrazione:
@@ -266,7 +263,7 @@ export class CrmService {
     // Scope per ruolo: se l'attore è una coach, la query è INCHIODATA ai suoi lead
     // (il filtro coach scelto in UI viene ignorato); manager/capo/admin filtrano liberi.
     const scopeId = await this.coachScope(actorUserId);
-    if (scopeId) AND.push({ assignedCoachId: scopeId });
+    if (scopeId) AND.push({ assignedCoachId: { in: scopeId } });
     else if (filter.coachId === 'none') AND.push({ assignedCoachId: null });
     else if (filter.coachId) AND.push({ assignedCoachId: filter.coachId });
     if (filter.nutriId === 'none') AND.push({ NOT: { client: { clientProfile: { assignedNutritionistId: { not: null } } } } });
@@ -467,7 +464,7 @@ export class CrmService {
       include: {
         _count: {
           select: {
-            members: (scopeId ? { where: { record: { assignedCoachId: scopeId } } } : true) as never,
+            members: (scopeId ? { where: { record: { assignedCoachId: { in: scopeId } } } } : true) as never,
           },
         },
       },
@@ -557,7 +554,7 @@ export class CrmService {
     const lists = (await this.prisma.crmList.findMany({ select: { id: true, name: true } })) as { id: string; name: string }[];
     const listByName = new Map(lists.map((l) => [l.name.toLowerCase(), l.id]));
     const coaches = (await this.prisma.staff.findMany({
-      where: { user: { role: 'coach' } },
+      where: { user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       select: { id: true, refCode: true },
     })) as { id: string; refCode: string | null }[];
     const coachByRef = new Map(coaches.filter((c) => c.refCode).map((c) => [c.refCode!.toUpperCase(), c.id]));

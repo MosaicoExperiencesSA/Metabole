@@ -4,6 +4,7 @@ import { nextRuleCode, refCodeBase, splitDisplayName } from '../common/ref-code'
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope } from '../common/coach-team';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -44,10 +45,20 @@ export class LeadAssignmentService {
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
     if (!record) throw new NotFoundException('Lead non trovato.');
     const coach = await this.prisma.staff.findFirst({
-      where: { id: coachStaffId, user: { role: 'coach' } },
+      where: { id: coachStaffId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       include: { user: { select: { id: true } } },
     });
     if (!coach) throw new BadRequestException('Coach non valida.');
+
+    // Coordinatrice (e coach): può muovere SOLO i lead già suoi o del suo team,
+    // e SOLO verso una coach del suo team (sé compresa). Responsabile/capo/admin: tutto.
+    const scope = await coachTeamScope(this.prisma, byUserId);
+    if (scope) {
+      if (!scope.includes(coachStaffId)) throw new ForbiddenException('Puoi assegnare solo alle coach del tuo team.');
+      if (!record.assignedCoachId || !scope.includes(record.assignedCoachId)) {
+        throw new ForbiddenException('Questo lead non è del tuo perimetro: chiedi alla responsabile.');
+      }
+    }
 
     const byStaff = await this.staffIdOf(byUserId);
     const updated = await this.prisma.crmRecord.update({
@@ -74,15 +85,25 @@ export class LeadAssignmentService {
     if (ids.length === 0) throw new BadRequestException('Nessun lead selezionato.');
 
     const coach = await this.prisma.staff.findFirst({
-      where: { id: coachStaffId, user: { role: 'coach' } },
+      where: { id: coachStaffId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       include: { user: { select: { id: true } } },
     });
     if (!coach) throw new BadRequestException('Coach non valida.');
 
+    // Perimetro coordinatrice/coach anche in massa: target nel team, lead già del team.
+    const scope = await coachTeamScope(this.prisma, byUserId);
+    if (scope && !scope.includes(coachStaffId)) throw new ForbiddenException('Puoi assegnare solo alle coach del tuo team.');
+
     // Scarta gli id inesistenti cosi' il conteggio riflette solo i lead reali.
-    const existing = await this.prisma.crmRecord.findMany({ where: { id: { in: ids } }, select: { id: true } });
+    const existing = await this.prisma.crmRecord.findMany({
+      where: {
+        id: { in: ids },
+        ...(scope ? { assignedCoachId: { in: scope } } : {}),
+      } as never,
+      select: { id: true },
+    }) as { id: string }[];
     const existingIds = existing.map((r) => r.id);
-    if (existingIds.length === 0) throw new BadRequestException('Nessun lead valido da assegnare.');
+    if (existingIds.length === 0) throw new BadRequestException(scope ? 'Nessuno dei lead selezionati è del tuo perimetro.' : 'Nessun lead valido da assegnare.');
 
     const byStaff = await this.staffIdOf(byUserId);
     await this.prisma.crmRecord.updateMany({
@@ -167,14 +188,17 @@ export class LeadAssignmentService {
   async myPending(coachUserId: string) {
     const staffId = await this.staffIdOf(coachUserId);
     if (!staffId) return [];
+    // Coordinatrice: vede i lead in attesa di TUTTO il suo perimetro (lei + team),
+    // così può riassegnarli in massa alle sue coach; la coach vede solo i propri.
+    const scope = (await coachTeamScope(this.prisma, coachUserId)) ?? [staffId];
     const rows = await this.prisma.crmRecord.findMany({
-      where: { assignedCoachId: staffId, assignmentStatus: 'pending' },
+      where: { assignedCoachId: { in: scope }, assignmentStatus: 'pending' },
       orderBy: { assignedAt: 'asc' },
-      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } }, assignedBy: { select: { displayName: true } } },
+      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } }, assignedBy: { select: { displayName: true } }, assignedCoach: { select: { id: true, displayName: true } } },
     });
     const now = Date.now();
     const windowMs = await this.acceptWindowMs();
-    type Row = { id: string; name: string | null; email: string | null; assignedAt: Date | null; client: { email: string; clientProfile: { name: string | null } | null } | null; assignedBy: { displayName: string } | null };
+    type Row = { id: string; name: string | null; email: string | null; assignedAt: Date | null; client: { email: string; clientProfile: { name: string | null } | null } | null; assignedBy: { displayName: string } | null; assignedCoach: { id: string; displayName: string } | null };
     return (rows as Row[]).map((r) => {
       const deadline = r.assignedAt ? new Date(r.assignedAt.getTime() + windowMs) : null;
       const hoursLeft = deadline ? Math.max(0, Math.round((deadline.getTime() - now) / 3_600_000)) : null;
@@ -185,6 +209,9 @@ export class LeadAssignmentService {
         assignedBy: r.assignedBy?.displayName ?? null,
         assignedAt: r.assignedAt,
         hoursLeft,
+        // Per la vista della coordinatrice: su quale coach è in attesa, e se è "mio".
+        coachName: r.assignedCoach?.displayName ?? null,
+        mine: r.assignedCoach?.id === staffId,
       };
     });
   }
@@ -213,10 +240,15 @@ export class LeadAssignmentService {
     return { expired: stale.length };
   }
 
-  /** Elenco coach (per il menu di assegnazione). */
-  async listCoaches() {
+  /** Elenco coach per il menu di assegnazione (coordinatrice → solo il suo team). */
+  async listCoaches(actorUserId?: string) {
+    const scope = actorUserId ? await coachTeamScope(this.prisma, actorUserId) : null;
     const rows = await this.prisma.staff.findMany({
-      where: { user: { role: 'coach', status: 'active' }, active: true },
+      where: {
+        user: { role: { in: ['coach', 'coach_coordinator'] as never }, status: 'active' },
+        active: true,
+        ...(scope ? { id: { in: scope } } : {}),
+      } as never,
       select: { id: true, displayName: true },
       orderBy: { displayName: 'asc' },
     });
@@ -301,7 +333,7 @@ export class LeadAssignmentService {
    */
   async generateRefCode(staffUserId: string, actorId: string, desired?: string): Promise<{ refCode: string }> {
     const staff = await this.prisma.staff.findFirst({
-      where: { userId: staffUserId, user: { role: 'coach' } },
+      where: { userId: staffUserId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       select: { id: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
     if (!staff) throw new BadRequestException('Il ref code è disponibile solo per le coach.');
@@ -371,7 +403,7 @@ export class LeadAssignmentService {
    */
   async myInvite(coachUserId: string): Promise<{ refCode: string; url: string }> {
     const staff = await this.prisma.staff.findFirst({
-      where: { userId: coachUserId, user: { role: 'coach' } },
+      where: { userId: coachUserId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       select: { id: true, refCode: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
     if (!staff) throw new BadRequestException('L\'invito è disponibile solo per le coach.');
@@ -397,8 +429,9 @@ export class LeadAssignmentService {
       where: { refCode: (code ?? '').trim().toUpperCase() },
       include: { user: { select: { id: true, role: true } } },
     });
-    if (!staff || (staff.user.role !== 'coach' && staff.user.role !== 'nutritionist')) return null;
-    return { staffId: staff.id, userId: staff.user.id, role: staff.user.role };
+    if (!staff || (staff.user.role !== 'coach' && staff.user.role !== 'coach_coordinator' && staff.user.role !== 'nutritionist')) return null;
+    // La coordinatrice, ai fini dell'assegnazione via ref code, conta come coach.
+    return { staffId: staff.id, userId: staff.user.id, role: staff.user.role === 'nutritionist' ? 'nutritionist' : 'coach' };
   }
 
   /**

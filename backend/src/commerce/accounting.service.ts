@@ -268,6 +268,7 @@ export class AccountingService {
   /** Conto economico del periodo + KPI. `from`/`to` = 'YYYY-MM-DD' (inclusi). */
   async report(from: string, to: string): Promise<AccountingReport & {
     kpi: { newClients: number; payingClients: number; marketingCostCents: number; cacCents: number | null; arpuCents: number | null };
+    commissions: { accruedPeriodCents: number; paidPeriodCents: number; accruedTotalCents: number; paidTotalCents: number; reserveCents: number; requestedCents: number; pendingCents: number };
   }> {
     const fromD = this.toDate(from);
     const toD = this.toDate(to, true);
@@ -302,7 +303,37 @@ export class AccountingService {
     const cacCents = newClients > 0 ? Math.round(marketingCostCents / newClients) : null;
     const arpuCents = payingClients > 0 ? Math.round(report.incomeCents / payingClients) : null;
 
-    return { ...report, kpi: { newClients, payingClients, marketingCostCents, cacCents, arpuCents } };
+    // Provvigioni (incl. compensi visite, stesso fondo del portafoglio staff):
+    // maturate = uscite a ledger; pagate = PRELIEVI confermati (flusso richiesta → conferma
+    // admin, CommissionWithdrawal); accantonamento = maturate totali − prelievi pagati totali
+    // (quanto è ancora "nel fondo" da versare allo staff, come il Saldo nei portafogli).
+    const COMM_CATS = ['sales_commission', 'visit_compensation'];
+    const accruedPeriodCents = ledger
+      .filter((r) => r.type === 'expense' && COMM_CATS.includes(r.category))
+      .reduce((a, r) => a + r.amountCents, 0);
+    const [accruedTotalAgg, paidPeriodAgg, paidTotalAgg, requestedAgg, pendingAgg] = await Promise.all([
+      this.prisma.ledgerEntry.aggregate({ where: { type: 'expense' as never, category: { in: COMM_CATS } }, _sum: { amountCents: true } }),
+      this.prisma.commissionWithdrawal.aggregate({ where: { status: 'paid', paidAt: { gte: fromD, lte: toD } }, _sum: { amountCents: true } }),
+      this.prisma.commissionWithdrawal.aggregate({ where: { status: 'paid' }, _sum: { amountCents: true } }),
+      // Richieste di prelievo in attesa di conferma (da pagare a breve).
+      this.prisma.commissionWithdrawal.aggregate({ where: { status: 'requested' }, _sum: { amountCents: true } }),
+      // Provvigioni maturate ma in attesa di assegnazione (coach/nutrizionista non ancora assegnati).
+      this.prisma.pendingCommission.aggregate({ where: { status: 'pending' }, _sum: { amountCents: true } }),
+    ]);
+    const accruedTotalCents = accruedTotalAgg._sum.amountCents ?? 0;
+    const paidPeriodCents = paidPeriodAgg._sum.amountCents ?? 0;
+    const paidTotalCents = paidTotalAgg._sum.amountCents ?? 0;
+    const commissions = {
+      accruedPeriodCents,
+      paidPeriodCents,
+      accruedTotalCents,
+      paidTotalCents,
+      reserveCents: accruedTotalCents - paidTotalCents,
+      requestedCents: requestedAgg._sum.amountCents ?? 0,
+      pendingCents: pendingAgg._sum.amountCents ?? 0,
+    };
+
+    return { ...report, kpi: { newClients, payingClients, marketingCostCents, cacCents, arpuCents }, commissions };
   }
 
   /** Etichetta leggibile del periodo (es. "luglio 2026" per un mese intero, altrimenti "dal … al …"). */
@@ -338,6 +369,13 @@ export class AccountingService {
     row('Spesa marketing (€)', eur(r.kpi.marketingCostCents));
     row('CAC (€)', r.kpi.cacCents != null ? eur(r.kpi.cacCents) : '—');
     row('ARPU (€)', r.kpi.arpuCents != null ? eur(r.kpi.arpuCents) : '—');
+    row('');
+    row('Provvigioni', 'Importo (€)');
+    row('Maturate nel periodo', eur(r.commissions.accruedPeriodCents));
+    row('Prelievi pagati nel periodo', eur(r.commissions.paidPeriodCents));
+    row('Accantonamento (maturate tot. − prelevate tot.)', eur(r.commissions.reserveCents));
+    if (r.commissions.requestedCents > 0) row('Richieste di prelievo in attesa', eur(r.commissions.requestedCents));
+    if (r.commissions.pendingCents > 0) row('In attesa di assegnazione', eur(r.commissions.pendingCents));
     row('');
     row('Costi per categoria', 'Importo (€)', 'Origine');
     for (const c of r.byCategory) row(catLabel(c.category), eur(c.amountCents), c.source === 'ledger' ? 'automatico' : 'manuale');
@@ -385,6 +423,14 @@ export class AccountingService {
       line('Spesa marketing:', `€ ${eur(r.kpi.marketingCostCents)}`);
       line('CAC:', r.kpi.cacCents != null ? `€ ${eur(r.kpi.cacCents)}` : '—');
       line('ARPU:', r.kpi.arpuCents != null ? `€ ${eur(r.kpi.arpuCents)}` : '—');
+
+      doc.moveDown(0.6);
+      doc.fillColor('#10403a').font('Helvetica-Bold').fontSize(14).text('Provvigioni'); doc.moveDown(0.4);
+      line('Maturate nel periodo:', `€ ${eur(r.commissions.accruedPeriodCents)}`);
+      line('Prelievi pagati nel periodo:', `€ ${eur(r.commissions.paidPeriodCents)}`);
+      line('Accantonamento:', `€ ${eur(r.commissions.reserveCents)}`, true);
+      if (r.commissions.requestedCents > 0) line('Richieste di prelievo in attesa:', `€ ${eur(r.commissions.requestedCents)}`);
+      if (r.commissions.pendingCents > 0) line('In attesa di assegnazione:', `€ ${eur(r.commissions.pendingCents)}`);
 
       if (r.byCategory.length) {
         doc.moveDown(0.6);

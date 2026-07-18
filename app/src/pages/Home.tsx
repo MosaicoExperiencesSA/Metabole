@@ -85,6 +85,58 @@ const HELP: [string, string, string, string][] = [
   ['ti-arrows-exchange', 'Sostituisci', 'sost', '#6C5AB7'],
 ];
 
+/** Sheet interattivo "Sostituisci un ingrediente": chiede il cibo non gradito e applica
+ *  la sostituzione al menu di oggi (POST /me/menu/substitute). */
+function SubstituteIngredient({ onClose }: { onClose: () => void }) {
+  const [ing, setIng] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    const v = ing.trim();
+    if (v.length < 2) { setErr("Scrivi l'ingrediente che non gradisci."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await api<{ applied: { from: string; to: string }[]; message: string }>('/me/menu/substitute', {
+        method: 'POST', body: JSON.stringify({ ingredient: v }),
+      });
+      setMsg(r.message);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Non è stato possibile aggiornare il menu.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+        <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
+        <b style={{ fontSize: 15 }}>Sostituisci un ingrediente</b>
+      </div>
+      {msg ? (
+        <>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{msg}</div>
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={onClose}>Ok, grazie</button>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 10 }}>
+            Qual è l'ingrediente che non hai o non ti piace? Lo tolgo dai tuoi gusti e, se è nel menu di oggi, lo sostituisco con un'alternativa equivalente.
+          </div>
+          <input className="input" placeholder="Es. farro, funghi, pesce…" value={ing} autoFocus
+            onChange={(e) => setIng(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }} />
+          {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11, marginTop: 12 }} disabled={busy} onClick={submit}>
+            {busy ? 'Aggiorno…' : 'Aggiorna ricetta'}
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
 function KpiTile({ icon, value, label, color, onClick, hint }: { icon: string; value: string; label: string; color: string; onClick?: () => void; hint?: string }) {
   // Come nel prototipo: sfondo a gradiente colorato + icona a tinta piena con
   // ombra colorata (leggero effetto 3D).
@@ -394,12 +446,18 @@ export default function Home() {
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
       {help && SHEETS[help] && (
         <Sheet onClose={() => setHelp(null)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-            <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
-            <b style={{ fontSize: 15 }}>{SHEETS[help].t}</b>
-          </div>
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{SHEETS[help].b}</div>
-          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={() => setHelp(null)}>{SHEETS[help].cta}</button>
+          {help === 'sost' ? (
+            <SubstituteIngredient onClose={() => setHelp(null)} />
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+                <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
+                <b style={{ fontSize: 15 }}>{SHEETS[help].t}</b>
+              </div>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{SHEETS[help].b}</div>
+              <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={() => { if (help === 'fame') navigate('/contatti'); setHelp(null); }}>{SHEETS[help].cta}</button>
+            </>
+          )}
         </Sheet>
       )}
     </div>

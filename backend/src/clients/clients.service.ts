@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone'] as const;
@@ -28,16 +29,18 @@ export class ClientsService {
    * (sales), il capo nutrizionista e l'admin vedono tutti.
    * Ritorna il vincolo da applicare alle liste, o null se l'attore vede tutto.
    */
-  private async clientScope(actorUserId: string): Promise<{ field: 'assignedCoachId' | 'assignedNutritionistId'; staffId: string } | null> {
+  private async clientScope(actorUserId: string): Promise<{ field: 'assignedCoachId' | 'assignedNutritionistId'; staffIds: string[] } | null> {
     const actor = await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } });
     const role = actor?.role as string | undefined;
-    if (role !== 'coach' && role !== 'nutritionist') return null;
+    if (isCoachLike(role)) {
+      // Coach → le sue; coordinatrice → sue + del suo team.
+      const ids = (await coachTeamScope(this.prisma, actorUserId)) ?? [];
+      return { field: 'assignedCoachId', staffIds: ids };
+    }
+    if (role !== 'nutritionist') return null;
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
-    return {
-      field: role === 'coach' ? 'assignedCoachId' : 'assignedNutritionistId',
-      // Senza scheda staff → id impossibile: non vede nessun cliente, mai tutti per errore.
-      staffId: staff?.id ?? '00000000-0000-0000-0000-000000000000',
-    };
+    // Senza scheda staff → id impossibile: non vede nessun cliente, mai tutti per errore.
+    return { field: 'assignedNutritionistId', staffIds: [staff?.id ?? '00000000-0000-0000-0000-000000000000'] };
   }
 
   /** Blocca l'accesso alla scheda di un cliente non assegnato all'attore. */
@@ -48,7 +51,8 @@ export class ClientsService {
       where: { userId: clientUserId },
       select: { assignedCoachId: true, assignedNutritionistId: true },
     })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
-    if (!prof || prof[scope.field] !== scope.staffId) {
+    const assigned = prof?.[scope.field] ?? null;
+    if (!assigned || !scope.staffIds.includes(assigned)) {
       throw new ForbiddenException('Questo cliente non è assegnato a te.');
     }
   }
@@ -59,7 +63,7 @@ export class ClientsService {
     const where = {
       role: 'client' as never,
       deletedAt: null,
-      ...(scope ? { clientProfile: { [scope.field]: scope.staffId } } : {}),
+      ...(scope ? { clientProfile: { [scope.field]: { in: scope.staffIds } } } : {}),
     };
     const items = await this.prisma.user.findMany({
       where: where as never,
@@ -84,7 +88,7 @@ export class ClientsService {
       throw new ForbiddenException('Questa scheda è disponibile solo per i clienti.');
     }
 
-    const [profile, objective, measurements, checkins, waterLogs, stepLogs, subscription, payments, crm, notes, pending] = await Promise.all([
+    const [profile, objective, measurements, checkins, waterLogs, stepLogs, subscriptions, payments, crm, notes, pending] = await Promise.all([
       this.prisma.clientProfile.findUnique({
         where: { userId },
         include: {
@@ -112,9 +116,13 @@ export class ClientsService {
         take: 60,
         select: { id: true, date: true, steps: true, goal: true },
       }),
-      this.prisma.subscription.findFirst({
+      // Ultimi abbonamenti: in scheda si mostra prima l'ATTIVO, poi l'in attesa e
+      // solo in mancanza il più recente (prima vinceva sempre il più recente per data:
+      // un checkout annullato copriva la prova gratuita attiva).
+      this.prisma.subscription.findMany({
         where: { clientId: userId },
         orderBy: { createdAt: 'desc' },
+        take: 10,
         include: { plan: { select: { name: true, priceCents: true, period: true } } },
       }),
       this.prisma.payment.findMany({
@@ -139,6 +147,17 @@ export class ClientsService {
 
     await this.audit.log({ action: 'client.detail.view', actorId, entityType: 'user', entityId: userId });
 
+    // Abbonamento "principale" della scheda: attivo > in attesa > più recente.
+    const subs = subscriptions as { status: string }[];
+    const subscription = subs.find((s) => s.status === 'active') ?? subs.find((s) => s.status === 'pending') ?? subs[0] ?? null;
+
+    // Nome leggibile dello stato pipeline (es. "Prova" invece della chiave "trial") per il badge CRM.
+    const stageLabel = crm
+      ? ((await this.prisma.pipelineStage
+          .findUnique({ where: { key: (crm as { stage: string }).stage }, select: { label: true } })
+          .catch(() => null)) as { label: string } | null)?.label ?? null
+      : null;
+
     return {
       user,
       profile, // include onboardingAnswers, consents, screeningFlag, ecc.
@@ -149,7 +168,7 @@ export class ClientsService {
       stepLogs,
       subscription,
       payments,
-      crm,
+      crm: crm ? { ...(crm as Record<string, unknown>), stageLabel } : null,
       notes: (notes as { id: string; body: string; createdAt: Date; author: { displayName: string } | null }[]).map((n) => ({
         id: n.id,
         body: n.body,
@@ -280,6 +299,117 @@ export class ClientsService {
         .catch(() => undefined);
     }
     return { updated: true };
+  }
+
+  /**
+   * Menu del cliente per la revisione del nutrizionista: giorni di menu (ultime ~8
+   * settimane + prossimi 7 giorni) con i piatti e le STELLINE date dal cliente.
+   * Per ogni piatto: valutazione del giorno esatto se c'è, altrimenti l'ultima
+   * valutazione data a quella ricetta (contrassegnata come "altro giorno").
+   */
+  async getMenus(userId: string, actorId: string) {
+    await this.assertClientAccess(actorId, userId);
+    const from = new Date();
+    from.setDate(from.getDate() - 56);
+    const to = new Date();
+    to.setDate(to.getDate() + 7);
+
+    const [days, ratings] = await Promise.all([
+      this.prisma.menuDay.findMany({
+        where: { clientId: userId, date: { gte: from, lte: to } },
+        orderBy: { date: 'desc' },
+        take: 70,
+        select: { id: true, date: true, level: true, status: true, meals: true, diet: { select: { id: true, name: true } } },
+      }) as Promise<{ id: string; date: Date; level: number; status: string; meals: unknown; diet: { id: string; name: string } | null }[]>,
+      this.prisma.recipeRating.findMany({
+        where: { clientId: userId },
+        orderBy: { date: 'desc' },
+        take: 800,
+        select: { recipeId: true, date: true, stars: true, tags: true },
+      }) as Promise<{ recipeId: string; date: Date; stars: number; tags: string[] }[]>,
+    ]);
+
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+    const exact = new Map<string, { stars: number; tags: string[] }>();
+    const latest = new Map<string, { stars: number; tags: string[]; date: string }>();
+    for (const r of ratings) {
+      exact.set(`${r.recipeId}|${dayKey(r.date)}`, { stars: r.stars, tags: r.tags });
+      if (!latest.has(r.recipeId)) latest.set(r.recipeId, { stars: r.stars, tags: r.tags, date: dayKey(r.date) }); // già ordinate per data desc
+    }
+
+    const out = days.map((d) => {
+      const key = dayKey(d.date);
+      const meals = (Array.isArray(d.meals) ? d.meals : []) as { slot?: string; recipeId?: string; name?: string; kcal?: number }[];
+      return {
+        id: d.id,
+        date: key,
+        level: d.level,
+        status: d.status,
+        dietName: d.diet?.name ?? null,
+        meals: meals.map((m) => {
+          const ex = m.recipeId ? exact.get(`${m.recipeId}|${key}`) : undefined;
+          const la = !ex && m.recipeId ? latest.get(m.recipeId) : undefined;
+          return {
+            slot: m.slot ?? null,
+            name: m.name ?? '—',
+            kcal: m.kcal ?? null,
+            stars: ex?.stars ?? la?.stars ?? null,
+            ratingTags: ex?.tags ?? la?.tags ?? [],
+            // true = valutato proprio quel giorno; false = ultima valutazione della stessa ricetta in un altro giorno.
+            ratedSameDay: ex ? true : la ? false : null,
+            ratedOn: ex ? key : la?.date ?? null,
+          };
+        }),
+      };
+    });
+    await this.audit.log({ action: 'client.menus.view', actorId, entityType: 'user', entityId: userId });
+    return { days: out };
+  }
+
+  /**
+   * Correzione di una misura inserita male dal cliente (permesso dedicato
+   * "fix_measures" nella matrice Permessi). Tutto tracciato in audit con prima/dopo.
+   */
+  async updateMeasurement(
+    userId: string,
+    actorId: string,
+    measurementId: string,
+    input: { weightKg?: number; waistCm?: number | null; hipsCm?: number | null; thighsCm?: number | null },
+  ) {
+    await this.assertClientAccess(actorId, userId);
+    const m = (await this.prisma.measurement.findFirst({
+      where: { id: measurementId, clientId: userId },
+    })) as { id: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; date: Date } | null;
+    if (!m) throw new NotFoundException('Misura non trovata per questo cliente.');
+
+    const data: Record<string, unknown> = {};
+    if (input.weightKg !== undefined) {
+      if (typeof input.weightKg !== 'number' || input.weightKg < 25 || input.weightKg > 400) throw new BadRequestException('Peso non plausibile (25–400 kg).');
+      data.weightKg = Math.round(input.weightKg * 10) / 10;
+    }
+    for (const k of ['waistCm', 'hipsCm', 'thighsCm'] as const) {
+      const v = input[k];
+      if (v === undefined) continue;
+      if (v === null) { data[k] = null; continue; }
+      if (typeof v !== 'number' || v < 20 || v > 300) throw new BadRequestException('Circonferenza non plausibile (20–300 cm).');
+      data[k] = Math.round(v * 10) / 10;
+    }
+    if (Object.keys(data).length === 0) throw new BadRequestException('Nessuna modifica indicata.');
+
+    const updated = await this.prisma.measurement.update({ where: { id: m.id }, data: data as never });
+    await this.audit.log({
+      action: 'client.measurement.fix',
+      actorId,
+      entityType: 'measurement',
+      entityId: m.id,
+      metadata: {
+        clientId: userId,
+        date: m.date.toISOString().slice(0, 10),
+        before: { weightKg: m.weightKg, waistCm: m.waistCm, hipsCm: m.hipsCm, thighsCm: m.thighsCm },
+        after: data,
+      },
+    });
+    return updated;
   }
 
   /** Modalità viaggio/estate (staff): imposta lo stato e le date; al rientro emette un evento per il CRM/marketing. */

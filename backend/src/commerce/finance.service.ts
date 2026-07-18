@@ -101,6 +101,11 @@ export class FinanceService {
                   commissionManagerCoachCents: true,
                   commissionNutritionistCents: true,
                   commissionHeadNutritionistCents: true,
+                  commissionCoachPct: true,
+                  commissionCoordinatorPct: true,
+                  commissionManagerPct: true,
+                  commissionNutritionistPct: true,
+                  commissionHeadNutritionistPct: true,
                 },
               },
             },
@@ -111,10 +116,151 @@ export class FinanceService {
     ]);
     if (!profile) return;
 
+    // RETE A DIFFERENZA (decisione 17/07): se il piano/prodotti hanno percentuali,
+    // si paga per differenza lungo la catena reale (coach → coordinatrice → manager;
+    // nutrizionista → capo). Altrimenti restano gli importi fissi legacy.
+    const pq = await this.percentAmounts(payment.amountCents, full);
+    if (pq) {
+      await this.settleChain(payment, 'coach', profile.assignedCoachId, [
+        { role: 'coach', amountCents: pq.coach },
+        { role: 'coach_coordinator', amountCents: pq.coordinator },
+        { role: 'sales', amountCents: pq.manager },
+      ]);
+      await this.settleChain(payment, 'nutritionist', profile.assignedNutritionistId, [
+        { role: 'nutritionist', amountCents: pq.nutritionist },
+        { role: 'head_nutritionist', amountCents: pq.headNutritionist },
+      ]);
+      return;
+    }
+
     const q = await this.commissionAmounts(payment.amountCents, full);
 
     await this.settleSide(payment, 'coach', profile.assignedCoachId, profile.assignedCoach?.managerId, q.coach, q.managerCoach);
     await this.settleSide(payment, 'nutritionist', profile.assignedNutritionistId, profile.assignedNutritionist?.managerId, q.nutritionist, q.headNutritionist);
+  }
+
+  /**
+   * Quote in centesimi PER LIVELLO dal modello a percentuali (per piano/prodotto,
+   * sull'importo effettivamente pagato). Ritorna null se nessuna percentuale è
+   * impostata (→ si usa il modello legacy a importi fissi).
+   */
+  private async percentAmounts(
+    paidCents: number,
+    full: {
+      subscription?: { plan?: (Record<string, unknown> & { priceCents: number }) | null } | null;
+      order?: { items: unknown } | null;
+    } | null,
+  ): Promise<{ coach: number; coordinator: number; manager: number; nutritionist: number; headNutritionist: number } | null> {
+    type Pcts = { coach: number; coordinator: number; manager: number; nutritionist: number; headNutritionist: number };
+    const zero: Pcts = { coach: 0, coordinator: 0, manager: 0, nutritionist: 0, headNutritionist: 0 };
+    const acc = { ...zero };
+    let gross = 0;
+    let anyPct = false;
+
+    const addItem = (grossCents: number, p: Pcts) => {
+      gross += grossCents;
+      acc.coach += grossCents * (p.coach / 100);
+      acc.coordinator += grossCents * (p.coordinator / 100);
+      acc.manager += grossCents * (p.manager / 100);
+      acc.nutritionist += grossCents * (p.nutritionist / 100);
+      acc.headNutritionist += grossCents * (p.headNutritionist / 100);
+      if (p.coach || p.coordinator || p.manager || p.nutritionist || p.headNutritionist) anyPct = true;
+    };
+    const pctsOf = (r: Record<string, unknown> | null | undefined): Pcts => ({
+      coach: Number(r?.commissionCoachPct ?? 0),
+      coordinator: Number(r?.commissionCoordinatorPct ?? 0),
+      manager: Number(r?.commissionManagerPct ?? 0),
+      nutritionist: Number(r?.commissionNutritionistPct ?? 0),
+      headNutritionist: Number(r?.commissionHeadNutritionistPct ?? 0),
+    });
+
+    const plan = full?.subscription?.plan;
+    if (plan) addItem(plan.priceCents, pctsOf(plan));
+
+    const items = Array.isArray(full?.order?.items)
+      ? (full!.order!.items as unknown as { productId: string; priceCents: number; qty: number }[])
+      : [];
+    if (items.length > 0) {
+      const products = (await this.prisma.product.findMany({
+        where: { id: { in: items.map((i) => i.productId) } },
+      })) as unknown as (Record<string, unknown> & { id: string })[];
+      const byId = new Map(products.map((p) => [p.id, p]));
+      for (const it of items) {
+        const qty = it.qty ?? 1;
+        addItem((it.priceCents ?? 0) * qty, pctsOf(byId.get(it.productId)));
+      }
+    }
+
+    if (!anyPct) return null;
+    // Sconto: le percentuali valgono sull'importo pagato reale → riscala paid/gross.
+    const scale = gross > 0 ? Math.min(1, paidCents / gross) : 1;
+    return {
+      coach: Math.round(acc.coach * scale),
+      coordinator: Math.round(acc.coordinator * scale),
+      manager: Math.round(acc.manager * scale),
+      nutritionist: Math.round(acc.nutritionist * scale),
+      headNutritionist: Math.round(acc.headNutritionist * scale),
+    };
+  }
+
+  /**
+   * Paga la catena PER DIFFERENZA: chi vende incassa la quota del suo livello;
+   * ogni superiore (risalendo `Staff.managerId`) incassa la differenza tra la
+   * quota del suo livello e quella già pagata sotto di lui. Con rete completa
+   * 25/35/45 → 25 + 10 + 10; coach direttamente sotto la manager → 25 + 20;
+   * vendita della coordinatrice → 35 + 10. Livelli mancanti = differenza NON
+   * erogata (resta all'azienda). Cliente non assegnato → accantona come legacy.
+   */
+  private async settleChain(
+    payment: { id: string; clientId: string; amountCents: number },
+    group: 'coach' | 'nutritionist',
+    sellerStaffId: string | null | undefined,
+    ladder: { role: string; amountCents: number }[], // dal livello più basso al più alto
+  ) {
+    const levelOf = (role: string) => ladder.findIndex((l) => l.role === role);
+
+    if (!sellerStaffId) {
+      // Non assegnato: accantona nei due secchi legacy (base + differenza piena al
+      // vertice); alla futura assegnazione si paga base → staff e resto → suo manager.
+      const [primaryRole, managerRole] = group === 'coach' ? ['coach', 'manager_coach'] : ['nutritionist', 'head_nutritionist'];
+      const base = ladder[0]?.amountCents ?? 0;
+      const top = ladder[ladder.length - 1]?.amountCents ?? 0;
+      const pendings: { paymentId: string; clientId: string; role: string; amountCents: number }[] = [];
+      if (base > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: primaryRole, amountCents: base });
+      if (top - base > 0) pendings.push({ paymentId: payment.id, clientId: payment.clientId, role: managerRole, amountCents: top - base });
+      for (const data of pendings) await this.prisma.pendingCommission.create({ data });
+      return;
+    }
+
+    // Catena reale: venditore + superiori via managerId (max 3 anelli, cicli esclusi).
+    const chain: { staffId: string; role: string }[] = [];
+    const seen = new Set<string>();
+    let cursorId: string | null = sellerStaffId;
+    for (let hop = 0; hop < 4 && cursorId && !seen.has(cursorId); hop++) {
+      seen.add(cursorId);
+      const st = (await this.prisma.staff.findUnique({
+        where: { id: cursorId },
+        select: { id: true, managerId: true, user: { select: { role: true } } },
+      })) as { id: string; managerId: string | null; user: { role: string } | null } | null;
+      if (!st) break;
+      chain.push({ staffId: st.id, role: st.user?.role ?? '' });
+      cursorId = st.managerId;
+    }
+    if (!chain.length) return;
+
+    let paidLevel = -1;
+    let paidAmount = 0;
+    for (const link of chain) {
+      const lvl = levelOf(link.role);
+      if (lvl < 0 || lvl <= paidLevel) continue; // ruolo fuori scala o non superiore: salta
+      const due = ladder[lvl].amountCents - paidAmount;
+      if (due > 0) {
+        await this.creditStaff({ staffId: link.staffId, amountCents: due, kind: 'sales_commission', ref: payment.id, clientId: payment.clientId });
+      }
+      paidLevel = lvl;
+      paidAmount = Math.max(paidAmount, ladder[lvl].amountCents);
+      if (paidLevel >= ladder.length - 1) break; // vertice raggiunto
+    }
   }
 
   /**

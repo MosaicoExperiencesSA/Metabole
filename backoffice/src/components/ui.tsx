@@ -20,6 +20,7 @@ export function RoleChip({ role }: { role: Role }) {
     head_nutritionist: 'violet',
     nutritionist: 'violet',
     coach: '',
+    coach_coordinator: '',
     sales: 'amber',
     marketing: 'amber',
     head_marketing: 'amber',

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { MailboxService } from '../mailbox/mailbox.service';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
@@ -22,7 +23,7 @@ export class DashboardService {
     const scopeAll = MANAGER_ROLES.includes(user.role);
     const clientWhere: Record<string, unknown> = { role: 'client', deletedAt: null };
     if (!scopeAll) {
-      if (user.role === 'coach' && staff) clientWhere.clientProfile = { assignedCoachId: staff.id };
+      if (isCoachLike(user.role) && staff) clientWhere.clientProfile = { assignedCoachId: { in: (await coachTeamScope(this.prisma, user.sub)) ?? [] } };
       else if (user.role === 'nutritionist' && staff) clientWhere.clientProfile = { assignedNutritionistId: staff.id };
       else clientWhere.id = '__none__';
     }
@@ -43,7 +44,7 @@ export class DashboardService {
     // dei suoi clienti; manager/capo/admin tutti.
     const leadWhere: Record<string, unknown> = {};
     if (!scopeAll) {
-      if (user.role === 'coach' && staff) leadWhere.assignedCoachId = staff.id;
+      if (isCoachLike(user.role) && staff) leadWhere.assignedCoachId = { in: (await coachTeamScope(this.prisma, user.sub)) ?? [] };
       else if (user.role === 'nutritionist' && staff) leadWhere.client = { clientProfile: { assignedNutritionistId: staff.id } };
       else leadWhere.id = '__none__';
     }
@@ -73,7 +74,7 @@ export class DashboardService {
     try {
       const whereAccept: Record<string, unknown> = { assignmentStatus: 'pending' };
       if (!scopeAll) {
-        if (user.role === 'coach' && staff) whereAccept.assignedCoachId = staff.id;
+        if (isCoachLike(user.role) && staff) whereAccept.assignedCoachId = { in: (await coachTeamScope(this.prisma, user.sub)) ?? [] };
         else whereAccept.id = '__none__';
       }
       const rows = (await this.prisma.crmRecord.findMany({
@@ -112,7 +113,7 @@ export class DashboardService {
     // Chat: ultime conversazioni (scope: coach/nutrizionista vedono i propri clienti)
     try {
       const threadWhere: Record<string, unknown> = { lastMessageAt: { not: null } };
-      if (user.role === 'coach') threadWhere.counterpart = 'coach';
+      if (isCoachLike(user.role)) threadWhere.counterpart = 'coach';
       else if (user.role === 'nutritionist') threadWhere.counterpart = 'nutritionist';
       if (!scopeAll) threadWhere.client = { is: clientWhere };
       const rows = (await this.prisma.chatThread.findMany({

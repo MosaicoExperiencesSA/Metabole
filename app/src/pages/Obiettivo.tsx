@@ -80,6 +80,7 @@ export default function Obiettivo() {
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
   const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false); // input modificati dopo l'ultimo salvataggio
   const [msg, setMsg] = useState<string | null>(null);
   const chartsRef = useRef<HTMLDivElement>(null);
   const [chartIdx, setChartIdx] = useState(0);
@@ -115,10 +116,14 @@ export default function Obiettivo() {
   }
 
   async function load() {
-    const [ms, obj] = await Promise.all([
+    const [msRaw, obj] = await Promise.all([
       api<Measurement[]>('/me/measurements').catch(() => [] as Measurement[]),
       api<Objective>('/me/objective').catch((e) => (e instanceof ApiError && e.status === 404 ? null : null)),
     ]);
+    // L'API le manda DECRESCENTI: le riordiniamo CRESCENTI (dalla più vecchia alla più
+    // recente) così i grafici vanno nel verso giusto (un calo scende) e il form
+    // pre-compila con l'ULTIMA misura (quella di oggi), non con la più vecchia.
+    const ms = [...msRaw].sort((a, b) => a.date.localeCompare(b.date));
     setMeasurements(ms);
     setObjective(obj);
     const last = ms[ms.length - 1];
@@ -127,6 +132,7 @@ export default function Obiettivo() {
       setWaist(last.waistCm != null ? d1(last.waistCm) : '');
       setHips(last.hipsCm != null ? d1(last.hipsCm) : '');
     }
+    setDirty(false);
     setLoading(false);
   }
   useEffect(() => {
@@ -158,6 +164,12 @@ export default function Obiettivo() {
   }
 
   if (loading) return <div className="center"><div className="spin" /></div>;
+
+  // Misura di oggi già inviata? (le misure sono ordinate crescenti → l'ultima è la più
+  // recente). Se sì, il tasto resta disattivato finché non modifichi un valore.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const lastMeas = measurements[measurements.length - 1];
+  const sentToday = !!lastMeas && String(lastMeas.date).slice(0, 10) === todayIso;
 
   return (
     <div className="home">
@@ -225,11 +237,13 @@ export default function Obiettivo() {
       <div className="card">
         <b style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Misure di oggi</b>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} /></div>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} onChange={(e) => setWaist(e.target.value)} /></div>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} onChange={(e) => setHips(e.target.value)} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} onChange={(e) => { setWeight(e.target.value); setDirty(true); }} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} onChange={(e) => { setWaist(e.target.value); setDirty(true); }} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} onChange={(e) => { setHips(e.target.value); setDirty(true); }} /></div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy}><i className="ti ti-send" /> {busy ? 'Salvo…' : 'Invia'}</button>
+            <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy || (sentToday && !dirty)}>
+              <i className={`ti ${sentToday && !dirty ? 'ti-check' : 'ti-send'}`} /> {busy ? 'Salvo…' : sentToday && !dirty ? 'Inviato oggi' : sentToday ? 'Aggiorna' : 'Invia'}
+            </button>
           </div>
         </div>
         {msg && <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>{msg}</div>}

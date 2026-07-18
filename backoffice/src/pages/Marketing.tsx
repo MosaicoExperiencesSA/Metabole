@@ -5,15 +5,16 @@ import { Banner, Modal, Spinner } from '../components/ui';
 
 type Options = {
   lists: { id: string; name: string; color: string | null }[];
-  stages: string[];
+  // Tutti gli stati definiti in pipeline, nell'ordine dell'admin.
+  stages: { key: string; label: string }[];
   tags: string[];
   templates: { key: string; name: string; subject: string }[];
 };
-type Filters = { stages: string[]; tags: string[]; listIds: string[]; segment: '' | 'client' | 'historical' | 'lead'; historicalPaid: boolean; city: string };
+type Filters = { stages: string[]; tags: string[]; listIds: string[]; excludeTags: string[]; excludeStages: string[]; segment: '' | 'client' | 'historical' | 'lead'; historicalPaid: boolean; city: string };
 type Preview = { total: number; sample: { id: string; name: string | null; email: string | null; stage: string; tags: string[] }[] };
 type CampaignRow = { id: string; title: string; templateKey: string; subject: string; recipientCount: number; sentCount: number; failedCount: number; status?: string; scheduledFor?: string | null; nextBatchAt?: string | null; batchSize?: number; pauseMinutes?: number; cursor?: number; createdAt: string };
 
-const EMPTY: Filters = { stages: [], tags: [], listIds: [], segment: '', historicalPaid: false, city: '' };
+const EMPTY: Filters = { stages: [], tags: [], listIds: [], excludeTags: [], excludeStages: [], segment: '', historicalPaid: false, city: '' };
 
 const CAMPAIGN_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   scheduled: { label: 'Programmata', color: '#8A5A00', bg: '#FDECC8' },
@@ -26,6 +27,15 @@ export function Marketing() {
   const { user } = useAuth();
   const [opts, setOpts] = useState<Options | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY);
+  // Importo storico speso (in euro, campi liberi): convertito in centesimi nel payload.
+  const [histMin, setHistMin] = useState('');
+  const [histMax, setHistMax] = useState('');
+
+  const euroToCents = (v: string): number | undefined => {
+    const n = Number(v.replace(',', '.'));
+    return v.trim() !== '' && Number.isFinite(n) && n > 0 ? Math.round(n * 100) : undefined;
+  };
+  const filtersPayload = () => ({ ...filters, historicalPaidMinCents: euroToCents(histMin), historicalPaidMaxCents: euroToCents(histMax) });
   const [preview, setPreview] = useState<Preview | null>(null);
   const [templateKey, setTemplateKey] = useState('');
   const [title, setTitle] = useState('');
@@ -41,6 +51,9 @@ export function Marketing() {
   const [throttle, setThrottle] = useState(true);
   const [batchSize, setBatchSize] = useState(50);
   const [pauseMinutes, setPauseMinutes] = useState(10);
+  // Azione post-invio: sui destinatari effettivamente inviati aggiungi un tag e/o cambia stato pipeline.
+  const [postTag, setPostTag] = useState('');
+  const [postStage, setPostStage] = useState('');
 
   useEffect(() => {
     api<Options>('/marketing/options').then(setOpts).catch((e) => setError(e instanceof Error ? e.message : 'Caricamento non riuscito.'));
@@ -48,14 +61,14 @@ export function Marketing() {
   }, []);
   function loadCampaigns() { api<CampaignRow[]>('/marketing/campaigns').then(setCampaigns).catch(() => {}); }
 
-  function toggle(key: 'stages' | 'tags' | 'listIds', v: string) {
+  function toggle(key: 'stages' | 'tags' | 'listIds' | 'excludeTags' | 'excludeStages', v: string) {
     setFilters((f) => ({ ...f, [key]: f[key].includes(v) ? f[key].filter((x) => x !== v) : [...f[key], v] }));
     setPreview(null);
   }
 
   async function doPreview() {
     setBusy(true); setError(null);
-    try { setPreview(await api<Preview>('/marketing/segments/preview', { method: 'POST', body: JSON.stringify({ filters }) })); }
+    try { setPreview(await api<Preview>('/marketing/segments/preview', { method: 'POST', body: JSON.stringify({ filters: filtersPayload() }) })); }
     catch (e) { setError(e instanceof ApiError ? e.message : 'Anteprima non riuscita.'); }
     finally { setBusy(false); }
   }
@@ -71,9 +84,11 @@ export function Marketing() {
 
   async function sendCampaign() {
     setConfirming(false); setBusy(true); setError(null); setNotice(null);
-    const body: Record<string, unknown> = { title, templateKey, filters };
+    const body: Record<string, unknown> = { title, templateKey, filters: filtersPayload() };
     if (sendMode === 'scheduled' && scheduledFor) body.scheduledFor = new Date(scheduledFor).toISOString();
     if (throttle) { body.batchSize = batchSize; body.pauseMinutes = pauseMinutes; }
+    if (postTag.trim()) body.postTag = postTag.trim();
+    if (postStage) body.postStage = postStage;
     try {
       const r = await api<{ recipientCount: number; sent?: number; failed?: number; scheduled?: boolean; scheduledFor?: string; done?: boolean }>('/marketing/campaigns', { method: 'POST', body: JSON.stringify(body) });
       if (r.scheduled) {
@@ -83,7 +98,7 @@ export function Marketing() {
       } else {
         setNotice(`Campagna "${title}" avviata: primo lotto di ${r.sent} inviate${r.failed ? `, ${r.failed} fallite` : ''}. I ${r.recipientCount} destinatari verranno completati a lotti.`);
       }
-      setTitle(''); setPreview(null); setScheduledFor(''); loadCampaigns();
+      setTitle(''); setPreview(null); setScheduledFor(''); setPostTag(''); setPostStage(''); loadCampaigns();
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Invio non riuscito.'); }
     finally { setBusy(false); }
   }
@@ -106,11 +121,14 @@ export function Marketing() {
       {/* Segmentazione */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}>1 · Crea il segmento</h2>
-        <p className="hint" style={{ marginTop: 0 }}>Combina i filtri: appartenenza a una lista, etichette, stato pipeline e altri dati della scheda. Solo contatti con email.</p>
+        <p className="hint" style={{ marginTop: 0 }}>Combina i filtri: appartenenza a una lista, tag, stato pipeline e altri dati della scheda. Solo contatti con email.</p>
 
         <ChipGroup label="Liste" empty="Nessuna lista" items={opts.lists.map((l) => ({ v: l.id, l: l.name }))} sel={filters.listIds} onToggle={(v) => toggle('listIds', v)} />
-        <ChipGroup label="Etichette" empty="Nessuna etichetta sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.tags} onToggle={(v) => toggle('tags', v)} />
-        <ChipGroup label="Stato (pipeline)" empty="—" items={opts.stages.map((s) => ({ v: s, l: s }))} sel={filters.stages} onToggle={(v) => toggle('stages', v)} />
+        <ChipGroup label="Includi tag" empty="Nessun tag sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.tags} onToggle={(v) => toggle('tags', v)} />
+        <ChipGroup label="Includi stati (pipeline)" empty="—" items={opts.stages.map((s) => ({ v: s.key, l: s.label }))} sel={filters.stages} onToggle={(v) => toggle('stages', v)} />
+        {/* Esclusioni: utili con l'azione post-invio (es. escludi chi ha già il tag della campagna precedente). */}
+        <ChipGroup label="Escludi tag" empty="Nessun tag sulle schede" items={opts.tags.map((t) => ({ v: t, l: t }))} sel={filters.excludeTags} onToggle={(v) => toggle('excludeTags', v)} />
+        <ChipGroup label="Escludi stati" empty="—" items={opts.stages.map((s) => ({ v: s.key, l: s.label }))} sel={filters.excludeStages} onToggle={(v) => toggle('excludeStages', v)} />
 
         <div className="row" style={{ gap: 16, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
           <label className="row" style={{ gap: 6, alignItems: 'center' }}>
@@ -125,6 +143,12 @@ export function Marketing() {
               <option value="historical">Solo clienti storici</option>
               <option value="lead">Solo lead</option>
             </select>
+          </label>
+          <label className="row" style={{ gap: 6, alignItems: 'center' }} title="Totale già pagato pre-Metabole (dalla scheda/import). Chi non ha lo storico resta fuori dal range.">
+            <span style={{ fontSize: 13 }} className="muted">Storico speso da €</span>
+            <input className="input" inputMode="decimal" value={histMin} onChange={(e) => { setHistMin(e.target.value); setPreview(null); }} placeholder="es. 100" style={{ width: 90 }} />
+            <span style={{ fontSize: 13 }} className="muted">a €</span>
+            <input className="input" inputMode="decimal" value={histMax} onChange={(e) => { setHistMax(e.target.value); setPreview(null); }} placeholder="es. 1000" style={{ width: 90 }} />
           </label>
           <label className="row" style={{ gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 13 }} className="muted">Città contiene</span>
@@ -146,7 +170,7 @@ export function Marketing() {
                   <div key={r.id} className="row" style={{ gap: 8, fontSize: 12.5, padding: '4px 8px', borderRadius: 8, background: 'var(--chip)' }}>
                     <span style={{ flex: 1 }}>{r.name || '—'}</span>
                     <span className="muted">{r.email}</span>
-                    <span className="muted">{r.stage}</span>
+                    <span className="muted">{opts.stages.find((s) => s.key === r.stage)?.label ?? r.stage}</span>
                   </div>
                 ))}
                 <span className="muted" style={{ fontSize: 11 }}>(anteprima dei primi {preview.sample.length})</span>
@@ -209,6 +233,30 @@ export function Marketing() {
                 : 'Tutte le e-mail partono insieme: veloce, ma su liste grandi può penalizzare la consegna.'}
             </p>
           </div>
+
+          {/* Azione post-invio: applicata solo a chi ha ricevuto davvero l'email */}
+          <div>
+            <span className="muted" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Dopo l'invio (facoltativo)</span>
+            <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <span className="muted" style={{ fontSize: 12 }}>Aggiungi tag</span>
+                <input className="input" list="post-tag-options" value={postTag} onChange={(e) => setPostTag(e.target.value)} placeholder="es. promo-set-26" maxLength={40} style={{ width: 180 }} />
+                <datalist id="post-tag-options">
+                  {opts.tags.map((t) => <option key={t} value={t} />)}
+                </datalist>
+              </label>
+              <label className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <span className="muted" style={{ fontSize: 12 }}>Sposta allo stato</span>
+                <select className="select" value={postStage} onChange={(e) => setPostStage(e.target.value)} style={{ width: 180 }}>
+                  <option value="">— non cambiare —</option>
+                  {opts.stages.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <p className="muted" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
+              L'azione si applica solo ai contatti a cui l'email è stata inviata davvero (le fallite restano com'erano). Con il tag puoi poi escluderli dalla campagna successiva usando «Escludi tag» nel segmento.
+            </p>
+          </div>
         </div>
         <div className="row" style={{ gap: 8, marginTop: 14 }}>
           <button className="btn ghost" onClick={sendTest} disabled={busy || !templateKey}><i className="ti ti-send" /> Invia una prova a me</button>
@@ -264,6 +312,9 @@ export function Marketing() {
             {throttle
               ? <> Invio a lotti: <b>{batchSize}</b> e-mail, poi pausa di <b>{pauseMinutes}</b> minuti.</>
               : <> Tutte le e-mail partiranno insieme.</>}
+            {(postTag.trim() || postStage) && (
+              <> Dopo l'invio: {postTag.trim() && <>tag <b>{postTag.trim()}</b></>}{postTag.trim() && postStage && ' e '}{postStage && <>stato <b>{opts.stages.find((s) => s.key === postStage)?.label ?? postStage}</b></>} sui contatti raggiunti.</>
+            )}
           </p>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
             <button className="btn ghost" onClick={() => setConfirming(false)}>Annulla</button>

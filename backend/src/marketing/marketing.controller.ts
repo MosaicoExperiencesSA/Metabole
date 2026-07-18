@@ -19,6 +19,9 @@ class SendCampaignDto {
   // Throttle a lotti: invia N e-mail, poi pausa di M minuti (0 = tutte insieme).
   @IsOptional() @IsInt() @Min(0) @Max(5000) batchSize?: number;
   @IsOptional() @IsInt() @Min(0) @Max(1440) pauseMinutes?: number;
+  // Azione post-invio (facoltativa): etichetta da aggiungere e/o stato pipeline da impostare.
+  @IsOptional() @IsString() @MaxLength(40) postTag?: string;
+  @IsOptional() @IsString() @MaxLength(60) postStage?: string;
 }
 class TestDto {
   @IsString() @MaxLength(120) templateKey!: string;
@@ -70,6 +73,8 @@ export class MarketingController {
         scheduledFor: dto.scheduledFor ?? null,
         batchSize: dto.batchSize,
         pauseMinutes: dto.pauseMinutes,
+        postTag: dto.postTag,
+        postStage: dto.postStage,
       },
       u.sub,
     );

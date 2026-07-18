@@ -459,7 +459,7 @@ export class AdminPaymentsController {
  * cliente — stesso scope di visibilità dei lead/clienti.
  */
 @Controller('staff/payments')
-@Roles('coach', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'sales', 'admin')
 export class StaffPaymentsController {
   constructor(private readonly commerce: CommerceService) {}
 
@@ -500,7 +500,7 @@ export class StripeWebhookController {
 
 /** CRM (commerciale, coach, capo, admin). */
 @Controller('crm/leads')
-@Roles('coach', 'sales', 'head_nutritionist', 'admin')
+@Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
 export class CrmController {
   constructor(private readonly crm: CrmService) {}
 
@@ -607,7 +607,7 @@ export class CrmController {
 
 /** Liste CRM: raggruppamenti manuali di lead/clienti. */
 @Controller('crm/lists')
-@Roles('coach', 'sales', 'head_nutritionist', 'admin')
+@Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
 export class CrmListsController {
   constructor(private readonly crm: CrmService) {}
 

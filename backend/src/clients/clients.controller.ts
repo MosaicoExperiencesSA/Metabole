@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ClientsService } from './clients.service';
@@ -19,9 +20,17 @@ class TravelDto {
   @IsOptional() @IsString() @MaxLength(40) end?: string;
 }
 
+/** Correzione misura: le circonferenze accettano anche null (= svuota il dato). */
+class FixMeasurementDto {
+  @IsOptional() @IsNumber() @Min(25) @Max(400) weightKg?: number;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(20) @Max(300) waistCm?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(20) @Max(300) hipsCm?: number | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsNumber() @Min(20) @Max(300) thighsCm?: number | null;
+}
+
 /** Scheda cliente (staff che gestisce i clienti). */
 @Controller('admin/clients')
-@Roles('coach', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class ClientsController {
   constructor(private readonly clients: ClientsService) {}
 
@@ -70,6 +79,25 @@ export class ClientsController {
   @Patch(':id')
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateClientDto) {
     return this.clients.updateClient(id, user.sub, dto);
+  }
+
+  /** Menu del cliente (giorni + piatti + stelline del cliente) per la revisione del nutrizionista. */
+  @Get(':id/menus')
+  menus(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clients.getMenus(id, user.sub);
+  }
+
+  /** Correzione di una misura inserita male dal cliente: permesso dedicato "fix_measures". */
+  @RequirePage('fix_measures', 'manage')
+  @HttpCode(200)
+  @Patch(':id/measurements/:measurementId')
+  fixMeasurement(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('measurementId') measurementId: string,
+    @Body() dto: FixMeasurementDto,
+  ) {
+    return this.clients.updateMeasurement(id, user.sub, measurementId, dto);
   }
 
   /** Modalità viaggio/estate: in vacanza il popup misure si sospende; al rientro scatta un evento CRM/marketing. */

@@ -14,6 +14,7 @@ import { slopePerDay, weeklyLossRate } from './stats';
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 import { toDateOnly } from '../common/date-only';
+import { MenuService } from '../menu/menu.service';
 
 const MILESTONE_DEFS: { type: string; label: string; lostKg?: number }[] = [
   { type: 'lost_1kg', label: 'Primo chilo andato!', lostKg: 1 },
@@ -36,6 +37,7 @@ export class SignalsService {
     private readonly dietLearning: DietLearningService,
     private readonly progress: ProgressService,
     private readonly routing: EscalationRoutingService,
+    private readonly menu: MenuService,
   ) {}
 
   // ---------- Misure (segnale Corpo) ----------
@@ -97,6 +99,12 @@ export class SignalsService {
     const alert = await this.checkRapidLossGuardrail(clientId);
     await this.checkNoProgress(clientId).catch(() => undefined);
     await this.maybeTrackTrialMeasures(clientId).catch(() => undefined);
+
+    // La misura può SBLOCCARE il menu: sblocca la prova gratuita (misure G0 obbligatorie)
+    // e, al 2° giorno del ciclo, il ciclo successivo. Proviamo a erogare subito così menu
+    // e lista della spesa (che deriva dai menuDays) risultano aggiornati appena la cliente
+    // riapre il menu/dashboard. Best-effort: non deve mai rompere il salvataggio della misura.
+    await this.menu.deliverIfEligible(clientId).catch(() => undefined);
 
     return { measurement, newMilestones, rapidLossAlert: alert };
   }

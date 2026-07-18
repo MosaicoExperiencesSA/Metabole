@@ -1,6 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachTeamScope } from '../common/coach-team';
 
 /**
  * Task coach (handoff Prezzi/Prova, punto 5): "la coach deve vedere cosa fare e
@@ -14,14 +17,12 @@ export class CoachTasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly configParams: ConfigParamsService,
   ) {}
 
-  /** Coach → solo le SUE clienti assegnate; responsabile coach (sales) e admin → tutte. */
-  private async coachScope(actorUserId: string): Promise<string | null> {
-    const u = (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } })) as { role: string } | null;
-    if (u?.role !== 'coach') return null;
-    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
-    return staff?.id ?? '00000000-0000-0000-0000-000000000000';
+  /** Coach → le SUE clienti; coordinatrice → sue + del suo team; responsabile e admin → tutte. */
+  private async coachScope(actorUserId: string): Promise<string[] | null> {
+    return coachTeamScope(this.prisma, actorUserId);
   }
 
   /** Task aperti (da fare) visibili all'attore, dal più urgente. */
@@ -31,7 +32,7 @@ export class CoachTasksService {
     const rows = await this.prisma.coachTask.findMany({
       where: {
         status,
-        ...(scopeId ? { client: { clientProfile: { assignedCoachId: scopeId } } } : {}),
+        ...(scopeId ? { client: { clientProfile: { assignedCoachId: { in: scopeId } } } } : {}),
       } as never,
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
       take: Math.min(200, Math.max(1, opts?.limit ?? 100)),
@@ -69,7 +70,7 @@ export class CoachTasksService {
     const scopeId = await this.coachScope(actorUserId);
     if (scopeId) {
       const prof = (await this.prisma.clientProfile.findUnique({ where: { userId: task.clientId }, select: { assignedCoachId: true } })) as { assignedCoachId: string | null } | null;
-      if (prof?.assignedCoachId !== scopeId) throw new ForbiddenException('Questa cliente non è assegnata a te.');
+      if (!prof?.assignedCoachId || !scopeId.includes(prof.assignedCoachId)) throw new ForbiddenException('Questa cliente non è assegnata a te.');
     }
     const updated = await this.prisma.coachTask.update({
       where: { id: taskId },
@@ -89,7 +90,7 @@ export class CoachTasksService {
    */
   async summary(actorUserId: string) {
     const scopeId = await this.coachScope(actorUserId);
-    const clientWhere = scopeId ? { clientProfile: { assignedCoachId: scopeId } } : {};
+    const clientWhere = scopeId ? { clientProfile: { assignedCoachId: { in: scopeId } } } : {};
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today.getTime() + 86_400_000);
     const dayAfter = new Date(today.getTime() + 2 * 86_400_000);
@@ -111,7 +112,7 @@ export class CoachTasksService {
     let notConverted = 0;
     for (const t of expiredTrials) {
       const active = await this.prisma.subscription.findFirst({
-        where: { clientId: t.clientId, status: { in: ['active', 'pending'] as never } }, // 'paused' non è uno stato Subscription valido (enum) → causava 500
+        where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } },
         select: { id: true },
       });
       if (!active) notConverted++;
@@ -209,7 +210,7 @@ export class CoachTasksService {
       // +7 dopo la scadenza — ultima chiamata (solo se NON convertita).
       if (t.status === 'expired' && t.endDate && now.getTime() >= this.day(new Date(t.endDate), 7).getTime()) {
         const converted = await this.prisma.subscription.findFirst({
-          where: { clientId: t.clientId, status: { in: ['active', 'pending'] as never } }, // 'paused' non è uno stato Subscription valido (enum) → causava 500
+          where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } },
           select: { id: true },
         });
         if (!converted) {
@@ -232,6 +233,109 @@ export class CoachTasksService {
         'Fine piano: consegna il report e proponi il rinnovo',
         'Il piano è finito: consegnale il report A→B e proponi rinnovo o mantenimento.',
         this.day(new Date(sub.endDate), 0));
+    }
+
+    // --- SCADENZE IN ARRIVO → CALENDARIO della coach (richiesta 17/07) ---
+    // Ogni piano A PAGAMENTO in scadenza nei prossimi 7 giorni genera UN appunto nel
+    // Calendario CRM della coach di riferimento (alla data di scadenza) + notifica
+    // in app alla coach. Idempotente: si crea solo insieme al task `plan_expiry_heads_up`.
+    const expiring = (await this.prisma.subscription.findMany({
+      where: {
+        status: 'active',
+        plan: { priceCents: { gt: 0 } },
+        endDate: { gte: today, lte: this.day(today, 7) },
+      } as never,
+      select: {
+        id: true, clientId: true, endDate: true,
+        plan: { select: { name: true } },
+        client: { select: { firstName: true, lastName: true, clientProfile: { select: { name: true, assignedCoach: { select: { id: true, userId: true } } } } } },
+      },
+    })) as { id: string; clientId: string; endDate: Date | null; plan: { name: string }; client: { firstName: string | null; lastName: string | null; clientProfile: { name: string | null; assignedCoach: { id: string; userId: string } | null } | null } | null }[];
+    for (const sub of expiring) {
+      if (!sub.endDate) continue;
+      const coach = sub.client?.clientProfile?.assignedCoach ?? null;
+      if (!coach) continue; // senza coach: resta la vista "in scadenza" del responsabile
+      const clientName = sub.client?.clientProfile?.name
+        ?? [sub.client?.firstName, sub.client?.lastName].filter(Boolean).join(' ') ?? 'Cliente';
+      const madeNew = await this.ensureTask(sub.clientId, 'plan_expiry_heads_up', sub.id,
+        `Piano in scadenza: preparati al rinnovo`,
+        `Il piano "${sub.plan.name}" di ${clientName} scade il ${sub.endDate.toLocaleDateString('it-IT')}: sentila PRIMA della scadenza.`,
+        this.day(new Date(sub.endDate), 0));
+      created += madeNew;
+      if (madeNew) {
+        // Appunto in Calendario CRM (visibile alla coach: creato a suo nome + legato alla scheda).
+        const rec = (await this.prisma.crmRecord.findUnique({ where: { clientId: sub.clientId }, select: { id: true } }).catch(() => null)) as { id: string } | null;
+        await this.prisma.crmReminder.create({
+          data: {
+            crmRecordId: rec?.id ?? null,
+            title: `Scadenza piano — ${clientName}`,
+            dueAt: new Date(sub.endDate),
+            note: `Il piano "${sub.plan.name}" scade oggi: proponi rinnovo o mantenimento.`,
+            createdById: coach.userId,
+          },
+        }).catch(() => undefined);
+        // Notifica in app alla coach.
+        await this.prisma.notification.create({
+          data: {
+            userId: coach.userId,
+            type: 'plan_expiring',
+            payload: {
+              title: 'Piano in scadenza 📅',
+              body: `Il piano "${sub.plan.name}" di ${clientName} scade il ${sub.endDate.toLocaleDateString('it-IT')}: appunto aggiunto al tuo calendario.`,
+              clientId: sub.clientId,
+            } as never,
+            channel: 'inapp',
+            scheduledFor: new Date(),
+            sentAt: new Date(),
+          },
+        }).catch(() => undefined);
+      }
+    }
+
+    // --- MANTENIMENTO: ripresa di peso importante → proponi un mese di dimagrimento ---
+    // (richiesta 17/07). Cliente in mantenimento ATTIVO il cui ultimo peso supera il
+    // peso d'ingresso nel mantenimento di almeno `maintenance_regain_kg` (default 3):
+    // task alla coach + notifica gentile alla cliente con la proposta del mese di
+    // dimagrimento. Idempotente per abbonamento.
+    const regainKg = await this.configParams.getNumber('maintenance_regain_kg', 3);
+    const maint = (await this.prisma.subscription.findMany({
+      where: { status: 'active', startDate: { not: null }, plan: { period: 'maintenance' } } as never,
+      select: { id: true, clientId: true, startDate: true },
+    })) as { id: string; clientId: string; startDate: Date | null }[];
+    for (const m of maint) {
+      if (!m.startDate) continue;
+      const start = this.day(new Date(m.startDate), 0);
+      const [baseline, latest] = await Promise.all([
+        this.prisma.measurement.findFirst({ where: { clientId: m.clientId, date: { lte: start } }, orderBy: { date: 'desc' }, select: { weightKg: true } }) as Promise<{ weightKg: number } | null>,
+        this.prisma.measurement.findFirst({ where: { clientId: m.clientId }, orderBy: { date: 'desc' }, select: { weightKg: true, date: true } }) as Promise<{ weightKg: number; date: Date } | null>,
+      ]);
+      const base = baseline ?? (await this.prisma.measurement.findFirst({ where: { clientId: m.clientId, date: { gt: start } }, orderBy: { date: 'asc' }, select: { weightKg: true } }) as { weightKg: number } | null);
+      if (!base || !latest || latest.date.getTime() <= start.getTime()) continue;
+      const delta = latest.weightKg - base.weightKg;
+      if (delta < regainKg) continue;
+      const madeNew = await this.ensureTask(m.clientId, 'maintenance_regain', m.id,
+        'Ripresa di peso in mantenimento: proponi un mese di dimagrimento',
+        `+${Math.round(delta * 10) / 10} kg dall'inizio del mantenimento (soglia ${regainKg} kg): sentila e proponile un mese di dimagrimento per rimettersi in carreggiata.`,
+        today);
+      created += madeNew;
+      if (madeNew) {
+        await this.prisma.notification.create({
+          data: {
+            userId: m.clientId,
+            type: 'maintenance_regain',
+            payload: {
+              title: 'Rimettiamoci in carreggiata 💪',
+              body: 'Il peso è risalito un po\': capita, e si recupera. Un mese di dimagrimento ti riporta in rotta — parlane con la tua coach o guardalo nel negozio.',
+            } as never,
+            channel: 'inapp',
+            scheduledFor: new Date(),
+            sentAt: new Date(),
+          },
+        }).catch(() => undefined);
+        await this.prisma.analyticsEvent.create({
+          data: { eventId: randomUUID(), name: 'maintenance_regain_flagged', userId: m.clientId, phase: 'funnel', data: { subscriptionId: m.id, deltaKg: Math.round(delta * 10) / 10 } as never } as never,
+        }).catch(() => undefined);
+      }
     }
 
     return { created };

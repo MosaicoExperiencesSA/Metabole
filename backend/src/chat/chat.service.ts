@@ -70,7 +70,7 @@ export class ChatService {
     if (!staff) throw new ForbiddenException('Nessuna scheda staff');
 
     let where: Record<string, unknown>;
-    if (user.role === 'coach') {
+    if (user.role === 'coach' || user.role === 'coach_coordinator') {
       where = { counterpart: 'coach', client: { clientProfile: { assignedCoachId: staff.id } } };
     } else if (user.role === 'nutritionist') {
       where = { counterpart: 'nutritionist', client: { clientProfile: { assignedNutritionistId: staff.id } } };
@@ -109,7 +109,7 @@ export class ChatService {
       where: { userId: thread.clientId },
       select: { assignedCoachId: true, assignedNutritionistId: true },
     });
-    if (user.role === 'coach' && thread.counterpart === 'coach' && profile?.assignedCoachId === staff.id) return;
+    if ((user.role === 'coach' || user.role === 'coach_coordinator') && thread.counterpart === 'coach' && profile?.assignedCoachId === staff.id) return;
     if (user.role === 'nutritionist' && thread.counterpart === 'nutritionist' && profile?.assignedNutritionistId === staff.id) return;
     if (user.role === 'head_nutritionist' && thread.counterpart === 'nutritionist') return;
     throw new ForbiddenException('Non hai accesso a questo thread');

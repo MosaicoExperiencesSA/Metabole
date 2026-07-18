@@ -46,6 +46,13 @@ class CheckItemDto {
   checked!: boolean;
 }
 
+class DislikeIngredientDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  ingredient!: string;
+}
+
 @Controller('me')
 @Roles('client')
 export class MenuController {
@@ -73,6 +80,12 @@ export class MenuController {
   @Post('ratings')
   rate(@CurrentUser() user: AuthUser, @Body() dto: RateRecipeDto) {
     return this.menu.rateRecipe(user.sub, dto);
+  }
+
+  /** "Sostituisci un ingrediente": registra il non gradito e aggiorna il menu di oggi. */
+  @Post('menu/substitute')
+  substitute(@CurrentUser() user: AuthUser, @Body() dto: DislikeIngredientDto) {
+    return this.menu.substituteDislikedForToday(user.sub, dto.ingredient);
   }
 
   /** Pasti consumati non ancora valutati (da riproporre all'apertura). */

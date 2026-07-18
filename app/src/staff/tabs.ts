@@ -20,6 +20,6 @@ export const NUTRI_TABS: TabItem[] = [
 ];
 
 /** Ruoli che vedono le schermate coach. */
-export const COACH_ROLES = new Set(['coach', 'sales']);
+export const COACH_ROLES = new Set(['coach', 'coach_coordinator', 'sales']);
 /** Ruoli che vedono le schermate nutrizionista. */
 export const NUTRI_ROLES = new Set(['nutritionist', 'head_nutritionist']);
