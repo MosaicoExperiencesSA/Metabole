@@ -341,6 +341,16 @@ p { line-height: 1.5; }
 }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .sheet-grab { width: 40px; height: 4px; background: #e2ded4; border-radius: 3px; margin: 0 auto 12px; }
+/* X di chiusura in alto a destra del pannello: resta visibile anche scrollando (sticky). */
+.sheet-close {
+  position: sticky; top: 0; z-index: 3;
+  margin-left: auto; margin-bottom: -18px;
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: none; background: #F2EFE8; color: #5F6E6B;
+  font-size: 19px; line-height: 1; cursor: pointer;
+}
+.sheet-close:active { background: #E7E2D6; }
 
 /* popup umore */
 .mood-row { display: flex; justify-content: space-between; }

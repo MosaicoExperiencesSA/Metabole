@@ -921,6 +921,29 @@ async function seedMonitoringPlan(): Promise<void> {
   console.log('Seed: creato piano nascosto "Menu di rientro (8 giorni)" (€29).');
 }
 
+/**
+ * Piano "Mantenimento Metabole" (€29/mese, period 'maintenance'): la pausa che
+ * tiene il peso dopo il percorso. VISIBILE nello shop. Create-only per nome:
+ * prezzo e testi restano modificabili dall'admin nel Negozio. Il rinnovo è
+ * mensile manuale (niente addebito automatico finché non si decide su Stripe).
+ */
+async function seedMaintenancePlan(): Promise<void> {
+  const name = 'Mantenimento Metabole';
+  const exists = await prisma.plan.findFirst({ where: { name } });
+  if (exists) return;
+  await prisma.plan.create({
+    data: {
+      name,
+      priceCents: 2900,
+      period: 'maintenance', // 1 mese (subscriptionEnd) + flussi dedicati (funnel, coach-tasks, report)
+      active: true,
+      repurchasable: true,
+      features: ['Tieni il peso raggiunto', 'Menu di mantenimento e monitoraggio del peso', 'Rientri nel percorso quando vuoi', 'Disdici quando vuoi'],
+    } as never,
+  });
+  console.log('Seed: creato piano "Mantenimento Metabole" (€29/mese).');
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -945,6 +968,7 @@ async function main(): Promise<void> {
   await ensureAdminFromEnv();
   await seedPipelineStages();
   await seedMonitoringPlan();
+  await seedMaintenancePlan();
   await seedPermissions();
   await seedEquivalenceGroups();
   await seedRulePresets();

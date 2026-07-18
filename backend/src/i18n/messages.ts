@@ -166,7 +166,7 @@ const it: Catalog = {
   'mail.reset.body': {
     title: '',
     variants: [
-      '<p>Hai chiesto di reimpostare la password del tuo account Metabole.</p><p>Usa questo codice: <code>{token}</code> (oppure il link: <a href="{link}">reimposta password</a>)</p><p>Il codice scade tra 1 ora. Se non l\'hai richiesto tu, ignora questa email: la password resta invariata.</p>',
+      '<p>Hai chiesto di reimpostare la password del tuo account Metabole.</p><p style="margin:20px 0"><a href="{link}" style="display:inline-block;background:#12A386;color:#ffffff;text-decoration:none;padding:12px 26px;border-radius:10px;font-weight:600;font-family:Arial,Helvetica,sans-serif">Reimposta la password</a></p><p style="font-size:13px;color:#5F6E6B">Se il pulsante non funziona, copia questo link nel browser:<br/><a href="{link}">{link}</a></p><p style="font-size:13px;color:#5F6E6B">Il link scade tra 1 ora. Se non l\'hai richiesto tu, ignora questa email: la password resta invariata.</p>',
     ],
   },
   'mail.credentials.subject': { title: '', variants: ['Metabole — le tue credenziali di accesso'] },
@@ -351,7 +351,7 @@ const en: Catalog = {
   'mail.reset.body': {
     title: '',
     variants: [
-      '<p>You asked to reset your Metabole account password.</p><p>Use this code: <code>{token}</code> (or the link: <a href="{link}">reset password</a>)</p><p>The code expires in 1 hour. If you didn\'t request it, ignore this email: your password stays unchanged.</p>',
+      '<p>You asked to reset your Metabole account password.</p><p style="margin:20px 0"><a href="{link}" style="display:inline-block;background:#12A386;color:#ffffff;text-decoration:none;padding:12px 26px;border-radius:10px;font-weight:600;font-family:Arial,Helvetica,sans-serif">Reset your password</a></p><p style="font-size:13px;color:#5F6E6B">If the button doesn\'t work, copy this link into your browser:<br/><a href="{link}">{link}</a></p><p style="font-size:13px;color:#5F6E6B">The link expires in 1 hour. If you didn\'t request it, ignore this email: your password stays unchanged.</p>',
     ],
   },
   'mail.bank.subject': { title: '', variants: ['Metabole — bank transfer details ({description})'] },

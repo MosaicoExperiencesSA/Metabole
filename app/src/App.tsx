@@ -11,6 +11,7 @@ import MeasuresGate from './components/MeasuresGate';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';
 import Diversi from './pages/Diversi';
 import Home from './pages/Home';
 import Menu from './pages/Menu';
@@ -69,6 +70,7 @@ function Shell() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment/success" element={<PaymentResult ok />} />
           <Route path="/payment/cancelled" element={<PaymentResult ok={false} />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
@@ -139,6 +141,7 @@ export default function App() {
         <Route path="/diversi" element={<Diversi />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/conferma-email" element={<ConfermaEmail />} />
         <Route path="/verifica-email" element={<VerificaEmail />} />
         <Route path="*" element={<Navigate to="/" replace />} />

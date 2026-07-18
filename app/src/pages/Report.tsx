@@ -39,16 +39,18 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day
 const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 const kg1 = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 
-function StatCard({ delta, unit, label, from, to }: { delta: number | null; unit: string; label: string; from?: number | null; to?: number | null }) {
+/** Card risultato del Diario (modello 18/07): icona + valore + sotto-riga; "dark" = evidenziata. */
+function StatCard({ delta, unit, label, from, to, icon, dark }: { delta: number | null; unit: string; label: string; from?: number | null; to?: number | null; icon?: string; dark?: boolean }) {
   const good = delta != null && delta < 0;
   return (
-    <div className="card" style={{ margin: 0, padding: '12px 10px', textAlign: 'center', background: good ? '#EAF6F1' : '#F7FAF9', boxShadow: 'none' }}>
-      <div style={{ fontSize: 20, fontWeight: 800, color: good ? '#0E7C66' : '#3D4C48' }}>
+    <div className="card" style={{ margin: 0, padding: '11px 8px', textAlign: 'center', background: dark ? 'var(--teal)' : good ? '#EAF6F1' : '#F7FAF9', boxShadow: 'none' }}>
+      {icon && <div style={{ fontSize: 15, marginBottom: 2 }}>{icon}</div>}
+      <div style={{ fontSize: 19, fontWeight: 800, color: dark ? '#fff' : good ? '#0E7C66' : '#3D4C48' }}>
         {delta == null ? '—' : `${sign(delta)}${unit}`}
       </div>
-      <div className="muted" style={{ fontSize: 11, fontWeight: 600, marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 2, color: dark ? 'rgba(255,255,255,.85)' : 'var(--muted, #8A938F)' }}>{label}</div>
       {from != null && to != null && (
-        <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>{from} → {to}</div>
+        <div style={{ fontSize: 9.5, marginTop: 2, color: dark ? 'rgba(255,255,255,.7)' : '#8A938F' }}>{from} → {to}</div>
       )}
     </div>
   );
@@ -251,12 +253,21 @@ export default function Report() {
             </div>
           )}
 
-          {/* I numeri del mese: peso, vita e totale dall'inizio (come le stat del modello) */}
-          <div style={{ display: 'grid', gridTemplateColumns: totalDelta != null ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
-            <StatCard delta={m?.deltaWeightKg ?? null} unit=" kg" label="Peso" from={m?.start?.weightKg} to={m?.end?.weightKg} />
-            <StatCard delta={m?.deltaWaistCm ?? null} unit=" cm" label="Vita" from={m?.start?.waistCm} to={m?.end?.waistCm} />
+          {/* I numeri del mese: 5 card come il modello 18/07 (Peso, Vita, Fianchi, Aderenza, Dall'inizio in evidenza) */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <StatCard icon="⚖️" delta={m?.deltaWeightKg ?? null} unit=" kg" label={r.kind === 'monthly' ? 'Peso · questo mese' : 'Peso'} from={m?.start?.weightKg} to={m?.end?.weightKg} />
+            <StatCard icon="📏" delta={m?.deltaWaistCm ?? null} unit=" cm" label="Vita" from={m?.start?.waistCm} to={m?.end?.waistCm} />
+            <StatCard icon="✨" delta={m?.deltaHipsCm ?? null} unit=" cm" label="Fianchi" from={m?.start?.hipsCm} to={m?.end?.hipsCm} />
+            <div className="card" style={{ margin: 0, padding: '11px 8px', textAlign: 'center', background: '#F7FAF9', boxShadow: 'none' }}>
+              <div style={{ fontSize: 15, marginBottom: 2 }}>✅</div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--teal)' }}>{r.adherence.pct != null ? `${r.adherence.pct}%` : '—'}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 2, color: '#8A938F' }}>Aderenza</div>
+              <div style={{ fontSize: 9.5, marginTop: 2, color: '#8A938F' }}>{r.adherence.checkins}/{r.adherence.days} check-in</div>
+            </div>
             {totalDelta != null && (
-              <StatCard delta={totalDelta} unit=" kg" label="Dall'inizio" from={mi[0]?.weightKg} to={mi[mi.length - 1]?.weightKg} />
+              <div style={{ gridColumn: 'span 2' }}>
+                <StatCard icon="🎯" dark delta={totalDelta} unit=" kg" label="Dall'inizio · totale" from={mi[0]?.weightKg} to={mi[mi.length - 1]?.weightKg} />
+              </div>
             )}
           </div>
 

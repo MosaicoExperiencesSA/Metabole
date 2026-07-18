@@ -5,6 +5,9 @@ export default function Sheet({ onClose, children }: { onClose: () => void; chil
   return (
     <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="sheet-card">
+        <button className="sheet-close" onClick={onClose} aria-label="Chiudi">
+          <i className="ti ti-x" />
+        </button>
         <div className="sheet-grab" />
         {children}
       </div>

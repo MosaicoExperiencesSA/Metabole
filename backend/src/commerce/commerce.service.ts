@@ -44,6 +44,11 @@ type PrismaTx = Prisma.TransactionClient;
  */
 export function subscriptionEnd(start: Date, period: string): Date {
   const end = new Date(start);
+  // 'maintenance' = piano mensile (€29/mese, rinnovo manuale): dura 1 mese.
+  if (String(period ?? '').trim().toLowerCase() === 'maintenance') {
+    end.setMonth(end.getMonth() + 1);
+    return end;
+  }
   const m = String(period ?? '').trim().toLowerCase().match(/^(\d+)\s*([dwmy]?)$/);
   const n = m ? parseInt(m[1], 10) : NaN;
   const unit = m ? m[2] : '';

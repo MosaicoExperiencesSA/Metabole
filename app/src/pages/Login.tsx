@@ -17,7 +17,6 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -82,16 +81,12 @@ export default function Login() {
 
           <div
             className="muted"
-            style={{ textAlign: 'center', fontSize: 12, marginTop: 12, cursor: 'pointer' }}
-            onClick={() => setShowHelp((v) => !v)}
+            style={{ textAlign: 'center', fontSize: 12, marginTop: 12 }}
           >
-            Password dimenticata?
+            <span className="link" style={{ cursor: 'pointer' }} onClick={() => nav('/reset-password')}>
+              Password dimenticata?
+            </span>
           </div>
-          {showHelp && (
-            <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 6 }}>
-              Scrivi a <a className="link" href="mailto:supporto@metabole.eu">supporto@metabole.eu</a> e ti aiutiamo a reimpostarla.
-            </p>
-          )}
 
           <p className="muted" style={{ textAlign: 'center', marginTop: 14, fontSize: 13 }}>
             Non hai un account? <Link className="link" to="/register">Registrati</Link>
