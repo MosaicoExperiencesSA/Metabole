@@ -69,6 +69,30 @@ export class MailboxService {
     return { configured: !!acc, email: acc?.email ?? null };
   }
 
+  /**
+   * Traduce un errore IMAP/SMTP in una spiegazione utile a chi deve sistemare:
+   * distinguere "password sbagliata" da "server giù" o "IP bloccato dall'hosting"
+   * cambia completamente l'intervento. Usata da TUTTE le operazioni di posta.
+   */
+  private describeMailError(err: unknown, context: string): string {
+    const e = err as { authenticationFailed?: boolean; code?: string; message?: string; responseText?: string; responseCode?: number };
+    this.logger.warn(`${context}: code=${e?.code ?? '-'} auth=${e?.authenticationFailed ?? '-'} msg=${e?.message ?? '-'}`);
+    const msg = e?.message ?? '';
+    return e?.authenticationFailed || /auth|login|credentials/i.test(e?.responseText ?? '')
+      ? 'il server ha RIFIUTATO indirizzo o password (verifica le credenziali, es. dal webmail)'
+      : e?.code === 'ENOTFOUND'
+        ? 'server di posta non trovato (DNS): verifica mail.metabole.eu'
+        : e?.code === 'ETIMEDOUT' || /timeout/i.test(msg)
+          ? 'il server di posta NON RISPONDE (timeout): probabile problema lato hosting (o IP del backend bloccato dal firewall SiteGround), non di password'
+          : e?.code === 'ECONNREFUSED'
+            ? 'connessione RIFIUTATA dal server (porta chiusa, servizio fermo o IP del backend bloccato dal firewall dell\'hosting)'
+            : e?.code === 'ECONNRESET' || /socket|closed|reset/i.test(msg)
+              ? 'connessione INTERROTTA dal server durante l\'operazione (instabilità o protezione anti-abuso lato hosting)'
+              : /certificate|tls|ssl/i.test(msg)
+                ? 'problema di certificato SSL del server di posta'
+                : `errore: ${e?.responseText || msg || 'sconosciuto'}`;
+  }
+
   /** Imposta/aggiorna la casella: prova la connessione IMAP, poi salva cifrato. */
   async setAccount(userId: string, email: string, password: string) {
     const client = this.imapClient(email, password);
@@ -76,22 +100,7 @@ export class MailboxService {
       await client.connect();
       await client.logout();
     } catch (err) {
-      // Messaggio PARLANTE: distinguere password sbagliata da server giù cambia tutto
-      // per chi deve sistemare (prima usciva sempre "controlla indirizzo e password").
-      const e = err as { authenticationFailed?: boolean; code?: string; message?: string; responseText?: string };
-      this.logger.warn(`Collegamento casella ${email} fallito: code=${e?.code ?? '-'} auth=${e?.authenticationFailed ?? '-'} msg=${e?.message ?? '-'}`);
-      const msg = e?.message ?? '';
-      const detail = e?.authenticationFailed || /auth|login|credentials/i.test(e?.responseText ?? '')
-        ? 'il server ha RIFIUTATO indirizzo o password (verifica le credenziali, es. dal webmail)'
-        : e?.code === 'ENOTFOUND'
-          ? 'server di posta non trovato (DNS): verifica mail.metabole.eu'
-          : e?.code === 'ETIMEDOUT' || /timeout/i.test(msg)
-            ? 'il server di posta NON RISPONDE (timeout): probabile problema lato hosting, non di password'
-            : e?.code === 'ECONNREFUSED'
-              ? 'connessione RIFIUTATA dal server (porta chiusa o servizio fermo lato hosting)'
-              : /certificate|tls|ssl/i.test(msg)
-                ? 'problema di certificato SSL del server di posta'
-                : `errore: ${e?.responseText || msg || 'sconosciuto'}`;
+      const detail = this.describeMailError(err, `Collegamento casella ${email} fallito`);
       throw new BadRequestException(`Connessione alla casella non riuscita: ${detail}.`);
     }
     await this.prisma.mailAccount.upsert({
@@ -136,8 +145,8 @@ export class MailboxService {
         lock.release();
       }
     } catch (e) {
-      this.logger.warn(`IMAP inbox fallita: ${e instanceof Error ? e.message : e}`);
-      throw new BadRequestException('Lettura della posta non riuscita.');
+      const detail = this.describeMailError(e, `IMAP inbox fallita (${email})`);
+      throw new BadRequestException(`Lettura della posta non riuscita: ${detail}.`);
     } finally {
       await client.logout().catch(() => undefined);
     }
@@ -170,8 +179,8 @@ export class MailboxService {
       }
     } catch (e) {
       if (e instanceof NotFoundException) throw e;
-      this.logger.warn(`IMAP message fallita: ${e instanceof Error ? e.message : e}`);
-      throw new BadRequestException('Apertura del messaggio non riuscita.');
+      const detail = this.describeMailError(e, `IMAP message fallita (${email})`);
+      throw new BadRequestException(`Apertura del messaggio non riuscita: ${detail}.`);
     } finally {
       await client.logout().catch(() => undefined);
     }
@@ -197,8 +206,8 @@ export class MailboxService {
       });
       return { ok: true, messageId: info.messageId };
     } catch (e) {
-      this.logger.warn(`SMTP invio fallito: ${e instanceof Error ? e.message : e}`);
-      throw new BadRequestException("Invio dell'email non riuscito.");
+      const detail = this.describeMailError(e, `SMTP invio fallito (${email})`);
+      throw new BadRequestException(`Invio dell'email non riuscito: ${detail}.`);
     }
   }
 }
