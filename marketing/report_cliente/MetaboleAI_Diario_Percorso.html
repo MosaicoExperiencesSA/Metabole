@@ -2,416 +2,215 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>MetaboleAI — Report settimana gratuita</title>
+<title>MetaboleAI — Diario del percorso (mese)</title>
 <style>
   @page { size: A4; margin: 0; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  *{ margin:0; padding:0; box-sizing:border-box; }
   :root{
-    --ink:#122019; --muted:#5b6b63; --line:#e4ebe6;
-    --green:#137a55; --green-d:#0d5a3e; --mint:#eaf6f0;
-    --accent:#2fb27a; --coral:#ef6b53; --coral-d:#d9482f;
-    --gold:#c8952a; --bg:#f6faf7;
+    --ink:#122019; --muted:#5b6b63; --line:#e6ece8;
+    --green:#137a55; --green-d:#0d5a3e; --deep:#0e5a49;
+    --teal:#1a916b; --teal2:#2fb27a; --mint:#eaf6f0; --mint2:#f1f8f4;
+    --coral:#ef6b53; --coral-d:#d9482f; --coral-bg:#fff3f0;
+    --gold:#c8952a; --gold-bg:#fbf5e8; --bg:#f7faf8;
   }
   html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   body{ font-family:'Helvetica Neue',Arial,sans-serif; color:var(--ink); background:#e9efec; }
-  .page{ width:210mm; height:297mm; padding:13mm 14mm 11mm; position:relative; overflow:hidden; background:#fff; margin:0 auto; page-break-after:always; }
+  .page{ width:210mm; height:297mm; padding:13mm 14mm 10mm; background:#fff; margin:0 auto; position:relative; overflow:hidden; page-break-after:always; }
   .page:last-child{ page-break-after:auto; }
 
-  /* header */
   .top{ display:flex; justify-content:space-between; align-items:flex-start; }
   .brand{ display:flex; align-items:center; gap:9px; }
-  .logo{ width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,var(--green),var(--accent)); position:relative; }
+  .logo{ width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,var(--green),var(--teal2)); position:relative; }
   .logo::after{ content:""; position:absolute; inset:8px; border:2.5px solid #fff; border-radius:50%; border-right-color:transparent; transform:rotate(35deg); }
   .brand b{ font-size:15px; letter-spacing:.3px; }
-  .brand span{ display:block; font-size:8.5px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:1px; }
-  .doc-tag{ text-align:right; font-size:9px; color:var(--muted); line-height:1.5; }
-  .doc-tag b{ color:var(--green-d); font-size:10px; }
+  .brand span{ display:block; font-size:8px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:1px; }
+  .doctag{ text-align:right; font-size:9px; color:var(--muted); line-height:1.5; }
+  .doctag b{ color:var(--green-d); font-size:10px; }
 
-  /* hero */
-  .hero{ margin-top:18px; }
-  .kicker{ font-size:10.5px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); font-weight:700; }
-  .hero h1{ font-size:27px; line-height:1.14; margin-top:7px; font-weight:800; letter-spacing:-.5px; }
+  .hero{ margin-top:16px; }
+  .kick{ font-size:10.5px; letter-spacing:2px; text-transform:uppercase; color:var(--teal2); font-weight:800; }
+  .hero h1{ font-size:26px; line-height:1.12; margin-top:6px; font-weight:800; letter-spacing:-.5px; }
   .hero h1 em{ font-style:normal; color:var(--green); }
-  .hero .sub{ margin-top:9px; font-size:11.5px; color:var(--muted); line-height:1.5; max-width:165mm; }
+  .hero .sub{ margin-top:8px; font-size:11px; color:var(--muted); line-height:1.5; max-width:172mm; }
 
-  /* GAIA LEARNED — centerpiece */
-  .learn{ margin-top:17px; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
-  .learn .hd{ background:var(--mint); padding:12px 16px; display:flex; align-items:center; gap:9px; }
-  .learn .hd .dot{ width:20px;height:20px;border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:800; display:flex;align-items:center;justify-content:center; }
-  .learn .hd b{ font-size:13.5px; color:var(--green-d); }
-  .learn .hd .tag{ margin-left:auto; font-size:8.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
-  .learn ul{ list-style:none; padding:12px 16px 14px; columns:2; column-gap:24px; }
-  .learn li{ font-size:10.5px; line-height:1.5; padding:6px 0 6px 17px; position:relative; break-inside:avoid; }
-  .learn li::before{ content:"✓"; position:absolute; left:0; top:6px; color:var(--accent); font-weight:800; font-size:11px; }
-  .learn li b{ color:var(--ink); }
+  .phd{ display:inline-flex; align-items:center; gap:8px; color:#fff; padding:6px 15px 6px 7px; border-radius:22px; font-weight:800; font-size:12px; }
+  .phd .ic{ width:27px; height:27px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .phd.g{ background:var(--green-d); } .phd.o{ background:var(--gold); }
 
-  /* LOSS panel — honest */
-  .loss{ margin-top:14px; border:1.5px solid var(--coral); background:#fff7f5; border-radius:16px; padding:14px 17px; position:relative; }
-  .loss h3{ font-size:12.5px; color:var(--coral-d); display:flex; align-items:center; gap:8px; }
-  .loss h3 .ic{ width:18px;height:18px;border-radius:50%; border:2px solid var(--coral); color:var(--coral-d); font-size:11px; font-weight:800; display:flex;align-items:center;justify-content:center; }
-  .loss p{ font-size:10.5px; color:#7d5148; line-height:1.55; margin-top:7px; }
-  .loss p b{ color:var(--coral-d); }
-  .loss .when{ margin-top:9px; display:inline-block; font-size:9.5px; font-weight:800; color:var(--coral-d); background:#fbe1da; padding:4px 11px; border-radius:20px; }
-
-  /* stat row */
-  .also{ margin-top:15px; font-size:10px; color:var(--muted); letter-spacing:.3px; }
-  .also b{ color:var(--green-d); }
-  .stats{ display:flex; gap:9px; margin-top:8px; }
-  .stat{ flex:1; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:11px 11px; }
-  .stat .v{ font-size:21px; font-weight:800; letter-spacing:-.5px; }
-  .stat.good .v{ color:var(--green); }
-  .stat .v small{ font-size:11px; font-weight:700; }
-  .stat .l{ font-size:9px; color:var(--muted); margin-top:3px; line-height:1.3; }
-  .stat .delta{ display:inline-block; margin-top:5px; font-size:8.5px; font-weight:700; color:var(--green-d); background:#d9efe4; padding:2px 7px; border-radius:20px; }
-
-  /* movimento & idratazione */
-  .habits{ display:flex; gap:9px; margin-top:9px; }
-  .habit{ flex:1; display:flex; gap:11px; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:11px 12px; }
-  .habit .hi{ flex:none; width:34px; height:34px; border-radius:10px; background:var(--mint); display:flex; align-items:center; justify-content:center; font-size:17px; }
-  .habit .hv{ font-size:18px; font-weight:800; letter-spacing:-.3px; color:var(--green-d); }
-  .habit .hv small{ font-size:9.5px; font-weight:700; color:var(--muted); }
-  .habit .hl{ font-size:8.5px; color:var(--muted); margin-top:1px; }
-  .habit .hc{ font-size:9px; line-height:1.4; margin-top:6px; color:var(--ink); border-top:1px dashed var(--line); padding-top:5px; }
-  .habit .hc b{ color:var(--green-d); }
-
-  /* Gaia consiglia */
-  .advise{ margin-top:14px; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
-  .advise .hd{ background:var(--mint); padding:10px 16px; display:flex; align-items:center; gap:9px; }
-  .advise .hd .dot{ width:20px; height:20px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
-  .advise .hd b{ font-size:13px; color:var(--green-d); }
-  .advise .ai{ display:flex; gap:11px; padding:9px 16px; border-top:1px solid var(--line); align-items:flex-start; }
-  .advise .ai:first-of-type{ border-top:0; }
-  .advise .aic{ flex:none; width:28px; height:28px; border-radius:8px; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:15px; }
-  .advise .aix{ font-size:10px; line-height:1.5; color:var(--ink); padding-top:2px; }
-  .advise .aix b{ color:var(--green-d); }
-
-  /* diario del percorso */
-  .journey{ margin-top:16px; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
-  .journey .hd{ background:var(--mint); padding:10px 16px; display:flex; align-items:center; gap:9px; }
-  .journey .hd .dot{ width:20px; height:20px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
-  .journey .hd b{ font-size:13px; color:var(--green-d); }
-  .journey .hd .tag{ margin-left:auto; font-size:8.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
-  .journey .jb{ padding:11px 16px 13px; }
-  .jstep{ display:flex; gap:12px; position:relative; padding-bottom:12px; }
+  /* timeline */
+  .journey{ margin-top:10px; background:var(--mint2); border:1px solid #dcece4; border-radius:16px; padding:11px 16px 13px; }
+  .jstep{ display:flex; gap:12px; position:relative; padding-bottom:11px; }
   .jstep:last-child{ padding-bottom:0; }
-  .jstep::before{ content:""; position:absolute; left:13px; top:26px; bottom:0; width:2px; background:var(--line); }
+  .jstep::before{ content:""; position:absolute; left:13px; top:27px; bottom:0; width:2px; background:#d3e4db; }
   .jstep:last-child::before{ display:none; }
   .jn{ flex:none; width:28px; height:28px; border-radius:50%; background:var(--green); color:#fff; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; z-index:1; }
   .jn.free{ background:var(--gold); }
-  .jt{ font-size:11px; font-weight:800; color:var(--ink); }
-  .jd{ font-size:9.5px; color:var(--muted); line-height:1.45; margin-top:2px; }
-  .jev{ font-size:9.5px; color:var(--green-d); background:var(--mint); border-radius:8px; padding:4px 9px; margin-top:5px; display:inline-block; }
+  .jt{ font-size:11px; font-weight:800; }
+  .jd{ font-size:9.5px; color:var(--muted); line-height:1.4; margin-top:2px; }
+  .jev{ font-size:10px; color:var(--green-d); background:#fff; border:1px solid #d7e8df; border-radius:8px; padding:5px 10px; margin-top:5px; display:inline-block; }
+  .jev .em{ font-size:15px; vertical-align:-2px; margin-right:2px; }
 
-  /* due opzioni offerta */
-  .twoopt{ margin-top:7px; }
-  .opt{ padding:7px 0; border-bottom:1px dashed #f0d9d2; }
-  .opt:last-child{ border-bottom:0; }
-  .opt .ot{ font-size:9px; color:var(--coral-d); text-transform:uppercase; letter-spacing:.5px; font-weight:700; }
-  .opt .op{ font-size:12px; font-weight:800; color:var(--ink); margin-top:1px; }
-  .opt .od{ font-size:8.7px; color:var(--muted); line-height:1.4; margin-top:2px; }
+  /* metric cards filled */
+  .intro{ margin-top:14px; font-size:10.5px; color:var(--muted); }
+  .intro b{ color:var(--green-d); }
+  .mrow{ display:flex; gap:8px; margin-top:8px; }
+  .mc{ flex:1; border-radius:14px; padding:10px 10px; color:#fff; background:linear-gradient(140deg,var(--teal),var(--teal2)); }
+  .mc.dark{ background:linear-gradient(140deg,var(--deep),var(--green)); }
+  .mc .ic{ width:34px; height:34px; border-radius:10px; background:#fff; display:flex; align-items:center; justify-content:center; font-size:19px; margin-bottom:7px; }
+  .mc .v{ font-size:19px; font-weight:800; letter-spacing:-.5px; line-height:1; }
+  .mc .v small{ font-size:10px; font-weight:700; }
+  .mc .l{ font-size:9px; font-weight:700; margin-top:5px; line-height:1.15; }
+  .mc .s{ font-size:7.5px; opacity:.88; margin-top:2px; }
+
+  .adv{ margin-top:14px; border:1px solid var(--line); border-radius:16px; padding:8px 15px 12px; }
+  .adv .row{ display:flex; gap:11px; padding:8px 0; border-top:1px solid var(--line); align-items:flex-start; }
+  .adv .row:first-of-type{ border-top:0; }
+  .adv .ic{ flex:none; width:40px; height:40px; border-radius:11px; background:var(--mint); display:flex; align-items:center; justify-content:center; font-size:22px; }
+  .adv .tx{ font-size:10px; line-height:1.5; padding-top:2px; }
+  .adv .tx b{ color:var(--green-d); }
 
   .foot{ position:absolute; left:14mm; right:14mm; bottom:8mm; font-size:8px; color:#93a29a; border-top:1px solid var(--line); padding-top:6px; line-height:1.4; }
 
-  /* PAGE 2 */
-  .card{ margin-top:16px; border:1px solid var(--line); border-radius:16px; padding:15px 18px; }
-  .card h2{ font-size:13px; letter-spacing:.2px; display:flex; align-items:center; gap:8px; }
-  .card h2::before{ content:""; width:5px; height:15px; background:var(--green); border-radius:3px; }
-  .card .lead{ font-size:10px; color:var(--muted); margin:4px 0 4px 13px; line-height:1.45; }
-  .legend{ display:flex; gap:16px; margin:8px 0 0 13px; font-size:9px; color:var(--muted); }
+  .card{ margin-top:8px; border:1px solid var(--line); border-radius:16px; padding:8px 16px 12px; }
+  .card .lead{ font-size:10px; color:var(--muted); margin:6px 0 2px; line-height:1.45; }
+  .legend{ display:flex; gap:16px; margin:4px 0 0; font-size:9px; color:var(--muted); }
   .legend i{ display:inline-block; width:16px; height:0; vertical-align:middle; margin-right:5px; }
   .legend .solid i{ border-top:3px solid var(--green); }
-  .legend .dash i{ border-top:2.5px dashed var(--accent); }
+  .legend .dash i{ border-top:2.5px dashed var(--teal2); }
   .legend .goal i{ border-top:3px dotted var(--coral); }
-
-  .goalbox{ margin-top:16px; background:linear-gradient(135deg,var(--green-d),var(--green)); color:#fff; border-radius:16px; padding:15px 18px; display:flex; justify-content:space-between; align-items:center; }
-  .goalbox .l{ font-size:9.5px; opacity:.85; letter-spacing:1px; text-transform:uppercase; }
+  .goalbox{ margin-top:13px; background:linear-gradient(135deg,var(--deep),var(--green)); color:#fff; border-radius:16px; padding:13px 18px; display:flex; justify-content:space-between; align-items:center; }
+  .goalbox .l{ font-size:9px; opacity:.85; letter-spacing:1px; text-transform:uppercase; }
   .goalbox .big{ font-size:21px; font-weight:800; margin-top:2px; }
-  .goalbox .r{ text-align:right; }
-  .goalbox .r .big{ font-size:15px; }
-
-  .path{ margin-top:14px; }
-  .path .step{ display:flex; gap:13px; padding:11px 0; border-bottom:1px solid var(--line); }
-  .path .step:last-of-type{ border-bottom:0; }
+  .goalbox .r{ text-align:right; } .goalbox .r .big{ font-size:15px; }
+  .path{ margin-top:11px; }
+  .step{ display:flex; gap:13px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .step:last-child{ border-bottom:0; }
   .num{ flex:none; width:26px; height:26px; border-radius:50%; background:var(--green); color:#fff; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center; }
-  .step .tx b{ font-size:11.5px; }
-  .step .tx p{ font-size:9.5px; color:var(--muted); margin-top:2px; line-height:1.45; }
+  .step b{ font-size:11.5px; } .step p{ font-size:9.5px; color:var(--muted); margin-top:2px; line-height:1.45; }
 
-  .duo{ display:flex; gap:14px; margin-top:16px; }
+  .duo{ display:flex; gap:14px; margin-top:13px; }
   .coach{ flex:1; border:1px solid var(--line); border-radius:16px; padding:14px; }
   .coach .who{ display:flex; align-items:center; gap:11px; }
   .avatar{ width:44px;height:44px;border-radius:50%; background:linear-gradient(135deg,#f4c98a,#e79b6b); display:flex;align-items:center;justify-content:center; font-size:17px; font-weight:800; color:#7a4a1e; }
   .coach .who b{ font-size:12.5px; } .coach .who span{ display:block; font-size:9px; color:var(--muted); margin-top:1px; }
-  .coach .line{ display:flex; align-items:center; gap:8px; font-size:10.5px; margin-top:10px; }
-  .coach .line .ic{ width:20px;height:20px;border-radius:6px; background:var(--mint); display:flex;align-items:center;justify-content:center; font-size:11px; }
-  .coach .cta{ display:block; text-align:center; margin-top:12px; background:var(--green); color:#fff; font-weight:800; font-size:11px; padding:10px; border-radius:10px; letter-spacing:.3px; }
+  .coach .ln{ display:flex; align-items:center; gap:8px; font-size:10.5px; margin-top:10px; }
+  .coach .ln .ic{ width:26px;height:26px;border-radius:7px; background:var(--mint); display:flex;align-items:center;justify-content:center; font-size:14px; }
+  .coach .cta{ display:block; text-align:center; margin-top:12px; background:var(--green); color:#fff; font-weight:800; font-size:11px; padding:10px; border-radius:10px; }
 
-  .renew{ flex:1.15; border:2px solid var(--coral); border-radius:16px; padding:14px; position:relative; background:#fff7f5; }
-  .renew .badge{ position:absolute; top:-10px; left:15px; background:var(--coral); color:#fff; font-size:8.5px; font-weight:800; letter-spacing:.8px; padding:3px 9px; border-radius:20px; text-transform:uppercase; }
-  .renew h3{ font-size:12.5px; color:var(--coral-d); margin-top:4px; }
-  .price{ display:flex; align-items:baseline; gap:8px; margin-top:7px; }
-  .price .now{ font-size:26px; font-weight:800; color:var(--ink); }
-  .price .was{ font-size:13px; color:#b7998f; text-decoration:line-through; }
-  .price .per{ font-size:10px; color:var(--muted); }
-  .renew ul{ list-style:none; margin-top:8px; }
-  .renew li{ font-size:9.5px; padding:2.5px 0 2.5px 15px; position:relative; }
-  .renew li::before{ content:"→"; position:absolute; left:0; color:var(--coral); font-weight:800; }
-  .code{ margin-top:10px; background:#fff; border:1.5px dashed var(--coral); border-radius:9px; padding:8px; text-align:center; }
-  .code .lb{ font-size:8px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
-  .code .cd{ font-size:15px; font-weight:800; letter-spacing:2px; color:var(--coral-d); }
-  .code .exp{ font-size:8.5px; color:var(--muted); margin-top:2px; }
-
-  /* due box di vendita: rinnovo + mantenimento */
   .offers{ flex:1.15; display:flex; flex-direction:column; gap:8px; }
   .sbox{ border-radius:13px; padding:9px 13px; }
   .sbox.rinnovo{ border:2px solid var(--green); background:#f2faf6; }
-  .sbox.mant{ border:1.5px solid var(--coral); background:#fff7f5; }
-  .sbox.monit{ border:1.5px solid var(--gold); background:#fbf6ea; }
+  .sbox.mant{ border:1.5px solid var(--coral); background:var(--coral-bg); }
+  .sbox.monit{ border:1.5px solid var(--gold); background:var(--gold-bg); }
   .sb-tag{ font-size:8px; text-transform:uppercase; letter-spacing:.6px; font-weight:800; }
-  .sbox.rinnovo .sb-tag{ color:var(--green-d); }
-  .sbox.mant .sb-tag{ color:var(--coral-d); }
-  .sbox.monit .sb-tag{ color:var(--gold); }
-  .sb-h{ font-size:12.5px; font-weight:800; color:var(--ink); margin-top:2px; }
-  .sb-price{ font-size:9.5px; color:var(--muted); margin-top:1px; }
-  .sb-price b{ color:var(--ink); font-size:11.5px; }
+  .sbox.rinnovo .sb-tag{ color:var(--green-d); } .sbox.mant .sb-tag{ color:var(--coral-d); } .sbox.monit .sb-tag{ color:var(--gold); }
+  .sb-h{ font-size:12.5px; font-weight:800; margin-top:2px; }
   .sb-d{ font-size:9px; color:var(--muted); line-height:1.4; margin-top:4px; }
-  .sb-cta{ display:block; text-align:center; margin-top:7px; font-size:9.5px; font-weight:800; padding:7px; border-radius:9px; letter-spacing:.2px; }
-  .sbox.rinnovo .sb-cta{ background:var(--green); color:#fff; }
-  .sbox.mant .sb-cta{ background:#fff; color:var(--coral-d); border:1.5px solid var(--coral); }
+  .sb-d b{ color:var(--ink); }
 </style>
 </head>
 <body>
 
-<!-- ================= PAGE 1 ================= -->
+<!-- PAGE 1 -->
 <div class="page">
   <div class="top">
-    <div class="brand">
-      <div class="logo"></div>
-      <div><b>MetaboleAI</b><span>Coach &amp; Nutrizione AI</span></div>
-    </div>
-    <div class="doc-tag">
-      Il tuo diario del percorso<br>
-      <b>Metodo Keto · fine 3° mese</b><br>
-      giugno 2026
-    </div>
+    <div class="brand"><div class="logo"></div><div><b>MetaboleAI</b><span>Coach &amp; Nutrizione AI</span></div></div>
+    <div class="doctag">Diario del percorso · report del mese<br><b>Metodo Keto · fine 3° mese</b><br>giugno 2026</div>
   </div>
 
   <div class="hero">
-    <div class="kicker">Il tuo mese con Gaia</div>
-    <h1>Giulia, un altro mese,<br>un altro passo <em>verso l'obiettivo.</em></h1>
-    <div class="sub">Ecco com'è andato il tuo mese: quanto Gaia ha affinato la dieta su di te, i risultati che il corpo ha portato, e i tre consigli per rendere il prossimo mese ancora migliore.</div>
+    <div class="kick">Il tuo mese con Gaia</div>
+    <h1>Un altro mese, un altro passo <em>verso l'obiettivo.</em></h1>
+    <div class="sub">Giulia, ecco com'è andato: il tuo percorso con Gaia dai primi 8 giorni fino a oggi, i risultati che il corpo ha portato, e i tre consigli per il prossimo mese.</div>
   </div>
 
+  <div style="margin-top:14px"><span class="phd g"><span class="ic">🧭</span> Il tuo percorso con Gaia</span></div>
   <div class="journey">
-    <div class="hd"><span class="dot">G</span><b>Il tuo percorso con Gaia</b><span class="tag">8 giorni + 3 mesi</span></div>
-    <div class="jb">
-      <div class="jstep">
-        <div class="jn free">8g</div>
-        <div>
-          <div class="jt">8 giorni gratuiti — ti ha conosciuta</div>
-          <div class="jd">I tuoi gusti (uova, pollo, niente pesce), le esclusioni (niente lattosio) e i tuoi ritmi: forte in settimana, molli nel weekend.</div>
-        </div>
-      </div>
-      <div class="jstep">
-        <div class="jn">M1</div>
-        <div>
-          <div class="jt">Mese 1 — ha affinato</div>
-          <div class="jd">Porzioni serali più leggere e le colazioni salate che ti saziano davvero.</div>
-          <div class="jev">🥂 Gestito: aperitivo con gli amici → la settimana si è riadattata da sola.</div>
-        </div>
-      </div>
-      <div class="jstep">
-        <div class="jn">M2</div>
-        <div>
-          <div class="jt">Mese 2 — ha affinato</div>
-          <div class="jd">Alleggerito i giorni dopo la palestra e trovato gli spuntini giusti per il pomeriggio.</div>
-          <div class="jev">🏖️ Gestito: una settimana di vacanza al mare → menu da viaggio, senza sensi di colpa.</div>
-        </div>
-      </div>
-      <div class="jstep">
-        <div class="jn">M3</div>
-        <div>
-          <div class="jt">Mese 3 — ha affinato</div>
-          <div class="jd">Stabilizzato il ritmo di calo e consolidato le abitudini che funzionano su di te.</div>
-          <div class="jev">💍 Gestito: un matrimonio → giornata libera, poi ripresa dolce il giorno dopo.</div>
-        </div>
-      </div>
-    </div>
+    <div class="jstep"><div class="jn free">8g</div><div><div class="jt">8 giorni gratuiti — ti ha conosciuta</div><div class="jd">I tuoi gusti (uova, pollo, niente pesce), le esclusioni (niente lattosio) e i tuoi ritmi: forte in settimana, molli nel weekend.</div></div></div>
+    <div class="jstep"><div class="jn">M1</div><div><div class="jt">Mese 1 — ha affinato</div><div class="jd">Porzioni serali più leggere e le colazioni salate che ti saziano davvero.</div><div class="jev"><span class="em">🥂</span> Gestito: aperitivo con gli amici → la settimana si è riadattata da sola.</div></div></div>
+    <div class="jstep"><div class="jn">M2</div><div><div class="jt">Mese 2 — ha affinato</div><div class="jd">Alleggerito i giorni dopo la palestra e trovato gli spuntini giusti per il pomeriggio.</div><div class="jev"><span class="em">🏖️</span> Gestito: una settimana di vacanza al mare → menu da viaggio, senza sensi di colpa.</div></div></div>
+    <div class="jstep"><div class="jn">M3</div><div><div class="jt">Mese 3 — ha affinato</div><div class="jd">Stabilizzato il ritmo di calo e consolidato le abitudini che funzionano su di te.</div><div class="jev"><span class="em">💍</span> Gestito: un matrimonio → giornata libera, poi ripresa dolce il giorno dopo.</div></div></div>
   </div>
 
-  <div class="also">In questo mese <b>il corpo ha continuato a rispondere:</b></div>
-  <div class="stats">
-    <div class="stat good">
-      <div class="v">−3,2<small> kg</small></div>
-      <div class="l">Peso<br>76,9 → 73,7 kg</div>
-      <div class="delta">▼ questo mese</div>
-    </div>
-    <div class="stat good">
-      <div class="v">−4,0<small> cm</small></div>
-      <div class="l">Vita<br>91,5 → 87,5 cm</div>
-      <div class="delta">▼ girovita</div>
-    </div>
-    <div class="stat good">
-      <div class="v">−5,8<small> kg</small></div>
-      <div class="l">Dall'inizio<br>79,5 → 73,7 kg</div>
-      <div class="delta">▼ totale</div>
-    </div>
+  <div class="intro">In questo mese <b>il corpo ha continuato a rispondere:</b></div>
+  <div class="mrow">
+    <div class="mc"><div class="ic">⚖️</div><div class="v">−3,2<small> kg</small></div><div class="l">Peso · questo mese</div><div class="s">76,9 → 73,7 kg</div></div>
+    <div class="mc"><div class="ic">📏</div><div class="v">−4,0<small> cm</small></div><div class="l">Vita</div><div class="s">91,5 → 87,5 cm</div></div>
+    <div class="mc"><div class="ic">✨</div><div class="v">−3,5<small> cm</small></div><div class="l">Fianchi</div><div class="s">98,5 → 95 cm</div></div>
+    <div class="mc"><div class="ic">✅</div><div class="v">92<small>%</small></div><div class="l">Aderenza</div><div class="s">del mese</div></div>
+    <div class="mc dark"><div class="ic">🎯</div><div class="v">−5,8<small> kg</small></div><div class="l">Dall'inizio</div><div class="s">79,5 → 73,7 · totale</div></div>
   </div>
 
-  <div class="advise">
-    <div class="hd"><span class="dot">G</span><b>Gaia consiglia</b></div>
-    <div class="ai">
-      <div class="aic">🍽️</div>
-      <div class="aix"><b>Aderenza ai menu: 92% — bravissima.</b> È proprio la costanza che porta al risultato: continua così, sei sulla strada giusta.</div>
-    </div>
-    <div class="ai">
-      <div class="aic">💧</div>
-      <div class="aix"><b>Acqua — la tua media è 1,6 litri al giorno.</b> Sul tuo peso l'obiettivo è circa <b>2,3 litri al giorno</b>: tieni una bottiglia a portata di mano e bevi anche lontano dai pasti.</div>
-    </div>
-    <div class="ai">
-      <div class="aic">👟</div>
-      <div class="aix"><b>Passi — la tua media è 6.100 al giorno.</b> Per i tuoi 40 anni e 73,7 kg, punta ad <b>almeno 8.000 passi al giorno</b>: bastano ~20 minuti di camminata in più per accelerare il risultato.</div>
-    </div>
+  <div style="margin-top:14px"><span class="phd o"><span class="ic">💡</span> Gaia consiglia</span></div>
+  <div class="adv">
+    <div class="row"><div class="ic">🍽️</div><div class="tx"><b>Aderenza ai menu: 92% — bravissima.</b> È proprio la costanza che porta al risultato: continua così, sei sulla strada giusta.</div></div>
+    <div class="row"><div class="ic">💧</div><div class="tx"><b>Acqua — la tua media è 1,6 litri al giorno.</b> Sul tuo peso l'obiettivo è circa <b>2,3 litri al giorno</b>: tieni una bottiglia a portata di mano e bevi anche lontano dai pasti.</div></div>
+    <div class="row"><div class="ic">👟</div><div class="tx"><b>Passi — la tua media è 6.100 al giorno.</b> Per i tuoi 40 anni e 73,7 kg, punta ad <b>almeno 8.000 passi al giorno</b>: bastano ~20 minuti di camminata in più.</div></div>
   </div>
 
-  <div class="foot">
-    MetaboleAI · Diario del percorso generato il 30/06/2026 per Giulia M. — I risultati variano da persona a persona. Gli obiettivi di passi e acqua sono indicativi e personalizzati su età e peso; per patologie è disponibile la visita con il nutrizionista in app. Questo documento non sostituisce un parere medico.
-  </div>
+  <div class="foot">MetaboleAI · Diario del percorso generato il 30/06/2026 per Giulia M. — I risultati variano da persona a persona. Gli obiettivi di passi e acqua sono indicativi e personalizzati su età e peso; per patologie è disponibile la visita con il nutrizionista in app. Questo documento non sostituisce un parere medico.</div>
 </div>
 
-<!-- ================= PAGE 2 ================= -->
+<!-- PAGE 2 -->
 <div class="page">
   <div class="top">
-    <div class="brand">
-      <div class="logo"></div>
-      <div><b>MetaboleAI</b><span>Coach &amp; Nutrizione AI</span></div>
-    </div>
-    <div class="doc-tag">
-      Il tuo piano d'azione<br>
-      <b>Da 73,7 kg al tuo obiettivo</b><br>
-      mancano 5,7 kg
-    </div>
+    <div class="brand"><div class="logo"></div><div><b>MetaboleAI</b><span>Coach &amp; Nutrizione AI</span></div></div>
+    <div class="doctag">Il tuo piano d'azione<br><b>Da 73,7 kg al tuo obiettivo</b><br>mancano 5,7 kg</div>
   </div>
 
   <div class="hero" style="margin-top:14px">
-    <div class="kicker">Il tuo prossimo passo</div>
+    <div class="kick">Il tuo prossimo passo</div>
     <h1 style="font-size:24px">Sei più vicina all'obiettivo.<br><em>Ecco come arrivarci.</em></h1>
   </div>
 
+  <div style="margin-top:13px"><span class="phd g"><span class="ic">📈</span> I tuoi passi verso l'obiettivo</span></div>
   <div class="card">
-    <h2>I tuoi passi verso l'obiettivo</h2>
     <div class="lead">Ogni tappa del percorso, con il peso raggiunto — dai primi 8 giorni gratuiti fino a oggi. La tratteggiata è la stima al ritmo attuale.</div>
-    <div class="chart-wrap">
-      <svg viewBox="0 0 720 235" width="100%" preserveAspectRatio="xMidYMid meet">
-        <g stroke="#eef3f0" stroke-width="1">
-          <line x1="52" y1="30" x2="700" y2="30"/>
-          <line x1="52" y1="80" x2="700" y2="80"/>
-          <line x1="52" y1="130" x2="700" y2="130"/>
-          <line x1="52" y1="180" x2="700" y2="180"/>
-        </g>
-        <g fill="#93a29a" font-size="10" font-family="Arial" text-anchor="end">
-          <text x="46" y="34">80</text>
-          <text x="46" y="84">76</text>
-          <text x="46" y="134">72</text>
-          <text x="46" y="184">68</text>
-        </g>
-        <line x1="52" y1="210" x2="700" y2="210" stroke="#cdd9d2" stroke-width="1.5"/>
-        <g fill="#93a29a" font-size="9.5" font-family="Arial" text-anchor="middle">
-          <text x="64" y="226">inizio</text>
-          <text x="170" y="226">8 giorni</text>
-          <text x="310" y="226">1 mese</text>
-          <text x="450" y="226">2 mesi</text>
-          <text x="575" y="226">3 mesi</text>
-          <text x="680" y="226">obiettivo</text>
-        </g>
-        <line x1="52" y1="180" x2="700" y2="180" stroke="#ef6b53" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.7"/>
-        <path d="M64,36 L170,52 L310,68 L450,90 L575,109" fill="none" stroke="#137a55" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M575,109 C 615,128 655,160 680,180" fill="none" stroke="#2fb27a" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
-        <g font-family="Arial" text-anchor="middle">
-          <circle cx="64" cy="36" r="4" fill="#0d5a3e"/>
-          <text x="64" y="27" font-size="9.5" font-weight="bold" fill="#0d5a3e">79,5</text>
-          <circle cx="170" cy="52" r="4.5" fill="#137a55"/>
-          <text x="170" y="43" font-size="9.5" font-weight="bold" fill="#137a55">78,2</text>
-          <circle cx="310" cy="68" r="4.5" fill="#137a55"/>
-          <text x="310" y="59" font-size="9.5" font-weight="bold" fill="#137a55">77,0</text>
-          <circle cx="450" cy="90" r="4.5" fill="#137a55"/>
-          <text x="450" y="81" font-size="9.5" font-weight="bold" fill="#137a55">75,2</text>
-          <circle cx="575" cy="109" r="5.5" fill="#137a55" stroke="#fff" stroke-width="2"/>
-          <text x="575" y="100" font-size="10.5" font-weight="bold" fill="#137a55">73,7 · oggi</text>
-          <circle cx="680" cy="180" r="6" fill="#ef6b53" stroke="#fff" stroke-width="2"/>
-          <text x="680" y="171" font-size="10.5" font-weight="bold" fill="#d9482f">68,0</text>
-        </g>
-      </svg>
-    </div>
-    <div class="legend">
-      <span class="solid"><i></i>Peso a ogni tappa</span>
-      <span class="dash"><i></i>Stima al ritmo attuale</span>
-      <span class="goal"><i></i>Il tuo obiettivo</span>
-    </div>
+    <svg viewBox="0 0 720 215" width="100%" preserveAspectRatio="xMidYMid meet">
+      <g stroke="#eef3f0" stroke-width="1"><line x1="52" y1="26" x2="700" y2="26"/><line x1="52" y1="72" x2="700" y2="72"/><line x1="52" y1="118" x2="700" y2="118"/><line x1="52" y1="164" x2="700" y2="164"/></g>
+      <g stroke="#e3ece7" stroke-width="0.7"><line x1="170" y1="26" x2="170" y2="190"/><line x1="310" y1="26" x2="310" y2="190"/><line x1="450" y1="26" x2="450" y2="190"/><line x1="575" y1="26" x2="575" y2="190"/></g>
+      <g fill="#93a29a" font-size="10" font-family="Arial" text-anchor="end"><text x="46" y="30">80</text><text x="46" y="76">76</text><text x="46" y="122">72</text><text x="46" y="168">68</text></g>
+      <line x1="52" y1="190" x2="700" y2="190" stroke="#cdd9d2" stroke-width="1.5"/>
+      <g fill="#93a29a" font-size="9.5" font-family="Arial" text-anchor="middle"><text x="64" y="206">inizio</text><text x="170" y="206">8 giorni</text><text x="310" y="206">1 mese</text><text x="450" y="206">2 mesi</text><text x="575" y="206">3 mesi</text><text x="680" y="206">obiettivo</text></g>
+      <line x1="52" y1="164" x2="700" y2="164" stroke="#ef6b53" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.7"/>
+      <path d="M64,32 L170,48 L310,63 L450,84 L575,101" fill="none" stroke="#137a55" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M575,101 C 615,120 655,148 680,164" fill="none" stroke="#2fb27a" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+      <g font-family="Arial" text-anchor="middle">
+        <circle cx="64" cy="32" r="4" fill="#0d5a3e"/><text x="64" y="24" font-size="9.5" font-weight="bold" fill="#0d5a3e">79,5</text>
+        <circle cx="170" cy="48" r="4.5" fill="#137a55"/><text x="170" y="40" font-size="9.5" font-weight="bold" fill="#137a55">78,2</text>
+        <circle cx="310" cy="63" r="4.5" fill="#137a55"/><text x="310" y="55" font-size="9.5" font-weight="bold" fill="#137a55">77,0</text>
+        <circle cx="450" cy="84" r="4.5" fill="#137a55"/><text x="450" y="76" font-size="9.5" font-weight="bold" fill="#137a55">75,2</text>
+        <circle cx="575" cy="101" r="5.5" fill="#137a55" stroke="#fff" stroke-width="2"/><text x="575" y="93" font-size="10.5" font-weight="bold" fill="#137a55">73,7 · oggi</text>
+        <circle cx="680" cy="164" r="6" fill="#ef6b53" stroke="#fff" stroke-width="2"/><text x="680" y="156" font-size="10.5" font-weight="bold" fill="#d9482f">68,0</text>
+      </g>
+    </svg>
+    <div class="legend"><span class="solid"><i></i>Peso a ogni tappa</span><span class="dash"><i></i>Stima al ritmo attuale</span><span class="goal"><i></i>Il tuo obiettivo</span></div>
   </div>
 
-  <div class="goalbox">
-    <div>
-      <div class="l">Il tuo obiettivo</div>
-      <div class="big">68,0 kg · −5,7 kg da oggi</div>
-    </div>
-    <div class="r">
-      <div class="l">Stima al ritmo attuale</div>
-      <div class="big">entro fine 2026</div>
-    </div>
-  </div>
+  <div class="goalbox"><div><div class="l">Il tuo obiettivo</div><div class="big">68,0 kg · −5,7 kg da oggi</div></div><div class="r"><div class="l">Stima al ritmo attuale</div><div class="big">entro fine 2026</div></div></div>
 
   <div class="path">
-    <div class="step">
-      <div class="num">1</div>
-      <div class="tx"><b>−5,8 kg dall'inizio: il metodo sta funzionando.</b>
-      <p>Non cambiare nulla. La costanza di questo mese — 92% di aderenza — è esattamente ciò che ti sta portando all'obiettivo. Il bello è che ora Gaia ti conosce meglio di un mese fa.</p></div>
-    </div>
-    <div class="step">
-      <div class="num">2</div>
-      <div class="tx"><b>Ti mancano solo 5,7 kg: non fermarti a un passo dal traguardo.</b>
-      <p>Il percorso finisce ma l'obiettivo no: <b>rinnovando</b>, Gaia riparte dal punto in cui sei e ti porta a 68 kg. Se ti serve una pausa, il <b>mantenimento</b> a €29 tiene il peso e ti aspetta.</p></div>
-    </div>
-    <div class="step">
-      <div class="num">3</div>
-      <div class="tx"><b>Appòggiati a Martina nei momenti critici (weekend, cene, viaggi).</b>
-      <p>Gaia sa che il weekend è il tuo punto debole. Un messaggio a Martina prima di una cena fuori vale più di dieci buoni propositi.</p></div>
-    </div>
+    <div class="step"><div class="num">1</div><div><b>−5,8 kg dall'inizio: il metodo sta funzionando.</b><p>Non cambiare nulla. La costanza di questo mese — 92% di aderenza — è esattamente ciò che ti sta portando all'obiettivo, e ora Gaia ti conosce meglio di un mese fa.</p></div></div>
+    <div class="step"><div class="num">2</div><div><b>Ti mancano solo 5,7 kg: non fermarti a un passo dal traguardo.</b><p>Il percorso finisce ma l'obiettivo no: <b>rinnovando</b>, Gaia riparte dal punto in cui sei e ti porta a 68 kg. Se ti serve una pausa, il <b>mantenimento</b> a €29 tiene il peso e ti aspetta.</p></div></div>
+    <div class="step"><div class="num">3</div><div><b>Appòggiati a Martina nei momenti critici (weekend, cene, viaggi).</b><p>Gaia sa che il weekend è il tuo punto debole. Un messaggio a Martina prima di una cena fuori vale più di dieci buoni propositi.</p></div></div>
   </div>
 
   <div class="duo">
     <div class="coach">
-      <div class="who">
-        <div class="avatar">M</div>
-        <div><b>Martina R.</b><span>La tua coach dedicata</span></div>
-      </div>
-      <div class="line"><span class="ic">💬</span> WhatsApp: +39 3XX XXX XX XX</div>
-      <div class="line"><span class="ic">📞</span> Chiamata diretta in orario coach</div>
-      <div class="line"><span class="ic">🩺</span> Nutrizionista in app per le patologie</div>
+      <div class="who"><div class="avatar">M</div><div><b>Martina R.</b><span>La tua coach dedicata</span></div></div>
+      <div class="ln"><span class="ic">💬</span> WhatsApp: +39 3XX XXX XX XX</div>
+      <div class="ln"><span class="ic">📞</span> Chiamata diretta in orario coach</div>
+      <div class="ln"><span class="ic">🩺</span> Nutrizionista in app per le patologie</div>
       <a class="cta">Scrivi a Martina →</a>
     </div>
-
     <div class="offers">
-      <div class="sbox rinnovo">
-        <div class="sb-tag">Consigliato · ti mancano 5,7 kg</div>
-        <div class="sb-h">Rinnova il percorso</div>
-        <div class="sb-d">Arriva a 68 kg. 3 mesi <b>€349</b> · mensile <b>€130</b>. Gaia riparte dal punto in cui sei.</div>
-      </div>
-      <div class="sbox mant">
-        <div class="sb-tag">Una pausa</div>
-        <div class="sb-h">Mantenimento · €29/mese</div>
-        <div class="sb-d">Riposati dalla dieta: tieni il peso e rientri quando vuoi.</div>
-      </div>
-      <div class="sbox monit">
-        <div class="sb-tag">Gratis · 1 mese</div>
-        <div class="sb-h">Monitoraggio</div>
-        <div class="sb-d">Per un mese Gaia resta in allerta e ti chiede le misure. Se riprendi peso, i tuoi <b>8 menu di rientro sono €29</b>. Il tuo storico resta salvato per quando torni.</div>
-      </div>
+      <div class="sbox rinnovo"><div class="sb-tag">Consigliato · ti mancano 5,7 kg</div><div class="sb-h">Rinnova il percorso</div><div class="sb-d">Arriva a 68 kg. 3 mesi <b>€349</b> · mensile <b>€130</b>. Gaia riparte dal punto in cui sei.</div></div>
+      <div class="sbox mant"><div class="sb-tag">Una pausa</div><div class="sb-h">Mantenimento · €29/mese</div><div class="sb-d">Riposati dalla dieta: tieni il peso e rientri quando vuoi.</div></div>
+      <div class="sbox monit"><div class="sb-tag">Gratis · 1 mese</div><div class="sb-h">Monitoraggio</div><div class="sb-d">Per un mese Gaia resta in allerta e ti chiede le misure. Se riprendi peso, i tuoi <b>8 menu di rientro sono €29</b>. Il tuo storico resta salvato.</div></div>
     </div>
   </div>
 
-  <div class="foot">
-    Il mantenimento è €29/mese, disdici quando vuoi. Vuoi continuare con un nuovo percorso completo prima di arrivare all'obiettivo? Il Percorso 3 mesi è €349, il mensile €130 — chiedi a Martina o attiva in app.
-  </div>
+  <div class="foot">Il mantenimento è €29/mese, disdici quando vuoi. Vuoi continuare con un nuovo percorso completo prima di arrivare all'obiettivo? Il Percorso 3 mesi è €349, il mensile €130 — chiedi a Martina o attiva in app.</div>
 </div>
 
 </body>
