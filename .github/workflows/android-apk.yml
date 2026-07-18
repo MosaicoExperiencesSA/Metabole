@@ -1,0 +1,59 @@
+name: Android APK (debug)
+
+# Compila un APK di debug dell'app Metabole (unica, smistata per ruolo) e lo pubblica
+# come artefatto scaricabile. Utile per provare l'app senza dipendere da un Mac locale.
+# Avvio manuale (Actions → questo workflow → Run) o a ogni push su main che tocca app/.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/android-apk.yml'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web + genera progetto Android
+        # android:init = build + cap add android; poi le tre iniezioni native
+        # (widget home, contapassi, notifiche push) che vanno eseguite DOPO cap
+        # e PRIMA di gradlew — le stesse che gira il build locale (android:sync).
+        run: |
+          npm run android:init
+          npm run android:widget
+          npm run android:steps
+          npm run android:push
+
+      - name: Build APK di debug
+        working-directory: app/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Pubblica l'APK come artefatto
+        uses: actions/upload-artifact@v4
+        with:
+          name: metabole-app-debug
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

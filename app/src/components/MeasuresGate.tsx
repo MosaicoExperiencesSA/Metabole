@@ -58,8 +58,11 @@ export default function MeasuresGate() {
     try {
       await api('/me/measurements', { method: 'POST', body: JSON.stringify(body) });
       track('measures_gate_submitted');
-      await check(); // ri-verifica: se non serve più, il popup sparisce
-      if (!msg) setShow(false);
+      // La misura sblocca il menu del ciclo successivo (il backend prova a erogarlo
+      // subito). Ricarichiamo così dashboard, menu e lista della spesa mostrano il menu
+      // appena sbloccato — altrimenti restavano quelli vecchi finché non si riapriva l'app.
+      setShow(false);
+      window.location.reload();
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
     } finally {
