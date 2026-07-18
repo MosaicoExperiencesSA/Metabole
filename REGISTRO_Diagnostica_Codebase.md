@@ -63,3 +63,20 @@ futuro. Un solo TODO nel codice (un commento descrittivo, non un lavoro mancante
 - `gitleaks` non era disponibile nella sandbox → usato il fallback grep previsto dallo
   script; sul computer del socio con gitleaks installato la scansione segreti è più ricca.
 - Consiglio: rilanciare la diagnostica prima di ogni release importante.
+
+## Aggiunta — intervento sulle dipendenze (cosa era sistemabile subito)
+Applicato ciò che si può fare SENZA rompere nulla prima del collaudo:
+- **Backend**: `npm audit` ora **0 vulnerabilità** (erano 8 moderate). Aggiunto un
+  `overrides` che forza `uuid` ≥ 11.1.1 dentro firebase-admin (verificato: API compatibile,
+  suite di test invariata). Aggiornati anche i minori sicuri: helmet 8.3.0, stripe 22.3.2,
+  @nestjs/cli 11.0.24.
+- **App — tar (3 high)**: TENTATO l'override a tar 7 → **rompe `npx cap add android`**
+  (il CLI Capacitor 6 usa un'API rimossa in tar 7); revert. Non esiste un fix nella serie
+  6.x. Rischio reale ≈ nullo: tar lì estrae solo il template Android locale di Capacitor,
+  non archivi esterni. Fix vero = Capacitor 8, in finestra post-collaudo.
+- **App/Backoffice — esbuild/vite (moderate + high)**: riguardano SOLO il dev server
+  locale (`npm run dev`), non i siti pubblicati su Vercel (build statiche). Fix = Vite 8
+  (breaking), post-collaudo.
+
+Verifiche: backend `npm test` invariato (91 ok + il phone-mock già noto), tsc pulito a
+parità di baseline; app `vite build` ok e lockfile riportato identico all'origine.
