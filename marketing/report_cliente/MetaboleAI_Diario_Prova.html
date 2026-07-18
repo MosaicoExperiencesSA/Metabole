@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>MetaboleAI — Report settimana gratuita</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root{
+    --ink:#122019; --muted:#5b6b63; --line:#e4ebe6;
+    --green:#137a55; --green-d:#0d5a3e; --mint:#eaf6f0;
+    --accent:#2fb27a; --coral:#ef6b53; --coral-d:#d9482f;
+    --gold:#c8952a; --bg:#f6faf7;
+  }
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{ font-family:'Helvetica Neue',Arial,sans-serif; color:var(--ink); background:#e9efec; }
+  .page{ width:210mm; height:297mm; padding:13mm 14mm 11mm; position:relative; overflow:hidden; background:#fff; margin:0 auto; page-break-after:always; }
+  .page:last-child{ page-break-after:auto; }
+
+  /* header */
+  .top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .brand{ display:flex; align-items:center; gap:9px; }
+  .logo{ width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,var(--green),var(--accent)); position:relative; }
+  .logo::after{ content:""; position:absolute; inset:8px; border:2.5px solid #fff; border-radius:50%; border-right-color:transparent; transform:rotate(35deg); }
+  .brand b{ font-size:15px; letter-spacing:.3px; }
+  .brand span{ display:block; font-size:8.5px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:1px; }
+  .doc-tag{ text-align:right; font-size:9px; color:var(--muted); line-height:1.5; }
+  .doc-tag b{ color:var(--green-d); font-size:10px; }
+
+  /* hero */
+  .hero{ margin-top:18px; }
+  .kicker{ font-size:10.5px; letter-spacing:2px; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  .hero h1{ font-size:27px; line-height:1.14; margin-top:7px; font-weight:800; letter-spacing:-.5px; }
+  .hero h1 em{ font-style:normal; color:var(--green); }
+  .hero .sub{ margin-top:9px; font-size:11.5px; color:var(--muted); line-height:1.5; max-width:165mm; }
+
+  /* GAIA LEARNED — centerpiece */
+  .learn{ margin-top:17px; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .learn .hd{ background:var(--mint); padding:12px 16px; display:flex; align-items:center; gap:9px; }
+  .learn .hd .dot{ width:20px;height:20px;border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:800; display:flex;align-items:center;justify-content:center; }
+  .learn .hd b{ font-size:13.5px; color:var(--green-d); }
+  .learn .hd .tag{ margin-left:auto; font-size:8.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+  .learn ul{ list-style:none; padding:12px 16px 14px; columns:2; column-gap:24px; }
+  .learn li{ font-size:10.5px; line-height:1.5; padding:6px 0 6px 17px; position:relative; break-inside:avoid; }
+  .learn li::before{ content:"✓"; position:absolute; left:0; top:6px; color:var(--accent); font-weight:800; font-size:11px; }
+  .learn li b{ color:var(--ink); }
+
+  /* LOSS panel — honest */
+  .loss{ margin-top:14px; border:1.5px solid var(--coral); background:#fff7f5; border-radius:16px; padding:14px 17px; position:relative; }
+  .loss h3{ font-size:12.5px; color:var(--coral-d); display:flex; align-items:center; gap:8px; }
+  .loss h3 .ic{ width:18px;height:18px;border-radius:50%; border:2px solid var(--coral); color:var(--coral-d); font-size:11px; font-weight:800; display:flex;align-items:center;justify-content:center; }
+  .loss p{ font-size:10.5px; color:#7d5148; line-height:1.55; margin-top:7px; }
+  .loss p b{ color:var(--coral-d); }
+  .loss .when{ margin-top:9px; display:inline-block; font-size:9.5px; font-weight:800; color:var(--coral-d); background:#fbe1da; padding:4px 11px; border-radius:20px; }
+
+  /* stat row */
+  .also{ margin-top:15px; font-size:10px; color:var(--muted); letter-spacing:.3px; }
+  .also b{ color:var(--green-d); }
+  .stats{ display:flex; gap:9px; margin-top:8px; }
+  .stat{ flex:1; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:11px 11px; }
+  .stat .v{ font-size:21px; font-weight:800; letter-spacing:-.5px; }
+  .stat.good .v{ color:var(--green); }
+  .stat .v small{ font-size:11px; font-weight:700; }
+  .stat .l{ font-size:9px; color:var(--muted); margin-top:3px; line-height:1.3; }
+  .stat .delta{ display:inline-block; margin-top:5px; font-size:8.5px; font-weight:700; color:var(--green-d); background:#d9efe4; padding:2px 7px; border-radius:20px; }
+
+  /* movimento & idratazione */
+  .habits{ display:flex; gap:9px; margin-top:9px; }
+  .habit{ flex:1; display:flex; gap:11px; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:11px 12px; }
+  .habit .hi{ flex:none; width:34px; height:34px; border-radius:10px; background:var(--mint); display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .habit .hv{ font-size:18px; font-weight:800; letter-spacing:-.3px; color:var(--green-d); }
+  .habit .hv small{ font-size:9.5px; font-weight:700; color:var(--muted); }
+  .habit .hl{ font-size:8.5px; color:var(--muted); margin-top:1px; }
+  .habit .hc{ font-size:9px; line-height:1.4; margin-top:6px; color:var(--ink); border-top:1px dashed var(--line); padding-top:5px; }
+  .habit .hc b{ color:var(--green-d); }
+
+  /* Gaia consiglia */
+  .advise{ margin-top:14px; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .advise .hd{ background:var(--mint); padding:10px 16px; display:flex; align-items:center; gap:9px; }
+  .advise .hd .dot{ width:20px; height:20px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .advise .hd b{ font-size:13px; color:var(--green-d); }
+  .advise .ai{ display:flex; gap:11px; padding:9px 16px; border-top:1px solid var(--line); align-items:flex-start; }
+  .advise .ai:first-of-type{ border-top:0; }
+  .advise .aic{ flex:none; width:28px; height:28px; border-radius:8px; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .advise .aix{ font-size:10px; line-height:1.5; color:var(--ink); padding-top:2px; }
+  .advise .aix b{ color:var(--green-d); }
+
+  .foot{ position:absolute; left:14mm; right:14mm; bottom:8mm; font-size:8px; color:#93a29a; border-top:1px solid var(--line); padding-top:6px; line-height:1.4; }
+
+  /* PAGE 2 */
+  .card{ margin-top:16px; border:1px solid var(--line); border-radius:16px; padding:15px 18px; }
+  .card h2{ font-size:13px; letter-spacing:.2px; display:flex; align-items:center; gap:8px; }
+  .card h2::before{ content:""; width:5px; height:15px; background:var(--green); border-radius:3px; }
+  .card .lead{ font-size:10px; color:var(--muted); margin:4px 0 4px 13px; line-height:1.45; }
+  .legend{ display:flex; gap:16px; margin:8px 0 0 13px; font-size:9px; color:var(--muted); }
+  .legend i{ display:inline-block; width:16px; height:0; vertical-align:middle; margin-right:5px; }
+  .legend .solid i{ border-top:3px solid var(--green); }
+  .legend .dash i{ border-top:2.5px dashed var(--accent); }
+  .legend .goal i{ border-top:3px dotted var(--coral); }
+
+  .goalbox{ margin-top:16px; background:linear-gradient(135deg,var(--green-d),var(--green)); color:#fff; border-radius:16px; padding:15px 18px; display:flex; justify-content:space-between; align-items:center; }
+  .goalbox .l{ font-size:9.5px; opacity:.85; letter-spacing:1px; text-transform:uppercase; }
+  .goalbox .big{ font-size:21px; font-weight:800; margin-top:2px; }
+  .goalbox .r{ text-align:right; }
+  .goalbox .r .big{ font-size:15px; }
+
+  .path{ margin-top:14px; }
+  .path .step{ display:flex; gap:13px; padding:11px 0; border-bottom:1px solid var(--line); }
+  .path .step:last-of-type{ border-bottom:0; }
+  .num{ flex:none; width:26px; height:26px; border-radius:50%; background:var(--green); color:#fff; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center; }
+  .step .tx b{ font-size:11.5px; }
+  .step .tx p{ font-size:9.5px; color:var(--muted); margin-top:2px; line-height:1.45; }
+
+  .duo{ display:flex; gap:14px; margin-top:16px; }
+  .coach{ flex:1; border:1px solid var(--line); border-radius:16px; padding:14px; }
+  .coach .who{ display:flex; align-items:center; gap:11px; }
+  .avatar{ width:44px;height:44px;border-radius:50%; background:linear-gradient(135deg,#f4c98a,#e79b6b); display:flex;align-items:center;justify-content:center; font-size:17px; font-weight:800; color:#7a4a1e; }
+  .coach .who b{ font-size:12.5px; } .coach .who span{ display:block; font-size:9px; color:var(--muted); margin-top:1px; }
+  .coach .line{ display:flex; align-items:center; gap:8px; font-size:10.5px; margin-top:10px; }
+  .coach .line .ic{ width:20px;height:20px;border-radius:6px; background:var(--mint); display:flex;align-items:center;justify-content:center; font-size:11px; }
+  .coach .cta{ display:block; text-align:center; margin-top:12px; background:var(--green); color:#fff; font-weight:800; font-size:11px; padding:10px; border-radius:10px; letter-spacing:.3px; }
+
+  .renew{ flex:1.15; border:2px solid var(--coral); border-radius:16px; padding:14px; position:relative; background:#fff7f5; }
+  .renew .badge{ position:absolute; top:-10px; left:15px; background:var(--coral); color:#fff; font-size:8.5px; font-weight:800; letter-spacing:.8px; padding:3px 9px; border-radius:20px; text-transform:uppercase; }
+  .renew h3{ font-size:12.5px; color:var(--coral-d); margin-top:4px; }
+  .price{ display:flex; align-items:baseline; gap:8px; margin-top:7px; }
+  .price .now{ font-size:26px; font-weight:800; color:var(--ink); }
+  .price .was{ font-size:13px; color:#b7998f; text-decoration:line-through; }
+  .price .per{ font-size:10px; color:var(--muted); }
+  .renew ul{ list-style:none; margin-top:8px; }
+  .renew li{ font-size:9.5px; padding:2.5px 0 2.5px 15px; position:relative; }
+  .renew li::before{ content:"→"; position:absolute; left:0; color:var(--coral); font-weight:800; }
+  .code{ margin-top:10px; background:#fff; border:1.5px dashed var(--coral); border-radius:9px; padding:8px; text-align:center; }
+  .code .lb{ font-size:8px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+  .code .cd{ font-size:15px; font-weight:800; letter-spacing:2px; color:var(--coral-d); }
+  .code .exp{ font-size:8.5px; color:var(--muted); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<!-- ================= PAGE 1 ================= -->
+<div class="page">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"></div>
+      <div><b>MetaboleAI</b><span>Coach &amp; Nutrizione AI</span></div>
+    </div>
+    <div class="doc-tag">
+      Il tuo diario del percorso<br>
+      <b>Metodo Keto · settimana gratuita</b><br>
+      9 – 16 luglio 2026
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="kicker">La settimana gratuita non serve a farti provare</div>
+    <h1>Giulia, in 8 giorni Gaia<br>ha imparato <em>a conoscerti.</em></h1>
+    <div class="sub">Questa settimana non era un assaggio dell'app: serviva a costruire una cosa che prima non esisteva — il tuo profilo. Ecco cosa Gaia ora sa di te, e perché è la parte più importante di ciò che hai ottenuto.</div>
+  </div>
+
+  <div class="learn">
+    <div class="hd">
+      <span class="dot">G</span>
+      <b>Cosa ha imparato Gaia su di te</b>
+      <span class="tag">Il tuo profilo · 16/07/2026</span>
+    </div>
+    <ul>
+      <li><b>Metodo &amp; calorie:</b> Keto a ~1.500 kcal, tarato sul tuo profilo — non un piano preso da uno scaffale.</li>
+      <li><b>I tuoi gusti:</b> ami uova e pollo, preferisci la colazione salata; il pesce lo salti sempre.</li>
+      <li><b>Cosa evitare:</b> niente lattosio, porzioni serali più leggere quando rientri tardi.</li>
+      <li><b>I tuoi ritmi:</b> forte in settimana, il weekend è il tuo punto debole — Gaia lo sa e lo compensa.</li>
+      <li><b>Evento gestito:</b> cena fuori di venerdì → la settimana si è riadattata da sola, senza sensi di colpa.</li>
+      <li><b>Cotture:</b> ciclo bigiornaliero con 2 cotture diverse, così non ti annoi mangiando lo stesso piatto.</li>
+    </ul>
+  </div>
+
+  <div class="loss">
+    <h3><span class="ic">!</span> Questo profilo è tuo — e solo tuo</h3>
+    <p>Nessun'altra app può ricrearlo: è la somma di ciò che hai scelto, saltato e gradito in 8 giorni. È l'unica cosa che un concorrente non può copiare, perché è fatta di te. <b>Se non continui, tra 7 giorni si cancella davvero</b> — e ricominciare vorrà dire ripartire da un foglio bianco, come il primo giorno.</p>
+    <span class="when">Il tuo profilo Gaia si cancella il 23 luglio 2026</span>
+  </div>
+
+  <div class="also">E intanto, in soli 8 giorni, <b>il corpo ha già iniziato a rispondere:</b></div>
+  <div class="stats">
+    <div class="stat good">
+      <div class="v">−1,6<small> kg</small></div>
+      <div class="l">Peso<br>78,5 → 76,9 kg</div>
+      <div class="delta">▼ primo calo</div>
+    </div>
+    <div class="stat good">
+      <div class="v">−2,5<small> cm</small></div>
+      <div class="l">Vita<br>94 → 91,5 cm</div>
+      <div class="delta">▼ girovita</div>
+    </div>
+    <div class="stat good">
+      <div class="v">−3,0<small> cm</small></div>
+      <div class="l">Fianchi<br>102 → 99 cm</div>
+      <div class="delta">▼ misure</div>
+    </div>
+  </div>
+
+  <div class="advise">
+    <div class="hd"><span class="dot">G</span><b>Gaia consiglia</b></div>
+    <div class="ai">
+      <div class="aic">🍽️</div>
+      <div class="aix"><b>Aderenza ai menu: 92% — bravissima.</b> È proprio la costanza che porta al risultato: continua così, sei sulla strada giusta.</div>
+    </div>
+    <div class="ai">
+      <div class="aic">💧</div>
+      <div class="aix"><b>Acqua — la tua media è 1,6 litri al giorno.</b> Sul tuo peso l'obiettivo è circa <b>2,3 litri al giorno</b>: tieni una bottiglia a portata di mano e bevi anche lontano dai pasti.</div>
+    </div>
+    <div class="ai">
+      <div class="aic">👟</div>
+      <div class="aix"><b>Passi — la tua media è 5.400 al giorno.</b> Per i tuoi 40 anni e 76,9 kg, punta ad <b>almeno 8.000 passi al giorno</b>: bastano ~20 minuti di camminata in più per accelerare il risultato.</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    MetaboleAI · Diario del percorso generato il 16/07/2026 per Giulia M. — Il calo della prima settimana può includere una quota di liquidi ed è fisiologicamente normale. Gli obiettivi di passi e acqua sono indicativi e personalizzati su età e peso; per patologie è disponibile la visita con il nutrizionista in app. Questo documento non sostituisce un parere medico.
+  </div>
+</div>
+
+<!-- ================= PAGE 2 ================= -->
+<div class="page">
+  <div class="top">
+    <div class="brand">
+      <div class="logo"></div>
+      <div><b>MetaboleAI</b><span>Coach &amp; Nutrizione AI</span></div>
+    </div>
+    <div class="doc-tag">
+      Il tuo piano d'azione<br>
+      <b>Da 76,9 kg al tuo obiettivo</b><br>
+      mancano 8,9 kg
+    </div>
+  </div>
+
+  <div class="hero" style="margin-top:14px">
+    <div class="kicker">Cosa fare adesso</div>
+    <h1 style="font-size:24px">Non ripartire da zero.<br><em>Continua da dove Gaia ti conosce.</em></h1>
+  </div>
+
+  <div class="card">
+    <h2>Dove puoi arrivare tenendo questo ritmo</h2>
+    <div class="lead">La parte piena è la settimana appena fatta. La tratteggiata è la stima con il percorso completo — Gaia parte già dal profilo che ha su di te, non da capo.</div>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 720 235" width="100%" preserveAspectRatio="xMidYMid meet">
+        <g stroke="#eef3f0" stroke-width="1">
+          <line x1="52" y1="30" x2="700" y2="30"/>
+          <line x1="52" y1="80" x2="700" y2="80"/>
+          <line x1="52" y1="130" x2="700" y2="130"/>
+          <line x1="52" y1="180" x2="700" y2="180"/>
+        </g>
+        <g fill="#93a29a" font-size="10" font-family="Arial" text-anchor="end">
+          <text x="46" y="34">80</text>
+          <text x="46" y="84">76</text>
+          <text x="46" y="134">72</text>
+          <text x="46" y="184">68</text>
+        </g>
+        <line x1="52" y1="210" x2="700" y2="210" stroke="#cdd9d2" stroke-width="1.5"/>
+        <g fill="#93a29a" font-size="10" font-family="Arial" text-anchor="middle">
+          <text x="70" y="226">oggi</text>
+          <text x="240" y="226">4 sett.</text>
+          <text x="410" y="226">12 sett.</text>
+          <text x="640" y="226">obiettivo</text>
+        </g>
+        <line x1="52" y1="180" x2="700" y2="180" stroke="#ef6b53" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.7"/>
+        <path d="M62,49 L70,52 L78,60 L88,69" fill="none" stroke="#137a55" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M88,69 C 260,96 420,150 640,180" fill="none" stroke="#2fb27a" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+        <circle cx="62" cy="49" r="4.5" fill="#0d5a3e"/>
+        <text x="62" y="40" fill="#0d5a3e" font-size="10.5" font-family="Arial" font-weight="bold" text-anchor="middle">78,5</text>
+        <circle cx="88" cy="69" r="5.5" fill="#137a55" stroke="#fff" stroke-width="2"/>
+        <text x="104" y="66" fill="#137a55" font-size="11" font-family="Arial" font-weight="bold">76,9 kg · oggi</text>
+        <circle cx="640" cy="180" r="6" fill="#ef6b53" stroke="#fff" stroke-width="2"/>
+        <text x="640" y="170" fill="#d9482f" font-size="11" font-family="Arial" font-weight="bold" text-anchor="middle">68,0 kg</text>
+      </svg>
+    </div>
+    <div class="legend">
+      <span class="solid"><i></i>Settimana completata</span>
+      <span class="dash"><i></i>Stima con il percorso completo</span>
+      <span class="goal"><i></i>Il tuo obiettivo</span>
+    </div>
+  </div>
+
+  <div class="goalbox">
+    <div>
+      <div class="l">Il tuo obiettivo</div>
+      <div class="big">68,0 kg · −8,9 kg da oggi</div>
+    </div>
+    <div class="r">
+      <div class="l">Stima al ritmo attuale</div>
+      <div class="big">entro fine 2026</div>
+    </div>
+  </div>
+
+  <div class="path">
+    <div class="step">
+      <div class="num">1</div>
+      <div class="tx"><b>Non fermarti ora — la settimana più difficile è alle spalle.</b>
+      <p>La prima settimana è quella in cui la maggior parte molla. Tu l'hai chiusa al 92%. Fermarti adesso cancella il profilo e ti fa ripartire da zero: è l'unico vero spreco.</p></div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div class="tx"><b>Attiva il Percorso 3 mesi: è la finestra in cui si vedono i risultati veri.</b>
+      <p>In 90 giorni Gaia affina la dieta sui tuoi risultati reali e il cambiamento si consolida. Parte dal profilo che ha già, quindi il primo menu è più tuo del giorno 1.</p></div>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <div class="tx"><b>Appòggiati a Martina nei momenti critici (weekend, cene, viaggi).</b>
+      <p>Gaia sa che il weekend è il tuo punto debole. Un messaggio a Martina prima di una cena fuori vale più di dieci buoni propositi.</p></div>
+    </div>
+  </div>
+
+  <div class="duo">
+    <div class="coach">
+      <div class="who">
+        <div class="avatar">M</div>
+        <div><b>Martina R.</b><span>La tua coach dedicata</span></div>
+      </div>
+      <div class="line"><span class="ic">💬</span> WhatsApp: +39 3XX XXX XX XX</div>
+      <div class="line"><span class="ic">📞</span> Chiamata diretta in orario coach</div>
+      <div class="line"><span class="ic">🩺</span> Nutrizionista in app per le patologie</div>
+      <a class="cta">Continua con Martina →</a>
+    </div>
+
+    <div class="renew">
+      <div class="badge">Codice personale · in scadenza</div>
+      <h3>Percorso 3 mesi</h3>
+      <div class="price"><span class="now">€269</span><span class="was">€349</span><span class="per">una tantum, col tuo codice</span></div>
+      <ul>
+        <li>Coach dal vivo + Gaia AI per 90 giorni</li>
+        <li>Riparti dal tuo profilo, non da zero</li>
+        <li>Gestione eventi (cene, viaggi, imprevisti)</li>
+        <li>Poi mantenimento a €29/mese</li>
+      </ul>
+      <div class="code">
+        <div class="lb">Il codice che ti ha dato Martina</div>
+        <div class="cd">GIULIA-FOUND</div>
+        <div class="exp">scade il 18/07/2026 · poi il prezzo torna a €349</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Il prezzo pieno del Percorso 3 mesi è €349. Il tuo codice personale lo porta a €269 fino alla scadenza indicata. Preferisci la formula flessibile? Il piano mensile è €130 (€99 con il codice). Attiva in app o chiedi a Martina di farlo per te.
+  </div>
+</div>
+
+</body>
+</html>

@@ -85,6 +85,31 @@
   .advise .aix{ font-size:10px; line-height:1.5; color:var(--ink); padding-top:2px; }
   .advise .aix b{ color:var(--green-d); }
 
+  /* diario del percorso */
+  .journey{ margin-top:16px; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .journey .hd{ background:var(--mint); padding:10px 16px; display:flex; align-items:center; gap:9px; }
+  .journey .hd .dot{ width:20px; height:20px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+  .journey .hd b{ font-size:13px; color:var(--green-d); }
+  .journey .hd .tag{ margin-left:auto; font-size:8.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
+  .journey .jb{ padding:11px 16px 13px; }
+  .jstep{ display:flex; gap:12px; position:relative; padding-bottom:12px; }
+  .jstep:last-child{ padding-bottom:0; }
+  .jstep::before{ content:""; position:absolute; left:13px; top:26px; bottom:0; width:2px; background:var(--line); }
+  .jstep:last-child::before{ display:none; }
+  .jn{ flex:none; width:28px; height:28px; border-radius:50%; background:var(--green); color:#fff; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; z-index:1; }
+  .jn.free{ background:var(--gold); }
+  .jt{ font-size:11px; font-weight:800; color:var(--ink); }
+  .jd{ font-size:9.5px; color:var(--muted); line-height:1.45; margin-top:2px; }
+  .jev{ font-size:9.5px; color:var(--green-d); background:var(--mint); border-radius:8px; padding:4px 9px; margin-top:5px; display:inline-block; }
+
+  /* due opzioni offerta */
+  .twoopt{ margin-top:7px; }
+  .opt{ padding:7px 0; border-bottom:1px dashed #f0d9d2; }
+  .opt:last-child{ border-bottom:0; }
+  .opt .ot{ font-size:9px; color:var(--coral-d); text-transform:uppercase; letter-spacing:.5px; font-weight:700; }
+  .opt .op{ font-size:12px; font-weight:800; color:var(--ink); margin-top:1px; }
+  .opt .od{ font-size:8.7px; color:var(--muted); line-height:1.4; margin-top:2px; }
+
   .foot{ position:absolute; left:14mm; right:14mm; bottom:8mm; font-size:8px; color:#93a29a; border-top:1px solid var(--line); padding-top:6px; line-height:1.4; }
 
   /* PAGE 2 */
@@ -134,6 +159,22 @@
   .code .lb{ font-size:8px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
   .code .cd{ font-size:15px; font-weight:800; letter-spacing:2px; color:var(--coral-d); }
   .code .exp{ font-size:8.5px; color:var(--muted); margin-top:2px; }
+
+  /* due box di vendita: rinnovo + mantenimento */
+  .offers{ flex:1.15; display:flex; flex-direction:column; gap:8px; }
+  .sbox{ border-radius:13px; padding:9px 13px; }
+  .sbox.rinnovo{ border:2px solid var(--green); background:#f2faf6; }
+  .sbox.mant{ border:1.5px solid var(--coral); background:#fff7f5; }
+  .sb-tag{ font-size:8px; text-transform:uppercase; letter-spacing:.6px; font-weight:800; }
+  .sbox.rinnovo .sb-tag{ color:var(--green-d); }
+  .sbox.mant .sb-tag{ color:var(--coral-d); }
+  .sb-h{ font-size:12.5px; font-weight:800; color:var(--ink); margin-top:2px; }
+  .sb-price{ font-size:9.5px; color:var(--muted); margin-top:1px; }
+  .sb-price b{ color:var(--ink); font-size:11.5px; }
+  .sb-d{ font-size:9px; color:var(--muted); line-height:1.4; margin-top:4px; }
+  .sb-cta{ display:block; text-align:center; margin-top:7px; font-size:9.5px; font-weight:800; padding:7px; border-radius:9px; letter-spacing:.2px; }
+  .sbox.rinnovo .sb-cta{ background:var(--green); color:#fff; }
+  .sbox.mant .sb-cta{ background:#fff; color:var(--coral-d); border:1.5px solid var(--coral); }
 </style>
 </head>
 <body>
@@ -146,56 +187,71 @@
       <div><b>MetaboleAI</b><span>Coach &amp; Nutrizione AI</span></div>
     </div>
     <div class="doc-tag">
-      Report della settimana gratuita<br>
-      <b>Metodo Keto · 8 giorni</b><br>
-      9 – 16 luglio 2026
+      Il tuo diario del percorso<br>
+      <b>Metodo Keto · fine 3° mese</b><br>
+      giugno 2026
     </div>
   </div>
 
   <div class="hero">
-    <div class="kicker">La settimana gratuita non serve a farti provare</div>
-    <h1>Giulia, in 8 giorni Gaia<br>ha imparato <em>a conoscerti.</em></h1>
-    <div class="sub">Questa settimana non era un assaggio dell'app: serviva a costruire una cosa che prima non esisteva — il tuo profilo. Ecco cosa Gaia ora sa di te, e perché è la parte più importante di ciò che hai ottenuto.</div>
+    <div class="kicker">Il tuo mese con Gaia</div>
+    <h1>Giulia, un altro mese,<br>un altro passo <em>verso l'obiettivo.</em></h1>
+    <div class="sub">Ecco com'è andato il tuo mese: quanto Gaia ha affinato la dieta su di te, i risultati che il corpo ha portato, e i tre consigli per rendere il prossimo mese ancora migliore.</div>
   </div>
 
-  <div class="learn">
-    <div class="hd">
-      <span class="dot">G</span>
-      <b>Cosa ha imparato Gaia su di te</b>
-      <span class="tag">Il tuo profilo · 16/07/2026</span>
+  <div class="journey">
+    <div class="hd"><span class="dot">G</span><b>Il tuo percorso con Gaia</b><span class="tag">8 giorni + 3 mesi</span></div>
+    <div class="jb">
+      <div class="jstep">
+        <div class="jn free">8g</div>
+        <div>
+          <div class="jt">8 giorni gratuiti — ti ha conosciuta</div>
+          <div class="jd">I tuoi gusti (uova, pollo, niente pesce), le esclusioni (niente lattosio) e i tuoi ritmi: forte in settimana, molli nel weekend.</div>
+        </div>
+      </div>
+      <div class="jstep">
+        <div class="jn">M1</div>
+        <div>
+          <div class="jt">Mese 1 — ha affinato</div>
+          <div class="jd">Porzioni serali più leggere e le colazioni salate che ti saziano davvero.</div>
+          <div class="jev">🥂 Gestito: aperitivo con gli amici → la settimana si è riadattata da sola.</div>
+        </div>
+      </div>
+      <div class="jstep">
+        <div class="jn">M2</div>
+        <div>
+          <div class="jt">Mese 2 — ha affinato</div>
+          <div class="jd">Alleggerito i giorni dopo la palestra e trovato gli spuntini giusti per il pomeriggio.</div>
+          <div class="jev">🏖️ Gestito: una settimana di vacanza al mare → menu da viaggio, senza sensi di colpa.</div>
+        </div>
+      </div>
+      <div class="jstep">
+        <div class="jn">M3</div>
+        <div>
+          <div class="jt">Mese 3 — ha affinato</div>
+          <div class="jd">Stabilizzato il ritmo di calo e consolidato le abitudini che funzionano su di te.</div>
+          <div class="jev">💍 Gestito: un matrimonio → giornata libera, poi ripresa dolce il giorno dopo.</div>
+        </div>
+      </div>
     </div>
-    <ul>
-      <li><b>Metodo &amp; calorie:</b> Keto a ~1.500 kcal, tarato sul tuo profilo — non un piano preso da uno scaffale.</li>
-      <li><b>I tuoi gusti:</b> ami uova e pollo, preferisci la colazione salata; il pesce lo salti sempre.</li>
-      <li><b>Cosa evitare:</b> niente lattosio, porzioni serali più leggere quando rientri tardi.</li>
-      <li><b>I tuoi ritmi:</b> forte in settimana, il weekend è il tuo punto debole — Gaia lo sa e lo compensa.</li>
-      <li><b>Evento gestito:</b> cena fuori di venerdì → la settimana si è riadattata da sola, senza sensi di colpa.</li>
-      <li><b>Cotture:</b> ciclo bigiornaliero con 2 cotture diverse, così non ti annoi mangiando lo stesso piatto.</li>
-    </ul>
   </div>
 
-  <div class="loss">
-    <h3><span class="ic">!</span> Questo profilo è tuo — e solo tuo</h3>
-    <p>Nessun'altra app può ricrearlo: è la somma di ciò che hai scelto, saltato e gradito in 8 giorni. È l'unica cosa che un concorrente non può copiare, perché è fatta di te. <b>Se non continui, tra 7 giorni si cancella davvero</b> — e ricominciare vorrà dire ripartire da un foglio bianco, come il primo giorno.</p>
-    <span class="when">Il tuo profilo Gaia si cancella il 23 luglio 2026</span>
-  </div>
-
-  <div class="also">E intanto, in soli 8 giorni, <b>il corpo ha già iniziato a rispondere:</b></div>
+  <div class="also">In questo mese <b>il corpo ha continuato a rispondere:</b></div>
   <div class="stats">
     <div class="stat good">
-      <div class="v">−1,6<small> kg</small></div>
-      <div class="l">Peso<br>78,5 → 76,9 kg</div>
-      <div class="delta">▼ primo calo</div>
+      <div class="v">−3,2<small> kg</small></div>
+      <div class="l">Peso<br>76,9 → 73,7 kg</div>
+      <div class="delta">▼ questo mese</div>
     </div>
     <div class="stat good">
-      <div class="v">−2,5<small> cm</small></div>
-      <div class="l">Vita<br>94 → 91,5 cm</div>
+      <div class="v">−4,0<small> cm</small></div>
+      <div class="l">Vita<br>91,5 → 87,5 cm</div>
       <div class="delta">▼ girovita</div>
     </div>
     <div class="stat good">
-      <div class="v">−3,0<small> cm</small></div>
-      <div class="l">Fianchi<br>102 → 99 cm</div>
-      <div class="delta">▼ misure</div>
+      <div class="v">−5,8<small> kg</small></div>
+      <div class="l">Dall'inizio<br>79,5 → 73,7 kg</div>
+      <div class="delta">▼ totale</div>
     </div>
   </div>
 
@@ -211,12 +267,12 @@
     </div>
     <div class="ai">
       <div class="aic">👟</div>
-      <div class="aix"><b>Passi — la tua media è 5.400 al giorno.</b> Per i tuoi 40 anni e 76,9 kg, punta ad <b>almeno 8.000 passi al giorno</b>: bastano ~20 minuti di camminata in più per accelerare il risultato.</div>
+      <div class="aix"><b>Passi — la tua media è 6.100 al giorno.</b> Per i tuoi 40 anni e 73,7 kg, punta ad <b>almeno 8.000 passi al giorno</b>: bastano ~20 minuti di camminata in più per accelerare il risultato.</div>
     </div>
   </div>
 
   <div class="foot">
-    MetaboleAI · Report generato il 16/07/2026 per Giulia M. — Il calo della prima settimana può includere una quota di liquidi ed è fisiologicamente normale. Gli obiettivi di passi e acqua sono indicativi e personalizzati su età e peso; per patologie è disponibile la visita con il nutrizionista in app. Questo documento non sostituisce un parere medico.
+    MetaboleAI · Diario del percorso generato il 30/06/2026 per Giulia M. — I risultati variano da persona a persona. Gli obiettivi di passi e acqua sono indicativi e personalizzati su età e peso; per patologie è disponibile la visita con il nutrizionista in app. Questo documento non sostituisce un parere medico.
   </div>
 </div>
 
@@ -229,19 +285,19 @@
     </div>
     <div class="doc-tag">
       Il tuo piano d'azione<br>
-      <b>Da 76,9 kg al tuo obiettivo</b><br>
-      mancano 8,9 kg
+      <b>Da 73,7 kg al tuo obiettivo</b><br>
+      mancano 5,7 kg
     </div>
   </div>
 
   <div class="hero" style="margin-top:14px">
-    <div class="kicker">Cosa fare adesso</div>
-    <h1 style="font-size:24px">Non ripartire da zero.<br><em>Continua da dove Gaia ti conosce.</em></h1>
+    <div class="kicker">Il tuo prossimo passo</div>
+    <h1 style="font-size:24px">Sei più vicina all'obiettivo.<br><em>Ecco come arrivarci.</em></h1>
   </div>
 
   <div class="card">
-    <h2>Dove puoi arrivare tenendo questo ritmo</h2>
-    <div class="lead">La parte piena è la settimana appena fatta. La tratteggiata è la stima con il percorso completo — Gaia parte già dal profilo che ha su di te, non da capo.</div>
+    <h2>A che punto sei</h2>
+    <div class="lead">La parte piena è il percorso fatto finora. La tratteggiata è la stima al ritmo attuale: a questo passo l'obiettivo è a portata di mano.</div>
     <div class="chart-wrap">
       <svg viewBox="0 0 720 235" width="100%" preserveAspectRatio="xMidYMid meet">
         <g stroke="#eef3f0" stroke-width="1">
@@ -258,25 +314,25 @@
         </g>
         <line x1="52" y1="210" x2="700" y2="210" stroke="#cdd9d2" stroke-width="1.5"/>
         <g fill="#93a29a" font-size="10" font-family="Arial" text-anchor="middle">
-          <text x="70" y="226">oggi</text>
-          <text x="240" y="226">4 sett.</text>
-          <text x="410" y="226">12 sett.</text>
-          <text x="640" y="226">obiettivo</text>
+          <text x="72" y="226">inizio</text>
+          <text x="250" y="226">1 mese fa</text>
+          <text x="430" y="226">oggi</text>
+          <text x="645" y="226">obiettivo</text>
         </g>
         <line x1="52" y1="180" x2="700" y2="180" stroke="#ef6b53" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.7"/>
-        <path d="M62,49 L70,52 L78,60 L88,69" fill="none" stroke="#137a55" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M88,69 C 260,96 420,150 640,180" fill="none" stroke="#2fb27a" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
-        <circle cx="62" cy="49" r="4.5" fill="#0d5a3e"/>
-        <text x="62" y="40" fill="#0d5a3e" font-size="10.5" font-family="Arial" font-weight="bold" text-anchor="middle">78,5</text>
-        <circle cx="88" cy="69" r="5.5" fill="#137a55" stroke="#fff" stroke-width="2"/>
-        <text x="104" y="66" fill="#137a55" font-size="11" font-family="Arial" font-weight="bold">76,9 kg · oggi</text>
-        <circle cx="640" cy="180" r="6" fill="#ef6b53" stroke="#fff" stroke-width="2"/>
-        <text x="640" y="170" fill="#d9482f" font-size="11" font-family="Arial" font-weight="bold" text-anchor="middle">68,0 kg</text>
+        <path d="M72,36 L250,69 L430,109" fill="none" stroke="#137a55" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M430,109 C 510,132 580,162 645,180" fill="none" stroke="#2fb27a" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+        <circle cx="72" cy="36" r="4.5" fill="#0d5a3e"/>
+        <text x="80" y="28" fill="#0d5a3e" font-size="10.5" font-family="Arial" font-weight="bold" text-anchor="start">79,5</text>
+        <circle cx="430" cy="109" r="5.5" fill="#137a55" stroke="#fff" stroke-width="2"/>
+        <text x="430" y="100" fill="#137a55" font-size="11" font-family="Arial" font-weight="bold" text-anchor="middle">73,7 kg · oggi</text>
+        <circle cx="645" cy="180" r="6" fill="#ef6b53" stroke="#fff" stroke-width="2"/>
+        <text x="645" y="170" fill="#d9482f" font-size="11" font-family="Arial" font-weight="bold" text-anchor="middle">68,0 kg</text>
       </svg>
     </div>
     <div class="legend">
-      <span class="solid"><i></i>Settimana completata</span>
-      <span class="dash"><i></i>Stima con il percorso completo</span>
+      <span class="solid"><i></i>Percorso fatto finora</span>
+      <span class="dash"><i></i>Stima al ritmo attuale</span>
       <span class="goal"><i></i>Il tuo obiettivo</span>
     </div>
   </div>
@@ -284,7 +340,7 @@
   <div class="goalbox">
     <div>
       <div class="l">Il tuo obiettivo</div>
-      <div class="big">68,0 kg · −8,9 kg da oggi</div>
+      <div class="big">68,0 kg · −5,7 kg da oggi</div>
     </div>
     <div class="r">
       <div class="l">Stima al ritmo attuale</div>
@@ -295,13 +351,13 @@
   <div class="path">
     <div class="step">
       <div class="num">1</div>
-      <div class="tx"><b>Non fermarti ora — la settimana più difficile è alle spalle.</b>
-      <p>La prima settimana è quella in cui la maggior parte molla. Tu l'hai chiusa al 92%. Fermarti adesso cancella il profilo e ti fa ripartire da zero: è l'unico vero spreco.</p></div>
+      <div class="tx"><b>−5,8 kg dall'inizio: il metodo sta funzionando.</b>
+      <p>Non cambiare nulla. La costanza di questo mese — 92% di aderenza — è esattamente ciò che ti sta portando all'obiettivo. Il bello è che ora Gaia ti conosce meglio di un mese fa.</p></div>
     </div>
     <div class="step">
       <div class="num">2</div>
-      <div class="tx"><b>Attiva il Percorso 3 mesi: è la finestra in cui si vedono i risultati veri.</b>
-      <p>In 90 giorni Gaia affina la dieta sui tuoi risultati reali e il cambiamento si consolida. Parte dal profilo che ha già, quindi il primo menu è più tuo del giorno 1.</p></div>
+      <div class="tx"><b>Ti mancano solo 5,7 kg: non fermarti a un passo dal traguardo.</b>
+      <p>Il percorso finisce ma l'obiettivo no: <b>rinnovando</b>, Gaia riparte dal punto in cui sei e ti porta a 68 kg. Se ti serve una pausa, il <b>mantenimento</b> a €29 tiene il peso e ti aspetta.</p></div>
     </div>
     <div class="step">
       <div class="num">3</div>
@@ -319,29 +375,28 @@
       <div class="line"><span class="ic">💬</span> WhatsApp: +39 3XX XXX XX XX</div>
       <div class="line"><span class="ic">📞</span> Chiamata diretta in orario coach</div>
       <div class="line"><span class="ic">🩺</span> Nutrizionista in app per le patologie</div>
-      <a class="cta">Continua con Martina →</a>
+      <a class="cta">Scrivi a Martina →</a>
     </div>
 
-    <div class="renew">
-      <div class="badge">Codice personale · in scadenza</div>
-      <h3>Percorso 3 mesi</h3>
-      <div class="price"><span class="now">€269</span><span class="was">€349</span><span class="per">una tantum, col tuo codice</span></div>
-      <ul>
-        <li>Coach dal vivo + Gaia AI per 90 giorni</li>
-        <li>Riparti dal tuo profilo, non da zero</li>
-        <li>Gestione eventi (cene, viaggi, imprevisti)</li>
-        <li>Poi mantenimento a €29/mese</li>
-      </ul>
-      <div class="code">
-        <div class="lb">Il codice che ti ha dato Martina</div>
-        <div class="cd">GIULIA-FOUND</div>
-        <div class="exp">scade il 18/07/2026 · poi il prezzo torna a €349</div>
+    <div class="offers">
+      <div class="sbox rinnovo">
+        <div class="sb-tag">Consigliato · ti mancano 5,7 kg</div>
+        <div class="sb-h">Rinnova il percorso</div>
+        <div class="sb-price">3 mesi <b>€349</b> · mensile <b>€130</b></div>
+        <div class="sb-d">Gaia riparte dal punto in cui sei e ti porta a 68 kg.</div>
+        <a class="sb-cta">Rinnova con Martina →</a>
+      </div>
+      <div class="sbox mant">
+        <div class="sb-tag">Oppure · una pausa</div>
+        <div class="sb-h">Mantenimento · €29/mese</div>
+        <div class="sb-d">Riposati dalla dieta: tieni il peso e rientri quando vuoi.</div>
+        <a class="sb-cta">Passa al mantenimento →</a>
       </div>
     </div>
   </div>
 
   <div class="foot">
-    Il prezzo pieno del Percorso 3 mesi è €349. Il tuo codice personale lo porta a €269 fino alla scadenza indicata. Preferisci la formula flessibile? Il piano mensile è €130 (€99 con il codice). Attiva in app o chiedi a Martina di farlo per te.
+    Il mantenimento è €29/mese, disdici quando vuoi. Vuoi continuare con un nuovo percorso completo prima di arrivare all'obiettivo? Il Percorso 3 mesi è €349, il mensile €130 — chiedi a Martina o attiva in app.
   </div>
 </div>
 
