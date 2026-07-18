@@ -21,3 +21,22 @@ export class MonitoringController {
     return this.monitoring.start(user.sub);
   }
 }
+
+/**
+ * Strumenti admin per il Monitoraggio: forza il giro giornaliero (scadenze,
+ * trigger di rientro, congelamenti, richieste misure) senza aspettare il cron —
+ * utile per collaudo e per sbloccare subito una situazione. Con audit.
+ */
+@Controller('admin/monitoring')
+@Roles('admin')
+export class AdminMonitoringController {
+  constructor(private readonly monitoring: MonitoringService) {}
+
+  @HttpCode(200)
+  @Post('tick')
+  async tick(@CurrentUser() user: AuthUser) {
+    const result = await this.monitoring.dailyTick();
+    await this.monitoring.auditTick(user.sub, result);
+    return result;
+  }
+}

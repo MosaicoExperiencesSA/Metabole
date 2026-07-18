@@ -112,3 +112,10 @@ giorni; i report già generati non le hanno e non mostrano i grafici).
   👟 Passi con i mini-grafici; anteprima dell'editor con dati d'esempio.
   → Ricorda: dopo il deploy, **Grafica PDF → Report mensile → Ripristina** (vale per tutto
   il restyle Diario, questo incluso).
+
+## Aggiunta — collaudo: giro monitoraggio forzabile dall'admin
+Nuovo `POST /admin/monitoring/tick` (solo admin, con audit `monitoring.tick.manual`): esegue
+subito il giro giornaliero del monitoraggio (scadenze, trigger di rientro, congelamenti,
+richieste misure) senza aspettare il cron — per collaudare il flusso o sbloccare una
+situazione al volo. Stessa logica del cron, nessun doppio effetto (le condizioni sono
+idempotenti: offerte già fatte e promemoria recenti non si ripetono).

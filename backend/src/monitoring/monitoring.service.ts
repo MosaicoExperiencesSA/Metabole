@@ -248,6 +248,17 @@ export class MonitoringService {
     return { expired, offered, frozen, asked };
   }
 
+  /** Traccia in audit un giro forzato dall'admin (collaudo/sblocco manuale). */
+  async auditTick(actorId: string, result: { expired: number; offered: number; frozen: number; asked: number }): Promise<void> {
+    await this.audit.log({
+      action: 'monitoring.tick.manual',
+      actorId,
+      entityType: 'monitoring_period',
+      entityId: 'batch',
+      metadata: result as never,
+    });
+  }
+
   // ---------- Hook dal commercio ----------
 
   /**
