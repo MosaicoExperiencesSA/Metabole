@@ -1,0 +1,60 @@
+# Regole semgrep locali per diagnostica.sh — da usare quando semgrep.dev non è
+# raggiungibile (SEMGREP_CONFIG=scripts/diagnostica-regole.yml ./scripts/diagnostica.sh <progetto>).
+# Copre i pattern insicuri più comuni in progetti Node/TS/React.
+rules:
+  - id: eval-di-input
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "eval()/new Function() esegue codice arbitrario: da evitare"
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: exec-con-interpolazione
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "child_process.exec con stringa interpolata: rischio command injection"
+    pattern-either:
+      - pattern: exec(`...${$X}...`, ...)
+      - pattern: execSync(`...${$X}...`, ...)
+
+  - id: query-sql-raw-interpolata
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "Query SQL raw con stringa interpolata: rischio SQL injection (usa $queryRaw taggato o parametri)"
+    pattern-either:
+      - pattern: $P.$queryRawUnsafe(`...${$X}...`)
+      - pattern: $P.$executeRawUnsafe(`...${$X}...`)
+
+  - id: dangerously-set-inner-html
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: "dangerouslySetInnerHTML: verificare che il contenuto sia sanificato (rischio XSS)"
+    pattern: dangerouslySetInnerHTML={...}
+
+  - id: tls-verify-disabilitata
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "rejectUnauthorized:false disabilita la verifica TLS"
+    pattern: "{ rejectUnauthorized: false }"
+
+  - id: hash-debole-per-password
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: "MD5/SHA1 non vanno usati per password (usa bcrypt/argon2)"
+    pattern-either:
+      - pattern: crypto.createHash('md5')
+      - pattern: crypto.createHash('sha1')
+
+  - id: jwt-secret-hardcoded
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: "Segreto JWT scritto nel codice: spostarlo in variabile d'ambiente"
+    patterns:
+      - pattern: jwt.sign($P, "...", ...)
+
+  - id: cors-aperto-con-credenziali
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: "CORS origin '*' insieme a credentials: configurazione pericolosa"
+    pattern: "{ origin: '*', credentials: true }"
