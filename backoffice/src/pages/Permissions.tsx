@@ -121,13 +121,16 @@ export function Permissions() {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
-      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+      {/* La tabella scorre DENTRO la card così l'intestazione dei ruoli resta
+          sempre visibile (sticky): in fondo alla lista non si rischia di
+          lavorare sul ruolo sbagliato. Prima colonna sticky anche in orizzontale. */}
+      <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 230px)' }}>
         <table className="grid">
           <thead>
             <tr>
-              <th style={{ position: 'sticky', left: 0, background: '#fff' }}>Sezione</th>
+              <th style={{ position: 'sticky', left: 0, top: 0, background: '#fff', zIndex: 3, boxShadow: '0 1px 0 var(--line)' }}>Sezione</th>
               {data.roles.map((r) => (
-                <th key={r.key} style={{ textAlign: 'center' }}>
+                <th key={r.key} style={{ textAlign: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 2, boxShadow: '0 1px 0 var(--line)' }}>
                   <span style={{ color: r.color ?? undefined }}>{r.label}</span>
                   {!r.isSystem && <div style={{ fontSize: 9, fontWeight: 400, color: 'var(--muted)' }}>personalizzato</div>}
                 </th>
@@ -137,7 +140,7 @@ export function Permissions() {
           <tbody>
             {orderedPages.map((pageKey) => (
               <tr key={pageKey}>
-                <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600 }}>{pageLabel(pageKey)}</td>
+                <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, zIndex: 1 }}>{pageLabel(pageKey)}</td>
                 {data.roles.map((r) => {
                   const c = cell(r.key, pageKey);
                   const locked = r.key === 'admin' && pageKey === 'permissions';
