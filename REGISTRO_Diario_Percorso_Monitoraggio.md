@@ -84,3 +84,12 @@ profilo si **congela** (mai cancellato); il rientro pagato fa ripartire un altro
   Nuova card **"Monitoraggio · Gratis 1 mese"**: essendo gratuito non passa dal carrello,
   si attiva col bottone (visibile solo quando la cliente è idonea o l'ha già attivo, con
   giorni rimasti). Il "Menu di rientro (8 giorni)" resta nascosto: lo propone Gaia.
+
+## Aggiunta — allineamento al restyling del socio (18/07, commit 7e2328f)
+Il modello Diario aggiornato ha **5 card risultato con icone** (⚖️ Peso · 📏 Vita · ✨ Fianchi ·
+✅ Aderenza · 🎯 Dall'inizio in evidenza scura): Report.tsx allineato (griglia 2 colonne, la
+card "Dall'inizio" a tutta larghezza su fondo teal). Il resto del restyling è solo grafica dei
+PDF marketing: timeline, "Gaia consiglia" e le tre strade combaciano già coi testi in app.
+Verificato anche `e005762` (misure → menu subito): l'erogazione resta legata all'abbonamento
+ATTIVO (chi è in Monitoraggio non riceve menu, come da spec) e il controllo "c'è già un menu
+futuro" protegge gli 8 menu di rientro dalla rigenerazione del motore.
