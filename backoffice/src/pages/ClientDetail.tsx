@@ -329,6 +329,27 @@ export function ClientDetail() {
     }
   }
 
+  /** Cambio email di accesso del cliente (solo admin): usa l'endpoint admin utenti. */
+  async function changeEmail() {
+    if (!d) return;
+    const next = prompt(`Nuova email di accesso per ${d.user.email}:\n(le sessioni attive del cliente verranno chiuse; da quel momento accede con la nuova email)`, d.user.email);
+    if (next === null) return;
+    const email = next.trim().toLowerCase();
+    if (!email || !email.includes('@') || email === d.user.email.toLowerCase()) {
+      if (email && email !== d.user.email.toLowerCase()) setError('Email non valida.');
+      return;
+    }
+    setNotice(null);
+    setError(null);
+    try {
+      await api(`/admin/users/${d.user.id}`, { method: 'PATCH', body: JSON.stringify({ email }) });
+      setNotice(`Email cambiata in ${email}. Il cliente ora accede con la nuova email.`);
+      void loadDetail();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Cambio email non riuscito.');
+    }
+  }
+
   async function deleteClient() {
     const label = d?.user.email ?? 'questo cliente';
     if (!confirm(`Eliminare DEFINITIVAMENTE ${label} e TUTTO ciò che gli è collegato (questionario, misure, acquisti, note…)?\n\nL'operazione non è reversibile.`)) return;
@@ -516,6 +537,11 @@ export function ClientDetail() {
             {isAdmin && !editing && (
               <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
                 <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
+              </button>
+            )}
+            {isAdmin && !editing && (
+              <button className="btn ghost" onClick={changeEmail} title="Cambia l'email di accesso del cliente" style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-mail-cog" /> Cambia email
               </button>
             )}
             {isAdmin && !editing && (

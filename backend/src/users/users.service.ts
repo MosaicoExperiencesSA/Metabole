@@ -520,11 +520,19 @@ export class UsersService {
         if (current.email.toLowerCase() === this.protectedAdminEmail()) {
           throw new BadRequestException('Non si può cambiare l\'email dell\'admin di sistema da qui.');
         }
-        const clash = await this.prisma.user.findFirst({
+        const clash = (await this.prisma.user.findFirst({
           where: { OR: [{ email }, { secondaryEmail: email }], NOT: { id } },
-          select: { id: true },
-        });
-        if (clash) throw new BadRequestException('Esiste già un utente con questa email.');
+          select: { id: true, deletedAt: true },
+        })) as { id: string; deletedAt: Date | null } | null;
+        if (clash) {
+          // Anche gli account ARCHIVIATI bloccano (l'email a DB è unica): senza questo
+          // avviso l'admin vede solo "già in uso" e non capisce da dove arrivi.
+          throw new BadRequestException(
+            clash.deletedAt
+              ? 'Questa email appartiene a un account ARCHIVIATO: da Utenti → "Archiviati" ripristinalo e cambiagli email (o eliminalo definitivamente), poi riprova.'
+              : 'Esiste già un utente con questa email.',
+          );
+        }
         emailChange = email;
       }
     }
@@ -553,6 +561,10 @@ export class UsersService {
         where: { userId: id, email: current.email },
         data: { email: emailChange },
       });
+      // Scheda CRM del cliente: allinea l'email (segmenti e campagne usano quella).
+      await this.prisma.crmRecord
+        .updateMany({ where: { clientId: id }, data: { email: emailChange } })
+        .catch(() => undefined);
     }
     // Nome mostrato (scheda Staff), se l'utente ha una scheda staff.
     if (data.displayName !== undefined && user.staff) {
