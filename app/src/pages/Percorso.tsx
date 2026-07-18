@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useCart } from '../cart/CartContext';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 
@@ -11,6 +12,16 @@ import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 
 interface EventItem { id: string; type: string; label: string | null; startDate: string; mode: string }
 interface ReportHead { id: string; read: boolean }
+
+/** Stato del Monitoraggio post-percorso (spec Antonio: gratis, max 1 mese). */
+interface MonitoringStatus {
+  eligible: boolean;
+  period: { id: string; status: string; endsAt: string; daysLeft: number; referenceWeightKg: number; regainOffered: boolean } | null;
+  lastWeightKg: number | null;
+  deltaKg: number | null;
+  regainThresholdKg: number;
+  rientro: { planId: string; planName: string; priceCents: number } | null;
+}
 
 const EV: Record<string, [string, string, string, string]> = {
   // tipo → [etichetta, icona, bg, colore]
@@ -33,11 +44,17 @@ function whenLabel(iso: string): string {
 
 export default function Percorso() {
   const nav = useNavigate();
+  const cart = useCart();
   const [days, setDays] = useState<ApiMenuDay[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tab, setTab] = useState<'past' | 'fut'>('past');
   const [reports, setReports] = useState<ReportHead[]>([]);
+  const [monitoring, setMonitoring] = useState<MonitoringStatus | null>(null);
+  const [monBusy, setMonBusy] = useState(false);
 
+  function loadMonitoring() {
+    api<MonitoringStatus>('/me/monitoring').then(setMonitoring).catch(() => setMonitoring(null));
+  }
   useEffect(() => {
     api<{ days: ApiMenuDay[] }>('/me/menu').then((r) => setDays(r.days ?? [])).catch(() => setDays([]));
     api<EventItem[]>('/me/events').then((evs) => {
@@ -46,7 +63,23 @@ export default function Percorso() {
     }).catch(() => setEvents([]));
     // Report di fine piano: se ce n'è uno, lo segnaliamo in cima al percorso.
     api<ReportHead[]>('/me/reports').then((rs) => setReports(rs ?? [])).catch(() => setReports([]));
+    loadMonitoring();
   }, []);
+
+  /** Attiva il mese gratuito di monitoraggio. */
+  async function startMonitoring() {
+    setMonBusy(true);
+    try { await api('/me/monitoring/start', { method: 'POST' }); loadMonitoring(); }
+    catch { /* messaggio già in notifica/errore api */ }
+    finally { setMonBusy(false); }
+  }
+
+  /** Kit di rientro: mette il piano €29 nel carrello e va al checkout. */
+  function buyRientro() {
+    if (!monitoring?.rientro) return;
+    cart.setPlan({ id: monitoring.rientro.planId, name: monitoring.rientro.planName, priceCents: monitoring.rientro.priceCents, period: '8d' });
+    nav('/checkout');
+  }
 
   const iso = new Date().toISOString().slice(0, 10);
   const todayDay = days.find((d) => d.date.slice(0, 10) === iso) ?? days[0];
@@ -78,6 +111,57 @@ export default function Percorso() {
             <div className="muted" style={{ fontSize: 12 }}>Punto A → punto B: misure, aderenza e cosa ha imparato Gaia.</div>
           </div>
           <i className="ti ti-chevron-right" style={{ color: '#9AA6A2' }} />
+        </div>
+      )}
+
+      {/* MONITORAGGIO attivo: Gaia veglia, con eventuale kit di rientro */}
+      {monitoring?.period?.status === 'active' && (
+        <div className="card" style={{ marginBottom: 12, border: monitoring.period.regainOffered ? '2px solid #B8863B' : '1px solid #E7EBE9' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: '#FBF6EA', color: '#B8863B', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+              <i className="ti ti-shield-heart" style={{ fontSize: 19 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>Monitoraggio attivo 🛡️</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Ancora {monitoring.period.daysLeft} giorni · peso di riferimento {monitoring.period.referenceWeightKg} kg
+                {monitoring.deltaKg != null && ` · oggi ${monitoring.deltaKg > 0 ? '+' : ''}${monitoring.deltaKg} kg`}
+              </div>
+            </div>
+          </div>
+          {monitoring.period.regainOffered && monitoring.rientro && (
+            <div style={{ marginTop: 10, background: '#FBF6EA', borderRadius: 12, padding: '10px 12px' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8A5A00' }}>Il tuo kit di rientro è pronto 🧰</div>
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                Gli 8 menu che hanno funzionato meglio su di te: di solito bastano 4-6 giorni per recuperare. Sbloccandoli riparte anche un altro mese di monitoraggio gratis.
+              </div>
+              <button className="btn" style={{ marginTop: 8, width: '100%' }} onClick={buyRientro}>
+                Sblocca i menu di rientro · € {(monitoring.rientro.priceCents / 100).toFixed(0)}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MONITORAGGIO da attivare (fine percorso, nessun piano attivo) */}
+      {monitoring?.eligible && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: '#FBF6EA', color: '#B8863B', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+              <i className="ti ti-shield-heart" style={{ fontSize: 19 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>
+                {monitoring.period ? 'Riattiva il monitoraggio · gratis' : 'Monitoraggio · gratis per 1 mese'}
+              </div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Gaia resta in allerta e ti chiede il peso ogni tanto. Il tuo storico è al sicuro: se serve, il kit di rientro è pronto.
+              </div>
+            </div>
+            <button className="chip" disabled={monBusy} onClick={() => void startMonitoring()} style={{ background: '#B8863B', border: 'none', color: '#fff', padding: '7px 11px', fontSize: 11.5, fontWeight: 700 }}>
+              {monBusy ? 'Attivo…' : 'Attiva'}
+            </button>
+          </div>
         </div>
       )}
 

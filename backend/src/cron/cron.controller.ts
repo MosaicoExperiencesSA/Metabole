@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AgentOrchestratorService } from '../agents/agent-orchestrator.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
+import { MonitoringService } from '../monitoring/monitoring.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { AuditService } from '../audit/audit.service';
@@ -45,6 +46,7 @@ export class CronController {
     private readonly visits: VisitsService,
     private readonly agentOrchestrator: AgentOrchestratorService,
     private readonly coachTasks: CoachTasksService,
+    private readonly monitoring: MonitoringService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -69,6 +71,8 @@ export class CronController {
     const trials = await this.commerce.expireTrialsAndPurge();
     // Task coach sui momenti chiave (G0/G1/G4/G7, fine piano, +7). Dopo l'expire, così vede gli stati aggiornati.
     const coachTasks = await this.coachTasks.generateDaily();
+    // Monitoraggio post-percorso: scadenze, trigger di rientro, congelamenti, richieste misure.
+    const monitoring = await this.monitoring.dailyTick();
     // Report di fine piano (handoff punto 4): uno per ogni piano concluso, consegnato in app.
     const planReports = await this.planReports.generateDaily();
     const adherence = await this.signals.runAdherenceSweep();
@@ -81,7 +85,7 @@ export class CronController {
       action: 'cron.daily',
       metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports } as Record<string, unknown>,
     });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports };
+    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports, monitoring };
   }
 
   /**

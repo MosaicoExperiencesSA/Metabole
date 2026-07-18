@@ -216,6 +216,30 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni dopo cui un bonifico rimasto "in attesa contabile" (senza contabile caricata) viene annullato in automatico dal cron giornaliero',
   },
   {
+    key: 'monitoring_regain_kg',
+    value: '3',
+    type: 'number',
+    description: 'Monitoraggio: kg di aumento rispetto al peso di riferimento oltre cui Gaia propone gli 8 menu di rientro',
+  },
+  {
+    key: 'monitoring_duration_days',
+    value: '30',
+    type: 'number',
+    description: 'Monitoraggio: durata massima (giorni) del periodo gratuito di sorveglianza dopo il percorso',
+  },
+  {
+    key: 'monitoring_offer_days',
+    value: '7',
+    type: 'number',
+    description: "Monitoraggio: giorni di validità dell'offerta menu di rientro; se non paga entro questo tempo il profilo si congela",
+  },
+  {
+    key: 'monitoring_measure_ask_days',
+    value: '3',
+    type: 'number',
+    description: 'Monitoraggio: ogni quanti giorni senza pesata Gaia chiede le misure alla cliente',
+  },
+  {
     key: 'personal_base_min_recipes_per_slot',
     value: '3',
     type: 'number',
@@ -868,6 +892,35 @@ async function seedRulePresets(): Promise<void> {
   console.log(`Seed: ${added} nuove regole suggerite inserite (su ${SUGGESTED_PRESETS.length} totali, flag suggerita).`);
 }
 
+/**
+ * Piano "Menu di rientro (8 giorni)" del Monitoraggio: €29, NASCOSTO dallo shop
+ * (hidden) ma acquistabile via link diretto quando Gaia lo propone. Create-only
+ * per nome: prezzo e testi restano modificabili dall'admin nel Negozio.
+ */
+async function seedMonitoringPlan(): Promise<void> {
+  const name = 'Menu di rientro (8 giorni)';
+  const exists = await prisma.plan.findFirst({ where: { name } });
+  if (exists) {
+    // Assicura solo il flag hidden (introdotto con questa feature).
+    if (!(exists as { hidden?: boolean }).hidden) {
+      await prisma.plan.update({ where: { id: exists.id }, data: { hidden: true } as never });
+    }
+    return;
+  }
+  await prisma.plan.create({
+    data: {
+      name,
+      priceCents: 2900,
+      period: '8d',
+      hidden: true,
+      active: true,
+      repurchasable: true,
+      features: ['Gli 8 menu che hanno funzionato meglio su di te', 'Recupero atteso: 3 kg in 4-6 giorni', 'Un nuovo mese di monitoraggio incluso'],
+    } as never,
+  });
+  console.log('Seed: creato piano nascosto "Menu di rientro (8 giorni)" (€29).');
+}
+
 async function main(): Promise<void> {
   for (const param of CONFIG_PARAMS) {
     await prisma.configParam.upsert({
@@ -891,6 +944,7 @@ async function main(): Promise<void> {
 
   await ensureAdminFromEnv();
   await seedPipelineStages();
+  await seedMonitoringPlan();
   await seedPermissions();
   await seedEquivalenceGroups();
   await seedRulePresets();

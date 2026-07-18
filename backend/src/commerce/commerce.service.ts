@@ -17,6 +17,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PdfService } from '../pdf/pdf.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReferralService } from '../referral/referral.service';
+import { MonitoringService } from '../monitoring/monitoring.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { deriveSegment } from '../common/funnel-segment';
@@ -74,6 +75,7 @@ export class CommerceService {
     private readonly discounts: DiscountsService,
     private readonly pdf: PdfService,
     private readonly referral: ReferralService,
+    private readonly monitoring: MonitoringService,
   ) {
     this.receiptKey = deriveKey(this.config.get<string>('FILE_ENCRYPTION_KEY') ?? 'dev-only-file-key');
   }
@@ -93,7 +95,7 @@ export class CommerceService {
   }
 
   async listPlans() {
-    const plans = await this.prisma.plan.findMany({ where: { active: true }, orderBy: { priceCents: 'asc' } });
+    const plans = await this.prisma.plan.findMany({ where: { active: true, hidden: false } as never, orderBy: { priceCents: 'asc' } });
     return (plans as { priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null }[]).map((p) => ({ ...p, ...this.planPricing(p) }));
   }
 
@@ -864,6 +866,13 @@ export class CommerceService {
       // "Porta un'amica": alla prima attivazione dell'invitata premia chi l'ha
       // invitata (idempotente sull'invito; non deve mai far fallire il pagamento).
       await this.referral.onConvert(payment.clientId).catch(() => undefined);
+      // Monitoraggio: menu di rientro pagato → eroga gli 8 menu e riparte il mese;
+      // altro piano a pagamento → l'eventuale monitoraggio in corso si converte.
+      const actPlan = (await this.prisma.subscription.findUnique({
+        where: { id: payment.subscriptionId },
+        select: { plan: { select: { id: true, name: true, priceCents: true, period: true } } },
+      })) as { plan: { id: string; name: string; priceCents: number; period: string } } | null;
+      if (actPlan?.plan) await this.monitoring.onPlanActivated(payment.clientId, actPlan.plan);
     }
     if (payment.orderId) {
       await this.prisma.order.update({ where: { id: payment.orderId }, data: { status: 'paid' } });

@@ -158,20 +158,35 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     expect(created).toEqual([daysFromToday(2), daysFromToday(3)]);
   });
 
-  it('menu di oggi già erogato → non eroga di nuovo', async () => {
+  it('buffer: ha già un menu per un giorno FUTURO → non eroga altro', async () => {
     prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(1)) });
     expect(await service.deliverIfEligible('u1')).toEqual([]);
   });
 
-  it('giorni scaduti SENZA check-in di oggi → resta bloccato (spec: sblocco dopo check-in)', async () => {
-    prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(-1)) });
-    prisma.dailyCheckin.findUnique.mockResolvedValue(null);
+  it('ultimo giorno del ciclo (menu di oggi presente) + misura inviata → eroga SUBITO i 2 successivi', async () => {
+    // Scelta prodotto (Simone): l'invio delle misure fa arrivare subito i prossimi giorni,
+    // senza aspettare che finisca il ciclo corrente né il check-in del giorno dopo.
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(todayIso) });
+    prisma.dailyCheckin.findUnique.mockResolvedValue(null); // il check-in NON è richiesto
+    const created = await service.deliverIfEligible('u1');
+    expect(created).toEqual([daysFromToday(1), daysFromToday(2)]);
+  });
+
+  it('ultimo giorno del ciclo SENZA la misura → resta bloccato (gate misure)', async () => {
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(todayIso) });
+    prisma.measurement.findFirst.mockResolvedValue(null); // manca la misura del ciclo
     expect(await service.deliverIfEligible('u1')).toEqual([]);
   });
 
-  it('giorni scaduti CON check-in di oggi → eroga i 2 successivi', async () => {
+  it('giorni scaduti SENZA la misura del ciclo → resta bloccato (gate misure)', async () => {
     prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(-1)) });
-    prisma.dailyCheckin.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.measurement.findFirst.mockResolvedValue(null);
+    expect(await service.deliverIfEligible('u1')).toEqual([]);
+  });
+
+  it('giorni scaduti CON la misura → eroga i 2 successivi (il check-in non è richiesto)', async () => {
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(-1)) });
+    prisma.dailyCheckin.findUnique.mockResolvedValue(null); // nessun check-in
     const created = await service.deliverIfEligible('u1');
     expect(created).toEqual([todayIso, daysFromToday(1)]);
   });
