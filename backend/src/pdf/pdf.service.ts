@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, ServiceUnavailableException } fr
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_PDF_TEMPLATES, PDF_PREVIEW_SAMPLE, fillTemplate } from './pdf.defaults';
+import { LOGO_DATA_URI } from './logo';
 
 /**
  * Genera i PDF dei clienti (ricevuta, report mensile) partendo da template HTML
@@ -78,13 +79,14 @@ export class PdfService {
 
   /** Rende un template (con i dati reali) in PDF. */
   async renderTemplatePdf(key: string, vars: Record<string, string>): Promise<Buffer> {
-    return this.htmlToPdf(fillTemplate(await this.getHtml(key), vars));
+    // {{logo}} è sempre disponibile (data URI incorporato: nessuna dipendenza dalla rete).
+    return this.htmlToPdf(fillTemplate(await this.getHtml(key), { logo: LOGO_DATA_URI, ...vars }));
   }
 
   /** Anteprima nell'editor: usa l'HTML fornito (non ancora salvato) e i dati d'esempio. */
   async preview(key: string, html?: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
     const useHtml = html ?? (await this.getHtml(key));
-    const buffer = await this.htmlToPdf(fillTemplate(useHtml, this.sampleVars(key)));
+    const buffer = await this.htmlToPdf(fillTemplate(useHtml, { logo: LOGO_DATA_URI, ...this.sampleVars(key) }));
     return { fileName: `${key}-anteprima.pdf`, mimeType: 'application/pdf', contentBase64: buffer.toString('base64') };
   }
 

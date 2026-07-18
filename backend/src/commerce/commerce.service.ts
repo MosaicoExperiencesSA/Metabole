@@ -862,7 +862,20 @@ export class CommerceService {
         orderBy: { endDate: 'desc' },
         select: { endDate: true },
       })) as { endDate: Date | null } | null;
-      const start = activeAhead?.endDate ?? now;
+      // Inizio effettivo: in coda dopo un piano attivo; altrimenti la DATA DI INIZIO
+      // SCELTA dalla cliente nell'onboarding (planStartDate) se è nel futuro (max 60
+      // giorni); altrimenti oggi. Così scheda, scadenza e menu raccontano la stessa data.
+      let start = activeAhead?.endDate ?? now;
+      if (!activeAhead?.endDate) {
+        const prof = (await this.prisma.clientProfile.findUnique({
+          where: { userId: payment.clientId },
+          select: { planStartDate: true },
+        })) as { planStartDate: Date | null } | null;
+        const chosen = prof?.planStartDate ?? null;
+        if (chosen && chosen.getTime() > now.getTime() && chosen.getTime() - now.getTime() <= 60 * 86_400_000) {
+          start = chosen;
+        }
+      }
       const end = subscriptionEnd(start, payment.subscription.plan.period);
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },
@@ -1168,18 +1181,45 @@ export class CommerceService {
   async generateReceiptPdf(paymentId: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { client: { select: { email: true, clientProfile: { select: { name: true } } } } },
+      include: {
+        client: {
+          select: {
+            email: true, firstName: true, lastName: true,
+            addressLine: true, postalCode: true, city: true, province: true, codiceFiscale: true,
+            clientProfile: { select: { name: true } },
+            crmRecord: { select: { codiceFiscale: true } },
+          },
+        },
+      },
     });
     if (!payment) throw new NotFoundException('Pagamento non trovato');
 
     const p = payment as unknown as {
       id: string; amountCents: number; description: string; method: string; status: string;
       createdAt: Date; approvedAt: Date | null;
-      client: { email: string; clientProfile: { name: string | null } | null } | null;
+      client: {
+        email: string; firstName: string | null; lastName: string | null;
+        addressLine: string | null; postalCode: string | null; city: string | null; province: string | null;
+        codiceFiscale: string | null;
+        clientProfile: { name: string | null } | null;
+        crmRecord: { codiceFiscale: string | null } | null;
+      } | null;
     };
     const date = p.approvedAt ?? p.createdAt;
     const number = `RIC-${date.getUTCFullYear()}-${p.id.slice(0, 8).toUpperCase()}`;
-    const clientName = p.client?.clientProfile?.name ?? p.client?.email ?? 'Cliente';
+    const fullName = [p.client?.firstName, p.client?.lastName].filter(Boolean).join(' ').trim();
+    const clientName = fullName || p.client?.clientProfile?.name || p.client?.email || 'Cliente';
+    // Indirizzo su una riga ("Via X 1, 20100 Milano (MI)") e codice fiscale (User → scheda CRM).
+    const addressParts = [
+      p.client?.addressLine?.trim(),
+      [p.client?.postalCode, p.client?.city].filter(Boolean).join(' ').trim() || null,
+      p.client?.province ? `(${p.client.province})` : null,
+    ].filter(Boolean) as string[];
+    const address = addressParts.join(', ');
+    const taxCode = (p.client?.codiceFiscale ?? p.client?.crmRecord?.codiceFiscale ?? '').trim().toUpperCase();
+    // Righe opzionali: stringa vuota se il dato manca (il template le ingloba così com'è).
+    const optRow = (label: string, value: string) =>
+      value ? `<tr><td class="k">${label}</td><td>${value}</td></tr>` : '';
     const methodLabel = p.method === 'card' ? 'Carta' : p.method === 'manual' ? 'Manuale' : 'Bonifico';
     const statusLabel = p.status === 'approved' ? 'Pagato' : p.status === 'rejected' ? 'Rifiutato' : 'In attesa';
     const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -1192,6 +1232,10 @@ export class CommerceService {
         date: date.toLocaleDateString('it-IT'),
         clientName,
         email: p.client?.email ?? '',
+        address,
+        taxCode,
+        addressRow: optRow('Indirizzo', address),
+        taxCodeRow: optRow('Codice fiscale', taxCode),
         description: p.description,
         method: methodLabel,
         status: statusLabel,

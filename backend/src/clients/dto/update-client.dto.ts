@@ -10,6 +10,7 @@ export class UpdateClientDto {
   @IsOptional() @IsString() @MaxLength(80) city?: string;
   @IsOptional() @IsString() @MaxLength(80) province?: string;
   @IsOptional() @IsString() @MaxLength(30) phone?: string;
+  @IsOptional() @IsString() @MaxLength(20) codiceFiscale?: string;
 
   // --- Questionario (ClientProfile) ---
   @IsOptional() @IsString() @MaxLength(80) name?: string;

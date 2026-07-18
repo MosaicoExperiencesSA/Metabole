@@ -70,6 +70,7 @@ export const PAGE_LABEL: Record<string, string> = {
   withdrawals: 'Richieste prelievo',
   fix_measures: 'Correggi misure cliente',
   change_diet_type: 'Cambia tipo di dieta',
+  change_plan_start: 'Cambia data inizio piano',
 };
 
 export function pageLabel(key: string): string {

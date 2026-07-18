@@ -174,7 +174,13 @@ export class CatalogController {
     return this.catalog.catalog();
   }
 
-  /** Regimi (configurabili) + stili (dalle diete): opzioni per i form di dieta/ricetta. */
+  /**
+   * Regimi (configurabili) + stili (dalle diete): opzioni per i form. Sono solo
+   * ETICHETTE (nessun dato sensibile): leggibili da tutto lo staff, perché servono
+   * anche fuori dal catalogo (es. tendine Regime/Stile nella scheda cliente per chi
+   * ha il permesso "Cambia tipo di dieta").
+   */
+  @Roles('coach', 'coach_coordinator', 'sales', 'nutritionist', 'head_nutritionist', 'marketing', 'head_marketing', 'admin')
   @Get('taxonomy')
   taxonomy() {
     return this.catalog.taxonomy();

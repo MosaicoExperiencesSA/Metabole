@@ -239,8 +239,9 @@ export default function Report() {
         </div>
       ) : (
         <>
-          {/* Intestazione: il tuo mese con Gaia (modello Diario del Percorso) */}
+          {/* Intestazione: logo + il tuo mese con Gaia (modello Diario del Percorso) */}
           <div style={{ margin: '2px 2px 12px' }}>
+            <img src="/brand/logo.png" alt="MetaboleAI" style={{ height: 44, display: 'block', marginBottom: 8 }} />
             <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.8px', color: 'var(--teal)' }}>
               {r.kind === 'monthly' ? 'IL TUO MESE CON GAIA' : 'IL TUO DIARIO DEL PERCORSO'}
             </div>

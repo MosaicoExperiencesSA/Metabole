@@ -56,6 +56,7 @@ export const BACKOFFICE_PAGES = [
   'diet_workspace',      // Gestione dieta: hub ricette/allergeni/gruppi per dieta (da diets_catalog)
   'fix_measures',        // Correzione misure del cliente dalla scheda (flag dedicato, richiesta Simone)
   'change_diet_type',    // Cambio del TIPO DI DIETA (regime + stile) dalla scheda cliente (flag dedicato)
+  'change_plan_start',   // Cambio della DATA DI INIZIO del piano dalla scheda cliente (flag dedicato)
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -212,6 +213,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     withdrawals: { view: true, manage: true },
     fix_measures: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
+    change_plan_start: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
   },
 };
 

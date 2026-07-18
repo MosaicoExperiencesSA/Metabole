@@ -157,11 +157,11 @@ export function Layout({ title, children }: { title: string; children: ReactNode
     <div className={`app-shell${navOpen ? '' : ' nav-closed'}`}>
       <aside className="sidebar">
         <div className="brand">
-          <div className="logo">
-            <i className="ti ti-leaf" />
+          <div className="logo" style={{ background: '#fff', padding: 4 }}>
+            <img src="/brand/simbolo.png" alt="MetaboleAI" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div style={{ flex: 1 }}>
-            <b>Metabole</b>
+            <b>MetaboleAI</b>
             <span>Backoffice</span>
           </div>
           <button className="nav-collapse" onClick={toggleNav} title="Chiudi il menu">

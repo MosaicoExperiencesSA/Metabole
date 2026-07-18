@@ -9,7 +9,7 @@ interface Detail {
   user: {
     id: string; email: string; status: string; locale: string; emailVerifiedAt: string | null; createdAt: string;
     firstName: string | null; lastName: string | null;
-    addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null;
+    addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null; codiceFiscale: string | null;
   };
   profile: any | null;
   objective: any | null;
@@ -145,7 +145,8 @@ function EditCard({ form, setForm, lockDietType }: { form: Record<string, string
       <h2 style={{ marginTop: 0 }}>Modifica scheda</h2>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {T('firstName', 'Nome')}{T('lastName', 'Cognome')}
-        {T('phone', 'Telefono')}{T('addressLine', 'Via e n. civico')}
+        {T('phone', 'Telefono')}{T('codiceFiscale', 'Codice fiscale')}
+        {T('addressLine', 'Via e n. civico')}
         {T('postalCode', 'CAP')}{T('city', 'Città')}
         {T('province', 'Provincia')}{T('name', 'Nome nel percorso')}
         {T('age', 'Età', 'number')}{S('sex', 'Sesso', [['female', 'Donna'], ['male', 'Uomo']])}
@@ -229,6 +230,30 @@ export function ClientDetail() {
 
   // Correzione misure inserite male dal cliente (permesso dedicato "Correggi misure cliente")
   const canFixMeasures = can('fix_measures', 'manage');
+  // Cambio data inizio piano (permesso dedicato "Cambia data inizio piano")
+  const canChangePlanStart = can('change_plan_start', 'manage');
+
+  /** Sposta la data di inizio del piano: la fine si ricalcola e i menu ripartono da lì. */
+  async function changePlanStart() {
+    const cur = d?.profile?.planStartDate
+      ? String(d.profile.planStartDate).slice(0, 10)
+      : d?.subscription?.startDate ? String(d.subscription.startDate).slice(0, 10) : '';
+    const input = prompt('Nuova data di INIZIO del piano (AAAA-MM-GG).\nLa data di fine viene ricalcolata dalla durata del piano e i menu ripartono dalla nuova data.', cur);
+    if (input === null) return;
+    const val = input.trim();
+    // Accetta anche GG/MM/AAAA e lo converte.
+    const m = val.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const iso = m ? `${m[3]}-${m[2]}-${m[1]}` : val;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { setError('Data non valida: usa AAAA-MM-GG (o GG/MM/AAAA).'); return; }
+    setError(null); setNotice(null);
+    try {
+      const r = await api<{ startDate: string; endDate: string }>(`/admin/clients/${id}/plan-start`, { method: 'PATCH', body: JSON.stringify({ date: iso }) });
+      setNotice(`Inizio piano spostato al ${date(r.startDate)} (fine ricalcolata: ${date(r.endDate)}).`);
+      void loadDetail();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Cambio data non riuscito.');
+    }
+  }
   const [fixing, setFixing] = useState<Detail['measurements'][number] | null>(null);
 
   // Team: liste coach/nutrizionisti per l'assegnazione (solo admin)
@@ -329,6 +354,27 @@ export function ClientDetail() {
     }
   }
 
+  /** Cambio email di accesso del cliente (solo admin): usa l'endpoint admin utenti. */
+  async function changeEmail() {
+    if (!d) return;
+    const next = prompt(`Nuova email di accesso per ${d.user.email}:\n(le sessioni attive del cliente verranno chiuse; da quel momento accede con la nuova email)`, d.user.email);
+    if (next === null) return;
+    const email = next.trim().toLowerCase();
+    if (!email || !email.includes('@') || email === d.user.email.toLowerCase()) {
+      if (email && email !== d.user.email.toLowerCase()) setError('Email non valida.');
+      return;
+    }
+    setNotice(null);
+    setError(null);
+    try {
+      await api(`/admin/users/${d.user.id}`, { method: 'PATCH', body: JSON.stringify({ email }) });
+      setNotice(`Email cambiata in ${email}. Il cliente ora accede con la nuova email.`);
+      void loadDetail();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Cambio email non riuscito.');
+    }
+  }
+
   async function deleteClient() {
     const label = d?.user.email ?? 'questo cliente';
     if (!confirm(`Eliminare DEFINITIVAMENTE ${label} e TUTTO ciò che gli è collegato (questionario, misure, acquisti, note…)?\n\nL'operazione non è reversibile.`)) return;
@@ -351,7 +397,7 @@ export function ClientDetail() {
     const pr = d.profile ?? {};
     setForm({
       firstName: u.firstName ?? '', lastName: u.lastName ?? '', phone: u.phone ?? '',
-      addressLine: u.addressLine ?? '', postalCode: u.postalCode ?? '', city: u.city ?? '', province: u.province ?? '',
+      addressLine: u.addressLine ?? '', postalCode: u.postalCode ?? '', city: u.city ?? '', province: u.province ?? '', codiceFiscale: u.codiceFiscale ?? '',
       name: pr.name ?? '', age: pr.age ?? '', sex: pr.sex ?? '', heightCm: pr.heightCm ?? '',
       startWeightKg: pr.startWeightKg ?? '', startWaistCm: pr.startWaistCm ?? '', startHipsCm: pr.startHipsCm ?? '',
       regime: pr.regime ?? '', dietStyle: pr.dietStyle ?? '', mealsPerDay: pr.mealsPerDay ? String(pr.mealsPerDay) : '',
@@ -371,7 +417,7 @@ export function ClientDetail() {
     const list = (v: string) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []);
     const dto: Record<string, unknown> = {
       firstName: f.firstName, lastName: f.lastName, phone: f.phone,
-      addressLine: f.addressLine, postalCode: f.postalCode, city: f.city, province: f.province,
+      addressLine: f.addressLine, postalCode: f.postalCode, city: f.city, province: f.province, codiceFiscale: f.codiceFiscale || undefined,
       name: f.name,
       sex: f.sex || undefined, regime: f.regime || undefined, dietStyle: f.dietStyle || undefined,
       objective: f.objective || undefined,
@@ -487,6 +533,7 @@ export function ClientDetail() {
             <p style={{ margin: '4px 0 0', opacity: 0.9 }}>{d.user.email}</p>
             {d.user.phone && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-phone" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {d.user.phone}</p>}
             {fullAddress && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-map-pin" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {fullAddress}</p>}
+            {d.user.codiceFiscale && <p style={{ margin: '2px 0 0', opacity: 0.9, fontSize: 13 }}><i className="ti ti-id" style={{ verticalAlign: '-2px', fontSize: 14 }} /> CF: {d.user.codiceFiscale}</p>}
             <div className="row" style={{ gap: 8, marginTop: 10 }}>
               <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
                 {d.user.status === 'active' ? 'Attivo' : 'Sospeso'}
@@ -516,6 +563,11 @@ export function ClientDetail() {
             {isAdmin && !editing && (
               <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
                 <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
+              </button>
+            )}
+            {isAdmin && !editing && (
+              <button className="btn ghost" onClick={changeEmail} title="Cambia l'email di accesso del cliente" style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-mail-cog" /> Cambia email
               </button>
             )}
             {isAdmin && !editing && (
@@ -872,6 +924,22 @@ export function ClientDetail() {
             </button>
           )}
         </div>
+        {/* Data di inizio piano: quella SCELTA dalla cliente (planStartDate, guida i menu);
+            se l'abbonamento è stato attivato in un giorno diverso lo indichiamo accanto. */}
+        {(d.profile?.planStartDate || d.subscription?.startDate) && (
+          <div className="muted" style={{ padding: '0 20px 8px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            Inizio piano: <b style={{ color: 'var(--ink, #1F2933)' }}>{date(d.profile?.planStartDate ?? d.subscription?.startDate)}</b>
+            {d.subscription?.startDate && d.profile?.planStartDate && String(d.profile.planStartDate).slice(0, 10) !== String(d.subscription.startDate).slice(0, 10) && (
+              <span title="L'abbonamento è stato attivato in questa data (approvazione pagamento); i menu partono dall'inizio piano.">· attivato il {date(d.subscription.startDate)}</span>
+            )}
+            {d.subscription?.endDate && <> · fine {date(d.subscription.endDate)}</>}
+            {canChangePlanStart && (
+              <button className="btn ghost sm" onClick={() => void changePlanStart()} title="Cambia la data di inizio (la fine si ricalcola e i menu ripartono da lì)">
+                <i className="ti ti-pencil" />
+              </button>
+            )}
+          </div>
+        )}
         {d.payments.length === 0 ? (
           <div className="empty">Nessun pagamento.</div>
         ) : (

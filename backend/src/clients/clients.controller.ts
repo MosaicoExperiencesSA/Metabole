@@ -20,6 +20,10 @@ class TravelDto {
   @IsOptional() @IsString() @MaxLength(40) end?: string;
 }
 
+class PlanStartDto {
+  @IsString() @MaxLength(10) @MinLength(10) date!: string; // AAAA-MM-GG
+}
+
 /** Correzione misura: le circonferenze accettano anche null (= svuota il dato). */
 class FixMeasurementDto {
   @IsOptional() @IsNumber() @Min(25) @Max(400) weightKg?: number;
@@ -98,6 +102,14 @@ export class ClientsController {
     @Body() dto: FixMeasurementDto,
   ) {
     return this.clients.updateMeasurement(id, user.sub, measurementId, dto);
+  }
+
+  /** Cambio della data di inizio del piano: permesso dedicato "change_plan_start". */
+  @RequirePage('change_plan_start', 'manage')
+  @HttpCode(200)
+  @Patch(':id/plan-start')
+  planStart(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PlanStartDto) {
+    return this.clients.updatePlanStart(id, user.sub, dto.date);
   }
 
   /** Modalità viaggio/estate: in vacanza il popup misure si sospende; al rientro scatta un evento CRM/marketing. */
