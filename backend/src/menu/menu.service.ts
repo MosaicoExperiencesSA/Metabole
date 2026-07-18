@@ -232,18 +232,19 @@ export class MenuService {
       firstNewDate = start; // prima erogazione: dal giorno di inizio piano
     } else {
       const nextDate = new Date(last.date.getTime() + 86_400_000);
-      // Ha già menu per oggi/futuro? Si sblocca solo col check-in di oggi.
-      if (last.date.getTime() >= today.getTime()) {
+      // Buffer in avanti: se la cliente ha GIÀ un menu per un giorno FUTURO (oltre oggi)
+      // non eroghiamo altro. Così teniamo al massimo il ciclo corrente + i prossimi
+      // giorni e non generiamo cicli all'infinito.
+      if (last.date.getTime() > today.getTime()) {
         return [];
       }
-      const checkinToday = await this.prisma.dailyCheckin.findUnique({
-        where: { clientId_date: { clientId, date: today } },
-      });
-      if (!checkinToday) return []; // spec: sblocco dopo il check-in
-
-      // Gate misure (Tracciamento_Dati §5): al 2° giorno di ogni ciclo le misure
-      // sono obbligatorie. Finché non arrivano, il ciclo successivo resta "held".
-      // L'avviso alla coach lo genera l'Alert engine (missing_measurements).
+      // Siamo all'ULTIMO giorno del ciclo corrente (last.date === oggi) oppure la cliente
+      // è rimasta indietro (last.date < oggi). Il ciclo successivo si sblocca con le MISURE
+      // del ciclo: scelta prodotto (Simone) → l'invio delle misure deve far arrivare SUBITO
+      // i prossimi giorni, senza attendere il check-in del giorno dopo.
+      // Gate misure (Tracciamento_Dati §5): al 2° giorno di ogni ciclo le misure sono
+      // obbligatorie; finché non arrivano il ciclo successivo resta "held" (l'avviso alla
+      // coach lo genera l'Alert engine: missing_measurements).
       if (await this.cycleNeedsMeasure(clientId, last, daysPerDelivery)) {
         return [];
       }
