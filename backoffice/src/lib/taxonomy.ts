@@ -14,6 +14,9 @@ const STYLE_LABELS: Record<string, string> = {
   mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', dash: 'DASH',
 };
 
+// Fallback stili: se l'API non risponde, le tendine restano comunque usabili.
+const DEFAULT_STYLES: TaxItem[] = Object.entries(STYLE_LABELS).map(([code, label]) => ({ code, label }));
+
 // Cache di modulo: una sola fetch condivisa fra tutti i componenti.
 let cache: Taxonomy | null = null;
 
@@ -22,14 +25,14 @@ let cache: Taxonomy | null = null;
  * Ritorna le liste per i menu a tendina e due helper per le etichette.
  */
 export function useTaxonomy() {
-  const [tax, setTax] = useState<Taxonomy>(cache ?? { regimes: DEFAULT_REGIMES, styles: [] });
+  const [tax, setTax] = useState<Taxonomy>(cache ?? { regimes: DEFAULT_REGIMES, styles: DEFAULT_STYLES });
 
   function load() {
     api<Taxonomy>('/catalog/taxonomy')
       .then((t) => {
         const norm: Taxonomy = {
           regimes: t.regimes?.length ? t.regimes : DEFAULT_REGIMES,
-          styles: t.styles ?? [],
+          styles: t.styles?.length ? t.styles : DEFAULT_STYLES, // catalogo senza diete → tendina comunque usabile
         };
         cache = norm;
         setTax(norm);
