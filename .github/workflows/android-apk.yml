@@ -38,14 +38,15 @@ jobs:
         run: npm ci
 
       - name: Build web + genera progetto Android
-        # android:init = build + cap add android; poi le tre iniezioni native
-        # (widget home, contapassi, notifiche push) che vanno eseguite DOPO cap
-        # e PRIMA di gradlew — le stesse che gira il build locale (android:sync).
+        # android:init = build + cap add android; poi le iniezioni native
+        # (widget home, contapassi, notifiche push, icona Gaia) che vanno eseguite
+        # DOPO cap e PRIMA di gradlew — le stesse che gira il build locale (android:sync).
         run: |
           npm run android:init
           npm run android:widget
           npm run android:steps
           npm run android:push
+          npm run android:icon
 
       - name: Build APK di debug
         working-directory: app/android
