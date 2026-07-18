@@ -76,7 +76,10 @@ const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><s
   .panel { background: #fff; border: 1px solid #e4ebe6; border-radius: 14px; margin-top: 12px; overflow: hidden; }
   .panel .hd { background: #eaf6f0; padding: 9px 15px; font-weight: 800; font-size: 12px; color: #0d5a3e; }
   .panel .hd .g { display: inline-flex; width: 17px; height: 17px; border-radius: 9px; background: #137a55; color: #fff; font-size: 10px; font-weight: 800; align-items: center; justify-content: center; margin-right: 7px; vertical-align: -3px; }
-  .panel p { margin: 0; padding: 11px 15px 13px; font-size: 11px; line-height: 1.55; color: #122019; }
+  .panel p { margin: 0; padding: 11px 15px 4px; font-size: 11px; line-height: 1.55; color: #122019; }
+  .panel .habit { padding: 7px 15px 9px; font-size: 10.5px; color: #122019; border-top: 1px solid #eef4f0; }
+  .panel .habit b { color: #0d5a3e; }
+  .panel .habit .hic { margin-right: 5px; }
   .foot { color: #93a29a; font-size: 8px; line-height: 1.5; margin-top: 26px; border-top: 1px solid #e4ebe6; padding-top: 8px; }
 </style></head>
 <body><div class="page">
@@ -104,6 +107,8 @@ const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><s
   <div class="panel">
     <div class="hd"><span class="g">G</span>Gaia consiglia</div>
     <p>{{trend}}</p>
+    <div class="habit"><span class="hic">&#128167;</span><b>Acqua</b> — media <b>{{waterAvg}}</b> al giorno · obiettivo {{waterGoal}}{{waterBars}}</div>
+    <div class="habit"><span class="hic">&#128095;</span><b>Passi</b> — media <b>{{stepsAvg}}</b> al giorno · obiettivo {{stepsGoal}}{{stepsBars}}</div>
   </div>
 
   <div class="foot">MetaboleAI · Diario del percorso generato automaticamente per {{name}} — I risultati variano da persona a persona; il calo può includere una quota di liquidi.
@@ -112,8 +117,19 @@ const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><s
 
 export const DEFAULT_PDF_TEMPLATES: PdfTemplateDefault[] = [
   { key: 'receipt', name: 'Ricevuta di pagamento', html: RECEIPT_HTML, placeholders: ['number', 'date', 'clientName', 'email', 'description', 'method', 'status', 'total'] },
-  { key: 'monthly_report', name: 'Report mensile', html: MONTHLY_REPORT_HTML, placeholders: ['name', 'period', 'lostThisMonth', 'lostTotal', 'currentWeight', 'target', 'checkins', 'measurements', 'trend'] },
+  { key: 'monthly_report', name: 'Report mensile', html: MONTHLY_REPORT_HTML, placeholders: ['name', 'period', 'lostThisMonth', 'lostTotal', 'currentWeight', 'target', 'checkins', 'measurements', 'trend', 'waterAvg', 'waterGoal', 'waterBars', 'stepsAvg', 'stepsGoal', 'stepsBars'] },
 ];
+
+/** Mini-grafico a barre d'esempio per l'anteprima (stessa resa di reports.service.barsHtml). */
+function sampleBars(values: number[], goal: number, color: string): string {
+  const H = 34;
+  const max = Math.max(...values, goal, 0.1);
+  const bars = values
+    .map((v) => `<i style="flex:1;max-width:9px;height:${Math.max(2, Math.round((v / max) * H))}px;border-radius:2px;background:${color};opacity:${v >= goal ? '1' : '.35'}"></i>`)
+    .join('');
+  const goalLine = `<span style="position:absolute;left:0;right:0;top:${Math.max(0, Math.round(H - (goal / max) * H))}px;border-top:1.2px dashed #d9482f;opacity:.7"></span>`;
+  return `<div style="position:relative;display:flex;align-items:flex-end;gap:2px;height:${H}px;margin:4px 0 2px">${goalLine}${bars}</div>`;
+}
 
 /** Dati d'esempio per l'anteprima dell'editor. */
 export const PDF_PREVIEW_SAMPLE: Record<string, Record<string, string>> = {
@@ -125,6 +141,10 @@ export const PDF_PREVIEW_SAMPLE: Record<string, Record<string, string>> = {
     name: 'Mario', period: 'giugno 2026', lostThisMonth: '2,4 kg', lostTotal: '7,8 kg',
     currentWeight: '82,2 kg', target: '76,0 kg', checkins: '21', measurements: '8',
     trend: 'Ottimo ritmo: sei in linea con l\'obiettivo. Continua così!',
+    waterAvg: '1,6 L', waterGoal: '2,5 L',
+    waterBars: sampleBars([1.5, 2, 1.25, 2.5, 1.75, 2.5, 1.5, 2.25, 2.5, 1.75, 2, 2.5, 1.5, 2.5], 2.5, '#3a6ea5'),
+    stepsAvg: '6.100', stepsGoal: '8.000',
+    stepsBars: sampleBars([5400, 7200, 4800, 8300, 6100, 9200, 5100, 7800, 8600, 6400, 5900, 8100, 7000, 8900], 8000, '#137a55'),
   },
 };
 

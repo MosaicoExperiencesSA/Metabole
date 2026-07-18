@@ -19,6 +19,13 @@ export interface MonthlyReport {
   toGoKg: number | null;
   checkins: number;
   measurements: number;
+  // Abitudini del mese (per il Diario in PDF): medie + serie giornaliere.
+  waterAvgL: number | null;
+  waterGoalL: number | null;
+  waterSeries: number[]; // litri per giorno (max 31)
+  stepsAvg: number | null;
+  stepsGoal: number;
+  stepsSeries: number[]; // passi per giorno (max 31)
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -85,10 +92,18 @@ export class ReportsService {
     const targetWeightKg = objective?.targetWeightKg ?? null;
     const toGoKg = targetWeightKg != null && currentWeightKg != null ? round1(currentWeightKg - targetWeightKg) : null;
 
-    const [checkins, measurementsThisMonth] = await Promise.all([
+    const [checkins, measurementsThisMonth, waterRows, stepRows] = await Promise.all([
       this.prisma.dailyCheckin.count({ where: { clientId, date: { gte: monthAgo } } }),
       this.prisma.measurement.count({ where: { clientId, date: { gte: monthAgo } } }),
+      this.prisma.waterLog.findMany({ where: { clientId, date: { gte: monthAgo } }, orderBy: { date: 'asc' }, select: { glasses: true } }) as Promise<{ glasses: number }[]>,
+      this.prisma.stepLog.findMany({ where: { clientId, date: { gte: monthAgo } }, orderBy: { date: 'asc' }, select: { steps: true } }) as Promise<{ steps: number }[]>,
     ]);
+    // Abitudini: 1 bicchiere = 0,25 L; obiettivo acqua ~30 ml/kg sul peso attuale; passi 8.000.
+    const waterSeries = waterRows.slice(-31).map((w) => round1(w.glasses * 0.25));
+    const stepsSeries = stepRows.slice(-31).map((s) => s.steps);
+    const waterAvgL = waterSeries.length ? round1(waterSeries.reduce((a, v) => a + v, 0) / waterSeries.length) : null;
+    const waterGoalL = currentWeightKg != null ? round1((currentWeightKg * 30) / 1000) : null;
+    const stepsAvg = stepsSeries.length ? Math.round(stepsSeries.reduce((a, v) => a + v, 0) / stepsSeries.length) : null;
 
     return {
       clientId,
@@ -104,7 +119,35 @@ export class ReportsService {
       toGoKg,
       checkins,
       measurements: measurementsThisMonth,
+      waterAvgL,
+      waterGoalL,
+      waterSeries,
+      stepsAvg,
+      stepsGoal: 8000,
+      stepsSeries,
     };
+  }
+
+  /**
+   * Mini-grafico a barre per il PDF (frammento HTML iniettato nel segnaposto):
+   * una barra per giorno, linea tratteggiata = obiettivo, barre piene quando
+   * l'obiettivo è raggiunto (come nel Diario in app).
+   */
+  private barsHtml(values: number[], goal: number | null, color: string): string {
+    if (values.length < 2) return '';
+    const H = 34;
+    const max = Math.max(...values, goal ?? 0, 0.1);
+    const bars = values
+      .map((v) => {
+        const h = Math.max(2, Math.round((v / max) * H));
+        const on = goal != null && v >= goal;
+        return `<i style="flex:1;max-width:9px;height:${h}px;border-radius:2px;background:${color};opacity:${on ? '1' : '.35'}"></i>`;
+      })
+      .join('');
+    const goalLine = goal != null && goal > 0
+      ? `<span style="position:absolute;left:0;right:0;top:${Math.max(0, Math.round(H - (goal / max) * H))}px;border-top:1.2px dashed #d9482f;opacity:.7"></span>`
+      : '';
+    return `<div style="position:relative;display:flex;align-items:flex-end;gap:2px;height:${H}px;margin:4px 0 2px">${goalLine}${bars}</div>`;
   }
 
   private trendText(r: MonthlyReport): string {
@@ -142,6 +185,8 @@ export class ReportsService {
       if (r.toGoKg != null) row('Ancora da perdere:', kg(r.toGoKg > 0 ? r.toGoKg : 0));
       row('Pesate nel mese:', String(r.measurements));
       row('Check-in nel mese:', String(r.checkins));
+      if (r.waterAvgL != null) row('Acqua (media/giorno):', `${r.waterAvgL} L${r.waterGoalL != null ? ` · obiettivo ${r.waterGoalL} L` : ''}`);
+      if (r.stepsAvg != null) row('Passi (media/giorno):', `${r.stepsAvg} · obiettivo ${r.stepsGoal}`);
 
       doc.moveDown(0.8);
       doc.moveTo(56, doc.y).lineTo(539, doc.y).strokeColor('#e6e2d8').stroke();
@@ -154,6 +199,7 @@ export class ReportsService {
   /** PDF del report con la GRAFICA dell'editor (Grafica PDF -> "Report mensile"). */
   private async templatePdf(r: MonthlyReport): Promise<Buffer> {
     const kg = (n: number | null) => (n == null ? '—' : `${n} kg`);
+    const it = (n: number) => n.toLocaleString('it-IT');
     return this.pdfTemplates.renderTemplatePdf('monthly_report', {
       name: r.name,
       period: r.periodLabel,
@@ -164,6 +210,13 @@ export class ReportsService {
       checkins: String(r.checkins),
       measurements: String(r.measurements),
       trend: this.trendText(r),
+      // Abitudini (Gaia consiglia): medie + mini-grafici a barre come in app.
+      waterAvg: r.waterAvgL != null ? `${it(r.waterAvgL)} L` : '—',
+      waterGoal: r.waterGoalL != null ? `${it(r.waterGoalL)} L` : '—',
+      waterBars: this.barsHtml(r.waterSeries, r.waterGoalL, '#3a6ea5'),
+      stepsAvg: r.stepsAvg != null ? it(r.stepsAvg) : '—',
+      stepsGoal: it(r.stepsGoal),
+      stepsBars: this.barsHtml(r.stepsSeries, r.stepsGoal, '#137a55'),
     });
   }
 

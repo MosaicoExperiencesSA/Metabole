@@ -100,3 +100,15 @@ anche come **grafici a barre giornalieri** sotto i rispettivi consigli: una barr
 periodo (acqua in litri, blu; passi in verde), linea tratteggiata dell'obiettivo, barre piene
 quando l'obiettivo è raggiunto. Dati: `habits.waterSeries`/`stepsSeries` nel report (max 31
 giorni; i report già generati non le hanno e non mostrano i grafici).
+
+## Aggiunta — acqua e passi anche nel PDF (Grafica PDF → Report mensile)
+- **reports.service**: il report mensile inviato dallo staff ora calcola anche le abitudini
+  (media acqua L/giorno con obiettivo ~30 ml/kg, media passi con obiettivo 8.000, serie
+  giornaliere max 31 giorni) e passa al template i nuovi segnaposto `waterAvg`, `waterGoal`,
+  `waterBars`, `stepsAvg`, `stepsGoal`, `stepsBars` (i *Bars sono frammenti HTML: barre
+  giornaliere con linea obiettivo tratteggiata, piene a obiettivo raggiunto — come in app).
+  Anche il PDF di ripiego (PDFkit) elenca le due medie.
+- **pdf.defaults (monthly_report)**: nel pannello "Gaia consiglia" due righe 💧 Acqua e
+  👟 Passi con i mini-grafici; anteprima dell'editor con dati d'esempio.
+  → Ricorda: dopo il deploy, **Grafica PDF → Report mensile → Ripristina** (vale per tutto
+  il restyle Diario, questo incluso).

@@ -1,0 +1,310 @@
+From 8aeba20dcaf9e0b4103c3c39a5ad08d39a211a4f Mon Sep 17 00:00:00 2001
+From: Simone Salogni <simone.salogni@gmail.com>
+Date: Sat, 18 Jul 2026 10:47:55 +0000
+Subject: [PATCH] feat(misure): correzione stesso giorno una volta (misura
+ sostituita, esclusa da grafici/report)
+
+---
+ app/src/pages/Obiettivo.tsx                   | 81 +++++++++++++++++--
+ .../migration.sql                             |  4 +
+ backend/prisma/schema.prisma                  |  4 +
+ backend/src/signals/signals.controller.ts     |  6 ++
+ backend/src/signals/signals.service.ts        | 63 +++++++++++++++
+ backoffice/src/pages/ClientDetail.tsx         | 13 ++-
+ progetto/REGISTRO_SVILUPPO.md                 |  2 +
+ 7 files changed, 163 insertions(+), 10 deletions(-)
+ create mode 100644 backend/prisma/migrations/20260719160000_measurement_correction/migration.sql
+
+diff --git a/app/src/pages/Obiettivo.tsx b/app/src/pages/Obiettivo.tsx
+index 80de8f0..127cd88 100644
+--- a/app/src/pages/Obiettivo.tsx
++++ b/app/src/pages/Obiettivo.tsx
+@@ -10,6 +10,7 @@ interface Measurement {
+   weightKg: number;
+   waistCm: number | null;
+   hipsCm: number | null;
++  replacedSnapshot?: unknown | null; // valorizzato ⇒ misura del giorno già corretta una volta
+ }
+ interface Objective {
+   targetWeightKg: number | null;
+@@ -80,7 +81,8 @@ export default function Obiettivo() {
+   const [waist, setWaist] = useState('');
+   const [hips, setHips] = useState('');
+   const [busy, setBusy] = useState(false);
+-  const [dirty, setDirty] = useState(false); // input modificati dopo l'ultimo salvataggio
++  const [correcting, setCorrecting] = useState(false); // modalità "cambia misure" attiva
++  const [confirmCorrect, setConfirmCorrect] = useState(false); // sto mostrando "Sei sicuro?"
+   const [msg, setMsg] = useState<string | null>(null);
+   const chartsRef = useRef<HTMLDivElement>(null);
+   const [chartIdx, setChartIdx] = useState(0);
+@@ -132,7 +134,8 @@ export default function Obiettivo() {
+       setWaist(last.waistCm != null ? d1(last.waistCm) : '');
+       setHips(last.hipsCm != null ? d1(last.hipsCm) : '');
+     }
+-    setDirty(false);
++    setCorrecting(false);
++    setConfirmCorrect(false);
+     setLoading(false);
+   }
+   useEffect(() => {
+@@ -163,6 +166,32 @@ export default function Obiettivo() {
+     }
+   }
+ 
++  /** Correzione della misura di OGGI (una sola volta): la precedente resta "sostituita". */
++  async function correct() {
++    setMsg(null);
++    const w = parseNum(weight);
++    if (w === undefined) {
++      setMsg('Inserisci almeno il peso.');
++      return;
++    }
++    setBusy(true);
++    const body: Record<string, number> = { weightKg: w };
++    const wa = parseNum(waist);
++    const hi = parseNum(hips);
++    if (wa !== undefined) body.waistCm = wa;
++    if (hi !== undefined) body.hipsCm = hi;
++    try {
++      await api('/me/measurements/correct', { method: 'POST', body: JSON.stringify(body) });
++      await load();
++      setMsg('Misure corrette. La misura precedente è stata sostituita.');
++    } catch (e) {
++      setMsg(e instanceof ApiError ? e.message : 'Correzione non riuscita.');
++    } finally {
++      setBusy(false);
++      setConfirmCorrect(false);
++    }
++  }
++
+   if (loading) return <div className="center"><div className="spin" /></div>;
+ 
+   // Misura di oggi già inviata? (le misure sono ordinate crescenti → l'ultima è la più
+@@ -170,6 +199,11 @@ export default function Obiettivo() {
+   const todayIso = new Date().toISOString().slice(0, 10);
+   const lastMeas = measurements[measurements.length - 1];
+   const sentToday = !!lastMeas && String(lastMeas.date).slice(0, 10) === todayIso;
++  // Misura di oggi già corretta una volta? Allora niente altre modifiche dalla cliente.
++  const correctedToday = sentToday && !!lastMeas?.replacedSnapshot;
++  // Gli input si modificano: quando NON hai ancora inviato oggi, oppure quando hai premuto
++  // "Cambia misure" (correcting) e non l'hai già corretta.
++  const inputsEnabled = !busy && (!sentToday || (correcting && !correctedToday));
+ 
+   return (
+     <div className="home">
+@@ -237,15 +271,46 @@ export default function Obiettivo() {
+       <div className="card">
+         <b style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Misure di oggi</b>
+         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} onChange={(e) => { setWeight(e.target.value); setDirty(true); }} /></div>
+-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} onChange={(e) => { setWaist(e.target.value); setDirty(true); }} /></div>
+-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} onChange={(e) => { setHips(e.target.value); setDirty(true); }} /></div>
++          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} disabled={!inputsEnabled} onChange={(e) => setWeight(e.target.value)} /></div>
++          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} disabled={!inputsEnabled} onChange={(e) => setWaist(e.target.value)} /></div>
++          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} disabled={!inputsEnabled} onChange={(e) => setHips(e.target.value)} /></div>
+           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+-            <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy || (sentToday && !dirty)}>
+-              <i className={`ti ${sentToday && !dirty ? 'ti-check' : 'ti-send'}`} /> {busy ? 'Salvo…' : sentToday && !dirty ? 'Inviato oggi' : sentToday ? 'Aggiorna' : 'Invia'}
+-            </button>
++            {!sentToday ? (
++              <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy}>
++                <i className="ti ti-send" /> {busy ? 'Salvo…' : 'Invia'}
++              </button>
++            ) : correctedToday ? (
++              <button className="btn" style={{ padding: 11 }} disabled>
++                <i className="ti ti-check" /> Corretta oggi
++              </button>
++            ) : !correcting ? (
++              <button className="btn ghost" style={{ padding: 11 }} onClick={() => { setMsg(null); setCorrecting(true); }} disabled={busy}>
++                <i className="ti ti-pencil" /> Cambia misure
++              </button>
++            ) : (
++              <button className="btn" style={{ padding: 11 }} onClick={() => setConfirmCorrect(true)} disabled={busy}>
++                <i className="ti ti-send" /> {busy ? 'Salvo…' : 'Salva correzione'}
++              </button>
++            )}
+           </div>
+         </div>
++
++        {/* Conferma sostituzione ("Sei sicuro?") */}
++        {confirmCorrect && (
++          <div className="card" style={{ marginTop: 10, background: '#FBF0D6', border: '1px solid #EAD8A6', boxShadow: 'none' }}>
++            <div style={{ fontSize: 13, color: '#7A5B12', marginBottom: 8 }}>
++              Sei sicuro? Le misure di oggi verranno sostituite con quelle nuove. <b>Puoi correggerle una sola volta</b>; dopo, solo lo staff può modificarle.
++            </div>
++            <div className="row" style={{ gap: 8 }}>
++              <button className="btn" style={{ flex: 1, padding: 10 }} onClick={correct} disabled={busy}>{busy ? 'Salvo…' : 'Sì, sostituisci'}</button>
++              <button className="btn ghost" style={{ flex: 1, padding: 10 }} onClick={() => setConfirmCorrect(false)} disabled={busy}>Annulla</button>
++            </div>
++          </div>
++        )}
++
++        {sentToday && !correctedToday && !correcting && (
++          <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>Hai inviato le misure di oggi. Se hai sbagliato puoi correggerle una volta.</div>
++        )}
+         {msg && <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>{msg}</div>}
+       </div>
+ 
+diff --git a/backend/prisma/migrations/20260719160000_measurement_correction/migration.sql b/backend/prisma/migrations/20260719160000_measurement_correction/migration.sql
+new file mode 100644
+index 0000000..0a5b6f4
+--- /dev/null
++++ b/backend/prisma/migrations/20260719160000_measurement_correction/migration.sql
+@@ -0,0 +1,4 @@
++-- Correzione misure lo stesso giorno (una sola volta): la misura PRECEDENTE viene salvata
++-- qui come "sostituita". I valori correnti della riga restano quelli buoni, quindi grafici e
++-- report (che leggono i valori correnti) non conteggiano la misura sostituita.
++ALTER TABLE "measurement" ADD COLUMN "replaced_snapshot" JSONB;
+diff --git a/backend/prisma/schema.prisma b/backend/prisma/schema.prisma
+index 7b555de..ccace77 100644
+--- a/backend/prisma/schema.prisma
++++ b/backend/prisma/schema.prisma
+@@ -1313,6 +1313,10 @@ model Measurement {
+   waistCm  Float?   @map("waist_cm")
+   hipsCm   Float?   @map("hips_cm")
+   thighsCm Float?   @map("thighs_cm")
++  // Correzione stesso giorno (una sola volta): snapshot della misura PRECEDENTE ("sostituita").
++  // I valori correnti restano quelli buoni → grafici e report usano i correnti e NON conteggiano
++  // la sostituita. replacedSnapshot != null ⇒ la misura di quel giorno è già stata corretta.
++  replacedSnapshot Json?   @map("replaced_snapshot")
+   createdAt DateTime @default(now()) @map("created_at")
+   updatedAt DateTime @updatedAt @map("updated_at")
+ 
+diff --git a/backend/src/signals/signals.controller.ts b/backend/src/signals/signals.controller.ts
+index 6923ae8..be04082 100644
+--- a/backend/src/signals/signals.controller.ts
++++ b/backend/src/signals/signals.controller.ts
+@@ -34,6 +34,12 @@ export class SignalsController {
+     return this.signals.upsertMeasurement(user.sub, dto);
+   }
+ 
++  // Correzione della misura di OGGI (una sola volta): la precedente resta "sostituita".
++  @Post('measurements/correct')
++  correctMeasurement(@CurrentUser() user: AuthUser, @Body() dto: CreateMeasurementDto) {
++    return this.signals.correctTodayMeasurement(user.sub, dto);
++  }
++
+   // Check-in
+   @Get('checkins')
+   listCheckins(
+diff --git a/backend/src/signals/signals.service.ts b/backend/src/signals/signals.service.ts
+index 0ba012f..97ae700 100644
+--- a/backend/src/signals/signals.service.ts
++++ b/backend/src/signals/signals.service.ts
+@@ -109,6 +109,69 @@ export class SignalsService {
+     return { measurement, newMilestones, rapidLossAlert: alert };
+   }
+ 
++  /**
++   * Correzione della misura di OGGI da parte della cliente: consentita UNA SOLA VOLTA.
++   * La misura precedente viene salvata in `replacedSnapshot` (marcata "sostituita"): i valori
++   * correnti diventano quelli nuovi, quindi grafici e report (che leggono i valori correnti)
++   * non conteggiano la sostituita. Ulteriori correzioni le fa lo staff dal backoffice (permesso
++   * "fix_measures"). Registra l'evento audit `measurement.replaced`.
++   */
++  async correctTodayMeasurement(clientId: string, dto: CreateMeasurementDto) {
++    const today = toDateOnly();
++    const existing = await this.prisma.measurement.findUnique({
++      where: { clientId_date: { clientId, date: today } },
++    });
++    if (!existing) {
++      throw new BadRequestException("Non c'è una misura di oggi da correggere.");
++    }
++    if ((existing as { replacedSnapshot?: unknown }).replacedSnapshot) {
++      throw new BadRequestException('Hai già corretto le misure di oggi. Per altre modifiche scrivi al tuo staff.');
++    }
++    const snapshot = {
++      weightKg: existing.weightKg,
++      waistCm: existing.waistCm,
++      hipsCm: existing.hipsCm,
++      thighsCm: existing.thighsCm,
++      replacedAt: new Date().toISOString(),
++    };
++    const measurement = await this.prisma.measurement.update({
++      where: { clientId_date: { clientId, date: today } },
++      data: {
++        weightKg: dto.weightKg,
++        waistCm: dto.waistCm,
++        hipsCm: dto.hipsCm,
++        thighsCm: dto.thighsCm,
++        replacedSnapshot: snapshot as never,
++      },
++    });
++    await this.audit.log({
++      action: 'measurement.replaced',
++      actorId: clientId,
++      entityType: 'measurement',
++      entityId: existing.id,
++      metadata: {
++        date: today.toISOString().slice(0, 10),
++        old: snapshot,
++        new: { weightKg: dto.weightKg, waistCm: dto.waistCm ?? null, hipsCm: dto.hipsCm ?? null, thighsCm: dto.thighsCm ?? null },
++      },
++    });
++    // Stessi effetti a valle di un salvataggio misura (learning, milestone, erogazione menu).
++    try {
++      await this.dietLearning.onCycleClose(clientId, {
++        date: measurement.date,
++        weightKg: measurement.weightKg,
++        waistCm: measurement.waistCm,
++        hipsCm: measurement.hipsCm,
++      });
++    } catch {
++      /* learning best-effort */
++    }
++    await this.evaluateMilestones(clientId).catch(() => undefined);
++    await this.checkRapidLossGuardrail(clientId).catch(() => undefined);
++    await this.menu.deliverIfEligible(clientId).catch(() => undefined);
++    return { measurement };
++  }
++
+   /**
+    * Funnel prova gratuita: alla PRIMA misura inserita con una prova attiva emette
+    * `trial_measures_ok` (il punto A del report A→B esiste). Idempotente.
+diff --git a/backoffice/src/pages/ClientDetail.tsx b/backoffice/src/pages/ClientDetail.tsx
+index 048684e..d954124 100644
+--- a/backoffice/src/pages/ClientDetail.tsx
++++ b/backoffice/src/pages/ClientDetail.tsx
+@@ -13,7 +13,7 @@ interface Detail {
+   };
+   profile: any | null;
+   objective: any | null;
+-  measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null }[];
++  measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; replacedSnapshot?: { weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm?: number | null; replacedAt?: string } | null }[];
+   checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
+   waterLogs: { id: string; date: string; glasses: number; goal: number }[];
+   stepLogs: { id: string; date: string; steps: number; goal: number }[];
+@@ -692,7 +692,16 @@ export function ClientDetail() {
+             <tbody>
+               {d.measurements.map((m) => (
+                 <tr key={m.id}>
+-                  <td>{date(m.date)}</td>
++                  <td>
++                    {date(m.date)}
++                    {m.replacedSnapshot && (
++                      <div className="muted" style={{ fontSize: 11, marginTop: 2, color: '#B4491F' }} title="La cliente ha corretto la misura di questo giorno. Il valore sostituito NON viene conteggiato in grafici e report.">
++                        <i className="ti ti-replace" style={{ fontSize: 12, verticalAlign: '-1px' }} /> sostituita · era {m.replacedSnapshot.weightKg} kg
++                        {m.replacedSnapshot.waistCm ? ` · ${m.replacedSnapshot.waistCm} cm vita` : ''}
++                        {m.replacedSnapshot.hipsCm ? ` · ${m.replacedSnapshot.hipsCm} cm fianchi` : ''}
++                      </div>
++                    )}
++                  </td>
+                   <td><b>{m.weightKg} kg</b></td>
+                   <td className="muted">{m.waistCm ? `${m.waistCm} cm` : '—'}</td>
+                   <td className="muted">{m.hipsCm ? `${m.hipsCm} cm` : '—'}</td>
+diff --git a/progetto/REGISTRO_SVILUPPO.md b/progetto/REGISTRO_SVILUPPO.md
+index 7e7140e..657b454 100644
+--- a/progetto/REGISTRO_SVILUPPO.md
++++ b/progetto/REGISTRO_SVILUPPO.md
+@@ -7,6 +7,8 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
+ 
+ ## 2026-07-18
+ 
++- **App + backend + backoffice — correzione misure lo stesso giorno (una sola volta) con misura "sostituita"** — richiesta di Simone: il giorno dell'inserimento la cliente può correggere le misure una sola volta; il tasto "Inviato oggi" diventa **"Cambia misure"**, premendolo si riattivano i campi, e al salvataggio esce una conferma **"Sei sicuro?"**; nel backoffice si salvano le nuove e la precedente resta marcata **"sostituita"**; grafici e report **non** conteggiano la sostituita. **Modello:** aggiunta colonna `Measurement.replacedSnapshot` (JSONB, migration `20260719160000_measurement_correction`): tiene lo snapshot della misura PRECEDENTE; i valori correnti della riga restano quelli buoni, quindi grafici/report (che leggono i correnti) usano automaticamente la misura giusta e ignorano la sostituita — nessun cambiamento a grafici/report. **Backend:** nuovo `POST /me/measurements/correct` → `correctTodayMeasurement` — richiede una misura di oggi, se `replacedSnapshot` è già valorizzato rifiuta ("hai già corretto una volta"), altrimenti salva lo snapshot del vecchio, aggiorna coi nuovi valori, registra audit `measurement.replaced` e rilancia gli effetti a valle (learning, milestone, erogazione menu). **App (Obiettivo):** dopo l'invio i campi si bloccano; "Cambia misure" li riapre; "Salva correzione" mostra la conferma gialla "Sei sicuro? … puoi correggerle una sola volta"; dopo la correzione il tasto diventa "Corretta oggi" disattivato (ulteriori modifiche solo staff). **Backoffice (scheda cliente):** sotto la data della pesata compare "sostituita · era X kg · … " quando la misura è stata corretta. App/backoffice tsc 0 errori; backend transpile pulito. **Migration** additiva (ADD COLUMN nullable) applicata da Render in preDeploy. Parte app → nuova APK; backend/backoffice live al deploy.
++
+ - **App + backend — reset password cliente completo (come nel backoffice) + pulsante nella mail** — segnalazione di Simone: quando il cliente chiede il reset password deve ricevere la mail col pulsante, come il flusso del backoffice. Prima il flusso lato cliente era **rotto**: nel login "Password dimenticata?" mostrava solo "scrivi a supporto@metabole.eu" (non inviava nulla) e **l'app non aveva la pagina `/reset-password`**, quindi anche il link della mail (che punta a `app.metabole.eu/reset-password`) portava a un 404. Il backend già inviava la mail (stesso metodo `requestPasswordReset` usato dal backoffice; per i clienti il link punta all'app). Aggiunto: (1) **pagina `/reset-password`** nell'app (`ResetPassword.tsx`, rotta sia da loggato che non) — con token dal link mostra il form nuova password → `POST /auth/password-reset/confirm`; senza token mostra il form per richiedere il link → `POST /auth/password-reset`; (2) login "Password dimenticata?" ora porta al flusso di reset invece del messaggio "scrivi a supporto"; (3) **mail di reset con PULSANTE** vero (anchor con stile inline, verde Metabole) invece del semplice link testuale, IT+EN, con link di ripiego sotto. Il flusso è ora identico a quello del backoffice. App tsc 0 errori; backend transpile pulito; nessuna migrazione. Parte app → nuova APK; il pulsante nella mail è attivo subito al deploy.
+ 
+ - **App — X di chiusura nell'angolo dei bottom sheet** — segnalazione di Simone ("quando alzo la lista della spesa faccio fatica a richiuderla"). I pannelli a scomparsa (`Sheet`: lista della spesa, aiuto rapido, contatti, prenotazioni…) si chiudevano solo toccando fuori dal riquadro. Aggiunta una **X in alto a destra** del pannello (sticky, resta visibile anche scrollando) che chiude il foglio. Vale per tutti i bottom sheet che usano il componente `Sheet`. Solo CSS + un pulsante nel componente. App tsc 0 errori. Parte app → nuova APK.
+-- 
+2.43.0
+
