@@ -1,0 +1,107 @@
+From 66c0c07061e096467ba6af7339a42166c1159572 Mon Sep 17 00:00:00 2001
+From: Simone Salogni <simone.salogni@gmail.com>
+Date: Sat, 18 Jul 2026 08:13:17 +0000
+Subject: [PATCH] feat(menu): l'invio misure eroga subito i prossimi 2 giorni
+ (no check-in gate)
+
+---
+ backend/src/menu/menu.service.spec.ts | 25 ++++++++++++++++++++-----
+ backend/src/menu/menu.service.ts      | 21 +++++++++++----------
+ progetto/REGISTRO_SVILUPPO.md         |  2 ++
+ 3 files changed, 33 insertions(+), 15 deletions(-)
+
+diff --git a/backend/src/menu/menu.service.spec.ts b/backend/src/menu/menu.service.spec.ts
+index f016125..f0c7ca7 100644
+--- a/backend/src/menu/menu.service.spec.ts
++++ b/backend/src/menu/menu.service.spec.ts
+@@ -158,20 +158,35 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
+     expect(created).toEqual([daysFromToday(2), daysFromToday(3)]);
+   });
+ 
+-  it('menu di oggi già erogato → non eroga di nuovo', async () => {
++  it('buffer: ha già un menu per un giorno FUTURO → non eroga altro', async () => {
+     prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(1)) });
+     expect(await service.deliverIfEligible('u1')).toEqual([]);
+   });
+ 
+-  it('giorni scaduti SENZA check-in di oggi → resta bloccato (spec: sblocco dopo check-in)', async () => {
++  it('ultimo giorno del ciclo (menu di oggi presente) + misura inviata → eroga SUBITO i 2 successivi', async () => {
++    // Scelta prodotto (Simone): l'invio delle misure fa arrivare subito i prossimi giorni,
++    // senza aspettare che finisca il ciclo corrente né il check-in del giorno dopo.
++    prisma.menuDay.findFirst.mockResolvedValue({ date: D(todayIso) });
++    prisma.dailyCheckin.findUnique.mockResolvedValue(null); // il check-in NON è richiesto
++    const created = await service.deliverIfEligible('u1');
++    expect(created).toEqual([daysFromToday(1), daysFromToday(2)]);
++  });
++
++  it('ultimo giorno del ciclo SENZA la misura → resta bloccato (gate misure)', async () => {
++    prisma.menuDay.findFirst.mockResolvedValue({ date: D(todayIso) });
++    prisma.measurement.findFirst.mockResolvedValue(null); // manca la misura del ciclo
++    expect(await service.deliverIfEligible('u1')).toEqual([]);
++  });
++
++  it('giorni scaduti SENZA la misura del ciclo → resta bloccato (gate misure)', async () => {
+     prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(-1)) });
+-    prisma.dailyCheckin.findUnique.mockResolvedValue(null);
++    prisma.measurement.findFirst.mockResolvedValue(null);
+     expect(await service.deliverIfEligible('u1')).toEqual([]);
+   });
+ 
+-  it('giorni scaduti CON check-in di oggi → eroga i 2 successivi', async () => {
++  it('giorni scaduti CON la misura → eroga i 2 successivi (il check-in non è richiesto)', async () => {
+     prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(-1)) });
+-    prisma.dailyCheckin.findUnique.mockResolvedValue({ id: 'c1' });
++    prisma.dailyCheckin.findUnique.mockResolvedValue(null); // nessun check-in
+     const created = await service.deliverIfEligible('u1');
+     expect(created).toEqual([todayIso, daysFromToday(1)]);
+   });
+diff --git a/backend/src/menu/menu.service.ts b/backend/src/menu/menu.service.ts
+index f77f501..0b6a849 100644
+--- a/backend/src/menu/menu.service.ts
++++ b/backend/src/menu/menu.service.ts
+@@ -232,18 +232,19 @@ export class MenuService {
+       firstNewDate = start; // prima erogazione: dal giorno di inizio piano
+     } else {
+       const nextDate = new Date(last.date.getTime() + 86_400_000);
+-      // Ha già menu per oggi/futuro? Si sblocca solo col check-in di oggi.
+-      if (last.date.getTime() >= today.getTime()) {
++      // Buffer in avanti: se la cliente ha GIÀ un menu per un giorno FUTURO (oltre oggi)
++      // non eroghiamo altro. Così teniamo al massimo il ciclo corrente + i prossimi
++      // giorni e non generiamo cicli all'infinito.
++      if (last.date.getTime() > today.getTime()) {
+         return [];
+       }
+-      const checkinToday = await this.prisma.dailyCheckin.findUnique({
+-        where: { clientId_date: { clientId, date: today } },
+-      });
+-      if (!checkinToday) return []; // spec: sblocco dopo il check-in
+-
+-      // Gate misure (Tracciamento_Dati §5): al 2° giorno di ogni ciclo le misure
+-      // sono obbligatorie. Finché non arrivano, il ciclo successivo resta "held".
+-      // L'avviso alla coach lo genera l'Alert engine (missing_measurements).
++      // Siamo all'ULTIMO giorno del ciclo corrente (last.date === oggi) oppure la cliente
++      // è rimasta indietro (last.date < oggi). Il ciclo successivo si sblocca con le MISURE
++      // del ciclo: scelta prodotto (Simone) → l'invio delle misure deve far arrivare SUBITO
++      // i prossimi giorni, senza attendere il check-in del giorno dopo.
++      // Gate misure (Tracciamento_Dati §5): al 2° giorno di ogni ciclo le misure sono
++      // obbligatorie; finché non arrivano il ciclo successivo resta "held" (l'avviso alla
++      // coach lo genera l'Alert engine: missing_measurements).
+       if (await this.cycleNeedsMeasure(clientId, last, daysPerDelivery)) {
+         return [];
+       }
+diff --git a/progetto/REGISTRO_SVILUPPO.md b/progetto/REGISTRO_SVILUPPO.md
+index b9b06f0..bab56db 100644
+--- a/progetto/REGISTRO_SVILUPPO.md
++++ b/progetto/REGISTRO_SVILUPPO.md
+@@ -7,6 +7,8 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
+ 
+ ## 2026-07-18
+ 
++- **Backend — l'invio delle misure eroga SUBITO i prossimi 2 giorni (niente attesa del check-in)** — verifica su richiesta di Simone sull'utenza `sim1one.salogni@gmail.com`: risultavano erogati solo 2 giorni (17 e 18/07) e nessun giorno futuro, quindi il modulo "Menu futuri" era legittimamente vuoto. Causa: in `deliverIfEligible` il ciclo successivo si sbloccava SOLO quando il menu corrente era già "scaduto" (`ultimo_giorno >= oggi → return []`) **e** dopo il check-in del giorno. Nel giorno stesso in cui la cliente invia le misure (che è l'ultimo del ciclo) non veniva quindi erogato nulla: i prossimi giorni sarebbero arrivati solo l'indomani. Scelta prodotto di Simone: **l'invio delle misure deve far arrivare subito i prossimi 2 giorni**. Modifica: il blocco ora scatta solo se esiste già un menu per un giorno **futuro** (`ultimo_giorno > oggi`, per tenere un buffer e non generare cicli all'infinito); quando la cliente è all'ultimo giorno del ciclo (o è rimasta indietro), il ciclo successivo si sblocca con il **gate misure** (`cycleNeedsMeasure`) — **rimosso** il requisito del check-in giornaliero per l'erogazione. La lista della spesa, derivando dai `menuDay`, si aggiorna di conseguenza. Combinata con l'hook già attivo (all'`upsertMeasurement` chiamiamo `deliverIfEligible`), inviare le misure erogherà i prossimi 2 giorni all'istante. Test `menu.service.spec` aggiornati (nuovi casi: ultimo giorno + misura → eroga subito; ultimo giorno senza misura → held; buffer futuro → non eroga). Solo backend → live al deploy, nessuna APK. Nessuna migrazione.
++
+ - **App — modulo "Menu futuri" in "Il tuo percorso"** — segnalazione di Simone ("dove vedo i menu dei prossimi due giorni?"). I giorni futuri già erogati (sbloccati dall'invio delle misure) erano visibili SOLO nella pagina Menu tramite i chip Oggi/Domani; nel Percorso si vedeva solo "IL MENU DI OGGI" + il diario dei menu passati. Aggiunto in `Percorso.tsx` un modulo **"Menu futuri"** subito sotto il menu di oggi: mostra una card per ciascun giorno con data futura (`date > oggi`, ordinati dal più vicino) con etichetta "domani/tra N giorni", numero di pasti, kcal totali e un'anteprima dei nomi dei piatti; toccando si apre la pagina Menu. Compare solo se ci sono giorni futuri erogati. Nessuna modifica al backend (i giorni futuri sono già nella risposta di `GET /me/menu`, filtrata su `visibleFrom`, non sulla data). App tsc 0 errori. Parte app → nuova APK.
+ 
+ - **App + backend — flusso MISURE sistemato (4 fix) + APK via GitHub Actions** — segnalazioni di Simone: (1) "ho inviato le misure dal popup in dashboard e non si sono aggiornate"; (2) "se le ho già inviate il tasto Invia si deve disattivare"; (3) "se invio le misure devono arrivarmi i menu dei prossimi 2 giorni e la lista della spesa va sostituita"; (4) "il grafico: ho perso 50 kg e va in salita?" + "verifica anche vita e fianchi". **Causa radice dei grafici e del pre-riempimento:** `GET /me/measurements` restituisce le misure DECRESCENTI (più recente in cima) ma `Obiettivo.tsx` le usava così com'erano → i grafici andavano al contrario (un calo di peso "saliva") e il form pre-compilava con la misura più VECCHIA invece che con quella di oggi. **Fix:** in `load()` riordino crescente (`localeCompare` sulla data) → grafici peso/vita/fianchi ora nel verso giusto e delta col segno corretto, e il form mostra l'ultima misura. **Tasto Invia:** calcolo `sentToday` (l'ultima misura è di oggi) → il pulsante si disattiva con etichetta "Inviato oggi"/icona ✓; se modifichi un valore torna attivo come "Aggiorna" (stato `dirty`). **Popup MeasuresGate:** dopo il salvataggio fa `window.location.reload()` così dashboard, menu e lista spesa si aggiornano subito (prima restavano i vecchi finché non riaprivi l'app). **Erogazione menu:** all'`upsertMeasurement` (SignalsService) ora chiamiamo `menu.deliverIfEligible(clientId)` best-effort → la misura sblocca la prova gratuita / il ciclo successivo e il menu (+ lista spesa, che deriva dai menuDays) risulta erogato appena si riapre; `SignalsModule` importa `MenuModule` (nessun ciclo: MenuModule non importa SignalsModule). App tsc 0 errori; backend transpile pulito; nessuna migrazione. Parte app → nuova APK; il backend è attivo subito al deploy. **Bonus:** workflow GitHub Actions `android-apk.yml` che compila l'APK di debug nel cloud (build → cap add → iniezioni native widget/contapassi/push → gradlew → artefatto scaricabile) — evita di dover buildare da Mac locale con i lock iCloud; avvio manuale da Actions o a ogni push su main che tocca `app/`.
+-- 
+2.43.0
+
