@@ -48,62 +48,66 @@ const RECEIPT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${
   <div class="foot">Documento generato automaticamente da Metabole. Non costituisce fattura fiscale.</div>
 </div></body></html>`;
 
+// Allineato al modello del socio "Diario del Percorso" (marketing/report_cliente/
+// MetaboleAI_Diario_Percorso.html, lug 2026): palette verde/menta, hero "il tuo
+// mese con Gaia", stat, goalbox, pannello "Gaia consiglia".
 const MONTHLY_REPORT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
   * { box-sizing: border-box; }
-  body { font-family: Helvetica, Arial, sans-serif; color: #1F2933; margin: 0; background: #F4F1EA; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #122019; margin: 0; background: #f6faf7; }
   .page { padding: 26px 28px; }
   .head { display: flex; justify-content: space-between; align-items: flex-start; }
-  .brand { color: #0E7C66; font-size: 22px; font-weight: 800; }
-  .brand small { display: block; color: #7c8c88; font-size: 8px; letter-spacing: 2px; font-weight: 700; margin-top: 2px; }
-  .head .right { text-align: right; color: #7c8c88; font-size: 10px; line-height: 1.5; }
-  .head .right b { color: #1F2933; }
-  .kicker { color: #0E7C66; font-size: 9px; font-weight: 800; letter-spacing: 1.5px; margin: 22px 0 4px; }
-  h1 { font-size: 22px; line-height: 1.25; margin: 0 0 6px; color: #1F2933; }
-  h1 .teal { color: #0E7C66; }
-  .lead { color: #5c6a66; font-size: 11px; margin: 0 0 14px; }
+  .brand { color: #0d5a3e; font-size: 22px; font-weight: 800; }
+  .brand small { display: block; color: #5b6b63; font-size: 8px; letter-spacing: 2px; font-weight: 700; margin-top: 2px; }
+  .head .right { text-align: right; color: #5b6b63; font-size: 10px; line-height: 1.5; }
+  .head .right b { color: #0d5a3e; }
+  .kicker { color: #2fb27a; font-size: 9px; font-weight: 800; letter-spacing: 2px; margin: 22px 0 4px; text-transform: uppercase; }
+  h1 { font-size: 23px; line-height: 1.2; margin: 0 0 6px; color: #122019; letter-spacing: -.3px; }
+  h1 .teal { color: #137a55; }
+  .lead { color: #5b6b63; font-size: 11px; margin: 0 0 14px; line-height: 1.5; }
   .cards { display: flex; gap: 8px; }
-  .stat { flex: 1; background: #EAF4EF; border-radius: 12px; padding: 12px 10px; text-align: center; }
-  .stat .num { font-size: 19px; font-weight: 800; color: #0E7C66; }
-  .stat .lab { color: #5c6a66; font-size: 9px; font-weight: 700; margin-top: 3px; }
-  .stat .sub { color: #8a968f; font-size: 8px; margin-top: 2px; }
-  .band { background: #0E7C66; color: #fff; border-radius: 12px; padding: 12px 16px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
-  .band .k { font-size: 8px; letter-spacing: 1px; font-weight: 700; opacity: .85; }
+  .stat { flex: 1; background: #fff; border: 1px solid #e4ebe6; border-radius: 12px; padding: 12px 10px; text-align: center; }
+  .stat .num { font-size: 20px; font-weight: 800; color: #137a55; letter-spacing: -.5px; }
+  .stat .lab { color: #5b6b63; font-size: 9px; font-weight: 700; margin-top: 3px; }
+  .stat .sub { color: #93a29a; font-size: 8px; margin-top: 2px; }
+  .stat .delta { display: inline-block; margin-top: 5px; font-size: 8px; font-weight: 700; color: #0d5a3e; background: #d9efe4; padding: 2px 7px; border-radius: 20px; }
+  .band { background: linear-gradient(135deg, #0d5a3e, #137a55); color: #fff; border-radius: 14px; padding: 13px 17px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .band .k { font-size: 8px; letter-spacing: 1px; font-weight: 700; opacity: .85; text-transform: uppercase; }
   .band .v { font-size: 16px; font-weight: 800; margin-top: 2px; }
-  .panel { background: #fff; border: 1px solid #E8E4DA; border-radius: 12px; padding: 14px 16px; margin-top: 12px; }
-  .panel .t { font-weight: 800; font-size: 12px; margin-bottom: 5px; }
-  .panel .g { display: inline-flex; width: 16px; height: 16px; border-radius: 8px; background: #0E7C66; color: #fff; font-size: 10px; font-weight: 800; align-items: center; justify-content: center; margin-right: 6px; vertical-align: -3px; }
-  .panel p { margin: 0; font-size: 11px; line-height: 1.55; color: #3D4C48; }
-  .foot { color: #9aa39f; font-size: 8px; line-height: 1.5; margin-top: 26px; border-top: 1px solid #E8E4DA; padding-top: 8px; }
+  .panel { background: #fff; border: 1px solid #e4ebe6; border-radius: 14px; margin-top: 12px; overflow: hidden; }
+  .panel .hd { background: #eaf6f0; padding: 9px 15px; font-weight: 800; font-size: 12px; color: #0d5a3e; }
+  .panel .hd .g { display: inline-flex; width: 17px; height: 17px; border-radius: 9px; background: #137a55; color: #fff; font-size: 10px; font-weight: 800; align-items: center; justify-content: center; margin-right: 7px; vertical-align: -3px; }
+  .panel p { margin: 0; padding: 11px 15px 13px; font-size: 11px; line-height: 1.55; color: #122019; }
+  .foot { color: #93a29a; font-size: 8px; line-height: 1.5; margin-top: 26px; border-top: 1px solid #e4ebe6; padding-top: 8px; }
 </style></head>
 <body><div class="page">
   <div class="head">
     <div class="brand">MetaboleAI<small>C O A C H &nbsp; & &nbsp; N U T R I Z I O N E &nbsp; A I</small></div>
-    <div class="right">Report di percorso<br/><b>{{period}}</b></div>
+    <div class="right">Il tuo diario del percorso<br/><b>{{period}}</b></div>
   </div>
 
-  <div class="kicker">IL TUO PUNTO A → PUNTO B</div>
-  <h1>{{name}}, ecco la strada<br/><span class="teal">che hai fatto questo mese.</span></h1>
-  <p class="lead">Il riepilogo di {{period}} del tuo percorso con la tua coach e con Gaia — e cosa serve ora per arrivare al tuo obiettivo.</p>
+  <div class="kicker">Il tuo mese con Gaia</div>
+  <h1>{{name}}, un altro mese,<br/><span class="teal">un altro passo verso l'obiettivo.</span></h1>
+  <p class="lead">Ecco com'è andato {{period}}: i risultati che il corpo ha portato e cosa serve ora per rendere il prossimo mese ancora migliore.</p>
 
   <div class="cards">
-    <div class="stat"><div class="num">{{lostThisMonth}}</div><div class="lab">Perso questo mese</div></div>
-    <div class="stat"><div class="num">{{lostTotal}}</div><div class="lab">Perso dall'inizio</div></div>
+    <div class="stat"><div class="num">{{lostThisMonth}}</div><div class="lab">Peso</div><div class="delta">&#9660; questo mese</div></div>
+    <div class="stat"><div class="num">{{lostTotal}}</div><div class="lab">Dall'inizio</div><div class="delta">&#9660; totale</div></div>
     <div class="stat"><div class="num">{{currentWeight}}</div><div class="lab">Peso attuale</div></div>
     <div class="stat"><div class="num">{{checkins}}</div><div class="lab">Check-in nel mese</div><div class="sub">{{measurements}} pesate</div></div>
   </div>
 
   <div class="band">
-    <div><div class="k">IL TUO OBIETTIVO</div><div class="v">{{target}}</div></div>
-    <div style="text-align:right"><div class="k">IL TUO RITMO</div><div class="v" style="font-size:12px">un passo alla volta, insieme</div></div>
+    <div><div class="k">Il tuo obiettivo</div><div class="v">{{target}}</div></div>
+    <div style="text-align:right"><div class="k">Il tuo ritmo</div><div class="v" style="font-size:12px">un passo alla volta, insieme</div></div>
   </div>
 
   <div class="panel">
-    <div class="t"><span class="g">G</span>La tua traiettoria</div>
+    <div class="hd"><span class="g">G</span>Gaia consiglia</div>
     <p>{{trend}}</p>
   </div>
 
-  <div class="foot">MetaboleAI · Report generato automaticamente per {{name}} — Il calo di peso può variare da persona a persona e includere una quota di liquidi.
-  Questo documento non sostituisce un parere medico: per patologie è disponibile la visita con il nutrizionista in app. Il report completo, con misure e dettagli, è sempre nella tua app.</div>
+  <div class="foot">MetaboleAI · Diario del percorso generato automaticamente per {{name}} — I risultati variano da persona a persona; il calo può includere una quota di liquidi.
+  Questo documento non sostituisce un parere medico: per patologie è disponibile la visita con il nutrizionista in app. Il diario completo, con timeline e tappe, è sempre nella tua app.</div>
 </div></body></html>`;
 
 export const DEFAULT_PDF_TEMPLATES: PdfTemplateDefault[] = [

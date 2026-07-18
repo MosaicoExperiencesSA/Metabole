@@ -23,7 +23,24 @@ const label = (map: Record<string, string>, code: string | null | undefined): st
   return map[code] ?? code.charAt(0).toUpperCase() + code.slice(1).replace(/_/g, ' ');
 };
 
+const EVENT_LABEL: Record<string, string> = {
+  wedding: 'Matrimonio', baptism: 'Battesimo', dinner: 'Cena fuori',
+  monthly_cheat: 'Sgarro del mese', vacation: 'Vacanza', other: 'Evento',
+};
+const MONTH_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+
 export interface MeasurePoint { date: string; weightKg: number; waistCm: number | null; hipsCm: number | null }
+
+/** Tappa del "diario del percorso": prova gratuita o mese del piano. */
+export interface JourneyStep {
+  label: string; // "8 giorni" | "Mese 1" | ...
+  from: string;
+  to: string;
+  deltaKg: number | null; // calo nel tratto (negativo = perso)
+  endWeightKg: number | null;
+  events: string[]; // eventi gestiti nel tratto (etichette leggibili)
+  prefsLearned: number; // preferenze piatti aggiornate nel tratto
+}
 
 export interface PlanReportData {
   kind: 'trial' | 'plan' | 'monthly';
@@ -56,6 +73,24 @@ export interface PlanReportData {
     // Opzione B: prezzo che il piano proposto assume COL codice (target esatto, es. €249).
     codePriceCents: number | null;
   } | null;
+  // --- Diario del percorso (modello luglio 2026): campi opzionali, i report vecchi non li hanno. ---
+  /** Timeline: 8 giorni di prova (se c'è stata) + un tratto per mese del piano. */
+  journey?: JourneyStep[];
+  /** Abitudini del periodo: acqua e passi (medie reali) con obiettivo personalizzato. */
+  habits?: {
+    waterAvgL: number | null;
+    waterGoalL: number | null;
+    stepsAvg: number | null;
+    stepsGoal: number;
+  };
+  /** Tappe del grafico "i tuoi passi verso l'obiettivo": inizio → oggi (+ obiettivo lato UI). */
+  milestones?: { label: string; date: string; weightKg: number }[];
+  /** Stima di arrivo all'obiettivo al ritmo attuale (es. "entro dicembre 2026"). */
+  etaLabel?: string | null;
+  /** Piano mantenimento (per il box "una pausa" a €29/mese), se esiste a catalogo. */
+  maintenance?: { planId: string; planName: string; priceCents: number } | null;
+  /** Prezzo dei menu di rientro del Monitoraggio (per il box "gratis · 1 mese"). */
+  monitoring?: { rientroPriceCents: number } | null;
 }
 
 @Injectable()
@@ -197,6 +232,118 @@ export class PlanReportService {
     if (cycles > 0) gaia.push('Ritmi: ciclo bigiornaliero con 2 cotture, per non annoiarti e non farti cucinare ogni giorno');
     if (gaia.length === 0) gaia.push('Gaia ha iniziato a conoscerti: più la usi, più i menu diventano tuoi');
 
+    // ---- Diario del percorso: timeline, abitudini, tappe, stima (modello Antonio lug 2026) ----
+
+    // Abbonamento corrente (per l'arco completo del percorso) + eventuale prova gratuita precedente.
+    const curSub = (await this.prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      select: { startDate: true, endDate: true, plan: { select: { priceCents: true } } },
+    })) as { startDate: Date | null; endDate: Date | null; plan: { priceCents: number } } | null;
+    const trialSub = curSub?.plan.priceCents === 0 ? null : ((await this.prisma.subscription.findFirst({
+      where: { clientId, plan: { priceCents: 0 }, startDate: { not: null }, endDate: { not: null } } as never,
+      orderBy: { createdAt: 'desc' },
+      select: { startDate: true, endDate: true },
+    })) as { startDate: Date; endDate: Date } | null);
+
+    // Peso "a una data": ultima misura entro data+2 giorni.
+    const weightAt = (d: Date): number | null => {
+      const tol = d.getTime() + 2 * 86_400_000;
+      let last: number | null = null;
+      for (const m of ms) { if (m.date.getTime() <= tol) last = m.weightKg; else break; }
+      return last;
+    };
+
+    // Tratti: prova (se c'è) + un tratto per mese del piano fino alla fine del periodo del report.
+    const segments: { label: string; from: Date; to: Date }[] = [];
+    if (trialSub?.startDate && trialSub.endDate && trialSub.endDate.getTime() <= end.getTime()) {
+      segments.push({ label: '8 giorni', from: this.day0(trialSub.startDate), to: this.day0(trialSub.endDate) });
+    }
+    const planStart = curSub?.startDate ? this.day0(curSub.startDate) : start;
+    if (kind !== 'trial') {
+      for (let i = 1; i <= 24; i++) {
+        const from = this.addMonths(planStart, i - 1);
+        let to = this.addMonths(planStart, i);
+        if (from.getTime() >= end.getTime()) break;
+        if (to.getTime() > end.getTime()) to = end;
+        segments.push({ label: `Mese ${i}`, from, to });
+        if (to.getTime() >= end.getTime()) break;
+      }
+    }
+    const journeyFrom = segments[0]?.from ?? start;
+    const [allEvents, segRatings] = await Promise.all([
+      this.prisma.event.findMany({
+        where: { clientId, startDate: { gte: journeyFrom, lte: end } },
+        select: { type: true, label: true, startDate: true },
+        orderBy: { startDate: 'asc' },
+      }) as Promise<{ type: string; label: string | null; startDate: Date }[]>,
+      this.prisma.recipeRating.findMany({
+        where: { clientId, date: { gte: journeyFrom, lte: end } },
+        select: { date: true },
+      }) as Promise<{ date: Date }[]>,
+    ]);
+    const journey: JourneyStep[] = segments.map((s) => {
+      const wFrom = weightAt(s.from);
+      const wTo = weightAt(s.to);
+      return {
+        label: s.label,
+        from: s.from.toISOString().slice(0, 10),
+        to: s.to.toISOString().slice(0, 10),
+        deltaKg: wFrom != null && wTo != null ? round1(wTo - wFrom) : null,
+        endWeightKg: wTo,
+        events: allEvents
+          .filter((e) => e.startDate.getTime() >= s.from.getTime() && e.startDate.getTime() < s.to.getTime())
+          .map((e) => e.label?.trim() || EVENT_LABEL[e.type] || 'Evento')
+          .slice(0, 3),
+        prefsLearned: segRatings.filter((r) => r.date.getTime() >= s.from.getTime() && r.date.getTime() < s.to.getTime()).length,
+      };
+    });
+
+    // Tappe del grafico: inizio + fine di ogni tratto (l'obiettivo lo aggiunge la UI).
+    const milestones: { label: string; date: string; weightKg: number }[] = [];
+    const w0 = weightAt(journeyFrom);
+    if (w0 != null) milestones.push({ label: 'inizio', date: journeyFrom.toISOString().slice(0, 10), weightKg: w0 });
+    for (const j of journey) {
+      if (j.endWeightKg == null) continue;
+      const isLast = j === journey[journey.length - 1];
+      const n = j.label.startsWith('Mese ') ? j.label.slice(5) : null;
+      const short = n ? `${n} ${n === '1' ? 'mese' : 'mesi'}` : j.label; // "8 giorni" resta così
+      milestones.push({ label: isLast ? 'oggi' : short, date: j.to, weightKg: j.endWeightKg });
+    }
+
+    // Abitudini: medie reali di acqua e passi nel periodo del report.
+    const [waterRows, stepRows] = await Promise.all([
+      this.prisma.waterLog.findMany({ where: { clientId, date: { gte: start, lte: end } }, select: { glasses: true } }) as Promise<{ glasses: number }[]>,
+      this.prisma.stepLog.findMany({ where: { clientId, date: { gte: start, lte: end } }, select: { steps: true } }) as Promise<{ steps: number }[]>,
+    ]);
+    const waterAvgL = waterRows.length ? round1((waterRows.reduce((acc, w) => acc + w.glasses, 0) / waterRows.length) * 0.25) : null;
+    // Obiettivo acqua ~30 ml/kg sul peso attuale (stessa regola dei segnali).
+    const waterGoalL = b ? round1((b.weightKg * 30) / 1000) : null;
+    const stepsAvg = stepRows.length ? Math.round(stepRows.reduce((acc, s) => acc + s.steps, 0) / stepRows.length) : null;
+
+    // Stima "al ritmo attuale": kg/mese sull'arco del percorso → mese di arrivo all'obiettivo.
+    let etaLabel: string | null = null;
+    if (w0 != null && b && targetWeightKg != null && b.weightKg > targetWeightKg) {
+      const monthsElapsed = Math.max(1, (end.getTime() - journeyFrom.getTime()) / (30.4 * 86_400_000));
+      const rate = (b.weightKg - w0) / monthsElapsed; // negativo = perde
+      if (rate < -0.05) {
+        const monthsLeft = Math.ceil((b.weightKg - targetWeightKg) / -rate);
+        if (monthsLeft <= 24) {
+          const eta = this.addMonths(end, monthsLeft);
+          etaLabel = `entro ${MONTH_IT[eta.getMonth()]} ${eta.getFullYear()}`;
+        }
+      }
+    }
+
+    // Box offerte: mantenimento a catalogo + prezzo dei menu di rientro (Monitoraggio).
+    const maintenancePlan = (await this.prisma.plan.findFirst({
+      where: { active: true, period: 'maintenance' },
+      select: { id: true, name: true, priceCents: true },
+    })) as { id: string; name: string; priceCents: number } | null;
+    const rientroPlan = (await this.prisma.plan.findFirst({
+      where: { name: { contains: 'rientro', mode: 'insensitive' } } as never,
+      select: { priceCents: true },
+    })) as { priceCents: number } | null;
+
     // Codice sconto personale ancora valido (inviato al giorno 6): compare nel report.
     const personal = (await this.prisma.discountCode.findFirst({
       where: { clientId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } as never,
@@ -253,6 +400,12 @@ export class PlanReportService {
         ? { name: profile.assignedCoach.displayName, phone: profile.assignedCoach.user?.phone ?? null }
         : null,
       offer,
+      journey,
+      habits: { waterAvgL, waterGoalL, stepsAvg, stepsGoal: 8000 },
+      milestones,
+      etaLabel,
+      maintenance: maintenancePlan ? { planId: maintenancePlan.id, planName: maintenancePlan.name, priceCents: maintenancePlan.priceCents } : null,
+      monitoring: { rientroPriceCents: rientroPlan?.priceCents ?? 2900 },
     };
 
     const report = await this.prisma.clientReport.create({

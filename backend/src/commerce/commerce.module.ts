@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { MonitoringModule } from '../monitoring/monitoring.module';
 import { ReferralModule } from '../referral/referral.module';
 import { AccountingController } from './accounting.controller';
 import { AccountingService } from './accounting.service';
@@ -30,7 +31,7 @@ import { RemindersService } from './reminders.service';
 import { StripeService } from './stripe.service';
 
 @Module({
-  imports: [NotificationsModule, ReferralModule],
+  imports: [NotificationsModule, ReferralModule, MonitoringModule],
   controllers: [
     CatalogCommerceController,
     MyCommerceController,

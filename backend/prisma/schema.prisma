@@ -443,6 +443,8 @@ model Plan {
   mealsPerDay Int?     @map("meals_per_day")
   features    String[] @default([])
   active      Boolean  @default(true)
+  // Nascosto dallo shop ma acquistabile con link diretto (es. "Menu di rientro" del Monitoraggio).
+  hidden      Boolean  @default(false)
   // Se false: dopo l'acquisto il piano scompare dallo shop di QUEL cliente (non riacquistabile).
   repurchasable Boolean @default(true)
   // RETE PROVVIGIONALE A DIFFERENZA (decisione 17/07): percentuali per LIVELLO
@@ -956,6 +958,30 @@ model CycleFeedback {
   @@unique([clientId, cycleEnd])
   @@index([clientId, cycleEnd])
   @@map("cycle_feedback")
+}
+
+// Livello "Monitoraggio" (spec Antonio 17/07): dopo il percorso la cliente resta
+// agganciata GRATIS per max 1 mese; Gaia chiede le misure e, se riprende peso
+// (+3 kg parametrizzabile), propone gli 8 menu di rientro a pagamento (€29).
+// Se non paga: il monitoraggio si CONGELA (lo storico resta, niente purge).
+// FK-less (clientId stringa) come gli altri modelli del motore.
+model MonitoringPeriod {
+  id                String    @id @default(uuid())
+  clientId          String    @map("client_id")
+  status            String    @default("active") // active | frozen | expired | converted
+  startedAt         DateTime  @default(now()) @map("started_at")
+  endsAt            DateTime  @map("ends_at")
+  referenceWeightKg Float     @map("reference_weight_kg") // ultimo peso "buono" a fine percorso
+  regainOfferedAt   DateTime? @map("regain_offered_at") // quando è stata proposta l'offerta di rientro
+  frozenAt          DateTime? @map("frozen_at")
+  closedAt          DateTime? @map("closed_at")
+  convertedTo       String?   @map("converted_to") // nome piano di conversione (dimagrimento/mantenimento)
+  lastMeasureAskAt  DateTime? @map("last_measure_ask_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([clientId, status])
+  @@map("monitoring_period")
 }
 
 // Efficacia APPRESA di una ricetta per uno specifico cliente (learning del motore):

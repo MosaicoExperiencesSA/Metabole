@@ -9,6 +9,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { ChatModule } from './chat/chat.module';
 import { ClientsModule } from './clients/clients.module';
 import { CommerceModule } from './commerce/commerce.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { CronModule } from './cron/cron.module';
 import { EngineModule } from './engine/engine.module';
 import { EscalationsModule } from './escalations/escalations.module';
@@ -86,6 +87,7 @@ import { CycleModule } from './cycle/cycle.module';
     ChatModule,
     ClientsModule,
     CommerceModule,
+    MonitoringModule,
     ReportsModule,
     HealthModule,
     EscalationsModule,
