@@ -82,6 +82,9 @@ export interface PlanReportData {
     waterGoalL: number | null;
     stepsAvg: number | null;
     stepsGoal: number;
+    /** Serie giornaliere del periodo per i mini-grafici (litri e passi per giorno). */
+    waterSeries?: { date: string; liters: number }[];
+    stepsSeries?: { date: string; steps: number }[];
   };
   /** Tappe del grafico "i tuoi passi verso l'obiettivo": inizio → oggi (+ obiettivo lato UI). */
   milestones?: { label: string; date: string; weightKg: number }[];
@@ -312,10 +315,13 @@ export class PlanReportService {
 
     // Abitudini: medie reali di acqua e passi nel periodo del report.
     const [waterRows, stepRows] = await Promise.all([
-      this.prisma.waterLog.findMany({ where: { clientId, date: { gte: start, lte: end } }, select: { glasses: true } }) as Promise<{ glasses: number }[]>,
-      this.prisma.stepLog.findMany({ where: { clientId, date: { gte: start, lte: end } }, select: { steps: true } }) as Promise<{ steps: number }[]>,
+      this.prisma.waterLog.findMany({ where: { clientId, date: { gte: start, lte: end } }, orderBy: { date: 'asc' }, select: { date: true, glasses: true } }) as Promise<{ date: Date; glasses: number }[]>,
+      this.prisma.stepLog.findMany({ where: { clientId, date: { gte: start, lte: end } }, orderBy: { date: 'asc' }, select: { date: true, steps: true } }) as Promise<{ date: Date; steps: number }[]>,
     ]);
     const waterAvgL = waterRows.length ? round1((waterRows.reduce((acc, w) => acc + w.glasses, 0) / waterRows.length) * 0.25) : null;
+    // Serie giornaliere per i mini-grafici (1 bicchiere = 250 ml); cap a 31 giorni.
+    const waterSeries = waterRows.slice(-31).map((w) => ({ date: w.date.toISOString().slice(0, 10), liters: round1(w.glasses * 0.25) }));
+    const stepsSeries = stepRows.slice(-31).map((s) => ({ date: s.date.toISOString().slice(0, 10), steps: s.steps }));
     // Obiettivo acqua ~30 ml/kg sul peso attuale (stessa regola dei segnali).
     const waterGoalL = b ? round1((b.weightKg * 30) / 1000) : null;
     const stepsAvg = stepRows.length ? Math.round(stepRows.reduce((acc, s) => acc + s.steps, 0) / stepRows.length) : null;
@@ -401,7 +407,7 @@ export class PlanReportService {
         : null,
       offer,
       journey,
-      habits: { waterAvgL, waterGoalL, stepsAvg, stepsGoal: 8000 },
+      habits: { waterAvgL, waterGoalL, stepsAvg, stepsGoal: 8000, waterSeries, stepsSeries },
       milestones,
       etaLabel,
       maintenance: maintenancePlan ? { planId: maintenancePlan.id, planName: maintenancePlan.name, priceCents: maintenancePlan.priceCents } : null,

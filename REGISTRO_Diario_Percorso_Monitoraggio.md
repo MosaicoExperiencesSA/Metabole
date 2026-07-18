@@ -93,3 +93,10 @@ PDF marketing: timeline, "Gaia consiglia" e le tre strade combaciano già coi te
 Verificato anche `e005762` (misure → menu subito): l'erogazione resta legata all'abbonamento
 ATTIVO (chi è in Monitoraggio non riceve menu, come da spec) e il controllo "c'è già un menu
 futuro" protegge gli 8 menu di rientro dalla rigenerazione del motore.
+
+## Aggiunta — mini-grafici acqua e passi in "Gaia consiglia"
+Nel modello del socio acqua e passi sono solo testo; su richiesta di Simone l'app li mostra
+anche come **grafici a barre giornalieri** sotto i rispettivi consigli: una barra per giorno del
+periodo (acqua in litri, blu; passi in verde), linea tratteggiata dell'obiettivo, barre piene
+quando l'obiettivo è raggiunto. Dati: `habits.waterSeries`/`stepsSeries` nel report (max 31
+giorni; i report già generati non le hanno e non mostrano i grafici).

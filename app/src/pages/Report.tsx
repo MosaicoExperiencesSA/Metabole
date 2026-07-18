@@ -27,7 +27,11 @@ interface ReportFull {
   offer: { planId: string; planName: string; priceCents: number; listPriceCents: number | null; promoActive: boolean; promoEndsAt: string | null; period: string; code: string | null; codeExpiresAt?: string | null; codePriceCents?: number | null } | null;
   // Diario del percorso (i report vecchi non hanno questi campi)
   journey?: JourneyStep[];
-  habits?: { waterAvgL: number | null; waterGoalL: number | null; stepsAvg: number | null; stepsGoal: number };
+  habits?: {
+    waterAvgL: number | null; waterGoalL: number | null; stepsAvg: number | null; stepsGoal: number;
+    waterSeries?: { date: string; liters: number }[];
+    stepsSeries?: { date: string; steps: number }[];
+  };
   milestones?: { label: string; date: string; weightKg: number }[];
   etaLabel?: string | null;
   maintenance?: { planId: string; planName: string; priceCents: number } | null;
@@ -138,6 +142,36 @@ function Milestones({ points, target }: { points: { label: string; weightKg: num
           <text x={xT} y={126} fontSize={8.5} fill="#93A29A" textAnchor="middle">obiettivo</text>
         </g>
       )}
+    </svg>
+  );
+}
+
+/**
+ * Mini-grafico a barre per le abitudini (acqua/passi): una barra per giorno,
+ * linea tratteggiata = obiettivo, barre sopra obiettivo in verde pieno.
+ */
+function HabitBars({ values, goal, color, format }: { values: number[]; goal: number | null; color: string; format: (v: number) => string }) {
+  if (values.length === 0) return null;
+  const W = 320; const H = 64; const pad = 2;
+  const max = Math.max(...values, goal ?? 0, 0.1);
+  const bw = Math.max(2, Math.min(14, (W - pad * 2) / values.length - 2));
+  const step = (W - pad * 2) / values.length;
+  const y = (v: number) => H - 14 - (v / max) * (H - 22);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+      {goal != null && goal > 0 && (
+        <>
+          <line x1={pad} x2={W - pad} y1={y(goal)} y2={y(goal)} stroke="#E8825A" strokeWidth={1.2} strokeDasharray="3 3" opacity={0.8} />
+          <text x={W - pad} y={y(goal) - 3} fontSize={8.5} fill="#B4491F" textAnchor="end">obiettivo {format(goal)}</text>
+        </>
+      )}
+      {values.map((v, i) => {
+        const reached = goal != null && v >= goal;
+        return (
+          <rect key={i} x={pad + i * step + (step - bw) / 2} y={y(v)} width={bw} height={Math.max(1.5, H - 14 - y(v))}
+            rx={2} fill={reached ? color : `${color}55`} />
+        );
+      })}
     </svg>
   );
 }
@@ -298,6 +332,11 @@ export default function Report() {
                   </span>
                 </div>
               )}
+              {(r.habits?.waterSeries?.length ?? 0) > 1 && (
+                <div style={{ margin: '2px 0 6px' }}>
+                  <HabitBars values={r.habits!.waterSeries!.map((w) => w.liters)} goal={r.habits!.waterGoalL} color="#3A6EA5" format={(v) => `${v.toLocaleString('it-IT')} L`} />
+                </div>
+              )}
               {r.habits?.stepsAvg != null && (
                 <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '5px 0' }}>
                   <span style={{ fontSize: 15, flex: 'none' }}>👟</span>
@@ -307,6 +346,11 @@ export default function Report() {
                       ? <>Punta ad almeno <b>{r.habits.stepsGoal.toLocaleString('it-IT')} passi</b>: bastano ~20 minuti di camminata in più per accelerare il risultato.</>
                       : 'Obiettivo raggiunto: il movimento sta lavorando per te.'}
                   </span>
+                </div>
+              )}
+              {(r.habits?.stepsSeries?.length ?? 0) > 1 && (
+                <div style={{ margin: '2px 0 2px' }}>
+                  <HabitBars values={r.habits!.stepsSeries!.map((s) => s.steps)} goal={r.habits!.stepsGoal} color="#0E7C66" format={(v) => v.toLocaleString('it-IT')} />
                 </div>
               )}
             </div>
