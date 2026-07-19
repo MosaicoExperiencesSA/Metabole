@@ -113,7 +113,12 @@ function Recipe({ recipeId, date, tag, onBack }: { recipeId: string; date?: stri
 
 export default function Menu() {
   const [days, setDays] = useState<ApiMenuDay[] | null>(null);
-  const [dayIdx, setDayIdx] = useState(0);
+  // Giorno selezionato per DATA (YYYY-MM-DD): può essere anche un giorno PASSATO
+  // (dallo Storico menu o dal Percorso via ?giorno=). null = primo giorno futuro.
+  const [selDate, setSelDate] = useState<string | null>(() => {
+    const g = new URLSearchParams(window.location.search).get('giorno');
+    return g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : null;
+  });
   const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; tag?: string } | null>(null);
   const mealsRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
@@ -134,8 +139,8 @@ export default function Menu() {
     const el = mealsRef.current;
     if (el) setIdx(Math.round(el.scrollLeft / el.clientWidth));
   }
-  function pickDay(i: number) {
-    setDayIdx(i);
+  function pickDay(date: string) {
+    setSelDate(date);
     setIdx(0);
     const el = mealsRef.current;
     if (el) el.scrollTo({ left: 0 });
@@ -147,7 +152,9 @@ export default function Menu() {
   const todayMs = startOfDay(new Date()).getTime();
   const upcoming = days.filter((d) => startOfDay(new Date(d.date)).getTime() >= todayMs);
   const past = days.filter((d) => startOfDay(new Date(d.date)).getTime() < todayMs).reverse();
-  const selDay = upcoming[dayIdx];
+  // Selezione: la data scelta (anche passata), altrimenti il primo giorno futuro.
+  const selDay = (selDate ? days.find((d) => d.date.slice(0, 10) === selDate) : undefined) ?? upcoming[0];
+  const isPastDay = !!selDay && startOfDay(new Date(selDay.date)).getTime() < todayMs;
   const meals = selDay?.meals ?? [];
 
   return (
@@ -161,7 +168,7 @@ export default function Menu() {
         </div>
       )}
 
-      {upcoming.length === 0 ? (
+      {!selDay ? (
         status && status.state !== 'available' ? (
           <MenuStatusBanner status={status} />
         ) : (
@@ -171,11 +178,26 @@ export default function Menu() {
         )
       ) : (
         <>
-          <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
-            {upcoming.map((d, i) => (
-              <button key={d.id} className={`pill${dayIdx === i ? ' on' : ''}`} onClick={() => pickDay(i)}>{dayLabel(d.date)}</button>
-            ))}
-          </div>
+          {/* Giorno PASSATO aperto dallo storico: intestazione + torna a oggi */}
+          {isPastDay ? (
+            <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, background: '#F7FAF9', boxShadow: 'none' }}>
+              <span className="event-ic" style={{ background: '#DCEBE3', color: '#0E7C66', flex: 'none' }}><i className="ti ti-history" /></span>
+              <div style={{ flex: 1, fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>Menu di {dayLabel(selDay.date)}</div>
+              {upcoming.length > 0 && (
+                <button className="chip" onClick={() => pickDay(upcoming[0].date.slice(0, 10))} style={{ border: 'none', background: '#DCEBE3', color: '#0E7C66', padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}>
+                  Torna a oggi
+                </button>
+              )}
+            </div>
+          ) : (
+            upcoming.length > 0 && (
+              <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
+                {upcoming.map((d) => (
+                  <button key={d.id} className={`pill${selDay.id === d.id ? ' on' : ''}`} onClick={() => pickDay(d.date.slice(0, 10))}>{dayLabel(d.date)}</button>
+                ))}
+              </div>
+            )
+          )}
 
           {meals.length > 1 && (
             <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
@@ -222,12 +244,18 @@ export default function Menu() {
           <div className="sec">Storico menu</div>
           <div className="meals-col">
             {past.slice(0, 7).map((d) => (
-              <div className="card storico-row" key={d.id}>
+              <div
+                className="card storico-row"
+                key={d.id}
+                onClick={() => { pickDay(d.date.slice(0, 10)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                style={{ cursor: 'pointer' }}
+              >
                 <span className="storico-thumb" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-calendar" /></span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{dayLabel(d.date)}</div>
-                  <div className="muted" style={{ fontSize: 11 }}>{d.meals.length} pasti</div>
+                  <div className="muted" style={{ fontSize: 11 }}>{d.meals.length} pasti · tocca per vedere</div>
                 </div>
+                <i className="ti ti-chevron-right" style={{ color: '#9AA6A2' }} />
               </div>
             ))}
           </div>

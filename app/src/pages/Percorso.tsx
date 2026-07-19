@@ -210,7 +210,7 @@ export default function Percorso() {
               const label = whenLabel(d.date);
               const names = dm.map((m) => m.name).filter(Boolean).join(' · ');
               return (
-                <div key={d.id} className="card" onClick={() => nav('/menu')}
+                <div key={d.id} className="card" onClick={() => nav(`/menu?giorno=${d.date.slice(0, 10)}`)}
                   style={{ display: 'flex', gap: 11, alignItems: 'center', cursor: 'pointer' }}>
                   <span style={{ width: 44, height: 44, borderRadius: 13, background: '#EAF6F1', color: '#0E7C66', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                     <i className="ti ti-tools-kitchen-2" style={{ fontSize: 22 }} />
@@ -250,7 +250,7 @@ export default function Percorso() {
                 {past.map((d) => {
                   const label = new Date(d.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
                   return (
-                    <div key={d.id} className="dcard" onClick={() => nav('/menu')}
+                    <div key={d.id} className="dcard" onClick={() => nav(`/menu?giorno=${d.date.slice(0, 10)}`)}
                       style={{ minWidth: 108, scrollSnapAlign: 'start', border: '2px solid #E7EBE9', borderRadius: 14, padding: '10px 8px', textAlign: 'center', cursor: 'pointer', background: '#fff' }}>
                       <div className="muted" style={{ fontSize: 10, fontWeight: 600 }}>{label}</div>
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: '#EAF6F1', color: '#0E7C66', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '8px auto 6px' }}>

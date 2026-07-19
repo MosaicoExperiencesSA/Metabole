@@ -5,7 +5,9 @@ Log delle modifiche di sviluppo fatte da Simone + Claude Cowork. Tenuto **separa
 ---
 
 
-## 2026-07-18
+## 2026-07-19
+
+- **App — i menu dei giorni PASSATI si aprono e si vedono** — segnalazione di Simone (screenshot: nello "Storico menu" toccare Ieri/Ven 17 non faceva nulla). In `Menu.tsx` la selezione del giorno ora è per DATA (`selDate`) e può cadere anche su un giorno passato: le righe dello **Storico menu** sono cliccabili (chevron + "tocca per vedere") e aprono i pasti di quel giorno con le ricette; in alto compare l'intestazione "Menu di ieri/…" con il chip **"Torna a oggi"**. La pagina accetta `?giorno=YYYY-MM-DD` e nel **Percorso** le card di "Menu passati" e "Menu futuri" ora navigano direttamente al giorno giusto (`/menu?giorno=…`) invece che alla pagina generica. Le valutazioni (stelline) sui piatti dei giorni passati funzionano (il backend rifiuta solo le date future). App tsc 0 errori; nessuna modifica backend. Parte app → nuova APK.
 
 - **App Android — icona del launcher col SIMBOLO Metabole** — segnalazione di Simone (icona di default bruttissima → il logo giusto è il **simbolo del brand**: figura in corsa + freccia + brillìo viola, `app/public/brand/simbolo.png`). Icona generata dal simbolo (verde scuro su trasparente) centrato su **sfondo bianco**, come il riferimento. Icona **adattiva** (Android 8+, foreground simbolo nella safe zone + background bianco) e **legacy** (quadrata + rotonda) per tutte le densità (mdpi→xxxhdpi). Asset in `docs/android-icon/res/` (sostituiscono le versioni precedenti Gaia/anello). Lo script `scripts/install-icon.mjs` (già agganciato a `npm run android:sync` e al workflow) copia le mipmap nel progetto Android dopo `cap sync`. Solo build Android → si vede alla **nuova APK**. Nessuna modifica a codice app/back.
 
