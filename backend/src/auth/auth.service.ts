@@ -499,6 +499,33 @@ export class AuthService {
     };
   }
 
+  /**
+   * "Passa all'altro profilo": la stessa persona ha due utenze COLLEGATE dall'admin
+   * (cliente <-> staff, User.linkedUserId). Rilascia una coppia di token completa per
+   * l'utenza collegata, senza chiedere di nuovo la password. Audit su ogni switch.
+   */
+  async switchAccount(userId: string, ip?: string) {
+    const me = await this.prisma.user.findUnique({ where: { id: userId } });
+    const linkedId = (me as { linkedUserId?: string | null } | null)?.linkedUserId ?? null;
+    if (!me || !linkedId) {
+      throw new BadRequestException('Nessuna utenza collegata a questo account.');
+    }
+    const target = await this.prisma.user.findUnique({ where: { id: linkedId } });
+    if (!target || target.status !== 'active' || target.deletedAt) {
+      throw new BadRequestException("L'utenza collegata non è attiva.");
+    }
+    await this.audit.log({
+      action: 'auth.switch_account',
+      actorId: userId,
+      entityType: 'user',
+      entityId: target.id,
+      metadata: { fromRole: me.role, toRole: target.role },
+      ipAddress: ip,
+    });
+    const tokens = await this.issueTokenPair(target);
+    return { user: this.toPublicUser(target), ...tokens };
+  }
+
   // ---------- Interni ----------
 
   /**

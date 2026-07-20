@@ -370,6 +370,14 @@ export class MenuService {
         if (subs && subs.length) m.substitutions = subs;
       }
     }
+    // Cibi NON graditi come ingrediente PRINCIPALE (nel nome del piatto): il piatto
+    // si cambia già in erogazione con un'alternativa equivalente.
+    const dislikedNow = ((profile.dislikedFoods ?? []) as string[]);
+    if (dislikedNow.length) {
+      for (const day of daySnapshots) {
+        await this.swapDislikedDishes(clientId, day.meals, dislikedNow);
+      }
+    }
 
     const created: string[] = [];
     for (const day of daySnapshots) {
@@ -705,6 +713,60 @@ export class MenuService {
   }
 
   /**
+   * Se un cibo NON gradito è l'ingrediente PRINCIPALE (compare nel NOME del piatto),
+   * sostituire l'ingrediente non basta: si cambia PIATTO con un'alternativa equivalente
+   * (stesso slot, stesso regime, kcal più vicine, senza cibi esclusi/intolleranze).
+   * Muta i MealSnapshot passati e ritorna gli scambi fatti (from→to).
+   */
+  private async swapDislikedDishes(
+    clientId: string,
+    meals: MealSnapshot[],
+    dislikes: string[],
+  ): Promise<{ from: string; to: string }[]> {
+    const dl = dislikes.map((s) => s.toLowerCase().trim()).filter((s) => s.length >= 2);
+    if (!dl.length) return [];
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { regime: true, intolerances: true, dislikedFoods: true },
+    });
+    // Un piatto alternativo non deve contenere NIENTE di escluso (né il cibo indicato,
+    // né gli altri non graditi, né le parole chiave delle intolleranze).
+    const excluded = new Set<string>(dl);
+    for (const intol of ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim())) {
+      for (const kw of INTOLERANCE_MAP[intol] ?? [intol]) excluded.add(kw);
+    }
+    for (const d of ((profile?.dislikedFoods ?? []) as string[])) excluded.add(d.toLowerCase().trim());
+
+    const poolBySlot = new Map<string, { id: string; name: string; kcal: number; ingredients: unknown }[]>();
+    const swapped: { from: string; to: string }[] = [];
+    for (const m of meals) {
+      const nameLow = (m.name ?? '').toLowerCase();
+      if (!dl.some((k) => nameLow.includes(k))) continue;
+      if (!poolBySlot.has(m.slot)) {
+        poolBySlot.set(m.slot, (await this.prisma.recipe.findMany({
+          where: { mealSlot: m.slot as never, active: true, ...(profile?.regime ? { regime: profile.regime } : {}) },
+          select: { id: true, name: true, kcal: true, ingredients: true },
+        })) as { id: string; name: string; kcal: number; ingredients: unknown }[]);
+      }
+      const candidates = (poolBySlot.get(m.slot) ?? []).filter((c) => {
+        if (c.id === m.recipeId) return false;
+        const txt = (c.name + ' ' + (((c.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
+        for (const k of excluded) if (k && txt.includes(k)) return false;
+        return true;
+      });
+      if (!candidates.length) continue;
+      candidates.sort((a, b) => Math.abs(a.kcal - m.kcal) - Math.abs(b.kcal - m.kcal));
+      const best = candidates[0];
+      swapped.push({ from: m.name, to: best.name });
+      m.substitutions = [...(m.substitutions ?? []), { from: m.name, to: best.name, reason: 'non gradito' }];
+      m.recipeId = best.id;
+      m.name = best.name;
+      m.kcal = best.kcal;
+    }
+    return swapped;
+  }
+
+  /**
    * "Sostituisci un ingrediente": la cliente indica un cibo che non gradisce →
    * correggiamo SUBITO i menu già erogati di oggi, domani e dopodomani (sostituzioni
    * sicure annotate sui pasti, from→to). L'esclusione PER SEMPRE (dislikedFoods, che
@@ -745,15 +807,20 @@ export class MenuService {
     });
     const applied: { day: string; from: string; to: string }[] = [];
     for (const day of days) {
-      const meals = ((day.meals as unknown as MealSnapshot[]) ?? []);
+      const meals = ((day.meals as unknown as MealSnapshot[]) ?? []).map((m) => ({ ...m }));
+      const dayKey = day.date.toISOString().slice(0, 10);
+      // 1) Piatti che hanno il cibo nel NOME (ingrediente principale) → si cambia PIATTO.
+      const swaps = await this.swapDislikedDishes(clientId, meals, [ingredient]);
+      for (const s of swaps) applied.push({ day: dayKey, from: s.from, to: s.to });
+      // 2) Piatti dove compare solo tra gli ingredienti → sostituzione sicura annotata.
       const { subsByRecipe } = await this.evaluateMeals(clientId, meals, [ingredient]);
-      let touched = false;
+      let touched = swaps.length > 0;
       const updated = meals.map((m) => {
         const subs = subsByRecipe[m.recipeId];
         if (subs && subs.length) {
           touched = true;
-          for (const s of subs) applied.push({ day: day.date.toISOString().slice(0, 10), from: s.from, to: s.to });
-          return { ...m, substitutions: subs };
+          for (const s of subs) applied.push({ day: dayKey, from: s.from, to: s.to });
+          return { ...m, substitutions: [...(m.substitutions ?? []), ...subs] };
         }
         return m;
       });
@@ -766,7 +833,7 @@ export class MenuService {
       ? `Fatto: nei prossimi menu ${uniquePairs.join(', ')}.`
       : forever
         ? "Preferenza salvata: nei menu dei prossimi giorni quell'ingrediente non c'è, e non comparirà nei successivi."
-        : "Nei menu dei prossimi giorni quell'ingrediente non c'è (o non ha un sostituto sicuro).";
+        : "Nei menu dei prossimi giorni quell'ingrediente non compare (se invece lo vedi ancora, scrivilo alla tua coach: sistemiamo noi).";
     return { applied, disliked: ingredient, forever, message };
   }
 

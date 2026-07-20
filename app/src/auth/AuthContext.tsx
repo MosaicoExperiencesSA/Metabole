@@ -30,6 +30,8 @@ export interface User {
   // true per gli account provvisori (es. lead creati da backoffice con password di
   // default): l'app forza l'impostazione di una password personale a fine questionario.
   mustChangePassword?: boolean;
+  // Utenza gemella (cliente <-> staff, stessa persona): abilita "Passa all'altro profilo".
+  linkedUserId?: string | null;
 }
 
 export interface RegisterPayload {
@@ -59,6 +61,7 @@ interface AuthValue {
   register: (data: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
+  switchAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -136,6 +139,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (Capacitor.isNativePlatform()) { try { await Preferences.remove({ key: WIDGET_TOKEN_KEY }); } catch { /* ignora */ } }
   }
 
+  /** "Passa all'altro profilo": nuova coppia di token per l'utenza collegata, senza logout. */
+  async function switchAccount() {
+    const res = await api<AuthResponse>('/auth/switch', { method: 'POST' });
+    applyAuth(res);
+    track('switch_account', { role: res.user?.role });
+  }
+
   async function refreshMe() {
     try {
       setUser(await api<User>('/me'));
@@ -145,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshMe }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshMe, switchAccount }}>
       {children}
     </AuthContext.Provider>
   );

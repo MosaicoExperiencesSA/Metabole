@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { initials } from './format';
 
 /** Voce della tab bar in basso. */
@@ -24,8 +25,16 @@ export function StaffShell({
   children: ReactNode;
   headerBadge?: number;
 }) {
+  const { user } = useAuth();
   return (
     <div className="sf-frame">
+      {user?.linkedUserId ? (
+        <div className="sf-tech-banner" role="alert">
+          <span className="sf-tech-marquee">
+            ATTENZIONE PROFILO TECNICO · ATTENZIONE PROFILO TECNICO · ATTENZIONE PROFILO TECNICO · ATTENZIONE PROFILO TECNICO ·&nbsp;
+          </span>
+        </div>
+      ) : null}
       <header className="sf-header">
         <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
           <div className="sf-header-brand">

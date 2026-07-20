@@ -229,6 +229,9 @@ model User {
   province        String?
   country         String?    // paese dell'indirizzo (es. Italia, Svizzera)
   phone           String?
+  // Utenza COLLEGATA (stessa persona): un'utenza cliente puo' essere legata a una staff
+  // (e viceversa, simmetrico) per il "passa all'altro profilo" senza logout. FK-less.
+  linkedUserId    String?    @unique @map("linked_user_id")
 
   auditLogs       AuditLog[]
   configChanges   ConfigParam[] @relation("ConfigUpdatedBy")

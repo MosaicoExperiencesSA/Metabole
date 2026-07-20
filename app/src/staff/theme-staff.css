@@ -573,3 +573,28 @@
   justify-content: center;
   margin: 0 auto 16px;
 }
+
+/* Banner "profilo tecnico": utenza staff collegata a un'utenza cliente (stessa persona).
+   Barra rossa fissa in alto con scritta scorrevole, per non confondere gli account. */
+.sf-tech-banner {
+  background: #C62828;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 4px 0;
+  position: sticky;
+  top: 0;
+  z-index: 60;
+}
+.sf-tech-marquee {
+  display: inline-block;
+  padding-left: 100%;
+  animation: sf-tech-scroll 14s linear infinite;
+}
+@keyframes sf-tech-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}

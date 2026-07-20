@@ -111,6 +111,12 @@ export class AuthController {
     return this.auth.removeSecondaryEmail(user.sub);
   }
 
+  /** "Passa all'altro profilo": token per l'utenza collegata (cliente <-> staff), senza logout. */
+  @Post('switch')
+  switchAccount(@CurrentUser() user: AuthUser, @Ip() ip: string) {
+    return this.auth.switchAccount(user.sub, ip);
+  }
+
   /** Token a lunga scadenza per il widget da home screen (app → storage condiviso → widget). */
   @Post('widget-token')
   widgetToken(@CurrentUser() user: AuthUser) {

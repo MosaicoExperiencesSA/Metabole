@@ -24,6 +24,14 @@ class SetManagerDto {
   managerId?: string | null;
 }
 
+class LinkAccountDto {
+  // Email dell'utenza da collegare (null/assente = scollega).
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  email?: string | null;
+}
+
 class ResetPasswordDto {
   // Facoltativa: se assente, il server ne genera una provvisoria e la restituisce.
   @IsOptional()
@@ -63,6 +71,16 @@ export class AdminUsersController {
   @Post()
   create(@Body() dto: CreateUserDto, @CurrentUser() actor: AuthUser) {
     return this.users.create(dto, actor.sub);
+  }
+
+  /** Collega/scollega l'utenza alla sua gemella (cliente <-> staff, stessa persona). */
+  @Patch(':id/link')
+  link(
+    @Param('id') id: string,
+    @Body() dto: LinkAccountDto,
+    @CurrentUser() actor: AuthUser,
+  ) {
+    return this.users.linkAccounts(id, dto.email ?? null, actor.sub);
   }
 
   @Patch(':id')

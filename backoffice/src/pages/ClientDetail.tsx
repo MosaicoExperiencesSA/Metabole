@@ -9,7 +9,7 @@ interface Detail {
   user: {
     id: string; email: string; status: string; locale: string; emailVerifiedAt: string | null; createdAt: string;
     firstName: string | null; lastName: string | null;
-    addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null; codiceFiscale: string | null;
+    addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null; codiceFiscale: string | null; linkedUserId: string | null;
   };
   profile: any | null;
   objective: any | null;
@@ -354,6 +354,27 @@ export function ClientDetail() {
     }
   }
 
+  /** Collega/scollega l'utenza cliente a un'utenza STAFF della stessa persona (switch senza logout nell'app). */
+  async function linkAccount() {
+    if (!d) return;
+    if (d.user.linkedUserId) {
+      if (!confirm('Questa utenza è già collegata a un account staff. Vuoi scollegarla?')) return;
+      try {
+        await api(`/admin/users/${d.user.id}/link`, { method: 'PATCH', body: JSON.stringify({ email: null }) });
+        setNotice('Utenze scollegate.');
+        void loadDetail();
+      } catch (err) { setError(err instanceof ApiError ? err.message : 'Scollegamento non riuscito.'); }
+      return;
+    }
+    const email = prompt("Email dell'utenza STAFF da collegare a questo cliente:\n(la stessa persona potrà passare da un profilo all'altro senza logout)");
+    if (!email?.trim()) return;
+    try {
+      const r = await api<{ linked: { email: string } | null }>(`/admin/users/${d.user.id}/link`, { method: 'PATCH', body: JSON.stringify({ email: email.trim().toLowerCase() }) });
+      setNotice(`Utenza collegata a ${r.linked?.email ?? email.trim()}.`);
+      void loadDetail();
+    } catch (err) { setError(err instanceof ApiError ? err.message : 'Collegamento non riuscito.'); }
+  }
+
   /** Cambio email di accesso del cliente (solo admin): usa l'endpoint admin utenti. */
   async function changeEmail() {
     if (!d) return;
@@ -568,6 +589,11 @@ export function ClientDetail() {
             {isAdmin && !editing && (
               <button className="btn ghost" onClick={changeEmail} title="Cambia l'email di accesso del cliente" style={{ background: 'rgba(255,255,255,.9)' }}>
                 <i className="ti ti-mail-cog" /> Cambia email
+              </button>
+            )}
+            {isAdmin && !editing && (
+              <button className="btn ghost" onClick={linkAccount} title="Collega/scollega l'utenza staff della stessa persona (switch senza logout)" style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-link" /> {d.user.linkedUserId ? 'Scollega utenza staff' : 'Collega utenza staff'}
               </button>
             )}
             {isAdmin && !editing && (

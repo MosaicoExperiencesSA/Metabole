@@ -140,7 +140,18 @@ function ExcludedFoods() {
 }
 
 export default function Profilo() {
-  const { user, logout } = useAuth();
+  const { user, logout, switchAccount } = useAuth();
+  const [switching, setSwitching] = useState(false);
+
+  async function goToLinked() {
+    setSwitching(true);
+    try {
+      await switchAccount();
+      window.location.href = '/'; // ricarica l'app nel profilo staff
+    } catch {
+      setSwitching(false);
+    }
+  }
   const navigate = useNavigate();
   const [sub, setSub] = useState<Subscription | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -607,6 +618,12 @@ export default function Profilo() {
       )}
 
       <NotificationPrefs />
+
+      {user?.linkedUserId && (
+        <button className="btn" style={{ marginTop: 18, width: '100%', justifyContent: 'center' }} onClick={goToLinked} disabled={switching}>
+          <i className="ti ti-switch-horizontal" /> {switching ? 'Passo…' : 'Passa al profilo staff'}
+        </button>
+      )}
 
       <button className="btn ghost" style={{ marginTop: 18 }} onClick={() => { logout(); navigate('/'); }}>
         <i className="ti ti-logout" /> Esci

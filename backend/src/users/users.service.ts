@@ -39,6 +39,7 @@ const PUBLIC_USER_SELECT = {
   firstName: true,
   lastName: true,
   phone: true,
+  linkedUserId: true,
   title: true,
   addressLine: true,
   country: true,
@@ -490,6 +491,44 @@ export class UsersService {
     if (!staff || !staff.active || staff.user.status !== 'active' || staff.user.role !== role) {
       throw new NotFoundException(`Staff ${role} non valido o non attivo: ${staffId}`);
     }
+  }
+
+  /**
+   * Collega (o scollega, email=null) un'utenza CLIENTE a un'utenza STAFF della stessa
+   * persona: abilita il "passa all'altro profilo" senza logout nell'app. Simmetrico.
+   */
+  async linkAccounts(userId: string, email: string | null, actorId: string) {
+    const a = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!a || a.deletedAt) throw new NotFoundException('Utente non trovato');
+    const aLinked = (a as { linkedUserId?: string | null }).linkedUserId ?? null;
+
+    if (email === null) {
+      // Scollega da entrambe le parti.
+      const ops: unknown[] = [this.prisma.user.update({ where: { id: a.id }, data: { linkedUserId: null } as never })];
+      if (aLinked) ops.push(this.prisma.user.update({ where: { id: aLinked }, data: { linkedUserId: null } as never }));
+      await this.prisma.$transaction(ops as never);
+      await this.audit.log({ action: 'admin.user.unlink', actorId, entityType: 'user', entityId: a.id, metadata: { was: aLinked } });
+      return { linked: null };
+    }
+
+    const b = await this.prisma.user.findFirst({ where: { email: email.trim().toLowerCase(), deletedAt: null } });
+    if (!b) throw new NotFoundException('Nessun account attivo con questa email.');
+    if (b.id === a.id) throw new BadRequestException('Non puoi collegare un account a se stesso.');
+    const roles = [a.role, b.role];
+    const clients = roles.filter((r) => r === 'client').length;
+    if (clients !== 1) {
+      throw new BadRequestException('Il collegamento è tra UNA utenza cliente e UNA utenza staff (una di ciascun tipo).');
+    }
+    const bLinked = (b as { linkedUserId?: string | null }).linkedUserId ?? null;
+    if ((aLinked && aLinked !== b.id) || (bLinked && bLinked !== a.id)) {
+      throw new BadRequestException('Uno dei due account è già collegato a un altro: scollega prima quello.');
+    }
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: a.id }, data: { linkedUserId: b.id } as never }),
+      this.prisma.user.update({ where: { id: b.id }, data: { linkedUserId: a.id } as never }),
+    ] as never);
+    await this.audit.log({ action: 'admin.user.link', actorId, entityType: 'user', entityId: a.id, metadata: { linkedTo: b.id, linkedEmail: b.email } });
+    return { linked: { id: b.id, email: b.email, role: b.role } };
   }
 
   async update(

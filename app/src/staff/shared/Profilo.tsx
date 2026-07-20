@@ -34,7 +34,18 @@ function splitPhone(p: string | null): { prefix: string; number: string } {
  *  adattato (dati modificabili, colore dell'app, versione), senza le sezioni
  *  piano/acquisti che riguardano solo il cliente. */
 export default function Profilo({ tabs }: { tabs: TabItem[] }) {
-  const { user, logout } = useAuth();
+  const { user, logout, switchAccount } = useAuth();
+  const [switching, setSwitching] = useState(false);
+
+  async function goToLinked() {
+    setSwitching(true);
+    try {
+      await switchAccount();
+      window.location.href = '/'; // ricarica l'app nel profilo cliente
+    } catch {
+      setSwitching(false);
+    }
+  }
   const name = fullName(user?.firstName, user?.lastName, user?.email);
   const roleLabel = (user?.role && ROLE_LABEL[user.role]) || user?.role || '';
   const prof = useApi<MyProfile>('/me/profile');
@@ -217,6 +228,12 @@ export default function Profilo({ tabs }: { tabs: TabItem[] }) {
           <span className="v">{user?.locale === 'en' ? 'English' : 'Italiano'}</span>
         </div>
       </Card>
+
+      {user?.linkedUserId && (
+        <button className="sf-btn" style={{ marginTop: 12 }} onClick={goToLinked} disabled={switching}>
+          <i className="ti ti-switch-horizontal" /> {switching ? 'Passo…' : 'Passa al profilo cliente'}
+        </button>
+      )}
 
       <button className="sf-btn g" style={{ marginTop: 12 }} onClick={() => logout()}>
         <i className="ti ti-logout" /> Esci

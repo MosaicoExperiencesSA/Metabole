@@ -85,7 +85,7 @@ export class ClientsService {
       where: { id: userId, deletedAt: null },
       select: {
         id: true, email: true, role: true, status: true, locale: true, emailVerifiedAt: true, createdAt: true,
-        firstName: true, lastName: true, addressLine: true, postalCode: true, city: true, province: true, phone: true, codiceFiscale: true,
+        firstName: true, lastName: true, addressLine: true, postalCode: true, city: true, province: true, phone: true, codiceFiscale: true, linkedUserId: true,
       },
     });
     if (!user) throw new NotFoundException('Utente non trovato.');
