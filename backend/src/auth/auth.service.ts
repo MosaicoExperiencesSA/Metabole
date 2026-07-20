@@ -578,6 +578,7 @@ export class AuthService {
     lastName?: string | null;
     photoUrl?: string | null;
     mustChangePassword?: boolean;
+    linkedUserId?: string | null;
   }) {
     return {
       id: user.id,
@@ -590,6 +591,9 @@ export class AuthService {
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
       photoUrl: user.photoUrl ?? null,
+      // Serve all'app per mostrare SUBITO (già al login/switch, senza attendere /me)
+      // il pulsante "Passa all'altro profilo" e il banner PROFILO TECNICO.
+      linkedUserId: user.linkedUserId ?? null,
     };
   }
 }
