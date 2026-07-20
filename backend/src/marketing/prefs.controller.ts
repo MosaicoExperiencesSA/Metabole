@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Redirect } from '@nestjs/common';
 import { IsArray, IsBoolean, IsIn, IsOptional } from 'class-validator';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
@@ -31,5 +31,32 @@ export class PrefsController {
   @Post()
   set(@Query('t') token: string, @Body() dto: SetPrefsDto) {
     return this.service.setPrefsByToken(token ?? '', { marketingConsent: dto.marketingConsent, channels: dto.channels });
+  }
+}
+
+/**
+ * Disiscrizione con-un-click (RFC 8058): l'header List-Unsubscribe-Post fa sì che
+ * Gmail/Yahoo/Microsoft mandino una POST diretta qui, senza aprire una pagina. Nessun
+ * corpo richiesto → opt-out immediato. Il GET (link seguito a mano da una persona)
+ * rimanda invece alla pagina preferenze, così la scelta è consapevole e riattivabile —
+ * e i "prefetch" dei filtri antispam non disiscrivono nessuno per errore.
+ */
+@SkipThrottle()
+@Controller('public/marketing/unsubscribe')
+export class UnsubscribeController {
+  constructor(private readonly service: MarketingService) {}
+
+  @Public()
+  @HttpCode(200)
+  @Post()
+  oneClick(@Query('t') token: string) {
+    return this.service.oneClickUnsubscribe(token ?? '');
+  }
+
+  @Public()
+  @Get()
+  @Redirect()
+  goToPrefs(@Query('t') token: string) {
+    return { url: this.service.prefsPageUrlForToken(token ?? ''), statusCode: 302 };
   }
 }

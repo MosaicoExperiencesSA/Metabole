@@ -10,7 +10,11 @@ import { NutritionistHome } from './NutritionistHome';
  */
 export function Home() {
   const { user, permissions } = useAuth();
-  const role = permissions?.role ?? user?.role;
+  // Vista home per ESPERIENZA: si basa sul ruolo di SISTEMA (user.role). Per un ruolo
+  // personalizzato (es. "Responsabile Coach") user.role è il ruolo BASE su cui è costruito
+  // (coach_coordinator), mentre permissions.role sarebbe la chiave custom → prima cadeva
+  // sulla Dashboard generica e la coordinatrice non vedeva la home coach (ref link ecc).
+  const role = user?.role ?? permissions?.role;
   if (role === 'coach' || role === 'coach_coordinator') return <CoachHome />;
   if (role === 'nutritionist' || role === 'head_nutritionist') return <NutritionistHome />;
   return <Dashboard />;

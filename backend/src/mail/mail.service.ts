@@ -14,6 +14,9 @@ interface SendMailInput {
   templateKey?: string;
   attachments?: Attachment[];
   tags?: string[]; // tag Brevo (es. campaign:ID) per le statistiche
+  // URL di disiscrizione con-un-click (email di massa/marketing): genera gli header
+  // List-Unsubscribe + List-Unsubscribe-Post richiesti da Gmail/Yahoo/Microsoft.
+  listUnsubscribeUrl?: string;
 }
 
 /** Sostituisce i segnaposto {{var}} nel testo del template. */
@@ -124,6 +127,16 @@ export class MailService {
           htmlContent: this.withLogo(input.html),
           ...(input.attachments?.length ? { attachment: input.attachments } : {}),
           ...(input.tags?.length ? { tags: input.tags } : {}),
+          // Disiscrizione con-un-click (Gmail/Yahoo/Microsoft 2024): l'header porta il
+          // pulsante "Annulla iscrizione" nativo del client e una POST diretta all'endpoint.
+          ...(input.listUnsubscribeUrl
+            ? {
+                headers: {
+                  'List-Unsubscribe': `<${input.listUnsubscribeUrl}>`,
+                  'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+                },
+              }
+            : {}),
         }),
       });
       if (!res.ok) {

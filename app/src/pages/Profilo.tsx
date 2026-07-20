@@ -621,7 +621,7 @@ export default function Profilo() {
 
       {user?.linkedUserId && (
         <button className="btn" style={{ marginTop: 18, width: '100%', justifyContent: 'center' }} onClick={goToLinked} disabled={switching}>
-          <i className="ti ti-switch-horizontal" /> {switching ? 'Passo…' : 'Passa al profilo staff'}
+          <i className="ti ti-switch-horizontal" /> {switching ? 'Passo…' : 'Passa al profilo professionale'}
         </button>
       )}
 

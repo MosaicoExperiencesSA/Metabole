@@ -64,8 +64,9 @@
   cursor: pointer;
 }
 .sf-hicon-user {
-  background: #fff;
-  color: var(--sf-brand);
+  /* come le altre iconcine dell'header (prima era invertita: sfondo bianco/icona colorata) */
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 .sf-hbadge {
   position: absolute;

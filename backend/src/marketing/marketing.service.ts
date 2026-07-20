@@ -68,9 +68,44 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     return this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
   }
 
+  /** URL pubblico del BACKEND (per la POST one-click di Gmail/Yahoo agli header). */
+  private apiUrl(): string {
+    return this.config.get<string>('PUBLIC_API_URL') ?? 'https://metabole-backend.onrender.com';
+  }
+
   /** Link personale alla pagina preferenze/disiscrizione (token firmato, senza login). */
   prefsLink(recordId: string): string {
     return `${this.appUrl()}/preferenze?t=${prefsToken(recordId, this.prefsSecret())}`;
+  }
+
+  /** URL di disiscrizione con-un-click (header List-Unsubscribe): POST diretta al backend. */
+  unsubscribeOneClickUrl(recordId: string): string {
+    return `${this.apiUrl()}/public/marketing/unsubscribe?t=${prefsToken(recordId, this.prefsSecret())}`;
+  }
+
+  /** Pagina preferenze (app) a partire dal token: per il GET di disiscrizione via link. */
+  prefsPageUrlForToken(token: string): string {
+    return `${this.appUrl()}/preferenze?t=${encodeURIComponent(token)}`;
+  }
+
+  /** Disiscrizione immediata con-un-click (Gmail/Yahoo): opt-out senza scelta di canali. */
+  async oneClickUnsubscribe(token: string) {
+    const recordId = verifyPrefsToken(token ?? '', this.prefsSecret());
+    if (!recordId) throw new UnauthorizedException('Link non valido.');
+    // Riusa la logica di opt-out completa (crmRecord + marketing_opt_out + notificationPrefs).
+    await this.setPrefsByToken(token, { marketingConsent: false, channels: [] });
+    return { unsubscribed: true };
+  }
+
+  /**
+   * Garantisce un piè di pagina con il link di disiscrizione in ogni email di massa:
+   * requisito di deliverability (Gmail vuole un modo VISIBILE per disiscriversi). Se il
+   * corpo contiene già {{link_preferenze}} o un link alle preferenze, non aggiunge nulla.
+   */
+  private ensureUnsubFooter(html: string, prefsUrl: string): string {
+    if (/link_preferenze|\/preferenze\?t=|List-Unsubscribe|Annulla iscrizione|disiscriv/i.test(html)) return html;
+    const footer = `<div style="margin-top:28px;padding-top:14px;border-top:1px solid #e6e6e6;font-size:12px;color:#8a8a8a;text-align:center;line-height:1.5">Ricevi questa email perché sei nei contatti di Metabole.<br><a href="${prefsUrl}" style="color:#8a8a8a;text-decoration:underline">Gestisci le preferenze o annulla l'iscrizione</a></div>`;
+    return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${footer}</body>`) : html + footer;
   }
 
   /** Stato consensi per la pagina pubblica (token firmato al posto del login). */
@@ -426,10 +461,17 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     for (const r of slice) {
       if (!r.email) { failed++; continue; }
       // Merge per destinatario: nome + link preferenze PERSONALE (disiscrizione facile).
-      const vars = { name: r.name ?? '', nome: r.name ?? '', link_preferenze: this.prefsLink(r.recordId) };
-      const html = this.merge(c.bodyHtml, vars);
+      const prefsUrl = this.prefsLink(r.recordId);
+      const vars = { name: r.name ?? '', nome: r.name ?? '', link_preferenze: prefsUrl };
+      const html = this.ensureUnsubFooter(this.merge(c.bodyHtml, vars), prefsUrl);
       const subject = this.merge(c.subject, vars);
-      const ok = await this.mail.send({ to: r.email, subject, html, templateKey: `campaign:${c.templateKey}`, tags: [tag] });
+      const ok = await this.mail.send({
+        to: r.email, subject, html,
+        templateKey: `campaign:${c.templateKey}`,
+        tags: [tag],
+        // Header di disiscrizione con-un-click (deliverability Gmail/Yahoo/Microsoft).
+        listUnsubscribeUrl: this.unsubscribeOneClickUrl(r.recordId),
+      });
       if (ok) { sent++; sentRecordIds.push(r.recordId); } else failed++;
     }
 
