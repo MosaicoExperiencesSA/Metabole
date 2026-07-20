@@ -89,8 +89,9 @@ export class LeadAssignmentController {
     return this.svc.myPending(user.sub);
   }
 
-  /** Invito della coach: proprio ref code + link di registrazione precompilato (backlog #2). */
-  @Roles('coach', 'coach_coordinator')
+  /** Invito della coach: proprio ref code + link di registrazione precompilato (backlog #2).
+   *  Disponibile anche alla Responsabile Coach (sales), che ha un suo ref code. */
+  @Roles('coach', 'coach_coordinator', 'sales')
   @Get('my-invite')
   myInvite(@CurrentUser() user: AuthUser) {
     return this.svc.myInvite(user.sub);

@@ -333,7 +333,7 @@ export class LeadAssignmentService {
    */
   async generateRefCode(staffUserId: string, actorId: string, desired?: string): Promise<{ refCode: string }> {
     let staff = await this.prisma.staff.findFirst({
-      where: { userId: staffUserId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
+      where: { userId: staffUserId, user: { role: { in: ['coach', 'coach_coordinator', 'sales'] as never } } },
       select: { id: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
     if (!staff) {
@@ -341,7 +341,7 @@ export class LeadAssignmentService {
       // tra gli STAFF_ROLES): la creiamo al volo, così anche la manager coach ha il
       // suo ref code come le altre coach.
       const user = await this.prisma.user.findFirst({
-        where: { id: staffUserId, role: { in: ['coach', 'coach_coordinator'] as never } },
+        where: { id: staffUserId, role: { in: ['coach', 'coach_coordinator', 'sales'] as never } },
         select: { id: true, email: true, firstName: true, lastName: true },
       });
       if (!user) throw new BadRequestException('Il ref code è disponibile solo per le coach.');
@@ -416,7 +416,7 @@ export class LeadAssignmentService {
    */
   async myInvite(coachUserId: string): Promise<{ refCode: string; url: string }> {
     const staff = await this.prisma.staff.findFirst({
-      where: { userId: coachUserId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
+      where: { userId: coachUserId, user: { role: { in: ['coach', 'coach_coordinator', 'sales'] as never } } },
       select: { id: true, refCode: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
     if (!staff) throw new BadRequestException('L\'invito è disponibile solo per le coach.');

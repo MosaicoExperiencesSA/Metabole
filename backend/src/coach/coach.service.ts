@@ -68,9 +68,20 @@ export class CoachService {
     return staff?.id ?? null;
   }
 
-  /** Portata clienti: coach → sé stessa; coordinatrice → sé + coach del suo team. */
+  /** Portata clienti: coach → sé stessa; coordinatrice → sé + coach del suo team;
+   *  Responsabile Coach (sales) → TUTTE le coach (è la responsabile del reparto). */
   private async scopeIds(userId: string): Promise<string[]> {
-    return (await coachTeamScope(this.prisma, userId)) ?? [];
+    const team = await coachTeamScope(this.prisma, userId);
+    if (team) return team;
+    const u = (await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } })) as { role: string } | null;
+    if (u?.role === 'sales') {
+      const all = (await this.prisma.staff.findMany({
+        where: { user: { role: { in: ['coach', 'coach_coordinator'] as never } } } as never,
+        select: { id: true },
+      })) as { id: string }[];
+      return all.map((s) => s.id);
+    }
+    return [];
   }
 
   /** Elenco delle clienti della coach con un riepilogo per la lista. */

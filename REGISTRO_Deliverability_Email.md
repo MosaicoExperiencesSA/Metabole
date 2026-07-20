@@ -40,3 +40,12 @@ Backend
 - Il footer usa la pagina preferenze già esistente (`/preferenze?t=…`): niente nuove pagine.
 - Manca ancora la seconda metà dell'allegato 3 (punto 2 "Lista e consenso" e successivi):
   quando arriva completo, valuto se serve altro codice.
+
+## Aggiunta — one-click anche sulle email del ciclo di vita (lifecycle)
+Le email lifecycle (nurture, feedback, riattivazione: anch'esse marketing) ora hanno la
+stessa disiscrizione con-un-click delle campagne:
+- **lifecycle.service.ts**: `unsubUrlsFor(userId)` costruisce insieme il link preferenze e
+  l'URL one-click (dallo stesso token CRM); `sendLifecycle` passa `listUnsubscribeUrl` quando
+  la persona ha una scheda CRM. `prefsLinkFor` ora è un sottile wrapper di `unsubUrlsFor`.
+Così tutte le email di massa/marketing (campagne + lifecycle) rispettano il requisito
+Gmail/Yahoo/Microsoft, non solo le campagne.

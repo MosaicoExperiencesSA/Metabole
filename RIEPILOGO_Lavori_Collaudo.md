@@ -1,0 +1,104 @@
+# Riepilogo lavori — ciclo collaudo (luglio 2026)
+
+**Aggiornato:** 20 luglio 2026 · Origin: `08310d7`
+
+Questo documento riassume tutti i lavori del ciclo di collaudo, cosa è già su GitHub,
+cosa resta da pushare, la checklist post-deploy e i punti ancora aperti. Il dettaglio
+tecnico di ogni voce è nei rispettivi `REGISTRO_*.md`.
+
+---
+
+## 1) Cosa è stato fatto (per area)
+
+**Diagnostica & sicurezza**
+- Script di audit del socio corretto ed eseguito; backend a **0 vulnerabilità npm**.
+  → `REGISTRO_Diagnostica_Codebase.md`
+
+**Feedback collaudo — Blocco 1** (cliente + motore menu)
+- Cambio cibo: correzione immediata di oggi+domani+dopodomani + popup "elimina per sempre".
+- Sezione "Cibi esclusi" nel profilo app.
+- Chat coach/nutrizionista attiva (con aggiornamento automatico) + conversazioni passate.
+- Cambio tipo dieta → rigenera i menu futuri (solo la differenza); cambio data inizio →
+  cancella e riparte.
+- Card "Il mio piano": data del primo menu erogato. Stili alimentari solo da diete approvate.
+- Iconcina profilo (app cliente) allineata.
+  → `REGISTRO_Feedback_Collaudo_Blocco1.md`
+
+**Feedback collaudo — Blocco 2** (coordinatrice + utenze collegate)
+- Dashboard e alert di team per la coordinatrice; ref code anche per la manager coach.
+- Collegamento utenza cliente↔staff con switch senza logout + banner "PROFILO TECNICO".
+  → `REGISTRO_Feedback_Collaudo_Blocco2.md`
+
+**Feedback collaudo — Blocco 3** (app coach operativa)
+- Scheda cliente coach: modifica dati, note, correzione misure. Lead cliccabili con scheda
+  (stato pipeline + note).
+  → `REGISTRO_Feedback_Collaudo_Blocco3.md`
+
+**Consigliati stagionali**
+- Flag "Consigliato" sulle diete + sezione "Consigliati" nell'app; prodotti Vacanza estiva
+  e Rientro estivo con bilanciamenti da ricerca.
+  → `REGISTRO_Consigliati_Estate.md` · `progetto/Consigliati_Estate_Bilanciamenti.md`
+
+**Switch profilo — rifiniture**
+- Fix `linkedUserId` restituito da login/switch (pulsante visibile subito).
+- Testi pulsanti: "Passa al profilo professionale" (lato cliente); "Passa al profilo cliente"
+  reso col colore del tema (era bianco, poco leggibile).
+
+**Deliverability email (allegato 3, parte codice)**
+- Disiscrizione con-un-click (header List-Unsubscribe + footer) su **campagne** e **lifecycle**.
+  → `REGISTRO_Deliverability_Email.md`
+
+**Fix vari**
+- Icona profilo app staff allineata; home backoffice "Responsabile Coach" = home coach.
+  → `REGISTRO_Fix_Icona_Staff_Dashboard_Coordinatrice.md`
+
+---
+
+## 2) Stato push (al 20/07, origin 08310d7)
+
+**Già su GitHub:** diagnostica, blocchi 1-2-3, Consigliati, switch fix + testo pulsante,
+deliverability campagne, fix icona cliente, fix dashboard **Coordinatrice** (coach_coordinator).
+
+**Ancora da pushare (3 lavori):**
+1. **Deliverability lifecycle** — `backend/src/marketing/lifecycle.service.ts` (+ nota nel
+   `REGISTRO_Deliverability_Email.md`).
+2. **Pulsante "Passa al profilo cliente" col colore tema** — `app/src/staff/shared/Profilo.tsx`.
+   Anche l'**icona profilo app staff** allineata — `app/src/staff/theme-staff.css`.
+3. **Responsabile Coach (ruolo `sales`): home coach + ref code** —
+   `backend/src/coach/coach.service.ts`, `backend/src/commerce/lead-assignment.service.ts`,
+   `backend/src/commerce/lead-assignment.controller.ts`, `backoffice/src/pages/Home.tsx`,
+   `backoffice/src/pages/Users.tsx` (+ `REGISTRO_Responsabile_Coach.md`).
+
+Commit suggeriti per i residui:
+- `Deliverability lifecycle one-click + pulsante/icona switch staff col colore tema`
+- `Responsabile Coach (sales): home coach in backoffice + ref code proprio`
+
+**Nota ruoli:** "Coordinatrice Coach" = `coach_coordinator` (già a posto); "Responsabile
+Coach" = `sales` (questo terzo lavoro). Sono due ruoli distinti.
+
+---
+
+## 3) Checklist POST-DEPLOY (azioni tue)
+
+- [ ] **Migration DB**: al deploy backend gira `prisma migrate deploy` — ci sono nuove
+      colonne (`user.linked_user_id`, `diet.recommended`). Verifica che siano applicate.
+- [ ] **Env Render**: imposta `PUBLIC_API_URL=https://metabole-backend.onrender.com`
+      (serve alla disiscrizione one-click).
+- [ ] **Brevo/DNS** (fattore #1 deliverability, NON codice): autentica il dominio su Brevo
+      (SPF, DKIM, DMARC tutti verdi) e invia da un indirizzo `@` del dominio, mai da Gmail.
+- [ ] **Grafica PDF → Ripristina** su "Report mensile" e "Ricevuta di pagamento" (il seed non
+      sovrascrive i template salvati).
+- [ ] **Consigliati in produzione**: crea dal backoffice le diete `summer_holiday` /
+      `summer_return` coi testi di `progetto/Consigliati_Estate_Bilanciamenti.md`, spunta
+      "Consigliato" + "Visibile", componi i menu e approva (in prod il seed non li crea).
+- [ ] **Posta**: se ricompaiono i timeout, gira a SiteGround gli Outbound IP di Render per la
+      whitelist IMAP/SMTP.
+
+---
+
+## 4) Punti ancora APERTI
+
+- **Allegato 3, seconda metà** (punto 2 "Lista e consenso" e successivi): ho solo lo spezzone
+  del punto 1. Mandamelo completo e valuto se serve altro codice.
+- **Decisioni business** (per il socio): Stripe ricorrente; durata mantenimento; conferma loop
+  rientro pagato→mese gratis; strategia warm-up degli 80k contatti storici.

@@ -230,7 +230,7 @@ export default function Profilo({ tabs }: { tabs: TabItem[] }) {
       </Card>
 
       {user?.linkedUserId && (
-        <button className="sf-btn" style={{ marginTop: 12 }} onClick={goToLinked} disabled={switching}>
+        <button className="sf-btn p" style={{ marginTop: 12 }} onClick={goToLinked} disabled={switching}>
           <i className="ti ti-switch-horizontal" /> {switching ? 'Passo…' : 'Passa al profilo cliente'}
         </button>
       )}

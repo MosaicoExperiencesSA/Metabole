@@ -339,7 +339,7 @@ export function Users() {
                       )}
                     </td>
                     <td>
-                      {u.role === 'coach' || u.role === 'coach_coordinator' ? (
+                      {u.role === 'coach' || u.role === 'coach_coordinator' || u.role === 'sales' ? (
                         <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                           {u.staff?.refCode ? <code style={{ fontSize: 12 }}>{u.staff.refCode}</code> : <span className="muted" style={{ fontSize: 12 }}>—</span>}
                           {canManage && (

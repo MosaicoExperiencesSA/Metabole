@@ -129,13 +129,31 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
 
   /** Link preferenze PERSONALE (token firmato) se la persona ha una scheda CRM. */
   private async prefsLinkFor(userId: string): Promise<string> {
+    return (await this.unsubUrlsFor(userId)).prefsLink;
+  }
+
+  /**
+   * Link preferenze + URL di disiscrizione one-click (header List-Unsubscribe) per una
+   * cliente con scheda CRM. Usati insieme nelle email lifecycle (marketing) per la
+   * deliverability Gmail/Yahoo/Microsoft.
+   */
+  private async unsubUrlsFor(userId: string): Promise<{ prefsLink: string; oneClickUrl: string | null }> {
     const secret = this.config.get<string>('PREFS_TOKEN_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-only-insecure-secret';
     const rec = await this.prisma.crmRecord.findUnique({ where: { clientId: userId }, select: { id: true } }).catch(() => null);
-    return rec ? `${this.appUrl()}/preferenze?t=${prefsToken(rec.id, secret)}` : `${this.appUrl()}/preferenze`;
+    if (!rec) return { prefsLink: `${this.appUrl()}/preferenze`, oneClickUrl: null };
+    const token = prefsToken(rec.id, secret);
+    return {
+      prefsLink: `${this.appUrl()}/preferenze?t=${token}`,
+      oneClickUrl: `${this.apiUrl()}/public/marketing/unsubscribe?t=${token}`,
+    };
   }
 
   private appUrl(): string {
     return this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
+  }
+
+  private apiUrl(): string {
+    return this.config.get<string>('PUBLIC_API_URL') ?? 'https://metabole-backend.onrender.com';
   }
 
   private dayRange(offsetDays: number): { gte: Date; lt: Date } {
@@ -231,10 +249,16 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     if (!tpl || !tpl.active) return 'skipped';
     if (await this.isOptedOut(email, userId)) return 'skipped';
 
-    const fullVars = { link_preferenze: await this.prefsLinkFor(userId), ...vars };
+    const { prefsLink, oneClickUrl } = await this.unsubUrlsFor(userId);
+    const fullVars = { link_preferenze: prefsLink, ...vars };
     const html = this.merge(tpl.bodyHtml, fullVars);
     const subject = this.merge(tpl.subject, fullVars);
-    const ok = await this.mail.send({ to: email, subject, html, templateKey: `lifecycle:${key}`, tags: [`lifecycle:${key}`] });
+    const ok = await this.mail.send({
+      to: email, subject, html,
+      templateKey: `lifecycle:${key}`,
+      tags: [`lifecycle:${key}`],
+      ...(oneClickUrl ? { listUnsubscribeUrl: oneClickUrl } : {}),
+    });
     if (!ok) return 'failed';
     try {
       await this.prisma.lifecycleEmail.create({ data: { userId, templateKey: key, dedupeKey } });
