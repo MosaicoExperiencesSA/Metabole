@@ -6,6 +6,7 @@ import { COACH_TABS } from '../tabs';
 import CoachDashboard from './CoachDashboard';
 import CoachClienti from './CoachClienti';
 import CoachClienteDetail from './CoachClienteDetail';
+import CoachLeadDetail from './CoachLeadDetail';
 import CoachAlert from './CoachAlert';
 import { CoachChatList, CoachChatThread } from './CoachChat';
 import CoachAgenda from './CoachAgenda';
@@ -16,6 +17,7 @@ export default function CoachApp() {
       <Route path="/" element={<CoachDashboard />} />
       <Route path="/clienti" element={<CoachClienti />} />
       <Route path="/clienti/:id" element={<CoachClienteDetail />} />
+      <Route path="/lead/:id" element={<CoachLeadDetail />} />
       <Route path="/alert" element={<CoachAlert />} />
       <Route path="/chat" element={<CoachChatList tabs={COACH_TABS} />} />
       <Route path="/chat/:threadId" element={<CoachChatThread tabs={COACH_TABS} />} />

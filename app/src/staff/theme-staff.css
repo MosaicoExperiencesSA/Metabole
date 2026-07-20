@@ -598,3 +598,8 @@
   from { transform: translateX(0); }
   to { transform: translateX(-100%); }
 }
+
+/* Campo etichetta+input verticale nelle schede staff (modifica cliente ecc.). */
+.sf-field { display: block; margin-bottom: 10px; }
+.sf-field .k { display: block; font-size: 11px; font-weight: 700; color: #5F6E6B; margin-bottom: 4px; }
+.sf-field .sf-inp { width: 100%; }

@@ -21,6 +21,7 @@ interface Checkin {
   hunger: number | null;
   stress: number | null;
 }
+interface Note { id: string; body: string; createdAt: string; author: string | null }
 interface Detail {
   user: { firstName: string | null; lastName: string | null; email: string; phone: string | null };
   profile: {
@@ -29,12 +30,15 @@ interface Detail {
     pathType?: string | null;
     coachStyle?: string | null;
     character?: string | null;
+    intolerances?: string[] | null;
+    dislikedFoods?: string[] | null;
   } | null;
   objective: { targetWeightKg?: number | null; targetDate?: string | null; status?: string } | null;
   measurements: Measurement[];
   checkins: Checkin[];
   subscription: { plan?: { name?: string } | null; status?: string } | null;
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string }[];
+  notes?: Note[];
 }
 
 const PAY_STATUS: Record<string, string> = { pending: 'In attesa', receipt_uploaded: 'Contabile caricata', approved: 'Approvato', rejected: 'Rifiutato' };
@@ -47,6 +51,83 @@ export default function CoachClienteDetail() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [payMsg, setPayMsg] = useState<string | null>(null);
   const [payErr, setPayErr] = useState<string | null>(null);
+  // Modifica dati base della scheda (nome, telefono, non graditi/intolleranze).
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<{ name: string; phone: string; intolerances: string; dislikedFoods: string }>({ name: '', phone: '', intolerances: '', dislikedFoods: '' });
+  const [saving, setSaving] = useState(false);
+  const [opMsg, setOpMsg] = useState<string | null>(null);
+  const [opErr, setOpErr] = useState<string | null>(null);
+  const [newNote, setNewNote] = useState('');
+  const [fixing, setFixing] = useState<string | null>(null);
+
+  function startEdit(d: Detail) {
+    setForm({
+      name: d.profile?.name ?? fullName(d.user.firstName, d.user.lastName, ''),
+      phone: d.user.phone ?? '',
+      intolerances: (d.profile?.intolerances ?? []).join(', '),
+      dislikedFoods: (d.profile?.dislikedFoods ?? []).join(', '),
+    });
+    setOpMsg(null); setOpErr(null);
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!id) return;
+    setSaving(true); setOpErr(null); setOpMsg(null);
+    const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
+    try {
+      await api(`/admin/clients/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: form.name.trim() || undefined,
+          phone: form.phone.trim(),
+          intolerances: list(form.intolerances),
+          dislikedFoods: list(form.dislikedFoods),
+        }),
+      });
+      setOpMsg('Scheda aggiornata.');
+      setEditing(false);
+      state.reload();
+    } catch (e) {
+      setOpErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addNote() {
+    if (!id || !newNote.trim()) return;
+    setOpErr(null);
+    try {
+      await api(`/admin/clients/${id}/note`, { method: 'POST', body: JSON.stringify({ body: newNote.trim() }) });
+      setNewNote('');
+      state.reload();
+    } catch (e) {
+      setOpErr(e instanceof ApiError ? e.message : 'Nota non salvata.');
+    }
+  }
+
+  /** Correzione misura (peso/vita): richiede il permesso "Correggi misure"; il backend decide. */
+  async function fixMeasure(m: Measurement) {
+    if (!id) return;
+    const w = prompt('Peso corretto (kg):', String(m.weightKg));
+    if (w === null) return;
+    const weightKg = Number(w.replace(',', '.'));
+    if (Number.isNaN(weightKg)) { setOpErr('Peso non valido.'); return; }
+    const waistRaw = prompt('Girovita corretto (cm), vuoto per lasciare:', m.waistCm != null ? String(m.waistCm) : '');
+    setFixing(m.id); setOpErr(null); setOpMsg(null);
+    const body: Record<string, unknown> = { weightKg };
+    if (waistRaw !== null && waistRaw.trim() !== '') body.waistCm = Number(waistRaw.replace(',', '.'));
+    try {
+      await api(`/admin/clients/${id}/measurements/${m.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      setOpMsg('Misura corretta.');
+      state.reload();
+    } catch (e) {
+      setOpErr(e instanceof ApiError ? e.message : 'Correzione non riuscita (potresti non avere il permesso).');
+    } finally {
+      setFixing(null);
+    }
+  }
 
   /** Carica la contabile del bonifico per conto della cliente (l'approvazione resta all'amministrazione). */
   async function uploadReceipt(paymentId: string, file: File) {
@@ -102,8 +183,44 @@ export default function CoachClienteDetail() {
                   <a className="sf-mini b" href="/chat">
                     <i className="ti ti-message-2" /> Vai in chat
                   </a>
+                  {!editing && (
+                    <button className="sf-mini" onClick={() => startEdit(d)}>
+                      <i className="ti ti-edit" /> Modifica
+                    </button>
+                  )}
                 </div>
               </Card>
+
+              {opErr && <Card><div style={{ color: '#B3261E', fontSize: 13 }}>{opErr}</div></Card>}
+              {opMsg && <Card><div style={{ color: '#0E7C66', fontSize: 13 }}>{opMsg}</div></Card>}
+
+              {editing && (
+                <>
+                  <Section title="Modifica scheda" />
+                  <Card>
+                    <label className="sf-field">
+                      <span className="k">Nome</span>
+                      <input className="sf-inp" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    </label>
+                    <label className="sf-field">
+                      <span className="k">Telefono</span>
+                      <input className="sf-inp" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+39…" />
+                    </label>
+                    <label className="sf-field">
+                      <span className="k">Intolleranze (virgola)</span>
+                      <input className="sf-inp" value={form.intolerances} onChange={(e) => setForm({ ...form, intolerances: e.target.value })} placeholder="lattosio, glutine…" />
+                    </label>
+                    <label className="sf-field">
+                      <span className="k">Cibi non graditi (virgola)</span>
+                      <input className="sf-inp" value={form.dislikedFoods} onChange={(e) => setForm({ ...form, dislikedFoods: e.target.value })} placeholder="funghi, tacchino…" />
+                    </label>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button className="sf-btn p" onClick={saveEdit} disabled={saving}>{saving ? 'Salvo…' : 'Salva'}</button>
+                      <button className="sf-btn g" onClick={() => setEditing(false)} disabled={saving}>Annulla</button>
+                    </div>
+                  </Card>
+                </>
+              )}
 
               <Section title="Andamento peso" />
               <Card>
@@ -177,7 +294,7 @@ export default function CoachClienteDetail() {
                 </>
               )}
 
-              {d.measurements.length > 1 && (
+              {d.measurements.length > 0 && (
                 <>
                   <Section title="Storico misure" />
                   <Card className="pad0">
@@ -189,12 +306,36 @@ export default function CoachClienteDetail() {
                             {m.waistCm != null ? `vita ${m.waistCm} cm` : ''}
                           </div>
                         </div>
-                        <span className="sf-sub">{shortDate(m.date)}</span>
+                        <button className="sf-mini" onClick={() => fixMeasure(m)} disabled={fixing === m.id} title="Correggi la misura (serve il permesso)">
+                          <i className="ti ti-pencil" /> {fixing === m.id ? '…' : 'Correggi'}
+                        </button>
+                        <span className="sf-sub" style={{ marginLeft: 8 }}>{shortDate(m.date)}</span>
                       </div>
                     ))}
                   </Card>
                 </>
               )}
+
+              <Section title="Note dello staff" />
+              <Card>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="sf-inp" style={{ flex: 1 }} placeholder="Aggiungi una nota…" value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void addNote(); }} />
+                  <button className="sf-btn p" style={{ width: 'auto', padding: '0 14px' }} onClick={addNote} disabled={!newNote.trim()}>Aggiungi</button>
+                </div>
+                {(d.notes ?? []).length === 0 ? (
+                  <p className="sf-sub" style={{ marginTop: 10 }}>Nessuna nota per ora.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+                    {(d.notes ?? []).slice(0, 30).map((n) => (
+                      <div key={n.id} style={{ background: '#F6F9F8', borderRadius: 10, padding: '8px 10px' }}>
+                        <div style={{ fontSize: 13, color: '#2E3E3B', lineHeight: 1.5 }}>{n.body}</div>
+                        <div className="sf-sub" style={{ marginTop: 3 }}>{n.author ?? 'Staff'} · {shortDate(n.createdAt)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
             </>
           );
         }}

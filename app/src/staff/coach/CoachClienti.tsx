@@ -76,8 +76,8 @@ export default function CoachClienti() {
                   <div
                     key={c.clientId ?? c.leadId}
                     className="sf-row"
-                    onClick={() => { if (c.clientId) nav(`/clienti/${c.clientId}`); }}
-                    style={{ alignItems: 'stretch', cursor: c.clientId ? 'pointer' : 'default' }}
+                    onClick={() => { if (c.clientId) nav(`/clienti/${c.clientId}`); else if (c.leadId) nav(`/lead/${c.leadId}`); }}
+                    style={{ alignItems: 'stretch', cursor: (c.clientId || c.leadId) ? 'pointer' : 'default' }}
                   >
                     <Avatar name={c.name} />
                     <div className="sf-row-main">
