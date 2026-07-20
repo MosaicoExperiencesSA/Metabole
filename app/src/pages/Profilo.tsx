@@ -124,10 +124,10 @@ function ExcludedFoods() {
           ))}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <input className="input" style={{ flex: 1 }} placeholder="Aggiungi un cibo… (es. funghi)" value={add}
+      <div style={{ marginTop: 12 }}>
+        <input className="input" style={{ width: '100%' }} placeholder="Aggiungi un cibo… (es. funghi)" value={add}
           onChange={(e) => setAdd(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addFood(); }} />
-        <button className="btn" style={{ padding: '0 16px' }} disabled={busy || add.trim().length < 2} onClick={addFood}>Aggiungi</button>
+        <button className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={busy || add.trim().length < 2} onClick={addFood}>Aggiungi</button>
       </div>
       {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
       {intol.length > 0 && (
