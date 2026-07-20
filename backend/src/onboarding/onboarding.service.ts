@@ -31,12 +31,13 @@ export class OnboardingService {
   async dietProducts() {
     const diets = await this.prisma.diet.findMany({
       where: { clientVisible: true, status: 'approved' } as never,
-      orderBy: { createdAt: 'asc' },
+      // I "Consigliati" (recommended) vengono prima, poi per data di creazione.
+      orderBy: [{ recommended: 'desc' }, { createdAt: 'asc' }] as never,
     });
     const seen = new Set<string>();
     const products: {
       id: string; style: string; name: string; description: string | null;
-      highlights: string[]; objective: string; seasonalTag: string | null;
+      highlights: string[]; objective: string; seasonalTag: string | null; recommended: boolean;
     }[] = [];
     for (const d of diets as unknown as Array<Record<string, unknown>>) {
       const style = String(d.style);
@@ -50,6 +51,7 @@ export class OnboardingService {
         highlights: Array.isArray(d.highlights) ? (d.highlights as string[]) : [],
         objective: (d.objective as string) ?? 'dimagrimento',
         seasonalTag: (d.seasonalTag as string) ?? null,
+        recommended: Boolean(d.recommended),
       });
     }
     return products;

@@ -1148,6 +1148,7 @@ model Diet {
   objective         String   @default("dimagrimento") // dimagrimento | mantenimento
   clientVisible     Boolean  @default(false) @map("client_visible")
   siteVisible       Boolean  @default(false) @map("site_visible") // mostrata sul SITO pubblico (indipendente da clientVisible dell'app)
+  recommended       Boolean  @default(false) @map("recommended") // in evidenza nella sezione "Consigliati" dell'app
 
   dayTemplates DietDayTemplate[]
   menuDays     MenuDay[]
@@ -1156,6 +1157,7 @@ model Diet {
   @@index([regime, mealsPerDay, status])
   @@index([clientVisible])
   @@index([siteVisible])
+  @@index([recommended])
   @@map("diet")
 }
 

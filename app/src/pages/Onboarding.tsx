@@ -58,7 +58,7 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
   return Object.keys(out).length ? (out as T) : undefined;
 }
 
-interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[]; seasonalTag: string | null }
+interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[]; seasonalTag: string | null; recommended?: boolean }
 
 /** Etichette leggibili di ripiego se una dieta non ha un nome cliente impostato:
  *  così non mostriamo mai il codice grezzo (es. "low_carb") ma "Low carb". */
@@ -96,45 +96,60 @@ function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: 
   }
 
   const sel = String(value ?? '');
+  const recommended = products.filter((p) => p.recommended);
+  const others = products.filter((p) => !p.recommended);
+
+  const renderCard = (p: DietProduct) => {
+    const on = sel === p.style;
+    const isOpen = open === p.style;
+    return (
+      <div key={p.style} className="card" style={{ display: 'block', border: on ? '2px solid var(--teal)' : p.recommended ? '1px solid rgba(51,177,144,.35)' : undefined }}>
+        <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => onChange('dietStyle', p.style)}>
+          <b style={{ fontSize: 15 }}>
+            {p.name && p.name !== p.style ? p.name : prettyStyle(p.style)}
+            {p.recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#B8860B', background: 'rgba(255,193,7,.15)', padding: '2px 8px', borderRadius: 20 }}><i className="ti ti-star-filled" style={{ fontSize: 10, verticalAlign: '-1px' }} /> Consigliato</span>}
+            {p.seasonalTag && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: 'var(--teal)', background: 'rgba(51,177,144,.12)', padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{p.seasonalTag}</span>}
+          </b>
+          {on
+            ? <i className="ti ti-circle-check" style={{ color: 'var(--teal)', fontSize: 20 }} />
+            : <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--line)', display: 'inline-block' }} />}
+        </div>
+        {(p.description || p.highlights.length > 0) && (
+          <button
+            type="button"
+            className="link"
+            style={{ background: 'none', border: 0, padding: '6px 0 0', cursor: 'pointer', fontSize: 12, margin: 0 }}
+            onClick={() => setOpen(isOpen ? null : p.style)}
+          >
+            {isOpen ? 'Nascondi' : 'Caratteristiche principali'} <i className={`ti ti-chevron-${isOpen ? 'up' : 'down'}`} style={{ fontSize: 13, verticalAlign: '-2px' }} />
+          </button>
+        )}
+        {isOpen && (
+          <div style={{ marginTop: 6 }}>
+            {p.description && <div className="muted" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 6 }}>{p.description}</div>}
+            {p.highlights.map((h, i) => (
+              <div key={i} style={{ display: 'flex', gap: 6, fontSize: 13, marginBottom: 3 }}>
+                <i className="ti ti-check" style={{ color: 'var(--teal)', flex: 'none' }} /> <span>{h}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {products.map((p) => {
-        const on = sel === p.style;
-        const isOpen = open === p.style;
-        return (
-          <div key={p.style} className="card" style={{ display: 'block', border: on ? '2px solid var(--teal)' : undefined }}>
-            <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => onChange('dietStyle', p.style)}>
-              <b style={{ fontSize: 15 }}>
-                {p.name && p.name !== p.style ? p.name : prettyStyle(p.style)}
-                {p.seasonalTag && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: 'var(--teal)', background: 'rgba(51,177,144,.12)', padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{p.seasonalTag}</span>}
-              </b>
-              {on
-                ? <i className="ti ti-circle-check" style={{ color: 'var(--teal)', fontSize: 20 }} />
-                : <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--line)', display: 'inline-block' }} />}
-            </div>
-            {(p.description || p.highlights.length > 0) && (
-              <button
-                type="button"
-                className="link"
-                style={{ background: 'none', border: 0, padding: '6px 0 0', cursor: 'pointer', fontSize: 12, margin: 0 }}
-                onClick={() => setOpen(isOpen ? null : p.style)}
-              >
-                {isOpen ? 'Nascondi' : 'Caratteristiche principali'} <i className={`ti ti-chevron-${isOpen ? 'up' : 'down'}`} style={{ fontSize: 13, verticalAlign: '-2px' }} />
-              </button>
-            )}
-            {isOpen && (
-              <div style={{ marginTop: 6 }}>
-                {p.description && <div className="muted" style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 6 }}>{p.description}</div>}
-                {p.highlights.map((h, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 6, fontSize: 13, marginBottom: 3 }}>
-                    <i className="ti ti-check" style={{ color: 'var(--teal)', flex: 'none' }} /> <span>{h}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+      {recommended.length > 0 && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#B8860B' }}>
+            <i className="ti ti-star-filled" style={{ fontSize: 13 }} /> Consigliati
           </div>
-        );
-      })}
+          {recommended.map(renderCard)}
+          {others.length > 0 && <div style={{ height: 1, background: 'var(--line)', margin: '4px 0' }} />}
+        </>
+      )}
+      {others.map(renderCard)}
     </div>
   );
 }

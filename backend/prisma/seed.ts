@@ -792,6 +792,95 @@ async function seedDietProductFields(): Promise<void> {
 }
 
 /**
+ * Prodotti stagionali "Consigliati" (richiesta Simone): Vacanza estiva e Rientro estivo.
+ * Bilanciamenti basati su linee guida di dietetica (alta sazietà proteica, molta verdura/
+ * fibra, idratazione, 1 piacere pianificato in vacanza; rientro con lieve deficit e ripresa
+ * delle abitudini). Idempotente. I menu si compongono dalle ricette del catalogo per slot:
+ * se ci sono ricette per tutti gli slot → dieta APPROVATA e già visibile nei Consigliati;
+ * altrimenti scheda-prodotto in bozza, che il nutrizionista completa e approva.
+ */
+async function seedSeasonalConsigliati(): Promise<void> {
+  const SLOTS = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
+  // Una ricetta attiva per ciascuno slot (dal catalogo esistente).
+  const bySlot = new Map<string, string>();
+  for (const slot of SLOTS) {
+    const rec = await prisma.recipe.findFirst({ where: { mealSlot: slot as never, active: true }, select: { id: true } });
+    if (rec) bySlot.set(slot, rec.id);
+  }
+  const canApprove = SLOTS.every((s) => bySlot.has(s));
+  const rotation = () => SLOTS.map((slot) => ({ slot, recipeId: bySlot.get(slot) })).filter((m) => m.recipeId);
+
+  const PRODUCTS = [
+    {
+      style: 'summer_holiday',
+      name: 'Vacanza estiva',
+      clientName: 'Vacanza estiva',
+      clientDescription: 'Consigli e menu per mangiare bene in vacanza senza rinunce: torni a casa con lo stesso peso, non con 3 kg in più.',
+      highlights: [
+        'Proteine e verdura a ogni pasto (sazietà e leggerezza)',
+        '1 piacere al giorno pianificato, senza sensi di colpa',
+        'Tanta acqua, alcolici con misura',
+        'Adatto a ristorante e buffet',
+      ],
+      objective: 'mantenimento',
+    },
+    {
+      style: 'summer_return',
+      name: 'Rientro estivo',
+      clientName: 'Rientro estivo',
+      clientDescription: 'Il reset dolce dopo le vacanze: recuperi le abitudini e sgonfi in 3-4 settimane, con un lieve deficit e piatti semplici da preparare.',
+      highlights: [
+        'Proteine alte per proteggere la massa',
+        'Carboidrati integrali e tanta verdura',
+        'Meno zuccheri, alcol e cibi pronti',
+        'Menu semplici, pronti in poco',
+      ],
+      objective: 'dimagrimento',
+    },
+  ] as const;
+
+  for (const p of PRODUCTS) {
+    const existing = await prisma.diet.findFirst({ where: { style: p.style }, select: { id: true } });
+    const productData = {
+      clientVisible: true,
+      recommended: true,
+      seasonalTag: 'estate',
+      clientName: p.clientName,
+      clientDescription: p.clientDescription,
+      highlights: p.highlights as never,
+      objective: p.objective,
+    };
+    if (existing) {
+      await prisma.diet.updateMany({ where: { style: p.style }, data: productData as never });
+      continue;
+    }
+    await prisma.diet.create({
+      data: {
+        name: p.name,
+        regime: 'omnivore',
+        style: p.style,
+        mealsPerDay: 5,
+        levels: [{ level: 1, kcal: p.objective === 'mantenimento' ? 1700 : 1450 }] as never,
+        status: canApprove ? 'approved' : 'draft',
+        approvedAt: canApprove ? new Date() : null,
+        ...productData,
+        ...(canApprove
+          ? {
+              dayTemplates: {
+                create: [
+                  { level: 1, dayIndex: 1, meals: rotation() as never },
+                  { level: 1, dayIndex: 2, meals: rotation() as never },
+                ],
+              },
+            }
+          : {}),
+      } as never,
+    });
+  }
+  console.log(`Seed: prodotti Consigliati stagionali (Vacanza/Rientro) ${canApprove ? 'approvati con menu' : 'creati come bozza (menu da completare)'}.`);
+}
+
+/**
  * Testimonianze iniziali del sito (le stesse del prototipo, approvate dal marketing).
  * Idempotente: se esiste già almeno una testimonianza non fa nulla (il backoffice
  * le gestisce da lì in poi). Foto lasciata vuota → il sito usa il proprio fallback.
@@ -980,6 +1069,7 @@ async function main(): Promise<void> {
     // nutrizionista e NON viene più forzato/sovrascritto a ogni deploy.
     await seedDietProductFields();
     await seedDemoCatalog();
+    await seedSeasonalConsigliati();
     await seedTestimonials();
     await seedKetoCatalog(prisma);
     await seedCommerce();

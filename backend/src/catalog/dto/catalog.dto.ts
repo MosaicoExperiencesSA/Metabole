@@ -37,6 +37,7 @@ export class CreateDietDto {
   @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
   @IsOptional() @IsBoolean() clientVisible?: boolean;
   @IsOptional() @IsBoolean() siteVisible?: boolean;
+  @IsOptional() @IsBoolean() recommended?: boolean;
 }
 
 export class RenameDietDto {
@@ -82,6 +83,7 @@ export class UpdateDietDto {
   @IsOptional() @IsString() @MaxLength(40) seasonalTag?: string;
   @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
   @IsOptional() @IsBoolean() clientVisible?: boolean;
+  @IsOptional() @IsBoolean() recommended?: boolean;
 }
 
 /** Modifica della sola "scheda cliente" (schermo 16), consentita anche su diete approvate. */
@@ -92,6 +94,7 @@ export class UpdateDietProductDto {
   @IsOptional() @IsString() @MaxLength(40) seasonalTag?: string;
   @IsOptional() @IsIn(['dimagrimento', 'mantenimento']) objective?: string;
   @IsOptional() @IsBoolean() clientVisible?: boolean;
+  @IsOptional() @IsBoolean() recommended?: boolean;
 }
 
 /** Una regola del motore attivata/parametrizzata per un prodotto (Fase F). */

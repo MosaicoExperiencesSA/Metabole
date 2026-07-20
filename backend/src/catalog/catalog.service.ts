@@ -196,6 +196,7 @@ export class CatalogService {
         seasonalTag: dto.seasonalTag ?? null,
         objective: dto.objective ?? 'dimagrimento',
         clientVisible: dto.clientVisible ?? false,
+        recommended: dto.recommended ?? false,
       } as never,
     });
     await this.audit.log({

@@ -239,13 +239,13 @@ export function Diete() {
 
 /** Modifica la "scheda cliente" (schermo 16) di una dieta esistente, anche approvata. */
 function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false });
+  const [f, setF] = useState({ clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false, recommended: false });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ clientName?: string | null; clientDescription?: string | null; highlights?: string[] | null; objective?: string | null; seasonalTag?: string | null; clientVisible?: boolean }>(`/diets/${dietId}`)
+    api<{ clientName?: string | null; clientDescription?: string | null; highlights?: string[] | null; objective?: string | null; seasonalTag?: string | null; clientVisible?: boolean; recommended?: boolean }>(`/diets/${dietId}`)
       .then((d) => setF({
         clientName: d.clientName ?? '',
         clientDescription: d.clientDescription ?? '',
@@ -253,6 +253,7 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
         objective: d.objective ?? 'dimagrimento',
         seasonalTag: d.seasonalTag ?? '',
         clientVisible: !!d.clientVisible,
+        recommended: !!d.recommended,
       }))
       .catch((e) => setErr(e instanceof Error ? e.message : 'Caricamento non riuscito.'))
       .finally(() => setLoading(false));
@@ -270,6 +271,7 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
         objective: f.objective,
         seasonalTag: f.seasonalTag || null,
         clientVisible: f.clientVisible,
+        recommended: f.recommended,
       }) });
       onSaved();
     } catch (e) {
@@ -296,6 +298,9 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
           <label className="row" style={{ gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={f.clientVisible} onChange={(e) => setF({ ...f, clientVisible: e.target.checked })} />
             <span style={{ fontSize: 13 }}>Visibile alle clienti nello schermo 16</span></label>
+          <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <input type="checkbox" checked={f.recommended} onChange={(e) => setF({ ...f, recommended: e.target.checked })} />
+            <span style={{ fontSize: 13 }}>Consigliato <span className="muted" style={{ fontSize: 11 }}>(in evidenza nella sezione "Consigliati")</span></span></label>
         </div>
       )}
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
@@ -308,7 +313,7 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
 
 function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { regimes, styles } = useTaxonomy();
-  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, fasting: false, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false });
+  const [f, setF] = useState({ name: '', regime: 'omnivore', style: 'mediterranean', mealsPerDay: 5, fasting: false, clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false, recommended: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -326,6 +331,7 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         objective: f.objective,
         seasonalTag: f.seasonalTag || undefined,
         clientVisible: f.clientVisible,
+        recommended: f.recommended,
       }) });
       onSaved();
     } catch (e) {
@@ -376,6 +382,9 @@ function CreateDietModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         <label className="row" style={{ gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={f.clientVisible} onChange={(e) => setF({ ...f, clientVisible: e.target.checked })} />
           <span style={{ fontSize: 13 }}>Visibile alle clienti nello schermo 16</span></label>
+        <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+          <input type="checkbox" checked={f.recommended} onChange={(e) => setF({ ...f, recommended: e.target.checked })} />
+          <span style={{ fontSize: 13 }}>Consigliato <span className="muted" style={{ fontSize: 11 }}>(in evidenza nella sezione "Consigliati")</span></span></label>
       </div>
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
