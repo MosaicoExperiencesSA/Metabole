@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import { euro, fullName, relDays } from '../format';
 import { useApi } from '../hooks';
 import { Async, Card, Kpi, Section, StaffShell } from '../ui';
@@ -70,10 +71,13 @@ export default function CoachDashboard() {
   const fmtDue = (iso: string) =>
     new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
 
+  const { user } = useAuth();
+  const roleLabel = user?.role === 'coach_coordinator' ? 'Coordinatrice coach' : user?.role === 'sales' ? 'Commerciale' : 'Coach';
+
   return (
     <StaffShell
       title="Dashboard"
-      subtitle="Coach"
+      subtitle={roleLabel}
       tabs={COACH_TABS}
       headerBadge={dash.data?.openAlerts}
     >

@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { coachTeamScope } from '../common/coach-team';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -356,15 +357,16 @@ export class AlertsService {
     opts: { group?: string; priority?: string } = {},
   ): Promise<{ alerts: unknown[] }> {
     const scopeAll = MANAGER_ROLES.includes(user.role);
-    let coachStaffId: string | null = null;
+    // Coordinatrice: vede gli alert di TUTTO il suo team (lei + le sue coach),
+    // esattamente con la stessa dashboard/pagina delle coach.
+    let coachScope: string[] | null = null;
 
     if (!scopeAll) {
-      const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
-      coachStaffId = staff?.id ?? null;
-      if (!coachStaffId) return { alerts: [] };
-      // Ricalcolo lazy solo per le clienti della coach (aggiornamento immediato alla lettura).
+      coachScope = await coachTeamScope(this.prisma, user.sub);
+      if (!coachScope || !coachScope.length) return { alerts: [] };
+      // Ricalcolo lazy solo per le clienti del perimetro (aggiornamento immediato alla lettura).
       const clients = await this.prisma.clientProfile.findMany({
-        where: { assignedCoachId: coachStaffId },
+        where: { assignedCoachId: { in: coachScope } },
         select: { userId: true },
       });
       for (const c of clients as { userId: string }[]) {
@@ -377,7 +379,7 @@ export class AlertsService {
     }
 
     const where: Record<string, unknown> = { status: { in: ACTIVE_STATUSES } };
-    if (!scopeAll) where.coachId = coachStaffId;
+    if (!scopeAll) where.coachId = { in: coachScope ?? [] };
     if (opts.group) where.group = opts.group;
     if (opts.priority) where.priority = opts.priority;
 
@@ -403,8 +405,9 @@ export class AlertsService {
     if (!alert) throw new NotFoundException('Alert non trovato');
 
     if (!MANAGER_ROLES.includes(user.role)) {
-      const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
-      if (!staff || alert.coachId !== staff.id) {
+      // La coordinatrice puo' gestire anche gli alert delle coach del suo team.
+      const scope = await coachTeamScope(this.prisma, user.sub);
+      if (!scope || !alert.coachId || !scope.includes(alert.coachId)) {
         throw new ForbiddenException('Non puoi gestire questo alert');
       }
     }

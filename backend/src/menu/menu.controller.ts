@@ -51,6 +51,11 @@ class DislikeIngredientDto {
   @MinLength(2)
   @MaxLength(60)
   ingredient!: string;
+
+  /** true = escludi PER SEMPRE (popup di conferma dell'app); assente/false = solo i prossimi 3 menu. */
+  @IsOptional()
+  @IsBoolean()
+  forever?: boolean;
 }
 
 @Controller('me')
@@ -82,10 +87,10 @@ export class MenuController {
     return this.menu.rateRecipe(user.sub, dto);
   }
 
-  /** "Sostituisci un ingrediente": registra il non gradito e aggiorna il menu di oggi. */
+  /** "Sostituisci un ingrediente": corregge subito oggi+domani+dopodomani; con forever=true lo esclude per sempre. */
   @Post('menu/substitute')
   substitute(@CurrentUser() user: AuthUser, @Body() dto: DislikeIngredientDto) {
-    return this.menu.substituteDislikedForToday(user.sub, dto.ingredient);
+    return this.menu.substituteDisliked(user.sub, dto.ingredient, dto.forever === true);
   }
 
   /** Pasti consumati non ancora valutati (da riproporre all'apertura). */

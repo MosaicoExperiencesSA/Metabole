@@ -65,6 +65,13 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
     bottom.current?.scrollIntoView({ behavior: 'auto' });
   }, [state.data]);
 
+  // I messaggi della cliente arrivano da soli, senza ricaricare la pagina.
+  useEffect(() => {
+    if (!threadId) return;
+    const timer = setInterval(() => state.reload(), 12_000);
+    return () => clearInterval(timer);
+  }, [threadId]);
+
   async function send() {
     const body = text.trim();
     if (!body || !threadId) return;

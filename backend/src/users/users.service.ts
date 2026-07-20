@@ -289,6 +289,7 @@ export class UsersService {
 
   private static readonly STAFF_ROLES: Role[] = [
     'coach',
+    'coach_coordinator',
     'nutritionist',
     'head_nutritionist',
     'sales',

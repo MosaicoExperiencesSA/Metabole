@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
 
 /**
- * Assistente AI — chat REALE con il sistema di thread (GET /me/threads,
- * GET|POST /threads/:id/messages). Punta al thread dell'assistente AI:
- * risponde subito e gira le domande sanitarie alla nutrizionista.
+ * Chat del team — un'unica pagina per Gaia (AI), coach e nutrizionista, sul sistema
+ * di thread reale (GET /me/threads, GET|POST /threads/:id/messages).
+ * `?who=ai|coach|nutritionist` sceglie l'interlocutore (default: Gaia).
+ * I messaggi si aggiornano da soli ogni 12 secondi: le risposte dello staff
+ * arrivano senza ricaricare la pagina.
  */
 
 interface Thread { id: string; counterpart: string; counterpartName: string }
 interface Msg { id: string; senderRole: string; body: string; sentAt: string }
 
+const POLL_MS = 12_000;
+
 export default function Assistente() {
+  const [params] = useSearchParams();
+  const who = ['ai', 'coach', 'nutritionist'].includes(params.get('who') ?? '') ? (params.get('who') as string) : 'ai';
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState('');
@@ -20,15 +27,27 @@ export default function Assistente() {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setThread(null);
+    setMessages([]);
     api<Thread[]>('/me/threads')
-      .then((ts) => setThread(ts.find((x) => x.counterpart === 'ai') ?? ts[0] ?? null))
+      .then((ts) => setThread(ts.find((x) => x.counterpart === who) ?? (who === 'ai' ? ts[0] ?? null : null)))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [who]);
 
+  // Primo caricamento + aggiornamento automatico (le risposte dello staff arrivano da sole).
   useEffect(() => {
     if (!thread) return;
-    api<Msg[]>(`/threads/${thread.id}/messages`).then(setMessages).catch(() => setMessages([]));
+    let alive = true;
+    const load = () => {
+      api<Msg[]>(`/threads/${thread.id}/messages`)
+        .then((ms) => { if (alive) setMessages(ms); })
+        .catch(() => { /* tentativo successivo */ });
+    };
+    load();
+    const timer = setInterval(load, POLL_MS);
+    return () => { alive = false; clearInterval(timer); };
   }, [thread?.id]);
 
   useEffect(() => {
@@ -50,18 +69,25 @@ export default function Assistente() {
     }
   }
 
+  const title = who === 'ai' ? 'Gaia' : thread?.counterpartName ?? (who === 'coach' ? 'La tua coach' : 'Nutrizionista');
+  const emptyHint = who === 'ai'
+    ? 'Scrivi il primo messaggio 👋'
+    : 'Scrivi il primo messaggio: risponde negli orari di lavoro 👋';
+
   return (
     <div className="home">
-      <AppHeader title="Gaia" />
+      <AppHeader title={title} />
 
       {loading ? (
         <div className="center" style={{ minHeight: 120 }}><div className="spin" /></div>
       ) : !thread ? (
-        <div className="card"><p className="muted" style={{ margin: 0 }}>L'assistente non è ancora disponibile per il tuo account.</p></div>
+        <div className="card"><p className="muted" style={{ margin: 0 }}>
+          {who === 'ai' ? "L'assistente non è ancora disponibile per il tuo account." : 'Ti verrà assegnata a breve: intanto puoi scrivere a Gaia.'}
+        </p></div>
       ) : (
         <>
           <div className="chat-col" style={{ minHeight: '50vh' }}>
-            {messages.length === 0 && <div className="muted" style={{ fontSize: 13, textAlign: 'center', padding: '10px 0' }}>Scrivi il primo messaggio 👋</div>}
+            {messages.length === 0 && <div className="muted" style={{ fontSize: 13, textAlign: 'center', padding: '10px 0' }}>{emptyHint}</div>}
             {messages.map((m) => (
               <div key={m.id} className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}>{m.body}</div>
             ))}

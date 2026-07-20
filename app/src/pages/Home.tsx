@@ -86,11 +86,14 @@ const HELP: [string, string, string, string][] = [
 ];
 
 /** Sheet interattivo "Sostituisci un ingrediente": chiede il cibo non gradito e applica
- *  la sostituzione al menu di oggi (POST /me/menu/substitute). */
+ *  subito la sostituzione ai menu di oggi/domani/dopodomani (POST /me/menu/substitute),
+ *  poi con un popup chiede se ESCLUDERE PER SEMPRE quel cibo (forever: true). */
 function SubstituteIngredient({ onClose }: { onClose: () => void }) {
   const [ing, setIng] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [askForever, setAskForever] = useState(false);
+  const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
@@ -98,14 +101,31 @@ function SubstituteIngredient({ onClose }: { onClose: () => void }) {
     if (v.length < 2) { setErr("Scrivi l'ingrediente che non gradisci."); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ applied: { from: string; to: string }[]; message: string }>('/me/menu/substitute', {
+      const r = await api<{ applied: { day: string; from: string; to: string }[]; message: string }>('/me/menu/substitute', {
         method: 'POST', body: JSON.stringify({ ingredient: v }),
       });
       setMsg(r.message);
+      setAskForever(true); // correzione fatta: ora il popup "per sempre?"
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Non è stato possibile aggiornare il menu.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function excludeForever() {
+    setBusy(true); setErr(null);
+    try {
+      await api('/me/menu/substitute', {
+        method: 'POST', body: JSON.stringify({ ingredient: ing.trim(), forever: true }),
+      });
+      setMsg(`«${ing.trim()}» non comparirà più nei tuoi menu. Puoi ripensarci dal tuo Profilo, sezione "Cibi esclusi".`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Non è stato possibile salvare la preferenza.');
+    } finally {
+      setBusy(false);
+      setAskForever(false);
+      setDone(true);
     }
   }
 
@@ -115,7 +135,21 @@ function SubstituteIngredient({ onClose }: { onClose: () => void }) {
         <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
         <b style={{ fontSize: 15 }}>Sostituisci un ingrediente</b>
       </div>
-      {msg ? (
+      {askForever ? (
+        <>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 10 }}>{msg}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0E7C66', marginBottom: 12 }}>
+            Vuoi eliminare per sempre «{ing.trim()}» dai tuoi menu?
+          </div>
+          {err && <div style={{ color: '#993C1D', fontSize: 12, marginBottom: 6 }}>{err}</div>}
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} disabled={busy} onClick={excludeForever}>
+            {busy ? 'Salvo…' : 'Sì, eliminalo per sempre'}
+          </button>
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11, marginTop: 8, background: '#EEF3F1', color: '#2E3E3B' }} disabled={busy} onClick={onClose}>
+            No, solo per questi giorni
+          </button>
+        </>
+      ) : done || msg ? (
         <>
           <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{msg}</div>
           <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={onClose}>Ok, grazie</button>
@@ -123,13 +157,13 @@ function SubstituteIngredient({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 10 }}>
-            Qual è l'ingrediente che non hai o non ti piace? Lo tolgo dai tuoi gusti e, se è nel menu di oggi, lo sostituisco con un'alternativa equivalente.
+            Qual è l'ingrediente che non hai o non ti piace? Lo sostituisco subito con un'alternativa equivalente nei menu di oggi e dei prossimi due giorni.
           </div>
           <input className="input" placeholder="Es. farro, funghi, pesce…" value={ing} autoFocus
             onChange={(e) => setIng(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }} />
           {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
           <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11, marginTop: 12 }} disabled={busy} onClick={submit}>
-            {busy ? 'Aggiorno…' : 'Aggiorna ricetta'}
+            {busy ? 'Aggiorno…' : 'Aggiorna i menu'}
           </button>
         </>
       )}

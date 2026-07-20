@@ -693,9 +693,9 @@ export class CatalogService {
     return CatalogService.DEFAULT_REGIMES;
   }
 
-  /** Stili disponibili: ricavati dagli stili effettivamente presenti nelle diete del catalogo. */
+  /** Stili disponibili: SOLO quelli di diete APPROVATE (uno stile senza dieta approvata non è assegnabile). */
   async styles(): Promise<{ code: string; label: string }[]> {
-    const rows = (await this.prisma.diet.findMany({ distinct: ['style'], select: { style: true }, orderBy: { style: 'asc' } })) as { style: string | null }[];
+    const rows = (await this.prisma.diet.findMany({ where: { status: 'approved' }, distinct: ['style'], select: { style: true }, orderBy: { style: 'asc' } })) as { style: string | null }[];
     const codes = [...new Set(rows.map((r) => r.style).filter((x): x is string => !!x && !!x.trim()))];
     return codes.map((code) => ({ code, label: CatalogService.STYLE_LABELS[code] ?? this.titleCase(code) }));
   }

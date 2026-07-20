@@ -648,11 +648,20 @@ export class CommerceService {
   }
 
   async mySubscription(clientId: string) {
-    return this.prisma.subscription.findFirst({
+    const sub = await this.prisma.subscription.findFirst({
       where: { clientId },
       orderBy: { createdAt: 'desc' },
       include: { plan: true },
     });
+    if (!sub) return sub;
+    // Data del PRIMO menu davvero erogato per questo abbonamento: è la "Inizio" vera
+    // per la cliente (l'iscrizione/attivazione può precedere il primo menu).
+    const firstMenu = await this.prisma.menuDay.findFirst({
+      where: { clientId, ...(sub.startDate ? { date: { gte: sub.startDate } } : {}) },
+      orderBy: { date: 'asc' },
+      select: { date: true },
+    });
+    return { ...sub, firstMenuDate: firstMenu?.date ?? null };
   }
 
   /** Ricevuta PDF di un PROPRIO pagamento, solo dopo la conferma. */

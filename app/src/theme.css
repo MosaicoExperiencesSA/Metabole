@@ -66,7 +66,7 @@ body {
   border: 0; cursor: pointer; position: relative; padding: 0;
 }
 .hicon i { font-size: 17px; }
-.hicon-user { background: #fff; color: var(--teal); }
+.hicon-user { background: rgba(255, 255, 255, 0.2); color: #fff; } /* come le altre iconcine dell'header */
 .hicon .hbadge {
   position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px;
   border-radius: 8px; background: #E8543C; color: #fff; font-size: 8px; font-weight: 700;

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
+import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
@@ -24,6 +25,7 @@ export class ClientsService {
     private readonly auth: AuthService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly menu: MenuService,
   ) {}
 
   /**
@@ -335,6 +337,20 @@ export class ClientsService {
         entityId: userId,
         metadata: dietTypeChange as never,
       });
+      // I menu cambiano DALLA PROSSIMA EROGAZIONE: i giorni già consumati restano,
+      // i giorni futuri già erogati vengono rifatti con la nuova dieta (solo la differenza).
+      try {
+        const r = await this.menu.redeliverFutureDays(userId);
+        await this.audit.log({
+          action: 'client.diet_type.menus_redelivered',
+          actorId,
+          entityType: 'user',
+          entityId: userId,
+          metadata: { removedFutureDays: r.removed, delivered: r.delivered } as never,
+        });
+      } catch {
+        /* la rigenerazione non deve mai bloccare il salvataggio della scheda */
+      }
     }
 
     // Passaggio di fase dimagrimento → mantenimento: festeggia con la cliente
@@ -517,6 +533,20 @@ export class ClientsService {
         after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10) },
       },
     });
+    // Cambio data di inizio = il piano RIPARTE: si cancellano i menu già erogati e si
+    // rieroga dalla nuova data (il motore rispetta finestre di visibilità e gate misure).
+    try {
+      const r = await this.menu.restartFromPlanStart(userId);
+      await this.audit.log({
+        action: 'client.plan_start.menus_restarted',
+        actorId,
+        entityType: 'user',
+        entityId: userId,
+        metadata: { removedDays: r.removed, delivered: r.delivered } as never,
+      });
+    } catch {
+      /* mai bloccare lo spostamento della data per un errore di rigenerazione */
+    }
     return { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10) };
   }
 

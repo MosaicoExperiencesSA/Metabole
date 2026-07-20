@@ -212,7 +212,9 @@ export class CoachService {
         select: { clientId: true, endDate: true, client: { select: { clientProfile: { select: { name: true } } } } },
         orderBy: { endDate: 'asc' },
       }) as Promise<{ clientId: string; endDate: Date | null; client: { clientProfile: { name: string | null } | null } | null }[]>,
-      this.prisma.alert.count({ where: { coachId: staffId, status: 'open' } }),
+      // Coordinatrice: stessa dashboard delle coach, ma gli alert coprono tutto il suo
+      // team (come gia' clienti e scadenze), non solo i suoi personali.
+      this.prisma.alert.count({ where: { coachId: { in: scope }, status: 'open' } }),
       this.prisma.ledgerEntry.aggregate({
         _sum: { amountCents: true },
         where: { staffId, type: 'expense' as never, category: { in: COMMISSION_CATEGORIES }, date: { gte: monthStart } },

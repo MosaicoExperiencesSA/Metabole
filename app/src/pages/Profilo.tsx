@@ -31,7 +31,7 @@ interface MyProfile {
   birthDate: string | null; codiceFiscale: string | null;
 }
 interface Plan { name: string; period: string; priceCents: number; }
-interface Subscription { id: string; status: string; startDate: string | null; endDate: string | null; plan: Plan | null; }
+interface Subscription { id: string; status: string; startDate: string | null; endDate: string | null; firstMenuDate: string | null; plan: Plan | null; }
 interface Payment { id: string; description: string; amountCents: number; method: string; status: string; createdAt: string; }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -46,14 +46,97 @@ const STATUS: Record<string, { label: string; bg: string; col: string }> = {
 };
 const METHOD: Record<string, string> = { card: 'Carta', bank_transfer: 'Bonifico', manual: 'Manuale' };
 
+/** La data "vera" di inizio per la cliente è quella del PRIMO MENU erogato (non l'iscrizione). */
+function planStart(sub: Subscription): string | null {
+  return sub.firstMenuDate ?? sub.startDate;
+}
+
 function planProgress(sub: Subscription): { day: number; total: number; pct: number } | null {
-  if (!sub.startDate || !sub.endDate) return null;
-  const start = new Date(sub.startDate).getTime();
+  const startIso = planStart(sub);
+  if (!startIso || !sub.endDate) return null;
+  const start = new Date(startIso).getTime();
   const end = new Date(sub.endDate).getTime();
   const now = Date.now();
   const total = Math.max(1, Math.round((end - start) / DAY));
   const day = Math.min(total, Math.max(1, Math.floor((now - start) / DAY) + 1));
   return { day, total, pct: Math.round((day / total) * 100) };
+}
+
+/**
+ * "Cibi esclusi": i cibi che la cliente ha chiesto di non vedere più nei menu
+ * (dislikedFoods). Da qui può toglierli o aggiungerne; le intolleranze restano
+ * mostrate a parte e si cambiano con lo staff (sono un dato di sicurezza).
+ */
+function ExcludedFoods() {
+  const [foods, setFoods] = useState<string[] | null>(null);
+  const [intol, setIntol] = useState<string[]>([]);
+  const [add, setAdd] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ dislikedFoods: string[] | null; intolerances: string[] | null }>('/me/client-profile')
+      .then((p) => { setFoods(p.dislikedFoods ?? []); setIntol(p.intolerances ?? []); })
+      .catch(() => setFoods([]));
+  }, []);
+
+  async function save(next: string[]) {
+    setBusy(true); setErr(null);
+    const prev = foods;
+    setFoods(next);
+    try {
+      await api('/me/client-profile', { method: 'PATCH', body: JSON.stringify({ dislikedFoods: next }) });
+    } catch (e) {
+      setFoods(prev);
+      setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function addFood() {
+    const v = add.trim();
+    if (v.length < 2 || !foods) return;
+    if (foods.some((f) => f.toLowerCase() === v.toLowerCase())) { setAdd(''); return; }
+    setAdd('');
+    void save([...foods, v]);
+  }
+
+  return (
+    <div className="card">
+      <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
+        Questi cibi non compaiono nei tuoi menu. Puoi toglierli o aggiungerne quando vuoi.
+      </p>
+      {foods === null ? (
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Carico…</p>
+      ) : foods.length === 0 ? (
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Nessun cibo escluso per ora.</p>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {foods.map((f) => (
+            <span key={f} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#EEF3F1', borderRadius: 999, padding: '5px 8px 5px 12px', fontSize: 12.5, fontWeight: 600, color: '#2E3E3B' }}>
+              {f}
+              <button aria-label={`Rimuovi ${f}`} disabled={busy} onClick={() => void save(foods.filter((x) => x !== f))}
+                style={{ border: 0, background: '#DDE7E3', color: '#4A5A56', width: 18, height: 18, borderRadius: 999, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                <i className="ti ti-x" style={{ fontSize: 11 }} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <input className="input" style={{ flex: 1 }} placeholder="Aggiungi un cibo… (es. funghi)" value={add}
+          onChange={(e) => setAdd(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addFood(); }} />
+        <button className="btn" style={{ padding: '0 16px' }} disabled={busy || add.trim().length < 2} onClick={addFood}>Aggiungi</button>
+      </div>
+      {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
+      {intol.length > 0 && (
+        <p className="muted" style={{ margin: '12px 0 0', fontSize: 11.5 }}>
+          <i className="ti ti-shield-check" style={{ fontSize: 12, verticalAlign: '-1px' }} /> Intolleranze registrate: <b>{intol.join(', ')}</b> — per cambiarle parlane con la tua coach o nutrizionista.
+        </p>
+      )}
+    </div>
+  );
 }
 
 export default function Profilo() {
@@ -415,6 +498,10 @@ export default function Profilo() {
         </>
       )}
 
+      {/* Cibi esclusi (dislikedFoods): la lista che guida i menu, correggibile qui */}
+      <div className="sec" style={{ marginTop: 4 }}>Cibi esclusi</div>
+      <ExcludedFoods />
+
       {/* Colore dell'app */}
       <div className="sec" style={{ marginTop: 4 }}>Colore dell'app</div>
       <div className="card">
@@ -455,7 +542,7 @@ export default function Profilo() {
                 <div className="prog-fill" style={{ width: `${prog.pct}%` }} />
               </div>
               <div className="row-between" style={{ marginTop: 6 }}>
-                <span className="muted" style={{ fontSize: 11 }}>Inizio {sub.startDate ? fmtDate(sub.startDate) : '—'}</span>
+                <span className="muted" style={{ fontSize: 11 }}>Inizio {planStart(sub) ? fmtDate(planStart(sub)!) : '—'}</span>
                 <span className="muted" style={{ fontSize: 11 }}>Fine {sub.endDate ? fmtDate(sub.endDate) : '—'}</span>
               </div>
             </>

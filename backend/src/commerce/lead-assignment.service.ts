@@ -332,11 +332,24 @@ export class LeadAssignmentService {
    * codice casuale solo come ripiego se il nome non è disponibile.
    */
   async generateRefCode(staffUserId: string, actorId: string, desired?: string): Promise<{ refCode: string }> {
-    const staff = await this.prisma.staff.findFirst({
+    let staff = await this.prisma.staff.findFirst({
       where: { userId: staffUserId, user: { role: { in: ['coach', 'coach_coordinator'] as never } } },
       select: { id: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
-    if (!staff) throw new BadRequestException('Il ref code è disponibile solo per le coach.');
+    if (!staff) {
+      // Coordinatrici create in passato SENZA scheda Staff (mancava coach_coordinator
+      // tra gli STAFF_ROLES): la creiamo al volo, così anche la manager coach ha il
+      // suo ref code come le altre coach.
+      const user = await this.prisma.user.findFirst({
+        where: { id: staffUserId, role: { in: ['coach', 'coach_coordinator'] as never } },
+        select: { id: true, email: true, firstName: true, lastName: true },
+      });
+      if (!user) throw new BadRequestException('Il ref code è disponibile solo per le coach.');
+      staff = await this.prisma.staff.create({
+        data: { userId: user.id, displayName: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email.split('@')[0] },
+        select: { id: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
+      });
+    }
     let code: string;
     if (desired?.trim()) {
       code = desired.trim().toUpperCase();
