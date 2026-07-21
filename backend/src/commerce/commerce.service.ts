@@ -82,7 +82,11 @@ export class CommerceService {
     private readonly referral: ReferralService,
     private readonly monitoring: MonitoringService,
   ) {
-    this.receiptKey = deriveKey(this.config.get<string>('FILE_ENCRYPTION_KEY') ?? 'dev-only-file-key');
+    // Fail-closed: la chiave di cifratura ricevute è obbligatoria (niente chiave pubblica di
+    // ripiego). Su Render è generata automaticamente (generateValue).
+    const fileKey = this.config.get<string>('FILE_ENCRYPTION_KEY');
+    if (!fileKey) throw new Error('FILE_ENCRYPTION_KEY mancante: configurarla nelle variabili d\'ambiente');
+    this.receiptKey = deriveKey(fileKey);
   }
 
   // ---------- Piani e prodotti ----------

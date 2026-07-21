@@ -138,7 +138,8 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
    * deliverability Gmail/Yahoo/Microsoft.
    */
   private async unsubUrlsFor(userId: string): Promise<{ prefsLink: string; oneClickUrl: string | null }> {
-    const secret = this.config.get<string>('PREFS_TOKEN_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-only-insecure-secret';
+    const secret = this.config.get<string>('PREFS_TOKEN_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET');
+    if (!secret) throw new Error('PREFS_TOKEN_SECRET/JWT_ACCESS_SECRET mancante: configurare un secret.');
     const rec = await this.prisma.crmRecord.findUnique({ where: { clientId: userId }, select: { id: true } }).catch(() => null);
     if (!rec) return { prefsLink: `${this.appUrl()}/preferenze`, oneClickUrl: null };
     const token = prefsToken(rec.id, secret);

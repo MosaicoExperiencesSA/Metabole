@@ -19,12 +19,14 @@ import { AuthService } from './auth.service';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const secret = config.get<string>('JWT_ACCESS_SECRET');
-        if (!secret && process.env.NODE_ENV === 'production') {
+        // Fail-closed: SEMPRE richiesta, niente fallback pubblico. Su Render è generata
+        // automaticamente (generateValue) → in produzione è sempre presente.
+        if (!secret) {
           throw new Error('JWT_ACCESS_SECRET mancante: configurarla nelle variabili d\'ambiente');
         }
         const ttl = config.get<string>('JWT_ACCESS_TTL') ?? '3h'; // sessione backoffice: min 3 ore
         return {
-          secret: secret ?? 'dev-only-insecure-secret',
+          secret,
           // Il tipo di expiresIn è il template-literal del pacchetto "ms" ("15m", "1h", ...):
           // arriva da env come string, il cast è sicuro.
           signOptions: { expiresIn: ttl as unknown as number },

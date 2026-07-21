@@ -50,19 +50,32 @@ async function rawRequest(path: string, options: RequestInit, withAuth: boolean)
   return fetch(`${API_BASE}/api/v1${path}`, { ...options, headers });
 }
 
+// "Single-flight": se più chiamate ricevono 401 insieme, UN SOLO refresh gira e le altre
+// aspettano lo stesso risultato. Senza questo, il primo refresh ruota il token e gli altri
+// userebbero quello vecchio (ormai revocato) → logout in mezzo al lavoro.
+let refreshInFlight: Promise<boolean> | null = null;
+
 async function tryRefresh(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
-  const res = await rawRequest('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }, false);
-  if (!res.ok) {
-    setRefreshToken(null);
-    setAccessToken(null);
-    return false;
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+    const res = await rawRequest('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }, false);
+    if (!res.ok) {
+      setRefreshToken(null);
+      setAccessToken(null);
+      return false;
+    }
+    const data = (await res.json()) as { accessToken: string; refreshToken: string };
+    setAccessToken(data.accessToken);
+    setRefreshToken(data.refreshToken);
+    return true;
+  })();
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
   }
-  const data = (await res.json()) as { accessToken: string; refreshToken: string };
-  setAccessToken(data.accessToken);
-  setRefreshToken(data.refreshToken);
-  return true;
 }
 
 /** Chiamata autenticata con refresh automatico. */

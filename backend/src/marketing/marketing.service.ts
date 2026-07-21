@@ -61,7 +61,11 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
   // ---------- Preferenze marketing (handoff punto 6: disiscrizione facile) ----------
 
   private prefsSecret(): string {
-    return this.config.get<string>('PREFS_TOKEN_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-only-insecure-secret';
+    // Fail-closed: usa PREFS_TOKEN_SECRET o, in mancanza, JWT_ACCESS_SECRET (sempre presente
+    // su Render). Niente più fallback pubblico 'dev-only-...'.
+    const s = this.config.get<string>('PREFS_TOKEN_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET');
+    if (!s) throw new Error('PREFS_TOKEN_SECRET/JWT_ACCESS_SECRET mancante: configurare un secret.');
+    return s;
   }
 
   private appUrl(): string {
