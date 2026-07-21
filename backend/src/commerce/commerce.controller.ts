@@ -38,6 +38,7 @@ import { CreatePlanDto, CreateProductDto, UpdatePlanDto, UpdateProductDto } from
 import { CrmService } from './crm.service';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
+import { AuditService } from '../audit/audit.service';
 
 class SubscribeDto {
   @IsUUID()
@@ -484,6 +485,7 @@ export class StripeWebhookController {
   constructor(
     private readonly commerce: CommerceService,
     private readonly stripe: StripeService,
+    private readonly audit: AuditService,
   ) {}
 
   @Public()
@@ -494,7 +496,30 @@ export class StripeWebhookController {
     @Headers('stripe-signature') signature: string,
   ) {
     const event = this.stripe.verifyWebhook(req.rawBody ?? Buffer.alloc(0), signature ?? '');
-    return this.commerce.handleStripeEvent(event as never);
+    try {
+      return await this.commerce.handleStripeEvent(event as never);
+    } catch (e) {
+      // Osservabilità: un webhook fallito viene tracciato (azione dedicata,
+      // interrogabile/allertabile) e poi RILANCIATO — così Stripe lo riprova
+      // (l'elaborazione è idempotente) invece di perderlo in silenzio.
+      const msg = e instanceof Error ? e.message : String(e);
+      try {
+        await this.audit.log({
+          action: 'payments.webhook_failed',
+          metadata: {
+            eventType: (event as { type?: string })?.type ?? 'unknown',
+            eventId: (event as { id?: string })?.id ?? null,
+            error: msg,
+          } as Record<string, unknown>,
+        });
+      } catch {
+        // eslint-disable-next-line no-console
+        console.error('[stripe.webhook] audit del fallimento non riuscito:', msg);
+      }
+      // eslint-disable-next-line no-console
+      console.error('[stripe.webhook] elaborazione fallita, Stripe riproverà:', msg);
+      throw e;
+    }
   }
 }
 

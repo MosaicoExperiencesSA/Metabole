@@ -490,6 +490,8 @@ model Subscription {
   payments Payment[]
 
   @@index([clientId, status])
+  // Piani in scadenza e scadenza prove: query su status='active' + endDate < ora.
+  @@index([status, endDate])
   @@map("subscription")
 }
 
@@ -624,6 +626,10 @@ model CrmRecord {
 
   @@index([stage])
   @@index([assignedCoachId, assignmentStatus])
+  // Ricerca/dedup per email e telefono (import liste storiche 80k, form pubblici,
+  // registrazione): senza questi indici erano scansioni piene della tabella.
+  @@index([email])
+  @@index([phone])
   crmNotes CrmNote[]
 
   @@map("crm_record")

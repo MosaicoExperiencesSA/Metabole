@@ -1,6 +1,6 @@
 # Riepilogo lavori — ciclo collaudo (luglio 2026)
 
-**Aggiornato:** 21 luglio 2026 · Origin: `d4729c8`
+**Aggiornato:** 21 luglio 2026 · Origin: `181c738` (+ Blocco 5 analisi in commit, da pushare)
 
 Questo documento riassume tutti i lavori del ciclo di collaudo, cosa è già su GitHub,
 la checklist post-deploy e i punti ancora aperti. Il dettaglio tecnico di ogni voce è nei
@@ -66,6 +66,33 @@ rispettivi `REGISTRO_*.md`.
 - Piano completo per Stripe **pagamenti ricorrenti** (decisioni, config Stripe, codice, test).
   → `progetto/Piano_Stripe_Ricorrente.md`
 
+**Analisi approfondita software/app (21/07)** — interventi sui punti emersi dall'analisi
+(escluso il #6 fusi orari, come richiesto):
+- **Blocco 1** — Cambio password cliente da admin (l'admin scrive la nuova password; operazione
+  abilitabile ad altri ruoli dalla tabella Permessi, chiave `set_client_password`) + tabella
+  **Utenti** impaginata come Permessi (scorrevole, header fisso).
+- **Blocco 2** — Robustezza: secret JWT/prefs **fail-closed** (niente fallback insicuro),
+  refresh token **single-flight**, **ErrorBoundary** globale su app e backoffice.
+  → `REGISTRO_Analisi_Blocco2_Robustezza.md`
+- **Blocco 3** — Dati sanitari (screening/questionario/consensi) **riservati allo staff clinico**
+  nella scheda cliente (GDPR art. 9). → `REGISTRO_Analisi_Blocco3_Dati_Sanitari_Ruolo.md`
+- **Blocco 4** — Approvazione pagamenti **idempotente** (claim atomico): niente doppie
+  provvigioni/entrate da webhook Stripe ripetuti o doppio clic.
+  → `REGISTRO_Analisi_Blocco4_Pagamenti_Idempotenti.md`
+- **Blocco 5** — Scalabilità 80k: **indici** su CRM (email/telefono) e abbonamenti
+  (status+scadenza). Import già completato → riscrittura import esclusa dallo scope.
+  → `REGISTRO_Analisi_Blocco5_Indici.md`
+- **Blocco 6** — **Rimozione MASTER_PASSWORD**: eliminata la password globale che entrava in
+  qualsiasi account (admin compreso). Per l'assistenza si usa l'impersonazione già esistente
+  (scoped, no admin, audit). → `REGISTRO_Analisi_Blocco6_Master_Password.md`
+- **Blocco 7** — **Robustezza cron + osservabilità**: ogni job notturno isolato (un errore non
+  blocca più gli altri), **heartbeat** sempre registrato (durata/esiti/fallimenti), webhook
+  Stripe falliti tracciati e rilanciati (retry). Sentry esterno rimandato.
+  → `REGISTRO_Analisi_Blocco7_Cron_Osservabilita.md`
+- **Blocco 8** — **CI bloccante + fix test rosso**: sistemato `auth.service.spec` (telefono ora
+  obbligatorio) e resi i test **bloccanti** (tolto `continue-on-error`). Suite completa da
+  confermare nella CI (serve Prisma generato). → `REGISTRO_Analisi_Blocco8_CI_Test.md`
+
 ---
 
 ## 2) Stato push (al 21/07, origin `d4729c8`)
@@ -76,6 +103,12 @@ Coordinatrice + Responsabile Coach con ref code, layout "Cibi esclusi", Stili = 
 notifica push chat, ref code digitabile.
 
 Resta solo da **deployare** (backend + backoffice + app) per vedere tutto in produzione.
+
+**In commit, da pushare:** interventi analisi approfondita — Blocco 1 (cambio password cliente
++ tabella Utenti scorrevole), Blocco 2 (robustezza), Blocco 3 (dati sanitari per ruolo),
+Blocco 4 (pagamenti idempotenti), Blocco 5 (indici scalabilità), Blocco 6 (rimozione
+MASTER_PASSWORD), Blocco 7 (robustezza cron + osservabilità), Blocco 8 (CI bloccante + fix test).
+Blocchi 1/2/3/4 già su GitHub; da pushare Blocco 5, 6, 7 e 8.
 
 ---
 
@@ -97,10 +130,23 @@ Resta solo da **deployare** (backend + backoffice + app) per vedere tutto in pro
       "Consigliato" + "Visibile", componi i menu e approva (in prod il seed non li crea).
 - [ ] **Posta**: se ricompaiono i timeout, gira a SiteGround gli Outbound IP di Render per la
       whitelist IMAP/SMTP.
+- [ ] **Migration indici (Blocco 5)**: al deploy backend `prisma migrate deploy` applica
+      `20260721170000_scale_indexes` (indici CRM email/telefono + subscription status/scadenza).
+- [ ] **Permesso "Imposta password cliente"**: di default è dell'admin. Se vuoi darlo anche ad
+      altri ruoli, backoffice → Permessi → spunta `set_client_password`.
 
 ---
 
 ## 4) Punti ancora APERTI
+
+### Analisi approfondita — punti non ancora fatti
+- **#9 — Sentry (parte esterna)**: error-tracking esterno rimandato (serve dipendenza +
+  `SENTRY_DSN`). Heartbeat cron e audit `payments.webhook_failed` già fatti (Blocco 7).
+- **#6 — Fusi orari**: **escluso** su tua richiesta.
+
+> Tutti gli altri punti dell'analisi (tranne il #6) sono stati fatti: vedi Blocchi 1-8. Restano
+> solo la parte **esterna** di Sentry (config, non codice) e il #6 escluso.
+
 
 - **Notifiche push (FCM) — da configurare** (backlog #4, setup nativo lato Simone): il codice
   c'è, manca solo `FIREBASE_SERVICE_ACCOUNT` su Render + app con permesso notifiche.

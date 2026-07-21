@@ -26,6 +26,7 @@ describe('AuthService', () => {
     prisma = {
       user: {
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]), // controllo univocità telefono
         create: jest.fn(),
         update: jest.fn(),
       },
@@ -88,17 +89,19 @@ describe('AuthService', () => {
   describe('register', () => {
     it('crea un utente client, invia la verifica email e ritorna i token', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
+      // Telefono ora obbligatorio e univoco: nessun altro numero già presente.
+      prisma.user.findMany.mockResolvedValue([]);
       prisma.user.create.mockImplementation(({ data }: any) =>
         Promise.resolve({ id: 'u1', emailVerifiedAt: null, status: 'active', ...data }),
       );
       prisma.refreshToken.create.mockResolvedValue({});
       prisma.actionToken.create.mockResolvedValue({});
 
-      const result = await service.register({ email: 'Test@Example.COM', password: 'password123', firstName: 'Test', lastName: 'User' });
+      const result = await service.register({ email: 'Test@Example.COM', password: 'password123', firstName: 'Test', lastName: 'User', phone: '+39 333 1234567' });
 
       expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ email: 'test@example.com', role: 'client' }),
+          data: expect.objectContaining({ email: 'test@example.com', role: 'client', phone: '+39 333 1234567' }),
         }),
       );
       expect(mail.sendEmailVerification).toHaveBeenCalledWith('test@example.com', expect.any(String), 'it');
@@ -110,7 +113,7 @@ describe('AuthService', () => {
 
     it('rifiuta email già registrata', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
-      await expect(service.register({ email: 'a@b.it', password: 'password123', firstName: 'A', lastName: 'B' })).rejects.toThrow(ConflictException);
+      await expect(service.register({ email: 'a@b.it', password: 'password123', firstName: 'A', lastName: 'B', phone: '+39 333 7654321' })).rejects.toThrow(ConflictException);
     });
   });
 
@@ -194,7 +197,7 @@ describe('AuthService', () => {
     });
   });
 
-  describe('impersonate (master password sicura)', () => {
+  describe('impersonate (accesso assistenza sicuro)', () => {
     const sign = () => (service as any).jwtService.signAsync as jest.Mock;
 
     it('admin ottiene un token per un utente attivo, con audit', async () => {

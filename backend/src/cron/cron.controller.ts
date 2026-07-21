@@ -61,31 +61,64 @@ export class CronController {
   @Post('daily')
   async daily(@Headers('x-cron-secret') secret?: string) {
     this.assertSecret(secret);
-    const engine = await this.engine.runBatch();
-    const notifications = await this.notifications.generateDailyBatch();
-    const alerts = await this.alerts.recomputeAllBatch();
-    const conversationSummaries = await this.summaries.generateDailyBatch();
-    const leadAssignments = await this.leadAssignment.expireStale();
-    const stalePayments = await this.commerce.autoCancelStalePayments();
+    const startedAt = Date.now();
+    const results: Record<string, unknown> = {};
+    const failures: { step: string; error: string }[] = [];
+
+    // Ogni step è isolato: se uno fallisce viene registrato e si PROSEGUE con
+    // gli altri (prima un errore a metà lista bloccava tutto il resto della
+    // notte). Nessuno step può far saltare il cron intero.
+    const step = async (name: string, fn: () => Promise<unknown>): Promise<void> => {
+      try {
+        results[name] = await fn();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        failures.push({ step: name, error: msg });
+        results[name] = { error: msg };
+      }
+    };
+
+    await step('engine', () => this.engine.runBatch());
+    await step('notifications', () => this.notifications.generateDailyBatch());
+    await step('alerts', () => this.alerts.recomputeAllBatch());
+    await step('conversationSummaries', () => this.summaries.generateDailyBatch());
+    await step('leadAssignments', () => this.leadAssignment.expireStale());
+    await step('stalePayments', () => this.commerce.autoCancelStalePayments());
     // Prova gratuita: scadenza automatica + purge del profilo a +7 giorni (handoff lancio).
-    const trials = await this.commerce.expireTrialsAndPurge();
+    await step('trials', () => this.commerce.expireTrialsAndPurge());
     // Task coach sui momenti chiave (G0/G1/G4/G7, fine piano, +7). Dopo l'expire, così vede gli stati aggiornati.
-    const coachTasks = await this.coachTasks.generateDaily();
+    await step('coachTasks', () => this.coachTasks.generateDaily());
     // Monitoraggio post-percorso: scadenze, trigger di rientro, congelamenti, richieste misure.
-    const monitoring = await this.monitoring.dailyTick();
+    await step('monitoring', () => this.monitoring.dailyTick());
     // Report di fine piano (handoff punto 4): uno per ogni piano concluso, consegnato in app.
-    const planReports = await this.planReports.generateDaily();
-    const adherence = await this.signals.runAdherenceSweep();
+    await step('planReports', () => this.planReports.generateDaily());
+    await step('adherence', () => this.signals.runAdherenceSweep());
     // Agenti AI con esecuzione giornaliera attiva: accodati qui, processati dal ticker.
-    const agents = await this.agentOrchestrator.enqueueDaily();
+    await step('agents', () => this.agentOrchestrator.enqueueDaily());
     // Report MENSILE in app al "mesiversario" di ogni piano attivo (stesso impianto
     // del report di fine piano; sostituisce il PDF via email — dati sanitari).
-    const monthlyReports = await this.planReports.generateMonthly();
-    await this.audit.log({
-      action: 'cron.daily',
-      metadata: { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports } as Record<string, unknown>,
-    });
-    return { engine, notifications, alerts, conversationSummaries, leadAssignments, stalePayments, trials, coachTasks, planReports, adherence, agents, monthlyReports, monitoring };
+    await step('monthlyReports', () => this.planReports.generateMonthly());
+
+    const durationMs = Date.now() - startedAt;
+    const meta = { durationMs, ok: failures.length === 0, failures };
+    // Heartbeat: registrato SEMPRE (anche con fallimenti parziali), così ogni
+    // notte si vede che il cron è girato, quanto ha impiegato e cosa è fallito.
+    // Se anche il log fallisce (DB giù) non facciamo cadere l'endpoint.
+    try {
+      await this.audit.log({
+        action: 'cron.daily',
+        metadata: { ...results, _meta: meta } as Record<string, unknown>,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[cron.daily] heartbeat audit log fallito:', e);
+    }
+    if (failures.length > 0) {
+      // eslint-disable-next-line no-console
+      console.error('[cron.daily] step falliti:', JSON.stringify(failures));
+    }
+
+    return { ...results, _meta: meta };
   }
 
   /**
