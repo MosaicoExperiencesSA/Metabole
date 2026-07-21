@@ -1,10 +1,10 @@
 # Riepilogo lavori — ciclo collaudo (luglio 2026)
 
-**Aggiornato:** 21 luglio 2026 · Origin: `8ff23e8`
+**Aggiornato:** 21 luglio 2026 · Origin: `d4729c8`
 
 Questo documento riassume tutti i lavori del ciclo di collaudo, cosa è già su GitHub,
-cosa resta da pushare, la checklist post-deploy e i punti ancora aperti. Il dettaglio
-tecnico di ogni voce è nei rispettivi `REGISTRO_*.md`.
+la checklist post-deploy e i punti ancora aperti. Il dettaglio tecnico di ogni voce è nei
+rispettivi `REGISTRO_*.md`.
 
 ---
 
@@ -41,21 +41,26 @@ tecnico di ogni voce è nei rispettivi `REGISTRO_*.md`.
 
 **Switch profilo — rifiniture**
 - Fix `linkedUserId` restituito da login/switch (pulsante visibile subito).
-- Testi pulsanti: "Passa al profilo professionale" (lato cliente); "Passa al profilo cliente"
-  reso col colore del tema (era bianco, poco leggibile).
+- Testi/colori pulsanti: "Passa al profilo professionale" (cliente); "Passa al profilo cliente"
+  col colore tema. Icona profilo app staff allineata.
 
 **Deliverability email (allegato 3, parte codice)**
 - Disiscrizione con-un-click (header List-Unsubscribe + footer) su **campagne** e **lifecycle**.
   → `REGISTRO_Deliverability_Email.md`
 
-**Fix vari**
-- Icona profilo app staff allineata; home backoffice "Responsabile Coach" = home coach.
-  → `REGISTRO_Fix_Icona_Staff_Dashboard_Coordinatrice.md`
-- **Responsabile Coach** (`sales`): home coach in backoffice + ref code proprio.
-  → `REGISTRO_Responsabile_Coach.md`
-- Pulsante/icona switch staff col colore tema; campo "Cibi esclusi" input a tutta larghezza.
+**Ruoli staff**
+- Home backoffice "Responsabile Coach" (`sales`) = home coach + ref code proprio; dashboard
+  Coordinatrice (`coach_coordinator`) = coach con alert di team.
+  → `REGISTRO_Responsabile_Coach.md` · `REGISTRO_Fix_Icona_Staff_Dashboard_Coordinatrice.md`
+
+**Altri fix**
+- Campo "Cibi esclusi": input a tutta larghezza sopra il pulsante.
 - **Stili scheda cliente** = nome della dieta (niente più codici inglesi tipo "Summer Holiday").
   → `REGISTRO_Stili_Nomi_Diete.md`
+- **Chat**: notifica push alla cliente a **ogni** risposta di coach/nutrizionista (anti-raffica 3 min).
+  → `REGISTRO_Notifica_Chat_Risposta.md`
+- **Ref code coach digitabile** dal backoffice (imposti un codice a scelta; attribuzioni per
+  id → nessun dato perso). → `REGISTRO_Ref_Code_Custom.md`
 
 **Piani**
 - Piano completo per Stripe **pagamenti ricorrenti** (decisioni, config Stripe, codice, test).
@@ -63,26 +68,26 @@ tecnico di ogni voce è nei rispettivi `REGISTRO_*.md`.
 
 ---
 
-## 2) Stato push (al 21/07, origin 8ff23e8)
+## 2) Stato push (al 21/07, origin `d4729c8`)
 
-**Tutto pushato su GitHub — niente in sospeso.** Sono su origin: diagnostica, blocchi 1-2-3,
-Consigliati, switch fix + testi pulsanti, deliverability (campagne + lifecycle), fix icona
-cliente e staff, dashboard **Coordinatrice** (`coach_coordinator`), **Responsabile Coach**
-(`sales`) con ref code, layout "Cibi esclusi", e allineamento **Stili = nomi diete**.
+**Tutto pushato su GitHub — niente in sospeso.** Ci sono: diagnostica, blocchi 1-2-3,
+Consigliati, switch fix + testi/colori pulsanti, deliverability (campagne + lifecycle),
+Coordinatrice + Responsabile Coach con ref code, layout "Cibi esclusi", Stili = nomi diete,
+notifica push chat, ref code digitabile.
 
 Resta solo da **deployare** (backend + backoffice + app) per vedere tutto in produzione.
-
-**Nota ruoli:** "Coordinatrice Coach" = `coach_coordinator`; "Responsabile Coach" = `sales`.
-Sono due ruoli distinti, entrambi ora con home coach + ref code.
 
 ---
 
 ## 3) Checklist POST-DEPLOY (azioni tue)
 
-- [ ] **Migration DB**: al deploy backend gira `prisma migrate deploy` — ci sono nuove
-      colonne (`user.linked_user_id`, `diet.recommended`). Verifica che siano applicate.
-- [ ] **Env Render**: imposta `PUBLIC_API_URL=https://metabole-backend.onrender.com`
-      (serve alla disiscrizione one-click).
+- [ ] **Migration DB**: al deploy backend gira `prisma migrate deploy` — nuove colonne
+      (`user.linked_user_id`, `diet.recommended`). Verifica che siano applicate.
+- [ ] **Env Render**: `PUBLIC_API_URL=https://metabole-backend.onrender.com` (disiscrizione one-click).
+- [ ] **Push (FCM)**: impostare `FIREBASE_SERVICE_ACCOUNT` su Render → così le notifiche push
+      (incl. "la coach ti ha risposto") arrivano sul telefono. Senza, restano solo in-app.
+- [ ] **Ref code MOREND01 → MORENO01**: dopo il deploy backoffice → Utenti → coach → ↻ → scrivi
+      MORENO01. Sicuro (attribuzione per id, nessun dato perso).
 - [ ] **Brevo/DNS** (fattore #1 deliverability, NON codice): autentica il dominio su Brevo
       (SPF, DKIM, DMARC tutti verdi) e invia da un indirizzo `@` del dominio, mai da Gmail.
 - [ ] **Grafica PDF → Ripristina** su "Report mensile" e "Ricevuta di pagamento" (il seed non
@@ -97,13 +102,14 @@ Sono due ruoli distinti, entrambi ora con home coach + ref code.
 
 ## 4) Punti ancora APERTI
 
-- **DA FARE (richiesto da Simone, quando torna):** cambiare il **ref code `morend01` → `moreno01`**
-  della coach e propagarlo a **tutte le sue clienti e i suoi lead**, SENZA perdere dati (il
-  refCode è su `Staff`; l'attribuzione su clienti/lead va aggiornata dove punta al vecchio
-  codice — verificare `clientProfile.referralCode`/attribuzione CRM e i lead con
-  `stageDates`/ref). Da fare con uno script/endpoint transazionale.
-- **Allegato 3 — CHIUSO** (20/07): parte codice completa; consenso/liste coperti dai
-  meccanismi CRM esistenti; resta la sola config Brevo/DNS (azione operativa).
-- **Decisioni business** (per il socio): Stripe ricorrente (pagamenti automatici); durata
-  mantenimento; conferma loop rientro pagato→mese gratis; strategia warm-up degli 80k
-  contatti storici.
+- **Notifiche push (FCM) — da configurare** (backlog #4, setup nativo lato Simone): il codice
+  c'è, manca solo `FIREBASE_SERVICE_ACCOUNT` su Render + app con permesso notifiche.
+- **Allegato 3 — CHIUSO** (20/07): parte codice completa; resta la sola config Brevo/DNS.
+- **Decisioni business** (per il socio): Stripe ricorrente (piano pronto in
+  `progetto/Piano_Stripe_Ricorrente.md`, servono le 7 decisioni Parte A); durata mantenimento;
+  conferma loop rientro pagato→mese gratis; strategia warm-up degli 80k contatti storici.
+
+### Backlog più ampio (non urgente, in memoria di progetto)
+Notifiche push "complete" (tutti gli avvisi del widget mascotte), modulo Marketing campagne
+con segmenti dinamici + storico, UI coach "registra cliente / link+QR", video di presentazione
+coach, login social (Google/Apple). Dettagli in memoria `metabole-backlog.md`.
