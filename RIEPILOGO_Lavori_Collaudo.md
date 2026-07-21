@@ -82,9 +82,11 @@ rispettivi `REGISTRO_*.md`.
 - **Blocco 5** — Scalabilità 80k: **indici** su CRM (email/telefono) e abbonamenti
   (status+scadenza). Import già completato → riscrittura import esclusa dallo scope.
   → `REGISTRO_Analisi_Blocco5_Indici.md`
-- **Blocco 6** — **Rimozione MASTER_PASSWORD**: eliminata la password globale che entrava in
-  qualsiasi account (admin compreso). Per l'assistenza si usa l'impersonazione già esistente
-  (scoped, no admin, audit). → `REGISTRO_Analisi_Blocco6_Master_Password.md`
+- **Blocco 6** — **MASTER_PASSWORD**: prima rimossa; poi **ripristinata su richiesta di Simone**
+  in versione protetta — funziona per assistenza/test (coach/clienti/staff) ma **NON apre gli
+  account admin**; uso tracciato (`auth.master_login`), documentata in `.env.example`.
+  → `REGISTRO_Analisi_Blocco6_Master_Password.md` + `REGISTRO_Master_Password_Ripristino.md`
+  (⚠️ richiede la variabile `MASTER_PASSWORD` impostata su Render).
 - **Blocco 7** — **Robustezza cron + osservabilità**: ogni job notturno isolato (un errore non
   blocca più gli altri), **heartbeat** sempre registrato (durata/esiti/fallimenti), webhook
   Stripe falliti tracciati e rilanciati (retry). Sentry esterno rimandato.

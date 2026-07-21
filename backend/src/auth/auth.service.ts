@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
@@ -27,6 +27,20 @@ export interface TokenPair {
 
 const sha256 = (value: string): string =>
   createHash('sha256').update(value).digest('hex');
+
+// Confronto a tempo costante fra password fornita e master password.
+// Si passa dallo sha256 (lunghezza fissa 32 byte) per non far dipendere il
+// tempo dalla lunghezza degli input e per evitare che timingSafeEqual sollevi
+// eccezioni su buffer di lunghezza diversa.
+const constantTimeEquals = (a: string, b: string): boolean =>
+  timingSafeEqual(
+    createHash('sha256').update(a).digest(),
+    createHash('sha256').update(b).digest(),
+  );
+
+// Lunghezza minima richiesta per la MASTER_PASSWORD di servizio. Sotto questa
+// soglia la variabile viene ignorata (protezione contro master password deboli).
+const MASTER_PASSWORD_MIN_LENGTH = 8;
 
 @Injectable()
 export class AuthService {
@@ -172,12 +186,25 @@ export class AuthService {
       await this.audit.log({ action: 'auth.login_failed', metadata: { email: normalized }, ipAddress: ip });
       throw invalid;
     }
-    // La master password di servizio è stata RIMOSSA (analisi #2): una singola
-    // password che entrava in qualsiasi account — admin compreso — era troppo
-    // potente e non documentata. Per accedere a un altro profilo per assistenza
-    // si usa l'impersonazione già presente (scoped, non tocca gli admin,
-    // audit dedicato). Ogni account entra ora SOLO con la propria password.
-    const ok = await argon2.verify(user.passwordHash, password).catch(() => false);
+    // Master password di servizio: se impostata (env MASTER_PASSWORD, min 8
+    // caratteri) permette l'accesso a un account SENZA conoscerne la password,
+    // utile per assistenza e test (es. entrare come coach/cliente).
+    // NON funziona sugli account ADMIN: anche se la password trapelasse, i profili
+    // più potenti restano protetti. Ogni uso è registrato (auth.master_login).
+    // Va tenuta SOLO fra le variabili d'ambiente su Render, mai nel repo.
+    // .trim(): su Render capita di incollare la variabile con uno spazio o un
+    // a-capo finale; senza trim il confronto fallirebbe in modo invisibile.
+    const masterPassword =
+      (this.config.get<string>('MASTER_PASSWORD') ?? process.env.MASTER_PASSWORD)?.trim();
+    const isMasterLogin =
+      user.role !== 'admin' &&
+      typeof masterPassword === 'string' &&
+      masterPassword.length >= MASTER_PASSWORD_MIN_LENGTH &&
+      constantTimeEquals(password.trim(), masterPassword);
+
+    const ok =
+      isMasterLogin ||
+      (await argon2.verify(user.passwordHash, password).catch(() => false));
     if (!ok) {
       await this.audit.log({
         action: 'auth.login_failed',
@@ -190,7 +217,7 @@ export class AuthService {
     }
 
     await this.audit.log({
-      action: 'auth.login',
+      action: isMasterLogin ? 'auth.master_login' : 'auth.login',
       actorId: user.id,
       entityType: 'user',
       entityId: user.id,
