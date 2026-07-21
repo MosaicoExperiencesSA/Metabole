@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { initials } from './format';
+import { COACH_ROLES } from './tabs';
 
 /** Voce della tab bar in basso. */
 export interface TabItem {
@@ -44,6 +45,11 @@ export function StaffShell({
           <div className="sf-header-title">{title}</div>
         </div>
         <div className="sf-header-actions">
+          {user && COACH_ROLES.has(user.role) ? (
+            <NavLink to="/posta" className="sf-hicon" aria-label="Posta">
+              <i className="ti ti-mail" />
+            </NavLink>
+          ) : null}
           <NavLink to="/notifiche" className="sf-hicon" aria-label="Notifiche">
             <i className="ti ti-bell" />
             {headerBadge ? <span className="sf-hbadge">{headerBadge}</span> : null}

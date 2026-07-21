@@ -116,34 +116,62 @@ export class MailboxService {
     return { ok: true };
   }
 
+  /**
+   * Trova la cartella "Inviata" della casella: prima per flag speciale IMAP
+   * (\Sent), poi per nome comune (Sent, INBOX.Sent, Sent Items…). I server di
+   * posta usano nomi diversi, quindi non possiamo assumerne uno solo.
+   */
+  private async resolveSentFolder(client: ImapFlow): Promise<string> {
+    try {
+      const boxes = await client.list();
+      const special = boxes.find((b) => b.specialUse === '\\Sent');
+      if (special?.path) return special.path;
+      const named = boxes.find(
+        (b) => /(^|\.)sent( items| messages)?$/i.test(b.path ?? '') || /^sent( items)?$/i.test(b.name ?? ''),
+      );
+      if (named?.path) return named.path;
+    } catch {
+      /* si prova comunque il nome di default qui sotto */
+    }
+    return 'Sent';
+  }
+
+  /** Legge gli ultimi N messaggi di una cartella (già connesso). Più recenti in cima. */
+  private async collectRecent(client: ImapFlow, mailbox: string, limit: number) {
+    const lock = await client.getMailboxLock(mailbox);
+    try {
+      const st = await client.status(mailbox, { messages: true });
+      const total = st.messages ?? 0;
+      if (total === 0) return [];
+      const start = Math.max(1, total - limit + 1);
+      const out: Array<Record<string, unknown>> = [];
+      for await (const msg of client.fetch(`${start}:*`, { uid: true, envelope: true, flags: true })) {
+        const fromAddr = msg.envelope?.from?.[0];
+        const toAddr = msg.envelope?.to?.[0];
+        out.push({
+          uid: msg.uid,
+          from: fromAddr?.address ?? '',
+          fromName: fromAddr?.name ?? '',
+          to: toAddr?.address ?? '',
+          toName: toAddr?.name ?? '',
+          subject: msg.envelope?.subject ?? '(nessun oggetto)',
+          date: msg.envelope?.date ?? null,
+          seen: msg.flags?.has('\\Seen') ?? false,
+        });
+      }
+      return out.reverse();
+    } finally {
+      lock.release();
+    }
+  }
+
   /** Posta in arrivo: ultimi N messaggi (più recenti in cima). */
   async listInbox(userId: string, limit = 25) {
     const { email, password } = await this.credsOf(userId);
     const client = this.imapClient(email, password);
     try {
       await client.connect();
-      const lock = await client.getMailboxLock('INBOX');
-      try {
-        const st = await client.status('INBOX', { messages: true });
-        const total = st.messages ?? 0;
-        if (total === 0) return [];
-        const start = Math.max(1, total - limit + 1);
-        const out: Array<Record<string, unknown>> = [];
-        for await (const msg of client.fetch(`${start}:*`, { uid: true, envelope: true, flags: true })) {
-          const fromAddr = msg.envelope?.from?.[0];
-          out.push({
-            uid: msg.uid,
-            from: fromAddr?.address ?? '',
-            fromName: fromAddr?.name ?? '',
-            subject: msg.envelope?.subject ?? '(nessun oggetto)',
-            date: msg.envelope?.date ?? null,
-            seen: msg.flags?.has('\\Seen') ?? false,
-          });
-        }
-        return out.reverse();
-      } finally {
-        lock.release();
-      }
+      return await this.collectRecent(client, 'INBOX', limit);
     } catch (e) {
       const detail = this.describeMailError(e, `IMAP inbox fallita (${email})`);
       throw new BadRequestException(`Lettura della posta non riuscita: ${detail}.`);
@@ -152,18 +180,37 @@ export class MailboxService {
     }
   }
 
-  /** Legge un messaggio (per uid) e lo segna come letto. */
-  async getMessage(userId: string, uid: number) {
+  /** Posta inviata: ultimi N messaggi della cartella "Inviata". */
+  async listSent(userId: string, limit = 25) {
     const { email, password } = await this.credsOf(userId);
     const client = this.imapClient(email, password);
     try {
       await client.connect();
-      const lock = await client.getMailboxLock('INBOX');
+      const box = await this.resolveSentFolder(client);
+      return await this.collectRecent(client, box, limit);
+    } catch (e) {
+      const detail = this.describeMailError(e, `IMAP sent fallita (${email})`);
+      throw new BadRequestException(`Lettura della posta inviata non riuscita: ${detail}.`);
+    } finally {
+      await client.logout().catch(() => undefined);
+    }
+  }
+
+  /** Legge un messaggio (per uid) dalla cartella indicata; l'inbox lo segna come letto. */
+  async getMessage(userId: string, uid: number, mailbox: 'inbox' | 'sent' = 'inbox') {
+    const { email, password } = await this.credsOf(userId);
+    const client = this.imapClient(email, password);
+    try {
+      await client.connect();
+      const box = mailbox === 'sent' ? await this.resolveSentFolder(client) : 'INBOX';
+      const lock = await client.getMailboxLock(box);
       try {
         const msg = await client.fetchOne(String(uid), { source: true, envelope: true }, { uid: true });
         if (!msg || !msg.source) throw new NotFoundException('Messaggio non trovato.');
         const parsed = await simpleParser(msg.source);
-        await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true }).catch(() => undefined);
+        if (mailbox === 'inbox') {
+          await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true }).catch(() => undefined);
+        }
         const toText = Array.isArray(parsed.to) ? parsed.to.map((t) => t.text).join(', ') : parsed.to?.text ?? '';
         return {
           uid,
@@ -204,9 +251,17 @@ export class MailboxService {
         text: dto.text,
         ...(dto.html ? { html: dto.html } : {}),
       });
+      // Traccia l'invio (audit): sapere chi ha scritto a chi dalla casella, e ritrovare
+      // il messaggio. Riusa email_log come per le mail di sistema. Non blocca l'invio.
+      await this.prisma.emailLog
+        .create({ data: { to: dto.to, subject: dto.subject, bodyHtml: dto.html ?? dto.text, templateKey: 'mailbox', status: 'sent' } })
+        .catch(() => undefined);
       return { ok: true, messageId: info.messageId };
     } catch (e) {
       const detail = this.describeMailError(e, `SMTP invio fallito (${email})`);
+      await this.prisma.emailLog
+        .create({ data: { to: dto.to, subject: dto.subject, bodyHtml: dto.html ?? dto.text, templateKey: 'mailbox', status: 'failed', error: detail } })
+        .catch(() => undefined);
       throw new BadRequestException(`Invio dell'email non riuscito: ${detail}.`);
     }
   }

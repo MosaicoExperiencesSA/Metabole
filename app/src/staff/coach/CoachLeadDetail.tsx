@@ -5,6 +5,7 @@ import { fullName, shortDate, waLink } from '../format';
 import { useApi } from '../hooks';
 import { Async, Avatar, BackBar, Card, Section, StaffShell } from '../ui';
 import { COACH_TABS } from '../tabs';
+import EmailComposeModal from '../shared/EmailComposeModal';
 
 interface Stage { key: string; label: string }
 interface LeadNote { id: string; body: string; createdAt: string; author: string | null }
@@ -31,6 +32,7 @@ export default function CoachLeadDetail() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   async function changeStage(stage: string) {
     if (!id) return;
@@ -81,12 +83,16 @@ export default function CoachLeadDetail() {
                     </a>
                   )}
                   {d.email && (
-                    <a className="sf-mini b" href={`mailto:${d.email}`}>
+                    <button type="button" className="sf-mini b" onClick={() => setEmailOpen(true)}>
                       <i className="ti ti-mail" /> Email
-                    </a>
+                    </button>
                   )}
                 </div>
               </Card>
+
+              {emailOpen && d.email && (
+                <EmailComposeModal to={d.email} name={name} onClose={() => setEmailOpen(false)} />
+              )}
 
               {err && <Card><div style={{ color: '#B3261E', fontSize: 13 }}>{err}</div></Card>}
               {msg && <Card><div style={{ color: '#0E7C66', fontSize: 13 }}>{msg}</div></Card>}

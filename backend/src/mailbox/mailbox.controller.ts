@@ -41,9 +41,14 @@ export class MailboxController {
     return this.mailbox.listInbox(user.sub, limit ? Number(limit) : 25);
   }
 
+  @Get('sent')
+  sent(@CurrentUser() user: AuthUser, @Query('limit') limit?: string) {
+    return this.mailbox.listSent(user.sub, limit ? Number(limit) : 25);
+  }
+
   @Get('message/:uid')
-  message(@Param('uid') uid: string, @CurrentUser() user: AuthUser) {
-    return this.mailbox.getMessage(user.sub, Number(uid));
+  message(@Param('uid') uid: string, @CurrentUser() user: AuthUser, @Query('folder') folder?: string) {
+    return this.mailbox.getMessage(user.sub, Number(uid), folder === 'sent' ? 'sent' : 'inbox');
   }
 
   @HttpCode(200)

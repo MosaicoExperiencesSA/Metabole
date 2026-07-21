@@ -10,6 +10,7 @@ import CoachLeadDetail from './CoachLeadDetail';
 import CoachAlert from './CoachAlert';
 import { CoachChatList, CoachChatThread } from './CoachChat';
 import CoachAgenda from './CoachAgenda';
+import CoachPosta from './CoachPosta';
 
 export default function CoachApp() {
   return (
@@ -22,6 +23,7 @@ export default function CoachApp() {
       <Route path="/chat" element={<CoachChatList tabs={COACH_TABS} />} />
       <Route path="/chat/:threadId" element={<CoachChatThread tabs={COACH_TABS} />} />
       <Route path="/agenda" element={<CoachAgenda />} />
+      <Route path="/posta" element={<CoachPosta />} />
       <Route path="/guadagni" element={<Guadagni tabs={COACH_TABS} />} />
       <Route path="/notifiche" element={<Notifiche tabs={COACH_TABS} />} />
       <Route path="/profilo" element={<Profilo tabs={COACH_TABS} />} />
