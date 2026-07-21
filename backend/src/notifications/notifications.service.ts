@@ -21,6 +21,9 @@ interface NotifyInput {
   title?: string;
   body?: string;
   payload?: Record<string, unknown>;
+  /** Se impostato, il dedup usa una FINESTRA MOBILE di N ms invece di "una volta al giorno"
+   *  (es. chat: una notifica per risposta, ma non a raffica se arrivano più messaggi). */
+  dedupeWindowMs?: number;
 }
 
 export interface NotificationPrefs {
@@ -63,12 +66,12 @@ export class NotificationsService {
   async notifyOncePerDay(input: NotifyInput): Promise<boolean> {
     const today = toDateOnly();
     const tomorrow = new Date(today.getTime() + 86_400_000);
+    // Dedup: finestra mobile (se dedupeWindowMs) oppure "una volta al giorno" (default).
+    const scheduledFor = input.dedupeWindowMs
+      ? { gte: new Date(Date.now() - input.dedupeWindowMs) }
+      : { gte: today, lt: tomorrow };
     const existing = await this.prisma.notification.findFirst({
-      where: {
-        userId: input.userId,
-        type: input.type,
-        scheduledFor: { gte: today, lt: tomorrow },
-      },
+      where: { userId: input.userId, type: input.type, scheduledFor },
     });
     if (existing) return false;
 

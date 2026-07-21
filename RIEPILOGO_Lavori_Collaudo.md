@@ -1,6 +1,6 @@
 # Riepilogo lavori — ciclo collaudo (luglio 2026)
 
-**Aggiornato:** 20 luglio 2026 · Origin: `08310d7`
+**Aggiornato:** 21 luglio 2026 · Origin: `8ff23e8`
 
 Questo documento riassume tutti i lavori del ciclo di collaudo, cosa è già su GitHub,
 cosa resta da pushare, la checklist post-deploy e i punti ancora aperti. Il dettaglio
@@ -51,30 +51,29 @@ tecnico di ogni voce è nei rispettivi `REGISTRO_*.md`.
 **Fix vari**
 - Icona profilo app staff allineata; home backoffice "Responsabile Coach" = home coach.
   → `REGISTRO_Fix_Icona_Staff_Dashboard_Coordinatrice.md`
+- **Responsabile Coach** (`sales`): home coach in backoffice + ref code proprio.
+  → `REGISTRO_Responsabile_Coach.md`
+- Pulsante/icona switch staff col colore tema; campo "Cibi esclusi" input a tutta larghezza.
+- **Stili scheda cliente** = nome della dieta (niente più codici inglesi tipo "Summer Holiday").
+  → `REGISTRO_Stili_Nomi_Diete.md`
+
+**Piani**
+- Piano completo per Stripe **pagamenti ricorrenti** (decisioni, config Stripe, codice, test).
+  → `progetto/Piano_Stripe_Ricorrente.md`
 
 ---
 
-## 2) Stato push (al 20/07, origin 08310d7)
+## 2) Stato push (al 21/07, origin 8ff23e8)
 
-**Già su GitHub:** diagnostica, blocchi 1-2-3, Consigliati, switch fix + testo pulsante,
-deliverability campagne, fix icona cliente, fix dashboard **Coordinatrice** (coach_coordinator).
+**Tutto pushato su GitHub — niente in sospeso.** Sono su origin: diagnostica, blocchi 1-2-3,
+Consigliati, switch fix + testi pulsanti, deliverability (campagne + lifecycle), fix icona
+cliente e staff, dashboard **Coordinatrice** (`coach_coordinator`), **Responsabile Coach**
+(`sales`) con ref code, layout "Cibi esclusi", e allineamento **Stili = nomi diete**.
 
-**Ancora da pushare (3 lavori):**
-1. **Deliverability lifecycle** — `backend/src/marketing/lifecycle.service.ts` (+ nota nel
-   `REGISTRO_Deliverability_Email.md`).
-2. **Pulsante "Passa al profilo cliente" col colore tema** — `app/src/staff/shared/Profilo.tsx`.
-   Anche l'**icona profilo app staff** allineata — `app/src/staff/theme-staff.css`.
-3. **Responsabile Coach (ruolo `sales`): home coach + ref code** —
-   `backend/src/coach/coach.service.ts`, `backend/src/commerce/lead-assignment.service.ts`,
-   `backend/src/commerce/lead-assignment.controller.ts`, `backoffice/src/pages/Home.tsx`,
-   `backoffice/src/pages/Users.tsx` (+ `REGISTRO_Responsabile_Coach.md`).
+Resta solo da **deployare** (backend + backoffice + app) per vedere tutto in produzione.
 
-Commit suggeriti per i residui:
-- `Deliverability lifecycle one-click + pulsante/icona switch staff col colore tema`
-- `Responsabile Coach (sales): home coach in backoffice + ref code proprio`
-
-**Nota ruoli:** "Coordinatrice Coach" = `coach_coordinator` (già a posto); "Responsabile
-Coach" = `sales` (questo terzo lavoro). Sono due ruoli distinti.
+**Nota ruoli:** "Coordinatrice Coach" = `coach_coordinator`; "Responsabile Coach" = `sales`.
+Sono due ruoli distinti, entrambi ora con home coach + ref code.
 
 ---
 
@@ -98,6 +97,11 @@ Coach" = `sales` (questo terzo lavoro). Sono due ruoli distinti.
 
 ## 4) Punti ancora APERTI
 
+- **DA FARE (richiesto da Simone, quando torna):** cambiare il **ref code `morend01` → `moreno01`**
+  della coach e propagarlo a **tutte le sue clienti e i suoi lead**, SENZA perdere dati (il
+  refCode è su `Staff`; l'attribuzione su clienti/lead va aggiornata dove punta al vecchio
+  codice — verificare `clientProfile.referralCode`/attribuzione CRM e i lead con
+  `stageDates`/ref). Da fare con uno script/endpoint transazionale.
 - **Allegato 3 — CHIUSO** (20/07): parte codice completa; consenso/liste coperti dai
   meccanismi CRM esistenti; resta la sola config Brevo/DNS (azione operativa).
 - **Decisioni business** (per il socio): Stripe ricorrente (pagamenti automatici); durata

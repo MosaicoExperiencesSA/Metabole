@@ -144,14 +144,20 @@ export class ChatService {
       return { message, aiReply };
     }
 
-    // Cliente → staff: notifica al destinatario. Staff → cliente: notifica alla cliente.
+    // Cliente → staff: notifica al destinatario. Staff → cliente: notifica (in-app + push)
+    // la cliente a OGNI risposta, con anti-raffica di 3 minuti (più messaggi ravvicinati =
+    // una sola notifica). Body generico: nessun contenuto sanitario nell'anteprima push.
     if (user.role === 'client') {
       await this.notifyCounterpartStaff(thread.clientId, thread.counterpart as Counterpart);
     } else {
+      const isNutri = thread.counterpart === 'nutritionist';
       await this.notifications.notifyOncePerDay({
         userId: thread.clientId,
         type: `chat_reply_${thread.counterpart}`,
-        messageKey: 'chat_reply',
+        title: isNutri ? 'La tua nutrizionista ti ha risposto' : 'La tua coach ti ha risposto',
+        body: 'Apri la chat per leggere il messaggio.',
+        payload: { kind: 'chat_reply', threadId, counterpart: thread.counterpart },
+        dedupeWindowMs: 3 * 60_000,
       });
     }
     return { message };
