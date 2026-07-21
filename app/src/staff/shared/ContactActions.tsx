@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api/client';
 import { waLink } from '../format';
-import EmailComposeModal from './EmailComposeModal';
 
 /** Piccola icona-azione (link tel/mail/whatsapp oppure pulsante nota/promemoria). */
 function ActionIcon({ icon, href, external, onClick, title }: { icon: string; href?: string; external?: boolean; onClick?: () => void; title: string }) {
@@ -34,7 +33,7 @@ function ActionIcon({ icon, href, external, onClick, title }: { icon: string; hr
  * collegati al lead via crmRecordId quando disponibile).
  */
 export default function ContactActions({ name, phone, email, crmRecordId }: { name: string; phone: string | null; email: string | null; crmRecordId?: string }) {
-  const [modal, setModal] = useState<'nota' | 'promemoria' | 'credenziali' | 'email' | null>(null);
+  const [modal, setModal] = useState<'nota' | 'promemoria' | 'credenziali' | null>(null);
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -84,17 +83,13 @@ export default function ContactActions({ name, phone, email, crmRecordId }: { na
       <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
         <ActionIcon icon="ti-phone" title="Chiama" href={phone ? `tel:${phone}` : undefined} />
         <ActionIcon icon="ti-brand-whatsapp" title="WhatsApp" href={phone ? waLink(phone) : undefined} external />
-        <ActionIcon icon="ti-mail" title="Email" onClick={email ? () => { setErr(null); setModal('email'); } : undefined} />
+        <ActionIcon icon="ti-mail" title="Email" href={email ? `mailto:${email}` : undefined} />
         <ActionIcon icon="ti-note" title="Inserisci nota" onClick={() => { setText(''); setErr(null); setModal('nota'); }} />
         <ActionIcon icon="ti-bell-plus" title="Promemoria" onClick={() => { setText(''); setDue(''); setErr(null); setModal('promemoria'); }} />
         {crmRecordId && email && (
           <ActionIcon icon="ti-key" title="Invia credenziali" onClick={() => { setErr(null); setCredDone(false); setModal('credenziali'); }} />
         )}
       </div>
-
-      {modal === 'email' && email && (
-        <EmailComposeModal to={email} name={name} onClose={() => setModal(null)} />
-      )}
 
       {modal === 'credenziali' && (
         <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
@@ -126,7 +121,7 @@ export default function ContactActions({ name, phone, email, crmRecordId }: { na
         </div>
       )}
 
-      {modal && modal !== 'credenziali' && (
+      {(modal === 'nota' || modal === 'promemoria') && (
         <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModal(null); }}>
           <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-grab" />
