@@ -118,15 +118,33 @@ export function Users() {
   }
 
   async function generateRefCode(u: User) {
+    // Codice a scelta (es. cambio MOREND01 → MORENO01) oppure vuoto = automatico.
+    // Cambiare il codice è SICURO: le clienti/lead sono legate all'id della coach, non
+    // alla stringa del codice → nessun dato perso.
+    const current = u.staff?.refCode ?? '';
+    const input = prompt(
+      `Ref code per ${u.email}\n(3-12 lettere/numeri; lascia vuoto per generarne uno automatico)`,
+      current,
+    );
+    if (input === null) return; // annullato
+    const code = input.trim().toUpperCase();
+    if (code && !/^[A-Z0-9]{3,12}$/.test(code)) {
+      setError('Ref code non valido: da 3 a 12 caratteri, solo lettere e numeri.');
+      return;
+    }
+    if (code && code === current.toUpperCase()) return; // nessun cambiamento
     try {
-      const r = await api<{ refCode: string }>(`/crm/coaches/${u.id}/refcode`, { method: 'POST' });
+      const r = await api<{ refCode: string }>(`/crm/coaches/${u.id}/refcode`, {
+        method: 'POST',
+        body: JSON.stringify(code ? { code } : {}),
+      });
       // Il backend crea la scheda Staff se mancava (coordinatrici storiche): aggiorniamo comunque la riga.
       setUsers((us) => us.map((x) => (x.id === u.id
         ? { ...x, staff: x.staff ? { ...x.staff, refCode: r.refCode } : { id: '', displayName: x.email, managerId: null, refCode: r.refCode } }
         : x)));
       setNotice(`Ref code di ${u.email}: ${r.refCode}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generazione non riuscita.');
+      setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
     }
   }
 
@@ -343,7 +361,7 @@ export function Users() {
                         <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                           {u.staff?.refCode ? <code style={{ fontSize: 12 }}>{u.staff.refCode}</code> : <span className="muted" style={{ fontSize: 12 }}>—</span>}
                           {canManage && (
-                            <button className="btn ghost sm" onClick={() => generateRefCode(u)} title={u.staff?.refCode ? 'Rigenera codice' : 'Genera codice'}>
+                            <button className="btn ghost sm" onClick={() => generateRefCode(u)} title={u.staff?.refCode ? 'Cambia/rigenera codice (puoi digitarlo)' : 'Genera o imposta codice'}>
                               {u.staff?.refCode ? '↻' : 'Genera'}
                             </button>
                           )}
