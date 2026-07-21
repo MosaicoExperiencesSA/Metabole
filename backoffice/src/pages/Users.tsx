@@ -222,7 +222,7 @@ export function Users() {
   }
 
   const Th = ({ k, children, right }: { k: SortKey; children: React.ReactNode; right?: boolean }) => (
-    <th onClick={() => toggleSort(k)} style={{ cursor: 'pointer', userSelect: 'none', textAlign: right ? 'right' : undefined }} title="Ordina per questa colonna">
+    <th onClick={() => toggleSort(k)} style={{ cursor: 'pointer', userSelect: 'none', textAlign: right ? 'right' : undefined, position: 'sticky', top: 0, background: '#fff', zIndex: 2, boxShadow: '0 1px 0 var(--line)' }} title="Ordina per questa colonna">
       {children}
       {sort?.key === k && <i className={`ti ${sort.dir === 1 ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: 12, marginLeft: 4, verticalAlign: '-1px' }} />}
     </th>
@@ -278,7 +278,7 @@ export function Users() {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
         {loading ? (
           <Spinner />
         ) : sorted.length === 0 ? (
@@ -293,7 +293,7 @@ export function Users() {
                 <Th k="refcode">Ref code</Th>
                 <Th k="status">Stato</Th>
                 <Th k="locale">Lingua</Th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
+                <th style={{ textAlign: 'right', position: 'sticky', top: 0, background: '#fff', zIndex: 2, boxShadow: '0 1px 0 var(--line)' }}>Azioni</th>
               </tr>
             </thead>
             <tbody>

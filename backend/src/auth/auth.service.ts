@@ -453,6 +453,28 @@ export class AuthService {
     });
   }
 
+  /**
+   * L'admin (o un ruolo abilitato) IMPOSTA una password scelta per una CLIENTE dalla
+   * scheda (per comunicargliela). Solo account cliente; revoca le sessioni attive.
+   */
+  async adminSetClientPassword(userId: string, newPassword: string, actorId: string): Promise<void> {
+    const target = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { role: true },
+    });
+    if (!target) throw new NotFoundException('Utente non trovato.');
+    if (target.role !== 'client') {
+      throw new BadRequestException('Operazione consentita solo per gli account cliente.');
+    }
+    const passwordHash = await argon2.hash(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: false } }),
+      // Revoca le sessioni attive: la cliente rientra con la nuova password.
+      this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+    await this.audit.log({ action: 'auth.admin_set_password', actorId, entityType: 'user', entityId: userId });
+  }
+
   // ---------- Impersonazione (la "master password" sicura) ----------
 
   /**

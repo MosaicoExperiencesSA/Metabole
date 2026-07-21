@@ -24,6 +24,10 @@ class PlanStartDto {
   @IsString() @MaxLength(10) @MinLength(10) date!: string; // AAAA-MM-GG
 }
 
+class SetPasswordDto {
+  @IsString() @MinLength(8) @MaxLength(200) password!: string;
+}
+
 /** Correzione misura: le circonferenze accettano anche null (= svuota il dato). */
 class FixMeasurementDto {
   @IsOptional() @IsNumber() @Min(25) @Max(400) weightKg?: number;
@@ -76,6 +80,14 @@ export class ClientsController {
   @Post(':id/reset-password')
   resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
     return this.clients.sendPasswordReset(id, user.sub, ip);
+  }
+
+  /** Imposta una password scelta per la cliente (da comunicarle): permesso "set_client_password". */
+  @RequirePage('set_client_password', 'manage')
+  @HttpCode(200)
+  @Post(':id/set-password')
+  setPassword(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetPasswordDto) {
+    return this.clients.setClientPassword(id, user.sub, dto.password);
   }
 
   /** Modifica anagrafica e questionario del cliente (chi ha accesso alla scheda). */

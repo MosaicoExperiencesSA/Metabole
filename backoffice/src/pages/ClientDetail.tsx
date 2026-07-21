@@ -354,6 +354,21 @@ export function ClientDetail() {
     }
   }
 
+  /** Imposta una password SCELTA per la cliente (da comunicarle): permesso "set_client_password". */
+  async function setClientPassword() {
+    if (!d) return;
+    const pw = prompt(`Nuova password per ${d.user.email}\n(minimo 8 caratteri; comunicala tu alla cliente. Le sessioni attive verranno chiuse.)`);
+    if (pw === null) return;
+    if (pw.trim().length < 8) { setError('La password deve avere almeno 8 caratteri.'); return; }
+    setNotice(null); setError(null);
+    try {
+      await api(`/admin/clients/${id}/set-password`, { method: 'POST', body: JSON.stringify({ password: pw.trim() }) });
+      setNotice('Password impostata. Comunicala alla cliente: da ora accede con questa.');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Impostazione password non riuscita.');
+    }
+  }
+
   /** Collega/scollega l'utenza cliente a un'utenza STAFF della stessa persona (switch senza logout nell'app). */
   async function linkAccount() {
     if (!d) return;
@@ -584,6 +599,11 @@ export function ClientDetail() {
             {isAdmin && !editing && (
               <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
                 <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
+              </button>
+            )}
+            {can('set_client_password', 'manage') && !editing && (
+              <button className="btn ghost" onClick={setClientPassword} title="Imposta una password scelta per la cliente (da comunicarle)" style={{ background: 'rgba(255,255,255,.9)' }}>
+                <i className="ti ti-lock-cog" /> Imposta password
               </button>
             )}
             {isAdmin && !editing && (

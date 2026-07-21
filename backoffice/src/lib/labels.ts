@@ -71,6 +71,7 @@ export const PAGE_LABEL: Record<string, string> = {
   fix_measures: 'Correggi misure cliente',
   change_diet_type: 'Cambia tipo di dieta',
   change_plan_start: 'Cambia data inizio piano',
+  set_client_password: 'Imposta password cliente',
 };
 
 export function pageLabel(key: string): string {

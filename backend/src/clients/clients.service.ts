@@ -229,6 +229,15 @@ export class ClientsService {
     return { sent: true, email: user.email };
   }
 
+  /** Imposta una password SCELTA per la cliente (da comunicarle): permesso "set_client_password". */
+  async setClientPassword(userId: string, actorId: string, newPassword: string) {
+    await this.assertClientAccess(actorId, userId);
+    const pw = (newPassword ?? '').trim();
+    if (pw.length < 8) throw new BadRequestException('La password deve avere almeno 8 caratteri.');
+    await this.auth.adminSetClientPassword(userId, pw, actorId);
+    return { ok: true };
+  }
+
   /**
    * Eliminazione DEFINITIVA di un cliente/lead e di tutto ciò che gli è collegato.
    * Solo admin. Il lead (CrmRecord) è in SetNull, quindi va cancellato esplicitamente;
