@@ -764,7 +764,7 @@ export function ClientDetail() {
                 )
               }
             />
-            <Row label="Percorso supervisionato" value={p.screeningFlag ? 'Sì (screening sanitario)' : 'No'} />
+            <Row label="Percorso supervisionato" value={p.screeningFlag === undefined ? 'Riservato allo staff clinico' : p.screeningFlag ? 'Sì (screening sanitario)' : 'No'} />
             <Row label="Data inizio piano" value={date(p.planStartDate)} />
           </>
         )}

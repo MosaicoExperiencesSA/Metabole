@@ -163,9 +163,24 @@ export class ClientsService {
           .catch(() => null)) as { label: string } | null)?.label ?? null
       : null;
 
+    // Minimizzazione GDPR (dato particolare): screening sanitario, questionario clinico e
+    // consensi sono riservati allo staff CLINICO (nutrizioniste). Agli altri ruoli (coach,
+    // responsabile/commerciale, admin, marketing) li togliamo dalla scheda. Allergie e
+    // intolleranze restano: servono per i menu.
+    const actor = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
+    const isClinical = actor?.role === 'nutritionist' || actor?.role === 'head_nutritionist';
+    let safeProfile = profile;
+    if (profile && !isClinical) {
+      const p = { ...(profile as Record<string, unknown>) };
+      delete p.screeningFlag;
+      delete p.onboardingAnswers;
+      delete p.consents;
+      safeProfile = p as typeof profile;
+    }
+
     return {
       user,
-      profile, // include onboardingAnswers, consents, screeningFlag, ecc.
+      profile: safeProfile, // dati clinici presenti solo per lo staff clinico
       objective,
       measurements,
       checkins,
