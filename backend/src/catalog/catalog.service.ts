@@ -196,7 +196,6 @@ export class CatalogService {
         seasonalTag: dto.seasonalTag ?? null,
         objective: dto.objective ?? 'dimagrimento',
         clientVisible: dto.clientVisible ?? false,
-        recommended: dto.recommended ?? false,
       } as never,
     });
     await this.audit.log({
@@ -694,11 +693,30 @@ export class CatalogService {
     return CatalogService.DEFAULT_REGIMES;
   }
 
-  /** Stili disponibili: SOLO quelli di diete APPROVATE (uno stile senza dieta approvata non è assegnabile). */
+  /** Stili disponibili: SOLO quelli di diete APPROVATE (uno stile senza dieta approvata non è
+   *  assegnabile). L'etichetta è il NOME della dieta (nome cliente se impostato, altrimenti
+   *  nome interno) così le tendine "Stile" combaciano con i nomi che si vedono in Diete —
+   *  niente più codici grezzi tipo "Summer Holiday". */
   async styles(): Promise<{ code: string; label: string }[]> {
-    const rows = (await this.prisma.diet.findMany({ where: { status: 'approved' }, distinct: ['style'], select: { style: true }, orderBy: { style: 'asc' } })) as { style: string | null }[];
-    const codes = [...new Set(rows.map((r) => r.style).filter((x): x is string => !!x && !!x.trim()))];
-    return codes.map((code) => ({ code, label: CatalogService.STYLE_LABELS[code] ?? this.titleCase(code) }));
+    const rows = (await this.prisma.diet.findMany({
+      where: { status: 'approved' },
+      select: { style: true, clientName: true, name: true },
+      orderBy: { createdAt: 'asc' },
+    })) as { style: string | null; clientName: string | null; name: string | null }[];
+    const seen = new Set<string>();
+    const out: { code: string; label: string }[] = [];
+    for (const r of rows) {
+      const code = r.style?.trim();
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      const label =
+        r.clientName?.trim() ||
+        r.name?.trim() ||
+        CatalogService.STYLE_LABELS[code] ||
+        this.titleCase(code);
+      out.push({ code, label });
+    }
+    return out.sort((a, b) => a.label.localeCompare(b.label));
   }
 
   async taxonomy() {

@@ -38,8 +38,10 @@ Backend
   (es. `news@metaboleai.com`), mai da Gmail. Questo è il fattore #1 della deliverability e va
   fatto sul pannello, non nel codice.
 - Il footer usa la pagina preferenze già esistente (`/preferenze?t=…`): niente nuove pagine.
-- Manca ancora la seconda metà dell'allegato 3 (punto 2 "Lista e consenso" e successivi):
-  quando arriva completo, valuto se serve altro codice.
+- **Allegato 3 CHIUSO** (20/07): la parte codice (disiscrizione one-click su campagne +
+  lifecycle) è completa; il punto 2 "Lista e consenso" è coperto dai meccanismi già
+  esistenti (consenso marketing GDPR sul CRM, pagina preferenze, opt-out via webhook Brevo)
+  più la config lato Brevo/DNS che resta un'azione operativa, non di codice.
 
 ## Aggiunta — one-click anche sulle email del ciclo di vita (lifecycle)
 Le email lifecycle (nurture, feedback, riattivazione: anch'esse marketing) ora hanno la

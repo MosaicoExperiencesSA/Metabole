@@ -98,7 +98,8 @@ Coach" = `sales` (questo terzo lavoro). Sono due ruoli distinti.
 
 ## 4) Punti ancora APERTI
 
-- **Allegato 3, seconda metà** (punto 2 "Lista e consenso" e successivi): ho solo lo spezzone
-  del punto 1. Mandamelo completo e valuto se serve altro codice.
-- **Decisioni business** (per il socio): Stripe ricorrente; durata mantenimento; conferma loop
-  rientro pagato→mese gratis; strategia warm-up degli 80k contatti storici.
+- **Allegato 3 — CHIUSO** (20/07): parte codice completa; consenso/liste coperti dai
+  meccanismi CRM esistenti; resta la sola config Brevo/DNS (azione operativa).
+- **Decisioni business** (per il socio): Stripe ricorrente (pagamenti automatici); durata
+  mantenimento; conferma loop rientro pagato→mese gratis; strategia warm-up degli 80k
+  contatti storici.
