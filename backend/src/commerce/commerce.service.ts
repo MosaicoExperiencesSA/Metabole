@@ -708,23 +708,27 @@ export class CommerceService {
    */
   async approvePayment(operator: AuthUser, paymentId: string) {
     const staff = await this.prisma.staff.findUnique({ where: { userId: operator.sub } });
+    // CLAIM ATOMICO: passa ad "approved" SOLO se è ancora in attesa. Se due operatori
+    // cliccano insieme (o si ripete l'azione), una sola updateMany tocca la riga → nessuna
+    // doppia attivazione/provvigione. count=0 = già chiuso o non più in attesa.
+    const claim = await this.prisma.payment.updateMany({
+      where: { id: paymentId, status: { in: ['receipt_uploaded', 'pending'] as never } },
+      data: { status: 'approved', approvedById: staff?.id, approvedAt: new Date() },
+    });
+    if (claim.count === 0) {
+      const existing = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+      if (!existing) throw new NotFoundException('Pagamento non trovato');
+      if (existing.status === 'approved') return this.publicPayment(existing as never); // idempotente
+      throw new BadRequestException('Questo pagamento non è più in attesa di approvazione');
+    }
+    // Ricarico il pagamento (ora approved) con le relazioni per la catena post-approvazione.
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: { subscription: { include: { plan: true } }, client: { select: { email: true, locale: true } } },
     });
     if (!payment) throw new NotFoundException('Pagamento non trovato');
-    // Si approva un pagamento in attesa (contabile caricata o meno: l'operatore può aver
-    // già visto il bonifico in banca). Non si "riapprova" un pagamento già chiuso.
-    if (payment.status !== 'receipt_uploaded' && payment.status !== 'pending') {
-      throw new BadRequestException('Questo pagamento non è più in attesa di approvazione');
-    }
-
-    const approved = await this.prisma.payment.update({
-      where: { id: paymentId },
-      data: { status: 'approved', approvedById: staff?.id, approvedAt: new Date() },
-    });
     await this.finalizeApproval(payment, operator.sub, 'bonifico');
-    return this.publicPayment(approved);
+    return this.publicPayment(payment);
   }
 
   /**
@@ -743,23 +747,22 @@ export class CommerceService {
     const paymentId = session.metadata?.paymentId;
     if (!paymentId) return { handled: false, reason: 'metadata.paymentId assente' };
 
+    // CLAIM ATOMICO (idempotenza): Stripe RICONSEGNA i webhook. Passa ad "approved" SOLO se
+    // ancora in attesa: se count=0 il webhook è già stato processato → nessun doppio
+    // accredito/provvigione. Sostituisce il vecchio check "if status===approved" che, tra
+    // due webhook concorrenti, poteva passare due volte.
+    const claim = await this.prisma.payment.updateMany({
+      where: { id: paymentId, status: { in: ['pending', 'receipt_uploaded'] as never } },
+      data: { status: 'approved', approvedAt: new Date(), pspRef: session.payment_intent ?? session.id },
+    });
+    if (claim.count === 0) {
+      return { handled: true, idempotent: true }; // già processato (o stato non valido)
+    }
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: { subscription: { include: { plan: true } }, client: { select: { email: true, locale: true } } },
     });
     if (!payment) return { handled: false, reason: 'pagamento sconosciuto' };
-    if (payment.status === 'approved') {
-      return { handled: true, idempotent: true }; // webhook ripetuto: nessun doppio evento
-    }
-
-    await this.prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        status: 'approved',
-        approvedAt: new Date(),
-        pspRef: session.payment_intent ?? session.id,
-      },
-    });
     await this.finalizeApproval(payment, 'stripe-webhook', 'carta');
     return { handled: true };
   }
