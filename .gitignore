@@ -23,6 +23,14 @@ npm-debug.log*
 
 # Cartella di lavoro temporanea Cowork (patch, lock rimossi): mai committare
 _to_delete/
+_git_lock_stale/
 
 # Report della diagnostica (possono citare stringhe sensibili): mai committare
 report-diagnostica/
+
+# Lavoro nuova grafica (prototipi + asset design): NON committare, resta solo in locale
+prototipi/
+marketing/brand/mascotte/
+marketing/brand/nuovo-stile/
+marketing/brand/orb.jpeg
+app/src/pages/Landing.restyle.tsx
