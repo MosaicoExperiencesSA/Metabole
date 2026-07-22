@@ -39,7 +39,10 @@ function statusPill(c: CoachClient) {
 
 export default function CoachClienti() {
   const nav = useNavigate();
-  const [showLeads, setShowLeads] = useState(false);
+  // Lead assegnati mostrati DI DEFAULT: chi si iscrive col codice referral è un lead
+  // (registrato ma non ancora cliente pagante) e prima restava nascosto — la coach
+  // riceveva la notifica ma non lo trovava. Ora lo vede subito; può nasconderli col flag.
+  const [showLeads, setShowLeads] = useState(true);
   const state = useApi<{ clients: CoachClient[] }>(`/coach/clients${showLeads ? '?leads=1' : ''}`, [showLeads]);
   const [q, setQ] = useState('');
 
