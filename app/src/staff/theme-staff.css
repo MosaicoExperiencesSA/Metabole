@@ -115,6 +115,19 @@
   color: #b4beba;
   font-size: 23px;
   text-decoration: none;
+  position: relative;
+}
+/* Pallino rosso "hai qualcosa da fare" sul tab Dashboard (#7). */
+.sf-tab-dot {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  margin-left: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e8543c;
+  border: 2px solid #fff;
 }
 .sf-tab.on {
   color: #fff;

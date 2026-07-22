@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { api } from '../api/client';
 import { initials } from './format';
 import { COACH_ROLES } from './tabs';
 
@@ -27,6 +28,18 @@ export function StaffShell({
   headerBadge?: number;
 }) {
   const { user } = useAuth();
+  const isCoachSide = !!user && COACH_ROLES.has(user.role);
+  // #7: pallino sul tab Dashboard quando la coach ha attività "da fare" pendenti,
+  // così se ne accorge senza aprire il tab. Solo per i ruoli coach.
+  const [pendingTasks, setPendingTasks] = useState(0);
+  useEffect(() => {
+    if (!isCoachSide) return;
+    let alive = true;
+    api<unknown[]>('/staff/coach-tasks?status=todo&limit=50')
+      .then((r) => { if (alive) setPendingTasks(Array.isArray(r) ? r.length : 0); })
+      .catch(() => { /* nessun indicatore se il dato non è disponibile */ });
+    return () => { alive = false; };
+  }, [isCoachSide]);
   return (
     <div className="sf-frame">
       {user?.linkedUserId ? (
@@ -74,6 +87,7 @@ export function StaffShell({
             className={({ isActive }) => 'sf-tab' + (isActive ? ' on' : '')}
           >
             <i className={`ti ${t.icon}`} />
+            {t.to === '/' && pendingTasks > 0 && <span className="sf-tab-dot" aria-hidden="true" />}
           </NavLink>
         ))}
       </nav>
