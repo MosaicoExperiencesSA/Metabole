@@ -264,6 +264,12 @@ export function LeadsTable() {
     <>
       <div className="spread" style={{ marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
         <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <span
+            style={{ alignSelf: 'center', fontSize: 14, fontWeight: 800, background: 'var(--chip)', color: 'var(--deep,#0a7d55)', borderRadius: 999, padding: '7px 14px', whiteSpace: 'nowrap' }}
+            title="Totale contatti che rispettano i filtri correnti (senza filtri: tutto il database)"
+          >
+            Totale: {total.toLocaleString('it-IT')}
+          </span>
           <input className="input" style={{ maxWidth: 260 }} placeholder="Cerca in tutto il DB (nome, email, tel)…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           {searching && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>cerco nel database…</span>}
           <select className="select" style={{ maxWidth: 220 }} value={listFilter} onChange={(e) => setListFilter(e.target.value)} title="Filtra per lista">
