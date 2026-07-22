@@ -73,6 +73,7 @@ function ExcludedFoods() {
   const [add, setAdd] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api<{ dislikedFoods: string[] | null; intolerances: string[] | null }>('/me/client-profile')
@@ -81,7 +82,7 @@ function ExcludedFoods() {
   }, []);
 
   async function save(next: string[]) {
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setMsg(null);
     const prev = foods;
     setFoods(next);
     try {
@@ -94,12 +95,26 @@ function ExcludedFoods() {
     }
   }
 
-  function addFood() {
+  async function addFood() {
     const v = add.trim();
     if (v.length < 2 || !foods) return;
     if (foods.some((f) => f.toLowerCase() === v.toLowerCase())) { setAdd(''); return; }
+    setBusy(true); setErr(null); setMsg(null);
+    const prev = foods;
     setAdd('');
-    void save([...foods, v]);
+    setFoods([...foods, v]); // ottimistico
+    try {
+      // Non solo salva l'esclusione: applica SUBITO la sostituzione ai menu di oggi e
+      // dei prossimi giorni (stesso endpoint della "cambia cibo" in Home, forever:true).
+      // Così il menu si aggiorna da solo, senza dover uscire e rientrare.
+      await api('/me/menu/substitute', { method: 'POST', body: JSON.stringify({ ingredient: v, forever: true }) });
+      setMsg(`«${v}» escluso: i menu sono stati aggiornati.`);
+    } catch (e) {
+      setFoods(prev);
+      setErr(e instanceof Error ? e.message : 'Non è stato possibile aggiornare il menu.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -127,9 +142,10 @@ function ExcludedFoods() {
       <div style={{ marginTop: 12 }}>
         <input className="input" style={{ width: '100%' }} placeholder="Aggiungi un cibo… (es. funghi)" value={add}
           onChange={(e) => setAdd(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addFood(); }} />
-        <button className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={busy || add.trim().length < 2} onClick={addFood}>Aggiungi</button>
+        <button className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} disabled={busy || add.trim().length < 2} onClick={addFood}>{busy ? 'Aggiorno…' : 'Aggiungi'}</button>
       </div>
       {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
+      {msg && <div style={{ color: '#0E7C66', fontSize: 12, marginTop: 6 }}>{msg}</div>}
       {intol.length > 0 && (
         <p className="muted" style={{ margin: '12px 0 0', fontSize: 11.5 }}>
           <i className="ti ti-shield-check" style={{ fontSize: 12, verticalAlign: '-1px' }} /> Intolleranze registrate: <b>{intol.join(', ')}</b> — per cambiarle parlane con la tua coach o nutrizionista.

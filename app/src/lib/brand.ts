@@ -4,6 +4,7 @@
  * Il colore guida le variabili CSS --brand / --brand-dark, da cui dipendono
  * --teal (app cliente) e --sf-brand (schermate staff): cambia tutta l'app.
  */
+import { Capacitor } from '@capacitor/core';
 
 export const BRAND_PALETTE = ['#F2B807', '#E23B3B', '#E86FA6', '#2F80ED', '#12A386', '#F2820A'] as const;
 export const BRAND_DEFAULT = '#12A386';
@@ -37,12 +38,32 @@ function shade(hex: string, amt: number): string {
   return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('');
 }
 
-/** Applica il colore alle variabili CSS globali (cliente + staff). */
+/**
+ * App nativa (Android/iOS): colora la BARRA DI STATO del telefono come l'app
+ * (stesso colore brand, con icone/testo chiari). Sul web è un no-op.
+ * Fire-and-forget: se il plugin non è disponibile o è troppo presto, ignora.
+ */
+async function syncStatusBar(color: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const { StatusBar, Style } = await import('@capacitor/status-bar');
+    await StatusBar.setOverlaysWebView({ overlay: false });
+    await StatusBar.setBackgroundColor({ color });
+    await StatusBar.setStyle({ style: Style.Dark }); // Dark = icone/testo CHIARI sull'header colorato
+  } catch {
+    /* plugin non installato o barra non gestibile su questo dispositivo */
+  }
+}
+
+/** Applica il colore alle variabili CSS globali (cliente + staff) + barra di stato. */
 export function applyBrand(brand: Brand = getBrand()): string {
   const color = brand === 'auto' ? autoColor() : brand;
   const root = document.documentElement.style;
   root.setProperty('--brand', color);
   root.setProperty('--brand-dark', shade(color, 0.34));
+  // Barra indirizzi del browser / PWA (web) e barra di stato nativa (app).
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
+  void syncStatusBar(color);
   return color;
 }
 
