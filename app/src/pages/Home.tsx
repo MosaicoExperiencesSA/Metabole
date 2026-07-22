@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -88,7 +88,7 @@ const HELP: [string, string, string, string][] = [
 /** Sheet interattivo "Sostituisci un ingrediente": chiede il cibo non gradito e applica
  *  subito la sostituzione ai menu di oggi/domani/dopodomani (POST /me/menu/substitute),
  *  poi con un popup chiede se ESCLUDERE PER SEMPRE quel cibo (forever: true). */
-function SubstituteIngredient({ onClose }: { onClose: () => void }) {
+function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onChanged?: () => void }) {
   const [ing, setIng] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -105,6 +105,7 @@ function SubstituteIngredient({ onClose }: { onClose: () => void }) {
         method: 'POST', body: JSON.stringify({ ingredient: v }),
       });
       setMsg(r.message);
+      onChanged?.(); // ricarica il menu: la card mostra subito il piatto sostituito
       setAskForever(true); // correzione fatta: ora il popup "per sempre?"
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Non è stato possibile aggiornare il menu.');
@@ -120,6 +121,7 @@ function SubstituteIngredient({ onClose }: { onClose: () => void }) {
         method: 'POST', body: JSON.stringify({ ingredient: ing.trim(), forever: true }),
       });
       setMsg(`«${ing.trim()}» non comparirà più nei tuoi menu. Puoi ripensarci dal tuo Profilo, sezione "Cibi esclusi".`);
+      onChanged?.(); // aggiorna la card col menu ripulito dal cibo escluso
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Non è stato possibile salvare la preferenza.');
     } finally {
@@ -268,14 +270,20 @@ export default function Home() {
   const mealsRef = useRef<HTMLDivElement>(null);
   const [mealIdx, setMealIdx] = useState(0);
 
-  useEffect(() => {
-    api<Today>('/me/today').then(setToday).catch(() => {});
-    api<{ days: ApiMenuDay[]; status?: MenuStatus }>('/me/menu').then((r) => {
+  // Caricamento del menu di oggi: estratto così da poterlo RICARICARE dopo una
+  // sostituzione (prima la card restava col piatto vecchio e sembrava "non cambiare").
+  const loadMenu = useCallback(() => {
+    return api<{ days: ApiMenuDay[]; status?: MenuStatus }>('/me/menu').then((r) => {
       const iso = new Date().toISOString().slice(0, 10);
       const day = (r.days ?? []).find((d) => d.date.slice(0, 10) === iso) ?? (r.days ?? [])[0];
       setMeals(day?.meals ?? []);
       setMenuStatus(r.status ?? null);
     }).catch(() => setMeals([]));
+  }, []);
+
+  useEffect(() => {
+    api<Today>('/me/today').then(setToday).catch(() => {});
+    void loadMenu();
     api<{ next: NextAppt | null }>('/me/agenda?next=1').then((r) => setNextAppt(r.next)).catch(() => setNextAppt(null));
     api<EventItem[]>('/me/events').then((evs) => {
       const t = startOfDay(new Date()).getTime();
@@ -291,7 +299,7 @@ export default function Home() {
     api<{ waterUnit?: string }>('/me/preferences').then((p) => {
       if (isWaterUnit(p.waterUnit)) setWaterUnit(p.waterUnit);
     }).catch(() => {});
-  }, []);
+  }, [loadMenu]);
 
   function onMealsScroll() {
     const el = mealsRef.current;
@@ -481,7 +489,7 @@ export default function Home() {
       {help && SHEETS[help] && (
         <Sheet onClose={() => setHelp(null)}>
           {help === 'sost' ? (
-            <SubstituteIngredient onClose={() => setHelp(null)} />
+            <SubstituteIngredient onClose={() => setHelp(null)} onChanged={loadMenu} />
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
