@@ -188,7 +188,7 @@ export function ReminderCalendar({
           <button className="btn ghost sm" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><i className="ti ti-chevron-right" /></button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
-          {WD.map((w) => <div key={w} className="muted" style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, padding: '2px 0' }}>{w}</div>)}
+          {WD.map((w) => <div key={w} className="muted" style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, padding: '2px 0' }}>{w}</div>)}
           {cells.map((d) => {
             const items = byDay.get(dayKey(d)) ?? [];
             const other = d.getMonth() !== cursor.getMonth();
@@ -204,15 +204,15 @@ export function ReminderCalendar({
                 onClick={() => { setSelDay(startOfDay(d)); setView('day'); }}
                 title={has ? `${items.length} promemoria — apri il giorno` : 'Apri il giorno'}
                 style={{
-                  aspectRatio: '1', minHeight: compact ? 30 : 38,
+                  minHeight: compact ? 34 : 46,
                   border: has ? `2px solid ${accent}` : '1px solid var(--line)',
                   borderRadius: 8,
                   background: has ? (late ? 'rgba(229,72,77,.10)' : 'rgba(18,163,134,.12)') : today ? 'var(--chip)' : 'var(--card)',
                   color: other ? 'var(--muted)' : 'var(--ink)',
-                  cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, position: 'relative', padding: 0,
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, position: 'relative', padding: '4px 0',
                 }}
               >
-                <span style={{ fontSize: 12, fontWeight: today || has ? 800 : 500 }}>{d.getDate()}</span>
+                <span style={{ fontSize: compact ? 14 : 16, fontWeight: today || has ? 800 : 500 }}>{d.getDate()}</span>
                 {has && (
                   <span style={{
                     minWidth: compact ? 14 : 17, height: compact ? 14 : 17, padding: '0 4px', borderRadius: 9,

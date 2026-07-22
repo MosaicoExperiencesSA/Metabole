@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useCart } from '../cart/CartContext';
@@ -51,6 +51,10 @@ export default function Percorso() {
   const [reports, setReports] = useState<ReportHead[]>([]);
   const [monitoring, setMonitoring] = useState<MonitoringStatus | null>(null);
   const [monBusy, setMonBusy] = useState(false);
+  // Carosello pasti "menu di oggi": indice corrente + navigazione con le frecce.
+  const carRef = useRef<HTMLDivElement>(null);
+  const [mIdx, setMIdx] = useState(0);
+  const goMeal = (dir: -1 | 1) => carRef.current?.scrollBy({ left: dir * carRef.current.clientWidth, behavior: 'smooth' });
 
   function loadMonitoring() {
     api<MonitoringStatus>('/me/monitoring').then(setMonitoring).catch(() => setMonitoring(null));
@@ -178,7 +182,11 @@ export default function Percorso() {
             </button>
           </div>
           <div style={{ padding: '11px 12px 12px' }}>
-            <div className="meal-carousel">
+            <div
+              className="meal-carousel"
+              ref={carRef}
+              onScroll={(e) => setMIdx(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
+            >
               {meals.map((m, i) => {
                 const s = slotInfo(m.slot);
                 return (
@@ -193,6 +201,21 @@ export default function Percorso() {
                 );
               })}
             </div>
+            {meals.length > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 10 }}>
+                <button className="meal-nav-btn" aria-label="Pasto precedente" disabled={mIdx <= 0} onClick={() => goMeal(-1)}>
+                  <i className="ti ti-chevron-left" />
+                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {meals.map((_, i) => (
+                    <span key={i} style={{ width: i === mIdx ? 18 : 6, height: 6, borderRadius: 999, background: i === mIdx ? 'var(--teal)' : '#CBD8D3', transition: 'width .2s' }} />
+                  ))}
+                </div>
+                <button className="meal-nav-btn" aria-label="Pasto successivo" disabled={mIdx >= meals.length - 1} onClick={() => goMeal(1)}>
+                  <i className="ti ti-chevron-right" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
