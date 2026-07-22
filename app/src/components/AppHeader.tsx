@@ -31,6 +31,21 @@ const TYPE_ICON: Record<string, [string, string, string]> = {
   chat_reply_nutritionist: ['ti-message-2', '#E7EEF6', '#3A6EA5'],
 };
 
+// Ogni tipo di notifica porta alla funzione giusta al tap (deep-link in-app).
+// Es: "ti è piaciuto il cibo?" (rating_request) → pagina del menu con le stelline.
+const TYPE_ROUTE: Record<string, string> = {
+  engine_daily: '/menu',
+  checkin_reminder: '/',
+  measurement_reminder: '/obiettivo',
+  progress_cheer: '/percorso',
+  rating_request: '/menu',
+  visit_reminder: '/calendario',
+  pre_event: '/calendario',
+  mini_plan: '/percorso',
+  chat_reply_coach: '/contatti',
+  chat_reply_nutritionist: '/contatti',
+};
+
 function relTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const min = Math.round(diff / 60_000);
@@ -71,6 +86,13 @@ export default function AppHeader({
     } catch {
       /* la spunta è già applicata localmente */
     }
+  }
+
+  // Tap su una notifica: la segna letta e apre la funzione collegata (se mappata).
+  function openNotif(n: Notif) {
+    void markRead(n);
+    const route = TYPE_ROUTE[n.type];
+    if (route) { setSheet(null); nav(route); }
   }
 
   async function markAllRead() {
@@ -123,8 +145,9 @@ export default function AppHeader({
                 const [icon, bg, color] = TYPE_ICON[n.type] ?? ['ti-bell', '#F2F5F4', '#5F6E6B'];
                 const title2 = n.payload?.title || 'Notifica';
                 const body = n.payload?.body || '';
+                const hasRoute = !!TYPE_ROUTE[n.type];
                 return (
-                  <div key={n.id} className="card" style={{ display: 'flex', gap: 11, alignItems: 'flex-start', opacity: n.readAt ? 0.6 : 1, cursor: n.readAt ? 'default' : 'pointer', margin: 0 }} onClick={() => markRead(n)}>
+                  <div key={n.id} className="card" style={{ display: 'flex', gap: 11, alignItems: 'flex-start', opacity: n.readAt ? 0.6 : 1, cursor: hasRoute || !n.readAt ? 'pointer' : 'default', margin: 0 }} onClick={() => openNotif(n)}>
                     <span style={{ width: 38, height: 38, borderRadius: 11, background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                       <i className={`ti ${icon}`} style={{ fontSize: 19 }} />
                     </span>
@@ -134,7 +157,10 @@ export default function AppHeader({
                         {!n.readAt && <span className="livedot" style={{ background: '#E8543C' }} />}
                       </div>
                       {body && <div className="muted" style={{ fontSize: 11.5, lineHeight: 1.4, marginTop: 2 }}>{body}</div>}
-                      <div className="muted" style={{ fontSize: 10, marginTop: 4 }}>{relTime(n.scheduledFor)}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        <div className="muted" style={{ fontSize: 10 }}>{relTime(n.scheduledFor)}</div>
+                        {hasRoute && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--teal)' }}>Apri <i className="ti ti-chevron-right" style={{ fontSize: 11, verticalAlign: '-1px' }} /></span>}
+                      </div>
                     </div>
                   </div>
                 );
