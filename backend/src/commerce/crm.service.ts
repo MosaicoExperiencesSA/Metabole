@@ -638,7 +638,7 @@ export class CrmService {
     return { created, merged, skipped, coachAssigned, listLinks, newLists: dryRun ? [...newLists] : [] };
   }
 
-  async create(byUserId: string, input: { email: string; name?: string; phone?: string }) {
+  async create(byUserId: string, input: { email: string; name?: string; phone?: string; assignedCoachId?: string }) {
     const email = input.email.trim();
     // Anti-doppione: niente due schede CRM con la stessa email (confronto case-insensitive),
     // sia lead "puri" sia clienti già collegati. Coerente con import e registrazione.
@@ -649,13 +649,49 @@ export class CrmService {
     if (dupe) {
       throw new BadRequestException('Esiste già un contatto con questa email. Cercalo in Gestione lead invece di crearne uno nuovo.');
     }
+
+    // Anti-doppione anche sul TELEFONO (come per l'auto-registrazione della cliente):
+    // prima il controllo scattava solo quando era l'utente a iscriversi; se la lead la
+    // creava lo staff, un numero già presente passava. Confronto sulle sole cifre, con
+    // match anche a suffisso (prefisso internazionale +39 opzionale).
+    const phone = input.phone?.trim() || null;
+    const phoneDigits = (phone ?? '').replace(/\D/g, '');
+    if (phoneDigits.length >= 6) {
+      const owners = (await this.prisma.crmRecord.findMany({
+        where: { phone: { not: null } },
+        select: { phone: true },
+      })) as { phone: string | null }[];
+      const clash = owners.some((o) => {
+        const d = (o.phone ?? '').replace(/\D/g, '');
+        return d.length >= 6 && (d === phoneDigits || d.endsWith(phoneDigits) || phoneDigits.endsWith(d));
+      });
+      if (clash) {
+        throw new BadRequestException('Esiste già un contatto con questo numero di telefono. Cercalo in Gestione lead invece di crearne uno nuovo.');
+      }
+    }
+
+    // Assegnazione: la lead va assegnata a chi la crea se è una COACH (prima restava
+    // non assegnata e la coach non la ritrovava). Un manager (sales/coordinatrice/admin)
+    // può indicare esplicitamente una coach con assignedCoachId; altrimenti resta nel pool.
+    let assignedCoachId = input.assignedCoachId ?? null;
+    if (!assignedCoachId) {
+      const creator = (await this.prisma.user.findUnique({ where: { id: byUserId }, select: { role: true } })) as { role: string } | null;
+      if (creator?.role === 'coach') {
+        const staff = (await this.prisma.staff.findUnique({ where: { userId: byUserId }, select: { id: true } })) as { id: string } | null;
+        if (staff) assignedCoachId = staff.id;
+      }
+    }
+
     const record = await this.prisma.crmRecord.create({
       data: {
         email,
         name: input.name,
-        phone: input.phone?.trim() || null,
+        phone,
         stage: 'lead_in',
         stageDates: { lead_in: { at: new Date().toISOString(), byUserId } } as never,
+        ...(assignedCoachId
+          ? { assignedCoachId, assignmentStatus: 'accepted', assignedAt: new Date() }
+          : {}),
       },
     });
     await this.audit.log({
@@ -663,6 +699,7 @@ export class CrmService {
       actorId: byUserId,
       entityType: 'crm_record',
       entityId: record.id,
+      metadata: { assignedCoachId: assignedCoachId ?? null },
     });
     return record;
   }
