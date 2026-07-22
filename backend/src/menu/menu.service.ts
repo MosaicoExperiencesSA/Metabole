@@ -850,6 +850,20 @@ export class MenuService {
   }
 
   /**
+   * RIGENERA i menu da OGGI in poi (incluso oggi), senza toccare lo storico passato.
+   * Serve a correggere i menu GIÀ EROGATI ma sbagliati da una vecchia generazione
+   * (es. un giorno con la sola colazione): li cancella e li rieroga con la logica
+   * attuale (corretta). Rispetta gate misure/finestre come l'erogazione normale
+   * (quindi può restituire 0 giorni se la cliente non è idonea: es. misure mancanti).
+   */
+  async regenerateFromToday(clientId: string): Promise<{ removed: number; delivered: string[] }> {
+    const today = toDateOnly();
+    const del = await this.prisma.menuDay.deleteMany({ where: { clientId, date: { gte: today } } });
+    const delivered = await this.deliverIfEligible(clientId);
+    return { removed: del.count, delivered };
+  }
+
+  /**
    * Cambio DATA DI INIZIO piano: si cancellano TUTTI i menu erogati e si riparte
    * dalla nuova data impostata (il piano ricomincia da lì).
    */

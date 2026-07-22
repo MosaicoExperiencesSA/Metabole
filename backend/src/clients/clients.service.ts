@@ -574,6 +574,24 @@ export class ClientsService {
     return { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10) };
   }
 
+  /**
+   * Rigenera i menu della cliente da OGGI in poi: corregge i menu già erogati ma
+   * sbagliati da una vecchia generazione (es. giorno con la sola colazione), senza
+   * toccare lo storico passato. Non cambia la data di inizio piano.
+   */
+  async regenerateMenu(userId: string, actorId: string) {
+    await this.assertClientAccess(actorId, userId);
+    const r = await this.menu.regenerateFromToday(userId);
+    await this.audit.log({
+      action: 'client.menu.regenerated',
+      actorId,
+      entityType: 'user',
+      entityId: userId,
+      metadata: { removedDays: r.removed, delivered: r.delivered } as never,
+    });
+    return r;
+  }
+
   /** Modalità viaggio/estate (staff): imposta lo stato e le date; al rientro emette un evento per il CRM/marketing. */
   async setTravel(userId: string, actorId: string, input: { state?: string; start?: string; end?: string }) {
     await this.assertClientAccess(actorId, userId);

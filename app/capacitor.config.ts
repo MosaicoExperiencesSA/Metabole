@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // Configurazione Capacitor: da questa base web nascono Android (APK) e iOS.
 // L'app è unica per tutti i ruoli: dopo il login smista cliente / coach / nutrizionista.
 const config: CapacitorConfig = {
-  appId: 'app.metabole.client',
+  appId: 'app.metabole',
   appName: 'Metabole',
   webDir: 'dist',
   server: {

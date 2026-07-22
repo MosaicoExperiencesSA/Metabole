@@ -254,6 +254,22 @@ export function ClientDetail() {
       setError(err instanceof ApiError ? err.message : 'Cambio data non riuscito.');
     }
   }
+  /** Rigenera i menu da oggi in poi: corregge menu vecchi sbagliati (es. solo colazione). */
+  async function regenerateMenu() {
+    if (!confirm('Rigenerare i menu di questa cliente da OGGI in poi?\nI giorni già erogati da oggi vengono ricreati con la generazione corretta (lo storico passato resta). Usalo per correggere menu vecchi sbagliati.')) return;
+    setError(null); setNotice(null);
+    try {
+      const r = await api<{ removed: number; delivered: string[] }>(`/admin/clients/${id}/regenerate-menu`, { method: 'POST' });
+      setNotice(
+        r.delivered.length > 0
+          ? `Menu rigenerati: ${r.delivered.length} giorno/i (${r.removed} rimossi e ricreati).`
+          : `Nessun giorno rigenerato (${r.removed} rimossi). Possibile causa: misure mancanti, piano non attivo o in pausa — verifica lo stato della cliente.`,
+      );
+      void loadDetail();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Rigenerazione non riuscita.');
+    }
+  }
   const [fixing, setFixing] = useState<Detail['measurements'][number] | null>(null);
 
   // Team: liste coach/nutrizionisti per l'assegnazione (solo admin)
@@ -982,6 +998,11 @@ export function ClientDetail() {
             {canChangePlanStart && (
               <button className="btn ghost sm" onClick={() => void changePlanStart()} title="Cambia la data di inizio (la fine si ricalcola e i menu ripartono da lì)">
                 <i className="ti ti-pencil" />
+              </button>
+            )}
+            {canChangePlanStart && (
+              <button className="btn ghost sm" onClick={() => void regenerateMenu()} title="Rigenera i menu da oggi in poi: corregge menu vecchi sbagliati (es. solo colazione). Lo storico passato resta.">
+                <i className="ti ti-refresh" /> Rigenera menu
               </button>
             )}
           </div>

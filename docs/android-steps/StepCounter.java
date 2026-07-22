@@ -1,4 +1,4 @@
-package app.metabole.client;
+package app.metabole;
 
 import android.Manifest;
 import android.content.Context;

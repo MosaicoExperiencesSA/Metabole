@@ -18,7 +18,7 @@ Serve un account Google. Tempo stimato: ~15 minuti.
 1. Vai su **console.firebase.google.com** → **Crea un progetto** → nome "Metabole" (accetta i default,
    Google Analytics puoi lasciarlo spento).
 2. Dentro il progetto, **Aggiungi app** → icona **Android**.
-   - **Nome pacchetto Android**: `app.metabole.client` (esatto, è l'ID della nostra app).
+   - **Nome pacchetto Android**: `app.metabole` (esatto, è l'ID della nostra app).
    - Registra l'app.
 3. Scarica il file **`google-services.json`** che ti propone. Questo file mi serve: mettilo nella
    cartella del progetto su iCloud in `app/android/app/` (te lo indico io dove), oppure passamelo. Non è

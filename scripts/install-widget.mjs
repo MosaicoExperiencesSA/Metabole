@@ -18,7 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'docs', 'android-widget');
 const MAIN = path.join(ROOT, 'app', 'android', 'app', 'src', 'main');
-const PKG_DIR = path.join(MAIN, 'java', 'app', 'metabole', 'client');
+const PKG_DIR = path.join(MAIN, 'java', 'app', 'metabole');
 const MANIFEST = path.join(MAIN, 'AndroidManifest.xml');
 
 const RECEIVER = `

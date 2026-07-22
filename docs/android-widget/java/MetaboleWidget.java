@@ -1,4 +1,4 @@
-package app.metabole.client;
+package app.metabole;
 
 // Widget da home screen di Metabole (Java: il progetto Capacitor è Java-only).
 // Legge il "token widget" salvato dall'app in SharedPreferences ("CapacitorStorage",

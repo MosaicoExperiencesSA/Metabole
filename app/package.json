@@ -10,11 +10,12 @@
     "preview": "vite preview",
     "cap:sync": "cap sync",
     "android:init": "npm run build && cap add android",
-    "android:sync": "npm run build && cap sync android && npm run android:widget && npm run android:steps && npm run android:push && npm run android:icon",
+    "android:sync": "npm run build && cap sync android && npm run android:widget && npm run android:steps && npm run android:push && npm run android:icon && npm run android:play",
     "android:widget": "node ../scripts/install-widget.mjs",
     "android:steps": "node ../scripts/install-steps.mjs",
     "android:push": "node ../scripts/install-push.mjs",
     "android:icon": "node ../scripts/install-icon.mjs",
+    "android:play": "node ../scripts/install-play.mjs",
     "android:open": "cap open android"
   },
   "dependencies": {

@@ -124,6 +124,14 @@ export class ClientsController {
     return this.clients.updatePlanStart(id, user.sub, dto.date);
   }
 
+  /** Rigenera i menu da oggi in poi (corregge menu vecchi sbagliati). Stesso permesso del cambio data inizio. */
+  @RequirePage('change_plan_start', 'manage')
+  @HttpCode(200)
+  @Post(':id/regenerate-menu')
+  regenerateMenu(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clients.regenerateMenu(id, user.sub);
+  }
+
   /** Modalità viaggio/estate: in vacanza il popup misure si sospende; al rientro scatta un evento CRM/marketing. */
   @Patch(':id/travel')
   setTravel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: TravelDto) {

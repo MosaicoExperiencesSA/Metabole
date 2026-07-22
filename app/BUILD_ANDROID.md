@@ -75,7 +75,7 @@ L'APK si compila e gira **senza** Firebase: le push semplicemente non partono (l
 registrazione fallisce ed è gestita, l'app non crasha). Per accenderle serve un progetto
 **Firebase Cloud Messaging** (vedi `Metabole_Notifiche_Push_Setup.md`):
 
-1. Crea il progetto Firebase e un'app Android con package **`app.metabole.client`**.
+1. Crea il progetto Firebase e un'app Android con package **`app.metabole`**.
 2. Scarica `google-services.json` e mettilo in `app/android/app/`.
 3. In `app/android/build.gradle` aggiungi il classpath
    `com.google.gms:google-services:4.4.2`; in `app/android/app/build.gradle` in fondo:
@@ -100,7 +100,7 @@ flusso quando arriviamo a quel punto.
 
 ## Note tecniche
 
-- **appId**: `app.metabole.client` · **appName**: `Metabole`.
+- **appId**: `app.metabole` · **appName**: `Metabole`.
 - La cartella `android/` è in `.gitignore` (generata): si rigenera con `npm run android:init`.
 - Endpoint API: default `https://metabole-backend.onrender.com`; override con `VITE_API_URL`
   in `app/.env` per puntare a un altro backend.
