@@ -38,6 +38,7 @@ interface LeadDetailData {
   assignedCoach: { id: string; displayName: string } | null;
   assignmentStatus: string | null;
   phone: string | null;
+  phone2: string | null;
   previousStatus: string | null;
   historicalPaidCents: number | null;
   codiceFiscale: string | null;
@@ -98,6 +99,8 @@ export function LeadDetail() {
   // Campi modificabili (solo lead puro: l'anagrafica del cliente vive nella scheda cliente)
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phone2, setPhone2] = useState('');
   const [valueEuro, setValueEuro] = useState('');
   const [prevStatus, setPrevStatus] = useState('');
   const [histPaidEuro, setHistPaidEuro] = useState('');
@@ -143,6 +146,8 @@ export function LeadDetail() {
       setNotes(l.notes ?? []);
       setName(l.name ?? '');
       setEmail(l.email ?? '');
+      setPhone(l.phone ?? '');
+      setPhone2(l.phone2 ?? '');
       setValueEuro(l.valueCents != null ? String(l.valueCents / 100) : '');
       setPrevStatus(l.previousStatus ?? '');
       setHistPaidEuro(l.historicalPaidCents != null ? String(l.historicalPaidCents / 100) : '');
@@ -182,6 +187,8 @@ export function LeadDetail() {
       const body: Record<string, unknown> = {
         name: name.trim(),
         email: email.trim(),
+        phone: phone.trim(),
+        phone2: phone2.trim(),
         previousStatus: prevStatus.trim(),
         historicalPaidCents: histCents,
         codiceFiscale: codiceFiscale.trim(),
@@ -194,7 +201,7 @@ export function LeadDetail() {
       if (consent !== '') body.marketingConsent = consent === 'si';
       if (valueCents !== undefined) body.valueCents = valueCents;
       const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/info`, { method: 'PATCH', body: JSON.stringify(body) });
-      setLead({ ...lead, name: updated.name, email: updated.email, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags, segment: updated.segment, channel: updated.channel, marketingConsent: updated.marketingConsent, consentChannels: updated.consentChannels });
+      setLead({ ...lead, name: updated.name, email: updated.email, phone: updated.phone, phone2: updated.phone2, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags, segment: updated.segment, channel: updated.channel, marketingConsent: updated.marketingConsent, consentChannels: updated.consentChannels });
       setEditing(false);
       setNotice('Scheda aggiornata.');
     } catch (err) {
@@ -388,6 +395,7 @@ export function LeadDetail() {
     .sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
   const leadEmail = lead.client?.email ?? lead.email;
   const leadPhone = lead.client?.phone ?? lead.phone;
+  const leadPhone2 = lead.phone2;
 
   return (
     <>
@@ -405,6 +413,7 @@ export function LeadDetail() {
             <h2 style={{ color: '#fff', fontSize: 22, margin: 0 }}>{displayName}</h2>
             {leadEmail && <p style={{ margin: '4px 0 0', opacity: 0.9 }}>{leadEmail}</p>}
             {leadPhone && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-phone" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {leadPhone}</p>}
+            {leadPhone2 && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-phone" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {leadPhone2} <span style={{ opacity: 0.7, fontSize: 12 }}>(2° numero)</span></p>}
             {lead.address && <p style={{ margin: '2px 0 0', opacity: 0.9 }}><i className="ti ti-map-pin" style={{ verticalAlign: '-2px', fontSize: 14 }} /> {lead.address}</p>}
             <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
@@ -590,6 +599,14 @@ export function LeadDetail() {
                 <div className="field" style={{ minWidth: 220 }}>
                   <label>Email</label>
                   <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anna@example.com" />
+                </div>
+                <div className="field" style={{ minWidth: 160 }}>
+                  <label>Telefono</label>
+                  <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" />
+                </div>
+                <div className="field" style={{ minWidth: 160 }}>
+                  <label>2° telefono</label>
+                  <input className="input" value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="secondo numero (opzionale)" />
                 </div>
               </>
             )}

@@ -150,6 +150,16 @@ class UpdateLeadInfoDto {
   email?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone2?: string | null;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   valueCents?: number;

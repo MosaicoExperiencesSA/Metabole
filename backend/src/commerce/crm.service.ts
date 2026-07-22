@@ -407,6 +407,8 @@ export class CrmService {
     input: {
       name?: string;
       email?: string;
+      phone?: string | null;
+      phone2?: string | null;
       valueCents?: number | null;
       previousStatus?: string | null;
       historicalPaidCents?: number | null;
@@ -427,6 +429,8 @@ export class CrmService {
       data: {
         ...(input.name !== undefined ? { name: input.name || null } : {}),
         ...(input.email !== undefined ? { email: input.email || null } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone?.trim() || null } : {}),
+        ...(input.phone2 !== undefined ? { phone2: input.phone2?.trim() || null } : {}),
         ...(input.valueCents !== undefined ? { valueCents: input.valueCents } : {}),
         ...(input.previousStatus !== undefined ? { previousStatus: input.previousStatus || null } : {}),
         ...(input.historicalPaidCents !== undefined ? { historicalPaidCents: input.historicalPaidCents } : {}),
