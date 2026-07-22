@@ -155,7 +155,7 @@ export default function CoachDashboard() {
                       </div>
                       <button
                         className="sf-btn g"
-                        style={{ flex: 'none', padding: '6px 10px', fontSize: 13 }}
+                        style={{ flex: 'none', width: 'auto', whiteSpace: 'nowrap', padding: '6px 10px', fontSize: 13 }}
                         disabled={taskBusy === t.id}
                         onClick={() => markTask(t.id, 'done')}
                       >
