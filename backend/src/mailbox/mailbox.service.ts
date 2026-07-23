@@ -54,6 +54,11 @@ export class MailboxService {
       secure: s.secure,
       auth: { user: email, pass: password },
       logger: false,
+      // Default imapflow ~90s: l'utente aspettava un minuto e mezzo prima di vedere
+      // l'errore. Se il server non si fa vivo in 20s non si farà vivo mai: meglio
+      // fallire subito con un messaggio chiaro. Configurabile via env per l'assistenza.
+      connectionTimeout: Number(process.env.MAIL_CONNECT_TIMEOUT_MS || 20_000),
+      greetingTimeout: Number(process.env.MAIL_GREETING_TIMEOUT_MS || 15_000),
     });
   }
 
@@ -82,8 +87,8 @@ export class MailboxService {
       ? 'il server ha RIFIUTATO indirizzo o password (verifica le credenziali, es. dal webmail)'
       : e?.code === 'ENOTFOUND'
         ? 'server di posta non trovato (DNS): verifica mail.metabole.eu'
-        : e?.code === 'ETIMEDOUT' || /timeout/i.test(msg)
-          ? 'il server di posta NON RISPONDE (timeout): probabile problema lato hosting (o IP del backend bloccato dal firewall SiteGround), non di password'
+        : e?.code === 'ETIMEDOUT' || /timeout|required time|establish connection/i.test(msg)
+          ? 'il server di posta NON RISPONDE (timeout di connessione): NON è un problema di password — quasi sempre è il firewall dell\'hosting (SiteGround) che blocca l\'IP del backend (Render). Soluzione: far sbloccare/whitelistare gli IP in uscita di Render su SiteGround'
           : e?.code === 'ECONNREFUSED'
             ? 'connessione RIFIUTATA dal server (porta chiusa, servizio fermo o IP del backend bloccato dal firewall dell\'hosting)'
             : e?.code === 'ECONNRESET' || /socket|closed|reset/i.test(msg)
@@ -242,6 +247,10 @@ export class MailboxService {
       port: s.smtpPort,
       secure: s.secure,
       auth: { user: email, pass: password },
+      // Stessi timeout brevi dell'IMAP: se l'hosting blocca l'IP, meglio l'errore
+      // chiaro dopo 20s che un'attesa infinita.
+      connectionTimeout: Number(process.env.MAIL_CONNECT_TIMEOUT_MS || 20_000),
+      greetingTimeout: Number(process.env.MAIL_GREETING_TIMEOUT_MS || 15_000),
     });
     try {
       const info = await transport.sendMail({
