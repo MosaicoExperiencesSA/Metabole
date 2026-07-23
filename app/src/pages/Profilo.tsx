@@ -155,6 +155,86 @@ function ExcludedFoods() {
   );
 }
 
+/**
+ * Eliminazione account self-service (requisito Google Play / App Store).
+ * Doppia conferma: spunta "ho capito" + password. L'account viene anonimizzato
+ * e disattivato lato server; qui poi si fa logout e si torna alla landing.
+ */
+function DeleteAccount() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [pwd, setPwd] = useState('');
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    if (!sure || pwd.length === 0 || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      await api('/me/account/delete', { method: 'POST', body: JSON.stringify({ password: pwd }) });
+      await logout();
+      navigate('/', { replace: true });
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Operazione non riuscita, riprova.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 18, border: '1px solid #F0D5D2' }}>
+      <b style={{ fontSize: 13, color: '#B3261E' }}>Elimina account</b>
+      {!open ? (
+        <>
+          <p className="muted" style={{ margin: '6px 0 0', fontSize: 12 }}>
+            Elimina definitivamente il tuo account e i dati personali associati.
+          </p>
+          <button className="btn ghost" style={{ marginTop: 10, color: '#B3261E' }} onClick={() => setOpen(true)}>
+            <i className="ti ti-trash" /> Voglio eliminare il mio account
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="muted" style={{ margin: '6px 0 0', fontSize: 12 }}>
+            L'eliminazione è <b>definitiva</b>: percorso, menu, misure, foto e messaggi non
+            saranno più recuperabili. I documenti contabili restano conservati solo per gli
+            obblighi di legge. Se hai un abbonamento attivo, l'eliminazione non vale come
+            disdetta: per quella scrivi a info@metabole.eu.
+          </p>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 10, fontSize: 12 }}>
+            <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} style={{ marginTop: 2 }} />
+            <span>Ho capito che è definitivo e voglio procedere.</span>
+          </label>
+          <input
+            type="password"
+            className="input"
+            placeholder="Conferma con la tua password"
+            value={pwd}
+            onChange={(e) => setPwd(e.target.value)}
+            autoComplete="current-password"
+            style={{ marginTop: 10, width: '100%' }}
+          />
+          {err && <div className="banner err" style={{ marginTop: 8 }}>{err}</div>}
+          <div className="row" style={{ gap: 8, marginTop: 10 }}>
+            <button className="btn ghost" onClick={() => { setOpen(false); setPwd(''); setSure(false); setErr(null); }}>
+              Annulla
+            </button>
+            <button
+              className="btn"
+              style={{ background: '#B3261E' }}
+              disabled={!sure || pwd.length === 0 || busy}
+              onClick={() => void run()}
+            >
+              {busy ? 'Elimino…' : 'Elimina definitivamente'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Profilo() {
   const { user, logout, switchAccount } = useAuth();
   const [switching, setSwitching] = useState(false);
@@ -644,6 +724,8 @@ export default function Profilo() {
       <button className="btn ghost" style={{ marginTop: 18 }} onClick={() => { logout(); navigate('/'); }}>
         <i className="ti ti-logout" /> Esci
       </button>
+
+      <DeleteAccount />
 
       <div className="muted" style={{ textAlign: 'center', fontSize: 11, marginTop: 20, opacity: 0.7 }}>
         Metabole · v{__APP_VERSION__}

@@ -663,4 +663,56 @@ export class UsersService {
     await this.audit.log({ action: 'admin.user.restore', actorId, entityType: 'user', entityId: id });
     return { restored: true };
   }
+
+  /**
+   * Cancellazione account SELF-SERVICE (richiesta da Google Play e App Store per le
+   * app con registrazione): la cliente conferma con la propria password; l'account
+   * viene ANONIMIZZATO (email/nome/telefono/foto rimossi, password invalidata) e
+   * archiviato (`deletedAt` + sospeso), le sessioni revocate e i token push rimossi.
+   * Restano i dati contabili (obbligo di legge) e i contenuti clinici legati all'id,
+   * la cui rimozione profonda segue il flusso operatore della pagina web
+   * "Cancellazione account". Solo per ruolo `client`: lo staff passa dall'admin.
+   * Reversibile SOLO tecnicamente da un admin (restore), ma senza più i dati anagrafici.
+   */
+  async deleteMyAccount(userId: string, password: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, passwordHash: true, role: true, deletedAt: true },
+    });
+    if (!user || user.deletedAt) throw new NotFoundException('Utente non trovato');
+    if (user.email.trim().toLowerCase() === this.protectedAdminEmail()) {
+      throw new BadRequestException("Questo è l'admin principale: non è eliminabile.");
+    }
+    if (user.role !== 'client') {
+      throw new BadRequestException("Gli account dello staff sono gestiti dall'amministrazione: chiedi a un admin.");
+    }
+    const ok = await argon2.verify(user.passwordHash, password).catch(() => false);
+    if (!ok) throw new BadRequestException('Password non corretta');
+
+    const passwordHash = await argon2.hash(randomBytes(32).toString('hex'));
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: `deleted-${user.id}@anon.metabole.eu`,
+        secondaryEmail: null,
+        firstName: 'Account',
+        lastName: 'Eliminato',
+        phone: null,
+        photoUrl: null,
+        passwordHash,
+        status: 'suspended',
+        deletedAt: new Date(),
+      },
+    });
+    await this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.prisma.pushToken.deleteMany({ where: { userId } });
+    await this.audit.log({
+      action: 'me.account.delete',
+      actorId: userId,
+      entityType: 'user',
+      entityId: userId,
+      metadata: { email: user.email },
+    });
+    return { deleted: true };
+  }
 }

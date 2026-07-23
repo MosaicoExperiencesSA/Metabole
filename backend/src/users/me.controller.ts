@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Put } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Put } from '@nestjs/common';
 import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -57,6 +57,10 @@ class ChangePasswordDto {
   @IsString() @MinLength(8) @MaxLength(200) newPassword!: string;
 }
 
+class DeleteMyAccountDto {
+  @IsString() @MinLength(1) @MaxLength(200) password!: string;
+}
+
 class SetInitialPasswordDto {
   @IsString() @MinLength(8) @MaxLength(200) newPassword!: string;
 }
@@ -107,6 +111,15 @@ export class MeController {
   @Patch('password')
   changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
     return this.users.changePassword(user.sub, dto.currentPassword, dto.newPassword);
+  }
+
+  /**
+   * Cancellazione account self-service (requisito Google Play / App Store).
+   * Conferma con la password; l'account viene anonimizzato e archiviato.
+   */
+  @Post('account/delete')
+  deleteAccount(@CurrentUser() user: AuthUser, @Body() dto: DeleteMyAccountDto) {
+    return this.users.deleteMyAccount(user.sub, dto.password);
   }
 
   /** Imposta la password al primo accesso (account provvisorio con mustChangePassword). */
