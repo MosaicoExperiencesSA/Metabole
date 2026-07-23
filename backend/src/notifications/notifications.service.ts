@@ -392,9 +392,13 @@ export class NotificationsService {
         where: { clientId },
         orderBy: { date: 'desc' },
       });
-      const daysSinceCheckin = lastCheckin
-        ? Math.floor((today.getTime() - lastCheckin.date.getTime()) / 86_400_000)
-        : Infinity;
+      // Se non ha MAI fatto un check-in, conto i giorni dall'onboarding (mai Infinity/null:
+      // altrimenti il messaggio mostrerebbe il segnaposto {days} al posto del numero).
+      const referenceDate = lastCheckin?.date ?? profile.onboardingCompletedAt;
+      const daysSinceCheckin = Math.max(
+        0,
+        Math.floor((today.getTime() - referenceDate.getTime()) / 86_400_000),
+      );
       if (daysSinceCheckin >= noCheckinThreshold) {
         if (await this.notifyOncePerDay({
           userId: profile.assignedCoach.userId,
@@ -402,9 +406,9 @@ export class NotificationsService {
           messageKey: 'no_checkin_coach_alert',
           params: {
             clientName: profile.name ?? profile.user.email,
-            days: daysSinceCheckin === Infinity ? null : `${daysSinceCheckin}`,
+            days: `${daysSinceCheckin}`,
           },
-          payload: { clientId, daysSinceCheckin: daysSinceCheckin === Infinity ? null : daysSinceCheckin },
+          payload: { clientId, daysSinceCheckin },
         })) created.push('no_checkin_coach_alert');
       }
 

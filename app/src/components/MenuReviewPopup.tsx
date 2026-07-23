@@ -97,7 +97,7 @@ export default function MenuReviewPopup() {
                   <button
                     type="button"
                     className="btn-recipe"
-                    style={r.followed === 'yes' ? { background: 'var(--teal)', color: '#fff' } : undefined}
+                    style={r.followed === 'yes' ? { background: 'var(--teal)', color: '#fff' } : { background: '#EEF3F1', color: '#2E3E3B' }}
                     onClick={() => set(i, { followed: 'yes' })}
                   >
                     Seguita
@@ -105,7 +105,7 @@ export default function MenuReviewPopup() {
                   <button
                     type="button"
                     className="btn-recipe"
-                    style={r.followed === 'no' ? { background: '#B4491F', color: '#fff' } : undefined}
+                    style={r.followed === 'no' ? { background: '#B4491F', color: '#fff' } : { background: '#EEF3F1', color: '#2E3E3B' }}
                     onClick={() => set(i, { followed: 'no' })}
                   >
                     No

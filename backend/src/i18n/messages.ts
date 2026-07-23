@@ -141,7 +141,7 @@ const it: Catalog = {
   no_checkin_coach_alert: {
     title: 'Cliente silenziosa',
     variants: [
-      '{clientName}: nessun check-in da {days}. Un messaggio può riaccendere il percorso.',
+      '{clientName}: nessun check-in da {days} giorni. Un messaggio può riaccendere il percorso.',
     ],
   },
   stall_coach_alert: {
@@ -328,7 +328,7 @@ const en: Catalog = {
   },
   no_checkin_coach_alert: {
     title: 'Quiet client',
-    variants: ['{clientName}: no check-in for {days}. A message can reignite the journey.'],
+    variants: ['{clientName}: no check-in for {days} days. A message can reignite the journey.'],
   },
   stall_coach_alert: {
     title: 'Weight plateau',
