@@ -12,7 +12,7 @@ describe('NotificationsService', () => {
   let service: NotificationsService;
   let prisma: any;
   let mail: { sendNotificationEmail: jest.Mock };
-  let menu: { pendingRatings: jest.Mock };
+  let menu: { pendingRatings: jest.Mock; measurementGate: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -73,7 +73,11 @@ describe('NotificationsService', () => {
       getString: jest.fn().mockResolvedValue('false'), // AI composer spento
     };
     mail = { sendNotificationEmail: jest.fn().mockResolvedValue(true) };
-    menu = { pendingRatings: jest.fn().mockResolvedValue([]) };
+    menu = {
+      pendingRatings: jest.fn().mockResolvedValue([]),
+      // Gate misure: di default "dovuta" (2° giorno del ciclo) → il promemoria scatta.
+      measurementGate: jest.fn().mockResolvedValue({ required: true, blocking: true, cycleDate: null }),
+    };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -119,6 +123,7 @@ describe('NotificationsService', () => {
     prisma.dailyCheckin.findUnique.mockResolvedValue({ id: 'c-oggi' });
     prisma.dailyCheckin.findFirst.mockResolvedValue({ date: new Date() });
     prisma.measurement.findMany.mockResolvedValue([{ date: new Date(), weightKg: 66 }]);
+    menu.measurementGate.mockResolvedValue({ required: false, blocking: false, cycleDate: null }); // misura del ciclo già presente
     prisma.engineDecision.findFirst.mockResolvedValue(null);
     const created = await service.generateDailyForClient('u1');
     expect(created).toHaveLength(0);

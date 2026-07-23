@@ -273,11 +273,13 @@ export class NotificationsService {
       })) created.push('checkin_reminder');
     }
 
-    // 2. Promemoria misure (~ogni 2 giorni).
-    const daysSinceMeasure = lastMeasurement
-      ? Math.floor((today.getTime() - lastMeasurement.date.getTime()) / 86_400_000)
-      : Infinity;
-    if (daysSinceMeasure >= 2) {
+    // 2. Promemoria misure: allineato al GATE del ciclo (Tracciamento_Dati §5), non a un
+    // "ogni 2 giorni" scollegato. La misura è DOVUTA solo dal 2° giorno di ogni ciclo:
+    // es. primo menu il 20 → ciclo [20,21] → misura chiesta il 21, MAI il 20. Uso il gate
+    // come unica fonte di verità così il promemoria non anticipa il 1° giorno del ciclo
+    // (prima, senza misure precedenti, daysSinceMeasure=Infinity faceva scattare già il 20).
+    const measureGate = await this.menu.measurementGate(clientId);
+    if (measureGate.required) {
       if (await this.notifyOncePerDay({
         userId: clientId,
         type: 'measurement_reminder',
