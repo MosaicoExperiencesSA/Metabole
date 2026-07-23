@@ -8,6 +8,8 @@
  *   3. styles.xml → opt-out temporaneo dall'edge-to-edge forzato di Android 15
  *      (windowOptOutEdgeToEdgeEnforcement): senza, su Android 15 la UI finirebbe
  *      sotto la barra di stato. Da rimuovere quando gestiremo le safe-area in CSS.
+ *   4. versionCode/versionName in app/build.gradle presi da app/android-version.json
+ *      (unica fonte di verità: alzare lì versionCode a OGNI nuovo AAB per il Play Store).
  *
  * IDEMPOTENTE. Va eseguito dopo `cap sync android` (lo fa in automatico
  * `npm run android:sync`, come gli altri script install-*).
@@ -22,6 +24,8 @@ const ANDROID = path.join(ROOT, 'app', 'android');
 const VARIABLES = path.join(ANDROID, 'variables.gradle');
 const GRADLE_PROPS = path.join(ANDROID, 'gradle.properties');
 const STYLES = path.join(ANDROID, 'app', 'src', 'main', 'res', 'values', 'styles.xml');
+const APP_GRADLE = path.join(ANDROID, 'app', 'build.gradle');
+const VERSION_FILE = path.join(ROOT, 'app', 'android-version.json');
 
 const SUPPRESS = 'android.suppressUnsupportedCompileSdk=35';
 const EDGE_ITEM = '        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>';
@@ -72,6 +76,27 @@ async function main() {
     } else {
       console.error('⚠️  Non trovo AppTheme.NoActionBar in styles.xml: aggiungi a mano windowOptOutEdgeToEdgeEnforcement.');
     }
+  }
+
+  // 4) versionCode / versionName da app/android-version.json
+  if (await exists(VERSION_FILE)) {
+    const { versionCode, versionName } = JSON.parse(await fs.readFile(VERSION_FILE, 'utf8'));
+    if (Number.isInteger(versionCode) && typeof versionName === 'string') {
+      let b = await fs.readFile(APP_GRADLE, 'utf8');
+      const patched = b
+        .replace(/versionCode\s+\d+/, `versionCode ${versionCode}`)
+        .replace(/versionName\s+"[^"]*"/, `versionName "${versionName}"`);
+      if (patched !== b) {
+        await fs.writeFile(APP_GRADLE, patched);
+        console.log(`→ build.gradle: versione impostata a ${versionName} (versionCode ${versionCode}).`);
+      } else {
+        console.log(`→ build.gradle: versione già a ${versionName} (versionCode ${versionCode}), salto.`);
+      }
+    } else {
+      console.error('⚠️  app/android-version.json malformato: servono versionCode (intero) e versionName (stringa).');
+    }
+  } else {
+    console.log('→ app/android-version.json assente: versionCode/versionName restano quelli del template.');
   }
 
   console.log('✅ Progetto Android adeguato ai requisiti Play Store (SDK 35).');
