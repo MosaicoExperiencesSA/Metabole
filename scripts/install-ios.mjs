@@ -64,6 +64,25 @@ async function main() {
     }
   }
 
+  // 2b) User Script Sandboxing = NO. Da Xcode 15+ è YES di default e blocca lo script
+  //     CocoaPods "[CP] Embed Pods Frameworks" (errore "Sandbox: bash deny file-read-data").
+  if (await exists(PBXPROJ)) {
+    let p = await fs.readFile(PBXPROJ, 'utf8');
+    let np;
+    if (p.includes('ENABLE_USER_SCRIPT_SANDBOXING')) {
+      np = p.replace(/ENABLE_USER_SCRIPT_SANDBOXING = [^;]+;/g, 'ENABLE_USER_SCRIPT_SANDBOXING = NO;');
+    } else {
+      // aggiunge il setting in ogni blocco buildSettings (project + target, Debug + Release)
+      np = p.replace(/buildSettings = \{\n/g, 'buildSettings = {\n\t\t\t\tENABLE_USER_SCRIPT_SANDBOXING = NO;\n');
+    }
+    if (np !== p) {
+      await fs.writeFile(PBXPROJ, np);
+      console.log('→ User Script Sandboxing disattivato (fix script CocoaPods).');
+    } else {
+      console.log('→ User Script Sandboxing già a NO.');
+    }
+  }
+
   // 3) Push / Firebase (solo se il plist c'è)
   if (!(await exists(PLIST_SRC))) {
     console.log('ℹ️  app/GoogleService-Info.plist non presente → push iOS spente (build ok).');
