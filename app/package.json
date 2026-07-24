@@ -16,7 +16,11 @@
     "android:push": "node ../scripts/install-push.mjs",
     "android:icon": "node ../scripts/install-icon.mjs",
     "android:play": "node ../scripts/install-play.mjs",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "ios:init": "npm run build && cap add ios",
+    "ios:sync": "npm run build && cap sync ios && npm run ios:setup",
+    "ios:setup": "node ../scripts/install-ios.mjs",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
     "@capacitor/app": "^6.0.1",
