@@ -108,7 +108,10 @@ export class MenuService {
     });
     const blocked = await this.dietBlock(clientId);
     const status = await this.menuStatus(clientId, menuDays.some((d) => d.date.getTime() >= today.getTime()));
-    return { delivered, days: menuDays, blocked, status };
+    // Piano scaduto/annullato (nessun abbonamento attivo): non serviamo i menu residui
+    // erogati durante la prova — l'app mostra "nessun piano attivo".
+    const days = status.state === 'expired' ? [] : menuDays;
+    return { delivered, days, blocked, status };
   }
 
   /**
@@ -117,6 +120,8 @@ export class MenuService {
    * rotta. Non ha effetti collaterali (non eroga nulla).
    *
    * Stati:
+   * - `expired`         → nessun abbonamento attivo (prova/piano scaduto o annullato):
+   *                       "nessun piano attivo", il menu non si mostra;
    * - `available`       → ci sono giorni di menu visibili (nessun messaggio da mostrare);
    * - `awaiting_visit`  → percorso supervisionato (screening): il menu dipende dalla
    *                       visita col nutrizionista → messaggio dedicato;
@@ -137,6 +142,23 @@ export class MenuService {
       select: { planStartDate: true, screeningFlag: true },
     });
     const planStartDate = profile?.planStartDate ? profile.planStartDate.toISOString().slice(0, 10) : null;
+
+    // 0) ACCESSO AL MENU: serve un abbonamento ATTIVO (entro il periodo). Se l'utente ha
+    // avuto un piano ma ora è scaduto/annullato — nessuno attivo né in attesa — e non è in
+    // pausa/viaggio, il menu NON si mostra: stato `expired` ("nessun piano attivo"). Evita
+    // che restino visibili i giorni erogati durante una prova ormai finita.
+    const subs = (await this.prisma.subscription.findMany({
+      where: { clientId },
+      select: { status: true, endDate: true },
+    })) as { status: string; endDate: Date | null }[];
+    const hasActivePlan = subs.some(
+      (s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= today.getTime()),
+    );
+    const hasPendingPlan = subs.some((s) => s.status === 'pending');
+    if (subs.length > 0 && !hasActivePlan && !hasPendingPlan) {
+      const pauseNow = await this.events.activePausePeriod(clientId);
+      if (!pauseNow) return { state: 'expired', availableFrom: null, planStartDate };
+    }
 
     // 1) Menu già visibile (oggi o nei prossimi giorni): nessun messaggio.
     const visible =

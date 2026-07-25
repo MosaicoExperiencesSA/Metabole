@@ -18,6 +18,7 @@ interface Detail {
   waterLogs: { id: string; date: string; glasses: number; goal: number }[];
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
   subscription: any | null;
+  hasActivePlan?: boolean;
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string; approvedAt: string | null }[];
   crm: { stage: string; stageLabel?: string | null; valueCents: number | null } | null;
   notes: { id: string; body: string; createdAt: string; author: string | null }[];
@@ -975,16 +976,25 @@ export function ClientDetail() {
       <div className="card" style={{ padding: 0 }}>
         <div style={{ padding: '18px 20px 4px' }} className="spread">
           <h2 style={{ margin: 0 }}>Acquisti</h2>
-          {d.subscription && (
-            <button
-              className="chip"
-              onClick={openMenus}
-              title="Apri i menu del cliente per controllarli (con le stelline date ai piatti)"
-              style={{ cursor: 'pointer', border: '1px solid var(--line)' }}
-            >
-              {d.subscription.plan?.name} · {lab('subStatus', d.subscription.status)} <i className="ti ti-tools-kitchen-2" style={{ marginLeft: 4 }} />
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Se non c'è un abbonamento ATTIVO lo diciamo esplicitamente: il badge del piano
+                mostra l'abbonamento più significativo (es. prova scaduta), non un annullato. */}
+            {d.subscription && d.hasActivePlan === false && (
+              <span className="chip" style={{ background: '#F3E7E1', color: '#8A4B2A', border: '1px solid #E0A98A' }}>
+                Nessun piano attivo
+              </span>
+            )}
+            {d.subscription && (
+              <button
+                className="chip"
+                onClick={openMenus}
+                title="Apri i menu del cliente per controllarli (con le stelline date ai piatti)"
+                style={{ cursor: 'pointer', border: '1px solid var(--line)' }}
+              >
+                {d.subscription.plan?.name} · {lab('subStatus', d.subscription.status)} <i className="ti ti-tools-kitchen-2" style={{ marginLeft: 4 }} />
+              </button>
+            )}
+          </div>
         </div>
         {/* Data di inizio piano: quella SCELTA dalla cliente (planStartDate, guida i menu);
             se l'abbonamento è stato attivato in un giorno diverso lo indichiamo accanto. */}

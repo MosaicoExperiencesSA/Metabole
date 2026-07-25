@@ -152,9 +152,24 @@ export class ClientsService {
 
     await this.audit.log({ action: 'client.detail.view', actorId, entityType: 'user', entityId: userId });
 
-    // Abbonamento "principale" della scheda: attivo > in attesa > più recente.
+    // Abbonamento "principale" della scheda. Priorità: attivo > in attesa > scaduto >
+    // (in ultimo) annullato. Così non si spaccia per "piano corrente" un abbonamento
+    // ANNULLATO quando esiste, es., una prova scaduta più significativa. `subs` è già
+    // ordinato per createdAt desc (query in alto).
     const subs = subscriptions as { status: string }[];
-    const subscription = subs.find((s) => s.status === 'active') ?? subs.find((s) => s.status === 'pending') ?? subs[0] ?? null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const subscription =
+      subs.find((s) => s.status === 'active') ??
+      subs.find((s) => s.status === 'pending') ??
+      subs.find((s) => s.status !== 'cancelled' && s.status !== 'expired') ?? // es. paused
+      subs.find((s) => s.status === 'expired') ??
+      subs[0] ??
+      null;
+    // Flag per la scheda: c'è davvero un abbonamento ATTIVO (entro il periodo)?
+    const hasActivePlan = (subscriptions as { status: string; endDate: Date | null }[]).some(
+      (s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= today.getTime()),
+    );
 
     // Nome leggibile dello stato pipeline (es. "Prova" invece della chiave "trial") per il badge CRM.
     const stageLabel = crm
@@ -187,6 +202,7 @@ export class ClientsService {
       waterLogs,
       stepLogs,
       subscription,
+      hasActivePlan,
       payments,
       crm: crm ? { ...(crm as Record<string, unknown>), stageLabel } : null,
       notes: (notes as { id: string; body: string; createdAt: Date; author: { displayName: string } | null }[]).map((n) => ({

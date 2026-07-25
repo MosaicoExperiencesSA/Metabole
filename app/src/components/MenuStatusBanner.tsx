@@ -2,7 +2,7 @@
 // (spiega PERCHÉ e QUANDO arriva) invece di lasciarla pensare che l'app sia rotta.
 // Lo stato è calcolato dal backend (GET /me/menu → `status`).
 export interface MenuStatus {
-  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'paused' | 'blocked' | 'preparing';
+  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'paused' | 'blocked' | 'preparing' | 'expired';
   availableFrom: string | null; // yyyy-mm-dd in cui il menu diventa visibile
   planStartDate: string | null;
 }
@@ -16,6 +16,12 @@ function itDate(iso: string | null): string {
 /** Messaggio + icona per ogni stato (available → nessun banner). */
 export function menuStatusView(s: MenuStatus): { icon: string; title: string; text: string } | null {
   switch (s.state) {
+    case 'expired':
+      return {
+        icon: 'ti-lock',
+        title: 'Nessun piano attivo',
+        text: 'Il tuo piano è terminato: al momento non hai un abbonamento attivo. Riattiva un piano dal Negozio per ricevere di nuovo i menu.',
+      };
     case 'scheduled':
       return {
         icon: 'ti-calendar-event',
