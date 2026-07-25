@@ -220,6 +220,13 @@ export function GestioneNegozio() {
             </label>
             <CommissionInputs form={planForm} set={setPlanForm} />
           </div>
+          {/* Avviso: un piano GRATUITO (€0) con durata non in giorni concederebbe accesso
+              gratuito troppo a lungo (una prova dovrebbe durare pochi giorni, es. 8d). */}
+          {toCents(planForm.price ?? '0') === 0 && !/^\d+\s*d$/i.test((planForm.period ?? '').trim()) && (
+            <div style={{ marginTop: 12, padding: '9px 12px', borderRadius: 8, background: '#FBEEE6', border: '1px solid #E0A98A', color: '#8A4B2A', fontSize: 13, lineHeight: 1.45 }}>
+              <b>Attenzione:</b> piano gratuito (€ 0) con durata {(planForm.period ?? '').trim() ? <>non in giorni (<b>«{planForm.period}»</b>)</> : 'non impostata'}. Una prova gratuita dovrebbe durare pochi giorni: imposta il <b>Periodo</b> in giorni, es. <b>8d</b>. Con un periodo mensile/annuale (o vuoto) l'accesso gratuito durerebbe troppo.
+            </div>
+          )}
           <div className="row" style={{ gap: 8, marginTop: 12 }}>
             <button className="btn" onClick={savePlan} disabled={busy}>Salva</button>
             <button className="btn ghost" onClick={() => setPlanForm(null)} disabled={busy}>Annulla</button>

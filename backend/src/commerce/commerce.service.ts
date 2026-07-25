@@ -63,6 +63,21 @@ export function subscriptionEnd(start: Date, period: string): Date {
   return end;
 }
 
+/**
+ * True se `period` è in un formato RICONOSCIUTO (Nd/Nw/Nm/Ny oppure 'maintenance').
+ * Se è falso, `subscriptionEnd` userebbe il fallback lungo (3 mesi): pericoloso per un
+ * piano GRATUITO mal configurato. Usato come rete di sicurezza in fase di attivazione.
+ */
+export function isKnownPeriod(period: string): boolean {
+  const p = String(period ?? '').trim().toLowerCase();
+  if (p === 'maintenance') return true;
+  const m = p.match(/^(\d+)\s*([dwmy]?)$/);
+  return !!m && Number.isFinite(parseInt(m[1], 10)) && parseInt(m[1], 10) > 0;
+}
+
+/** Durata prova di default (giorni) quando un piano gratuito non ha un period valido. */
+export const FREE_PLAN_FALLBACK_PERIOD = '8d';
+
 @Injectable()
 export class CommerceService {
   private readonly receiptKey: Buffer;
@@ -892,7 +907,23 @@ export class CommerceService {
           start = chosen;
         }
       }
-      const end = subscriptionEnd(start, payment.subscription.plan.period);
+      // Rete di sicurezza (attivazione GRATUITA): se il piano è a €0 ma la sua durata
+      // (`period`) non è configurata in un formato valido, NON usare il fallback lungo di
+      // subscriptionEnd (3 mesi): sarebbe accesso gratuito per mesi. Default prudente a 8
+      // giorni (durata prova). I piani con period valido (es. '8d', 'maintenance') non cambiano.
+      const rawPeriod = payment.subscription.plan.period;
+      const isFreeActivation = payment.amountCents === 0;
+      const safePeriod = isFreeActivation && !isKnownPeriod(rawPeriod) ? FREE_PLAN_FALLBACK_PERIOD : rawPeriod;
+      if (safePeriod !== rawPeriod) {
+        await this.audit.log({
+          action: 'commerce.free_plan_period_fallback',
+          actorId: byUserId,
+          entityType: 'subscription',
+          entityId: payment.subscriptionId,
+          metadata: { rawPeriod, appliedPeriod: safePeriod, reason: 'piano gratuito senza durata valida' },
+        });
+      }
+      const end = subscriptionEnd(start, safePeriod);
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },
         data: { status: 'active', startDate: start, endDate: end },
