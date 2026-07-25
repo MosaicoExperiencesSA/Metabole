@@ -521,6 +521,12 @@ export default function Report() {
                   <span className="muted" style={{ fontSize: 11, marginLeft: 8 }}>col tuo codice</span>
                 )}
               </div>
+              {/* Invito allo sconto riservato: solo se non ha già un codice personale in questo report. */}
+              {!r.offer.code && (
+                <div className="muted" style={{ fontSize: 11.5, marginTop: 6, lineHeight: 1.4 }}>
+                  Chiedi alla tua coach per avere accesso a <b>sconti esclusivi riservati a te</b>.
+                </div>
+              )}
               {r.offer.code && (
                 <div style={{ border: '1.5px dashed #E8825A', borderRadius: 10, textAlign: 'center', padding: '8px 10px', marginTop: 10 }}>
                   <div className="muted" style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.5px' }}>CODICE RISERVATO A TE</div>
