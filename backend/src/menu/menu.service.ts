@@ -108,10 +108,10 @@ export class MenuService {
     });
     const blocked = await this.dietBlock(clientId);
     const status = await this.menuStatus(clientId, menuDays.some((d) => d.date.getTime() >= today.getTime()));
-    // Piano scaduto/annullato (nessun abbonamento attivo): non serviamo i menu residui
-    // erogati durante la prova — l'app mostra "nessun piano attivo".
-    const days = status.state === 'expired' ? [] : menuDays;
-    return { delivered, days, blocked, status };
+    // NB: restituiamo sempre tutti i giorni (lo STORICO resta leggibile anche a piano
+    // scaduto). Il "menu di oggi" in dashboard viene nascosto lato app quando
+    // `status.state === 'expired'`, ma la cronologia resta consultabile.
+    return { delivered, days: menuDays, blocked, status };
   }
 
   /**

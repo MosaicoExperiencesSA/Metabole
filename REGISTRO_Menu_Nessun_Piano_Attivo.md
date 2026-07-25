@@ -14,7 +14,17 @@ come "piano corrente" un abbonamento **Annullato** (perché sceglieva il più re
 - `menuStatus`: nuovo stato **`expired`**. Se l'utente ha avuto un piano ma ora **non c'è alcun
   abbonamento attivo** (entro il periodo) né in attesa, e non è in pausa/viaggio, ritorna `expired`.
   Il controllo precede lo stato `available`, così i menu residui di una prova finita non contano.
-- `getMenu`: quando lo stato è `expired`, restituisce `days: []` → l'app non mostra i menu.
+- `getMenu`: restituisce **sempre tutti i giorni** (lo **STORICO resta leggibile** anche a piano
+  scaduto) + lo stato `expired`. È l'app a nascondere il "menu di oggi" quando lo stato è `expired`.
+
+`app/src/pages/Home.tsx`
+- In dashboard, a stato `expired` non si mostra un "menu di oggi" (niente pasti → compare il banner);
+  il tile kcal va a "—". Lo storico resta consultabile nella pagina Menu.
+
+`app/src/pages/Menu.tsx` (nessuna modifica necessaria)
+- La sezione **"Storico menu"** elenca già i giorni passati e li rende cliccabili a prescindere dallo
+  stato: a piano scaduto compare il banner "Nessun piano attivo" in alto, ma lo storico resta
+  leggibile e navigabile (si apre il singolo giorno passato con i suoi pasti/ricette).
 
 `app/src/components/MenuStatusBanner.tsx`
 - Nuovo caso `expired`: banner **"Nessun piano attivo"** ("Il tuo piano è terminato… riattiva un
