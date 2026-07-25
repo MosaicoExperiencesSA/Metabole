@@ -27,6 +27,7 @@ Nota per l'agente che si occupa di deploy/pubblicazione. Tutte le modifiche sono
 | 5e0628e | backend | Script diagnostico abbonamenti (`npm run diag:subs`) — strumento manuale, non tocca il runtime |
 | cc2998e | backend + app + backoffice | "Nessun piano attivo": niente menu senza abbonamento attivo; scheda backoffice coerente |
 | e0ee7f4 | backend + app | Piano scaduto: nascosto solo il menu di oggi, storico sempre leggibile |
+| (nuovo) | app | Pagina "Il tuo percorso": nascosti "menu di oggi" e "menu futuri" a piano scaduto (storico resta) |
 
 ## Migration
 - **Nessuna migration nuova** in questo batch (tutte modifiche di comportamento a runtime).

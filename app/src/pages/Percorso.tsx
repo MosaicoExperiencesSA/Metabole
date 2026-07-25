@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useCart } from '../cart/CartContext';
 import AppHeader from '../components/AppHeader';
+import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 
 /**
@@ -46,6 +47,7 @@ export default function Percorso() {
   const nav = useNavigate();
   const cart = useCart();
   const [days, setDays] = useState<ApiMenuDay[]>([]);
+  const [menuStatus, setMenuStatus] = useState<MenuStatus | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tab, setTab] = useState<'past' | 'fut'>('past');
   const [reports, setReports] = useState<ReportHead[]>([]);
@@ -60,7 +62,7 @@ export default function Percorso() {
     api<MonitoringStatus>('/me/monitoring').then(setMonitoring).catch(() => setMonitoring(null));
   }
   useEffect(() => {
-    api<{ days: ApiMenuDay[] }>('/me/menu').then((r) => setDays(r.days ?? [])).catch(() => setDays([]));
+    api<{ days: ApiMenuDay[]; status?: MenuStatus }>('/me/menu').then((r) => { setDays(r.days ?? []); setMenuStatus(r.status ?? null); }).catch(() => setDays([]));
     api<EventItem[]>('/me/events').then((evs) => {
       const t = startOfDay(new Date()).getTime();
       setEvents((evs ?? []).filter((e) => startOfDay(new Date(e.startDate)).getTime() >= t).sort((a, b) => a.startDate.localeCompare(b.startDate)));
@@ -86,6 +88,8 @@ export default function Percorso() {
   }
 
   const iso = new Date().toISOString().slice(0, 10);
+  // Piano scaduto/annullato: niente "menu di oggi" né "menu futuri" (lo STORICO resta).
+  const expired = menuStatus?.state === 'expired';
   const todayDay = days.find((d) => d.date.slice(0, 10) === iso) ?? days[0];
   const meals: ApiMeal[] = todayDay?.meals ?? [];
   const totKcal = meals.reduce((a, m) => a + (m.kcal || 0), 0);
@@ -169,8 +173,13 @@ export default function Percorso() {
         </div>
       )}
 
-      {/* IL MENU DI OGGI */}
-      {meals.length > 0 && (
+      {/* Piano scaduto e nessun contesto Monitoraggio: lo diciamo esplicitamente. */}
+      {expired && !monitoring?.period && !monitoring?.eligible && menuStatus && (
+        <MenuStatusBanner status={menuStatus} />
+      )}
+
+      {/* IL MENU DI OGGI (nascosto a piano scaduto) */}
+      {!expired && meals.length > 0 && (
         <div style={{ borderRadius: 20, overflow: 'hidden', border: '1px solid #EEF1F0', boxShadow: '0 10px 24px rgba(16,48,42,.10)', marginBottom: 14 }}>
           <div style={{ background: 'var(--teal)', color: '#fff', padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
@@ -220,8 +229,8 @@ export default function Percorso() {
         </div>
       )}
 
-      {/* MENU FUTURI — i prossimi giorni già erogati (sbloccati dall'invio misure) */}
-      {future.length > 0 && (
+      {/* MENU FUTURI — i prossimi giorni già erogati (nascosti a piano scaduto) */}
+      {!expired && future.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <div className="sec" style={{ margin: '0 2px 9px', display: 'flex', alignItems: 'center', gap: 6 }}>
             <i className="ti ti-calendar" style={{ fontSize: 15, color: 'var(--teal)' }} /> Menu futuri
