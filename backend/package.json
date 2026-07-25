@@ -23,6 +23,7 @@
     "approve:diets": "ts-node --transpile-only prisma/approve-diets.ts",
     "dedupe:diets": "ts-node --transpile-only prisma/dedupe-diets.ts",
     "bonifica:crm": "ts-node --transpile-only prisma/bonifica-crm.ts",
+    "diag:subs": "ts-node --transpile-only prisma/diagnostica-abbonamenti.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"

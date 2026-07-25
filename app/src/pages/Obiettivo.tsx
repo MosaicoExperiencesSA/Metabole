@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import AppHeader from '../components/AppHeader';
+import ReportsSection from '../components/ReportsSection';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
 
@@ -208,6 +209,9 @@ export default function Obiettivo() {
   return (
     <div className="home">
       <AppHeader title="I tuoi obiettivi" />
+
+      {/* Elenco dei report del percorso (settimana di prova, diario del mese, fine piano). */}
+      <ReportsSection variant="list" />
 
       {/* Obiettivo attuale (dai dati di registrazione) */}
       {objective && (() => {

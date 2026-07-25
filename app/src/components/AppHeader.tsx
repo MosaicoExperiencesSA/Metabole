@@ -12,7 +12,7 @@ import Sheet from './Sheet';
 interface Notif {
   id: string;
   type: string;
-  payload?: { title?: string; body?: string } | null;
+  payload?: { title?: string; body?: string; reportId?: string } | null;
   readAt: string | null;
   scheduledFor: string;
 }
@@ -29,6 +29,9 @@ const TYPE_ICON: Record<string, [string, string, string]> = {
   mini_plan: ['ti-heart-handshake', '#DCEBE3', '#0E7C66'],
   chat_reply_coach: ['ti-message-2', '#DCEBE3', '#0E7C66'],
   chat_reply_nutritionist: ['ti-message-2', '#E7EEF6', '#3A6EA5'],
+  plan_report: ['ti-file-analytics', '#EDE7FB', '#7C3AED'],
+  payment_approved: ['ti-receipt', '#DCF0D8', '#3B6D11'],
+  payment_rejected: ['ti-receipt-off', '#F9E1DE', '#B3261E'],
 };
 
 // Ogni tipo di notifica porta alla funzione giusta al tap (deep-link in-app).
@@ -44,6 +47,9 @@ const TYPE_ROUTE: Record<string, string> = {
   mini_plan: '/percorso',
   chat_reply_coach: '/contatti',
   chat_reply_nutritionist: '/contatti',
+  plan_report: '/report', // fallback; se il payload ha reportId si apre /report/:id (vedi openNotif)
+  payment_approved: '/profilo',
+  payment_rejected: '/profilo',
 };
 
 function relTime(iso: string): string {
@@ -91,7 +97,9 @@ export default function AppHeader({
   // Tap su una notifica: la segna letta e apre la funzione collegata (se mappata).
   function openNotif(n: Notif) {
     void markRead(n);
-    const route = TYPE_ROUTE[n.type];
+    // Il report ha il suo id nel payload → si apre direttamente quel report.
+    let route: string | undefined = TYPE_ROUTE[n.type];
+    if (n.type === 'plan_report' && n.payload?.reportId) route = `/report/${n.payload.reportId}`;
     if (route) { setSheet(null); nav(route); }
   }
 

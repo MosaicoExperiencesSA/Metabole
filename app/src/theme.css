@@ -45,8 +45,12 @@ body {
 }
 .screen.no-tabbar { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
 
-/* Header comune app (teal, angoli arrotondati in basso) — a tutta larghezza dentro .screen */
+/* Header comune app (teal, angoli arrotondati in basso) — a tutta larghezza dentro .screen.
+   position: sticky → resta ancorato in alto mentre il resto della pagina scorre. */
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   margin: calc(-1 * (env(safe-area-inset-top) + 16px)) -16px 14px;
   padding: calc(env(safe-area-inset-top) + 14px) 14px 18px;
   background: linear-gradient(135deg, var(--teal), var(--brand-dark, #0E6E5A));
