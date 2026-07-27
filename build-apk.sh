@@ -46,8 +46,11 @@ fi
 echo "→ Allineo i file da iCloud…"
 rsync -a --delete --exclude node_modules --exclude android "$ICLOUD/" "$BUILD/"
 
-echo "→ Sync Capacitor (build web + widget + contapassi + push)…"
+echo "→ Dipendenze (npm install: veloce se già aggiornate)…"
 cd "$BUILD/app"
+npm install
+
+echo "→ Sync Capacitor (build web + widget + contapassi + push + icona + versione)…"
 npm run android:sync
 
 echo "→ Compilo l'APK (gradle)…"
