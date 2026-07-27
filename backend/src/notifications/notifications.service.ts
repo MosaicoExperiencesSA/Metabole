@@ -429,6 +429,28 @@ export class NotificationsService {
           payload: { clientId, stallDays },
         })) created.push('stall_coach_alert');
       }
+
+      // Menu non seguito: la cliente ha segnato "non seguita" su un menu recente (ultimi 2
+      // giorni) → avviso alla coach (una volta al giorno finché continua). Il tag arriva dal
+      // popup "Com'è andata ieri?" (MenuReviewPopup → /me/ratings con tag non_seguita).
+      const notFollowed = await this.prisma.recipeRating.findFirst({
+        where: {
+          clientId,
+          tags: { has: 'non_seguita' },
+          date: { gte: new Date(today.getTime() - 2 * 86_400_000) },
+        } as never,
+        orderBy: { date: 'desc' },
+        select: { date: true },
+      });
+      if (notFollowed) {
+        if (await this.notifyOncePerDay({
+          userId: profile.assignedCoach.userId,
+          type: 'menu_not_followed_coach_alert',
+          messageKey: 'menu_not_followed_coach_alert',
+          params: { clientName: profile.name ?? profile.user.email },
+          payload: { clientId, date: (notFollowed as { date: Date }).date.toISOString().slice(0, 10) },
+        })) created.push('menu_not_followed_coach_alert');
+      }
     }
 
     return created;

@@ -150,6 +150,12 @@ const it: Catalog = {
       '{clientName}: media mobile ferma da {stallDays} giorni. Il motore ha già adattato il piano: può servire anche la tua voce.',
     ],
   },
+  menu_not_followed_coach_alert: {
+    title: 'Menu non seguito',
+    variants: [
+      '{clientName} ha segnato che non ha seguito il menu: un tuo messaggio può aiutarla a rimettersi in carreggiata.',
+    ],
+  },
   visit_reminder_staff: {
     title: 'Visita in agenda domani',
     variants: ['Domani visita con {clientName}: {when}.'],
@@ -334,6 +340,12 @@ const en: Catalog = {
     title: 'Weight plateau',
     variants: [
       '{clientName}: moving average flat for {stallDays} days. The engine has already adjusted the plan: your voice can help too.',
+    ],
+  },
+  menu_not_followed_coach_alert: {
+    title: 'Menu not followed',
+    variants: [
+      '{clientName} marked the menu as not followed: a message from you can help her get back on track.',
     ],
   },
   visit_reminder_staff: {

@@ -119,7 +119,13 @@ export default function Menu() {
     const g = new URLSearchParams(window.location.search).get('giorno');
     return g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : null;
   });
-  const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; tag?: string } | null>(null);
+  // Ricetta aperta direttamente (es. dal tasto "Ricetta" della Home via ?ricetta=&giorno=).
+  const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; tag?: string } | null>(() => {
+    const p = new URLSearchParams(window.location.search);
+    const r = p.get('ricetta');
+    const g = p.get('giorno');
+    return r ? { recipeId: r, date: g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : undefined } : null;
+  });
   const mealsRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
   const [blocked, setBlocked] = useState<{ active: boolean; reason: string | null } | null>(null);

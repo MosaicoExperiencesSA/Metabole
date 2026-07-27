@@ -393,7 +393,7 @@ export default function Home() {
                       <div className="meal-name">{m.name}</div>
                       <div className="row-between">
                         <span className="muted" style={{ fontSize: 12 }}>{m.kcal} kcal</span>
-                        <button className="btn-recipe" onClick={() => navigate('/menu')}>Ricetta</button>
+                        <button className="btn-recipe" onClick={() => navigate(`/menu?ricetta=${m.recipeId}&giorno=${new Date().toISOString().slice(0, 10)}`)}>Ricetta</button>
                       </div>
                     </div>
                   </div>

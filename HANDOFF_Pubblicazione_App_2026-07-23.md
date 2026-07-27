@@ -28,6 +28,7 @@ Nota per l'agente che si occupa di deploy/pubblicazione. Tutte le modifiche sono
 | cc2998e | backend + app + backoffice | "Nessun piano attivo": niente menu senza abbonamento attivo; scheda backoffice coerente |
 | e0ee7f4 | backend + app | Piano scaduto: nascosto solo il menu di oggi, storico sempre leggibile |
 | (nuovo) | app | Pagina "Il tuo percorso": nascosti "menu di oggi" e "menu futuri" a piano scaduto (storico resta) |
+| 3264b04 | backend + app | Misure obbligatorie per ogni menu (primo + ogni ciclo, app si blocca) · alert coach "menu non seguito" · tasto "Ricetta" in Home apre la ricetta |
 
 ## Migration
 - **Nessuna migration nuova** in questo batch (tutte modifiche di comportamento a runtime).

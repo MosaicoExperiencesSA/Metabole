@@ -181,23 +181,25 @@ export class MenuService {
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return { state: 'paused', availableFrom: null, planStartDate };
 
-    // 5) Prova gratuita: senza misure iniziali il menu resta trattenuto.
-    const activeSubscription = (await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' },
-      include: { plan: { select: { priceCents: true } } },
-    })) as ({ plan: { priceCents: number } | null }) | null;
-    if (activeSubscription?.plan?.priceCents === 0) {
-      const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
-      if (hasMeasure === 0) return { state: 'awaiting_measures', availableFrom: null, planStartDate };
-    }
-
-    // 6) Idoneo ma troppo presto: mostro la data in cui il menu comparirà.
+    // 5) Idoneo ma troppo presto: mostro la data in cui il menu comparirà.
     const visibleDaysBefore = await this.configParams.getNumber('menu_visible_days_before_start', 2);
     const start = toDateOnly(profile.planStartDate.toISOString());
     const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
     const availableFrom = visibleFrom.toISOString().slice(0, 10);
     if (today.getTime() < visibleFrom.getTime()) {
       return { state: 'scheduled', availableFrom, planStartDate };
+    }
+
+    // 6) MISURE INIZIALI (punto A): per QUALSIASI piano attivo, se non c'è ancora nessuna
+    // misura il menu resta trattenuto e l'app mostra il popup misure (bloccante). Prima
+    // valeva solo per la prova €0; ora vale sempre (le misure servono per ogni ciclo).
+    const activeSubscription = await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
+      select: { id: true },
+    });
+    if (activeSubscription) {
+      const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
+      if (hasMeasure === 0) return { state: 'awaiting_measures', availableFrom: null, planStartDate };
     }
 
     // 7) Piano in sistemazione col nutrizionista (esclusioni non sostituibili).
@@ -231,10 +233,11 @@ export class MenuService {
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return [];
 
-    // PROVA GRATUITA (handoff Prezzi/Prova): le MISURE INIZIALI sono obbligatorie al
-    // giorno 0 — senza punto A non esiste il report A→B. Finché non arrivano, il menu
-    // resta trattenuto (il popup misure dell'app guida la cliente a inserirle).
-    if (activeSubscription.plan?.priceCents === 0) {
+    // MISURE INIZIALI (punto A) obbligatorie al giorno 0 per QUALSIASI piano: senza la prima
+    // misura non esiste il report A→B e non si eroga il primo menu. Finché non arriva, il menu
+    // resta trattenuto e il popup misure (bloccante) guida la cliente a inserirla. Le misure
+    // servono poi per OGNI ciclo (vedi cycleNeedsMeasure più sotto).
+    {
       const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
       if (hasMeasure === 0) return [];
     }
@@ -444,9 +447,40 @@ export class MenuService {
       orderBy: { date: 'desc' },
       select: { date: true },
     });
-    if (!last) return { required: false, blocking: false, cycleDate: null };
+    if (!last) {
+      // Nessun menu ancora erogato: se il piano è attivo, la finestra è iniziata e mancano le
+      // MISURE INIZIALI (punto A), blocca comunque col popup — le misure sbloccano il 1° menu.
+      const needsInitial = await this.needsInitialMeasures(clientId);
+      return { required: needsInitial, blocking: needsInitial, cycleDate: null };
+    }
     const needs = await this.cycleNeedsMeasure(clientId, last, daysPerDelivery);
     return { required: needs, blocking: needs, cycleDate: last.date.toISOString().slice(0, 10) };
+  }
+
+  /**
+   * True se il piano è attivo e idoneo a partire (finestra iniziata, non in pausa/vacanza,
+   * non supervisionato) ma manca ancora QUALSIASI misura: allora il popup misure blocca
+   * l'app finché non arriva il punto A (primo menu trattenuto in deliverIfEligible).
+   */
+  private async needsInitialMeasures(clientId: string): Promise<boolean> {
+    const profile = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { planStartDate: true, screeningFlag: true, travelState: true },
+    })) as { planStartDate: Date | null; screeningFlag: boolean | null; travelState: string | null } | null;
+    if (!profile?.planStartDate) return false;
+    if (profile.screeningFlag) return false; // percorso supervisionato: dipende dalla visita
+    if (profile.travelState === 'in_vacanza') return false;
+    const activeSub = await this.prisma.subscription.findFirst({ where: { clientId, status: 'active' }, select: { id: true } });
+    if (!activeSub) return false;
+    const pause = await this.events.activePausePeriod(clientId);
+    if (pause) return false;
+    const visibleDaysBefore = await this.configParams.getNumber('menu_visible_days_before_start', 2);
+    const today = toDateOnly();
+    const start = toDateOnly(profile.planStartDate.toISOString());
+    const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
+    if (today.getTime() < visibleFrom.getTime()) return false; // troppo presto
+    const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
+    return hasMeasure === 0;
   }
 
   /**
