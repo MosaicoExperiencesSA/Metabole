@@ -541,13 +541,23 @@ export class ClientsService {
     if (!sub) throw new NotFoundException('Nessun abbonamento su cui spostare la data.');
 
     const newEnd = subscriptionEnd(d, sub.plan.period);
+    // RIATTIVAZIONE: spostare l'inizio nel futuro deve rendere il piano di nuovo attivo.
+    // Se la nuova fine è nel futuro e l'abbonamento era già approvato (attivo o SCADUTO), lo
+    // riportiamo ad 'active'. Non tocchiamo 'pending' (pagamento non approvato) né 'cancelled'
+    // (stato terminale voluto). Senza questo, un abbonamento scaduto spostato in avanti restava
+    // 'expired' → "Nessun piano attivo" e niente menu pur avendo date future.
+    const reactivate = newEnd.getTime() > now && (sub.status === 'active' || sub.status === 'expired');
+
     const prevProfile = (await this.prisma.clientProfile.findUnique({
       where: { userId },
       select: { planStartDate: true },
     })) as { planStartDate: Date | null } | null;
 
     await this.prisma.$transaction([
-      this.prisma.subscription.update({ where: { id: sub.id }, data: { startDate: d, endDate: newEnd } }),
+      this.prisma.subscription.update({
+        where: { id: sub.id },
+        data: { startDate: d, endDate: newEnd, ...(reactivate ? { status: 'active' as never } : {}) },
+      }),
       this.prisma.clientProfile.upsert({
         where: { userId },
         update: { planStartDate: d } as never,
@@ -568,7 +578,7 @@ export class ClientsService {
           endDate: sub.endDate?.toISOString().slice(0, 10) ?? null,
           planStartDate: prevProfile?.planStartDate?.toISOString().slice(0, 10) ?? null,
         },
-        after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10) },
+        after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10), ...(reactivate ? { status: 'active', reactivated: true } : {}) },
       },
     });
     // Cambio data di inizio = il piano RIPARTE: si cancellano i menu già erogati e si

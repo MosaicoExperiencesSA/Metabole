@@ -30,6 +30,8 @@ Nota per l'agente che si occupa di deploy/pubblicazione. Tutte le modifiche sono
 | (nuovo) | app | Pagina "Il tuo percorso": nascosti "menu di oggi" e "menu futuri" a piano scaduto (storico resta) |
 | 3264b04 | backend + app | Misure obbligatorie per ogni menu (primo + ogni ciclo, app si blocca) · alert coach "menu non seguito" · tasto "Ricetta" in Home apre la ricetta |
 | (nuovo) | backend | Fix falso "piano scaduto": hasActivePlan si basa solo sullo STATO dell'abbonamento (no ricontrollo endDate). Solo backend, nessun aggiornamento app |
+| 758c1bb → | backend | (come sopra) |
+| (nuovo) | backend | Spostare l'inizio piano RIATTIVA l'abbonamento scaduto (status→active se fine futura) + script una-tantum `reactivate:future-expired` per i casi pregressi. Solo backend |
 
 ## Migration
 - **Nessuna migration nuova** in questo batch (tutte modifiche di comportamento a runtime).
