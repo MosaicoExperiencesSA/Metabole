@@ -19,6 +19,12 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
+    // Aggiornamenti OTA (Capgo) in modalita' MANUALE self-hosted: il controllo versione
+    // lo gestiamo noi in src/lib/ota.ts leggendo metabole.eu/app-updates/latest.json.
+    // Niente auto-update del plugin, niente server Capgo.
+    CapacitorUpdater: {
+      autoUpdate: false,
+    },
   },
 };
 

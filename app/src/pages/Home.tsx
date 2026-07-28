@@ -13,6 +13,7 @@ import StartDatePrompt from '../components/StartDatePrompt';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 import PendingBankTransfers from '../components/PendingBankTransfers';
 import AppHeader from '../components/AppHeader';
+import ReportsSection from '../components/ReportsSection';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 import { TypeText } from '../components/TypeText';
 
@@ -343,6 +344,9 @@ export default function Home() {
   return (
     <div className="home">
       <AppHeader title={`Ciao, ${name}`} />
+
+      {/* Report pronto (es. quello dei primi giorni di prova): in evidenza in dashboard. */}
+      <ReportsSection variant="card" />
 
       {/* Fase attuale del percorso (dimagrimento / mantenimento), decisa dallo staff. */}
       {today?.objective && PHASE_BADGE[today.objective] && (

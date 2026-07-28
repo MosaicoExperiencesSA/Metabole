@@ -1,0 +1,5 @@
+{
+  "version": null,
+  "url": null,
+  "_nota": "OTA spento. Da caricare su metabole.eu/app-updates/latest.json. Per spingere un aggiornamento usare scripts/ota-release.mjs e sostituire version+url con il nuovo bundle."
+}
