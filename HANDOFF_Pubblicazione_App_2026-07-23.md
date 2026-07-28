@@ -32,6 +32,7 @@ Nota per l'agente che si occupa di deploy/pubblicazione. Tutte le modifiche sono
 | (nuovo) | backend | Fix falso "piano scaduto": hasActivePlan si basa solo sullo STATO dell'abbonamento (no ricontrollo endDate). Solo backend, nessun aggiornamento app |
 | 758c1bb → | backend | (come sopra) |
 | (nuovo) | backend | Spostare l'inizio piano RIATTIVA l'abbonamento scaduto (status→active se fine futura) + script una-tantum `reactivate:future-expired` per i casi pregressi. Solo backend |
+| (nuovo) | backend | Esclusioni cibi per CATEGORIA generica ("frutta secca","legumi") applicate anche ai non graditi + trigger su nome+ingredienti. Solo backend. Per i casi già erogati: "Rigenera menu" |
 
 ## Migration
 - **Nessuna migration nuova** in questo batch (tutte modifiche di comportamento a runtime).

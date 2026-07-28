@@ -23,15 +23,33 @@ interface MealSnapshot {
 // Mappa intolleranza/allergia → parole chiave negli ingredienti (v1; spostabile in config).
 // Serve a riconoscere un ingrediente pericoloso anche quando il nome non coincide
 // col termine dell'intolleranza (es. "lattosio" → "yogurt", "formaggio").
+// Mappa CATEGORIA generica → parole chiave negli ingredienti. Serve sia per allergie/
+// intolleranze sia per i cibi "non graditi": una categoria generica ("frutta secca",
+// "legumi", "latticini") deve intercettare i singoli alimenti (noci, ceci, formaggio…),
+// altrimenti un'esclusione generica non prende i piatti che li contengono.
 const INTOLERANCE_MAP: Record<string, string[]> = {
   lattosio: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano'],
+  latticini: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano', 'stracchino', 'scamorza', 'mascarpone'],
   glutine: ['pane', 'pasta', 'farro', 'orzo', 'couscous', 'grano', 'seitan', 'pizza', 'cracker'],
   'frutta secca': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'arachidi'],
+  legumi: ['lenticchie', 'ceci', 'fagioli', 'piselli', 'fave', 'lupini', 'borlotti', 'cannellini', 'cicerchie', 'edamame'],
   uova: ['uovo', 'uova', 'frittata', 'maionese'],
   pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe'],
   crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle'],
   soia: ['soia', 'tofu', 'edamame'],
 };
+
+/**
+ * Espande un termine escluso (intolleranza o cibo non gradito) nelle sue parole chiave:
+ * se è una categoria nota (es. "frutta secca", "legumi") restituisce categoria + membri
+ * (noci, mandorle, …), altrimenti solo il termine stesso. Usato per intolleranze E dislikedFoods.
+ */
+function expandExclusion(term: string): string[] {
+  const t = (term ?? '').toLowerCase().trim();
+  if (!t) return [];
+  const members = INTOLERANCE_MAP[t];
+  return members ? [t, ...members] : [t];
+}
 
 // Sostituzioni equivalenti sicure (v1; spostabile in config). Chiave = parola chiave
 // nell'ingrediente → sostituto. Se un ingrediente escluso NON è qui e deriva da
@@ -790,17 +808,35 @@ export class MenuService {
     });
     // Un piatto alternativo non deve contenere NIENTE di escluso (né il cibo indicato,
     // né gli altri non graditi, né le parole chiave delle intolleranze).
-    const excluded = new Set<string>(dl);
-    for (const intol of ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim())) {
-      for (const kw of INTOLERANCE_MAP[intol] ?? [intol]) excluded.add(kw);
+    const excluded = new Set<string>();
+    for (const term of dl) for (const kw of expandExclusion(term)) excluded.add(kw);
+    for (const intol of ((profile?.intolerances ?? []) as string[])) {
+      for (const kw of expandExclusion(intol)) excluded.add(kw);
     }
-    for (const d of ((profile?.dislikedFoods ?? []) as string[])) excluded.add(d.toLowerCase().trim());
+    // Cibi non graditi: espansi per CATEGORIA (es. "frutta secca"/"legumi" → noci, ceci…).
+    for (const d of ((profile?.dislikedFoods ?? []) as string[])) {
+      for (const kw of expandExclusion(d)) excluded.add(kw);
+    }
+
+    // Trigger dello swap = SOLO i cibi non graditi (dl + dislikedFoods), espansi per categoria.
+    // Le intolleranze NON triggerano lo swap qui: sono gestite (ed eventualmente bloccanti) da
+    // evaluateMeals a monte. Il piatto va cambiato se il cibo compare nel NOME o tra gli INGREDIENTI.
+    const triggerKeys = new Set<string>();
+    for (const term of dl) for (const kw of expandExclusion(term)) triggerKeys.add(kw);
+    for (const d of ((profile?.dislikedFoods ?? []) as string[])) for (const kw of expandExclusion(d)) triggerKeys.add(kw);
+    const mealRecipeIds = [...new Set(meals.map((m) => m.recipeId))];
+    const mealRecipes = mealRecipeIds.length
+      ? ((await this.prisma.recipe.findMany({ where: { id: { in: mealRecipeIds } }, select: { id: true, ingredients: true } })) as { id: string; ingredients: unknown }[])
+      : [];
+    const ingTextById = new Map<string, string>(
+      mealRecipes.map((r) => [r.id, (((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' ')).toLowerCase()]),
+    );
 
     const poolBySlot = new Map<string, { id: string; name: string; kcal: number; ingredients: unknown }[]>();
     const swapped: { from: string; to: string }[] = [];
     for (const m of meals) {
-      const nameLow = (m.name ?? '').toLowerCase();
-      if (!dl.some((k) => nameLow.includes(k))) continue;
+      const hay = ((m.name ?? '') + ' ' + (ingTextById.get(m.recipeId) ?? '')).toLowerCase();
+      if (![...triggerKeys].some((k) => k && hay.includes(k))) continue;
       if (!poolBySlot.has(m.slot)) {
         poolBySlot.set(m.slot, (await this.prisma.recipe.findMany({
           where: { mealSlot: m.slot as never, active: true, ...(profile?.regime ? { regime: profile.regime } : {}) },
@@ -956,9 +992,13 @@ export class MenuService {
     // Termini esclusi con la loro "causa" e se sono di sicurezza (bloccanti).
     const excluded: { keyword: string; reason: string; blocking: boolean }[] = [];
     for (const intol of intolerances) {
-      for (const kw of INTOLERANCE_MAP[intol] ?? [intol]) excluded.push({ keyword: kw, reason: intol, blocking: true });
+      for (const kw of expandExclusion(intol)) excluded.push({ keyword: kw, reason: intol, blocking: true });
     }
-    for (const d of dislikes) excluded.push({ keyword: d, reason: 'non gradito', blocking: false });
+    // Cibi non graditi: espansi per CATEGORIA (es. "frutta secca"/"legumi" → noci, ceci…),
+    // così un'esclusione generica intercetta i singoli alimenti. Non bloccano mai (solo sostituzione).
+    for (const d of dislikes) {
+      for (const kw of expandExclusion(d)) excluded.push({ keyword: kw, reason: 'non gradito', blocking: false });
+    }
 
     const recipeIds = [...new Set(meals.map((m) => m.recipeId))];
     if (!recipeIds.length) return { violations: [], subsByRecipe: {} };
