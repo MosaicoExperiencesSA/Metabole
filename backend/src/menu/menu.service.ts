@@ -147,13 +147,16 @@ export class MenuService {
     // avuto un piano ma ora è scaduto/annullato — nessuno attivo né in attesa — e non è in
     // pausa/viaggio, il menu NON si mostra: stato `expired` ("nessun piano attivo"). Evita
     // che restino visibili i giorni erogati durante una prova ormai finita.
+    // Fonte di verità = lo STATO dell'abbonamento (come deliverIfEligible): se esiste un
+    // abbonamento 'active' si eroga il menu, quindi NON è "scaduto". La scadenza vera la
+    // segna il cron portando lo stato ad 'expired'. NB: non ricontrolliamo endDate qui,
+    // altrimenti un abbonamento con endDate stantia/errata (che parte oggi) risulterebbe
+    // "scaduto" pur essendo attivo — falso positivo.
     const subs = (await this.prisma.subscription.findMany({
       where: { clientId },
-      select: { status: true, endDate: true },
-    })) as { status: string; endDate: Date | null }[];
-    const hasActivePlan = subs.some(
-      (s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= today.getTime()),
-    );
+      select: { status: true },
+    })) as { status: string }[];
+    const hasActivePlan = subs.some((s) => s.status === 'active');
     const hasPendingPlan = subs.some((s) => s.status === 'pending');
     if (subs.length > 0 && !hasActivePlan && !hasPendingPlan) {
       const pauseNow = await this.events.activePausePeriod(clientId);

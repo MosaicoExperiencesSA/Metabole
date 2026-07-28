@@ -29,6 +29,7 @@ Nota per l'agente che si occupa di deploy/pubblicazione. Tutte le modifiche sono
 | e0ee7f4 | backend + app | Piano scaduto: nascosto solo il menu di oggi, storico sempre leggibile |
 | (nuovo) | app | Pagina "Il tuo percorso": nascosti "menu di oggi" e "menu futuri" a piano scaduto (storico resta) |
 | 3264b04 | backend + app | Misure obbligatorie per ogni menu (primo + ogni ciclo, app si blocca) · alert coach "menu non seguito" · tasto "Ricetta" in Home apre la ricetta |
+| (nuovo) | backend | Fix falso "piano scaduto": hasActivePlan si basa solo sullo STATO dell'abbonamento (no ricontrollo endDate). Solo backend, nessun aggiornamento app |
 
 ## Migration
 - **Nessuna migration nuova** in questo batch (tutte modifiche di comportamento a runtime).
