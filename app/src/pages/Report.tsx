@@ -561,8 +561,9 @@ export default function Report() {
             </div>
           )}
 
-          {/* Monitoraggio: gratis, max 1 mese (spec Antonio) */}
-          {r.kind !== 'monthly' && (
+          {/* Monitoraggio: gratis, max 1 mese — mostrato SOLO dopo il mantenimento (backend
+              imposta r.monitoring solo in quel caso, progressione piani). */}
+          {r.kind !== 'monthly' && r.monitoring && (
             <div className="card" style={{ border: '1.5px solid #B8863B', marginBottom: 12 }}>
               <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.5px', color: '#8A5A00' }}>GRATIS · 1 MESE</div>
               <div style={{ fontWeight: 800, fontSize: 15, marginTop: 2 }}>Monitoraggio</div>

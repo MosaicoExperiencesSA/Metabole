@@ -33,6 +33,7 @@ Nota per l'agente che si occupa di deploy/pubblicazione. Tutte le modifiche sono
 | 758c1bb → | backend | (come sopra) |
 | (nuovo) | backend | Spostare l'inizio piano RIATTIVA l'abbonamento scaduto (status→active se fine futura) + script una-tantum `reactivate:future-expired` per i casi pregressi. Solo backend |
 | (nuovo) | backend | Esclusioni cibi per CATEGORIA generica ("frutta secca","legumi") applicate anche ai non graditi + trigger su nome+ingredienti. Solo backend. Per i casi già erogati: "Rigenera menu" |
+| 3a49237 | backend + app | Progressione piani suggeriti a fine piano: obiettivo (1/3 mesi) → mantenimento → monitoraggio. Report.tsx cambia (serve build store); monitoraggio non compare più subito a fine prova |
 
 ## Migration
 - **Nessuna migration nuova** in questo batch (tutte modifiche di comportamento a runtime).

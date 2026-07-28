@@ -240,8 +240,8 @@ export class PlanReportService {
     // Abbonamento corrente (per l'arco completo del percorso) + eventuale prova gratuita precedente.
     const curSub = (await this.prisma.subscription.findUnique({
       where: { id: subscriptionId },
-      select: { startDate: true, endDate: true, plan: { select: { priceCents: true } } },
-    })) as { startDate: Date | null; endDate: Date | null; plan: { priceCents: number } } | null;
+      select: { startDate: true, endDate: true, plan: { select: { priceCents: true, period: true } } },
+    })) as { startDate: Date | null; endDate: Date | null; plan: { priceCents: number; period: string } } | null;
     const trialSub = curSub?.plan.priceCents === 0 ? null : ((await this.prisma.subscription.findFirst({
       where: { clientId, plan: { priceCents: 0 }, startDate: { not: null }, endDate: { not: null } } as never,
       orderBy: { createdAt: 'desc' },
@@ -327,12 +327,15 @@ export class PlanReportService {
     const stepsAvg = stepRows.length ? Math.round(stepRows.reduce((acc, s) => acc + s.steps, 0) / stepRows.length) : null;
 
     // Stima "al ritmo attuale": kg/mese sull'arco del percorso → mese di arrivo all'obiettivo.
+    // `monthsToGoal` (mesi stimati al traguardo) serve anche a scegliere il piano suggerito 1/3 mesi.
     let etaLabel: string | null = null;
+    let monthsToGoal: number | null = null;
     if (w0 != null && b && targetWeightKg != null && b.weightKg > targetWeightKg) {
       const monthsElapsed = Math.max(1, (end.getTime() - journeyFrom.getTime()) / (30.4 * 86_400_000));
       const rate = (b.weightKg - w0) / monthsElapsed; // negativo = perde
       if (rate < -0.05) {
         const monthsLeft = Math.ceil((b.weightKg - targetWeightKg) / -rate);
+        monthsToGoal = monthsLeft;
         if (monthsLeft <= 24) {
           const eta = this.addMonths(end, monthsLeft);
           etaLabel = `entro ${MONTH_IT[eta.getMonth()]} ${eta.getFullYear()}`;
@@ -358,13 +361,26 @@ export class PlanReportService {
     })) as { code: string; expiresAt: Date | null; maxTotalUses: number | null; usedCount: number; planTargets?: unknown } | null;
     const personalOk = personal && (personal.maxTotalUses == null || personal.usedCount < personal.maxTotalUses) ? personal : null;
 
-    // Offerta: il piano da proporre ora (una tantum col prezzo promo se attiva, altrimenti il più rilevante).
+    // PROGRESSIONE del piano suggerito (regole Simone lug 2026):
+    //  - obiettivo NON raggiunto → piano-obiettivo 1 o 3 mesi (1 mese se la stima al ritmo attuale
+    //    è ≤ 1 mese, altrimenti 3 mesi);
+    //  - obiettivo RAGGIUNTO (peso ≤ obiettivo) → MANTENIMENTO;
+    //  - dopo un piano di MANTENIMENTO concluso → MONITORAGGIO.
+    // Si mostra SOLO il passo pertinente (gli altri box del report restano vuoti).
     const plans = (await this.prisma.plan.findMany({
       where: { active: true, priceCents: { gt: 0 } },
       orderBy: { priceCents: 'desc' },
     })) as { id: string; name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: Date | null; period: string }[];
-    // Preferenza: piano trimestrale (3m) → altrimenti il più caro attivo (di solito il percorso principale).
-    const offerPlan = plans.find((p) => p.period === '3m') ?? plans[0] ?? null;
+    const objectiveReached = toGoKg != null && toGoKg <= 0; // peso ≤ obiettivo (scelta 2a)
+    const endedIsMaintenance = curSub?.plan.period === 'maintenance';
+    const preferOneMonth = monthsToGoal != null && monthsToGoal <= 1; // scelta 1b (stima tempo)
+    const oneMonthPlan = plans.find((p) => p.period === '1m');
+    const threeMonthPlan = plans.find((p) => p.period === '3m');
+    // Piano-obiettivo: 1 o 3 mesi in base alla stima; fallback all'altro o al più caro.
+    const courseOfferPlan = endedIsMaintenance || objectiveReached
+      ? null
+      : ((preferOneMonth ? (oneMonthPlan ?? threeMonthPlan) : (threeMonthPlan ?? oneMonthPlan)) ?? plans[0] ?? null);
+    const offerPlan = courseOfferPlan;
     const offer = offerPlan ? (() => {
       const pr = this.pricing(offerPlan);
       return {
@@ -410,8 +426,12 @@ export class PlanReportService {
       habits: { waterAvgL, waterGoalL, stepsAvg, stepsGoal: 8000, waterSeries, stepsSeries },
       milestones,
       etaLabel,
-      maintenance: maintenancePlan ? { planId: maintenancePlan.id, planName: maintenancePlan.name, priceCents: maintenancePlan.priceCents } : null,
-      monitoring: { rientroPriceCents: rientroPlan?.priceCents ?? 2900 },
+      // Mantenimento: solo a obiettivo RAGGIUNTO (e se il piano finito non era già il mantenimento).
+      maintenance: objectiveReached && !endedIsMaintenance && maintenancePlan
+        ? { planId: maintenancePlan.id, planName: maintenancePlan.name, priceCents: maintenancePlan.priceCents }
+        : null,
+      // Monitoraggio: solo DOPO un piano di mantenimento concluso.
+      monitoring: endedIsMaintenance ? { rientroPriceCents: rientroPlan?.priceCents ?? 2900 } : null,
     };
 
     const report = await this.prisma.clientReport.create({

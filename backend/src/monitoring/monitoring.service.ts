@@ -81,14 +81,20 @@ export class MonitoringService {
       where: { clientId, status: { in: ['active', 'pending'] } as never },
       select: { id: true },
     });
-    const hadSub = await this.prisma.subscription.findFirst({ where: { clientId }, select: { id: true } });
+    // Idoneo al monitoraggio SOLO dopo un piano di MANTENIMENTO concluso (progressione:
+    // percorso → mantenimento → monitoraggio). Prima bastava un qualsiasi abbonamento pregresso,
+    // così il monitoraggio compariva subito a fine prova/piano: non è più così.
+    const hadMaintenance = await this.prisma.subscription.findFirst({
+      where: { clientId, plan: { period: 'maintenance' } } as never,
+      select: { id: true },
+    });
     const last = await this.lastWeight(clientId);
     const plan = await this.rientroPlan();
     const regainKg = await this.configParams.getNumber('monitoring_regain_kg', 3);
 
     const active = period?.status === 'active' ? period : null;
     return {
-      eligible: !activeSub && !!hadSub && (!period || period.status !== 'active'),
+      eligible: !activeSub && !!hadMaintenance && (!period || period.status !== 'active'),
       period: period
         ? {
             id: period.id,
