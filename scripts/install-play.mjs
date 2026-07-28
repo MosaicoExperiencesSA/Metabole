@@ -42,14 +42,18 @@ async function main() {
 
   // 1) variables.gradle → SDK 35
   let v = await fs.readFile(VARIABLES, 'utf8');
+  // minSdk 23 (Android 6.0): richiesto da androidx.savedstate 1.4.0, trascinata dal plugin
+  // OTA @capgo/capacitor-updater. Il template Capacitor 6 usa minSdk 22 e il merge del
+  // manifest fallirebbe ("minSdkVersion 22 cannot be smaller than 23").
   const bumped = v
     .replace(/compileSdkVersion\s*=\s*\d+/, 'compileSdkVersion = 35')
-    .replace(/targetSdkVersion\s*=\s*\d+/, 'targetSdkVersion = 35');
+    .replace(/targetSdkVersion\s*=\s*\d+/, 'targetSdkVersion = 35')
+    .replace(/minSdkVersion\s*=\s*\d+/, 'minSdkVersion = 23');
   if (bumped !== v) {
     await fs.writeFile(VARIABLES, bumped);
-    console.log('→ variables.gradle: compileSdk/targetSdk portati a 35 (requisito Play Store).');
+    console.log('→ variables.gradle: compileSdk/targetSdk 35 + minSdk 23 (Play Store + plugin OTA).');
   } else {
-    console.log('→ variables.gradle: SDK già a 35, salto.');
+    console.log('→ variables.gradle: SDK già a 35 e minSdk 23, salto.');
   }
 
   // 2) gradle.properties → suppress warning compileSdk 35 con AGP 8.2
