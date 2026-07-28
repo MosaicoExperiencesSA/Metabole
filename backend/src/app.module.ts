@@ -53,6 +53,7 @@ import { SocialModule } from './social/social.module';
 import { MailboxModule } from './mailbox/mailbox.module';
 import { PersonalBaseModule } from './personal-base/personal-base.module';
 import { CycleModule } from './cycle/cycle.module';
+import { AppUpdatesModule } from './app-updates/app-updates.module';
 
 @Module({
   imports: [
@@ -110,6 +111,7 @@ import { CycleModule } from './cycle/cycle.module';
     PauseModule,
     AgentsModule,
     CoachTasksModule,
+    AppUpdatesModule,
   ],
   providers: [
     // Ordine importante: prima rate limiting, poi autenticazione, poi RBAC.

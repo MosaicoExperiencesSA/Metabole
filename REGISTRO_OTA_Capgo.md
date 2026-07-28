@@ -11,9 +11,14 @@ App: aggiornamenti OTA self-hosted (Capgo) + card report in dashboard
    modalità **manuale** — nessun server Capgo, nessun costo, tutto sulla nostra infra:
    - `app/capacitor.config.ts`: plugin `CapacitorUpdater { autoUpdate: false }`.
    - `app/src/lib/ota.ts` (NUOVO): all'avvio, **solo su nativo** (no-op su web), chiama
-     `notifyAppReady()`, legge `https://metabole.eu/app-updates/latest.json` (`{version,url}`),
-     e se è una versione nuova scarica lo zip e lo attiva al prossimo avvio con `next()`
-     (non interrompe l'uso). Traccia la versione applicata in Preferences per non riscaricare.
+     `notifyAppReady()`, legge il manifest dal **nostro backend** `<API_URL>/api/v1/app-updates/latest.json`
+     (`{version,url}`), e se è una versione nuova scarica lo zip e lo attiva al prossimo avvio con
+     `next()` (non interrompe l'uso). Traccia la versione applicata in Preferences per non riscaricare.
+   - `backend/src/app-updates/` (NUOVO — controller+module): endpoint pubblico `@Public()`
+     `GET /api/v1/app-updates/latest.json`. Legge le env `OTA_VERSION`/`OTA_BUNDLE_URL`; se
+     mancano risponde `{version:null,url:null}` (OTA spento). Registrato in `app.module.ts`.
+     **Motivo:** SiteGround blocca con 403 l'intera cartella `/app-updates/` su metabole.eu e
+     non è aggirabile da File Manager; il backend è sotto nostro controllo, senza WAF.
    - `app/src/main.tsx`: `void initOta()` all'avvio.
    - `scripts/ota-release.mjs` (NUOVO): build + zip di `dist/` in `ota-out/metabole-<ver>.zip`
      e stampa il `latest.json` da caricare su metabole.eu.
@@ -33,18 +38,22 @@ App: aggiornamenti OTA self-hosted (Capgo) + card report in dashboard
 
 ## File toccati
 - app/capacitor.config.ts, app/src/main.tsx, app/src/pages/Home.tsx
-- app/src/lib/ota.ts (NUOVO), scripts/ota-release.mjs (NUOVO), app-updates/latest.json (NUOVO),
-  docs/OTA_Aggiornamenti.md (NUOVO)
+- app/src/lib/ota.ts (NUOVO — ora legge dal backend), scripts/ota-release.mjs (NUOVO),
+  app-updates/latest.json (NUOVO — solo riferimento storico), docs/OTA_Aggiornamenti.md (NUOVO)
+- backend/src/app-updates/app-updates.controller.ts (NUOVO), backend/src/app-updates/app-updates.module.ts (NUOVO),
+  backend/src/app.module.ts (registrato AppUpdatesModule)
 - app/package.json, app/package-lock.json (dipendenza @capgo/capacitor-updater ^6.50.2)
 
 ## Setup una-tantum prima che l'OTA funzioni
-- Su metabole.eu (SiteGround → public_html): creare cartella `app-updates/` e caricare
-  `latest.json` (con `version:null` = OTA spento). Vedi docs/OTA_Aggiornamenti.md.
+- **Manifest OTA: NIENTE da caricare a mano.** Lo serve il backend (Render) all'endpoint
+  `<API_URL>/api/v1/app-updates/latest.json`. Default = OTA spento (`version:null`). Vedi
+  docs/OTA_Aggiornamenti.md. (Su metabole.eu la cartella `/app-updates/` è bloccata 403 → per
+  questo il manifest sta sul backend.)
 - La build store (versionCode 3) va rigenerata e ripubblicata: `build-aab.sh` (Android) e
   `build-ios.sh` (iOS) — `cap sync` registrerà il plugin nativo Capgo.
 
 ## Note
 - versionCode resta **3** (già bumpato per i fix Antonio; tutto esce in un'unica release store).
 - Da collaudare dopo il build: (a) l'app parte normale (OTA spento → nessun download);
-  (b) caricando un latest.json con una versione nuova, al riavvio successivo l'app mostra il
-  nuovo bundle. Rispettare la regola: latest.json "spento" dopo ogni pubblicazione store.
+  (b) impostando le env `OTA_VERSION`/`OTA_BUNDLE_URL` su Render con un bundle nuovo, al riavvio
+  successivo l'app mostra il nuovo bundle. Regola: env OTA rimosse/vuote dopo ogni release store.

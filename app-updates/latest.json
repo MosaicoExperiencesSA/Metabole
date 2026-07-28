@@ -1,5 +1,5 @@
 {
   "version": null,
   "url": null,
-  "_nota": "OTA spento. Da caricare su metabole.eu/app-updates/latest.json. Per spingere un aggiornamento usare scripts/ota-release.mjs e sostituire version+url con il nuovo bundle."
+  "_nota": "RIFERIMENTO STORICO — NON usato in produzione. Il manifest OTA e' servito dal backend all'endpoint /api/v1/app-updates/latest.json (variabili OTA_VERSION/OTA_BUNDLE_URL su Render). NON caricare questo file su metabole.eu: la cartella /app-updates/ e' bloccata 403 da SiteGround. Vedi docs/OTA_Aggiornamenti.md."
 }

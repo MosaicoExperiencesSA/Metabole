@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Preferences } from '@capacitor/preferences';
+import { API_BASE_URL } from '../api/client';
 
 /**
  * Aggiornamenti OTA (Over-The-Air) — SELF-HOSTED, senza server Capgo.
@@ -13,23 +14,26 @@ import { Preferences } from '@capacitor/preferences';
  *
  * Come funziona:
  *  1) all'avvio chiamiamo notifyAppReady() (sicurezza anti-rollback di Capgo);
- *  2) leggiamo un piccolo file pubblico su metabole.eu (`latest.json`) con
- *     { version, url } dell'ultimo bundle;
+ *  2) leggiamo il manifest pubblico dal NOSTRO backend (`/api/v1/app-updates/latest.json`)
+ *     con { version, url } dell'ultimo bundle;
  *  3) se è una versione nuova (diversa da quella in esecuzione e non già scaricata),
  *     scarichiamo lo zip e lo mettiamo in coda con next(): si attiva al prossimo
  *     passaggio in background / riavvio (non interrompe l'uso corrente).
  *
+ * NB: il manifest è servito dal backend (Render), NON da metabole.eu: il server
+ * SiteGround blocca (403) la cartella /app-updates/ e non è sovrascrivibile.
+ * Il backend è sotto nostro controllo, senza WAF.
+ *
  * Solo su piattaforma NATIVA: su web è no-op (la web app si aggiorna col deploy Vercel).
  *
  * Regola operativa (vedi docs/OTA_Aggiornamenti.md):
- *  - dopo ogni pubblicazione sullo store, `latest.json` va rimesso "spento"
- *    ({ "version": null }) così le installazioni fresche non riscaricano nulla;
- *  - per spingere un fix via OTA: build → zip di dist/ → upload su
- *    metabole.eu/app-updates/ → aggiorna `latest.json` con la nuova version+url.
+ *  - OTA spento di default (il backend risponde version:null finché non imposti le env);
+ *  - per accendere/spingere un fix via OTA: build → zip di dist/ → carica lo zip su
+ *    un URL pubblico → imposta OTA_VERSION e OTA_BUNDLE_URL su Render.
  */
 
 const OTA_URL = (import.meta.env.VITE_OTA_URL as string | undefined)
-  ?? 'https://metabole.eu/app-updates/latest.json';
+  ?? `${API_BASE_URL}/api/v1/app-updates/latest.json`;
 const APPLIED_KEY = 'ota_applied_version';
 
 interface LatestBundle { version?: string | null; url?: string | null }

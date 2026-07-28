@@ -27,13 +27,14 @@ Deploy normale. **Nessuna migration/variabile nuova.** Verifica solo che la migr
 `20260722180000_crm_phone2` risulti già applicata. Fallo PRIMA della build app (alcune funzioni
 dell'app dipendono dall'API aggiornata).
 
-## 2) Setup OTA su metabole.eu (una volta sola)
-Su SiteGround → File Manager → `public_html`:
-1. crea la cartella **`app-updates`**;
-2. caricaci il file **`latest.json`** (lo trovi in `Metabole/app-updates/latest.json`; contiene
-   `version:null` = OTA spento).
-Questo basta: l'app leggerà il file e, con version null, non scaricherà nulla finché non spingerai
-un aggiornamento. (Se il file non c'è, l'app semplicemente non aggiorna, nessun errore.)
+## 2) Setup OTA — NIENTE da fare a mano
+Il manifest OTA è servito dal **backend** (Render) all'endpoint pubblico
+`<API_URL>/api/v1/app-updates/latest.json`. Con le env OTA non impostate (default) risponde
+`version:null` = OTA spento: l'app non scarica nulla. Non serve caricare niente su metabole.eu.
+(Motivo: SiteGround blocca con 403 l'intera cartella `/app-updates/` e non è aggirabile da File
+Manager. Il file `app-updates/latest.json` nel repo resta solo come riferimento storico.)
+→ Verifica facoltativa: apri `https://metabole-backend.onrender.com/api/v1/app-updates/latest.json`
+   nel browser; deve rispondere `{"version":null,"url":null}`.
 
 ## 3) Build store — versionCode 3 (Android + iOS)
 Dal Mac:
@@ -55,8 +56,9 @@ che blocca l'app** (qualsiasi piano; e al 2° giorno di ogni ciclo). Per non far
   testo pronto in `marketing/store/Apple_Risposta_Revisione.md`.
 
 ## 5) DOPO la pubblicazione store
-Rimetti l'OTA "spento": su metabole.eu, `latest.json` → `{ "version": null, "url": null }`.
-(Così le installazioni fresche partono col bundle nativo e non riscaricano un vecchio OTA.)
+Rimetti l'OTA "spento": su **Render → Environment** del backend, rimuovi (o svuota) le variabili
+`OTA_VERSION` e `OTA_BUNDLE_URL`. (Così le installazioni fresche partono col bundle nativo e non
+riscaricano un vecchio OTA.) Al lancio le env non ci sono già → non devi fare nulla ora.
 
 ---
 
@@ -65,9 +67,9 @@ Solo per modifiche **web** (schermate/testi/logica; NON plugin/permessi/icona/pu
 ```
 node scripts/ota-release.mjs 3.1      # versione NUOVA e crescente
 ```
-→ crea `ota-out/metabole-3.1.zip` e stampa il `latest.json`. Poi su metabole.eu/app-updates/:
-carica lo zip e sostituisci `latest.json`. Le app lo scaricano e lo attivano al riavvio successivo.
-Dettagli in `docs/OTA_Aggiornamenti.md`.
+→ crea `ota-out/metabole-3.1.zip`. Poi: carica lo zip su un URL pubblico raggiungibile e su
+**Render → Environment** imposta `OTA_VERSION=3.1` e `OTA_BUNDLE_URL=<url dello zip>`, salva.
+Le app lo scaricano e lo attivano al riavvio successivo. Dettagli in `docs/OTA_Aggiornamenti.md`.
 
 ## Nota web app
 La web app/PWA su Vercel si aggiorna da sola al push su `main`: non richiede build né store.
