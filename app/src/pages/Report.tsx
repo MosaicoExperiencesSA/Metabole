@@ -211,9 +211,15 @@ export default function Report() {
   const m = r?.measures;
   const kindTag = r?.kind === 'trial' ? 'Settimana gratuita' : r?.kind === 'monthly' ? 'Diario del mese' : 'Fine percorso';
   const firstName = (r?.clientName ?? '').split(' ')[0] || null;
-  const headline = r?.kind === 'monthly'
-    ? `${firstName ? firstName + ', ' : ''}un altro mese, un altro passo verso l'obiettivo.`
-    : `${firstName ? firstName + ', ' : ''}in ${r?.days ?? 0} giorni hai già messo in moto il cambiamento.`;
+  // Esito peso del periodo: se è AUMENTATO in modo significativo non ci si congratula — si
+  // incoraggia ("si può inciampare, l'importante è rialzarsi"). Un calo o un peso stabile
+  // mantiene il tono positivo.
+  const gainedWeight = (m?.deltaWeightKg ?? 0) > 0.3;
+  const headline = gainedWeight
+    ? `${firstName ? firstName + ', ' : ''}questo tratto non è andato come speravi — e capita a tutte. Si può inciampare: l'importante è rialzarsi, e ripartiamo insieme da adesso.`
+    : r?.kind === 'monthly'
+      ? `${firstName ? firstName + ', ' : ''}un altro mese, un altro passo verso l'obiettivo.`
+      : `${firstName ? firstName + ', ' : ''}in ${r?.days ?? 0} giorni hai già messo in moto il cambiamento.`;
   // Delta totale dall'inizio del percorso (prima tappa → oggi), per la card "Dall'inizio".
   const mi = r?.milestones ?? [];
   const totalDelta = mi.length >= 2 ? Math.round((mi[mi.length - 1].weightKg - mi[0].weightKg) * 10) / 10 : null;

@@ -44,8 +44,12 @@ bloccante** (per QUALSIASI piano attivo, non solo la prova; e al 2° giorno di o
 ---
 
 ## 5) Cosa cambia nell'app (per l'utente) — questa release
-- **Menu solo con abbonamento attivo:** a prova/piano scaduto niente "menu di oggi"/"menu futuri"
-  su Home e "Il tuo percorso"; compare "Nessun piano attivo". Lo **storico menu resta leggibile**.
+- **Menu solo con abbonamento attivo / percorso concluso:** a prova/piano scaduto (o a fine
+  periodo) niente "menu di oggi"/"menu futuri" su Home e "Il tuo percorso"; compare "Nessun piano
+  attivo". Non compare più un **menu vecchio** spacciato per quello di oggi. Lo **storico menu resta
+  leggibile**.
+- **Report — tono corretto su un aumento di peso:** se la cliente è ingrassata nel periodo, il
+  report non si congratula ma incoraggia ("si può inciampare, l'importante è rialzarsi").
 - **Misure obbligatorie:** senza misure il menu è trattenuto e il popup misure **blocca l'app**
   (primo menu e ogni ciclo di 2 giorni).
 - **Tasto "Ricetta" (Home):** apre la scheda ricetta (prima portava al menu).

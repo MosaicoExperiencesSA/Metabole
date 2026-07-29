@@ -8,6 +8,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { validateObjective } from '../onboarding/objective-validator';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { subscriptionEnd } from '../commerce/commerce.service';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
@@ -34,8 +35,13 @@ export class ProfileService {
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
-    await this.getProfile(userId); // 404 se manca
+    const current = await this.getProfile(userId); // 404 se manca
     const { lifestyle, consents, planStartDate, locale, ...rest } = dto;
+    // La data d'inizio piano viene impostata dalla cliente (StartDatePrompt) SOLO la prima volta
+    // (quando è ancora vuota). In quel caso va allineata anche la subscription: altrimenti la
+    // prova, attivata al pagamento con la data di allora, scade sulle date vecchie mentre l'inizio
+    // piano dice un'altra data ("Nessun piano attivo" pur avendo iniziato da poco).
+    const firstStartSet = !!planStartDate && !(current as { planStartDate: Date | null }).planStartDate;
     if (locale) {
       await this.prisma.user.update({ where: { id: userId }, data: { locale } });
     }
@@ -56,6 +62,13 @@ export class ProfileService {
       metadata: { fields: Object.keys(dto) },
     });
 
+    // Primo inserimento della data d'inizio → allinea la subscription (date + riattivazione).
+    if (firstStartSet && planStartDate) {
+      await this.alignSubscriptionToPlanStart(userId, new Date(planStartDate)).catch(() => {
+        /* non bloccare il salvataggio del profilo per un errore di allineamento */
+      });
+    }
+
     // Se cambiano regime/stile/numero pasti, il prodotto e il pool ricette possono
     // cambiare: rigeneriamo la base personalizzata sicura (non bloccante).
     if (dto.regime !== undefined || dto.dietStyle !== undefined || dto.mealsPerDay !== undefined) {
@@ -66,6 +79,46 @@ export class ProfileService {
       }
     }
     return profile;
+  }
+
+  /**
+   * Allinea l'abbonamento "principale" (attivo > in attesa > scaduto > annullato) alla data
+   * d'inizio piano scelta dalla cliente: ricalcola la fine dalla durata del piano e, se la nuova
+   * fine è nel futuro e l'abbonamento era già approvato (attivo/scaduto), lo riattiva. Evita che
+   * la prova risulti "scaduta" perché attivata con una data diversa da quella poi scelta.
+   */
+  private async alignSubscriptionToPlanStart(userId: string, d: Date): Promise<void> {
+    const subs = (await this.prisma.subscription.findMany({
+      where: { clientId: userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { period: true } } },
+    })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { period: string } }[];
+    const sub =
+      subs.find((s) => s.status === 'active') ??
+      subs.find((s) => s.status === 'pending') ??
+      subs.find((s) => s.status !== 'cancelled' && s.status !== 'expired') ??
+      subs.find((s) => s.status === 'expired') ??
+      null;
+    if (!sub) return;
+    const newEnd = subscriptionEnd(d, sub.plan.period);
+    const reactivate = newEnd.getTime() > Date.now() && (sub.status === 'active' || sub.status === 'expired');
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { startDate: d, endDate: newEnd, ...(reactivate ? { status: 'active' as never } : {}) },
+    });
+    await this.audit.log({
+      action: 'profile.plan_start.align_subscription',
+      actorId: userId,
+      entityType: 'subscription',
+      entityId: sub.id,
+      metadata: {
+        clientId: userId,
+        startDate: d.toISOString().slice(0, 10),
+        endDate: newEnd.toISOString().slice(0, 10),
+        ...(reactivate ? { status: 'active', reactivated: true } : {}),
+      },
+    });
   }
 
   async updateTheme(userId: string, color: string) {

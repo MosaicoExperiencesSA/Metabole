@@ -34,6 +34,9 @@ Nota per l'agente che si occupa di deploy/pubblicazione. Tutte le modifiche sono
 | (nuovo) | backend | Spostare l'inizio piano RIATTIVA l'abbonamento scaduto (status→active se fine futura) + script una-tantum `reactivate:future-expired` per i casi pregressi. Solo backend |
 | (nuovo) | backend | Esclusioni cibi per CATEGORIA generica ("frutta secca","legumi") applicate anche ai non graditi + trigger su nome+ingredienti. Solo backend. Per i casi già erogati: "Rigenera menu" |
 | 3a49237 | backend + app | Progressione piani suggeriti a fine piano: obiettivo (1/3 mesi) → mantenimento → monitoraggio. Report.tsx cambia (serve build store); monitoraggio non compare più subito a fine prova |
+| fa08b7e | backend | Data d'inizio scelta dalla cliente allinea la subscription (no falso "scaduto", es. lurve.gioia). Solo backend |
+| ae7318c | app | Report: niente congratulazioni se la cliente è ingrassata (tono incoraggiante). Serve build store |
+| e336c51 | backend + app | Percorso concluso: niente ultimo menu vecchio come "menu di oggi"; hasActivePlan/erogazione richiedono endDate non passata. Serve build store (Home/Percorso) |
 
 ## Migration
 - **Nessuna migration nuova** in questo batch (tutte modifiche di comportamento a runtime).

@@ -157,6 +157,8 @@ export class ClientsService {
     // ANNULLATO quando esiste, es., una prova scaduta più significativa. `subs` è già
     // ordinato per createdAt desc (query in alto).
     const subs = subscriptions as { status: string }[];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const subscription =
       subs.find((s) => s.status === 'active') ??
       subs.find((s) => s.status === 'pending') ??
@@ -164,10 +166,13 @@ export class ClientsService {
       subs.find((s) => s.status === 'expired') ??
       subs[0] ??
       null;
-    // Flag per la scheda: c'è un abbonamento ATTIVO? Fonte di verità = lo STATO (come
-    // l'erogazione menu). Non ricontrolliamo endDate: un abbonamento 'active' con endDate
-    // stantia risulterebbe "senza piano" pur essendo attivo (falso positivo).
-    const hasActivePlan = subs.some((s) => s.status === 'active');
+    // Flag per la scheda: c'è un abbonamento ATTIVO ed ENTRO il periodo? (status 'active' e
+    // endDate non passata). Il controllo su endDate copre il caso in cui il cron di scadenza è
+    // in ritardo: un piano finito risulta comunque "senza piano attivo". I piani spostati in
+    // avanti hanno endDate futura, quindi restano attivi.
+    const hasActivePlan = (subscriptions as { status: string; endDate: Date | null }[]).some(
+      (s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= today.getTime()),
+    );
 
     // Nome leggibile dello stato pipeline (es. "Prova" invece della chiave "trial") per il badge CRM.
     const stageLabel = crm

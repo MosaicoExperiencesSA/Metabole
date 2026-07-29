@@ -13,7 +13,6 @@ import StartDatePrompt from '../components/StartDatePrompt';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 import PendingBankTransfers from '../components/PendingBankTransfers';
 import AppHeader from '../components/AppHeader';
-import ReportsSection from '../components/ReportsSection';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 import { TypeText } from '../components/TypeText';
 
@@ -276,11 +275,12 @@ export default function Home() {
   const loadMenu = useCallback(() => {
     return api<{ days: ApiMenuDay[]; status?: MenuStatus }>('/me/menu').then((r) => {
       const iso = new Date().toISOString().slice(0, 10);
-      // A piano scaduto ("expired") non mostriamo un "menu di oggi" in dashboard (lo storico
-      // resta comunque leggibile nella pagina Menu): niente pasti → compare il banner.
+      // "IL MENU DI OGGI" = SOLO il menu con data di oggi. Niente ripiego su un giorno vecchio
+      // (days[0]): a piano concluso / in attesa non deve comparire un menu passato come se fosse
+      // di oggi. Se non c'è il menu di oggi → nessun pasto → compare il banner di stato.
       const day = r.status?.state === 'expired'
         ? undefined
-        : ((r.days ?? []).find((d) => d.date.slice(0, 10) === iso) ?? (r.days ?? [])[0]);
+        : (r.days ?? []).find((d) => d.date.slice(0, 10) === iso);
       setMeals(day?.meals ?? []);
       setMenuStatus(r.status ?? null);
     }).catch(() => setMeals([]));
@@ -344,9 +344,6 @@ export default function Home() {
   return (
     <div className="home">
       <AppHeader title={`Ciao, ${name}`} />
-
-      {/* Report pronto (es. quello dei primi giorni di prova): in evidenza in dashboard. */}
-      <ReportsSection variant="card" />
 
       {/* Fase attuale del percorso (dimagrimento / mantenimento), decisa dallo staff. */}
       {today?.objective && PHASE_BADGE[today.objective] && (

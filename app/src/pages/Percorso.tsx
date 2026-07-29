@@ -90,7 +90,9 @@ export default function Percorso() {
   const iso = new Date().toISOString().slice(0, 10);
   // Piano scaduto/annullato: niente "menu di oggi" né "menu futuri" (lo STORICO resta).
   const expired = menuStatus?.state === 'expired';
-  const todayDay = days.find((d) => d.date.slice(0, 10) === iso) ?? days[0];
+  // SOLO il menu di oggi (niente ripiego su un giorno vecchio: a percorso concluso/in attesa
+  // non deve comparire un menu passato come "di oggi").
+  const todayDay = days.find((d) => d.date.slice(0, 10) === iso);
   const meals: ApiMeal[] = todayDay?.meals ?? [];
   const totKcal = meals.reduce((a, m) => a + (m.kcal || 0), 0);
   const past = days
