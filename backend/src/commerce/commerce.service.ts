@@ -162,10 +162,30 @@ export class CommerceService {
     return { plans, products };
   }
 
-  /** Piani visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso. */
+  /**
+   * Il cliente ha RAGGIUNTO l'obiettivo? (peso attuale ≤ peso obiettivo). Usato per mostrare il
+   * MANTENIMENTO solo a obiettivo raggiunto (stessa regola del report).
+   */
+  private async hasReachedObjective(clientId: string): Promise<boolean> {
+    const [objective, lastMeasure] = await Promise.all([
+      this.prisma.objective.findFirst({ where: { clientId }, orderBy: { createdAt: 'desc' }, select: { targetWeightKg: true } }) as Promise<{ targetWeightKg: number | null } | null>,
+      this.prisma.measurement.findFirst({ where: { clientId }, orderBy: { date: 'desc' }, select: { weightKg: true } }) as Promise<{ weightKg: number } | null>,
+    ]);
+    const target = objective?.targetWeightKg ?? null;
+    return target != null && lastMeasure != null && lastMeasure.weightKg <= target;
+  }
+
+  /** Piani visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso.
+   * Il MANTENIMENTO (period 'maintenance') compare SOLO a obiettivo raggiunto. */
   async listPlansForClient(clientId: string) {
-    const [plans, bought] = await Promise.all([this.listPlans(), this.purchasedIds(clientId)]);
-    return (plans as unknown as { id: string; repurchasable?: boolean }[]).filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
+    const [plans, bought, reached] = await Promise.all([
+      this.listPlans(),
+      this.purchasedIds(clientId),
+      this.hasReachedObjective(clientId),
+    ]);
+    return (plans as unknown as { id: string; period?: string; repurchasable?: boolean }[])
+      .filter((p) => p.period !== 'maintenance' || reached) // mantenimento solo a obiettivo raggiunto
+      .filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
   }
 
   /** Prodotti visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso. */

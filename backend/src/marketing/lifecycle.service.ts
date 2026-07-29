@@ -29,7 +29,7 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'profilo_pronto', label: 'Il tuo profilo è pronto', when: 'Onboarding completato (ultimi 14 giorni)', kind: 'event', implemented: true },
   { key: 'profilo_incompleto', label: 'Profilo incompleto', when: 'Registrata 1–14 giorni fa, onboarding non completato', kind: 'scheduled', implemented: true },
   { key: 'piano_domani', label: 'Il piano inizia domani', when: 'Inizio piano = domani', kind: 'scheduled', implemented: true },
-  { key: 'onb_g1', label: 'Onboarding giorno 1', when: 'Inizio piano = 1 giorno fa', kind: 'scheduled', implemented: true },
+  { key: 'onb_g1', label: 'Onboarding — primo giorno', when: 'Inizio piano = oggi', kind: 'scheduled', implemented: true },
   { key: 'onb_g4', label: 'Onboarding giorno 4', when: 'Inizio piano = 4 giorni fa', kind: 'scheduled', implemented: true },
   { key: 'onb_g7', label: 'Onboarding giorno 7', when: 'Inizio piano = 7 giorni fa', kind: 'scheduled', implemented: true },
   // SPENTO DI DEFAULT (decisione 17/07 sera: per ora codici ad hoc dalle coach, non automatici):
@@ -373,7 +373,10 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     // 4) piano_domani + onboarding g1/g4/g7 — in base a plan_start_date
     const dayTriggers: { key: string; offset: number }[] = [
       { key: 'piano_domani', offset: 1 },
-      { key: 'onb_g1', offset: -1 },
+      // onb_g1 = email "primo giorno / oggi si comincia" → deve partire IL GIORNO D'INIZIO
+      // (offset 0 = planStartDate == oggi), non il giorno dopo. Prima (offset -1) arrivava a
+      // percorso già iniziato, dicendo "oggi si comincia" con un giorno di ritardo.
+      { key: 'onb_g1', offset: 0 },
       { key: 'onb_g4', offset: -4 },
       { key: 'onb_g7', offset: -7 },
     ];
@@ -395,6 +398,10 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       });
       for (const p of profs) {
         const piano = p.dietStyle ? DIET_LABEL[p.dietStyle] ?? String(p.dietStyle) : String(p.regime ?? 'personalizzato');
+        // Primo pasto della giornata: nel DIGIUNO intermittente (16:8) NON c'è colazione, quindi
+        // si parte dal pranzo. Usare {{primoPasto}} nei template evita di dire "parti dalla
+        // colazione" a chi la colazione non la fa.
+        const primoPasto = p.regime === 'intermittent_fasting' ? 'pranzo' : 'colazione';
         const r = await this.sendLifecycle({
           userId: p.userId,
           email: p.user?.email ?? null,
@@ -403,6 +410,7 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           vars: {
             nome: p.user?.firstName ?? p.name ?? '',
             piano,
+            primoPasto,
             coach: p.assignedCoach?.displayName ?? 'la tua coach',
             nutrizionista: p.assignedNutritionist?.displayName ?? 'il tuo nutrizionista',
             link: `${app}/`,
