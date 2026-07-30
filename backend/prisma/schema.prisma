@@ -368,6 +368,10 @@ model ClientProfile {
   // Attivabile dall'app. Il generatore menu, se true, alterna alle ricette del piano quelle
   // marcate difficulty="semplice" (entro la tolleranza kcal, rispettando le esclusioni).
   prefersSimpleRecipes   Boolean    @default(false) @map("prefers_simple_recipes")
+  // Livello di attività fisica dichiarato (domanda dedicata): sedentary | light | moderate |
+  // active | very_active. Guida il fattore di attività nel calcolo del fabbisogno calorico.
+  // Se assente, il fabbisogno usa come ripiego il campo `lifestyle.work`.
+  activityLevel          String?    @map("activity_level")
   lifestyle              Json?      // lavoro, tempo per cucinare, pranzo feriali (segnale "Vita")
   themeColor             String?    @map("theme_color")
   planStartDate          DateTime?  @map("plan_start_date")

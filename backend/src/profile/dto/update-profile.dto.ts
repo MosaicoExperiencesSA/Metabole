@@ -78,6 +78,11 @@ export class UpdateProfileDto {
   @IsBoolean()
   prefersSimpleRecipes?: boolean;
 
+  /** Livello di attività fisica (domanda dedicata): guida il calcolo del fabbisogno calorico. */
+  @IsOptional()
+  @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active'])
+  activityLevel?: string;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => LifestylePatchDto)

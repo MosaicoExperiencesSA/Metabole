@@ -6,6 +6,7 @@ import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 import { DayComboService, RecipeInfo } from './day-combo.service';
+import { KcalNeedService } from './kcal-need.service';
 
 interface Substitution {
   from: string;
@@ -107,6 +108,7 @@ export class MenuService {
     private readonly events: EventsService,
     private readonly dietAgent: DietAgentService,
     private readonly dayCombo: DayComboService,
+    private readonly kcalNeed: KcalNeedService,
   ) {}
 
   /** Menu visibile della cliente; prova a erogare i giorni successivi se ha diritto. */
@@ -337,24 +339,39 @@ export class MenuService {
     const overrides = await this.dietRuleOverrides(diet.id);
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
     const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective, overrides);
-    const [kcalTolG, daycomboG, pMinG, pMaxG] = await Promise.all([
+    const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getBool('menu_daycombo_enabled', false),
       this.configParams.getNumber('menu_daycombo_protein_min', 0.2),
       this.configParams.getNumber('menu_daycombo_protein_max', 0.45),
+      // Menu "a necessità": il target kcal viene dal FABBISOGNO calcolato sul profilo
+      // (Mifflin + attività − deficit dell'obiettivo, con soglie di sicurezza), non dai
+      // livelli della dieta. Attivo di default; disattivabile globalmente o per dieta.
+      this.configParams.getBool('menu_kcal_need_enabled', true),
     ]);
     const kcalTolPct = pickNumOverride(overrides, 'menu_kcal_balance_tolerance_pct', kcalTolG);
     const daycomboEnabled = pickBoolOverride(overrides, 'menu_daycombo_enabled', daycomboG);
+    const kcalNeedEnabled = pickBoolOverride(overrides, 'menu_kcal_need_enabled', kcalNeedG);
     const pMin = pickNumOverride(overrides, 'menu_daycombo_protein_min', pMinG);
     const pMax = pickNumOverride(overrides, 'menu_daycombo_protein_max', pMaxG);
     // Selettore per-slot (comportamento base, sempre disponibile come fallback).
     const selector = this.selectorFromContext(ctx, kcalTolPct / 100);
 
-    // DayCombo (Fase 5 avanzata, opt-in): compone la giornata dal pool della dieta
-    // approvata puntando alle kcal del livello. Attivo solo se `menu_daycombo_enabled`
-    // e se il livello dichiara un target kcal in `Diet.levels`.
-    const targetKcal = this.levelTargetKcal(diet.levels, level);
-    const useDayCombo = daycomboEnabled && !!ctx && targetKcal > 0;
+    // TARGET KCAL DELLA GIORNATA. Se il "menu a necessità" è attivo e il fabbisogno è
+    // calcolabile dal profilo, il target è il fabbisogno; altrimenti si usano le kcal del
+    // livello dichiarate nella dieta (comportamento storico).
+    const levelKcal = this.levelTargetKcal(diet.levels, level);
+    let targetKcal = levelKcal;
+    let targetSource: 'need' | 'level' = 'level';
+    if (kcalNeedEnabled) {
+      const need = await this.kcalNeed.computeTargetKcal(clientId);
+      if (need && need > 0) { targetKcal = need; targetSource = 'need'; }
+    }
+
+    // DayCombo compone la giornata dal pool della dieta puntando al target kcal. Si attiva
+    // se DayCombo è abilitato per la dieta OPPURE se il menu a necessità sta guidando il
+    // target (in automatico). Se non trova una giornata nella banda → fallback al selettore.
+    const useDayCombo = (daycomboEnabled || targetSource === 'need') && !!ctx && targetKcal > 0;
     const combo = useDayCombo && ctx ? this.dayComboPools(ctx) : null;
 
     // Prepara gli snapshot dei giorni del ciclo.

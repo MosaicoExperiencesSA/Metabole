@@ -4,6 +4,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { KcalNeedService } from '../menu/kcal-need.service';
 import { ClientsService } from './clients.service';
 import { UpdateClientDto } from './dto/update-client.dto';
 
@@ -40,7 +41,16 @@ class FixMeasurementDto {
 @Controller('admin/clients')
 @Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class ClientsController {
-  constructor(private readonly clients: ClientsService) {}
+  constructor(
+    private readonly clients: ClientsService,
+    private readonly kcalNeed: KcalNeedService,
+  ) {}
+
+  /** Fabbisogno calorico stimato dal profilo (per il nutrizionista: trasparenza sul target menu). */
+  @Get(':id/kcal-need')
+  kcalNeedEstimate(@Param('id') id: string) {
+    return this.kcalNeed.estimate(id);
+  }
 
   /** Elenco clienti: coach/nutrizionista vedono SOLO i propri assegnati; manager coach, capo nutrizionista e admin tutti. */
   @Get()

@@ -205,6 +205,68 @@ function SimpleRecipesPref() {
   );
 }
 
+/**
+ * Attività fisica: guida il calcolo del fabbisogno calorico giornaliero (e quindi le calorie
+ * dei menu). La cliente sceglie quanto si muove; se non risponde, si usa il tipo di lavoro.
+ */
+const ACTIVITY_OPTIONS: { value: string; label: string; hint: string }[] = [
+  { value: 'sedentary', label: 'Sedentaria', hint: 'poco o niente movimento' },
+  { value: 'light', label: 'Leggera', hint: '1–3 volte a settimana' },
+  { value: 'moderate', label: 'Moderata', hint: '3–5 volte a settimana' },
+  { value: 'active', label: 'Attiva', hint: '6–7 volte a settimana' },
+  { value: 'very_active', label: 'Molto attiva', hint: 'sport intenso o lavoro fisico' },
+];
+
+function ActivityPref() {
+  const [value, setValue] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ activityLevel?: string | null }>('/me/client-profile')
+      .then((p) => setValue(p.activityLevel ?? ''))
+      .catch(() => setValue(''))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  async function save(next: string) {
+    setBusy(true); setErr(null);
+    const prev = value;
+    setValue(next);
+    try {
+      await api('/me/client-profile', { method: 'PATCH', body: JSON.stringify({ activityLevel: next }) });
+    } catch (e) {
+      setValue(prev);
+      setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
+        Quanto ti muovi o ti alleni? Ci aiuta a calibrare le calorie dei tuoi menu.
+      </p>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {ACTIVITY_OPTIONS.map((o) => {
+          const on = value === o.value;
+          return (
+            <button key={o.value} onClick={() => save(o.value)} disabled={!loaded || busy}
+              style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
+                border: on ? '2px solid var(--teal)' : '1px solid var(--line)', background: on ? '#EAF5F1' : '#fff', cursor: 'pointer' }}>
+              <i className={`ti ${on ? 'ti-circle-check-filled' : 'ti-circle'}`} style={{ fontSize: 20, color: on ? 'var(--teal)' : '#C6CFCB' }} />
+              <span><b style={{ fontSize: 13.5 }}>{o.label}</b> <span className="muted" style={{ fontSize: 12 }}>— {o.hint}</span></span>
+            </button>
+          );
+        })}
+      </div>
+      {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
+    </div>
+  );
+}
+
 export default function Profilo() {
   const { user, logout, switchAccount } = useAuth();
   const [switching, setSwitching] = useState(false);
@@ -578,6 +640,10 @@ export default function Profilo() {
       {/* Cibi esclusi (dislikedFoods): la lista che guida i menu, correggibile qui */}
       <div className="sec" style={{ marginTop: 4 }}>Cibi esclusi</div>
       <ExcludedFoods />
+
+      {/* Attività fisica: guida il fabbisogno calorico e le calorie dei menu */}
+      <div className="sec" style={{ marginTop: 4 }}>Attività fisica</div>
+      <ActivityPref />
 
       {/* Preferenza ricette semplici / cucina italiana */}
       <div className="sec" style={{ marginTop: 4 }}>Ricette</div>

@@ -166,6 +166,52 @@ function EditCard({ form, setForm, lockDietType }: { form: Record<string, string
   );
 }
 
+/**
+ * Fabbisogno calorico stimato dal profilo (Mifflin-St Jeor × attività − deficit obiettivo,
+ * con soglie di sicurezza). Trasparenza per il nutrizionista sul target usato dai menu.
+ */
+interface KcalNeed {
+  bmr: number; tdee: number; target: number; deficit: number; floored: boolean;
+  activityFactor: number; activitySource: 'activity' | 'work' | 'default'; objective: string; weightKg: number;
+}
+function KcalNeedCard({ clientId }: { clientId: string }) {
+  const [data, setData] = useState<KcalNeed | null | 'none'>(null);
+  useEffect(() => {
+    if (!clientId) return;
+    api<KcalNeed | null>(`/admin/clients/${clientId}/kcal-need`)
+      .then((r) => setData(r ?? 'none'))
+      .catch(() => setData('none'));
+  }, [clientId]);
+
+  const SRC: Record<string, string> = { activity: 'attività dichiarata', work: 'tipo di lavoro', default: 'stima predefinita' };
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Fabbisogno calorico</h2>
+      {data === null ? (
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Carico…</p>
+      ) : data === 'none' ? (
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Dati insufficienti per la stima (servono sesso, età, altezza e peso).</p>
+      ) : (
+        <>
+          <div className="row" style={{ gap: 20, flexWrap: 'wrap' }}>
+            <div><div className="muted" style={{ fontSize: 12 }}>Target menu</div><b style={{ fontSize: 22 }}>{data.target} kcal</b></div>
+            <div><div className="muted" style={{ fontSize: 12 }}>Mantenimento (TDEE)</div><b style={{ fontSize: 16 }}>{data.tdee} kcal</b></div>
+            <div><div className="muted" style={{ fontSize: 12 }}>Metabolismo basale</div><b style={{ fontSize: 16 }}>{data.bmr} kcal</b></div>
+            <div><div className="muted" style={{ fontSize: 12 }}>Deficit</div><b style={{ fontSize: 16 }}>{data.deficit > 0 ? `−${data.deficit} kcal` : '—'}</b></div>
+          </div>
+          <p className="muted" style={{ margin: '10px 0 0', fontSize: 11.5 }}>
+            Obiettivo: <b>{data.objective}</b> · attività ×{data.activityFactor} ({SRC[data.activitySource]}) · peso {data.weightKg} kg
+            {data.floored && <> · <span style={{ color: '#9a6a00' }}>soglia minima di sicurezza applicata</span></>}
+          </p>
+          <p className="muted" style={{ margin: '6px 0 0', fontSize: 11 }}>
+            Stima automatica (Mifflin-St Jeor). Se il "menu a necessità" è attivo, i menu puntano al <b>Target</b>.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function ClientDetail() {
   const { regimeLabel, styleLabel } = useTaxonomy();
   const { id } = useParams();
@@ -680,6 +726,8 @@ export function ClientDetail() {
           </div>
         </div>
       </div>
+
+      <KcalNeedCard clientId={id ?? ''} />
 
       {/* Note dello staff: editor a sinistra, log a destra */}
       <div className="card">
