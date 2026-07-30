@@ -1,5 +1,5 @@
 {
   "_commento": "Versione Android per il Play Store. Ad OGNI nuovo AAB da caricare: versionCode +1 (numero intero, sempre crescente); versionName è quella mostrata agli utenti.",
   "versionCode": 3,
-  "versionName": "1.0"
+  "versionName": "1.1"
 }
