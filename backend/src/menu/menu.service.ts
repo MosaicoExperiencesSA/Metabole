@@ -404,6 +404,27 @@ export class MenuService {
       }
     }
 
+    // PREFERENZA "RICETTE SEMPLICI" (scelta della cliente in app): se attiva, per ogni pasto
+    // si preferisce — quando disponibile — un'alternativa marcata `difficulty="semplice"`
+    // (cucina italiana), entro la tolleranza kcal e rispettando le esclusioni. La rotazione
+    // per giorno fa alternare i piatti semplici tra loro e con quelli esistenti quando il pool
+    // è limitato. La sicurezza resta garantita da evaluateMeals subito sotto.
+    if ((profile as { prefersSimpleRecipes?: boolean }).prefersSimpleRecipes) {
+      const slots = [...new Set(templates.flatMap((t) => ((t.meals as { slot: string }[]) ?? []).map((m) => m.slot)))];
+      const excludeTerms = [
+        ...(((profile as { allergies?: string[] }).allergies) ?? []),
+        ...((profile.intolerances as string[]) ?? []),
+        ...((profile.dislikedFoods as string[]) ?? []),
+      ];
+      const simpleBySlot = await this.buildSimpleSlotPool(profile.regime, slots, excludeTerms);
+      if ([...simpleBySlot.values()].some((l) => l.length)) {
+        for (const day of daySnapshots) {
+          const dayIndex = Math.round((day.date.getTime() - start.getTime()) / 86_400_000);
+          day.meals = this.applySimplePreference(day.meals, simpleBySlot, kcalTolPct / 100, dayIndex);
+        }
+      }
+    }
+
     // SICUREZZA + SOSTITUZIONE (motore §2/§7): controllo i piatti contro le esclusioni
     // della cliente. Se un ingrediente escluso ha una sostituzione sicura → la annoto sul
     // pasto (il piatto si eroga). Se un'INTOLLERANZA non è sostituibile → NON si eroga:
@@ -798,6 +819,61 @@ export class MenuService {
    * (stesso slot, stesso regime, kcal più vicine, senza cibi esclusi/intolleranze).
    * Muta i MealSnapshot passati e ritorna gli scambi fatti (from→to).
    */
+  /**
+   * Pool di ricette SEMPLICI (difficulty="semplice", attive) per gli slot richiesti, filtrate
+   * sulle esclusioni della cliente (allergie + intolleranze + cibi non graditi, espanse per
+   * categoria: es. "legumi" → ceci, lenticchie…). Usato quando la cliente ha attivato
+   * "preferisco ricette semplici". Ritorna solo ricette dello stesso regime del piano.
+   */
+  private async buildSimpleSlotPool(
+    regime: string | null,
+    slots: string[],
+    excludeTerms: string[],
+  ): Promise<Map<string, { id: string; name: string; kcal: number }[]>> {
+    const out = new Map<string, { id: string; name: string; kcal: number }[]>();
+    if (!regime || slots.length === 0) return out;
+    const excluded = new Set<string>();
+    for (const t of excludeTerms) for (const kw of expandExclusion(t)) excluded.add(kw);
+    const recipes = (await this.prisma.recipe.findMany({
+      where: { regime, active: true, difficulty: 'semplice', mealSlot: { in: slots as never } },
+      select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true },
+    })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown }[];
+    for (const r of recipes) {
+      const txt = (r.name + ' ' + (((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
+      let blocked = false;
+      for (const k of excluded) { if (k && txt.includes(k)) { blocked = true; break; } }
+      if (blocked) continue;
+      if (!out.has(r.mealSlot)) out.set(r.mealSlot, []);
+      out.get(r.mealSlot)!.push({ id: r.id, name: r.name, kcal: r.kcal });
+    }
+    // Ordine deterministico (per kcal, poi id) così la rotazione per giorno è stabile.
+    for (const list of out.values()) list.sort((a, b) => a.kcal - b.kcal || a.id.localeCompare(b.id));
+    return out;
+  }
+
+  /**
+   * Applica la preferenza "ricette semplici": per ogni pasto, se esistono alternative semplici
+   * entro ±tol kcal (bilanciamento), ne sceglie una ruotando per giorno (dayIndex) — così i
+   * piatti semplici si alternano tra loro e, quando il pool è limitato, con quelli esistenti.
+   */
+  private applySimplePreference(
+    meals: MealSnapshot[],
+    simpleBySlot: Map<string, { id: string; name: string; kcal: number }[]>,
+    tol: number,
+    dayIndex: number,
+  ): MealSnapshot[] {
+    return meals.map((m) => {
+      const pool = simpleBySlot.get(m.slot);
+      if (!pool || pool.length === 0) return m;
+      const lo = m.kcal * (1 - tol);
+      const hi = m.kcal * (1 + tol);
+      const fits = pool.filter((c) => c.id !== m.recipeId && c.kcal >= lo && c.kcal <= hi);
+      if (fits.length === 0) return m;
+      const pick = fits[((dayIndex % fits.length) + fits.length) % fits.length];
+      return { slot: m.slot, recipeId: pick.id, name: pick.name, kcal: pick.kcal, substitutions: m.substitutions };
+    });
+  }
+
   private async swapDislikedDishes(
     clientId: string,
     meals: MealSnapshot[],

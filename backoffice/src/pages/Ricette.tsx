@@ -15,13 +15,17 @@ interface Recipe {
   ingredients: Ingredient[];
   cookingMethods?: CookingMethod[] | null;
   tags: string[];
+  difficulty?: string;
   active: boolean;
 }
 
 const SLOT: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 const METHOD: Record<string, string> = { veloce: 'Veloce', forno: 'Al forno', meal_prep: 'Meal prep' };
+const DIFFICULTY: Record<string, string> = { semplice: 'Semplice', media: 'Media', elaborata: 'Elaborata' };
 const SLOTS = Object.keys(SLOT);
 const METHODS = Object.keys(METHOD);
+const DIFFICULTIES = Object.keys(DIFFICULTY);
+const ITALIAN_TAG = 'cucina italiana';
 
 interface FormMethod { type: string; stepsText: string }
 interface Form {
@@ -30,22 +34,28 @@ interface Form {
   mealSlot: string;
   kcal: string;
   tags: string;
+  difficulty: string;
+  italian: boolean;
   ingredients: Ingredient[];
   methods: FormMethod[];
   active: boolean;
 }
 
 const emptyForm = (regime = 'omnivore'): Form => ({
-  name: '', regime, mealSlot: 'lunch', kcal: '', tags: '',
+  name: '', regime, mealSlot: 'lunch', kcal: '', tags: '', difficulty: 'media', italian: false,
   ingredients: [{ name: '', qty: null, unit: '' }],
   methods: [{ type: 'veloce', stepsText: '' }],
   active: true,
 });
 
 function toForm(r: Recipe): Form {
+  const tags = r.tags ?? [];
   return {
     name: r.name, regime: r.regime, mealSlot: r.mealSlot, kcal: String(r.kcal),
-    tags: (r.tags ?? []).join(', '),
+    // Il tag "cucina italiana" è gestito con la checkbox dedicata: lo tolgo dal campo Tag libero.
+    tags: tags.filter((t) => t.toLowerCase().trim() !== ITALIAN_TAG).join(', '),
+    difficulty: r.difficulty ?? 'media',
+    italian: tags.some((t) => t.toLowerCase().trim() === ITALIAN_TAG),
     ingredients: r.ingredients?.length ? r.ingredients : [{ name: '', qty: null, unit: '' }],
     methods: (r.cookingMethods ?? []).length
       ? (r.cookingMethods ?? []).map((m) => ({ type: m.type, stepsText: (m.steps ?? []).join('\n') }))
@@ -126,7 +136,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
           <table className="grid">
             <thead>
               <tr>
-                <th>Nome</th><th>Regime</th><th>Pasto</th><th>Kcal</th><th>Tag</th><th>Stato</th>
+                <th>Nome</th><th>Regime</th><th>Pasto</th><th>Kcal</th><th>Difficoltà</th><th>Tag</th><th>Stato</th>
                 {canEdit && <th></th>}
               </tr>
             </thead>
@@ -137,6 +147,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
                   <td className="muted">{regimeLabel(r.regime)}</td>
                   <td className="muted">{SLOT[r.mealSlot] ?? r.mealSlot}</td>
                   <td className="muted">{r.kcal}</td>
+                  <td><span className={`chip ${r.difficulty === 'semplice' ? 'green' : 'gray'}`}>{DIFFICULTY[r.difficulty ?? 'media'] ?? 'Media'}</span></td>
                   <td className="muted">{(r.tags ?? []).join(', ') || '—'}</td>
                   <td><span className={`chip ${r.active ? '' : 'gray'}`}>{r.active ? 'Attiva' : 'Archiviata'}</span></td>
                   {canEdit && (
@@ -192,8 +203,9 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
     const cookingMethods = f.methods
       .map((m) => ({ type: m.type, steps: m.stepsText.split('\n').map((s) => s.trim()).filter(Boolean) }))
       .filter((m) => m.steps.length > 0);
-    const tags = f.tags.split(',').map((t) => t.trim()).filter(Boolean);
-    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, tags, active: f.active };
+    const tags = f.tags.split(',').map((t) => t.trim()).filter(Boolean).filter((t) => t.toLowerCase() !== ITALIAN_TAG);
+    if (f.italian) tags.push(ITALIAN_TAG);
+    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, tags, difficulty: f.difficulty, active: f.active };
 
     setBusy(true);
     try {
@@ -220,8 +232,14 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
           <select className="select" value={f.mealSlot} onChange={(e) => setF({ ...f, mealSlot: e.target.value })}>{SLOTS.map((s) => <option key={s} value={s}>{SLOT[s]}</option>)}</select></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Kcal</span>
           <input className="input" inputMode="numeric" value={f.kcal} onChange={(e) => setF({ ...f, kcal: e.target.value })} placeholder="480" /></label>
+        <label><span className="muted" style={{ fontSize: 12 }}>Difficoltà</span>
+          <select className="select" value={f.difficulty} onChange={(e) => setF({ ...f, difficulty: e.target.value })}>{DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY[d]}</option>)}</select></label>
         <label style={{ gridColumn: '1 / -1' }}><span className="muted" style={{ fontSize: 12 }}>Tag (separati da virgola)</span>
           <input className="input" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="Da portare, Leggera" /></label>
+        <label className="row" style={{ gridColumn: '1 / -1', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={f.italian} onChange={(e) => setF({ ...f, italian: e.target.checked })} />
+          <span style={{ fontSize: 13 }}>Cucina italiana <span className="muted" style={{ fontSize: 11 }}>(piatto della tradizione, adatto alle clienti che vogliono ricette semplici)</span></span>
+        </label>
       </div>
 
       {/* Ingredienti */}

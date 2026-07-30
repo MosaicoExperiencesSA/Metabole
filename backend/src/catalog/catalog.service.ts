@@ -621,6 +621,7 @@ export class CatalogService {
     if (dto.cookingMethods !== undefined) data.cookingMethods = dto.cookingMethods as never;
     if (dto.tags !== undefined) data.tags = dto.tags;
     if (dto.macros !== undefined) data.macros = dto.macros as never;
+    if (dto.difficulty !== undefined) data.difficulty = dto.difficulty;
     if (dto.active !== undefined) data.active = dto.active;
     const recipe = await this.prisma.recipe.update({ where: { id }, data });
     await this.audit.log({
@@ -649,6 +650,7 @@ export class CatalogService {
         cookingMethods: (dto.cookingMethods ?? []) as never,
         tags: dto.tags ?? [],
         macros: (dto.macros ?? undefined) as never,
+        difficulty: dto.difficulty ?? 'media',
         active: dto.active ?? true,
       },
     });

@@ -196,6 +196,11 @@ export class CreateRecipeDto {
   @IsObject()
   macros?: Record<string, number>;
 
+  /** Difficoltà di preparazione: semplice | media | elaborata. */
+  @IsOptional()
+  @IsIn(['semplice', 'media', 'elaborata'])
+  difficulty?: string;
+
   @IsOptional()
   @IsBoolean()
   active?: boolean;
@@ -211,6 +216,7 @@ export class UpdateRecipeDto {
   @IsOptional() @IsArray() cookingMethods?: unknown[];
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsObject() macros?: Record<string, number>;
+  @IsOptional() @IsIn(['semplice', 'media', 'elaborata']) difficulty?: string;
   @IsOptional() @IsBoolean() active?: boolean;
 }
 

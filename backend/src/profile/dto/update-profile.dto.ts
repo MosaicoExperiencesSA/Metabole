@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
 class LifestylePatchDto {
   @IsOptional()
@@ -72,6 +72,11 @@ export class UpdateProfileDto {
   @IsArray()
   @IsString({ each: true })
   dislikedFoods?: string[];
+
+  /** La cliente preferisce ricette semplici (cucina italiana) quando disponibili. */
+  @IsOptional()
+  @IsBoolean()
+  prefersSimpleRecipes?: boolean;
 
   @IsOptional()
   @ValidateNested()

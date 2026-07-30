@@ -364,6 +364,10 @@ model ClientProfile {
   allergies              String[]   @default([]) // R8: blocco duro (incl. tracce/derivati), distinto da intolleranze/gusti
   intolerances           String[]   @default([])
   dislikedFoods          String[]   @default([]) @map("disliked_foods")
+  // Preferenza della cliente: menu con ricette SEMPLICI (cucina italiana) quando disponibili.
+  // Attivabile dall'app. Il generatore menu, se true, alterna alle ricette del piano quelle
+  // marcate difficulty="semplice" (entro la tolleranza kcal, rispettando le esclusioni).
+  prefersSimpleRecipes   Boolean    @default(false) @map("prefers_simple_recipes")
   lifestyle              Json?      // lavoro, tempo per cucinare, pranzo feriali (segnale "Vita")
   themeColor             String?    @map("theme_color")
   planStartDate          DateTime?  @map("plan_start_date")
@@ -1232,6 +1236,10 @@ model Recipe {
   cookingMethods Json?    @map("cooking_methods") // [{type: veloce|forno|meal_prep, steps: []}]
   tags           String[] @default([])
   macros         Json? // {protein_g, carbs_g, fat_g}
+  // Difficoltà di preparazione: semplice | media | elaborata. Serve a proporre, alle clienti
+  // che lo scelgono ("preferisco ricette semplici"), alternative semplici/vicine alla cucina
+  // italiana, alternate a quelle esistenti. Default "media" per non alterare le ricette attuali.
+  difficulty     String   @default("media")
   active         Boolean  @default(true)
   // R8 sicurezza: allergeni (14 UE, codici) presenti nella ricetta. `reviewed` = il
   // nutrizionista ha CONFERMATO i tag (una ricetta non revisionata NON è considerata sicura).
