@@ -1,19 +1,18 @@
 /**
  * Set iniziale di ricette SEMPLICI di cucina italiana.
  *
- * Inserisce le ricette del catalogo `data/simple_italian_catalog.json` come BOZZA:
+ * Inserisce le ricette del catalogo `data/simple_italian_catalog.json`:
  *   - difficulty = 'semplice'
  *   - tag ['cucina italiana']
- *   - active = FALSE  → NON entrano nei menu finché la coach non le attiva
- *   - allergensReviewed = FALSE → gli allergeni vanno confermati dal nutrizionista
+ *   - active = TRUE  → subito disponibili nei menu per chi ha scelto "ricette semplici"
+ *   - allergensReviewed = FALSE → gli allergeni (codici UE) non sono certificati: la
+ *     sicurezza in erogazione si basa su esclusioni per parola chiave + controllo intolleranze.
+ *     Consigliata comunque una revisione di kcal/macro/allergeni dal backoffice.
  *
  * È idempotente: se una ricetta con lo stesso nome+slot+regime esiste già, la salta.
- * Le ricette vanno poi RIVISTE (kcal, macro, allergeni) e ATTIVATE dal backoffice
- * (pagina Ricette): solo allora vengono proposte alle clienti che hanno scelto
- * "preferisco ricette semplici".
  *
  *   npm run seed:simple-italian            # DRY-RUN: mostra cosa creerebbe
- *   npm run seed:simple-italian -- --apply # crea le ricette (active=false)
+ *   npm run seed:simple-italian -- --apply # crea le ricette (active=true)
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -35,7 +34,7 @@ type SeedRecipe = {
 };
 
 async function main() {
-  console.log(APPLY ? '>>> APPLICA (creo le ricette, active=false) <<<' : '>>> DRY-RUN (nessuna scrittura) — usa --apply <<<');
+  console.log(APPLY ? '>>> APPLICA (creo le ricette, active=true) <<<' : '>>> DRY-RUN (nessuna scrittura) — usa --apply <<<');
   const file = join(__dirname, 'data', 'simple_italian_catalog.json');
   const parsed = JSON.parse(readFileSync(file, 'utf8')) as { recipes: SeedRecipe[] };
   const recipes = parsed.recipes ?? [];
@@ -66,8 +65,8 @@ async function main() {
           macros: (r.macros ?? undefined) as never,
           tags,
           difficulty: 'semplice',
-          active: false, // BOZZA: la coach la rivede e la attiva dal backoffice
-          allergensReviewed: false,
+          active: true, // già disponibili nei menu (scelta di Simone)
+          allergensReviewed: false, // allergeni non certificati: revisione consigliata dal backoffice
         },
       });
     }
@@ -76,7 +75,7 @@ async function main() {
 
   console.log(
     APPLY
-      ? `\n✔ Ricette create (active=false, da attivare dal backoffice): ${created}. Già presenti: ${skipped}.`
+      ? `\n✔ Ricette create e ATTIVE: ${created}. Già presenti: ${skipped}. (Consigliata revisione kcal/macro/allergeni dal backoffice.)`
       : `\nDa creare: ${created}. Già presenti: ${skipped}. Per applicare: npm run seed:simple-italian -- --apply`,
   );
 }

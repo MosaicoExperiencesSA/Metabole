@@ -35,26 +35,30 @@ Quando la cliente ha `prefersSimpleRecipes`, prima del controllo sicurezza il ge
 - Nuova sezione **Ricette** → toggle **"Preferisco ricette semplici"** (salva su
   `PATCH /me/client-profile`).
 
-### 5) Set iniziale di ricette (BOZZA da approvare)
+### 5) Set iniziale di ricette (create GIÀ ATTIVE)
 - `prisma/data/simple_italian_catalog.json`: ~36 ricette semplici italiane (colazione, spuntini,
   pranzo, cena; regimi onnivoro/vegetariano/vegano).
-- `prisma/seed_simple_italian.ts` (script `seed:simple-italian`): le crea **`active=false`** e
-  **`allergensReviewed=false`** → **non entrano nei menu** finché la coach non le **rivede e
-  attiva** dal backoffice. Idempotente (salta quelle già presenti).
-- ⚠ **kcal, macro e allergeni sono stime**: vanno confermati dalla nutrizionista prima di attivare.
+- `prisma/seed_simple_italian.ts` (script `seed:simple-italian`): le crea **`active=true`** →
+  **subito disponibili** nei menu per chi ha scelto "ricette semplici". Idempotente (salta quelle
+  già presenti).
+- **`allergensReviewed=false`**: gli allergeni (codici UE) non sono certificati da un
+  nutrizionista. In erogazione la sicurezza per queste ricette si basa sulle **esclusioni per
+  parola chiave** (allergie/intolleranze/cibi non graditi, espanse per categoria) + il
+  **controllo intolleranze** di `evaluateMeals`. ⚠ **kcal, macro e allergeni sono stime**:
+  consigliata comunque una **revisione dal backoffice** (pagina Ricette → chip *Semplice*).
 
 ## Come si mette in produzione
 1. **Push** da GitHub Desktop → Render applica la migration in automatico e Vercel aggiorna
    web app e backoffice.
-2. Sulla **Shell di Render** (backend), carica le ricette bozza:
+2. Sulla **Shell di Render** (backend), carica le ricette (già attive):
    ```
    npm run seed:simple-italian              # DRY-RUN
-   npm run seed:simple-italian -- --apply   # crea le ricette (active=false)
+   npm run seed:simple-italian -- --apply   # crea le ricette (active=true)
    ```
-3. In **backoffice → Ricette**: rivedi le ricette "Archiviate" con chip *Semplice*, correggi
-   kcal/macro/allergeni se serve, poi mettile **Attive**.
-4. La cliente attiva **Profilo → Ricette → "Preferisco ricette semplici"**: dai menu dei giorni
+3. La cliente attiva **Profilo → Ricette → "Preferisco ricette semplici"**: dai menu dei giorni
    successivi vedrà i piatti semplici alternati.
+4. (Consigliato) In **backoffice → Ricette** rivedi le ricette con chip *Semplice* e correggi
+   kcal/macro/allergeni dove serve.
 
 ## Verifica
 - Backend: transpile OK dei file toccati; NUL check OK; JSON validi. (`prisma validate` non
