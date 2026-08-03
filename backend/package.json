@@ -28,6 +28,8 @@
     "realign:plan-start": "ts-node --transpile-only prisma/realign-plan-start.ts",
     "fix:email-primopasto": "ts-node --transpile-only prisma/fix-email-primo-pasto.ts",
     "seed:simple-italian": "ts-node --transpile-only prisma/seed_simple_italian.ts",
+    "prune:menu-planend": "ts-node --transpile-only prisma/prune-menu-after-planend.ts",
+    "diag:anomalie": "ts-node --transpile-only prisma/diag-anomalie-piano.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"

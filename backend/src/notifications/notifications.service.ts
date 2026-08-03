@@ -251,8 +251,18 @@ export class NotificationsService {
       ]);
     const lastMeasurement = lastMeasurements[0] ?? null;
 
+    // Piano attivo? Il messaggio quotidiano "il tuo piano di oggi" NON va inviato a chi ha il
+    // piano SCADUTO (endDate passata) o senza abbonamento attivo: altrimenti la cliente riceve
+    // "piano confermato, continua col ritmo" e il link la riporta a un piano finito (bug).
+    const activeSub = await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
+      select: { endDate: true },
+    });
+    const hasActivePlan = !!activeSub && (!activeSub.endDate || activeSub.endDate.getTime() >= today.getTime());
+
     // 0. Messaggio quotidiano del motore: TONO e contenuto decisi dalle regole (spec 7.2).
-    if (todayDecision) {
+    // Solo a piano attivo (vedi sopra).
+    if (todayDecision && hasActivePlan) {
       const action = todayDecision.action as { tone?: MessageTone; timing?: string; menu?: string } | null;
       const tone: MessageTone = action?.tone ?? 'neutral';
       if (await this.notifyOncePerDay({

@@ -374,10 +374,17 @@ export class MenuService {
     const useDayCombo = (daycomboEnabled || targetSource === 'need') && !!ctx && targetKcal > 0;
     const combo = useDayCombo && ctx ? this.dayComboPools(ctx) : null;
 
+    // Fine piano: non si erogano MAI giorni oltre la data di fine dell'abbonamento. Il piano
+    // include fino a `endDate` compresa; i giorni successivi (domani/dopodomani a piano finito)
+    // non vanno consegnati (bug: la cliente vedeva menu oltre la fine del percorso).
+    const planEnd = activeSubscription.endDate ? toDateOnly(activeSubscription.endDate.toISOString()) : null;
+    if (planEnd && firstNewDate.getTime() > planEnd.getTime()) return [];
+
     // Prepara gli snapshot dei giorni del ciclo.
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
     for (let i = 0; i < daysPerDelivery; i++) {
       const date = new Date(firstNewDate.getTime() + i * 86_400_000);
+      if (planEnd && date.getTime() > planEnd.getTime()) break; // niente giorni oltre la fine piano
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
       let chosen: { slot: string; recipeId: string }[] | null = null;
@@ -397,6 +404,7 @@ export class MenuService {
       const meals = await this.snapshotMeals(chosen as never);
       daySnapshots.push({ date, meals });
     }
+    if (daySnapshots.length === 0) return []; // tutti i giorni erano oltre la fine piano
 
     // RIPETIZIONE BIGIORNALIERA (ProductRule `menu_repeat_two_days`, per dieta, off di
     // default). Se attiva per questa dieta: il giorno 2+ ripropone GLI STESSI ALIMENTI del

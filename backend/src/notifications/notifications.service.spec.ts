@@ -63,6 +63,8 @@ describe('NotificationsService', () => {
       },
       visit: { findMany: jest.fn().mockResolvedValue([]) },
       staff: { findUnique: jest.fn().mockResolvedValue({ userId: 'nutri-user' }) },
+      // Piano attivo (endDate futura) → il messaggio quotidiano "piano di oggi" può partire.
+      subscription: { findFirst: jest.fn().mockResolvedValue({ endDate: new Date(Date.now() + 7 * 86_400_000) }) },
     };
     const config = {
       getNumber: jest.fn((key: string) =>
