@@ -72,9 +72,43 @@ backoffice), crea `menu_variety_min_gap_days` = 2 se manca, e segnala eventuali 
 che spengono la varietà. Le giornate già erogate non si toccano: l'effetto si vede dal ciclo
 successivo. Conviene rilanciare la diagnostica dopo qualche giorno per confrontare.
 
+## Secondo giro: cosa ha rivelato la diagnostica in produzione
+
+Lanciata la diagnostica sulla cliente è emerso un fatto che il reclamo non lasciava intuire:
+**molti piatti erogati non vengono dalla dieta**. Nel pool della "Pescetariana" livello 1 ci sono
+solo pesce, legumi e verdure, ma nei suoi menu comparivano petto di pollo, pancetta di maiale,
+bistecca di vitello e manzo. Il pranzo mostrava addirittura 6 piatti distinti a fronte di 5
+alternative disponibili: impossibile, se i piatti venissero dai template.
+
+**Da dove arrivano.** Dopo la composizione ci sono passaggi che *riscrivono* i pasti pescando
+dall'intero catalogo filtrato per **regime della cliente**, non dal pool della dieta: la
+preferenza "ricette semplici", la sostituzione dei cibi non graditi e le gemelle della
+ripetizione bigiornaliera. La dieta "Pescetariana" è però registrata con `regime = omnivore`
+(lo schema prevede il valore `pescetarian`), quindi quei passaggi considerano legittima
+qualsiasi carne.
+
+Questo apre due questioni distinte, che vanno tenute separate.
+
+**a) Un problema di dato, non di codice.** Se la dieta si chiama "Pescetariana" ma è registrata
+come onnivora, `pickDiet` la abbina a clienti onnivore e le sostituzioni per regime possono
+metterle in tavola carne. La diagnostica ora elenca tutte le diete approvate il cui nome
+suggerisce un regime diverso da quello registrato. La correzione è cambiare il regime della
+dieta (o il suo nome) dal backoffice: non è una modifica che il motore possa fare da solo,
+perché solo lo staff sa quale dei due campi è quello giusto.
+
+**b) Un buco nella garanzia di varietà appena introdotta.** Il guard agisce *durante* la
+composizione, ma la preferenza "ricette semplici" riscrive i pasti **dopo**, con una rotazione
+`giorno % numero_alternative` che sul pool semplice — piccolo — degenera a piatto fisso appena
+in banda kcal resta una sola ricetta. Per una cliente con quella preferenza attiva la garanzia
+veniva quindi annullata. Ora la scelta della ricetta semplice tiene conto dello storico: si
+preferisce una semplice mai servita di recente; se non ce n'è, si tiene il piatto del piano
+(che il guard ha già reso diverso da ieri) invece di ripetere; solo se anche quello è recente
+si ricade sulla rotazione storica. La preferenza della cliente resta soddisfatta ogni volta che
+è possibile farlo senza ripetere.
+
 ## Test
 
-Le tre suite del motore menu sono verdi (56 test). Ho aggiunto una suite dedicata alla garanzia di
+Le suite del motore menu sono verdi (58 test). Ho aggiunto una suite dedicata alla garanzia di
 varietà, che riproduce esattamente il caso della cliente — un pasto in cui un piatto vince sempre lo
 scoring — e verifica che non compaia due giorni di fila quando un'alternativa esiste, che i giorni
 già erogati vengano considerati, e che con il parametro a 0 il comportamento resti quello storico.

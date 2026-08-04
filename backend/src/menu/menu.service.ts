@@ -460,9 +460,17 @@ export class MenuService {
       ];
       const simpleBySlot = await this.buildSimpleSlotPool(profile.regime, slots, excludeTerms);
       if ([...simpleBySlot.values()].some((l) => l.length)) {
+        // Questo passaggio RISCRIVE i pasti già composti: senza storico annullerebbe il guard
+        // di varietà applicato sopra (il pool "semplice" è piccolo e la rotazione per giorno
+        // degenera a piatto fisso quando in banda kcal ne resta uno solo). Lo storico riparte
+        // dai giorni GIÀ erogati e si aggiorna man mano, come nel ciclo di composizione.
+        const simpleHistory = varietyGap > 0
+          ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap)
+          : new Map<string, string[]>();
         for (const day of daySnapshots) {
           const dayIndex = Math.round((day.date.getTime() - start.getTime()) / 86_400_000);
-          day.meals = this.applySimplePreference(day.meals, simpleBySlot, kcalTolPct / 100, dayIndex);
+          day.meals = this.applySimplePreference(day.meals, simpleBySlot, kcalTolPct / 100, dayIndex, simpleHistory);
+          this.pushSlotHistory(simpleHistory, day.meals, varietyGap);
         }
       }
     }
@@ -980,13 +988,22 @@ export class MenuService {
    * Applica la preferenza "ricette semplici": per ogni pasto, se esistono alternative semplici
    * entro ±tol kcal (bilanciamento), ne sceglie una ruotando per giorno (dayIndex) — così i
    * piatti semplici si alternano tra loro e, quando il pool è limitato, con quelli esistenti.
+   *
+   * VARIETÀ: la rotazione `dayIndex % fits.length` degenera a piatto FISSO quando in banda
+   * kcal resta una sola ricetta semplice — ed è il caso più comune, perché il pool semplice è
+   * piccolo. Con lo storico si preferisce sempre un'alternativa non servita di recente; se non
+   * ce n'è, si tiene il piatto del piano (che il guard di varietà ha già reso diverso da ieri)
+   * anziché ripetere. Solo se anche quello è recente si ricade sulla rotazione storica.
    */
   private applySimplePreference(
     meals: MealSnapshot[],
     simpleBySlot: Map<string, { id: string; name: string; kcal: number }[]>,
     tol: number,
     dayIndex: number,
+    history?: Map<string, string[]>,
   ): MealSnapshot[] {
+    const rotate = (list: { id: string; name: string; kcal: number }[]) =>
+      list[((dayIndex % list.length) + list.length) % list.length];
     return meals.map((m) => {
       const pool = simpleBySlot.get(m.slot);
       if (!pool || pool.length === 0) return m;
@@ -994,7 +1011,19 @@ export class MenuService {
       const hi = m.kcal * (1 + tol);
       const fits = pool.filter((c) => c.id !== m.recipeId && c.kcal >= lo && c.kcal <= hi);
       if (fits.length === 0) return m;
-      const pick = fits[((dayIndex % fits.length) + fits.length) % fits.length];
+      const recent = new Set(history?.get(m.slot) ?? []);
+      const fresh = fits.filter((c) => !recent.has(c.id));
+      // 1) un piatto semplice mai servito di recente: è la scelta migliore, soddisfa
+      //    la preferenza della cliente senza ripetere.
+      if (fresh.length) {
+        const pick = rotate(fresh);
+        return { slot: m.slot, recipeId: pick.id, name: pick.name, kcal: pick.kcal, substitutions: m.substitutions };
+      }
+      // 2) tutte le semplici sono già state servite di recente: se il piatto del piano non lo
+      //    è, si tiene quello. La varietà percepita conta più della preferenza di stile.
+      if (!recent.has(m.recipeId)) return m;
+      // 3) anche il piatto del piano è recente: nessuna opzione fresca, rotazione storica.
+      const pick = rotate(fits);
       return { slot: m.slot, recipeId: pick.id, name: pick.name, kcal: pick.kcal, substitutions: m.substitutions };
     });
   }

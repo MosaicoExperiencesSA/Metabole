@@ -96,6 +96,29 @@ function slotStats(days: Day[]) {
   return out;
 }
 
+/**
+ * Insieme delle ricette che la dieta+livello mette a disposizione (unione di tutti gli slot).
+ * Serve a stabilire se un piatto ERGATO proviene davvero dal piano approvato o è stato
+ * introdotto da uno dei passaggi successivi (ricette semplici, swap non graditi, gemelle).
+ * In cache: la stessa coppia dieta/livello ricorre su molti giorni.
+ */
+const poolCache = new Map<string, Set<string>>();
+async function poolIdsFor(dietId: string, level: number): Promise<Set<string>> {
+  const key = `${dietId}|${level}`;
+  const hit = poolCache.get(key);
+  if (hit) return hit;
+  const templates = (await prisma.dietDayTemplate.findMany({
+    where: { dietId, level },
+    select: { meals: true },
+  })) as { meals: unknown }[];
+  const ids = new Set<string>();
+  for (const t of templates) {
+    for (const m of ((t.meals as Meal[]) ?? [])) if (m?.recipeId) ids.add(m.recipeId);
+  }
+  poolCache.set(key, ids);
+  return ids;
+}
+
 /** Quante ricette diverse la dieta approvata offre per ogni slot (il "tetto" della varietà). */
 async function poolSizes(dietId: string, level: number): Promise<Map<string, { id: string; name: string; kcal: number }[]>> {
   const templates = (await prisma.dietDayTemplate.findMany({
@@ -151,7 +174,86 @@ async function showConfig() {
   console.log('');
 }
 
+/**
+ * Profilo della cliente: i campi che DECIDONO cosa finisce nel piatto oltre ai template
+ * (regime usato per scegliere la dieta e per pescare le alternative, preferenza "ricette
+ * semplici", esclusioni). Senza questi, i piatti fuori pool restano inspiegabili.
+ */
+async function reportProfile(clientId: string) {
+  const p = (await prisma.clientProfile.findUnique({
+    where: { userId: clientId },
+    select: {
+      regime: true, dietStyle: true, mealsPerDay: true, objective: true,
+      prefersSimpleRecipes: true, allergies: true, intolerances: true, dislikedFoods: true,
+      planStartDate: true, travelState: true,
+    },
+  })) as {
+    regime: string | null; dietStyle: string | null; mealsPerDay: number | null; objective: string | null;
+    prefersSimpleRecipes: boolean; allergies: string[]; intolerances: string[]; dislikedFoods: string[];
+    planStartDate: Date | null; travelState: string | null;
+  } | null;
+  if (!p) { console.log('PROFILO: assente\n'); return null; }
+  const list = (a: string[]) => (a?.length ? a.join(', ') : '—');
+  console.log('PROFILO');
+  console.log(`  regime = ${p.regime ?? '—'} | pasti/giorno = ${p.mealsPerDay ?? '—'} | stile = ${p.dietStyle ?? '—'} | obiettivo = ${p.objective ?? '—'}`);
+  console.log(`  inizio piano = ${p.planStartDate ? ymd(p.planStartDate) : '—'}${p.travelState ? ` | viaggio: ${p.travelState}` : ''}`);
+  console.log(`  preferenza "ricette semplici": ${p.prefersSimpleRecipes ? 'SÌ — il motore sostituisce i piatti del piano con ricette difficulty=semplice dello STESSO REGIME' : 'no'}`);
+  console.log(`  allergie: ${list(p.allergies)} | intolleranze: ${list(p.intolerances)} | non graditi: ${list(p.dislikedFoods)}`);
+  console.log('');
+  return p;
+}
+
+/**
+ * Il controllo decisivo: quali piatti erogati NON provengono dai template della dieta di
+ * quel giorno. Per ciascuno stampa regime e difficoltà della ricetta, che identificano il
+ * passaggio responsabile (semplici / swap non graditi / gemelle bigiornaliere).
+ */
+async function reportOutOfPool(days: Day[]) {
+  const rows: { date: Date; slot: string; id: string; label: string }[] = [];
+  let totalMeals = 0;
+  for (const d of days) {
+    if (!d.dietId) continue;
+    const pool = await poolIdsFor(d.dietId, d.level ?? 1);
+    if (pool.size === 0) continue; // nessun template: non si può giudicare
+    for (const m of d.meals) {
+      totalMeals++;
+      if (!pool.has(m.recipeId)) rows.push({ date: d.date, slot: m.slot, id: m.recipeId, label: m.name ?? m.recipeId });
+    }
+  }
+  if (!totalMeals) return;
+  console.log(`\n  PIATTI FUORI DAL POOL DELLA DIETA: ${rows.length} su ${totalMeals} pasti erogati`);
+  if (!rows.length) {
+    console.log('      (nessuno: tutti i piatti vengono dai template del piano approvato)');
+    return;
+  }
+  const ids = [...new Set(rows.map((r) => r.id))];
+  const recipes = (await prisma.recipe.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, regime: true, difficulty: true, mealSlot: true, kcal: true, active: true },
+  })) as { id: string; name: string; regime: string; difficulty: string; mealSlot: string; kcal: number; active: boolean }[];
+  const byId = new Map(recipes.map((r) => [r.id, r]));
+  const perSlot = new Map<string, number>();
+  for (const r of rows) perSlot.set(r.slot, (perSlot.get(r.slot) ?? 0) + 1);
+  console.log(`      per pasto: ${[...perSlot].map(([s, n]) => `${s} ${n}`).join(', ')}`);
+  console.log('      ricette coinvolte:');
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    const rec = byId.get(r.id);
+    const n = rows.filter((x) => x.id === r.id).length;
+    if (!rec) { console.log(`          · ${r.label} — RICETTA NON TROVATA (id ${r.id})`); continue; }
+    const flags = [`regime=${rec.regime}`, `difficoltà=${rec.difficulty}`, rec.active ? 'attiva' : 'DISATTIVATA'];
+    console.log(`          · ${String(n)}×  ${rec.name} (${rec.kcal} kcal) — ${flags.join(', ')}`);
+  }
+  const semplici = [...seen].filter((id) => byId.get(id)?.difficulty === 'semplice').length;
+  console.log('');
+  console.log(`      → ${semplici}/${seen.size} sono ricette "semplici": compatibili con la preferenza "ricette semplici",`);
+  console.log('        che pesca dall\'intero catalogo del REGIME della cliente, non dal pool della dieta.');
+}
+
 async function reportClient(clientId: string, email: string) {
+  await reportProfile(clientId);
   const days = await loadDays(clientId);
   console.log(`CLIENTE ${email} — ultimi ${DAYS} giorni: ${days.length} giornate di menu`);
   if (days.length === 0) {
@@ -182,6 +284,44 @@ async function reportClient(clientId: string, email: string) {
       for (const r of list) console.log(`          · ${r.name} (${r.kcal} kcal)`);
     }
   }
+  await reportOutOfPool(days);
+  console.log('');
+}
+
+/**
+ * Coerenza nome ↔ regime delle diete approvate. `pickDiet` sceglie la dieta SOLO per
+ * regime+pasti: una dieta chiamata "Pescetariana" ma registrata come `omnivore` viene
+ * abbinata a clienti onnivore, e — cosa più delicata — le alternative pescate per regime
+ * (ricette semplici, sostituzioni) possono includere carne in un piano che la cliente
+ * vede come pescetariano. Sola lettura: qui si segnala soltanto.
+ */
+const NAME_HINTS: { re: RegExp; regime: string }[] = [
+  { re: /pescetar/i, regime: 'pescetarian' },
+  { re: /vegan/i, regime: 'vegan' },
+  { re: /vegetarian/i, regime: 'vegetarian' },
+];
+
+async function reportDietRegimeCoherence() {
+  const diets = (await prisma.diet.findMany({
+    where: { status: 'approved' as never },
+    select: { id: true, name: true, clientName: true, regime: true, mealsPerDay: true },
+    orderBy: { name: 'asc' },
+  })) as { id: string; name: string; clientName: string | null; regime: string; mealsPerDay: number }[];
+  const bad: { name: string; regime: string; expected: string }[] = [];
+  for (const d of diets) {
+    const label = `${d.name} ${d.clientName ?? ''}`;
+    // "vegetarian" matcha anche dentro "vegan"? no, ma l'ordine conta: vegan prima.
+    const hint = NAME_HINTS.find((h) => h.re.test(label));
+    if (hint && d.regime !== hint.regime) bad.push({ name: d.name, regime: d.regime, expected: hint.regime });
+  }
+  console.log(`COERENZA NOME ↔ REGIME (${diets.length} diete approvate)`);
+  if (!bad.length) { console.log('  ok: nessun disallineamento.\n'); return; }
+  for (const b of bad) {
+    console.log(`  ⚠  "${b.name}": regime registrato = ${b.regime}, il nome fa pensare a ${b.expected}`);
+  }
+  console.log('     Conseguenza: la dieta viene abbinata alle clienti di regime "' + bad[0].regime + '" e le');
+  console.log('     alternative pescate PER REGIME (ricette semplici, sostituzioni) possono includere');
+  console.log('     alimenti che il nome del piano esclude. Correzione = dato, non codice.');
   console.log('');
 }
 
@@ -226,6 +366,7 @@ async function reportFleet() {
 async function main() {
   console.log(`Diagnostica varietà menu — finestra ${DAYS} giorni\n`);
   await showConfig();
+  await reportDietRegimeCoherence();
   if (EMAIL) {
     const user = (await prisma.user.findUnique({ where: { email: EMAIL }, select: { id: true, email: true } })) as
       | { id: string; email: string }

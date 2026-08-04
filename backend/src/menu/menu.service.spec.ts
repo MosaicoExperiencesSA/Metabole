@@ -633,3 +633,85 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
     expect(breakfastsOf(prisma)).toEqual(['c1', 'c1']); // il piatto migliore vince sempre
   });
 });
+
+// La preferenza "ricette semplici" RISCRIVE i pasti dopo il guard di varietà, pescando da un
+// pool proprio (tutte le ricette difficulty="semplice" del regime). Quel pool è piccolo: se in
+// banda kcal resta UNA sola ricetta, `dayIndex % 1` la ripropone ogni giorno e la garanzia di
+// varietà applicata a monte viene annullata.
+describe('MenuService — ricette semplici senza annullare la varietà', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
+  const macros = { protein_g: 25, carbs_g: 35, fat_g: 14 };
+  // Pool della dieta: due colazioni equivalenti (il guard può alternarle).
+  const dietRecipes = [
+    { id: 'c1', name: 'Frittata leggera spinaci e formaggio', kcal: 400, macros },
+    { id: 'c2', name: 'Avocado toast integrale con uovo poché', kcal: 400, macros },
+  ];
+  const simple = (id: string, name: string) => ({ id, name, kcal: 400, macros, mealSlot: 'colazione', ingredients: [], difficulty: 'semplice' });
+  const tmpl = (dayIndex: number, c: string) => ({ dayIndex, level: 1, meals: [{ slot: 'colazione', recipeId: c }] });
+
+  function build(simplePool: ReturnType<typeof simple>[]) {
+    const all = [...dietRecipes, ...simplePool];
+    const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: DD(today), regime: 'pescetarian', dietStyle: 'mediterranean', mealsPerDay: 5,
+          allergies: [], intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
+          prefersSimpleRecipes: true, // ← la cliente ha attivato "preferisco ricette semplici"
+        }),
+      },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
+      dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
+      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective: 'dimagrimento' }) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'c1'), tmpl(2, 'c2')]) },
+      // Il pool "semplice" è una query a parte (difficulty='semplice'): va distinta.
+      recipe: {
+        findMany: jest.fn((args: any) => Promise.resolve(args?.where?.difficulty === 'semplice' ? simplePool : all)),
+        findUnique: jest.fn(),
+      },
+      menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'c1', score: 5, samples: 5 }]) },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+    };
+    const config = {
+      getNumber: jest.fn((k: string, def?: number) =>
+        Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 2 } as Record<string, number>)[k] ?? def),
+      ),
+      getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    };
+    const { DayComboService } = require('./day-combo.service');
+    const service = new MenuService(
+      prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService,
+      { activePausePeriod: jest.fn().mockResolvedValue(null) } as any,
+      { stateFor: jest.fn().mockResolvedValue('normale') } as any,
+      new DayComboService(), kcalNeedStub(),
+    );
+    return { service, prisma };
+  }
+
+  const breakfastsOf = (prisma: any) =>
+    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'colazione')?.recipeId);
+
+  it('una sola ricetta semplice in banda: non la ripete due giorni, tiene il piatto del piano', async () => {
+    const { service, prisma } = build([simple('s1', 'Salmone affumicato e cream cheese')]);
+    await service.deliverIfEligible('u1');
+    const b = breakfastsOf(prisma);
+    expect(b).toHaveLength(2);
+    expect(b[0]).toBe('s1'); // la preferenza della cliente viene comunque soddisfatta
+    expect(b[1]).not.toBe('s1'); // ← senza questo: 's1','s1' (la colazione bloccata del reclamo)
+  });
+
+  it('due ricette semplici in banda: le alterna, restando sempre sulle semplici', async () => {
+    const { service, prisma } = build([simple('s1', 'Pane, ricotta e marmellata'), simple('s2', 'Yogurt greco con mela a fette')]);
+    await service.deliverIfEligible('u1');
+    const b = breakfastsOf(prisma);
+    expect(new Set(b).size).toBe(2);
+    expect(b.every((id: string) => id === 's1' || id === 's2')).toBe(true);
+  });
+});
