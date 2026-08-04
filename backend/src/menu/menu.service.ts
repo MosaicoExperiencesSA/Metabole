@@ -1115,19 +1115,26 @@ export class MenuService {
   }
 
   /**
-   * "Sostituisci un ingrediente": la cliente indica un cibo che non gradisce →
-   * correggiamo SUBITO i menu già erogati di oggi, domani e dopodomani (sostituzioni
-   * sicure annotate sui pasti, from→to). L'esclusione PER SEMPRE (dislikedFoods, che
-   * guida anche i menu futuri) è una scelta separata: l'app la chiede con un popup dopo
-   * la correzione (`forever: true`). I cibi non graditi non bloccano mai il piano.
+   * "Sostituisci un ingrediente": la cliente indica un cibo da togliere dai menu già
+   * erogati, e sceglie PER QUANTO deve valere.
+   *
+   * La portata gliela chiediamo prima di applicare, non dopo, perché le tre situazioni
+   * sono davvero diverse e solo lei le sa distinguere: «oggi non ce l'ho in casa» (`today`),
+   * «in questi giorni non lo voglio» (`days`), «questo cibo non mi piace» (`forever`).
+   * Solo l'ultima entra nei `dislikedFoods`, che restringono il pool di TUTTI i menu
+   * futuri — ed è un effetto pesante: su una cliente reale 13 esclusioni accumulate
+   * avevano ridotto a 1 su 5 i pranzi utilizzabili della sua dieta.
+   *
+   * I cibi non graditi non bloccano mai il piano: al massimo cambiano il piatto.
    */
   async substituteDisliked(
     clientId: string,
     rawIngredient: string,
-    forever = false,
-  ): Promise<{ applied: { day: string; from: string; to: string }[]; disliked: string; forever: boolean; message: string }> {
+    scope: 'today' | 'days' | 'forever' = 'days',
+  ): Promise<{ applied: { day: string; from: string; to: string }[]; disliked: string; scope: 'today' | 'days' | 'forever'; forever: boolean; message: string }> {
     const ingredient = (rawIngredient ?? '').trim();
     if (ingredient.length < 2) throw new BadRequestException("Scrivi l'ingrediente che non gradisci.");
+    const forever = scope === 'forever';
 
     // 1) Solo se la cliente ha CONFERMATO l'esclusione permanente → dislikedFoods.
     if (forever) {
@@ -1145,13 +1152,15 @@ export class MenuService {
       }
     }
 
-    // 2) Correggi i menu GIÀ EROGATI di oggi + i 2 giorni successivi (anche se non
-    //    ancora visibili): l'ingrediente indicato conta anche se non è nei dislikedFoods.
+    // 2) Correggi i menu GIÀ EROGATI, da oggi in avanti per quanto ha chiesto la cliente
+    //    (anche i giorni non ancora visibili): l'ingrediente indicato conta anche se non
+    //    è nei dislikedFoods.
     const today = toDateOnly();
+    const daysAffected = scope === 'today' ? 1 : 3;
     const days = await this.prisma.menuDay.findMany({
       where: { clientId, date: { gte: today } },
       orderBy: { date: 'asc' },
-      take: 3,
+      take: daysAffected,
     });
     const applied: { day: string; from: string; to: string }[] = [];
     for (const day of days) {
@@ -1176,13 +1185,22 @@ export class MenuService {
         await this.prisma.menuDay.update({ where: { id: day.id }, data: { meals: updated as never } });
       }
     }
+    // Il messaggio dice esattamente per quanto vale: una cliente che ha chiesto "solo oggi"
+    // non deve leggere "nei prossimi menu" e restare col dubbio di aver escluso troppo.
     const uniquePairs = [...new Set(applied.map((s) => `«${s.from}» → «${s.to}»`))];
-    const message = applied.length
-      ? `Fatto: nei prossimi menu ${uniquePairs.join(', ')}.`
-      : forever
-        ? "Preferenza salvata: nei menu dei prossimi giorni quell'ingrediente non c'è, e non comparirà nei successivi."
-        : "Nei menu dei prossimi giorni quell'ingrediente non compare (se invece lo vedi ancora, scrivilo alla tua coach: sistemiamo noi).";
-    return { applied, disliked: ingredient, forever, message };
+    const where = scope === 'today' ? 'nel menu di oggi' : 'nei menu di oggi e dei prossimi due giorni';
+    let message: string;
+    if (applied.length) {
+      message = `Fatto, ${where}: ${uniquePairs.join(', ')}.`;
+      if (forever) message += ` E d'ora in poi «${ingredient}» non comparirà più nei tuoi menu.`;
+      else if (scope === 'today') message += ' Da domani torna disponibile.';
+    } else if (forever) {
+      message = `Preferenza salvata: «${ingredient}» non c'è ${where} e non comparirà nei menu successivi.`;
+    } else {
+      message = `${where.charAt(0).toUpperCase()}${where.slice(1)} quell'ingrediente non compare` +
+        (scope === 'today' ? '.' : ' (se invece lo vedi ancora, scrivilo alla tua coach: sistemiamo noi).');
+    }
+    return { applied, disliked: ingredient, scope, forever, message };
   }
 
   /**

@@ -145,9 +145,10 @@ export class NotificationsService {
     await this.push.sendToUser(input.userId, input.title, input.body, { type: input.type });
   }
 
+  /** La campanella mostra solo ciò che non è stato archiviato. */
   async listForUser(userId: string, unreadOnly = false) {
     return this.prisma.notification.findMany({
-      where: { userId, ...(unreadOnly ? { readAt: null } : {}) },
+      where: { userId, archivedAt: null, ...(unreadOnly ? { readAt: null } : {}) },
       orderBy: { scheduledFor: 'desc' },
       take: 50,
     });
@@ -162,6 +163,36 @@ export class NotificationsService {
       where: { id: notificationId },
       data: { readAt: notification.readAt ?? new Date() },
     });
+  }
+
+  /**
+   * Archivia una singola notifica. Non è una cancellazione: la riga resta, con `archivedAt`
+   * valorizzato, e sparisce solo dalla campanella. Archiviare implica anche "letta": una
+   * notifica tolta dalla vista non può continuare a contare nel badge dei non letti.
+   */
+  async archive(userId: string, notificationId: string) {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id: notificationId, userId },
+    });
+    if (!notification) throw new NotFoundException('Notifica non trovata');
+    const now = new Date();
+    return this.prisma.notification.update({
+      where: { id: notificationId },
+      data: { archivedAt: notification.archivedAt ?? now, readAt: notification.readAt ?? now },
+    });
+  }
+
+  /**
+   * "Svuota le lette": archivia in blocco ciò che la cliente ha già visto.
+   * Deliberatamente NON tocca le non lette — svuotare la campanella non deve poter
+   * far sparire un messaggio mai aperto (un promemoria misure, una risposta della coach).
+   */
+  async archiveRead(userId: string): Promise<{ archived: number }> {
+    const res = await this.prisma.notification.updateMany({
+      where: { userId, archivedAt: null, readAt: { not: null } },
+      data: { archivedAt: new Date() },
+    });
+    return { archived: res.count };
   }
 
   // ---------- Preferenze (opt-out per tipo + email) ----------
@@ -307,7 +338,19 @@ export class NotificationsService {
       const weightDrop = previous.weightKg - lastMeasurement.weightKg;
       const waistDrop =
         previous.waistCm && lastMeasurement.waistCm ? previous.waistCm - lastMeasurement.waistCm : 0;
-      if (weightDrop >= 0.3 || waistDrop >= 1) {
+      // L'`||` da solo faceva scattare i complimenti («le tue misure sono migliorate») anche a
+      // chi era AUMENTATA di peso ma aveva perso un centimetro di vita, e viceversa. È il
+      // messaggio che una cliente ha descritto come «quasi una presa in giro», e aveva ragione:
+      // se una delle due misure è peggiorata in modo significativo, il messaggio è falso.
+      // Soglie di peggioramento speculari a quelle di miglioramento, così la zona neutra
+      // (oscillazioni di bilancia) non conta né come progresso né come regresso.
+      const improved = weightDrop >= 0.3 || waistDrop >= 1;
+      const worsened = weightDrop <= -0.3 || waistDrop <= -1;
+      // NOTA: chi peggiora resta senza alcun messaggio, come oggi. Il silenzio dopo un dato
+      // faticoso da inserire è il resto della segnalazione, ma un testo automatico per chi è
+      // aumentata va scritto e approvato dalla nutrizionista prima di andare in produzione
+      // (vedi REGISTRO_Feedback_Clienti.md §3) — non lo improvviso qui.
+      if (improved && !worsened) {
         if (await this.notifyOncePerDay({
           userId: clientId,
           type: 'progress_cheer',

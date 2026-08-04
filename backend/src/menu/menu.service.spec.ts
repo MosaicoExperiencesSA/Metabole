@@ -824,3 +824,107 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
     expect(breakfastsOf(prisma)).toEqual(['x1', 'x1']); // meglio la carne che un piatto non gradito
   });
 });
+
+// «Sostituzioni: aggiungerei la casella SOLO PER OGGI. Se mi piace l'alimento ma per tot motivo
+// non ce l'ho nella giornata odierna, non significa che devo toglierlo per più gg.»
+// Prima esisteva una sola portata — tre giorni — e un popup che DOPO l'applicazione chiedeva se
+// escludere per sempre. "Oggi non ce l'ho in casa" e "questo cibo non mi piace" finivano nello
+// stesso posto, e la seconda restringe il pool di TUTTI i menu futuri: è la causa documentata
+// della ripetitività in REGISTRO_Varieta_Menu.md. Qui verifico che le tre portate siano
+// davvero distinte, e soprattutto che solo `forever` tocchi il profilo.
+describe('MenuService — portata della sostituzione (solo oggi / questi giorni / per sempre)', () => {
+  const macros = { protein_g: 20, carbs_g: 30, fat_g: 12 };
+  const ing = (...names: string[]) => names.map((name) => ({ name, qty_g: 50 }));
+  // Il piatto del piano ha l'avena NEL NOME: è il caso che fa scattare il cambio di piatto.
+  const planDish = { id: 'p1', name: 'Porridge di avena e frutti di bosco', kcal: 400, macros, mealSlot: 'colazione', ingredients: ing('avena', 'mirtilli'), active: true, difficulty: 'media' };
+  const altDish = { id: 'alt1', name: 'Yogurt greco con mirtilli', kcal: 400, macros, mealSlot: 'colazione', ingredients: ing('yogurt greco', 'mirtilli'), active: true, difficulty: 'facile' };
+  const meal = () => [{ slot: 'colazione', recipeId: 'p1', name: planDish.name, kcal: 400, ...macros }];
+
+  function build() {
+    const byId = new Map([planDish, altDish].map((r) => [r.id, r]));
+    // Tre giorni erogati da oggi in poi. Il mock rispetta `take`, così il numero di giorni
+    // toccati è una conseguenza del codice e non del mock.
+    const allDays = [0, 1, 2].map((n) => ({
+      id: `md${n}`,
+      date: new Date(Date.now() + n * 86_400_000),
+      meals: meal(),
+    }));
+    const prisma: any = {
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({ regime: 'omnivore', intolerances: [], dislikedFoods: [] }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      menuDay: {
+        findMany: jest.fn((args: any) => Promise.resolve(allDays.slice(0, args?.take ?? allDays.length))),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      recipe: {
+        findMany: jest.fn((args: any) => {
+          const ids = args?.where?.id?.in as string[] | undefined;
+          if (ids) return Promise.resolve(ids.map((i) => byId.get(i)).filter(Boolean));
+          return Promise.resolve([altDish]); // catalogo per slot
+        }),
+      },
+      productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const config = { getNumber: jest.fn((_k: string, def?: number) => Promise.resolve(def)), getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)) };
+    const { DayComboService } = require('./day-combo.service');
+    const service = new MenuService(
+      prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService,
+      { activePausePeriod: jest.fn().mockResolvedValue(null) } as any,
+      { stateFor: jest.fn().mockResolvedValue('normale') } as any,
+      new DayComboService(), kcalNeedStub(),
+    );
+    return { service, prisma };
+  }
+
+  it('"solo per oggi": tocca un giorno soltanto', async () => {
+    const { service, prisma } = build();
+    const res = await service.substituteDisliked('u1', 'avena', 'today');
+    expect(prisma.menuDay.update).toHaveBeenCalledTimes(1); // ← col vecchio take:3 fisso: 3
+    expect(new Set(res.applied.map((a) => a.day)).size).toBe(1);
+    expect(res.scope).toBe('today');
+  });
+
+  it('"questi giorni" resta il comportamento storico: tre giorni', async () => {
+    const { service, prisma } = build();
+    const res = await service.substituteDisliked('u1', 'avena', 'days');
+    expect(prisma.menuDay.update).toHaveBeenCalledTimes(3);
+    expect(new Set(res.applied.map((a) => a.day)).size).toBe(3);
+  });
+
+  it('senza portata indicata il default è "questi giorni" (le app già installate non cambiano)', async () => {
+    const { service, prisma } = build();
+    const res = await service.substituteDisliked('u1', 'avena');
+    expect(prisma.menuDay.update).toHaveBeenCalledTimes(3);
+    expect(res.scope).toBe('days');
+  });
+
+  it('solo "per sempre" scrive nei cibi non graditi del profilo', async () => {
+    const { service, prisma } = build();
+    await service.substituteDisliked('u1', 'avena', 'today');
+    await service.substituteDisliked('u1', 'avena', 'days');
+    // ← il punto del reclamo: un "oggi non ce l'ho" NON deve restringere i menu futuri.
+    expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+
+    await service.substituteDisliked('u1', 'avena', 'forever');
+    expect(prisma.clientProfile.update).toHaveBeenCalledTimes(1);
+    expect(prisma.clientProfile.update.mock.calls[0][0].data.dislikedFoods).toContain('avena');
+  });
+
+  it('il messaggio dice per quanto vale davvero', async () => {
+    const { service } = build();
+    const oggi = await service.substituteDisliked('u1', 'avena', 'today');
+    expect(oggi.message).toContain('nel menu di oggi');
+    expect(oggi.message).toContain('Da domani torna disponibile');
+    // ← senza il messaggio parametrico: "nei prossimi menu" anche a chi ha chiesto solo oggi.
+    expect(oggi.message).not.toContain('prossimi due giorni');
+
+    const giorni = await service.substituteDisliked('u1', 'avena', 'days');
+    expect(giorni.message).toContain('prossimi due giorni');
+
+    const sempre = await service.substituteDisliked('u1', 'avena', 'forever');
+    expect(sempre.message).toContain('non comparirà più');
+  });
+});

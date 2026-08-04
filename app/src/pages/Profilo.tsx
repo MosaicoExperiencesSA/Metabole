@@ -105,9 +105,10 @@ function ExcludedFoods() {
     setFoods([...foods, v]); // ottimistico
     try {
       // Non solo salva l'esclusione: applica SUBITO la sostituzione ai menu di oggi e
-      // dei prossimi giorni (stesso endpoint della "cambia cibo" in Home, forever:true).
-      // Così il menu si aggiorna da solo, senza dover uscire e rientrare.
-      await api('/me/menu/substitute', { method: 'POST', body: JSON.stringify({ ingredient: v, forever: true }) });
+      // dei prossimi giorni (stesso endpoint della "cambia cibo" in Home). Qui la portata
+      // è per forza `forever`: siamo nella sezione "Cibi esclusi", dove l'esclusione
+      // permanente è proprio l'intento dichiarato.
+      await api('/me/menu/substitute', { method: 'POST', body: JSON.stringify({ ingredient: v, scope: 'forever' }) });
       setMsg(`«${v}» escluso: i menu sono stati aggiornati.`);
     } catch (e) {
       setFoods(prev);

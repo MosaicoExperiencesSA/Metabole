@@ -3,6 +3,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -52,7 +53,19 @@ class DislikeIngredientDto {
   @MaxLength(60)
   ingredient!: string;
 
-  /** true = escludi PER SEMPRE (popup di conferma dell'app); assente/false = solo i prossimi 3 menu. */
+  /**
+   * Per quanto vale la sostituzione. La distinzione l'hanno chiesta le clienti e non è un
+   * dettaglio: «oggi non ce l'ho in casa» non è «questo cibo non mi piace», e solo la
+   * seconda deve restringere per sempre il pool dei menu.
+   *  - `today`   solo il menu di oggi
+   *  - `days`    oggi e i due giorni successivi (comportamento storico, resta il default)
+   *  - `forever` come `days`, e in più il cibo entra fra i non graditi del profilo
+   */
+  @IsOptional()
+  @IsIn(['today', 'days', 'forever'])
+  scope?: 'today' | 'days' | 'forever';
+
+  /** @deprecated Sostituito da `scope`. Resta accettato per le app già installate. */
   @IsOptional()
   @IsBoolean()
   forever?: boolean;
@@ -87,10 +100,13 @@ export class MenuController {
     return this.menu.rateRecipe(user.sub, dto);
   }
 
-  /** "Sostituisci un ingrediente": corregge subito oggi+domani+dopodomani; con forever=true lo esclude per sempre. */
+  /** "Sostituisci un ingrediente": la portata la sceglie la cliente (solo oggi / 3 giorni / per sempre). */
   @Post('menu/substitute')
   substitute(@CurrentUser() user: AuthUser, @Body() dto: DislikeIngredientDto) {
-    return this.menu.substituteDisliked(user.sub, dto.ingredient, dto.forever === true);
+    // `forever` è la vecchia forma booleana: la traduco qui, così il servizio conosce
+    // un solo concetto e le app non aggiornate continuano a funzionare.
+    const scope = dto.scope ?? (dto.forever === true ? 'forever' : 'days');
+    return this.menu.substituteDisliked(user.sub, dto.ingredient, scope);
   }
 
   /** Pasti consumati non ancora valutati (da riproporre all'apertura). */

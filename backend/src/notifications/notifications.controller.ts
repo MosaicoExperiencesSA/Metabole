@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsArray, IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -74,5 +74,20 @@ export class NotificationsController {
   @Patch(':id/read')
   markRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.notifications.markRead(user.sub, id);
+  }
+
+  /**
+   * "Svuota le lette": archivia in blocco le notifiche già viste. È un POST e non un
+   * DELETE perché non cancella niente — crea un fatto nuovo (l'archiviazione).
+   */
+  @Post('archive-read')
+  archiveRead(@CurrentUser() user: AuthUser) {
+    return this.notifications.archiveRead(user.sub);
+  }
+
+  /** Archivia una notifica singola (sparisce dalla campanella, resta nel database). */
+  @Patch(':id/archive')
+  archive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.notifications.archive(user.sub, id);
   }
 }

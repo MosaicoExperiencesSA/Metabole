@@ -85,15 +85,24 @@ const HELP: [string, string, string, string][] = [
   ['ti-arrows-exchange', 'Sostituisci', 'sost', '#6C5AB7'],
 ];
 
-/** Sheet interattivo "Sostituisci un ingrediente": chiede il cibo non gradito e applica
- *  subito la sostituzione ai menu di oggi/domani/dopodomani (POST /me/menu/substitute),
- *  poi con un popup chiede se ESCLUDERE PER SEMPRE quel cibo (forever: true). */
+/** Portata della sostituzione. La cliente la sceglie PRIMA di applicare: prima veniva
+ *  chiesta dopo, con un popup "escludere per sempre?" e un rifiuto che valeva comunque
+ *  tre giorni. Non c'era modo di dire "oggi non ce l'ho, domani sì" — ed è esattamente
+ *  quello che le clienti hanno segnalato. La distinzione non è cosmetica: solo "per
+ *  sempre" scrive nei cibi esclusi, che restringono il pool di TUTTI i menu futuri. */
+const SUB_SCOPES: { key: 'today' | 'days' | 'forever'; label: string; hint: string }[] = [
+  { key: 'today', label: 'Solo per oggi', hint: 'Oggi non ce l\'ho o non mi va. Da domani torna.' },
+  { key: 'days', label: 'Questi giorni', hint: 'Oggi e i due giorni successivi.' },
+  { key: 'forever', label: 'Non mi piace', hint: 'Non comparirà più nei tuoi menu. Modificabile dal Profilo.' },
+];
+
+/** Sheet interattivo "Sostituisci un ingrediente": chiede il cibo e per quanto vale
+ *  l'esclusione, poi applica (POST /me/menu/substitute con `scope`). */
 function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onChanged?: () => void }) {
   const [ing, setIng] = useState('');
+  const [scope, setScope] = useState<'today' | 'days' | 'forever'>('today');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [askForever, setAskForever] = useState(false);
-  const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
@@ -102,32 +111,14 @@ function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onC
     setBusy(true); setErr(null);
     try {
       const r = await api<{ applied: { day: string; from: string; to: string }[]; message: string }>('/me/menu/substitute', {
-        method: 'POST', body: JSON.stringify({ ingredient: v }),
+        method: 'POST', body: JSON.stringify({ ingredient: v, scope }),
       });
       setMsg(r.message);
       onChanged?.(); // ricarica il menu: la card mostra subito il piatto sostituito
-      setAskForever(true); // correzione fatta: ora il popup "per sempre?"
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Non è stato possibile aggiornare il menu.');
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function excludeForever() {
-    setBusy(true); setErr(null);
-    try {
-      await api('/me/menu/substitute', {
-        method: 'POST', body: JSON.stringify({ ingredient: ing.trim(), forever: true }),
-      });
-      setMsg(`«${ing.trim()}» non comparirà più nei tuoi menu. Puoi ripensarci dal tuo Profilo, sezione "Cibi esclusi".`);
-      onChanged?.(); // aggiorna la card col menu ripulito dal cibo escluso
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Non è stato possibile salvare la preferenza.');
-    } finally {
-      setBusy(false);
-      setAskForever(false);
-      setDone(true);
     }
   }
 
@@ -137,21 +128,7 @@ function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onC
         <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
         <b style={{ fontSize: 15 }}>Sostituisci un ingrediente</b>
       </div>
-      {askForever ? (
-        <>
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 10 }}>{msg}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#0E7C66', marginBottom: 12 }}>
-            Vuoi eliminare per sempre «{ing.trim()}» dai tuoi menu?
-          </div>
-          {err && <div style={{ color: '#993C1D', fontSize: 12, marginBottom: 6 }}>{err}</div>}
-          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} disabled={busy} onClick={excludeForever}>
-            {busy ? 'Salvo…' : 'Sì, eliminalo per sempre'}
-          </button>
-          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11, marginTop: 8, background: '#EEF3F1', color: '#2E3E3B' }} disabled={busy} onClick={onClose}>
-            No, solo per questi giorni
-          </button>
-        </>
-      ) : done || msg ? (
+      {msg ? (
         <>
           <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{msg}</div>
           <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={onClose}>Ok, grazie</button>
@@ -159,11 +136,33 @@ function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onC
       ) : (
         <>
           <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 10 }}>
-            Qual è l'ingrediente che non hai o non ti piace? Lo sostituisco subito con un'alternativa equivalente nei menu di oggi e dei prossimi due giorni.
+            Qual è l'ingrediente che non hai o non ti piace? Lo sostituisco con un'alternativa equivalente.
           </div>
           <input className="input" placeholder="Es. farro, funghi, pesce…" value={ing} autoFocus
             onChange={(e) => setIng(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }} />
-          {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#5F6E6B', margin: '14px 0 7px' }}>Per quanto?</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {SUB_SCOPES.map((s) => {
+              const on = scope === s.key;
+              return (
+                <button key={s.key} type="button" onClick={() => setScope(s.key)}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 9, textAlign: 'left', width: '100%',
+                    padding: '10px 11px', borderRadius: 11, cursor: 'pointer',
+                    border: `1.5px solid ${on ? 'var(--teal)' : '#DCE5E2'}`,
+                    background: on ? '#F0F8F6' : '#fff',
+                  }}>
+                  <i className={`ti ti-${on ? 'circle-check-filled' : 'circle'}`}
+                    style={{ color: on ? 'var(--teal)' : '#B8C6C2', fontSize: 17, flex: 'none', marginTop: 1 }} />
+                  <span>
+                    <b style={{ fontSize: 13.5, color: '#2E3E3B' }}>{s.label}</b>
+                    <span style={{ display: 'block', fontSize: 11.5, lineHeight: 1.45, color: '#5F6E6B', marginTop: 2 }}>{s.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 8 }}>{err}</div>}
           <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11, marginTop: 12 }} disabled={busy} onClick={submit}>
             {busy ? 'Aggiorno…' : 'Aggiorna i menu'}
           </button>

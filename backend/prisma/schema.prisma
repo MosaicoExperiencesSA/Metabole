@@ -1065,9 +1065,14 @@ model Notification {
   scheduledFor DateTime            @map("scheduled_for")
   sentAt       DateTime?           @map("sent_at")
   readAt       DateTime?           @map("read_at")
+  // Archiviazione, non cancellazione: la cliente non vede più il messaggio ma il dato resta,
+  // sia per lo storico sia perché le notifiche sono la traccia di cosa il sistema ha detto
+  // (serve allo staff quando una cliente contesta un messaggio ricevuto).
+  archivedAt   DateTime?           @map("archived_at")
   createdAt    DateTime            @default(now()) @map("created_at")
 
   @@index([userId, readAt])
+  @@index([userId, archivedAt])
   @@index([userId, type, scheduledFor])
   @@map("notification")
 }

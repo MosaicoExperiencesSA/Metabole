@@ -7,6 +7,7 @@ import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MessageComposerService } from './message-composer.service';
 import { NotificationsService } from './notifications.service';
+import { PushService } from './push.service';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
@@ -21,6 +22,7 @@ describe('NotificationsService', () => {
         findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockResolvedValue({ id: 'n1' }),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       user: {
         findUnique: jest.fn().mockResolvedValue({
@@ -62,6 +64,8 @@ describe('NotificationsService', () => {
         }),
       },
       visit: { findMany: jest.fn().mockResolvedValue([]) },
+      // Nessun pasto marcato "non seguita" → l'avviso alla coach resta fermo.
+      recipeRating: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       staff: { findUnique: jest.fn().mockResolvedValue({ userId: 'nutri-user' }) },
       // Piano attivo (endDate futura) → il messaggio quotidiano "piano di oggi" può partire.
       subscription: { findFirst: jest.fn().mockResolvedValue({ endDate: new Date(Date.now() + 7 * 86_400_000) }) },
@@ -91,6 +95,10 @@ describe('NotificationsService', () => {
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(undefined) } },
         { provide: MailService, useValue: mail },
         { provide: MenuService, useValue: menu },
+        // Le push non sono oggetto di questi test (e in test non c'è Firebase): stub silenzioso.
+        // Senza questo provider l'intera suite non si avviava — PushService è entrato nel
+        // costruttore di NotificationsService senza essere aggiunto qui.
+        { provide: PushService, useValue: { sendToUser: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = moduleRef.get(NotificationsService);
@@ -227,6 +235,89 @@ describe('NotificationsService', () => {
     prisma.clientProfile.findUnique.mockResolvedValue({ onboardingCompletedAt: null });
     const created = await service.generateDailyForClient('u1');
     expect(created).toHaveLength(0);
+  });
+
+  // «I miei dati quando non erano modificati mi diceva questo, e mi sembra quasi una presa in
+  // giro.» L'`||` faceva scattare i complimenti («le tue misure sono migliorate») anche quando
+  // UNA delle due misure era peggiorata in modo netto. I due casi qui sotto sono quelli in cui
+  // il messaggio era, letteralmente, falso.
+
+  it('peso aumentato ma vita in calo: nessun complimento', async () => {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    prisma.measurement.findMany.mockResolvedValue([
+      { date: today, weightKg: 68.6, waistCm: 78 }, // +0,6 kg, −2 cm
+      { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
+    ]);
+    const created = await service.generateDailyForClient('u1');
+    expect(created).not.toContain('progress_cheer'); // ← con il solo `||`: complimenti a chi è aumentata
+  });
+
+  it('vita aumentata ma peso in calo: nessun complimento', async () => {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    prisma.measurement.findMany.mockResolvedValue([
+      { date: today, weightKg: 67.2, waistCm: 82 }, // −0,8 kg, +2 cm
+      { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
+    ]);
+    const created = await service.generateDailyForClient('u1');
+    expect(created).not.toContain('progress_cheer');
+  });
+
+  it('peso in calo e vita invariata: i complimenti restano (la correzione non è troppo severa)', async () => {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    prisma.measurement.findMany.mockResolvedValue([
+      { date: today, weightKg: 67.2, waistCm: 80 },
+      { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
+    ]);
+    const created = await service.generateDailyForClient('u1');
+    expect(created).toContain('progress_cheer');
+  });
+
+  // «Nella campanella avere la possibilità di poter cancellare la cronologia, una sfilza di
+  // messaggi.» Si ARCHIVIA: sparisce dalla campanella, resta nel database.
+
+  it('la campanella non mostra le notifiche archiviate', async () => {
+    await service.listForUser('u1');
+    expect(prisma.notification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: 'u1', archivedAt: null }) }),
+    );
+  });
+
+  it('archiviare una notifica la marca anche come letta (non può restare nel badge)', async () => {
+    prisma.notification.findFirst.mockResolvedValue({ id: 'n7', userId: 'u1', readAt: null, archivedAt: null });
+    await service.archive('u1', 'n7');
+    const data = prisma.notification.update.mock.calls[0][0].data;
+    expect(data.archivedAt).toBeInstanceOf(Date);
+    expect(data.readAt).toBeInstanceOf(Date);
+  });
+
+  it('archiviare una notifica di un\'altra utente non è possibile', async () => {
+    prisma.notification.findFirst.mockResolvedValue(null); // il filtro è su id + userId
+    await expect(service.archive('u1', 'n-di-un-altra')).rejects.toThrow();
+    expect(prisma.notification.update).not.toHaveBeenCalled();
+  });
+
+  it('"svuota le lette" archivia solo le lette e non tocca le non lette', async () => {
+    // Store finto: `updateMany` applica davvero il filtro, così il conteggio è una
+    // conseguenza del where e non di un valore inventato dal mock.
+    const store = [
+      { id: 'a', readAt: new Date(), archivedAt: null },
+      { id: 'b', readAt: null, archivedAt: null }, // mai aperta: deve restare
+      { id: 'c', readAt: new Date(), archivedAt: new Date() }, // già archiviata
+    ];
+    prisma.notification.updateMany.mockImplementation((args: any) => {
+      const hit = store.filter(
+        (n) => (args.where.archivedAt === null ? n.archivedAt === null : true) &&
+          (args.where.readAt?.not !== undefined ? n.readAt !== null : true),
+      );
+      for (const n of hit) n.archivedAt = args.data.archivedAt;
+      return Promise.resolve({ count: hit.length });
+    });
+    const res = await service.archiveRead('u1');
+    expect(res.archived).toBe(1); // solo 'a'
+    expect(store.find((n) => n.id === 'b')!.archivedAt).toBeNull(); // ← la non letta resta
   });
 
   it('preferenze: lettura e aggiornamento (merge, non sovrascrittura cieca)', async () => {

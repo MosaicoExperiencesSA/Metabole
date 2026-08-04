@@ -12,7 +12,7 @@ import Sheet from './Sheet';
 interface Notif {
   id: string;
   type: string;
-  payload?: { title?: string; body?: string; reportId?: string } | null;
+  payload?: { title?: string; body?: string } | null;
   readAt: string | null;
   scheduledFor: string;
 }
@@ -29,9 +29,6 @@ const TYPE_ICON: Record<string, [string, string, string]> = {
   mini_plan: ['ti-heart-handshake', '#DCEBE3', '#0E7C66'],
   chat_reply_coach: ['ti-message-2', '#DCEBE3', '#0E7C66'],
   chat_reply_nutritionist: ['ti-message-2', '#E7EEF6', '#3A6EA5'],
-  plan_report: ['ti-file-analytics', '#EDE7FB', '#7C3AED'],
-  payment_approved: ['ti-receipt', '#DCF0D8', '#3B6D11'],
-  payment_rejected: ['ti-receipt-off', '#F9E1DE', '#B3261E'],
 };
 
 // Ogni tipo di notifica porta alla funzione giusta al tap (deep-link in-app).
@@ -47,9 +44,6 @@ const TYPE_ROUTE: Record<string, string> = {
   mini_plan: '/percorso',
   chat_reply_coach: '/contatti',
   chat_reply_nutritionist: '/contatti',
-  plan_report: '/report', // fallback; se il payload ha reportId si apre /report/:id (vedi openNotif)
-  payment_approved: '/profilo',
-  payment_rejected: '/profilo',
 };
 
 function relTime(iso: string): string {
@@ -83,6 +77,7 @@ export default function AppHeader({
   }, []);
 
   const unread = notifs.filter((n) => !n.readAt).length;
+  const read = notifs.length - unread;
 
   async function markRead(n: Notif) {
     if (n.readAt) return;
@@ -97,9 +92,7 @@ export default function AppHeader({
   // Tap su una notifica: la segna letta e apre la funzione collegata (se mappata).
   function openNotif(n: Notif) {
     void markRead(n);
-    // Il report ha il suo id nel payload → si apre direttamente quel report.
-    let route: string | undefined = TYPE_ROUTE[n.type];
-    if (n.type === 'plan_report' && n.payload?.reportId) route = `/report/${n.payload.reportId}`;
+    const route = TYPE_ROUTE[n.type];
     if (route) { setSheet(null); nav(route); }
   }
 
@@ -109,6 +102,30 @@ export default function AppHeader({
     await Promise.all(
       toMark.map((n) => api(`/me/notifications/${n.id}/read`, { method: 'PATCH' }).catch(() => {})),
     );
+  }
+
+  /* «Nella campanella avere la possibilità di poter cancellare la cronologia, una sfilza di
+     messaggi.» Il server ARCHIVIA, non cancella: qui sparisce, ma il messaggio resta nel
+     database — è la traccia di cosa il sistema ha comunicato alla cliente. */
+  async function archive(n: Notif) {
+    setNotifs((list) => list.filter((x) => x.id !== n.id));
+    try {
+      await api(`/me/notifications/${n.id}/archive`, { method: 'PATCH' });
+    } catch {
+      setNotifs((list) => (list.some((x) => x.id === n.id) ? list : [...list, n].sort((a, b) => b.scheduledFor.localeCompare(a.scheduledFor))));
+    }
+  }
+
+  // Svuota SOLO le lette: una campanella ripulita non deve poter far sparire un messaggio
+  // che la cliente non ha mai aperto (un promemoria misure, una risposta della coach).
+  async function archiveAllRead() {
+    const before = notifs;
+    setNotifs((list) => list.filter((x) => !x.readAt));
+    try {
+      await api('/me/notifications/archive-read', { method: 'POST' });
+    } catch {
+      setNotifs(before);
+    }
   }
 
   return (
@@ -143,7 +160,14 @@ export default function AppHeader({
               <span className="event-ic" style={{ background: '#DCEBE3', color: '#0E7C66' }}><i className="ti ti-bell" /></span>
               <b style={{ fontSize: 15 }}>Notifiche</b>
             </div>
-            {unread > 0 && <span className="link" style={{ margin: 0, cursor: 'pointer' }} onClick={markAllRead}>Segna lette</span>}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {unread > 0 && <span className="link" style={{ margin: 0, cursor: 'pointer' }} onClick={markAllRead}>Segna lette</span>}
+              {read > 0 && (
+                <span className="link" style={{ margin: 0, cursor: 'pointer' }} onClick={archiveAllRead}>
+                  Svuota le lette
+                </span>
+              )}
+            </div>
           </div>
           {notifs.length === 0 ? (
             <p className="muted" style={{ fontSize: 13, margin: 0 }}>Nessuna notifica per ora.</p>
@@ -170,6 +194,15 @@ export default function AppHeader({
                         {hasRoute && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--teal)' }}>Apri <i className="ti ti-chevron-right" style={{ fontSize: 11, verticalAlign: '-1px' }} /></span>}
                       </div>
                     </div>
+                    {/* Chiusura della singola notifica. `stopPropagation` è indispensabile:
+                        senza, il tap archivierebbe E aprirebbe la pagina collegata. */}
+                    <button
+                      aria-label="Togli dalla campanella"
+                      onClick={(e) => { e.stopPropagation(); void archive(n); }}
+                      style={{ flex: 'none', background: 'none', border: 0, padding: 4, margin: -4, color: '#9AA8A5', cursor: 'pointer', lineHeight: 1 }}
+                    >
+                      <i className="ti ti-x" style={{ fontSize: 15 }} />
+                    </button>
                   </div>
                 );
               })}
