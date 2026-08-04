@@ -11,6 +11,13 @@ export interface ComposeInput {
   params?: MessageParams;
   tone?: MessageTone; // deciso dal MOTORE, mai dall'AI
   seed?: string; // per la scelta deterministica della variante
+  /**
+   * Salta la riformulazione AI: il testo esce esattamente com'è nel catalogo.
+   * Serve per i messaggi il cui testo è stato approvato parola per parola — su un
+   * messaggio delicato (es. peso in aumento) una riformulazione anche fedele al
+   * significato può cambiare il registro, ed è proprio il registro il punto.
+   */
+  verbatim?: boolean;
 }
 
 export interface ComposedMessage {
@@ -51,6 +58,7 @@ export class MessageComposerService {
     const rendered = this.i18n.render(input.locale, input.key, input.params, input.seed ?? '');
     const base: ComposedMessage = { ...rendered, composer: 'template' };
 
+    if (input.verbatim) return base;
     if (!(await this.aiEnabled())) return base;
     try {
       const rewritten = await this.rewriteWithAi(base.body, input.tone ?? 'neutral', this.i18n.normalize(input.locale));

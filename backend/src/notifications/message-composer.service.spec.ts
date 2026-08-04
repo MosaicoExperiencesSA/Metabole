@@ -60,6 +60,23 @@ describe('MessageComposerService (layer AI di supporto, spec 7.2)', () => {
     expect(req.body).toContain('delicato');
   });
 
+  it('verbatim: un testo approvato non passa dall\'AI nemmeno con l\'AI attiva', async () => {
+    configGet = jest.fn((k: string) => (k === 'AI_API_KEY' ? 'sk-ant-test-1234567890' : undefined));
+    paramGet = jest.fn().mockResolvedValue('true');
+    await build();
+    const fetchSpy = jest.spyOn(global, 'fetch' as never) as unknown as jest.Mock;
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ content: [{ type: 'text', text: 'Brava, ottimo risultato!' }] }),
+    });
+    const out = await composer.compose({ locale: 'it', key: 'progress_support', tone: 'gentle', verbatim: true, params: { gainKg: 0.6 } });
+    // Il testo per chi è aumentata di peso è stato scelto parola per parola: una riformulazione
+    // fedele al SIGNIFICATO può comunque cambiare il REGISTRO, ed è il registro il punto.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(out.composer).toBe('template');
+    expect(out.body).toContain('0.6 kg');
+  });
+
   it('AI in errore → fallback silenzioso al template', async () => {
     configGet = jest.fn((k: string) => (k === 'AI_API_KEY' ? 'sk-ant-test-1234567890' : undefined));
     paramGet = jest.fn().mockResolvedValue('true');

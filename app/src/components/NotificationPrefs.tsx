@@ -13,6 +13,7 @@ const TYPES: [string, string][] = [
   ['checkin_reminder', 'Promemoria del check-in'],
   ['measurement_reminder', 'Promemoria delle misure'],
   ['progress_cheer', 'Complimenti sui progressi'],
+  ['progress_support', 'Messaggi quando il peso sale'],
   ['rating_request', 'Richieste di valutazione del menu'],
   ['visit_reminder', 'Promemoria delle visite'],
   ['pre_event', 'Preparazione agli eventi'],

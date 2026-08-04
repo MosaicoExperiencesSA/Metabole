@@ -17,6 +17,8 @@ interface NotifyInput {
   params?: Record<string, string | number | null | undefined>;
   /** Tono deciso dal motore (spec 7.2): influenza solo il testo, mai la decisione. */
   tone?: MessageTone;
+  /** Testo approvato parola per parola: niente riformulazione AI. */
+  verbatim?: boolean;
   /** Testi espliciti (retrocompatibilità / contenuti dinamici). */
   title?: string;
   body?: string;
@@ -93,6 +95,7 @@ export class NotificationsService {
         key: input.messageKey,
         params: input.params,
         tone: input.tone,
+        verbatim: input.verbatim,
         seed: `${input.userId}:${today.toISOString().slice(0, 10)}`,
       });
       title = composed.title;
@@ -346,10 +349,8 @@ export class NotificationsService {
       // (oscillazioni di bilancia) non conta né come progresso né come regresso.
       const improved = weightDrop >= 0.3 || waistDrop >= 1;
       const worsened = weightDrop <= -0.3 || waistDrop <= -1;
-      // NOTA: chi peggiora resta senza alcun messaggio, come oggi. Il silenzio dopo un dato
-      // faticoso da inserire è il resto della segnalazione, ma un testo automatico per chi è
-      // aumentata va scritto e approvato dalla nutrizionista prima di andare in produzione
-      // (vedi REGISTRO_Feedback_Clienti.md §3) — non lo improvviso qui.
+      // Il peso è SALITO in modo non riconducibile all'oscillazione della bilancia.
+      const gained = weightDrop <= -0.3;
       if (improved && !worsened) {
         if (await this.notifyOncePerDay({
           userId: clientId,
@@ -358,7 +359,31 @@ export class NotificationsService {
           tone: 'celebratory',
           payload: { weightDropKg: Math.round(weightDrop * 10) / 10 },
         })) created.push('progress_cheer');
+      } else if (gained) {
+        // Chi è aumentata riceveva SILENZIO: nessun messaggio esiste per lei. È la metà
+        // della segnalazione che era rimasta aperta (REGISTRO_Feedback_Clienti.md §3), e
+        // il silenzio dopo un dato faticoso da inserire è esattamente ciò che pesa.
+        // Il testo è motivazionale ma NON è un complimento — vedi le regole scritte sopra
+        // le voci `progress_support*` in `i18n/messages.ts`. `verbatim` impedisce che il
+        // riformulatore AI cambi il registro di un testo scelto parola per parola.
+        // Due chiavi perché il caso "peso su, vita giù" è un'altra situazione e va detta
+        // per quello che è, invece di ridurla al solo numero peggiorato.
+        const gainKg = Math.round(-weightDrop * 10) / 10;
+        const waistLossCm = Math.round(waistDrop * 10) / 10;
+        const waistDown = waistDrop >= 1;
+        if (await this.notifyOncePerDay({
+          userId: clientId,
+          type: 'progress_support',
+          messageKey: waistDown ? 'progress_support_waist' : 'progress_support',
+          tone: 'gentle',
+          verbatim: true,
+          params: { gainKg, waistCm: waistLossCm },
+          payload: { weightGainKg: gainKg, ...(waistDown ? { waistDropCm: waistLossCm } : {}) },
+        })) created.push('progress_support');
       }
+      // NOTA: chi cala di peso ma cresce di vita non riceve nulla, come prima. Non è il caso
+      // segnalato, i centimetri da soli oscillano molto (postura, misurazione, gonfiore) e un
+      // messaggio su quel dato sarebbe rumore.
     }
 
     // 2c. Ricette da valutare (spec: richiesta post-pasto; qui il richiamo giornaliero).

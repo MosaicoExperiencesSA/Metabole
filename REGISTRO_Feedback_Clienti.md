@@ -89,7 +89,7 @@ più una ✕ su ogni riga.
 > aumentato. I miei dati quando non erano modificati mi diceva questo, e mi sembra quasi una
 > presa in giro.»
 
-**Stato:** corretto il difetto; il messaggio nuovo per chi è aumentata resta da scrivere.
+**Stato:** risolto — corretto il difetto, e ora chi aumenta di peso riceve un messaggio.
 
 **Cosa succedeva.** L'unico messaggio legato alle misure è `progress_cheer`
 (`notifications.service.ts`), e si attivava **solo** se `weightDrop >= 0.3 || waistDrop >= 1`.
@@ -104,12 +104,32 @@ soglie di peggioramento speculari (`-0,3 kg`, `-1 cm`), così la zona neutra del
 bilancia non conta né come progresso né come regresso. Chi peggiora in modo netto non riceve più
 complimenti.
 
-**Cosa resta aperto — di proposito.** Chi è aumentata continua a non ricevere nulla. Il silenzio
-dopo un dato faticoso da inserire è la metà valida della segnalazione, ma un testo automatico per
-chi è aumentata va scritto con molta cura: fattuale, senza giudizio, né consolatorio né
-allarmista, e senza promettere risultati. Una frase sbagliata qui fa più danno del silenzio.
-**Va scritto e approvato dalla nutrizionista prima di andare in produzione**, e per questo non
-l'ho improvvisato.
+**Il messaggio nuovo.** L'altra metà della segnalazione era il silenzio: chi inseriva un dato in
+salita non riceveva niente, dopo un gesto che costa. Ora c'è il tipo `progress_support`, con una
+regola dettata dalla committente e da rispettare in ogni variante futura: **motivazionale, mai un
+complimento**. Niente «brava», niente «ottimo risultato» — non c'è un risultato da celebrare, e
+fingerlo sarebbe la stessa presa in giro di prima, al contrario. Il testo dice il numero senza
+giudizio, ricorda che una singola rilevazione pesa poco rispetto alla tendenza, non dà consigli
+alimentari e rimanda alla nutrizionista. Nessuna promessa di risultati.
+
+Due varianti, perché sono due situazioni diverse:
+
+| Caso | Chiave | Cosa dice |
+| --- | --- | --- |
+| Peso in salita ≥ 0,3 kg | `progress_support` | Il dato, il perché una misura sola dice poco, l'invito a continuare a misurare. |
+| Peso in salita **e** vita in calo ≥ 1 cm | `progress_support_waist` | Entrambi i numeri, in direzioni opposte, senza trasformarli in un complimento. |
+
+**Il testo non passa dall'AI.** Il composer può riformulare i corpi dei messaggi quando
+`ai_composer_enabled` è attivo. Qui no: la chiamata usa il nuovo flag `verbatim`, che salta la
+riformulazione. Su un messaggio delicato una riscrittura fedele al *significato* può comunque
+cambiare il *registro*, ed è esattamente il registro il punto di questa segnalazione.
+
+Il tipo è disattivabile dalle preferenze ("Messaggi quando il peso sale"), l'icona in campanella è
+neutra di proposito — nessun coriandolo e nessun rosso d'allarme — e il tap porta al percorso.
+
+**Cosa resta fuori, di proposito.** Chi cala di peso ma cresce di girovita continua a non ricevere
+nulla: non è il caso segnalato, i centimetri da soli oscillano molto (postura, punto di misura,
+gonfiore) e un messaggio su quel dato sarebbe rumore.
 
 **Cosa non ho potuto verificare.** «I miei dati quando non erano modificati mi diceva questo»:
 dal codice, a dati invariati `progress_cheer` non parte (`weightDrop` risulta 0). Il messaggio che
@@ -131,6 +151,13 @@ che il test giusto — e solo quello — diventasse rosso.
   perso centimetri (e viceversa), complimenti confermati quando una misura migliora e l'altra è
   invariata, la campanella esclude le archiviate, archiviare marca anche come letta, non si
   archivia la notifica di un'altra utente, e lo "svuota le lette" non tocca le non lette.
+- `notifications.service.spec.ts` (+6, messaggio per chi aumenta): il messaggio parte e riporta i
+  kg veri, **non contiene complimenti** (il test cerca «brav», «complimenti», «ottimo»,
+  «traguardo», il 🎉), il caso peso-su/vita-giù usa la variante giusta e cita entrambi i numeri,
+  un'oscillazione di 0,2 kg resta silenzio, chi cala non lo riceve, chi ha disattivato il tipo non
+  lo riceve, e il servizio chiede il testo `verbatim`.
+- `message-composer.service.spec.ts` (+1): con l'AI attiva e la rete disponibile, un messaggio
+  `verbatim` non chiama comunque il modello.
 
 **Nota su una suite che era rossa.** `notifications.service.spec.ts` non si avviava affatto:
 `PushService` era entrato nel costruttore di `NotificationsService` senza essere aggiunto ai
@@ -138,4 +165,10 @@ provider del test, e mancava il mock di `recipeRating`. Erano **13 test che da t
 verificavano più niente**. Ho aggiunto lo stub e il mock: la suite è tornata verde, e i miei 7
 test si aggiungono a quelli.
 
-Totale su `src/menu`, `src/engine-rules`, `src/notifications`: **92 test verdi, 6 suite**.
+**Un'altra suite che era rossa.** Il test di completezza del catalogo i18n (`i18n.service.spec.ts`)
+falliva da prima di questo lavoro: mancavano in inglese `mail.credentials.subject` e
+`mail.credentials.body`, cioè una cliente con `locale: 'en'` riceveva in italiano proprio la mail
+delle credenziali — la prima che legge. Tradotte.
+
+Totale su `src/menu`, `src/engine-rules`, `src/notifications`, `src/i18n`: **107 test verdi,
+7 suite**.

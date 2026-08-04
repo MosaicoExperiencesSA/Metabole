@@ -275,6 +275,86 @@ describe('NotificationsService', () => {
     expect(created).toContain('progress_cheer');
   });
 
+  // «Se quando si inserisce il peso l'IA dovrebbe mandare un messaggio specifico per chi è
+  // aumentato.» Prima chi saliva di peso non riceveva NIENTE. Ora riceve, e il testo è
+  // motivazionale ma non è un complimento: complimentarsi per un aumento sarebbe la stessa
+  // presa in giro di prima, al contrario.
+
+  /** Misura di oggi + una precedente (68 kg, 80 cm), come le vede il servizio. */
+  function measureToday(weightKg: number, waistCm: number) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    prisma.measurement.findMany.mockResolvedValue([
+      { date: today, weightKg, waistCm },
+      { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
+    ]);
+  }
+
+  /** Payload della notifica creata per un tipo (undefined se non è stata creata). */
+  function payloadOf(type: string): any {
+    return prisma.notification.create.mock.calls.find((c: any) => c[0].data.type === type)?.[0].data.payload;
+  }
+
+  it('peso aumentato: la cliente riceve un messaggio, non il silenzio', async () => {
+    measureToday(68.6, 80); // +0,6 kg, vita invariata
+    const created = await service.generateDailyForClient('u1');
+    expect(created).toContain('progress_support');
+    expect(payloadOf('progress_support').weightGainKg).toBe(0.6);
+  });
+
+  it('il messaggio per chi è aumentata non si complimenta e dice il numero vero', async () => {
+    measureToday(68.6, 80);
+    await service.generateDailyForClient('u1');
+    const { title, body } = payloadOf('progress_support');
+    expect(body).toContain('0.6 kg');
+    // Nessuna congratulazione, in nessuna delle varianti: è il vincolo dato dalla committente.
+    expect(`${title} ${body}`).not.toMatch(/brav|complimenti|ottimo|traguardo|festeggi|🎉/i);
+  });
+
+  it('peso su ma vita giù: lo dice, invece di ridurlo al solo peso', async () => {
+    measureToday(68.6, 78); // +0,6 kg, −2 cm
+    const created = await service.generateDailyForClient('u1');
+    expect(created).toContain('progress_support');
+    expect(created).not.toContain('progress_cheer');
+    const payload = payloadOf('progress_support');
+    expect(payload.messageKey).toBe('progress_support_waist');
+    expect(payload.waistDropCm).toBe(2);
+    expect(payload.body).toContain('2 cm');
+  });
+
+  it('il servizio chiede il testo verbatim: nessuna riformulazione AI su questo messaggio', async () => {
+    const spy = jest.spyOn(MessageComposerService.prototype, 'compose');
+    measureToday(68.6, 80);
+    await service.generateDailyForClient('u1');
+    const call = spy.mock.calls.find((c) => String(c[0].key).startsWith('progress_support'));
+    expect(call?.[0].verbatim).toBe(true);
+    spy.mockRestore();
+  });
+
+  it('oscillazione della bilancia (+0,2 kg): silenzio, né complimenti né messaggio', async () => {
+    measureToday(68.2, 80);
+    const created = await service.generateDailyForClient('u1');
+    expect(created).not.toContain('progress_support');
+    expect(created).not.toContain('progress_cheer');
+  });
+
+  it('peso in calo: nessun messaggio di sostegno (quello è il caso dei complimenti)', async () => {
+    measureToday(67.2, 80);
+    const created = await service.generateDailyForClient('u1');
+    expect(created).not.toContain('progress_support');
+  });
+
+  it('chi ha disattivato il tipo non lo riceve', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      email: 'g@test.it',
+      locale: 'it',
+      clientProfile: { notificationPrefs: { disabledTypes: ['progress_support'] } },
+    });
+    measureToday(68.6, 80);
+    const created = await service.generateDailyForClient('u1');
+    expect(created).not.toContain('progress_support');
+  });
+
   // «Nella campanella avere la possibilità di poter cancellare la cronologia, una sfilza di
   // messaggi.» Si ARCHIVIA: sparisce dalla campanella, resta nel database.
 

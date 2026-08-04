@@ -73,6 +73,32 @@ const it: Catalog = {
       'Progressi registrati! Ogni misura in meno è una promessa mantenuta con te stessa.',
     ],
   },
+  /*
+   * Peso in aumento. Nato da una segnalazione: chi inseriva un dato in salita non riceveva
+   * NIENTE, e il silenzio dopo un gesto faticoso pesa (vedi REGISTRO_Feedback_Clienti.md §3).
+   * Regole del testo, decise con la committente e da rispettare in ogni futura variante:
+   *  - motivazionale, MAI complimenti ("brava", "ottimo risultato"): non c'è un risultato da
+   *    celebrare, e fingerlo è la stessa presa in giro di prima al contrario;
+   *  - fattuale sul numero, senza giudizio, senza allarme e senza promesse;
+   *  - niente consigli alimentari: qui non si fa clinica, si rimanda alla nutrizionista.
+   * Questi testi NON passano dal riformulatore AI (`verbatim`): sono testi approvati.
+   */
+  progress_support: {
+    title: 'Misura registrata',
+    variants: [
+      'Il peso è salito di {gainKg} kg dall\'ultima misura. Un dato singolo dice poco — sonno, liquidi e sale lo muovono più di quanto faccia il cibo: conta la tendenza delle prossime settimane, e per vederla serve continuare a misurare.',
+      'Oggi la bilancia segna {gainKg} kg in più dell\'ultima volta. Averlo registrato lo stesso è la parte utile: il percorso si legge sulle settimane, e se vuoi capirci di più la tua nutrizionista è a un messaggio di distanza.',
+    ],
+  },
+  /* Peso in aumento ma vita in calo: due segnali opposti. Si dicono entrambi, senza
+     trasformarli in un complimento — è la cliente, con la nutrizionista, a leggerli. */
+  progress_support_waist: {
+    title: 'Due numeri che dicono cose diverse',
+    variants: [
+      'Il peso è salito di {gainKg} kg, ma la vita è scesa di {waistCm} cm. Vanno in direzioni opposte, e sulla forma del corpo la circonferenza racconta spesso più della bilancia: continua a registrare entrambi.',
+      'Bilancia in su di {gainKg} kg, vita in giù di {waistCm} cm. Il peso da solo non distingue cosa è cambiato sotto: è tenendo insieme le due misure che si capisce la direzione.',
+    ],
+  },
   // Messaggio quotidiano del motore: il TONO è deciso dalle regole (mai dall\'AI).
   engine_daily_supportive: {
     title: 'Un passo alla volta',
@@ -271,6 +297,21 @@ const en: Catalog = {
       'Progress recorded! Every centimetre down is a promise kept to yourself.',
     ],
   },
+  /* Same rules as the Italian entries: motivating, never congratulatory, factual, no advice. */
+  progress_support: {
+    title: 'Measurement saved',
+    variants: [
+      'Your weight is up {gainKg} kg since the last measurement. A single reading says little — sleep, fluids and salt move it more than food does: what counts is the trend over the coming weeks, and seeing it means carrying on measuring.',
+      'The scale reads {gainKg} kg more than last time. Logging it anyway is the useful part: the journey shows up over weeks, and if you want to make sense of it your nutritionist is one message away.',
+    ],
+  },
+  progress_support_waist: {
+    title: 'Two numbers pointing different ways',
+    variants: [
+      'Your weight is up {gainKg} kg, but your waist is down {waistCm} cm. They point in opposite directions, and on body shape the tape often tells more than the scale: keep recording both.',
+      'Scale up {gainKg} kg, waist down {waistCm} cm. Weight alone can\'t tell what changed underneath: it\'s the two measurements together that show the direction.',
+    ],
+  },
   engine_daily_supportive: {
     title: 'One step at a time',
     variants: [
@@ -364,6 +405,16 @@ const en: Catalog = {
     title: '',
     variants: [
       '<p>You asked to reset your Metabole account password.</p><p style="margin:20px 0"><a href="{link}" style="display:inline-block;background:#12A386;color:#ffffff;text-decoration:none;padding:12px 26px;border-radius:10px;font-weight:600;font-family:Arial,Helvetica,sans-serif">Reset your password</a></p><p style="font-size:13px;color:#5F6E6B">If the button doesn\'t work, copy this link into your browser:<br/><a href="{link}">{link}</a></p><p style="font-size:13px;color:#5F6E6B">The link expires in 1 hour. If you didn\'t request it, ignore this email: your password stays unchanged.</p>',
+    ],
+  },
+  /* Mancavano: una cliente con locale 'en' riceveva in italiano proprio la mail delle
+     credenziali, cioè la prima che legge. Il test di completezza del catalogo era rosso
+     da prima di questo lavoro e lo segnalava. */
+  'mail.credentials.subject': { title: '', variants: ['Metabole — your login details'] },
+  'mail.credentials.body': {
+    title: '',
+    variants: [
+      '<p>Hi {name},</p><p>We\'ve created your <strong>Metabole</strong> account. Here are your login details:</p><p>Email: <strong>{email}</strong><br>Temporary password: <code>{password}</code></p><p>Sign in from the app: <a href="{link}">{link}</a></p><p>On your first sign-in you\'ll fill in a short questionnaire, then you can set a password of your own.</p><p>See you soon!</p>',
     ],
   },
   'mail.bank.subject': { title: '', variants: ['Metabole — bank transfer details ({description})'] },

@@ -23,6 +23,9 @@ const TYPE_ICON: Record<string, [string, string, string]> = {
   checkin_reminder: ['ti-mood-smile', '#DCEBE3', '#0E7C66'],
   measurement_reminder: ['ti-scale', '#E7EEF6', '#3A6EA5'],
   progress_cheer: ['ti-confetti', '#FBEEE7', '#E8825A'],
+  // Peso in aumento: icona e colori neutri di proposito. Nessun coriandolo, nessun rosso
+  // d'allarme — la riga non deve dare un giudizio prima ancora di essere letta.
+  progress_support: ['ti-chart-line', '#E7EEF6', '#3A6EA5'],
   rating_request: ['ti-star', '#F3E8DC', '#B8863B'],
   visit_reminder: ['ti-calendar-check', '#E7EEF6', '#3A6EA5'],
   pre_event: ['ti-calendar-heart', '#FBEEE7', '#E8825A'],
@@ -38,6 +41,7 @@ const TYPE_ROUTE: Record<string, string> = {
   checkin_reminder: '/',
   measurement_reminder: '/obiettivo',
   progress_cheer: '/percorso',
+  progress_support: '/percorso',
   rating_request: '/menu',
   visit_reminder: '/calendario',
   pre_event: '/calendario',

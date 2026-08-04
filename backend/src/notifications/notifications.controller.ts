@@ -11,6 +11,7 @@ const CLIENT_NOTIFICATION_TYPES = [
   'checkin_reminder',
   'measurement_reminder',
   'progress_cheer',
+  'progress_support',
   'rating_request',
   'visit_reminder',
   'pre_event',
