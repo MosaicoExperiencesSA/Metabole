@@ -34,8 +34,9 @@ export const ENGINE_RULES: EngineRule[] = [
   { code: 'menu_daycombo_protein_max', label: 'Quota proteica massima', description: 'Frazione massima di proteine sui macro della giornata (0–1). Es. 0,40 = 40%.', category: 'macro', kind: 'number', default: 0.45, min: 0, max: 1, step: 0.01, unit: 'frazione', perDiet: true },
 
   // --- Varietà / ripetizione ---
-  { code: 'menu_penalty_repeat', label: 'Penalità di ripetizione (varietà)', description: 'Quanto penalizzare una ricetta servita di recente per favorire la varietà (0 = spenta).', category: 'varieta', kind: 'number', default: 0, min: 0, max: 5, step: 0.5, perDiet: true },
+  { code: 'menu_penalty_repeat', label: 'Penalità di ripetizione (varietà)', description: 'Quanto penalizzare una ricetta servita di recente per favorire la varietà (0 = spenta; 1 = una già servita passa dietro a una mai servita).', category: 'varieta', kind: 'number', default: 1, min: 0, max: 5, step: 0.5, perDiet: true },
   { code: 'menu_repeat_window_days', label: 'Finestra varietà (giorni)', description: 'Su quanti giorni contare le ripetizioni recenti per la penalità di varietà.', category: 'varieta', kind: 'number', default: 14, min: 1, max: 60, step: 1, unit: 'giorni' },
+  { code: 'menu_variety_min_gap_days', label: 'Distanza minima stesso piatto (giorni)', description: 'Giorni minimi prima che lo stesso piatto torni nello stesso pasto: se esiste un\'alternativa nel pool entro la tolleranza kcal, viene usata quella (0 = spento).', category: 'varieta', kind: 'number', default: 2, min: 0, max: 14, step: 1, unit: 'giorni', perDiet: true },
   { code: 'menu_repeat_two_days_default', label: 'Ripetizione bigiornaliera (default globale)', description: 'Il 2° giorno ripropone gli stessi alimenti con ricetta diversa. Di norma OFF: si accende per dieta.', category: 'varieta', kind: 'boolean', default: false, perDiet: true },
   { code: 'repeat_twin_kcal_tolerance_pct', label: 'Tolleranza kcal "gemella" (%)', description: 'Scarto kcal ammesso per accettare la ricetta gemella nella ripetizione bigiornaliera.', category: 'varieta', kind: 'number', default: 15, min: 5, max: 30, step: 1, unit: '%' },
 

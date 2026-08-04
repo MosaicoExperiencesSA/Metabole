@@ -349,6 +349,11 @@ export class MenuService {
       // livelli della dieta. Attivo di default; disattivabile globalmente o per dieta.
       this.configParams.getBool('menu_kcal_need_enabled', true),
     ]);
+    // VARIETÀ (garanzia percepita dalla cliente): distanza minima, in giorni, prima che lo
+    // stesso piatto possa tornare nello STESSO slot. Se esiste un'alternativa nel pool entro
+    // la tolleranza kcal, si usa quella. 0 = guard disattivato.
+    const varietyGapG = await this.configParams.getNumber('menu_variety_min_gap_days', 2);
+    const varietyGap = pickNumOverride(overrides, 'menu_variety_min_gap_days', varietyGapG);
     const kcalTolPct = pickNumOverride(overrides, 'menu_kcal_balance_tolerance_pct', kcalTolG);
     const daycomboEnabled = pickBoolOverride(overrides, 'menu_daycombo_enabled', daycomboG);
     const kcalNeedEnabled = pickBoolOverride(overrides, 'menu_kcal_need_enabled', kcalNeedG);
@@ -372,13 +377,16 @@ export class MenuService {
     // se DayCombo è abilitato per la dieta OPPURE se il menu a necessità sta guidando il
     // target (in automatico). Se non trova una giornata nella banda → fallback al selettore.
     const useDayCombo = (daycomboEnabled || targetSource === 'need') && !!ctx && targetKcal > 0;
-    const combo = useDayCombo && ctx ? this.dayComboPools(ctx) : null;
 
     // Fine piano: non si erogano MAI giorni oltre la data di fine dell'abbonamento. Il piano
     // include fino a `endDate` compresa; i giorni successivi (domani/dopodomani a piano finito)
     // non vanno consegnati (bug: la cliente vedeva menu oltre la fine del percorso).
     const planEnd = activeSubscription.endDate ? toDateOnly(activeSubscription.endDate.toISOString()) : null;
     if (planEnd && firstNewDate.getTime() > planEnd.getTime()) return [];
+
+    // Storico recente per slot (giorni già erogati): serve al guard di varietà per non
+    // riproporre lo stesso piatto a ridosso di quando è già stato servito.
+    const slotHistory = varietyGap > 0 ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap) : new Map<string, string[]>();
 
     // Prepara gli snapshot dei giorni del ciclo.
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
@@ -388,6 +396,9 @@ export class MenuService {
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
       let chosen: { slot: string; recipeId: string }[] | null = null;
+      // I punteggi vanno ricalcolati AD OGNI GIORNO: i piatti scelti per il giorno precedente
+      // sono nel frattempo diventati "serviti di recente" (bump) e vanno sfavoriti.
+      const combo = useDayCombo && ctx ? this.dayComboPools(ctx) : null;
       if (combo) {
         chosen = this.dayCombo.compose({
           slots: combo.slots,
@@ -401,6 +412,12 @@ export class MenuService {
       // Fallback: se DayCombo è spento o non trova una giornata nella banda, si usa
       // il template composto a mano con il selettore per-slot.
       if (!chosen) chosen = selector(template.meals as { slot: string; recipeId: string }[]);
+      // VARIETÀ: niente stesso piatto nello stesso slot a meno di `varietyGap` giorni, se il
+      // pool della dieta offre un'alternativa entro la tolleranza kcal (bilanciamento salvo).
+      chosen = this.applyVarietyGuard(chosen, slotHistory, ctx, kcalTolPct / 100, varietyGap);
+      this.pushSlotHistory(slotHistory, chosen, varietyGap);
+      // I piatti di oggi contano come "serviti di recente" per i giorni successivi del ciclo.
+      for (const m of chosen) ctx?.bump(m.recipeId);
       const meals = await this.snapshotMeals(chosen as never);
       daySnapshots.push({ date, meals });
     }
@@ -685,6 +702,7 @@ export class MenuService {
     kcalOf: Map<string, number>;
     proteinOf: Map<string, number>;
     score: (id: string) => number;
+    bump: (id: string) => void;
   } | null> {
     if (!regime) return null;
 
@@ -693,8 +711,10 @@ export class MenuService {
       this.configParams.getNumber('menu_select_w_grad', 1),
       this.configParams.getNumber('menu_state_boost', 1.8),
       this.configParams.getNumber('menu_pre_event_protein_bonus', 0.6),
-      // R11: penalità di ripetizione (varietà). Default 0 = disattivata (comportamento invariato).
-      this.configParams.getNumber('menu_penalty_repeat', 0),
+      // R11: penalità di ripetizione (varietà). ATTIVA di default: una ricetta servita di
+      // recente viene sfavorita, così la rotazione tende al "meno servito di recente"
+      // invece di riproporre sempre il piatto col punteggio più alto.
+      this.configParams.getNumber('menu_penalty_repeat', 1),
       this.configParams.getNumber('menu_repeat_window_days', 14),
       // R12: peso efficacia in MANTENIMENTO (default 0 = efficacia neutra).
       this.configParams.getNumber('menu_maintenance_w_eff', 0),
@@ -771,7 +791,12 @@ export class MenuService {
       (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0) -
       penaltyRepeat * (recentCount.get(id) ?? 0); // R11: scoraggia la ripetizione (varietà)
 
-    return { slotPool, kcalOf, proteinOf, score };
+    // Conta come "servita di recente" anche una ricetta appena scelta in QUESTO ciclo: senza
+    // questo, i 2 giorni erogati insieme venivano composti con lo stesso identico punteggio e
+    // finivano per ripetere gli stessi piatti.
+    const bump = (id: string) => recentCount.set(id, (recentCount.get(id) ?? 0) + 1);
+
+    return { slotPool, kcalOf, proteinOf, score, bump };
   }
 
   /**
@@ -806,6 +831,81 @@ export class MenuService {
         }
         return { slot: m.slot, recipeId: bestId };
       });
+  }
+
+  // ---------- Varietà: nessun piatto ripetuto a ridosso nello stesso slot ----------
+
+  /**
+   * Ultimi `gapDays` giorni già erogati, riletti per slot (dal più recente): serve a sapere
+   * cosa la cliente ha appena mangiato a colazione/pranzo/cena prima di comporre i nuovi giorni.
+   */
+  private async recentSlotHistory(clientId: string, before: Date, gapDays: number): Promise<Map<string, string[]>> {
+    const rows = (await this.prisma.menuDay.findMany({
+      where: { clientId, date: { lt: before } },
+      select: { meals: true },
+      orderBy: { date: 'desc' },
+      take: gapDays,
+    })) as { meals: unknown }[];
+    const hist = new Map<string, string[]>();
+    for (const r of rows) {
+      for (const m of ((r.meals as { slot?: string; recipeId?: string }[]) ?? [])) {
+        if (!m?.slot || !m.recipeId) continue;
+        const list = hist.get(m.slot) ?? [];
+        if (list.length < gapDays) list.push(m.recipeId);
+        hist.set(m.slot, list);
+      }
+    }
+    return hist;
+  }
+
+  /** Aggiunge il giorno appena composto in testa allo storico (finestra `gapDays`). */
+  private pushSlotHistory(history: Map<string, string[]>, meals: { slot: string; recipeId: string }[], gapDays: number): void {
+    if (gapDays <= 0) return;
+    for (const m of meals) {
+      const list = history.get(m.slot) ?? [];
+      list.unshift(m.recipeId);
+      if (list.length > gapDays) list.length = gapDays;
+      history.set(m.slot, list);
+    }
+  }
+
+  /**
+   * Guard di varietà: se il piatto scelto per uno slot è già stato servito in quello slot
+   * negli ultimi `gapDays` giorni, lo sostituisce con la migliore alternativa DEL POOL della
+   * dieta approvata, entro ±tol kcal (così il bilanciamento della giornata non cambia) e non
+   * usata di recente. Se un'alternativa valida non esiste, il piatto resta com'è.
+   */
+  private applyVarietyGuard(
+    chosen: { slot: string; recipeId: string }[],
+    history: Map<string, string[]>,
+    ctx: { slotPool: Map<string, Set<string>>; kcalOf: Map<string, number>; score: (id: string) => number } | null,
+    tol: number,
+    gapDays: number,
+  ): { slot: string; recipeId: string }[] {
+    if (!ctx || gapDays <= 0) return chosen;
+    const usedToday = new Set<string>(); // nessun piatto due volte nella stessa giornata
+    return chosen.map((m) => {
+      const recent = history.get(m.slot) ?? [];
+      const pool = ctx.slotPool.get(m.slot);
+      const baseKcal = ctx.kcalOf.get(m.recipeId);
+      const keep = () => { usedToday.add(m.recipeId); return m; };
+      if (!recent.includes(m.recipeId) && !usedToday.has(m.recipeId)) return keep();
+      if (!pool || baseKcal == null) return keep();
+      const lo = baseKcal * (1 - tol);
+      const hi = baseKcal * (1 + tol);
+      let bestId: string | null = null;
+      let bestScore = -Infinity;
+      for (const cand of pool) {
+        if (cand === m.recipeId || usedToday.has(cand) || recent.includes(cand)) continue;
+        const ck = ctx.kcalOf.get(cand);
+        if (ck == null || ck < lo || ck > hi) continue; // vincolo bilanciamento
+        const s = ctx.score(cand);
+        if (s > bestScore) { bestScore = s; bestId = cand; }
+      }
+      if (!bestId) return keep();
+      usedToday.add(bestId);
+      return { slot: m.slot, recipeId: bestId };
+    });
   }
 
   /** kcal obiettivo del livello dalla configurazione `Diet.levels` ([{level,kcal}]). */

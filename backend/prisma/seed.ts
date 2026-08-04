@@ -175,9 +175,15 @@ const CONFIG_PARAMS: SeedParam[] = [
   },
   {
     key: 'menu_penalty_repeat',
-    value: '0',
+    value: '1',
     type: 'number',
-    description: 'R11 — penalità di ripetizione nello scoring dei menu: penalizza le ricette servite di recente per favorire la varietà (0 = disattivata; valori tipici 0,05–0,2)',
+    description: 'R11 — penalità di ripetizione nello scoring dei menu: penalizza le ricette servite di recente per favorire la varietà (0 = disattivata; 1 = una ricetta già servita nella finestra passa dietro a una mai servita)',
+  },
+  {
+    key: 'menu_variety_min_gap_days',
+    value: '2',
+    type: 'number',
+    description: 'Varietà — giorni minimi prima che lo stesso piatto possa tornare nello stesso pasto: se il pool della dieta offre un\'alternativa entro la tolleranza kcal viene usata quella (0 = guard disattivato)',
   },
   {
     key: 'menu_repeat_window_days',

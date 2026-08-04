@@ -21,7 +21,7 @@ function build() {
       update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'rp1', ...data })),
     },
     productRule: { upsert: jest.fn().mockResolvedValue({}) },
-    diet: { findUnique: jest.fn().mockResolvedValue({ id: 'diet1' }), create: jest.fn().mockResolvedValue({ id: 'dietGen', name: 'Keto — bozza generata' }) },
+    diet: { findUnique: jest.fn().mockResolvedValue({ id: 'diet1' }), findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'dietGen', name: 'Keto — bozza generata' }) },
     staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff1' }) },
     recipe: { create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: `r-${Math.round(data.kcal)}-${data.name}` })) },
     dietDayTemplate: { create: jest.fn().mockResolvedValue({}) },
@@ -112,7 +112,9 @@ describe('EngineRulesService', () => {
       days: [{ level: 1, dayIndex: 1, meals: [{ slot: 'lunch', ref: 'r1' }] }],
       equivalenceGroups: [{ name: 'Pesci bianchi', items: ['orata', 'branzino'] }],
     });
-    const res = await service.generateCatalogFromPreset('p1', 'u1');
+    // 1 sola giornata richiesta (il default sarebbe 28): qui si verifica la conversione
+    // del JSON dell'AI in dieta/ricette/giornate/gruppi, non la replica del ciclo.
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
     expect(res).toEqual(expect.objectContaining({ recipes: 1, days: 1, groups: 1, dietId: 'dietGen' }));
     expect(prisma.diet.create).toHaveBeenCalled();
     expect(prisma.recipe.create).toHaveBeenCalledTimes(1);

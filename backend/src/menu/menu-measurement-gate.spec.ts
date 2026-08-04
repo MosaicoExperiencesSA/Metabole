@@ -26,12 +26,17 @@ function makeService(prisma: unknown) {
     events as unknown as EventsService,
     dietAgent as unknown as DietAgentService,
     new DayComboService(),
+    // Il "menu a necessità" non è oggetto di questi test: fabbisogno non calcolabile → target dal livello.
+    { computeTargetKcal: jest.fn().mockResolvedValue(null) } as never,
   );
 }
 
 describe('MenuService — gate misure', () => {
   it('nessun menu erogato → gate non richiesto', async () => {
-    const prisma = { menuDay: { findFirst: jest.fn().mockResolvedValue(null) } };
+    const prisma = {
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) }, // nessun piano → nessun popup
+    };
     const res = await makeService(prisma).measurementGate('c1');
     expect(res).toEqual({ required: false, blocking: false, cycleDate: null });
   });
@@ -39,6 +44,7 @@ describe('MenuService — gate misure', () => {
   it('2° giorno del ciclo passato e nessuna misura → bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -49,6 +55,7 @@ describe('MenuService — gate misure', () => {
   it('2° giorno del ciclo oggi e nessuna misura → bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(0)) }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -58,6 +65,7 @@ describe('MenuService — gate misure', () => {
   it('2° giorno del ciclo nel futuro → non bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(1)) }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
       measurement: { findFirst: jest.fn() },
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -68,6 +76,7 @@ describe('MenuService — gate misure', () => {
   it('misura del ciclo presente → non bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -78,7 +87,7 @@ describe('MenuService — gate misure', () => {
     productRule: { findUnique: jest.fn().mockResolvedValue(null) },
     equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
     subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
-    menuDay: { findFirst: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
+    menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
     dailyCheckin: { findUnique: jest.fn() },
     engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
     diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
@@ -86,6 +95,8 @@ describe('MenuService — gate misure', () => {
     escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
     menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
     recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+    // Misure presenti: il gate non blocca, così questi test misurano solo sicurezza/selezione.
+    measurement: { count: jest.fn().mockResolvedValue(1), findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
     ...over,
   });
 
@@ -128,7 +139,7 @@ describe('MenuService — gate misure', () => {
         ]),
       },
       recipeRating: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'r1', stars: 2 }, { recipeId: 'r2', stars: 5 }]) },
-      menuDay: { findFirst: jest.fn().mockResolvedValue(null), upsert },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert },
     });
     await makeService(prisma).deliverIfEligible('c1');
     // il giorno che parte dal template con r1 deve erogare r2 (più gradita, stesse kcal)
@@ -166,7 +177,7 @@ describe('MenuService — gate misure', () => {
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-2)) }) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue({ id: 'ck' }) },
-      measurement: { findFirst: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(1) },
     };
     const created = await makeService(prisma).deliverIfEligible('c1');
     expect(created).toEqual([]); // held: l'avviso coach lo genera l'Alert engine
