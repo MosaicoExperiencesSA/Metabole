@@ -7,6 +7,7 @@ import Sheet from '../components/Sheet';
 import CheckinPopup from '../components/CheckinPopup';
 import MenuReviewPopup from '../components/MenuReviewPopup';
 import VoiceToggle from '../components/VoiceToggle';
+import { fraseDelGiorno } from '../lib/frasiGaia';
 import { getTodaySteps } from '../lib/steps';
 import { DEFAULT_WATER_UNIT, isWaterUnit, waterIcon, waterStep, waterValue, type WaterUnit } from '../lib/water';
 import StartDatePrompt from '../components/StartDatePrompt';
@@ -44,15 +45,6 @@ function apptWhen(iso: string): string {
  * header MetaboleAI · "Ciao, {nome}", card "IL MENU DI OGGI" (carosello pasti + Spesa),
  * "PROSSIMO APPUNTAMENTO", card Gaia "LA FRASE DI OGGI". Dati REALI dal backend.
  */
-
-const FRASI = [
-  'Non è una dieta, è il tuo nuovo stile.',
-  'Un passo alla volta è comunque un passo avanti.',
-  'I piccoli gesti di oggi sono i risultati di domani.',
-  'Bevi, respira, muoviti: il resto viene.',
-  'Sii gentile con te: stai già facendo tanto.',
-  'La costanza batte la perfezione.',
-];
 
 interface EventItem { id: string; type: string; label: string | null; startDate: string; mode: string }
 const EV: Record<string, [string, string, string, string]> = {
@@ -337,7 +329,8 @@ export default function Home() {
 
   const name = (user?.firstName || user?.email?.split('@')[0] || 'ciao').replace(/^\w/, (c) => c.toUpperCase());
   const now = new Date();
-  const frase = FRASI[now.getDate() % FRASI.length];
+  // Una frase diversa ogni giorno, e diversa da cliente a cliente: vedi lib/frasiGaia.ts.
+  const frase = fraseDelGiorno(user?.id, now);
   const totKcal = (meals ?? []).reduce((a, m) => a + (m.kcal || 0), 0);
 
   return (

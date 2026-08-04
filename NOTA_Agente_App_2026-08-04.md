@@ -24,7 +24,8 @@ rimandabile").
 
 ## B) NOVITÀ FRONTEND DA SPEDIRE (OTA)
 
-Quattro file in `app/src/**`, dai commit `9fef2a4`, `ca9f192`, `dc97c2d`.
+Cinque file in `app/src/**`, dai commit `9fef2a4`, `ca9f192`, `dc97c2d` e dall'ultimo commit
+sulle frasi di Gaia.
 
 **`app/src/pages/Home.tsx`** — "Sostituisci un ingrediente". Al posto del popup che *dopo* aver
 applicato chiedeva "escludere per sempre?", ora la cliente sceglie **prima** per quanto vale:
@@ -40,6 +41,19 @@ tap → `/percorso`).
 
 **`app/src/components/NotificationPrefs.tsx`** — nuovo interruttore **"Messaggi quando il peso
 sale"**, per disattivare il tipo `progress_support`.
+
+**`app/src/lib/frasiGaia.ts` (nuovo) + `app/src/pages/Home.tsx`** — la card *GAIA · LA FRASE DI
+OGGI* passa da **6 frasi a 360**. Prima la frase era `FRASI[giorno_del_mese % 6]`: stessa per
+tutte le clienti, ciclo ripetuto cinque volte al mese, e nei mesi di 31 giorni la stessa frase
+due giorni di fila. Ora ogni cliente ha una sua sequenza, deterministica su (utente, giorno),
+che tocca tutte e 360 le frasi prima di ripeterne una. Nessuna migration, nessun endpoint: le
+frasi stanno **dentro il bundle**, quindi arrivano solo con l'OTA. Il ragionamento e le verifiche
+stanno in `REGISTRO_Frasi_Gaia_Home.md`.
+
+> In testa a `frasiGaia.ts` c'è il commento con le regole dei testi (niente promesse di risultati
+> o numeri, niente claim medici, niente colpa o "sgarro", niente aggettivi di genere riferiti a
+> chi legge, massimo ~80 caratteri per via dell'animazione `TypeText`). Se ne aggiungete altre,
+> valgono quelle.
 
 ### Perché stavolta l'OTA non è rimandabile
 Le note precedenti dicevano "l'app installata mostra il comportamento vecchio". Qui è diverso:
@@ -75,7 +89,7 @@ number +1).
 ### C1) Serve ancora la prima release OTA — ora con dentro anche §B
 Vale quanto scritto il 30/07: nessuna release OTA è ancora partita, quindi il bundle da spedire
 contiene **tutto l'arretrato** (percorso concluso, tasto "Ricetta", report, email in-app,
-"Attività fisica" e "Ricette semplici" nel Profilo) **più** le quattro novità di §B. Una sola
+"Attività fisica" e "Ricette semplici" nel Profilo) **più** le novità di §B. Una sola
 release le copre tutte.
 
 ### C2) CI "Android APK (debug)" rossa — alzare la SDK per Capgo (invariato)
