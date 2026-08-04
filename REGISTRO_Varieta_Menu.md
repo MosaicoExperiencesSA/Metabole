@@ -75,43 +75,96 @@ successivo. Conviene rilanciare la diagnostica dopo qualche giorno per confronta
 ## Secondo giro: cosa ha rivelato la diagnostica in produzione
 
 Lanciata la diagnostica sulla cliente è emerso un fatto che il reclamo non lasciava intuire:
-**molti piatti erogati non vengono dalla dieta**. Nel pool della "Pescetariana" livello 1 ci sono
-solo pesce, legumi e verdure, ma nei suoi menu comparivano petto di pollo, pancetta di maiale,
-bistecca di vitello e manzo. Il pranzo mostrava addirittura 6 piatti distinti a fronte di 5
-alternative disponibili: impossibile, se i piatti venissero dai template.
+**molti piatti erogati non vengono dalla dieta** — 16 su 24 pasti. Nel pool della "Pescetariana"
+livello 1 ci sono solo pesce, legumi e verdure, ma nei suoi menu comparivano petto di pollo,
+pancetta di maiale, bistecca di vitello e manzo. Il pranzo mostrava addirittura 6 piatti distinti
+a fronte di 5 alternative disponibili: impossibile, se i piatti venissero dai template.
 
 **Da dove arrivano.** Dopo la composizione ci sono passaggi che *riscrivono* i pasti pescando
-dall'intero catalogo filtrato per **regime della cliente**, non dal pool della dieta: la
-preferenza "ricette semplici", la sostituzione dei cibi non graditi e le gemelle della
-ripetizione bigiornaliera. La dieta "Pescetariana" è però registrata con `regime = omnivore`
-(lo schema prevede il valore `pescetarian`), quindi quei passaggi considerano legittima
-qualsiasi carne.
+dall'intero catalogo filtrato per **regime della cliente**, non dal pool della dieta. La dieta
+"Pescetariana" è però registrata con `regime = omnivore` (lo schema prevede il valore
+`pescetarian`), quindi quei passaggi considerano legittima qualsiasi carne.
 
-Questo apre due questioni distinte, che vanno tenute separate.
+### Correzione di rotta: la causa non era quella che avevo scritto
 
-**a) Un problema di dato, non di codice.** Se la dieta si chiama "Pescetariana" ma è registrata
-come onnivora, `pickDiet` la abbina a clienti onnivore e le sostituzioni per regime possono
-metterle in tavola carne. La diagnostica ora elenca tutte le diete approvate il cui nome
-suggerisce un regime diverso da quello registrato. La correzione è cambiare il regime della
-dieta (o il suo nome) dal backoffice: non è una modifica che il motore possa fare da solo,
-perché solo lo staff sa quale dei due campi è quello giusto.
+Nel primo giro avevo indicato come colpevole la preferenza "ricette semplici". **La diagnostica
+in produzione l'ha smentito**: la cliente ha `preferenza "ricette semplici": no`, e 0 dei 10
+piatti fuori pool sono marcati "semplice". Quel passaggio non è mai entrato in gioco per lei.
+La correzione fatta ad `applySimplePreference` resta un bug vero — ma non è questo bug.
 
-**b) Un buco nella garanzia di varietà appena introdotta.** Il guard agisce *durante* la
-composizione, ma la preferenza "ricette semplici" riscrive i pasti **dopo**, con una rotazione
-`giorno % numero_alternative` che sul pool semplice — piccolo — degenera a piatto fisso appena
-in banda kcal resta una sola ricetta. Per una cliente con quella preferenza attiva la garanzia
-veniva quindi annullata. Ora la scelta della ricetta semplice tiene conto dello storico: si
-preferisce una semplice mai servita di recente; se non ce n'è, si tiene il piatto del piano
-(che il guard ha già reso diverso da ieri) invece di ripetere; solo se anche quello è recente
-si ricade sulla rotazione storica. La preferenza della cliente resta soddisfatta ogni volta che
-è possibile farlo senza ripetere.
+**Il responsabile è `swapDislikedDishes`**, la sostituzione dei cibi non graditi. È l'ULTIMO
+passaggio prima del salvataggio, quindi riscrive tutto ciò che il guard di varietà aveva
+appena sistemato. La cliente ha **13 cibi non graditi**: Quinoa, Pesce spada, Tonno fresco,
+Fegato, Selvaggina, Poca carne rossa, Rucola, Nasello, Broccoli, Avena, Chia, Orzo, Merluzzo.
+Applicati al pool della sua dieta cancellano quasi tutto:
+
+| pasto | pool | eliminati dalle esclusioni | superstiti |
+|---|---|---|---|
+| pranzo | 5 | 4 (rucola, merluzzo, quinoa, broccoli) | **1** |
+| cena | 6 | 2 (rucola, nasello) | 4 |
+| colazione | 5 | 1 (avena) | 4 |
+
+Il conto torna con la diagnostica al piatto: 7 pranzi sostituiti su 8, 3 cene su 8. E l'unico
+pranzo superstite si salva per un caso — lei ha scritto "Tonno fresco", il piatto si chiama
+"Pasta integrale con **tonno** e verdure grigliate", e il confronto è per sottostringa esatta.
+
+Due difetti nello stesso passaggio:
+
+**a) Pescava dal catalogo, non dalla dieta.** La query era `where: { mealSlot, active, regime:
+profile.regime }` — l'intero catalogo filtrato per il regime *della cliente* (omnivore). È così
+che in un piano di pesce sono finiti pollo, maiale, vitello e manzo.
+
+**b) Sceglieva sempre lo stesso sostituto.** Il candidato era il più vicino in kcal, in modo
+del tutto deterministico e senza storico: stesso piatto ogni giorno. Da qui le colazioni
+identiche per tre giorni di fila. E mancando l'`orderBy`, a parità di kcal l'ordine delle righe
+restituito dal database — che Postgres non garantisce — decideva il vincitore: **è
+un'ipotesi, non una certezza**, ma spiegherebbe lo scalino del 4 agosto tra frittata e salmone,
+entrambi a 380 kcal.
+
+### Cosa è cambiato nella sostituzione
+
+L'alternativa si cerca **prima dentro il pool della dieta**, senza filtro per regime: il pool è
+già la volontà del nutrizionista, e filtrarlo per il regime registrato sulla cliente è proprio
+ciò che escludeva i piatti di pesce da un piano di pesce. Solo se la dieta non offre nulla di
+accettabile si allarga al catalogo — resta una rete di sicurezza, meglio un piatto fuori pool
+che un piatto non gradito. A parità di idoneità si scarta ciò che è già stato servito di recente
+in quel pasto, con lo stesso storico usato in composizione. Il tie-break sull'id rende la scelta
+stabile a parità di kcal.
+
+### Il limite che nessuna modifica al codice supera
+
+Anche cercando prima nella dieta, **alla cliente resta 1 pranzo utilizzabile su 5**. La dieta
+assegnata è incompatibile con la sua lista di esclusioni: nessun algoritmo può produrre varietà
+da una sola alternativa. Serve un piano diverso o un pool più ampio, ed è una decisione del
+nutrizionista. La diagnostica ora lo dice esplicitamente quando un pasto scende sotto le 3
+alternative utilizzabili, e in modalità flotta elenca tutte le clienti nella stessa condizione.
+
+### Un problema di dato, non di codice — e più grande del previsto
+
+Delle 238 diete approvate, **18 si chiamano "Pescetariana" e nessuna è registrata
+`pescetarian`**: 7 onnivore, 6 vegane, 5 vegetariane. Non è un refuso isolato ma un problema di
+importazione. `pickDiet` le abbina per regime, quindi una cliente onnivora può ricevere un piano
+chiamato Pescetariana, e viceversa. La correzione è cambiare il regime della dieta (o il suo
+nome) dal backoffice: non è una modifica che il motore possa fare da solo, perché solo lo staff
+sa quale dei due campi è quello giusto. La diagnostica ora stampa la tabella completa, ordinata
+per numero di clienti coinvolte.
+
+### Una domanda che viene prima del codice
+
+A una cliente con un piano chiamato "Pescetariana" sono stati serviti pollo, pancetta, vitello e
+manzo per otto giorni. Se è davvero pescetariana, il problema vero non è la ripetitività che ha
+segnalato lei. Vale la pena chiederlo a lei o alla sua nutrizionista **prima** di rilasciare
+qualsiasi modifica.
 
 ## Test
 
-Le suite del motore menu sono verdi (58 test). Ho aggiunto una suite dedicata alla garanzia di
-varietà, che riproduce esattamente il caso della cliente — un pasto in cui un piatto vince sempre lo
-scoring — e verifica che non compaia due giorni di fila quando un'alternativa esiste, che i giorni
-già erogati vengano considerati, e che con il parametro a 0 il comportamento resti quello storico.
+Le suite del motore menu sono verdi (**61 test**, erano 58). Oltre alla suite sulla garanzia di
+varietà, ne ho aggiunta una sulla sostituzione dei non graditi: verifica che il sostituto venga
+dal pool della dieta e non dal catalogo per regime (con un candidato del catalogo *più vicino in
+kcal*, che quindi vincerebbe se il pool-first non funzionasse), che lo stesso sostituto non torni
+due giorni di fila, e che il catalogo resti la rete di sicurezza quando la dieta non offre
+alternative. Le tre prove sono state validate rompendo il codice: togliendo il pool-first ne
+falliscono due, togliendo lo storico fallisce la terza.
 
 Nota a margine: le suite `menu.service.spec.ts`, `menu-measurement-gate.spec.ts` e
 `engine-rules.service.spec.ts` erano **già rosse prima di questo intervento** — i mock non erano

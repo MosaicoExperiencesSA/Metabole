@@ -715,3 +715,112 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
     expect(b.every((id: string) => id === 's1' || id === 's2')).toBe(true);
   });
 });
+
+// La sostituzione dei cibi NON GRADITI è l'ULTIMO passaggio prima del salvataggio: riscrive i
+// pasti già composti, quindi due suoi difetti annullavano tutto il lavoro fatto a monte.
+// (1) Pescava dall'intero catalogo filtrato per il `regime` REGISTRATO sulla cliente, non dal
+//     pool della dieta: è così che a un piano di pesce, registrato per errore `omnivore`,
+//     finiva in tavola la carne.
+// (2) Sceglieva in modo deterministico il candidato più vicino in kcal, senza storico: lo
+//     stesso identico sostituto ogni giorno, cioè la ripetitività del reclamo.
+// Il caso qui sotto riproduce la cliente reale: colazioni del piano che contengono un cibo
+// non gradito ("avena"), un pool di dieta con due alternative buone e un catalogo che offre
+// un'alternativa PIÙ VICINA in kcal — che però non deve mai essere scelta.
+describe('MenuService — sostituzione dei non graditi dentro il pool della dieta', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
+  const macros = { protein_g: 25, carbs_g: 35, fat_g: 14 };
+  const R = (id: string, name: string, kcal: number) => ({ id, name, kcal, macros, mealSlot: 'colazione', ingredients: [], active: true, difficulty: 'media' });
+  // Pool della dieta: i due piatti del piano contengono "avena" (non gradita) e vanno cambiati;
+  // a2/a3 sono le uniche alternative del pool, identiche in kcal fra loro e LONTANE dai piatti
+  // del piano — così restano fuori dalla banda del compositore e a toccarle è solo lo swap.
+  const dietRecipes = [
+    R('d1', 'Porridge di avena e frutti di bosco', 400),
+    R('d2', 'Barretta di avena, miele e mandorle', 400),
+    R('a2', 'Ricotta, pere e pane integrale', 300),
+    R('a3', 'Yogurt greco con mirtilli', 300),
+  ];
+  // Catalogo per regime: carne, e con kcal IDENTICHE al piatto da sostituire. Se lo swap
+  // interrogasse il catalogo (o lo interrogasse per primo) vincerebbe questa.
+  const catalogRecipes = [R('x1', 'Bresaola, grana e rucola', 400)];
+  const tmpl = (dayIndex: number, c: string) => ({ dayIndex, level: 1, meals: [{ slot: 'colazione', recipeId: c }] });
+
+  function build(gapDays: number) {
+    const byId = new Map(dietRecipes.concat(catalogRecipes).map((r) => [r.id, r]));
+    const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5,
+          allergies: [], intolerances: [], dislikedFoods: ['Avena'], assignedNutritionistId: null,
+          prefersSimpleRecipes: false,
+        }),
+      },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
+      dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
+      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective: 'dimagrimento' }) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'd1'), tmpl(2, 'd2'), tmpl(3, 'a2'), tmpl(4, 'a3')]) },
+      // Due query distinte: per `id in [...]` (pool della dieta) e per `mealSlot` + regime
+      // (catalogo). Tenerle separate è ciò che rende il test capace di distinguerle.
+      recipe: {
+        findMany: jest.fn((args: any) => {
+          const ids = args?.where?.id?.in as string[] | undefined;
+          if (ids) return Promise.resolve(ids.map((i) => byId.get(i)).filter(Boolean));
+          if (args?.where?.mealSlot) return Promise.resolve(catalogRecipes);
+          return Promise.resolve(dietRecipes);
+        }),
+        findUnique: jest.fn(),
+      },
+      menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+    };
+    const config = {
+      getNumber: jest.fn((k: string, def?: number) =>
+        Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: gapDays } as Record<string, number>)[k] ?? def),
+      ),
+      getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    };
+    const { DayComboService } = require('./day-combo.service');
+    const service = new MenuService(
+      prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService,
+      { activePausePeriod: jest.fn().mockResolvedValue(null) } as any,
+      { stateFor: jest.fn().mockResolvedValue('normale') } as any,
+      new DayComboService(), kcalNeedStub(),
+    );
+    return { service, prisma };
+  }
+
+  const breakfastsOf = (prisma: any) =>
+    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'colazione')?.recipeId);
+
+  it('il sostituto viene dal pool della dieta, non dal catalogo per regime', async () => {
+    const { service, prisma } = build(2);
+    const b = (await service.deliverIfEligible('u1'), breakfastsOf(prisma));
+    expect(b).toHaveLength(2);
+    // ← senza il pool-first: 'x1','x1' — carne, in un piano che di carne non ne ha.
+    expect(b).not.toContain('x1');
+    expect(b.every((id: string) => id === 'a2' || id === 'a3')).toBe(true);
+  });
+
+  it('non ripropone lo stesso sostituto due giorni di fila', async () => {
+    const { service, prisma } = build(2);
+    await service.deliverIfEligible('u1');
+    const b = breakfastsOf(prisma);
+    // ← senza lo storico: 'a2','a2' — a parità di kcal vince sempre lo stesso id.
+    expect(b[0]).not.toBe(b[1]);
+  });
+
+  it('il catalogo resta la rete di sicurezza quando la dieta non offre alternative', async () => {
+    const { service, prisma } = build(2);
+    // Pool ridotto ai soli piatti con avena: dentro la dieta non c'è niente di accettabile.
+    prisma.dietDayTemplate.findMany.mockResolvedValue([tmpl(1, 'd1'), tmpl(2, 'd2')]);
+    await service.deliverIfEligible('u1');
+    expect(breakfastsOf(prisma)).toEqual(['x1', 'x1']); // meglio la carne che un piatto non gradito
+  });
+});

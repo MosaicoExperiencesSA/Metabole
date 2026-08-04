@@ -6,6 +6,7 @@ import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 import { DayComboService, RecipeInfo } from './day-combo.service';
+import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
 
 interface Substitution {
@@ -19,37 +20,6 @@ interface MealSnapshot {
   name: string;
   kcal: number;
   substitutions?: Substitution[];
-}
-
-// Mappa intolleranza/allergia → parole chiave negli ingredienti (v1; spostabile in config).
-// Serve a riconoscere un ingrediente pericoloso anche quando il nome non coincide
-// col termine dell'intolleranza (es. "lattosio" → "yogurt", "formaggio").
-// Mappa CATEGORIA generica → parole chiave negli ingredienti. Serve sia per allergie/
-// intolleranze sia per i cibi "non graditi": una categoria generica ("frutta secca",
-// "legumi", "latticini") deve intercettare i singoli alimenti (noci, ceci, formaggio…),
-// altrimenti un'esclusione generica non prende i piatti che li contengono.
-const INTOLERANCE_MAP: Record<string, string[]> = {
-  lattosio: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano'],
-  latticini: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano', 'stracchino', 'scamorza', 'mascarpone'],
-  glutine: ['pane', 'pasta', 'farro', 'orzo', 'couscous', 'grano', 'seitan', 'pizza', 'cracker'],
-  'frutta secca': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'arachidi'],
-  legumi: ['lenticchie', 'ceci', 'fagioli', 'piselli', 'fave', 'lupini', 'borlotti', 'cannellini', 'cicerchie', 'edamame'],
-  uova: ['uovo', 'uova', 'frittata', 'maionese'],
-  pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe'],
-  crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle'],
-  soia: ['soia', 'tofu', 'edamame'],
-};
-
-/**
- * Espande un termine escluso (intolleranza o cibo non gradito) nelle sue parole chiave:
- * se è una categoria nota (es. "frutta secca", "legumi") restituisce categoria + membri
- * (noci, mandorle, …), altrimenti solo il termine stesso. Usato per intolleranze E dislikedFoods.
- */
-function expandExclusion(term: string): string[] {
-  const t = (term ?? '').toLowerCase().trim();
-  if (!t) return [];
-  const members = INTOLERANCE_MAP[t];
-  return members ? [t, ...members] : [t];
 }
 
 // Sostituzioni equivalenti sicure (v1; spostabile in config). Chiave = parola chiave
@@ -494,8 +464,14 @@ export class MenuService {
     // si cambia già in erogazione con un'alternativa equivalente.
     const dislikedNow = ((profile.dislikedFoods ?? []) as string[]);
     if (dislikedNow.length) {
+      // Lo storico riparte dai giorni GIÀ erogati e si aggiorna giorno per giorno, come nel
+      // ciclo di composizione: senza, ogni giorno riceverebbe lo stesso identico sostituto.
+      const swapHistory = varietyGap > 0
+        ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap)
+        : new Map<string, string[]>();
       for (const day of daySnapshots) {
-        await this.swapDislikedDishes(clientId, day.meals, dislikedNow);
+        await this.swapDislikedDishes(clientId, day.meals, dislikedNow, ctx?.slotPool, swapHistory);
+        this.pushSlotHistory(swapHistory, day.meals, varietyGap);
       }
     }
 
@@ -1028,10 +1004,24 @@ export class MenuService {
     });
   }
 
+  /**
+   * Sostituisce i piatti che contengono un cibo non gradito. È l'ULTIMO passaggio prima del
+   * salvataggio, quindi riscrive quanto composto a monte: due accortezze lo rendono innocuo.
+   *
+   * `dietPool` (id delle ricette dei template, per pasto) fa cercare l'alternativa PRIMA
+   * dentro la dieta: senza, si pescava dall'intero catalogo filtrato per `regime` della
+   * cliente, e un piano di pesce registrato onnivoro finiva per servire carne.
+   *
+   * `history` (piatti già serviti in quel pasto negli ultimi `varietyGap` giorni) evita che
+   * la scelta — deterministica, la più vicina in kcal — riproponga sempre lo stesso
+   * sostituto, annullando la garanzia di varietà applicata in composizione.
+   */
   private async swapDislikedDishes(
     clientId: string,
     meals: MealSnapshot[],
     dislikes: string[],
+    dietPool?: Map<string, Set<string>>,
+    history?: Map<string, string[]>,
   ): Promise<{ from: string; to: string }[]> {
     const dl = dislikes.map((s) => s.toLowerCase().trim()).filter((s) => s.length >= 2);
     if (!dl.length) return [];
@@ -1065,25 +1055,55 @@ export class MenuService {
       mealRecipes.map((r) => [r.id, (((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' ')).toLowerCase()]),
     );
 
-    const poolBySlot = new Map<string, { id: string; name: string; kcal: number; ingredients: unknown }[]>();
+    type Cand = { id: string; name: string; kcal: number; ingredients: unknown };
+    const acceptable = (c: Cand) => {
+      const txt = (c.name + ' ' + (((c.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
+      for (const k of excluded) if (k && txt.includes(k)) return false;
+      return true;
+    };
+    // Due livelli, interrogati solo quando servono: prima la dieta, poi il catalogo.
+    const fromDietBySlot = new Map<string, Cand[]>();
+    const fromCatalogBySlot = new Map<string, Cand[]>();
     const swapped: { from: string; to: string }[] = [];
     for (const m of meals) {
       const hay = ((m.name ?? '') + ' ' + (ingTextById.get(m.recipeId) ?? '')).toLowerCase();
       if (![...triggerKeys].some((k) => k && hay.includes(k))) continue;
-      if (!poolBySlot.has(m.slot)) {
-        poolBySlot.set(m.slot, (await this.prisma.recipe.findMany({
-          where: { mealSlot: m.slot as never, active: true, ...(profile?.regime ? { regime: profile.regime } : {}) },
-          select: { id: true, name: true, kcal: true, ingredients: true },
-        })) as { id: string; name: string; kcal: number; ingredients: unknown }[]);
+      // 1) Alternativa DENTRO il pool della dieta. Niente filtro per regime: il pool è già
+      //    la volontà del nutrizionista, e filtrarlo per il regime registrato sulla cliente
+      //    è proprio ciò che escludeva i piatti di pesce da un piano di pesce.
+      if (!fromDietBySlot.has(m.slot)) {
+        const ids = [...(dietPool?.get(m.slot) ?? [])];
+        const rows = ids.length
+          ? ((await this.prisma.recipe.findMany({
+              where: { id: { in: ids }, active: true },
+              select: { id: true, name: true, kcal: true, ingredients: true },
+              orderBy: { id: 'asc' },
+            })) as Cand[])
+          : [];
+        fromDietBySlot.set(m.slot, rows.filter(acceptable));
       }
-      const candidates = (poolBySlot.get(m.slot) ?? []).filter((c) => {
-        if (c.id === m.recipeId) return false;
-        const txt = (c.name + ' ' + (((c.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
-        for (const k of excluded) if (k && txt.includes(k)) return false;
-        return true;
-      });
-      if (!candidates.length) continue;
-      candidates.sort((a, b) => Math.abs(a.kcal - m.kcal) - Math.abs(b.kcal - m.kcal));
+      let tier = (fromDietBySlot.get(m.slot) ?? []).filter((c) => c.id !== m.recipeId);
+      // 2) Solo se la dieta non offre nulla di accettabile si allarga al catalogo per regime.
+      if (!tier.length) {
+        if (!fromCatalogBySlot.has(m.slot)) {
+          const rows = (await this.prisma.recipe.findMany({
+            where: { mealSlot: m.slot as never, active: true, ...(profile?.regime ? { regime: profile.regime } : {}) },
+            select: { id: true, name: true, kcal: true, ingredients: true },
+            orderBy: { id: 'asc' },
+          })) as Cand[];
+          fromCatalogBySlot.set(m.slot, rows.filter(acceptable));
+        }
+        tier = (fromCatalogBySlot.get(m.slot) ?? []).filter((c) => c.id !== m.recipeId);
+      }
+      if (!tier.length) continue;
+      // 3) A parità di idoneità si scarta ciò che è già stato servito di recente in questo
+      //    pasto; se è recente tutto quanto, si ripiega sull'intero livello.
+      const recent = new Set(history?.get(m.slot) ?? []);
+      const fresh = tier.filter((c) => !recent.has(c.id));
+      const candidates = fresh.length ? fresh : tier;
+      // Il tie-break sull'id serve: due candidati con le stesse kcal si alternavano a seconda
+      // dell'ordine — non garantito — restituito dal database.
+      candidates.sort((a, b) => Math.abs(a.kcal - m.kcal) - Math.abs(b.kcal - m.kcal) || a.id.localeCompare(b.id));
       const best = candidates[0];
       swapped.push({ from: m.name, to: best.name });
       m.substitutions = [...(m.substitutions ?? []), { from: m.name, to: best.name, reason: 'non gradito' }];

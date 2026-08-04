@@ -9,6 +9,15 @@
  *      quante volte ciascuno, e la "serie" più lunga dello stesso piatto di fila.
  *   3. AMPIEZZA DEL POOL: quante ricette diverse la dieta approvata mette a disposizione
  *      per ogni slot (se il pool ha 3 colazioni, nessun algoritmo può fare di meglio).
+ *   4. POOL EFFETTIVO: quante di quelle alternative sopravvivono ai non graditi e alle
+ *      intolleranze della cliente. È il numero che decide davvero, e può essere molto
+ *      più basso di quello nominale senza che nulla segnali un errore.
+ *   5. Piatti erogati FUORI dal pool, con regime e difficoltà di ciascuno: identificano
+ *      quale passaggio post-composizione li ha introdotti.
+ *   6. Coerenza nome ↔ regime delle diete approvate, con quante clienti serve ognuna.
+ *
+ * In modalità flotta segnala anche le clienti il cui pool effettivo è sotto soglia: per
+ * loro nessun parametro di varietà può bastare.
  *
  * Nessuna scrittura.
  *
@@ -17,6 +26,9 @@
  *   npm run diag:varieta -- --email=... --days=45
  */
 import { PrismaClient } from '@prisma/client';
+// Le stesse regole di esclusione usate dal motore: i conteggi qui sotto devono essere una
+// misura, non una stima.
+import { exclusionKeys, hitsExclusion, recipeHaystack } from '../src/menu/exclusions';
 
 const prisma = new PrismaClient();
 
@@ -119,8 +131,15 @@ async function poolIdsFor(dietId: string, level: number): Promise<Set<string>> {
   return ids;
 }
 
+interface PoolRecipe {
+  id: string;
+  name: string;
+  kcal: number;
+  ingredients?: unknown;
+}
+
 /** Quante ricette diverse la dieta approvata offre per ogni slot (il "tetto" della varietà). */
-async function poolSizes(dietId: string, level: number): Promise<Map<string, { id: string; name: string; kcal: number }[]>> {
+async function poolSizes(dietId: string, level: number): Promise<Map<string, PoolRecipe[]>> {
   const templates = (await prisma.dietDayTemplate.findMany({
     where: { dietId, level },
     select: { meals: true },
@@ -137,10 +156,10 @@ async function poolSizes(dietId: string, level: number): Promise<Map<string, { i
   const allIds = [...new Set([...idsBySlot.values()].flatMap((s) => [...s]))];
   const recipes = (await prisma.recipe.findMany({
     where: { id: { in: allIds } },
-    select: { id: true, name: true, kcal: true },
-  })) as { id: string; name: string; kcal: number }[];
+    select: { id: true, name: true, kcal: true, ingredients: true },
+  })) as PoolRecipe[];
   const byId = new Map(recipes.map((r) => [r.id, r]));
-  const out = new Map<string, { id: string; name: string; kcal: number }[]>();
+  const out = new Map<string, PoolRecipe[]>();
   for (const [slot, ids] of idsBySlot) {
     out.set(
       slot,
@@ -148,6 +167,42 @@ async function poolSizes(dietId: string, level: number): Promise<Map<string, { i
     );
   }
   return out;
+}
+
+/**
+ * Il POOL EFFETTIVO: quante alternative restano davvero dopo aver tolto i piatti che
+ * contengono qualcosa che la cliente non gradisce o non tollera. È il numero che conta,
+ * e non coincide quasi mai con l'ampiezza nominale del pool: una lista di non graditi
+ * lunga può azzerare una dieta senza che nessuno se ne accorga, perché il motore non
+ * fallisce — ripiega silenziosamente su altro.
+ */
+const MIN_ALTERNATIVES = 3;
+
+function reportEffectivePool(pool: Map<string, PoolRecipe[]>, excluded: Set<string>): void {
+  if (!excluded.size) {
+    console.log('\n  POOL EFFETTIVO: nessuna esclusione sul profilo, coincide con il pool nominale.');
+    return;
+  }
+  console.log('\n  POOL EFFETTIVO (dopo non graditi e intolleranze):');
+  const critical: string[] = [];
+  for (const [slot, list] of pool) {
+    const blocked: { name: string; why: string }[] = [];
+    for (const r of list) {
+      const hit = hitsExclusion(recipeHaystack(r.name, r.ingredients), excluded);
+      if (hit) blocked.push({ name: r.name, why: hit });
+    }
+    const left = list.length - blocked.length;
+    const flag = left < MIN_ALTERNATIVES ? '  ⚠' : '';
+    console.log(`      ${slot.padEnd(12)} ${String(left).padStart(3)} su ${list.length} utilizzabili${flag}`);
+    for (const b of blocked) console.log(`          ✗ ${b.name}  → contiene "${b.why}"`);
+    if (left < MIN_ALTERNATIVES) critical.push(`${slot} (${left})`);
+  }
+  if (critical.length) {
+    console.log(`\n      ⚠  Sotto ${MIN_ALTERNATIVES} alternative: ${critical.join(', ')}.`);
+    console.log('         Con così poche scelte la varietà non è ottenibile da nessun parametro:');
+    console.log('         o si amplia il pool della dieta, o si assegna una dieta compatibile');
+    console.log('         con le esclusioni, o si rivede la lista dei non graditi con la cliente.');
+  }
 }
 
 async function showConfig() {
@@ -253,7 +308,7 @@ async function reportOutOfPool(days: Day[]) {
 }
 
 async function reportClient(clientId: string, email: string) {
-  await reportProfile(clientId);
+  const profile = await reportProfile(clientId);
   const days = await loadDays(clientId);
   console.log(`CLIENTE ${email} — ultimi ${DAYS} giorni: ${days.length} giornate di menu`);
   if (days.length === 0) {
@@ -283,6 +338,14 @@ async function reportClient(clientId: string, email: string) {
       console.log(`      ${slot.padEnd(12)} ${String(list.length).padStart(3)} alternative disponibili — servite ${served}`);
       for (const r of list) console.log(`          · ${r.name} (${r.kcal} kcal)`);
     }
+    reportEffectivePool(
+      pool,
+      exclusionKeys([
+        ...(profile?.dislikedFoods ?? []),
+        ...(profile?.intolerances ?? []),
+        ...(profile?.allergies ?? []),
+      ]),
+    );
   }
   await reportOutOfPool(days);
   console.log('');
@@ -307,21 +370,109 @@ async function reportDietRegimeCoherence() {
     select: { id: true, name: true, clientName: true, regime: true, mealsPerDay: true },
     orderBy: { name: 'asc' },
   })) as { id: string; name: string; clientName: string | null; regime: string; mealsPerDay: number }[];
-  const bad: { name: string; regime: string; expected: string }[] = [];
+  const bad: { id: string; name: string; regime: string; expected: string; mealsPerDay: number }[] = [];
   for (const d of diets) {
     const label = `${d.name} ${d.clientName ?? ''}`;
     // "vegetarian" matcha anche dentro "vegan"? no, ma l'ordine conta: vegan prima.
     const hint = NAME_HINTS.find((h) => h.re.test(label));
-    if (hint && d.regime !== hint.regime) bad.push({ name: d.name, regime: d.regime, expected: hint.regime });
+    if (hint && d.regime !== hint.regime) {
+      bad.push({ id: d.id, name: d.name, regime: d.regime, expected: hint.regime, mealsPerDay: d.mealsPerDay });
+    }
   }
   console.log(`COERENZA NOME ↔ REGIME (${diets.length} diete approvate)`);
   if (!bad.length) { console.log('  ok: nessun disallineamento.\n'); return; }
+
+  // Quante clienti sta servendo ciascuna dieta incoerente: senza questo numero il referto
+  // non dice al backoffice quanto è urgente, né su chi ricadrebbe la correzione.
+  const since = new Date(Date.now() - DAYS * 86_400_000);
+  const links = (await prisma.menuDay.findMany({
+    where: { date: { gte: since }, dietId: { in: bad.map((b) => b.id) } },
+    select: { dietId: true, clientId: true },
+    distinct: ['dietId', 'clientId'],
+  })) as { dietId: string | null; clientId: string }[];
+  const clientsByDiet = new Map<string, number>();
+  for (const l of links) if (l.dietId) clientsByDiet.set(l.dietId, (clientsByDiet.get(l.dietId) ?? 0) + 1);
+
+  bad.sort((a, b) => (clientsByDiet.get(b.id) ?? 0) - (clientsByDiet.get(a.id) ?? 0) || a.name.localeCompare(b.name));
+  console.log(`  ${bad.length} diete con nome e regime disallineati:\n`);
+  console.log(`  ${'id'.padEnd(26)} ${'nome'.padEnd(22)} ${'registrato'.padEnd(12)} ${'atteso'.padEnd(12)} pasti  clienti`);
   for (const b of bad) {
-    console.log(`  ⚠  "${b.name}": regime registrato = ${b.regime}, il nome fa pensare a ${b.expected}`);
+    const n = clientsByDiet.get(b.id) ?? 0;
+    console.log(
+      `  ${b.id.padEnd(26)} ${b.name.slice(0, 22).padEnd(22)} ${b.regime.padEnd(12)} ${b.expected.padEnd(12)} ${String(b.mealsPerDay).padStart(5)}  ${String(n).padStart(7)}${n ? '' : '  (nessuna servita nel periodo)'}`,
+    );
   }
-  console.log('     Conseguenza: la dieta viene abbinata alle clienti di regime "' + bad[0].regime + '" e le');
-  console.log('     alternative pescate PER REGIME (ricette semplici, sostituzioni) possono includere');
-  console.log('     alimenti che il nome del piano esclude. Correzione = dato, non codice.');
+  const totalClients = [...clientsByDiet.values()].reduce((a, b) => a + b, 0);
+  console.log(`\n  Clienti servite da queste diete negli ultimi ${DAYS} giorni: ${totalClients}.`);
+  console.log('  Conseguenza: `pickDiet` abbina la dieta per regime, quindi queste finiscono a clienti');
+  console.log('  del regime REGISTRATO, non di quello che il nome promette; e le sostituzioni pescano');
+  console.log('  alternative sempre per regime. Correzione = dato (regime o nome), non codice: solo lo');
+  console.log('  staff sa quale dei due campi è quello sbagliato.');
+  console.log('');
+}
+
+const poolSizesCache = new Map<string, Map<string, PoolRecipe[]>>();
+async function poolSizesCached(dietId: string, level: number) {
+  const key = `${dietId}|${level}`;
+  const hit = poolSizesCache.get(key);
+  if (hit) return hit;
+  const val = await poolSizes(dietId, level);
+  poolSizesCache.set(key, val);
+  return val;
+}
+
+/**
+ * Le clienti nella stessa condizione di quella che si è lamentata: una lista di esclusioni
+ * che riduce sotto soglia il pool della dieta assegnata. Per loro il motore non può produrre
+ * varietà, e ripiega su alternative fuori dal piano — che è il modo in cui la carne è finita
+ * in un piano di pesce. Sola lettura.
+ */
+async function reportInsufficientPools(clientIds: string[]) {
+  const rows: { email: string; diet: string; worst: string; left: number; of: number; excl: number }[] = [];
+  for (const clientId of clientIds) {
+    const profile = (await prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { dislikedFoods: true, intolerances: true, allergies: true },
+    })) as { dislikedFoods: string[]; intolerances: string[]; allergies: string[] } | null;
+    if (!profile) continue;
+    const terms = [...(profile.dislikedFoods ?? []), ...(profile.intolerances ?? []), ...(profile.allergies ?? [])];
+    if (!terms.length) continue;
+    const excluded = exclusionKeys(terms);
+    const days = await loadDays(clientId);
+    const last = [...days].reverse().find((d) => d.dietId);
+    if (!last?.dietId) continue;
+    const pool = await poolSizesCached(last.dietId, last.level ?? 1);
+    if (!pool.size) continue;
+    let worst: { slot: string; left: number; of: number } | null = null;
+    for (const [slot, list] of pool) {
+      const left = list.filter((r) => !hitsExclusion(recipeHaystack(r.name, r.ingredients), excluded)).length;
+      if (!worst || left < worst.left) worst = { slot, left, of: list.length };
+    }
+    if (!worst || worst.left >= MIN_ALTERNATIVES) continue;
+    const u = (await prisma.user.findUnique({ where: { id: clientId }, select: { email: true } })) as { email: string } | null;
+    const diet = (await prisma.diet.findUnique({ where: { id: last.dietId }, select: { name: true } })) as { name: string } | null;
+    rows.push({
+      email: u?.email ?? clientId,
+      diet: diet?.name ?? last.dietId,
+      worst: worst.slot,
+      left: worst.left,
+      of: worst.of,
+      excl: terms.length,
+    });
+  }
+  console.log(`\nPOOL EFFETTIVO INSUFFICIENTE (meno di ${MIN_ALTERNATIVES} alternative in almeno un pasto)`);
+  if (!rows.length) {
+    console.log('  ok: nessuna cliente in questa condizione.\n');
+    return;
+  }
+  rows.sort((a, b) => a.left - b.left || b.excl - a.excl);
+  for (const r of rows) {
+    console.log(
+      `  ⚠  ${r.email.padEnd(34)} "${r.diet}" — ${r.worst}: ${r.left}/${r.of} utilizzabili (${r.excl} esclusioni sul profilo)`,
+    );
+  }
+  console.log(`\n  → ${rows.length} clienti per cui nessun parametro di varietà può bastare: serve`);
+  console.log('    ampliare il pool della dieta, assegnarne una compatibile, o rivedere le esclusioni.');
   console.log('');
 }
 
@@ -360,7 +511,8 @@ async function reportFleet() {
   }
   const bad = scored.filter((s) => s.ratio < 0.4 || s.streak >= 3).length;
   console.log(`\n  → clienti con varietà bassa (<40% distinti o ≥3 giorni uguali di fila): ${bad}/${scored.length}`);
-  console.log('  Dettaglio di una cliente:  npm run diag:varieta -- --email=...\n');
+  console.log('  Dettaglio di una cliente:  npm run diag:varieta -- --email=...');
+  await reportInsufficientPools(rows.map((r) => r.clientId));
 }
 
 async function main() {
