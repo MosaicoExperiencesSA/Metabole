@@ -8,7 +8,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { validateObjective } from '../onboarding/objective-validator';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { subscriptionEnd } from '../commerce/commerce.service';
+import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
@@ -94,12 +94,7 @@ export class ProfileService {
       take: 10,
       select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { period: true } } },
     })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { period: string } }[];
-    const sub =
-      subs.find((s) => s.status === 'active') ??
-      subs.find((s) => s.status === 'pending') ??
-      subs.find((s) => s.status !== 'cancelled' && s.status !== 'expired') ??
-      subs.find((s) => s.status === 'expired') ??
-      null;
+    const sub = pickMainSubscription(subs);
     if (!sub) return;
     const newEnd = subscriptionEnd(d, sub.plan.period);
     const reactivate = newEnd.getTime() > Date.now() && (sub.status === 'active' || sub.status === 'expired');

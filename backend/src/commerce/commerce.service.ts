@@ -78,6 +78,31 @@ export function isKnownPeriod(period: string): boolean {
 /** Durata prova di default (giorni) quando un piano gratuito non ha un period valido. */
 export const FREE_PLAN_FALLBACK_PERIOD = '8d';
 
+/**
+ * Sceglie l'abbonamento "principale" di una cliente: quello che la scheda mostra come piano
+ * corrente e quello su cui agiscono le correzioni di data.
+ *
+ * Priorità: attivo > in attesa > qualunque altro stato non terminale (es. in pausa) > scaduto >
+ * (in ultimo) il più recente, che a quel punto può essere solo annullato. La lista va passata
+ * GIÀ ORDINATA per `createdAt` decrescente, così a parità di stato vince il più recente.
+ *
+ * Questa funzione esiste perché la stessa scelta era ricopiata in tre punti e uno era diverso:
+ * `updatePlanStart` si fermava a "attivo > in attesa > il più recente" e quindi, su una cliente
+ * con un checkout ANNULLATO creato dopo la prova, spostava le date sull'abbonamento annullato
+ * mentre la scheda continuava a mostrare la prova scaduta con le date vecchie. Da fuori sembrava
+ * che il salvataggio non facesse niente. Una sola funzione, un solo comportamento.
+ */
+export function pickMainSubscription<T extends { status: string }>(subs: T[]): T | null {
+  return (
+    subs.find((s) => s.status === 'active') ??
+    subs.find((s) => s.status === 'pending') ??
+    subs.find((s) => s.status !== 'cancelled' && s.status !== 'expired') ??
+    subs.find((s) => s.status === 'expired') ??
+    subs[0] ??
+    null
+  );
+}
+
 @Injectable()
 export class CommerceService {
   private readonly receiptKey: Buffer;

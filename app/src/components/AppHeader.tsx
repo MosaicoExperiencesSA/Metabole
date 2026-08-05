@@ -67,18 +67,24 @@ export default function AppHeader({
   title,
   alertBadge = 0,
   alertItems,
+  plain = false,
 }: {
   title: string;
   alertBadge?: number;
   alertItems?: ReactNode;
+  /** Header "semplice": solo barra teal + brand + titolo, senza le 4 icone né le
+   *  notifiche. Per le pagine pubbliche/di servizio (login, reset password, ecc.)
+   *  dove l'utente non è (ancora) autenticato e le API /me non sono disponibili. */
+  plain?: boolean;
 }) {
   const nav = useNavigate();
   const [sheet, setSheet] = useState<null | 'bell' | 'alert'>(null);
   const [notifs, setNotifs] = useState<Notif[]>([]);
 
   useEffect(() => {
+    if (plain) return;
     api<Notif[]>('/me/notifications').then((r) => setNotifs(Array.isArray(r) ? r : [])).catch(() => setNotifs([]));
-  }, []);
+  }, [plain]);
 
   const unread = notifs.filter((n) => !n.readAt).length;
   const read = notifs.length - unread;
@@ -139,22 +145,24 @@ export default function AppHeader({
           <div className="app-header-brand">METABOLE<span style={{ color: '#E4DBFF' }}>AI</span></div>
           <div className="app-header-title">{title}</div>
         </div>
-        <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
-          <button className="hicon" aria-label="Notifiche" onClick={() => setSheet('bell')}>
-            <i className="ti ti-bell" />
-            {unread > 0 && <span className="hbadge">{unread}</span>}
-          </button>
-          <button className="hicon" aria-label="Da completare" onClick={() => setSheet('alert')}>
-            <i className="ti ti-alert-triangle" />
-            {alertBadge > 0 && <span className="hbadge">{alertBadge}</span>}
-          </button>
-          <button className="hicon" aria-label="Shop" onClick={() => nav('/shop')}>
-            <i className="ti ti-shopping-bag" />
-          </button>
-          <button className="hicon hicon-user" aria-label="Profilo" onClick={() => nav('/profilo')}>
-            <i className="ti ti-user" />
-          </button>
-        </div>
+        {!plain && (
+          <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
+            <button className="hicon" aria-label="Notifiche" onClick={() => setSheet('bell')}>
+              <i className="ti ti-bell" />
+              {unread > 0 && <span className="hbadge">{unread}</span>}
+            </button>
+            <button className="hicon" aria-label="Da completare" onClick={() => setSheet('alert')}>
+              <i className="ti ti-alert-triangle" />
+              {alertBadge > 0 && <span className="hbadge">{alertBadge}</span>}
+            </button>
+            <button className="hicon" aria-label="Shop" onClick={() => nav('/shop')}>
+              <i className="ti ti-shopping-bag" />
+            </button>
+            <button className="hicon hicon-user" aria-label="Profilo" onClick={() => nav('/profilo')}>
+              <i className="ti ti-user" />
+            </button>
+          </div>
+        )}
       </div>
 
       {sheet === 'bell' && (

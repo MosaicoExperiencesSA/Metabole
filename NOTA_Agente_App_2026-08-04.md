@@ -69,6 +69,14 @@ resta acceso anche dopo uno skip. Dettagli in `REGISTRO_Salta_Checkin.md`.
 > Questo è l'unico punto di §B con una **migration** dietro (§A): il backend va live al push, il
 > bundle no.
 
+**`app/src/lib/water.ts` + `app/src/pages/Home.tsx`** *(aggiunto il 05/08)* — riquadro **acqua** in
+Home. Chi conta in bottiglie vedeva l'obiettivo come risultato di una divisione: con obiettivo 11
+bicchieri e bottiglie da 1,5 L usciva `5/1,8`, e quell'1,8 si leggeva come se fosse la misura della
+bottiglia. Ora l'obiettivo è detto in **bottiglie intere** (`5/2`) e il litraggio esatto sta nel
+suggerimento del riquadro. Chi conta in bicchieri non vede differenze. Nessuna migration, nessun
+endpoint: sta **dentro il bundle**, quindi arriva solo con l'OTA. Dettagli in
+`REGISTRO_Widget_Acqua_Obiettivo_Bottiglie.md`.
+
 ### Perché stavolta l'OTA non è rimandabile
 Le note precedenti dicevano "l'app installata mostra il comportamento vecchio". Qui è diverso:
 il vecchio bundle mostra **testi che non corrispondono più a quello che il server fa**.

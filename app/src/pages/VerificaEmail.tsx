@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import AppHeader from '../components/AppHeader';
 
 /**
  * Pagina aperta dal link di verifica email della REGISTRAZIONE.
@@ -25,7 +26,9 @@ export default function VerificaEmail() {
 
   return (
     <div className="app-frame">
-      <div className="screen no-tabbar" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', gap: 12, padding: 24 }}>
+      <div className="screen no-tabbar">
+        <AppHeader title="Verifica email" plain />
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', gap: 12, minHeight: '55vh' }}>
         {state === 'loading' && (<><div className="spin" /><p className="muted">Verifico la tua email…</p></>)}
         {state === 'ok' && (
           <>
@@ -43,6 +46,7 @@ export default function VerificaEmail() {
             <button className="btn ghost" onClick={() => navigate('/')}>Torna alla home</button>
           </>
         )}
+        </div>
       </div>
     </div>
   );

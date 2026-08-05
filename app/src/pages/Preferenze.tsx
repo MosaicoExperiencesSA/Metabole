@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiPublic } from '../api/client';
+import AppHeader from '../components/AppHeader';
 
 /**
  * Preferenze marketing (handoff punto 6, GDPR): pagina PUBBLICA raggiunta dal
@@ -50,9 +51,9 @@ export default function Preferenze() {
   }
 
   return (
-    <div className="home" style={{ maxWidth: 480, margin: '0 auto', padding: '28px 18px' }}>
+    <div className="home" style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px 28px' }}>
+      <AppHeader title="Preferenze" plain />
       <div style={{ textAlign: 'center', marginBottom: 18 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--teal)' }}>Metabole</div>
         <div className="muted" style={{ fontSize: 13 }}>Le tue preferenze di comunicazione</div>
       </div>
 

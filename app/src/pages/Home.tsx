@@ -9,7 +9,7 @@ import MenuReviewPopup from '../components/MenuReviewPopup';
 import VoiceToggle from '../components/VoiceToggle';
 import { fraseDelGiorno } from '../lib/frasiGaia';
 import { getTodaySteps } from '../lib/steps';
-import { DEFAULT_WATER_UNIT, isWaterUnit, waterIcon, waterStep, waterValue, type WaterUnit } from '../lib/water';
+import { DEFAULT_WATER_UNIT, isWaterUnit, WATER_UNITS, waterGoalValue, waterIcon, waterLiters, waterStep, waterValue, type WaterUnit } from '../lib/water';
 import StartDatePrompt from '../components/StartDatePrompt';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 import PendingBankTransfers from '../components/PendingBankTransfers';
@@ -460,7 +460,11 @@ export default function Home() {
       {/* KPI di oggi: kcal · acqua · passi */}
       <div style={{ display: 'flex', gap: 9, margin: '12px 0' }}>
         <KpiTile icon="ti-flame" value={totKcal > 0 ? totKcal.toLocaleString('it-IT') : '—'} label="kcal" color="#E8825A" />
-        <KpiTile icon={waterIcon(waterUnit)} value={today ? `${waterValue(today.water.glasses, waterUnit)}/${waterValue(today.water.goal, waterUnit)}` : '—'} label="acqua" color="#2AA7C4" onClick={today ? addWater : undefined} hint={`Tocca per aggiungere ${waterUnit === 'glass' ? 'un bicchiere' : 'una bottiglia'}`} />
+        {/* Bevuto/obiettivo NELL'UNITÀ SCELTA dalla cliente: se conta in bottiglie, anche
+            l'obiettivo è un numero intero di bottiglie (`waterGoalValue`), non il risultato con
+            la virgola di una divisione — «1,8» accanto a «bottiglie da 1,5 L» si leggeva come se
+            fosse la misura della bottiglia. Il litraggio esatto resta nel suggerimento. */}
+        <KpiTile icon={waterIcon(waterUnit)} value={today ? `${waterValue(today.water.glasses, waterUnit)}/${waterGoalValue(today.water.goal, waterUnit)}` : '—'} label="acqua" color="#2AA7C4" onClick={today ? addWater : undefined} hint={today ? `Tocca per aggiungere ${waterUnit === 'glass' ? 'un bicchiere (250 ml)' : `una ${WATER_UNITS[waterUnit].label.toLowerCase().replace(/^bottiglie/, 'bottiglia')}`} · obiettivo di oggi ${waterLiters(today.water.goal)}` : undefined} />
         <KpiTile icon="ti-walk" value={deviceSteps != null ? deviceSteps.toLocaleString('it-IT') : today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
       </div>
 

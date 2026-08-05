@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { track } from '../lib/track';
 import { useCart } from '../cart/CartContext';
+import AppHeader from '../components/AppHeader';
 
 const euro = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
 
@@ -124,6 +125,7 @@ export default function Checkout() {
   if (done) {
     return (
       <div className="menu">
+        <AppHeader title="Carrello" />
         <div style={{ textAlign: 'center', paddingTop: 20 }}>
           <span className="big-badge" style={{ background: '#DCF0D8', color: '#3B6D11', margin: '0 auto 14px' }}><i className="ti ti-mail-check" /></span>
           <h1>Ci siamo quasi!</h1>
@@ -137,6 +139,7 @@ export default function Checkout() {
   if (cart.count === 0) {
     return (
       <div className="menu">
+        <AppHeader title="Carrello" />
         <div className="menu-head">
           <span className="event-ic" style={{ background: '#EFEAF9', color: '#6C5AB7' }}><i className="ti ti-basket" /></span>
           <div><h1 style={{ margin: 0 }}>Carrello</h1><div className="muted">Il tuo carrello è vuoto</div></div>
@@ -148,6 +151,7 @@ export default function Checkout() {
 
   return (
     <div className="menu">
+      <AppHeader title="Carrello" />
       <div className="menu-head">
         <span className="event-ic" style={{ background: '#EFEAF9', color: '#6C5AB7' }}><i className="ti ti-basket" /></span>
         <div><h1 style={{ margin: 0 }}>Carrello</h1><div className="muted">Rivedi e paga</div></div>

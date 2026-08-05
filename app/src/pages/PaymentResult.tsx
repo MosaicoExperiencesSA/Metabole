@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import WidgetInstall from '../components/WidgetInstall';
+import AppHeader from '../components/AppHeader';
 
 /**
  * Ritorno da Stripe Checkout: /payment/success e /payment/cancelled.
@@ -39,6 +40,7 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
   if (!ok) {
     return (
       <div className="onb-body" style={{ textAlign: 'center', paddingTop: 24 }}>
+        <AppHeader title="Pagamento" />
         <span className="big-badge" style={{ background: '#F7DAD6', color: '#993C1D', margin: '0 auto 14px' }}><i className="ti ti-x" /></span>
         <h1>Pagamento annullato</h1>
         <p className="muted">Nessun addebito effettuato. Puoi completare il pagamento quando vuoi.</p>
@@ -52,6 +54,7 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
     const visible = addDays(start, -VISIBLE_DAYS_BEFORE);
     return (
       <div className="onb-body" style={{ paddingTop: 12 }}>
+        <AppHeader title="Pagamento" />
         <div style={{ textAlign: 'center' }}>
           <span className="big-badge" style={{ background: '#DCF0D8', color: '#3B6D11', margin: '0 auto 12px' }}><i className="ti ti-circle-check" /></span>
           <h1 style={{ marginBottom: 4 }}>Pagamento ricevuto!</h1>
@@ -81,6 +84,7 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
   const alreadyVisible = daysToVisible <= 0;
   return (
     <div className="onb-body" style={{ paddingTop: 12 }}>
+      <AppHeader title="Pagamento" />
       <div style={{ textAlign: 'center' }}>
         <span className="big-badge" style={{ background: '#DCF0D8', color: '#3B6D11', margin: '0 auto 12px' }}><i className="ti ti-circle-check" /></span>
         <h1 style={{ marginBottom: 4 }}>Tutto pronto!</h1>

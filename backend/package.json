@@ -33,6 +33,7 @@
     "diag:varieta": "ts-node --transpile-only prisma/diag-varieta-menu.ts",
     "fix:varieta": "ts-node --transpile-only prisma/fix-varieta-menu.ts",
     "diag:rigenera": "ts-node --transpile-only prisma/diag-rigenera-menu.ts",
+    "diag:abbonamenti": "ts-node --transpile-only prisma/diag-abbonamenti-cliente.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"

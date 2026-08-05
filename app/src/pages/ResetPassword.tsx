@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiPublic, ApiError } from '../api/client';
 import PasswordField from '../components/PasswordField';
+import AppHeader from '../components/AppHeader';
 
 /**
  * Reset password cliente — stesso flusso del backoffice.
@@ -53,7 +54,9 @@ export default function ResetPassword() {
 
   return (
     <div className="app-frame">
-      <div className="screen no-tabbar" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      <div className="screen no-tabbar">
+        <AppHeader title="Reimposta password" plain />
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '55vh' }}>
         <div className="card" style={{ width: '100%', maxWidth: 380 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--teal)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
@@ -111,6 +114,7 @@ export default function ResetPassword() {
               <span className="link" style={{ cursor: 'pointer' }} onClick={() => navigate('/login')}>Torna all'accesso</span>
             </p>
           )}
+        </div>
         </div>
       </div>
     </div>

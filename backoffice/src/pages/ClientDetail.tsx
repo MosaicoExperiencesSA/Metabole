@@ -294,8 +294,14 @@ export function ClientDetail() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { setError('Data non valida: usa AAAA-MM-GG (o GG/MM/AAAA).'); return; }
     setError(null); setNotice(null);
     try {
-      const r = await api<{ startDate: string; endDate: string }>(`/admin/clients/${id}/plan-start`, { method: 'PATCH', body: JSON.stringify({ date: iso }) });
-      setNotice(`Inizio piano spostato al ${date(r.startDate)} (fine ricalcolata: ${date(r.endDate)}).`);
+      const r = await api<{ startDate: string; endDate: string; plan?: string; status?: string; reactivated?: boolean }>(`/admin/clients/${id}/plan-start`, { method: 'PATCH', body: JSON.stringify({ date: iso }) });
+      // Diciamo SU QUALE abbonamento abbiamo agito e com'è rimasto: con più abbonamenti in scheda
+      // il solo "spostato" non basta a capire se si è toccato quello giusto.
+      setNotice(
+        `Inizio piano spostato al ${date(r.startDate)} (fine ricalcolata: ${date(r.endDate)})` +
+          (r.plan ? ` su «${r.plan}»` : '') +
+          (r.reactivated ? ' — piano riportato ad ATTIVO.' : r.status ? ` — stato: ${lab('subStatus', r.status)}.` : '.'),
+      );
       void loadDetail();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Cambio data non riuscito.');

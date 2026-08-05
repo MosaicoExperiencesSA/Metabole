@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import AppHeader from '../components/AppHeader';
 
 /**
  * Pagina aperta dal link di verifica nella nuova email (cambio email).
@@ -26,7 +27,9 @@ export default function ConfermaEmail() {
 
   return (
     <div className="app-frame">
-      <div className="screen no-tabbar" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', gap: 12, padding: 24 }}>
+      <div className="screen no-tabbar">
+        <AppHeader title="Conferma email" plain />
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', gap: 12, minHeight: '55vh' }}>
         {state === 'loading' && (<><div className="spin" /><p className="muted">Confermo la tua email…</p></>)}
         {state === 'ok' && (
           <>
@@ -44,6 +47,7 @@ export default function ConfermaEmail() {
             <button className="btn ghost" onClick={() => navigate('/')}>Torna alla home</button>
           </>
         )}
+        </div>
       </div>
     </div>
   );

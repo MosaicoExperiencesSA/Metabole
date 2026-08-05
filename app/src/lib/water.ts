@@ -37,3 +37,27 @@ export function waterValue(glasses: number, unit: WaterUnit): string {
     ? String(v)
     : v.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
+
+/**
+ * L'obiettivo giornaliero ESPRESSO NELL'UNITÀ SCELTA, come numero intero di unità.
+ *
+ * L'obiettivo arriva dal server in bicchieri ed è calcolato sul peso (circa 33 ml/kg), quindi è
+ * quasi sempre un numero che nelle bottiglie non torna tondo: 11 bicchieri = 2,75 L diventano
+ * 11/6 = 1,83 e in dashboard si leggevano «1,8» accanto all'etichetta «bottiglie da 1,5 L», cioè
+ * un numero che sembrava la misura della bottiglia invece che l'obiettivo. Se la cliente ha scelto
+ * di contare in bottiglie, l'obiettivo va detto in bottiglie intere: quante gliene servono.
+ *
+ * Arrotondiamo all'intero più vicino, mai sotto una unità. Il litraggio esatto non si perde: resta
+ * nel suggerimento del riquadro (`waterLiters`). L'obiettivo VERO, quello su cui il backend valuta
+ * l'aderenza, resta quello in bicchieri: qui cambia solo come lo si legge.
+ */
+export function waterGoalValue(goalGlasses: number, unit: WaterUnit): string {
+  const per = WATER_UNITS[unit].glasses;
+  if (per === 1) return String(Math.max(1, Math.round(goalGlasses)));
+  return String(Math.max(1, Math.round(goalGlasses / per)));
+}
+
+/** Un numero di bicchieri scritto in litri, per dire l'obiettivo esatto senza ambiguità. */
+export function waterLiters(glasses: number): string {
+  return `${(glasses * 0.25).toLocaleString('it-IT', { maximumFractionDigits: 2 })} L`;
+}

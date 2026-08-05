@@ -6,7 +6,7 @@ import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
-import { subscriptionEnd } from '../commerce/commerce.service';
+import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
 import { Role } from '../common/roles';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -159,13 +159,7 @@ export class ClientsService {
     const subs = subscriptions as { status: string }[];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const subscription =
-      subs.find((s) => s.status === 'active') ??
-      subs.find((s) => s.status === 'pending') ??
-      subs.find((s) => s.status !== 'cancelled' && s.status !== 'expired') ?? // es. paused
-      subs.find((s) => s.status === 'expired') ??
-      subs[0] ??
-      null;
+    const subscription = pickMainSubscription(subs);
     // Flag per la scheda: c'è un abbonamento ATTIVO ed ENTRO il periodo? (status 'active' e
     // endDate non passata). Il controllo su endDate copre il caso in cui il cron di scadenza è
     // in ritardo: un piano finito risulta comunque "senza piano attivo". I piani spostati in
@@ -542,7 +536,13 @@ export class ClientsService {
       take: 10,
       select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { name: true, period: true } } },
     })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string; period: string } }[];
-    const sub = subs.find((x) => x.status === 'active') ?? subs.find((x) => x.status === 'pending') ?? subs[0] ?? null;
+    // STESSA scelta della scheda (`pickMainSubscription`): l'abbonamento che l'operatore vede
+    // scritto sopra il tasto è quello che la matita sposta. Prima qui la catena si fermava a
+    // "attivo > in attesa > il più recente" e su una cliente con un checkout ANNULLATO creato
+    // dopo la prova finiva per spostare le date dell'annullato: la scheda continuava a mostrare
+    // la prova scaduta con la fine vecchia e il piano non tornava attivo, pur con il messaggio
+    // di salvataggio riuscito.
+    const sub = pickMainSubscription(subs);
     if (!sub) throw new NotFoundException('Nessun abbonamento su cui spostare la data.');
 
     const newEnd = subscriptionEnd(d, sub.plan.period);
@@ -600,7 +600,16 @@ export class ClientsService {
     } catch {
       /* mai bloccare lo spostamento della data per un errore di rigenerazione */
     }
-    return { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10) };
+    // Torniamo anche QUALE abbonamento è stato spostato e come è rimasto: se la cliente ha più
+    // abbonamenti, l'operatore deve poter leggere dal messaggio se ha toccato quello giusto e se
+    // il piano è tornato attivo, invece di doverlo dedurre guardando la scheda.
+    return {
+      startDate: d.toISOString().slice(0, 10),
+      endDate: newEnd.toISOString().slice(0, 10),
+      plan: sub.plan.name,
+      status: reactivate ? 'active' : sub.status,
+      reactivated: reactivate,
+    };
   }
 
   /**
