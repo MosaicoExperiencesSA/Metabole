@@ -50,6 +50,7 @@ jobs:
           npm run android:steps
           npm run android:push
           npm run android:icon
+          npm run android:play
 
       - name: Build APK di debug
         working-directory: app/android
