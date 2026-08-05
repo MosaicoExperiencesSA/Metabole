@@ -68,7 +68,11 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       },
     };
     prisma.engineDecision = { findFirst: jest.fn().mockResolvedValue(null) };
-    prisma.subscription = { findFirst: jest.fn().mockResolvedValue({ id: 'sub1', status: 'active' }) };
+    prisma.subscription = {
+      findFirst: jest.fn().mockResolvedValue({ id: 'sub1', status: 'active' }),
+      // `menuStatus` legge TUTTI gli abbonamenti per capire se il percorso è concluso.
+      findMany: jest.fn().mockResolvedValue([{ status: 'active', endDate: null }]),
+    };
     const config = {
       getNumber: jest.fn((key: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[key] ?? def),
@@ -232,6 +236,55 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     const zucchine = list.items.find((i: any) => i.name.toLowerCase() === 'zucchine');
     expect(zucchine.qty).toBe(250);
     expect(list.items).toHaveLength(2);
+  });
+
+  // --- Finestra di getMenu ---
+  // Emula il comportamento di Prisma (orderBy + take) su uno storico più lungo della
+  // finestra: è l'unico modo per far vedere al test la differenza tra "i primi 30" e
+  // "gli ultimi 30". 45 giorni consecutivi che finiscono DOPODOMANI (storico + oggi +
+  // i due giorni già erogati in avanti), come una cliente al secondo mese di piano.
+  const storicoLungo = () => {
+    const rows = Array.from({ length: 45 }, (_, i) => ({
+      id: `md${i}`,
+      date: D(daysFromToday(i - 42)),
+      meals: [{ slot: 'lunch', recipeId: 'r1', name: 'Farro', kcal: 520 }],
+    }));
+    prisma.menuDay.findMany.mockImplementation((args: any) => {
+      if (args?.orderBy?.date !== 'asc' && args?.orderBy?.date !== 'desc') return Promise.resolve([]);
+      const ordered = args.orderBy.date === 'desc' ? [...rows].reverse() : [...rows];
+      return Promise.resolve(args.take ? ordered.slice(0, args.take) : ordered);
+    });
+    return rows;
+  };
+
+  it('getMenu: oltre i 30 giorni erogati la finestra contiene comunque OGGI', async () => {
+    storicoLungo();
+    const res: any = await service.getMenu('u1');
+    const giorni = res.days.map((d: any) => d.date.toISOString().slice(0, 10));
+    expect(giorni).toContain(todayIso);
+    expect(giorni).toContain(daysFromToday(2)); // e i giorni già erogati in avanti
+  });
+
+  it('getMenu: i giorni tornano in ordine crescente (la pagina Menu ci conta)', async () => {
+    storicoLungo();
+    const res: any = await service.getMenu('u1');
+    const giorni = res.days.map((d: any) => d.date.toISOString().slice(0, 10));
+    expect(giorni).toEqual([...giorni].sort());
+    expect(giorni).toHaveLength(30);
+  });
+
+  it('getMenu: con giorni futuri visibili lo stato è "available", non "preparing"', async () => {
+    storicoLungo();
+    const res: any = await service.getMenu('u1');
+    expect(res.status.state).toBe('available');
+  });
+
+  it('getMenu: con from E to insieme restano ENTRAMBI i limiti', async () => {
+    prisma.menuDay.findMany.mockResolvedValue([]);
+    await service.getMenu('u1', daysFromToday(-3), daysFromToday(3));
+    const where = prisma.menuDay.findMany.mock.calls.at(-1)[0].where;
+    expect(where.date.gte).toEqual(D(daysFromToday(-3)));
+    expect(where.date.lte).toEqual(D(daysFromToday(3)));
   });
 });
 

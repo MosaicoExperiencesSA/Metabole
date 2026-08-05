@@ -58,6 +58,14 @@ const SUBSTITUTION_MAP: Record<string, string> = {
  * La scelta dieta+livello qui è deterministica (match sul profilo);
  * dal M5 sarà il motore a decidere (source_rule_id).
  */
+/**
+ * Quanti giorni di menu tornano al client in una sola richiesta. È un tetto al peso della
+ * risposta (ogni giorno porta con sé lo snapshot dei pasti), non un limite del percorso: la
+ * finestra scorre e prende i giorni PIÙ RECENTI, così oggi e i giorni già erogati in avanti
+ * ci sono sempre, quanto lungo sia il piano. Per lo storico completo servono `from`/`to`.
+ */
+const MENU_WINDOW_DAYS = 30;
+
 /** Override numerico per dieta: usa il valore per-dieta se numerico, altrimenti il globale. */
 function pickNumOverride(overrides: Map<string, number | boolean>, code: string, global: number): number {
   const v = overrides.get(code);
@@ -81,26 +89,46 @@ export class MenuService {
     private readonly kcalNeed: KcalNeedService,
   ) {}
 
-  /** Menu visibile della cliente; prova a erogare i giorni successivi se ha diritto. */
+  /**
+   * Menu visibile della cliente; prova a erogare i giorni successivi se ha diritto.
+   *
+   * FINESTRA: si restituiscono gli ULTIMI `MENU_WINDOW_DAYS` giorni visibili — cioè
+   * oggi, i giorni già erogati in avanti e lo storico recente — non i primi.
+   * Prima la query era `orderBy: date asc` con `take: 30` e nessun limite inferiore:
+   * appena una cliente superava i 30 giorni erogati riceveva i 30 giorni PIÙ VECCHI e
+   * il giorno di oggi restava fuori dalla pagina. La Home cerca esattamente la data di
+   * oggi (`days.find(d => d.date === iso)`) e non trovandola mostrava "menu in
+   * preparazione", la pagina Menu non aveva nessun giorno "in arrivo" da selezionare, e
+   * `menuStatus` — che riceve `hasVisibleMenu` calcolato su questi stessi giorni —
+   * confermava lo stato sbagliato. Da fuori sembrava che i menu non venissero generati:
+   * erano in tabella, ma fuori finestra. Ordinando al contrario i giorni futuri sono
+   * sempre dentro, perché sono i più recenti.
+   */
   async getMenu(clientId: string, from?: string, to?: string) {
     const delivered = await this.deliverIfEligible(clientId);
     const today = toDateOnly();
 
+    // Un solo oggetto `date`: con due spread separati il secondo sovrascriveva il primo
+    // e passando sia `from` sia `to` il limite inferiore veniva perso senza errori.
+    const dateRange = {
+      ...(from ? { gte: toDateOnly(from) } : {}),
+      ...(to ? { lte: toDateOnly(to) } : {}),
+    };
     const menuDays = await this.prisma.menuDay.findMany({
       where: {
         clientId,
         visibleFrom: { lte: today }, // rispetta visible_from
-        ...(from ? { date: { gte: toDateOnly(from) } } : {}),
-        ...(to ? { date: { lte: toDateOnly(to) } } : {}),
+        ...(from || to ? { date: dateRange } : {}),
       },
-      orderBy: { date: 'asc' },
-      take: 30,
+      orderBy: { date: 'desc' }, // i più recenti: oggi e il futuro non escono mai dalla finestra
+      take: MENU_WINDOW_DAYS,
     });
+    menuDays.reverse(); // l'app si aspetta i giorni in ordine crescente
     const blocked = await this.dietBlock(clientId);
     const status = await this.menuStatus(clientId, menuDays.some((d) => d.date.getTime() >= today.getTime()));
-    // NB: restituiamo sempre tutti i giorni (lo STORICO resta leggibile anche a piano
-    // scaduto). Il "menu di oggi" in dashboard viene nascosto lato app quando
-    // `status.state === 'expired'`, ma la cronologia resta consultabile.
+    // NB: restituiamo sempre tutti i giorni della finestra (lo STORICO recente resta
+    // leggibile anche a piano scaduto). Il "menu di oggi" in dashboard viene nascosto
+    // lato app quando `status.state === 'expired'`, ma la cronologia resta consultabile.
     return { delivered, days: menuDays, blocked, status };
   }
 
