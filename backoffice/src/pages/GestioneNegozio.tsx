@@ -205,7 +205,7 @@ export function GestioneNegozio() {
             <label style={fld}><span>Fine promo (opz. — scaduta, torna il listino)</span>
               <input className="input" type="datetime-local" value={planForm.promoEndsAt ?? ''} onChange={(e) => setPlanForm({ ...planForm, promoEndsAt: e.target.value })} />
             </label>
-            <Fld label="Periodo (es. 8d, 2w, 3m, 1y)" v={planForm.period} on={(v) => setPlanForm({ ...planForm, period: v })} />
+            <Fld label="Periodo (es. 8d, 2w, 3m, 1y — «maintenance» per il mantenimento)" v={planForm.period} on={(v) => setPlanForm({ ...planForm, period: v })} />
             <Fld label="Pasti/giorno (opz.)" v={planForm.mealsPerDay} on={(v) => setPlanForm({ ...planForm, mealsPerDay: v })} />
             <Fld label="Caratteristiche (virgola)" v={planForm.features} on={(v) => setPlanForm({ ...planForm, features: v })} wide />
             <label style={fld}><span>Attivo</span>
@@ -225,6 +225,15 @@ export function GestioneNegozio() {
           {toCents(planForm.price ?? '0') === 0 && !/^\d+\s*d$/i.test((planForm.period ?? '').trim()) && (
             <div style={{ marginTop: 12, padding: '9px 12px', borderRadius: 8, background: '#FBEEE6', border: '1px solid #E0A98A', color: '#8A4B2A', fontSize: 13, lineHeight: 1.45 }}>
               <b>Attenzione:</b> piano gratuito (€ 0) con durata {(planForm.period ?? '').trim() ? <>non in giorni (<b>«{planForm.period}»</b>)</> : 'non impostata'}. Una prova gratuita dovrebbe durare pochi giorni: imposta il <b>Periodo</b> in giorni, es. <b>8d</b>. Con un periodo mensile/annuale (o vuoto) l'accesso gratuito durerebbe troppo.
+            </div>
+          )}
+          {/* Avviso: il piano di MANTENIMENTO è riconosciuto dal periodo «maintenance», non dal
+              nome. Cambiarlo spegne in silenzio quattro cose (vetrina, report, monitoraggio,
+              attività coach), quindi va detto PRIMA di salvare. */}
+          {(planForm.origPeriod ?? '').trim().toLowerCase() === 'maintenance'
+            && (planForm.period ?? '').trim().toLowerCase() !== 'maintenance' && (
+            <div style={{ marginTop: 12, padding: '9px 12px', borderRadius: 8, background: '#FBEEE6', border: '1px solid #E0A98A', color: '#8A4B2A', fontSize: 13, lineHeight: 1.45 }}>
+              <b>Attenzione:</b> questo è il piano di <b>Mantenimento</b> e lo si riconosce dal Periodo <b>«maintenance»</b>, non dal nome. Se lo cambi in <b>«{planForm.period || '(vuoto)'}»</b> il piano diventa un abbonamento come gli altri: <b>comparirà nello shop a tutte le clienti</b> (non solo a chi ha raggiunto l'obiettivo), sparirà il riquadro Mantenimento dal report di fine percorso, e non scatteranno più il monitoraggio del peso né l'attività coach «peso che risale». Riportalo a <b>maintenance</b> se non è quello che vuoi.
             </div>
           )}
           <div className="row" style={{ gap: 8, marginTop: 12 }}>
@@ -254,7 +263,7 @@ export function GestioneNegozio() {
                 <td className="muted" style={{ fontSize: 12 }}>{commSummary(p)}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), listPrice: p.listPriceCents != null ? fromCents(p.listPriceCents) : '', promoEndsAt: p.promoEndsAt ? p.promoEndsAt.slice(0, 16) : '', period: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), listPrice: p.listPriceCents != null ? fromCents(p.listPriceCents) : '', promoEndsAt: p.promoEndsAt ? p.promoEndsAt.slice(0, 16) : '', period: p.period, origPeriod: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delPlan(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>

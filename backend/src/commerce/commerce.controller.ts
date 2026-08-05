@@ -264,10 +264,15 @@ class UpdateCrmListDto {
 export class CatalogCommerceController {
   constructor(private readonly commerce: CommerceService) {}
 
+  /**
+   * Catalogo pubblico: **senza il mantenimento**, che si propone solo a obiettivo raggiunto e
+   * quindi richiede di sapere chi sta chiedendo. Le clienti loggate usano `GET /me/plans`, che
+   * applica la regola per davvero; il backoffice ha `GET /admin/purchases/plans`.
+   */
   @Public()
   @Get('plans')
   plans() {
-    return this.commerce.listPlans();
+    return this.commerce.listPublicPlans();
   }
 
   @Public()
@@ -395,6 +400,16 @@ export class AdminPurchasesController {
   @Get()
   list(@Query('status') status?: string) {
     return this.commerce.listPayments(status);
+  }
+
+  /**
+   * Piani vendibili a mano dall'operatrice: l'elenco COMPLETO, mantenimento incluso.
+   * Il modale "Nuovo acquisto manuale" leggeva `GET /plans`, che ora nasconde il mantenimento:
+   * senza questo endpoint l'operatrice non potrebbe piu' attivarlo a nessuno.
+   */
+  @Get('plans')
+  plans() {
+    return this.commerce.listPlans();
   }
 
   @Get(':id/receipt-pdf')

@@ -45,7 +45,7 @@ type PrismaTx = Prisma.TransactionClient;
 export function subscriptionEnd(start: Date, period: string): Date {
   const end = new Date(start);
   // 'maintenance' = piano mensile (€29/mese, rinnovo manuale): dura 1 mese.
-  if (String(period ?? '').trim().toLowerCase() === 'maintenance') {
+  if (isMaintenancePlan(period)) {
     end.setMonth(end.getMonth() + 1);
     return end;
   }
@@ -69,14 +69,29 @@ export function subscriptionEnd(start: Date, period: string): Date {
  * piano GRATUITO mal configurato. Usato come rete di sicurezza in fase di attivazione.
  */
 export function isKnownPeriod(period: string): boolean {
+  if (isMaintenancePlan(period)) return true;
   const p = String(period ?? '').trim().toLowerCase();
-  if (p === 'maintenance') return true;
   const m = p.match(/^(\d+)\s*([dwmy]?)$/);
   return !!m && Number.isFinite(parseInt(m[1], 10)) && parseInt(m[1], 10) > 0;
 }
 
 /** Durata prova di default (giorni) quando un piano gratuito non ha un period valido. */
 export const FREE_PLAN_FALLBACK_PERIOD = '8d';
+
+/**
+ * Il `period` che marca il piano di MANTENIMENTO. Non e' solo una durata: e' l'etichetta su cui
+ * si reggono quattro cose diverse — la visibilita' del piano solo a obiettivo raggiunto
+ * (`listPlansForClient`), il riquadro "Mantenimento" del report di fine percorso
+ * (`plan-report.service.ts`), lo sblocco del monitoraggio (`monitoring.service.ts`) e l'attivita'
+ * coach sul peso che risale (`coach-tasks.service.ts`). Cambiarlo su un piano gia' in produzione
+ * spegne tutte e quattro insieme, in silenzio.
+ */
+export const MAINTENANCE_PERIOD = 'maintenance';
+
+/** True se il piano e' il mantenimento (confronto tollerante a spazi e maiuscole). */
+export function isMaintenancePlan(period: string | null | undefined): boolean {
+  return String(period ?? '').trim().toLowerCase() === MAINTENANCE_PERIOD;
+}
 
 /**
  * Sceglie l'abbonamento "principale" di una cliente: quello che la scheda mostra come piano
@@ -148,6 +163,24 @@ export class CommerceService {
     return (plans as { priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null }[]).map((p) => ({ ...p, ...this.planPricing(p) }));
   }
 
+  /**
+   * Catalogo PUBBLICO (`GET /plans`, senza autenticazione): come `listPlans` ma **senza il
+   * mantenimento**.
+   *
+   * Il mantenimento non e' un piano d'ingresso: si propone a chi ha raggiunto l'obiettivo, e la
+   * regola vive in `listPlansForClient`. Solo che quella regola puo' applicarla soltanto un
+   * endpoint che sappia CHI sta chiedendo: qui non lo sappiamo, quindi l'unica risposta corretta
+   * e' non mostrarlo. Prima questo endpoint restituiva l'elenco intero, quindi il mantenimento
+   * era leggibile da chiunque senza nemmeno fare login.
+   *
+   * Chi in backoffice deve poterlo vendere a mano usa `GET /admin/purchases/plans`, che passa da
+   * `listPlans` e li vede tutti.
+   */
+  async listPublicPlans() {
+    const plans = await this.listPlans();
+    return (plans as unknown as { period?: string }[]).filter((p) => !isMaintenancePlan(p.period));
+  }
+
   async listProducts() {
     return this.prisma.product.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
@@ -209,8 +242,28 @@ export class CommerceService {
       this.hasReachedObjective(clientId),
     ]);
     return (plans as unknown as { id: string; period?: string; repurchasable?: boolean }[])
-      .filter((p) => p.period !== 'maintenance' || reached) // mantenimento solo a obiettivo raggiunto
+      .filter((p) => !isMaintenancePlan(p.period) || reached) // mantenimento solo a obiettivo raggiunto
       .filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
+  }
+
+  /**
+   * Rifiuta l'acquisto del MANTENIMENTO a chi non ha raggiunto l'obiettivo.
+   *
+   * Nasconderlo dall'elenco non basta: l'elenco e' un suggerimento, l'acquisto e' una POST con un
+   * `planId` dentro. Bastava conoscere l'id — e fino a ieri lo dava `GET /plans` pubblico — per
+   * comprare il mantenimento saltando del tutto la vetrina. La regola va detta anche qui, dove si
+   * decide davvero.
+   *
+   * NON vale per l'acquisto manuale da backoffice (`createManualPurchase`): li' e' un'operatrice
+   * che sa com'e' messa la cliente e puo' avere motivi legittimi per attivarlo lo stesso (peso
+   * misurato in studio e non ancora inserito, per esempio). La scelta e' voluta.
+   */
+  private async assertPlanPurchasable(clientId: string, plan: { period?: string | null }) {
+    if (!isMaintenancePlan(plan.period)) return;
+    if (await this.hasReachedObjective(clientId)) return;
+    throw new BadRequestException(
+      'Il Mantenimento si attiva quando hai raggiunto il tuo obiettivo di peso. Parlane con la tua coach se pensi sia un errore.',
+    );
   }
 
   /** Prodotti visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso. */
@@ -307,6 +360,7 @@ export class CommerceService {
     await this.assertMethodEnabled(method === 'card' ? 'card' : 'bank_transfer');
     const plan = await this.prisma.plan.findFirst({ where: { id: planId, active: true } });
     if (!plan) throw new NotFoundException('Piano non trovato');
+    await this.assertPlanPurchasable(clientId, plan as { period?: string | null });
 
     // Gating dell'acquisto al consenso dati sanitari (spec sez. 11).
     const profile = await this.prisma.clientProfile.findUnique({
@@ -443,10 +497,14 @@ export class CommerceService {
     const method: 'card' | 'bank_transfer' = input.method === 'card' ? 'card' : 'bank_transfer';
     let subtotal = 0;
 
-    let plan: { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null } | null = null;
+    let plan: { id: string; name: string; priceCents: number; period?: string | null; listPriceCents?: number | null; promoEndsAt?: Date | null } | null = null;
     if (input.planId) {
-      plan = await this.prisma.plan.findFirst({ where: { id: input.planId, active: true }, select: { id: true, name: true, priceCents: true, listPriceCents: true, promoEndsAt: true } });
+      // `period` serve al controllo sul mantenimento qui sotto: senza, il carrello era la
+      // scorciatoia per comprarlo senza aver raggiunto l'obiettivo (e' la strada che usa il
+      // pulsante del report).
+      plan = await this.prisma.plan.findFirst({ where: { id: input.planId, active: true }, select: { id: true, name: true, priceCents: true, period: true, listPriceCents: true, promoEndsAt: true } });
       if (!plan) throw new NotFoundException('Piano non trovato');
+      await this.assertPlanPurchasable(clientId, plan);
       const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { consents: true } });
       const consents = (profile?.consents ?? {}) as { healthDataConsent?: { accepted?: boolean } };
       if (!consents.healthDataConsent?.accepted) {

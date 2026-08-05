@@ -357,7 +357,9 @@ function CreatePurchaseModal({ onClose, onCreated }: { onClose: () => void; onCr
       try {
         const [c, pl] = await Promise.all([
           api<{ items: ClientUser[] }>('/admin/users?role=client'),
-          api<Plan[]>('/plans'),
+          // Catalogo completo per l'operatrice: '/plans' e' la vetrina pubblica e non
+          // contiene piu' il Mantenimento, che qui deve restare vendibile a mano.
+          api<Plan[]>('/admin/purchases/plans'),
         ]);
         setClients(c.items);
         setPlans(pl);
