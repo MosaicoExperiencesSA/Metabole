@@ -30,9 +30,32 @@ const ICON_DEST = path.join(APP_DIR, 'Assets.xcassets', 'AppIcon.appiconset', 'A
 const PLIST_SRC = path.join(ROOT, 'app', 'GoogleService-Info.plist');
 const PLIST_DEST = path.join(APP_DIR, 'GoogleService-Info.plist');
 const VERSION_FILE = path.join(ROOT, 'app', 'android-version.json');
+const STEPS_DIR = path.join(ROOT, 'docs', 'ios-steps');
+const INFO_PLIST = path.join(APP_DIR, 'Info.plist');
+const MOTION_KEY = 'NSMotionUsageDescription';
+const MOTION_REASON = 'Metabole usa i passi per mostrarti i tuoi progressi di movimento della giornata.';
 
 async function exists(p) {
   try { await fs.access(p); return true; } catch { return false; }
+}
+
+/**
+ * Aggiunge un file sorgente (Swift/ObjC) al progetto Xcode: PBXFileReference +
+ * PBXBuildFile nella fase Sources + voce nel gruppo "App". Idempotente (salta se
+ * il file è già referenziato). Ancorato ai commenti stabili del template Capacitor,
+ * non agli ID, così regge le rigenerazioni.
+ */
+function addSourceToPbxproj(pbx, name, fileType, refId, buildId) {
+  if (pbx.includes(`/* ${name} */ = {isa = PBXFileReference`)) return pbx; // già presente
+  const buildLine = `\t\t${buildId} /* ${name} in Sources */ = {isa = PBXBuildFile; fileRef = ${refId} /* ${name} */; };\n`;
+  const refLine = `\t\t${refId} /* ${name} */ = {isa = PBXFileReference; lastKnownFileType = ${fileType}; path = ${name}; sourceTree = "<group>"; };\n`;
+  pbx = pbx.replace(/(\/\* Begin PBXBuildFile section \*\/\n)/, `$1${buildLine}`);
+  pbx = pbx.replace(/(\/\* Begin PBXFileReference section \*\/\n)/, `$1${refLine}`);
+  // gruppo App: subito dopo il child AppDelegate.swift
+  pbx = pbx.replace(/(\t+[0-9A-F]+ \/\* AppDelegate\.swift \*\/,\n)/, `$1\t\t\t\t${refId} /* ${name} */,\n`);
+  // fase Sources: subito dopo la voce AppDelegate.swift in Sources
+  pbx = pbx.replace(/(\t+[0-9A-F]+ \/\* AppDelegate\.swift in Sources \*\/,\n)/, `$1\t\t\t\t${buildId} /* ${name} in Sources */,\n`);
+  return pbx;
 }
 
 async function main() {
@@ -81,6 +104,42 @@ async function main() {
     } else {
       console.log('→ User Script Sandboxing già a NO.');
     }
+  }
+
+  // 2c) Contapassi iOS (CoreMotion). Copia il plugin nativo, lo registra nel
+  //     progetto Xcode e aggiunge il permesso "Movimento e fitness". Equivalente
+  //     iOS di android:steps (docs/android-steps → MainActivity). Va eseguito
+  //     SEMPRE, anche senza push, quindi PRIMA del blocco push (che ha un return).
+  if (await exists(path.join(STEPS_DIR, 'StepCounter.swift'))) {
+    await fs.copyFile(path.join(STEPS_DIR, 'StepCounter.swift'), path.join(APP_DIR, 'StepCounter.swift'));
+    await fs.copyFile(path.join(STEPS_DIR, 'StepCounterPlugin.m'), path.join(APP_DIR, 'StepCounterPlugin.m'));
+    console.log('   Contapassi: StepCounter.swift + StepCounterPlugin.m copiati in ios/App/App/.');
+
+    if (await exists(PBXPROJ)) {
+      let p = await fs.readFile(PBXPROJ, 'utf8');
+      const before = p;
+      p = addSourceToPbxproj(p, 'StepCounter.swift', 'sourcecode.swift', 'ABCDEF0000000000000000A1', 'ABCDEF0000000000000000A2');
+      p = addSourceToPbxproj(p, 'StepCounterPlugin.m', 'sourcecode.c.objc', 'ABCDEF0000000000000000B1', 'ABCDEF0000000000000000B2');
+      if (p !== before) {
+        await fs.writeFile(PBXPROJ, p);
+        console.log('   Contapassi: sorgenti aggiunti al target App nel progetto Xcode.');
+      } else {
+        console.log('   Contapassi: già registrati nel progetto Xcode, salto.');
+      }
+    }
+
+    if (await exists(INFO_PLIST)) {
+      let ip = await fs.readFile(INFO_PLIST, 'utf8');
+      if (!ip.includes(MOTION_KEY)) {
+        ip = ip.replace('</dict>\n</plist>', `\t<key>${MOTION_KEY}</key>\n\t<string>${MOTION_REASON}</string>\n</dict>\n</plist>`);
+        await fs.writeFile(INFO_PLIST, ip);
+        console.log('   Contapassi: aggiunto NSMotionUsageDescription in Info.plist (permesso movimento).');
+      } else {
+        console.log('   Contapassi: NSMotionUsageDescription già presente, salto.');
+      }
+    }
+  } else {
+    console.log('ℹ️  docs/ios-steps/StepCounter.swift assente: contapassi iOS non installato.');
   }
 
   // 3) Push / Firebase (solo se il plist c'è)
