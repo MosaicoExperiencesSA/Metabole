@@ -49,7 +49,9 @@ body {
    position: sticky → resta ancorato in alto mentre il resto della pagina scorre. */
 .app-header {
   position: sticky;
-  top: 0;
+  /* pin al VERO bordo alto: coincide con dove il margine negativo colloca l'header,
+     così resta inchiodato e non 'scivola su' prima di agganciarsi. */
+  top: calc(-1 * (env(safe-area-inset-top) + 16px));
   z-index: 20;
   margin: calc(-1 * (env(safe-area-inset-top) + 16px)) -16px 14px;
   padding: calc(env(safe-area-inset-top) + 14px) 14px 18px;
