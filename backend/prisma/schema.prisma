@@ -243,6 +243,7 @@ model User {
   escalations     Escalation[]
   measurements    Measurement[]
   checkins        DailyCheckin[]
+  checkinSkips    CheckinSkip[]
   waterLogs       WaterLog[]
   stepLogs        StepLog[]
   milestones      Milestone[]
@@ -1370,6 +1371,30 @@ model DailyCheckin {
   @@unique([clientId, date])
   @@index([clientId, date])
   @@map("daily_checkin")
+}
+
+/// "Salta per oggi" sul popup del check-in.
+///
+/// Tabella SEPARATA da DailyCheckin, non un flag dentro il check-in, per una ragione precisa:
+/// saltare NON è un check-in. Le righe di DailyCheckin sono contate in quindici punti del backend
+/// come misura di aderenza — report mensile, report di piano, segnali del motore, alert al coach
+/// dopo N giorni senza check-in, diet-learning. Un flag `skipped` avrebbe richiesto di escluderlo
+/// in tutti e quindici, e la prima query dimenticata avrebbe gonfiato l'aderenza di una cliente
+/// che in realtà non ha risposto. Qui il rischio non esiste: quelle query non vedono questa tabella.
+///
+/// Lo skip vale per la giornata su qualunque dispositivo, e NON spegne il promemoria in campanella
+/// (`checkin_reminder`): chi non vuole più essere ricordato ha l'interruttore dedicato nelle
+/// preferenze. Saltare il popup di oggi e non voler più sentir parlare di check-in sono due cose
+/// diverse.
+model CheckinSkip {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  client    User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([clientId, date])
+  @@map("checkin_skip")
 }
 
 model WaterLog {

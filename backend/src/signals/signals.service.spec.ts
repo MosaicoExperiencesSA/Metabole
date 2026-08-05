@@ -3,8 +3,15 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietLearningService } from '../diet-learning/diet-learning.service';
+import { EscalationRoutingService } from '../escalations/escalation-routing.service';
+import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { SignalsService, toDateOnly } from './signals.service';
+import { ProgressService } from './progress.service';
+// `toDateOnly` vive in common/date-only: signals.service lo importa soltanto, non lo riesporta.
+// L'import sbagliato teneva ROSSA l'intera suite (TS2459 in compilazione), quindi fino a oggi
+// nessuno dei test qui sotto girava davvero.
+import { toDateOnly } from '../common/date-only';
+import { SignalsService } from './signals.service';
 
 describe('toDateOnly', () => {
   it('normalizza a mezzanotte UTC', () => {
@@ -35,6 +42,11 @@ describe('SignalsService', () => {
         upsert: jest.fn().mockResolvedValue({ id: 'c1' }),
         findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      checkinSkip: {
+        upsert: jest.fn().mockResolvedValue({ id: 'sk1' }),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
       waterLog: {
         upsert: jest.fn().mockResolvedValue({ id: 'w1' }),
@@ -59,7 +71,10 @@ describe('SignalsService', () => {
     config = {
       getNumber: jest.fn((key: string) =>
         Promise.resolve(
-          ({ max_weight_change_alert_kg_week: 1.5, water_goal_glasses: 8, steps_goal: 8000, moving_average_window: 3 } as Record<string, number>)[key] ?? 0,
+          // water_ml_per_kg mancava: il finto config rispondeva 0 ml/kg, l'obiettivo d'acqua
+          // finiva schiacciato sul minimo (6 bicchieri) e i due test sotto sembravano sbagliati
+          // pur essendo sbagliato il mock.
+          ({ max_weight_change_alert_kg_week: 1.5, water_ml_per_kg: 33, water_goal_glasses: 8, steps_goal: 8000, moving_average_window: 3 } as Record<string, number>)[key] ?? 0,
         ),
       ),
       getString: jest.fn(),
@@ -72,6 +87,11 @@ describe('SignalsService', () => {
         { provide: ConfigParamsService, useValue: config },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: DietLearningService, useValue: { onCycleClose: jest.fn().mockResolvedValue(null) } },
+        // Le tre dipendenze qui sotto mancavano: il servizio ne ha sette, il modulo di test ne
+        // dichiarava quattro. Non se n'era accorto nessuno perché la suite non compilava proprio.
+        { provide: ProgressService, useValue: { getProgress: jest.fn().mockResolvedValue({ alerts: {} }) } },
+        { provide: EscalationRoutingService, useValue: { open: jest.fn().mockResolvedValue(null) } },
+        { provide: MenuService, useValue: { deliverIfEligible: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = moduleRef.get(SignalsService);
@@ -132,9 +152,12 @@ describe('SignalsService', () => {
   });
 
   it('acqua e passi: obiettivi presi da config_param', async () => {
+    // L'acqua non è più un numero fisso: 33 ml/kg sull'ultimo peso (67 kg) diviso il bicchiere
+    // da 250 ml = 9 bicchieri. Il vecchio 8 era il globale, superato quando l'obiettivo è
+    // diventato personale.
     await service.upsertWater('u1', { glasses: 5 });
     expect(prisma.waterLog.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ goal: 8 }) }),
+      expect.objectContaining({ create: expect.objectContaining({ goal: 9 }) }),
     );
     await service.upsertSteps('u1', { steps: 6000 });
     expect(prisma.stepLog.upsert).toHaveBeenCalledWith(
@@ -145,6 +168,50 @@ describe('SignalsService', () => {
   it('todayStatus: segnala il check-in mancante per il popup', async () => {
     const status = await service.todayStatus('u1');
     expect(status.checkinDone).toBe(false);
-    expect(status.water.goal).toBe(8);
+    expect(status.water.goal).toBe(9); // personalizzato sul peso, vedi sopra
+  });
+
+  // --- "Salta per oggi" ------------------------------------------------------------------
+  // Il tasto prima non salvava niente: chiudeva il popup e basta, e bastava uscire dalla home
+  // per rivederlo. Questi test tengono ferme le due cose che contano: che lo skip duri fino a
+  // domani, e che non venga mai scambiato per un check-in fatto.
+
+  it('salta per oggi: registrato sulla data di oggi, una riga sola', async () => {
+    const res = await service.skipCheckinToday('u1');
+    const oggi = new Date().toISOString().slice(0, 10);
+    expect(res).toEqual({ skipped: true, date: oggi });
+    expect(prisma.checkinSkip.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { clientId_date: { clientId: 'u1', date: toDateOnly(oggi) } },
+        create: { clientId: 'u1', date: toDateOnly(oggi) },
+        update: {}, // idempotente: toccare "Salta" due volte non deve cambiare la riga
+      }),
+    );
+  });
+
+  it("salta per oggi: NON scrive un check-in, altrimenti gonfierebbe l'aderenza", async () => {
+    await service.skipCheckinToday('u1');
+    expect(prisma.dailyCheckin.upsert).not.toHaveBeenCalled();
+    expect(prisma.dailyCheckin.count).not.toHaveBeenCalled();
+  });
+
+  it('todayStatus: dopo lo skip il popup non si mostra, ma il check-in resta NON fatto', async () => {
+    prisma.checkinSkip.findUnique.mockResolvedValue({ id: 'sk1' });
+    const status = await service.todayStatus('u1');
+    expect(status.checkinSkipped).toBe(true);
+    // Questa è la riga che protegge i report: saltare non è rispondere.
+    expect(status.checkinDone).toBe(false);
+  });
+
+  it('todayStatus: senza skip il popup si mostra (e il giorno dopo torna)', async () => {
+    // findUnique è cercato sulla data di OGGI: uno skip di ieri non ha la stessa chiave e qui
+    // non compare, quindi domani la cliente rivede il popup.
+    prisma.checkinSkip.findUnique.mockResolvedValue(null);
+    const status = await service.todayStatus('u1');
+    expect(status.checkinSkipped).toBe(false);
+    const oggi = toDateOnly(new Date().toISOString().slice(0, 10));
+    expect(prisma.checkinSkip.findUnique).toHaveBeenCalledWith({
+      where: { clientId_date: { clientId: 'u1', date: oggi } },
+    });
   });
 });

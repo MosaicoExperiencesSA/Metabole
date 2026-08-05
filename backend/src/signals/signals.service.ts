@@ -395,11 +395,34 @@ export class SignalsService {
     });
   }
 
+  /**
+   * "Salta per oggi" sul popup del check-in.
+   *
+   * Registrato, non tenuto solo in memoria: prima il tasto chiamava `setDismissed(true)` dentro
+   * la Home, e quello stato moriva insieme al componente — bastava passare dal Menu e tornare
+   * indietro per rivedere il popup, nonostante l'etichetta dicesse "per oggi".
+   *
+   * Idempotente: `upsert` sulla coppia (cliente, giorno), così riaprire l'app o toccare "Salta"
+   * più volte non crea righe doppie. Vale solo per OGGI di proposito — domani il popup torna,
+   * perché il check-in resta il segnale "Testa" del percorso e saltarlo una volta non è
+   * rinunciarci. Chi non lo vuole più ha l'interruttore "Promemoria del check-in" nelle preferenze.
+   */
+  async skipCheckinToday(clientId: string) {
+    const date = toDateOnly();
+    await this.prisma.checkinSkip.upsert({
+      where: { clientId_date: { clientId, date } },
+      create: { clientId, date },
+      update: {},
+    });
+    return { skipped: true, date: date.toISOString().slice(0, 10) };
+  }
+
   /** Per il popup "una volta al giorno, alla prima apertura". */
   async todayStatus(clientId: string) {
     const today = toDateOnly();
-    const [checkin, measurement, water, steps, profile] = await Promise.all([
+    const [checkin, checkinSkip, measurement, water, steps, profile] = await Promise.all([
       this.prisma.dailyCheckin.findUnique({ where: { clientId_date: { clientId, date: today } } }),
+      this.prisma.checkinSkip.findUnique({ where: { clientId_date: { clientId, date: today } } }),
       this.prisma.measurement.findUnique({ where: { clientId_date: { clientId, date: today } } }),
       this.prisma.waterLog.findUnique({ where: { clientId_date: { clientId, date: today } } }),
       this.prisma.stepLog.findUnique({ where: { clientId_date: { clientId, date: today } } }),
@@ -413,6 +436,9 @@ export class SignalsService {
       date: today.toISOString().slice(0, 10),
       checkinDone: Boolean(checkin),
       checkin,
+      // Distinto da checkinDone: il popup non si mostra in nessuno dei due casi, ma solo il primo
+      // è un check-in. Chi legge l'aderenza deve guardare checkinDone, mai questo.
+      checkinSkipped: Boolean(checkinSkip),
       measurementDone: Boolean(measurement),
       water: water ?? { glasses: 0, goal: waterGoal },
       steps: steps ?? { steps: 0, goal: stepsGoal },

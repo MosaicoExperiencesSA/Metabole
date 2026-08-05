@@ -19,6 +19,9 @@ import { TypeText } from '../components/TypeText';
 
 interface Today {
   checkinDone: boolean;
+  // "Salta per oggi" già usato: il popup non si mostra, ma NON è un check-in fatto — l'aderenza
+  // guarda checkinDone, mai questo.
+  checkinSkipped?: boolean;
   measurementDone: boolean;
   water: { glasses: number; goal: number };
   steps: { steps: number; goal: number };
@@ -315,6 +318,24 @@ export default function Home() {
     }
   }
 
+  /**
+   * "Salta per oggi". Prima era `setDismissed(true)` e basta: `dismissed` vive dentro questo
+   * componente, che React smonta appena si esce dalla home, quindi al rientro il popup tornava —
+   * l'etichetta diceva "per oggi" ma valeva "per adesso". Ora lo skip viene registrato lato
+   * server, così regge anche fra una schermata e l'altra, dopo un riavvio dell'app e su un altro
+   * dispositivo.
+   *
+   * Chiudiamo SUBITO, senza aspettare la risposta: il popup è un cortesia, non una transazione,
+   * e la cliente non deve guardare uno spinner per dire "non adesso". Se la chiamata fallisce
+   * (rete assente) resta il vecchio comportamento — chiuso per questa schermata — che è il peggio
+   * possibile ed è comunque quello di prima.
+   */
+  function skipCheckin() {
+    setDismissed(true);
+    setToday((t) => (t ? { ...t, checkinSkipped: true } : t));
+    api('/me/checkins/skip', { method: 'POST' }).catch(() => {});
+  }
+
   async function addWater() {
     if (!today) return;
     const prev = today.water.glasses;
@@ -477,11 +498,11 @@ export default function Home() {
       )}
 
       {/* Popup check-in giornaliero */}
-      {today && !today.checkinDone && !dismissed && (
-        <CheckinPopup onMood={submitMood} onSkip={() => setDismissed(true)} busy={checkinBusy} />
+      {today && !today.checkinDone && !today.checkinSkipped && !dismissed && (
+        <CheckinPopup onMood={submitMood} onSkip={skipCheckin} busy={checkinBusy} />
       )}
       {/* Popup "Com'è andata ieri?" — solo quando il check-in non è a schermo */}
-      {(!today || today.checkinDone || dismissed) && <MenuReviewPopup />}
+      {(!today || today.checkinDone || today.checkinSkipped || dismissed) && <MenuReviewPopup />}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
       {help && SHEETS[help] && (
         <Sheet onClose={() => setHelp(null)}>

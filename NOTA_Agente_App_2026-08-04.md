@@ -13,9 +13,10 @@ rimandabile").
 ---
 
 ## A) STATO
-- **Backend (Render):** al push si applica **1 migration** in automatico,
+- **Backend (Render):** al push si applicano **2 migration** in automatico:
   `20260804120000_notification_archived_at` (campo `Notification.archived_at` + indice
-  `user_id, archived_at`). Nessun env nuovo, nessun servizio nuovo.
+  `user_id, archived_at`) e `20260805100000_checkin_skip` (nuova tabella `checkin_skip`, unica su
+  `client_id, date`, FK a `user` con cascade). Nessun env nuovo, nessun servizio nuovo.
 - **Web app + backoffice (Vercel):** aggiornati al push. Chi usa il browser vede già tutto.
 - **App iOS (TestFlight) / Android installata:** ancora sul **bundle JS precedente** → non vede
   le novità di §B finché non parte una release OTA (o una nuova build store).
@@ -24,8 +25,9 @@ rimandabile").
 
 ## B) NOVITÀ FRONTEND DA SPEDIRE (OTA)
 
-Cinque file in `app/src/**`, dai commit `9fef2a4`, `ca9f192`, `dc97c2d` e dall'ultimo commit
-sulle frasi di Gaia.
+Cinque file in `app/src/**`, dai commit `9fef2a4`, `ca9f192`, `dc97c2d`, dal commit sulle frasi di
+Gaia e da quello sul "Salta per oggi" del check-in. `Home.tsx` compare tre volte: è la schermata
+che ha preso più modifiche.
 
 **`app/src/pages/Home.tsx`** — "Sostituisci un ingrediente". Al posto del popup che *dopo* aver
 applicato chiedeva "escludere per sempre?", ora la cliente sceglie **prima** per quanto vale:
@@ -55,6 +57,18 @@ stanno in `REGISTRO_Frasi_Gaia_Home.md`.
 > chi legge, massimo ~80 caratteri per via dell'animazione `TypeText`). Se ne aggiungete altre,
 > valgono quelle.
 
+**`app/src/pages/Home.tsx`** — **"Salta per oggi"** sul popup *Come ti senti oggi?*. Prima il tasto
+faceva solo `setDismissed(true)`, uno stato locale del componente: siccome Home è una rotta che
+React smonta appena si cambia schermata, bastava passare dal Menu e tornare per rivedere il popup.
+Diceva "per oggi" e valeva "per adesso" — è la segnalazione di Simone. Ora lo skip è registrato lato
+server (`POST /me/checkins/skip`, tabella `checkin_skip`) e `/me/today` restituisce anche
+`checkinSkipped`: vale per la giornata **su tutti i dispositivi**. Domani il popup torna, di
+proposito; chi non lo vuole più ha l'interruttore "Promemoria del check-in" nelle preferenze, che
+resta acceso anche dopo uno skip. Dettagli in `REGISTRO_Salta_Checkin.md`.
+
+> Questo è l'unico punto di §B con una **migration** dietro (§A): il backend va live al push, il
+> bundle no.
+
 ### Perché stavolta l'OTA non è rimandabile
 Le note precedenti dicevano "l'app installata mostra il comportamento vecchio". Qui è diverso:
 il vecchio bundle mostra **testi che non corrispondono più a quello che il server fa**.
@@ -69,6 +83,9 @@ il vecchio bundle mostra **testi che non corrispondono più a quello che il serv
   messaggio più delicato.
 - L'interruttore per spegnere quel tipo di messaggi non esiste nel vecchio bundle: chi lo
   volesse disattivare non può, se non dal browser.
+- Il tasto **"Salta per oggi"** del check-in dal vecchio bundle non chiama l'endpoint nuovo e non
+  legge `checkinSkipped`: niente si rompe (il server è già a posto), ma sul telefono continua a
+  chiudere il popup solo finché non si cambia schermata — cioè il difetto segnalato resta lì.
 
 ### Come spedire (come per le release precedenti)
 ```

@@ -55,6 +55,12 @@ export class SignalsController {
     return this.signals.upsertCheckin(user.sub, dto);
   }
 
+  /** "Salta per oggi": chiude il popup fino a domani, su tutti i dispositivi. Non è un check-in. */
+  @Post('checkins/skip')
+  skipCheckin(@CurrentUser() user: AuthUser) {
+    return this.signals.skipCheckinToday(user.sub);
+  }
+
   /** Stato del giorno per la dashboard (popup check-in, acqua, passi). */
   @Get('today')
   today(@CurrentUser() user: AuthUser) {
