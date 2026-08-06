@@ -10,6 +10,14 @@ coverage/
 !.env.example
 *.pem
 *.key
+# Chiavi e certificati di firma: MAI nel repo (che è pubblico). Stanno in ~/MetaboleKeys.
+# Il 28/7 una chiave APNs Team Scoped era finita qui dentro per sbaglio ed è rimasta
+# scaricabile da chiunque fino al 6/8: è stata revocata e sostituita.
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
 
 # OS / editor
 .DS_Store
