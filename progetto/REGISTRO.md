@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Verifica di fine giornata sulle 18 voci del 5/8, e note di rilascio 2.1.**
+  Controllate una per una contro il registro e il codice, non a memoria: **17 su 18 chiuse**.
+  Fuori resta solo la **#10** (monitoraggio a pagamento dopo il mantenimento), bloccata dallo
+  Stripe ricorrente e dalla decisione sulle provvigioni sul rinnovo. La **#2** (ingredienti Keto
+  troppo difficili) è chiusa lato codice con la Keto-Mediterranea nel generatore: restano la
+  generazione e la validazione della nutrizionista, che non bloccano la pubblicazione perché una
+  dieta non approvata non la vede nessuna cliente. Nuovo `progetto/Note_Rilascio_2.1.md`: testo
+  pronto per App Store e Play (entro i 500 caratteri di Play), sequenza della serata e i due
+  promemoria che ci sono già costati un incidente — `aps-environment` a **production** prima
+  dell'invio iOS, e **`OTA_VERSION` da svuotare** su Render dopo la pubblicazione.
+
 - `[Sviluppo]` **Messa in lista: una card per prodotto e non per stile in registrazione**
   (decisione Simone, 6/8). Voce nuova in `metabole-backlog.md` con diagnosi e piano: oggi
   `GET /onboarding/diet-products` tiene **una dieta per stile**, quindi Vegana, Vegetariana,
