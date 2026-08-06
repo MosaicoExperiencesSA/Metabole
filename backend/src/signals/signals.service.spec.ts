@@ -67,6 +67,9 @@ describe('SignalsService', () => {
         findUnique: jest.fn().mockResolvedValue({ startWeightKg: 68, assignedNutritionistId: 'staff-n' }),
       },
       objective: { findFirst: jest.fn().mockResolvedValue({ targetWeightKg: 62 }) },
+      // Il check-in si propone SOLO con un piano attivo (voce #5 del 5/8): senza questo
+      // modello nel finto Prisma, todayStatus esplode invece di rispondere.
+      subscription: { findMany: jest.fn().mockResolvedValue([{ endDate: null }]) },
     };
     config = {
       getNumber: jest.fn((key: string) =>

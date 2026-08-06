@@ -10,6 +10,9 @@ describe('RemindersService (calendario CRM)', () => {
 
   beforeEach(async () => {
     prisma = {
+      // `reminderScope` legge il ruolo dell'attore: 'sales' = vede tutto, che è
+      // l'ipotesi di questi test (staff-1 non è una coach).
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'sales' }) },
       crmReminder: {
         findMany: jest.fn().mockResolvedValue([
           {

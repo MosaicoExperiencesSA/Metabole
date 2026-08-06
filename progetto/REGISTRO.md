@@ -16,17 +16,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   test non fallivano su un'asserzione, **non partivano proprio** — Nest non risolveva le
   dipendenze e la suite intera moriva in `beforeEach`. Sei suite, sei righe: `NotificationsService`
   in auth, catalog e visite, `CrmService` in utenti, `MonitoringService` in commerce, `MailService`
-  + `NotificationsService` nel blocco CrmService di finance-crm. **99 → 28**, e due suite (auth e
-  utenti, 32 test) sono tornate completamente verdi.
-  Le altre tre famiglie restano, e vanno guardate una per una perché non sono meccaniche:
-  **(b)** il finto Prisma dei test non ha i metodi che il servizio ha imparato a usare nel
-  frattempo (`user.findUnique` per il controllo del ruolo, `ledgerEntry.aggregate`) — 7 suite,
-  poche asserzioni ciascuna; **(c)** tre suite **non compilano** perché descrivono un'API che non
-  esiste più (`cron.controller.spec` si aspetta ancora `result.engine.run`); **(d)** due che
+  + `NotificationsService` nel blocco CrmService di finance-crm. **99 → 28**.
+  Poi la seconda famiglia, anch'essa meccanica: **il finto Prisma dei test non ha i modelli che il
+  servizio ha imparato a leggere nel frattempo**. `coachTeamScope` — la rete coach a tre livelli —
+  legge il ruolo da `prisma.user`, e nei mock `user` non c'era proprio: la chiamata esplodeva
+  prima di ogni asserzione (coach, alert, promemoria). Stessa storia con `subscription` in signals
+  (il check-in ora si propone solo con un piano attivo), `crmReminder` nella board della pipeline,
+  `user` nella lista pazienti, `ledgerEntry.aggregate` in contabilità. **28 → 17**, con sette
+  suite tornate completamente verdi: auth, utenti, signals, promemoria, pipeline, nutrizionista,
+  alert.
+  Nessuna delle due famiglie era un difetto del codice: erano test rimasti indietro rispetto a
+  modifiche fatte bene. Ma la conseguenza era che **nessuno dei test di quelle suite girava**, e
+  quindi non proteggevano più niente da mesi.
+  Restano 17, e da qui in poi non è più meccanico: **(c)** tre suite **non compilano** perché
+  descrivono un'API che non esiste più (`cron.controller.spec` si aspetta ancora
+  `result.engine.run`) — è riscrittura, va deciso cosa debbano verificare adesso; **(d)** due
   meritano lettura vera prima di toccarle — `menu-measurement-gate` si aspetta 0 e riceve 3, ed è
   proprio il gate misure reso severo oggi (potrebbe essere il test a raccontare la regola vecchia,
-  o il gate a essere troppo largo), e `referral.service.spec` confronta un istante fisso con
-  l'orologio reale, quindi è rosso per definizione.
+  o il gate a essere troppo largo: è l'unico test che presidia una regola clinica), e
+  `referral.service.spec` confronta un istante fisso con l'orologio reale, quindi è rosso per
+  costruzione; **(e)** i 12 di commerce, finance-crm, area sanitaria e catalogo, che **adesso
+  girano** e falliscono su asserzioni vere: vanno letti uno per uno, perché lì la domanda «ha
+  ragione il test o il codice?» ha davvero due risposte possibili.
   Nota di metodo: `continue-on-error` non si toglie perché «ci sono pochi test rossi», si toglie
   quando sono zero. Finché c'è, il numero cresce senza che nessuno se ne accorga — da 30 a 99
   è successo esattamente così.

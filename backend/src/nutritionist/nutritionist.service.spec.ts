@@ -25,6 +25,8 @@ describe('NutritionistService.patients', () => {
       escalation: { findMany: jest.fn().mockResolvedValue([{ clientId: 'p2' }]) },
       document: { findMany: jest.fn().mockResolvedValue([{ clientId: 'p2' }, { clientId: 'p2' }]) },
       visit: { findMany: jest.fn().mockResolvedValue([{ clientId: 'p1', datetime: D('2026-07-20'), type: 'televisit' }]) },
+      // La lista pazienti porta anche email e telefono, che stanno su User.
+      user: { findMany: jest.fn().mockResolvedValue([{ id: 'p1', email: 'anna@t.it', phone: null }, { id: 'p2', email: 'bea@t.it', phone: null }]) },
     };
     const res = (await make(prisma).patients(user)) as { patients: { clientId: string; pendingDocuments: number; nextVisit: unknown }[] };
     expect(res.patients).toHaveLength(2);

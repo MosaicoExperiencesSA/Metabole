@@ -39,6 +39,9 @@ describe('PipelineService (stati pipeline + board)', () => {
         ]),
         count: jest.fn().mockResolvedValue(0),
       },
+      // La board mostra la scadenza più vicina per scheda: senza questo modello nel finto
+      // Prisma la chiamata esplode.
+      crmReminder: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn().mockResolvedValue([]),
     };
     const moduleRef = await Test.createTestingModule({

@@ -84,6 +84,8 @@ describe('AccountingService.report (KPI)', () => {
           .mockResolvedValueOnce([{ type: 'income', category: 'subscription', amountCents: 30000, date: D('2026-01-10') }])
           // 2a: clienti paganti (distinct)
           .mockResolvedValueOnce([{ clientId: 'a' }, { clientId: 'b' }, { clientId: 'c' }]),
+        // Il report ora AGGREGA (somma) invece di sommare a mano riga per riga.
+        aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 0 } }),
       },
       costEntry: {
         findMany: jest.fn().mockResolvedValue([

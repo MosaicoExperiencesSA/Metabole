@@ -14,6 +14,9 @@ function makeService(prisma: Record<string, unknown>, expiringDays = 14) {
 describe('CoachService.clients', () => {
   it('elenca solo le clienti della coach con riepilogo e ordina per alert', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
       clientProfile: {
         findMany: jest.fn().mockResolvedValue([
@@ -34,7 +37,7 @@ describe('CoachService.clients', () => {
   });
 
   it('nessuno staff → lista vuota', async () => {
-    const prisma = { staff: { findUnique: jest.fn().mockResolvedValue(null) } };
+    const prisma = { user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) }, staff: { findUnique: jest.fn().mockResolvedValue(null) } };
     const res = await makeService(prisma).clients(user);
     expect(res).toEqual({ clients: [] });
   });
@@ -43,6 +46,9 @@ describe('CoachService.clients', () => {
 describe('CoachService.dashboard', () => {
   it('compone conteggi, piani in scadenza e guadagni', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
       clientProfile: { count: jest.fn().mockResolvedValue(5) },
       subscription: {
@@ -75,7 +81,7 @@ describe('CoachService.dashboard', () => {
   });
 
   it('nessuno staff → isCoach false', async () => {
-    const prisma = { staff: { findUnique: jest.fn().mockResolvedValue(null) } };
+    const prisma = { user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) }, staff: { findUnique: jest.fn().mockResolvedValue(null) } };
     const res = await makeService(prisma).dashboard(user);
     expect(res).toEqual({ isCoach: false });
   });
@@ -86,6 +92,9 @@ const futureIso = () => new Date(Date.now() + 86_400_000).toISOString();
 describe('CoachService — agenda/appuntamenti', () => {
   it('coachAgenda: mostra appuntamenti delle clienti con flag editable', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       staff: {
         findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }),
         findMany: jest.fn().mockResolvedValue([
@@ -110,6 +119,9 @@ describe('CoachService — agenda/appuntamenti', () => {
   it('createAppointment: coach per la propria cliente → crea', async () => {
     const create = jest.fn().mockResolvedValue({ id: 'ap1' });
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ assignedCoachId: 'coach-1', assignedNutritionistId: 'nut-1' }) },
       appointment: { create },
@@ -121,6 +133,9 @@ describe('CoachService — agenda/appuntamenti', () => {
 
   it('createAppointment: cliente non assegnata → Forbidden', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ assignedCoachId: 'coach-2', assignedNutritionistId: null }) },
       appointment: { create: jest.fn() },
@@ -132,6 +147,9 @@ describe('CoachService — agenda/appuntamenti', () => {
 
   it('createAppointment: data passata → BadRequest', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
       clientProfile: { findUnique: jest.fn() },
       appointment: { create: jest.fn() },
@@ -143,6 +161,9 @@ describe('CoachService — agenda/appuntamenti', () => {
 
   it('updateAppointment: solo il proprietario può modificare', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-2' }) },
       appointment: { findUnique: jest.fn().mockResolvedValue({ id: 'ap1', staffId: 'coach-1' }), update: jest.fn() },
     };
@@ -151,6 +172,9 @@ describe('CoachService — agenda/appuntamenti', () => {
 
   it('clientAgenda next=1: ritorna solo il prossimo', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       appointment: { findMany: jest.fn().mockResolvedValue([{ id: 'ap1', clientId: 'c1', staffId: 's1', staffRole: 'coach', type: 'call', datetime: new Date(), status: 'scheduled', note: null }]) },
       staff: { findMany: jest.fn().mockResolvedValue([{ id: 's1', displayName: 'Coach' }]) },
       subscription: { findFirst: jest.fn() },
@@ -162,6 +186,9 @@ describe('CoachService — agenda/appuntamenti', () => {
 
   it('clientAgenda completa: appuntamenti + scadenza piano', async () => {
     const prisma = {
+      // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
+      // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       appointment: { findMany: jest.fn().mockResolvedValue([]) },
       staff: { findMany: jest.fn().mockResolvedValue([]) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ endDate: D('2026-09-01') }) },

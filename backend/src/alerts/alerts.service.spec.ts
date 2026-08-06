@@ -18,6 +18,7 @@ interface PrismaMock {
   escalation: { findFirst: jest.Mock };
   milestone: { findFirst: jest.Mock };
   analyticsEvent: { findFirst: jest.Mock };
+  user: { findUnique: jest.Mock };
   staff: { findUnique: jest.Mock };
   alert: { findMany: jest.Mock; createMany: jest.Mock; updateMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
 }
@@ -36,6 +37,8 @@ function basePrisma(over: Partial<Record<string, unknown>> = {}): PrismaMock {
     escalation: { findFirst: jest.fn().mockResolvedValue(null) },
     milestone: { findFirst: jest.fn().mockResolvedValue(null) },
     analyticsEvent: { findFirst: jest.fn().mockResolvedValue(null) },
+    // `coachTeamScope` legge il ruolo da prisma.user prima di arrivare a staff.
+    user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
     staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
     alert: {
       findMany: jest.fn().mockResolvedValue([]),

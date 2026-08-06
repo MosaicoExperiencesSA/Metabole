@@ -111,18 +111,21 @@ cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della 
 Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
 non è un lavoro da sera di pubblicazione.
 
-## Test rossi e `continue-on-error` in ci.yml — 28 rimasti (era 99), 6/8
+## Test rossi e `continue-on-error` in ci.yml — 17 rimasti (erano 99), 6/8
 Misurato il 6/8 facendo girare la suite: **99 test rossi in 18 suite**, non «~30 in src/commerce»
-come dicevano gli appunti. Sistemata la famiglia grossa (provider dimenticati nei moduli di test,
-6 suite, 6 righe): **28 rossi rimasti**. Cosa resta, in ordine di difficoltà:
+come dicevano gli appunti. Sistemate le due famiglie meccaniche — provider dimenticati nei moduli
+di test (6 suite) e finti Prisma senza i modelli che i servizi hanno imparato a leggere (7 suite):
+**99 → 28 → 17**, con sette suite tornate verdi (auth, utenti, signals, promemoria, pipeline,
+nutrizionista, alert). Da qui in poi non è più meccanico:
 
-1. **Finto Prisma incompleto** (7 suite, 1-4 test l'una): il servizio ha imparato a chiamare un
-   modello/metodo che il mock non ha — `user.findUnique` (controllo ruolo introdotto con la rete
-   coach), `ledgerEntry.aggregate`. Si aggiunge il metodo al mock. Meccanico.
-   Suite: coach, signals, alerts, pipeline, accounting, reminders, nutritionist.
+1. **Dodici asserzioni che ADESSO girano e falliscono** — commerce (5), finance-crm (4), area
+   sanitaria (2), catalogo (2), contabilità (1), coach (1). Prima di oggi queste suite non
+   partivano proprio, quindi questi rossi non li aveva mai visti nessuno. Vanno letti uno per
+   uno: qui la domanda «ha ragione il test o il codice?» ha davvero due risposte possibili, e
+   almeno un paio potrebbero essere difetti veri.
 2. **Tre suite che NON compilano**: descrivono un'API che non esiste più. `cron.controller.spec`
    si aspetta `result.engine.run` e `result.notifications`, che la risposta del cron non ha più.
-   Va deciso cosa il test debba verificare adesso: è riscrittura, non riparazione.
+   È riscrittura, non riparazione: va deciso cosa debbano verificare adesso.
    Suite: cron, escalations, onboarding.
 3. **Due da leggere prima di toccare**:
    - `menu-measurement-gate.spec`: si aspetta 0 e riceve 3. È il gate misure reso severo il 6/8
