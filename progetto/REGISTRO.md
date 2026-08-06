@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Prodotto]` **Nota di handoff per la pubblicazione** — `NOTA_Handoff_Pubblicazione_2026-08-06.md`,
+  come da regola di progetto (a ogni tornata di modifiche se ne scrive una per chi pubblica).
+  Contiene: i 27 commit della giornata, le superfici toccate e quali richiedono un deploy, le
+  **cinque migrazioni**, le env (con `OTA_VERSION` **da svuotare dopo** la pubblicazione), il
+  `npm install` obbligatorio in `app/` perché `@capacitor/share` è un plugin nativo nuovo, i due
+  passi che ci sono già costati cari (**Xcode chiuso** prima di `build-ios.sh`, **`aps-environment`
+  a production** prima di archiviare), lo stato dei test con il perché `continue-on-error` non si
+  toglie stasera, **quattro verifiche post-deploy** coi comandi pronti, e l'elenco di ciò che
+  resta aperto. Serve a chi pubblica fra sei mesi, quando nessuno si ricorderà perché il seed
+  andava in out of memory.
+
 - `[Sviluppo]` **Parametri e modelli email: adesso si possono anche CREARE, non solo modificare**
   — la causa comune dietro due difetti di oggi. `config_param` e `email_template` avevano solo
   lettura e aggiornamento di righe che dovevano già esistere: la promessa «configurabile dal
