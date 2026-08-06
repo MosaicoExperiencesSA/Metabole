@@ -110,3 +110,17 @@ cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della 
    nessuna modifica a `dietInfo.ts`.
 Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
 non è un lavoro da sera di pubblicazione.
+
+## iOS — deployment target da 13.0 a 15.0 — DA FARE entro primavera 2027
+Warning ricevuto da App Store Connect all'upload della 2.1 (6/8/26):
+
+> MinimumOSVersion too low. This app has a MinimumOSVersion of 13.0. Starting in Spring 2027,
+> all iOS apps must have a MinimumOSVersion of 15.0 or later in order to be uploaded to App
+> Store Connect or submitted for distribution.
+
+Oggi **non blocca**: la 2.1 è stata accettata. Ma dalla primavera 2027 gli upload verranno
+rifiutati, quindi va fatto prima — meglio in una sessione tranquilla che sotto scadenza.
+Si cambia in Xcode (`IPHONEOS_DEPLOYMENT_TARGET`) e conviene farlo fare a
+`scripts/install-ios.mjs`, perché `ios/` viene rigenerato e la modifica si perderebbe.
+Impatto sulle clienti: chi ha iOS 13 o 14 non riceverebbe più aggiornamenti — da verificare nei
+dati di App Store Connect prima di procedere (verosimilmente nessuna).

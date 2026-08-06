@@ -7,6 +7,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` ✅ **PUSH iOS VERIFICATE FUNZIONANTI** su TestFlight, build **2.1 (7)**: push di
+  prova inviata dal backoffice e **arrivata sul telefono**. È la chiusura dell'indagine iniziata
+  stamattina: dalla 2.0 non arrivavano a nessuno e nessuno poteva accorgersene. La catena completa
+  che le teneva spente era di cinque anelli — metodi del delegato mancanti in `AppDelegate`
+  (`install-ios.mjs` li inseriva senza verificare), chiave APNs revocata e rifatta, capability
+  Push assente nel progetto rigenerato, `GoogleService-Info.plist` non agganciato al target,
+  `aps-environment` a `development` perché **mancava il certificato Apple Distribution** (scaduto).
+  Ognuno da solo bastava a spegnerle, e nessuno produceva un errore visibile.
+  **2.1 inviata in revisione su App Store; Android in approvazione su Play.**
+  Lezione generale, la stessa di tutta la giornata: quando un difetto non produce un errore, non
+  serve cercarlo meglio — serve **costruire la verifica**. Le tre di oggi sono `codesign -d
+  --entitlements` sull'archivio prima di caricare, il `timestamp` di `/health` per accorgersi di
+  leggere risposte in cache, e la push di prova da TestFlight prima di pubblicare.
+
+- `[Sviluppo]` **iOS 2.1 caricata su App Store Connect** (17:19), dopo una caccia alla firma durata
+  un'ora. La rigenerazione di `ios/` aveva azzerato tre cose che vivono solo nel progetto Xcode —
+  capability Push Notifications, `GoogleService-Info.plist` agganciato al target, entitlement
+  `aps-environment` — e sotto ce n'erano altre due: il template Capacitor forza
+  `CODE_SIGN_IDENTITY = "iPhone Developer"` **in tutte le configurazioni**, archivio compreso, e
+  soprattutto **mancava il certificato Apple Distribution** (scaduto: durano un anno, l'ultimo era
+  di luglio). Senza quello nessuna modifica al progetto poteva cambiare la firma. Creato da
+  Xcode → Apple Accounts → Manage Certificates, e l'upload è passato.
+  Unico avviso: **MinimumOSVersion 13.0**, che dalla primavera 2027 non sarà più accettata (minimo
+  15.0). Non blocca oggi; messo in `metabole-backlog.md` con la nota che va fatto fare a
+  `install-ios.mjs`, come gli altri passaggi che si perdono a ogni rigenerazione.
+
 - `[Sviluppo]` **OTA spento ✓ — e un mio errore da segnare.** `OTA_VERSION` è stata eliminata dal
   servizio su Render (deploy live alle 15:58) e il manifest ora risponde
   `{"version":null,"url":null}`: nessun telefono scarica più bundle, e la 2.1 dello store non
