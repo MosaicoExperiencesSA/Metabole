@@ -7,6 +7,13 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Posta backoffice — «Ricevuta» e «Inviata» erano testo nudo** (segnalato da Simone:
+  «così è proprio brutto»). Il markup usava un *segmented control* (`.seg`) copiato dall'app
+  cliente, ma quel CSS nel backoffice **non esiste**: le due voci uscivano come due righe di testo
+  impilate accanto a due pulsanti veri. Ora sono due pulsanti come gli altri della barra — pieno
+  quello attivo, fantasma l'altro, con le icone di posta in arrivo e inviata — e si disabilitano
+  durante il caricamento come «Aggiorna». Era l'unico punto del backoffice che usava `.seg`.
+
 - `[Sviluppo]` **Il backend ora si type-checka anche fuori da Render, e il compilatore fa la
   guardia sugli stati.** Finora il type-check del backend esisteva solo dentro il deploy: nel
   sandbox il client Prisma non è generabile, quindi ogni errore di tipo si scopriva a build in

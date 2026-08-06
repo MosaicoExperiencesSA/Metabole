@@ -221,10 +221,23 @@ export function Posta() {
           Casella <b>{status.email}</b> — {folder === 'inbox' ? 'posta in arrivo' : 'posta inviata'}.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
-          <div className="seg" style={{ margin: 0 }}>
-            <div className={folder === 'inbox' ? 's on' : 's'} onClick={() => cambiaCartella('inbox')}>Ricevuta</div>
-            <div className={folder === 'sent' ? 's on' : 's'} onClick={() => cambiaCartella('sent')}>Inviata</div>
-          </div>
+          {/* Due pulsanti come gli altri della barra. Prima era un "segmented control" (.seg)
+              copiato dall'app cliente: quel CSS però nel backoffice non esiste, quindi le due voci
+              uscivano come testo nudo impilato accanto a pulsanti veri. */}
+          <button
+            className={folder === 'inbox' ? 'btn' : 'btn ghost'}
+            onClick={() => cambiaCartella('inbox')}
+            disabled={loadingInbox}
+          >
+            <i className="ti ti-inbox" /> Ricevuta
+          </button>
+          <button
+            className={folder === 'sent' ? 'btn' : 'btn ghost'}
+            onClick={() => cambiaCartella('sent')}
+            disabled={loadingInbox}
+          >
+            <i className="ti ti-send" /> Inviata
+          </button>
           <button className="btn ghost" onClick={() => void loadInbox()} disabled={loadingInbox}><i className="ti ti-refresh" /> Aggiorna</button>
           <button className="btn" onClick={() => setCompose({ to: '', subject: '', text: '' })}><i className="ti ti-pencil" /> Scrivi</button>
         </div>
