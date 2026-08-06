@@ -261,6 +261,7 @@ export function CreazioneValidazione() {
         }
         if (r.alreadyExists) kept += 1; else generated += 1;
         if (!firstDietId) firstDietId = r.dietId;
+        if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Fatte ${idx} di ${targets.length}` });
       }
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
       void loadFamilyStatuses();
@@ -562,7 +563,7 @@ export function CreazioneValidazione() {
           <span className="muted" style={{ fontSize: 12 }}>(consigliato 28 = un mese)</span>
         </label>
         <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
-          {busy && !status ? (
+          {busy ? (
             <>
               <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.45)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginRight: 6, verticalAlign: '-2px' }} />
               Genero…
@@ -573,8 +574,11 @@ export function CreazioneValidazione() {
             </>
           )}
         </button>
-        {busy && !status && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
-        {busy && !status && !progress && (
+        {/* La barra si mostra SEMPRE durante la generazione: prima era legata a `!status`,
+            cioè spariva appena in pagina c'era una bozza già caricata — che è esattamente il
+            caso di chi genera la seconda variante e resta a guardare un pulsante fermo. */}
+        {busy && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
+        {busy && !progress && (
           <p className="muted" style={{ fontSize: 12, marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--line)', borderTopColor: 'var(--teal)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flex: 'none' }} />
             Sto generando ricette, giornate, alternative e allergeni… può richiedere fino a un minuto.

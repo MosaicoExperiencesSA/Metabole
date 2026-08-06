@@ -7,6 +7,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Generatore: la barra di avanzamento c'era, ma si nascondeva da sola** (segnalato
+  da Simone). Era legata a `busy && !status`: appena in pagina c'era una bozza già caricata al
+  passo 3 — cioè sempre, dalla seconda generazione in poi, e anche riaprendo la pagina con un
+  lavoro in corso salvato in `localStorage` — sparivano barra, riga «sto generando» e persino lo
+  spinner sul pulsante. Restava un pulsante fermo per minuti, che è il modo più veloce per far
+  pensare che qualcosa si sia bloccato e ricaricare la pagina a metà lavoro. Ora la barra si
+  mostra **sempre durante la generazione**. In più avanza anche **quando una variante finisce**
+  (prima si aggiornava solo prima di partire, quindi si fermava a 11 su 12 e non arrivava mai al
+  100%).
+
 - `[Sviluppo]` **Profilo cliente — «La mia alimentazione»** (richiesta Simone 6/8). La cliente
   sceglieva tipo di alimentazione, pasti e regime in registrazione e poi non li rivedeva mai più:
   non sapeva nemmeno cosa stava seguendo. Ora nel Profilo c'è una scheda in **sola lettura** con
