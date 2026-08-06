@@ -99,7 +99,9 @@ describe('OnboardingService', () => {
     );
     expect(prisma.escalation.create).not.toHaveBeenCalled();
     expect(result.path.name).toBe('Equilibrio Mediterraneo');
-    expect(result.team.coach.displayName).toBe('Marta');
+    // `coach` è nullable (senza ref code il team non si assegna): l'accesso diretto non
+    // compilava più. Con `?.` il test resta severo — se fosse null, 'Marta' non arriverebbe.
+    expect(result.team.coach?.displayName).toBe('Marta');
   });
 
   it('senza ref code il team NON si assegna in automatico (lo assegna il responsabile)', async () => {

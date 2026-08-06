@@ -16,7 +16,11 @@ describe('CoachService.clients', () => {
     const prisma = {
       // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
       // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
-      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ role: 'coach' }),
+        // La lista clienti porta anche email e telefono, che stanno su User.
+        findMany: jest.fn().mockResolvedValue([{ id: 'c1', email: 'anna@t.it', phone: null }, { id: 'c2', email: 'bea@t.it', phone: null }]),
+      },
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
       clientProfile: {
         findMany: jest.fn().mockResolvedValue([
@@ -27,6 +31,8 @@ describe('CoachService.clients', () => {
       subscription: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c1', status: 'active', endDate: D('2026-08-01') }]) },
       measurement: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c1', date: D('2026-07-10'), weightKg: 70 }]) },
       alert: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c2' }, { clientId: 'c2' }]) },
+      // La lista clienti porta anche l'obiettivo corrente di ognuna.
+      objective: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const res = (await makeService(prisma).clients(user)) as { clients: { clientId: string; openAlerts: number; planActive: boolean }[] };
     expect(res.clients).toHaveLength(2);

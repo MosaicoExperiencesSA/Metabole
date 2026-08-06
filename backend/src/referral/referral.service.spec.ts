@@ -110,6 +110,13 @@ describe('ReferralService.linkOnRegister', () => {
 });
 
 describe('ReferralService.onConvert', () => {
+  // ⚠️ Questo test confrontava una data FISSA con l'orologio reale: la ricompensa parte dalla
+  // scadenza dell'abbonamento solo se è ancora futura, altrimenti da oggi. Scritto nel 2026-07
+  // era verde; superato il 1° agosto è diventato rosso da solo, senza che niente si rompesse.
+  // Congeliamo il tempo: così il test verifica la REGOLA, non il giorno in cui lo si lancia.
+  beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date('2026-07-15T09:00:00.000Z')); });
+  afterEach(() => { jest.useRealTimers(); });
+
   it('converte e premia estendendo l\'abbonamento attivo della referrer', async () => {
     const end = new Date('2026-08-01T00:00:00.000Z');
     const subUpdate = jest.fn().mockResolvedValue({});
@@ -129,6 +136,24 @@ describe('ReferralService.onConvert', () => {
     expect(refUpdate).toHaveBeenCalledTimes(2);
     const newEnd = subUpdate.mock.calls[0][0].data.endDate as Date;
     expect(newEnd.getTime()).toBe(new Date('2026-08-31T00:00:00.000Z').getTime());
+  });
+
+  it('abbonamento già scaduto → i giorni si contano da oggi, non dalla scadenza vecchia', async () => {
+    const subUpdate = jest.fn().mockResolvedValue({});
+    const prisma = {
+      referral: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'r1', referrerClientId: 'referrer-1', convertedAt: null }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      subscription: {
+        // scaduto da un mese: estendere da lì regalerebbe giorni già passati
+        findFirst: jest.fn().mockResolvedValue({ id: 'sub-1', endDate: new Date('2026-06-15T00:00:00.000Z') }),
+        update: subUpdate,
+      },
+    };
+    await make(prisma, 30).onConvert('referred-1');
+    const newEnd = subUpdate.mock.calls[0][0].data.endDate as Date;
+    expect(newEnd.getTime()).toBe(new Date('2026-08-14T09:00:00.000Z').getTime()); // 15/07 + 30 giorni
   });
 
   it('già convertito → non fa nulla', async () => {

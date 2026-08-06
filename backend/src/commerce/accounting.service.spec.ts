@@ -87,6 +87,10 @@ describe('AccountingService.report (KPI)', () => {
         // Il report ora AGGREGA (somma) invece di sommare a mano riga per riga.
         aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 0 } }),
       },
+      // Il report somma anche i prelievi provvigioni (pagati, richiesti, in attesa).
+      commissionWithdrawal: { aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 0 } }) },
+      // Provvigioni maturate ma non ancora assegnate (coach/nutrizionista mancanti).
+      pendingCommission: { aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 0 } }) },
       costEntry: {
         findMany: jest.fn().mockResolvedValue([
           { category: 'marketing', amountCents: 6000, recurring: false, cadence: 'once', date: D('2026-01-05'), endDate: null },

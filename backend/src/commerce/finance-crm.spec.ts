@@ -172,6 +172,9 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
 
   beforeEach(async () => {
     prisma = {
+      // `assertLeadAccess` passa da `coachTeamScope`, che legge il ruolo da prisma.user:
+      // qui l'attore e' 'sales-user', cioe' vede tutti i lead.
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'sales' }) },
       crmRecord: {
         upsert: jest.fn(),
         findUnique: jest.fn().mockResolvedValue({ id: 'lead1', stageDates: { lead_in: { at: 'x', byUserId: null } } }),

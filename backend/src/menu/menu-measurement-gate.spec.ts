@@ -38,7 +38,10 @@ describe('MenuService — gate misure', () => {
       clientProfile: { findUnique: jest.fn().mockResolvedValue(null) }, // nessun piano → nessun popup
     };
     const res = await makeService(prisma).measurementGate('c1');
-    expect(res).toEqual({ required: false, blocking: false, cycleDate: null });
+    // Il gate severo (voce #6 del 5/8) ha aggiunto `level`, `since` e `lockedMessage`.
+    // Il confronto resta ESAUSTIVO di proposito: se domani il gate cresce ancora, questo
+    // test lo dice invece di lasciar passare campi nuovi mai guardati da nessuno.
+    expect(res).toEqual({ required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null });
   });
 
   it('2° giorno del ciclo passato e nessuna misura → bloccante', async () => {

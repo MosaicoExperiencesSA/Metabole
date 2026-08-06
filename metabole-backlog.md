@@ -111,33 +111,27 @@ cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della 
 Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
 non è un lavoro da sera di pubblicazione.
 
-## Test rossi e `continue-on-error` in ci.yml — 17 rimasti (erano 99), 6/8
-Misurato il 6/8 facendo girare la suite: **99 test rossi in 18 suite**, non «~30 in src/commerce»
-come dicevano gli appunti. Sistemate le due famiglie meccaniche — provider dimenticati nei moduli
-di test (6 suite) e finti Prisma senza i modelli che i servizi hanno imparato a leggere (7 suite):
-**99 → 28 → 17**, con sette suite tornate verdi (auth, utenti, signals, promemoria, pipeline,
-nutrizionista, alert). Da qui in poi non è più meccanico:
+## Test — ZERO ROSSI (erano 99), 6/8 — resta da togliere `continue-on-error`
+Misurato il 6/8: **99 test rossi in 18 suite**, non «~30 in src/commerce» come dicevano gli
+appunti. Sistemati tutti: **51 suite su 51, 527 test su 527**.
 
-1. **Dodici asserzioni che ADESSO girano e falliscono** — commerce (5), finance-crm (4), area
-   sanitaria (2), catalogo (2), contabilità (1), coach (1). Prima di oggi queste suite non
-   partivano proprio, quindi questi rossi non li aveva mai visti nessuno. Vanno letti uno per
-   uno: qui la domanda «ha ragione il test o il codice?» ha davvero due risposte possibili, e
-   almeno un paio potrebbero essere difetti veri.
-2. **Tre suite che NON compilano**: descrivono un'API che non esiste più. `cron.controller.spec`
-   si aspetta `result.engine.run` e `result.notifications`, che la risposta del cron non ha più.
-   È riscrittura, non riparazione: va deciso cosa debbano verificare adesso.
-   Suite: cron, escalations, onboarding.
-3. **Due da leggere prima di toccare**:
-   - `menu-measurement-gate.spec`: si aspetta 0 e riceve 3. È il gate misure reso severo il 6/8
-     (voce #6). O il test racconta la regola vecchia, o il gate lascia passare più del dovuto:
-     è l'unico test che presidia una regola clinica, quindi va capito, non allineato.
-   - `referral.service.spec`: confronta un istante fisso (`1788134400000`) con l'orologio reale.
-     Rosso per costruzione. Serve congelare il tempo (`jest.useFakeTimers`).
+In nessun caso il difetto era nel codice: erano test rimasti indietro rispetto a modifiche fatte
+bene — provider non registrati nei moduli di test, finti Prisma senza i modelli che i servizi
+hanno imparato a leggere, un finto claim atomico che rispondeva sempre «riuscito», una data fissa
+confrontata con l'orologio reale. Il punto è un altro: **quelle suite non giravano**, quindi non
+proteggevano niente, e nessuno poteva accorgersene perché la pipeline non può fallire.
 
-`continue-on-error: true` (`.github/workflows/ci.yml`) si toglie **quando sono zero**, non quando
-sono pochi: finché c'è, la pipeline non può fallire e il numero cresce senza che nessuno lo veda —
-da 30 a 99 è successo così. ⚠️ I file `.github/` non li scrive il bridge: si modificano
-dall'editor web di GitHub.
+⬜ **DA FARE — togliere `continue-on-error: true`** da `.github/workflows/ci.yml` (job backend) e
+correggere il nome dello step, che dice ancora «informativo — alcuni test noti falliscono per DI
+NestJS». Diventa:
+
+```yaml
+      - name: Test
+        run: npm test -- --ci --passWithNoTests
+```
+
+⚠️ I file `.github/` non li scrive il bridge: si modificano dall'editor web di GitHub.
+Da quel momento un test rosso blocca la push — che è il punto.
 
 ## Catalogo ricette — filtri e ordinamento sul SERVER — DA FARE (emerso 6/8)
 Lo screenshot di Simone del 6/8 mostra il banner di troncamento **con il solo regime Vegetariana**:

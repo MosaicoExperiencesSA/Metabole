@@ -50,6 +50,9 @@ describe('Area sanitaria', () => {
           ),
         ),
       },
+      // `clientName` ripiega su User quando il profilo non ha il nome: senza `user` nel
+      // finto Prisma la creazione della visita esplode sulla notifica.
+      user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'Anna', lastName: 'Bianchi' }) },
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({ assignedNutritionistId: 'staff-n' }),
       },

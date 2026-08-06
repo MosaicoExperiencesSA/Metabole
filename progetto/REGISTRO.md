@@ -28,16 +28,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   Nessuna delle due famiglie era un difetto del codice: erano test rimasti indietro rispetto a
   modifiche fatte bene. Ma la conseguenza era che **nessuno dei test di quelle suite girava**, e
   quindi non proteggevano più niente da mesi.
-  Restano 17, e da qui in poi non è più meccanico: **(c)** tre suite **non compilano** perché
-  descrivono un'API che non esiste più (`cron.controller.spec` si aspetta ancora
-  `result.engine.run`) — è riscrittura, va deciso cosa debbano verificare adesso; **(d)** due
-  meritano lettura vera prima di toccarle — `menu-measurement-gate` si aspetta 0 e riceve 3, ed è
-  proprio il gate misure reso severo oggi (potrebbe essere il test a raccontare la regola vecchia,
-  o il gate a essere troppo largo: è l'unico test che presidia una regola clinica), e
-  `referral.service.spec` confronta un istante fisso con l'orologio reale, quindi è rosso per
-  costruzione; **(e)** i 12 di commerce, finance-crm, area sanitaria e catalogo, che **adesso
-  girano** e falliscono su asserzioni vere: vanno letti uno per uno, perché lì la domanda «ha
-  ragione il test o il codice?» ha davvero due risposte possibili.
+  Poi i 17 rimasti, uno per uno, e qui non era più meccanico. **In nessun caso il difetto era nel
+  codice: erano test rimasti indietro rispetto a modifiche fatte bene.** Ma tre meritano di essere
+  raccontati, perché la riparazione è stata una decisione, non un allineamento:
+  · **Gate misure** (`menu-measurement-gate`): si aspettava 0 campi e ne riceveva 3 — `level`,
+    `since`, `lockedMessage`, aggiunti oggi col gate severo. Il confronto è rimasto **esaustivo**
+    di proposito: se domani il gate cresce ancora, il test lo dice invece di lasciar passare campi
+    nuovi che nessuno ha mai guardato.
+  · **Ricompensa «porta un'amica»** (`referral`): confrontava una data fissa con l'orologio reale.
+    Scritto a luglio era verde; passato il 1° agosto è diventato rosso **da solo**, senza che si
+    rompesse niente. Congelato il tempo (`setSystemTime`) e aggiunto il caso opposto, che non
+    c'era: abbonamento già scaduto → i giorni si contano da oggi, non dalla scadenza vecchia,
+    altrimenti si regalerebbero giorni già passati.
+  · **Statistiche pubbliche** (`catalog`): il test diceva che i «clienti seguiti» della home sono
+    gli abbonamenti attivati. Non è più così — sono le schede CRM arrivate a `paid` **oppure** con
+    un pagamento pregresso (clienti storici), e sul sito vanno solo le diete rese visibili, non
+    tutte le approvate. È un numero che sta sulla home: allineato al codice, ma **segnalato**,
+    perché se la definizione giusta fosse quella vecchia allora il difetto è nel codice.
+  L'ultimo è il più interessante e non era un mock dimenticato. L'approvazione dei pagamenti non
+  fa più «leggi lo stato, poi scrivi»: fa una **updateMany atomica** che tocca la riga solo se è
+  ancora in attesa e decide dal `count` — così due operatori che cliccano insieme, o un webhook
+  Stripe riconsegnato, non producono un doppio accredito. Il finto Prisma però rispondeva sempre
+  `count: 1`: **i tre test sull'idempotenza misuravano un mondo che non esiste.** Ora il mock si
+  comporta come il database vero. E `cron.controller.spec`, ferma a quando gli step erano due su
+  sedici, è stata riscritta intorno a quello che conta adesso: che **uno step rotto non fermi gli
+  altri** — la ragione per cui quel codice ha quella forma, e che nessuno verificava.
+  **Risultato: 51 suite su 51, 527 test su 527, zero rossi**, con `tsc --noEmit` pulito.
+  ⚠️ Resta da togliere `continue-on-error: true` da `.github/workflows/ci.yml` (e il nome dello
+  step, «informativo — alcuni test noti falliscono», che adesso è falso). Va fatto dall'editor web
+  di GitHub: i file `.github/` il bridge non li scrive. È il momento giusto: da lì in poi la
+  pipeline comincia davvero a proteggere, invece di raccontare che tutto va bene.
   Nota di metodo: `continue-on-error` non si toglie perché «ci sono pochi test rossi», si toglie
   quando sono zero. Finché c'è, il numero cresce senza che nessuno se ne accorga — da 30 a 99
   è successo esattamente così.

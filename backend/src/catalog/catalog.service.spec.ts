@@ -65,15 +65,19 @@ describe('CatalogService (flusso approvazione diete)', () => {
     ]);
     const s = await service.publicStats();
     expect(s.methods).toBe(3); // ogni dieta approvata conta: 3 diete → 3 percorsi
+    // Sul sito vanno solo le diete che il capo nutrizionista ha reso visibili: approvata
+    // non basta più. Il test diceva ancora "approved e basta".
     expect(prisma.diet.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: 'approved' } }),
+      expect.objectContaining({ where: { status: 'approved', siteVisible: true } }),
     );
-    expect(s.clients).toBe(2); // base 0 + abbonamenti attivati (subscription.count)
-    expect(s.reached).toBe(12); // base 0 + lead nel CRM (crmRecord.count)
+    // ⚠️ Definizione cambiata: i "clienti seguiti" NON sono più gli abbonamenti attivati, ma le
+    // schede CRM arrivate a 'paid' OPPURE con un pagamento pregresso (clienti storici) — l'OR
+    // deduplica da solo. È il numero che sta sulla home del sito, quindi la definizione conta.
+    expect(s.clients).toBe(12); // base 0 + schede CRM paid/storiche
+    expect(s.reached).toBe(12); // base 0 + tutte le schede CRM
     expect(s.years).toBeUndefined(); // config 0 → campo omesso
-    // i clienti si contano sugli abbonamenti ATTIVATI (startDate valorizzata)
-    expect(prisma.subscription.count).toHaveBeenCalledWith({
-      where: { startDate: { not: null } },
+    expect(prisma.crmRecord.count).toHaveBeenCalledWith({
+      where: { OR: [{ stage: 'paid' }, { historicalPaidCents: { gt: 0 } }] },
     });
   });
 
@@ -102,7 +106,7 @@ describe('CatalogService (flusso approvazione diete)', () => {
       { id: 'd1', style: 'keto', name: 'Keto', status: 'approved' },
     ]);
     const s = await service.publicStats();
-    expect(s.clients).toBe(18979 + 2); // base + abbonamenti attivati
+    expect(s.clients).toBe(18979 + 12); // base + schede CRM paid/storiche
     expect(s.reached).toBe(85218 + 12); // base + lead CRM
     expect(s.years).toBe(20);
     expect(s.methods).toBe(1);

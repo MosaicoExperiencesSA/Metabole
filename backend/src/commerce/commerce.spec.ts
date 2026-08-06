@@ -39,16 +39,35 @@ describe('CommerceService (flusso bonifico)', () => {
       },
       subscription: {
         findFirst: jest.fn().mockResolvedValue(null),
+        // Attivato il piano, il monitoraggio rilegge il piano dall'abbonamento per decidere
+        // se convertire un monitoraggio in corso o erogare i menu di rientro.
+        findUnique: jest.fn().mockResolvedValue({ plan: { id: 'p1', name: 'Trimestrale', priceCents: 29700, period: '3m' }, createdAt: new Date('2026-07-01T00:00:00.000Z') }),
         create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'sub1', ...data })),
         update: jest.fn(),
       },
       payment: {
+        // CLAIM ATOMICO. L'approvazione non legge-e-poi-scrive più: fa una updateMany che
+        // tocca la riga SOLO se è ancora in attesa, e decide dal `count`. Due operatori che
+        // cliccano insieme → una sola vince. Il finto Prisma deve comportarsi come il vero,
+        // altrimenti i test dell'idempotenza (webhook Stripe riconsegnato, doppio click)
+        // misurano un mondo che non esiste: qui il claim guarda lo stato corrente e, se
+        // riesce, sposta il pagamento ad "approved" come farebbe il database.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const attuale = await prisma.payment.findUnique({ where: { id: where.id } });
+          const claimabili = ['pending', 'receipt_uploaded'];
+          if (!attuale || !claimabili.includes(attuale.status)) return { count: 0 };
+          prisma.payment.findUnique.mockResolvedValue({ ...attuale, ...data });
+          return { count: 1 };
+        }),
         create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'pay-12345678', ...data })),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'pay-12345678', ...data })),
       },
+      // Funnel: prova iniziata → convertita, e riconoscimento del rinnovo (esiste un
+      // abbonamento a pagamento precedente?). Nessuno dei due qui: primo acquisto, niente prova.
+      analyticsEvent: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ev1' }) },
       order: {
         create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'ord1', ...data })),
         update: jest.fn(),

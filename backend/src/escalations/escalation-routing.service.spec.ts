@@ -1,4 +1,5 @@
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscalationRoutingService } from './escalation-routing.service';
 
@@ -14,8 +15,15 @@ function make(over: { existing?: { id: string } | null; profile?: Record<string,
     },
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
-  const service = new EscalationRoutingService(prisma as unknown as PrismaService, audit as unknown as AuditService);
-  return { service, creates, prisma };
+  // Terzo parametro aggiunto al servizio (avviso a chi riceve l'escalation) e mai arrivato
+  // qui: la suite non compilava, quindi da allora non verificava piu' nulla.
+  const notifications = { notify: jest.fn().mockResolvedValue(undefined) };
+  const service = new EscalationRoutingService(
+    prisma as unknown as PrismaService,
+    audit as unknown as AuditService,
+    notifications as unknown as NotificationsService,
+  );
+  return { service, creates, prisma, notifications };
 }
 
 describe('EscalationRoutingService.open', () => {
