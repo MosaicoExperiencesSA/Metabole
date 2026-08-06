@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Preferences } from '@capacitor/preferences';
 import { API_BASE_URL } from '../api/client';
+import { track } from './track';
 
 /**
  * Aggiornamenti OTA (Over-The-Air) — SELF-HOSTED, senza server Capgo.
@@ -35,6 +36,28 @@ import { API_BASE_URL } from '../api/client';
 const OTA_URL = (import.meta.env.VITE_OTA_URL as string | undefined)
   ?? `${API_BASE_URL}/api/v1/app-updates/latest.json`;
 const APPLIED_KEY = 'ota_applied_version';
+const LAST_ERROR_KEY = 'ota_last_error';
+
+/**
+ * Un OTA che fallisce in silenzio è il peggiore dei casi: il manifest dice che c'è
+ * una versione nuova, lo zip non c'è (o è corrotto), e sui telefoni non cambia niente
+ * mentre da qui sembra tutto a posto. È già successo, ed è la stessa lezione degli
+ * script di patch che non verificavano il proprio risultato: si segnala, non si ingoia.
+ *
+ * L'errore viaggia come evento analitico (`ota_error`, stessa strada di tutti gli altri)
+ * e si ripete solo se CAMBIA: se un bundle è rotto lo scopriamo al primo avvio, non
+ * riceviamo lo stesso errore da ogni telefono a ogni apertura.
+ */
+async function segnala(fase: string, dettaglio: Record<string, unknown>): Promise<void> {
+  const firma = `${fase}:${JSON.stringify(dettaglio)}`;
+  try {
+    const { value } = await Preferences.get({ key: LAST_ERROR_KEY });
+    if (value === firma) return; // già segnalato, identico: non insistiamo
+    await Preferences.set({ key: LAST_ERROR_KEY, value: firma });
+  } catch { /* se le preferenze non rispondono, segnaliamo comunque */ }
+  console.warn('[OTA]', fase, dettaglio);
+  track('ota_error', { fase, piattaforma: Capacitor.getPlatform(), ...dettaglio });
+}
 
 interface LatestBundle { version?: string | null; url?: string | null }
 
@@ -44,25 +67,46 @@ export async function initOta(): Promise<void> {
   // Segnala che il bundle attuale è partito bene (evita il rollback automatico di Capgo).
   try { await CapacitorUpdater.notifyAppReady(); } catch { /* ignora */ }
 
+  let latest: LatestBundle | null = null;
   try {
     const res = await fetch(`${OTA_URL}?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) return;
-    const latest = (await res.json()) as LatestBundle;
-    if (!latest?.version || !latest?.url) return; // OTA spento o non configurato
+    if (!res.ok) {
+      // Il manifest è servito dal nostro backend: se non risponde è un problema nostro.
+      await segnala('manifest', { stato: res.status });
+      return;
+    }
+    latest = (await res.json()) as LatestBundle;
+  } catch {
+    // Qui dentro ci finisce anche il telefono semplicemente offline: non è un errore
+    // da segnalare, l'app riprova al prossimo avvio.
+    return;
+  }
+  if (!latest?.version || !latest?.url) return; // OTA spento o non configurato: normale
 
-    // Già in esecuzione questa versione?
-    let currentVersion: string | undefined;
-    try { currentVersion = (await CapacitorUpdater.current())?.bundle?.version; } catch { /* ignora */ }
-    if (latest.version === currentVersion) return;
+  // Già in esecuzione questa versione?
+  let currentVersion: string | undefined;
+  try { currentVersion = (await CapacitorUpdater.current())?.bundle?.version; } catch { /* ignora */ }
+  if (latest.version === currentVersion) return;
 
-    // Già scaricata/messa in coda questa versione? (evita ri-download inutili)
+  // Già scaricata/messa in coda questa versione? (evita ri-download inutili)
+  try {
     const { value: applied } = await Preferences.get({ key: APPLIED_KEY });
     if (applied === latest.version) return;
+  } catch { /* preferenze non disponibili: al peggio riscarichiamo */ }
 
+  try {
     const bundle = await CapacitorUpdater.download({ version: latest.version, url: latest.url });
     await CapacitorUpdater.next({ id: bundle.id }); // si attiva al prossimo background/riavvio
     await Preferences.set({ key: APPLIED_KEY, value: latest.version });
-  } catch {
-    /* offline o nessun aggiornamento: l'app continua con il bundle attuale */
+    // Serve a sapere che l'OTA è arrivato davvero sui telefoni: finora non lo sapeva nessuno.
+    track('ota_scaricato', { versione: latest.version, piattaforma: Capacitor.getPlatform() });
+  } catch (e) {
+    // Il caso che ci è già costato caro: manifest che punta a uno zip inesistente (404),
+    // zip corrotto, spazio finito. Da qui in poi si vede.
+    await segnala('download', {
+      versione: latest.version,
+      url: latest.url,
+      messaggio: e instanceof Error ? e.message : String(e),
+    });
   }
 }

@@ -7,6 +7,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **OTA — un aggiornamento che fallisce non sparisce più in silenzio** (voce rimasta
+  aperta dall'indagine di stamattina). `initOta` aveva un `catch` vuoto attorno a tutto: un
+  manifest che punta a uno zip inesistente, uno zip corrotto o il telefono senza spazio finivano
+  nel nulla — dal nostro lato sembrava tutto a posto mentre sui telefoni non cambiava niente. È
+  già successo, ed è la stessa lezione degli script di patch che non verificavano il proprio
+  risultato. Ora l'errore viaggia come evento analitico **`ota_error`** (stessa strada di tutti
+  gli altri) con fase, versione, url e messaggio, e si ripete **solo se cambia**: un bundle rotto
+  lo scopriamo al primo avvio, senza ricevere lo stesso errore da ogni telefono a ogni apertura.
+  Il telefono semplicemente offline **non** viene segnalato: non è un errore, riprova dopo.
+  Aggiunto anche `ota_scaricato`: finora non sapeva nessuno se un OTA fosse arrivato davvero sui
+  telefoni. ⚠️ È codice app: entra con la build 2.1 di stasera, non prima.
+
 - `[Sviluppo]` **Pulizia Keto-Mediterranea, per rifarla da zero col nutrizionista** (richiesta
   Simone). Nuovo `backend/prisma/cleanup-keto-mediterranea.ts` (`npm run cleanup:keto-med`):
   cancella le diete con stile `keto_mediterranean` **o** nome che comincia per «Keto-Mediterranea»
