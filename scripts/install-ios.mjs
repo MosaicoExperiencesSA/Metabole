@@ -180,11 +180,15 @@ async function main() {
     );
     changed = true;
   }
-  if (!ad.includes('Messaging.messaging().apnsToken')) {
-    ad = ad.replace(
-      /func application\(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data\) \{[\s\S]*?\n    \}/,
-      `func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        // Il backend invia le push via FCM: scambiamo il token APNs con quello FCM.
+  // I due metodi del delegato che fanno arrivare il token a Capacitor.
+  // ⚠️ Senza QUESTI l'app chiede il permesso, chiama register(), iOS consegna il token
+  // all'AppDelegate… e lì non c'è nessuno ad ascoltare: nessun evento `registration`,
+  // nessun `registrationError`, silenzio totale. È esattamente quello che è successo
+  // nella build 2.0 (diagnosticato il 6/8/2026 — vedi metabole-push-ios-indagine).
+  const METODI_PUSH = `
+    // --- Push (inserito da install-ios.mjs) ---
+    // Il backend invia via FCM: scambiamo il token APNs con quello FCM e lo giriamo a Capacitor.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Messaging.messaging().apnsToken = deviceToken
         Messaging.messaging().token { token, error in
             if let error = error {
@@ -193,18 +197,58 @@ async function main() {
                 NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: token)
             }
         }
-    }`,
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+`;
+
+  if (ad.includes('Messaging.messaging().apnsToken')) {
+    console.log('   AppDelegate.swift: metodi push già presenti.');
+  } else if (/func application\(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data\) \{/.test(ad)) {
+    // Il metodo esiste già (versione Capacitor standard): lo sostituiamo.
+    ad = ad.replace(
+      /func application\(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data\) \{[\s\S]*?\n    \}/,
+      METODI_PUSH.trim().replace(/^\s*\/\/ --- Push[^\n]*\n/, ''),
     );
     changed = true;
-  }
-  if (changed) {
-    await fs.writeFile(APPDELEGATE, ad);
-    console.log('   AppDelegate.swift: Firebase configurato (init + token FCM).');
+    console.log('   AppDelegate.swift: metodi push sostituiti.');
   } else {
-    console.log('   AppDelegate.swift: già configurato.');
+    // ⚠️ IL CASO CHE CI È COSTATO CARO: i metodi non ci sono proprio. Prima la replace()
+    // non trovava nulla, non sostituiva niente e NON si lamentava: lo script stampava
+    // "Firebase configurato" e la build usciva senza push. Ora li INSERIAMO.
+    const ultimaGraffa = ad.lastIndexOf('\n}');
+    if (ultimaGraffa < 0) {
+      console.error('\n⛔ Non riesco a inserire i metodi push in AppDelegate.swift: struttura inattesa.');
+      console.error('   Aggiungili a mano dentro la classe AppDelegate, altrimenti le push iOS non funzioneranno:');
+      console.error(METODI_PUSH);
+      process.exit(1);
+    }
+    ad = ad.slice(0, ultimaGraffa) + '\n' + METODI_PUSH + ad.slice(ultimaGraffa);
+    changed = true;
+    console.log('   AppDelegate.swift: metodi push MANCANTI → inseriti.');
   }
 
-  console.log('✅ Progetto iOS pronto (push Firebase cablate).');
+  if (changed) {
+    await fs.writeFile(APPDELEGATE, ad);
+  }
+
+  // Controllo finale: se dopo tutto questo il cablaggio non c'è, meglio fermarsi che
+  // consegnare una build muta.
+  const finale = await fs.readFile(APPDELEGATE, 'utf8');
+  const mancanti = [
+    ['FirebaseApp.configure()', 'inizializzazione Firebase'],
+    ['Messaging.messaging().apnsToken', 'scambio token APNs→FCM'],
+    ['didFailToRegisterForRemoteNotificationsWithError', 'gestione degli errori di registrazione'],
+  ].filter(([ago]) => !finale.includes(ago));
+  if (mancanti.length) {
+    console.error('\n⛔ AppDelegate.swift incompleto, le push iOS NON funzioneranno. Manca:');
+    mancanti.forEach(([, cosa]) => console.error(`   · ${cosa}`));
+    process.exit(1);
+  }
+
+  console.log('✅ Progetto iOS pronto (push Firebase cablate e verificate).');
   console.log('   In Xcode, UNA volta sola: Signing & Capabilities → + Capability →');
   console.log('   "Push Notifications" e "Background Modes" (spunta Remote notifications).');
 }

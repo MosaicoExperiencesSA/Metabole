@@ -13,10 +13,12 @@
 
 set -e
 
-ICLOUD="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Metabole"
+# Repo spostato fuori da iCloud il 6/8/2026: iCloud teneva i file come segnaposto
+# vuoti e corrompeva .git. La variabile si chiama ancora SORGENTE per chiarezza.
+SORGENTE="$HOME/Progetti/Metabole"
 BUILD="$HOME/MetaboleBuild"
 APKDIR="$BUILD/app/android/app/build/outputs/apk/debug"
-GS_DEST="$ICLOUD/app/google-services.json"
+GS_DEST="$SORGENTE/app/google-services.json"
 
 echo "=== Metabole · build APK ==="
 
@@ -30,7 +32,7 @@ fi
 
 if [ -n "$SRC" ] && [ -f "$SRC" ]; then
   echo "→ Sposto google-services.json in app/ (push attive)…"
-  mkdir -p "$ICLOUD/app"
+  mkdir -p "$SORGENTE/app"
   mv -f "$SRC" "$GS_DEST"
   echo "   ok: $GS_DEST"
 elif [ -f "$GS_DEST" ]; then
@@ -43,8 +45,8 @@ else
 fi
 
 # ---- 2. allineo e compilo ---------------------------------------------------
-echo "→ Allineo i file da iCloud…"
-rsync -a --delete --exclude node_modules --exclude android "$ICLOUD/" "$BUILD/"
+echo "→ Allineo i file dal repo…"
+rsync -a --delete --exclude node_modules --exclude android "$SORGENTE/" "$BUILD/"
 
 echo "→ Dipendenze (npm install: veloce se già aggiornate)…"
 cd "$BUILD/app"

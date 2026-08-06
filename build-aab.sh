@@ -12,7 +12,9 @@
 
 set -e
 
-ICLOUD="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Metabole"
+# Repo spostato fuori da iCloud il 6/8/2026: iCloud teneva i file come segnaposto
+# vuoti e corrompeva .git. La variabile si chiama ancora SORGENTE per chiarezza.
+SORGENTE="$HOME/Progetti/Metabole"
 BUILD="$HOME/MetaboleBuild"
 KEYS="$HOME/MetaboleKeys"
 ALIAS="metabole"
@@ -75,8 +77,8 @@ fi
 PASS="$(head -n1 "$PWFILE")"
 
 # ---- 3. Allineo da iCloud e preparo il progetto -----------------------------
-echo "→ Allineo i file da iCloud…"
-rsync -a --delete --exclude node_modules --exclude android "$ICLOUD/" "$BUILD/"
+echo "→ Allineo i file dal repo…"
+rsync -a --delete --exclude node_modules --exclude android "$SORGENTE/" "$BUILD/"
 
 cd "$BUILD/app"
 echo "→ npm install (dipendenze aggiornate)…"
