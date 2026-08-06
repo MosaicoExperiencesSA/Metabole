@@ -112,7 +112,13 @@ export class CoachTasksService {
     let notConverted = 0;
     for (const t of expiredTrials) {
       const active = await this.prisma.subscription.findFirst({
-        where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } },
+        // 'paused' NON è uno stato di Subscription: l'enum è pending|active|cancelled|expired e le
+        // pause vivono nella tabella pause_request. Metterlo qui faceva rifiutare la query da Prisma
+        // → 500. Stesso errore già corretto in commerce.service.ts:204: qui era stato ricopiato.
+        // Niente `as never` su questa query, di proposito: è proprio il cast che spegneva il
+        // controllo del compilatore e ha lasciato passare 'paused' due volte. Senza, uno stato
+        // inesistente non compila nemmeno.
+        where: { clientId: t.clientId, status: { in: ['active', 'pending'] } },
         select: { id: true },
       });
       if (!active) notConverted++;
@@ -210,7 +216,13 @@ export class CoachTasksService {
       // +7 dopo la scadenza — ultima chiamata (solo se NON convertita).
       if (t.status === 'expired' && t.endDate && now.getTime() >= this.day(new Date(t.endDate), 7).getTime()) {
         const converted = await this.prisma.subscription.findFirst({
-          where: { clientId: t.clientId, status: { in: ['active', 'pending', 'paused'] as never } },
+          // 'paused' NON è uno stato di Subscription: l'enum è pending|active|cancelled|expired e le
+          // pause vivono nella tabella pause_request. Metterlo qui faceva rifiutare la query da Prisma
+          // → 500. Stesso errore già corretto in commerce.service.ts:204: qui era stato ricopiato.
+        // Niente `as never` su questa query, di proposito: è proprio il cast che spegneva il
+        // controllo del compilatore e ha lasciato passare 'paused' due volte. Senza, uno stato
+        // inesistente non compila nemmeno.
+          where: { clientId: t.clientId, status: { in: ['active', 'pending'] } },
           select: { id: true },
         });
         if (!converted) {

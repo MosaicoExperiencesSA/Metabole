@@ -7,6 +7,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Il backend ora si type-checka anche fuori da Render, e il compilatore fa la
+  guardia sugli stati.** Finora il type-check del backend esisteva solo dentro il deploy: nel
+  sandbox il client Prisma non è generabile, quindi ogni errore di tipo si scopriva a build in
+  corso. Sul Mac di Simone bastano `npm install` in `backend/` e
+  `./node_modules/.bin/tsc --noEmit -p tsconfig.build.json`: **primo giro fatto oggi, zero
+  errori**. Un minuto, e diventa la rete di sicurezza prima di ogni consegna backend
+  (annotato in memoria, con la trappola dell'`npx tsc` che scarica un pacchetto omonimo inutile).
+  Con quella rete disponibile, tolti i due `as never` dalle query corrette poco fa: erano proprio
+  loro a spegnere il controllo del compilatore e a lasciar passare `'paused'` due volte. Ora uno
+  stato inesistente **non compila**. La regola generale finisce in memoria: il cast serve per i
+  campi Json, non per i valori di enum in un `where`.
+
+- `[Sviluppo]` **500 in produzione sulle attività coach: `'paused'` non è uno stato di
+  Subscription** (trovato nei log di Render mentre cercavamo altro). L'enum è
+  `pending|active|cancelled|expired` — una pausa non cambia lo stato dell'abbonamento, vive in
+  `pause_request`. In `coach-tasks.service.ts` la tripla `['active','pending','paused']` compariva
+  in **due** punti: il riepilogo delle attività coach (che l'app ingoia in silenzio: la striscia
+  in cima spariva e basta) e il **tick delle prove**, cioè la generazione automatica dei task.
+  Introdotto stamattina con `f9900c8`, live da allora.
+  ⚠️ **Era già successo**: lo stesso errore era stato corretto in `commerce.service.ts:204`, dove
+  faceva 500 su `/me/plans` — e da lì la tripla sbagliata è stata **ricopiata**. Il `as never` che
+  serve a far compilare quelle query è anche ciò che spegne il controllo del compilatore: senza
+  qualcosa che guardi, l'errore torna.
+  Ho provato a scrivere un controllo statico che confrontasse gli stati citati con l'enum, e **l'ho
+  buttato**: con query multilinea produceva quattro falsi positivi su sei segnalazioni, e un
+  controllo che grida al lupo viene ignorato — sarebbe stato peggio di niente. La strada giusta è
+  togliere `as never` da quelle due query e lasciare che sia **il compilatore** a rifiutare uno
+  stato inesistente: si fa quando il type-check del backend è eseguibile davvero (sul Mac, dove il
+  client Prisma esiste), non a naso.
+
 - `[Sviluppo]` **Controllo pre-build: l'OTA in produzione non è quello che credevamo.** Prima
   delle build ho letto il manifest pubblico invece di fidarmi dei registri:
   `/api/v1/app-updates/latest.json` serve **`2.0.1`**, non `2.0.3`. Il passaggio a 2.0.2/2.0.3
