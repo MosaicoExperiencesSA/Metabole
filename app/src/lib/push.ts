@@ -10,20 +10,29 @@ let started = false;
  */
 export async function initPush(): Promise<void> {
   if (started) return;
-  if (Capacitor.getPlatform() === 'web') return;
+  const piattaforma = Capacitor.getPlatform();
+  if (piattaforma === 'web') return;
+
+  // 🔎 TRACCIA (6/8/2026). Su iPhone non arrivava né token né errore: silenzio totale,
+  // impossibile capire dove si fermasse. Ora ogni passaggio viene riferito al server e
+  // il pulsante "Push di prova" mostra l'ULTIMO passo raggiunto. Costa una chiamata per
+  // avvio dell'app e ci fa risparmiare ore di ipotesi.
+  segnalaErrore(`traccia: initPush avviato · enablePush=${String(__ENABLE_PUSH__)}`, piattaforma);
+
   // Le push restano SPENTE finché Firebase (google-services.json) non è configurato:
   // su Android, registrarle senza Firebase può lanciare un'eccezione nativa che chiude
   // l'app. __ENABLE_PUSH__ è true SOLO se google-services.json era presente al build
   // (vedi vite.config.ts): così si accendono da sole quando metti il file, niente flag.
-  if (!__ENABLE_PUSH__) return;
+  if (!__ENABLE_PUSH__) return void segnalaErrore('bundle costruito SENZA google-services.json: registrazione push disattivata a compile-time', piattaforma);
   started = true;
 
   try {
     let perm = await PushNotifications.checkPermissions();
+    segnalaErrore(`traccia: permesso letto = ${perm.receive}`, piattaforma);
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
       perm = await PushNotifications.requestPermissions();
+      segnalaErrore(`traccia: permesso richiesto → ${perm.receive}`, piattaforma);
     }
-    const piattaforma = Capacitor.getPlatform();
     // Il permesso è stato negato: diciamolo al server, altrimenti dal backoffice si
     // vede solo l'assenza del token e non si capisce di chi è la colpa.
     if (perm.receive !== 'granted') return void segnalaErrore(`permesso notifiche non concesso (${perm.receive})`, piattaforma);
