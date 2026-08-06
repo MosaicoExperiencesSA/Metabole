@@ -7,6 +7,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Messa in lista: una card per prodotto e non per stile in registrazione**
+  (decisione Simone, 6/8). Voce nuova in `metabole-backlog.md` con diagnosi e piano: oggi
+  `GET /onboarding/diet-products` tiene **una dieta per stile**, quindi Vegana, Vegetariana,
+  Flexitariana e Flessibile — tutte `flexible` — si vedono come una voce sola (18 famiglie in
+  backoffice, 8 card nell'app). Non basta togliere il filtro: la registrazione salva `dietStyle` e
+  il motore abbina per stile+regime+obiettivo+pasti, quindi due prodotti dello stesso stile e regime
+  sarebbero indistinguibili e la cliente potrebbe ricevere l'altro. Serve salvare **quale prodotto**
+  è stato scelto, con ricaduta sullo stile per le clienti già registrate: migrazione + verifica sul
+  motore, non un lavoro da sera di pubblicazione. Aggiornato anche
+  `progetto/Metabole_KetoMediterranea_Materia_Prima.md`: la dieta ora è nel generatore, il documento
+  resta come riferimento sulla materia prima per la revisione della nutrizionista.
+
 - `[Sviluppo]` **Keto-Mediterranea agganciata al generatore esistente** (richiesta Simone: «perché non
   agganci al generatore già creato?»). La dieta ora è una **dieta suggerita** dentro *Creazione e
   validazione*, come tutte le altre: `SUGGESTED_PRESETS` in

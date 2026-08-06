@@ -82,3 +82,31 @@ salva in scheda (PATCH /me/profile) prima di procedere.
 ## Registrazione — telefono con prefisso + login email/telefono — FATTO (17/07)
 Telefono obbligatorio in registrazione (prefisso a discesa + numero, unicità sulle cifre); login
 con email o telefono (quest'ultimo già lato socio).
+
+## Registrazione — una card per PRODOTTO, non per stile — DA FARE (deciso 6/8)
+Segnalato da Simone il 6/8: i percorsi che la cliente vede in registrazione non corrispondono
+alle diete del backoffice. Metà del problema era cosmetica ed è risolta (il nome mostrato ora è
+quello vero della dieta, non il codice stile). Resta la parte strutturale.
+
+**Cosa succede.** `GET /onboarding/diet-products` scorre le diete pubblicate e ne tiene **una per
+stile** (`if (seen.has(style)) continue`). Le famiglie che condividono lo stesso codice stile si
+schiacciano in una voce sola: Vegana, Vegetariana (latto-ovo), Flexitariana e Flessibile sono tutte
+`flexible`; Mediterranea, Mediterranea ipocalorica e Pescetariana sono tutte `mediterranean`. Il
+backoffice ne mostra 18, l'app 8.
+
+**Perché non basta togliere il dedup.** La registrazione salva `dietStyle`, e il motore abbina la
+dieta con `pickDiet` su stile + regime + obiettivo + pasti. Se in registrazione comparissero due
+prodotti con lo stesso stile e lo stesso regime (Flessibile e Flexitariana, entrambe onnivore), la
+cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della situazione attuale.
+
+**Come si fa.** La scelta deve identificare il PRODOTTO, non lo stile:
+1. la registrazione salva anche `dietProductId` (o il nome della famiglia) accanto a `dietStyle`,
+   che resta per compatibilità con le clienti già registrate;
+2. `pickDiet` filtra prima per prodotto scelto, e ricade su stile+regime+obiettivo+pasti se il
+   campo è vuoto (tutte le clienti esistenti);
+3. `dietProducts()` smette di deduplicare per stile e restituisce una voce per famiglia
+   (nome + stile), come le vede il nutrizionista;
+4. il "?" continua a leggere lo STILE (spiega il tipo di alimentazione, non il singolo percorso):
+   nessuna modifica a `dietInfo.ts`.
+Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
+non è un lavoro da sera di pubblicazione.

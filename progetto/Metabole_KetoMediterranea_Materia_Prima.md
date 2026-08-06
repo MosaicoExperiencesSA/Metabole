@@ -4,6 +4,15 @@
 
 ---
 
+> **Aggiornamento 6 agosto — la dieta è già nel generatore.**
+> Non serve inserire nulla a mano: la Keto-Mediterranea è fra le **diete suggerite** di
+> *Creazione e validazione*, con 12 varianti (onnivora/vegetariana × dimagrimento/mantenimento ×
+> 3 pasti/5 pasti/digiuno 16:8). Il generatore produce le bozze rispettando i vincoli scritti qui
+> sotto — sono nelle note cliniche del preset — e poi tocca a te: revisione delle ricette, conferma
+> degli allergeni, gruppi di equivalenza, pubblicazione. Questo documento resta come **riferimento
+> sulla materia prima**: serve a controllare che quello che il generatore propone stia dentro la
+> tavolozza, e a correggerlo dove non ci sta.
+
 ## Perché questo documento
 
 Dal feedback clienti del 5 agosto: *«i menu della Keto hanno ingredienti molto complessi, cercare
