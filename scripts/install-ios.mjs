@@ -5,12 +5,28 @@
  *      al posto dell'icona di default di Capacitor.
  *   2. VERSIONE: MARKETING_VERSION / CURRENT_PROJECT_VERSION nel progetto Xcode
  *      presi da app/android-version.json (stessa fonte di verità di Android).
- *   3. PUSH (solo se app/GoogleService-Info.plist esiste — stesso pattern difensivo
+ *   3. FIRMA E CAPABILITY PUSH (vedi sotto: è la parte che il 6/8/2026 è costata un'ora)
+ *   4. PUSH (solo se app/GoogleService-Info.plist esiste — stesso pattern difensivo
  *      di install-push.mjs Android; senza file: build ok, push spente):
- *      - copia il plist in ios/App/App/ (va poi trascinato UNA volta dentro Xcode)
+ *      - copia il plist in ios/App/App/ E lo aggancia al target (fase Resources)
  *      - aggiunge `pod 'FirebaseMessaging'` al Podfile
  *      - patcha AppDelegate.swift: FirebaseApp.configure() + scambio token APNs→FCM
  *        (il backend invia via FCM: serve il token FCM, non quello APNs grezzo)
+ *
+ * ⚠️ PERCHÉ IL PUNTO 3 ESISTE (6 agosto 2026).
+ * `ios/` viene RIGENERATO (`cap add ios`) e con lui sparisce tutto quello che vive solo nel
+ * progetto Xcode. Nella 2.0 erano sparite quattro cose insieme — capability Push, il
+ * GoogleService-Info.plist agganciato al target, `aps-environment` a `production`, e per di
+ * più il template Capacitor rimetteva `CODE_SIGN_IDENTITY = "iPhone Developer"`, che firmava
+ * l'archivio in development. Nessuna delle quattro produce un errore: la build passa, si
+ * carica, e le push semplicemente non arrivano a nessuno. Le abbiamo rimesse a mano una per
+ * una, in un'ora, la sera della pubblicazione.
+ * Rimetterle a mano ogni volta è la garanzia di riperderle. Da qui in avanti le rimette
+ * questo script, e — come per i metodi del delegato — VERIFICA il proprio risultato:
+ * se qualcosa non è andato a posto esce con errore, invece di dire «fatto».
+ * Resta fuori una cosa sola, che nessuno script può fare: il **certificato Apple
+ * Distribution scade ogni anno**, e senza quello l'archivio torna a firmarsi in development.
+ * Il controllo prima di caricare è in coda a `build-ios.sh`.
  *
  * IDEMPOTENTE. Eseguito da `npm run ios:sync` dopo `cap sync ios`.
  */
@@ -35,6 +51,22 @@ const INFO_PLIST = path.join(APP_DIR, 'Info.plist');
 const MOTION_KEY = 'NSMotionUsageDescription';
 const MOTION_REASON = 'Metabole usa i passi per mostrarti i tuoi progressi di movimento della giornata.';
 
+const ENTITLEMENTS = path.join(APP_DIR, 'App.entitlements');
+// Team di firma. È «Genius Company SA», NON «Mosaico Experiences SA»: il 6/8 un suggerimento
+// sbagliato in build-ios.sh stava per far scegliere il team errato. Scritto una volta qui.
+const DEVELOPMENT_TEAM = 'TNDPSUPTA8';
+// `aps-environment` = production: è la voce che nella 2.0 valeva `development` e teneva le
+// push spente in produzione senza che niente lo segnalasse.
+const ENTITLEMENTS_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+\t<key>aps-environment</key>
+\t<string>production</string>
+</dict>
+</plist>
+`;
+
 async function exists(p) {
   try { await fs.access(p); return true; } catch { return false; }
 }
@@ -56,6 +88,65 @@ function addSourceToPbxproj(pbx, name, fileType, refId, buildId) {
   // fase Sources: subito dopo la voce AppDelegate.swift in Sources
   pbx = pbx.replace(/(\t+[0-9A-F]+ \/\* AppDelegate\.swift in Sources \*\/,\n)/, `$1\t\t\t\t${buildId} /* ${name} in Sources */,\n`);
   return pbx;
+}
+
+/**
+ * Come sopra, ma per una RISORSA (finisce nella fase Resources, non in Sources): è il caso
+ * del GoogleService-Info.plist, che senza questo aggancio sta nella cartella ma NON dentro
+ * l'app — Firebase all'avvio non lo trova e le push restano spente, senza un errore.
+ * Ancorato ad Assets.xcassets, che nel template Capacitor c'è sempre.
+ */
+function addResourceToPbxproj(pbx, name, fileType, refId, buildId) {
+  if (pbx.includes(`/* ${name} */ = {isa = PBXFileReference`)) return pbx; // già presente
+  const buildLine = `\t\t${buildId} /* ${name} in Resources */ = {isa = PBXBuildFile; fileRef = ${refId} /* ${name} */; };\n`;
+  const refLine = `\t\t${refId} /* ${name} */ = {isa = PBXFileReference; lastKnownFileType = ${fileType}; path = "${name}"; sourceTree = "<group>"; };\n`;
+  pbx = pbx.replace(/(\/\* Begin PBXBuildFile section \*\/\n)/, `$1${buildLine}`);
+  pbx = pbx.replace(/(\/\* Begin PBXFileReference section \*\/\n)/, `$1${refLine}`);
+  pbx = pbx.replace(/(\t+[0-9A-F]+ \/\* AppDelegate\.swift \*\/,\n)/, `$1\t\t\t\t${refId} /* ${name} */,\n`);
+  pbx = pbx.replace(/(\t+[0-9A-F]+ \/\* Assets\.xcassets in Resources \*\/,\n)/, `$1\t\t\t\t${buildId} /* ${name} in Resources */,\n`);
+  return pbx;
+}
+
+/**
+ * Aggiunge un file al solo elenco del progetto (PBXFileReference + gruppo "App"), senza
+ * compilarlo né copiarlo dentro l'app: è quello che serve a `App.entitlements`, che Xcode
+ * usa tramite il percorso in CODE_SIGN_ENTITLEMENTS. Senza la voce nell'elenco il build
+ * funziona lo stesso, ma il file diventa invisibile in Xcode e la prima persona che lo cerca
+ * pensa che non ci sia.
+ */
+function addFileRefToPbxproj(pbx, name, fileType, refId) {
+  if (pbx.includes(`/* ${name} */ = {isa = PBXFileReference`)) return pbx;
+  const refLine = `\t\t${refId} /* ${name} */ = {isa = PBXFileReference; lastKnownFileType = ${fileType}; path = ${name}; sourceTree = "<group>"; };\n`;
+  pbx = pbx.replace(/(\/\* Begin PBXFileReference section \*\/\n)/, `$1${refLine}`);
+  pbx = pbx.replace(/(\t+[0-9A-F]+ \/\* AppDelegate\.swift \*\/,\n)/, `$1\t\t\t\t${refId} /* ${name} */,\n`);
+  return pbx;
+}
+
+/**
+ * Impostazioni di firma sui DUE blocchi buildSettings del target App (Debug e Release).
+ * Li si riconosce da `INFOPLIST_FILE = App/Info.plist;`: è la riga che distingue il target
+ * dai blocchi di progetto e dai Pods, dove queste impostazioni non vanno messe.
+ */
+function patchFirma(pbx) {
+  return pbx.replace(/buildSettings = \{\n([\s\S]*?)\n\t\t\t\};/g, (blocco, corpo) => {
+    if (!corpo.includes('INFOPLIST_FILE = App/Info.plist;')) return blocco;
+    let righe = corpo
+      .split('\n')
+      // Capacitor rimette questa riga a ogni rigenerazione e forza la firma DEVELOPMENT:
+      // l'archivio esce con get-task-allow=true e aps-environment=development.
+      .filter((r) => !/^\s*("?CODE_SIGN_IDENTITY(\[[^\]]*\])?"?)\s*=/.test(r))
+      .filter((r) => !/^\s*CODE_SIGN_ENTITLEMENTS\s*=/.test(r))
+      .filter((r) => !/^\s*CODE_SIGN_STYLE\s*=/.test(r))
+      .filter((r) => !/^\s*DEVELOPMENT_TEAM\s*=/.test(r));
+    const ind = '\t\t\t\t';
+    righe = [
+      `${ind}CODE_SIGN_ENTITLEMENTS = App/App.entitlements;`,
+      `${ind}CODE_SIGN_STYLE = Automatic;`,
+      `${ind}DEVELOPMENT_TEAM = ${DEVELOPMENT_TEAM};`,
+      ...righe,
+    ];
+    return `buildSettings = {\n${righe.join('\n')}\n\t\t\t};`;
+  });
 }
 
 async function main() {
@@ -142,6 +233,47 @@ async function main() {
     console.log('ℹ️  docs/ios-steps/StepCounter.swift assente: contapassi iOS non installato.');
   }
 
+  // 2d) FIRMA E CAPABILITY PUSH — le quattro cose che la rigenerazione di ios/ cancella.
+  //     Va eseguito SEMPRE, anche senza plist: la firma non dipende da Firebase.
+  if (await exists(PBXPROJ)) {
+    // Entitlements: è QUESTO file la "capability Push". Il pulsante «+ Capability → Push
+    // Notifications» in Xcode non fa altro che scrivere aps-environment qui dentro.
+    const entExists = await exists(ENTITLEMENTS);
+    const entAttuale = entExists ? await fs.readFile(ENTITLEMENTS, 'utf8') : '';
+    if (!entAttuale.includes('<key>aps-environment</key>') || !entAttuale.includes('<string>production</string>')) {
+      await fs.writeFile(ENTITLEMENTS, ENTITLEMENTS_XML);
+      console.log(`→ App.entitlements ${entExists ? 'corretto' : 'creato'}: aps-environment = production.`);
+    } else {
+      console.log('→ App.entitlements già a production.');
+    }
+
+    let p = await fs.readFile(PBXPROJ, 'utf8');
+    const prima = p;
+    p = addFileRefToPbxproj(p, 'App.entitlements', 'text.plist.entitlements', 'ABCDEF0000000000000000C1');
+    p = patchFirma(p);
+    const modificato = p !== prima;
+    if (modificato) await fs.writeFile(PBXPROJ, p);
+
+    // Verifica del proprio risultato PRIMA di dire com'è andata: «già a posto» detto senza
+    // aver guardato è esattamente la bugia che ci è costata la serata del 6/8.
+    // Due blocchi nel target (Debug e Release), entrambi devono avere gli entitlements.
+    const finale = await fs.readFile(PBXPROJ, 'utf8');
+    const blocchiTarget = (finale.match(/CODE_SIGN_ENTITLEMENTS = App\/App\.entitlements;/g) ?? []).length;
+    const guai = [];
+    if (blocchiTarget < 2) guai.push(`CODE_SIGN_ENTITLEMENTS presente in ${blocchiTarget} configurazioni su 2 (Debug e Release)`);
+    if (/CODE_SIGN_IDENTITY/.test(finale)) guai.push('CODE_SIGN_IDENTITY è ancora nel progetto: l\'archivio si firmerebbe in development');
+    if (!finale.includes(`DEVELOPMENT_TEAM = ${DEVELOPMENT_TEAM};`)) guai.push(`DEVELOPMENT_TEAM non è ${DEVELOPMENT_TEAM}`);
+    if (guai.length) {
+      console.error('\n⛔ Progetto Xcode non sistemato: le push in produzione NON funzionerebbero.');
+      guai.forEach((g) => console.error(`   · ${g}`));
+      console.error('   Sistemabile a mano in Xcode → Signing & Capabilities, ma prima capiamo perché lo script non ci è riuscito.');
+      process.exit(1);
+    }
+    console.log(modificato
+      ? `→ Firma: entitlements agganciati, team ${DEVELOPMENT_TEAM}, firma automatica; via CODE_SIGN_IDENTITY development. Verificato.`
+      : '→ Firma: già a posto (verificato).');
+  }
+
   // 3) Push / Firebase (solo se il plist c'è)
   if (!(await exists(PLIST_SRC))) {
     console.log('ℹ️  app/GoogleService-Info.plist non presente → push iOS spente (build ok).');
@@ -151,8 +283,27 @@ async function main() {
 
   await fs.copyFile(PLIST_SRC, PLIST_DEST);
   console.log('   GoogleService-Info.plist copiato in ios/App/App/.');
-  console.log('   ⚠️  Se è la prima volta: in Xcode trascina GoogleService-Info.plist dentro il gruppo "App"');
-  console.log('       (spunta "Copy items if needed" NO, target App SÌ). Serve una volta sola.');
+
+  // Copiarlo non basta: se non è nella fase Resources del target, il file resta sul disco ma
+  // NON entra dentro l'app, e all'avvio FirebaseApp.configure() non lo trova. È uno dei
+  // quattro anelli del 6/8 — e come gli altri non produce nessun errore visibile.
+  if (await exists(PBXPROJ)) {
+    let p = await fs.readFile(PBXPROJ, 'utf8');
+    const prima = p;
+    p = addResourceToPbxproj(p, 'GoogleService-Info.plist', 'text.plist.xml', 'ABCDEF0000000000000000D1', 'ABCDEF0000000000000000D2');
+    if (p !== prima) {
+      await fs.writeFile(PBXPROJ, p);
+      console.log('   GoogleService-Info.plist agganciato al target (fase Resources).');
+    } else {
+      console.log('   GoogleService-Info.plist già agganciato al target.');
+    }
+    const finale = await fs.readFile(PBXPROJ, 'utf8');
+    if (!finale.includes('GoogleService-Info.plist in Resources */,')) {
+      console.error('\n⛔ GoogleService-Info.plist NON è nella fase Resources: Firebase non lo troverà e le push resteranno spente.');
+      console.error('   In Xcode: trascinalo nel gruppo "App" ("Copy items if needed" NO, target App SÌ).');
+      process.exit(1);
+    }
+  }
 
   // Podfile: pod FirebaseMessaging
   let pod = await fs.readFile(PODFILE, 'utf8');
@@ -249,8 +400,11 @@ async function main() {
   }
 
   console.log('✅ Progetto iOS pronto (push Firebase cablate e verificate).');
-  console.log('   In Xcode, UNA volta sola: Signing & Capabilities → + Capability →');
-  console.log('   "Push Notifications" e "Background Modes" (spunta Remote notifications).');
+  console.log('   Firma, capability Push e plist sono già a posto: in Xcode NON devi più');
+  console.log('   toccare Signing & Capabilities né trascinare il plist.');
+  console.log('   ⚠️  Resta una cosa che nessuno script può fare: il certificato Apple');
+  console.log('       Distribution scade ogni anno. Prima di caricare l\'archivio, il controllo');
+  console.log('       con codesign è in coda a build-ios.sh.');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

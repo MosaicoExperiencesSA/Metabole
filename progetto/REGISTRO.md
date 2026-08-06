@@ -7,6 +7,49 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **`install-ios.mjs` rimette da solo le quattro cose che `cap add ios` cancella.**
+  Erano il conto della serata: capability Push, `GoogleService-Info.plist` agganciato al target,
+  `aps-environment` a `production`, e `CODE_SIGN_IDENTITY = "iPhone Developer"` che il template
+  Capacitor rimette e che firma l'archivio in development. Nessuna delle quattro dà errore: la
+  build passa, si carica, e le push non arrivano a nessuno. Le abbiamo rimesse a mano una per una,
+  in un'ora, e rimetterle a mano ogni volta è la garanzia di riperderle.
+  Ora lo script scrive `App.entitlements`, lo aggancia alle **due** configurazioni del target
+  (Debug e Release, riconosciute da `INFOPLIST_FILE = App/Info.plist`), mette team
+  `TNDPSUPTA8` e firma automatica, **toglie** ogni `CODE_SIGN_IDENTITY`, e aggiunge il plist
+  Firebase alla fase *Resources* — copiarlo non basta: fuori dalla fase resta sul disco ma non
+  entra dentro l'app, e Firebase all'avvio non lo trova.
+  Come per i metodi del delegato, **verifica il proprio risultato prima di dire com'è andata**:
+  se gli entitlements non risultano in entrambe le configurazioni, o se un `CODE_SIGN_IDENTITY`
+  è sopravvissuto, esce con errore invece di stampare «già a posto». Provato su tre scenari
+  costruiti dal progetto Xcode **vero** (letto dal Mac, non immaginato): progetto sano → non
+  tocca niente; progetto rigenerato → ricostruisce **esattamente** le stesse righe che avevi
+  messo a mano; progetto rotto ad arte → esce 1 e dice quale controllo è saltato. Il primo giro
+  del contro-test era invalido — girava sull'albero sbagliato, perché lo script deriva la radice
+  dalla propria posizione e non dalla cartella corrente — ed è stato rifatto.
+  Resta fuori una cosa sola, che nessuno script può fare: il **certificato Apple Distribution
+  scade ogni anno**, e senza quello l'archivio torna a firmarsi in development. Il controllo
+  `codesign` prima di caricare è in coda a `build-ios.sh`.
+
+- `[Sviluppo]` **Nuovo lead: c'è la select «Assegna a», e chi la riceve viene avvisato.** Il
+  backend accettava `assignedCoachId` in creazione da sempre, ma il DTO non lo dichiarava e il
+  form non lo chiedeva: ogni lead inserito da lì nasceva nel pool e andava riassegnato a mano.
+  Nel sistemarlo è saltato fuori il difetto vero: quel ramo dava l'assegnazione per **accettata**
+  e **non avvisava nessuno** — la coach si ritrovava un lead in carico senza saperlo, e senza il
+  ciclo di accettazione che vale ovunque altrove. Ora, quando è la responsabile ad assegnare in
+  creazione, il lead nasce «da accettare», la coach riceve la notifica e ha i suoi giorni; se
+  scade torna alla responsabile. Quando è una coach a crearsi un lead per sé resta come prima
+  (assegnato subito: non c'è niente da accettare).
+
+- `[Sviluppo]` ⚠️ **Un controllo che non girava.** Oggi ho dichiarato più volte «`tsc --noEmit`
+  pulito su backend e backoffice». Sul backoffice **non era vero**: il comando era
+  `ls node_modules/.bin/tsc && ./node_modules/.bin/tsc …`, `node_modules` nel backoffice non
+  esiste sul Mac, l'`&&` tagliava corto e `tsc` non partiva mai — l'«ok» era solo l'`echo`
+  successivo. Il controllo è stato poi fatto davvero (dipendenze installate a parte, `tsc`
+  eseguito: pulito, oggi come nelle voci precedenti). Vale la pena scriverlo perché è la
+  famiglia di difetti di tutta la giornata: **un controllo che non produce errore quando
+  fallisce è peggio di nessun controllo**, perché ci si appoggia. Da qui in avanti, per ogni
+  verifica, si guarda il **codice di uscita** — non l'ultima riga stampata.
+
 - `[Sviluppo]` **Gestione dieta mostrava le ricette di tutte le diete.** Domanda di Simone: «se sto
   rivedendo i menu di una dieta perché sotto mi riporta anche quelli delle altre?». Aveva ragione a
   trovarlo strano, ma la causa è più interessante del sintomo: **le ricette non appartengono a una

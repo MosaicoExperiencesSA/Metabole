@@ -123,6 +123,12 @@ class CreateLeadDto {
   @IsOptional()
   @IsBoolean()
   sendCredentials?: boolean;
+
+  // Coach a cui assegnare il lead (Staff.id). Il service lo sapeva già gestire, ma il DTO
+  // non lo dichiarava e il form non lo chiedeva: il lead nasceva sempre nel pool.
+  @IsOptional()
+  @IsString()
+  assignedCoachId?: string;
 }
 
 class AdvanceLeadDto {

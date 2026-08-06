@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner } from '../components/ui';
+
+type Coach = { id: string; displayName: string };
 
 // Stessa lista della registrazione dell'app (app/src/pages/Register.tsx):
 // il numero si salva già col prefisso, così coincide col futuro login col telefono.
@@ -26,13 +29,26 @@ const PHONE_PREFIXES = [
 
 export function LeadForm() {
   const navigate = useNavigate();
+  const { can } = useAuth();
+  const canAssignCoach = can('assign_coach', 'manage');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [phonePrefix, setPhonePrefix] = useState('+39');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [coachId, setCoachId] = useState('');
+  const [coaches, setCoaches] = useState<Coach[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+
+  // Il backend accettava già `assignedCoachId` in creazione, ma il form non lo chiedeva: ogni
+  // lead inserito da qui nasceva nel pool e andava riassegnato a mano dalla tabella.
+  useEffect(() => {
+    if (!canAssignCoach) return;
+    void (async () => {
+      try { setCoaches(await api<Coach[]>('/crm/coaches')); } catch { /* elenco coach opzionale */ }
+    })();
+  }, [canAssignCoach]);
 
   async function submit(withCredentials = false) {
     setError(null);
@@ -45,13 +61,16 @@ export function LeadForm() {
     // Numero completo col prefisso internazionale (come la registrazione app).
     const phone = phoneNumber.trim() ? `${phonePrefix} ${phoneNumber.trim()}` : undefined;
     try {
-      await api('/crm/leads', { method: 'POST', body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone, sendCredentials: withCredentials }) });
+      await api('/crm/leads', { method: 'POST', body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone, sendCredentials: withCredentials, assignedCoachId: coachId || undefined }) });
+      const chi = coaches.find((c) => c.id === coachId)?.displayName;
+      const coda = chi ? ` Assegnato a ${chi}: le è arrivata la notifica, deve accettarlo.` : '';
       setOk(withCredentials
-        ? `Lead "${name.trim() || email.trim()}" inserito e credenziali inviate a ${email.trim()}.`
-        : `Lead "${name.trim() || email.trim()}" inserito. Lo trovi in Gestione lead e nella Pipeline.`);
+        ? `Lead "${name.trim() || email.trim()}" inserito e credenziali inviate a ${email.trim()}.${coda}`
+        : `Lead "${name.trim() || email.trim()}" inserito. Lo trovi in Gestione lead e nella Pipeline.${coda}`);
       setEmail('');
       setName('');
       setPhoneNumber('');
+      setCoachId('');
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) setError(err.message);
       else setError(err instanceof Error ? err.message : 'Inserimento non riuscito.');
@@ -102,6 +121,19 @@ export function LeadForm() {
           />
         </div>
       </div>
+      {canAssignCoach && coaches.length > 0 && (
+        <div className="field">
+          <label>Assegna a (facoltativo)</label>
+          <select className="select" value={coachId} onChange={(e) => setCoachId(e.target.value)}>
+            <option value="">— nessuna: resta da assegnare —</option>
+            {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
+          </select>
+          <p className="hint" style={{ marginBottom: 0 }}>
+            La coach riceve la notifica e deve accettare il lead, come per l'assegnazione dalla
+            tabella. Se non accetta entro la scadenza, il lead torna alla responsabile.
+          </p>
+        </div>
+      )}
 
       <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
         <button className="btn ghost" onClick={() => navigate('/crm/gestione')} disabled={busy}>

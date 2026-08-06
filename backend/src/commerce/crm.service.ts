@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { coachTeamScope } from '../common/coach-team';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PipelineService } from './pipeline.service';
 
@@ -32,6 +33,7 @@ export class CrmService {
     private readonly audit: AuditService,
     private readonly pipeline: PipelineService,
     private readonly mail: MailService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -710,17 +712,24 @@ export class CrmService {
       }
     }
 
-    // Assegnazione: la lead va assegnata a chi la crea se è una COACH (prima restava
-    // non assegnata e la coach non la ritrovava). Un manager (sales/coordinatrice/admin)
-    // può indicare esplicitamente una coach con assignedCoachId; altrimenti resta nel pool.
-    let assignedCoachId = input.assignedCoachId ?? null;
-    if (!assignedCoachId) {
-      const creator = (await this.prisma.user.findUnique({ where: { id: byUserId }, select: { role: true } })) as { role: string } | null;
-      if (creator?.role === 'coach') {
-        const staff = (await this.prisma.staff.findUnique({ where: { userId: byUserId }, select: { id: true } })) as { id: string } | null;
-        if (staff) assignedCoachId = staff.id;
-      }
-    }
+    // Assegnazione. Tre casi, e la differenza fra il primo e gli altri due è il ciclo di
+    // accettazione (regola di Simone: chi non è assegnato ci passa; chi assegna sé stesso no).
+    //
+    //  a) la crea una COACH e non indica nessuno → è sua, subito («accepted»): sta assegnando
+    //     a sé stessa, non c'è niente da accettare;
+    //  b) la crea una coach e indica sé stessa    → identico ad (a);
+    //  c) la assegna la RESPONSABILE a una coach  → «pending» + notifica, come dalla tabella
+    //     lead. Prima questo ramo la dava per accettata e **non avvisava nessuno**: la coach
+    //     si ritrovava un lead in carico senza saperlo. Ora ha i suoi giorni per accettarlo,
+    //     e se scade torna alla responsabile invece di restare fermo.
+    const creatore = (await this.prisma.user.findUnique({ where: { id: byUserId }, select: { role: true } })) as { role: string } | null;
+    const staffCreatore = (await this.prisma.staff.findUnique({ where: { userId: byUserId }, select: { id: true } })) as { id: string } | null;
+    const suaStaffId = creatore?.role === 'coach' || creatore?.role === 'coach_coordinator' ? staffCreatore?.id ?? null : null;
+
+    const esplicito = input.assignedCoachId?.trim() || null;
+    const assignedCoachId = esplicito ?? suaStaffId;
+    const seStessa = !!assignedCoachId && assignedCoachId === suaStaffId;
+    const daAccettare = !!assignedCoachId && !seStessa;
 
     const record = await this.prisma.crmRecord.create({
       data: {
@@ -730,16 +739,41 @@ export class CrmService {
         stage: 'lead_in',
         stageDates: { lead_in: { at: new Date().toISOString(), byUserId } } as never,
         ...(assignedCoachId
-          ? { assignedCoachId, assignmentStatus: 'accepted', assignedAt: new Date() }
+          ? {
+              assignedCoachId,
+              assignmentStatus: daAccettare ? 'pending' : 'accepted',
+              assignedAt: new Date(),
+              ...(daAccettare && staffCreatore ? { assignedById: staffCreatore.id } : {}),
+            }
           : {}),
       },
     });
+
+    if (daAccettare) {
+      // Best effort: una notifica che non parte non deve far fallire la creazione del lead.
+      try {
+        const coach = (await this.prisma.staff.findUnique({
+          where: { id: assignedCoachId as string },
+          select: { user: { select: { id: true } } },
+        })) as { user: { id: string } | null } | null;
+        if (coach?.user?.id) {
+          await this.notifications.notify({
+            userId: coach.user.id,
+            type: 'lead_assigned',
+            title: 'Nuovo lead da accettare',
+            body: `Ti è stato assegnato un lead (${input.name?.trim() || email}). Accettalo entro la scadenza, altrimenti torna alla responsabile.`,
+            payload: { recordId: record.id },
+          });
+        }
+      } catch { /* la notifica è un di più: il lead resta creato e assegnato */ }
+    }
+
     await this.audit.log({
       action: 'crm.lead.create',
       actorId: byUserId,
       entityType: 'crm_record',
       entityId: record.id,
-      metadata: { assignedCoachId: assignedCoachId ?? null },
+      metadata: { assignedCoachId: assignedCoachId ?? null, daAccettare },
     });
     return record;
   }
