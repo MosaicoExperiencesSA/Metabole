@@ -41,7 +41,10 @@ body {
 .screen {
   flex: 1;
   padding: calc(env(safe-area-inset-top) + 16px) 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
-  overflow-y: auto;
+  /* ⚠️ NIENTE overflow-y qui. .app-frame ha min-height (non height), quindi .screen cresce
+     col contenuto e non scrolla MAI da sé: l'unico che scorre è la finestra. Con
+     `overflow-y: auto` .screen diventava comunque un contenitore di scorrimento fermo, e
+     l'header sticky si ancorava a QUELLO — risultato: scrollando spariva del tutto. */
 }
 .screen.no-tabbar { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
 
@@ -49,9 +52,9 @@ body {
    position: sticky → resta ancorato in alto mentre il resto della pagina scorre. */
 .app-header {
   position: sticky;
-  /* pin al VERO bordo alto: coincide con dove il margine negativo colloca l'header,
-     così resta inchiodato e non 'scivola su' prima di agganciarsi. */
-  top: calc(-1 * (env(safe-area-inset-top) + 16px));
+  /* Si ancora al bordo alto della FINESTRA (il vero contenitore che scorre, vedi .screen).
+     Deve restare 0: un `top` negativo incollerebbe l'header già fuori dallo schermo. */
+  top: 0;
   z-index: 20;
   margin: calc(-1 * (env(safe-area-inset-top) + 16px)) -16px 14px;
   padding: calc(env(safe-area-inset-top) + 14px) 14px 18px;
@@ -283,8 +286,25 @@ p { line-height: 1.5; }
 .meal-carousel::-webkit-scrollbar { display: none; }
 .meal-carousel > .meal-row, .meal-carousel > .card { min-width: 100%; scroll-snap-align: start; margin: 0; }
 .home-dots { display: flex; justify-content: center; gap: 5px; margin: 9px 0 2px; }
-.home-dots > span { width: 6px; height: 6px; border-radius: 50%; background: #d6ded9; transition: background 0.15s ease; }
-.home-dots > span.on { background: var(--teal); }
+.home-dots > span, .home-dots > button { width: 6px; height: 6px; border-radius: 50%; background: #d6ded9; transition: background 0.15s ease; }
+.home-dots > span.on, .home-dots > button.on { background: var(--teal); }
+/* I pallini come pulsanti: sul web sono l'unico modo per cambiare scheda col mouse. */
+.home-dots > button { border: 0; padding: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
+
+/* Barra di navigazione del carosello: frecce + pallini. Le frecce servono solo dove c'è un
+   mouse — su touch si scorre col dito e occuperebbero spazio per niente. */
+.carousel-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 9px 0 2px; }
+.carousel-nav .home-dots { margin: 0; }
+.carousel-arrow { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .carousel-arrow {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    cursor: pointer; font-size: 14px; line-height: 1;
+  }
+  .carousel-arrow:disabled { opacity: 0.35; cursor: default; }
+}
 
 /* Pallino LIVE (Contatti) */
 .livedot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; animation: livePulse 1.4s ease-in-out infinite; }
@@ -333,6 +353,9 @@ p { line-height: 1.5; }
 /* barra di avanzamento obiettivo */
 .bar { height: 8px; border-radius: 6px; background: var(--line); overflow: hidden; }
 .bar span { display: block; height: 100%; border-radius: 6px; }
+/* Misura andata nella direzione opposta all'obiettivo: la barra resta a 0% (è la verità), ma
+   la pista si colora così non sembra semplicemente "non ancora partito". */
+.bar.bar-off { background: #F0DFD3; }
 
 /* ---------- Schede dal basso (bottom sheet) e popup ---------- */
 .sheet-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(11, 15, 14, 0.45); display: flex; align-items: flex-end; justify-content: center; }

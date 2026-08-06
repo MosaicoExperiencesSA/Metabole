@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import AppHeader from '../components/AppHeader';
+import CarouselNav, { scrollCarouselTo } from '../components/CarouselNav';
 import ReportsSection from '../components/ReportsSection';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
@@ -21,6 +22,8 @@ interface Objective {
 }
 
 const d1 = (n: number) => n.toFixed(1).replace('.', ',');
+/** Numero col segno esplicito: "-1,0" / "+1,0" / "0,0". Evita i "--1,0" da segno raddoppiato. */
+const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '-' : ''}${d1(Math.abs(n))}`;
 const parseNum = (s: string) => {
   const n = Number(s.replace(',', '.'));
   return Number.isFinite(n) ? n : undefined;
@@ -341,7 +344,13 @@ export default function Obiettivo() {
             if (charts.length === 0) return null;
             return (
               <>
-                <div className="sec">Andamento <span className="muted" style={{ fontWeight: 400 }}>· scorri i grafici</span></div>
+                {/* Il suggerimento "scorri i grafici" solo se i grafici sono più di uno: con una
+                    sola metrica misurata non c'è niente da scorrere e la scritta faceva pensare
+                    a uno swipe rotto (segnalazione clienti del 5/8). */}
+                <div className="sec">
+                  Andamento
+                  {charts.length > 1 && <span className="muted" style={{ fontWeight: 400 }}> · scorri i grafici</span>}
+                </div>
                 <div className="meal-carousel" ref={chartsRef} onScroll={onChartsScroll}>
                   {charts.map(({ m, series, dates }) => {
                     const delta = series[0] - series[series.length - 1];
@@ -359,11 +368,11 @@ export default function Obiettivo() {
                     );
                   })}
                 </div>
-                {charts.length > 1 && (
-                  <div className="home-dots">
-                    {charts.map((_, i) => <span key={i} className={i === chartIdx ? 'on' : ''} />)}
-                  </div>
-                )}
+                <CarouselNav
+                  count={charts.length}
+                  index={chartIdx}
+                  onGo={(i) => { setChartIdx(i); scrollCarouselTo(chartsRef.current, i); }}
+                />
               </>
             );
           })()}
@@ -377,15 +386,33 @@ export default function Obiettivo() {
               if (series.length === 0 || target == null) return null;
               const start = series[0];
               const current = series[series.length - 1];
-              const denom = start - target;
-              const pct = denom === 0 ? 100 : Math.max(0, Math.min(100, Math.round(((start - current) / denom) * 100)));
+              // Movimenti CON SEGNO rispetto al punto di partenza: negativo = in calo.
+              // Prima si stampava un "-" fisso davanti al numero, che con il peso in aumento
+              // produceva "--1,0" (segnalato il 5/8) e con un obiettivo in crescita sarebbe
+              // stato sbagliato comunque.
+              const fatto = current - start;
+              const totale = target - start;
+              const pctRaw = totale === 0 ? 100 : (fatto / totale) * 100;
+              const pct = Math.max(0, Math.min(100, Math.round(pctRaw)));
+              // Direzione opposta a quella dell'obiettivo: la barra a 0% da sola non spiega niente.
+              const controMano = pctRaw < 0;
               return (
                 <div key={m.key} style={{ marginBottom: 13 }}>
                   <div className="row-between" style={{ fontSize: 12, marginBottom: 4 }}>
                     <b>{m.label}</b>
-                    <span className="muted">-{d1(start - current)} di -{d1(start - target)} {m.unit} · <b style={{ color: m.color }}>{pct}%</b></span>
+                    <span className="muted">
+                      {signed(fatto)} di {signed(totale)} {m.unit} ·{' '}
+                      <b style={{ color: controMano ? 'var(--warm, #B0663F)' : m.color }}>{pct}%</b>
+                    </span>
                   </div>
-                  <div className="bar"><span style={{ width: `${pct}%`, background: m.color }} /></div>
+                  <div className={controMano ? 'bar bar-off' : 'bar'}>
+                    <span style={{ width: `${pct}%`, background: m.color }} />
+                  </div>
+                  {controMano && (
+                    <div className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.35 }}>
+                      {d1(Math.abs(fatto))} {m.unit} sopra il punto di partenza. Conta la tendenza delle settimane, non la singola misura.
+                    </div>
+                  )}
                 </div>
               );
             })}
