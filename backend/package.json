@@ -36,6 +36,7 @@
     "diag:abbonamenti": "ts-node --transpile-only prisma/diag-abbonamenti-cliente.ts",
     "diag:mantenimento": "ts-node --transpile-only prisma/diag-mantenimento.ts",
     "cleanup:keto-med": "ts-node --transpile-only prisma/cleanup-keto-mediterranea.ts",
+    "diag:parametri": "ts-node --transpile-only prisma/diag-parametri.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"

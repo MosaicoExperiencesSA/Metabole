@@ -63,11 +63,16 @@ const META: Record<string, Meta> = {
   menu_days_delivered: { label: 'Giorni di menu erogati per volta', group: 'Menu', kind: 'number', unit: 'giorni' },
   menu_visible_days_before_start: { label: 'Menu visibile prima dell’inizio', group: 'Menu', kind: 'number', unit: 'giorni' },
 
+  marketing_require_consent: { label: 'Campagne solo con consenso esplicito', group: 'Marketing', kind: 'toggle', help: 'Se acceso, dalle campagne sono esclusi i lead che non hanno mai dato un consenso esplicito (chi ha detto NO è escluso sempre, in ogni caso). Va acceso PRIMA di lavorare lo storico importato.' },
+
+  app_store_url: { label: 'Link App Store', group: 'App', kind: 'text', help: 'Usato dai pulsanti “Scarica” nelle email.' },
+  play_store_url: { label: 'Link Google Play', group: 'App', kind: 'text', help: 'Usato dai pulsanti “Scarica” nelle email.' },
+
   ai_composer_enabled: { label: 'Layer AI per le notifiche', group: 'AI', kind: 'toggle', help: 'Se attivo (e con AI_API_KEY su Render) i testi delle notifiche vengono riformulati da Claude; il tono resta deciso dal motore.' },
   ai_assistant_enabled: { label: 'Assistente AI in chat', group: 'AI', kind: 'toggle', help: 'Se attivo (e con AI_API_KEY su Render) l’assistente risponde con Claude ai messaggi generici; i temi sensibili/sanitari restano instradati al nutrizionista.' },
 };
 
-const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'AI', 'Altro'];
+const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'Marketing', 'App', 'AI', 'Altro'];
 
 const metaFor = (p: Param): Meta =>
   META[p.key] ?? { label: p.key, group: 'Altro', kind: 'text', help: p.description ?? undefined };

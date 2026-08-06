@@ -474,6 +474,43 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Compenso per visita completata (centesimi)',
   },
+  // Le altre chiavi che il codice leggeva senza che comparissero da nessuna parte: stessi
+  // valori che usa oggi, quindi non cambia niente — cambia che ora si vedono.
+  { key: 'measures_lock_after_hours', value: '24', type: 'number', description: 'Ore dal primo sollecito prima che l\'app si blocchi per misure non inserite.' },
+  { key: 'measures_unlock_hours', value: '48', type: 'number', description: 'Durata della finestra di grazia concessa dalla coach quando sblocca l\'app.' },
+  { key: 'measures_nudge_start_hour', value: '8', type: 'number', description: 'Ora di inizio della finestra in cui si sollecitano le misure (niente solleciti di notte).' },
+  { key: 'measures_nudge_end_hour', value: '22', type: 'number', description: 'Ora di fine della finestra dei solleciti misure.' },
+  { key: 'measures_nudge_hours', value: '2', type: 'number', description: 'Ogni quante ore ripetere il sollecito delle misure.' },
+  { key: 'pause_watch_ask_days', value: '5', type: 'number', description: 'Ogni quanti giorni chiedere una pesata durante una pausa vacanza.' },
+  { key: 'pause_watch_regain_kg', value: '2', type: 'number', description: 'Aumento di peso in pausa oltre il quale si apre un\'attività alla coach.' },
+  { key: 'maintenance_regain_kg', value: '3', type: 'number', description: 'Kg ripresi in mantenimento oltre i quali scatta l\'attività "peso che risale".' },
+  { key: 'trial_offer_code_hours', value: '48', type: 'number', description: 'Durata del codice sconto offerto a fine prova gratuita (ore).' },
+  { key: 'trial_offer_discount_type', value: 'percent', type: 'string', description: 'Tipo di sconto del codice di fine prova: percent | amount.' },
+  { key: 'trial_offer_discount_value', value: '10', type: 'number', description: 'Valore dello sconto di fine prova (percentuale, o centesimi se il tipo è amount).' },
+  { key: 'trial_offer_target_1m', value: '9900', type: 'number', description: 'Prezzo bersaglio del piano 1 mese col codice di fine prova (centesimi).' },
+  { key: 'trial_offer_target_3m', value: '24900', type: 'number', description: 'Prezzo bersaglio del piano 3 mesi col codice di fine prova (centesimi).' },
+  // Chiavi che il codice leggeva già con un default, ma che non essendo seminate non
+  // comparivano in "Parametri": nessuno sapeva di poterle cambiare, e un commento nel codice
+  // prometteva perfino il contrario. Le seminiamo col valore che il codice usa oggi, quindi
+  // il comportamento non cambia: cambia solo che ora si vedono e si possono girare.
+  {
+    key: 'marketing_require_consent',
+    value: 'false',
+    type: 'boolean',
+    description: 'Se acceso, dalle campagne sono esclusi i lead senza consenso marketing esplicito (chi ha detto NO è sempre escluso). Da accendere PRIMA di lavorare lo storico importato.',
+  },
+  {
+    key: 'app_store_url',
+    value: 'https://apps.apple.com/ch/app/metaboleai/id6794352232',
+    type: 'string',
+    description: 'Link alla scheda App Store, usato dai pulsanti "Scarica" nelle email.',
+  },
+  {
+    key: 'play_store_url',
+    value: 'https://play.google.com/store/apps/details?id=app.metabole',
+    type: 'string',
+    description: 'Link alla scheda Google Play, usato dai pulsanti "Scarica" nelle email.',
+  },
   {
     key: 'referral_reward_days',
     value: '30',
@@ -495,6 +532,8 @@ const EMAIL_TEMPLATES = [
   // ritoccarlo non trovava la riga in "Modelli email". {{storeButtons}} sono i pulsanti
   // App Store / Google Play: si possono spostare o togliere riscrivendo il modello.
   { key: 'lead_credentials', name: 'Credenziali di accesso (al lead)', subject: 'Metabole — le tue credenziali di accesso', bodyHtml: '<p>Ciao {{name}},</p><p>Ti abbiamo creato l\'accesso a <strong>Metabole</strong>. Ecco le tue credenziali:</p><p>Email: <strong>{{email}}</strong><br>Password provvisoria: <code>{{password}}</code></p><p>Accedi dall\'app: <a href="{{link}}">{{link}}</a></p>{{storeButtons}}<p>Al primo accesso completerai un breve questionario e poi potrai impostare una tua password personale.</p><p>A presto!</p>' },
+  // Ricevuta di RIMBORSO: mancava, esattamente come mancava quella delle credenziali.
+  { key: 'refund_receipt', name: 'Ricevuta di rimborso', subject: 'Metabole — ricevuta di rimborso', bodyHtml: '<p>Abbiamo emesso il rimborso di <b>{{description}}</b>.</p><p>Importo: € {{amount}}<br/>Data: {{date}}</p><p>Trovi la ricevuta in allegato a questa email.</p>' },
   { key: 'monthly_report', name: 'Report mensile (al cliente)', subject: 'Metabole — il tuo report di {{period}}', bodyHtml: '<p>Ciao {{name}},</p><p>ecco il tuo report di <b>{{period}}</b>.</p><ul><li>Perso questo mese: <b>{{lostThisMonth}}</b></li><li>Perso dall\'inizio: <b>{{lostTotal}}</b></li><li>Peso attuale: {{currentWeight}}</li><li>Obiettivo: {{target}}</li><li>Check-in registrati: {{checkins}}</li></ul><p>{{trend}}</p><p>Trovi il report completo in allegato.</p>' },
 ];
 

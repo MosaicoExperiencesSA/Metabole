@@ -29,7 +29,14 @@ export const ENGINE_RULES: EngineRule[] = [
 
   // --- Macro / bilanciamento ---
   { code: 'menu_kcal_balance_tolerance_pct', label: 'Tolleranza kcal (%)', description: 'Scarto percentuale ammesso attorno alle kcal target del livello.', category: 'macro', kind: 'number', default: 15, min: 5, max: 30, step: 1, unit: '%', perDiet: true },
-  { code: 'menu_daycombo_kcal_target', label: 'Kcal target giornata', description: 'Kcal target della giornata usate dal generatore di catalogo/bozze e dalla composizione DayCombo (per-dieta).', category: 'macro', kind: 'number', default: 1500, min: 600, max: 4000, step: 10, unit: 'kcal', perDiet: true },
+  // ⚠️ Questa regola vale SOLO per il generatore di bozze (`generateCatalogFromPreset`): è la
+  // taglia calorica con cui l'AI scrive le giornate campione. Il motore NON la usa: il target
+  // kcal dei menu erogati viene dal FABBISOGNO calcolato sulla singola cliente e, se spento,
+  // dai livelli della dieta (`menu.service.ts`). Prima la descrizione prometteva anche la
+  // composizione DayCombo: chi cambiava il valore globale credeva di spostare le calorie dei
+  // menu e non spostava niente.
+  { code: 'menu_daycombo_kcal_target', label: 'Kcal target delle bozze generate', description: 'Taglia calorica della giornata usata dal GENERATORE di catalogo quando scrive una bozza. Non cambia i menu già erogati: quelli seguono il fabbisogno della cliente (o i livelli della dieta).', category: 'macro', kind: 'number', default: 1500, min: 600, max: 4000, step: 10, unit: 'kcal', perDiet: true },
+  { code: 'menu_kcal_need_enabled', label: 'Menu "a necessità" (kcal dal fabbisogno)', description: 'Se attivo, le calorie del menu vengono dal fabbisogno calcolato sul profilo della cliente (Mifflin + attività − deficit dell\'obiettivo, con soglie di sicurezza). Se spento, si usano le kcal del livello dichiarate nella dieta.', category: 'macro', kind: 'boolean', default: true, perDiet: true },
   { code: 'menu_daycombo_protein_min', label: 'Quota proteica minima', description: 'Frazione minima di proteine sui macro della giornata (0–1). Es. 0,20 = 20%.', category: 'macro', kind: 'number', default: 0.2, min: 0, max: 1, step: 0.01, unit: 'frazione', perDiet: true },
   { code: 'menu_daycombo_protein_max', label: 'Quota proteica massima', description: 'Frazione massima di proteine sui macro della giornata (0–1). Es. 0,40 = 40%.', category: 'macro', kind: 'number', default: 0.45, min: 0, max: 1, step: 0.01, unit: 'frazione', perDiet: true },
 
@@ -38,6 +45,7 @@ export const ENGINE_RULES: EngineRule[] = [
   { code: 'menu_repeat_window_days', label: 'Finestra varietà (giorni)', description: 'Su quanti giorni contare le ripetizioni recenti per la penalità di varietà.', category: 'varieta', kind: 'number', default: 14, min: 1, max: 60, step: 1, unit: 'giorni' },
   { code: 'menu_variety_min_gap_days', label: 'Distanza minima stesso piatto (giorni)', description: 'Giorni minimi prima che lo stesso piatto torni nello stesso pasto: se esiste un\'alternativa nel pool entro la tolleranza kcal, viene usata quella (0 = spento).', category: 'varieta', kind: 'number', default: 2, min: 0, max: 14, step: 1, unit: 'giorni', perDiet: true },
   { code: 'menu_repeat_two_days_default', label: 'Ripetizione bigiornaliera (default globale)', description: 'Il 2° giorno ripropone gli stessi alimenti con ricetta diversa. Di norma OFF: si accende per dieta.', category: 'varieta', kind: 'boolean', default: false, perDiet: true },
+  { code: 'menu_penalty_season', label: 'Penalità fuori stagione', description: 'Quanto sfavorire un piatto proposto fuori dalle sue stagioni. Alta abbastanza da spostare la scelta quando un\'alternativa esiste, non tanto da svuotare il menu quando non esiste. 0 = regola spenta (le stagioni si ignorano).', category: 'varieta', kind: 'number', default: 0.5, min: 0, max: 5, step: 0.1, perDiet: true },
   { code: 'repeat_twin_kcal_tolerance_pct', label: 'Tolleranza kcal "gemella" (%)', description: 'Scarto kcal ammesso per accettare la ricetta gemella nella ripetizione bigiornaliera.', category: 'varieta', kind: 'number', default: 15, min: 5, max: 30, step: 1, unit: '%' },
 
   // --- Selezione ricette (efficacia vs gradimento) ---

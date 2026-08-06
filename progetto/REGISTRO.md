@@ -7,6 +7,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Audit di fine giornata e chiusura di quattro difetti «interruttore che non c'è»**
+  (richiesta Simone: «tutti i lavori sono stati fatti?»). Verificate 18 richieste del 5/8 più i
+  ~90 `REGISTRO_*.md`, il backlog, `STATO.md` e le checklist di luglio, ogni voce ri-controllata
+  **nel codice**: 16 su 18 chiuse, la #2 aspetta la nutrizionista, la #10 una decisione.
+  Rapporto in `progetto/Audit_Lavori_2026-08-06.md`. Corretti i quattro difetti nuovi trovati:
+  ① **`menu_daycombo_kcal_target` era un interruttore finto**: nella pagina *Regole motore* si
+  poteva cambiare il valore globale credendo di spostare le calorie dei menu, ma il motore prende
+  il target dal **fabbisogno della cliente** (o dai livelli della dieta) e quel parametro non lo
+  legge mai — l'unica lettura è nel generatore di bozze. Corretta la **descrizione**, non il
+  codice: il target deve venire dalla singola cliente, non da un numero globale.
+  ② **`menu_kcal_need_enabled`** (kcal dal fabbisogno o dai livelli: una scelta clinica) e
+  **`menu_penalty_season`** (la forza della stagionalità costruita oggi) erano leve vere e
+  invisibili: portate nel catalogo del motore, quindi regolabili globalmente e per dieta.
+  ③ **`refund_receipt`**: stessa dimenticanza dell'email credenziali, una casella più in là.
+  ④ **`marketing_require_consent`** — il gate che esclude dalle campagne i lead senza consenso —
+  aveva perfino un commento che diceva «si accende da Parametri», e in Parametri non c'era.
+  Seminato insieme a `app_store_url`, `play_store_url` e alle altre 13 chiavi che il codice
+  leggeva senza che comparissero da nessuna parte (misure, pausa, offerta di fine prova):
+  **stessi valori di prima, quindi nessun cambio di comportamento** — cambia che ora si vedono.
+  ⑤ E soprattutto: **`npm run diag:parametri`**, che confronta le chiavi lette dal codice con
+  quelle dichiarate e **esce con errore** se divergono. Non serve il database, gira ovunque,
+  anche in CI. Tre volte lo stesso difetto non è sfortuna: è che nessuno poteva accorgersene.
+  Oggi esce pulito.
+
 - `[Prodotto]` **Nota di handoff per la pubblicazione** — `NOTA_Handoff_Pubblicazione_2026-08-06.md`,
   come da regola di progetto (a ogni tornata di modifiche se ne scrive una per chi pubblica).
   Contiene: i 27 commit della giornata, le superfici toccate e quali richiedono un deploy, le
