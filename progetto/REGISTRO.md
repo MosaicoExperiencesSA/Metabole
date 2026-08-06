@@ -7,6 +7,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Prodotto]` ✅ **Provvigioni sul rinnovo: decisione chiusa.** Simone: «la quota coach sui rinnovi
+  non cambia» → **opzione (b)**, provvigione piena a ogni rinnovo, che con il nutrizionista già a
+  zero lascia €15,26 al mese a Metabole e €183 per cliente all'anno. È il modello *residual*: la
+  coach guadagna finché la cliente resta, quindi ha interesse a farla restare — e in mantenimento
+  serve proprio quello, perché chi molla non protesta, sparisce.
+  **Sblocca la voce #10** (monitoraggio a pagamento) e con essa lo Stripe ricorrente, che era
+  l'ultimo lavoro grosso fermo su una decisione e non su del codice.
+  ⚠️ Restano due interruttori da decidere, e non sono a/b/c: se il residual **dura per sempre o 12
+  mesi** (con la (b) «per sempre» significa pagare anche sulla cliente che si rinnova da sola da
+  tre anni), e la condizione **«solo se la coach è ancora quella assegnata»**, che va messa
+  comunque — altrimenti una coach che se ne va continua a incassare. Vanno decise prima del primo
+  rinnovo pagato: dopo diventano una revisione di compensi già erogati.
+  Dettagli e numeri: `progetto/Decisione_Provvigioni_Rinnovo.md`.
+
+- `[Prodotto]` ✅ **Keto-Mediterranea creata dal nutrizionista**, dal generatore del backoffice —
+  usato come formazione, che era l'idea di Simone quando ha rifiutato lo script. Ora sta facendo
+  manutenzione alle ricette. La voce #2 del feedback del 5/8 («ingredienti Keto introvabili») si
+  chiude qui: il codice c'era da stamattina, mancava questo. Finché le varianti non sono approvate
+  nessuna cliente le vede, quindi la manutenzione può prendersi il tempo che serve.
+
+- `[Sviluppo]` **`continue-on-error` tolto da `ci.yml`: da adesso la CI può fallire** (commit
+  `73cc4f2`, fatto dall'editor web di GitHub — i file `.github/` il bridge non li scrive). Via
+  anche il nome dello step, «Test (informativo — alcuni test noti falliscono per DI NestJS)»,
+  diventato falso: ora è solo «Test». Un test rosso blocca la push, che è il punto.
+  Vale la pena tenere insieme le due metà della storia: quella riga era stata messa per non farsi
+  bloccare da ~30 test rotti, e proprio perché c'era nessuno ha visto i test diventare 99. Una
+  rete di sicurezza disattivata «temporaneamente» non resta ferma: peggiora, in silenzio.
+
 - `[Sviluppo]` **I test rossi erano 99, non «una trentina»: adesso sono 28.** Ho fatto girare la
   suite del backend, cosa che nessuno faceva più da quando `ci.yml` ha `continue-on-error: true` —
   la pipeline non può fallire, quindi nessuno vedeva niente. Nei nostri appunti c'era scritto

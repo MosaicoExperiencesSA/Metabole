@@ -6,14 +6,32 @@
 
 ---
 
-## ✅ Deciso il 6/8 (Simone)
+## ✅ Deciso il 6/8 (Simone) — la scelta fra a/b/c è chiusa
 
-**Su Mantenimento e Monitoraggio la provvigione al nutrizionista è 0%.** Vale sia sul primo
-addebito sia sui rinnovi. Il motivo regge: il lavoro del nutrizionista su questi due prodotti è
-tutto a monte, nel catalogo, ed è già remunerato dai percorsi; sul singolo mese di mantenimento
-non c'è una prestazione clinica nuova. Sui **percorsi** (1/3/6 mesi) il 15% resta com'è.
+**Nutrizionista: 0% su Mantenimento e Monitoraggio**, sia sul primo addebito sia sui rinnovi. Il
+motivo regge: il lavoro del nutrizionista su questi due prodotti è tutto a monte, nel catalogo, ed
+è già remunerato dai percorsi; sul singolo mese di mantenimento non c'è una prestazione clinica
+nuova. Sui **percorsi** (1/3/6 mesi) il 15% resta com'è.
 
-Resta aperta la sola domanda sulla **coach**: a, b o c qui sotto.
+**Coach: la quota sui rinnovi NON cambia** → **opzione (b)**, provvigione piena a ogni rinnovo.
+Parole di Simone: «la quota coach sui rinnovi non cambia».
+È il modello *residual*: la coach guadagna finché la cliente resta, quindi ha interesse a farla
+restare — che in mantenimento è esattamente il comportamento che serve, perché le clienti in
+mantenimento non protestano, spariscono. Coi numeri qui sotto: €13,05 al mese alla coach, €15,26
+a Metabole, **€183 per cliente all'anno**.
+
+⚠️ **Restano due domande, e non sono a/b/c** (sono le «due varianti» più sotto, che con la (b)
+pesano più di prima):
+
+1. **Il residual dura per sempre, o 12 mesi?** Con la (b), «per sempre» vuol dire pagare la
+   provvigione anche sulla cliente che si rinnova da sola da tre anni e che la coach non sente
+   più. Dodici mesi coprono il periodo in cui la cliente può ancora mollare.
+2. **Provvigione solo se la coach è ancora quella assegnata.** Va messa comunque, qualunque cosa
+   si decida sul punto 1: senza, una coach che se ne va — o da cui la cliente è stata spostata —
+   continua a incassare sui rinnovi.
+
+Nessuna delle due cambia l'architettura: sono due interruttori. Ma conviene deciderle **prima**
+del primo rinnovo pagato, perché dopo diventano una revisione di compensi già erogati.
 
 ---
 

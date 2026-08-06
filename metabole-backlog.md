@@ -111,27 +111,23 @@ cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della 
 Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
 non è un lavoro da sera di pubblicazione.
 
-## Test — ZERO ROSSI (erano 99), 6/8 — resta da togliere `continue-on-error`
+## Test — ZERO ROSSI e CI che blocca — CHIUSO (6/8)
 Misurato il 6/8: **99 test rossi in 18 suite**, non «~30 in src/commerce» come dicevano gli
-appunti. Sistemati tutti: **51 suite su 51, 527 test su 527**.
+appunti. Sistemati tutti: **51 suite su 51, 527 test su 527**. E `continue-on-error: true` è stato
+tolto da `.github/workflows/ci.yml` (commit `73cc4f2`): da adesso un test rosso blocca la push.
 
 In nessun caso il difetto era nel codice: erano test rimasti indietro rispetto a modifiche fatte
 bene — provider non registrati nei moduli di test, finti Prisma senza i modelli che i servizi
 hanno imparato a leggere, un finto claim atomico che rispondeva sempre «riuscito», una data fissa
 confrontata con l'orologio reale. Il punto è un altro: **quelle suite non giravano**, quindi non
-proteggevano niente, e nessuno poteva accorgersene perché la pipeline non può fallire.
+proteggevano niente, e nessuno poteva accorgersene perché la pipeline non poteva fallire.
 
-⬜ **DA FARE — togliere `continue-on-error: true`** da `.github/workflows/ci.yml` (job backend) e
-correggere il nome dello step, che dice ancora «informativo — alcuni test noti falliscono per DI
-NestJS». Diventa:
+Da tenere a mente, perché è la lezione riutilizzabile: quella riga era nata per non farsi bloccare
+da ~30 test rotti, e proprio perché c'era nessuno ha visto i rotti diventare 99. **Una rete di
+sicurezza disattivata «temporaneamente» non resta ferma: peggiora, in silenzio.**
 
-```yaml
-      - name: Test
-        run: npm test -- --ci --passWithNoTests
-```
-
-⚠️ I file `.github/` non li scrive il bridge: si modificano dall'editor web di GitHub.
-Da quel momento un test rosso blocca la push — che è il punto.
+⚠️ Unico strascico: un test rosso ora blocca davvero. Se serve un'uscita d'emergenza, la si
+aggiunge come `if:` su un'etichetta del commit, non rimettendo `continue-on-error`.
 
 ## Catalogo ricette — filtri e ordinamento sul SERVER — DA FARE (emerso 6/8)
 Lo screenshot di Simone del 6/8 mostra il banner di troncamento **con il solo regime Vegetariana**:
