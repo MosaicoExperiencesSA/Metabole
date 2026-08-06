@@ -53,8 +53,16 @@ Cosa cambia in questa versione:
    Controllo prima dell'invio: `aps-environment` deve risultare **production** (è la voce che nel
    2.0 mancava e teneva le push spente).
 3. **Android.** `bash build-aab.sh`, poi caricare l'AAB su Play Console (versionCode 5).
-4. **Dopo la pubblicazione**, svuotare **`OTA_VERSION`** su Render. Se resta valorizzata, le app
-   appena aggiornate scaricherebbero un bundle OTA più vecchio del nativo.
+4. **`OTA_VERSION` su Render va svuotata — e conviene farlo SUBITO, non dopo.**
+   ⚠️ Verificato il 6/8 alle 11:42 sul manifest pubblico
+   (`/api/v1/app-updates/latest.json`): oggi serve **`2.0.1`**, non `2.0.3` come credevamo. È il
+   bundle della prima pubblicazione OTA, quello **senza il codice delle push** — il motivo per cui
+   avevamo aggiunto le guardie e bumpato a 2.0.2 e 2.0.3.
+   Due conseguenze: **adesso** ogni telefono che apre l'app scarica quel bundle vecchio; e
+   **stasera**, se la variabile resta, chi aggiorna alla 2.1 dallo store si ritrova il web della
+   2.0.1 sopra il nativo nuovo — cioè vede l'app di ieri dopo aver aggiornato.
+   Svuotarla ora non fa tornare indietro nessuno: i telefoni tengono il bundle che hanno già,
+   semplicemente non ne scaricano altri, e stasera la 2.1 dello store sostituisce tutto.
 
 ⚠️ **Niente OTA prima della pubblicazione**: è il motivo per cui abbiamo fatto tutto in un giorno
 solo. Le due guardie in `scripts/ota-release.mjs` impediscono i due incidenti già capitati (bundle

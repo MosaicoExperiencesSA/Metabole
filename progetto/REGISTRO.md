@@ -7,6 +7,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Controllo pre-build: l'OTA in produzione non è quello che credevamo.** Prima
+  delle build ho letto il manifest pubblico invece di fidarmi dei registri:
+  `/api/v1/app-updates/latest.json` serve **`2.0.1`**, non `2.0.3`. Il passaggio a 2.0.2/2.0.3
+  annunciato stamattina **non è mai stato completato su Render**: la variabile `OTA_VERSION` è
+  rimasta ferma sul bundle della prima pubblicazione. Due conseguenze, una già in corso e una
+  peggiore: **oggi** i telefoni scaricano quel bundle vecchio; **stasera**, se la variabile resta,
+  chi aggiorna alla 2.1 dallo store si ritrova il web della 2.0.1 **sopra** il nativo nuovo, cioè
+  vede l'app di ieri dopo aver aggiornato. Da svuotare **prima** della pubblicazione, non dopo:
+  svuotarla non fa tornare indietro nessuno, i telefoni tengono il bundle che hanno già.
+  Aggiornate note di rilascio e memoria di progetto. **Lezione**: lo stato dell'OTA vive in una
+  variabile d'ambiente su Render — fuori dal repo e fuori da ogni registro. L'unico modo di sapere
+  cos'è pubblicato è leggere il manifest, e va fatto prima di ogni release.
+  Verificato nella stessa passata: backend up e database raggiungibile; `google-services.json` e
+  `GoogleService-Info.plist` al loro posto (senza, le push si spengono in silenzio al build);
+  `@capacitor/share` installato; versioni allineate a **5 / 2.1**.
+
 - `[Prodotto]` **Ripuliti i quattro documenti che dicevano il falso** (dall'audit di oggi). Una
   checklist che mente si smette di leggere, e da quel momento non protegge più niente.
   ① `Metabole_Checklist_GoLive.md`: i quattro gate di apertura erano ancora 🔴 pur essendo stati
