@@ -89,6 +89,17 @@ export const ONBOARDING_QUESTIONS = {
       subtitle: 'Tre pasti, cinque pasti o digiuno intermittente.',
       fields: [
         { key: 'pathType', type: 'choice', options: ['classic3', 'five', 'intermittent_fasting'], labels: ['3 pasti', '5 pasti', 'Digiuno intermittente'], required: true },
+        // Compare SOLO a chi sceglie il digiuno (voce #7 del 5/8): saltare la colazione o saltare
+        // la cena sono due vite diverse, e finora la finestra la decideva il template della dieta.
+        {
+          key: 'fastingWindow',
+          type: 'choice',
+          label: 'Quali pasti preferisci saltare?',
+          options: ['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'],
+          labels: ['Colazione', 'Colazione e pranzo', 'Cena e colazione'],
+          required: true,
+          showIf: { key: 'pathType', equals: 'intermittent_fasting' },
+        },
       ],
     },
     {

@@ -268,6 +268,71 @@ function ActivityPref() {
   );
 }
 
+/**
+ * Finestra del digiuno intermittente: QUALI pasti si saltano (voce #7 del 5/8).
+ * Compare solo a chi ha scelto il digiuno: per tutte le altre non avrebbe senso.
+ * Cambiarla qui cambia i menu dal ciclo successivo, non quelli già erogati.
+ */
+const FASTING_OPTIONS: { value: string; label: string; hint: string }[] = [
+  { value: 'skip_breakfast', label: 'Salto la colazione', hint: 'mangi da pranzo a cena' },
+  { value: 'skip_breakfast_lunch', label: 'Salto colazione e pranzo', hint: 'un solo pasto, la cena' },
+  { value: 'skip_dinner_breakfast', label: 'Salto cena e colazione', hint: 'finestra al mattino-pomeriggio' },
+];
+
+function FastingWindowPref() {
+  const [pathType, setPathType] = useState<string | null>(null);
+  const [value, setValue] = useState<string>('');
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ pathType?: string | null; fastingWindow?: string | null }>('/me/client-profile')
+      .then((p) => { setPathType(p.pathType ?? null); setValue(p.fastingWindow ?? ''); })
+      .catch(() => setPathType(null))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  async function save(next: string) {
+    setBusy(true); setErr(null);
+    const prev = value;
+    setValue(next);
+    try {
+      await api('/me/client-profile', { method: 'PATCH', body: JSON.stringify({ fastingWindow: next }) });
+    } catch (e) {
+      setValue(prev);
+      setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!loaded || pathType !== 'intermittent_fasting') return null;
+
+  return (
+    <div className="card">
+      <b style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>La tua finestra di digiuno</b>
+      <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
+        Quali pasti salti. I menu si adeguano dal prossimo ciclo: quelli già consegnati restano come sono.
+      </p>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {FASTING_OPTIONS.map((o) => {
+          const on = value === o.value;
+          return (
+            <button key={o.value} onClick={() => save(o.value)} disabled={busy}
+              style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
+                border: on ? '2px solid var(--teal)' : '1px solid var(--line)', background: on ? '#EAF5F1' : '#fff', cursor: 'pointer' }}>
+              <i className={`ti ${on ? 'ti-circle-check-filled' : 'ti-circle'}`} style={{ fontSize: 20, color: on ? 'var(--teal)' : '#C6CFCB' }} />
+              <span><b style={{ fontSize: 13.5 }}>{o.label}</b> <span className="muted" style={{ fontSize: 12 }}>— {o.hint}</span></span>
+            </button>
+          );
+        })}
+      </div>
+      {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
+    </div>
+  );
+}
+
 export default function Profilo() {
   const { user, logout, switchAccount } = useAuth();
   const [switching, setSwitching] = useState(false);
@@ -645,6 +710,7 @@ export default function Profilo() {
       {/* Attività fisica: guida il fabbisogno calorico e le calorie dei menu */}
       <div className="sec" style={{ marginTop: 4 }}>Attività fisica</div>
       <ActivityPref />
+      <FastingWindowPref />
 
       {/* Preferenza ricette semplici / cucina italiana */}
       <div className="sec" style={{ marginTop: 4 }}>Ricette</div>

@@ -24,6 +24,7 @@ export class UpdateClientDto {
   @IsOptional() @IsString() @MaxLength(40) dietStyle?: string;
   @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
+  @IsOptional() @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast']) fastingWindow?: string;
   @IsOptional() @IsIn(['daily', 'when_needed', 'on_request']) coachStyle?: string;
   @IsOptional() @IsIn(['follows', 'needs_push', 'perseveres', 'quits']) character?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) intolerances?: string[];

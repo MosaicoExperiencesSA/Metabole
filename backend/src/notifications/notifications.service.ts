@@ -294,6 +294,31 @@ export class NotificationsService {
     });
     const hasActivePlan = !!activeSub && (!activeSub.endDate || activeSub.endDate.getTime() >= today.getTime());
 
+    // 0-bis. DIGIUNO INTERMITTENTE — suggerimento settimanale della giornata 20-4 (voce #7 del 5/8).
+    // Una volta a settimana si propone di stringere la finestra a un solo pasto. È un
+    // SUGGERIMENTO, non un menu diverso: la cliente decide, e la spiegazione viaggia col
+    // messaggio perché "20-4" da solo non dice niente a nessuno.
+    // Non si manda a chi è in pausa: in vacanza non si propongono stringimenti.
+    if (
+      hasActivePlan &&
+      !activePause &&
+      (profile as { pathType?: string | null }).pathType === 'intermittent_fasting'
+    ) {
+      const finestra = (profile as { fastingWindow?: string | null }).fastingWindow ?? null;
+      // Chi già salta colazione e pranzo mangia solo a cena: la 20-4 la sta già facendo.
+      if (finestra !== 'skip_breakfast_lunch') {
+        const quale = finestra === 'skip_dinner_breakfast' ? 'il pranzo' : 'la cena';
+        const fatta = await this.notifyOncePerDay({
+          userId: clientId,
+          type: 'fasting_204_tip',
+          title: 'Una giornata 20-4, se te la senti',
+          body: `Una volta a settimana puoi provare la 20-4: venti ore senza mangiare e un'unica finestra di quattro ore in cui fai un solo pasto completo — per te ${quale}. Non è un digiuno più duro, è lo stesso digiuno concentrato: si beve normalmente (acqua, tè, caffè senza zucchero) e il pasto resta completo, non ridotto. Se ti senti storta, salti e riprovi un'altra settimana. Nel dubbio parlane con la tua nutrizionista.`,
+          dedupeWindowMs: 7 * 86_400_000,
+        });
+        if (fatta) created.push('fasting_204_tip');
+      }
+    }
+
     // 0. Messaggio quotidiano del motore: TONO e contenuto decisi dalle regole (spec 7.2).
     // Solo a piano attivo (vedi sopra).
     if (todayDecision && hasActivePlan) {

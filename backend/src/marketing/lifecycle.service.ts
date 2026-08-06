@@ -326,6 +326,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           name: true,
           dietStyle: true,
           regime: true,
+          // Servono per {{primoPasto}}: senza questi due il campo tornava sempre "colazione".
+          pathType: true,
+          fastingWindow: true,
           user: { select: { email: true, firstName: true } },
           assignedCoach: { select: { displayName: true } },
           assignedNutritionist: { select: { displayName: true } },
@@ -390,6 +393,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           name: true,
           dietStyle: true,
           regime: true,
+          // Servono per {{primoPasto}}: senza questi due il campo tornava sempre "colazione".
+          pathType: true,
+          fastingWindow: true,
           user: { select: { email: true, firstName: true } },
           assignedCoach: { select: { displayName: true } },
           assignedNutritionist: { select: { displayName: true } },
@@ -401,7 +407,19 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
         // Primo pasto della giornata: nel DIGIUNO intermittente (16:8) NON c'è colazione, quindi
         // si parte dal pranzo. Usare {{primoPasto}} nei template evita di dire "parti dalla
         // colazione" a chi la colazione non la fa.
-        const primoPasto = p.regime === 'intermittent_fasting' ? 'pranzo' : 'colazione';
+        // Il digiuno intermittente sta in `pathType`, NON in `regime` (che vale
+        // omnivore/vegetarian/vegan/pescetarian): il confronto vecchio era sempre falso, quindi a
+        // ogni cliente in digiuno le email dicevano «parti dalla colazione» — proprio il pasto che
+        // salta. Voce 1 dell'audit, segnalata da una cliente.
+        // Ora il pasto dipende anche dalla finestra scelta (voce #7): chi salta colazione e pranzo
+        // riparte dalla cena, chi salta cena e colazione dal pranzo.
+        const inDigiuno = (p as { pathType?: string | null }).pathType === 'intermittent_fasting';
+        const finestra = (p as { fastingWindow?: string | null }).fastingWindow ?? null;
+        const primoPasto = !inDigiuno
+          ? 'colazione'
+          : finestra === 'skip_breakfast_lunch'
+            ? 'cena'
+            : 'pranzo';
         const r = await this.sendLifecycle({
           userId: p.userId,
           email: p.user?.email ?? null,

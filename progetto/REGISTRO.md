@@ -7,6 +7,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Motore/App — digiuno intermittente: la cliente sceglie quali pasti saltare, e la
+  giornata 20-4 una volta a settimana** (feedback clienti 5/8, voce #7). Finora scegliere «digiuno
+  intermittente» selezionava soltanto le diete marcate `fasting`: la finestra alimentare la decideva
+  il template del nutrizionista e la cliente non aveva voce in capitolo — ma saltare la colazione o
+  saltare la cena sono due vite diverse. Nuovo campo `client_profile.fasting_window`
+  (`skip_breakfast` | `skip_breakfast_lunch` | `skip_dinner_breakfast`, NULL = comportamento storico,
+  quindi nessuna cliente esistente cambia menu da un giorno all'altro). Gli slot saltati escono
+  **prima** della composizione della giornata, non dopo: così il target calorico si ridistribuisce
+  sui pasti rimasti invece di lasciare un buco. Lo spuntino del mattino segue sempre la colazione
+  (uno spuntino alle dieci riaprirebbe la finestra). Rete di sicurezza: se il filtro svuotasse la
+  giornata viene ignorato — meglio un digiuno impreciso che una cliente senza niente da mangiare.
+  La domanda compare in onboarding **solo** a chi sceglie il digiuno: per farlo è nato un supporto
+  generico ai campi condizionati (`showIf` nello schema del questionario) al posto dell'unico caso
+  scritto a mano; i campi nascosti non bloccano più l'avanzamento. La finestra è modificabile anche
+  dal Profilo e dal backoffice. Una volta a settimana parte il suggerimento della **20-4**, spiegato
+  per esteso nel messaggio (venti ore di digiuno, un solo pasto completo, si beve normalmente, si
+  può saltare) e non inviato a chi è in pausa né a chi salta già colazione e pranzo, perché la sta
+  già facendo.
+
+- `[Sviluppo]` **Email di lifecycle — `{{primoPasto}}` diceva sempre «colazione»** (voce 1
+  dell'audit, segnalata da una cliente). Il controllo guardava `regime`, che vale
+  omnivore/vegetarian/vegan/pescetarian: il confronto con `intermittent_fasting` era **sempre
+  falso**, quindi a ogni cliente in digiuno le email dicevano di partire proprio dal pasto che salta.
+  Ora legge `pathType` e tiene conto della finestra scelta: chi salta colazione e pranzo riparte
+  dalla cena, chi salta cena e colazione dal pranzo. Aggiunti i due campi alle query, che non li
+  selezionavano.
+
 - `[Sviluppo]` **App/Backend — check-in solo con un piano attivo, e con energia, fame e stress**
   (feedback clienti 5/8, voce #1). `GET /me/today` restituisce ora `hasActivePlan` e `checkinDue`:
   la regola sta nel dominio e non sparsa nel frontend, e a piano scaduto o mai comprato il popup

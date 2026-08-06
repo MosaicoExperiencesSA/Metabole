@@ -126,6 +126,10 @@ export class SubmitAnswersDto {
   @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'])
   pathType!: string;
 
+  @IsOptional()
+  @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'])
+  fastingWindow?: string;
+
   @ValidateNested()
   @Type(() => HealthDto)
   health!: HealthDto;

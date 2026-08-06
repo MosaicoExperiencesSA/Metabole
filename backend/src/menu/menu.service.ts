@@ -387,6 +387,12 @@ export class MenuService {
     const slotHistory = varietyGap > 0 ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap) : new Map<string, string[]>();
 
     // Prepara gli snapshot dei giorni del ciclo.
+    // Digiuno intermittente: gli slot che questa cliente ha scelto di saltare (voce #7).
+    const slotSaltati = this.slotSaltatiPerDigiuno(
+      (profile as { pathType?: string | null }).pathType,
+      (profile as { fastingWindow?: string | null }).fastingWindow,
+    );
+
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
     for (let i = 0; i < daysPerDelivery; i++) {
       const date = new Date(firstNewDate.getTime() + i * 86_400_000);
@@ -396,7 +402,7 @@ export class MenuService {
       let chosen: { slot: string; recipeId: string }[] | null = null;
       // I punteggi vanno ricalcolati AD OGNI GIORNO: i piatti scelti per il giorno precedente
       // sono nel frattempo diventati "serviti di recente" (bump) e vanno sfavoriti.
-      const combo = useDayCombo && ctx ? this.dayComboPools(ctx) : null;
+      const combo = useDayCombo && ctx ? this.dayComboPools(ctx, slotSaltati) : null;
       if (combo) {
         chosen = this.dayCombo.compose({
           slots: combo.slots,
@@ -409,7 +415,13 @@ export class MenuService {
       }
       // Fallback: se DayCombo è spento o non trova una giornata nella banda, si usa
       // il template composto a mano con il selettore per-slot.
-      if (!chosen) chosen = selector(template.meals as { slot: string; recipeId: string }[]);
+      if (!chosen) {
+        // Stesso filtro anche sul percorso di riserva: se DayCombo è spento o non trova una
+        // giornata nella banda, il template va comunque ripulito dei pasti saltati.
+        const pasti = (template.meals as { slot: string; recipeId: string }[]) ?? [];
+        const pastiFiltrati = pasti.filter((m) => !slotSaltati.has(m.slot));
+        chosen = selector(pastiFiltrati.length > 0 ? pastiFiltrati : pasti);
+      }
       // VARIETÀ: niente stesso piatto nello stesso slot a meno di `varietyGap` giorni, se il
       // pool della dieta offre un'alternativa entro la tolleranza kcal (bilanciamento salvo).
       chosen = this.applyVarietyGuard(chosen, slotHistory, ctx, kcalTolPct / 100, varietyGap);
@@ -927,16 +939,48 @@ export class MenuService {
     return hit?.kcal ?? 0;
   }
 
+  /**
+   * Digiuno intermittente: quali slot NON vanno erogati, in base alla finestra scelta dalla
+   * cliente (`clientProfile.fastingWindow`, voce #7 del 5/8).
+   *
+   * Prima la finestra la decideva solo il template della dieta: scegliere «digiuno intermittente»
+   * selezionava le diete marcate `fasting` e basta. Ma saltare la colazione o saltare la cena sono
+   * due vite diverse, e la cliente non aveva voce in capitolo.
+   *
+   * Lo spuntino del mattino segue sempre la colazione: se salti la colazione, uno spuntino alle
+   * dieci riaprirebbe la finestra e il digiuno non sarebbe più tale.
+   */
+  private slotSaltatiPerDigiuno(pathType?: string | null, fastingWindow?: string | null): Set<string> {
+    if (pathType !== 'intermittent_fasting' || !fastingWindow) return new Set();
+    switch (fastingWindow) {
+      case 'skip_breakfast':
+        return new Set(['breakfast', 'morning_snack']);
+      case 'skip_breakfast_lunch':
+        return new Set(['breakfast', 'morning_snack', 'lunch']);
+      case 'skip_dinner_breakfast':
+        return new Set(['breakfast', 'morning_snack', 'dinner']);
+      default:
+        return new Set();
+    }
+  }
+
   /** Pool DayCombo (RecipeInfo per slot) dal contesto di scoring. */
   private dayComboPools(ctx: {
     slotPool: Map<string, Set<string>>;
     kcalOf: Map<string, number>;
     proteinOf: Map<string, number>;
     score: (id: string) => number;
-  }): { slots: string[]; poolBySlot: Map<string, RecipeInfo[]> } {
-    const slots = [...ctx.slotPool.keys()];
+  }, salta: Set<string> = new Set()): { slots: string[]; poolBySlot: Map<string, RecipeInfo[]> } {
+    // Gli slot saltati escono PRIMA della composizione, non dopo: così il target kcal della
+    // giornata viene ridistribuito sui pasti rimasti invece di lasciare un buco.
+    const tutti = [...ctx.slotPool.keys()];
+    const rimasti = tutti.filter((s) => !salta.has(s));
+    // Rete di sicurezza: se la finestra svuotasse la giornata, si ignora il filtro. Meglio un
+    // digiuno impreciso che una cliente senza niente da mangiare.
+    const slots = rimasti.length > 0 ? rimasti : tutti;
     const poolBySlot = new Map<string, RecipeInfo[]>();
     for (const [slot, ids] of ctx.slotPool) {
+      if (!slots.includes(slot)) continue;
       poolBySlot.set(
         slot,
         [...ids].map((id) => ({

@@ -56,6 +56,10 @@ export class UpdateProfileDto {
   pathType?: string;
 
   @IsOptional()
+  @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'])
+  fastingWindow?: string;
+
+  @IsOptional()
   @IsIn(['daily', 'when_needed', 'on_request'])
   coachStyle?: string;
 

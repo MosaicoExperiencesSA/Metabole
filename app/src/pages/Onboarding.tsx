@@ -196,6 +196,21 @@ function ObjectiveBlock({ page, answers, setAnswer }: { page: Page; answers: Ans
   );
 }
 
+/**
+ * Campi da mostrare in una pagina, applicando le condizioni.
+ * `showIf` arriva dallo schema del questionario; il caso storico "altra allergia" resta
+ * scritto qui perché dipende da una risposta a scelta multipla, che `showIf` non copre.
+ */
+function campiVisibili(fields: Field[], answers: Record<string, unknown>): Field[] {
+  return fields.filter((f) => {
+    if (f.key === 'allergiesOther') {
+      return Array.isArray(answers.allergies) && (answers.allergies as string[]).includes('altro');
+    }
+    if (f.showIf) return answers[f.showIf.key] === f.showIf.equals;
+    return true;
+  });
+}
+
 /** Step "Scegli il colore della tua app": selettore reale (6 colori + Auto) che
  *  applica e salva il colore scelto. Registra la scelta in answers.themeColor. */
 function ThemeBlock({ onChange }: { onChange: (k: string, v: unknown) => void }) {
@@ -323,7 +338,11 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const rangeIssue = activePage
     ? activePage.fields.map((f) => (isFilled(answers[f.key]) ? fieldIssue(f, answers[f.key]) : null)).find(Boolean) ?? null
     : null;
-  const requiredMissing = activePage ? activePage.fields.some((f) => f.required && !isFilled(answers[f.key])) : false;
+  // Solo i campi VISIBILI possono bloccare l'avanzamento: un campo nascosto e obbligatorio
+  // lascerebbe il pulsante spento senza che si capisca perché.
+  const requiredMissing = activePage
+    ? campiVisibili(activePage.fields, answers).some((f) => f.required && !isFilled(answers[f.key]))
+    : false;
   const pageValid = !rangeIssue && !requiredMissing;
 
   function next() {
@@ -515,9 +534,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               ) : cur.page.key === 'style' ? (
                 <DietProductsBlock value={answers.dietStyle} onChange={setAnswer} />
               ) : (
-                cur.page.fields
-                  // "Altra allergia non in elenco" appare solo se ho spuntato "Altro" tra le allergie.
-                  .filter((f) => f.key !== 'allergiesOther' || (Array.isArray(answers.allergies) && (answers.allergies as string[]).includes('altro')))
+                campiVisibili(cur.page.fields, answers)
                   .map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)
               )}
             </div>

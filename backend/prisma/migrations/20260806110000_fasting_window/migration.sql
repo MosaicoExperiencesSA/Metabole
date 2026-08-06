@@ -1,0 +1,14 @@
+-- Digiuno intermittente: la cliente sceglie QUALI pasti saltare (richiesta Simone 5/8, voce #7).
+--
+-- Finora scegliere "digiuno intermittente" selezionava soltanto le diete marcate `fasting`, e la
+-- finestra alimentare era quella decisa dal nutrizionista nel template: la cliente non aveva voce
+-- in capitolo. Ma saltare la colazione o saltare la cena sono due vite diverse, e chi lavora di
+-- notte non ha le stesse esigenze di chi si allena la mattina.
+--
+-- Valori: 'skip_breakfast' | 'skip_breakfast_lunch' | 'skip_dinner_breakfast'.
+-- NULL = comportamento storico (finestra decisa dalla dieta), quindi la colonna è retrocompatibile
+-- e nessuna cliente esistente cambia menu da un giorno all'altro.
+--
+-- Stringa e non enum: l'elenco delle finestre è materia di prodotto e cambierà (16:8, 18:6, 20:4…),
+-- e un enum Postgres richiede una migration per ogni valore nuovo.
+ALTER TABLE "client_profile" ADD COLUMN "fasting_window" TEXT;

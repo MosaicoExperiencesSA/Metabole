@@ -17,6 +17,12 @@ export interface Field {
   required?: boolean;
   options?: (string | number)[];
   labels?: string[];
+  /**
+   * Campo condizionato: compare solo se un'altra risposta ha un certo valore.
+   * Prima l'unico caso ("altra allergia") era una riga scritta a mano dentro il render;
+   * ora la condizione viaggia con lo schema e il frontend non va toccato per aggiungerne.
+   */
+  showIf?: { key: string; equals: string | number };
 }
 
 export interface Page {

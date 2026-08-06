@@ -147,6 +147,9 @@ export class OnboardingService {
         dietStyle: dto.dietStyle as never,
         mealsPerDay: dto.mealsPerDay,
         pathType: dto.pathType as never,
+        // Finestra del digiuno scelta dalla cliente (voce #7). Ha senso solo con
+        // pathType='intermittent_fasting'; per gli altri resta null.
+        fastingWindow: (dto.pathType === 'intermittent_fasting' ? dto.fastingWindow ?? null : null) as never,
         coachStyle: dto.coachStyle as never,
         character: dto.character as never,
         allergies: [...(dto.allergies ?? []), ...(dto.allergiesOther ?? [])],
@@ -176,6 +179,9 @@ export class OnboardingService {
         dietStyle: dto.dietStyle as never,
         mealsPerDay: dto.mealsPerDay,
         pathType: dto.pathType as never,
+        // Finestra del digiuno scelta dalla cliente (voce #7). Ha senso solo con
+        // pathType='intermittent_fasting'; per gli altri resta null.
+        fastingWindow: (dto.pathType === 'intermittent_fasting' ? dto.fastingWindow ?? null : null) as never,
         coachStyle: dto.coachStyle as never,
         character: dto.character as never,
         allergies: [...(dto.allergies ?? []), ...(dto.allergiesOther ?? [])],

@@ -360,6 +360,10 @@ model ClientProfile {
   // famiglia (regime × obiettivo). Default dimagrimento: tutti partono in dimagrimento.
   objective              String     @default("dimagrimento")
   pathType               PathType?  @map("path_type")
+  // Digiuno intermittente: QUALI pasti salta (richiesta Simone 5/8, voce #7).
+  // skip_breakfast | skip_breakfast_lunch | skip_dinner_breakfast. Null = finestra decisa
+  // dalla dieta, com'era prima. Ha senso solo con pathType = intermittent_fasting.
+  fastingWindow          String?    @map("fasting_window")
   coachStyle             CoachStyle? @map("coach_style")
   character              Character?
   allergies              String[]   @default([]) // R8: blocco duro (incl. tracce/derivati), distinto da intolleranze/gusti
