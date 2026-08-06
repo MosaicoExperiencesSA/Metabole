@@ -7,6 +7,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Prodotto]` 💶 **Listino di mantenimento e monitoraggio fissato** (Simone, 6/8 sera). Non è un
+  ritocco di prezzo: definisce cosa deve fare il codice del ricorrente, che parte domattina.
+  Il percorso della cliente dopo il peso raggiunto: **mantenimento per quanti mesi vuole**, poi
+  **monitoraggio anche per sempre**. Nessuno dei due ha una scadenza imposta.
+  · **Mantenimento €49/mese**, in abbonamento **oppure a mese singolo** — entrambe le modalità.
+  · **Monitoraggio €19/mese**, solo in abbonamento.
+  ⚠️ **Il monitoraggio a pagamento NON è il monitoraggio gratuito.** Quello che si attiva quando
+  il piano viene sospeso (pausa vacanza / sorveglianza) resta **gratis**, ed è l'unico che esiste
+  oggi nel codice — `monitoring.service.ts` lo descrive come «paracadute GRATUITO». Il €19/mese è
+  un prodotto nuovo che segue il mantenimento. Due cose diverse con lo stesso nome: va scritto
+  ovunque, perché è esattamente il tipo di ambiguità che produce difetti che nessuno vede.
+  ⚠️ Nel seed entrambi i piani sono ancora a **€29**. I prezzi veri si mettono dal **Negozio**,
+  non nel seed: il seed aggiorna solo la descrizione, mai il valore già a database.
+  Conseguenze già scritte nei documenti: il mantenimento ha **due modalità di acquisto** (non
+  basta marcare il piano come ricorrente, serve la scelta nel checkout), e i conti delle
+  provvigioni vanno rifatti — a €49 restano a Metabole **€25,96/mese** invece dei €183/anno
+  calcolati su €29, quindi il residual «per sempre» pesa meno di quanto sembrasse quando lo
+  abbiamo deciso. Resta **un solo numero aperto**: la percentuale coach **sul monitoraggio**,
+  dove il 45% di €19 lascerebbe €9,91 su un prodotto che dura anni e chiede pochissimo lavoro.
+
 - `[Sviluppo]` **«Porta un'amica» rifatta: prometteva una cosa e ne faceva un'altra.** Partita da
   due screenshot di Simone e finita per toccare tutta la meccanica. Cinque cose, in ordine di
   gravità:
@@ -65,11 +85,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   diventati il debito di qualcun altro. Sistemati subito: **51 suite, 527 test, tutto verde**,
   `tsc --noEmit` pulito su backend e app.
 
-- `[Prodotto]` ✅ **Provvigione sul rinnovo solo se la coach è ancora quella assegnata** (Simone,
-  6/8: «sì»). Chiude il caso della coach che se ne va, o da cui la cliente è stata spostata, e che
-  continuerebbe a incassare sui rinnovi di una persona che non segue più. È una condizione, non
-  un'architettura: si scriverà insieme allo Stripe ricorrente.
-  Resta aperta la sola durata del residual (per sempre o 12 mesi).
+- `[Prodotto]` ✅ **Provvigioni sul rinnovo: chiuse tutte e tre le domande** (Simone, 6/8).
+  Quota coach **piena a ogni rinnovo** (opzione b); provvigione **solo se la coach è ancora quella
+  assegnata**; residual **per sempre**, senza scadenza.
+  Le ultime due si tengono insieme, ed è la ragione per cui «per sempre» regge: la rendita è
+  legata al **rapporto**, non al contratto. Finché quella coach segue la cliente incassa; se la
+  smette di seguire, o la cliente viene spostata, il pagamento si ferma da solo. Senza il vincolo
+  sull'assegnazione, «per sempre» sarebbe stato un assegno in bianco.
+  Il numero da ricordare non è la provvigione ma quello che resta: **€15,26 al mese per cliente,
+  per sempre** — non €28,31 dal secondo anno. È la cifra su cui calcolare quanto si può spendere
+  in acquisizione.
+  **Da qui il codice del ricorrente può partire senza altre domande sulle provvigioni.** Restano
+  le sei domande di impianto (piani, intervallo, dunning, disdetta, prova, bonifico), preparate
+  con la proposta già scritta in `progetto/Stripe_Ricorrente_Sei_Domande.md` per domattina.
 
 - `[Prodotto]` ✅ **Provvigioni sul rinnovo: decisione chiusa.** Simone: «la quota coach sui rinnovi
   non cambia» → **opzione (b)**, provvigione piena a ogni rinnovo, che con il nutrizionista già a

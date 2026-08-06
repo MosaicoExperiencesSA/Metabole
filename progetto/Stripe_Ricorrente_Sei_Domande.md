@@ -6,22 +6,42 @@
 Ogni domanda ha una **proposta già scritta**. Se va bene, basta «sì». Dove dico «da decidere»
 è perché la risposta cambia il codice, non il gusto.
 
-Già chiuse ieri sera, non si riaprono: nutrizionista **0%** su mantenimento e monitoraggio;
-coach **quota piena a ogni rinnovo**; provvigione **solo se è ancora la coach assegnata**.
-Resta aperta la **durata del residual** (per sempre o 12 mesi) — è la settima, e la si può
-decidere anche a codice iniziato, perché è un contatore.
+Le provvigioni sono **tutte decise** e non si riaprono: nutrizionista **0%** su mantenimento e
+monitoraggio; coach **quota piena a ogni rinnovo**; **solo se è ancora la coach assegnata**;
+residual **senza scadenza**.
+
+⚠️ **Un solo numero resta scoperto, ed è nuovo:** la **percentuale coach sul monitoraggio**. Sul
+mantenimento il 45% di €49 fa €22,05 e a Metabole restano €25,96 al mese. Sul monitoraggio, il
+45% di €19 fa €8,55 e restano **€9,91** — su un prodotto che per definizione dura anni e chiede
+pochissimo lavoro. Non è detto che la stessa percentuale abbia senso su entrambi: vale la pena
+guardarlo prima di scriverlo, non dopo.
 
 ---
 
-## 1. Quali piani diventano ricorrenti
+## 1. Quali piani diventano ricorrenti — ✅ RISPOSTA GIÀ DATA (Simone, 6/8 sera)
 
-**Proposta:** solo **Mantenimento** (€29/mese) e, quando esisterà, il **Monitoraggio**.
-I percorsi 1/3/6 mesi restano **una tantum**: sono un impegno a termine, e l'addebito
-automatico su un percorso finito è il modo più veloce per prendersi una contestazione.
+| Prodotto | Prezzo | Come si vende |
+|---|---:|---|
+| **Mantenimento** | **€49/mese** | abbonamento **oppure mese singolo** — entrambi |
+| **Monitoraggio** | **€19/mese** | **solo abbonamento**, anche per sempre |
+| Percorsi 1/3/6 mesi | invariati | **una tantum**, come oggi |
 
-*Conseguenza tecnica:* si aggiunge un prezzo ricorrente Stripe **solo** ai due piani, e il
-checkout sceglie `mode: 'subscription'` o `mode: 'payment'` guardando il piano. Tutti gli
-acquisti di oggi continuano a funzionare come oggi.
+Il percorso della cliente: raggiunge il peso → **mantenimento per quanti mesi vuole** → poi
+**monitoraggio, anche per sempre**. Non è un imbuto a scadenza: sono due prodotti che si possono
+tenere a tempo indeterminato.
+
+⚠️ **Due cose da non sbagliare.**
+1. **Il mantenimento ha DUE modalità di acquisto.** Non basta marcare il piano come ricorrente:
+   la cliente deve poter scegliere fra abbonamento e mese singolo, e il checkout deve usare
+   `mode: 'subscription'` o `mode: 'payment'` di conseguenza. È il pezzo di lavoro in più
+   rispetto a «tutto ricorrente».
+2. **Il monitoraggio a pagamento NON è il monitoraggio gratuito.** Quello che si attiva quando il
+   piano viene **sospeso** (pausa vacanza / sorveglianza) resta **gratis** ed è l'unico che esiste
+   oggi in `monitoring.service.ts`. Il €19/mese è un prodotto nuovo che segue il mantenimento.
+   Due cose diverse con lo stesso nome: è il genere di ambiguità che produce difetti silenziosi.
+
+⚠️ **Nel seed i piani sono ancora a €29** («Mantenimento Metabole» e «Menu di rientro»). I prezzi
+veri vanno messi in **Negozio**, non nel seed: il seed non sovrascrive un valore già a database.
 
 ---
 
@@ -66,7 +86,7 @@ possono comunque bloccare in banca.
 
 ## 5. Prova gratuita
 
-**Proposta:** **nessuna prova** sul mantenimento. Chi arriva al mantenimento ha già fatto un
+**Proposta:** **nessuna prova** né sul mantenimento né sul monitoraggio. Chi ci arriva ha già fatto un
 percorso pagato: non deve provare niente, e una prova qui non aumenta le conversioni, sposta
 solo il primo incasso di un mese.
 

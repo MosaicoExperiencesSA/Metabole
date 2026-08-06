@@ -20,19 +20,50 @@ restare — che in mantenimento è esattamente il comportamento che serve, perch
 mantenimento non protestano, spariscono. Coi numeri qui sotto: €13,05 al mese alla coach, €15,26
 a Metabole, **€183 per cliente all'anno**.
 
-⚠️ **Restava un'ultima domanda** (la seconda è stata decisa il 6/8, vedi sotto) (sono le «due varianti» più sotto, che con la (b)
+✅ **Tutte le domande sono chiuse** (6/8). Restano qui sotto per memoria delle ragioni: (sono le «due varianti» più sotto, che con la (b)
 pesano più di prima):
 
-1. **Il residual dura per sempre, o 12 mesi?** Con la (b), «per sempre» vuol dire pagare la
-   provvigione anche sulla cliente che si rinnova da sola da tre anni e che la coach non sente
-   più. Dodici mesi coprono il periodo in cui la cliente può ancora mollare.
+1. ✅ **DECISA (Simone, 6/8): per sempre.** Il residual non scade: finché la cliente si rinnova,
+   la coach incassa. Su una cliente che resta tre anni sono €470 alla coach, contro i €157 che
+   avrebbe fruttato un residual a 12 mesi.
+   Regge perché **la decisione 2 ne è il contrappeso**: si paga solo finché quella coach è ancora
+   la coach assegnata. La rendita è legata al **rapporto**, non al contratto — se la coach smette
+   di seguire la cliente, o la cliente viene spostata, il pagamento si ferma da solo. Senza quel
+   vincolo, «per sempre» sarebbe stato un assegno in bianco.
+   ⚠️ Da tenere d'occhio nei numeri, non nel codice: il mantenimento lascia a Metabole €15,26 al
+   mese per cliente **per sempre**, non €28,31 dal secondo anno. È la cifra su cui calcolare
+   quanto si può spendere in acquisizione.
 2. ✅ **DECISA (Simone, 6/8): sì.** La provvigione sul rinnovo si paga **solo se quella coach è
    ancora la coach assegnata** alla cliente. Chiude il caso di chi se ne va, o da cui la cliente
    è stata spostata, e continuerebbe a incassare su una persona che non segue più.
    In codice è una condizione in `generateCommissions`, non un'architettura.
 
-Nessuna delle due cambia l'architettura: sono due interruttori. Ma conviene deciderle **prima**
-del primo rinnovo pagato, perché dopo diventano una revisione di compensi già erogati.
+Decise entrambe la sera del 6/8, prima di scrivere una riga di ricorrente: era il momento giusto,
+perché dopo il primo rinnovo pagato sarebbero diventate una revisione di compensi già erogati.
+**Il codice ora può partire senza altre domande sulle provvigioni.**
+
+---
+
+## ⚠️ I numeri qui sotto sono su €29: i prezzi veri sono altri (6/8 sera)
+
+Simone ha fissato il listino **dopo** che questo documento era scritto:
+
+| Prodotto | Prezzo | Come si vende |
+|---|---:|---|
+| **Mantenimento** | **€49/mese** | abbonamento **o mese singolo** |
+| **Monitoraggio** | **€19/mese** | solo abbonamento, anche per sempre |
+
+Le **decisioni** restano valide (sono percentuali e condizioni, non importi). Cambiano i conti:
+
+- **Mantenimento €49** · coach 45% = €22,05 · Stripe ≈ €0,99 → **a Metabole €25,96/mese**,
+  cioè €311 all'anno per cliente invece dei €183 calcolati su €29. Il residual «per sempre»
+  pesa meno di quanto sembrasse quando l'abbiamo deciso.
+- **Monitoraggio €19** · coach 45% = €8,55 · Stripe ≈ €0,54 → **a Metabole €9,91/mese**.
+  Qui la percentuale è da riguardare: è un prodotto che dura anni e chiede pochissimo lavoro
+  ricorrente, e il 45% se ne porta via quasi metà. **È l'unico numero ancora aperto.**
+
+Il percorso della cliente, per memoria: peso raggiunto → mantenimento **per quanti mesi vuole**
+→ monitoraggio **anche per sempre**. Nessuno dei due ha una scadenza imposta.
 
 ---
 
