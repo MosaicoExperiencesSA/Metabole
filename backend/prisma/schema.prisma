@@ -1877,6 +1877,12 @@ model PauseRequest {
   decidedByStaffId String?   @map("decided_by_staff_id")
   decidedAt        DateTime? @map("decided_at")
   staffNote        String?   @map("staff_note")
+  // --- Sorveglianza durante la pausa (richiesta Simone 5/8, voce #3) ---
+  // Durante la pausa i menu sono sospesi e finora la cliente spariva dai radar per settimane.
+  // refWeightKg = peso del giorno in cui la pausa è iniziata, riferimento per la soglia.
+  refWeightKg      Float?    @map("ref_weight_kg")
+  lastMeasureAskAt DateTime? @map("last_measure_ask_at")
+  coachAlertedAt   DateTime? @map("coach_alerted_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 

@@ -5,6 +5,76 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-06
+
+- `[Sviluppo]` **App — header verde davvero fisso, grafici scorrevoli, card obiettivo col segno giusto**
+  (feedback clienti 5/8, voci #8 #9 #14). La causa dell'header non era il `top` dello sticky: `.screen`
+  aveva `overflow-y:auto` ma `.app-frame` ha `min-height` (non `height`), quindi `.screen` cresce col
+  contenuto e non scorre mai — restava un contenitore di scorrimento fermo a cui l'header si ancorava,
+  mentre a scorrere era la finestra. Tolto `overflow-y` da `.screen` e `top: 0` sull'header (era negativo).
+  Riprodotto e verificato in Chromium con notch simulato. I grafici: con una sola metrica misurata c'era
+  un solo grafico e niente da scorrere, ma la scritta «scorri i grafici» compariva lo stesso; ora appare
+  solo con più di un grafico, i pallini sono diventati pulsanti e su desktop compaiono due frecce
+  (nuovo `CarouselNav.tsx`). Card «Verso il tuo obiettivo»: i movimenti si stampano col segno esplicito
+  (`+1,0 di -6,0 kg`) invece di anteporre un `-` fisso che col peso in aumento produceva `--1,0`; quando
+  la misura va contro l'obiettivo la barra si colora e compare una riga di contesto invece di uno 0% muto.
+
+- `[Sviluppo]` **CI «Android APK (debug)» verde per la prima volta** — era rossa da sempre.
+  `checkDebugAarMetadata` falliva perché `androidx.work` richiede compileSdk 35+ e il progetto era a 34:
+  il workflow rigenera `android/` da zero con `cap add android` (template Capacitor 6) ma non lanciava
+  `npm run android:play`, cioè lo script che porta compile/target a 36, minSdk a 23, AGP a 8.9.1 e
+  Gradle a 8.11.1. Aggiunta la riga mancante. *Lezione: ogni `install-*.mjs` che patcha il progetto
+  nativo va ripetuto in CI, perché lì la cartella nasce vuota a ogni run.*
+
+- `[Sviluppo]` **Sicurezza — chiave APNs privata trovata nel repo PUBBLICO** — `AuthKey_PV537G937B.p8`
+  (Team Scoped, valida per tutte le app del team) era committata dal 28/7 e scaricabile da chiunque.
+  Chiave revocata e sostituita con una **Topic Specific** su `app.metabole` (Key ID `RB5M26KTPU`),
+  caricata su Firebase e tenuta in `~/MetaboleKeys`. File tolto dall'indice; `.gitignore` ora blocca
+  `*.p8 *.p12 *.mobileprovision *.keystore *.jks`.
+
+- `[Sviluppo]` **Push iOS: non hanno MAI funzionato dalla 2.0 — causa trovata e corretta** —
+  `AppDelegate.swift` non conteneva né `didRegisterForRemoteNotificationsWithDeviceToken` né
+  `didFailToRegisterForRemoteNotificationsWithError`. `install-ios.mjs` li cablava con una `replace()`
+  su un metodo preesistente: non trovandolo non sostituiva nulla e **non protestava**, stampando
+  comunque «Firebase configurato». Così l'app chiedeva il permesso, chiamava `register()`, iOS
+  consegnava il token — e non c'era nessuno ad ascoltare: né evento `registration` né errore.
+  Ora lo script **inserisce** i metodi se mancano, aggiunge la gestione degli errori e **rilegge il
+  file** verificando il risultato, uscendo con errore se il cablaggio non è completo. Verificato:
+  la push arriva sull'iPhone. ⚠️ Correzione **nativa**: per le clienti serve una nuova build store.
+
+- `[Sviluppo]` **Strumenti di diagnosi delle push** (nati dall'indagine, restano utili) —
+  pulsante **«Push di prova»** nella scheda cliente del backoffice (solo admin,
+  `POST /admin/push-test/:userId`): manda un ping ignorando preferenze e il limite «una al giorno»,
+  elenca i dispositivi con l'errore di ciascuno e dà una diagnosi in italiano. `push.ts` non ha più il
+  listener vuoto: manda il motivo del fallimento a `POST /me/push-tokens/error` (salvato come
+  `AnalyticsEvent`, nessuna migrazione) e traccia ogni passo di `initPush`.
+
+- `[Sviluppo]` **OTA — due guardie in `ota-release.mjs` dopo altrettanti incidenti** — (1) senza
+  `app/google-services.json` il build riesce ma Vite elimina tutto il codice di registrazione push:
+  un OTA così **spegne le push** su ogni telefono che lo riceve, in silenzio; (2) Capgo confronta la
+  **stringa** di versione, non il contenuto, quindi ripubblicare un bundle diverso con lo stesso numero
+  non raggiunge chi ha già scaricato quel numero — il 6/8 sono usciti tre bundle diversi tutti come
+  «2.0.1». Ora lo script si rifiuta di costruire in entrambi i casi.
+
+- `[Sviluppo]` **Repo spostato fuori da iCloud** → `~/Progetti/Metabole`. iCloud teneva i file come
+  segnaposto vuoti e corrompeva `.git`. Aggiornati `build-ios.sh`, `build-aab.sh`, `build-apk.sh`, che
+  puntavano tutti alla vecchia cartella.
+
+- `[Sviluppo]` **Motore — sorveglianza durante la pausa vacanza** (feedback clienti 5/8, voce #3).
+  Finora la pausa sospendeva i menu e spostava la scadenza, ma per tutta la sua durata nessuno chiedeva
+  il peso e la coach non sapeva nulla: una cliente poteva sparire per novanta giorni. Il modulo
+  `monitoring` faceva già questa vigilanza ma è riservato a chi NON ha un piano attivo, quindi durante
+  una pausa era escluso per costruzione. Aggiunti tre campi a `pause_request` (peso di riferimento,
+  ultimo promemoria, avviso coach) e un giro giornaliero nel cron: fissa il riferimento all'inizio,
+  chiede una pesata ogni `pause_watch_ask_days` (5) con tono da vacanza, e se il peso supera
+  `pause_watch_regain_kg` (2) crea un'attività per la coach e la avvisa, **una volta sola per pausa**.
+  Nessuna proposta commerciale, per decisione esplicita: la cliente è in vacanza e ha già pagato.
+
+- `[Sviluppo]` **Dato di produzione — piano Mantenimento riparato** — «Mantenimento Metabole» aveva
+  `period = 1m` (cambiato il 18/7): per il backend il mantenimento non esisteva, quindi compariva nello
+  shop a tutte, il riquadro nel report non appariva, il monitoraggio non si sbloccava. Rimesso a
+  `maintenance` dal Negozio, `diag:mantenimento` ora ✓. Zero abbonamenti coinvolti.
+
 ## 2026-07-15
 
 - `[Sviluppo]` **Sito — separatore delle migliaia su tutti i contatori** — `fmtN` ora forza il

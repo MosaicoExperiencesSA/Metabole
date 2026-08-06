@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { toDateOnly } from '../common/date-only';
@@ -31,6 +32,7 @@ export class PauseService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   /** Giorni inclusivi tra due date (21→21 dello stesso mese = ... ). */
@@ -267,6 +269,178 @@ export class PauseService {
       })
       .catch(() => undefined);
     return updated;
+  }
+
+  // ---------- Sorveglianza durante la pausa (voce #3) ----------
+
+  /**
+   * Giro giornaliero sulle pause IN CORSO.
+   *
+   * Durante una pausa i menu sono sospesi: finora nessuno chiedeva più il peso e la coach non
+   * sapeva nulla, così una cliente poteva sparire per settimane e tornare con un problema che
+   * nessuno aveva visto arrivare. Qui teniamo un occhio aperto, senza invadenza:
+   *  1. fissiamo il peso di riferimento il giorno in cui la pausa comincia;
+   *  2. ogni tot giorni chiediamo una pesata, con tono da vacanza;
+   *  3. se il peso supera la soglia, avvisiamo la coach UNA volta.
+   *
+   * ⚠️ Nessuna proposta commerciale, per decisione esplicita di Simone (6/8): la cliente è in
+   * vacanza e ha già pagato. Il modulo `monitoring`, che invece propone i menu di rientro a
+   * pagamento, resta riservato a chi il piano non ce l'ha più.
+   */
+  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number }> {
+    const now = new Date();
+    const oggi = new Date(now);
+    oggi.setHours(0, 0, 0, 0);
+
+    const [askDays, sogliaKg] = await Promise.all([
+      this.configParams.getNumber('pause_watch_ask_days', 5),
+      this.configParams.getNumber('pause_watch_regain_kg', 2),
+    ]);
+
+    const pause = (await this.prisma.pauseRequest.findMany({
+      where: {
+        status: { in: ['auto_approved', 'approved'] },
+        startDate: { lte: oggi },
+        endDate: { gte: oggi },
+      },
+    })) as {
+      id: string;
+      clientId: string;
+      startDate: Date;
+      endDate: Date;
+      refWeightKg: number | null;
+      lastMeasureAskAt: Date | null;
+      coachAlertedAt: Date | null;
+    }[];
+
+    let misureChieste = 0;
+    let coachAvvisate = 0;
+
+    for (const p of pause) {
+      try {
+        // 1) Peso di riferimento, fissato una volta sola all'inizio della pausa.
+        let riferimento = p.refWeightKg;
+        if (riferimento == null) {
+          const fineGiornoInizio = new Date(p.startDate);
+          fineGiornoInizio.setHours(23, 59, 59, 999);
+          const prima = (await this.prisma.measurement.findFirst({
+            where: { clientId: p.clientId, date: { lte: fineGiornoInizio } },
+            orderBy: { date: 'desc' },
+            select: { weightKg: true },
+          })) as { weightKg: number } | null;
+          // Se non si era mai pesata prima della partenza, prendiamo la prima pesata utile.
+          const dopo = prima
+            ? null
+            : ((await this.prisma.measurement.findFirst({
+                where: { clientId: p.clientId, date: { gt: fineGiornoInizio } },
+                orderBy: { date: 'asc' },
+                select: { weightKg: true },
+              })) as { weightKg: number } | null);
+          riferimento = prima?.weightKg ?? dopo?.weightKg ?? null;
+          if (riferimento != null) {
+            await this.prisma.pauseRequest.update({
+              where: { id: p.id },
+              data: { refWeightKg: riferimento } as never,
+            });
+          }
+        }
+
+        const ultima = (await this.prisma.measurement.findFirst({
+          where: { clientId: p.clientId },
+          orderBy: { date: 'desc' },
+          select: { weightKg: true, date: true },
+        })) as { weightKg: number; date: Date } | null;
+
+        // 2) Soglia superata → avviso alla coach, una volta sola per pausa.
+        if (riferimento != null && ultima && !p.coachAlertedAt && ultima.weightKg - riferimento >= sogliaKg) {
+          const delta = Math.round((ultima.weightKg - riferimento) * 10) / 10;
+          await this.prisma.pauseRequest.update({
+            where: { id: p.id },
+            data: { coachAlertedAt: now } as never,
+          });
+          await this.creaTaskCoach(
+            p.clientId,
+            p.id,
+            'Peso in salita durante la pausa',
+            `+${delta} kg rispetto al peso di partenza della pausa (soglia ${sogliaKg} kg). La pausa finisce il ${p.endDate.toLocaleDateString('it-IT')}: una parola adesso vale più di una rincorsa al rientro.`,
+            oggi,
+          );
+          await this.avvisaStaffPausa(p.clientId, delta, p.endDate);
+          coachAvvisate++;
+        }
+
+        // 3) Promemoria misure, con tono da vacanza e senza insistere.
+        const misuraVecchia = !ultima || now.getTime() - ultima.date.getTime() >= askDays * 86_400_000;
+        const chiestoDaPoco =
+          p.lastMeasureAskAt != null && now.getTime() - p.lastMeasureAskAt.getTime() < askDays * 86_400_000;
+        if (misuraVecchia && !chiestoDaPoco) {
+          await this.prisma.pauseRequest.update({
+            where: { id: p.id },
+            data: { lastMeasureAskAt: now } as never,
+          });
+          await this.notifications
+            .notify({
+              userId: p.clientId,
+              type: 'pause_measure_ask',
+              title: 'Un numero al volo ⚖️',
+              body: 'Sei in pausa e va benissimo così: nessun menu, nessun compito. Se ti capita, segna il peso ogni tanto — al rientro ripartiamo da dove sei davvero, senza sorprese.',
+            })
+            .catch(() => undefined);
+          misureChieste++;
+        }
+      } catch {
+        // Una pausa che va storta non deve fermare le altre né il cron.
+      }
+    }
+
+    return { pauseAttive: pause.length, misureChieste, coachAvvisate };
+  }
+
+  /** Task per la coach, idempotente su (cliente, tipo, pausa). */
+  private async creaTaskCoach(
+    clientId: string,
+    pauseRequestId: string,
+    title: string,
+    description: string,
+    dueDate: Date,
+  ): Promise<void> {
+    const esiste = await this.prisma.coachTask.findUnique({
+      where: { clientId_kind_refId: { clientId, kind: 'pause_regain', refId: pauseRequestId } } as never,
+      select: { id: true },
+    });
+    if (esiste) return;
+    await this.prisma.coachTask
+      .create({ data: { clientId, kind: 'pause_regain', refId: pauseRequestId, title, description, dueDate } })
+      .catch(() => undefined);
+  }
+
+  /** Notifica in app a coach e nutrizionista assegnate. */
+  private async avvisaStaffPausa(clientId: string, deltaKg: number, fine: Date): Promise<void> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { assignedCoachId: true, assignedNutritionistId: true, name: true },
+    });
+    if (!profile) return;
+    const staffIds = [profile.assignedCoachId, profile.assignedNutritionistId].filter(
+      (v): v is string => !!v,
+    );
+    if (staffIds.length === 0) return;
+    const staff = await this.prisma.staff.findMany({
+      where: { id: { in: staffIds } },
+      select: { userId: true },
+    });
+    const chi = profile.name ?? 'Una cliente';
+    for (const s of staff) {
+      await this.notifications
+        .notify({
+          userId: s.userId,
+          type: 'pause_regain',
+          title: 'Peso in salita durante una pausa',
+          body: `${chi}: +${deltaKg} kg dall'inizio della pausa, che finisce il ${fine.toLocaleDateString('it-IT')}. Vale una parola adesso.`,
+          payload: { clientId, deltaKg },
+        })
+        .catch(() => undefined);
+    }
   }
 
   // ---------- Meccanica ----------

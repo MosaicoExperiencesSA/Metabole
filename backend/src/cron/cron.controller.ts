@@ -10,6 +10,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { AgentOrchestratorService } from '../agents/agent-orchestrator.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
+import { PauseService } from '../pause/pause.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { AuditService } from '../audit/audit.service';
@@ -47,6 +48,7 @@ export class CronController {
     private readonly agentOrchestrator: AgentOrchestratorService,
     private readonly coachTasks: CoachTasksService,
     private readonly monitoring: MonitoringService,
+    private readonly pause: PauseService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -90,6 +92,9 @@ export class CronController {
     await step('coachTasks', () => this.coachTasks.generateDaily());
     // Monitoraggio post-percorso: scadenze, trigger di rientro, congelamenti, richieste misure.
     await step('monitoring', () => this.monitoring.dailyTick());
+    // Sorveglianza durante le pause vacanza: peso di riferimento, promemoria misure e
+    // avviso alla coach se il peso sale oltre soglia. Nessuna proposta commerciale.
+    await step('pauseWatch', () => this.pause.surveillanceTick());
     // Report di fine piano (handoff punto 4): uno per ogni piano concluso, consegnato in app.
     await step('planReports', () => this.planReports.generateDaily());
     await step('adherence', () => this.signals.runAdherenceSweep());

@@ -1,6 +1,6 @@
 # Metabole — Stato del progetto
 
-Ultimo aggiornamento: 2026-07-14 · Aggiornare la voce quando qualcosa cambia (e loggare in `REGISTRO.md`).
+Ultimo aggiornamento: 2026-08-06 · Aggiornare la voce quando qualcosa cambia (e loggare in `REGISTRO.md`).
 
 Legenda: ✅ fatto · 🟡 in corso/parziale · ⬜ da fare
 
@@ -77,6 +77,16 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Tracciamento eventi via `track()` (viste, login, registrazione, logout). ✅
 - Popup bloccante misure al 2° giorno del ciclo. ✅
 - APK Android generabile da Android Studio (guida in `../docs/APK_Build_Guida.md`). ✅
+- **Header verde fisso su tutte le schermate** — `position: sticky; top: 0` su `.app-header`; ⚠️ perché
+  funzioni `.screen` NON deve avere `overflow-y` (con `.app-frame` a `min-height` diventerebbe un
+  contenitore di scorrimento fermo e l'header si ancorerebbe a quello). ✅ (6/8)
+- **Caroselli**: pallini cliccabili + frecce su desktop (`CarouselNav.tsx`); il suggerimento «scorri»
+  compare solo se c'è più di una scheda. ✅ (6/8)
+- **Notifiche push**: Android ✅ · iOS ✅ **solo dalla prossima build store** — la 2.0 pubblicata non
+  registra alcun token (l'`AppDelegate` era privo dei metodi del delegato push, vedi REGISTRO 6/8).
+- **Aggiornamenti OTA** attivi (Capgo self-hosted sul backend). ⚠️ I bundle si costruiscono SOLO dal
+  Mac con `app/google-services.json` presente, e il numero di versione non si riusa mai: due guardie
+  in `ota-release.mjs` lo impediscono. ✅ (6/8)
 
 ## App Coach (nuova) 🟡
 - Prototipo pronto: `../Metabole_Coach_App.html` (+ web).
@@ -159,6 +169,11 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   referrer quando la ricompensa scatta.
 
 ## Motore / AI
+- **Pausa vacanza sorvegliata** — durante una pausa i menu restano sospesi ma il sistema fissa un peso
+  di riferimento, chiede una pesata ogni `pause_watch_ask_days` (5 gg) con tono da vacanza e, se il peso
+  supera `pause_watch_regain_kg` (2 kg), crea un'attività per la coach e la avvisa una volta sola.
+  Nessuna proposta commerciale: il modulo `monitoring` (menu di rientro a pagamento) resta riservato a
+  chi non ha più un piano attivo. ✅ (6/8)
 - Motore a regole (Engine, M5): protocolli condizioni→azione, decisioni per cliente. ✅ (base)
 - Assistente AI (Claude) per chat e instradamento. ✅
 - **Motore di personalizzazione dei menu** (catalogo→dieta cliente→giornate→learning): 🟡 (Fase 5).
