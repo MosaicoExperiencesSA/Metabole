@@ -432,6 +432,16 @@ export class SignalsService {
       this.waterGoalFor(clientId),
       this.configParams.getNumber('steps_goal', 8000),
     ]);
+    // Il check-in si chiede SOLO a chi ha un percorso in corso (richiesta Simone 5/8, voce #1).
+    // A piano scaduto o mai comprato, «Come ti senti oggi?» è una domanda senza seguito: nessuno
+    // legge quella risposta, e alla cliente sembra che l'app le chieda conto di un percorso che
+    // non ha. Durante una PAUSA il piano resta attivo, quindi il check-in continua: è voluto,
+    // è l'unico filo che resta teso mentre i menu sono sospesi.
+    const subs = (await this.prisma.subscription.findMany({
+      where: { clientId, status: 'active' },
+      select: { endDate: true },
+    })) as { endDate: Date | null }[];
+    const hasActivePlan = subs.some((s) => !s.endDate || s.endDate.getTime() >= today.getTime());
     return {
       date: today.toISOString().slice(0, 10),
       checkinDone: Boolean(checkin),
@@ -439,6 +449,10 @@ export class SignalsService {
       // Distinto da checkinDone: il popup non si mostra in nessuno dei due casi, ma solo il primo
       // è un check-in. Chi legge l'aderenza deve guardare checkinDone, mai questo.
       checkinSkipped: Boolean(checkinSkip),
+      hasActivePlan,
+      // Unico interruttore per l'app: se è false, il popup non si mostra. Così la regola sta
+      // nel dominio e non sparsa nel frontend.
+      checkinDue: hasActivePlan && !checkin && !checkinSkip,
       measurementDone: Boolean(measurement),
       water: water ?? { glasses: 0, goal: waterGoal },
       steps: steps ?? { steps: 0, goal: stepsGoal },

@@ -285,6 +285,17 @@ p { line-height: 1.5; }
 .meal-carousel { display: flex; gap: 11px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-bottom: 2px; scrollbar-width: none; }
 .meal-carousel::-webkit-scrollbar { display: none; }
 .meal-carousel > .meal-row, .meal-carousel > .card { min-width: 100%; scroll-snap-align: start; margin: 0; }
+/* Scale 1-5 del check-in (energia, fame, stress). Bersagli larghi: si tocca col pollice,
+   di corsa, la mattina. */
+.scale-row { display: flex; gap: 6px; }
+.scale-btn {
+  flex: 1; height: 38px; border-radius: 11px; border: 1px solid var(--line);
+  background: #fff; color: var(--ink); font-size: 14px; font-weight: 700;
+  font-family: inherit; cursor: pointer; padding: 0;
+}
+.scale-btn.on { background: var(--teal); border-color: var(--teal); color: #fff; }
+.scale-btn:disabled { opacity: 0.5; cursor: default; }
+
 .home-dots { display: flex; justify-content: center; gap: 5px; margin: 9px 0 2px; }
 .home-dots > span, .home-dots > button { width: 6px; height: 6px; border-radius: 50%; background: #d6ded9; transition: background 0.15s ease; }
 .home-dots > span.on, .home-dots > button.on { background: var(--teal); }

@@ -7,6 +7,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **App/Backend — check-in solo con un piano attivo, e con energia, fame e stress**
+  (feedback clienti 5/8, voce #1). `GET /me/today` restituisce ora `hasActivePlan` e `checkinDue`:
+  la regola sta nel dominio e non sparsa nel frontend, e a piano scaduto o mai comprato il popup
+  «Come ti senti oggi?» non compare più — era una domanda senza seguito, che a una cliente senza
+  percorso suonava come un richiamo. Durante una **pausa** il piano resta attivo, quindi il check-in
+  continua: è voluto, è l'unico filo teso mentre i menu sono sospesi. Il popup è diventato a due
+  passi: primo tap sull'umore come prima (l'abitudine non cambia), poi tre scale 1-5 per **energia,
+  fame e stress** con gli estremi scritti a parole. Erano campi già previsti da schema e DTO ma
+  quasi sempre vuoti, perché nessuno li chiedeva.
+
+- `[Sviluppo]` **Doc — `progetto/Metabole_Piano_Stripe_Ricorrente.md`** — piano del 20/7 per gli
+  abbonamenti ricorrenti, ritrovato e messo nel repo con una nota di verifica: `stripe.service.ts`
+  usa tuttora `mode: 'payment'`. È il prerequisito della voce #10 (monitoraggio a pagamento dopo il
+  mantenimento). ⚠️ Decisione aperta e delicata: le **provvigioni sul rinnovo** (oggi si generano su
+  ogni pagamento approvato, quindi col ricorrente si pagherebbero piene ogni mese).
+
 - `[Sviluppo]` **App — header verde davvero fisso, grafici scorrevoli, card obiettivo col segno giusto**
   (feedback clienti 5/8, voci #8 #9 #14). La causa dell'header non era il `top` dello sticky: `.screen`
   aveva `overflow-y:auto` ma `.app-frame` ha `min-height` (non `height`), quindi `.screen` cresce col

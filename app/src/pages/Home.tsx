@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
-import CheckinPopup from '../components/CheckinPopup';
+import CheckinPopup, { type CheckinValori } from '../components/CheckinPopup';
 import MenuReviewPopup from '../components/MenuReviewPopup';
 import VoiceToggle from '../components/VoiceToggle';
 import { fraseDelGiorno } from '../lib/frasiGaia';
@@ -19,6 +19,9 @@ import { TypeText } from '../components/TypeText';
 
 interface Today {
   checkinDone: boolean;
+  // Deciso dal server: include la regola "solo se c'è un piano attivo" (voce #1).
+  checkinDue?: boolean;
+  hasActivePlan?: boolean;
   // "Salta per oggi" già usato: il popup non si mostra, ma NON è un check-in fatto — l'aderenza
   // guarda checkinDone, mai questo.
   checkinSkipped?: boolean;
@@ -305,10 +308,12 @@ export default function Home() {
     if (el) setMealIdx(Math.round(el.scrollLeft / el.clientWidth));
   }
 
-  async function submitMood(mood: string) {
+  async function submitCheckin(valori: CheckinValori) {
     setCheckinBusy(true);
     try {
-      await api('/me/checkins', { method: 'POST', body: JSON.stringify({ mood }) });
+      // Dal 5/8 il check-in porta anche energia, fame e stress (voce #1): il popup li
+      // raccoglie tutti e tre prima di arrivare qui, il DTO lato server li accetta opzionali.
+      await api('/me/checkins', { method: 'POST', body: JSON.stringify(valori) });
       setToday((t) => (t ? { ...t, checkinDone: true } : t));
     } catch {
       /* in caso di errore chiudiamo comunque */
@@ -502,11 +507,14 @@ export default function Home() {
       )}
 
       {/* Popup check-in giornaliero */}
-      {today && !today.checkinDone && !today.checkinSkipped && !dismissed && (
-        <CheckinPopup onMood={submitMood} onSkip={skipCheckin} busy={checkinBusy} />
+      {/* `checkinDue` arriva dal server e include la regola "solo con un piano attivo" (voce #1):
+          a piano scaduto il popup non compare più. Il fallback su checkinDone/checkinSkipped
+          serve solo finché un'app vecchia parla con un backend nuovo. */}
+      {today && (today.checkinDue ?? (!today.checkinDone && !today.checkinSkipped)) && !dismissed && (
+        <CheckinPopup onSubmit={submitCheckin} onSkip={skipCheckin} busy={checkinBusy} />
       )}
       {/* Popup "Com'è andata ieri?" — solo quando il check-in non è a schermo */}
-      {(!today || today.checkinDone || today.checkinSkipped || dismissed) && <MenuReviewPopup />}
+      {(!today || !(today.checkinDue ?? (!today.checkinDone && !today.checkinSkipped)) || dismissed) && <MenuReviewPopup />}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
       {help && SHEETS[help] && (
         <Sheet onClose={() => setHelp(null)}>
