@@ -213,8 +213,12 @@ export class RecipesController {
     @Query('mealSlot') mealSlot?: string,
     @Query('q') q?: string,
     @Query('includeInactive') includeInactive?: string,
+    // Solo le ricette effettivamente usate nelle giornate di QUESTA dieta. Serve alla pagina
+    // Gestione dieta: senza, mostrava tutte le ricette del regime — comprese quelle di altre
+    // famiglie — dando l'impressione che appartenessero alla dieta aperta.
+    @Query('dietId') dietId?: string,
   ) {
-    return this.catalog.listRecipes({ regime, mealSlot, q, includeInactive: includeInactive === 'true' });
+    return this.catalog.listRecipes({ regime, mealSlot, q, includeInactive: includeInactive === 'true', dietId });
   }
 
   // Dettaglio ricetta: aperto a ogni utente autenticato (cliente inclusa) — NIENTE

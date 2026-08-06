@@ -595,9 +595,33 @@ export class CatalogService {
 
   // ---------- Ricette ----------
 
-  async listRecipes(filter: { regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean }) {
+  /**
+   * Le ricette usate dalle giornate di una dieta. Il legame vive SOLO qui: `Recipe` non ha un
+   * `dietId` — la stessa ricetta serve a più famiglie, ed è voluto — è la giornata a puntare
+   * alla ricetta (`DietDayTemplate.meals` = `[{slot, recipeId}]`, un JSON che il database non sa
+   * interrogare). Quindi si leggono le giornate e si estraggono gli id qui.
+   */
+  private async recipeIdsDiDieta(dietId: string): Promise<string[]> {
+    const giorni = (await this.prisma.dietDayTemplate.findMany({
+      where: { dietId },
+      select: { meals: true },
+    })) as { meals: unknown }[];
+    const ids = new Set<string>();
+    for (const g of giorni) {
+      const pasti = (Array.isArray(g.meals) ? g.meals : []) as { recipeId?: unknown }[];
+      for (const m of pasti) if (typeof m?.recipeId === 'string' && m.recipeId) ids.add(m.recipeId);
+    }
+    return [...ids];
+  }
+
+  async listRecipes(filter: { regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean; dietId?: string }) {
+    // Con `dietId` l'elenco è quello della SINGOLA dieta: il tetto non lo tocca mai, perché una
+    // dieta ha decine di ricette, non migliaia. Senza, resta il catalogo del regime, col tetto.
+    const soloDieta = filter.dietId ? await this.recipeIdsDiDieta(filter.dietId) : null;
+    if (soloDieta && soloDieta.length === 0) return [];
     return this.prisma.recipe.findMany({
       where: {
+        ...(soloDieta ? { id: { in: soloDieta } } : {}),
         ...(filter.includeInactive ? {} : { active: true }),
         ...(filter.regime ? { regime: filter.regime as never } : {}),
         ...(filter.mealSlot ? { mealSlot: filter.mealSlot as never } : {}),

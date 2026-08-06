@@ -7,6 +7,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Gestione dieta mostrava le ricette di tutte le diete.** Domanda di Simone: «se sto
+  rivedendo i menu di una dieta perché sotto mi riporta anche quelli delle altre?». Aveva ragione a
+  trovarlo strano, ma la causa è più interessante del sintomo: **le ricette non appartengono a una
+  dieta.** `Recipe` non ha nessun `dietId` — ha regime, pasto, kcal, tag; il legame vive
+  dall'altra parte, in `DietDayTemplate.meals` (`[{slot, recipeId}]`), cioè è la *giornata* a
+  puntare alla ricetta. Ed è voluto: la stessa insalata vegetariana serve a Basso indice glicemico,
+  Mediterranea e Keto-Mediterranea insieme, altrimenti il catalogo andrebbe riscritto per ogni
+  famiglia. La pagina però filtrava solo per **regime**, e sotto il nome della dieta aperta
+  comparivano piatti `gen:summer_return` e `gen:protein` di altre famiglie.
+  Ora il catalogo dentro Gestione dieta parte dalle ricette **di quella dieta** (nuovo parametro
+  `dietId` su `GET /recipes`: legge le giornate ed estrae gli id, perché quel JSON il database non
+  lo sa interrogare), con l'interruttore **«Tutto il regime»** per quando devi pescarne una nuova
+  da aggiungere. Lì compare l'avviso che mancava del tutto ed è la parte che conta:
+  **modificare o cancellare una ricetta la cambia ovunque venga usata**, anche nelle diete di
+  altre famiglie. La pagina lasciava credere il contrario.
+  Effetto collaterale utile: nella vista per dieta il tetto delle 1000 righe non si tocca mai —
+  una dieta ha decine di ricette. Resta però il fatto emerso dallo screenshot: **le sole ricette
+  vegetariane hanno già superato le 1000**, quindi nel catalogo per regime i filtri di colonna
+  lavorano su una fetta. Alzare ancora il tetto è un rattoppo: la strada è portare filtri e
+  ordinamento sul server. In lista lavori, non fatto oggi.
+  `tsc --noEmit` pulito su backend e backoffice.
+
+- `[Sviluppo]` **`build-ios.sh` diceva il Team sbagliato.** Suggeriva «Mosaico Experiences SA»
+  quando quello giusto è **Genius Company SA (TNDPSUPTA8)**: oggi ho quasi corretto il progetto
+  Xcode sulla base di quella riga, cioè lo script stava per far sbagliare la firma. Corretta, e
+  aggiunto in coda il comando `codesign -d --entitlements` da lanciare **prima** di caricare
+  l'archivio, con cosa deve risultare (`aps-environment = production`, `get-task-allow` assente) e
+  cosa significa se esce `development` (manca il certificato Apple Distribution, che **scade ogni
+  anno**). È la verifica che oggi è costata un'ora a costruire: tenerla in un promemoria a voce
+  significa riperderla al prossimo rilascio.
+
 - `[Sviluppo]` **La coach non perde più la cliente quando le manda le credenziali.** Segnalazione
   di Simone: Gioia Lurve ha inviato le credenziali a Francesco reale dal pulsante sul lead; il lead
   risulta assegnato a lei, ma aprendolo si finisce su una cliente «non assegnata a nessuno».

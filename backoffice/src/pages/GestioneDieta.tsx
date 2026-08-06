@@ -20,9 +20,16 @@ const mealSuffix = (d: { mealsPerDay?: number; fasting?: boolean }) => (d.fastin
 
 /**
  * Gestione dieta: il nutrizionista sceglie una dieta dalla tendina e gestisce, in
- * un unico posto, i contenuti di QUELLA dieta — catalogo ricette (per regime),
- * allergeni (sulle ricette del regime) e gruppi di equivalenza (per id dieta).
+ * un unico posto, i contenuti di QUELLA dieta — catalogo ricette, allergeni (sulle
+ * ricette del regime) e gruppi di equivalenza (per id dieta).
  * Riusa gli editor completi esistenti montandoli con lo scope della dieta scelta.
+ *
+ * ⚠️ Il catalogo ricette parte dalle ricette **di questa dieta** (segnalazione Simone 6/8:
+ * «se sto rivedendo i menu di una dieta perché sotto mi riporta anche quelli delle altre?»).
+ * Prima l'elenco era tutto il regime, e sembravano piatti di questa dieta. Le ricette NON
+ * appartengono a una dieta: `Recipe` non ha un `dietId`, è la giornata a puntare alla ricetta
+ * (`DietDayTemplate.meals`), e la stessa ricetta serve a più famiglie. Da cui l'interruttore
+ * «Tutto il regime» per pescarne di nuove, con l'avviso che la modifica vale ovunque.
  */
 export function GestioneDieta() {
   const { regimeLabel } = useTaxonomy();
@@ -134,6 +141,7 @@ export function GestioneDieta() {
         <h2 style={{ marginTop: 0 }}>Gestione dieta</h2>
         <p className="hint" style={{ marginTop: 0 }}>
           Scegli una dieta e gestisci qui, in un unico posto, i suoi contenuti: catalogo ricette, allergeni e gruppi di equivalenza.
+          Le ricette sono in comune fra le diete: modificarne una la cambia in tutte quelle che la usano.
         </p>
         <label className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <span className="muted" style={{ fontSize: 13 }}>Dieta</span>
@@ -200,7 +208,7 @@ export function GestioneDieta() {
           </div>
           {/* Editor montati e tenuti in vita (display:none) per non perdere lo stato al cambio sezione. */}
           <div style={{ display: section === 'ricette' ? 'block' : 'none' }}>
-            <Ricette key={diet.id} scopeRegime={diet.regime} />
+            <Ricette key={diet.id} scopeRegime={diet.regime} scopeDietId={diet.id} scopeDietName={diet.name} />
           </div>
           <div style={{ display: section === 'allergeni' ? 'block' : 'none' }}>
             <TagAllergeni key={diet.id} scopeRegime={diet.regime} />

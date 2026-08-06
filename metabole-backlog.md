@@ -111,6 +111,22 @@ cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della 
 Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
 non è un lavoro da sera di pubblicazione.
 
+## Catalogo ricette — filtri e ordinamento sul SERVER — DA FARE (emerso 6/8)
+Lo screenshot di Simone del 6/8 mostra il banner di troncamento **con il solo regime Vegetariana**:
+le ricette vegetariane hanno già superato le 1000, cioè il tetto alzato quella mattina da 200.
+Conseguenza: nella pagina Ricette (catalogo per regime) i filtri e gli ordinamenti di colonna
+lavorano sulle prime 1000 righe caricate, non su tutto il catalogo — e lo dicono, ma non è la
+stessa cosa che funzionare.
+
+Alzare ancora `take` è un rattoppo che si ripresenterà. La strada è portare filtri, ordinamento e
+paginazione su `GET /recipes` (già filtra `regime`, `mealSlot`, `q`, `dietId`): mancano
+`difficulty`, `season`, `tag`, `active`, `kcalMin/kcalMax`, `orderBy`, `skip/take`, e il conteggio
+totale. La tabella diventa "interroga a ogni cambio filtro" invece di "filtra in memoria".
+
+NON urgente per il nutrizionista: dentro **Gestione dieta** l'elenco parte dalle ricette della
+singola dieta (`dietId`, dal 6/8), che sono decine — lì il tetto non si tocca mai. Il problema
+resta solo nella pagina Ricette generale.
+
 ## iOS — deployment target da 13.0 a 15.0 — DA FARE entro primavera 2027
 Warning ricevuto da App Store Connect all'upload della 2.1 (6/8/26):
 

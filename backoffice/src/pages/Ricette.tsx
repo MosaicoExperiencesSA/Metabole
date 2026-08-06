@@ -87,7 +87,7 @@ const emptyFilters = (regime = '') => ({
   name: '', regime, slot: '', kcalMin: '', kcalMax: '', difficulty: '', season: '', tag: '', stato: '',
 });
 
-export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
+export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegime?: string; scopeDietId?: string; scopeDietName?: string } = {}) {
   const { permissions } = useAuth();
   const { regimes, regimeLabel } = useTaxonomy();
   const canEdit = permissions?.role === 'nutritionist' || permissions?.role === 'head_nutritionist' || permissions?.role === 'admin';
@@ -97,6 +97,11 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [f, setF] = useState(emptyFilters(scopeRegime ?? ''));
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
+  // Dentro Gestione dieta si parte dalle ricette DELLA dieta aperta. Prima l'elenco era tutto il
+  // regime: si vedevano i piatti di altre famiglie sotto il nome di questa dieta (segnalazione
+  // Simone 6/8). L'interruttore serve quando devi pescare una ricetta nuova da aggiungere.
+  const [soloDieta, setSoloDieta] = useState(true);
+  const dietScope = !!scopeDietId && soloDieta;
 
   async function load() {
     setError(null);
@@ -105,6 +110,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
       // pagina è incorporata in una dieta (scopeRegime), dove le altre righe non servono mai.
       const params = new URLSearchParams({ includeInactive: 'true' });
       if (scopeRegime) params.set('regime', scopeRegime);
+      if (dietScope) params.set('dietId', scopeDietId as string);
       setRows(await api<Recipe[]>(`/recipes?${params.toString()}`));
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
@@ -113,7 +119,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeRegime]);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeRegime, scopeDietId, soloDieta]);
 
   async function del(r: Recipe) {
     if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;
@@ -200,6 +206,19 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
 
   return (
     <>
+      {scopeDietId && (
+        <div className="spread" style={{ marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className={`btn ${soloDieta ? '' : 'ghost'} sm`} onClick={() => setSoloDieta(true)}>
+              <i className="ti ti-tools-kitchen-2" /> Solo questa dieta
+            </button>
+            <button className={`btn ${soloDieta ? 'ghost' : ''} sm`} onClick={() => setSoloDieta(false)}>
+              <i className="ti ti-list" /> Tutto il regime{scopeRegime ? ` · ${regimeLabel(scopeRegime)}` : ''}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <span className="muted" style={{ fontSize: 13 }}>
           {filtriAttivi ? <><b>{view.length}</b> ricette su {rows.length} </> : <><b>{rows.length}</b> ricette </>}
@@ -213,6 +232,14 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
+      {scopeDietId && !soloDieta && (
+        <Banner kind="info">
+          Stai vedendo <b>tutte</b> le ricette del regime, non solo quelle di
+          {scopeDietName ? <> <b>{scopeDietName}</b></> : ' questa dieta'}: le ricette non appartengono a una
+          dieta, sono le giornate a richiamarle, e la stessa ricetta può stare in più famiglie.
+          <b> Se ne modifichi o cancelli una, cambia ovunque venga usata.</b>
+        </Banner>
+      )}
       {rows.length >= LIMITE_SERVER && (
         <Banner kind="info">
           L'elenco è troncato a {LIMITE_SERVER} ricette: quelle oltre non sono qui e i filtri non le vedono.
@@ -222,7 +249,11 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
 
       <div className="card" style={{ padding: 0 }}>
         {rows.length === 0 ? (
-          <div className="empty">Nessuna ricetta.</div>
+          <div className="empty">
+            {dietScope
+              ? 'Questa dieta non ha ancora ricette nelle sue giornate. Con “Tutto il regime” vedi il catalogo da cui pescarle.'
+              : 'Nessuna ricetta.'}
+          </div>
         ) : (
           <table className="grid">
             <thead>
