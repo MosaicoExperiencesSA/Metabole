@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Pulizia Keto-Mediterranea, per rifarla da zero col nutrizionista** (richiesta
+  Simone). Nuovo `backend/prisma/cleanup-keto-mediterranea.ts` (`npm run cleanup:keto-med`):
+  cancella le diete con stile `keto_mediterranean` **o** nome che comincia per «Keto-Mediterranea»
+  — quindi anche le varianti del vecchio script — con giornate, regole per prodotto, gruppi di
+  equivalenza e le **ricette referenziate solo da quelle diete** (voti e pesi compresi).
+  Tre paletti scritti nel codice, non nella memoria di chi lo lancia: **non tocca i 12 preset**
+  del generatore (servono a rigenerare), **salta le diete con menu già erogati** perché sono la
+  storia di una cliente e le elenca invece di cancellarle in silenzio, e **senza `CONFERMA=1`
+  fa solo la prova a vuoto** stampando la tabella di cosa sparirebbe. Una cancellazione a catena
+  la si guarda prima di farla.
+
 - `[Sviluppo]` **Generatore: la barra di avanzamento c'era, ma si nascondeva da sola** (segnalato
   da Simone). Era legata a `busy && !status`: appena in pagina c'era una bozza già caricata al
   passo 3 — cioè sempre, dalla seconda generazione in poi, e anche riaprendo la pagina con un
