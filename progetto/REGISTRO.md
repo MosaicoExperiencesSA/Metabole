@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **L'email delle credenziali ora si può modificare dal backoffice** (voce d'audit
+  rimasta aperta). `lead_credentials` era l'unica transazionale senza riga in `EMAIL_TEMPLATES`:
+  il testo arrivava solo dai default i18n, e chi voleva ritoccarlo non trovava il modello in
+  *Modelli email*. È proprio l'email che riceve una cliente come primo contatto con il prodotto,
+  quindi è l'ultima che dovrebbe essere intoccabile. Aggiunta col testo identico al default,
+  `{{storeButtons}}` compreso — i pulsanti App Store / Google Play si possono spostare o togliere
+  riscrivendo il modello. ⚠️ Da sapere: quando un modello esiste a DB **vince sui default i18n**,
+  quindi da qui in avanti questa email è in italiano per tutte, anche per una cliente con lingua
+  inglese. Vale già per tutte le altre transazionali; se un giorno serviranno davvero le lingue,
+  la strada è un modello per lingua, non il ritorno agli i18n.
+
 - `[Sviluppo]` **OTA — un aggiornamento che fallisce non sparisce più in silenzio** (voce rimasta
   aperta dall'indagine di stamattina). `initOta` aveva un `catch` vuoto attorno a tutto: un
   manifest che punta a uno zip inesistente, uno zip corrotto o il telefono senza spazio finivano
