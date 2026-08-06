@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
@@ -70,6 +71,41 @@ export class PushService {
     await this.prisma.pushToken.deleteMany({ where: { userId, token } });
   }
 
+  /**
+   * Il telefono non è riuscito a registrarsi alle push: registriamo il MOTIVO.
+   *
+   * Prima questo errore finiva in un listener vuoto dentro l'app e spariva: dal server
+   * si vedeva solo l'assenza del token, senza sapere se fosse un permesso negato, un
+   * entitlement mancante nella build iOS o Firebase mal configurato. Lo salviamo come
+   * evento analytics (nessuna migrazione) e lo rileggiamo nella push di prova.
+   */
+  async logRegistrationError(userId: string, message: string, platform = 'unknown'): Promise<void> {
+    await this.prisma.analyticsEvent
+      .create({
+        data: {
+          eventId: randomUUID(),
+          name: 'push_registration_error',
+          userId,
+          phase: 'app',
+          data: { message: message.slice(0, 500), platform } as never,
+        } as never,
+      })
+      .catch(() => undefined);
+  }
+
+  /** Ultimo errore di registrazione riportato dai telefoni di questo utente. */
+  private async lastRegistrationError(
+    userId: string,
+  ): Promise<{ message: string; platform: string; when: Date } | null> {
+    const row = (await this.prisma.analyticsEvent.findFirst({
+      where: { userId, name: 'push_registration_error' },
+      orderBy: { receivedAt: 'desc' },
+      select: { data: true, receivedAt: true },
+    })) as { data: { message?: string; platform?: string } | null; receivedAt: Date } | null;
+    if (!row?.data?.message) return null;
+    return { message: row.data.message, platform: row.data.platform ?? 'unknown', when: row.receivedAt };
+  }
+
   /** Invia una push a tutti i dispositivi dell'utente. No-op se il push non è configurato. */
   async sendToUser(userId: string, title: string, body: string, data?: Record<string, string>): Promise<void> {
     const fcm = this.fcm();
@@ -126,6 +162,24 @@ export class PushService {
       };
     }
     if (rows.length === 0) {
+      // Se il telefono ci ha detto PERCHÉ non è riuscito a registrarsi, quello vale
+      // molto più del messaggio generico: è la differenza fra "non ha mai provato" e
+      // "ha provato e iOS l'ha rifiutato".
+      const err = await this.lastRegistrationError(userId);
+      if (err) {
+        const quando = err.when.toLocaleString('it-IT');
+        const entitlement = /aps-environment|no valid .?aps|entitlement/i.test(err.message)
+          ? ' Questo messaggio indica la capability Push mancante nella build: si risolve solo con una nuova build store (Xcode → Signing & Capabilities → Push Notifications + Background Modes), non con un OTA.'
+          : '';
+        return {
+          fcmConfigured: true,
+          devices: [],
+          sent: 0,
+          failed: 0,
+          removedStale: 0,
+          diagnosi: `Nessun dispositivo registrato, ma il telefono (${err.platform}) ha segnalato un errore il ${quando}: «${err.message}».${entitlement}`,
+        };
+      }
       return {
         fcmConfigured: true,
         devices: [],
@@ -133,7 +187,7 @@ export class PushService {
         failed: 0,
         removedStale: 0,
         diagnosi:
-          'Nessun dispositivo registrato per questo utente. Il telefono registra il token all\'avvio dell\'app, e solo se il permesso alle notifiche è stato concesso: apri l\'app con QUESTO account, accetta le notifiche e riprova. Attenzione: la web app non registra nulla, serve l\'app installata.',
+          'Nessun dispositivo registrato e nessun errore segnalato dal telefono. Il token si registra dopo il LOGIN in app (non basta installarla) e solo col permesso notifiche concesso. Se hai fatto login e accettato le notifiche e qui non compare nulla, l\'app non sta nemmeno provando: di solito è il bundle costruito senza google-services.json. La web app non registra nulla, serve l\'app installata.',
       };
     }
 

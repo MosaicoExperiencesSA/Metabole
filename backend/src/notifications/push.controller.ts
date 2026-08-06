@@ -15,6 +15,16 @@ class PushTokenDto {
   platform?: string;
 }
 
+class PushErrorDto {
+  @IsString()
+  @MinLength(1)
+  message!: string;
+
+  @IsOptional()
+  @IsIn(['android', 'ios', 'web'])
+  platform?: string;
+}
+
 /** Registrazione/rimozione dei token push del dispositivo (clienti e staff). */
 @Controller('me/push-tokens')
 export class PushController {
@@ -30,6 +40,16 @@ export class PushController {
   @HttpCode(200)
   unregister(@CurrentUser() user: AuthUser, @Body() dto: PushTokenDto) {
     return this.push.removeToken(user.sub, dto.token);
+  }
+
+  /**
+   * Il telefono non è riuscito a registrarsi: ci dice perché.
+   * Serve a non perdere l'errore, che nell'app finiva in un listener vuoto.
+   */
+  @Post('error')
+  @HttpCode(200)
+  registrationError(@CurrentUser() user: AuthUser, @Body() dto: PushErrorDto) {
+    return this.push.logRegistrationError(user.sub, dto.message, dto.platform ?? 'unknown');
   }
 
   /** Push di prova ai MIEI dispositivi (chiunque sia loggato, solo su se stesso). */
