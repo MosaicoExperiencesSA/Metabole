@@ -512,6 +512,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Link alla scheda Google Play, usato dai pulsanti "Scarica" nelle email.',
   },
   {
+    key: 'referral_card_after_days',
+    value: '15',
+    type: 'number',
+    description: 'Giorni di percorso dopo i quali la card "Porta un\'amica" compare in Home (0 = subito). Prima non si mostra: chiedere di consigliare Metabole a chi l\'ha appena aperta vale poco, e l\'invito vale quanto vale chi lo manda.',
+  },
+  {
     key: 'referral_reward_days',
     value: '30',
     type: 'number',

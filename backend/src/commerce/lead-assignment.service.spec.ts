@@ -100,8 +100,11 @@ describe('LeadAssignmentService.myInvite', () => {
     expect(update).toHaveBeenCalled();
   });
 
-  it('solo per le coach', async () => {
+  it('senza scheda staff l\'invito non si genera, e lo dice', async () => {
+    // Il messaggio è cambiato con l'apertura dell'invito alla NUTRIZIONISTA: non è più
+    // "solo per le coach". Quello che deve restare vero è che spieghi cosa manca e a chi
+    // chiedere, invece di limitarsi a negare.
     const prisma = { staff: { findFirst: jest.fn().mockResolvedValue(null) } };
-    await expect(make(prisma).myInvite('x')).rejects.toThrow('coach');
+    await expect(make(prisma).myInvite('x')).rejects.toThrow('scheda personale');
   });
 });

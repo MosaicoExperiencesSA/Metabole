@@ -20,15 +20,16 @@ restare — che in mantenimento è esattamente il comportamento che serve, perch
 mantenimento non protestano, spariscono. Coi numeri qui sotto: €13,05 al mese alla coach, €15,26
 a Metabole, **€183 per cliente all'anno**.
 
-⚠️ **Restano due domande, e non sono a/b/c** (sono le «due varianti» più sotto, che con la (b)
+⚠️ **Restava un'ultima domanda** (la seconda è stata decisa il 6/8, vedi sotto) (sono le «due varianti» più sotto, che con la (b)
 pesano più di prima):
 
 1. **Il residual dura per sempre, o 12 mesi?** Con la (b), «per sempre» vuol dire pagare la
    provvigione anche sulla cliente che si rinnova da sola da tre anni e che la coach non sente
    più. Dodici mesi coprono il periodo in cui la cliente può ancora mollare.
-2. **Provvigione solo se la coach è ancora quella assegnata.** Va messa comunque, qualunque cosa
-   si decida sul punto 1: senza, una coach che se ne va — o da cui la cliente è stata spostata —
-   continua a incassare sui rinnovi.
+2. ✅ **DECISA (Simone, 6/8): sì.** La provvigione sul rinnovo si paga **solo se quella coach è
+   ancora la coach assegnata** alla cliente. Chiude il caso di chi se ne va, o da cui la cliente
+   è stata spostata, e continuerebbe a incassare su una persona che non segue più.
+   In codice è una condizione in `generateCommissions`, non un'architettura.
 
 Nessuna delle due cambia l'architettura: sono due interruttori. Ma conviene deciderle **prima**
 del primo rinnovo pagato, perché dopo diventano una revisione di compensi già erogati.

@@ -479,8 +479,9 @@ export default function Home() {
           nell'app non c'era nessun posto in cui vedere il proprio codice. */}
       <ReferralCard />
 
-      {/* Help rapido */}
-      <div className="sec" style={{ margin: '4px 2px 8px' }}>Help</div>
+      {/* Aiuto rapido. Si intitolava "Help": unica parola inglese di tutta l'app cliente,
+          e per giunta appiccicata alla card sopra. */}
+      <div className="sec" style={{ margin: '14px 2px 8px' }}>Se ti serve una mano</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
         {HELP.map(([icon, lbl, key, color]) => (
           <div key={key} className="card" style={{ flex: 1, margin: 0, textAlign: 'center', padding: '12px 4px', cursor: 'pointer' }} onClick={() => setHelp(key)}>

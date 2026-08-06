@@ -6,6 +6,7 @@ import { euro, fullName, relDays } from '../format';
 import { useApi } from '../hooks';
 import { Async, Card, Kpi, Section, StaffShell } from '../ui';
 import { COACH_TABS } from '../tabs';
+import InvitoCard from '../shared/InvitoCard';
 
 interface Dash {
   isCoach: boolean;
@@ -226,6 +227,9 @@ export default function CoachDashboard() {
                 )
               }
             </Async>
+            {/* Link d'invito: il ref code esisteva ma nell'app dei professionisti non
+                c'era nessun posto in cui vederlo, e il link lo si manda dal telefono. */}
+            <InvitoCard ruolo="coach" />
           </>
         )}
       </Async>

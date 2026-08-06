@@ -17,6 +17,11 @@ interface Referral {
   invited: number;
   converted: number;
   rewardDays: number;
+  /** Il server decide QUANDO mostrarla: dopo N giorni di percorso (parametro
+   *  `referral_card_after_days`, oggi 15). È una regola di prodotto, non grafica:
+   *  così si cambia da Parametri senza pubblicare una nuova versione dell'app. */
+  visible: boolean;
+  afterDays: number;
 }
 
 const APP_URL = (import.meta.env.VITE_APP_URL as string | undefined) ?? 'https://app.metabole.eu';
@@ -35,7 +40,9 @@ export default function ReferralCard() {
     return () => clearTimeout(t);
   }, [esito]);
 
-  if (!ref?.code) return null;
+  // `visible === false` = percorso troppo giovane: la card non si mostra. Il controllo è
+  // difensivo su `visible !== false` per non far sparire la card se un giorno il campo manca.
+  if (!ref?.code || ref.visible === false) return null;
 
   const link = `${APP_URL}/register?ref=${encodeURIComponent(ref.code)}`;
   const giorni = ref.rewardDays;
@@ -58,12 +65,19 @@ export default function ReferralCard() {
         {ref.invited > 0 && (
           <span className="muted" style={{ fontSize: 11 }}>
             {ref.invited} {ref.invited === 1 ? 'invito' : 'inviti'}
-            {ref.converted > 0 ? ` · ${ref.converted} iscritte` : ''}
+            {/* `converted` conta chi ha ACQUISTATO, non chi si è iscritta: qui c'era scritto
+                "iscritte", che è un'altra cosa e non torna mai col numero degli inviti. */}
+            {ref.converted > 0 ? ` · ${ref.converted} con acquisto` : ''}
           </span>
         )}
       </div>
+      {/* La ricompensa scatta all'ACQUISTO dell'amica, non alla registrazione: `onConvert` è
+          chiamato solo dalla catena di approvazione del pagamento (commerce.service). Il testo
+          diceva "si iscrive", e prometteva quindi una cosa che non succede: chi invita tre amiche
+          e le vede registrate senza ricevere niente ha ragione a sentirsi presa in giro. */}
       <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5, lineHeight: 1.4 }}>
-        Quando un'amica si iscrive col tuo codice, il tuo percorso si allunga di {giorni} giorni.
+        Quando un'amica si iscrive col tuo codice <b>e acquista un percorso</b>, il tuo si allunga
+        di {giorni} giorni.
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <div
@@ -75,7 +89,13 @@ export default function ReferralCard() {
         >
           {ref.code}
         </div>
-        <button className="btn" style={{ flex: 'none', padding: '10px 16px' }} onClick={invia}>
+        {/* `.btn` ha `width: 100%` nel tema: con `flex: none` quella larghezza vince e il pulsante
+            si prendeva tutta la riga, uscendo dalla card e coprendo il codice. Serve `width: auto`. */}
+        <button
+          className="btn"
+          style={{ flex: 'none', width: 'auto', whiteSpace: 'nowrap', padding: '10px 16px' }}
+          onClick={invia}
+        >
           <i className="ti ti-share-2" style={{ marginRight: 6 }} />
           Condividi
         </button>

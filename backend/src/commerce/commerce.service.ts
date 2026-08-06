@@ -1034,6 +1034,11 @@ export class CommerceService {
       // "Porta un'amica": alla prima attivazione dell'invitata premia chi l'ha
       // invitata (idempotente sull'invito; non deve mai far fallire il pagamento).
       await this.referral.onConvert(payment.clientId).catch(() => undefined);
+      // ...e nell'altro verso: se QUESTA cliente aveva ricompense in sospeso — un'amica che ha
+      // comprato mentre lei era senza piano attivo — adesso che un abbonamento ce l'ha, le
+      // riscuote. Senza questa riga quei giorni restavano appesi per sempre, senza che nessuno
+      // se ne accorgesse.
+      await this.referral.riscuotiSospese(payment.clientId).catch(() => undefined);
       // Monitoraggio: menu di rientro pagato → eroga gli 8 menu e riparte il mese;
       // altro piano a pagamento → l'eventuale monitoraggio in corso si converte.
       const actPlan = (await this.prisma.subscription.findUnique({

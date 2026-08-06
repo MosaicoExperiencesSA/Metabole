@@ -1,5 +1,6 @@
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReferralService } from './referral.service';
 
@@ -7,8 +8,12 @@ const makeConfig = (rewardDays = 30) =>
   ({ getNumber: jest.fn(async (_k: string, def?: number) => (rewardDays ?? def) as number) }) as unknown as ConfigParamsService;
 const audit = { log: jest.fn() } as unknown as AuditService;
 
+// Quarto parametro: la referrer viene AVVISATA quando i giorni arrivano davvero (prima
+// riceveva il regalo e non lo sapeva). Qui basta un finto che non fa niente.
+const notifiche = { notify: jest.fn().mockResolvedValue(undefined) } as unknown as NotificationsService;
+
 const make = (prisma: Record<string, unknown>, rewardDays = 30) =>
-  new ReferralService(prisma as unknown as PrismaService, makeConfig(rewardDays), audit);
+  new ReferralService(prisma as unknown as PrismaService, makeConfig(rewardDays), audit, notifiche);
 
 describe('ReferralService.ensureCode', () => {
   it('riusa il codice esistente', async () => {

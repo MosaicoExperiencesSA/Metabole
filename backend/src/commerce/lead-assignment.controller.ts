@@ -89,9 +89,12 @@ export class LeadAssignmentController {
     return this.svc.myPending(user.sub);
   }
 
-  /** Invito della coach: proprio ref code + link di registrazione precompilato (backlog #2).
-   *  Disponibile anche alla Responsabile Coach (sales), che ha un suo ref code. */
-  @Roles('coach', 'coach_coordinator', 'sales')
+  /** Invito dello staff: proprio ref code + link di registrazione precompilato (backlog #2).
+   *  Vale per la famiglia coach (coach, coordinatrice, Responsabile Coach) e per la
+   *  NUTRIZIONISTA: la registrazione accetta già i suoi ref code e le assegna la cliente
+   *  (`autoAssignByRefCode`), ma finora lei non aveva nessun posto in cui vedere il proprio
+   *  codice — funzionava solo se glielo passava un admin da Utenti. */
+  @Roles('coach', 'coach_coordinator', 'sales', 'nutritionist', 'head_nutritionist')
   @Get('my-invite')
   myInvite(@CurrentUser() user: AuthUser) {
     return this.svc.myInvite(user.sub);

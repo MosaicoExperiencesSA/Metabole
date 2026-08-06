@@ -7,6 +7,70 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **«Porta un'amica» rifatta: prometteva una cosa e ne faceva un'altra.** Partita da
+  due screenshot di Simone e finita per toccare tutta la meccanica. Cinque cose, in ordine di
+  gravità:
+  **1. Il testo mentiva.** La card diceva «quando un'amica **si iscrive** col tuo codice, il tuo
+  percorso si allunga di 10 giorni». Non è vero: `onConvert` è chiamato da un solo punto, dentro
+  la catena di **approvazione del pagamento**. La sola iscrizione non dà niente. Una cliente che
+  invita tre amiche, le vede registrate e non riceve nulla, non ha un dubbio: ha la prova che
+  l'app le ha mentito. Ora c'è scritto «si iscrive **e acquista un percorso**», e il contatore
+  dice «con acquisto» invece di «iscritte» (contava già quello).
+  **2. La ricompensa poteva sparire per sempre, in silenzio.** `convertedAt` veniva scritto
+  **prima** di controllare se la referrer avesse un abbonamento attivo; se non ce l'aveva si
+  usciva con un commento «non applicabile ora» — ma quell'«ora» non arrivava mai, perché alla
+  chiamata dopo `convertedAt` c'era già. Nessun cron, nessun retry. E colpiva le persone
+  sbagliate: chi ha il piano scaduto è la più motivata a portare un'amica per allungarlo. Ora
+  resta in sospeso e viene **riscossa alla prima attivazione utile** (`riscuotiSospese`,
+  agganciata alla stessa catena pagamenti).
+  **3. La referrer non sapeva di aver vinto.** Nessuna notifica, solo una riga di audit. Adesso
+  arriva «+10 giorni sul tuo percorso 🎁» nel momento in cui i giorni ci sono davvero.
+  **4. La card non compare più dal primo giorno** (decisione di Simone): si mostra dopo
+  **15 giorni di percorso**, parametro `referral_card_after_days` — chiedere di consigliare
+  Metabole a chi l'ha appena aperta vale poco, e l'invito vale quanto vale chi lo manda. Il gate
+  è sul server perché è una regola di prodotto: si cambia da Parametri, senza pubblicare l'app.
+  Chi ha già invitato qualcuno continua a vederla comunque.
+  **5. Il pulsante «Condividi» usciva dalla card** e copriva il codice: `.btn` nel tema ha
+  `width: 100%` e con `flex: none` quella larghezza vince. Serviva `width: auto`.
+  Corretta anche l'unica parola inglese dell'app cliente: la sezione «Help» in Home ora si
+  chiama «Se ti serve una mano».
+
+- `[Prodotto]` ✅ **L'amica invitata va alla stessa coach della referrer, che quindi incassa le
+  provvigioni** (regola di Simone, 6/8). Prima non succedeva: `linkOnRegister` registrava
+  l'invito e basta, e l'amica finiva **nel pool dei non assegnati**. Due cose sbagliate insieme —
+  l'amica arrivava da una sconosciuta, e la coach che aveva di fatto generato quell'iscrizione non
+  prendeva niente. Ora eredita la coach della referrer **subito, senza ciclo di accettazione**:
+  come per il ref code di una coach, qui la scelta l'ha già fatta qualcuno. Le provvigioni seguono
+  da sole, senza codice nuovo: `finance.generateCommissions` legge `ClientProfile.assignedCoachId`,
+  che è esattamente il campo che scriviamo. La coach riceve una notifica, e se l'amica risulta già
+  assegnata a qualcun altro non si scavalca nessuno. Solo la **coach**: la nutrizionista continua
+  ad assegnarla il capo nutrizionista, perché lì il criterio è clinico, non commerciale.
+
+- `[Sviluppo]` **Il link d'invito ora c'è anche dove serve: nell'app dei professionisti.**
+  Segnalazione di Simone, e aveva ragione: il riquadro esisteva **solo nel backoffice da
+  desktop** (`CoachHome`), mentre il link lo si manda dal telefono, in chat, mentre si parla con
+  qualcuno. Nell'area staff dell'app (`app/src/staff/`) non c'era niente. Nuova `InvitoCard` in
+  entrambe le dashboard, coach e nutrizionista, con lo stesso pulsante **Condividi** della card
+  cliente — foglio nativo sul telefono, copia su desktop.
+  Nel farlo è emersa una mezza funzione: **la nutrizionista era esclusa da `my-invite`**, che
+  rispondeva «l'invito è disponibile solo per le coach» — mentre la registrazione **accetta già**
+  i suoi ref code e le assegna la cliente. Aveva un codice funzionante che non poteva vedere.
+  Aperto a lei e al capo nutrizionista. E quando l'invito non si può generare la card **non
+  sparisce in silenzio**: dice cosa manca (la scheda staff) e a chi chiederlo.
+
+- `[Sviluppo]` **La CI nuova ha subito fatto il suo mestiere: ha beccato me.** Le modifiche qui
+  sopra hanno rotto tre test — il messaggio di `myInvite` cambiato, il quarto parametro di
+  `ReferralService` (le notifiche) e `riscuotiSospese` assente dal finto ReferralService in
+  commerce. Prima di stamattina sarebbero passati inosservati con `continue-on-error`, e sarebbero
+  diventati il debito di qualcun altro. Sistemati subito: **51 suite, 527 test, tutto verde**,
+  `tsc --noEmit` pulito su backend e app.
+
+- `[Prodotto]` ✅ **Provvigione sul rinnovo solo se la coach è ancora quella assegnata** (Simone,
+  6/8: «sì»). Chiude il caso della coach che se ne va, o da cui la cliente è stata spostata, e che
+  continuerebbe a incassare sui rinnovi di una persona che non segue più. È una condizione, non
+  un'architettura: si scriverà insieme allo Stripe ricorrente.
+  Resta aperta la sola durata del residual (per sempre o 12 mesi).
+
 - `[Prodotto]` ✅ **Provvigioni sul rinnovo: decisione chiusa.** Simone: «la quota coach sui rinnovi
   non cambia» → **opzione (b)**, provvigione piena a ogni rinnovo, che con il nutrizionista già a
   zero lascia €15,26 al mese a Metabole e €183 per cliente all'anno. È il modello *residual*: la

@@ -422,11 +422,17 @@ export class LeadAssignmentService {
    * registrazione precompilato da condividere con la cliente (backlog #2).
    */
   async myInvite(coachUserId: string): Promise<{ refCode: string; url: string }> {
+    // Anche la NUTRIZIONISTA: `resolveByRefCode` accetta già il suo codice e
+    // `autoAssignByRefCode` le assegna la cliente. Escluderla da qui voleva dire darle un
+    // codice funzionante che però non poteva vedere.
     const staff = await this.prisma.staff.findFirst({
-      where: { userId: coachUserId, user: { role: { in: ['coach', 'coach_coordinator', 'sales'] as never } } },
+      where: {
+        userId: coachUserId,
+        user: { role: { in: ['coach', 'coach_coordinator', 'sales', 'nutritionist', 'head_nutritionist'] as never } },
+      },
       select: { id: true, refCode: true, displayName: true, user: { select: { firstName: true, lastName: true } } },
     });
-    if (!staff) throw new BadRequestException('L\'invito è disponibile solo per le coach.');
+    if (!staff) throw new BadRequestException('Il link d\'invito è disponibile solo allo staff con una scheda personale: chiedi a un amministratore di crearla.');
     let refCode = staff.refCode;
     if (!refCode) {
       refCode = await this.ruleOrRandomCode(staff);

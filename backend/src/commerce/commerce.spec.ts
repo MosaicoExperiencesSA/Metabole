@@ -103,7 +103,15 @@ describe('CommerceService (flusso bonifico)', () => {
         },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: PdfService, useValue: { renderTemplatePdf: jest.fn().mockResolvedValue(Buffer.from('pdf')) } },
-        { provide: ReferralService, useValue: { onConvert: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: ReferralService,
+          useValue: {
+            onConvert: jest.fn().mockResolvedValue(undefined),
+            // Riscossione delle ricompense "porta un'amica" rimaste in sospeso: parte alla
+            // stessa attivazione, nell'altro verso (questa cliente come referrer).
+            riscuotiSospese: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         // Provider aggiunti al costruttore del servizio ma dimenticati qui: il test non
         // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
         { provide: MonitoringService, useValue: { onPlanActivated: jest.fn().mockResolvedValue(undefined) } },
