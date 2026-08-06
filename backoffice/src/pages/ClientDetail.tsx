@@ -226,6 +226,7 @@ export function ClientDetail() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [pushing, setPushing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -420,6 +421,39 @@ export function ClientDetail() {
       else setError(err instanceof Error ? err.message : 'Invio non riuscito.');
     } finally {
       setResetting(false);
+    }
+  }
+
+  /**
+   * Push di PROVA al telefono della cliente, con diagnostica.
+   * Non passa dalle notifiche normali: niente limite "una volta al giorno", niente
+   * voce nel campanello. Serve a capire DOVE si rompe la catena quando le push non
+   * arrivano — prima l'unico modo di provarle era fingere una conversazione in chat.
+   */
+  async function pushDiProva() {
+    if (!d) return;
+    setPushing(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const r = await api<{
+        fcmConfigured: boolean;
+        devices: { platform: string; tokenTail: string; ok: boolean; error: string | null }[];
+        sent: number;
+        failed: number;
+        removedStale: number;
+        diagnosi: string;
+      }>(`/admin/push-test/${d.user.id}`, { method: 'POST' });
+      const dettaglio = r.devices.length
+        ? ' · ' + r.devices.map((x) => `${x.platform} ${x.tokenTail}: ${x.ok ? 'ok' : (x.error ?? 'errore')}`).join(' · ')
+        : '';
+      const testa = r.devices.length ? `Inviate ${r.sent}/${r.devices.length}. ` : '';
+      setNotice(`${testa}${r.diagnosi}${dettaglio}`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Solo un admin può inviare una push di prova.');
+      else setError(err instanceof Error ? err.message : 'Invio della push di prova non riuscito.');
+    } finally {
+      setPushing(false);
     }
   }
 
@@ -673,6 +707,17 @@ export function ClientDetail() {
             {can('set_client_password', 'manage') && !editing && (
               <button className="btn ghost" onClick={setClientPassword} title="Imposta una password scelta per la cliente (da comunicarle)" style={{ background: 'rgba(255,255,255,.9)' }}>
                 <i className="ti ti-lock-cog" /> Imposta password
+              </button>
+            )}
+            {isAdmin && !editing && (
+              <button
+                className="btn ghost"
+                onClick={pushDiProva}
+                disabled={pushing}
+                title="Manda una notifica push di prova al telefono di questa cliente e dice cosa non ha funzionato"
+                style={{ background: 'rgba(255,255,255,.9)' }}
+              >
+                <i className="ti ti-bell-ringing" /> {pushing ? 'Invio…' : 'Push di prova'}
               </button>
             )}
             {isAdmin && !editing && (
