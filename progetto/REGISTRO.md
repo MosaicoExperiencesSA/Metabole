@@ -7,6 +7,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Keto-Mediterranea inserita nel catalogo come BOZZA** (voce #2, decisione Simone).
+  Script `backend/prisma/seed-keto-mediterranea.ts` (`npm run seed:keto-med`): crea la dieta
+  `keto_mediterranean` con **30 ricette** (6 per slot) e **7 giornate di rotazione su due livelli**
+  (1450 e 1700 kcal), costruite solo con ingredienti da supermercato italiano — niente farine
+  speciali, dolcificanti particolari o prodotti "keto" confezionati, che erano la causa della
+  segnalazione. Tre criteri presi dalla ricerca e non inventati: grasso principale da olio d'oliva,
+  olive, frutta secca e pesce grasso (Harvard: a parità di schema è la **qualità dei grassi** a
+  cambiare gli esiti); proteine soprattutto da pesce e uova; verdure a basso contenuto di carboidrati
+  in abbondanza, perché le fibre sono il punto debole noto delle chetogeniche. Ripartizione di
+  riferimento ~70-75% grassi, ~20-25% proteine, ~5% carboidrati.
+  ⚠️ **Nasce `status: draft` e `clientVisible: false`**: il motore serve menu solo da diete
+  approvate, quindi **nessuna cliente la riceve** finché la nutrizionista non la approva dal
+  backoffice. Le kcal e i macro sono stime coerenti fra loro, utili a far girare il motore ma da
+  verificare; `allergensReviewed` resta **false** perché gli allergeni indicati sono quelli ovvi e
+  non una revisione clinica. Lo script è idempotente e non sovrascrive il lavoro della nutrizionista.
+  Stagioni e difficoltà già compilate piatto per piatto.
+
+- `[Sviluppo]` **Keto-Mediterranea: preparata la materia prima per il catalogo** (voce #2). Il
+  problema segnalato non erano le ricette lunghe ma gli **ingredienti introvabili** (farine speciali,
+  dolcificanti particolari, prodotti "keto" confezionati). Invece di rattoppare la Keto esistente,
+  idea di Simone: un prodotto NUOVO costruito solo su ingredienti da supermercato italiano.
+  La combinazione ha una base in letteratura — esiste uno studio italiano su chetogenica mediterranea
+  in pazienti con prediabete e diabete di tipo 2, e Harvard segnala che è proprio la **qualità dei
+  grassi** a cambiare gli esiti a parità di schema: olio d'oliva, pesce azzurro e frutta secca invece
+  di burro e insaccati. Nuovo documento `progetto/Metabole_KetoMediterranea_Materia_Prima.md` con la
+  tavolozza di ingredienti per slot, l'elenco di cosa NON usare e i vincoli di inserimento.
+  ⚠️ **Non contiene menu**: quelli li compone e valida la nutrizionista (regola ferrea n.1).
+  Aggiunta anche la scheda informativa del "?" per lo stile `keto_mediterranean`, pronta per quando
+  la dieta verrà pubblicata. **Non serve codice per crearla**: `dietStyle` è una stringa libera, la
+  dieta compare da sola in registrazione appena è approvata e visibile al cliente.
+
 - `[Sviluppo]` **Misure non inserite: menu fermo, solleciti ogni 2 ore, app bloccata e sblocco
   dalla coach** (voce #6). Il popup bloccante c'era già e tratteneva il menu, ma ci si conviveva.
   Ora il gate ha due livelli: il primo giorno resta il popup richiudibile; dopo

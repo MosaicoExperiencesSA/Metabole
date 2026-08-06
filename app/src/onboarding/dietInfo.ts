@@ -70,6 +70,17 @@ export const DIET_INFO: Record<string, DietInfo> = {
     attenzione:
       'Va fatta seguiti, e da noi lo sei. Non è indicata in gravidanza e allattamento, e va valutata con attenzione se hai problemi a reni, fegato, pancreas o cuore, o se prendi farmaci per il diabete. Nei primi giorni sono comuni stanchezza, mal di testa e irritabilità. Può inoltre risultare povera di fibre e di alcuni micronutrienti: è uno dei motivi per cui il percorso è supervisionato.',
   },
+  keto_mediterranean: {
+    titolo: 'Keto-Mediterranea',
+    cose:
+      'Una chetogenica costruita con la dispensa mediterranea: stessa riduzione drastica dei carboidrati, ma i grassi arrivano da olio d\'oliva, pesce azzurro, frutta secca e olive invece che da burro e insaccati. Non è un compromesso di marketing: in letteratura è studiata, anche su pazienti italiani con prediabete e diabete di tipo 2.',
+    inPratica:
+      'Verdure a basso contenuto di carboidrati in abbondanza, pesce e uova come proteine principali, olio d\'oliva come grasso di riferimento, formaggi e frutta secca con misura. Pane, pasta, riso, patate, legumi e frutta zuccherina restano fuori. Tutti ingredienti da supermercato: niente farine speciali, dolcificanti particolari o prodotti confezionati "keto".',
+    cosaDiceLaRicerca:
+      'Sulla chetogenica in generale vale quanto detto per la Keto: calo marcato nel breve periodo, pochi studi di qualità sul lungo. La differenza qui è la QUALITÀ dei grassi, che secondo la ricerca è ciò che più cambia gli esiti a parità di schema. E la reperibilità degli ingredienti, che non è un dettaglio: uno schema che si riesce a mantenere batte uno schema perfetto che si abbandona dopo tre settimane.',
+    attenzione:
+      'Resta una chetogenica: non è indicata in gravidanza e allattamento, e va valutata con attenzione con problemi a reni, fegato, pancreas o cuore, o se prendi farmaci per il diabete. Nei primi giorni sono comuni stanchezza e mal di testa. Essere seguita da una nutrizionista, in questo schema, non è un di più.',
+  },
 };
 
 /** Fonti citate nel popup: mostrarle è parte del punto, non un dettaglio legale. */
