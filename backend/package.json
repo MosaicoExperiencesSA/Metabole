@@ -14,7 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
     "cleanup:demo": "ts-node --transpile-only prisma/cleanup-demo.ts",
     "cleanup:clients": "ts-node --transpile-only prisma/cleanup-clients.ts",
     "fix:diet-names": "ts-node --transpile-only prisma/fix-diet-names.ts",

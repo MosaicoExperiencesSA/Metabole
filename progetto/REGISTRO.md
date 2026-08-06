@@ -7,6 +7,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **`npm run prisma:seed` andava in out of memory su Render** — unico script del
+  progetto senza `--transpile-only`: `ts-node` provava a fare il type-check dell'intero progetto in
+  memoria e il container non ce la faceva («Reached heap limit»). Il seed quindi non girava, e i
+  parametri nuovi (fra cui i sei `kcal_need_*`) non finivano mai in tabella. Aggiunto
+  `--transpile-only` come negli altri script.
+
 - `[Sviluppo]` **Keto-Mediterranea inserita nel catalogo come BOZZA** (voce #2, decisione Simone).
   Script `backend/prisma/seed-keto-mediterranea.ts` (`npm run seed:keto-med`): crea la dieta
   `keto_mediterranean` con **30 ricette** (6 per slot) e **7 giornate di rotazione su due livelli**
