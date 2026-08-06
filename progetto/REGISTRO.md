@@ -7,6 +7,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Revisione del lavoro della giornata, e una regressione mia corretta prima che
+  facesse danni.** Rivisto tutto il diff di oggi: il backend contro lo schema Prisma (chiamate,
+  DTO, rotte, righe nuove del seed) — nessun bloccante, si può deployare — e il frontend cercando
+  regressioni di comportamento. Ne è uscita una vera, introdotta stamattina da me: la barra del
+  generatore era legata a `busy`, che però è condiviso da **sette** operazioni della pagina
+  (archivia, elimina, salva, valida, pubblica, anteprima). Chi archiviava una variante leggeva
+  «Sto generando ricette, giornate, alternative e allergeni… può richiedere fino a un minuto» e
+  poteva restare ad aspettare per niente — proprio nella sessione di formazione con la
+  nutrizionista. Ora la generazione ha uno stato suo (`generando`).
+  Corretto anche un buco in `ota.ts`: un manifest che risponde 200 con **JSON malformato**
+  finiva nel `catch` del telefono offline, cioè veniva ignorato — esattamente il difetto che il
+  commit di stamattina voleva chiudere. Ora la lettura del manifest sta fuori da quel catch e un
+  manifest illeggibile si segnala (`manifest_illeggibile`).
+  ⚠️ Emerso durante la revisione, utile la prossima volta che un deploy fallisce:
+  `tsconfig.build.json` **esclude `prisma/`**, quindi il seed non viene type-checkato, e da oggi
+  gira con `--transpile-only`. Un errore di *tipo* nel seed non ferma più il build; un errore a
+  *runtime* lì dentro invece blocca il preDeploy. È il primo posto dove guardare.
+
 - `[Sviluppo]` **Audit di fine giornata e chiusura di quattro difetti «interruttore che non c'è»**
   (richiesta Simone: «tutti i lavori sono stati fatti?»). Verificate 18 richieste del 5/8 più i
   ~90 `REGISTRO_*.md`, il backlog, `STATO.md` e le checklist di luglio, ogni voce ri-controllata

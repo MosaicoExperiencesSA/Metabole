@@ -46,6 +46,11 @@ export function CreazioneValidazione() {
   const [famMsg, setFamMsg] = useState<string | null>(null);
   // Barra di avanzamento per le lavorazioni lunghe (genera tutte / valida e pubblica tutte).
   const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  // `busy` è condiviso da sette operazioni della pagina (archivia, elimina, salva, valida,
+  // pubblica, anteprima…). Legare a `busy` la barra del passo 2 significava scrivere «Sto
+  // generando ricette…» mentre il nutrizionista sta archiviando una variante: si aspetta
+  // per niente, o peggio crede sia partita una generazione. Qui serve uno stato suo.
+  const [generando, setGenerando] = useState(false);
 
   const [days, setDays] = useState(28);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
@@ -241,7 +246,7 @@ export function CreazioneValidazione() {
       ? activeFamily.variants
       : ((presets ?? []).filter((p) => p.id === activePresetId));
     if (targets.length === 0) { setError('Scegli o salva una dieta prima di generare.'); return; }
-    setBusy(true); setError(null); setNotice(null);
+    setBusy(true); setGenerando(true); setError(null); setNotice(null);
     const variantTag = (t: Preset) => `${regLabelOf((t.regime as string) || 'omnivore')} · ${objLabel((t.objective as string) || 'dimagrimento')} · ${mealLabel((t.meals as string) || '5')}`;
     try {
       let firstDietId: string | null = null;
@@ -271,7 +276,7 @@ export function CreazioneValidazione() {
           ? 'Catalogo bozza generato. Procedi con la validazione qui sotto.'
           : 'La variante aveva già il suo catalogo: lasciato intatto.');
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
-    finally { setBusy(false); setProgress(null); }
+    finally { setBusy(false); setGenerando(false); setProgress(null); }
   }
 
   /**
@@ -563,7 +568,7 @@ export function CreazioneValidazione() {
           <span className="muted" style={{ fontSize: 12 }}>(consigliato 28 = un mese)</span>
         </label>
         <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
-          {busy ? (
+          {generando ? (
             <>
               <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.45)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginRight: 6, verticalAlign: '-2px' }} />
               Genero…
@@ -577,8 +582,8 @@ export function CreazioneValidazione() {
         {/* La barra si mostra SEMPRE durante la generazione: prima era legata a `!status`,
             cioè spariva appena in pagina c'era una bozza già caricata — che è esattamente il
             caso di chi genera la seconda variante e resta a guardare un pulsante fermo. */}
-        {busy && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
-        {busy && !progress && (
+        {generando && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
+        {generando && !progress && (
           <p className="muted" style={{ fontSize: 12, marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--line)', borderTopColor: 'var(--teal)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flex: 'none' }} />
             Sto generando ricette, giornate, alternative e allergeni… può richiedere fino a un minuto.

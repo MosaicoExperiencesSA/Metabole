@@ -68,17 +68,24 @@ export async function initOta(): Promise<void> {
   try { await CapacitorUpdater.notifyAppReady(); } catch { /* ignora */ }
 
   let latest: LatestBundle | null = null;
+  let res: Response;
   try {
-    const res = await fetch(`${OTA_URL}?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) {
-      // Il manifest è servito dal nostro backend: se non risponde è un problema nostro.
-      await segnala('manifest', { stato: res.status });
-      return;
-    }
-    latest = (await res.json()) as LatestBundle;
+    res = await fetch(`${OTA_URL}?t=${Date.now()}`, { cache: 'no-store' });
   } catch {
-    // Qui dentro ci finisce anche il telefono semplicemente offline: non è un errore
-    // da segnalare, l'app riprova al prossimo avvio.
+    // Solo qui finisce il telefono semplicemente offline: non è un errore da segnalare,
+    // l'app riprova al prossimo avvio. La lettura del manifest sta apposta fuori da questo
+    // catch: un JSON malformato è un problema NOSTRO e va detto.
+    return;
+  }
+  if (!res.ok) {
+    // Il manifest è servito dal nostro backend: se non risponde è un problema nostro.
+    await segnala('manifest', { stato: res.status });
+    return;
+  }
+  try {
+    latest = (await res.json()) as LatestBundle;
+  } catch (e) {
+    await segnala('manifest_illeggibile', { messaggio: e instanceof Error ? e.message : String(e) });
     return;
   }
   if (!latest?.version || !latest?.url) return; // OTA spento o non configurato: normale
