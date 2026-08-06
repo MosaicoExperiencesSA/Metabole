@@ -34,9 +34,8 @@ jobs:
         run: npx prisma generate
       - name: Build (type-check)
         run: npm run build
-      - name: Test (informativo — alcuni test noti falliscono per DI NestJS)
+      - name: Test
         run: npm test -- --ci --passWithNoTests
-        continue-on-error: true
 
   backoffice:
     name: Backoffice · build
