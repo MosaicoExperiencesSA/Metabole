@@ -9,6 +9,7 @@ import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReferralService } from '../referral/referral.service';
+import { MonitoringService } from '../monitoring/monitoring.service';
 import { CommerceService } from './commerce.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
@@ -84,6 +85,9 @@ describe('CommerceService (flusso bonifico)', () => {
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: PdfService, useValue: { renderTemplatePdf: jest.fn().mockResolvedValue(Buffer.from('pdf')) } },
         { provide: ReferralService, useValue: { onConvert: jest.fn().mockResolvedValue(undefined) } },
+        // Provider aggiunti al costruttore del servizio ma dimenticati qui: il test non
+        // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
+        { provide: MonitoringService, useValue: { onPlanActivated: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = moduleRef.get(CommerceService);

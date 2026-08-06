@@ -2,6 +2,8 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CrmService } from './crm.service';
 import { PipelineService } from './pipeline.service';
 import { FinanceService } from './finance.service';
@@ -213,6 +215,10 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: PipelineService, useValue: pipeline },
+        // Provider aggiunti al costruttore del servizio ma dimenticati qui: il test non
+        // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
+        { provide: MailService, useValue: { sendLeadCredentials: jest.fn().mockResolvedValue(undefined) } },
+        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = moduleRef.get(CrmService);

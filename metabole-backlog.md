@@ -111,6 +111,31 @@ cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della 
 Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
 non è un lavoro da sera di pubblicazione.
 
+## Test rossi e `continue-on-error` in ci.yml — 28 rimasti (era 99), 6/8
+Misurato il 6/8 facendo girare la suite: **99 test rossi in 18 suite**, non «~30 in src/commerce»
+come dicevano gli appunti. Sistemata la famiglia grossa (provider dimenticati nei moduli di test,
+6 suite, 6 righe): **28 rossi rimasti**. Cosa resta, in ordine di difficoltà:
+
+1. **Finto Prisma incompleto** (7 suite, 1-4 test l'una): il servizio ha imparato a chiamare un
+   modello/metodo che il mock non ha — `user.findUnique` (controllo ruolo introdotto con la rete
+   coach), `ledgerEntry.aggregate`. Si aggiunge il metodo al mock. Meccanico.
+   Suite: coach, signals, alerts, pipeline, accounting, reminders, nutritionist.
+2. **Tre suite che NON compilano**: descrivono un'API che non esiste più. `cron.controller.spec`
+   si aspetta `result.engine.run` e `result.notifications`, che la risposta del cron non ha più.
+   Va deciso cosa il test debba verificare adesso: è riscrittura, non riparazione.
+   Suite: cron, escalations, onboarding.
+3. **Due da leggere prima di toccare**:
+   - `menu-measurement-gate.spec`: si aspetta 0 e riceve 3. È il gate misure reso severo il 6/8
+     (voce #6). O il test racconta la regola vecchia, o il gate lascia passare più del dovuto:
+     è l'unico test che presidia una regola clinica, quindi va capito, non allineato.
+   - `referral.service.spec`: confronta un istante fisso (`1788134400000`) con l'orologio reale.
+     Rosso per costruzione. Serve congelare il tempo (`jest.useFakeTimers`).
+
+`continue-on-error: true` (`.github/workflows/ci.yml`) si toglie **quando sono zero**, non quando
+sono pochi: finché c'è, la pipeline non può fallire e il numero cresce senza che nessuno lo veda —
+da 30 a 99 è successo così. ⚠️ I file `.github/` non li scrive il bridge: si modificano
+dall'editor web di GitHub.
+
 ## Catalogo ricette — filtri e ordinamento sul SERVER — DA FARE (emerso 6/8)
 Lo screenshot di Simone del 6/8 mostra il banner di troncamento **con il solo regime Vegetariana**:
 le ricette vegetariane hanno già superato le 1000, cioè il tetto alzato quella mattina da 200.

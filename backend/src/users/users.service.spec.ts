@@ -4,6 +4,7 @@ import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
 import { MailService } from '../mail/mail.service';
+import { CrmService } from '../commerce/crm.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 
@@ -33,6 +34,9 @@ describe('UsersService (admin)', () => {
         UsersService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: audit },
+        // Provider aggiunto al costruttore del servizio ma dimenticato qui: il test non
+        // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
+        { provide: CrmService, useValue: { ensureLead: jest.fn() } },
         { provide: FinanceService, useValue: { resolvePendingForAssignment: jest.fn() } },
         { provide: MailService, useValue: { sendClientAssignedToNutritionist: jest.fn() } },
       ],

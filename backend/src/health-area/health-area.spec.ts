@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClinicalNotesService } from './clinical-notes.service';
 import { decryptBuffer, deriveKey, encryptBuffer } from './crypto.util';
@@ -81,6 +82,9 @@ describe('Area sanitaria', () => {
         ClinicalNotesService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        // Provider aggiunto al costruttore del servizio ma dimenticato qui: il test non
+        // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
+        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('chiave-file-test') } },
         { provide: FinanceService, useValue: { creditVisitCompensation: jest.fn() } },
       ],

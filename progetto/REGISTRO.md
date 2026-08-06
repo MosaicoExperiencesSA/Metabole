@@ -7,6 +7,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **I test rossi erano 99, non «una trentina»: adesso sono 28.** Ho fatto girare la
+  suite del backend, cosa che nessuno faceva più da quando `ci.yml` ha `continue-on-error: true` —
+  la pipeline non può fallire, quindi nessuno vedeva niente. Nei nostri appunti c'era scritto
+  «~30 test rossi in `src/commerce`»: erano **99 in 18 suite**, sparsi su mezzo backend.
+  Ma non erano 99 problemi. Guardandoli sono **quattro famiglie**, e una sola ne spiegava l'85%:
+  **un provider aggiunto al costruttore di un servizio e dimenticato nel modulo di test.** Quei
+  test non fallivano su un'asserzione, **non partivano proprio** — Nest non risolveva le
+  dipendenze e la suite intera moriva in `beforeEach`. Sei suite, sei righe: `NotificationsService`
+  in auth, catalog e visite, `CrmService` in utenti, `MonitoringService` in commerce, `MailService`
+  + `NotificationsService` nel blocco CrmService di finance-crm. **99 → 28**, e due suite (auth e
+  utenti, 32 test) sono tornate completamente verdi.
+  Le altre tre famiglie restano, e vanno guardate una per una perché non sono meccaniche:
+  **(b)** il finto Prisma dei test non ha i metodi che il servizio ha imparato a usare nel
+  frattempo (`user.findUnique` per il controllo del ruolo, `ledgerEntry.aggregate`) — 7 suite,
+  poche asserzioni ciascuna; **(c)** tre suite **non compilano** perché descrivono un'API che non
+  esiste più (`cron.controller.spec` si aspetta ancora `result.engine.run`); **(d)** due che
+  meritano lettura vera prima di toccarle — `menu-measurement-gate` si aspetta 0 e riceve 3, ed è
+  proprio il gate misure reso severo oggi (potrebbe essere il test a raccontare la regola vecchia,
+  o il gate a essere troppo largo), e `referral.service.spec` confronta un istante fisso con
+  l'orologio reale, quindi è rosso per definizione.
+  Nota di metodo: `continue-on-error` non si toglie perché «ci sono pochi test rossi», si toglie
+  quando sono zero. Finché c'è, il numero cresce senza che nessuno se ne accorga — da 30 a 99
+  è successo esattamente così.
+
 - `[Sviluppo]` **Un'assegnazione «da accettare» non si porta sul profilo cliente.** Buco aperto
   da me un'ora prima, con la modifica al form Nuovo lead: da lì in poi un lead può essere
   assegnato ma non ancora accettato, e `sendCredentials` portava comunque la coach sul profilo.

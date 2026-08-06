@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogService } from './catalog.service';
 
@@ -39,6 +40,9 @@ describe('CatalogService (flusso approvazione diete)', () => {
         CatalogService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        // Provider aggiunto al costruttore del servizio ma dimenticato qui: il test non
+        // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
+        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
         { provide: ConfigParamsService, useValue: config },
       ],
     }).compile();

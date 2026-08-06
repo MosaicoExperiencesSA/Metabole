@@ -8,6 +8,7 @@ import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { ReferralService } from '../referral/referral.service';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 
@@ -57,6 +58,9 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: MailService, useValue: mail },
         { provide: AuditService, useValue: audit },
+        // Provider aggiunto al costruttore del servizio ma dimenticato qui: il test non
+        // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
+        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
         { provide: CrmService, useValue: { ensureLead: jest.fn() } },
         {
           provide: LeadAssignmentService,
