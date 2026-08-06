@@ -64,6 +64,23 @@ async function main() {
     process.exit(1);
   }
 
+  // ⛔ GUARDIA 2 (6/8/2026, dopo averci sbattuto davvero).
+  // Capgo decide se scaricare confrontando la STRINGA di versione, non il contenuto:
+  // in `ota.ts` un telefono che ha già applicato la versione X si segna
+  // `ota_applied_version = X` e non riscarica mai più quel numero. Quindi ripubblicare
+  // un bundle DIVERSO con lo STESSO numero non raggiunge chi ha già preso il precedente:
+  // resta bloccato per sempre su un bundle vecchio, e non c'è modo di accorgersene.
+  // Il 6/8 tre bundle diversi sono usciti tutti come "2.0.1".
+  const giaPubblicato = path.join(ROOT, 'backend', 'ota-bundles', `metabole-${version}.zip`);
+  if (existsSync(giaPubblicato) && !process.env.OTA_FORCE) {
+    console.error(`\n⛔ La versione ${version} è già stata pubblicata: esiste backend/ota-bundles/metabole-${version}.zip`);
+    console.error('   Sovrascriverla NON aggiorna chi l\'ha già scaricata: Capgo confronta il numero,');
+    console.error('   non il contenuto, e quei telefoni resterebbero fermi al bundle vecchio per sempre.');
+    console.error(`   Alza il numero: aggiorna "version" in app/package.json e rilancia con la versione nuova.`);
+    console.error('   (Se sei certo che nessuno l\'abbia scaricata: OTA_FORCE=1 node scripts/ota-release.mjs ' + version + ')\n');
+    process.exit(1);
+  }
+
   run('npm run build', APP);
 
   await fs.mkdir(OUT, { recursive: true });

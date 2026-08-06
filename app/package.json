@@ -1,7 +1,7 @@
 {
   "name": "metabole-app",
   "private": true,
-  "version": "2.0.1",
+  "version": "2.0.2",
   "type": "module",
   "description": "App Metabole — unica per cliente, coach e nutrizionista, smistata per ruolo (React + Vite + Capacitor: web, Android, iOS)",
   "scripts": {
