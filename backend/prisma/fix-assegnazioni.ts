@@ -49,12 +49,14 @@ async function main(): Promise<void> {
       clientId: true,
       assignedCoachId: true,
       assignedNutritionistId: true,
+      assignmentStatus: true,
       assignedCoach: { select: { displayName: true } },
       assignedNutritionist: { select: { displayName: true } },
     },
   })) as {
     id: string; name: string | null; email: string | null; clientId: string;
     assignedCoachId: string | null; assignedNutritionistId: string | null;
+    assignmentStatus: string | null;
     assignedCoach: { displayName: string } | null;
     assignedNutritionist: { displayName: string } | null;
   }[];
@@ -69,7 +71,17 @@ async function main(): Promise<void> {
   const divergenti: Riga[] = [];
   const tabella: Riga[] = [];
 
+  let inAttesa = 0;
   for (const r of record) {
+    // Un'assegnazione ancora «da accettare» NON si porta sul profilo: può essere rifiutata o
+    // scadere, e in quei casi il CrmRecord si svuota mentre il profilo resterebbe agganciato
+    // a una coach che non ha mai preso il lead. Ci arriverà con l'accettazione.
+    // (`assignmentStatus` nullo = dato storico, precedente al ciclo di accettazione: vale come
+    // accettato, altrimenti non ripareremmo proprio i casi più vecchi.)
+    const coachDaPropagare = r.assignmentStatus === 'pending' ? null : r.assignedCoachId;
+    if (r.assignmentStatus === 'pending' && r.assignedCoachId) inAttesa++;
+    if (!coachDaPropagare && !r.assignedNutritionistId) continue;
+
     const prof = (await prisma.clientProfile.findUnique({
       where: { userId: r.clientId },
       select: { assignedCoachId: true, assignedNutritionistId: true },
@@ -78,23 +90,23 @@ async function main(): Promise<void> {
     const base = {
       cliente: r.name ?? '(senza nome)',
       email: r.email ?? '—',
-      coachCrm: r.assignedCoach?.displayName ?? '—',
+      coachCrm: coachDaPropagare ? r.assignedCoach?.displayName ?? '—' : '—',
       nutriCrm: r.assignedNutritionist?.displayName ?? '—',
     };
 
     if (!prof) {
-      daCreare.push(r);
+      daCreare.push({ ...r, assignedCoachId: coachDaPropagare });
       tabella.push({ ...base, azione: 'CREA profilo con assegnazione' });
       continue;
     }
 
     const patch: Record<string, string> = {};
-    if (r.assignedCoachId && !prof.assignedCoachId) patch.assignedCoachId = r.assignedCoachId;
+    if (coachDaPropagare && !prof.assignedCoachId) patch.assignedCoachId = coachDaPropagare;
     if (r.assignedNutritionistId && !prof.assignedNutritionistId) {
       patch.assignedNutritionistId = r.assignedNutritionistId;
     }
 
-    const coachDiversa = r.assignedCoachId && prof.assignedCoachId && prof.assignedCoachId !== r.assignedCoachId;
+    const coachDiversa = coachDaPropagare && prof.assignedCoachId && prof.assignedCoachId !== coachDaPropagare;
     if (coachDiversa) divergenti.push({ ...base, azione: 'profilo assegnato ad ALTRA coach — lasciato com’è' });
 
     if (Object.keys(patch).length > 0) {
@@ -103,12 +115,16 @@ async function main(): Promise<void> {
     }
   }
 
+  const nota = inAttesa
+    ? `\n(${inAttesa} lead assegnati ma ancora DA ACCETTARE: non si toccano, la coach arriva sul profilo quando accetta.)`
+    : '';
+
   if (tabella.length === 0 && divergenti.length === 0) {
-    console.log(`Esaminati ${record.length} lead collegati: tutte le assegnazioni sono già allineate ✓`);
+    console.log(`Esaminati ${record.length} lead collegati: tutte le assegnazioni sono già allineate ✓${nota}`);
     return;
   }
 
-  console.log(`Esaminati ${record.length} lead collegati a un account.\n`);
+  console.log(`Esaminati ${record.length} lead collegati a un account.${nota}\n`);
   if (tabella.length) {
     console.log(`--- Da riparare: ${tabella.length} ---`);
     console.table(tabella);

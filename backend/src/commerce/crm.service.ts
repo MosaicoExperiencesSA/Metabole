@@ -105,17 +105,16 @@ export class CrmService {
     // Collega il lead all'account (senza toccare lo stage).
     await this.prisma.crmRecord.update({ where: { id: recordId }, data: { clientId: userId } });
 
-    // La coach (o la nutrizionista) del lead resta la coach della cliente: si porta
-    // l'assegnazione sul profilo, creandolo se non c'è ancora.
-    await agganciaAssegnazioneAlProfilo(this.prisma, userId, rec);
-
     // Se il lead era ancora "da accettare" ed è la coach assegnata a mandare le credenziali,
     // l'accettazione è implicita: sta già lavorando il lead. Senza questo, dopo `lead_accept_days`
     // il cron di scadenza glielo toglieva di mano proprio mentre lo stava seguendo.
+    // Va PRIMA dell'aggancio al profilo, perché è l'aggancio a dipendere da questo esito.
+    let accettato = rec.assignmentStatus === 'accepted';
     if (rec.assignmentStatus === 'pending' && rec.assignedCoachId) {
       const staff = (await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } })) as { id: string } | null;
       if (staff && staff.id === rec.assignedCoachId) {
         await this.prisma.crmRecord.update({ where: { id: recordId }, data: { assignmentStatus: 'accepted' } });
+        accettato = true;
         await this.audit.log({
           action: 'crm.lead.accept',
           actorId,
@@ -125,6 +124,18 @@ export class CrmService {
         });
       }
     }
+
+    // La coach del lead resta la coach della cliente — MA solo se l'assegnazione è accettata.
+    // Un'assegnazione ancora «da accettare» può essere rifiutata, o scadere: in quei due casi
+    // `CrmRecord` viene svuotato, il profilo cliente no (nessuno saprebbe se quella coach ce
+    // l'ha messa l'assegnazione o una decisione successiva). Quindi non la si scrive proprio:
+    // arriverà con l'accettazione, che già propaga. La nutrizionista invece non ha ciclo di
+    // accettazione, quindi passa sempre.
+    await agganciaAssegnazioneAlProfilo(this.prisma, userId, {
+      name: rec.name,
+      assignedCoachId: accettato ? rec.assignedCoachId : null,
+      assignedNutritionistId: rec.assignedNutritionistId,
+    });
 
     await this.mail.sendLeadCredentials(email, { name: rec.name, email, password }, 'it');
     await this.audit.log({

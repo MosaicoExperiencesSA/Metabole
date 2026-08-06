@@ -7,6 +7,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Un'assegnazione «da accettare» non si porta sul profilo cliente.** Buco aperto
+  da me un'ora prima, con la modifica al form Nuovo lead: da lì in poi un lead può essere
+  assegnato ma non ancora accettato, e `sendCredentials` portava comunque la coach sul profilo.
+  Se poi la coach rifiuta, o scade la finestra, `reject()` e il cron di scadenza svuotano il
+  `CrmRecord` — **il profilo no**, e la cliente resterebbe agganciata a una coach che quel lead
+  non l'ha mai preso. Nessuno se ne accorgerebbe: nel CRM il lead è tornato alla responsabile,
+  nel backoffice la cliente è di qualcun altro.
+  Ora l'accettazione implicita viene valutata **prima**, e sul profilo la coach ci arriva solo
+  se l'assegnazione risulta accettata; altrimenti ci arriva con l'accettazione, che già propaga.
+  La nutrizionista non ha ciclo di accettazione e passa sempre. Stessa regola in
+  `fix:assegnazioni`, che ora conta a parte i lead ancora da accettare invece di allinearli
+  (uno `assignmentStatus` nullo è dato storico e vale come accettato, altrimenti i casi più
+  vecchi non verrebbero riparati proprio).
+
 - `[Sviluppo]` **`install-ios.mjs` rimette da solo le quattro cose che `cap add ios` cancella.**
   Erano il conto della serata: capability Push, `GoogleService-Info.plist` agganciato al target,
   `aps-environment` a `production`, e `CODE_SIGN_IDENTITY = "iPhone Developer"` che il template
