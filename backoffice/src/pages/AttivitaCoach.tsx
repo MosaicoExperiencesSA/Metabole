@@ -23,6 +23,8 @@ const KIND_ICON: Record<string, string> = {
   plan_expiry_heads_up: 'ti-calendar-due', maintenance_regain: 'ti-scale',
   // Peso in salita durante una pausa vacanza (sorveglianza, voce #3 del 5/8).
   pause_regain: 'ti-beach',
+  // Misure non inserite: il menu è fermo e l'app si blocca (voce #6 del 5/8).
+  measures_missing: 'ti-ruler-measure',
 };
 
 export function AttivitaCoach() {

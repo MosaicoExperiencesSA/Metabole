@@ -7,6 +7,62 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Misure non inserite: menu fermo, solleciti ogni 2 ore, app bloccata e sblocco
+  dalla coach** (voce #6). Il popup bloccante c'era già e tratteneva il menu, ma ci si conviveva.
+  Ora il gate ha due livelli: il primo giorno resta il popup richiudibile; dopo
+  `measures_lock_after_hours` (24) **l'app si blocca** con «Contatta la tua coach per sbloccare la
+  app» — restando sempre possibile inserire le misure lì e ripartire subito. Nuovo cron **ogni due
+  ore** (`/internal/cron/measures-nudge`, aggiunto a `render.yaml`): sollecita la cliente con un
+  tono che cambia quando l'app è bloccata, e apre un'attività alla coach **una volta per ciclo**.
+  Niente solleciti di notte (finestra 8-22, nei parametri). La coach riapre dalla scheda cliente:
+  `POST /staff/clients/:id/measures-unlock` concede una **finestra di grazia a tempo**
+  (`measures_unlock_hours`, 48) e non un interruttore permanente — uno sblocco senza scadenza
+  equivarrebbe a spegnere la regola per sempre, e nessuno si ricorderebbe di riaccenderla.
+  **Flag `is_store_reviewer`**: sugli account dei recensori di Apple e Google il blocco non scatta
+  mai. Se si trovassero davanti a un muro rifiuterebbero la pubblicazione.
+
+- `[Sviluppo]` **Motore — stagionalità delle ricette** (voce #11: una cliente si è vista proporre
+  lo **spezzatino a luglio**). Nel sistema non esisteva alcuna nozione di stagione: il motore non
+  aveva modo di saperlo. Nuovo campo `recipe.seasons`. **Scelta di progetto (Simone, 6/8): la
+  stagione sta sulla RICETTA, non sull'ingrediente** — un catalogo degli alimenti coi mesi di
+  raccolta sarebbe più preciso ma richiede di classificare centinaia di voci prima di vedere un
+  beneficio, mentre il piatto lo si giudica a colpo d'occhio ed è quello che la cliente vede.
+  **Regola morbida**: fuori stagione il piatto è penalizzato nel punteggio (`menu_penalty_season`,
+  default 0.5), non escluso — con un catalogo da classificare escludere lascerebbe buchi, e un
+  piatto fuori stagione è meno grave di una cena mancante. Vuoto = tutto l'anno, quindi finché
+  nessuno classifica nulla **il comportamento non cambia**. Stagioni meteorologiche e non
+  astronomiche: a fine giugno il calendario direbbe ancora primavera, ma nessuno cucina lo
+  spezzatino. Selettore nel backoffice, sulla scheda ricetta.
+
+- `[Sviluppo]` **Registrazione — un "?" accanto a ogni tipo di dieta** (voce #5). Popup che spiega
+  il *modo di mangiare*, non quello specifico percorso: cos'è, cosa cambia in pratica, cosa dice la
+  ricerca, cosa tenere presente. Testi da fonti istituzionali — **Harvard T.H. Chan School of
+  Public Health (The Nutrition Source)** e **Mayo Clinic** — e non promozionali: per ogni stile si
+  dice anche il rovescio della medaglia (l'adattamento delle prime settimane nella low-carb, le
+  controindicazioni della keto in gravidanza e con problemi renali, la qualità delle fonti
+  proteiche), niente promesse e niente numeri di chili. Testi in `app/src/onboarding/dietInfo.ts`,
+  con in testa le regole da rispettare per aggiungerne.
+
+- `[Sviluppo]` **Motore — quando lo stile scelto non è disponibile, adesso si sa** (seconda metà
+  della #5: «intanto me la devi applicare»). `pickDiet` ha una catena di ripieghi che, se per lo
+  stile richiesto non esiste una dieta approvata, ne serve una di un altro stile: meglio un menu
+  che nessun menu, ma finora succedeva **in silenzio** — si sceglieva Keto e arrivava Mediterranea.
+  Ora resta traccia (log + evento `diet_style_fallback`), così il buco di catalogo si vede.
+
+- `[Sviluppo]` **App — «Porta un'amica» in Home, col foglio di condivisione nativo** (voce #13).
+  `GET /me/referral` esisteva già e generava il codice, ma nell'app **non c'era nessun posto in cui
+  vederlo**: l'invito funzionava solo se qualcuno ti dettava il codice a voce. Card sotto i
+  quadrotti, con codice, conteggio inviti e pulsante Condividi. Nuovo plugin `@capacitor/share`
+  (⚠️ **nativo**: richiede una build store) e `lib/share.ts` con tre strade — foglio nativo su app,
+  `navigator.share` sui browser che lo supportano, copia negli appunti sul desktop.
+
+- `[Sviluppo]` **Posta — inviata e cestino** (voci #12 e #17). La posta inviata era già servita da
+  `GET /me/mailbox/sent` ma nel backoffice nessuno la chiedeva (nell'app staff c'era già). Aggiunte
+  le schede Ricevuta/Inviata e il **cestino** sui messaggi ricevuti, in backoffice e nell'app della
+  coach. Nuovo `DELETE /me/mailbox/message/:uid`: **non cancella davvero**, sposta nella cartella
+  cestino del server. Su una casella condivisa fra operatrici un pulsante che distrugge sarebbe un
+  rischio. Se il server rifiuta lo spostamento si ripiega sul flag `\Deleted`.
+
 - `[Sviluppo]` **Email credenziali — pulsanti «Scarica su App Store» e «Scarica su Google Play»**
   (richiesta Simone 6/8, voce #18). Nuovo segnaposto `{storeButtons}` (nei modelli editabili dal
   backoffice: `{{storeButtons}}`), disponibile anche se il testo viene riscritto da lì. Gli URL

@@ -75,6 +75,27 @@ export default function CoachPosta() {
   const [loadingUid, setLoadingUid] = useState<number | null>(null);
   const [reply, setReply] = useState<{ to: string; name: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [cestinando, setCestinando] = useState(false);
+
+  /**
+   * Sposta il messaggio aperto nel CESTINO del server (voce #17 del 6/8).
+   * Non è una cancellazione definitiva: dal cestino si recupera, e su una casella condivisa
+   * fra operatrici un pulsante che distrugge davvero sarebbe un rischio.
+   */
+  async function cestina(uid: number) {
+    if (!confirm('Spostare il messaggio nel cestino? Resta recuperabile dalla casella.')) return;
+    setCestinando(true);
+    setErr(null);
+    try {
+      await api(`/me/mailbox/message/${uid}`, { method: 'DELETE' });
+      setOpen(null);
+      list.reload?.();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Spostamento nel cestino non riuscito.');
+    } finally {
+      setCestinando(false);
+    }
+  }
 
   async function openMessage(it: MailItem) {
     setErr(null);
@@ -197,6 +218,17 @@ export default function CoachPosta() {
                   onClick={() => { setReply({ to: addressOf(open.from), name: open.from }); setOpen(null); }}
                 >
                   Rispondi
+                </button>
+              )}
+              {tab === 'inbox' && (
+                <button
+                  className="sf-btn g"
+                  style={{ flex: 'none', padding: '0 14px' }}
+                  title="Sposta nel cestino"
+                  disabled={cestinando}
+                  onClick={() => void cestina(open.uid)}
+                >
+                  <i className="ti ti-trash" />
                 </button>
               )}
               <button className="sf-btn g" style={{ flex: 1 }} onClick={() => setOpen(null)}>Chiudi</button>

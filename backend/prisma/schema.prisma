@@ -364,6 +364,13 @@ model ClientProfile {
   // skip_breakfast | skip_breakfast_lunch | skip_dinner_breakfast. Null = finestra decisa
   // dalla dieta, com'era prima. Ha senso solo con pathType = intermittent_fasting.
   fastingWindow          String?    @map("fasting_window")
+  // --- Gate misure severo (richiesta Simone 5/8, voce #6) ---
+  // Se le misure non arrivano, il giorno dopo l'app si blocca: solo la coach può riaprirla.
+  // `measuresUnlockedUntil` è la finestra di grazia concessa dalla coach dalla chat.
+  measuresUnlockedUntil  DateTime?  @map("measures_unlocked_until")
+  // Account dei RECENSORI degli store: misure precompilate e app mai bloccata, altrimenti
+  // Apple e Google si troverebbero davanti a un muro e rifiuterebbero la pubblicazione.
+  isStoreReviewer        Boolean    @default(false) @map("is_store_reviewer")
   coachStyle             CoachStyle? @map("coach_style")
   character              Character?
   allergies              String[]   @default([]) // R8: blocco duro (incl. tracce/derivati), distinto da intolleranze/gusti
@@ -1254,6 +1261,12 @@ model Recipe {
   // che lo scelgono ("preferisco ricette semplici"), alternative semplici/vicine alla cucina
   // italiana, alternate a quelle esistenti. Default "media" per non alterare le ricette attuali.
   difficulty     String   @default("media")
+  // STAGIONALITÀ (richiesta Simone 5/8, voce #11: una cliente ha ricevuto lo spezzatino a luglio).
+  // Elenco di stagioni in cui il piatto ha senso: spring | summer | autumn | winter.
+  // Vuoto = va bene tutto l'anno, quindi le ricette esistenti non cambiano comportamento.
+  // Regola MORBIDA per decisione di Simone (6/8): fuori stagione il piatto è penalizzato nel
+  // punteggio, non escluso — con un catalogo ancora da compilare, escludere lascerebbe buchi.
+  seasons        String[] @default([])
   active         Boolean  @default(true)
   // R8 sicurezza: allergeni (14 UE, codici) presenti nella ricetta. `reviewed` = il
   // nutrizionista ha CONFERMATO i tag (una ricetta non revisionata NON è considerata sicura).

@@ -425,6 +425,22 @@ export function ClientDetail() {
   }
 
   /**
+   * Sblocca l'app quando le misure mancano (voce #6e del 5/8). Lo fa la coach dopo aver sentito
+   * la cliente: è il pezzo che rende accettabile un blocco, perché c'è sempre chi può riaprire.
+   */
+  async function sbloccaMisure() {
+    if (!d) return;
+    if (!confirm('Riaprire l\'app a questa cliente?\nÈ una finestra di grazia a tempo: se le misure continuano a non arrivare, il blocco torna.')) return;
+    setNotice(null); setError(null);
+    try {
+      const r = await api<{ until: string }>(`/staff/clients/${d.user.id}/measures-unlock`, { method: 'POST' });
+      setNotice(`App sbloccata fino al ${new Date(r.until).toLocaleString('it-IT')}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sblocco non riuscito.');
+    }
+  }
+
+  /**
    * Push di PROVA al telefono della cliente, con diagnostica.
    * Non passa dalle notifiche normali: niente limite "una volta al giorno", niente
    * voce nel campanello. Serve a capire DOVE si rompe la catena quando le push non
@@ -707,6 +723,16 @@ export function ClientDetail() {
             {can('set_client_password', 'manage') && !editing && (
               <button className="btn ghost" onClick={setClientPassword} title="Imposta una password scelta per la cliente (da comunicarle)" style={{ background: 'rgba(255,255,255,.9)' }}>
                 <i className="ti ti-lock-cog" /> Imposta password
+              </button>
+            )}
+            {!editing && (
+              <button
+                className="btn ghost"
+                onClick={sbloccaMisure}
+                title="Riapre l'app se è bloccata per le misure mancanti"
+                style={{ background: 'rgba(255,255,255,.9)' }}
+              >
+                <i className="ti ti-lock-open" /> Sblocca app
               </button>
             )}
             {isAdmin && !editing && (

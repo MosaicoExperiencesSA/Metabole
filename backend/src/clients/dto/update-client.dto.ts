@@ -1,4 +1,4 @@
-import { IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 /** Aggiornamento scheda cliente: anagrafica (User) + questionario (ClientProfile). Tutti i campi opzionali. */
 export class UpdateClientDto {
@@ -25,6 +25,9 @@ export class UpdateClientDto {
   @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   @IsOptional() @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast']) fastingWindow?: string;
+  @IsOptional() @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active']) activityLevel?: string;
+  /** Account dei recensori degli store: misure mai bloccanti (voce #6f del 5/8). */
+  @IsOptional() @IsBoolean() isStoreReviewer?: boolean;
   @IsOptional() @IsIn(['daily', 'when_needed', 'on_request']) coachStyle?: string;
   @IsOptional() @IsIn(['follows', 'needs_push', 'perseveres', 'quits']) character?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) intolerances?: string[];

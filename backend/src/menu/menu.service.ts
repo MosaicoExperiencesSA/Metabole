@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -79,6 +80,8 @@ function pickBoolOverride(overrides: Map<string, number | boolean>, code: string
 
 @Injectable()
 export class MenuService {
+  private readonly logger = new Logger(MenuService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
@@ -302,6 +305,30 @@ export class MenuService {
 
     const diet = await this.pickDiet(profile);
     if (!diet) return [];
+
+    // La dieta scelta dalla cliente va APPLICATA (voce #5: «intanto me la devi applicare»).
+    // `pickDiet` ha una catena di ripieghi che, se per lo stile richiesto non esiste una dieta
+    // approvata, finisce per servirne una di un altro stile: meglio un menu che nessun menu, ma
+    // finora succedeva in silenzio — la cliente sceglieva Keto e riceveva Mediterranea senza che
+    // nessuno lo sapesse. Ora resta traccia, così il buco di catalogo si vede e si colma.
+    const stileRichiesto = (profile as { dietStyle?: string | null }).dietStyle ?? null;
+    const stileServito = (diet as { style?: string | null }).style ?? null;
+    if (stileRichiesto && stileServito && stileRichiesto !== stileServito) {
+      this.logger.warn(
+        `Stile dieta non disponibile per ${clientId}: richiesto "${stileRichiesto}", servito "${stileServito}".`,
+      );
+      await this.prisma.analyticsEvent
+        .create({
+          data: {
+            eventId: randomUUID(),
+            name: 'diet_style_fallback',
+            userId: clientId,
+            phase: 'app',
+            data: { richiesto: stileRichiesto, servito: stileServito, dietId: diet.id } as never,
+          } as never,
+        })
+        .catch(() => undefined);
+    }
 
     // Il motore (M5) può aver deciso una variazione di livello per questa cliente.
     const decision = await this.prisma.engineDecision.findFirst({
@@ -551,7 +578,26 @@ export class MenuService {
     required: boolean;
     blocking: boolean;
     cycleDate: string | null;
+    /** 'none' · 'popup' (primo giorno, richiudibile) · 'locked' (dal giorno dopo: serve la coach). */
+    level: 'none' | 'popup' | 'locked';
+    /** Da quando la richiesta è aperta: serve a capire se siamo passati al giorno dopo. */
+    since: string | null;
+    lockedMessage: string | null;
   }> {
+    // RECENSORI degli store: mai bloccati (voce #6f). Se Apple o Google si trovassero davanti a
+    // un muro rifiuterebbero la pubblicazione, e non avremmo modo di spiegarglielo.
+    const prof = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { isStoreReviewer: true, measuresUnlockedUntil: true },
+    })) as { isStoreReviewer: boolean | null; measuresUnlockedUntil: Date | null } | null;
+    if (prof?.isStoreReviewer) {
+      return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
+    }
+    // Sblocco concesso dalla coach dalla chat: finestra di grazia, non un interruttore per sempre.
+    if (prof?.measuresUnlockedUntil && prof.measuresUnlockedUntil.getTime() > Date.now()) {
+      return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
+    }
+
     const daysPerDelivery = await this.configParams.getNumber('menu_days_delivered', 2);
     const last = await this.prisma.menuDay.findFirst({
       where: { clientId },
@@ -562,10 +608,71 @@ export class MenuService {
       // Nessun menu ancora erogato: se il piano è attivo, la finestra è iniziata e mancano le
       // MISURE INIZIALI (punto A), blocca comunque col popup — le misure sbloccano il 1° menu.
       const needsInitial = await this.needsInitialMeasures(clientId);
-      return { required: needsInitial, blocking: needsInitial, cycleDate: null };
+      return {
+        required: needsInitial,
+        blocking: needsInitial,
+        cycleDate: null,
+        level: needsInitial ? 'popup' : 'none',
+        since: null,
+        lockedMessage: null,
+      };
     }
     const needs = await this.cycleNeedsMeasure(clientId, last, daysPerDelivery);
-    return { required: needs, blocking: needs, cycleDate: last.date.toISOString().slice(0, 10) };
+    if (!needs) {
+      return { required: false, blocking: false, cycleDate: last.date.toISOString().slice(0, 10), level: 'none', since: null, lockedMessage: null };
+    }
+    // Da quando la misura è dovuta: il ciclo scade `daysPerDelivery` giorni dopo l'ultimo menu.
+    const dovutaDa = new Date(last.date.getTime() + daysPerDelivery * 86_400_000);
+    const oreDaAllora = (Date.now() - dovutaDa.getTime()) / 3_600_000;
+    const oreDiGrazia = await this.configParams.getNumber('measures_lock_after_hours', 24);
+    const locked = oreDaAllora >= oreDiGrazia;
+    return {
+      required: true,
+      blocking: true,
+      cycleDate: last.date.toISOString().slice(0, 10),
+      level: locked ? 'locked' : 'popup',
+      since: dovutaDa.toISOString(),
+      lockedMessage: locked
+        ? 'Contatta la tua coach per sbloccare la app.'
+        : null,
+    };
+  }
+
+  /**
+   * Sblocco concesso dalla coach (voce #6e): riapre l'app per un numero di ore configurabile.
+   * È una finestra e non un interruttore: uno sblocco senza scadenza equivarrebbe a spegnere la
+   * regola per sempre, e nessuno si ricorderebbe di riaccenderla.
+   */
+  async unlockMeasures(clientId: string, staffUserId: string): Promise<{ until: string }> {
+    const ore = await this.configParams.getNumber('measures_unlock_hours', 48);
+    const until = new Date(Date.now() + ore * 3_600_000);
+    await this.prisma.clientProfile.update({
+      where: { userId: clientId },
+      data: { measuresUnlockedUntil: until } as never,
+    });
+    await this.audit.log({
+      action: 'measures.unlock',
+      actorId: staffUserId,
+      entityType: 'client_profile',
+      entityId: clientId,
+      metadata: { until: until.toISOString(), hours: ore },
+    });
+    await this.prisma.notification
+      .create({
+        data: {
+          userId: clientId,
+          type: 'measures_unlocked',
+          payload: {
+            title: 'App sbloccata 💚',
+            body: `La tua coach ha riaperto l'app. Quando puoi, inserisci le misure: servono per prepararti il menu giusto.`,
+          } as never,
+          channel: 'inapp',
+          scheduledFor: new Date(),
+          sentAt: new Date(),
+        },
+      })
+      .catch(() => undefined);
+    return { until: until.toISOString() };
   }
 
   /**
@@ -730,7 +837,7 @@ export class MenuService {
   } | null> {
     if (!regime) return null;
 
-    const [wEffBaseG, wGradBaseG, boostG, proteinBonusG, penaltyRepeatG, repeatWindowDaysG, maintWEffG] = await Promise.all([
+    const [wEffBaseG, wGradBaseG, boostG, proteinBonusG, penaltyRepeatG, repeatWindowDaysG, maintWEffG, penaltyStagioneG] = await Promise.all([
       this.configParams.getNumber('menu_select_w_eff', 1),
       this.configParams.getNumber('menu_select_w_grad', 1),
       this.configParams.getNumber('menu_state_boost', 1.8),
@@ -742,6 +849,10 @@ export class MenuService {
       this.configParams.getNumber('menu_repeat_window_days', 14),
       // R12: peso efficacia in MANTENIMENTO (default 0 = efficacia neutra).
       this.configParams.getNumber('menu_maintenance_w_eff', 0),
+      // Stagionalità (voce #11): quanto pesa proporre un piatto fuori stagione. Alto abbastanza
+      // da spostare la scelta quando esiste un'alternativa, non tanto da svuotare il menu quando
+      // non esiste. A 0 la regola è spenta.
+      this.configParams.getNumber('menu_penalty_season', 0.5),
     ]);
     // Applica gli override PER DIETA (fallback al globale).
     const wEffBase = pickNumOverride(overrides, 'menu_select_w_eff', wEffBaseG);
@@ -751,6 +862,7 @@ export class MenuService {
     const penaltyRepeat = pickNumOverride(overrides, 'menu_penalty_repeat', penaltyRepeatG);
     const repeatWindowDays = pickNumOverride(overrides, 'menu_repeat_window_days', repeatWindowDaysG);
     const maintWEff = pickNumOverride(overrides, 'menu_maintenance_w_eff', maintWEffG);
+    const penaltyStagione = pickNumOverride(overrides, 'menu_penalty_season', penaltyStagioneG);
     // Modulazione dei pesi in base allo stato dell'agente.
     let wEff = wEffBase;
     let wGrad = wGradBase;
@@ -776,7 +888,7 @@ export class MenuService {
     if (poolIds.size === 0) return null;
 
     const [recipes, weights, ratings] = await Promise.all([
-      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true } }) as Promise<{ id: string; kcal: number; macros: unknown }[]>,
+      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[] }[]>,
       this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
       this.prisma.recipeRating.findMany({ where: { clientId }, select: { recipeId: true, stars: true } }) as Promise<{ recipeId: string; stars: number }[]>,
     ]);
@@ -809,11 +921,24 @@ export class MenuService {
       proteinOf.set(r.id, tot > 0 ? (m?.protein_g ?? 0) / tot : 0);
     }
 
+    // STAGIONALITÀ (voce #11): una cliente si è vista proporre lo spezzatino a luglio.
+    // Regola MORBIDA per decisione di Simone: fuori stagione il piatto è PENALIZZATO, non escluso.
+    // Con un catalogo ancora da classificare, escludere lascerebbe buchi nei menu — e un piatto
+    // fuori stagione è meno grave di una cena mancante. Ricetta senza stagioni = buona sempre,
+    // quindi finché nessuno classifica nulla il comportamento non cambia di una virgola.
+    const stagioneOggi = stagioneCorrente();
+    const fuoriStagione = new Set<string>();
+    for (const r of recipes) {
+      const st = r.seasons ?? [];
+      if (st.length > 0 && !st.includes(stagioneOggi)) fuoriStagione.add(r.id);
+    }
+
     const score = (id: string) =>
       wEff * (effOf.get(id) ?? 0) +
       wGrad * ((starOf.get(id) ?? 5) / 5) +
       (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0) -
-      penaltyRepeat * (recentCount.get(id) ?? 0); // R11: scoraggia la ripetizione (varietà)
+      penaltyRepeat * (recentCount.get(id) ?? 0) - // R11: scoraggia la ripetizione (varietà)
+      (fuoriStagione.has(id) ? penaltyStagione : 0);
 
     // Conta come "servita di recente" anche una ricetta appena scelta in QUESTO ciclo: senza
     // questo, i 2 giorni erogati insieme venivano composti con lo stesso identico punteggio e
@@ -1597,4 +1722,18 @@ export class MenuService {
     );
     return this.prisma.shoppingList.update({ where: { id: listId }, data: { items: items as never } });
   }
+}
+
+/**
+ * Stagione METEOROLOGICA dell'emisfero nord, che è dove stanno le clienti.
+ * Si usano i confini meteorologici (mar-mag, giu-ago, set-nov, dic-feb) e non quelli astronomici:
+ * a fine giugno il calendario dice ancora primavera per qualche giorno, ma nessuno cucina lo
+ * spezzatino — ed è proprio quel caso che ha fatto nascere questa regola.
+ */
+export function stagioneCorrente(d: Date = new Date()): string {
+  const m = d.getMonth() + 1;
+  if (m >= 3 && m <= 5) return 'spring';
+  if (m >= 6 && m <= 8) return 'summer';
+  if (m >= 9 && m <= 11) return 'autumn';
+  return 'winter';
 }

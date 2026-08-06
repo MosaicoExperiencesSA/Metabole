@@ -27,6 +27,7 @@
     "@capacitor/core": "^6.1.2",
     "@capacitor/preferences": "^6.0.2",
     "@capacitor/push-notifications": "^6.0.5",
+    "@capacitor/share": "^6.0.4",
     "@capacitor/status-bar": "^6.0.3",
     "@capgo/capacitor-updater": "^6.50.2",
     "react": "^18.3.1",

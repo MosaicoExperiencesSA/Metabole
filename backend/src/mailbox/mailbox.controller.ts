@@ -51,6 +51,13 @@ export class MailboxController {
     return this.mailbox.getMessage(user.sub, Number(uid), folder === 'sent' ? 'sent' : 'inbox');
   }
 
+  /** Sposta nel cestino un messaggio RICEVUTO (voce #17). Non è una cancellazione definitiva. */
+  @HttpCode(200)
+  @Delete('message/:uid')
+  deleteMessage(@Param('uid') uid: string, @CurrentUser() user: AuthUser) {
+    return this.mailbox.deleteInboxMessage(user.sub, Number(uid));
+  }
+
   @HttpCode(200)
   @Post('send')
   send(@Body() dto: SendMailDto, @CurrentUser() user: AuthUser) {

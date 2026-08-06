@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import Sheet from '../components/Sheet';
 import CheckinPopup, { type CheckinValori } from '../components/CheckinPopup';
+import ReferralCard from '../components/ReferralCard';
 import MenuReviewPopup from '../components/MenuReviewPopup';
 import VoiceToggle from '../components/VoiceToggle';
 import { fraseDelGiorno } from '../lib/frasiGaia';
@@ -472,6 +473,11 @@ export default function Home() {
         <KpiTile icon={waterIcon(waterUnit)} value={today ? `${waterValue(today.water.glasses, waterUnit)}/${waterGoalValue(today.water.goal, waterUnit)}` : '—'} label="acqua" color="#2AA7C4" onClick={today ? addWater : undefined} hint={today ? `Tocca per aggiungere ${waterUnit === 'glass' ? 'un bicchiere (250 ml)' : `una ${WATER_UNITS[waterUnit].label.toLowerCase().replace(/^bottiglie/, 'bottiglia')}`} · obiettivo di oggi ${waterLiters(today.water.goal)}` : undefined} />
         <KpiTile icon="ti-walk" value={deviceSteps != null ? deviceSteps.toLocaleString('it-IT') : today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
       </div>
+
+      {/* Porta un'amica: codice invito + condivisione nativa (voce #13). Sta subito sotto i
+          quadrotti perché è lì che la cliente guarda ogni giorno; l'endpoint esisteva già ma
+          nell'app non c'era nessun posto in cui vedere il proprio codice. */}
+      <ReferralCard />
 
       {/* Help rapido */}
       <div className="sec" style={{ margin: '4px 2px 8px' }}>Help</div>

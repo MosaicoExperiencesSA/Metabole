@@ -16,6 +16,7 @@ interface Recipe {
   cookingMethods?: CookingMethod[] | null;
   tags: string[];
   difficulty?: string;
+  seasons?: string[];
   active: boolean;
 }
 
@@ -25,6 +26,7 @@ const DIFFICULTY: Record<string, string> = { semplice: 'Semplice', media: 'Media
 const SLOTS = Object.keys(SLOT);
 const METHODS = Object.keys(METHOD);
 const DIFFICULTIES = Object.keys(DIFFICULTY);
+const SEASONS: [string, string][] = [['spring', 'Primavera'], ['summer', 'Estate'], ['autumn', 'Autunno'], ['winter', 'Inverno']];
 const ITALIAN_TAG = 'cucina italiana';
 
 interface FormMethod { type: string; stepsText: string }
@@ -35,6 +37,7 @@ interface Form {
   kcal: string;
   tags: string;
   difficulty: string;
+  seasons: string[];
   italian: boolean;
   ingredients: Ingredient[];
   methods: FormMethod[];
@@ -42,7 +45,7 @@ interface Form {
 }
 
 const emptyForm = (regime = 'omnivore'): Form => ({
-  name: '', regime, mealSlot: 'lunch', kcal: '', tags: '', difficulty: 'media', italian: false,
+  name: '', regime, mealSlot: 'lunch', kcal: '', tags: '', difficulty: 'media', seasons: [], italian: false,
   ingredients: [{ name: '', qty: null, unit: '' }],
   methods: [{ type: 'veloce', stepsText: '' }],
   active: true,
@@ -55,6 +58,7 @@ function toForm(r: Recipe): Form {
     // Il tag "cucina italiana" è gestito con la checkbox dedicata: lo tolgo dal campo Tag libero.
     tags: tags.filter((t) => t.toLowerCase().trim() !== ITALIAN_TAG).join(', '),
     difficulty: r.difficulty ?? 'media',
+    seasons: r.seasons ?? [],
     italian: tags.some((t) => t.toLowerCase().trim() === ITALIAN_TAG),
     ingredients: r.ingredients?.length ? r.ingredients : [{ name: '', qty: null, unit: '' }],
     methods: (r.cookingMethods ?? []).length
@@ -205,7 +209,7 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
       .filter((m) => m.steps.length > 0);
     const tags = f.tags.split(',').map((t) => t.trim()).filter(Boolean).filter((t) => t.toLowerCase() !== ITALIAN_TAG);
     if (f.italian) tags.push(ITALIAN_TAG);
-    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, tags, difficulty: f.difficulty, active: f.active };
+    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, tags, difficulty: f.difficulty, seasons: f.seasons, active: f.active };
 
     setBusy(true);
     try {
@@ -234,6 +238,26 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
           <input className="input" inputMode="numeric" value={f.kcal} onChange={(e) => setF({ ...f, kcal: e.target.value })} placeholder="480" /></label>
         <label><span className="muted" style={{ fontSize: 12 }}>Difficoltà</span>
           <select className="select" value={f.difficulty} onChange={(e) => setF({ ...f, difficulty: e.target.value })}>{DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY[d]}</option>)}</select></label>
+        {/* Stagionalità (voce #11): nessuna spunta = il piatto va bene tutto l'anno.
+            Fuori stagione la ricetta viene penalizzata nella scelta, non esclusa. */}
+        <label className="field" style={{ gridColumn: '1 / -1' }}>
+          <span>Stagioni <span className="muted" style={{ fontWeight: 400 }}>— nessuna spunta = tutto l'anno. Fuori stagione il piatto viene proposto meno, non escluso.</span></span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 4 }}>
+            {SEASONS.map(([val, lbl]) => {
+              const on = f.seasons.includes(val);
+              return (
+                <button
+                  type="button"
+                  key={val}
+                  className={on ? 'btn sm' : 'btn ghost sm'}
+                  onClick={() => setF({ ...f, seasons: on ? f.seasons.filter((x) => x !== val) : [...f.seasons, val] })}
+                >
+                  {lbl}
+                </button>
+              );
+            })}
+          </div>
+        </label>
         <label style={{ gridColumn: '1 / -1' }}><span className="muted" style={{ fontSize: 12 }}>Tag (separati da virgola)</span>
           <input className="input" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="Da portare, Leggera" /></label>
         <label className="row" style={{ gridColumn: '1 / -1', alignItems: 'center', gap: 8, cursor: 'pointer' }}>

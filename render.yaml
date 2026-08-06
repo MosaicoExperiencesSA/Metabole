@@ -93,3 +93,17 @@ services:
     startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/reminders'
     envVars:
       - fromGroup: metabole-shared
+
+  # Sollecito misure: ogni 2 ore ricorda a chi ha il menu fermo di inserire peso e circonferenze,
+  # e la prima volta apre un'attività alla coach (voce #6 del feedback clienti 5/8).
+  # La finestra oraria (niente solleciti di notte) e la cadenza sono nei parametri, non qui.
+  - type: cron
+    name: metabole-cron-measures-nudge
+    runtime: node
+    region: frankfurt
+    schedule: '0 */2 * * *'
+    rootDir: backend
+    buildCommand: 'echo cron pronto'
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/measures-nudge'
+    envVars:
+      - fromGroup: metabole-shared

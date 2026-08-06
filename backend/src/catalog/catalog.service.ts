@@ -622,6 +622,8 @@ export class CatalogService {
     if (dto.tags !== undefined) data.tags = dto.tags;
     if (dto.macros !== undefined) data.macros = dto.macros as never;
     if (dto.difficulty !== undefined) data.difficulty = dto.difficulty;
+    // Stagionalità (voce #11): array vuoto = buona tutto l'anno.
+    if (dto.seasons !== undefined) data.seasons = dto.seasons;
     if (dto.active !== undefined) data.active = dto.active;
     const recipe = await this.prisma.recipe.update({ where: { id }, data });
     await this.audit.log({
@@ -651,6 +653,7 @@ export class CatalogService {
         tags: dto.tags ?? [],
         macros: (dto.macros ?? undefined) as never,
         difficulty: dto.difficulty ?? 'media',
+        seasons: dto.seasons ?? [],
         active: dto.active ?? true,
       },
     });

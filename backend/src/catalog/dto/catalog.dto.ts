@@ -201,6 +201,15 @@ export class CreateRecipeDto {
   @IsIn(['semplice', 'media', 'elaborata'])
   difficulty?: string;
 
+  /**
+   * Stagioni in cui il piatto ha senso (voce #11). Vuoto = tutto l'anno.
+   * Fuori stagione la ricetta è penalizzata nel punteggio, non esclusa.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsIn(['spring', 'summer', 'autumn', 'winter'], { each: true })
+  seasons?: string[];
+
   @IsOptional()
   @IsBoolean()
   active?: boolean;
@@ -217,6 +226,7 @@ export class UpdateRecipeDto {
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsObject() macros?: Record<string, number>;
   @IsOptional() @IsIn(['semplice', 'media', 'elaborata']) difficulty?: string;
+  @IsOptional() @IsArray() @IsIn(['spring', 'summer', 'autumn', 'winter'], { each: true }) seasons?: string[];
   @IsOptional() @IsBoolean() active?: boolean;
 }
 

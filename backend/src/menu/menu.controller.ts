@@ -133,3 +133,19 @@ export class MenuController {
     return this.menu.checkItem(user.sub, id, dto.itemName, dto.checked);
   }
 }
+
+/**
+ * Sblocco dell'app quando le misure mancano (voce #6e del 5/8).
+ * Lo usa la coach DALLA CHAT, dopo aver sentito la cliente e capito il motivo: è il pezzo che
+ * rende accettabile un blocco: c'è sempre una persona che può riaprire.
+ */
+@Controller('staff/clients')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'admin')
+export class StaffMeasuresController {
+  constructor(private readonly menu: MenuService) {}
+
+  @Post(':clientId/measures-unlock')
+  unlock(@Param('clientId') clientId: string, @CurrentUser() user: AuthUser) {
+    return this.menu.unlockMeasures(clientId, user.sub);
+  }
+}

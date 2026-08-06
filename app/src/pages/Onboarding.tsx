@@ -7,6 +7,7 @@ import { TypeText } from '../components/TypeText';
 import BrandPicker from '../components/BrandPicker';
 import { applyBrand } from '../lib/brand';
 import FieldInput from '../onboarding/Field';
+import { DIET_INFO, DIET_INFO_FONTI } from '../onboarding/dietInfo';
 import PlanFlow from './PlanFlow';
 import type { Field, OnboardingResult, Page, Questions } from '../onboarding/types';
 
@@ -74,6 +75,8 @@ const prettyStyle = (s: string) => STYLE_LABELS[s] ?? s.replace(/_/g, ' ').repla
 function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: string, v: unknown) => void }) {
   const [products, setProducts] = useState<DietProduct[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  // "?" accanto al nome: spiega il TIPO di alimentazione, non questo specifico percorso (voce #5).
+  const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
     api<DietProduct[]>('/onboarding/diet-products')
@@ -107,6 +110,20 @@ function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: 
         <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => onChange('dietStyle', p.style)}>
           <b style={{ fontSize: 15 }}>
             {p.name && p.name !== p.style ? p.name : prettyStyle(p.style)}
+            {DIET_INFO[p.style] && (
+              <button
+                type="button"
+                aria-label={`Cos'è la dieta ${DIET_INFO[p.style].titolo}`}
+                onClick={(e) => { e.stopPropagation(); setInfo(p.style); }}
+                style={{
+                  marginLeft: 7, width: 18, height: 18, borderRadius: '50%', padding: 0,
+                  border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
+                  fontSize: 11, fontWeight: 700, lineHeight: 1, cursor: 'pointer', verticalAlign: '2px',
+                }}
+              >
+                ?
+              </button>
+            )}
             {p.recommended && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#B8860B', background: 'rgba(255,193,7,.15)', padding: '2px 8px', borderRadius: 20 }}><i className="ti ti-star-filled" style={{ fontSize: 10, verticalAlign: '-1px' }} /> Consigliato</span>}
             {p.seasonalTag && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: 'var(--teal)', background: 'rgba(51,177,144,.12)', padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' }}>{p.seasonalTag}</span>}
           </b>
@@ -150,6 +167,37 @@ function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: 
         </>
       )}
       {others.map(renderCard)}
+
+      {/* Scheda informativa sul TIPO di alimentazione. Testi da fonti istituzionali
+          (Harvard T.H. Chan · Mayo Clinic), non promozionali: si dice anche il rovescio della
+          medaglia, e si rimanda alla nutrizionista, che in questo percorso c'è davvero. */}
+      {info && DIET_INFO[info] && (
+        <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setInfo(null); }}>
+          <div className="sheet-card" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '82vh', overflowY: 'auto' }}>
+            <div className="sheet-grab" />
+            <b style={{ fontSize: 16 }}>{DIET_INFO[info].titolo}</b>
+            <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: '8px 0 0' }}>{DIET_INFO[info].cose}</p>
+
+            <div className="sec" style={{ margin: '14px 0 4px' }}>In pratica</div>
+            <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{DIET_INFO[info].inPratica}</p>
+
+            <div className="sec" style={{ margin: '14px 0 4px' }}>Cosa dice la ricerca</div>
+            <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{DIET_INFO[info].cosaDiceLaRicerca}</p>
+
+            <div className="sec" style={{ margin: '14px 0 4px' }}>Da tenere presente</div>
+            <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{DIET_INFO[info].attenzione}</p>
+
+            <p className="muted" style={{ fontSize: 11, lineHeight: 1.5, margin: '14px 0 0' }}>
+              Fonti: {DIET_INFO_FONTI.join(' · ')}. Sono informazioni generali, non un consiglio
+              medico: la scelta la fate insieme tu e la tua nutrizionista.
+            </p>
+
+            <button className="btn" style={{ width: '100%', marginTop: 14 }} onClick={() => setInfo(null)}>
+              Ho capito
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -560,6 +560,86 @@ export class NotificationsService {
   }
 
   /** Batch giornaliero per tutte le clienti attive (chiamato dal cron). */
+  /**
+   * SOLLECITO MISURE ogni due ore (voce #6 del 5/8, punti b e c).
+   *
+   * Gira più volte al giorno, non una: la richiesta era «push ogni 2 ore» finché la misura non
+   * arriva. La cadenza non è scritta qui ma nella finestra di deduplica delle notifiche, così
+   * cambiarla è un parametro e non un deploy.
+   *
+   * Due cose insieme:
+   *  - alla cliente un sollecito, con un tono che cambia quando l'app si è bloccata;
+   *  - alla coach un avviso UNA volta per ciclo, così sa di chi si tratta prima che diventi un
+   *    problema. Non serve tempestarla: il task resta lì finché non lo chiude.
+   *
+   * Nessun sollecito di notte: fra le 22 e le 8 non si suona il campanello a nessuno.
+   */
+  async measuresNudgeTick(): Promise<{ controllate: number; sollecitate: number; coachAvvisate: number }> {
+    const ora = new Date().getHours();
+    const [inizio, fine, oreSollecito] = await Promise.all([
+      this.configParams.getNumber('measures_nudge_start_hour', 8),
+      this.configParams.getNumber('measures_nudge_end_hour', 22),
+      this.configParams.getNumber('measures_nudge_hours', 2),
+    ]);
+    if (ora < inizio || ora >= fine) return { controllate: 0, sollecitate: 0, coachAvvisate: 0 };
+
+    // Solo chi ha un piano attivo: a piano scaduto le misure non servono a nulla.
+    const attivi = (await this.prisma.subscription.findMany({
+      where: { status: 'active' },
+      select: { clientId: true },
+      distinct: ['clientId'],
+    })) as { clientId: string }[];
+
+    let sollecitate = 0;
+    let coachAvvisate = 0;
+    for (const { clientId } of attivi) {
+      try {
+        const gate = await this.menu.measurementGate(clientId);
+        if (!gate.blocking) continue;
+
+        const bloccata = gate.level === 'locked';
+        const fatta = await this.notifyOncePerDay({
+          userId: clientId,
+          type: 'measures_nudge',
+          title: bloccata ? 'App in pausa: servono le tue misure' : 'Mancano le misure ⚖️',
+          body: bloccata
+            ? 'Per ripartire servono le misure di questo ciclo. Se non riesci a inserirle, scrivi alla tua coach: le basta un messaggio per riaprirti l\'app.'
+            : 'Un attimo sulla bilancia e il metro: senza le misure non riesco a prepararti il menu giusto per i prossimi giorni.',
+          dedupeWindowMs: oreSollecito * 3_600_000,
+        });
+        if (fatta) sollecitate++;
+
+        // Avviso alla coach: una volta per ciclo (refId = data del ciclo).
+        const rif = gate.cycleDate ?? 'iniziali';
+        const esiste = await this.prisma.coachTask.findUnique({
+          where: { clientId_kind_refId: { clientId, kind: 'measures_missing', refId: rif } } as never,
+          select: { id: true },
+        });
+        if (!esiste) {
+          const oggi = new Date();
+          oggi.setHours(0, 0, 0, 0);
+          await this.prisma.coachTask
+            .create({
+              data: {
+                clientId,
+                kind: 'measures_missing',
+                refId: rif,
+                title: 'Misure non inserite: il menu è fermo',
+                description:
+                  'Senza le misure di questo ciclo il menu non parte. Sentila per capire il motivo: se serve, puoi sbloccarle l\'app dalla sua scheda.',
+                dueDate: oggi,
+              },
+            })
+            .catch(() => undefined);
+          coachAvvisate++;
+        }
+      } catch {
+        /* una cliente che va storta non ferma le altre */
+      }
+    }
+    return { controllate: attivi.length, sollecitate, coachAvvisate };
+  }
+
   async generateDailyBatch() {
     const clients = await this.prisma.clientProfile.findMany({
       where: { onboardingCompletedAt: { not: null }, user: { status: 'active', deletedAt: null } },

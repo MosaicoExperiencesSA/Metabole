@@ -1,0 +1,19 @@
+-- Stagionalità delle ricette (richiesta Simone 5/8, voce #11).
+--
+-- Il caso che l'ha fatta nascere: una cliente si è vista proporre lo spezzatino a luglio. Nel
+-- sistema non esisteva alcuna nozione di stagione — né sulle ricette né sugli ingredienti — quindi
+-- il motore non aveva modo di saperlo.
+--
+-- Scelta di progetto (Simone, 6/8): la stagione sta sulla RICETTA e non sull'ingrediente. Un
+-- modello degli alimenti con i mesi di raccolta sarebbe più preciso, ma richiede di catalogare
+-- centinaia di ingredienti prima di vedere un solo beneficio; il piatto invece lo si giudica a
+-- colpo d'occhio, e sono i piatti che la cliente vede.
+--
+-- Array e non un singolo valore: molti piatti hanno due stagioni buone (primavera e autunno) e
+-- una sola stonata. Vuoto = buono tutto l'anno, così **nessuna ricetta esistente cambia
+-- comportamento** finché qualcuno non la classifica dal backoffice.
+--
+-- La regola è MORBIDA: fuori stagione il piatto viene penalizzato nel punteggio, non escluso.
+-- Con un catalogo ancora da compilare, escludere avrebbe lasciato buchi nei menu — e un menu con
+-- un piatto fuori stagione è meno grave di un menu senza cena.
+ALTER TABLE "recipe" ADD COLUMN "seasons" TEXT[] NOT NULL DEFAULT '{}';

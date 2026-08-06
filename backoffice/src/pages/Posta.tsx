@@ -113,6 +113,11 @@ export function Posta() {
   const [notice, setNotice] = useState<string | null>(null);
   const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(false);
+  // Cartella mostrata. La posta INVIATA era già servita da GET /me/mailbox/sent ma nessuno la
+  // chiedeva: qui si vedeva solo la posta in arrivo, e per capire cosa fosse stato risposto a
+  // una cliente bisognava aprire un altro client di posta (voce #12 del 5/8).
+  const [folder, setFolder] = useState<'inbox' | 'sent'>('inbox');
+  const [deleting, setDeleting] = useState<number | null>(null);
   const [open, setOpen] = useState<FullMessage | null>(null);
   const [compose, setCompose] = useState<{ to: string; subject: string; text: string } | null>(null);
 
@@ -130,15 +135,40 @@ export function Posta() {
     }
   }
 
-  async function loadInbox() {
+  async function loadInbox(which: 'inbox' | 'sent' = folder) {
     setLoadingInbox(true);
     setError(null);
     try {
-      setInbox(await api<InboxItem[]>('/me/mailbox/inbox?limit=30'));
+      setInbox(await api<InboxItem[]>(`/me/mailbox/${which}?limit=30`));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lettura della posta non riuscita.');
     } finally {
       setLoadingInbox(false);
+    }
+  }
+
+  function cambiaCartella(which: 'inbox' | 'sent') {
+    setFolder(which);
+    setInbox([]);
+    void loadInbox(which);
+  }
+
+  /**
+   * Sposta nel cestino del server (voce #17). Non cancella davvero: su una casella condivisa
+   * fra operatrici un pulsante che distrugge sarebbe un rischio, e dal cestino si recupera.
+   */
+  async function cestina(it: InboxItem) {
+    if (!confirm(`Spostare nel cestino "${it.subject || '(nessun oggetto)'}"?\nResta recuperabile dalla cartella cestino della casella.`)) return;
+    setDeleting(it.uid);
+    setError(null);
+    try {
+      await api(`/me/mailbox/message/${it.uid}`, { method: 'DELETE' });
+      setInbox((rs) => rs.filter((x) => x.uid !== it.uid));
+      setNotice('Messaggio spostato nel cestino.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Spostamento nel cestino non riuscito.');
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -157,7 +187,7 @@ export function Posta() {
   async function openMessage(it: InboxItem) {
     setError(null);
     try {
-      const msg = await api<FullMessage>(`/me/mailbox/message/${it.uid}`);
+      const msg = await api<FullMessage>(`/me/mailbox/message/${it.uid}?folder=${folder}`);
       setOpen(msg);
       setInbox((rs) => rs.map((x) => (x.uid === it.uid ? { ...x, seen: true } : x)));
     } catch (err) {
@@ -187,8 +217,14 @@ export function Posta() {
   return (
     <>
       <div className="spread" style={{ marginBottom: 16 }}>
-        <p className="muted" style={{ margin: 0 }}>Casella <b>{status.email}</b> — posta in arrivo.</p>
+        <p className="muted" style={{ margin: 0 }}>
+          Casella <b>{status.email}</b> — {folder === 'inbox' ? 'posta in arrivo' : 'posta inviata'}.
+        </p>
         <div style={{ display: 'flex', gap: 8 }}>
+          <div className="seg" style={{ margin: 0 }}>
+            <div className={folder === 'inbox' ? 's on' : 's'} onClick={() => cambiaCartella('inbox')}>Ricevuta</div>
+            <div className={folder === 'sent' ? 's on' : 's'} onClick={() => cambiaCartella('sent')}>Inviata</div>
+          </div>
           <button className="btn ghost" onClick={() => void loadInbox()} disabled={loadingInbox}><i className="ti ti-refresh" /> Aggiorna</button>
           <button className="btn" onClick={() => setCompose({ to: '', subject: '', text: '' })}><i className="ti ti-pencil" /> Scrivi</button>
         </div>
@@ -205,7 +241,12 @@ export function Posta() {
         ) : (
           <table className="grid">
             <thead>
-              <tr><th style={{ width: 220 }}>Mittente</th><th>Oggetto</th><th style={{ width: 130 }}>Data</th></tr>
+              <tr>
+                <th style={{ width: 220 }}>{folder === 'inbox' ? 'Mittente' : 'Destinatario'}</th>
+                <th>Oggetto</th>
+                <th style={{ width: 130 }}>Data</th>
+                {folder === 'inbox' && <th style={{ width: 50 }} />}
+              </tr>
             </thead>
             <tbody>
               {inbox.map((it) => (
@@ -213,6 +254,18 @@ export function Posta() {
                   <td>{it.fromName || it.from}</td>
                   <td>{it.subject}</td>
                   <td className="muted">{fmtDate(it.date)}</td>
+                  {folder === 'inbox' && (
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="btn ghost sm"
+                        title="Sposta nel cestino"
+                        disabled={deleting === it.uid}
+                        onClick={() => void cestina(it)}
+                      >
+                        <i className="ti ti-trash" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

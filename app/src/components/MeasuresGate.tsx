@@ -13,6 +13,9 @@ interface Gate {
   required: boolean;
   blocking: boolean;
   cycleDate: string | null;
+  /** 'popup' = richiudibile · 'locked' = app ferma, serve la coach (voce #6 del 5/8). */
+  level?: 'none' | 'popup' | 'locked';
+  lockedMessage?: string | null;
 }
 
 function parseNum(s: string): number | undefined {
@@ -27,12 +30,16 @@ export default function MeasuresGate() {
   const [hips, setHips] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Dal giorno dopo la richiesta il gate diventa un blocco vero: niente scorciatoie, e l'unica
+  // via d'uscita è inserire le misure o farsi riaprire l'app dalla coach.
+  const [locked, setLocked] = useState(false);
 
   async function check() {
     try {
       const gate = await api<Gate>('/me/measurement-gate');
       setShow(!!gate.blocking);
-      if (gate.blocking) track('measures_gate_shown', { cycleDate: gate.cycleDate });
+      setLocked(gate.level === 'locked');
+      if (gate.blocking) track('measures_gate_shown', { cycleDate: gate.cycleDate, level: gate.level ?? 'popup' });
     } catch {
       /* in caso di errore non blocchiamo l'app */
     }
@@ -80,9 +87,11 @@ export default function MeasuresGate() {
             <i className="ti ti-ruler-2" />
           </span>
           <div>
-            <b style={{ fontSize: 16 }}>È il momento delle misure</b>
+            <b style={{ fontSize: 16 }}>{locked ? 'App in pausa' : 'È il momento delle misure'}</b>
             <div className="muted" style={{ fontSize: 11 }}>
-              Servono per sbloccare il prossimo menu. Meglio al mattino, a digiuno.
+              {locked
+                ? 'Contatta la tua coach per sbloccare la app — oppure inserisci qui le misure e riparte subito.'
+                : 'Servono per sbloccare il prossimo menu. Meglio al mattino, a digiuno.'}
             </div>
           </div>
         </div>

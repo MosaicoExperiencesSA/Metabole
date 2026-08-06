@@ -138,4 +138,17 @@ export class CronController {
     const appointmentReminders = await this.visits.sendUpcomingReminders();
     return { appointmentReminders };
   }
+
+  /**
+   * SOLLECITO MISURE (voce #6 del 5/8): va chiamato OGNI DUE ORE, non una volta al giorno.
+   * Manda il sollecito a chi ha il menu fermo per le misure mancanti e apre un'attività alla
+   * coach la prima volta. Non fa nulla di notte: la finestra oraria è nei parametri.
+   */
+  @Public()
+  @HttpCode(200)
+  @Post('measures-nudge')
+  async measuresNudge(@Headers('x-cron-secret') secret?: string) {
+    this.assertSecret(secret);
+    return this.notifications.measuresNudgeTick();
+  }
 }

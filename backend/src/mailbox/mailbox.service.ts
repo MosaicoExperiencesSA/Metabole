@@ -141,6 +141,64 @@ export class MailboxService {
     return 'Sent';
   }
 
+  /**
+   * Cartella CESTINO del server, con gli stessi ripieghi usati per la posta inviata: prima
+   * l'attributo speciale IMAP, poi i nomi più comuni (anche in italiano), infine 'Trash'.
+   */
+  private async resolveTrashFolder(client: ImapFlow): Promise<string> {
+    try {
+      const boxes = await client.list();
+      const special = boxes.find((b) => b.specialUse === '\\Trash');
+      if (special?.path) return special.path;
+      const named = boxes.find(
+        (b) =>
+          /(^|\.)(trash|deleted( items| messages)?|cestino|posta eliminata)$/i.test(b.path ?? '') ||
+          /^(trash|deleted( items)?|cestino)$/i.test(b.name ?? ''),
+      );
+      if (named?.path) return named.path;
+    } catch {
+      /* si prova comunque il nome di default qui sotto */
+    }
+    return 'Trash';
+  }
+
+  /**
+   * Sposta un messaggio ricevuto nel CESTINO (richiesta Simone 6/8, voce #17).
+   *
+   * Volutamente NON è una cancellazione definitiva: si sposta nella cartella cestino del
+   * server, dove resta recuperabile da qualunque client di posta. Una casella condivisa fra
+   * operatrici è l'ultimo posto in cui si vuole un pulsante che distrugge davvero.
+   *
+   * Se il server non permette lo spostamento si ripiega sul flag \Deleted, che è lo stesso
+   * gesto in versione più vecchia: il messaggio sparisce dall'elenco ma i dati restano finché
+   * la casella non viene compattata.
+   */
+  async deleteInboxMessage(userId: string, uid: number): Promise<{ moved: true; folder: string }> {
+    const { email, password } = await this.credsOf(userId);
+    const client = this.imapClient(email, password);
+    try {
+      await client.connect();
+      const trash = await this.resolveTrashFolder(client);
+      const lock = await client.getMailboxLock('INBOX');
+      try {
+        try {
+          await client.messageMove(String(uid), trash, { uid: true });
+          return { moved: true, folder: trash };
+        } catch {
+          await client.messageFlagsAdd(String(uid), ['\\Deleted'], { uid: true });
+          return { moved: true, folder: 'INBOX (contrassegnato come eliminato)' };
+        }
+      } finally {
+        lock.release();
+      }
+    } catch (e) {
+      const detail = this.describeMailError(e, `IMAP delete fallita (${email})`);
+      throw new BadRequestException(`Spostamento nel cestino non riuscito: ${detail}.`);
+    } finally {
+      await client.logout().catch(() => undefined);
+    }
+  }
+
   /** Legge gli ultimi N messaggi di una cartella (già connesso). Più recenti in cima. */
   private async collectRecent(client: ImapFlow, mailbox: string, limit: number) {
     const lock = await client.getMailboxLock(mailbox);
