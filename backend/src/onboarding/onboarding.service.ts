@@ -150,6 +150,8 @@ export class OnboardingService {
         // Finestra del digiuno scelta dalla cliente (voce #7). Ha senso solo con
         // pathType='intermittent_fasting'; per gli altri resta null.
         fastingWindow: (dto.pathType === 'intermittent_fasting' ? dto.fastingWindow ?? null : null) as never,
+        // Livello di attività (voce #15): senza questo il fabbisogno gira col fattore di default.
+        activityLevel: (dto.activityLevel ?? null) as never,
         coachStyle: dto.coachStyle as never,
         character: dto.character as never,
         allergies: [...(dto.allergies ?? []), ...(dto.allergiesOther ?? [])],
@@ -182,6 +184,8 @@ export class OnboardingService {
         // Finestra del digiuno scelta dalla cliente (voce #7). Ha senso solo con
         // pathType='intermittent_fasting'; per gli altri resta null.
         fastingWindow: (dto.pathType === 'intermittent_fasting' ? dto.fastingWindow ?? null : null) as never,
+        // Livello di attività (voce #15): senza questo il fabbisogno gira col fattore di default.
+        activityLevel: (dto.activityLevel ?? null) as never,
         coachStyle: dto.coachStyle as never,
         character: dto.character as never,
         allergies: [...(dto.allergies ?? []), ...(dto.allergiesOther ?? [])],

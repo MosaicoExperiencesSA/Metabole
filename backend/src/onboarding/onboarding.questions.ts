@@ -91,6 +91,18 @@ export const ONBOARDING_QUESTIONS = {
         { key: 'pathType', type: 'choice', options: ['classic3', 'five', 'intermittent_fasting'], labels: ['3 pasti', '5 pasti', 'Digiuno intermittente'], required: true },
         // Compare SOLO a chi sceglie il digiuno (voce #7 del 5/8): saltare la colazione o saltare
         // la cena sono due vite diverse, e finora la finestra la decideva il template della dieta.
+        // Livello di attività: guida il FABBISOGNO calorico e quindi le kcal dei menu.
+        // Finora si chiedeva solo «che lavoro fai?», da cui si ricavava un fattore approssimato,
+        // e chi non passava dal Profilo restava col default 1,4: fra sedentaria e molto attiva
+        // ballano 700-900 kcal al giorno, cioè l'input che sposta di più il risultato. (voce #15)
+        {
+          key: 'activityLevel',
+          type: 'choice',
+          label: 'Quanto ti muovi?',
+          options: ['sedentary', 'light', 'moderate', 'active', 'very_active'],
+          labels: ['Sedentaria', 'Leggera (1-3 volte a settimana)', 'Moderata (3-5)', 'Attiva (6-7)', 'Molto attiva'],
+          required: true,
+        },
         {
           key: 'fastingWindow',
           type: 'choice',

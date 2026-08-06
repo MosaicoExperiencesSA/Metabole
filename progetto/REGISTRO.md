@@ -7,6 +7,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Email credenziali — pulsanti «Scarica su App Store» e «Scarica su Google Play»**
+  (richiesta Simone 6/8, voce #18). Nuovo segnaposto `{storeButtons}` (nei modelli editabili dal
+  backoffice: `{{storeButtons}}`), disponibile anche se il testo viene riscritto da lì. Gli URL
+  stanno in `config_param` (`app_store_url`, `play_store_url`) e non nel codice: gli store cambiano
+  indirizzo e non deve servire un deploy per correggerli. Sono pulsanti di **testo** e non i badge
+  ufficiali a immagine, perché quasi tutti i client di posta bloccano le immagini remote finché non
+  le sblocchi a mano — e un badge invisibile non lo clicca nessuno.
+
+- `[Sviluppo]` **Onboarding — si chiede il livello di attività fisica** (voce #15). Finora si
+  chiedeva soltanto «che lavoro fai?», da cui il fabbisogno calorico ricavava un fattore
+  approssimato; chi non passava dal Profilo restava col default 1,4. Fra sedentaria e molto attiva
+  ballano 700-900 kcal al giorno: era l'input che sposta di più il risultato, ed era l'unico tirato
+  a indovinare mentre peso, altezza ed età erano dati veri.
+
+- `[Sviluppo]` **Seed — i sei parametri del fabbisogno calorico** (voce #16, chiude anche la voce 2
+  dell'audit). `kcal_need_floor_female/male`, `deficit_max_pct`, `deficit_max_kcal`, `kcal_per_kg`,
+  `default_deficit_pct` erano costanti nel codice: funzionavano, ma dal backoffice non si potevano
+  toccare e nessuno sapeva che esistessero. Ora sono in `config_param` con una descrizione che
+  spiega cosa fanno.
+
 - `[Sviluppo]` **Motore/App — digiuno intermittente: la cliente sceglie quali pasti saltare, e la
   giornata 20-4 una volta a settimana** (feedback clienti 5/8, voce #7). Finora scegliere «digiuno
   intermittente» selezionava soltanto le diete marcate `fasting`: la finestra alimentare la decideva

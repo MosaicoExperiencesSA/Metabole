@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from '../i18n/i18n.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface Attachment {
@@ -38,7 +39,32 @@ export class MailService {
     private readonly config: ConfigService,
     private readonly i18n: I18nService,
     private readonly prisma: PrismaService,
+    private readonly configParams: ConfigParamsService,
   ) {}
+
+  /**
+   * Pulsanti "scarica dagli store" per le email (richiesta Simone 6/8, voce #18).
+   *
+   * Gli URL stanno in `config_param` e non nel codice: gli store cambiano indirizzo, e il giorno
+   * che serve correggerli non deve servire un deploy.
+   *
+   * Sono pulsanti di TESTO e non i badge ufficiali a immagine: quasi tutti i client di posta
+   * bloccano le immagini remote finché non le sblocchi a mano, e un badge invisibile non lo
+   * clicca nessuno. Tabella e stili inline perché Gmail e Outlook ignorano i CSS in <head>.
+   */
+  private async storeButtonsHtml(): Promise<string> {
+    const [ios, android] = await Promise.all([
+      this.configParams.getString('app_store_url', 'https://apps.apple.com/app/id6794352232'),
+      this.configParams.getString('play_store_url', 'https://play.google.com/store/apps/details?id=app.metabole'),
+    ]);
+    const bottone = (href: string, testo: string) =>
+      `<a href="${href}" style="display:inline-block;padding:11px 18px;margin:4px 6px 4px 0;border-radius:10px;background:#12A386;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px">${testo}</a>`;
+    const pezzi: string[] = [];
+    if (ios) pezzi.push(bottone(ios, '&#63743;&nbsp; Scarica su App Store'));
+    if (android) pezzi.push(bottone(android, '&#9654;&nbsp; Scarica su Google Play'));
+    if (pezzi.length === 0) return '';
+    return `<p style="margin:18px 0 6px">Scarica l'app sul telefono:</p><p style="margin:0">${pezzi.join('')}</p>`;
+  }
 
   private get apiKey(): string | null {
     const key = this.config.get<string>('BREVO_API_KEY');
@@ -193,7 +219,10 @@ export class MailService {
     locale?: string | null,
   ): Promise<boolean> {
     const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
-    const vars = { name: input.name?.trim() || '', email: input.email, password: input.password, link: appUrl };
+    // {storeButtons} è disponibile anche al modello editabile dal backoffice: chi lo riscrive
+    // può metterlo dove preferisce, o toglierlo.
+    const storeButtons = await this.storeButtonsHtml();
+    const vars = { name: input.name?.trim() || '', email: input.email, password: input.password, link: appUrl, storeButtons };
     const { subject, html } = await this.resolve('lead_credentials', {
       subject: this.i18n.text(locale, 'mail.credentials.subject'),
       html: this.i18n.text(locale, 'mail.credentials.body', vars),

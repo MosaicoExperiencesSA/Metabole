@@ -130,6 +130,10 @@ export class SubmitAnswersDto {
   @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'])
   fastingWindow?: string;
 
+  @IsOptional()
+  @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active'])
+  activityLevel?: string;
+
   @ValidateNested()
   @Type(() => HealthDto)
   health!: HealthDto;

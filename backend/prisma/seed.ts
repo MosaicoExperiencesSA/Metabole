@@ -143,6 +143,45 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Acqua giornaliera per kg di peso (ml/kg) per personalizzare l\'obiettivo — 30-35 tipico; obiettivo bicchieri = peso × questo / 250, limitato 6-16 bicchieri (1,5-4 L)',
   },
+  // --- Fabbisogno calorico (menu "a necessità") ---
+  // Erano tutte costanti scritte nel codice di kcal-need.service.ts: funzionavano, ma dal
+  // backoffice non si potevano toccare, e nessuno sapeva che esistessero. Voce 2 dell'audit.
+  {
+    key: 'kcal_need_floor_female',
+    value: '1200',
+    type: 'number',
+    description: 'Soglia MINIMA di sicurezza per le donne (kcal/giorno): il target non scende mai sotto, qualunque sia il deficit calcolato',
+  },
+  {
+    key: 'kcal_need_floor_male',
+    value: '1500',
+    type: 'number',
+    description: 'Soglia MINIMA di sicurezza per gli uomini (kcal/giorno)',
+  },
+  {
+    key: 'kcal_need_deficit_max_pct',
+    value: '0.3',
+    type: 'number',
+    description: 'Deficit massimo come frazione del fabbisogno (0.3 = 30%): tetto di sicurezza sul ritmo di dimagrimento',
+  },
+  {
+    key: 'kcal_need_deficit_max_kcal',
+    value: '1000',
+    type: 'number',
+    description: 'Deficit massimo assoluto (kcal/giorno): vince il più restrittivo fra questo e la percentuale',
+  },
+  {
+    key: 'kcal_need_kcal_per_kg',
+    value: '7700',
+    type: 'number',
+    description: 'Kcal equivalenti a 1 kg di massa: converte il ritmo di calo dell\'obiettivo (kg/settimana) in deficit giornaliero',
+  },
+  {
+    key: 'kcal_need_default_deficit_pct',
+    value: '0.15',
+    type: 'number',
+    description: 'Deficit di ripiego (frazione del fabbisogno) quando dall\'obiettivo non si ricava un ritmo valido',
+  },
   {
     key: 'steps_goal',
     value: '8000',
