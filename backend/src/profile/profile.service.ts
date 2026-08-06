@@ -215,4 +215,44 @@ export class ProfileService {
     });
     return { objective: updated, validation };
   }
+
+  /**
+   * Riepilogo di SOLA LETTURA della sua alimentazione, per il Profilo dell'app
+   * (richiesta Simone 6/8): tipo di alimentazione, numero di pasti e dieta assegnata.
+   * La cliente li vede ma non li tocca — cambiarli cambia i menu, ed è una decisione
+   * clinica: dal backoffice servono permessi dedicati (`change_diet_type`), qui si
+   * passa dalla coach. Il nome della dieta è quello da cui le stiamo davvero servendo
+   * i menu (ultimo giorno erogato), non quello che dovrebbe essere in teoria: se i due
+   * non coincidono è un problema da vedere, non da nascondere.
+   */
+  async nutrition(userId: string) {
+    const profile = (await this.prisma.clientProfile.findUnique({
+      where: { userId },
+      select: {
+        regime: true, dietStyle: true, mealsPerDay: true, pathType: true, fastingWindow: true,
+        assignedCoach: { select: { displayName: true } },
+      },
+    })) as {
+      regime: string | null; dietStyle: string | null; mealsPerDay: number | null;
+      pathType: string | null; fastingWindow: string | null;
+      assignedCoach: { displayName: string | null } | null;
+    } | null;
+    if (!profile) throw new NotFoundException('Profilo non ancora creato: completa prima il questionario.');
+
+    const ultimo = (await this.prisma.menuDay.findFirst({
+      where: { clientId: userId },
+      orderBy: { date: 'desc' },
+      select: { diet: { select: { name: true, clientName: true } } },
+    })) as { diet: { name: string; clientName: string | null } | null } | null;
+
+    return {
+      regime: profile.regime,
+      dietStyle: profile.dietStyle,
+      mealsPerDay: profile.mealsPerDay,
+      fasting: profile.pathType === 'intermittent_fasting',
+      fastingWindow: profile.fastingWindow,
+      dietName: ultimo?.diet ? (ultimo.diet.clientName || ultimo.diet.name) : null,
+      coachName: profile.assignedCoach?.displayName ?? null,
+    };
+  }
 }

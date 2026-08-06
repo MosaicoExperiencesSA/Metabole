@@ -7,6 +7,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Profilo cliente — «La mia alimentazione»** (richiesta Simone 6/8). La cliente
+  sceglieva tipo di alimentazione, pasti e regime in registrazione e poi non li rivedeva mai più:
+  non sapeva nemmeno cosa stava seguendo. Ora nel Profilo c'è una scheda in **sola lettura** con
+  tipo di alimentazione, pasti (o «Digiuno intermittente», con la finestra scelta), **dieta
+  assegnata** e regime. Nuovo `GET /me/nutrition`.
+  Il nome della dieta è quello da cui le stiamo **davvero servendo i menu** (ultimo giorno
+  erogato), non quello che in teoria le spetterebbe: se i due non coincidono è un problema da
+  vedere, non da nascondere dietro un'etichetta ottimistica.
+  Non è modificabile di proposito — cambiarla cambia i menu, ed è una decisione clinica: dal
+  backoffice serve già il permesso `change_diet_type`. Ma invece di un muro c'è la strada:
+  «Chiedi un cambio alla coach», che apre la chat con lei, e il testo la chiama per nome quando
+  l'assegnazione c'è. Le etichette dei tipi di alimentazione arrivano da `dietInfo.ts`, le stesse
+  del "?" in registrazione: un nome solo per la stessa cosa.
+
 - `[Sviluppo]` **Ricette: ogni intestazione ordina, ogni colonna ha il suo filtro, e c'è la colonna
   Stagioni** (richiesta Simone 6/8, dalla pagina Gestione dieta). Con la Keto-Mediterranea che da
   sola porterà centinaia di piatti, scorrere l'elenco a occhio non era più un modo di lavorare.

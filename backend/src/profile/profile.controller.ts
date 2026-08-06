@@ -34,6 +34,12 @@ export class ProfileController {
     return this.profile.updateTheme(user.sub, dto.color);
   }
 
+  /** Riepilogo di sola lettura dell'alimentazione (tipo, pasti, dieta) per il Profilo. */
+  @Get('nutrition')
+  nutrition(@CurrentUser() user: AuthUser) {
+    return this.profile.nutrition(user.sub);
+  }
+
   @Get('objective')
   getObjective(@CurrentUser() user: AuthUser) {
     return this.profile.getObjective(user.sub);

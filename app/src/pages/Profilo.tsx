@@ -7,6 +7,7 @@ import BrandPicker from '../components/BrandPicker';
 import WaterUnitPicker from '../components/WaterUnitPicker';
 import NotificationPrefs from '../components/NotificationPrefs';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
+import { DIET_INFO } from '../onboarding/dietInfo';
 
 const PHONE_PREFIXES = ['+39', '+41', '+33', '+49', '+43', '+44', '+34', '+32', '+31', '+351', '+386', '+1'];
 const COUNTRIES = ['Italia', 'Svizzera', 'Francia', 'Germania', 'Austria', 'Regno Unito', 'Spagna', 'Belgio', 'Paesi Bassi', 'Portogallo', 'Slovenia', 'Altro'];
@@ -18,6 +19,80 @@ function splitPhone(p: string | null): { prefix: string; number: string } {
   const m = p.trim().match(/^(\+\d{1,3})\s*(.*)$/);
   if (m) return { prefix: m[1], number: m[2] };
   return { prefix: '+39', number: p.trim() };
+}
+
+const REGIME_LABEL: Record<string, string> = {
+  omnivore: 'Onnivora', vegetarian: 'Vegetariana', vegan: 'Vegana', pescetarian: 'Pescetariana',
+};
+
+interface Nutrition {
+  regime: string | null; dietStyle: string | null; mealsPerDay: number | null;
+  fasting: boolean; fastingWindow: string | null; dietName: string | null; coachName: string | null;
+}
+
+/**
+ * "La mia alimentazione" (richiesta Simone 6/8): tipo di alimentazione, numero di pasti e
+ * dieta assegnata, in sola lettura. Sono le tre cose che decidono i menu, e finora la cliente
+ * le sceglieva in registrazione e poi non le rivedeva più — non sapeva nemmeno cosa stava
+ * seguendo. Non sono modificabili qui di proposito: cambiarle cambia il piano ed è una
+ * decisione clinica. Ma si dice a chi chiedere, invece di lasciare un muro.
+ */
+function MyNutrition() {
+  const nav = useNavigate();
+  const [n, setN] = useState<Nutrition | null>(null);
+  const [stato, setStato] = useState<'carico' | 'ok' | 'ko'>('carico');
+
+  useEffect(() => {
+    api<Nutrition>('/me/nutrition')
+      .then((r) => { setN(r); setStato('ok'); })
+      .catch(() => setStato('ko'));
+  }, []);
+
+  if (stato === 'carico') return <div className="card"><p className="muted" style={{ margin: 0, fontSize: 12.5 }}>Carico…</p></div>;
+  if (stato === 'ko' || !n) {
+    return (
+      <div className="card">
+        <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
+          Il riepilogo non è disponibile in questo momento. Se ti serve subito, chiedilo alla tua coach.
+        </p>
+      </div>
+    );
+  }
+
+  const stile = n.dietStyle ? (DIET_INFO[n.dietStyle]?.titolo ?? n.dietStyle.replace(/_/g, ' ')) : null;
+  const pasti = n.fasting
+    ? `Digiuno intermittente${n.fastingWindow ? ` (finestra ${n.fastingWindow})` : ' 16:8'}`
+    : n.mealsPerDay
+      ? `${n.mealsPerDay} pasti al giorno`
+      : null;
+  const riga = (icona: string, etichetta: string, valore: string | null, vuoto: string) => (
+    <div className="row" style={{ gap: 10, alignItems: 'flex-start', padding: '9px 0', borderTop: '1px solid var(--line)' }}>
+      <i className={`ti ti-${icona}`} style={{ fontSize: 17, color: 'var(--teal)', flex: 'none', marginTop: 1 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="muted" style={{ fontSize: 11.5 }}>{etichetta}</div>
+        <div style={{ fontSize: 14.5, fontWeight: 600 }}>{valore ?? <span className="muted" style={{ fontWeight: 400 }}>{vuoto}</span>}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="card">
+      <div style={{ marginTop: -9 }}>
+        {riga('salad', 'Tipo di alimentazione', stile, 'non ancora impostato')}
+        {riga('clock-hour-4', 'Pasti', pasti, 'non ancora impostati')}
+        {riga('book', 'La tua dieta', n.dietName, 'te la assegna la nutrizionista')}
+        {n.regime && riga('leaf', 'Regime', REGIME_LABEL[n.regime] ?? n.regime, '')}
+      </div>
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: '12px 0 0' }}>
+        Questi valori li imposta la nutrizionista e non si cambiano da qui: toccarli cambia i menu che
+        ricevi. Se pensi che non siano più adatti a te{n.coachName ? `, parlane con ${n.coachName}` : ', parlane con la tua coach'} —
+        se ne occupa lei.
+      </p>
+      <button className="btn ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => nav('/assistente?who=coach')}>
+        <i className="ti ti-message-circle" /> Chiedi un cambio alla coach
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -702,6 +777,10 @@ export default function Profilo() {
           </div>
         </>
       )}
+
+      {/* La mia alimentazione: le tre cose che decidono i menu, in sola lettura */}
+      <div className="sec" style={{ marginTop: 4 }}>La mia alimentazione</div>
+      <MyNutrition />
 
       {/* Cibi esclusi (dislikedFoods): la lista che guida i menu, correggibile qui */}
       <div className="sec" style={{ marginTop: 4 }}>Cibi esclusi</div>
