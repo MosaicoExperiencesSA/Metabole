@@ -82,6 +82,7 @@ const DIET_LABEL: Record<string, string> = {
   low_carb: 'Low carb',
   flexible: 'Flessibile',
   keto: 'Chetogenica',
+  keto_mediterranean: 'Keto-Mediterranea',
 };
 
 type SendOutcome = 'sent' | 'skipped' | 'duplicate' | 'failed';

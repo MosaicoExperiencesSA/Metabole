@@ -674,7 +674,7 @@ export class CatalogService {
     { code: 'vegan', label: 'Vegana' },
   ];
   private static readonly STYLE_LABELS: Record<string, string> = {
-    mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', dash: 'DASH',
+    mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', keto_mediterranean: 'Keto-Mediterranea', dash: 'DASH',
   };
 
   private titleCase(v: string): string {

@@ -65,8 +65,9 @@ interface DietProduct { id: string; style: string; name: string; description: st
  *  così non mostriamo mai il codice grezzo (es. "low_carb") ma "Low carb". */
 const STYLE_LABELS: Record<string, string> = {
   mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile',
-  keto: 'Chetogenica', vegan: 'Vegana', vegetarian: 'Vegetariana', balanced: 'Equilibrata',
-  summer_return: 'Rientro estivo', summer_holiday: 'Vacanza estiva', detox: 'Detox',
+  keto: 'Chetogenica', keto_mediterranean: 'Keto-Mediterranea', dash: 'DASH',
+  vegan: 'Vegana', vegetarian: 'Vegetariana', balanced: 'Equilibrata',
+  summer_return: 'Rientro estivo', summer_holiday: 'Vacanza estiva', detox: 'Detossinante',
 };
 const prettyStyle = (s: string) => STYLE_LABELS[s] ?? s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
@@ -188,7 +189,7 @@ function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: 
             <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{DIET_INFO[info].attenzione}</p>
 
             <p className="muted" style={{ fontSize: 11, lineHeight: 1.5, margin: '14px 0 0' }}>
-              Fonti: {DIET_INFO_FONTI.join(' · ')}. Sono informazioni generali, non un consiglio
+              Fonti: {(DIET_INFO[info].fonti ?? DIET_INFO_FONTI).join(' · ')}. Sono informazioni generali, non un consiglio
               medico: la scelta la fate insieme tu e la tua nutrizionista.
             </p>
 

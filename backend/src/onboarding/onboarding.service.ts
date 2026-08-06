@@ -46,7 +46,12 @@ export class OnboardingService {
       products.push({
         id: String(d.id),
         style,
-        name: (d.clientName as string) ?? style,
+        // Nome mostrato alla cliente: prima il nome commerciale (clientName), poi il nome
+        // con cui la dieta e' stata creata in backoffice. MAI il codice stile: col solo codice
+        // l'app mostrava "Chetogenica" o "Dash" mentre in backoffice la stessa dieta si chiama
+        // "Keto (non terapeutica)" o "DASH (anti-ipertensiva)" - due nomi per la stessa cosa
+        // (segnalato da Simone il 6/8).
+        name: ((d.clientName as string) || (d.name as string) || style),
         description: (d.clientDescription as string) ?? null,
         highlights: Array.isArray(d.highlights) ? (d.highlights as string[]) : [],
         objective: (d.objective as string) ?? 'dimagrimento',
@@ -346,6 +351,7 @@ export class OnboardingService {
       low_carb: 'Leggerezza Low-carb',
       flexible: 'Percorso Flessibile',
       keto: 'Percorso Keto',
+      keto_mediterranean: 'Percorso Keto-Mediterraneo',
     };
     const pathNames: Record<string, string> = {
       classic3: '3 pasti classico',

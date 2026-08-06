@@ -26,7 +26,7 @@ interface Preset {
 interface Proposal { id: string; title: string | null; text: string; status: string; createdAt: string }
 interface DietRow { id: string; name: string; style: string }
 
-const STYLE_LABEL: Record<string, string> = { mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', dash: 'DASH' };
+const STYLE_LABEL: Record<string, string> = { mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', keto_mediterranean: 'Keto-Mediterranea', dash: 'DASH' };
 
 export function RegoleMotore() {
   const { can } = useAuth();
@@ -311,7 +311,7 @@ function PresetModal({ preset, catalog, onClose, onSaved, onError }: { preset: P
         <div className="field" style={{ flex: 1, minWidth: 200 }}><label>Nome</label><input className="input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Es. Mediterranea ipocalorica" /></div>
         <div className="field" style={{ minWidth: 150 }}><label>Stile</label>
           <select className="input" value={style} onChange={(e) => setStyle(e.target.value)}>
-            {['mediterranean', 'protein', 'low_carb', 'flexible', 'keto', 'dash'].map((s) => <option key={s} value={s}>{STYLE_LABEL[s] ?? s}</option>)}
+            {['mediterranean', 'protein', 'low_carb', 'flexible', 'keto', 'keto_mediterranean', 'dash'].map((s) => <option key={s} value={s}>{STYLE_LABEL[s] ?? s}</option>)}
           </select>
         </div>
       </div>

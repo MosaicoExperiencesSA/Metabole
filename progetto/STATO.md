@@ -169,6 +169,13 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   referrer quando la ricompensa scatta.
 
 ## Motore / AI
+- **Keto-Mediterranea nel generatore** — dieta suggerita in *Creazione e validazione* con 12 varianti
+  (onnivora/vegetariana × dimagrimento/mantenimento × 3 pasti/5 pasti/digiuno 16:8). Nasce dal
+  feedback "ingredienti introvabili": il vincolo *solo ingredienti da supermercato italiano*, con
+  l'elenco esplicito dei vietati, sta nelle note cliniche del preset e finisce nel prompt del
+  generatore. Il catalogo lo produce il generatore in **bozza** e lo valida la nutrizionista: ricette
+  proprie della dieta, nessuna condivisione con la Keto (regola ferrea n.1). Vegana esclusa di
+  proposito (senza legumi e senza soia da negozio specializzato non regge). 🟡 (da generare e validare)
 - **Pausa vacanza sorvegliata** — durante una pausa i menu restano sospesi ma il sistema fissa un peso
   di riferimento, chiede una pesata ogni `pause_watch_ask_days` (5 gg) con tono da vacanza e, se il peso
   supera `pause_watch_regain_kg` (2 kg), crea un'attività per la coach e la avvisa una volta sola.

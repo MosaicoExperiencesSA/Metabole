@@ -11,7 +11,7 @@ const DEFAULT_REGIMES: TaxItem[] = [
   { code: 'vegan', label: 'Vegana' },
 ];
 const STYLE_LABELS: Record<string, string> = {
-  mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', dash: 'DASH',
+  mediterranean: 'Mediterranea', protein: 'Proteica', low_carb: 'Low carb', flexible: 'Flessibile', keto: 'Keto', keto_mediterranean: 'Keto-Mediterranea', dash: 'DASH',
 };
 
 // Fallback stili: se l'API non risponde, le tendine restano comunque usabili.

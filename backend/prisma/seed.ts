@@ -1000,12 +1000,21 @@ async function seedEquivalenceGroups(): Promise<void> {
  * fatte dal capo nutrizionista ai preset.
  */
 async function seedRulePresets(): Promise<void> {
-  // Idempotente: aggiunge solo i preset MANCANTI (per stile+etichetta), senza toccare
-  // quelli esistenti o le modifiche del nutrizionista. Così i nuovi preset compaiono
-  // ai deploy successivi anche se la tabella è già popolata.
+  // Idempotente: aggiunge solo i preset MANCANTI, senza toccare quelli esistenti o le
+  // modifiche del nutrizionista. Così i nuovi preset compaiono ai deploy successivi anche
+  // se la tabella è già popolata.
+  //
+  // La chiave del confronto è stile+etichetta PIÙ le dimensioni che il seme dichiara
+  // (regime, obiettivo, pasti): una famiglia può avere più varianti con lo stesso nome —
+  // è il caso della Keto-Mediterranea, 12 varianti regime × obiettivo × pasti. Per i preset
+  // storici, che quelle dimensioni non le dichiarano, il comportamento non cambia.
   let added = 0;
   for (const p of SUGGESTED_PRESETS) {
-    const exists = await prisma.rulePreset.findFirst({ where: { style: p.style, label: p.label }, select: { id: true } });
+    const where: Record<string, unknown> = { style: p.style, label: p.label };
+    if (p.regime !== undefined) where.regime = p.regime ?? null;
+    if (p.objective !== undefined) where.objective = p.objective ?? null;
+    if (p.meals !== undefined) where.meals = p.meals;
+    const exists = await prisma.rulePreset.findFirst({ where: where as never, select: { id: true } });
     if (exists) continue;
     await prisma.rulePreset.create({
       data: {
@@ -1014,6 +1023,7 @@ async function seedRulePresets(): Promise<void> {
         description: p.description,
         regime: p.regime ?? null,
         objective: p.objective ?? null,
+        meals: p.meals ?? null,
         rules: p.rules as never,
         clinicalNotes: p.clinicalNotes ?? null,
         source: p.source ?? null,

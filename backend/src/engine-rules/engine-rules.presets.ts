@@ -15,6 +15,8 @@ export interface PresetSeed {
   description: string;
   regime?: string | null;
   objective?: string | null;
+  /** Struttura pasti della variante: '3' | '5' | 'fasting' (16:8). Assente = '5' (storico). */
+  meals?: '3' | '5' | 'fasting';
   rules: Record<string, number | boolean>;
   clinicalNotes?: string;
   source?: string;
@@ -30,6 +32,63 @@ const R = (protMin: number, protMax: number, kcalTol: number, penalty: number, w
   menu_select_w_grad: wGrad,
   menu_repeat_two_days_default: twoDays,
 });
+
+/**
+ * KETO-MEDITERRANEA — famiglia completa, agganciata al generatore esistente.
+ *
+ * Nasce dal feedback clienti del 5/8 ("i menu della Keto hanno ingredienti molto complessi"),
+ * chiarito da Simone: il problema non è il tempo di preparazione ma la REPERIBILITÀ —
+ * farine speciali, dolcificanti particolari, prodotti "keto" confezionati che al supermercato
+ * sotto casa non ci sono. La risposta non è rattoppare la Keto (regola ferrea n.1: i cataloghi
+ * non si mischiano mai) ma un PRODOTTO NUOVO: chetogenica con la dispensa mediterranea.
+ *
+ * Sta qui, e non in uno script a parte, perché il catalogo lo deve produrre il generatore che
+ * il capo nutrizionista già usa (Creazione e validazione): stessa strada, stesse bozze, stessa
+ * validazione. `clinicalNotes` finisce dentro il prompt del generatore: è lì che vive il
+ * vincolo "solo ingredienti da supermercato italiano", ed è per questo che è così dettagliata.
+ *
+ * VEGANA esclusa di proposito: senza legumi (fuori per definizione in chetosi) e senza i
+ * derivati della soia da negozio specializzato, una keto vegana con soli ingredienti comuni
+ * non regge né sul fronte proteico né su quello della reperibilità. Se servirà, la valuta la
+ * nutrizionista come prodotto a sé.
+ */
+const KM_BASE = R(0.15, 0.25, 12, 0.5, 1.1, 1, true);
+
+const KM_NOTE_COMUNE =
+  'CHETOSI: carboidrati < 50 g/die (20–30 g netti) — vincolo non negoziabile; grassi 65–75% delle kcal, proteine moderate (non oltre 1.7–2.0 g/kg). ' +
+  'GRASSI DI QUALITÀ (è il senso del prodotto): olio extravergine d\'oliva come grasso di riferimento, poi pesce azzurro, frutta secca al naturale, olive, avocado. Burro, panna e insaccati solo occasionali. ' +
+  'SOLO INGREDIENTI DA SUPERMERCATO ITALIANO COMUNE. Ammessi: verdure a basso contenuto di carboidrati (zucchine, melanzane, peperoni, spinaci, bietole, cicoria, catalogna, broccoli, cavolfiore, verza, cavolo nero, finocchi, sedano, asparagi, carciofi, funghi, insalate, ravanelli; pomodori e cetrioli con misura); pesce (sgombro, alici, sardine, tonno, salmone, orata, branzino, merluzzo, platessa, seppie, calamari, gamberi, cozze, vongole); uova; pollo, tacchino, manzo, maiale, coniglio; latticini (mozzarella, stracchino, ricotta, parmigiano, grana, pecorino, provola, yogurt greco intero al naturale, mascarpone); frutta secca e semi; olive; avocado; aromi freschi e secchi, limone, aceto, capperi, acciughe sotto sale, peperoncino. Frutti di bosco in porzioni piccole. ' +
+  'VIETATI PERCHÉ NON REPERIBILI (è il motivo per cui questo prodotto esiste): farine speciali (mandorle, cocco, lupino, psillio), dolcificanti particolari (eritritolo, allulosio, monk fruit), prodotti "keto" confezionati (pane, biscotti, barrette, pasta di konjac), olio MCT, proteine in polvere, gomma xantana e addensanti, sciroppi senza zucchero. ' +
+  'FUORI PER DEFINIZIONE: pane, pasta, riso, patate, legumi, cereali, frutta zuccherina, dolci, bibite. ' +
+  'RICETTE SEMPLICI: pochi ingredienti, preparazioni brevi, niente attrezzatura particolare — la semplicità è parte del prodotto, non un di più. ' +
+  'CLINICA: non indicata in gravidanza e allattamento; valutazione attenta con problemi renali, epatici, pancreatici o cardiaci; chi assume farmaci per diabete o pressione può aver bisogno di aggiustamenti. Nessun claim medico nei testi. ' +
+  '(Il vincolo carboidrati in grammi non è ancora un parametro del motore: resta qui e va verificato in validazione.)';
+
+const KM_NOTE_REGIME: Record<string, string> = {
+  omnivore: ' REGIME ONNIVORO: il pesce azzurro è la fonte proteica di riferimento (almeno un pasto principale su due), la carne resta presente ma non domina.',
+  vegetarian: ' REGIME VEGETARIANO: niente carne né pesce. Le proteine arrivano da uova, latticini freschi e stagionati, frutta secca e semi: presidiare la densità proteica di ogni pasto, che senza pesce e senza legumi è il punto fragile di questo schema.',
+};
+
+const KM_KCAL: Record<string, number> = { dimagrimento: 1500, mantenimento: 1800 };
+
+export const KETO_MEDITERRANEA: PresetSeed[] = (['omnivore', 'vegetarian'] as const).flatMap((regime) =>
+  (['dimagrimento', 'mantenimento'] as const).flatMap((objective) =>
+    (['3', '5', 'fasting'] as const).map((meals) => ({
+      style: 'keto_mediterranean',
+      label: 'Keto-Mediterranea',
+      sortOrder: 55,
+      regime,
+      objective,
+      meals,
+      description:
+        'Chetogenica costruita con la dispensa mediterranea: stessa riduzione drastica dei carboidrati, ma i grassi arrivano da olio d\'oliva, pesce azzurro, frutta secca e olive. Solo ingredienti da supermercato italiano: niente farine speciali, dolcificanti particolari o prodotti confezionati "keto".',
+      rules: { ...KM_BASE, menu_daycombo_kcal_target: KM_KCAL[objective] },
+      clinicalNotes: KM_NOTE_COMUNE + (KM_NOTE_REGIME[regime] ?? ''),
+      source:
+        'Dieta chetogenica mediterranea in sovrappeso/obesità con prediabete o T2D (PMC9610411); chetogeniche a base di olio d\'oliva e profilo lipidico (PubMed 26700799, 30497921); Keto-Med randomized trial (PMC8002540); Harvard T.H. Chan — The Nutrition Source, Ketogenic Diet.',
+    })),
+  ),
+);
 
 export const SUGGESTED_PRESETS: PresetSeed[] = [
   // ---- 5 stili esistenti ----
@@ -158,4 +217,7 @@ export const SUGGESTED_PRESETS: PresetSeed[] = [
     clinicalNotes: 'Settimana 1 “reset”: verdure e fibra, ridurre il sodio e aumentare potassio/idratazione (attenua ritenzione/gonfiore), ritmo sonno-pasti, movimento leggero, misure gentili. Settimana 2: spinta efficacia graduale (stato “rientro”), porzioni standard, niente fame. Mai diete lampo o digiuni. Guardrail clinici come sopra. (Sodio/potassio: oggi in nota, non ancora parametri motore.)',
     source: 'National Weight Control Registry (ripartenza graduale, no crash diet) + evidenze su ritenzione idrica (sodio/potassio/idratazione).',
   },
+
+  // ---- Keto-Mediterranea: 12 varianti (2 regimi × 2 obiettivi × 3 strutture pasti) ----
+  ...KETO_MEDITERRANEA,
 ];

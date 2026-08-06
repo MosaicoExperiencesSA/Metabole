@@ -15,7 +15,7 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 // Etichette leggibili per i codici più comuni (fallback: codice "titolato").
 const REGIME_LABEL: Record<string, string> = { omnivore: 'Onnivora', vegetarian: 'Vegetariana', vegan: 'Vegana' };
 const STYLE_LABEL: Record<string, string> = {
-  mediterranean: 'Mediterranea', keto: 'Keto', protein: 'Proteica', flexible: 'Flessibile',
+  mediterranean: 'Mediterranea', keto: 'Keto', keto_mediterranean: 'Keto-Mediterranea', protein: 'Proteica', flexible: 'Flessibile',
   detox: 'Detossinante', lowcarb: 'Low carb',
 };
 const label = (map: Record<string, string>, code: string | null | undefined): string | null => {

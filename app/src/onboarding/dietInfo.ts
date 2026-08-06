@@ -11,6 +11,15 @@
  *    (Mediterranean Diet, Ketogenic Diet for Weight Loss), "Low-Carbohydrate Diets", "Protein".
  *  - Mayo Clinic — "Mediterranean diet for heart health", "Low-carb diet", "High-protein diets:
  *    are they safe?".
+ *  - NHLBI — "DASH Eating Plan" (scheda DASH).
+ *  - Klein & Kiat, "Detox diets: a critical review" (J Hum Nutr Diet 2015) e consenso BDA (scheda Detox).
+ *  - National Weight Control Registry (schede estive).
+ *
+ * REGOLA: ogni STILE pubblicato e visibile alla cliente deve avere qui la sua scheda, altrimenti
+ * il "?" accanto al nome sparisce e la cliente resta senza spiegazione (successo il 6/8 con
+ * DASH, Flessibile, Detox e i due percorsi estivi). Quando il nutrizionista pubblica una dieta
+ * con un codice stile nuovo, la scheda si aggiunge qui. `fonti` per scheda quando le fonti sono
+ * diverse da quelle generali.
  *
  * Regole di scrittura, da rispettare se si aggiungono altri stili:
  *  - niente promesse di risultati e niente numeri di chili;
@@ -23,6 +32,8 @@ export interface DietInfo {
   inPratica: string;
   cosaDiceLaRicerca: string;
   attenzione: string;
+  /** Fonti specifiche di QUESTA scheda: se assenti valgono quelle generali (DIET_INFO_FONTI). */
+  fonti?: string[];
 }
 
 export const DIET_INFO: Record<string, DietInfo> = {
@@ -69,6 +80,65 @@ export const DIET_INFO: Record<string, DietInfo> = {
       'Nel breve periodo può produrre un calo di peso marcato e migliorare alcuni parametri metabolici. Sul lungo periodo gli studi di qualità sono pochi, ed è uno schema che molte persone faticano a mantenere. Se si sceglie, la qualità dei grassi fa una differenza grande: meglio olio d\'oliva, frutta secca, pesce e avocado che burro e insaccati.',
     attenzione:
       'Va fatta seguiti, e da noi lo sei. Non è indicata in gravidanza e allattamento, e va valutata con attenzione se hai problemi a reni, fegato, pancreas o cuore, o se prendi farmaci per il diabete. Nei primi giorni sono comuni stanchezza, mal di testa e irritabilità. Può inoltre risultare povera di fibre e di alcuni micronutrienti: è uno dei motivi per cui il percorso è supervisionato.',
+  },
+  dash: {
+    titolo: 'DASH',
+    cose:
+      'Uno schema nato negli Stati Uniti per abbassare la pressione arteriosa (DASH sta per "approccio alimentare per fermare l\'ipertensione"). Non è una dieta dimagrante di suo: è un modo di mangiare studiato su un obiettivo preciso, e il calo di peso arriva se le porzioni sono calibrate.',
+    inPratica:
+      'Molta frutta e verdura, cereali integrali, latticini magri, legumi e frutta secca. Sale ridotto: è il punto centrale, e comprende il sale nascosto di salumi, formaggi stagionati, dadi, salse e cibi confezionati. Carne rossa, dolci e bibite zuccherate poco.',
+    cosaDiceLaRicerca:
+      'È uno degli schemi con più prove dirette su un esito misurabile: nei trial abbassa la pressione, e l\'effetto è maggiore quando si riduce anche il sodio. Assomiglia molto alla mediterranea, con più attenzione a sale e latticini magri.',
+    attenzione:
+      'Se prendi farmaci per la pressione, riducendo il sale la terapia potrebbe aver bisogno di un aggiustamento: parlane col medico. Se hai problemi renali, la quota di potassio va valutata da chi ti segue.',
+    fonti: ['NHLBI — DASH Eating Plan', 'Harvard T.H. Chan School of Public Health — The Nutrition Source'],
+  },
+  flexible: {
+    titolo: 'Flessibile',
+    cose:
+      'Uno schema bilanciato che non vieta nessun alimento: conta soprattutto il totale della giornata, non il singolo piatto. È pensato per chi ha già provato regimi rigidi e li ha abbandonati.',
+    inPratica:
+      'Pasti normali con una fonte proteica, verdura e una quota di carboidrati. Nessun cibo è "proibito": quello che di solito si toglie dalle diete qui si mette in conto e si sistema nel resto della giornata.',
+    cosaDiceLaRicerca:
+      'A parità di calorie, la composizione conta meno di quanto si pensi: quello che fa la differenza sul lungo periodo è la costanza. Gli schemi permissivi vengono abbandonati meno spesso, ed è il motivo principale per cui funzionano.',
+    attenzione:
+      '"Nessun divieto" non vuol dire "tutto uguale": se la maggior parte delle calorie arriva da cibi molto lavorati, sazi meno e la qualità della dieta si abbassa anche restando nei conti. La libertà chiede un po\' più di attenzione, non meno.',
+  },
+  detox: {
+    titolo: 'Detossinante',
+    cose:
+      'Un reset breve, di una o due settimane, che sostiene il lavoro che fegato, reni e intestino fanno già da soli. Diciamolo chiaro: il corpo si depura per conto suo, e nessun alimento "elimina le tossine". Qui si tolgono i carichi inutili e si aggiungono verdura, fibra e acqua.',
+    inPratica:
+      'Tanta verdura, con crucifere (broccoli, cavoli) e foglie amare ogni giorno; fibra alta; molta acqua e tisane non zuccherate; alcol zero per tutta la durata; pochi zuccheri, poco sale, niente cibi ultra-processati e fritti. Le proteine restano adeguate. Poi si passa a uno schema di lungo periodo.',
+    cosaDiceLaRicerca:
+      'Le detox commerciali — succhi, digiuni, integratori "depurativi" — non hanno prove cliniche a sostegno: la revisione più citata sul tema è netta. Quello che ha prove è ciò che c\'è qui dentro: più fibra e verdura, più acqua, meno alcol e meno ultra-processati. È il motivo per cui questo percorso è costruito così e non come le detox che si leggono in giro.',
+    attenzione:
+      'È un periodo breve, non uno stile di vita, e non è mai un digiuno né una dieta di soli liquidi. Non è indicato in gravidanza e allattamento, con problemi di fegato o reni, o se hai avuto un disturbo del comportamento alimentare: in questi casi decide la nutrizionista.',
+    fonti: ['Klein & Kiat — Detox diets: a critical review (J Hum Nutr Diet, 2015)', 'British Dietetic Association'],
+  },
+  summer_holiday: {
+    titolo: 'Vacanza estiva',
+    cose:
+      'Non è una dieta dimagrante: è un piano di mantenimento pensato per il periodo in cui si è fuori casa. L\'obiettivo è difendere quello che hai ottenuto, senza restrizioni e senza sensi di colpa per una cena al ristorante.',
+    inPratica:
+      'Piatti freschi, freddi e trasportabili — spiaggia, viaggio, casa altrui. Molta acqua e alimenti ricchi d\'acqua. Porzioni consapevoli invece di tagli: le calorie restano attorno al fabbisogno, non sotto.',
+    cosaDiceLaRicerca:
+      'Chi mantiene il peso nel tempo, secondo i registri che seguono queste persone per anni, non lo fa con periodi di rigore alternati a sbandate: lo fa continuando a monitorarsi anche nei periodi facili. Le vacanze sono uno dei momenti in cui si riprende peso più spesso, e un piano leggero fa la differenza.',
+    attenzione:
+      'Non è pensato per farti dimagrire in vacanza: se è quello che cerchi, parlane con la nutrizionista e valutate un altro percorso. E se il peso sale, non è un fallimento: si rientra dopo, con calma.',
+    fonti: ['National Weight Control Registry', 'Harvard T.H. Chan School of Public Health — The Nutrition Source'],
+  },
+  summer_return: {
+    titolo: 'Rientro estivo',
+    cose:
+      'La ripartenza dopo le vacanze, fatta in due tempi: la prima settimana rimette ordine (sgonfiare, reidratare, sistemare gli orari di sonno e pasti), la seconda torna al ritmo pieno verso l\'obiettivo. Non è una dieta lampo per rimediare.',
+    inPratica:
+      'Settimana 1: verdure e fibra, meno sale, più acqua, movimento leggero, misure senza ansia. Settimana 2: porzioni standard e spinta piena. Mai digiuni né tagli drastici.',
+    cosaDiceLaRicerca:
+      'Buona parte di quello che segna la bilancia dopo una vacanza è acqua trattenuta, non grasso: ridurre il sodio e reidratare la fa rientrare in pochi giorni. Le ripartenze aggressive, invece, sono quelle che si abbandonano prima.',
+    attenzione:
+      'Se il rientro coincide con un periodo di stress o sonno scarso, dillo alla coach: il piano si adatta. Nessun percorso deve iniziare con la fame.',
+    fonti: ['National Weight Control Registry', 'Harvard T.H. Chan School of Public Health — The Nutrition Source'],
   },
   keto_mediterranean: {
     titolo: 'Keto-Mediterranea',

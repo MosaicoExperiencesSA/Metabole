@@ -7,6 +7,50 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Keto-Mediterranea agganciata al generatore esistente** (richiesta Simone: «perché non
+  agganci al generatore già creato?»). La dieta ora è una **dieta suggerita** dentro *Creazione e
+  validazione*, come tutte le altre: `SUGGESTED_PRESETS` in
+  `backend/src/engine-rules/engine-rules.presets.ts` con **12 varianti** — 2 regimi (onnivoro,
+  vegetariano) × 2 obiettivi (dimagrimento 1500 kcal, mantenimento 1800 kcal) × 3 strutture pasti
+  (3 pasti, 5 pasti, digiuno 16:8). Il capo nutrizionista la richiama, preme *Genera tutte le 12
+  varianti* e poi *Valida e pubblica tutte*: stessa strada delle altre diete, nessun percorso
+  parallelo. Il vincolo che dà senso al prodotto vive in `clinicalNotes`, che finisce dentro il
+  prompt del generatore: chetosi < 50 g carboidrati, grassi di qualità (olio d'oliva, pesce azzurro,
+  frutta secca, olive), **solo ingredienti da supermercato italiano** con l'elenco esplicito dei
+  vietati-perché-introvabili (farine speciali, dolcificanti particolari, prodotti "keto"
+  confezionati, olio MCT, proteine in polvere, addensanti) e la richiesta di ricette semplici.
+  **Vegana esclusa di proposito**: senza legumi e senza derivati della soia da negozio specializzato
+  non regge né sul fronte proteico né su quello della reperibilità — se servirà è un prodotto a sé.
+  Il seeder dei preset ora confronta anche regime/obiettivo/pasti (prima solo stile+etichetta,
+  e una famiglia con più varianti si sarebbe fermata alla prima) e scrive il campo `meals`.
+  Aggiunta l'etichetta `keto_mediterranean` → «Keto-Mediterranea» nelle sei mappe che la usano
+  (catalogo, taxonomy backoffice, regole motore, report di fine piano, email lifecycle, nome del
+  percorso consigliato). ⚠️ **Superato lo script `seed:keto-med`**, rimosso: le ricette scritte a
+  mano non passavano dal generatore, e due strade per creare la stessa dieta sono una di troppo.
+  La variante che aveva già creato si chiama `Keto-Mediterranea (5 pasti)` — nome diverso da quello
+  del generatore (`Keto-Mediterranea`), quindi non va in conflitto: è una bozza non visibile alle
+  clienti e va semplicemente eliminata da *Catalogo diete*, per non lasciare due prodotti simili.
+
+- `[Sviluppo]` **Registrazione: il "?" mancava su metà dei percorsi, e i nomi non erano quelli del
+  backoffice** (segnalato da Simone con due schermate). Due cose diverse.
+  *Il "?"*: la scheda informativa esisteva solo per mediterranea, proteica, low-carb e keto, quindi
+  DASH, Flessibile, Detossinante, Vacanza estiva e Rientro estivo restavano senza spiegazione.
+  Scritte le **cinque schede mancanti** con lo stesso criterio delle altre — cos'è, in pratica, cosa
+  dice la ricerca, cosa tenere presente — e fonti **per scheda** dove servono altre fonti (NHLBI per
+  la DASH; la revisione critica di Klein & Kiat per il Detox, che dice apertamente che le detox
+  commerciali non hanno prove: la scheda lo scrive invece di nasconderlo). Aggiunta in
+  `dietInfo.ts` la regola: ogni stile pubblicato deve avere qui la sua scheda.
+  *I nomi*: l'app mostrava «Chetogenica», «Dash», «Rientro estivo» perché quelle diete non hanno un
+  nome commerciale impostato e si ripiegava sul **codice stile**, mentre in backoffice le stesse
+  diete si chiamano «Keto (non terapeutica)», «DASH (anti-ipertensiva)», «Ritorno in Equilibrio».
+  Ora `GET /onboarding/diet-products` ripiega sul **nome vero della dieta** e solo in ultima istanza
+  sullo stile: un nome solo, quello che la nutrizionista ha scritto.
+  ⚠️ **Resta aperto**: la registrazione mostra **una card per stile**, non per dieta. Le famiglie che
+  condividono lo stesso stile (Vegana, Vegetariana, Flexitariana e Flessibile sono tutte `flexible`)
+  si vedono come una sola voce. Per separarle serve che la registrazione salvi *quale prodotto* è
+  stato scelto e non solo lo stile — oggi il motore abbina per stile+regime+obiettivo+pasti. Da
+  decidere insieme: non è una modifica da sera di pubblicazione.
+
 - `[Sviluppo]` **`npm run prisma:seed` andava in out of memory su Render** — unico script del
   progetto senza `--transpile-only`: `ts-node` provava a fare il type-check dell'intero progetto in
   memoria e il container non ce la faceva («Reached heap limit»). Il seed quindi non girava, e i
