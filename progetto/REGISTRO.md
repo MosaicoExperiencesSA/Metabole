@@ -7,6 +7,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **OTA spento ✓ — e un mio errore da segnare.** `OTA_VERSION` è stata eliminata dal
+  servizio su Render (deploy live alle 15:58) e il manifest ora risponde
+  `{"version":null,"url":null}`: nessun telefono scarica più bundle, e la 2.1 dello store non
+  rischia di ritrovarsi sopra il web della 2.0.1.
+  ⚠️ **La caccia è durata un'ora per colpa mia.** Rileggevo il manifest dal sandbox e continuavo a
+  vedere `2.0.1` anche dopo che Simone l'aveva già tolta: ho detto due volte, con sicurezza, «non è
+  cache» — e gli ho fatto rifare la procedura tre volte. Era cache: `GET /health` restituiva un
+  `timestamp` di **due ore e mezza prima**, cioè l'istante della mia prima chiamata a quel dominio.
+  Variare la query string (`?t=...`) non serviva a niente. La verifica vera l'ha data il browser,
+  che non passa da quel proxy.
+  **Regola scritta in memoria** (`feedback_verifiche_endpoint.md`): per sapere «com'è adesso»
+  qualcosa che abbiamo appena cambiato — env, deploy, manifest — si legge **dal browser**, non con
+  WebFetch; e il `timestamp` di `/health` è il modo da dieci secondi per accorgersi di star
+  leggendo roba vecchia. Verificato nella stessa passata che l'unico gruppo di ambiente collegato
+  (`metabole-shared`) contiene solo `CRON_SECRET`: nessun'altra sorgente nascosta.
+
 - `[Sviluppo]` **Posta backoffice — «Ricevuta» e «Inviata» erano testo nudo** (segnalato da Simone:
   «così è proprio brutto»). Il markup usava un *segmented control* (`.seg`) copiato dall'app
   cliente, ma quel CSS nel backoffice **non esiste**: le due voci uscivano come due righe di testo
