@@ -24,7 +24,7 @@
  *   (così le installazioni fresche non riscaricano un vecchio bundle).
  */
 import { execSync } from 'child_process';
-import { promises as fs } from 'fs';
+import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -47,6 +47,23 @@ function run(cmd, cwd) {
 
 async function main() {
   console.log('=== Metabole · pacchetto OTA ' + version + ' ===');
+
+  // ⛔ GUARDIA (aggiunta il 6/8/2026 dopo un incidente sfiorato).
+  // `vite.config.ts` accende le push SOLO se `app/google-services.json` esiste al momento
+  // del build (costante __ENABLE_PUSH__). Quel file è gitignorato, quindi su un clone fresco
+  // — in sandbox o in CI — NON c'è: il build riesce lo stesso, ma tutto il codice di
+  // registrazione del token viene eliminato dal bundle. Un OTA fatto così SPEGNE LE PUSH
+  // sui telefoni che lo ricevono, in silenzio e senza errori.
+  // Meglio rifiutarsi di costruire che scoprirlo dopo.
+  if (!existsSync(path.join(APP, 'google-services.json'))) {
+    console.error('\n⛔ Manca app/google-services.json — mi fermo qui.');
+    console.error('   Senza quel file il bundle esce SENZA le notifiche push (__ENABLE_PUSH__ = false):');
+    console.error('   chi riceve l\'aggiornamento smette di registrare il token e le push muoiono per tutti.');
+    console.error('   Scaricalo da Firebase (Impostazioni progetto → app Android) e mettilo in app/.');
+    console.error('   È gitignorato apposta: su un clone nuovo va rimesso a mano.\n');
+    process.exit(1);
+  }
+
   run('npm run build', APP);
 
   await fs.mkdir(OUT, { recursive: true });
