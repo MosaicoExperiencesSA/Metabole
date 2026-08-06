@@ -7,6 +7,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Parametri e modelli email: adesso si possono anche CREARE, non solo modificare**
+  — la causa comune dietro due difetti di oggi. `config_param` e `email_template` avevano solo
+  lettura e aggiornamento di righe che dovevano già esistere: la promessa «configurabile dal
+  backoffice» era vera solo se qualcuno si ricordava di mettere la chiave nel seed, e quando se
+  ne dimenticava il sistema usava un default scritto nel codice **senza dirlo a nessuno**. È
+  successo con i sei parametri del fabbisogno kcal e con il modello dell'email delle credenziali.
+  Ora `POST /admin/config` e `POST /admin/email/templates` (solo admin, con audit), più i due
+  riquadri in *Parametri* e *Modelli email*. Chiave validata (minuscole, numeri, underscore) e
+  409 parlante se esiste già. Nell'interfaccia è scritto chiaro il punto che conta e che non è
+  intuitivo: **la chiave deve essere identica a quella che il codice cerca**, altrimenti la riga
+  resta lì e non la usa nessuno.
+
 - `[Sviluppo]` **L'email delle credenziali ora si può modificare dal backoffice** (voce d'audit
   rimasta aperta). `lead_credentials` era l'unica transazionale senza riga in `EMAIL_TEMPLATES`:
   il testo arrivava solo dai default i18n, e chi voleva ritoccarlo non trovava il modello in

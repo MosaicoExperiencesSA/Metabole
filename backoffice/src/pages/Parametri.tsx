@@ -79,6 +79,11 @@ export function Parametri() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  // Creazione di un parametro che il seed non ha mai inserito: finora l'unico modo era
+  // aggiungere la chiave al seed e fare un deploy, e finché non succedeva il motore usava
+  // un default scritto nel codice senza dirlo a nessuno.
+  const [nuovo, setNuovo] = useState<{ key: string; value: string; type: string; description: string } | null>(null);
+  const [creando, setCreando] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -124,15 +129,80 @@ export function Parametri() {
     }
   }
 
+  async function crea() {
+    if (!nuovo) return;
+    setCreando(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api<Param>('/admin/config', { method: 'POST', body: JSON.stringify(nuovo) });
+      setNuovo(null);
+      await load();
+      setNotice(`Parametro “${nuovo.key}” creato.`);
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError(err instanceof Error ? err.message : 'Creazione non riuscita.');
+    } finally {
+      setCreando(false);
+    }
+  }
+
   if (loading) return <Spinner />;
 
   return (
     <>
-      <p className="hint" style={{ marginTop: 0 }}>
-        Modifica gli estremi del bonifico e le soglie del motore senza toccare il codice. Ogni valore si salva singolarmente.
-      </p>
+      <div className="spread" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <p className="hint" style={{ marginTop: 0 }}>
+          Modifica gli estremi del bonifico e le soglie del motore senza toccare il codice. Ogni valore si salva singolarmente.
+        </p>
+        {!nuovo && (
+          <button className="btn ghost" onClick={() => setNuovo({ key: '', value: '', type: 'number', description: '' })}>
+            <i className="ti ti-plus" /> Nuovo parametro
+          </button>
+        )}
+      </div>
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
+
+      {nuovo && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Nuovo parametro</h2>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Serve quando il codice legge una chiave che a database non c'è ancora: finché la riga manca,
+            il valore usato è quello scritto nel codice. La <b>chiave</b> deve essere identica a quella che
+            il codice cerca — se non lo è, questa riga non la userà nessuno.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
+            <label className="field" style={{ margin: 0 }}>
+              <span>Chiave</span>
+              <input className="input" style={{ fontFamily: 'monospace' }} value={nuovo.key}
+                onChange={(e) => setNuovo({ ...nuovo, key: e.target.value.trim() })} placeholder="es. menu_days_delivered" />
+            </label>
+            <label className="field" style={{ margin: 0 }}>
+              <span>Valore</span>
+              <input className="input" value={nuovo.value} onChange={(e) => setNuovo({ ...nuovo, value: e.target.value })} placeholder="es. 2" />
+            </label>
+            <label className="field" style={{ margin: 0 }}>
+              <span>Tipo</span>
+              <select className="select" value={nuovo.type} onChange={(e) => setNuovo({ ...nuovo, type: e.target.value })}>
+                <option value="number">Numero</option>
+                <option value="string">Testo</option>
+                <option value="boolean">Acceso/spento</option>
+                <option value="json">JSON</option>
+              </select>
+            </label>
+            <label className="field" style={{ margin: 0, gridColumn: '1 / -1' }}>
+              <span>Descrizione</span>
+              <input className="input" value={nuovo.description} onChange={(e) => setNuovo({ ...nuovo, description: e.target.value })}
+                placeholder="A cosa serve, in una riga: la leggerà chi lo trova fra un anno." />
+            </label>
+          </div>
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+            <button className="btn ghost" onClick={() => setNuovo(null)} disabled={creando}>Annulla</button>
+            <button className="btn" onClick={crea} disabled={creando || !nuovo.key || !nuovo.value}>{creando ? 'Creo…' : 'Crea parametro'}</button>
+          </div>
+        </div>
+      )}
 
       {grouped.map(({ group, items }) => (
         <div className="card" key={group}>

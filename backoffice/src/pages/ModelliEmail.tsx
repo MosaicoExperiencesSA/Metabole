@@ -28,6 +28,9 @@ export function ModelliEmail() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<Template | null>(null);
+  // Creazione di un modello che il seed non ha mai inserito: prima l'unico modo era
+  // aggiungere una riga al seed e fare un deploy.
+  const [nuovo, setNuovo] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -48,9 +51,12 @@ export function ModelliEmail() {
 
   return (
     <>
-      <p className="hint" style={{ marginTop: 0 }}>
-        Personalizza il testo delle email. I segnaposto tra doppie graffe (es. <code>{'{{link}}'}</code>) vengono sostituiti all'invio.
-      </p>
+      <div className="spread" style={{ alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <p className="hint" style={{ marginTop: 0 }}>
+          Personalizza il testo delle email. I segnaposto tra doppie graffe (es. <code>{'{{link}}'}</code>) vengono sostituiti all'invio.
+        </p>
+        <button className="btn" onClick={() => setNuovo(true)}><i className="ti ti-plus" /> Nuovo modello</button>
+      </div>
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
@@ -84,6 +90,13 @@ export function ModelliEmail() {
         <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
       </div>
 
+      {nuovo && (
+        <NewTemplateModal
+          onClose={() => setNuovo(false)}
+          onCreated={(t) => { setRows((rs) => [...rs, t].sort((a, b) => a.name.localeCompare(b.name, 'it'))); setNuovo(false); setNotice(`Modello "${t.name}" creato. Ora puoi scriverne il testo.`); }}
+        />
+      )}
+
       {editing && (
         <EditTemplateModal
           template={editing}
@@ -109,6 +122,67 @@ const SAMPLE: Record<string, string> = {
   lostThisMonth: '—', lostTotal: '—', currentWeight: '—', target: '—', checkins: '—', trend: '—',
 };
 const fillSample = (s: string) => s.replace(/\{\{(\w+)\}\}/g, (_, k: string) => SAMPLE[k] ?? `{{${k}}}`);
+
+
+/**
+ * Nuovo modello email. La CHIAVE è la parte che conta: deve essere identica a quella che il
+ * codice passa a `resolve(...)` quando manda quell'email, altrimenti il modello resta lì e non
+ * lo usa nessuno. Per questo la chiave si scrive una volta sola e poi non si tocca più.
+ */
+function NewTemplateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (t: Template) => void }) {
+  const [key, setKey] = useState('');
+  const [name, setName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [bodyHtml, setBodyHtml] = useState('<p>Ciao {{name}},</p>\n<p>…</p>');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function crea() {
+    setErr(null);
+    setBusy(true);
+    try {
+      const t = await api<Template>('/admin/email/templates', {
+        method: 'POST',
+        body: JSON.stringify({ key: key.trim(), name: name.trim(), subject: subject.trim(), bodyHtml }),
+      });
+      onCreated(t);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Creazione non riuscita.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Nuovo modello email" onClose={onClose}>
+      {err && <Banner kind="err">{err}</Banner>}
+      <div className="field">
+        <label>Chiave</label>
+        <input className="input" style={{ width: '100%', fontFamily: 'monospace' }} value={key} onChange={(e) => setKey(e.target.value)} placeholder="es. lead_credentials" />
+        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+          Minuscole, numeri e underscore. Deve corrispondere esattamente alla chiave usata dal codice
+          per quell'email: se non corrisponde, il modello non verrà mai usato. Non è modificabile dopo.
+        </div>
+      </div>
+      <div className="field">
+        <label>Nome (come lo vedi in elenco)</label>
+        <input className="input" style={{ width: '100%' }} value={name} onChange={(e) => setName(e.target.value)} placeholder="es. Credenziali di accesso (al lead)" />
+      </div>
+      <div className="field">
+        <label>Oggetto</label>
+        <input className="input" style={{ width: '100%' }} value={subject} onChange={(e) => setSubject(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Corpo (HTML)</label>
+        <textarea className="input" style={{ width: '100%', minHeight: '28vh', resize: 'vertical', fontFamily: 'monospace', fontSize: 13 }} value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} />
+      </div>
+      <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+        <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
+        <button className="btn" onClick={crea} disabled={busy || !key.trim() || !name.trim() || !subject.trim()}>{busy ? 'Creo…' : 'Crea modello'}</button>
+      </div>
+    </Modal>
+  );
+}
 
 function EditTemplateModal({ template, onClose, onSaved }: { template: Template; onClose: () => void; onSaved: (t: Template) => void }) {
   const [subject, setSubject] = useState(template.subject);

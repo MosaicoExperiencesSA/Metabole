@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -47,6 +47,39 @@ export class ConfigParamsService {
 
   async list() {
     return this.prisma.configParam.findMany({ orderBy: { key: 'asc' } });
+  }
+
+  /**
+   * CREA un parametro nuovo. Serviva: finora esistevano solo lettura e aggiornamento di righe
+   * che dovevano già esistere, quindi la promessa «configurabile dal backoffice» era vera solo
+   * se qualcuno si ricordava di aggiungere la chiave al seed. Quando se ne dimenticava, il
+   * sistema usava un default scritto nel codice e non lo diceva a nessuno: è successo due volte
+   * (parametri del fabbisogno kcal, modello email delle credenziali).
+   */
+  async create(
+    input: { key: string; value: string; type?: string; description?: string },
+    actorId: string,
+  ) {
+    const key = (input.key ?? '').trim();
+    if (!/^[a-z][a-z0-9_]{2,59}$/.test(key)) {
+      throw new BadRequestException('Chiave non valida: minuscole, numeri e underscore, da 3 a 60 caratteri (es. menu_days_delivered).');
+    }
+    if ((input.value ?? '').trim() === '') throw new BadRequestException('Il valore non può essere vuoto.');
+    const exists = await this.prisma.configParam.findUnique({ where: { key }, select: { key: true } });
+    if (exists) throw new ConflictException(`Il parametro "${key}" esiste già: modificalo dall'elenco.`);
+    const type = ['number', 'string', 'boolean', 'json'].includes(input.type ?? '') ? (input.type as string) : 'string';
+    const created = await this.prisma.configParam.create({
+      data: { key, value: input.value, type: type as never, description: input.description?.trim() || null, updatedById: actorId } as never,
+    });
+    this.cache.delete(key);
+    await this.audit.log({
+      action: 'config_param.create',
+      actorId,
+      entityType: 'config_param',
+      entityId: key,
+      metadata: { value: input.value, type },
+    });
+    return created;
   }
 
   async update(key: string, value: string, actorId: string) {
