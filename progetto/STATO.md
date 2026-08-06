@@ -227,11 +227,15 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   - Le segnalazioni (aderenza→coach, mood/plateau) sono già coperte dall'Alert engine (dropout_risk,
     plateau, ecc.).
 - **Certificazione unicità** (seed, collision check, registro firmato): ⬜ (Fase 10).
-- **Piani stagionali (prodotto)** ⬜ da `../Metabole_Piani_Estate.pdf`: due modalità di luglio —
+- **Piani stagionali (prodotto)** 🟡 da `../Metabole_Piani_Estate.pdf`: due modalità di luglio —
   *Vacanze in Serenità* (mantenimento, menu freddi/portabili, bussola-ristorante, misure non bloccanti)
-  e *Ritorno in Equilibrio* (ripartenza dolce, reset→ritmo). Da costruire: segnale `travel_mode` (date)
-  che accende mantenimento/rientro sull'agente dieta; sospendere il popup misure in vacanza; evento
-  `rientrato` verso CRM/marketing. Riusa stati agente + catalogo estivo esistenti.
+  e *Ritorno in Equilibrio* (ripartenza dolce, reset→ritmo).
+  **Fatto** (verificato il 6/8): il segnale di viaggio esiste con date e stati
+  `in_partenza / in_vacanza / rientrato` (`clients.service.ts:634-653`, evento `travel_return`), e il
+  popup misure è **sospeso in vacanza** (`menu.service.ts:690,715`). I due protocolli sono anche
+  preset del generatore (`engine-rules.presets.ts`).
+  **Manca**: collegare lo stato di viaggio all'**agente dieta** (`DietAgentService` non legge
+  `travelState`), e creare i due prodotti in produzione dal backoffice.
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) 🟡
 - Ruoli `marketing` + `head_marketing` **aggiunti** all'RBAC, ai permessi di default e al menu (voce

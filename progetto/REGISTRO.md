@@ -7,6 +7,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Prodotto]` **Ripuliti i quattro documenti che dicevano il falso** (dall'audit di oggi). Una
+  checklist che mente si smette di leggere, e da quel momento non protegge più niente.
+  ① `Metabole_Checklist_GoLive.md`: i quattro gate di apertura erano ancora 🔴 pur essendo stati
+  confermati il **16 luglio** (Stripe LIVE con pagamento reale, DNS Brevo, backoffice, push) —
+  chiusi, annotando che le push iOS sono state riparate solo il 6/8.
+  ② `RIEPILOGO_Lavori_Collaudo.md`: dal backlog tolte due voci superate — il modulo campagne
+  marketing è **fatto dal 15/7**, e il video di presentazione della coach è **annullato da Simone
+  il 17/7**: non è un lavoro in coda, è una cosa che non si fa.
+  ③ `Metabole_Checklist_Allineamento_STATO.md`: schermate 28-29 da ⬜ «serve il video» ad
+  **annullate**, stessa decisione.
+  ④ `progetto/STATO.md`: piani stagionali da ⬜ a 🟡 — il segnale di viaggio esiste con date e
+  stati (`clients.service.ts:634-653`) e il popup misure è sospeso in vacanza
+  (`menu.service.ts:690,715`); manca il collegamento all'agente dieta e la creazione dei due
+  prodotti in produzione. Scritto cosa c'è e cosa manca, invece di una casella vuota.
+
 - `[Sviluppo]` **Revisione del lavoro della giornata, e una regressione mia corretta prima che
   facesse danni.** Rivisto tutto il diff di oggi: il backend contro lo schema Prisma (chiamate,
   DTO, rotte, righe nuove del seed) — nessun bloccante, si può deployare — e il frontend cercando

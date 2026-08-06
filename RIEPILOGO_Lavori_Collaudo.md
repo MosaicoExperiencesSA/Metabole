@@ -158,6 +158,10 @@ Blocchi 1/2/3/4 già su GitHub; da pushare Blocco 5, 6, 7 e 8.
   conferma loop rientro pagato→mese gratis; strategia warm-up degli 80k contatti storici.
 
 ### Backlog più ampio (non urgente, in memoria di progetto)
-Notifiche push "complete" (tutti gli avvisi del widget mascotte), modulo Marketing campagne
-con segmenti dinamici + storico, UI coach "registra cliente / link+QR", video di presentazione
-coach, login social (Google/Apple). Dettagli in memoria `metabole-backlog.md`.
+Notifiche push "complete" (tutti gli avvisi del widget mascotte), UI coach "registra cliente /
+link+QR", login social (Google/Apple). Dettagli in memoria `metabole-backlog.md`.
+
+> Aggiornato il 6/8, due voci di questo elenco erano superate:
+> il **modulo Marketing campagne** con segmenti dinamici e storico è stato completato il 15/07
+> (`schema.prisma`, `model MarketingCampaign`); il **video di presentazione della coach** è stato
+> **annullato da Simone il 17/07** — non è un lavoro in coda, è una cosa che non si fa.

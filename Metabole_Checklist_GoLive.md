@@ -17,12 +17,15 @@ Aggiornata: 2026-07-14 (verifica live).
 - [x] **Blocker di codice chiusi** — endpoint lead, form sito collegati, scoping per-paziente.
 - [x] **Utenze staff reali** create in produzione (admin + Responsabile Coach + 12 coach, obbligo cambio password).
 
-## 🔴 Da confermare prima di aprire al pubblico (verifica, non sviluppo)
+## ✅ Gate di apertura — CHIUSI il 16/07 (verificato in `progetto/STATO_LANCIO.md`)
 
-- [ ] **[Ops] Stripe in modalità LIVE** — confermare che le chiavi siano `sk_live_…` (non test) e che il **webhook di produzione** sia registrato. Fare **un pagamento reale** di prova.
-- [ ] **[Ops] Email Brevo + DNS** — registrazione di prova: l'email di verifica arriva **in inbox, non spam** (SPF/DKIM/DMARC attivi sul dominio).
-- [ ] **[Ops/Sv] Backoffice raggiungibile** — confermare deploy e accesso (coach/nutrizionista/admin) su `backoffice.metabole.eu`.
-- [ ] **[Ops] Push / Firebase** — FCM configurate **oppure** push disattivate per il lancio (non bloccante).
+> Aggiornato il 6/8: questi quattro punti erano rimasti segnati in rosso pur essendo stati
+> confermati il 16 luglio. Li chiudo qui perché una checklist che mente si smette di leggere.
+
+- [x] **[Ops] Stripe in modalità LIVE** — chiave `sk_live` e webhook `checkout.session.completed` su Render; **pagamento reale eseguito** (16/07).
+- [x] **[Ops] Email Brevo + DNS** — SPF · DKIM brevo1/2 · DMARC · codice Brevo verificati (16/07).
+- [x] **[Ops/Sv] Backoffice raggiungibile** — `backoffice.metabole.eu` live, accessi per ruolo verificati (16/07).
+- [x] **[Ops] Push / Firebase** — FCM configurate; Android funzionante, **iOS riparate il 6/8** (mancavano i metodi del delegato: la 2.0 non registrava il token).
 
 ## 🟢 Smoke test finale (30 min, su prod)
 
