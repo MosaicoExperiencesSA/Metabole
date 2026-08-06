@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { coachTeamScope } from '../common/coach-team';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -39,13 +40,27 @@ export class CrmService {
    * esiste, oppure rigenera la provvisoria se l'account c'è già; collega il lead
    * all'utente e invia l'email con le credenziali. NON cambia lo stage: il lead
    * diventa cliente solo con l'acquisto.
+   *
+   * ⚠️ Il lead NON deve perdere la sua coach in questo passaggio (segnalazione Simone 6/8:
+   * «se un lead è assegnato a me e io gli mando le credenziali deve restare legato a me»).
+   * Prima l'account nasceva senza `ClientProfile`, e le liste dei clienti filtrano su
+   * `ClientProfile.assignedCoachId`: la coach spediva le credenziali e subito dopo non
+   * riusciva più ad aprire la scheda della sua cliente («non assegnata a nessuno»).
+   * L'assegnazione si propagava solo all'onboarding — cioè quando la cliente si degnava di
+   * compilare il questionario, che può non succedere mai.
    */
   async sendCredentials(recordId: string, actorId: string): Promise<{ sent: boolean; email: string }> {
     await this.assertLeadAccess(actorId, recordId);
     const rec = (await this.prisma.crmRecord.findUnique({
       where: { id: recordId },
-      select: { id: true, email: true, name: true, phone: true, clientId: true },
-    })) as { id: string; email: string | null; name: string | null; phone: string | null; clientId: string | null } | null;
+      select: {
+        id: true, email: true, name: true, phone: true, clientId: true,
+        assignedCoachId: true, assignedNutritionistId: true, assignmentStatus: true,
+      },
+    })) as {
+      id: string; email: string | null; name: string | null; phone: string | null; clientId: string | null;
+      assignedCoachId: string | null; assignedNutritionistId: string | null; assignmentStatus: string | null;
+    } | null;
     if (!rec) throw new NotFoundException('Lead non trovato');
     if (!rec.email || !rec.email.includes('@')) {
       throw new BadRequestException('Il lead non ha un\'email valida: aggiungila prima di inviare le credenziali.');
@@ -87,6 +102,27 @@ export class CrmService {
     }
     // Collega il lead all'account (senza toccare lo stage).
     await this.prisma.crmRecord.update({ where: { id: recordId }, data: { clientId: userId } });
+
+    // La coach (o la nutrizionista) del lead resta la coach della cliente: si porta
+    // l'assegnazione sul profilo, creandolo se non c'è ancora.
+    await agganciaAssegnazioneAlProfilo(this.prisma, userId, rec);
+
+    // Se il lead era ancora "da accettare" ed è la coach assegnata a mandare le credenziali,
+    // l'accettazione è implicita: sta già lavorando il lead. Senza questo, dopo `lead_accept_days`
+    // il cron di scadenza glielo toglieva di mano proprio mentre lo stava seguendo.
+    if (rec.assignmentStatus === 'pending' && rec.assignedCoachId) {
+      const staff = (await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } })) as { id: string } | null;
+      if (staff && staff.id === rec.assignedCoachId) {
+        await this.prisma.crmRecord.update({ where: { id: recordId }, data: { assignmentStatus: 'accepted' } });
+        await this.audit.log({
+          action: 'crm.lead.accept',
+          actorId,
+          entityType: 'crm_record',
+          entityId: recordId,
+          metadata: { implicita: 'invio credenziali' },
+        });
+      }
+    }
 
     await this.mail.sendLeadCredentials(email, { name: rec.name, email, password }, 'it');
     await this.audit.log({

@@ -7,6 +7,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **La coach non perde più la cliente quando le manda le credenziali.** Segnalazione
+  di Simone: Gioia Lurve ha inviato le credenziali a Francesco reale dal pulsante sul lead; il lead
+  risulta assegnato a lei, ma aprendolo si finisce su una cliente «non assegnata a nessuno».
+  La causa è un ponte mancante fra due mondi: il CRM ragiona per lead
+  (`CrmRecord.assignedCoachId`), tutto il resto del backoffice ragiona per profilo
+  (`ClientProfile.assignedCoachId`) — liste clienti, chat, attività della coach, provvigioni,
+  pausa vacanza filtrano **tutte** sul profilo. `sendCredentials` creava l'account e collegava il
+  lead, ma non toccava il profilo; anzi, il profilo **non esisteva proprio**, perché nasce col
+  questionario. Quindi non era un'etichetta sbagliata: la coach non riusciva **davvero** ad aprire
+  la scheda della cliente appena creata («questo cliente non è assegnato a te»).
+  L'aggancio esisteva in due punti soli — l'accettazione del lead e l'onboarding — e mancava
+  proprio dove il cliente nasce. Adesso è **una funzione sola**, `src/common/assegnazione-profilo.ts`,
+  chiamata da tutti e tre i rami (invio credenziali, accettazione, ref code): il ponte non si può
+  più dimenticare in un ramo. Due regole volute: non sovrascrive **mai** un'assegnazione già
+  presente (spostare una cliente resta un atto esplicito da Utenti), e crea il profilo se manca —
+  sicuro, perché il gate dell'onboarding guarda `onboardingCompletedAt`, non l'esistenza del
+  profilo. Corretti anche due `updateMany` che, senza profilo, aggiornavano **zero righe in
+  silenzio**: l'accettazione del lead e l'assegnazione via ref code avevano lo stesso buco.
+  Seconda parte, stesso difetto: se la coach manda le credenziali a un lead ancora «da accettare»,
+  l'accettazione ora è **implicita** — sta già lavorando il lead. Senza, dopo `lead_accept_days`
+  il cron di scadenza glielo toglieva di mano proprio mentre lo seguiva: l'anomalia segnalata
+  sarebbe tornata da sola due giorni dopo. Vale solo se è la coach assegnata a premere il
+  pulsante; se lo fa la responsabile, il lead resta «da accettare».
+  Per le clienti già finite in quello stato — Francesco reale compreso — il codice nuovo non basta:
+  c'è **`npm run fix:assegnazioni`** (shell di Render, in `~/project/src/backend`), che di suo
+  mostra e basta e scrive solo con `CONFERMA=1`. Elenca a parte, senza toccarle, le divergenze in
+  cui il profilo ha già un'**altra** coach: quella è la decisione di qualcuno, non un difetto.
+  Effetto collaterale voluto: queste clienti rientrano ora anche nell'email di ciclo di vita
+  «profilo_incompleto», che prima le saltava perché il profilo non esisteva.
+  `tsc --noEmit` pulito. File: `backend/src/common/assegnazione-profilo.ts` (nuovo),
+  `crm.service.ts`, `lead-assignment.service.ts`, `prisma/fix-assegnazioni.ts` (nuovo),
+  `package.json`.
+
 - `[Sviluppo]` ✅ **PUSH iOS VERIFICATE FUNZIONANTI** su TestFlight, build **2.1 (7)**: push di
   prova inviata dal backoffice e **arrivata sul telefono**. È la chiusura dell'indagine iniziata
   stamattina: dalla 2.0 non arrivavano a nessuno e nessuno poteva accorgersene. La catena completa

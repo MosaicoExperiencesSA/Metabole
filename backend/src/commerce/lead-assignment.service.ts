@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { nextRuleCode, refCodeBase, splitDisplayName } from '../common/ref-code';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -144,8 +145,14 @@ export class LeadAssignmentService {
 
     const updated = await this.prisma.crmRecord.update({ where: { id: recordId }, data: { assignmentStatus: 'accepted' } });
     // Se è già una cliente registrata, imposta la coach anche sul profilo.
+    // Prima era un `updateMany`: se il profilo non esisteva ancora (account nato da
+    // "Invia credenziali", questionario mai compilato) aggiornava ZERO righe in silenzio
+    // e l'assegnazione si perdeva. Ora, se manca, il profilo viene creato.
     if (record.clientId && staffId) {
-      await this.prisma.clientProfile.updateMany({ where: { userId: record.clientId }, data: { assignedCoachId: staffId } });
+      await agganciaAssegnazioneAlProfilo(this.prisma, record.clientId, {
+        name: record.name,
+        assignedCoachId: staffId,
+      });
     }
     if (record.assignedBy?.userId) {
       await this.notifications.notify({
@@ -478,14 +485,12 @@ export class LeadAssignmentService {
         data: { assignedNutritionistId: resolved.staffId },
       });
     }
-    // Se il profilo cliente esiste già, propaghiamo lo staff; altrimenti verrà
-    // impostato all'onboarding (updateMany su 0 righe è sicuro).
-    await this.prisma.clientProfile.updateMany({
-      where: { userId: clientId },
-      data:
-        resolved.role === 'coach'
-          ? { assignedCoachId: resolved.staffId }
-          : { assignedNutritionistId: resolved.staffId },
+    // Propaghiamo lo staff al profilo, creandolo se non c'è. Prima era un `updateMany` che si
+    // affidava all'onboarding: chi si registra col codice di una coach e poi non compila il
+    // questionario resta invisibile a quella coach, perché le liste clienti filtrano sul profilo.
+    await agganciaAssegnazioneAlProfilo(this.prisma, clientId, {
+      assignedCoachId: resolved.role === 'coach' ? resolved.staffId : null,
+      assignedNutritionistId: resolved.role === 'coach' ? null : resolved.staffId,
     });
     await this.audit.log({
       action: 'lead.assign.refcode',
