@@ -604,7 +604,11 @@ export class CatalogService {
         ...(filter.q ? { name: { contains: filter.q, mode: 'insensitive' } } : {}),
       },
       orderBy: { name: 'asc' },
-      take: 200,
+      // Il catalogo cresce in fretta (la sola Keto-Mediterranea porta centinaia di piatti) e la
+      // pagina Ricette ora filtra e ordina sulle righe caricate: con un tetto a 200 avrebbe
+      // filtrato su una fetta, senza dirlo. A 1000 ci sta tutto il catalogo previsto, e quando il
+      // tetto viene toccato la pagina lo scrive invece di far finta di niente.
+      take: 1000,
     });
   }
 

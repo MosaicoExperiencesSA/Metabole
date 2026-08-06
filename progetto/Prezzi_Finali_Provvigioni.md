@@ -31,7 +31,13 @@ Se si va con gli importi fissi, ecco i valori (calcolati sul **prezzo scontato**
 | 3 mesi €269 | €121,05 | €40,35 |
 | 6 mesi €499 | €224,55 | €74,85 |
 
-**Da confermare anche:** le provvigioni si applicano anche a **mantenimento** (€29/mese → coach €13,05/mese ricorrente?) e **visita** (€35), o solo ai percorsi? Meglio deciderlo esplicitamente.
+**DECISO il 6/8 (Simone): su Mantenimento e Monitoraggio la provvigione al nutrizionista è 0%**
+(sia sul primo addebito sia sui rinnovi). Il lavoro del nutrizionista su questi due prodotti è
+tutto a monte nel catalogo, ed è già remunerato dai percorsi. Sui percorsi 1/3/6 mesi il 15%
+resta. Quota coach sui rinnovi: decisione ancora aperta, opzioni e numeri in
+`Decisione_Provvigioni_Rinnovo.md`.
+
+~~**Da confermare anche:** le provvigioni si applicano anche a **mantenimento** (€29/mese → coach €13,05/mese ricorrente?) e **visita** (€35), o solo ai percorsi? Meglio deciderlo esplicitamente.~~ (sciolta sopra)
 
 ## 3. Nota sul margine (solo perché tu abbia il numero sott'occhio)
 45% + 15% = **60% del prezzo** va a coach + nutrizionista. Su un 3 mesi scontato a €269 sono **~€161** ai due ruoli, €108 lordi residui (prima di ads, piattaforma, ecc.). È una scelta di modello tua — te lo segnalo solo come dato, non come obiezione: allinea l'incentivo delle coach (che sono le chiuditrici), ma pesa sul margine, quindi il **mix di piani** e i **rinnovi/mantenimento** diventano decisivi per la redditività.

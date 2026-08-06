@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner, Toggle, usePagination } from '../components/ui';
@@ -27,7 +27,12 @@ const SLOTS = Object.keys(SLOT);
 const METHODS = Object.keys(METHOD);
 const DIFFICULTIES = Object.keys(DIFFICULTY);
 const SEASONS: [string, string][] = [['spring', 'Primavera'], ['summer', 'Estate'], ['autumn', 'Autunno'], ['winter', 'Inverno']];
+const SEASON_LABEL: Record<string, string> = Object.fromEntries(SEASONS);
 const ITALIAN_TAG = 'cucina italiana';
+
+/** Stagioni in chiaro. Vuoto = il piatto va bene tutto l'anno (vedi modale). */
+const seasonsText = (s?: string[]): string =>
+  s && s.length ? SEASONS.filter(([v]) => s.includes(v)).map(([, l]) => l).join(' · ') : 'Tutto l\'anno';
 
 interface FormMethod { type: string; stepsText: string }
 interface Form {
@@ -68,6 +73,20 @@ function toForm(r: Recipe): Form {
   };
 }
 
+/**
+ * Ogni intestazione ordina, e sotto ogni intestazione c'è il suo filtro (richiesta Simone 6/8:
+ * col catalogo che cresce — la Keto-Mediterranea da sola porta centinaia di piatti — scorrere
+ * l'elenco a occhio non è più un modo di lavorare). Filtri e ordinamento lavorano sulle righe
+ * già caricate: il server ne manda fino a 1000 e se il tetto viene toccato lo diciamo, invece
+ * di far credere che il catalogo sia più piccolo di com'è.
+ */
+type SortKey = 'name' | 'regime' | 'mealSlot' | 'kcal' | 'difficulty' | 'seasons' | 'tags' | 'active';
+const LIMITE_SERVER = 1000;
+
+const emptyFilters = (regime = '') => ({
+  name: '', regime, slot: '', kcalMin: '', kcalMax: '', difficulty: '', season: '', tag: '', stato: '',
+});
+
 export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
   const { permissions } = useAuth();
   const { regimes, regimeLabel } = useTaxonomy();
@@ -75,18 +94,17 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
   const [rows, setRows] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [regime, setRegime] = useState(scopeRegime ?? '');
-  const [slot, setSlot] = useState('');
-  const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
+  const [f, setF] = useState(emptyFilters(scopeRegime ?? ''));
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
 
   async function load() {
     setError(null);
     try {
+      // Si carica una volta sola e si filtra qui: il regime resta lato server solo quando la
+      // pagina è incorporata in una dieta (scopeRegime), dove le altre righe non servono mai.
       const params = new URLSearchParams({ includeInactive: 'true' });
-      if (regime) params.set('regime', regime);
-      if (slot) params.set('mealSlot', slot);
-      if (q.trim()) params.set('q', q.trim());
+      if (scopeRegime) params.set('regime', scopeRegime);
       setRows(await api<Recipe[]>(`/recipes?${params.toString()}`));
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
@@ -95,7 +113,7 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [regime, slot]);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeRegime]);
 
   async function del(r: Recipe) {
     if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;
@@ -108,30 +126,99 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
     }
   }
 
-  const pg = usePagination(rows, 100);
+  const filtrate = useMemo(() => {
+    const testo = (v: string) => v.trim().toLowerCase();
+    const nome = testo(f.name); const tag = testo(f.tag);
+    const min = f.kcalMin.trim() === '' ? null : Number(f.kcalMin);
+    const max = f.kcalMax.trim() === '' ? null : Number(f.kcalMax);
+    return rows.filter((r) => {
+      if (nome && !r.name.toLowerCase().includes(nome)) return false;
+      if (f.regime && r.regime !== f.regime) return false;
+      if (f.slot && r.mealSlot !== f.slot) return false;
+      if (min != null && Number.isFinite(min) && r.kcal < min) return false;
+      if (max != null && Number.isFinite(max) && r.kcal > max) return false;
+      if (f.difficulty && (r.difficulty ?? 'media') !== f.difficulty) return false;
+      if (f.season === 'none' && (r.seasons ?? []).length > 0) return false;
+      if (f.season && f.season !== 'none' && !(r.seasons ?? []).includes(f.season)) return false;
+      if (tag && !(r.tags ?? []).join(', ').toLowerCase().includes(tag)) return false;
+      if (f.stato === 'active' && !r.active) return false;
+      if (f.stato === 'archived' && r.active) return false;
+      return true;
+    });
+  }, [rows, f]);
+
+  const view = useMemo(() => {
+    // Il pasto si ordina come nella giornata, non in alfabetico: "Cena, Colazione, Merenda"
+    // sarebbe corretto e inutile.
+    const val = (r: Recipe): string | number => {
+      switch (sort.key) {
+        case 'name': return r.name.toLowerCase();
+        case 'regime': return regimeLabel(r.regime).toLowerCase();
+        case 'mealSlot': return SLOTS.indexOf(r.mealSlot);
+        case 'kcal': return r.kcal;
+        case 'difficulty': return DIFFICULTIES.indexOf(r.difficulty ?? 'media');
+        case 'seasons': return seasonsText(r.seasons).toLowerCase();
+        case 'tags': return (r.tags ?? []).join(', ').toLowerCase();
+        case 'active': return r.active ? 0 : 1;
+      }
+    };
+    const segno = sort.dir === 'asc' ? 1 : -1;
+    return [...filtrate].sort((a, b) => {
+      const va = val(a); const vb = val(b);
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * segno;
+      return String(va).localeCompare(String(vb), 'it') * segno;
+    });
+  }, [filtrate, sort, regimeLabel]);
+
+  const pg = usePagination(view, 100);
+  const filtriAttivi = JSON.stringify(f) !== JSON.stringify(emptyFilters(scopeRegime ?? ''));
+
+  function ordina(k: SortKey) {
+    setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }));
+  }
+  const Th = ({ k, label, width }: { k: SortKey; label: string; width?: number }) => {
+    const on = sort.key === k;
+    return (
+      <th
+        style={{ cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', width }}
+        onClick={() => ordina(k)}
+        title={`Ordina per ${label.toLowerCase()}`}
+      >
+        {label}{' '}
+        <i
+          className={`ti ti-${on ? (sort.dir === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrows-sort'}`}
+          style={{ fontSize: 12, opacity: on ? 0.9 : 0.28, verticalAlign: '-1px' }}
+        />
+      </th>
+    );
+  };
+  const filterCell = (node: React.ReactNode) => <th style={{ padding: '6px 8px', fontWeight: 400 }}>{node}</th>;
+  const sel = { padding: '4px 6px', fontSize: 12, width: '100%' } as const;
+  const inp = { padding: '4px 6px', fontSize: 12, width: '100%' } as const;
 
   if (loading) return <Spinner />;
 
   return (
     <>
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <input className="input" style={{ width: 200 }} placeholder="Cerca per nome…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void load(); }} />
-          {!scopeRegime && (
-            <select className="select" style={{ width: 150 }} value={regime} onChange={(e) => setRegime(e.target.value)}>
-              <option value="">Ogni regime</option>
-              {regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
-            </select>
+        <span className="muted" style={{ fontSize: 13 }}>
+          {filtriAttivi ? <><b>{view.length}</b> ricette su {rows.length} </> : <><b>{rows.length}</b> ricette </>}
+          {filtriAttivi && (
+            <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setF(emptyFilters(scopeRegime ?? ''))}>
+              <i className="ti ti-filter-off" /> Azzera filtri
+            </button>
           )}
-          <select className="select" style={{ width: 150 }} value={slot} onChange={(e) => setSlot(e.target.value)}>
-            <option value="">Ogni pasto</option>
-            {SLOTS.map((s) => <option key={s} value={s}>{SLOT[s]}</option>)}
-          </select>
-        </div>
+        </span>
         {canEdit && <button className="btn" onClick={() => setEditing('new')}><i className="ti ti-plus" /> Nuova ricetta</button>}
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
+      {rows.length >= LIMITE_SERVER && (
+        <Banner kind="info">
+          L'elenco è troncato a {LIMITE_SERVER} ricette: quelle oltre non sono qui e i filtri non le vedono.
+          Apri le ricette dalla singola dieta, oppure scrivici per alzare il tetto.
+        </Banner>
+      )}
 
       <div className="card" style={{ padding: 0 }}>
         {rows.length === 0 ? (
@@ -140,18 +227,79 @@ export function Ricette({ scopeRegime }: { scopeRegime?: string } = {}) {
           <table className="grid">
             <thead>
               <tr>
-                <th>Nome</th><th>Regime</th><th>Pasto</th><th>Kcal</th><th>Difficoltà</th><th>Tag</th><th>Stato</th>
+                <Th k="name" label="Nome" />
+                <Th k="regime" label="Regime" />
+                <Th k="mealSlot" label="Pasto" />
+                <Th k="kcal" label="Kcal" />
+                <Th k="difficulty" label="Difficoltà" />
+                <Th k="seasons" label="Stagioni" />
+                <Th k="tags" label="Tag" />
+                <Th k="active" label="Stato" />
+                {canEdit && <th></th>}
+              </tr>
+              <tr>
+                {filterCell(
+                  <input className="input" style={inp} placeholder="Cerca…" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />,
+                )}
+                {filterCell(
+                  <select className="select" style={sel} value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })} disabled={!!scopeRegime}>
+                    <option value="">Tutti</option>
+                    {regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
+                  </select>,
+                )}
+                {filterCell(
+                  <select className="select" style={sel} value={f.slot} onChange={(e) => setF({ ...f, slot: e.target.value })}>
+                    <option value="">Tutti</option>
+                    {SLOTS.map((s) => <option key={s} value={s}>{SLOT[s]}</option>)}
+                  </select>,
+                )}
+                {filterCell(
+                  <div className="row" style={{ gap: 4 }}>
+                    <input className="input" style={{ ...inp, width: 54 }} inputMode="numeric" placeholder="min" value={f.kcalMin} onChange={(e) => setF({ ...f, kcalMin: e.target.value })} />
+                    <input className="input" style={{ ...inp, width: 54 }} inputMode="numeric" placeholder="max" value={f.kcalMax} onChange={(e) => setF({ ...f, kcalMax: e.target.value })} />
+                  </div>,
+                )}
+                {filterCell(
+                  <select className="select" style={sel} value={f.difficulty} onChange={(e) => setF({ ...f, difficulty: e.target.value })}>
+                    <option value="">Tutte</option>
+                    {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY[d]}</option>)}
+                  </select>,
+                )}
+                {filterCell(
+                  <select className="select" style={sel} value={f.season} onChange={(e) => setF({ ...f, season: e.target.value })}>
+                    <option value="">Tutte</option>
+                    {SEASONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    <option value="none">Tutto l'anno</option>
+                  </select>,
+                )}
+                {filterCell(
+                  <input className="input" style={inp} placeholder="Cerca…" value={f.tag} onChange={(e) => setF({ ...f, tag: e.target.value })} />,
+                )}
+                {filterCell(
+                  <select className="select" style={sel} value={f.stato} onChange={(e) => setF({ ...f, stato: e.target.value })}>
+                    <option value="">Tutti</option>
+                    <option value="active">Attiva</option>
+                    <option value="archived">Archiviata</option>
+                  </select>,
+                )}
                 {canEdit && <th></th>}
               </tr>
             </thead>
             <tbody>
-              {pg.pageItems.map((r) => (
+              {view.length === 0 ? (
+                <tr><td colSpan={canEdit ? 9 : 8}><div className="empty" style={{ padding: '18px 0' }}>Nessuna ricetta con questi filtri.</div></td></tr>
+              ) : pg.pageItems.map((r) => (
                 <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la ricetta">
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>
                   <td className="muted">{SLOT[r.mealSlot] ?? r.mealSlot}</td>
                   <td className="muted">{r.kcal}</td>
                   <td><span className={`chip ${r.difficulty === 'semplice' ? 'green' : 'gray'}`}>{DIFFICULTY[r.difficulty ?? 'media'] ?? 'Media'}</span></td>
+                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>
+                    {(r.seasons ?? []).length === 0
+                      ? <span style={{ opacity: 0.6 }}>Tutto l'anno</span>
+                      : (r.seasons ?? []).map((s) => <span key={s} className="chip gray" style={{ marginRight: 4 }}>{SEASON_LABEL[s] ?? s}</span>)}
+                  </td>
                   <td className="muted">{(r.tags ?? []).join(', ') || '—'}</td>
                   <td><span className={`chip ${r.active ? '' : 'gray'}`}>{r.active ? 'Attiva' : 'Archiviata'}</span></td>
                   {canEdit && (

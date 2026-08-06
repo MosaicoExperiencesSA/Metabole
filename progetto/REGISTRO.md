@@ -7,6 +7,59 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Ricette: ogni intestazione ordina, ogni colonna ha il suo filtro, e c'è la colonna
+  Stagioni** (richiesta Simone 6/8, dalla pagina Gestione dieta). Con la Keto-Mediterranea che da
+  sola porterà centinaia di piatti, scorrere l'elenco a occhio non era più un modo di lavorare.
+  Le otto intestazioni sono cliccabili (freccia su/giù) e sotto ognuna c'è il controllo giusto:
+  testo per Nome e Tag, tendina per Regime, Pasto, Difficoltà, Stagioni e Stato, min/max per le
+  Kcal. Il **pasto si ordina come nella giornata**, non in alfabetico — «Cena, Colazione, Merenda»
+  sarebbe corretto e inutile. In alto il conteggio «N su M» con *Azzera filtri*.
+  Nuova colonna **Stagioni**: le stagioni impostate come pastiglie, «Tutto l'anno» in grigio se
+  vuote — così si vede a colpo d'occhio quali piatti non sono ancora stati stagionati, che è
+  esattamente il buco da cui è passato lo spezzatino a luglio (voce #11).
+  ⚠️ **Trovato per strada:** `listRecipes` tagliava a **200 ricette** senza dirlo. Filtrare e
+  ordinare su una fetta del catalogo, credendo di lavorare su tutto, è peggio che non filtrare:
+  tetto portato a **1000** e, quando viene toccato, la pagina lo scrive invece di far finta di
+  niente. I filtri della barra in alto (ricerca, regime, pasto) sono spariti: erano gli stessi,
+  ora stanno nelle colonne, e un filtro solo è meglio di due che si contraddicono.
+
+- `[Prodotto]` **DECISIONE — su Mantenimento e Monitoraggio il nutrizionista prende 0%** (Simone,
+  6/8), sia sul primo addebito sia sui rinnovi; sui percorsi 1/3/6 mesi il 15% resta. Aggiornati
+  `progetto/Decisione_Provvigioni_Rinnovo.md` e `progetto/Prezzi_Finali_Provvigioni.md` (la
+  domanda aperta dal 17/7 è sciolta). Rifatti i conti: con la sola coach al 45%, dodici mesi di
+  una cliente in mantenimento lasciano **€326,67** con provvigione solo al primo addebito,
+  **€183,12** con provvigione piena a ogni rinnovo, **€254,84** con la metà — il residual pieno
+  passa da €131 a €183 e diventa un'ipotesi praticabile. Resta da decidere la sola quota coach.
+  ⚠️ Emerso verificando: i due piani nascono dal seed **senza importi di provvigione**, quindi il
+  default è 0 per tutti i ruoli — se in Negozio non sono mai stati compilati a mano, oggi il
+  mantenimento non paga provvigioni nemmeno alla coach. Nel documento c'è il comando per
+  controllarlo su Render prima di decidere.
+
+- `[Prodotto]` **Provvigioni sul rinnovo: la decisione messa in chiaro, coi numeri veri** — è
+  l'unico nodo che tiene ferma la voce #10 e con lei tutti gli abbonamenti ricorrenti. Nuovo
+  `progetto/Decisione_Provvigioni_Rinnovo.md`: sul Mantenimento (€29/mese, coach 45% +
+  nutrizionista 15%, ~€0,69 di Stripe) dodici mesi di una cliente lasciano a Metabole **€322 con
+  la provvigione solo al primo addebito, €131 con la provvigione piena a ogni rinnovo, €227 con
+  la metà** — quasi 200 euro di differenza per cliente fra la prima e la seconda ipotesi. Detto
+  anche il rovescio di ciascuna: con zero sui rinnovi la coach continua a seguire quella cliente
+  gratis, e le clienti in mantenimento sono proprio quelle che si perdono in silenzio. Due
+  varianti aggiunte al tavolo: **residual a scadenza** (12 mesi, poi zero) e **provvigione solo a
+  coach ancora assegnata**, che conviene comunque, qualunque opzione si scelga. Lato codice serve
+  poco e tutto additivo: importi di rinnovo sul `Plan`, distinzione primo pagamento/rinnovo in
+  `generateCommissions` (`billing_reason` arriva già da Stripe), un contatore se si sceglie il
+  residual a scadenza. I pagamenti una-tantum in produzione non si toccano.
+  Aggiornata anche la memoria di progetto (`metabole-riparti-qui.md`) allo stato di stasera.
+
+- `[Prodotto]` **Guida al generatore per la nutrizionista** — Simone genera le 12 varianti
+  Keto-Mediterranea dal backoffice invece che da script, usando la sessione come **formazione**.
+  Nuovo `progetto/Guida_Generatore_KetoMediterranea.md`: la distinzione fra *definizione* e *dieta
+  generata* (eliminarne una non elimina l'altra: è la trappola più comune), perché le varianti sono
+  12 e non una, la sequenza dei tre passi, e soprattutto l'avvertenza sul pulsante *Valida e
+  pubblica tutte* — segna gli **allergeni come verificati** per tutte le ricette, e quelli proposti
+  sono indovinati dagli ingredienti, non revisionati. Il controllo va fatto prima. Segnalato anche
+  che il generatore **non compila stagioni e difficoltà**: vuoto vale tutto l'anno, ed è
+  esattamente ciò che a luglio produce lo spezzatino (voce #11).
+
 - `[Sviluppo]` **Verifica di fine giornata sulle 18 voci del 5/8, e note di rilascio 2.1.**
   Controllate una per una contro il registro e il codice, non a memoria: **17 su 18 chiuse**.
   Fuori resta solo la **#10** (monitoraggio a pagamento dopo il mantenimento), bloccata dallo
