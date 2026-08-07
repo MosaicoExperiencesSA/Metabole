@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Modal, Spinner } from '../components/ui';
 import { useTaxonomy } from '../lib/taxonomy';
 
 interface Detail {
@@ -218,6 +218,13 @@ export function ClientDetail() {
   const navigate = useNavigate();
   const { can, user: me } = useAuth();
   const isAdmin = can('permissions'); // il reset password è azione admin
+  /**
+   * Attivazione manuale di un piano dalla SCHEDA. L'operazione esisteva già, ma solo dalla
+   * pagina Acquisti, dove la cliente va ripescata da una tendina di tutte le clienti: chi sta
+   * guardando una scheda doveva uscire, cercarla di nuovo per email e sperare di non sbagliare
+   * omonimo. Qui la cliente è già quella giusta, e non si può sbagliare.
+   */
+  const [attivaPiano, setAttivaPiano] = useState(false);
   // Chi può caricare la contabile per conto della cliente (mai approvarla da qui).
   const canUploadReceipt = me?.role === 'coach' || me?.role === 'sales' || me?.role === 'admin';
   const [d, setD] = useState<Detail | null>(null);
@@ -1102,6 +1109,12 @@ export function ClientDetail() {
         <div style={{ padding: '18px 20px 4px' }} className="spread">
           <h2 style={{ margin: 0 }}>Acquisti</h2>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {isAdmin && (
+              <button className="btn ghost sm" onClick={() => setAttivaPiano(true)}
+                title="Attiva un piano a questa cliente senza passare dal negozio">
+                <i className="ti ti-plus" /> Attiva un piano
+              </button>
+            )}
             {/* Se non c'è un abbonamento ATTIVO lo diciamo esplicitamente: il badge del piano
                 mostra l'abbonamento più significativo (es. prova scaduta), non un annullato. */}
             {d.subscription && d.hasActivePlan === false && (
@@ -1238,6 +1251,16 @@ export function ClientDetail() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Popup: attivazione manuale di un piano (solo admin) */}
+      {attivaPiano && (
+        <AttivaPianoModal
+          clientId={id!}
+          clientLabel={p?.name ?? d.user.email}
+          onClose={() => setAttivaPiano(false)}
+          onDone={(msg) => { setAttivaPiano(false); setNotice(msg); void loadDetail(); }}
+        />
       )}
 
       {/* Popup: correzione misura (permesso "Correggi misure cliente") */}
@@ -1481,5 +1504,96 @@ function FixMeasureModal({ clientId, measure, onClose, onSaved }: {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Attivazione manuale di un piano dalla scheda cliente (solo admin).
+ *
+ * Usa lo stesso endpoint del modale in Acquisti (`POST /admin/purchases`): il piano viene
+ * attivato e il pagamento registrato come `manual` già approvato — quindi partono anche menu,
+ * ricevuta e, se richiesto, provvigioni. Qui la cliente non si sceglie: è quella della scheda.
+ *
+ * L'elenco piani arriva da `/admin/purchases/plans` e non da `/plans`: la vetrina pubblica
+ * nasconde il Mantenimento, che a mano deve restare attivabile.
+ */
+function AttivaPianoModal({
+  clientId, clientLabel, onClose, onDone,
+}: { clientId: string; clientLabel: string; onClose: () => void; onDone: (msg: string) => void }) {
+  type PianoRow = { id: string; name: string; priceCents: number; period: string; billing?: string | null };
+  const [piani, setPiani] = useState<PianoRow[]>([]);
+  const [planId, setPlanId] = useState('');
+  const [buono, setBuono] = useState('');
+  const [provvigioni, setProvvigioni] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<PianoRow[]>('/admin/purchases/plans')
+      .then(setPiani)
+      .catch((e) => setErr(e instanceof Error ? e.message : 'Non riesco a leggere i piani.'));
+  }, []);
+
+  const piano = piani.find((x) => x.id === planId);
+
+  async function salva() {
+    if (!planId) { setErr('Scegli il piano.'); return; }
+    setBusy(true); setErr(null);
+    try {
+      await api('/admin/purchases', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          planId,
+          generateCommissions: provvigioni,
+          discountCode: buono.trim() || undefined,
+        }),
+      });
+      onDone(`Piano attivato${provvigioni ? ' (con provvigioni)' : ' (senza provvigioni)'}.`);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Operazione non riuscita.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Attiva un piano" onClose={onClose}>
+      {err && <Banner kind="err">{err}</Banner>}
+      <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+        Cliente: <b>{clientLabel}</b>
+      </p>
+      <div className="field">
+        <label>Piano</label>
+        <select className="select" value={planId} onChange={(e) => setPlanId(e.target.value)}>
+          <option value="">Scegli il piano…</option>
+          {piani.map((x) => <option key={x.id} value={x.id}>{x.name} · {euro(x.priceCents)}</option>)}
+        </select>
+      </div>
+      {piano && (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Verrà attivato <b>{piano.name}</b> ({piano.period}) per <b>{euro(piano.priceCents)}</b>, con il
+          pagamento registrato come già incassato. I menu partono da subito.
+        </p>
+      )}
+      <div className="field">
+        <label>Buono sconto (facoltativo)</label>
+        <input className="input" value={buono} onChange={(e) => setBuono(e.target.value.toUpperCase())}
+          placeholder="Es. ESTATE25" style={{ width: 200, textTransform: 'uppercase' }} />
+      </div>
+      <label className="row" style={{ gap: 10, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>
+        <input type="checkbox" checked={provvigioni} onChange={(e) => setProvvigioni(e.target.checked)} />
+        <span>Genera le provvigioni (coach, nutrizionista e responsabili)</span>
+      </label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+        Toglila per un piano regalato o per una correzione: il piano si attiva lo stesso, ma nessuno viene pagato.
+      </p>
+      <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+        <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
+        <button className="btn" onClick={salva} disabled={busy || !planId}>
+          {busy ? 'Attivo…' : 'Attiva il piano'}
+        </button>
+      </div>
+    </Modal>
   );
 }
