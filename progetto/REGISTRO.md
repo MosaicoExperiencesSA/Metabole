@@ -7,6 +7,43 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🩺 **«Salva correzione» non salvava: la colpa era di una casella VUOTA.**
+  Segnalato da una cliente il 7/8, con lo screenshot: correggeva peso e vita, lasciava vuoti i
+  **fianchi** perché non li aveva mai misurati, e sotto il pulsante compariva
+  `hipsCm must not be less than 40` — in inglese e col nome del campo del database. Da fuori
+  sembrava semplicemente un pulsante rotto.
+  **La causa è una riga:** `Number('')` fa **0**, e zero è un numero valido a tutti gli effetti.
+  La casella vuota partiva quindi come `hipsCm: 0`, il backend la rifiutava — giustamente, 0 cm
+  non è una misura — e le rimandava indietro il messaggio di default del validatore.
+  La beffa: la **stessa funzione**, nel popup delle misure, aveva il controllo `> 0` e infatti lì
+  funzionava. Due copie della stessa lettura, una giusta e una no; la pagina Obiettivo aveva
+  quella sbagliata. È il terzo caso in due giorni di logica copiata che diverge, e come gli altri
+  si è chiuso unendola: `app/src/lib/misure.ts`, una sola `parseMisura()` usata da entrambe.
+
+- `[Sviluppo]` 🛡️ **Corretto anche il BACKEND, e non è ridondanza: è quello che sistema le
+  clienti di oggi.** Idea di Simone — «invece di mandare l'OTA, forziamo lo zero a null lato
+  server». Giusta per due ragioni diverse:
+  · la correzione lato app arriva solo con una **pubblicazione sugli store** (gli OTA sono spenti
+    dal 6/8): fino ad allora, chi ha l'app installata resterebbe bloccato. Il deploy del backend
+    invece è immediato e le sistema tutte, qualunque versione abbiano;
+  · e comunque **nessun client va creduto sulla parola**. Che l'app non mandi più zeri è una
+    promessa dell'app, non una garanzia del server.
+  Ora vita, fianchi e cosce passano da un `@Transform`: `0`, `''`, `null` e i negativi diventano
+  «campo non compilato». Si può fare senza ambiguità perché una circonferenza di 0 cm non esiste.
+  Il **peso resta fuori**: è obbligatorio, e uno zero lì è un errore da segnalare, non una casella
+  lasciata in bianco. Un valore assurdo (5 cm) viene ancora rifiutato — tollerare lo zero non
+  vuol dire tollerare tutto.
+  Nella stessa passata, i **messaggi di validazione delle misure sono in italiano**: quel testo lo
+  legge la cliente, e «hipsCm must not be less than 40» non dice cosa fare e sembra un guasto.
+  E l'**audit della correzione** ora registra i valori davvero scritti invece di quelli richiesti:
+  un campo non compilato arriva come `undefined` e Prisma lo interpreta come «non toccare», quindi
+  il vecchio valore resta — scriverci `null` significava annotare una modifica mai avvenuta,
+  proprio nel registro che si va a leggere quando qualcosa non torna.
+  Test: +10 sul DTO (56 suite, 585 test).
+  ⚠️ Nota sul perimetro: l'**app non ha un test runner** (backend e backoffice sì). La `parseMisura`
+  è quindi coperta solo dal lato backend, che è il punto dove la richiesta entra davvero — ma è
+  una lacuna, ed è il motivo per cui un difetto così banale è arrivato a una cliente.
+
 - `[Sviluppo]` 👀 **Il backfill delle diete ha mostrato una cosa che non sapevamo:
   `npm run diag:famiglie`.** L'anteprima di `fix:diet-family` su 30 profili non ha trovato
   nessun ripiego su uno stile sbagliato — bene — ma ha reso visibile il difetto vero, quello per

@@ -152,7 +152,16 @@ export class SignalsService {
       metadata: {
         date: today.toISOString().slice(0, 10),
         old: snapshot,
-        new: { weightKg: dto.weightKg, waistCm: dto.waistCm ?? null, hipsCm: dto.hipsCm ?? null, thighsCm: dto.thighsCm ?? null },
+        // I valori VERI dopo la scrittura, non quelli richiesti: un campo lasciato in bianco
+        // arriva come `undefined` e Prisma lo interpreta come «non toccare», quindi il vecchio
+        // valore resta. Registrare qui `null` avrebbe scritto nell'audit una modifica mai
+        // avvenuta — e l'audit lo si legge proprio quando qualcosa non torna.
+        new: {
+          weightKg: measurement.weightKg,
+          waistCm: measurement.waistCm,
+          hipsCm: measurement.hipsCm,
+          thighsCm: measurement.thighsCm,
+        },
       },
     });
     // Stessi effetti a valle di un salvataggio misura (learning, milestone, erogazione menu).

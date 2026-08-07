@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import AppHeader from '../components/AppHeader';
 import CarouselNav, { scrollCarouselTo } from '../components/CarouselNav';
 import ReportsSection from '../components/ReportsSection';
+import { parseMisura } from '../lib/misure';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
 
@@ -24,10 +25,7 @@ interface Objective {
 const d1 = (n: number) => n.toFixed(1).replace('.', ',');
 /** Numero col segno esplicito: "-1,0" / "+1,0" / "0,0". Evita i "--1,0" da segno raddoppiato. */
 const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '-' : ''}${d1(Math.abs(n))}`;
-const parseNum = (s: string) => {
-  const n = Number(s.replace(',', '.'));
-  return Number.isFinite(n) ? n : undefined;
-};
+
 
 function Spark({ vals, dates, format, color }: { vals: number[]; dates?: string[]; format: (v: number) => string; color: string }) {
   const H = 66;
@@ -107,7 +105,7 @@ export default function Obiettivo() {
     setObjErr(null);
     try {
       const body: Record<string, number> = {};
-      const kg = parseNum(objKg);
+      const kg = parseMisura(objKg);
       const wk = Number(objWeeks);
       if (kg != null) body.weightToLoseKg = kg;
       if (Number.isFinite(wk) && wk > 0) body.weeks = wk;
@@ -148,15 +146,15 @@ export default function Obiettivo() {
 
   async function submit() {
     setMsg(null);
-    const w = parseNum(weight);
+    const w = parseMisura(weight);
     if (w === undefined) {
       setMsg('Inserisci almeno il peso.');
       return;
     }
     setBusy(true);
     const body: Record<string, number> = { weightKg: w };
-    const wa = parseNum(waist);
-    const hi = parseNum(hips);
+    const wa = parseMisura(waist);
+    const hi = parseMisura(hips);
     if (wa !== undefined) body.waistCm = wa;
     if (hi !== undefined) body.hipsCm = hi;
     try {
@@ -173,15 +171,15 @@ export default function Obiettivo() {
   /** Correzione della misura di OGGI (una sola volta): la precedente resta "sostituita". */
   async function correct() {
     setMsg(null);
-    const w = parseNum(weight);
+    const w = parseMisura(weight);
     if (w === undefined) {
       setMsg('Inserisci almeno il peso.');
       return;
     }
     setBusy(true);
     const body: Record<string, number> = { weightKg: w };
-    const wa = parseNum(waist);
-    const hi = parseNum(hips);
+    const wa = parseMisura(waist);
+    const hi = parseMisura(hips);
     if (wa !== undefined) body.waistCm = wa;
     if (hi !== undefined) body.hipsCm = hi;
     try {

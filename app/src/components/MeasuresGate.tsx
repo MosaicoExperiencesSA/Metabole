@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { track } from '../lib/track';
+import { parseMisura } from '../lib/misure';
 
 /**
  * Popup BLOCCANTE delle misure (Tracciamento_Dati §5).
@@ -18,10 +19,7 @@ interface Gate {
   lockedMessage?: string | null;
 }
 
-function parseNum(s: string): number | undefined {
-  const n = Number(s.replace(',', '.'));
-  return Number.isFinite(n) && n > 0 ? n : undefined;
-}
+
 
 export default function MeasuresGate() {
   const [show, setShow] = useState(false);
@@ -51,15 +49,15 @@ export default function MeasuresGate() {
 
   async function save() {
     setMsg(null);
-    const w = parseNum(weight);
+    const w = parseMisura(weight);
     if (w === undefined) {
       setMsg('Inserisci almeno il peso.');
       return;
     }
     setBusy(true);
     const body: Record<string, number> = { weightKg: w };
-    const wa = parseNum(waist);
-    const hi = parseNum(hips);
+    const wa = parseMisura(waist);
+    const hi = parseMisura(hips);
     if (wa !== undefined) body.waistCm = wa;
     if (hi !== undefined) body.hipsCm = hi;
     try {
