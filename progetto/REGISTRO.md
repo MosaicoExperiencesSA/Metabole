@@ -7,6 +7,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🧭 **`npm run diag:ricorrente` — «si può davvero vendere un abbonamento oggi?»**
+  Il codice del ricorrente è scritto e testato, ma nessun test può rispondere a quella domanda:
+  dipende da **dati** in produzione e da **configurazione**, non da logica. E tutti i modi di
+  essere «quasi pronti» sono silenziosi, che è il motivo per cui vale la pena di uno script:
+  · il piano esiste ma è rimasto `one_time` → la cliente paga **una volta sola** e non se ne
+    accorge nessuno: la schermata dice che è andato tutto bene, e infatti è andato tutto bene —
+    solo che il mese dopo non arriva niente;
+  · il piano è in abbonamento ma con prezzo **zero** → Stripe rifiuta la sessione e la cliente
+    vede un errore generico;
+  · le **provvigioni sono a zero per tutti i ruoli**, che è come i piani nascono dal seed: al
+    primo rinnovo la coach non prende niente, e se ne accorge lei prima di noi;
+  · al piano del monitoraggio è stato cambiato il `period` → torna visibile a chiunque.
+  Lo script guarda i dati veri, non tocca niente, e distingue i **problemi** (esce 1) dalle cose
+  **da sapere** (piano disattivato di proposito, abbonamenti a mese singolo senza id Stripe:
+  giusto che non si rinnovino).
+  Quello che **non** può controllare lo dice: eventi della webhook e portale clienti si leggono
+  solo dal pannello Stripe, e sono annotati in `STATO.md`.
+
 - `[Sviluppo]` ⚙️ **Stripe configurato: la webhook ora ascolta 5 eventi e il portale clienti
   esiste.** Fatto direttamente nel pannello (Simone ha aperto Stripe e ha dato il via libera).
   · **Webhook** `metabole-backend.onrender.com/api/v1/payments/webhook`: da **1 evento a 5** —
