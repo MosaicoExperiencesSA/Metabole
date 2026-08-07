@@ -174,6 +174,23 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   arrivano davvero. Nella stessa tornata: la ricompensa non si perde più se la referrer è senza
   abbonamento attivo (si riscuote alla prima attivazione utile), e l'amica invitata **eredita la
   coach della referrer**, che quindi incassa le provvigioni.
+- **Abbonamenti ricorrenti Stripe** ✅ (7/8) — la voce #10, chiusa. Listino: **Mantenimento €49/mese**
+  (abbonamento *o* mese singolo, sceglie la cliente) e **Monitoraggio €19/mese** (solo abbonamento,
+  anche per sempre). I percorsi 1/3/6 mesi restano una-tantum e non cambiano.
+  Regole del ricorrente, tutte e tre anche nell'app prima di pagare: **solo carta**, **niente codici
+  sconto** (resterebbero applicati a ogni rinnovo), **niente prodotti nello stesso ordine** (una sola
+  riga ricorrente: un integratore lì dentro si pagherebbe ogni mese). Il primo addebito **non** si
+  conta due volte (`billing_reason: subscription_create` ignorato) e una carta rifiutata **non** è una
+  disdetta: il piano resta attivo mentre Stripe riprova.
+  Disdetta **self-service** dal profilo (vale a fine periodo già pagato, reversibile) e «aggiorna la
+  carta» via portale Stripe. In backoffice il campo **«Come si vende»** su ogni piano.
+  Il **monitoraggio a pagamento** è l'ultimo gradino (percorso → mantenimento → monitoraggio): fuori
+  dalla vetrina pubblica, visibile e acquistabile solo a chi il mantenimento l'ha già fatto.
+  ⚠️ Da fare **a mano in Negozio**: prezzi e **provvigioni** dei due piani nuovi — nascono a zero per
+  tutti i ruoli, coach compresa. Deciso il 7/8: quota coach **ridotta sul monitoraggio** (25%).
+- **«Menu di rientro (8 giorni)» ritirato** ✅ (7/8) — non è più un prodotto a €29: i menu di rientro
+  sono **inclusi** sia nel monitoraggio in omaggio (dopo la sospensione, e dopo il mantenimento per
+  chi non rinnova) sia in quello a pagamento. Il piano viene disattivato dal seed, non cancellato.
 
 ## Motore / AI
 - **Keto-Mediterranea nel generatore** — dieta suggerita in *Creazione e validazione* con 12 varianti
@@ -270,7 +287,7 @@ Dettaglio in `metabole-piano-lavoro.md` (memoria) e in `../Metabole_Backend_Oper
 | 5 | Motore di personalizzazione menu — v1 "naive" | ✅ completo v1 (esclusioni+sostituzione+learning+selezione+DayCombo+attribuzione causale) |
 | 6 | Agente AI della dieta (stati, scoring, escalation) | ✅ stati completi (pre/post-evento, plateau, conforto+guardrail, rientro) + selezione modulata |
 | 7 | App Nutrizionista (cartella clinica, validazione diete/protocolli, televisite) | 🟡 pazienti+dashboard+coda validazione (scoped per-paziente) fatti; resta l'app front-end |
-| 8 | Shop / abbonamenti / provvigioni | 🟡 commerce già presente; aggiunto referral cliente "porta un'amica" |
+| 8 | Shop / abbonamenti / provvigioni | 🟡 commerce completo + referral "porta un'amica" + **abbonamenti ricorrenti Stripe** (7/8); restano prezzi/provvigioni da compilare in Negozio |
 | 9 | Certificazione unicità (seed, collision check, registro firmato) | ⬜ |
 
 > Trasversali: privacy/consensi + AuditLog; tutte le soglie in `config_param`; notifiche push (backlog);

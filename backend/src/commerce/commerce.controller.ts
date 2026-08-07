@@ -330,9 +330,18 @@ export class MyCommerceController {
     return this.commerce.subscribe(user.sub, dto.planId, user.email, dto.method ?? 'bank_transfer', dto.abbonamento ?? false);
   }
 
-  /** Il mio abbonamento ricorrente: cosa pago, quando si rinnova, se ho già disdetto. */
-  @Get('subscription')
-  mySubscription(@CurrentUser() user: AuthUser) {
+  /**
+   * Il mio abbonamento RICORRENTE: cosa pago, quando si rinnova, se ho già disdetto.
+   *
+   * ⚠️ Il percorso è `/me/subscription/recurring`, **non** `/me/subscription`: quest'ultimo esiste
+   * già più sotto e restituisce l'abbonamento principale (piano, date, primo menu) letto da tre
+   * schermate dell'app — Calendario, Profilo e il promemoria della data d'inizio. Registrandone
+   * due con lo stesso percorso Nest tiene solo il primo e l'altro sparisce senza un errore: quelle
+   * tre schermate si sarebbero trovate `null` al posto del piano, e nessun test se ne accorge
+   * perché ognuno dei due metodi, preso da solo, funziona.
+   */
+  @Get('subscription/recurring')
+  myRecurringSubscription(@CurrentUser() user: AuthUser) {
     return this.commerce.myRecurring(user.sub);
   }
 

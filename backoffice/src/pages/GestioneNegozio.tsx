@@ -14,7 +14,14 @@ interface Commissions {
   commissionNutritionistPct?: number;
   commissionHeadNutritionistPct?: number;
 }
-interface Plan extends Commissions { id: string; name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: string | null; promoActive?: boolean; period: string; mealsPerDay: number | null; features: string[]; active: boolean; repurchasable: boolean; }
+/** Etichette di `billing` per la tabella. Deve restare allineato a PLAN_BILLING del backend. */
+const BILLING_LABEL: Record<string, string> = {
+  one_time: 'Pagamento unico',
+  recurring: 'Abbonamento',
+  both: 'A scelta',
+};
+
+interface Plan extends Commissions { id: string; name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: string | null; promoActive?: boolean; period: string; billing?: string; mealsPerDay: number | null; features: string[]; active: boolean; repurchasable: boolean; }
 interface Product extends Commissions { id: string; name: string; priceCents: number; description: string | null; active: boolean; repurchasable: boolean; }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -119,6 +126,7 @@ export function GestioneNegozio() {
       listPriceCents: planForm.listPrice?.trim() ? toCents(planForm.listPrice) : null,
       promoEndsAt: planForm.promoEndsAt?.trim() ? new Date(planForm.promoEndsAt).toISOString() : null,
       period: planForm.period || '3m',
+      billing: planForm.billing || 'one_time',
       features: (planForm.features ?? '').split(',').map((s) => s.trim()).filter(Boolean),
       active: planForm.active !== 'false',
       repurchasable: planForm.repurchasable !== 'false',
@@ -192,7 +200,7 @@ export function GestioneNegozio() {
       {/* Piani */}
       <div className="spread" style={{ marginBottom: 10 }}>
         <h2 style={{ margin: 0 }}>Piani</h2>
-        <button className="btn sm" onClick={() => setPlanForm({ period: '3m', active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo piano</button>
+        <button className="btn sm" onClick={() => setPlanForm({ period: '3m', billing: 'one_time', active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo piano</button>
       </div>
 
       {planForm && (
@@ -205,7 +213,14 @@ export function GestioneNegozio() {
             <label style={fld}><span>Fine promo (opz. — scaduta, torna il listino)</span>
               <input className="input" type="datetime-local" value={planForm.promoEndsAt ?? ''} onChange={(e) => setPlanForm({ ...planForm, promoEndsAt: e.target.value })} />
             </label>
-            <Fld label="Periodo (es. 8d, 2w, 3m, 1y — «maintenance» per il mantenimento)" v={planForm.period} on={(v) => setPlanForm({ ...planForm, period: v })} />
+            <Fld label="Periodo (es. 8d, 2w, 3m, 1y — «maintenance» o «monitoring» per i mensili dedicati)" v={planForm.period} on={(v) => setPlanForm({ ...planForm, period: v })} />
+            <label style={fld}><span>Come si vende</span>
+              <select className="select" value={planForm.billing ?? 'one_time'} onChange={(e) => setPlanForm({ ...planForm, billing: e.target.value })} title="Ricorrente = addebito automatico su carta ogni mese. Solo carta, niente bonifico e niente codici sconto.">
+                <option value="one_time">Pagamento unico</option>
+                <option value="recurring">Solo abbonamento (rinnovo automatico)</option>
+                <option value="both">A scelta della cliente (abbonamento o mese singolo)</option>
+              </select>
+            </label>
             <Fld label="Pasti/giorno (opz.)" v={planForm.mealsPerDay} on={(v) => setPlanForm({ ...planForm, mealsPerDay: v })} />
             <Fld label="Caratteristiche (virgola)" v={planForm.features} on={(v) => setPlanForm({ ...planForm, features: v })} wide />
             <label style={fld}><span>Attivo</span>
@@ -236,6 +251,21 @@ export function GestioneNegozio() {
               <b>Attenzione:</b> questo è il piano di <b>Mantenimento</b> e lo si riconosce dal Periodo <b>«maintenance»</b>, non dal nome. Se lo cambi in <b>«{planForm.period || '(vuoto)'}»</b> il piano diventa un abbonamento come gli altri: <b>comparirà nello shop a tutte le clienti</b> (non solo a chi ha raggiunto l'obiettivo), sparirà il riquadro Mantenimento dal report di fine percorso, e non scatteranno più il monitoraggio del peso né l'attività coach «peso che risale». Riportalo a <b>maintenance</b> se non è quello che vuoi.
             </div>
           )}
+          {/* Stessa trappola del mantenimento, sul monitoraggio: il periodo «monitoring» vale 1
+              mese ed è quello che lo tiene fuori dalla vetrina pubblica. Cambiarlo lo rende un
+              piano qualunque, visibile a tutte e con la durata calcolata dal fallback. */}
+          {(planForm.origPeriod ?? '').trim().toLowerCase() === 'monitoring'
+            && (planForm.period ?? '').trim().toLowerCase() !== 'monitoring' && (
+            <div style={{ marginTop: 12, padding: '9px 12px', borderRadius: 8, background: '#FBEEE6', border: '1px solid #E0A98A', color: '#8A4B2A', fontSize: 13, lineHeight: 1.45 }}>
+              <b>Attenzione:</b> questo è il piano di <b>Monitoraggio</b>, riconosciuto dal Periodo <b>«monitoring»</b>. Cambiandolo in <b>«{planForm.period || '(vuoto)'}»</b> comparirà nello shop e sulla landing a chiunque, anche a chi non ha mai fatto il Mantenimento.
+            </div>
+          )}
+          {/* Un abbonamento a €0 non ha senso e Stripe lo rifiuta: meglio dirlo prima. */}
+          {(planForm.billing ?? 'one_time') !== 'one_time' && toCents(planForm.price ?? '0') === 0 && (
+            <div style={{ marginTop: 12, padding: '9px 12px', borderRadius: 8, background: '#FBEEE6', border: '1px solid #E0A98A', color: '#8A4B2A', fontSize: 13, lineHeight: 1.45 }}>
+              <b>Attenzione:</b> un piano in abbonamento a <b>€ 0</b> non è acquistabile — Stripe non apre una sessione ricorrente senza importo. Metti un prezzo, oppure riporta «Come si vende» su <b>Pagamento unico</b>.
+            </div>
+          )}
           <div className="row" style={{ gap: 8, marginTop: 12 }}>
             <button className="btn" onClick={savePlan} disabled={busy}>Salva</button>
             <button className="btn ghost" onClick={() => setPlanForm(null)} disabled={busy}>Annulla</button>
@@ -245,7 +275,7 @@ export function GestioneNegozio() {
 
       <div className="card" style={{ padding: 0 }}>
         <table className="grid">
-          <thead><tr><th>Nome</th><th>Prezzo</th><th>Periodo</th><th>Provvigioni</th><th>Stato</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Prezzo</th><th>Periodo</th><th>Come si vende</th><th>Provvigioni</th><th>Stato</th><th></th></tr></thead>
           <tbody>
             {plans.map((p) => (
               <tr key={p.id}>
@@ -260,10 +290,11 @@ export function GestioneNegozio() {
                   ) : euro(p.priceCents)}
                 </td>
                 <td className="muted">{p.period}</td>
+                <td className="muted" style={{ fontSize: 12 }}>{BILLING_LABEL[p.billing ?? 'one_time'] ?? p.billing}</td>
                 <td className="muted" style={{ fontSize: 12 }}>{commSummary(p)}</td>
                 <td><span className={`chip ${p.active ? '' : 'gray'}`}>{p.active ? 'Attivo' : 'Nascosto'}</span></td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), listPrice: p.listPriceCents != null ? fromCents(p.listPriceCents) : '', promoEndsAt: p.promoEndsAt ? p.promoEndsAt.slice(0, 16) : '', period: p.period, origPeriod: p.period, mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
+                  <button className="btn ghost sm" onClick={() => setPlanForm({ id: p.id, name: p.name, price: fromCents(p.priceCents), listPrice: p.listPriceCents != null ? fromCents(p.listPriceCents) : '', promoEndsAt: p.promoEndsAt ? p.promoEndsAt.slice(0, 16) : '', period: p.period, origPeriod: p.period, billing: p.billing ?? 'one_time', mealsPerDay: p.mealsPerDay ? String(p.mealsPerDay) : '', features: p.features.join(', '), active: String(p.active), repurchasable: String(p.repurchasable), ...commFormFrom(p) })}>Modifica</button>
                   <button className="btn ghost sm" style={{ color: '#b3261e' }} onClick={() => delPlan(p.id)}><i className="ti ti-trash" /></button>
                 </td>
               </tr>

@@ -64,6 +64,22 @@ export default function Checkout() {
   const total = applied ? applied.finalCents : subtotal;
   const isFree = total <= 0;
 
+  // --- Abbonamento: le stesse tre regole del backend, dette PRIMA di premere "paga" ---
+  // Il backend le impone comunque (`commerce.service.checkout`); qui servono a non far arrivare
+  // nessuno a un errore rosso dopo aver compilato indirizzo e metodo di pagamento.
+  const ricorrente = cart.ricorrente;
+  const bloccoProdotti = ricorrente && cart.products.length > 0;
+  const metodiVisibili = ricorrente ? { card: methods.card, bank_transfer: false } : methods;
+
+  // Solo carta sul ricorrente, e niente buoni: se erano già stati scelti, si tolgono da soli
+  // quando la cliente passa il mantenimento da "un mese solo" ad "abbonamento".
+  useEffect(() => {
+    if (!ricorrente) return;
+    setMethod('card');
+    setApplied(null);
+    setCode('');
+  }, [ricorrente]);
+
   async function applyCode() {
     setErr(null);
     if (!code.trim()) return;
@@ -102,6 +118,9 @@ export default function Checkout() {
       items: cart.products.map((p) => ({ productId: p.id, qty: p.qty })),
       method,
       discountCode: applied?.code,
+      // Conta solo sui piani venduti in entrambi i modi (il mantenimento). Sugli altri decide il
+      // piano e il backend ignora questo campo.
+      abbonamento: cart.plan?.abbonamento ?? false,
     };
     try {
       const res = await api<{ checkoutUrl?: string; transferReference?: string; free?: boolean }>('/me/checkout', { method: 'POST', body: JSON.stringify(body) });
@@ -160,12 +179,31 @@ export default function Checkout() {
       {/* Articoli */}
       <div className="card">
         {cart.plan && (
-          <div className="row-between" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-            <div><b style={{ fontSize: 14 }}>{cart.plan.name}</b><div className="muted" style={{ fontSize: 11 }}>Abbonamento</div></div>
-            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-              <span style={{ fontWeight: 700 }}>{euro(cart.plan.priceCents)}</span>
-              <button className="btn-recipe" style={{ padding: '2px 8px', background: '#eee', color: '#b3261e' }} onClick={() => cart.setPlan(null)}><i className="ti ti-x" /></button>
+          <div style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
+            <div className="row-between">
+              <div>
+                <b style={{ fontSize: 14 }}>{cart.plan.name}</b>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {ricorrente ? 'Abbonamento mensile · si rinnova da solo' : 'Pagamento unico · nessun rinnovo'}
+                </div>
+              </div>
+              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                <span style={{ fontWeight: 700 }}>{euro(cart.plan.priceCents)}</span>
+                <button className="btn-recipe" style={{ padding: '2px 8px', background: '#eee', color: '#b3261e' }} onClick={() => cart.setPlan(null)}><i className="ti ti-x" /></button>
+              </div>
             </div>
+            {/* Ultima occasione per cambiare idea sul mantenimento, senza tornare al negozio. */}
+            {(cart.plan.billing ?? 'one_time') === 'both' && (
+              <button
+                type="button"
+                className="btn-recipe"
+                style={{ marginTop: 6, padding: '3px 10px', fontSize: 11 }}
+                onClick={() => cart.setAbbonamento(!cart.plan?.abbonamento)}
+              >
+                <i className="ti ti-repeat" style={{ fontSize: 12, marginRight: 3 }} />
+                {ricorrente ? 'Passa a un mese solo' : 'Passa all’abbonamento'}
+              </button>
+            )}
           </div>
         )}
         {cart.products.map((p) => (
@@ -180,7 +218,16 @@ export default function Checkout() {
         ))}
       </div>
 
-      {/* Buono sconto */}
+      {/* Prodotti + abbonamento nello stesso ordine: non si può (una riga ricorrente sola). */}
+      {bloccoProdotti && (
+        <div className="banner err" style={{ marginTop: 12 }}>
+          L’abbonamento si acquista da solo. Togli gli integratori dal carrello e riprendili in un secondo ordine:
+          se restassero qui, li pagheresti ogni mese insieme all’abbonamento.
+        </div>
+      )}
+
+      {/* Buono sconto: non sul ricorrente (resterebbe applicato a ogni rinnovo, per sempre). */}
+      {!ricorrente && (
       <div className="card">
         <b style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>Hai un buono sconto?</b>
         <div className="row" style={{ gap: 8 }}>
@@ -189,6 +236,7 @@ export default function Checkout() {
         </div>
         {applied && <div className="muted" style={{ marginTop: 8, color: '#0e7c66', fontWeight: 600 }}>Buono applicato: −{euro(applied.discountCents)}</div>}
       </div>
+      )}
 
       {isFree && (
         <div className="card" style={{ marginTop: 12 }}><p className="muted" style={{ margin: 0, fontSize: 13 }}>Prodotto gratuito: nessun pagamento richiesto.</p></div>
@@ -220,19 +268,26 @@ export default function Checkout() {
       {!isFree && <div className="sec">Come vuoi pagare?</div>}
       {!isFree && (
       <div className="opt-list">
-        {methods.card && (
+        {metodiVisibili.card && (
           <button type="button" className={`opt${method === 'card' ? ' on' : ''}`} onClick={() => setMethod('card')}>
             <span className="opt-ind">{method === 'card' && <i className="ti ti-check" />}</span>
             <span><b>Carta</b> · pagamento sicuro con Stripe</span>
           </button>
         )}
-        {methods.bank_transfer && (
+        {metodiVisibili.bank_transfer && (
           <button type="button" className={`opt${method === 'bank_transfer' ? ' on' : ''}`} onClick={() => setMethod('bank_transfer')}>
             <span className="opt-ind">{method === 'bank_transfer' && <i className="ti ti-check" />}</span>
             <span><b>Bonifico</b> · estremi via email</span>
           </button>
         )}
-        {!methods.card && !methods.bank_transfer && (
+        {/* Il bonifico non è sparito per un errore: un addebito automatico ha bisogno di una carta. */}
+        {ricorrente && methods.bank_transfer && (
+          <p className="muted" style={{ fontSize: 11.5, margin: '2px 2px 0' }}>
+            L’abbonamento si paga con carta, perché si rinnova da solo.
+            {(cart.plan?.billing ?? 'one_time') === 'both' && ' Col bonifico puoi comprare un mese solo.'}
+          </p>
+        )}
+        {!metodiVisibili.card && !metodiVisibili.bank_transfer && (
           <div className="card"><p className="muted" style={{ margin: 0, fontSize: 13 }}>Nessun metodo di pagamento è attivo al momento. Riprova più tardi.</p></div>
         )}
       </div>
@@ -242,13 +297,26 @@ export default function Checkout() {
       <div className="card" style={{ marginTop: 12 }}>
         <div className="row-between"><span className="muted">Subtotale</span><span>{euro(subtotal)}</span></div>
         {applied && <div className="row-between" style={{ marginTop: 4 }}><span className="muted">Sconto</span><span style={{ color: '#0e7c66' }}>−{euro(applied.discountCents)}</span></div>}
-        <div className="row-between" style={{ marginTop: 8, fontSize: 18, fontWeight: 700 }}><span>Totale</span><span>{euro(total)}</span></div>
+        <div className="row-between" style={{ marginTop: 8, fontSize: 18, fontWeight: 700 }}>
+          <span>Totale</span><span>{euro(total)}{ricorrente ? ' / mese' : ''}</span>
+        </div>
+        {ricorrente && (
+          <p className="muted" style={{ margin: '8px 0 0', fontSize: 11.5 }}>
+            Oggi paghi {euro(total)}. Poi si rinnova ogni mese, stessa cifra, finché non disdici: puoi farlo dal tuo
+            profilo in qualsiasi momento e resta attivo fino alla fine del mese già pagato.
+          </p>
+        )}
       </div>
 
       {err && <div className="banner err" style={{ marginTop: 12 }}>{err}</div>}
 
-      <button className="btn" style={{ marginTop: 14 }} onClick={pay} disabled={busy || (editAddr && !addrComplete) || (!isFree && !methods.card && !methods.bank_transfer)}>
-        {busy ? 'Attendi…' : isFree ? 'Attiva gratis' : method === 'card' ? `Paga ${euro(total)}` : 'Ricevi gli estremi'}
+      <button
+        className="btn"
+        style={{ marginTop: 14 }}
+        onClick={pay}
+        disabled={busy || bloccoProdotti || (editAddr && !addrComplete) || (!isFree && !metodiVisibili.card && !metodiVisibili.bank_transfer)}
+      >
+        {busy ? 'Attendi…' : isFree ? 'Attiva gratis' : ricorrente ? `Attiva l’abbonamento · ${euro(total)}/mese` : method === 'card' ? `Paga ${euro(total)}` : 'Ricevi gli estremi'}
       </button>
     </div>
   );

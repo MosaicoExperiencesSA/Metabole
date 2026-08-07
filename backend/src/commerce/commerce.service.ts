@@ -44,8 +44,10 @@ type PrismaTx = Prisma.TransactionClient;
  */
 export function subscriptionEnd(start: Date, period: string): Date {
   const end = new Date(start);
-  // 'maintenance' = piano mensile (€29/mese, rinnovo manuale): dura 1 mese.
-  if (isMaintenancePlan(period)) {
+  // 'maintenance' e 'monitoring' sono etichette, non durate: valgono entrambe **1 mese**.
+  // Senza il secondo, il monitoraggio finiva nel fallback muto qui sotto e ogni mese pagato
+  // sarebbe valso 3 mesi di servizio.
+  if (isMaintenancePlan(period) || isMonitoringPlan(period)) {
     end.setMonth(end.getMonth() + 1);
     return end;
   }
@@ -69,7 +71,7 @@ export function subscriptionEnd(start: Date, period: string): Date {
  * piano GRATUITO mal configurato. Usato come rete di sicurezza in fase di attivazione.
  */
 export function isKnownPeriod(period: string): boolean {
-  if (isMaintenancePlan(period)) return true;
+  if (isMaintenancePlan(period) || isMonitoringPlan(period)) return true;
   const p = String(period ?? '').trim().toLowerCase();
   const m = p.match(/^(\d+)\s*([dwmy]?)$/);
   return !!m && Number.isFinite(parseInt(m[1], 10)) && parseInt(m[1], 10) > 0;
@@ -91,6 +93,20 @@ export const MAINTENANCE_PERIOD = 'maintenance';
 /** True se il piano e' il mantenimento (confronto tollerante a spazi e maiuscole). */
 export function isMaintenancePlan(period: string | null | undefined): boolean {
   return String(period ?? '').trim().toLowerCase() === MAINTENANCE_PERIOD;
+}
+
+/**
+ * Il `period` del MONITORAGGIO a pagamento (€19/mese, solo abbonamento): l'ultimo gradino del
+ * percorso, dopo il mantenimento, e si puo' tenere anche per sempre.
+ *
+ * ⚠️ Non e' il monitoraggio GRATUITO — quello che parte quando il piano viene sospeso e vive in
+ * `monitoring.service.ts` senza passare da un piano. Stesso nome, due cose diverse.
+ */
+export const MONITORING_PERIOD = 'monitoring';
+
+/** True se il piano e' il monitoraggio a pagamento. */
+export function isMonitoringPlan(period: string | null | undefined): boolean {
+  return String(period ?? '').trim().toLowerCase() === MONITORING_PERIOD;
 }
 
 /**
@@ -178,7 +194,13 @@ export class CommerceService {
    */
   async listPublicPlans() {
     const plans = await this.listPlans();
-    return (plans as unknown as { period?: string }[]).filter((p) => !isMaintenancePlan(p.period));
+    // Fuori anche il MONITORAGGIO, per la stessa ragione del mantenimento: e' l'ultimo gradino
+    // del percorso (percorso → mantenimento → monitoraggio), non un piano d'ingresso. Senza
+    // questo filtro comparirebbe sulla landing accanto ai percorsi, a €19, come se si potesse
+    // partire da li'.
+    return (plans as unknown as { period?: string }[]).filter(
+      (p) => !isMaintenancePlan(p.period) && !isMonitoringPlan(p.period),
+    );
   }
 
   async listProducts() {
@@ -233,16 +255,34 @@ export class CommerceService {
     return target != null && lastMeasure != null && lastMeasure.weightKg <= target;
   }
 
+  /**
+   * Ha già fatto (o sta facendo) il MANTENIMENTO? È la condizione per vedere il monitoraggio a
+   * pagamento, che viene dopo.
+   *
+   * Contano solo gli abbonamenti `active` o `expired`, cioè goduti: un mantenimento `pending` è
+   * un ordine non ancora pagato, e sbloccherebbe il monitoraggio a chi ha solo premuto "acquista".
+   */
+  private async hasHadMaintenance(clientId: string): Promise<boolean> {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { clientId, status: { in: ['active', 'expired'] } as never, plan: { period: MAINTENANCE_PERIOD } } as never,
+      select: { id: true },
+    });
+    return !!sub;
+  }
+
   /** Piani visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso.
-   * Il MANTENIMENTO (period 'maintenance') compare SOLO a obiettivo raggiunto. */
+   * Il MANTENIMENTO (period 'maintenance') compare SOLO a obiettivo raggiunto; il MONITORAGGIO
+   * (period 'monitoring') solo a chi il mantenimento l'ha già fatto. */
   async listPlansForClient(clientId: string) {
-    const [plans, bought, reached] = await Promise.all([
+    const [plans, bought, reached, hadMaintenance] = await Promise.all([
       this.listPlans(),
       this.purchasedIds(clientId),
       this.hasReachedObjective(clientId),
+      this.hasHadMaintenance(clientId),
     ]);
     return (plans as unknown as { id: string; period?: string; repurchasable?: boolean }[])
       .filter((p) => !isMaintenancePlan(p.period) || reached) // mantenimento solo a obiettivo raggiunto
+      .filter((p) => !isMonitoringPlan(p.period) || hadMaintenance) // monitoraggio solo dopo il mantenimento
       .filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
   }
 
@@ -259,6 +299,15 @@ export class CommerceService {
    * misurato in studio e non ancora inserito, per esempio). La scelta e' voluta.
    */
   private async assertPlanPurchasable(clientId: string, plan: { period?: string | null }) {
+    if (isMonitoringPlan(plan.period)) {
+      // Stesso ragionamento del mantenimento: nascondere non basta, l'acquisto è una POST con
+      // dentro un `planId`. Il monitoraggio è l'ultimo gradino, e senza mantenimento alle spalle
+      // non ha senso — non c'è un peso raggiunto da sorvegliare.
+      if (await this.hasHadMaintenance(clientId)) return;
+      throw new BadRequestException(
+        'Il Monitoraggio viene dopo il Mantenimento: serve un peso raggiunto da tenere. Parlane con la tua coach se pensi sia un errore.',
+      );
+    }
     if (!isMaintenancePlan(plan.period)) return;
     if (await this.hasReachedObjective(clientId)) return;
     throw new BadRequestException(
@@ -324,7 +373,7 @@ export class CommerceService {
     return { deleted: true };
   }
 
-  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; mealsPerDay?: number; features?: string[]; active?: boolean; repurchasable?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
+  async createPlan(actorId: string, dto: { name: string; priceCents: number; period: string; billing?: string; mealsPerDay?: number; features?: string[]; active?: boolean; repurchasable?: boolean; commissionCoachCents?: number; commissionManagerCoachCents?: number; commissionNutritionistCents?: number; commissionHeadNutritionistCents?: number }) {
     const plan = await this.prisma.plan.create({ data: { ...dto, features: dto.features ?? [], active: dto.active ?? true } as never });
     await this.audit.log({ action: 'shop.plan.create', actorId, entityType: 'plan', entityId: plan.id });
     return plan;

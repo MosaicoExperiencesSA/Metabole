@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { useCart } from '../cart/CartContext';
+import { useCart, type PlanBilling } from '../cart/CartContext';
 import AppHeader from '../components/AppHeader';
 
 /** Negozio — piani e integratori. Si aggiunge al carrello, poi checkout unico. */
 
-interface Plan { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoActive?: boolean; period: string; features: string[]; }
+interface Plan { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoActive?: boolean; period: string; billing?: PlanBilling; features: string[]; }
 interface Product { id: string; name: string; priceCents: number; description: string | null; }
 
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
-const PERIOD: Record<string, string> = { '1m': '1 mese', '3m': '3 mesi', '6m': '6 mesi', '12m': '12 mesi', '8d': '8 giorni', maintenance: 'mensile · disdici quando vuoi' };
+const PERIOD: Record<string, string> = { '1m': '1 mese', '3m': '3 mesi', '6m': '6 mesi', '12m': '12 mesi', '8d': '8 giorni', maintenance: 'al mese', monitoring: 'al mese' };
 const ICONS = ['ti-pill', 'ti-bottle', 'ti-flask'];
 const COLORS: [string, string][] = [['#DCEBE3', '#0E7C66'], ['#EFEAF9', '#6C5AB7'], ['#F3E8DC', '#B8863B']];
 
@@ -46,9 +46,9 @@ export default function Negozio() {
     }
   }
 
-  // "Più scelto" va su un PERCORSO, non sul mantenimento da €29 (che essendo il
-  // più economico finirebbe primo nell'ordinamento per prezzo).
-  const featuredId = plans.find((p) => p.period !== 'maintenance')?.id ?? null;
+  // "Più scelto" va su un PERCORSO, non sul mantenimento né sul monitoraggio (che costando meno
+  // finirebbero primi nell'ordinamento per prezzo e si prenderebbero l'etichetta).
+  const featuredId = plans.find((p) => p.period !== 'maintenance' && p.period !== 'monitoring')?.id ?? null;
 
   return (
     <div className="home" style={{ paddingBottom: cart.count > 0 ? 72 : undefined }}>
@@ -59,6 +59,11 @@ export default function Negozio() {
         const inCart = cart.plan?.id === p.id;
         const featured = p.id === featuredId;
         const isMaint = p.period === 'maintenance';
+        const billing: PlanBilling = p.billing ?? 'one_time';
+        // Piani "both" (il mantenimento): la scelta si fa QUI, prima di aggiungere, così quello
+        // che finisce nel carrello è già quello che si pagherà. Default abbonamento, ma scritto
+        // in chiaro accanto: un rinnovo automatico attivato senza vederlo è una brutta sorpresa.
+        const scelta = inCart ? !!cart.plan?.abbonamento : true;
         return (
           <div key={p.id} className="card" style={featured ? { border: '2px solid #12A386' } : isMaint ? { border: '1.5px solid #E8825A' } : {}}>
             <div className="row-between">
@@ -67,6 +72,12 @@ export default function Negozio() {
                 {isMaint && <span className="meal-tag" style={{ background: '#FBEEE7', color: '#B4491F' }}>Una pausa che tiene il peso</span>}
                 <div style={{ fontSize: 15, fontWeight: 700, marginTop: featured || isMaint ? 5 : 0 }}>{p.name}</div>
                 <div className="muted" style={{ fontSize: 12 }}>{PERIOD[p.period] ?? p.period}</div>
+                {billing === 'recurring' && (
+                  <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                    <i className="ti ti-repeat" style={{ fontSize: 12, marginRight: 3 }} />
+                    Abbonamento mensile · disdici quando vuoi
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 17, fontWeight: 700 }}>
@@ -78,10 +89,38 @@ export default function Negozio() {
                 {inCart ? (
                   <span className="chip" style={{ marginTop: 5, background: '#DCF0D8', color: '#3B6D11' }}><i className="ti ti-check" /> Nel carrello</span>
                 ) : (
-                  <button className="btn-recipe" style={{ marginTop: 5 }} onClick={() => cart.setPlan({ id: p.id, name: p.name, priceCents: p.priceCents, period: p.period })}>Aggiungi</button>
+                  <button
+                    className="btn-recipe"
+                    style={{ marginTop: 5 }}
+                    onClick={() => cart.setPlan({ id: p.id, name: p.name, priceCents: p.priceCents, period: p.period, billing, abbonamento: billing === 'both' ? scelta : billing === 'recurring' })}
+                  >
+                    Aggiungi
+                  </button>
                 )}
               </div>
             </div>
+
+            {/* Abbonamento o mese singolo: solo sui piani che si vendono in entrambi i modi. */}
+            {billing === 'both' && (
+              <div className="opt-list" style={{ marginTop: 10 }}>
+                <button
+                  type="button"
+                  className={`opt${scelta ? ' on' : ''}`}
+                  onClick={() => (inCart ? cart.setAbbonamento(true) : cart.setPlan({ id: p.id, name: p.name, priceCents: p.priceCents, period: p.period, billing, abbonamento: true }))}
+                >
+                  <span className="opt-ind">{scelta && <i className="ti ti-check" />}</span>
+                  <span><b>Abbonamento</b> · {euro(p.priceCents)} al mese, si rinnova da solo. Disdici quando vuoi.</span>
+                </button>
+                <button
+                  type="button"
+                  className={`opt${!scelta ? ' on' : ''}`}
+                  onClick={() => (inCart ? cart.setAbbonamento(false) : cart.setPlan({ id: p.id, name: p.name, priceCents: p.priceCents, period: p.period, billing, abbonamento: false }))}
+                >
+                  <span className="opt-ind">{!scelta && <i className="ti ti-check" />}</span>
+                  <span><b>Un mese solo</b> · {euro(p.priceCents)} una volta, nessun rinnovo.</span>
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
@@ -91,10 +130,11 @@ export default function Negozio() {
         <div className="card" style={{ border: '1.5px solid #B8863B' }}>
           <div className="row-between">
             <div style={{ flex: 1 }}>
-              <span className="meal-tag" style={{ background: '#FBF6EA', color: '#8A5A00' }}>Gratis · 1 mese</span>
+              <span className="meal-tag" style={{ background: '#FBF6EA', color: '#8A5A00' }}>In omaggio</span>
               <div style={{ fontSize: 15, fontWeight: 700, marginTop: 5 }}>Monitoraggio</div>
+              {/* I menu di rientro sono INCLUSI (7/8): il piano da €29 non esiste più. */}
               <div className="muted" style={{ fontSize: 12 }}>
-                Gaia resta in allerta e ti chiede le misure. Se riprendi peso, il tuo kit di rientro (8 menu) è a €29.
+                Gaia resta in allerta e ti chiede le misure. Se il peso risale, i menu di rientro arrivano in app: inclusi, senza pagare niente.
               </div>
               {monMsg && <div style={{ fontSize: 11.5, color: '#B4491F', marginTop: 4 }}>{monMsg}</div>}
             </div>

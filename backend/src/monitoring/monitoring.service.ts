@@ -80,8 +80,12 @@ export class MonitoringService {
     // Idoneo al monitoraggio SOLO dopo un piano di MANTENIMENTO concluso (progressione:
     // percorso → mantenimento → monitoraggio). Prima bastava un qualsiasi abbonamento pregresso,
     // così il monitoraggio compariva subito a fine prova/piano: non è più così.
+    // Solo abbonamenti GODUTI (`active` o `expired`): un mantenimento `pending` è un ordine non
+    // ancora pagato e sbloccava il monitoraggio a chi aveva solo premuto "acquista". Stessa
+    // condizione di `commerce.service.hasHadMaintenance`, che decide se mostrare il monitoraggio
+    // a pagamento: le due devono restare uguali, altrimenti la cliente vede l'uno e non l'altro.
     const hadMaintenance = await this.prisma.subscription.findFirst({
-      where: { clientId, plan: { period: 'maintenance' } } as never,
+      where: { clientId, status: { in: ['active', 'expired'] } as never, plan: { period: 'maintenance' } } as never,
       select: { id: true },
     });
     const last = await this.lastWeight(clientId);

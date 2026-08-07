@@ -6,6 +6,7 @@ import {
   CommerceService,
   isKnownPeriod,
   isMaintenancePlan,
+  isMonitoringPlan,
   subscriptionEnd,
 } from './commerce.service';
 
@@ -46,13 +47,21 @@ describe('DTO del Negozio: il periodo di un piano', () => {
     expect(periodErrors(CreatePlanDto, { ...base, period })).toHaveLength(0);
   });
 
+  it('accetta «monitoring»: senza, il piano del monitoraggio era impossibile da salvare', () => {
+    // Stessa trappola di «maintenance», ripetuta il 7/8 sul piano nuovo: nasceva dal seed con un
+    // periodo che il DTO rifiutava, quindi dal Negozio non se ne poteva toccare né il prezzo né
+    // le provvigioni.
+    expect(periodErrors(CreatePlanDto, { ...base, period: 'monitoring' })).toHaveLength(0);
+    expect(periodErrors(UpdatePlanDto, { period: 'monitoring' })).toHaveLength(0);
+  });
+
   it.each(['mantenimento', '3 mesi', 'abc', '0m', '', '-2m'])('rifiuta «%s»', (period) => {
     expect(periodErrors(CreatePlanDto, { ...base, period }).length).toBeGreaterThan(0);
   });
 
   it('quello che il DTO accetta è esattamente quello che subscriptionEnd sa interpretare', () => {
     // Se le due regole divergono, un periodo "valido" farebbe scattare il fallback muto di 3 mesi.
-    for (const period of ['8d', '2w', '3m', '12m', '1y', '3', 'maintenance']) {
+    for (const period of ['8d', '2w', '3m', '12m', '1y', '3', 'maintenance', 'monitoring']) {
       expect(periodErrors(CreatePlanDto, { ...base, period })).toHaveLength(0);
       expect(isKnownPeriod(period)).toBe(true);
     }
@@ -81,6 +90,25 @@ describe('isMaintenancePlan', () => {
   });
 });
 
+describe('isMonitoringPlan', () => {
+  it('riconosce il piano a prescindere da spazi e maiuscole', () => {
+    expect(isMonitoringPlan(' Monitoring ')).toBe(true);
+    expect(isMonitoringPlan('MONITORING')).toBe(true);
+  });
+
+  it('non si confonde col mantenimento né con un mensile', () => {
+    expect(isMonitoringPlan('maintenance')).toBe(false);
+    expect(isMonitoringPlan('1m')).toBe(false);
+    expect(isMaintenancePlan('monitoring')).toBe(false);
+  });
+
+  it('il monitoraggio dura UN MESE, non tre', () => {
+    // Senza il ramo dedicato in `subscriptionEnd`, «monitoring» finiva nel fallback muto: ogni
+    // mese pagato €19 sarebbe valso 3 mesi di servizio, e nessun errore da nessuna parte.
+    expect(subscriptionEnd(new Date('2026-08-05T00:00:00.000Z'), 'monitoring').toISOString().slice(0, 10)).toBe('2026-09-05');
+  });
+});
+
 // --------------------------------------------------------------------------------------------
 // Servizio: vetrina pubblica, vetrina della cliente, acquisto.
 // --------------------------------------------------------------------------------------------
@@ -93,8 +121,16 @@ const PIANO_MANT = { id: 'pm', name: 'Mantenimento Metabole', priceCents: 2900, 
  * ultima misura 68 o 80). `consent` serve perche' `subscribe` controlla anche quello: lo teniamo
  * acceso, cosi' se un test fallisce sappiamo che e' per il mantenimento e non per il consenso.
  */
-function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[] }) {
+function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[]; hadMaintenance?: boolean }) {
   const plans = opts.plans ?? [PIANO_3M, PIANO_MANT];
+  // `subscription.findFirst` serve a due domande diverse: «c'è un ordine in sospeso?» (nessun
+  // filtro sul piano) e «ha già fatto il mantenimento?» (filtro `plan.period`). Distinguerle dal
+  // `where` evita che un mock unico risponda sì a entrambe.
+  const subFindFirst = jest.fn(async (args?: { where?: { plan?: { period?: string } } }) => {
+    const period = args?.where?.plan?.period;
+    if (period === 'maintenance') return opts.hadMaintenance ? { id: 'sub-mant' } : null;
+    return null;
+  });
   return {
     plan: {
       findMany: jest.fn(async () => plans.filter((p) => p.active && !p.hidden)),
@@ -109,7 +145,7 @@ function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[] }) {
     },
     subscription: {
       findMany: jest.fn(async () => []),
-      findFirst: jest.fn(async () => null),
+      findFirst: subFindFirst,
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'sub1', ...data })),
     },
     clientProfile: { findUnique: jest.fn(async () => ({ consents: { healthDataConsent: { accepted: true } }, name: 'Giusy', user: { locale: 'it' } })) },
@@ -215,5 +251,39 @@ describe('Il Mantenimento all\'ACQUISTO (non basta nasconderlo)', () => {
     prisma.objective.findFirst = jest.fn(async () => ({ targetWeightKg: null })) as never;
     const svc = makeService(prisma);
     await expect(svc.subscribe('c1', 'pm', 'giusy@example.com')).rejects.toThrow(/Mantenimento si attiva/i);
+  });
+});
+
+// --------------------------------------------------------------------------------------------
+// Il MONITORAGGIO a pagamento (€19/mese): stesso schema, un gradino più avanti.
+// --------------------------------------------------------------------------------------------
+
+const PIANO_MON = { id: 'pmon', name: 'Monitoraggio Metabole', priceCents: 1900, period: 'monitoring', active: true, hidden: false, repurchasable: true, listPriceCents: null, promoEndsAt: null };
+
+describe('Il Monitoraggio a pagamento: vetrina e acquisto', () => {
+  const conMonitoraggio = { plans: [PIANO_3M, PIANO_MANT, PIANO_MON] };
+
+  it('la vetrina PUBBLICA non lo mostra: non è un piano d\'ingresso', async () => {
+    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: true, ...conMonitoraggio }));
+    expect((await svc.listPublicPlans()).map((p) => (p as { id: string }).id)).not.toContain('pmon');
+  });
+
+  it('la cliente che NON ha mai fatto il mantenimento non lo vede', async () => {
+    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: false, ...conMonitoraggio }));
+    const ids = (await svc.listPlansForClient('c1')).map((p) => p.id);
+    expect(ids).toContain('p3');
+    expect(ids).not.toContain('pmon');
+  });
+
+  it('la cliente che il mantenimento l\'ha fatto lo vede', async () => {
+    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: true, ...conMonitoraggio }));
+    expect((await svc.listPlansForClient('c1')).map((p) => p.id)).toContain('pmon');
+  });
+
+  it('checkout lo rifiuta a chi non ha fatto il mantenimento, anche conoscendo il planId', async () => {
+    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: false, ...conMonitoraggio }));
+    await expect(
+      svc.checkout('c1', 'giusy@example.com', { planId: 'pmon', method: 'card' }),
+    ).rejects.toThrow(/Monitoraggio viene dopo il Mantenimento/i);
   });
 });

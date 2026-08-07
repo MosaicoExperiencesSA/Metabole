@@ -7,6 +7,50 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🛒 **Gli abbonamenti si possono finalmente comprare: negozio, carrello, profilo.**
+  Il backend ricorrente era scritto stamattina ma dall'app non lo raggiungeva nessuno — nessuna
+  schermata mandava la scelta. Ora c'è tutto il giro:
+  · **Negozio** — sul mantenimento due caselle esplicite, *Abbonamento* (si rinnova da solo) o
+    *Un mese solo* (nessun rinnovo), scelte **prima** di aggiungere al carrello; sul monitoraggio,
+    che è solo abbonamento, la riga «rinnovo mensile, disdici quando vuoi» sotto il nome. Il
+    default è l'abbonamento, ma scritto accanto: un addebito automatico attivato senza vederlo è
+    la cosa che fa arrivare i rimborsi.
+  · **Carrello** — le tre regole del ricorrente sono dette **prima** di premere paga, non dopo:
+    il bonifico sparisce (con la ragione a fianco), il campo buono sconto non compare, e se ci
+    sono integratori nel carrello un avviso rosso spiega perché vanno in un secondo ordine — se
+    restassero, si pagherebbero ogni mese. Il totale dice «€49 / mese» e sotto cosa succede dopo.
+  · **Profilo** — nuova scheda **Abbonamento**: quanto paghi, quando si rinnova, *Aggiorna la
+    carta* (portale Stripe: i dati della carta non passano mai da noi) e *Disdici* con una
+    conferma sola. Se l'ultimo addebito è fallito lo dice chiaramente **senza** far pensare a una
+    disdetta: il piano resta attivo mentre Stripe riprova.
+  · **Backoffice** — nel Negozio il campo **«Come si vende»** (pagamento unico / solo abbonamento
+    / a scelta della cliente) con la colonna in tabella, più due avvisi: se si sposta il periodo
+    `monitoring` e se si mette un abbonamento a €0 (Stripe non apre una sessione senza importo).
+
+- `[Sviluppo]` 🐞 **Tre difetti della push di stamattina, trovati rileggendo il codice prima di
+  costruirci sopra.** Nessuno dava errore: è il motivo per cui vale la pena rileggere.
+  ① **Rotta doppia.** `GET /me/subscription` era registrato **due volte** — il vecchio (piano,
+  date, primo menu) e il nuovo (abbonamento ricorrente). Nest tiene il primo e ignora il secondo
+  senza dire niente: **Calendario, Profilo e il promemoria della data d'inizio** avrebbero
+  ricevuto il payload sbagliato. Il ricorrente è passato su `/me/subscription/recurring`, e ora
+  c'è un test (`rotte-uniche.spec.ts`) che legge i decoratori di **tutti** i controller del
+  modulo e fallisce se due metodi finiscono sullo stesso percorso.
+  ② **Il monitoraggio durava tre mesi invece di uno.** Il piano nasce col periodo `monitoring`,
+  che `subscriptionEnd` non conosceva: cadeva nel fallback muto da 3 mesi. €19 pagati valevano un
+  trimestre. Ed era anche **impossibile da salvare dal Negozio**, perché il validatore non
+  ammetteva quella parola — identica alla trappola di `maintenance` di due mesi fa, che avevamo
+  già documentato. Un periodo nuovo va aggiunto in **tre punti insieme**: validatore,
+  `subscriptionEnd`, `isKnownPeriod`. Ora è scritto nel commento del DTO.
+  ③ **Il monitoraggio era in vendita a chiunque.** Compariva nello shop e sulla landing accanto
+  ai percorsi, a €19, anche a una lead appena registrata. È l'**ultimo** gradino
+  (percorso → mantenimento → monitoraggio): ora è fuori dalla vetrina pubblica e visibile solo a
+  chi il mantenimento l'ha davvero fatto — e la stessa regola è ripetuta **all'acquisto**, perché
+  nascondere un piano non impedisce di comprarlo conoscendone l'id.
+  Allineata anche la condizione «ha fatto il mantenimento»: prima bastava un abbonamento
+  `pending`, cioè un ordine **non ancora pagato**. Ora servono `active` o `expired`, sia per il
+  monitoraggio a pagamento sia per quello in omaggio.
+  Test: +19 (52 suite, 546 test).
+
 - `[Sviluppo]` 🔑 **"Invia credenziali" non manda più una password: manda un link.** Fino a stamattina
   il pulsante del lead generava una password provvisoria, la scriveva nel database e la spediva per
   email in chiaro. Due cose sbagliate insieme: la password restava leggibile nella casella di posta

@@ -109,6 +109,12 @@ interface Plan { name: string; period: string; priceCents: number; }
 interface Subscription { id: string; status: string; startDate: string | null; endDate: string | null; firstMenuDate: string | null; plan: Plan | null; }
 interface Payment { id: string; description: string; amountCents: number; method: string; status: string; createdAt: string; }
 
+/**
+ * L'abbonamento RICORRENTE (`GET /me/subscription/recurring`), che è un'altra cosa dal piano qui
+ * sopra: qui c'è solo quello con addebito automatico su carta, e `null` se non ce n'è.
+ */
+interface Ricorrente { id: string; nome: string; prezzoCents: number; rinnovaIl: string | null; disdettaChiesta: boolean; pagamentoFallito: boolean; }
+
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const DAY = 86_400_000;
 
@@ -423,6 +429,10 @@ export default function Profilo() {
   }
   const navigate = useNavigate();
   const [sub, setSub] = useState<Subscription | null>(null);
+  const [ric, setRic] = useState<Ricorrente | null>(null);
+  const [ricBusy, setRicBusy] = useState(false);
+  const [ricMsg, setRicMsg] = useState<string | null>(null);
+  const [disdettaAperta, setDisdettaAperta] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -455,12 +465,43 @@ export default function Profilo() {
       api<Subscription | null>('/me/subscription').catch(() => null),
       api<Payment[]>('/me/payments').catch(() => [] as Payment[]),
       api<MyProfile>('/me/profile').catch(() => null),
-    ]).then(([s, p, pr]) => {
+      api<Ricorrente | null>('/me/subscription/recurring').catch(() => null),
+    ]).then(([s, p, pr, r]) => {
       setSub(s);
+      setRic(r);
       setPayments(Array.isArray(p) ? p : []);
       if (pr) { setProfile(pr); setForm(pr); const sp = splitPhone(pr.phone); setPhonePrefix(sp.prefix); setPhoneNumber(sp.number); }
     }).finally(() => setLoading(false));
   }, []);
+
+  /** Disdetta / ripensamento: entrambe passano da qui e ricaricano lo stato vero dal server. */
+  async function azioneRicorrente(azione: 'cancel' | 'resume') {
+    setRicBusy(true);
+    setRicMsg(null);
+    try {
+      await api(`/me/subscription/${azione}`, { method: 'POST' });
+      setRic(await api<Ricorrente | null>('/me/subscription/recurring').catch(() => null));
+      setDisdettaAperta(false);
+      setRicMsg(azione === 'cancel' ? 'Disdetta registrata. Resta tutto attivo fino alla scadenza.' : 'Bentornata: l’abbonamento continua.');
+    } catch (e) {
+      setRicMsg(e instanceof ApiError ? e.message : 'Operazione non riuscita.');
+    } finally {
+      setRicBusy(false);
+    }
+  }
+
+  /** «Aggiorna la carta»: portale di Stripe. I dati della carta non passano mai da noi. */
+  async function apriPortaleCarta() {
+    setRicBusy(true);
+    setRicMsg(null);
+    try {
+      const { url } = await api<{ url: string }>('/me/subscription/card-portal');
+      window.location.href = url;
+    } catch (e) {
+      setRicMsg(e instanceof ApiError ? e.message : 'Portale non disponibile: riprova fra poco.');
+      setRicBusy(false);
+    }
+  }
 
   function searchAddress(q: string) {
     if (addrTimer.current) clearTimeout(addrTimer.current);
@@ -851,6 +892,74 @@ export default function Profilo() {
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>Non hai ancora un piano attivo.</p>
           <button className="btn" style={{ marginTop: 10 }} onClick={() => navigate('/negozio')}>Scopri i piani</button>
         </div>
+      )}
+
+      {/* Abbonamento con addebito automatico: c'è solo se la cliente ne ha uno. */}
+      {ric && (
+        <>
+          <div className="sec">Abbonamento</div>
+          <div className="card" style={ric.pagamentoFallito ? { border: '1.5px solid #B3261E' } : {}}>
+            <div className="row-between">
+              <div>
+                <b style={{ fontSize: 14 }}>{ric.nome}</b>
+                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                  {euro(ric.prezzoCents)} al mese
+                  {ric.rinnovaIl && (ric.disdettaChiesta ? ` · finisce il ${fmtDate(ric.rinnovaIl)}` : ` · si rinnova il ${fmtDate(ric.rinnovaIl)}`)}
+                </div>
+              </div>
+              <i className="ti ti-repeat" style={{ fontSize: 26, color: ric.disdettaChiesta ? '#8A938F' : '#12A386' }} />
+            </div>
+
+            {/* Carta rifiutata: NON è una disdetta. Il servizio continua mentre Stripe riprova. */}
+            {ric.pagamentoFallito && (
+              <div className="banner err" style={{ marginTop: 10 }}>
+                L’ultimo addebito non è andato a buon fine. Il tuo piano resta attivo e ci riproviamo nei prossimi
+                giorni: se la carta è scaduta, aggiornala qui sotto.
+              </div>
+            )}
+
+            {ric.disdettaChiesta && (
+              <div className="banner" style={{ marginTop: 10 }}>
+                Disdetta registrata. Continui ad avere tutto fino
+                {ric.rinnovaIl ? ` al ${fmtDate(ric.rinnovaIl)}` : ' alla scadenza'}, poi non ti addebiteremo più niente.
+              </div>
+            )}
+
+            {ricMsg && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{ricMsg}</div>}
+
+            <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <button className="btn-recipe" disabled={ricBusy} onClick={() => void apriPortaleCarta()}>
+                <i className="ti ti-credit-card" style={{ fontSize: 13, marginRight: 4 }} /> Aggiorna la carta
+              </button>
+              {ric.disdettaChiesta ? (
+                <button className="btn-recipe" disabled={ricBusy} onClick={() => void azioneRicorrente('resume')}>
+                  <i className="ti ti-rotate" style={{ fontSize: 13, marginRight: 4 }} /> Annulla la disdetta
+                </button>
+              ) : (
+                <button className="btn-recipe" style={{ color: '#B3261E' }} disabled={ricBusy} onClick={() => setDisdettaAperta(true)}>
+                  Disdici
+                </button>
+              )}
+            </div>
+
+            {/* Una conferma, non tre schermate: chi vuole uscire esce comunque. */}
+            {disdettaAperta && !ric.disdettaChiesta && (
+              <div className="card" style={{ marginTop: 10, background: '#FAFAF8' }}>
+                <p style={{ margin: 0, fontSize: 13 }}>
+                  Vuoi disdire <b>{ric.nome}</b>? Non perdi niente di quello che hai già pagato: resta attivo fino
+                  {ric.rinnovaIl ? ` al ${fmtDate(ric.rinnovaIl)}` : ' alla scadenza'}, e puoi ripensarci fino a quel
+                  giorno.
+                </p>
+                <div className="row" style={{ gap: 8, marginTop: 10 }}>
+                  <button className="btn-recipe" disabled={ricBusy} onClick={() => setDisdettaAperta(false)}>Resto</button>
+                  <button className="btn-recipe" style={{ color: '#B3261E' }} disabled={ricBusy} onClick={() => void azioneRicorrente('cancel')}>
+                    {ricBusy ? 'Attendi…' : 'Sì, disdici'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Storico acquisti */}

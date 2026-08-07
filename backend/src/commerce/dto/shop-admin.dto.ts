@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Matches, Max, Min, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 /**
  * Formato ammesso per il PERIODO di un piano: `Nd` giorni, `Nw` settimane, `Nm` mesi,
@@ -9,6 +9,12 @@ import { IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Matches,
  * quello che il validatore accetta è esattamente ciò che il calcolo della data di fine sa
  * interpretare. Se qui passasse un formato sconosciuto, `subscriptionEnd` userebbe il
  * fallback lungo (3 mesi) senza dirlo a nessuno.
+ *
+ * ⚠️ Stessa storia con `monitoring` (7/8): il piano nasce dal seed con quel periodo, ma qui non
+ * era ammesso — quindi era impossibile toccarne prezzo o provvigioni dal Negozio — e
+ * `subscriptionEnd` non lo riconosceva, quindi ogni mese pagato sarebbe valso **3 mesi** di
+ * servizio (il fallback muto). Un periodo nuovo va aggiunto in tre punti insieme: qui, in
+ * `subscriptionEnd` e in `isKnownPeriod`.
  *
  * Prima al posto di questo c'era `@MaxLength(10)`. `maintenance` è di 11 caratteri: il piano
  * di mantenimento diventava **impossibile da salvare** dal Negozio, perche' il form rimanda
@@ -20,9 +26,9 @@ import { IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString, Matches,
  */
 // Lo zero e' escluso di proposito: `isKnownPeriod` considera valido solo un numero > 0, quindi un
 // «0m» accettato qui sarebbe un periodo formalmente buono che poi finisce nel fallback muto.
-export const PLAN_PERIOD_RE = /^(maintenance|0*[1-9]\d*\s*[dwmy]?)$/i;
+export const PLAN_PERIOD_RE = /^(maintenance|monitoring|0*[1-9]\d*\s*[dwmy]?)$/i;
 export const PLAN_PERIOD_MSG =
-  'Periodo non valido. Usa un numero con l\'unita\' (es. 8d, 2w, 3m, 1y) oppure "maintenance" per il piano di mantenimento.';
+  'Periodo non valido. Usa un numero con l\'unita\' (es. 8d, 2w, 3m, 1y) oppure "maintenance" / "monitoring" per i piani mensili dedicati.';
 
 /**
  * Le 4 quote provvigionali in centesimi di €, condivise da piani e prodotti.
@@ -60,8 +66,16 @@ export class UpdateProductDto extends CommissionFields {
   @IsOptional() @IsBoolean() repurchasable?: boolean;
 }
 
+/**
+ * Come si vende un piano. `one_time` = pagamento unico (i percorsi), `recurring` = solo
+ * abbonamento con addebito automatico (il monitoraggio), `both` = sceglie la cliente al
+ * checkout (il mantenimento: abbonamento o mese singolo).
+ */
+export const PLAN_BILLING = ['one_time', 'recurring', 'both'] as const;
+
 export class CreatePlanDto extends CommissionFields {
   @IsString() @MinLength(1) @MaxLength(120) name!: string;
+  @IsOptional() @IsIn(PLAN_BILLING as unknown as string[]) billing?: string;
   @Type(() => Number) @IsInt() @Min(0) priceCents!: number;
   // Prezzo pieno di listino (barrato) + fine promo: null = nessun barrato / promo senza scadenza.
   @IsOptional() @ValidateIf((_, v) => v !== null) @Type(() => Number) @IsInt() @Min(0) listPriceCents?: number | null;
@@ -75,6 +89,7 @@ export class CreatePlanDto extends CommissionFields {
 
 export class UpdatePlanDto extends CommissionFields {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(120) name?: string;
+  @IsOptional() @IsIn(PLAN_BILLING as unknown as string[]) billing?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) priceCents?: number;
   @IsOptional() @ValidateIf((_, v) => v !== null) @Type(() => Number) @IsInt() @Min(0) listPriceCents?: number | null;
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsDateString() promoEndsAt?: string | null;
