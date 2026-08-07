@@ -129,6 +129,48 @@ describe('NotificationsService', () => {
     expect(prisma.notification.create).not.toHaveBeenCalled();
   });
 
+  /**
+   * Il dedup "una al giorno" confrontava una MEZZANOTTE con un ISTANTE. Da quando la mezzanotte
+   * è quella italiana, fra le 22:00 e le 24:00 UTC quella mezzanotte è già di domani — cioè nel
+   * futuro — e la finestra non trovava le notifiche appena scritte: una cliente che scriveva alla
+   * coach alle 00:10 e poi alle 00:50 le faceva arrivare DUE notifiche.
+   * Ora si confrontano due giorni italiani.
+   */
+  describe('dedup "una al giorno"', () => {
+    it('già mandata oggi → non se ne manda un\'altra', async () => {
+      prisma.notification.findFirst.mockResolvedValue({ scheduledFor: new Date() });
+      const sent = await service.notifyOncePerDay({ userId: 'u1', type: 'checkin_reminder', messageKey: 'checkin_reminder' });
+      expect(sent).toBe(false);
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+    });
+
+    it('l\'ultima è di ieri → se ne manda una nuova', async () => {
+      prisma.notification.findFirst.mockResolvedValue({ scheduledFor: new Date(Date.now() - 86_400_000) });
+      const sent = await service.notifyOncePerDay({ userId: 'u1', type: 'checkin_reminder', messageKey: 'checkin_reminder' });
+      expect(sent).toBe(true);
+      expect(prisma.notification.create).toHaveBeenCalled();
+    });
+
+    it('cerca l\'ULTIMA notifica di quel tipo, senza finestra sulle date', async () => {
+      prisma.notification.findFirst.mockResolvedValue(null);
+      await service.notifyOncePerDay({ userId: 'u1', type: 'checkin_reminder', messageKey: 'checkin_reminder' });
+      const where = prisma.notification.findFirst.mock.calls[0][0];
+      expect(where.orderBy).toEqual({ scheduledFor: 'desc' });
+      expect(where.where.scheduledFor).toBeUndefined(); // niente gte/lt: era proprio quello a sbagliare
+    });
+
+    it('la finestra mobile resta un confronto fra istanti', async () => {
+      prisma.notification.findFirst.mockResolvedValue({ id: 'recente' });
+      const sent = await service.notifyOncePerDay({
+        userId: 'u1', type: 'coach_message', messageKey: 'checkin_reminder', dedupeWindowMs: 40 * 60_000,
+      });
+      expect(sent).toBe(false);
+      const where = prisma.notification.findFirst.mock.calls[0][0].where;
+      expect(where.scheduledFor.gte).toBeInstanceOf(Date);
+      expect(where.scheduledFor.lt).toBeUndefined();
+    });
+  });
+
   it('check-in fatto, misure fresche e nessuna decisione: nessuna notifica inutile', async () => {
     prisma.dailyCheckin.findUnique.mockResolvedValue({ id: 'c-oggi' });
     prisma.dailyCheckin.findFirst.mockResolvedValue({ date: new Date() });

@@ -2,11 +2,16 @@ import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietAgentService } from '../diet-agent/diet-agent.service';
+import { giornoLocale } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { DayComboService } from './day-combo.service';
 import { MenuService } from './menu.service';
 
-const dayIso = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+// Il giorno va calcolato come lo calcola il codice sotto test: `cycleNeedsMeasure` confronta
+// col giorno ITALIANO (`common/date-only.ts`). Con `toISOString()` — cioè il giorno UTC — fra le
+// 22:00 e le 24:00 UTC il test «2° giorno nel futuro» diventava «oggi» e falliva. Non è mai
+// successo solo perché la CI non ha ancora girato a quell'ora.
+const dayIso = (n: number) => giornoLocale(new Date(Date.now() + n * 86_400_000));
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
 function makeService(prisma: unknown) {

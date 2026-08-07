@@ -103,6 +103,10 @@ function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onC
   const [scope, setScope] = useState<'today' | 'days' | 'forever'>('today');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Pop-up delle spezie: il server risponde `applicato: false` e un avviso con titolo e testo.
+  // Vedi `backend/src/menu/spezie.ts` — una spezia esclusa cancella dal ricettario tutti i piatti
+  // che la contengono, quindi non si registra e si spiega perché.
+  const [avviso, setAvviso] = useState<{ titolo: string; testo: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
@@ -110,9 +114,18 @@ function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onC
     if (v.length < 2) { setErr("Scrivi l'ingrediente che non gradisci."); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ applied: { day: string; from: string; to: string }[]; message: string }>('/me/menu/substitute', {
+      const r = await api<{
+        applied: { day: string; from: string; to: string }[];
+        message: string;
+        applicato?: boolean;
+        avvisoSpezia?: { tipo: string; titolo: string; testo: string };
+      }>('/me/menu/substitute', {
         method: 'POST', body: JSON.stringify({ ingredient: v, scope }),
       });
+      if (r.avvisoSpezia) {
+        setAvviso({ titolo: r.avvisoSpezia.titolo, testo: r.avvisoSpezia.testo });
+        return; // niente da ricaricare: il menu non è cambiato
+      }
       setMsg(r.message);
       onChanged?.(); // ricarica il menu: la card mostra subito il piatto sostituito
     } catch (e) {
@@ -125,10 +138,17 @@ function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onC
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-        <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
-        <b style={{ fontSize: 15 }}>Sostituisci un ingrediente</b>
+        <span className="event-ic" style={{ background: avviso ? '#C98A2E' : 'var(--teal)', color: '#fff', flex: 'none' }}>
+          <i className={`ti ti-${avviso ? 'alert-circle' : 'sparkles'}`} />
+        </span>
+        <b style={{ fontSize: 15 }}>{avviso ? avviso.titolo : 'Sostituisci un ingrediente'}</b>
       </div>
-      {msg ? (
+      {avviso ? (
+        <>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{avviso.testo}</div>
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={onClose}>Ho capito</button>
+        </>
+      ) : msg ? (
         <>
           <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{msg}</div>
           <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={onClose}>Ok, grazie</button>

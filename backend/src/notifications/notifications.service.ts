@@ -3,7 +3,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { MailService } from '../mail/mail.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { toDateOnly } from '../common/date-only';
+import { giornoLocale, toDateOnly } from '../common/date-only';
 import { MessageComposerService, MessageTone } from './message-composer.service';
 import { PushService } from './push.service';
 import { Role } from '../common/roles';
@@ -64,18 +64,40 @@ export class NotificationsService {
     private readonly push: PushService,
   ) {}
 
-  /** Crea la notifica solo se oggi non ne esiste già una dello stesso tipo. */
+  /**
+   * Crea la notifica solo se oggi non ne esiste già una dello stesso tipo.
+   *
+   * ## Perché non si confronta più una data con un istante
+   *
+   * `scheduledFor` è un **istante** pieno; `toDateOnly()`, da quando il giorno è quello italiano,
+   * restituisce la mezzanotte **romana** espressa in UTC. Fra le 22:00 e le 24:00 UTC quella
+   * mezzanotte è già quella di domani, cioè **nel futuro**: la finestra `gte: oggi` non trovava
+   * le notifiche appena scritte e la coach ne riceveva due o tre di fila.
+   *
+   * Il confronto giusto è fra grandezze omogenee: si prende l'ultima notifica di quel tipo e si
+   * guarda se **il suo giorno** (romano) è oggi. La finestra mobile (`dedupeWindowMs`) resta un
+   * confronto fra istanti, che era già corretto.
+   */
   async notifyOncePerDay(input: NotifyInput): Promise<boolean> {
-    const today = toDateOnly();
-    const tomorrow = new Date(today.getTime() + 86_400_000);
-    // Dedup: finestra mobile (se dedupeWindowMs) oppure "una volta al giorno" (default).
-    const scheduledFor = input.dedupeWindowMs
-      ? { gte: new Date(Date.now() - input.dedupeWindowMs) }
-      : { gte: today, lt: tomorrow };
-    const existing = await this.prisma.notification.findFirst({
-      where: { userId: input.userId, type: input.type, scheduledFor },
-    });
-    if (existing) return false;
+    const adesso = new Date();
+    if (input.dedupeWindowMs) {
+      const recente = await this.prisma.notification.findFirst({
+        where: {
+          userId: input.userId,
+          type: input.type,
+          scheduledFor: { gte: new Date(adesso.getTime() - input.dedupeWindowMs) },
+        },
+        select: { id: true },
+      });
+      if (recente) return false;
+    } else {
+      const ultima = (await this.prisma.notification.findFirst({
+        where: { userId: input.userId, type: input.type },
+        orderBy: { scheduledFor: 'desc' },
+        select: { scheduledFor: true },
+      })) as { scheduledFor: Date } | null;
+      if (ultima && giornoLocale(ultima.scheduledFor) === giornoLocale(adesso)) return false;
+    }
 
     // Destinataria: lingua + preferenze (le preferenze esistono solo per le clienti).
     const recipient = await this.prisma.user.findUnique({
@@ -96,7 +118,7 @@ export class NotificationsService {
         params: input.params,
         tone: input.tone,
         verbatim: input.verbatim,
-        seed: `${input.userId}:${today.toISOString().slice(0, 10)}`,
+        seed: `${input.userId}:${giornoLocale(adesso)}`,
       });
       title = composed.title;
       body = composed.body;

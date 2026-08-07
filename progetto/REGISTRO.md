@@ -5,6 +5,72 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-08
+
+- `[Prodotto]` 🌶️ **Le spezie non sono più un cibo da escludere.** La regola l'ha dettata la
+  nutrizionista, e nasce dalla cliente che riceveva lo stesso pranzo per quattro giorni di fila.
+  Non era un difetto del motore: aveva trenta esclusioni, e fra quelle c'erano **curry** e
+  **cumino**. Una spezia è una pizzicata, ma il motore la tratta come tutti gli altri
+  ingredienti — cerca la parola nel nome e negli ingredienti e **scarta l'intero piatto**. Così
+  «non mi piace il curry» le aveva cancellato dal ricettario ogni piatto speziato, e i pranzi
+  utilizzabili erano scesi a **uno su cinque**.
+  Da oggi:
+  · se scrive il nome di una **spezia precisa** (curry, cumino, cannella, zafferano, paprika,
+    peperoncino, e anche le erbe aromatiche) → non entra fra i cibi esclusi, e le risponde un
+    pop-up: **«sostituiscila con le spezie che più ti piacciono»**, con la spiegazione del
+    perché — la spezia la mette lei in cucina, quindi la scelta resta sua senza costarle metà
+    del ricettario;
+  · se scrive **«spezie» in generale** → **«contatta la tua coach per analizzare come utilizzare
+    i menu senza spezie»**. Non è una preferenza da registrare al volo: è una conversazione.
+  Il cancello vale per **tutte** le portate, non solo per «non mi piace»: anche una sostituzione
+  di tre giorni farebbe scartare i piatti speziati, che è esattamente il danno da evitare.
+
+- `[Sviluppo]` 🚪 **Il cancello è in tre punti, non in uno.** La strada normale è
+  `POST /me/menu/substitute`, ma i cibi non graditi si scrivono anche dal **questionario** e
+  dalla **PATCH del profilo** (la sezione "Cibi esclusi" manda la lista intera). Una regola
+  messa in un punto solo si aggira dalla finestra, quindi il filtro sta in tutti e tre, e la
+  logica sta in **un file solo**: `backend/src/menu/spezie.ts`.
+  Due limiti sono voluti e scritti nel file:
+  · **allergie e intolleranze non passano mai di qui.** Senape, sesamo e sedano sono allergeni
+    UE: quella è sicurezza, non gusto, e resta un'esclusione vera;
+  · **il confronto è esatto, non per sottostringa.** «noce moscata» è una spezia, «noce» è
+    frutta a guscio; «pepe» è una spezia, «peperoni» sono una verdura. Cercare per sottostringa
+    le confonderebbe, ed è il tipo di errore che qui costa caro. Aglio e cipolla restano cibo:
+    si usano a peso, non a pizzichi.
+  Il testo del pop-up viaggia anche nel campo `message`, così le **app già installate** — dove
+  gli aggiornamenti OTA sono spenti dal 6/8 — lo mostrano lo stesso al posto della conferma.
+  Test: +13.
+
+- `[Sviluppo]` 🧹 **Chi la spezia ce l'ha già in lista continuava a subirla.** La regola nuova
+  protegge chi arriva da qui in avanti; per le altre c'è `npm run pulisci:spezie`, che elenca
+  cliente per cliente quali spezie toglie e quanti cibi **veri** restano esclusi dopo. Mostra e
+  basta finché non si lancia con `CONFERMA=1`.
+  Chi aveva escluso «le spezie» in generale finisce in un elenco a parte: il termine si toglie
+  lo stesso (altrimenti continua a svuotarle il ricettario) ma la telefonata della coach va
+  fatta lo stesso — non la sostituisce uno script.
+  I menu già consegnati non si toccano: si riallineano da soli alla prossima erogazione, e
+  rifarli confonderebbe chi ha già fatto la spesa.
+
+- `[Sviluppo]` 🔔 **Notifiche doppie alle coach di notte: corretto.** Prima delle tre cose
+  trovate nella revisione di ieri sera, ed è una conseguenza diretta del cambio di "oggi" del 7/8.
+  `notifyOncePerDay` confrontava una **mezzanotte** con un **istante**: da quando la mezzanotte è
+  quella italiana, fra le 22:00 e le 24:00 UTC quella mezzanotte è già di domani — cioè **nel
+  futuro** — e la finestra non trovava le notifiche appena scritte.
+  *Cosa vedeva la coach:* una cliente che le scrive alle 00:10 e poi alle 00:50 le faceva arrivare
+  **due** notifiche; se riscriveva la mattina dopo, una **terza**.
+  Ora si confrontano due grandezze omogenee: si prende l'ultima notifica di quel tipo e si guarda
+  se il suo **giorno italiano** è oggi. La finestra mobile (`dedupeWindowMs`) resta un confronto
+  fra istanti, che era già giusto. Test: +5.
+
+- `[Sviluppo]` 🎲 **Un test che sarebbe diventato instabile stanotte.** In
+  `menu-measurement-gate.spec.ts` l'helper `dayIso` era rimasto sul giorno **UTC** mentre il
+  codice sotto test confronta col giorno **romano**: se la CI fosse girata fra le 22:00 e le
+  24:00 UTC, il caso «2° giorno nel futuro → non bloccante» sarebbe fallito. Non è successo solo
+  per l'orario in cui abbiamo lanciato. Ora l'helper usa `giornoLocale`, cioè la stessa funzione
+  del codice che verifica.
+
+---
+
 ## 2026-08-07
 
 - `[Sviluppo]` 📱 **Lo stesso difetto delle date era anche nell'app — in sette punti.** Corretto

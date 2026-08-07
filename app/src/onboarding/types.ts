@@ -55,4 +55,10 @@ export interface OnboardingResult {
   };
   objective?: { targetWeightKg?: number; targetDate?: string } | null;
   objectiveValidation?: { accepted: boolean; ratePerWeek?: number; suggestedWeeks?: number };
+  /**
+   * Spezie scritte fra i "cibi non graditi" e NON registrate. Vedi `backend/src/menu/spezie.ts`:
+   * escludere una spezia cancella dal ricettario tutti i piatti che la contengono, quindi non si
+   * salva e si spiega perché. Presente solo quando c'è qualcosa da dire.
+   */
+  avvisiSpezie?: { tipo: 'specifica' | 'generica'; termine: string; titolo: string; testo: string }[];
 }

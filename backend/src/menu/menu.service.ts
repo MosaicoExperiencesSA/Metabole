@@ -11,6 +11,7 @@ import { toDateOnly } from '../common/date-only';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
+import { EsitoSpezia, classificaSpezia } from './spezie';
 
 interface Substitution {
   from: string;
@@ -1337,15 +1338,57 @@ export class MenuService {
    * avevano ridotto a 1 su 5 i pranzi utilizzabili della sua dieta.
    *
    * I cibi non graditi non bloccano mai il piano: al massimo cambiano il piatto.
+   *
+   * Unica eccezione: le **spezie**. Vedi `spezie.ts` — una spezia esclusa cancella dal ricettario
+   * ogni piatto che la contiene, ed è così che una cliente si è ritrovata lo stesso pranzo per
+   * quattro giorni. La regola della nutrizionista è di non registrarle e di rispondere con un
+   * pop-up. Il testo viaggia anche in `message`, così le app già installate — dove gli
+   * aggiornamenti OTA sono spenti — lo mostrano lo stesso al posto della conferma.
    */
   async substituteDisliked(
     clientId: string,
     rawIngredient: string,
     scope: 'today' | 'days' | 'forever' = 'days',
-  ): Promise<{ applied: { day: string; from: string; to: string }[]; disliked: string; scope: 'today' | 'days' | 'forever'; forever: boolean; message: string }> {
+  ): Promise<{
+    applied: { day: string; from: string; to: string }[];
+    disliked: string;
+    scope: 'today' | 'days' | 'forever';
+    forever: boolean;
+    message: string;
+    /** Falso quando la richiesta è stata fermata (per ora: solo le spezie). */
+    applicato: boolean;
+    /** Presente solo se c'è un pop-up da mostrare. */
+    avvisoSpezia?: EsitoSpezia;
+  }> {
     const ingredient = (rawIngredient ?? '').trim();
     if (ingredient.length < 2) throw new BadRequestException("Scrivi l'ingrediente che non gradisci.");
     const forever = scope === 'forever';
+
+    // Il cancello delle spezie vale per TUTTE le portate, non solo per "per sempre": anche una
+    // sostituzione di tre giorni farebbe scartare i piatti speziati, che è il danno da evitare.
+    const spezia = classificaSpezia(ingredient);
+    if (spezia.tipo !== 'nessuna') {
+      try {
+        await this.audit.log({
+          action: 'menu.spezia.rifiutata',
+          actorId: clientId,
+          entityType: 'client_profile',
+          entityId: clientId,
+          metadata: { termine: ingredient, tipo: spezia.tipo, scope },
+        });
+      } catch {
+        /* l'audit non deve impedire la risposta alla cliente */
+      }
+      return {
+        applied: [],
+        disliked: ingredient,
+        scope,
+        forever,
+        message: spezia.testo,
+        applicato: false,
+        avvisoSpezia: spezia,
+      };
+    }
 
     // 1) Solo se la cliente ha CONFERMATO l'esclusione permanente → dislikedFoods.
     if (forever) {
@@ -1411,7 +1454,7 @@ export class MenuService {
       message = `${where.charAt(0).toUpperCase()}${where.slice(1)} quell'ingrediente non compare` +
         (scope === 'today' ? '.' : ' (se invece lo vedi ancora, scrivilo alla tua coach: sistemiamo noi).');
     }
-    return { applied, disliked: ingredient, scope, forever, message };
+    return { applied, disliked: ingredient, scope, forever, message, applicato: true };
   }
 
   /**

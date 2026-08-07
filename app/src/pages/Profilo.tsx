@@ -155,6 +155,10 @@ function ExcludedFoods() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // Pop-up delle spezie (vedi `backend/src/menu/spezie.ts`): una spezia esclusa cancella dal
+  // ricettario tutti i piatti che la contengono, quindi il server non la registra e spiega
+  // perché. Qui va anche tolta la pastiglia aggiunta in modo ottimistico.
+  const [avviso, setAvviso] = useState<{ titolo: string; testo: string } | null>(null);
 
   useEffect(() => {
     api<{ dislikedFoods: string[] | null; intolerances: string[] | null }>('/me/client-profile')
@@ -180,7 +184,7 @@ function ExcludedFoods() {
     const v = add.trim();
     if (v.length < 2 || !foods) return;
     if (foods.some((f) => f.toLowerCase() === v.toLowerCase())) { setAdd(''); return; }
-    setBusy(true); setErr(null); setMsg(null);
+    setBusy(true); setErr(null); setMsg(null); setAvviso(null);
     const prev = foods;
     setAdd('');
     setFoods([...foods, v]); // ottimistico
@@ -189,7 +193,15 @@ function ExcludedFoods() {
       // dei prossimi giorni (stesso endpoint della "cambia cibo" in Home). Qui la portata
       // è per forza `forever`: siamo nella sezione "Cibi esclusi", dove l'esclusione
       // permanente è proprio l'intento dichiarato.
-      await api('/me/menu/substitute', { method: 'POST', body: JSON.stringify({ ingredient: v, scope: 'forever' }) });
+      const r = await api<{ applicato?: boolean; avvisoSpezia?: { titolo: string; testo: string } }>(
+        '/me/menu/substitute',
+        { method: 'POST', body: JSON.stringify({ ingredient: v, scope: 'forever' }) },
+      );
+      if (r.avvisoSpezia) {
+        setFoods(prev); // il server non l'ha salvato: la pastiglia non deve restare lì a mentire
+        setAvviso({ titolo: r.avvisoSpezia.titolo, testo: r.avvisoSpezia.testo });
+        return;
+      }
       setMsg(`«${v}» escluso: i menu sono stati aggiornati.`);
     } catch (e) {
       setFoods(prev);
@@ -228,6 +240,16 @@ function ExcludedFoods() {
       </div>
       {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
       {msg && <div style={{ color: '#0E7C66', fontSize: 12, marginTop: 6 }}>{msg}</div>}
+      {avviso && (
+        <div style={{ marginTop: 10, padding: '11px 12px', borderRadius: 11, background: '#FDF6E8', border: '1px solid #F0DFBA' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+            <i className="ti ti-alert-circle" style={{ color: '#C98A2E', fontSize: 15 }} />
+            <b style={{ fontSize: 13, color: '#6B4E12' }}>{avviso.titolo}</b>
+          </div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22' }}>{avviso.testo}</div>
+          <button className="btn ghost" style={{ marginTop: 9, padding: '6px 12px', fontSize: 12.5 }} onClick={() => setAvviso(null)}>Ho capito</button>
+        </div>
+      )}
       {intol.length > 0 && (
         <p className="muted" style={{ margin: '12px 0 0', fontSize: 11.5 }}>
           <i className="ti ti-shield-check" style={{ fontSize: 12, verticalAlign: '-1px' }} /> Intolleranze registrate: <b>{intol.join(', ')}</b> — per cambiarle parlane con la tua coach o nutrizionista.

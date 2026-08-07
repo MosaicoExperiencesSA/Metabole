@@ -292,6 +292,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [countdown, setCountdown] = useState(15);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
   const [result, setResult] = useState<OnboardingResult | null>(null);
+  // Avvisi sulle spezie restituiti dal server: si mostrano una volta, prima della coda
+  // commerciale, e poi si azzerano. Vedi `backend/src/menu/spezie.ts`.
+  const [avvisiSpezie, setAvvisiSpezie] = useState<NonNullable<OnboardingResult['avvisiSpezie']> | null>(null);
   const [muted, setMutedState] = useState(isMuted());
   const { user } = useAuth();
   // Bozza locale dell'onboarding: se l'utente perde la linea o chiude l'app a metà,
@@ -464,6 +467,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       if (elapsed < 15000) await new Promise((r) => setTimeout(r, 15000 - elapsed));
       // Onboarding completato: la bozza locale non serve più.
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch { /* ignora */ } }
+      setAvvisiSpezie(res.avvisiSpezie ?? null);
       setResult(res);
     } catch (e) {
       setSubmitErr(e instanceof ApiError ? e.message : 'Qualcosa non ha funzionato. Riprova.');
@@ -485,6 +489,30 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   }
   if (!questions || !cur) {
     return <div className="app-frame"><div className="screen no-tabbar center"><div className="spin" /></div></div>;
+  }
+
+  // Spezie scritte fra i cibi non graditi: prima della coda commerciale c'è una cosa da dirle.
+  // Non è una formalità — se non gliela diciamo, lei crede di aver escluso il curry e invece no.
+  if (result && avvisiSpezie && avvisiSpezie.length > 0) {
+    return (
+      <div className="app-frame">
+        <div className="screen no-tabbar center" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 14, padding: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <i className="ti ti-alert-circle" style={{ color: '#C98A2E', fontSize: 22 }} />
+            <h2 style={{ margin: 0, fontSize: 18 }}>Una cosa sulle spezie</h2>
+          </div>
+          {avvisiSpezie.map((a) => (
+            <div key={a.termine} style={{ padding: '12px 13px', borderRadius: 12, background: '#FDF6E8', border: '1px solid #F0DFBA' }}>
+              <b style={{ fontSize: 13.5, color: '#6B4E12' }}>{a.titolo}</b>
+              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22', marginTop: 5 }}>{a.testo}</div>
+            </div>
+          ))}
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 12 }} onClick={() => setAvvisiSpezie(null)}>
+            Ho capito, andiamo avanti
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Percorso pronto → coda commerciale (piano, pagamento demo, data, conferme).

@@ -966,6 +966,43 @@ describe('MenuService — portata della sostituzione (solo oggi / questi giorni 
     expect(prisma.clientProfile.update.mock.calls[0][0].data.dislikedFoods).toContain('avena');
   });
 
+  /**
+   * Le spezie: la regola è della nutrizionista e nasce da un caso vero — una cliente con curry e
+   * cumino fra i cibi esclusi riceveva lo stesso pranzo per quattro giorni, perché escludere una
+   * spezia cancella dal ricettario TUTTI i piatti che la contengono.
+   */
+  it('una spezia non entra fra i cibi esclusi e non tocca i menu', async () => {
+    const { service, prisma } = build();
+    const res = await service.substituteDisliked('u1', 'curry', 'forever');
+    expect(res.applicato).toBe(false);
+    expect(res.avvisoSpezia?.tipo).toBe('specifica');
+    expect(res.message).toContain('Sostituiscila con le spezie che più ti piacciono');
+    expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('il cancello vale anche per "solo oggi": pure lì scarterebbe i piatti speziati', async () => {
+    const { service, prisma } = build();
+    const res = await service.substituteDisliked('u1', 'cannella', 'today');
+    expect(res.applicato).toBe(false);
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('"spezie" in generale manda dalla coach, non registra niente', async () => {
+    const { service, prisma } = build();
+    const res = await service.substituteDisliked('u1', 'spezie', 'forever');
+    expect(res.avvisoSpezia?.tipo).toBe('generica');
+    expect(res.message).toContain('Contatta la tua coach');
+    expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('il cibo vero continua a passare: il cancello è solo per le spezie', async () => {
+    const { service, prisma } = build();
+    const res = await service.substituteDisliked('u1', 'avena', 'forever');
+    expect(res.applicato).toBe(true);
+    expect(prisma.clientProfile.update).toHaveBeenCalled();
+  });
+
   it('il messaggio dice per quanto vale davvero', async () => {
     const { service } = build();
     const oggi = await service.substituteDisliked('u1', 'avena', 'today');

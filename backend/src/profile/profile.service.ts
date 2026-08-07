@@ -9,6 +9,7 @@ import { validateObjective } from '../onboarding/objective-validator';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
+import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
@@ -37,6 +38,16 @@ export class ProfileService {
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const current = await this.getProfile(userId); // 404 se manca
     const { lifestyle, consents, planStartDate, locale, ...rest } = dto;
+    // Rete di sicurezza sulle spezie: la strada normale è `/me/menu/substitute`, che ha già il
+    // suo cancello, ma questa PATCH riceve la lista INTERA dei cibi esclusi (Profilo → "Cibi
+    // esclusi", e le app vecchie). Senza il filtro qui, una spezia rientrerebbe dalla finestra.
+    // Vedi `menu/spezie.ts`.
+    let avvisiSpezie: EsitoSpezia[] = [];
+    if (Array.isArray(rest.dislikedFoods)) {
+      const filtrati = filtraSpezie(rest.dislikedFoods);
+      rest.dislikedFoods = filtrati.tenuti;
+      avvisiSpezie = filtrati.avvisi;
+    }
     // La data d'inizio piano viene impostata dalla cliente (StartDatePrompt) SOLO la prima volta
     // (quando è ancora vuota). In quel caso va allineata anche la subscription: altrimenti la
     // prova, attivata al pagamento con la data di allora, scade sulle date vecchie mentre l'inizio
@@ -78,7 +89,7 @@ export class ProfileService {
         /* non bloccante */
       }
     }
-    return profile;
+    return avvisiSpezie.length ? { ...profile, avvisiSpezie } : profile;
   }
 
   /**
