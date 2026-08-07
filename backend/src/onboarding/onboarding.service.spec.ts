@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
 import { OnboardingService } from './onboarding.service';
@@ -79,6 +80,8 @@ describe('OnboardingService', () => {
         { provide: ConfigParamsService, useValue: configParams },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: PersonalBaseService, useValue: { buildPersonalBase: jest.fn().mockResolvedValue(undefined) } },
+        // Serve per la notifica alla coach a questionario completato: qui basta che non esploda.
+        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = moduleRef.get(OnboardingService);

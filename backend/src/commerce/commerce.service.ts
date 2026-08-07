@@ -1221,6 +1221,17 @@ export class CommerceService {
         )
         .catch(() => undefined);
     }
+    // La coach vedeva l'incasso solo del PRIMO mese: dal secondo in poi il rinnovo passava di
+    // qui e non avvisava nessuno, quindi dalla sua parte una cliente che paga da sei mesi
+    // sembrava ferma al primo pagamento. Due notifiche distinte, perché sono due cose diverse:
+    // il rinnovo (un passo del percorso) e l'incasso (i suoi soldi).
+    await this.notifyCoachOfClient(
+      sub.clientId,
+      'client_renewed',
+      'Rinnovo',
+      (nome) => `${nome} ha rinnovato il piano.`,
+    ).catch(() => undefined);
+    await this.notifyCoachOfPayment(sub.clientId, importo).catch(() => undefined);
     await this.audit.log({
       action: 'commerce.subscription.renewed',
       entityType: 'payment',
@@ -1570,6 +1581,14 @@ export class CommerceService {
       if ((rec as { stage?: string } | null)?.stage !== 'paid') {
         await this.crm.autoAdvance(payment.clientId, 'trial', byUserId);
       }
+      // La coach deve saperlo il giorno stesso: è la finestra in cui una telefonata cambia
+      // l'esito della prova.
+      await this.notifyCoachOfClient(
+        payment.clientId,
+        'client_trial_started',
+        'Prova attivata',
+        (nome) => `${nome} ha attivato la settimana di prova.`,
+      ).catch(() => undefined);
     }
 
     // Riscatto del buono sconto (se applicato): incrementa gli utilizzi.
@@ -2187,6 +2206,44 @@ export class CommerceService {
   }
 
   /** Avvisa la coach assegnata quando una sua cliente effettua un pagamento. */
+  /**
+   * Avvisa la COACH di riferimento di un passo avanti della sua cliente.
+   *
+   * Richiesta delle coach dell'8/8: prova attivata, questionario completato, rinnovo. Prima
+   * l'unica notifica di questo tipo era il pagamento — quindi una cliente poteva attivare la
+   * prova, compilare il questionario e rinnovare senza che la coach ne sapesse niente finché
+   * non apriva la board di sua iniziativa.
+   *
+   * Il `clientId` va SEMPRE nel payload: è quello che permette di aprire la scheda dalla
+   * notifica con un tocco, invece di cercare il nome nell'elenco.
+   */
+  private async notifyCoachOfClient(
+    clientId: string,
+    type: string,
+    title: string,
+    body: (nome: string) => string,
+  ): Promise<void> {
+    const profile = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { name: true, assignedCoachId: true },
+    });
+    if (!profile?.assignedCoachId) return;
+    const coach = await this.prisma.staff.findUnique({
+      where: { id: profile.assignedCoachId },
+      select: { userId: true },
+    });
+    if (!coach) return;
+    await this.notifications
+      .notify({
+        userId: coach.userId,
+        type,
+        title,
+        body: body(profile.name ?? 'Una tua cliente'),
+        payload: { clientId },
+      })
+      .catch(() => undefined);
+  }
+
   private async notifyCoachOfPayment(clientId: string, amountCents: number): Promise<void> {
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },

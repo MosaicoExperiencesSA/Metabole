@@ -40,6 +40,12 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
   { key: 'lead_assigned', label: 'Lead assegnato', description: 'Ti è stato assegnato un nuovo lead da accettare.', roles: COACHES },
   { key: 'payment_in_structure', label: 'Pagamento nella tua struttura', description: 'Una tua cliente ha effettuato un pagamento.', roles: COACHES },
   { key: 'new_signup_referral', label: 'Nuova registrazione col tuo codice', description: 'Una nuova cliente si è registrata usando il tuo codice.', roles: ['coach', 'nutritionist'] },
+  // Richiesta delle coach (8/8): i tre momenti in cui una cliente fa un passo avanti e la coach
+  // deve saperlo SUBITO, non scoprirlo aprendo la board. Tutte e tre portano il `clientId` nel
+  // payload, quindi dalla notifica si apre la scheda con un tocco.
+  { key: 'client_questionnaire_done', label: 'Questionario completato', description: 'Una tua cliente ha completato il questionario: è pronta per la chiamata.', roles: COACHES },
+  { key: 'client_trial_started', label: 'Prova attivata', description: 'Una tua cliente ha attivato la settimana di prova.', roles: COACHES },
+  { key: 'client_renewed', label: 'Rinnovo', description: 'Una tua cliente ha rinnovato il piano.', roles: COACHES },
   // --- Responsabile coach (assegnazioni lead) ---
   { key: 'lead_accepted', label: 'Lead accettato', description: 'Una coach ha accettato un lead che le hai assegnato.', roles: RESP },
   { key: 'lead_rejected', label: 'Lead rifiutato', description: 'Una coach ha rifiutato un lead: va riassegnato.', roles: RESP },

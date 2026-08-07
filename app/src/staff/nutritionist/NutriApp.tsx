@@ -21,7 +21,7 @@ export default function NutriApp() {
       <Route path="/chat" element={<CoachChatList tabs={NUTRI_TABS} />} />
       <Route path="/chat/:threadId" element={<CoachChatThread tabs={NUTRI_TABS} />} />
       <Route path="/guadagni" element={<Guadagni tabs={NUTRI_TABS} />} />
-      <Route path="/notifiche" element={<Notifiche tabs={NUTRI_TABS} />} />
+      <Route path="/notifiche" element={<Notifiche tabs={NUTRI_TABS} schedaCliente="/pazienti" />} />
       <Route path="/profilo" element={<Profilo tabs={NUTRI_TABS} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

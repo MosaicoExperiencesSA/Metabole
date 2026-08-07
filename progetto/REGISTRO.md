@@ -7,6 +7,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-08
 
+- `[Prodotto]` 🔔 **Le tre notifiche coach che mancavano, e il clic che apre la scheda.**
+  Delle cinque chieste dalle coach, due c'erano già (lead assegnato, nuova registrazione col
+  codice). Le altre tre no, e sono i tre momenti in cui una cliente fa un passo avanti:
+  · **Questionario completato** — è il momento in cui una telefonata vale di più: ha appena
+    raccontato obiettivi, abitudini e paure, e si aspetta che qualcuno le abbia lette;
+  · **Prova attivata** — la finestra in cui una chiamata cambia l'esito della settimana;
+  · **Rinnovo** — e qui c'era anche un difetto vecchio: la coach vedeva l'incasso **solo del
+    primo mese**. Dal secondo in poi il rinnovo passava da `handleInvoicePaid`, che non avvisava
+    nessuno: dalla sua parte una cliente che paga da sei mesi sembrava ferma al primo pagamento.
+    Ora arrivano due notifiche distinte, perché sono due cose diverse — il rinnovo (un passo del
+    percorso) e l'incasso (i suoi soldi).
+
+- `[Sviluppo]` 👆 **Dalla notifica si apre la scheda cliente.** Il `clientId` il backend lo
+  mandava **già** nel payload, da sempre: era la lista delle notifiche staff a buttarlo via. Si
+  leggeva «Marta ha attivato la prova» e poi bisognava andare a cercare Marta a mano nell'elenco.
+  Ora il tocco porta sulla sua scheda — `/clienti/:id` per la coach, `/pazienti/:id` per la
+  nutrizionista, che condividono la pagina ma non le rotte — e la riga mostra la freccia solo
+  quando c'è davvero dove andare.
+
 - `[Prodotto]` 🔓 **Le segnalazioni arrivano sulla dashboard della nutrizionista, col motivo.**
   Il conteggio c'era già (`openEscalations`), ma serviva solo a gonfiare il badge della
   campanella: **il testo della segnalazione non compariva da nessuna parte** nell'app

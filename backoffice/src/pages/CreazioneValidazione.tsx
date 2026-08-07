@@ -673,20 +673,38 @@ export function CreazioneValidazione() {
             «onnivora · dimagrimento · 5 pasti». Nessun messaggio d'errore: il nome era giusto. */}
         {activePreset && (
           <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 10, background: 'var(--chip)', border: '1px solid var(--teal)' }}>
-            <div className="muted" style={{ fontSize: 11.5, letterSpacing: 0.3, textTransform: 'uppercase' }}>Stai lavorando su</div>
+            <div className="muted" style={{ fontSize: 11.5, letterSpacing: 0.3, textTransform: 'uppercase' }}>
+              {genAll && activeFamily ? 'Stai generando' : 'Stai lavorando su'}
+            </div>
             <div style={{ fontSize: 14.5, fontWeight: 700, color: '#10403a', marginTop: 2 }}>
               {activePreset.label}
             </div>
-            <div style={{ fontSize: 13, color: '#2E3E3B', marginTop: 1 }}>
-              {regLabelOf((activePreset.regime as string) || 'omnivore')} · {objLabel((activePreset.objective as string) || 'dimagrimento')} · <b>{mealLabel((activePreset.meals as string) || '5')}</b>
-            </div>
-            {/* Se al passo 1 sono spuntate più combinazioni, le spunte e la variante attiva NON
-                coincidono: va detto, altrimenti si legge una cosa e se ne genera un'altra. */}
-            {selectedCombos.length > 1 && !genAll && (
-              <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5, color: '#6B4E12' }}>
-                Al passo 1 hai spuntato <b>{selectedCombos.length} combinazioni</b>, ma la generazione lavora su
-                questa sola. Per farle tutte, metti la spunta <b>«Genera tutte le varianti»</b> qui sopra.
-              </div>
+            {/* Con "genera tutte" spuntato la variante singola non c'entra più niente: mostrarla
+                lo stesso faceva credere che si stesse lavorando solo su quella. */}
+            {genAll && activeFamily ? (
+              <>
+                <div style={{ fontSize: 13, color: '#2E3E3B', marginTop: 1 }}>
+                  <b>tutte le {activeFamily.variants.length} varianti</b> del gruppo (regime × obiettivo × pasti)
+                </div>
+                <div style={{ fontSize: 12, lineHeight: 1.5, color: '#5F6E6B', marginTop: 5 }}>
+                  Le varianti a 3 pasti e a digiuno riusano i piatti di quella a 5 pasti dello stesso regime e
+                  obiettivo: le chiamate vere all'AI sono {new Set(activeFamily.variants.map((v) => `${(v.regime as string) || 'omnivore'}|${(v.objective as string) || 'dimagrimento'}`)).size}, non {activeFamily.variants.length}.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, color: '#2E3E3B', marginTop: 1 }}>
+                  {regLabelOf((activePreset.regime as string) || 'omnivore')} · {objLabel((activePreset.objective as string) || 'dimagrimento')} · <b>{mealLabel((activePreset.meals as string) || '5')}</b>
+                </div>
+                {/* Se al passo 1 sono spuntate più combinazioni, le spunte e la variante attiva NON
+                    coincidono: va detto, altrimenti si legge una cosa e se ne genera un'altra. */}
+                {selectedCombos.length > 1 && (
+                  <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5, color: '#6B4E12' }}>
+                    Al passo 1 hai spuntato <b>{selectedCombos.length} combinazioni</b>, ma la generazione lavora su
+                    questa sola. Per farle tutte, metti la spunta <b>«Genera tutte le varianti»</b> qui sopra.
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

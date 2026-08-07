@@ -25,7 +25,7 @@ export default function CoachApp() {
       <Route path="/agenda" element={<CoachAgenda />} />
       <Route path="/posta" element={<CoachPosta />} />
       <Route path="/guadagni" element={<Guadagni tabs={COACH_TABS} />} />
-      <Route path="/notifiche" element={<Notifiche tabs={COACH_TABS} />} />
+      <Route path="/notifiche" element={<Notifiche tabs={COACH_TABS} schedaCliente="/clienti" />} />
       <Route path="/profilo" element={<Profilo tabs={COACH_TABS} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
