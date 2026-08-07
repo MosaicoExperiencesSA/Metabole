@@ -7,6 +7,72 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-08
 
+- `[Prodotto]` 🔀 **Le richieste delle coach — primo blocco.** Dodici punti arrivati dalle coach
+  l'8/8. **Tre esistevano già** e nessuno lo sapeva: il sollecito questionario a 24 ore
+  (`profilo_incompleto`), la mail di compleanno (`ev_compleanno`) e la notifica «nuova
+  registrazione col tuo codice». Erano ferme perché il motore delle mail automatiche ha il
+  master spento di default.
+
+- `[Sviluppo]` 📬 **Copia alla coach su tutte le mail alle clienti.** Il `MailService` non aveva
+  nessun campo cc/bcc: aggiunto il BCC (Brevo lo supporta via API, non era cablato). La coach si
+  risale dall'indirizzo della destinataria, non va passata dal chiamante — chi manda l'email
+  quasi mai ce l'ha in mano, ce l'ha il database.
+  Coperte: ricevuta, bonifico, rimborso, report mensile, copie email delle notifiche, tutte le
+  mail del ciclo di vita e le campagne marketing.
+  **Escluse di proposito**, ed è la cosa da ricordare: reset password, verifica email, cambio
+  email e credenziali del lead. Quei link **aprono la casella e il profilo della cliente**:
+  girarli a una terza persona, per quanto fidata, è una porta aperta e non un servizio. Simone
+  ha confermato la scelta.
+  BCC e non CC per due motivi: la cliente non deve leggere l'indirizzo della sua coach in ogni
+  email, e un «rispondi a tutti» finirebbe sulla casella personale della coach invece che in chat.
+
+- `[Sviluppo]` 🧾 **Niente ricevuta sul prodotto gratuito.** `finalizeApproval` mandava la
+  ricevuta sempre, anche con `amountCents: 0`: chi attivava la prova riceveva una «Ricevuta di
+  pagamento» da **€ 0,00** con tanto di PDF numerato in allegato. Oltre a essere un documento che
+  non documenta niente, era la prima email dopo l'iscrizione: parlare di pagamenti a chi non ha
+  pagato è il modo più rapido per farle temere un addebito.
+
+- `[Prodotto]` 🪜 **Due stati nuovi in pipeline.** «Questionario completato» (posizione 2, prima
+  di Prova) scatta da solo alla fine del questionario: le coach lo avevano chiesto per vedere
+  sulla board chi è pronta per la chiamata senza aprire una scheda alla volta.
+  «Percorso concluso» esiste come colonna; l'automazione a +7 giorni dalla fine piano arriva nel
+  prossimo blocco. Entrambi di sistema, quindi il seed li crea anche sull'installazione già
+  avviata. Prova e Acquisito scalano da 2 a 3, **ma solo se sono ancora all'ordine di default**:
+  se l'admin ha riordinato la board, la sua scelta vale più della nostra.
+  `npm run fix:stato-questionario` sistema le clienti che l'hanno già compilato.
+
+- `[Sviluppo]` ⬆️ **Un avanzamento che non fa retrocedere.** Nuovo `commerce/avanza-stato.ts`:
+  sposta la scheda solo se lo stato richiesto è **più avanti** di quello attuale. Prima non
+  c'era, e un pagamento approvato riportava sempre ad «Acquisito» anche una scheda che una coach
+  aveva già spostato su Follow-up — cancellando un lavoro fatto da una persona.
+  Sta in un file senza Nest perché lo usano anche moduli che non devono dipendere da commerce
+  (il questionario): l'alternativa era importare CommerceModule dentro OnboardingModule per una
+  riga sola, e mettersi in casa un giro di dipendenze che prima o poi si chiude ad anello.
+
+- `[Prodotto]` ✉️ **Mail di fine prova gratuita** (`trial_fine`, nuova). Arriva il giorno in cui
+  la prova si chiude, e non parla di sconti: dice quello che è vero e che dall'esterno non si
+  vede — in otto giorni il motore ha preparato *N* giornate di menu e ha imparato le sue
+  esclusioni, i piatti che ha sostituito, gli orari che le tornano. Se si ferma lì, quel lavoro
+  resta fermo. I numeri nell'email sono i suoi, letti a runtime, non un modo di dire.
+  Diversa dal win-back, che arriva a piano finito da giorni e riguarda i paganti.
+
+- `[Sviluppo]` 🔌 **`npm run accendi:automazioni`** (una volta, a mano). Accende l'assistente AI
+  in chat e il motore delle mail con **solo** i tre inneschi chiesti (sollecito questionario,
+  compleanno, fine prova). Tutti gli altri implementati vengono messi **esplicitamente a spento**:
+  il motore funziona a opt-out, quindi accendere il master senza quella lista farebbe partire in
+  un colpo benvenuto, onboarding, promemoria rinnovo, win-back e anniversario, a clienti che non
+  li hanno mai ricevuti.
+  È uno script e non un default del seed per una ragione precisa: **il seed gira a ogni deploy**.
+  Un «acceso» scritto lì dentro riaccenderebbe da solo un interruttore che qualcuno ha spento dal
+  backoffice, e nessuno capirebbe perché. Gli interruttori sono di chi gestisce.
+  Lo script controlla anche che i modelli email esistano e siano attivi: un innesco acceso senza
+  modello è acceso e non manda niente.
+
+- `[Sviluppo]` 🗓️ **Il pulsante della settimana 9 non c'era.** Segnalato da Simone con uno
+  screenshot: con nove settimane in catalogo la pagina scriveva «Genera la settimana 10» su un
+  pulsante che non esisteva, perché la fila ne disegnava sempre otto fisse mentre il backend ne
+  accetta dodici. Ora la fila è lunga almeno quanto serve: sempre una in più di quelle già fatte.
+
 - `[Prodotto]` 📅 **Il catalogo si genera una settimana per volta.** Aprendo le ricette della Keto
   Mediterranea erano **28 in tutto**, non 28 colazioni + 28 pranzi + 28 cene + 28 merende. Il
   generatore produceva **5 ricette per pasto** e poi *ricombinava quelle* per 28 giornate: il

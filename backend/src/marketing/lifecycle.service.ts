@@ -70,6 +70,12 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   // chi non risponde a due email non risponde alla terza, e il win-back esiste già.
   { key: 'mon_t8', label: 'Monitoraggio omaggio — mancano 8 giorni', when: 'Monitoraggio omaggio in scadenza tra 8 giorni', kind: 'scheduled', implemented: true },
   { key: 'mon_fine', label: 'Monitoraggio omaggio — ultimo giorno', when: 'Monitoraggio omaggio che finisce oggi', kind: 'scheduled', implemented: true },
+  // Fine della PROVA GRATUITA (richiesta Simone 8/8). È il momento in cui l'invito a
+  // continuare costa meno di qualunque sconto: dopo otto giorni la cliente ha visto i menu,
+  // ha scritto alla coach e il motore ha imparato i suoi gusti e le sue esclusioni. Quel
+  // lavoro lo perde se si ferma qui, ed è esattamente quello che l'email le ricorda.
+  // Diverso dal win-back, che arriva a piano già finito da giorni e riguarda i paganti.
+  { key: 'trial_fine', label: 'Prova gratuita — ultimo giorno', when: 'Prova gratuita che finisce oggi, senza un piano già attivo', kind: 'scheduled', implemented: true },
   { key: 'wb_t3', label: 'Winback T+3', when: 'Piano scaduto da 3 giorni senza rinnovo', kind: 'scheduled', implemented: true },
   { key: 'wb_t7', label: 'Winback T+7', when: 'Piano scaduto da 7 giorni senza rinnovo', kind: 'scheduled', implemented: true },
   { key: 'wb_survey', label: 'Winback sondaggio', when: 'Dopo la disdetta', kind: 'scheduled', implemented: false },
@@ -757,6 +763,65 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           },
         });
         bump(wt.key, r);
+      }
+    }
+
+    // 4-quater-bis) FINE PROVA GRATUITA — la prova finisce OGGI e non c'è già un altro piano.
+    //   Il cron gira alle 5 del mattino, quindi l'email arriva il giorno stesso in cui la
+    //   prova si chiude: è l'ultimo momento in cui la cliente sta ancora usando l'app.
+    //   Non si guarda `status`, si guarda la DATA: nello stesso giro di cron le prove vengono
+    //   anche marcate 'expired', e legarsi allo stato significherebbe dipendere dall'ordine
+    //   in cui girano i passi.
+    if (on('trial_fine')) {
+      const oggi = this.dayRange(0);
+      const prove = (await this.prisma.subscription.findMany({
+        where: {
+          plan: { priceCents: 0 },
+          endDate: { gte: oggi.gte, lt: oggi.lt },
+          status: { in: ['active', 'expired'] as never },
+        } as never,
+        select: {
+          id: true, clientId: true,
+          client: { select: { email: true, firstName: true, deletedAt: true, clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } } } } } },
+        },
+        take: LifecycleService.BATCH,
+      })) as { id: string; clientId: string; client: { email: string; firstName: string | null; deletedAt: Date | null; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null } | null } | null }[];
+      for (const sub of prove) {
+        if (!sub.client || sub.client.deletedAt) continue;
+        // Ha già comprato: l'invito a continuare non ha senso, e sarebbe pure sgradevole.
+        const giaDentro = await this.prisma.subscription.findFirst({
+          where: {
+            clientId: sub.clientId,
+            id: { not: sub.id },
+            status: { in: ['active', 'pending'] as never },
+            plan: { priceCents: { gt: 0 } },
+          } as never,
+          select: { id: true },
+        });
+        if (giaDentro) continue;
+        // Quanto ha imparato il motore su di lei: è il contenuto dell'email, non un vezzo.
+        const [giorniMenu, profilo] = await Promise.all([
+          this.prisma.menuDay.count({ where: { clientId: sub.clientId } }),
+          this.prisma.clientProfile.findUnique({
+            where: { userId: sub.clientId },
+            select: { dislikedFoods: true, intolerances: true },
+          }) as Promise<{ dislikedFoods: string[] | null; intolerances: string[] | null } | null>,
+        ]);
+        const esclusioni = (profilo?.dislikedFoods ?? []).length + (profilo?.intolerances ?? []).length;
+        const r = await this.sendLifecycle({
+          userId: sub.clientId,
+          email: sub.client.email,
+          key: 'trial_fine',
+          dedupeKey: `trial_fine:${sub.id}`,
+          vars: {
+            nome: sub.client.firstName ?? sub.client.clientProfile?.name ?? '',
+            coach: sub.client.clientProfile?.assignedCoach?.displayName ?? 'la tua coach',
+            giorni: String(giorniMenu),
+            esclusioni: String(esclusioni),
+            link: `${app}/negozio`,
+          },
+        });
+        bump('trial_fine', r);
       }
     }
 

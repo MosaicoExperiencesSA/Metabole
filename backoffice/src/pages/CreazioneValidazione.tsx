@@ -63,6 +63,14 @@ export function CreazioneValidazione() {
   /** Settimane già in catalogo per la variante scelta (per proporre la prossima). */
   const [weeksDone, setWeeksDone] = useState<number | null>(null);
   /**
+   * Settimane davvero PIENE (7 piatti diversi per pasto). Sulle diete generate col vecchio
+   * metodo le 28 giornate esistono ma sono fatte con 5 ricette ricombinate: marcarle «fatte»
+   * mandava il nutrizionista a lavorare dalla settimana 5 in poi, lasciandosi dietro proprio
+   * il mese che le clienti stanno ricevendo.
+   */
+  const [weeksFull, setWeeksFull] = useState<number>(0);
+  const [ricettePerPasto, setRicettePerPasto] = useState<number | null>(null);
+  /**
    * Su una settimana che esiste già, il comportamento normale è COMPLETARLA: le ricette che ci
    * sono restano (comprese quelle corrette a mano dal nutrizionista) e si genera solo quel che
    * manca. Buttare e rifare cancella quel lavoro, quindi si sceglie apposta con questa spunta.
@@ -84,9 +92,17 @@ export function CreazioneValidazione() {
   useEffect(() => {
     if (!activePresetId) { setWeeksDone(null); setWeek(1); return; }
     let vivo = true;
-    api<{ settimane: number }>(`/engine-rules/presets/${activePresetId}/weeks`)
-      .then((r) => { if (!vivo) return; setWeeksDone(r.settimane); setWeek(Math.min(12, r.settimane + 1)); setRifaiDaCapo(false); })
-      .catch(() => { if (vivo) { setWeeksDone(null); setWeek(1); } });
+    api<{ settimane: number; settimanePiene?: number; ricettePerPasto?: number }>(`/engine-rules/presets/${activePresetId}/weeks`)
+      .then((r) => {
+        if (!vivo) return;
+        setWeeksDone(r.settimane);
+        setWeeksFull(r.settimanePiene ?? 0);
+        setRicettePerPasto(r.ricettePerPasto ?? null);
+        // Si riparte dalla prima settimana NON piena: è quella che serve alle clienti adesso.
+        setWeek(Math.min(12, (r.settimanePiene ?? 0) + 1));
+        setRifaiDaCapo(false);
+      })
+      .catch(() => { if (vivo) { setWeeksDone(null); setWeeksFull(0); setRicettePerPasto(null); setWeek(1); } });
     return () => { vivo = false; };
   }, [activePresetId]);
 
@@ -321,7 +337,7 @@ export function CreazioneValidazione() {
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
       void loadFamilyStatuses();
       // Avanza da sola alla settimana successiva: è il gesto che il nutrizionista farebbe comunque.
-      if (generated > 0 || completate > 0) { setWeeksDone((w) => Math.max(w ?? 0, week)); setWeek((w) => Math.min(12, w + 1)); }
+      if (generated > 0 || completate > 0) { setWeeksDone((w) => Math.max(w ?? 0, week)); setWeeksFull((w) => Math.max(w, week)); setWeek((w) => Math.min(12, w + 1)); }
       const coda = (riusateTot ? ` ${riusateTot} ricette tenute da quelle che c'erano già (comprese le tue correzioni) o riprese dalle varianti sorelle: si è generato solo quello che mancava.` : '')
         + (incompleti.length ? ` ⚠️ L'AI non ha prodotto ricette per: ${incompleti.join(' · ')} — rigenera questa settimana.` : '');
       setNotice((targets.length > 1
@@ -623,13 +639,29 @@ export function CreazioneValidazione() {
           <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>
             Settimana da generare
             {weeksDone !== null && weeksDone > 0 && (
-              <> — già in catalogo: <b>{weeksDone === 1 ? '1 settimana' : `${weeksDone} settimane`}</b> ({weeksDone * 7} giorni)</>
+              <>
+                {' '}— in catalogo: <b>{weeksDone * 7} giorni</b>,
+                di cui <b>{weeksFull === 1 ? '1 settimana completa' : `${weeksFull} settimane complete`}</b>
+                {ricettePerPasto !== null && <> ({ricettePerPasto} piatti diversi nel pasto messo peggio)</>}
+              </>
             )}
           </div>
+          {weeksDone !== null && weeksDone > weeksFull && (
+            <div style={{ margin: '0 0 8px', padding: '9px 11px', borderRadius: 9, background: '#FDF6E8', border: '1px solid #F0DFBA', fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22' }}>
+              Le settimane in <b>giallo</b> hanno le giornate ma pochi piatti: sono state generate col metodo
+              vecchio, che faceva 5 ricette per pasto e le ricombinava. <b>Vanno completate</b>, e sono proprio
+              quelle che le clienti stanno ricevendo adesso — quindi si parte da lì, non dalla prima settimana vuota.
+            </div>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => {
-              const fatta = weeksDone !== null && n <= weeksDone;
-              const prossima = weeksDone !== null && n === weeksDone + 1;
+            {/* Quanti pulsanti disegnare: almeno 8, ma sempre uno IN PIÙ di quelle già fatte —
+                altrimenti chi arriva alla nona settimana legge «Genera la settimana 10» su un
+                pulsante che non c'è, perché la fila si fermava a otto. Il tetto è 12, che è
+                anche il massimo che accetta il backend (SETTIMANE_MAX). */}
+            {Array.from({ length: Math.min(12, Math.max(8, (weeksDone ?? 0) + 1, weeksFull + 1)) }, (_, i) => i + 1).map((n) => {
+              const piena = n <= weeksFull;
+              const magra = weeksDone !== null && n <= weeksDone && !piena;
+              const prossima = weeksDone !== null && n === weeksFull + 1;
               const scelta = n === week;
               // Oltre la prossima non si può andare: un buco fra la 1 e la 3 lascerebbe il
               // ciclo con giornate mancanti in mezzo, e il motore non sa colmarle.
@@ -637,15 +669,15 @@ export function CreazioneValidazione() {
               return (
                 <button key={n} type="button" disabled={bloccata || busy}
                   onClick={() => { setWeek(n); setRifaiDaCapo(false); }}
-                  title={fatta ? 'Già generata: la puoi rifare' : prossima ? 'La prossima da generare' : bloccata ? 'Genera prima le settimane precedenti' : ''}
+                  title={piena ? 'Completa: 7 piatti diversi per pasto' : magra ? 'Le giornate ci sono ma i piatti sono pochi: va completata' : prossima ? 'La prossima da fare' : bloccata ? 'Genera prima le settimane precedenti' : ''}
                   style={{
                     minWidth: 92, padding: '7px 10px', borderRadius: 9, fontSize: 12.5, fontWeight: 600,
                     cursor: bloccata ? 'not-allowed' : 'pointer', opacity: bloccata ? 0.4 : 1,
                     border: `1.5px solid ${scelta ? 'var(--teal)' : 'var(--line)'}`,
-                    background: scelta ? 'var(--teal)' : fatta ? '#EEF3F1' : '#fff',
-                    color: scelta ? '#fff' : fatta ? '#5F6E6B' : '#2E3E3B',
+                    background: scelta ? 'var(--teal)' : piena ? '#EEF3F1' : magra ? '#FDF6E8' : '#fff',
+                    color: scelta ? '#fff' : piena ? '#5F6E6B' : magra ? '#6B4E12' : '#2E3E3B',
                   }}>
-                  {fatta && !scelta ? '\u2713 ' : ''}Settimana {n}
+                  {!scelta && piena ? '\u2713 ' : ''}{!scelta && magra ? '! ' : ''}Settimana {n}
                 </button>
               );
             })}

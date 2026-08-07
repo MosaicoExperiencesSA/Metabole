@@ -421,7 +421,10 @@ export class EngineRulesService {
             ingredients: ingredients as never,
             cookingMethods: (Array.isArray(r.cookingMethods) ? r.cookingMethods : []) as never,
             macros: (r.macros ?? undefined) as never,
-            tags: [`gen:${preset.style}`, `sett:${week}`],
+            // Il tag registrava solo lo STILE (`gen:low_carb`), e due diete diverse possono
+            // condividerlo — "Basso indice glicemico" e "Low carb" sono entrambe `low_carb`.
+            // Guardando la riga in catalogo non si capiva da quale dieta venisse la ricetta.
+            tags: [`gen:${preset.style}`, `dieta:${preset.label}`, `sett:${week}`],
             active: false, // BOZZA: non entra nel motore finché non approvata
             allergens, allergensReviewed: false,
           } as never,
@@ -488,7 +491,15 @@ export class EngineRulesService {
   }
 
   /** Quante settimane di catalogo ha già la variante di questo preset (0 se non esiste). */
-  async settimaneGenerate(presetId: string): Promise<{ dietId: string | null; settimane: number; giorni: number }> {
+  async settimaneGenerate(presetId: string): Promise<{
+    dietId: string | null;
+    settimane: number;
+    giorni: number;
+    /** Settimane con 7 piatti diversi per pasto. Le altre hanno le giornate ma non i piatti. */
+    settimanePiene: number;
+    /** Piatti diversi del pasto messo peggio: è il numero che conta davvero. */
+    ricettePerPasto: number;
+  }> {
     const preset = await this.prisma.rulePreset.findUnique({ where: { id: presetId } });
     if (!preset) throw new NotFoundException('Preset non trovato.');
     const regime = ['omnivore', 'vegetarian', 'vegan'].includes(preset.regime ?? '') ? (preset.regime as string) : 'omnivore';
@@ -499,14 +510,43 @@ export class EngineRulesService {
       where: { name: preset.label, style: preset.style, regime, objective: preset.objective ?? 'dimagrimento', mealsPerDay, fasting } as never,
       select: { id: true },
     })) as { id: string } | null;
-    if (!diet) return { dietId: null, settimane: 0, giorni: 0 };
+    if (!diet) return { dietId: null, settimane: 0, giorni: 0, settimanePiene: 0, ricettePerPasto: 0 };
     const ultimo = (await this.prisma.dietDayTemplate.findFirst({
       where: { dietId: diet.id },
       orderBy: { dayIndex: 'desc' },
       select: { dayIndex: true },
     })) as { dayIndex: number } | null;
     const giorni = ultimo?.dayIndex ?? 0;
-    return { dietId: diet.id, settimane: Math.ceil(giorni / GIORNI_SETTIMANA), giorni };
+
+    // Quante settimane sono PIENE davvero, cioè hanno 7 piatti diversi per ogni pasto.
+    // Serve perché le diete vecchie hanno 28 giornate fatte con 5 ricette ricombinate: la
+    // pagina le marcava «✓ fatte» e il nutrizionista tirava dritto dalla settimana 5 in poi,
+    // lasciandosi dietro proprio il mese che le clienti stanno ricevendo.
+    const templates = (await this.prisma.dietDayTemplate.findMany({
+      where: { dietId: diet.id },
+      select: { meals: true },
+    })) as { meals: unknown }[];
+    const perPasto = new Map<string, Set<string>>();
+    for (const t of templates) {
+      for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
+        if (!m.slot || !m.recipeId) continue;
+        const set = perPasto.get(m.slot) ?? new Set<string>();
+        set.add(m.recipeId);
+        perPasto.set(m.slot, set);
+      }
+    }
+    const minimo = perPasto.size ? Math.min(...[...perPasto.values()].map((v) => v.size)) : 0;
+    const settimanePiene = Math.floor(minimo / GIORNI_SETTIMANA);
+
+    return {
+      dietId: diet.id,
+      settimane: Math.ceil(giorni / GIORNI_SETTIMANA),
+      giorni,
+      /** Settimane con 7 piatti diversi per pasto. Le altre vanno completate. */
+      settimanePiene,
+      /** Piatti diversi del pasto messo peggio: è il numero che conta davvero. */
+      ricettePerPasto: minimo,
+    };
   }
 
   /**
