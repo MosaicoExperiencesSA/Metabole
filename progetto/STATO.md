@@ -280,7 +280,11 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   spegneva per sempre il gate misure su quella cliente. Ora scade (`common/stato-viaggio.ts`):
   vince la data di fine; con la sola partenza vale `travel_max_days` (30); senza date vale come
   prima.
-  **Manca**: creare i due prodotti in produzione dal backoffice.
+  **Stato dei due prodotti (verificato il 7/8 dai dati veri)**: «Vacanze in Serenità» **esiste**
+  in produzione, approvata e visibile — una cliente su stile `summer_holiday` la sta ricevendo.
+  Da non confondere con «Vacanza estiva», che è il prodotto di **esempio** creato dal seed.
+  Di «Ritorno in Equilibrio» non c'è evidenza (nessuna cliente su `summer_return`): **quella
+  metà resta da creare**.
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) 🟡
 - Ruoli `marketing` + `head_marketing` **aggiunti** all'RBAC, ai permessi di default e al menu (voce

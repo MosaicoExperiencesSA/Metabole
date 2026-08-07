@@ -47,8 +47,8 @@ compila dal backoffice — nessuno dei due si accorge da solo di essere sbagliat
 |---|---|---|
 | Codice backend + app + backoffice (checkout, disdetta, carta, rinnovi) | [Sv] | ✅ 7/8 |
 | Stripe: 5 eventi sulla webhook + portale clienti | [Sv] | ✅ 7/8 |
-| **Prezzi e provvigioni** di «Mantenimento Metabole» (€49) e «Monitoraggio Metabole» (€19) in Negozio | [Sv] | ⬜ **nascono a ZERO per tutti i ruoli**: finché restano così, al primo rinnovo la coach non prende niente. Deciso il 7/8: quota coach **ridotta sul monitoraggio** |
-| Verifica con `npm run diag:ricorrente` sulla shell di Render | [Sv] | ⬜ dice cosa manca e non tocca niente |
+| **Prezzi e provvigioni** di «Mantenimento Metabole» (€49) e «Monitoraggio Metabole» (€19) in Negozio | [Sv] | ✅ 7/8 — Mantenimento era già a posto (Coach 25 · Coord. 10 · Mgr 10, nessun nutrizionista); Monitoraggio compilato al **25% totale** proporzionale (Coach 14 · Coord. 19 · Mgr 25 cumulativi) |
+| Verifica con `npm run diag:ricorrente` sulla shell di Render | [Sv] | ⬜ dice cosa manca e non tocca niente — ora dovrebbe uscire pulito |
 | Primo addebito ricorrente vero (carta vera, poi rimborso) | [Sv] | ⬜ è l'equivalente del gate n.1, ma per l'abbonamento |
 
 ## 🔵 Contenuti (Prodotto) — anche subito dopo il lancio

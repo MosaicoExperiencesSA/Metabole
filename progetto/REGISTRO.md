@@ -7,6 +7,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 👀 **Il backfill delle diete ha mostrato una cosa che non sapevamo:
+  `npm run diag:famiglie`.** L'anteprima di `fix:diet-family` su 30 profili non ha trovato
+  nessun ripiego su uno stile sbagliato — bene — ma ha reso visibile il difetto vero, quello per
+  cui era nato tutto il lavoro sulle famiglie:
+  · **5 clienti** che avevano chiesto `mediterranean` stanno ricevendo **Pescetariana**, cioè
+    menu **senza carne**. Non l'ha chiesto nessuna di loro e non gliel'ha proposto nessuno: con
+    quello stile ci sono anche Mediterranea e Mediterranea ipocalorica, e il motore prendeva la
+    più recente ad essere approvata;
+  · **10 clienti** su `flexible` ricevono **Flexitariana**, una **Vegana**, per lo stesso
+    meccanismo;
+  · le altre sono univoche e vanno bene (keto, proteica, keto-mediterranea, low carb).
+  **Fissarle comunque è la scelta giusta**, ed è quella presa: quelle clienti ricevono
+  Pescetariana oggi e continuerebbero a riceverla comunque, perché il motore sceglie sempre la
+  stessa. Fissarla non cambia niente per loro — la rende *visibile* e correggibile dalla scheda,
+  invece che frutto di un ordinamento per data.
+  Ma «visibile» serve solo se qualcuno la guarda, quindi il nuovo script elenca **solo i casi
+  ambigui** (stile con più di una famiglia approvata e visibile), con nome, email, cosa riceve
+  oggi e le **alternative** accanto. Chi ha uno stile con una famiglia sola non compare: non
+  c'era niente da scegliere. Non tocca niente; si corregge dalla scheda cliente, e al ciclo di
+  menu successivo l'abbinamento riparte dal prodotto giusto.
+
+- `[Sviluppo]` 📌 **`STATO.md`: «Vacanze in Serenità» risulta già creata in produzione.** La voce
+  dei piani stagionali diceva «manca creare i due prodotti dal backoffice»: nell'elenco del
+  backfill compare una cliente reale (stile `summer_holiday`) che sta ricevendo proprio
+  **«Vacanze in Serenità»**, quindi la dieta esiste, è approvata ed è visibile. Da non
+  confondere con «Vacanza estiva», che è il nome del prodotto **di esempio** creato dal seed.
+  Di «Ritorno in Equilibrio» non ho evidenza — nessuna cliente su `summer_return` — quindi
+  quella metà resta aperta.
+
+- `[Prodotto]` 💶 **Provvigioni del Monitoraggio compilate in Negozio: 25% totale** (deciso da
+  Simone il 7/8, «ridotta, 25 totale, proporzionata come le altre»). Scritte a mano nel
+  backoffice di produzione, dopo aver **letto** le percentuali vere invece di fidarsi del
+  commento nel codice: i percorsi 1/3/6 mesi hanno Coach 25 · Coord. 10 · Mgr 10 · Nutriz. 10 ·
+  Capo n. 5 (a differenza), cioè catena coach al **45%**.
+  Portare il totale a 25 tenendo le stesse proporzioni dà **Coach 14 · Coordinatrice 19 ·
+  Manager 25** (i valori sono cumulativi per livello; a schermo diventano 14% + 5% + 6%),
+  nutrizionista e capo nutrizionista a **zero** come sul mantenimento. Su €19 al mese: €2,66
+  alla coach, €4,75 all'intera catena, €14,25 + IVA a Metabole prima di Stripe.
+  Verificato nella stessa occasione, **senza toccare niente**: il **Mantenimento** era già a
+  posto (€49, «A scelta», Coach 25 · Coord. 10 · Mgr 10, nessun nutrizionista) e il **«Menu di
+  rientro (8 giorni)»** risulta **Nascosto**, cioè il seed lo ha ritirato davvero al deploy.
+  Il perché di quel 25 resta scritto altrove ed è la parte che conta: il monitoraggio è un
+  prodotto che dura anni e chiede pochissimo lavoro ricorrente — con la quota piena la rete si
+  sarebbe portata via quasi metà di €19.
+
 - `[Sviluppo]` 🗺️ **`STATO_LANCIO.md` rimesso in pari: due righe dicevano il falso.** È la pagina
   che si guarda per sapere «cosa manca per aprire», ed era ferma al 16 luglio.
   · «**Build/test in pipeline (CI)**» risultava ⬜: la CI esiste dal 6/8, compila i tre pacchetti

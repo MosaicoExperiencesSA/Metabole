@@ -40,6 +40,7 @@
     "fix:assegnazioni": "ts-node --transpile-only prisma/fix-assegnazioni.ts",
     "fix:diet-family": "ts-node --transpile-only prisma/fix-diet-family.ts",
     "diag:ricorrente": "ts-node --transpile-only prisma/diag-ricorrente.ts",
+    "diag:famiglie": "ts-node --transpile-only prisma/diag-famiglie-ambigue.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"
