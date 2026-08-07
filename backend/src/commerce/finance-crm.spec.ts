@@ -222,6 +222,8 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
         { provide: MailService, useValue: { sendLeadCredentials: jest.fn().mockResolvedValue(undefined) } },
         { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
+        // Serve a `sendCredentials`: legge `lead_credentials_link_days` per la scadenza del link.
+        { provide: ConfigParamsService, useValue: { getNumber: jest.fn().mockResolvedValue(7) } },
       ],
     }).compile();
     service = moduleRef.get(CrmService);

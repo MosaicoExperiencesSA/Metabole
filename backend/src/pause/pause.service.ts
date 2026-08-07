@@ -7,6 +7,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MonitoringService } from '../monitoring/monitoring.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { toDateOnly } from '../common/date-only';
 
@@ -33,6 +34,8 @@ export class PauseService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly configParams: ConfigParamsService,
+    // I menu di rientro li genera il modulo monitoraggio: stessa macchina, stessa qualità.
+    private readonly monitoring: MonitoringService,
   ) {}
 
   /** Giorni inclusivi tra due date (21→21 dello stesso mese = ... ). */
@@ -284,10 +287,14 @@ export class PauseService {
    *  3. se il peso supera la soglia, avvisiamo la coach UNA volta.
    *
    * ⚠️ Nessuna proposta commerciale, per decisione esplicita di Simone (6/8): la cliente è in
-   * vacanza e ha già pagato. Il modulo `monitoring`, che invece propone i menu di rientro a
-   * pagamento, resta riservato a chi il piano non ce l'ha più.
+   * vacanza e ha già pagato.
+   *
+   * 4. **Al RIENTRO**, se il peso è salito oltre la soglia, i menu di rientro arrivano da soli e
+   *    sono **inclusi** (7/8): la sospensione l'ha chiesta su un percorso già pagato. Durante la
+   *    pausa no — lì i menu sono sospesi per definizione, e mandarglieli mentre è in vacanza
+   *    sarebbe il contrario del punto di avere una pausa.
    */
-  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number }> {
+  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number }> {
     const now = new Date();
     const oggi = new Date(now);
     oggi.setHours(0, 0, 0, 0);
@@ -393,7 +400,69 @@ export class PauseService {
       }
     }
 
-    return { pauseAttive: pause.length, misureChieste, coachAvvisate };
+    // 4) PAUSE APPENA FINITE: se torna con qualche chilo in più, i menu di rientro sono già lì.
+    //    Erano un prodotto a €29 fino al 7/8; chiedere soldi a chi rientra da una vacanza con
+    //    tre chili addosso era il momento peggiore per farlo. Ora si erogano e basta.
+    const menuDiRientro = await this.erogaRientriDiFinePausa(oggi, sogliaKg);
+
+    return { pauseAttive: pause.length, misureChieste, coachAvvisate, menuDiRientro };
+  }
+
+  /**
+   * Menu di rientro a fine pausa, INCLUSI. Guarda le pause chiuse negli ultimi giorni a cui non
+   * sono ancora stati erogati: se il peso è sopra il riferimento di partenza oltre la soglia, si
+   * generano le giornate migliori dello storico personale.
+   *
+   * La finestra di 3 giorni serve a due cose: prendere anche le pause finite mentre il cron era
+   * fermo, e non ripescare all'infinito quelle vecchie di mesi.
+   */
+  private async erogaRientriDiFinePausa(oggi: Date, sogliaKg: number): Promise<number> {
+    const da = new Date(oggi);
+    da.setDate(da.getDate() - 3);
+    const finite = (await this.prisma.pauseRequest.findMany({
+      where: {
+        status: { in: ['auto_approved', 'approved'] },
+        endDate: { gte: da, lt: oggi },
+        rientroMenusAt: null,
+      } as never,
+      select: { id: true, clientId: true, refWeightKg: true, endDate: true },
+    })) as { id: string; clientId: string; refWeightKg: number | null; endDate: Date }[];
+
+    let erogati = 0;
+    for (const p of finite) {
+      try {
+        // Segno SEMPRE la pausa come lavorata, anche quando non si eroga niente: altrimenti
+        // ogni notte si riesaminerebbe la stessa pausa per tre giorni di fila.
+        await this.prisma.pauseRequest.update({
+          where: { id: p.id },
+          data: { rientroMenusAt: new Date() } as never,
+        });
+        if (p.refWeightKg == null) continue; // mai pesata: non c'è un riferimento da confrontare
+
+        const ultima = (await this.prisma.measurement.findFirst({
+          where: { clientId: p.clientId },
+          orderBy: { date: 'desc' },
+          select: { weightKg: true },
+        })) as { weightKg: number } | null;
+        if (!ultima || ultima.weightKg - p.refWeightKg < sogliaKg) continue;
+
+        const quanti = await this.monitoring.generateRientroMenus(p.clientId);
+        if (quanti <= 0) continue;
+        const delta = Math.round((ultima.weightKg - p.refWeightKg) * 10) / 10;
+        await this.notifications
+          .notify({
+            userId: p.clientId,
+            type: 'pause_rientro_menus',
+            title: 'Bentornata: ti ho preparato il rientro 🧰',
+            body: `Sono +${delta} kg rispetto a quando sei partita, e capita a tutte. Trovi in app ${quanti} giornate scelte sul tuo storico — quelle che su di te hanno funzionato meglio. Sono incluse: di solito bastano 4-6 giorni.`,
+          })
+          .catch(() => undefined);
+        erogati++;
+      } catch {
+        // Una pausa che va storta non deve fermare le altre.
+      }
+    }
+    return erogati;
   }
 
   /** Task per la coach, idempotente su (cliente, tipo, pausa). */

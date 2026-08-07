@@ -138,6 +138,42 @@ parla di *Runner*, non di test. **Cosa si fa:** `Re-run jobs` sulla run fallita.
 codice e non si rimette `continue-on-error` — l'infrastruttura di GitHub ogni tanto singhiozza, e
 non è un buon motivo per spegnere la rete di sicurezza.
 
+## Credenziali al lead anche via WHATSAPP — PASSO 1 FATTO (7/8), il resto bloccato sul numero
+Richiesta di Simone: quando si mandano le credenziali a un lead, mandarle **anche su WhatsApp** —
+l'email arriva ma non è detto che venga letta. Verificato che si può fare; **bloccato sul numero**,
+non sul codice.
+
+**Fornitore: Brevo**, che usiamo già per le email — endpoint transazionale
+`POST /v3/whatsapp/sendMessage`. Nessun contratto nuovo.
+
+**Tre vincoli da conoscere prima di stimare:**
+1. **Niente testo libero.** Fuori dalla finestra di 24h da un messaggio della cliente si possono
+   mandare solo **template pre-approvati da Meta**, con variabili. Approvazione da ore a giorni.
+   Categorie adatte: *authentication* (codici/password) e *utility* (avvisi di servizio).
+2. **Costo per messaggio consegnato** (dal 1/7/2025; prima era a conversazione). Europa
+   occidentale: circa 2-5 centesimi a messaggio *authentication*. Su qualche centinaio di lead al
+   mese sono pochi euro — il costo non è il problema.
+3. **Serve un numero dedicato** verificato su Meta Business, e NON può essere un numero già in uso
+   sull'app WhatsApp normale. È la parte lenta: la sta procurando Simone.
+
+**⚠️ Da NON fare: mandare la password provvisoria nel messaggio.** Resta scritta in una chat per
+sempre, su un telefono che magari guarda qualcun altro. ✅ **Risolto alla radice il 7/8**: non
+esiste più nessuna password provvisoria da mandare, né via WhatsApp né via email — vedi il
+passo 1 qui sotto.
+
+**Ordine di lavoro consigliato** (il primo passo NON dipende dal numero, quindi si può fare
+subito e serve comunque):
+1. ✅ **FATTO il 7/8 — link al posto della password**: `sendCredentials` manda un link a scadenza
+   che fa SCEGLIERE la password alla cliente (`ActionToken` `password_reset`, in tabella solo
+   l'hash; durata da parametro `lead_credentials_link_days`, 7 giorni di default). Sugli account
+   già esistenti la password non viene toccata e le sessioni non vengono revocate. Il template
+   WhatsApp ora è banale da far approvare: non contiene nessun segreto.
+2. **`whatsapp.service`** accanto a `mail.service`, stessa forma: modelli, opt-out, log.
+3. Aggancio in `crm.sendCredentials` come secondo canale, quando il numero è verificato.
+
+Già pronto lato nostro: il telefono del lead è obbligatorio e c'è, e il modello dei consensi
+prevede già `whatsapp` fra i canali (`marketing.service.ts:142`).
+
 ## Catalogo ricette — filtri sul SERVER — FATTO (7/8)
 Lo screenshot del 6/8 mostrava il banner di troncamento **col solo regime vegetariano**: quelle
 ricette avevano già superato le 1000, cioè il tetto alzato quella mattina da 200. I filtri di

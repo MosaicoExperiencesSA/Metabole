@@ -35,7 +35,7 @@ interface ReportFull {
   milestones?: { label: string; date: string; weightKg: number }[];
   etaLabel?: string | null;
   maintenance?: { planId: string; planName: string; priceCents: number } | null;
-  monitoring?: { rientroPriceCents: number } | null;
+  monitoring?: { inclusiIMenuDiRientro: true } | null;
 }
 
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
@@ -574,8 +574,9 @@ export default function Report() {
               <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.5px', color: '#8A5A00' }}>GRATIS · 1 MESE</div>
               <div style={{ fontWeight: 800, fontSize: 15, marginTop: 2 }}>Monitoraggio</div>
               <div className="muted" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.45 }}>
-                Per un mese Gaia resta in allerta e ti chiede le misure. Se riprendi peso, i tuoi <b>8 menu di
-                rientro sono {euro(r.monitoring?.rientroPriceCents ?? 2900)}</b>. Il tuo storico resta salvato per quando torni.
+                Per un mese Gaia resta in allerta e ti chiede le misure. Se riprendi peso, ti prepara i tuoi
+                <b> 8 menu di rientro, inclusi</b>: le giornate che su di te hanno funzionato meglio. Il tuo storico
+                resta salvato per quando torni.
               </div>
               {monMsg && <div style={{ fontSize: 11.5, color: '#B4491F', marginTop: 6 }}>{monMsg}</div>}
               <button className="btn ghost" style={{ width: '100%', marginTop: 10, border: '1.5px solid #B8863B', color: '#8A5A00' }} onClick={() => void startMonitoring()}>

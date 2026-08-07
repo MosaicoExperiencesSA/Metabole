@@ -213,16 +213,28 @@ export class MailService {
    * password provvisoria (generata a monte). Modello editabile dal backoffice
    * (chiave `lead_credentials`), altrimenti default i18n.
    */
+  /**
+   * Accesso per un lead: **un link, non una password**.
+   *
+   * Fino al 7/8 questa email conteneva una password provvisoria in chiaro. Due problemi, e il
+   * secondo è quello serio: resta scritta per sempre in una casella di posta (e domani in una
+   * chat WhatsApp), e obbliga a un passaggio in più — «ecco una password, ora cambiala».
+   * Adesso il link porta a una pagina dove la cliente **sceglie la sua**: nessun segreto
+   * riutilizzabile viaggia, e il giro è più corto per lei.
+   *
+   * `{password}` resta accettata dai modelli vecchi ma arriva vuota: se qualcuno ha
+   * personalizzato il testo dal backoffice non vedrà comparire una password sbagliata, vedrà
+   * uno spazio — e se ne accorgerà. Peggio sarebbe stampare qualcosa che non funziona.
+   */
   async sendLeadCredentials(
     to: string,
-    input: { name?: string | null; email: string; password: string },
+    input: { name?: string | null; email: string; link: string },
     locale?: string | null,
   ): Promise<boolean> {
-    const appUrl = this.config.get<string>('APP_URL') ?? 'https://app.metabole.eu';
     // {storeButtons} è disponibile anche al modello editabile dal backoffice: chi lo riscrive
     // può metterlo dove preferisce, o toglierlo.
     const storeButtons = await this.storeButtonsHtml();
-    const vars = { name: input.name?.trim() || '', email: input.email, password: input.password, link: appUrl, storeButtons };
+    const vars = { name: input.name?.trim() || '', email: input.email, password: '', link: input.link, storeButtons };
     const { subject, html } = await this.resolve('lead_credentials', {
       subject: this.i18n.text(locale, 'mail.credentials.subject'),
       html: this.i18n.text(locale, 'mail.credentials.body', vars),

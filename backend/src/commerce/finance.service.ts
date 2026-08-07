@@ -92,6 +92,8 @@ export class FinanceService {
       this.prisma.payment.findUnique({
         where: { id: payment.id },
         select: {
+          // Perché è nato il pagamento: sui RINNOVI vale una condizione in più (vedi sotto).
+          billingReason: true,
           subscription: {
             select: {
               plan: {
@@ -115,6 +117,22 @@ export class FinanceService {
       }),
     ]);
     if (!profile) return;
+
+    /**
+     * RINNOVO: la provvigione va SOLO alla coach ancora assegnata (decisione Simone 6/8).
+     *
+     * Il residual è senza scadenza — finché la cliente si rinnova, la coach incassa — e regge
+     * proprio perché è legato al RAPPORTO e non al contratto: la quota si calcola sempre su
+     * `profile.assignedCoachId`, cioè sulla coach ATTUALE. Se la cliente viene spostata, dal
+     * rinnovo successivo incassa la nuova. Nessuna riga in più serve per questo: è già così.
+     *
+     * ⚠️ Un caso resta come prima, per scelta esplicita di Simone (7/8): se al rinnovo la
+     * cliente non ha NESSUNA coach, la provvigione viene **accantonata** (`pendingCommission`)
+     * e pagata a chi verrà assegnato. Segnalato che su un rinnovo significa far incassare a una
+     * coach futura una rendita costruita da un'altra; risposta: va bene così. Lo si tiene
+     * scritto qui perché è una decisione, non una svista — e perché se un domani i conti dei
+     * compensi sembreranno strani, si parte da questa riga.
+     */
 
     // RETE A DIFFERENZA (decisione 17/07): se il piano/prodotti hanno percentuali,
     // si paga per differenza lungo la catena reale (coach → coordinatrice → manager;

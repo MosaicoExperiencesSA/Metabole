@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { useCart } from '../cart/CartContext';
 import AppHeader from '../components/AppHeader';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
@@ -21,7 +20,8 @@ interface MonitoringStatus {
   lastWeightKg: number | null;
   deltaKg: number | null;
   regainThresholdKg: number;
-  rientro: { planId: string; planName: string; priceCents: number } | null;
+  /** I menu di rientro sono inclusi (7/8): non c'è più un prodotto da comprare. */
+  rientroErogato?: boolean;
 }
 
 const EV: Record<string, [string, string, string, string]> = {
@@ -45,7 +45,6 @@ function whenLabel(iso: string): string {
 
 export default function Percorso() {
   const nav = useNavigate();
-  const cart = useCart();
   const [days, setDays] = useState<ApiMenuDay[]>([]);
   const [menuStatus, setMenuStatus] = useState<MenuStatus | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -78,13 +77,6 @@ export default function Percorso() {
     try { await api('/me/monitoring/start', { method: 'POST' }); loadMonitoring(); }
     catch { /* messaggio già in notifica/errore api */ }
     finally { setMonBusy(false); }
-  }
-
-  /** Kit di rientro: mette il piano €29 nel carrello e va al checkout. */
-  function buyRientro() {
-    if (!monitoring?.rientro) return;
-    cart.setPlan({ id: monitoring.rientro.planId, name: monitoring.rientro.planName, priceCents: monitoring.rientro.priceCents, period: '8d' });
-    nav('/checkout');
   }
 
   const iso = new Date().toISOString().slice(0, 10);
@@ -139,15 +131,16 @@ export default function Percorso() {
               </div>
             </div>
           </div>
-          {monitoring.period.regainOffered && monitoring.rientro && (
+          {/* Menu di rientro: INCLUSI dal 7/8. Qui c'era un pulsante "Sblocca · €29": chiedere
+              soldi a chi ha appena ripreso peso era il momento peggiore per farlo. Ora i menu
+              sono già in app e questo riquadro lo dice, non lo vende. */}
+          {monitoring.period.regainOffered && (
             <div style={{ marginTop: 10, background: '#FBF6EA', borderRadius: 12, padding: '10px 12px' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8A5A00' }}>Il tuo kit di rientro è pronto 🧰</div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#8A5A00' }}>I tuoi menu di rientro sono pronti 🧰</div>
               <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
-                Gli 8 menu che hanno funzionato meglio su di te: di solito bastano 4-6 giorni per recuperare. Sbloccandoli riparte anche un altro mese di monitoraggio gratis.
+                Le 8 giornate che su di te hanno funzionato meglio, già in app: di solito bastano 4-6 giorni
+                per rimettersi in riga. Sono inclusi, non devi fare niente.
               </div>
-              <button className="btn" style={{ marginTop: 8, width: '100%' }} onClick={buyRientro}>
-                Sblocca i menu di rientro · € {(monitoring.rientro.priceCents / 100).toFixed(0)}
-              </button>
             </div>
           )}
         </div>

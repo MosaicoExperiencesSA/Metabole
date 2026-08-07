@@ -356,10 +356,26 @@ export class CommerceService {
     planId: string,
     clientEmail: string,
     method: 'bank_transfer' | 'card' = 'bank_transfer',
+    // Il mantenimento si vende in DUE modi (listino 6/8): abbonamento o mese singolo. La scelta
+    // arriva da qui. Sui piani `recurring` è imposta, su quelli `one_time` è ignorata.
+    abbonamentoRichiesto = false,
   ) {
     await this.assertMethodEnabled(method === 'card' ? 'card' : 'bank_transfer');
     const plan = await this.prisma.plan.findFirst({ where: { id: planId, active: true } });
     if (!plan) throw new NotFoundException('Piano non trovato');
+
+    // Come si vende questo piano: one_time | recurring | both.
+    const billing = ((plan as { billing?: string }).billing ?? 'one_time') as 'one_time' | 'recurring' | 'both';
+    const ricorrente = billing === 'recurring' || (billing === 'both' && abbonamentoRichiesto);
+    // Il ricorrente vive di addebito automatico: un bonifico mensile andrebbe inseguito a mano
+    // ogni mese (decisione 7/8). Chi non vuole la carta prende il mese singolo o un percorso.
+    if (ricorrente && method !== 'card') {
+      throw new BadRequestException(
+        billing === 'both'
+          ? 'L\'abbonamento si paga con carta. Con il bonifico puoi acquistare il mese singolo.'
+          : 'Questo prodotto si paga con carta: è un abbonamento con addebito automatico.',
+      );
+    }
     await this.assertPlanPurchasable(clientId, plan as { period?: string | null });
 
     // Gating dell'acquisto al consenso dati sanitari (spec sez. 11).
@@ -393,17 +409,20 @@ export class CommerceService {
         clientId,
         subscriptionId: subscription.id,
         amountCents: planPrice,
-        description: `Abbonamento ${plan.name}`,
+        description: ricorrente ? `${plan.name} — abbonamento mensile` : `Abbonamento ${plan.name}`,
         method: method as never,
         status: 'pending',
-      },
+        // Primo addebito: le provvigioni si pagano per intero. Sui RINNOVI vale la condizione
+        // «solo se è ancora la coach assegnata» (decisione 6/8).
+        billingReason: 'first',
+      } as never,
     });
     await this.audit.log({
       action: 'commerce.subscribe',
       actorId: clientId,
       entityType: 'payment',
       entityId: payment.id,
-      metadata: { planId, amountCents: planPrice, method },
+      metadata: { planId, amountCents: planPrice, method, ricorrente },
     });
 
     if (method === 'card') {
@@ -412,6 +431,9 @@ export class CommerceService {
         description: payment.description,
         amountCents: payment.amountCents,
         customerEmail: clientEmail,
+        ...(ricorrente
+          ? { ricorrente: { intervallo: 'month' as const, subscriptionId: subscription.id, clientId } }
+          : {}),
       });
       await this.prisma.payment.update({
         where: { id: payment.id },
@@ -492,17 +514,23 @@ export class CommerceService {
   async checkout(
     clientId: string,
     clientEmail: string,
-    input: { planId?: string; items?: { productId: string; qty: number }[]; method: 'card' | 'bank_transfer'; discountCode?: string },
+    input: {
+      planId?: string; items?: { productId: string; qty: number }[];
+      method: 'card' | 'bank_transfer'; discountCode?: string;
+      // Il mantenimento si vende in abbonamento O a mese singolo (listino 6/8): qui arriva la
+      // scelta della cliente. Sui piani solo-abbonamento è imposta, sugli altri è ignorata.
+      abbonamento?: boolean;
+    },
   ) {
     const method: 'card' | 'bank_transfer' = input.method === 'card' ? 'card' : 'bank_transfer';
     let subtotal = 0;
 
-    let plan: { id: string; name: string; priceCents: number; period?: string | null; listPriceCents?: number | null; promoEndsAt?: Date | null } | null = null;
+    let plan: { id: string; name: string; priceCents: number; period?: string | null; listPriceCents?: number | null; promoEndsAt?: Date | null; billing?: string | null } | null = null;
     if (input.planId) {
       // `period` serve al controllo sul mantenimento qui sotto: senza, il carrello era la
       // scorciatoia per comprarlo senza aver raggiunto l'obiettivo (e' la strada che usa il
       // pulsante del report).
-      plan = await this.prisma.plan.findFirst({ where: { id: input.planId, active: true }, select: { id: true, name: true, priceCents: true, period: true, listPriceCents: true, promoEndsAt: true } });
+      plan = await this.prisma.plan.findFirst({ where: { id: input.planId, active: true }, select: { id: true, name: true, priceCents: true, period: true, listPriceCents: true, promoEndsAt: true, billing: true } });
       if (!plan) throw new NotFoundException('Piano non trovato');
       await this.assertPlanPurchasable(clientId, plan);
       const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { consents: true } });
@@ -519,6 +547,7 @@ export class CommerceService {
       subtotal += this.planPricing(plan).effectivePriceCents;
     }
 
+
     let detailed: { productId: string; name: string; priceCents: number; qty: number }[] = [];
     if (input.items?.length) {
       const ids = input.items.map((i) => i.productId);
@@ -531,6 +560,34 @@ export class CommerceService {
         return { productId: pr.id, name: pr.name, priceCents: pr.priceCents, qty };
       });
       subtotal += detailed.reduce((a, d) => a + d.priceCents * d.qty, 0);
+    }
+
+    // --- ABBONAMENTO: tre regole, e nessuna è un capriccio ---
+    const billing = (plan?.billing ?? 'one_time') as 'one_time' | 'recurring' | 'both';
+    const ricorrente = !!plan && (billing === 'recurring' || (billing === 'both' && !!input.abbonamento));
+    if (ricorrente) {
+      // 1. Niente prodotti nello stesso ordine: la sessione Stripe di un abbonamento ha UNA
+      //    riga ricorrente, e infilarci dentro un integratore una-tantum farebbe pagare
+      //    l'integratore ogni mese, per sempre. Meglio due acquisti che un addebito perpetuo.
+      if (detailed.length > 0) {
+        throw new BadRequestException(
+          'L\'abbonamento si acquista da solo: completa prima questo, poi aggiungi i prodotti in un secondo ordine.',
+        );
+      }
+      // 2. Solo carta: il ricorrente vive di addebito automatico (decisione 7/8).
+      if (method !== 'card') {
+        throw new BadRequestException(
+          billing === 'both'
+            ? 'L\'abbonamento si paga con carta. Con il bonifico puoi acquistare il mese singolo.'
+            : 'Questo prodotto si paga con carta: è un abbonamento con addebito automatico.',
+        );
+      }
+      // 3. Niente sconti sul ricorrente: un codice applicato a un prezzo mensile resterebbe
+      //    applicato a ogni rinnovo, per sempre. Se un giorno servirà, sarà uno sconto Stripe
+      //    a durata definita, non il nostro.
+      if (input.discountCode) {
+        throw new BadRequestException('I codici sconto non si applicano agli abbonamenti.');
+      }
     }
 
     if (!plan && detailed.length === 0) throw new BadRequestException('Il carrello è vuoto.');
@@ -562,7 +619,10 @@ export class CommerceService {
       orderId = order.id;
     }
 
-    const parts = [plan ? `Abbonamento ${plan.name}` : null, detailed.length ? `${detailed.length} prodotti` : null].filter(Boolean);
+    const parts = [
+      plan ? (ricorrente ? `${plan.name} — abbonamento mensile` : `Abbonamento ${plan.name}`) : null,
+      detailed.length ? `${detailed.length} prodotti` : null,
+    ].filter(Boolean);
     const description = parts.join(' + ') || 'Ordine';
 
     // Prodotto/piano GRATUITO (totale 0): niente flusso di pagamento, attivazione diretta.
@@ -622,7 +682,15 @@ export class CommerceService {
     });
 
     if (method === 'card') {
-      const session = await this.stripe.createCheckoutSession({ paymentId: payment.id, description, amountCents: totalCents, customerEmail: clientEmail });
+      const session = await this.stripe.createCheckoutSession({
+        paymentId: payment.id,
+        description,
+        amountCents: totalCents,
+        customerEmail: clientEmail,
+        ...(ricorrente && subscriptionId
+          ? { ricorrente: { intervallo: 'month' as const, subscriptionId, clientId } }
+          : {}),
+      });
       await this.prisma.payment.update({ where: { id: payment.id }, data: { pspRef: session.sessionId } });
       return { checkoutUrl: session.url, paymentId: payment.id, totalCents };
     }
@@ -881,8 +949,280 @@ export class CommerceService {
       include: { subscription: { include: { plan: true } }, client: { select: { email: true, locale: true } } },
     });
     if (!payment) return { handled: false, reason: 'pagamento sconosciuto' };
+    // Abbonamento: da adesso i rinnovi arriveranno da soli. Ci serve l'id di Stripe per
+    // ritrovare QUESTA riga a ogni fattura, e per poter disdire.
+    const stripeSubId = (event.data.object as { subscription?: string | null }).subscription ?? null;
+    if (stripeSubId && payment.subscriptionId) {
+      await this.prisma.subscription.update({
+        where: { id: payment.subscriptionId },
+        data: { stripeSubscriptionId: stripeSubId } as never,
+      });
+    }
     await this.finalizeApproval(payment, 'stripe-webhook', 'carta');
     return { handled: true };
+  }
+
+  /**
+   * L'abbonamento attivo della cliente, come lo vede lei nel profilo: cosa paga, quando scade,
+   * se ha già chiesto la disdetta. Ritorna null se non ha abbonamenti ricorrenti.
+   */
+  async myRecurring(clientId: string) {
+    const sub = (await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' as never, stripeSubscriptionId: { not: null } } as never,
+      orderBy: { endDate: 'desc' },
+      select: {
+        id: true, endDate: true, cancelAtPeriodEnd: true, lastPaymentFailedAt: true,
+        plan: { select: { name: true, priceCents: true } },
+      },
+    })) as {
+      id: string; endDate: Date | null; cancelAtPeriodEnd: boolean; lastPaymentFailedAt: Date | null;
+      plan: { name: string; priceCents: number } | null;
+    } | null;
+    if (!sub) return null;
+    return {
+      id: sub.id,
+      nome: sub.plan?.name ?? 'Abbonamento',
+      prezzoCents: sub.plan?.priceCents ?? 0,
+      rinnovaIl: sub.endDate,
+      disdettaChiesta: sub.cancelAtPeriodEnd,
+      pagamentoFallito: !!sub.lastPaymentFailedAt,
+    };
+  }
+
+  /**
+   * DISDETTA dall'app, decisa dalla cliente (7/8). Vale a **fine periodo già pagato**: i menu
+   * continuano fino alla scadenza, poi si fermano. Non si rimborsa la parte non goduta, perché
+   * quel mese è stato erogato.
+   *
+   * Reversibile: finché il periodo non è finito, `riprendiAbbonamento` annulla la disdetta.
+   * Farla self-service è una scelta: chi vuole uscire esce comunque bloccando la carta, e
+   * l'attrito lo si racconta agli altri.
+   */
+  async cancelMyRecurring(clientId: string) {
+    const sub = (await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' as never, stripeSubscriptionId: { not: null } } as never,
+      orderBy: { endDate: 'desc' },
+      select: { id: true, stripeSubscriptionId: true, endDate: true },
+    })) as { id: string; stripeSubscriptionId: string | null; endDate: Date | null } | null;
+    if (!sub?.stripeSubscriptionId) throw new NotFoundException('Nessun abbonamento da disdire.');
+
+    await this.stripe.cancelAtPeriodEnd(sub.stripeSubscriptionId);
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { cancelAtPeriodEnd: true } as never,
+    });
+    await this.audit.log({
+      action: 'commerce.subscription.cancel_requested',
+      actorId: clientId,
+      entityType: 'subscription',
+      entityId: sub.id,
+    });
+    return { disdetta: true, attivoFinoAl: sub.endDate };
+  }
+
+  /** Ripensamento: annulla la disdetta finché il periodo pagato non è finito. */
+  async resumeMyRecurring(clientId: string) {
+    const sub = (await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' as never, cancelAtPeriodEnd: true } as never,
+      select: { id: true, stripeSubscriptionId: true },
+    })) as { id: string; stripeSubscriptionId: string | null } | null;
+    if (!sub?.stripeSubscriptionId) throw new NotFoundException('Nessuna disdetta da annullare.');
+    await this.stripe.resumeSubscription(sub.stripeSubscriptionId);
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { cancelAtPeriodEnd: false } as never,
+    });
+    await this.audit.log({
+      action: 'commerce.subscription.cancel_revoked',
+      actorId: clientId,
+      entityType: 'subscription',
+      entityId: sub.id,
+    });
+    return { disdetta: false };
+  }
+
+  /**
+   * «Aggiorna la carta»: si apre il portale clienti di Stripe, non una nostra schermata.
+   * È la scelta giusta due volte — non tocchiamo mai i dati della carta, e il portale è già
+   * tradotto, conforme e mantenuto da loro.
+   */
+  async cardPortalUrl(clientId: string): Promise<{ url: string }> {
+    const sub = (await this.prisma.subscription.findFirst({
+      where: { clientId, stripeSubscriptionId: { not: null } } as never,
+      orderBy: { createdAt: 'desc' },
+      select: { stripeSubscriptionId: true },
+    })) as { stripeSubscriptionId: string | null } | null;
+    if (!sub?.stripeSubscriptionId) throw new NotFoundException('Nessun abbonamento con carta da aggiornare.');
+    const stripeSub = await this.stripe.getSubscription(sub.stripeSubscriptionId);
+    const customer = typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer?.id;
+    if (!customer) throw new BadRequestException('Cliente Stripe non trovato per questo abbonamento.');
+    return { url: await this.stripe.portalUrl(customer) };
+  }
+
+  /**
+   * RINNOVO AUTOMATICO (`invoice.paid`) — è l'evento che fa vivere l'abbonamento nel tempo.
+   *
+   * Stripe manda una fattura ogni mese. La PRIMA la ignoriamo: è lo stesso incasso già gestito
+   * da `checkout.session.completed`, e contarla due volte significherebbe due pagamenti, due
+   * provvigioni e due ricevute per un solo addebito. Si riconosce da `billing_reason`
+   * (`subscription_create`) — non dall'importo né dalla data, che possono coincidere.
+   *
+   * Dal secondo mese in poi: si registra un pagamento nuovo, si allunga la scadenza, si pagano
+   * le provvigioni (con la condizione sulla coach) e si manda la ricevuta.
+   * Idempotente sull'id della fattura: Stripe riconsegna i webhook, e un rinnovo contato due
+   * volte è denaro.
+   */
+  async handleInvoicePaid(event: { type: string; data: { object: unknown } }) {
+    const inv = event.data.object as {
+      id: string;
+      subscription?: string | null;
+      billing_reason?: string | null;
+      amount_paid?: number | null;
+      lines?: { data?: { period?: { end?: number | null } | null }[] } | null;
+    };
+    if (!inv.subscription) return { handled: false, reason: 'fattura non legata a un abbonamento' };
+    if (inv.billing_reason === 'subscription_create') {
+      return { handled: true, primoAddebito: true }; // già incassato dal checkout
+    }
+
+    const sub = (await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId: inv.subscription } as never,
+      include: { plan: true, client: { select: { email: true, locale: true } } },
+    })) as
+      | {
+          id: string; clientId: string; endDate: Date | null;
+          plan: { name: string } | null;
+          client: { email: string; locale: string | null } | null;
+        }
+      | null;
+    if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };
+
+    // Idempotenza: l'id della fattura finisce in `pspRef`. Se c'è già, questo rinnovo è fatto.
+    const gia = await this.prisma.payment.findFirst({ where: { pspRef: inv.id }, select: { id: true } });
+    if (gia) return { handled: true, idempotent: true };
+
+    const importo = inv.amount_paid ?? 0;
+    const payment = await this.prisma.payment.create({
+      data: {
+        clientId: sub.clientId,
+        subscriptionId: sub.id,
+        amountCents: importo,
+        description: `${sub.plan?.name ?? 'Abbonamento'} — rinnovo mensile`,
+        method: 'card' as never,
+        status: 'approved',
+        approvedAt: new Date(),
+        pspRef: inv.id,
+        billingReason: 'renewal',
+      } as never,
+    });
+
+    // Nuova scadenza: quella del periodo fatturato da Stripe, che è la verità. Se manca (non
+    // dovrebbe), si aggiunge un mese alla scadenza attuale.
+    const fineStripe = inv.lines?.data?.[0]?.period?.end;
+    const nuovaFine = fineStripe
+      ? new Date(fineStripe * 1000)
+      : (() => { const d = new Date(sub.endDate ?? new Date()); d.setMonth(d.getMonth() + 1); return d; })();
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      // Il rinnovo riuscito chiude anche l'eventuale serie di tentativi falliti.
+      data: { status: 'active', endDate: nuovaFine, lastPaymentFailedAt: null } as never,
+    });
+
+    await this.finance
+      .recordIncome({ amountCents: importo, category: 'subscription', ref: payment.id, clientId: sub.clientId })
+      .catch(() => undefined);
+    await this.finance.generateCommissions({ id: payment.id, clientId: sub.clientId, amountCents: importo });
+    if (sub.client?.email) {
+      await this.mail
+        .sendPaymentReceipt(
+          sub.client.email,
+          { description: payment.description, amountCents: importo, paymentId: payment.id, date: new Date() },
+          sub.client.locale,
+        )
+        .catch(() => undefined);
+    }
+    await this.audit.log({
+      action: 'commerce.subscription.renewed',
+      entityType: 'payment',
+      entityId: payment.id,
+      metadata: { subscriptionId: sub.id, invoiceId: inv.id, amountCents: importo },
+    });
+    return { handled: true, renewed: true };
+  }
+
+  /**
+   * CARTA RIFIUTATA (`invoice.payment_failed`).
+   *
+   * L'abbonamento resta **attivo** durante i tentativi di Stripe (4 in circa due settimane):
+   * una carta scaduta non è una disdetta, e togliere i menu a chi ha solo cambiato bancomat è
+   * il modo peggiore di farsi dire addio. Si avvisa, e basta:
+   * - al PRIMO rifiuto: email alla cliente col link per aggiornare la carta;
+   * - dal secondo: attività alla coach, perché a quel punto serve una telefonata, non un'email.
+   *
+   * Quando i tentativi finiscono davvero è Stripe a chiudere l'abbonamento, e arriva
+   * `customer.subscription.deleted`: lì l'abbonamento passa a scaduto.
+   */
+  async handleInvoiceFailed(event: { type: string; data: { object: unknown } }) {
+    const inv = event.data.object as { id: string; subscription?: string | null; attempt_count?: number | null };
+    if (!inv.subscription) return { handled: false, reason: 'fattura non legata a un abbonamento' };
+    const sub = (await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId: inv.subscription } as never,
+      select: { id: true, clientId: true, lastPaymentFailedAt: true, client: { select: { email: true } } },
+    })) as { id: string; clientId: string; lastPaymentFailedAt: Date | null; client: { email: string } | null } | null;
+    if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };
+
+    const primoRifiuto = !sub.lastPaymentFailedAt;
+    if (primoRifiuto) {
+      await this.prisma.subscription.update({
+        where: { id: sub.id },
+        data: { lastPaymentFailedAt: new Date() } as never,
+      });
+    }
+
+    await this.notifications
+      .notify({
+        userId: sub.clientId,
+        type: 'payment_failed',
+        title: 'Non siamo riusciti a rinnovare il tuo abbonamento',
+        body: primoRifiuto
+          ? 'La tua banca ha rifiutato l\'addebito. Aggiorna la carta dal tuo profilo: il percorso continua, ci riproviamo nei prossimi giorni.'
+          : 'Ci abbiamo riprovato senza riuscirci. Aggiorna la carta dal tuo profilo, così non si interrompe niente.',
+        payload: { subscriptionId: sub.id, tentativo: inv.attempt_count ?? null },
+      })
+      .catch(() => undefined);
+
+    await this.audit.log({
+      action: 'commerce.subscription.payment_failed',
+      entityType: 'subscription',
+      entityId: sub.id,
+      metadata: { invoiceId: inv.id, tentativo: inv.attempt_count ?? null, primoRifiuto },
+    });
+    return { handled: true, primoRifiuto };
+  }
+
+  /**
+   * ABBONAMENTO CHIUSO da Stripe (`customer.subscription.deleted`): o la cliente ha disdetto e
+   * il periodo pagato è finito, oppure i tentativi di addebito sono esauriti. In entrambi i casi
+   * il servizio finisce QUI, non prima: fino a questo momento i menu sono continuati.
+   */
+  async handleSubscriptionDeleted(event: { type: string; data: { object: unknown } }) {
+    const s = event.data.object as { id: string };
+    const sub = (await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId: s.id } as never,
+      select: { id: true, clientId: true },
+    })) as { id: string; clientId: string } | null;
+    if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { status: 'expired' as never, endDate: new Date() },
+    });
+    await this.audit.log({
+      action: 'commerce.subscription.ended',
+      entityType: 'subscription',
+      entityId: sub.id,
+      metadata: { stripeSubscriptionId: s.id },
+    });
+    return { handled: true, ended: true };
   }
 
   /** Catena post-approvazione condivisa: attivazione, ledger, provvigioni, CRM, ricevuta. */

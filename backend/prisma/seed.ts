@@ -512,6 +512,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Link alla scheda Google Play, usato dai pulsanti "Scarica" nelle email.',
   },
   {
+    key: 'lead_credentials_link_days',
+    value: '7',
+    type: 'number',
+    description: 'Per quanti giorni resta valido il link con cui il lead sceglie la password (email "Invia credenziali"). Un lead non legge l\'email nello stesso minuto, ma il link resta a tempo.',
+  },
+  {
     key: 'referral_card_after_days',
     value: '15',
     type: 'number',
@@ -1087,55 +1093,103 @@ async function seedRulePresets(): Promise<void> {
 }
 
 /**
- * Piano "Menu di rientro (8 giorni)" del Monitoraggio: €29, NASCOSTO dallo shop
- * (hidden) ma acquistabile via link diretto quando Gaia lo propone. Create-only
- * per nome: prezzo e testi restano modificabili dall'admin nel Negozio.
+ * RITIRO del piano "Menu di rientro (8 giorni)" (€29) — decisione Simone, 7/8.
+ *
+ * Era il kit che Gaia proponeva quando, durante il monitoraggio, la cliente riprendeva peso:
+ * 8 giornate scelte sul suo storico, a pagamento. La logica commerciale non regge alla prova dei
+ * fatti — una persona che ha appena ripreso tre chili è la meno disposta a tirare fuori la carta,
+ * ed è il momento in cui ha più bisogno di una mano. Ora **i menu di rientro sono inclusi**: nel
+ * monitoraggio gratuito perché il percorso è già stato pagato, in quello a €19/mese perché lo si
+ * sta pagando.
+ *
+ * Il piano si DISATTIVA, non si cancella: chi l'ha comprato ha un abbonamento che punta a questa
+ * riga, e cancellarla porterebbe via la sua storia (o farebbe fallire la cancellazione per il
+ * vincolo `onDelete: Restrict`). Disattivato e nascosto, non è più acquistabile da nessuno e
+ * resta leggibile in contabilità.
  */
-async function seedMonitoringPlan(): Promise<void> {
+async function retireRientroPlan(): Promise<void> {
   const name = 'Menu di rientro (8 giorni)';
+  const exists = await prisma.plan.findFirst({ where: { name }, select: { id: true, active: true } });
+  if (!exists) return;
+  if (!exists.active) return;
+  await prisma.plan.update({ where: { id: exists.id }, data: { active: false, hidden: true } as never });
+  console.log('Seed: ritirato il piano "Menu di rientro (8 giorni)" — i menu di rientro ora sono inclusi.');
+}
+
+/**
+ * Piano "Mantenimento Metabole" (€49/mese, period 'maintenance'): la pausa che tiene il peso
+ * dopo il percorso. VISIBILE nello shop. Create-only per nome: prezzo e testi restano
+ * modificabili dall'admin nel Negozio, e il seed NON li sovrascrive mai.
+ *
+ * `billing: 'both'` — si vende in DUE modi (listino Simone 6/8): in **abbonamento** con addebito
+ * automatico, oppure a **mese singolo**. È la cliente a scegliere al checkout.
+ *
+ * ⚠️ Se il piano esiste già (creato quando costava €29) questo seed non tocca niente: il prezzo
+ * vero e le provvigioni si mettono dal **Negozio**. Vale la pena controllarlo, perché il piano
+ * nasce con le provvigioni **a zero per tutti i ruoli**: se nessuno le ha compilate a mano, oggi
+ * il mantenimento non paga nessuno — coach compresa.
+ */
+async function seedMaintenancePlan(): Promise<void> {
+  const name = 'Mantenimento Metabole';
   const exists = await prisma.plan.findFirst({ where: { name } });
   if (exists) {
-    // Assicura solo il flag hidden (introdotto con questa feature).
-    if (!(exists as { hidden?: boolean }).hidden) {
-      await prisma.plan.update({ where: { id: exists.id }, data: { hidden: true } as never });
+    // Il piano c'era già: si allinea SOLO come si vende, che è una regola di prodotto e non un
+    // prezzo. Senza questa riga il mantenimento resterebbe una-tantum e l'abbonamento non
+    // comparirebbe mai al checkout, pur essendoci tutto il codice per gestirlo.
+    if (((exists as { billing?: string }).billing ?? 'one_time') !== 'both') {
+      await prisma.plan.update({ where: { id: exists.id }, data: { billing: 'both' } as never });
+      console.log('Seed: "Mantenimento Metabole" ora si vende in abbonamento O a mese singolo.');
     }
     return;
   }
   await prisma.plan.create({
     data: {
       name,
-      priceCents: 2900,
-      period: '8d',
-      hidden: true,
-      active: true,
-      repurchasable: true,
-      features: ['Gli 8 menu che hanno funzionato meglio su di te', 'Recupero atteso: 3 kg in 4-6 giorni', 'Un nuovo mese di monitoraggio incluso'],
-    } as never,
-  });
-  console.log('Seed: creato piano nascosto "Menu di rientro (8 giorni)" (€29).');
-}
-
-/**
- * Piano "Mantenimento Metabole" (€29/mese, period 'maintenance'): la pausa che
- * tiene il peso dopo il percorso. VISIBILE nello shop. Create-only per nome:
- * prezzo e testi restano modificabili dall'admin nel Negozio. Il rinnovo è
- * mensile manuale (niente addebito automatico finché non si decide su Stripe).
- */
-async function seedMaintenancePlan(): Promise<void> {
-  const name = 'Mantenimento Metabole';
-  const exists = await prisma.plan.findFirst({ where: { name } });
-  if (exists) return;
-  await prisma.plan.create({
-    data: {
-      name,
-      priceCents: 2900,
+      priceCents: 4900,
       period: 'maintenance', // 1 mese (subscriptionEnd) + flussi dedicati (funnel, coach-tasks, report)
+      billing: 'both',
       active: true,
       repurchasable: true,
       features: ['Tieni il peso raggiunto', 'Menu di mantenimento e monitoraggio del peso', 'Rientri nel percorso quando vuoi', 'Disdici quando vuoi'],
     } as never,
   });
-  console.log('Seed: creato piano "Mantenimento Metabole" (€29/mese).');
+  console.log('Seed: creato piano "Mantenimento Metabole" (€49/mese, abbonamento o mese singolo).');
+}
+
+/**
+ * Piano "Monitoraggio Metabole" (€19/mese, SOLO abbonamento): quello che segue il mantenimento,
+ * e che la cliente può tenere **anche per sempre** (listino Simone 6/8).
+ *
+ * ⚠️ Da non confondere col **monitoraggio gratuito**, quello che si attiva quando il piano viene
+ * sospeso (pausa vacanza / sorveglianza): è un'altra cosa, resta gratis, e nel codice vive in
+ * `monitoring.service.ts`. Due prodotti con lo stesso nome sono il genere di ambiguità che
+ * produce difetti silenziosi: qui c'è scritto per questo.
+ *
+ * Create-only: prezzo, testi e provvigioni si gestiscono dal Negozio. La quota coach su questo
+ * prodotto è più bassa che sul mantenimento (decisione 7/8): dura anni e chiede poco lavoro
+ * ricorrente. Va impostata a mano, il seed non inventa percentuali.
+ */
+async function seedMonitoringSubscriptionPlan(): Promise<void> {
+  const name = 'Monitoraggio Metabole';
+  const exists = await prisma.plan.findFirst({ where: { name } });
+  if (exists) return;
+  await prisma.plan.create({
+    data: {
+      name,
+      priceCents: 1900,
+      period: 'monitoring',
+      billing: 'recurring',
+      active: true,
+      repurchasable: true,
+      features: [
+        'Il tuo peso sotto controllo, mese per mese',
+        'La tua coach ti segue anche qui',
+        'Rientri in un percorso quando vuoi',
+        'Disdici quando vuoi',
+      ],
+    } as never,
+  });
+  console.log('Seed: creato piano "Monitoraggio Metabole" (€19/mese, solo abbonamento).');
 }
 
 async function main(): Promise<void> {
@@ -1161,8 +1215,9 @@ async function main(): Promise<void> {
 
   await ensureAdminFromEnv();
   await seedPipelineStages();
-  await seedMonitoringPlan();
-  await seedMaintenancePlan();
+  await retireRientroPlan();              // «Menu di rientro (8 giorni)»: ritirato, ora è incluso
+  await seedMaintenancePlan();            // €49/mese, abbonamento O mese singolo
+  await seedMonitoringSubscriptionPlan(); // «Monitoraggio Metabole» €19/mese, solo abbonamento
   await seedPermissions();
   await seedEquivalenceGroups();
   await seedRulePresets();

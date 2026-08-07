@@ -468,6 +468,14 @@ model Plan {
   active      Boolean  @default(true)
   // Nascosto dallo shop ma acquistabile con link diretto (es. "Menu di rientro" del Monitoraggio).
   hidden      Boolean  @default(false)
+  // COME SI VENDE questo piano (listino del 6/8):
+  //   one_time   percorsi 1/3/6 mesi — si paga una volta (comportamento di sempre → default)
+  //   recurring  monitoraggio €19/mese — solo abbonamento
+  //   both       mantenimento €49/mese — la cliente sceglie fra abbonamento e mese singolo
+  // Una colonna e non due booleani: i tre casi sono mutuamente esclusivi, e con due flag
+  // esisterebbe la combinazione "né l'uno né l'altro" — che non vuol dire niente e prima o poi
+  // qualcuno la salva.
+  billing     String   @default("one_time")
   // Se false: dopo l'acquisto il piano scompare dallo shop di QUEL cliente (non riacquistabile).
   repurchasable Boolean @default(true)
   // RETE PROVVIGIONALE A DIFFERENZA (decisione 17/07): percentuali per LIVELLO
@@ -504,6 +512,18 @@ model Subscription {
   startDate DateTime?          @map("start_date")
   endDate   DateTime?          @map("end_date")
   pspRef    String?            @map("psp_ref")
+  // --- Abbonamento ricorrente (Stripe) ---
+  // L'abbonamento dal lato di Stripe. UNICO: è la chiave con cui il webhook dei rinnovi
+  // (`invoice.paid`) ritrova questa riga. Senza il vincolo, un doppio inserimento produrrebbe
+  // due righe e i rinnovi ne aggiornerebbero una a caso.
+  stripeSubscriptionId String?      @unique @map("stripe_subscription_id")
+  // Disdetta chiesta dalla cliente (dall'app, in autonomia — decisione 7/8). NON interrompe
+  // niente subito: i menu continuano fino alla scadenza già pagata. Per questo è un flag e non
+  // una cancellazione immediata.
+  cancelAtPeriodEnd    Boolean      @default(false) @map("cancel_at_period_end")
+  // Primo rifiuto della carta nella serie di tentativi di Stripe: distingue "carta rifiutata una
+  // volta" da "cliente che non paga più", ed evita di rimandare la stessa email a ogni tentativo.
+  lastPaymentFailedAt  DateTime?    @map("last_payment_failed_at")
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
 
@@ -537,6 +557,11 @@ model Payment {
   approvedAt     DateTime?     @map("approved_at")
   rejectReason   String?       @map("reject_reason")
   pspRef         String?       @map("psp_ref")
+  // Perché è nato questo pagamento: null/'first' = primo addebito o acquisto una-tantum,
+  // 'renewal' = rinnovo automatico. Le provvigioni sul rinnovo si pagano SOLO se la coach è
+  // ancora quella assegnata (decisione 6/8): senza questa colonna un rinnovo è indistinguibile
+  // da un primo acquisto e la condizione non si potrebbe applicare.
+  billingReason  String?       @map("billing_reason")
   discountCodeId String?       @map("discount_code_id")
   discountCents  Int?          @map("discount_cents")
   refundCents    Int?          @map("refund_cents") // storno registrato (rimborso alla cliente)
@@ -1899,6 +1924,9 @@ model PauseRequest {
   // refWeightKg = peso del giorno in cui la pausa è iniziata, riferimento per la soglia.
   refWeightKg      Float?    @map("ref_weight_kg")
   lastMeasureAskAt DateTime? @map("last_measure_ask_at")
+  // Menu di rientro erogati a fine pausa (inclusi dal 7/8, prima erano un prodotto a €29).
+  // Serve solo a non rierogarli a ogni giro del cron.
+  rientroMenusAt   DateTime? @map("rientro_menus_at")
   coachAlertedAt   DateTime? @map("coach_alerted_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")

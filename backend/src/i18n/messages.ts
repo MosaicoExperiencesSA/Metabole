@@ -205,7 +205,7 @@ const it: Catalog = {
   'mail.credentials.body': {
     title: '',
     variants: [
-      '<p>Ciao {name},</p><p>Ti abbiamo creato l\'accesso a <strong>Metabole</strong>. Ecco le tue credenziali:</p><p>Email: <strong>{email}</strong><br>Password provvisoria: <code>{password}</code></p><p>Accedi dall\'app: <a href="{link}">{link}</a></p>{storeButtons}<p>Al primo accesso completerai un breve questionario e poi potrai impostare una tua password personale.</p><p>A presto!</p>',
+      '<p>Ciao {name},</p><p>Ti abbiamo creato l\'accesso a <strong>Metabole</strong>. Il tuo indirizzo è <strong>{email}</strong>: la password la scegli tu, da qui.</p><p><a href="{link}">Scegli la tua password</a></p><p>Il link vale qualche giorno ed è personale: non inoltrarlo a nessuno.</p>{storeButtons}<p>Subito dopo completerai un breve questionario, e sei dentro.</p><p>A presto!</p>',
     ],
   },
   'mail.bank.subject': { title: '', variants: ['Metabole — estremi per il bonifico ({description})'] },
@@ -414,7 +414,7 @@ const en: Catalog = {
   'mail.credentials.body': {
     title: '',
     variants: [
-      '<p>Hi {name},</p><p>We\'ve created your <strong>Metabole</strong> account. Here are your login details:</p><p>Email: <strong>{email}</strong><br>Temporary password: <code>{password}</code></p><p>Sign in from the app: <a href="{link}">{link}</a></p>{storeButtons}<p>On your first sign-in you\'ll fill in a short questionnaire, then you can set a password of your own.</p><p>See you soon!</p>',
+      '<p>Hi {name},</p><p>We\'ve created your <strong>Metabole</strong> account. Your address is <strong>{email}</strong> — you choose the password yourself, right here.</p><p><a href="{link}">Choose your password</a></p><p>The link is personal and valid for a few days: please don\'t forward it.</p>{storeButtons}<p>Right after that you\'ll fill in a short questionnaire, and you\'re in.</p><p>See you soon!</p>',
     ],
   },
   'mail.bank.subject': { title: '', variants: ['Metabole — bank transfer details ({description})'] },

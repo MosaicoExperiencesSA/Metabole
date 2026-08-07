@@ -47,6 +47,12 @@ class SubscribeDto {
   @IsOptional()
   @IsIn(['bank_transfer', 'card'])
   method?: 'bank_transfer' | 'card';
+
+  // Il mantenimento si vende in due modi (listino 6/8): abbonamento o mese singolo. Sui piani
+  // che sono SOLO abbonamento questo flag è ignorato — decide il piano, non il client.
+  @IsOptional()
+  @IsBoolean()
+  abbonamento?: boolean;
 }
 
 class OrderItemDto {
@@ -83,6 +89,12 @@ class CheckoutDto {
   @IsString()
   @MaxLength(40)
   discountCode?: string;
+
+  // Mantenimento: abbonamento (addebito automatico) invece del mese singolo. Ignorato sui piani
+  // che sono solo una-tantum o solo abbonamento — lì decide il piano, non il client.
+  @IsOptional()
+  @IsBoolean()
+  abbonamento?: boolean;
 }
 
 class UploadReceiptDto {
@@ -315,7 +327,36 @@ export class MyCommerceController {
 
   @Post('subscribe')
   subscribe(@CurrentUser() user: AuthUser, @Body() dto: SubscribeDto) {
-    return this.commerce.subscribe(user.sub, dto.planId, user.email, dto.method ?? 'bank_transfer');
+    return this.commerce.subscribe(user.sub, dto.planId, user.email, dto.method ?? 'bank_transfer', dto.abbonamento ?? false);
+  }
+
+  /** Il mio abbonamento ricorrente: cosa pago, quando si rinnova, se ho già disdetto. */
+  @Get('subscription')
+  mySubscription(@CurrentUser() user: AuthUser) {
+    return this.commerce.myRecurring(user.sub);
+  }
+
+  /**
+   * Disdetta in autonomia (decisione 7/8). Vale a fine periodo già pagato: i menu continuano
+   * fino alla scadenza. È reversibile finché quel periodo non finisce.
+   */
+  @HttpCode(200)
+  @Post('subscription/cancel')
+  cancelSubscription(@CurrentUser() user: AuthUser) {
+    return this.commerce.cancelMyRecurring(user.sub);
+  }
+
+  /** Ripensamento: annulla la disdetta. */
+  @HttpCode(200)
+  @Post('subscription/resume')
+  resumeSubscription(@CurrentUser() user: AuthUser) {
+    return this.commerce.resumeMyRecurring(user.sub);
+  }
+
+  /** «Aggiorna la carta»: link al portale di Stripe (i dati della carta non passano da noi). */
+  @Get('subscription/card-portal')
+  cardPortal(@CurrentUser() user: AuthUser) {
+    return this.commerce.cardPortalUrl(user.sub);
   }
 
   /** Checkout unificato del carrello (piano + prodotti + sconto, carta o bonifico). */
@@ -326,6 +367,7 @@ export class MyCommerceController {
       items: dto.items,
       method: dto.method,
       discountCode: dto.discountCode,
+      abbonamento: dto.abbonamento,
     });
   }
 
@@ -528,7 +570,20 @@ export class StripeWebhookController {
   ) {
     const event = this.stripe.verifyWebhook(req.rawBody ?? Buffer.alloc(0), signature ?? '');
     try {
-      return await this.commerce.handleStripeEvent(event as never);
+      // Smistamento per tipo. Gli eventi degli ABBONAMENTI arrivano da soli, per anni, senza
+      // che nessuno prema niente: se non sono gestiti qui, un rinnovo incassato da Stripe non
+      // diventa mai un pagamento nostro — e nessuno se ne accorge, perché i soldi arrivano
+      // lo stesso.
+      switch (event.type) {
+        case 'invoice.paid':
+          return await this.commerce.handleInvoicePaid(event as never);
+        case 'invoice.payment_failed':
+          return await this.commerce.handleInvoiceFailed(event as never);
+        case 'customer.subscription.deleted':
+          return await this.commerce.handleSubscriptionDeleted(event as never);
+        default:
+          return await this.commerce.handleStripeEvent(event as never);
+      }
     } catch (e) {
       // Osservabilità: un webhook fallito viene tracciato (azione dedicata,
       // interrogabile/allertabile) e poi RILANCIATO — così Stripe lo riprova

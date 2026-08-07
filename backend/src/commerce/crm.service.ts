@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { coachTeamScope } from '../common/coach-team';
 import { MailService } from '../mail/mail.service';
@@ -34,14 +35,20 @@ export class CrmService {
     private readonly pipeline: PipelineService,
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   /**
-   * "Invia credenziali" a un lead: crea l'accesso (account role client con password
-   * provvisoria auto-generata, mustChangePassword=true, email già verificata) se non
-   * esiste, oppure rigenera la provvisoria se l'account c'è già; collega il lead
-   * all'utente e invia l'email con le credenziali. NON cambia lo stage: il lead
-   * diventa cliente solo con l'acquisto.
+   * "Invia credenziali" a un lead: crea l'accesso se non esiste e gli manda **un link per
+   * scegliersi la password**, non una password. Collega il lead all'utente. NON cambia lo
+   * stage: il lead diventa cliente solo con l'acquisto.
+   *
+   * ⚠️ Fino al 7/8 questa funzione generava una password provvisoria e la spediva **in chiaro**
+   * per email — e su un account già esistente la RIGENERAVA, buttando fuori chi stava usando
+   * l'app e cancellando la password che si era scelta. Ora: account nuovo → password casuale
+   * che nessuno conosce, account esistente → non si tocca niente. In entrambi i casi parte un
+   * token di reimpostazione a tempo, lo stesso meccanismo del «password dimenticata».
+   * Il segreto che viaggia è usa-e-getta e scade; nessuno resta scritto in una casella di posta.
    *
    * ⚠️ Il lead NON deve perdere la sua coach in questo passaggio (segnalazione Simone 6/8:
    * «se un lead è assegnato a me e io gli mando le credenziali deve restare legato a me»).
@@ -68,8 +75,6 @@ export class CrmService {
       throw new BadRequestException('Il lead non ha un\'email valida: aggiungila prima di inviare le credenziali.');
     }
     const email = rec.email.trim().toLowerCase();
-    const password = genTempPassword();
-    const passwordHash = await argon2.hash(password);
     const firstName = rec.name?.trim().split(/\s+/)[0] || null;
 
     let userId = rec.clientId;
@@ -79,18 +84,14 @@ export class CrmService {
       userId = existing?.id ?? null;
     }
 
-    if (userId) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { passwordHash, mustChangePassword: true, emailVerifiedAt: new Date() },
-      });
-      // Revoca le sessioni: rientra con la nuova provvisoria.
-      await this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
-    } else {
+    if (!userId) {
+      // Account nuovo: nasce con una password CASUALE che non viene comunicata a nessuno — serve
+      // solo perché la colonna non è nullable. L'accesso si apre col link qui sotto.
+      const segreto = await argon2.hash(genTempPassword());
       const user = await this.prisma.user.create({
         data: {
           email,
-          passwordHash,
+          passwordHash: segreto,
           role: 'client',
           locale: 'it',
           firstName,
@@ -102,6 +103,25 @@ export class CrmService {
       });
       userId = user.id;
     }
+    // ⚠️ Su un account che ESISTE GIÀ non si tocca la password e non si revocano le sessioni.
+    // Prima si faceva: rimandare le credenziali buttava fuori una cliente che stava usando l'app,
+    // e le cambiava una password che magari si era già scelta. Il link basta: se lo usa cambia
+    // password (e lì le sessioni si revocano, come in ogni reset), se non lo usa non succede nulla.
+
+    // Il link: un token di reimpostazione, lo stesso meccanismo del «password dimenticata».
+    // Dura più a lungo (un lead non legge l'email nello stesso minuto) ma resta a tempo.
+    const giorni = await this.configParams.getNumber('lead_credentials_link_days', 7);
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.actionToken.create({
+      data: {
+        userId,
+        type: 'password_reset' as never,
+        tokenHash: createHash('sha256').update(token).digest('hex'),
+        expiresAt: new Date(Date.now() + Math.max(1, giorni) * 24 * 3600_000),
+      },
+    });
+    const appUrl = (process.env.APP_URL ?? 'https://app.metabole.eu').replace(/\/+$/, '');
+    const link = `${appUrl}/reset-password?token=${token}`;
     // Collega il lead all'account (senza toccare lo stage).
     await this.prisma.crmRecord.update({ where: { id: recordId }, data: { clientId: userId } });
 
@@ -137,13 +157,13 @@ export class CrmService {
       assignedNutritionistId: rec.assignedNutritionistId,
     });
 
-    await this.mail.sendLeadCredentials(email, { name: rec.name, email, password }, 'it');
+    await this.mail.sendLeadCredentials(email, { name: rec.name, email, link }, 'it');
     await this.audit.log({
       action: 'crm.lead.send_credentials',
       actorId,
       entityType: 'crm_record',
       entityId: recordId,
-      metadata: { email }, // MAI la password nei log
+      metadata: { email, viaLink: true }, // MAI segreti nei log: nemmeno il token
     });
     return { sent: true, email };
   }

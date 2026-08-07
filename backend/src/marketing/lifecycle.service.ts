@@ -65,6 +65,11 @@ export const LIFECYCLE_CATALOG: TriggerDef[] = [
   { key: 'rin_t3', label: 'Rinnovo T-3', when: 'Piano a pagamento in scadenza tra 3 giorni', kind: 'scheduled', implemented: true },
   { key: 'rin_t1', label: 'Rinnovo T-1', when: 'Piano a pagamento in scadenza domani', kind: 'scheduled', implemented: true },
   { key: 'upsell', label: 'Upsell', when: 'Opportunità upsell', kind: 'scheduled', implemented: false },
+  // Monitoraggio OMAGGIO → abbonamento (richiesta Simone 7/8). Due tempi: uno mentre il servizio
+  // è ancora attivo e si vede il valore, uno il giorno in cui finisce. Non si insiste oltre:
+  // chi non risponde a due email non risponde alla terza, e il win-back esiste già.
+  { key: 'mon_t8', label: 'Monitoraggio omaggio — mancano 8 giorni', when: 'Monitoraggio omaggio in scadenza tra 8 giorni', kind: 'scheduled', implemented: true },
+  { key: 'mon_fine', label: 'Monitoraggio omaggio — ultimo giorno', when: 'Monitoraggio omaggio che finisce oggi', kind: 'scheduled', implemented: true },
   { key: 'wb_t3', label: 'Winback T+3', when: 'Piano scaduto da 3 giorni senza rinnovo', kind: 'scheduled', implemented: true },
   { key: 'wb_t7', label: 'Winback T+7', when: 'Piano scaduto da 7 giorni senza rinnovo', kind: 'scheduled', implemented: true },
   { key: 'wb_survey', label: 'Winback sondaggio', when: 'Dopo la disdetta', kind: 'scheduled', implemented: false },
@@ -647,6 +652,68 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           },
         });
         bump(rt.key, r);
+      }
+    }
+
+    // 4-ter-bis) MONITORAGGIO OMAGGIO → ABBONAMENTO (richiesta Simone 7/8).
+    //   Il monitoraggio dopo il mantenimento è in omaggio e dura un mese. A -8 giorni si offre
+    //   di proseguire con il Monitoraggio in abbonamento (€19/mese), e si ripete il giorno in
+    //   cui finisce. L'ordine conta: la prima parte mentre il servizio è ancora ATTIVO e la
+    //   cliente ne vede il valore, non dopo, quando l'ha già perso.
+    //   Non si scrive a chi ha già comprato: sarebbe vendere una cosa che ha già.
+    const monTriggers: { key: string; offset: number }[] = [
+      { key: 'mon_t8', offset: 8 },
+      { key: 'mon_fine', offset: 0 },
+    ];
+    for (const mt of monTriggers) {
+      if (!on(mt.key)) continue;
+      const range = this.dayRange(mt.offset);
+      // ⚠️ `MonitoringPeriod` NON ha una relazione verso l'utente: `clientId` è una stringa
+      // (il modulo è FK-less di proposito). Quindi le persone si prendono con una seconda
+      // query, non con un `include` — che infatti non compila.
+      const periodi = (await this.prisma.monitoringPeriod.findMany({
+        where: { endsAt: { gte: range.gte, lt: range.lt } } as never,
+        select: { id: true, clientId: true },
+        take: LifecycleService.BATCH,
+      })) as { id: string; clientId: string }[];
+      const utenti = periodi.length
+        ? ((await this.prisma.user.findMany({
+            where: { id: { in: periodi.map((x) => x.clientId) } },
+            select: {
+              id: true, email: true, firstName: true, deletedAt: true,
+              clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } } } },
+              subscriptions: { where: { status: { in: ['active', 'pending'] } as never }, select: { id: true } },
+            },
+          })) as {
+            id: string; email: string; firstName: string | null; deletedAt: Date | null;
+            clientProfile: { name: string | null; assignedCoach: { displayName: string } | null } | null;
+            subscriptions: { id: string }[];
+          }[])
+        : [];
+      const perId = new Map(utenti.map((u) => [u.id, u]));
+      // Prezzo dal Negozio, non scritto nell'email: se domani il monitoraggio costa altro, il
+      // testo si aggiorna da solo invece di mentire.
+      const pianoMon = (await this.prisma.plan.findFirst({
+        where: { active: true, billing: 'recurring', period: 'monitoring' } as never,
+        select: { priceCents: true },
+      })) as { priceCents: number } | null;
+      for (const p of periodi) {
+        const u = perId.get(p.clientId);
+        if (!u || u.deletedAt) continue;
+        if (u.subscriptions.length > 0) continue; // ha già un piano: niente offerta
+        const r = await this.sendLifecycle({
+          userId: p.clientId,
+          email: u.email,
+          key: mt.key,
+          dedupeKey: `${mt.key}:${p.id}`,
+          vars: {
+            nome: u.firstName ?? u.clientProfile?.name ?? '',
+            coach: u.clientProfile?.assignedCoach?.displayName ?? 'la tua coach',
+            prezzo: pianoMon ? `€${(pianoMon.priceCents / 100).toFixed(0)}` : '€19',
+            link: `${app}/negozio`,
+          },
+        });
+        bump(mt.key, r);
       }
     }
 

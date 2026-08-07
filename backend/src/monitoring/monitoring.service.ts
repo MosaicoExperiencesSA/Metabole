@@ -5,8 +5,6 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-export const RIENTRO_PLAN_NAME = 'Menu di rientro (8 giorni)';
-
 interface Period {
   id: string;
   clientId: string;
@@ -22,13 +20,17 @@ interface Period {
 }
 
 /**
- * Livello "Monitoraggio" (spec Antonio 17/07): paracadute di retention GRATUITO e a
- * tempo (max 1 mese) per chi finisce il percorso e non rinnova. Gaia non eroga menu:
- * sorveglia le misure e, se il peso sale oltre la soglia (+3 kg parametrizzabile),
- * propone gli 8 MENU DI RIENTRO (€29, sempre a pagamento) presi dallo storico
- * personale della cliente (i giorni che hanno fatto perdere di più). Se non paga
- * entro la finestra, il monitoraggio si CONGELA: lo storico resta salvato (nessun
- * purge) e al ritorno Gaia riparte da lì. Tono sempre supportivo, mai punitivo.
+ * Livello "Monitoraggio": sorveglianza a tempo, GRATUITA, per chi finisce il percorso e non
+ * rinnova. Gaia non eroga menu di piano: guarda le misure e, se il peso sale oltre la soglia
+ * (+3 kg parametrizzabile), eroga gli 8 MENU DI RIENTRO presi dallo storico personale della
+ * cliente — i giorni che su di lei hanno fatto perdere di più.
+ *
+ * ⚠️ **I menu di rientro NON si vendono più** (decisione Simone 7/8). Erano un prodotto a €29
+ * («Menu di rientro (8 giorni)»): la cliente riprendeva peso, e per riavere una mano doveva
+ * pagare. Ora sono **inclusi** — nel monitoraggio gratuito perché ha già pagato il percorso, in
+ * quello a €19/mese perché lo sta pagando. Con loro sparisce anche il CONGELAMENTO per mancato
+ * acquisto: non c'è più niente da acquistare, quindi non c'è più niente da rifiutare.
+ * Tono sempre supportivo, mai punitivo — e adesso lo è anche il modello, non solo il testo.
  */
 @Injectable()
 export class MonitoringService {
@@ -52,12 +54,6 @@ export class MonitoringService {
     })) as Period | null;
   }
 
-  private async rientroPlan(): Promise<{ id: string; name: string; priceCents: number } | null> {
-    return (await this.prisma.plan.findFirst({
-      where: { name: RIENTRO_PLAN_NAME, active: true },
-      select: { id: true, name: true, priceCents: true },
-    })) as { id: string; name: string; priceCents: number } | null;
-  }
 
   private async lastWeight(clientId: string): Promise<{ weightKg: number; date: Date } | null> {
     return (await this.prisma.measurement.findFirst({
@@ -89,7 +85,6 @@ export class MonitoringService {
       select: { id: true },
     });
     const last = await this.lastWeight(clientId);
-    const plan = await this.rientroPlan();
     const regainKg = await this.configParams.getNumber('monitoring_regain_kg', 3);
 
     const active = period?.status === 'active' ? period : null;
@@ -109,7 +104,9 @@ export class MonitoringService {
       lastWeightKg: last?.weightKg ?? null,
       deltaKg: active && last ? Math.round((last.weightKg - active.referenceWeightKg) * 10) / 10 : null,
       regainThresholdKg: regainKg,
-      rientro: plan ? { planId: plan.id, planName: plan.name, priceCents: plan.priceCents } : null,
+      // I menu di rientro sono inclusi: qui si dice solo SE sono già stati erogati, non a
+      // quanto si comprano. Il campo `rientro` con planId e prezzo non esiste più.
+      rientroErogato: period?.regainOfferedAt != null,
     };
   }
 
@@ -158,33 +155,17 @@ export class MonitoringService {
       this.configParams.getNumber('monitoring_offer_days', 7),
       this.configParams.getNumber('monitoring_measure_ask_days', 3),
     ]);
-    const plan = await this.rientroPlan();
     const periods = (await this.prisma.monitoringPeriod.findMany({ where: { status: 'active' } })) as Period[];
     let expired = 0;
-    let offered = 0;
-    let frozen = 0;
+    let offered = 0; // ora sono menu EROGATI, non offerte di acquisto
+    const frozen = 0; // il congelamento per mancato acquisto non esiste più: non c'è più un acquisto
     let asked = 0;
 
     for (const p of periods) {
       try {
-        // 1) Offerta di rientro ignorata oltre la finestra → congela (storico salvo, tono supportivo).
-        if (p.regainOfferedAt && now.getTime() - p.regainOfferedAt.getTime() > offerDays * 86_400_000) {
-          await this.prisma.monitoringPeriod.update({
-            where: { id: p.id },
-            data: { status: 'frozen', frozenAt: now, closedAt: now } as never,
-          });
-          await this.funnelEvent('monitoraggio_rifiutato_congelato', p.clientId);
-          await this.notifications
-            .notify({
-              userId: p.clientId,
-              type: 'monitoring_frozen',
-              title: 'Il tuo profilo resta al sicuro 💚',
-              body: 'Metto in pausa il monitoraggio, ma non butto via niente: tutto quello che ho imparato su di te resta salvato. Il tuo kit di rientro è pronto quando ti serve — torna quando vuoi.',
-            })
-            .catch(() => undefined);
-          frozen++;
-          continue;
-        }
+        // (Qui c'era il CONGELAMENTO di chi non comprava il kit di rientro entro la finestra.
+        // Tolto il 7/8 insieme al prodotto: i menu ora sono inclusi, quindi non c'è più un
+        // acquisto da rifiutare — e nessuno viene messo in pausa per non aver speso €29.)
 
         // 2) Scadenza del mese → chiuso, con le tre strade (percorso / mantenimento / nuovo monitoraggio).
         if (p.endsAt.getTime() <= now.getTime()) {
@@ -207,22 +188,27 @@ export class MonitoringService {
 
         const last = await this.lastWeight(p.clientId);
 
-        // 3) Trigger di rientro: peso oltre la soglia rispetto al riferimento → proponi il kit (€29).
+        // 3) Trigger di rientro: peso oltre la soglia → si EROGANO gli 8 menu, senza chiedere
+        //    niente. Prima qui partiva un'offerta a €29: la cliente riprendeva peso e, per
+        //    avere una mano, doveva comprare. Dal 7/8 sono inclusi.
         if (!p.regainOfferedAt && last && last.weightKg - p.referenceWeightKg >= regainKg) {
+          const generati = await this.generateRientroMenus(p.clientId);
           await this.prisma.monitoringPeriod.update({
             where: { id: p.id },
+            // Il campo si chiama ancora `regainOfferedAt` (era "offerto"): ora vuol dire
+            // "menu di rientro già erogati", e serve a non rierogarli ogni giorno.
             data: { regainOfferedAt: now } as never,
           });
-          await this.funnelEvent('monitoraggio_rientro_offerto', p.clientId, {
+          await this.funnelEvent('monitoraggio_rientro_erogato', p.clientId, {
             deltaKg: Math.round((last.weightKg - p.referenceWeightKg) * 10) / 10,
+            menus: generati,
           });
           await this.notifications
             .notify({
               userId: p.clientId,
-              type: 'monitoring_rientro_offer',
-              title: 'Il tuo kit di rientro è pronto 🧰',
-              body: `Capita a tutte (vacanze, periodi pieni…). Ho preparato i tuoi 8 menu di rientro: i giorni che su di te hanno funzionato meglio. Di solito bastano 4-6 giorni per recuperare. ${plan ? `Li sblocchi a €${(plan.priceCents / 100).toFixed(0)}.` : ''}`,
-              payload: plan ? { planId: plan.id } : undefined,
+              type: 'monitoring_rientro_ready',
+              title: 'Ti ho preparato i menu di rientro 🧰',
+              body: `Capita a tutte (vacanze, periodi pieni…). Trovi in app ${generati} giornate scelte sul tuo storico: quelle che su di te hanno funzionato meglio. Di solito bastano 4-6 giorni per rimettersi in riga.`,
             })
             .catch(() => undefined);
           offered++;
@@ -268,45 +254,19 @@ export class MonitoringService {
   // ---------- Hook dal commercio ----------
 
   /**
-   * Chiamato all'ATTIVAZIONE di un piano (pagamento approvato).
-   * - Menu di rientro: eroga gli 8 menu migliori dallo storico + riparte un nuovo
-   *   mese di monitoraggio gratuito (proposta Antonio: sì, crea il loop pulito).
-   * - Altro piano a pagamento con monitoraggio in corso: conversione (dimagrimento
-   *   o mantenimento), il monitoraggio si chiude.
+   * Chiamato all'ATTIVAZIONE di un piano (pagamento approvato): il monitoraggio gratuito in
+   * corso si chiude, perché la cliente è passata a qualcosa di pagato — un percorso, il
+   * mantenimento, o il monitoraggio in abbonamento.
+   *
+   * ⚠️ Qui c'era il ramo del «Menu di rientro (8 giorni)» a €29: pagato quel piano, si erogavano
+   * gli 8 menu e ripartiva un mese gratuito. Il prodotto è stato eliminato il 7/8 — i menu di
+   * rientro sono inclusi in entrambi i monitoraggi — quindi il ramo non ha più ragione di
+   * esistere: i menu li eroga direttamente il giro giornaliero quando il peso risale.
    */
   async onPlanActivated(clientId: string, plan: { id: string; name: string; priceCents: number; period: string }): Promise<void> {
     try {
       const period = await this.activePeriod(clientId);
-      if (plan.name === RIENTRO_PLAN_NAME) {
-        const generated = await this.generateRientroMenus(clientId);
-        await this.funnelEvent('monitoraggio_rientro_pagato', clientId, { menus: generated });
-        // Un rientro pagato fa ripartire il mese di sorveglianza gratuito.
-        const days = await this.configParams.getNumber('monitoring_duration_days', 30);
-        const endsAt = new Date(Date.now() + days * 86_400_000);
-        if (period) {
-          await this.prisma.monitoringPeriod.update({
-            where: { id: period.id },
-            data: { endsAt, regainOfferedAt: null, lastMeasureAskAt: null } as never,
-          });
-        } else {
-          const last = await this.lastWeight(clientId);
-          if (last) {
-            await this.prisma.monitoringPeriod.create({
-              data: { clientId, status: 'active', endsAt, referenceWeightKg: last.weightKg } as never,
-            });
-          }
-        }
-        await this.notifications
-          .notify({
-            userId: clientId,
-            type: 'monitoring_rientro_paid',
-            title: 'Kit di rientro sbloccato 💪',
-            body: `I tuoi ${generated} menu di rientro sono in app da domani: sono i giorni che hanno funzionato meglio su di te. E il monitoraggio riparte per un altro mese, gratis.`,
-          })
-          .catch(() => undefined);
-        return;
-      }
-      // Conversione: qualsiasi altro piano a pagamento chiude il monitoraggio in corso.
+      // Conversione: qualsiasi piano a pagamento chiude il monitoraggio in corso.
       if (period && plan.priceCents > 0) {
         const dest = plan.period === 'maintenance' ? 'mantenimento' : 'dimagrimento';
         await this.prisma.monitoringPeriod.update({

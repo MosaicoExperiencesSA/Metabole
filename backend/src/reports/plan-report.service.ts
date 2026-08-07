@@ -93,7 +93,9 @@ export interface PlanReportData {
   /** Piano mantenimento (per il box "una pausa" a €29/mese), se esiste a catalogo. */
   maintenance?: { planId: string; planName: string; priceCents: number } | null;
   /** Prezzo dei menu di rientro del Monitoraggio (per il box "gratis · 1 mese"). */
-  monitoring?: { rientroPriceCents: number } | null;
+  // I menu di rientro sono INCLUSI dal 7/8 (prima erano un prodotto a €29): qui non c'è più un
+  // prezzo da mostrare, solo il fatto che il monitoraggio sia proponibile.
+  monitoring?: { inclusiIMenuDiRientro: true } | null;
 }
 
 @Injectable()
@@ -343,15 +345,12 @@ export class PlanReportService {
       }
     }
 
-    // Box offerte: mantenimento a catalogo + prezzo dei menu di rientro (Monitoraggio).
+    // Box offerte: il mantenimento a catalogo. (Il prezzo dei menu di rientro non si legge più:
+    // il prodotto da €29 è stato eliminato il 7/8 e i menu sono inclusi.)
     const maintenancePlan = (await this.prisma.plan.findFirst({
       where: { active: true, period: 'maintenance' },
       select: { id: true, name: true, priceCents: true },
     })) as { id: string; name: string; priceCents: number } | null;
-    const rientroPlan = (await this.prisma.plan.findFirst({
-      where: { name: { contains: 'rientro', mode: 'insensitive' } } as never,
-      select: { priceCents: true },
-    })) as { priceCents: number } | null;
 
     // Codice sconto personale ancora valido (inviato al giorno 6): compare nel report.
     const personal = (await this.prisma.discountCode.findFirst({
@@ -431,7 +430,7 @@ export class PlanReportService {
         ? { planId: maintenancePlan.id, planName: maintenancePlan.name, priceCents: maintenancePlan.priceCents }
         : null,
       // Monitoraggio: solo DOPO un piano di mantenimento concluso.
-      monitoring: endedIsMaintenance ? { rientroPriceCents: rientroPlan?.priceCents ?? 2900 } : null,
+      monitoring: endedIsMaintenance ? { inclusiIMenuDiRientro: true as const } : null,
     };
 
     const report = await this.prisma.clientReport.create({

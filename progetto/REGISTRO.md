@@ -7,6 +7,95 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🔑 **"Invia credenziali" non manda più una password: manda un link.** Fino a stamattina
+  il pulsante del lead generava una password provvisoria, la scriveva nel database e la spediva per
+  email in chiaro. Due cose sbagliate insieme: la password restava leggibile nella casella di posta
+  della cliente per sempre, e su un account **già esistente** la rotazione le buttava fuori — chi
+  aveva già cambiato password e stava usando l'app si ritrovava scollegata senza aver fatto niente.
+  Ora l'email contiene un **link di attivazione a scadenza** (`ActionToken` di tipo `password_reset`,
+  in tabella solo l'hash SHA-256, mai il token): la cliente clicca, sceglie la sua password, il link
+  muore. Durata regolabile dal backoffice — parametro `lead_credentials_link_days`, **7 giorni** di
+  default; non è una costante nel codice, si cambia da Parametri senza deploy.
+  La differenza che conta è sugli account già attivi: **la password non viene toccata e le sessioni
+  non vengono revocate**. Se la coach ripreme il pulsante per sbaglio su una cliente che sta usando
+  l'app, non succede niente di male — riceve un link che può ignorare. Sugli account nuovi la
+  password nasce come hash casuale che **nessuno conosce**, nemmeno noi: l'unico modo di entrare è
+  il link. Il segnaposto `{password}` resta nei modelli email per non rompere i testi già scritti,
+  ma arriva vuoto; la copia IT/EN è stata riscritta attorno al link.
+  File: `crm.service.ts`, `mail.service.ts`, `i18n/messages.ts`, `prisma/seed.ts`.
+
+- `[Sviluppo]` 🧪 **Test rossi per un provider dimenticato — la stessa trappola di ieri, seconda volta.**
+  Aggiungendo `ConfigParamsService` al costruttore di `CrmService` ho scordato di registrarlo nel
+  modulo di test: 13 test non fallivano su un'asserzione, **non partivano proprio** (`Nest can't
+  resolve dependencies of the CrmService … argument ConfigParamsService at index [5]`). Risolto con
+  il mock accanto agli altri in `finance-crm.spec.ts`. Vale la pena fissarlo come abitudine: **ogni
+  volta che si aggiunge un parametro al costruttore di un service, va aggiunto anche a ogni
+  `createTestingModule` che lo istanzia** — `tsc` non se ne accorge, perché il costruttore è
+  formalmente corretto ed è Nest a rompersi a runtime.
+
+- `[Sviluppo]` 💳 **Stripe ricorrente: il backend è scritto.** È la voce #10, ferma da settimane su
+  una decisione e non su del codice. Ora il mantenimento si vende **in abbonamento o a mese
+  singolo** e il monitoraggio **solo in abbonamento**; i percorsi 1/3/6 mesi restano una-tantum e
+  non cambiano di una riga.
+  Le parti che contano, in ordine di quanto possono fare danno:
+  · **Il primo addebito NON si conta due volte.** Stripe manda una fattura anche al primo mese, e
+    quella la ignoriamo: è lo stesso incasso già gestito dal checkout. Contarla avrebbe prodotto
+    due pagamenti, due provvigioni e due ricevute per un solo addebito. Si riconosce da
+    `billing_reason`, non dall'importo o dalla data — che coincidono.
+  · **Carta rifiutata ≠ disdetta.** Durante i tentativi di Stripe l'abbonamento resta **attivo** e
+    i menu continuano: una carta scaduta non è un addio, e togliere il servizio a chi ha solo
+    cambiato bancomat è il modo peggiore di farselo diventare. Si avvisa e basta; è Stripe a
+    chiudere quando i tentativi finiscono davvero.
+  · **Disdetta dall'app, in autonomia**, valida a fine periodo già pagato e **reversibile** finché
+    quel periodo non finisce. La carta si aggiorna dal portale di Stripe: i dati della carta non
+    passano mai da noi.
+  · Idempotenza ovunque, perché Stripe **riconsegna** i webhook: l'id della fattura fa da chiave,
+    e un rinnovo contato due volte è denaro.
+  Migrazione `20260807090000_abbonamenti_ricorrenti`. Il campo `plan.billing` è una colonna e non
+  due booleani: i tre casi sono mutuamente esclusivi, e con due flag esisterebbe la combinazione
+  «né l'uno né l'altro» — che non vuol dire niente e prima o poi qualcuno la salva.
+  ⚠️ Il client Prisma va rigenerato **dal Terminale del Mac** (`npx prisma generate`): il VM del
+  ponte non ha rete e la sandbox non scarica i binari Prisma (403). Senza, `tsc` gira contro lo
+  schema vecchio e fallisce su ogni campo nuovo.
+
+- `[Prodotto]` **Il «Menu di rientro (8 giorni)» a €29 non si vende più: i menu sono INCLUSI**
+  (decisione Simone, 7/8). Era il kit che Gaia proponeva quando la cliente riprendeva peso durante
+  il monitoraggio: 8 giornate scelte sul suo storico, a pagamento. La logica commerciale non regge
+  alla prova dei fatti — chi ha appena ripreso tre chili è la meno disposta a tirare fuori la
+  carta, ed è il momento in cui ha più bisogno di una mano.
+  Ora i menu si erogano e basta: nel monitoraggio omaggio perché il percorso è già stato pagato,
+  in quello a €19/mese perché lo si sta pagando. **Con loro sparisce il CONGELAMENTO** di chi non
+  comprava entro la finestra: non c'è più un acquisto da rifiutare, quindi non c'è più nessuno da
+  mettere in pausa per non aver speso €29.
+  Il piano viene **disattivato, non cancellato**: chi l'ha comprato ha un abbonamento che punta a
+  quella riga, e cancellarla porterebbe via la sua storia (oltre a fallire per il vincolo
+  `onDelete: Restrict`).
+  **Aggiunto quello che mancava:** al **rientro da una sospensione**, se il peso è salito oltre la
+  soglia, i menu di rientro arrivano da soli — inclusi. Il modulo pausa dichiarava espressamente
+  di non fare proposte commerciali e i menu vivevano solo nell'altro monitoraggio, quindi chi
+  tornava da una vacanza non riceveva niente. Si erogano **a fine pausa**, non durante: durante
+  una pausa i menu sono sospesi per definizione, e mandarglieli mentre è in vacanza sarebbe il
+  contrario del punto di avere una pausa.
+
+- `[Prodotto]` **Il monitoraggio omaggio ora propone quello in abbonamento** (richiesta Simone,
+  7/8), e lo fa con l'impianto che c'era già invece di un meccanismo nuovo: due inneschi nel
+  **ciclo di vita** (`mon_t8` e `mon_fine`), accendibili e spegnibili dal backoffice come tutti
+  gli altri, deduplicati per periodo, con i due modelli email scritti nella voce di casa.
+  L'ordine conta: la prima email parte **a -8 giorni, mentre il servizio è ancora attivo** e la
+  cliente ne vede il valore; la seconda l'ultimo giorno. Non si insiste oltre — chi non risponde a
+  due email non risponde alla terza, e il win-back esiste già. Non si scrive a chi ha già un piano
+  attivo: sarebbe vendere una cosa che ha già. Il prezzo nell'email arriva dal **Negozio**, non è
+  scritto nel testo: se domani il monitoraggio costa altro, il messaggio si aggiorna da solo
+  invece di mentire.
+
+- `[Sviluppo]` **Tre volte il compilatore ha fermato un errore mio**, ed è la ragione per cui vale
+  la pena averlo. Il nome `seedMonitoringPlan` era **già occupato** dal «Menu di rientro» — cioè
+  dal monitoraggio gratuito: esattamente l'ambiguità fra i due monitoraggi che avevo scritto nella
+  nota di listino la sera prima, e mi ha preso in castagna dopo dieci minuti. Poi
+  `MonitoringPeriod` **non ha una relazione** verso l'utente (`clientId` è una stringa, il modulo
+  è FK-less di proposito), quindi l'`include` che avevo scritto non poteva funzionare. E un tipo
+  di ritorno rimasto indietro. `tsc --noEmit` pulito su backend e app, **527 test verdi**.
+
 - `[Sviluppo]` **Verificata la CI dopo averla resa bloccante — e la prima rossa non era nostra.**
   Avendo tolto `continue-on-error` poche ore prima, valeva la pena guardare che i push della notte
   passassero davvero, invece di scoprirlo domani. Uno era rosso: la run **#321** (`bb3d8ed`, il
