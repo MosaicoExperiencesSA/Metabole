@@ -495,8 +495,8 @@ export class EngineRulesService {
     dietId: string | null;
     settimane: number;
     giorni: number;
-    /** Settimane con 7 piatti diversi per pasto. Le altre hanno le giornate ma non i piatti. */
-    settimanePiene: number;
+    /** Numeri delle settimane che hanno le giornate ma non i piatti: vanno completate. */
+    settimaneMagre: number[];
     /** Piatti diversi del pasto messo peggio: è il numero che conta davvero. */
     ricettePerPasto: number;
   }> {
@@ -510,7 +510,7 @@ export class EngineRulesService {
       where: { name: preset.label, style: preset.style, regime, objective: preset.objective ?? 'dimagrimento', mealsPerDay, fasting } as never,
       select: { id: true },
     })) as { id: string } | null;
-    if (!diet) return { dietId: null, settimane: 0, giorni: 0, settimanePiene: 0, ricettePerPasto: 0 };
+    if (!diet) return { dietId: null, settimane: 0, giorni: 0, settimaneMagre: [], ricettePerPasto: 0 };
     const ultimo = (await this.prisma.dietDayTemplate.findFirst({
       where: { dietId: diet.id },
       orderBy: { dayIndex: 'desc' },
@@ -518,33 +518,58 @@ export class EngineRulesService {
     })) as { dayIndex: number } | null;
     const giorni = ultimo?.dayIndex ?? 0;
 
-    // Quante settimane sono PIENE davvero, cioè hanno 7 piatti diversi per ogni pasto.
-    // Serve perché le diete vecchie hanno 28 giornate fatte con 5 ricette ricombinate: la
-    // pagina le marcava «✓ fatte» e il nutrizionista tirava dritto dalla settimana 5 in poi,
-    // lasciandosi dietro proprio il mese che le clienti stanno ricevendo.
+    /**
+     * Quali settimane sono MAGRE, una per una.
+     *
+     * Il primo tentativo misurava il *magazzino*: piatti diversi in tutto, diviso sette. È una
+     * misura sbagliata, e sbagliata **al contrario**. Su una dieta con 63 giorni e 43 pranzi
+     * distinti dava «6 settimane piene» e marcava come magre la 7, la 8 e la 9 — cioè proprio
+     * quelle appena generate con sette piatti nuovi ciascuna. Le magre erano le prime quattro:
+     * 28 giornate costruite ricombinando cinque piatti, che il conteggio globale non distingue
+     * perché guarda solo il totale.
+     *
+     * La domanda giusta si fa dentro la settimana: **in questi sette giorni, ogni pasto ha
+     * sette piatti diversi?** Se la settimana è parziale (meno di 7 giornate) il metro sono le
+     * giornate che ha.
+     */
     const templates = (await this.prisma.dietDayTemplate.findMany({
       where: { dietId: diet.id },
-      select: { meals: true },
-    })) as { meals: unknown }[];
-    const perPasto = new Map<string, Set<string>>();
+      select: { dayIndex: true, meals: true },
+    })) as { dayIndex: number; meals: unknown }[];
+
+    const perSettimana = new Map<number, { giorni: number; slot: Map<string, Set<string>> }>();
+    const globale = new Map<string, Set<string>>();
     for (const t of templates) {
+      const w = Math.ceil(t.dayIndex / GIORNI_SETTIMANA);
+      const box = perSettimana.get(w) ?? { giorni: 0, slot: new Map<string, Set<string>>() };
+      box.giorni++;
       for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
         if (!m.slot || !m.recipeId) continue;
-        const set = perPasto.get(m.slot) ?? new Set<string>();
+        const set = box.slot.get(m.slot) ?? new Set<string>();
         set.add(m.recipeId);
-        perPasto.set(m.slot, set);
+        box.slot.set(m.slot, set);
+        const g = globale.get(m.slot) ?? new Set<string>();
+        g.add(m.recipeId);
+        globale.set(m.slot, g);
       }
+      perSettimana.set(w, box);
     }
-    const minimo = perPasto.size ? Math.min(...[...perPasto.values()].map((v) => v.size)) : 0;
-    const settimanePiene = Math.floor(minimo / GIORNI_SETTIMANA);
+
+    const settimaneMagre: number[] = [];
+    for (const [w, box] of [...perSettimana.entries()].sort((a, b) => a[0] - b[0])) {
+      if (box.slot.size === 0) { settimaneMagre.push(w); continue; }
+      const minimoSettimana = Math.min(...[...box.slot.values()].map((v) => v.size));
+      if (minimoSettimana < box.giorni) settimaneMagre.push(w);
+    }
+    const minimo = globale.size ? Math.min(...[...globale.values()].map((v) => v.size)) : 0;
 
     return {
       dietId: diet.id,
       settimane: Math.ceil(giorni / GIORNI_SETTIMANA),
       giorni,
-      /** Settimane con 7 piatti diversi per pasto. Le altre vanno completate. */
-      settimanePiene,
-      /** Piatti diversi del pasto messo peggio: è il numero che conta davvero. */
+      /** Numeri delle settimane che hanno le giornate ma non i piatti: vanno completate. */
+      settimaneMagre,
+      /** Piatti diversi del pasto messo peggio, su tutto il catalogo della variante. */
       ricettePerPasto: minimo,
     };
   }
@@ -575,38 +600,59 @@ export class EngineRulesService {
   /**
    * Le ricette che la dieta ha GIÀ e che possono servire alla settimana `week`, pasto per pasto.
    *
-   * Serve a non buttare via niente. Il nutrizionista ne ha corrette parecchie a mano, e le
-   * diete vecchie hanno cinque piatti per pasto ricombinati su ventotto giorni: quei cinque
-   * piatti sono buoni, mancano gli altri. Completare vuol dire tenerli e generare la differenza.
+   * Serve a non buttare via niente: il nutrizionista ne ha corrette parecchie a mano, e le diete
+   * vecchie hanno cinque piatti per pasto ricombinati su ventotto giorni. Quei cinque sono buoni,
+   * mancano gli altri.
    *
-   * Il criterio: si mette in fila il "magazzino" di ogni pasto nell'ordine in cui i piatti
-   * compaiono nelle giornate (dalla prima all'ultima, senza doppioni). Le prime `(week-1)*7`
-   * sono già impegnate nelle settimane precedenti; quelle che restano vanno a questa.
+   * ## Il criterio, e perché il primo era sbagliato
    *
-   * Esempio con cinque pranzi su ventotto giorni: la settimana 1 se li prende tutti e cinque e
-   * chiede all'AI solo i due che mancano; la settimana 2 trova il magazzino esaurito e ne chiede
-   * sette nuovi. Alla fine i cinque corretti a mano sono ancora lì, e i pranzi sono ventotto
-   * diversi.
+   * La prima versione metteva in fila il "magazzino" di ogni pasto e ne prendeva la fetta
+   * `[(week-1)*7, week*7)`. Funziona solo se le settimane si completano in ordine partendo da un
+   * catalogo intatto. Appena non è così — ed è il caso reale — si rompe:
+   *
+   * *Cos'è successo l'8/8.* Su una dieta con le settimane 5-9 già generate, completare la
+   * settimana 1 pescava dalla fetta `[0,7)` del magazzino, che conteneva i 5 piatti vecchi **più
+   * due presi in prestito dalla settimana 5**. Risultato: `mancanti = 0`, nessuna ricetta nuova
+   * generata, e due piatti duplicati fra la settimana 1 e la 5. Dal backoffice sembrava che
+   * "completa" non facesse niente — e in effetti non faceva niente.
+   *
+   * La regola giusta non guarda le posizioni, guarda **chi sta già usando cosa**: una ricetta è
+   * disponibile per questa settimana solo se **nessun'altra settimana la usa**. Le ricette già
+   * dentro questa settimana e non usate altrove restano (è così che sopravvivono le correzioni a
+   * mano); tutto il resto si genera nuovo.
    */
   private async ricetteDisponibiliPerSettimana(dietId: string, week: number): Promise<Map<string, string[]>> {
     const templates = (await this.prisma.dietDayTemplate.findMany({
       where: { dietId },
       orderBy: { dayIndex: 'asc' },
-      select: { meals: true },
-    })) as { meals: unknown }[];
-    const magazzino = new Map<string, string[]>();
+      select: { dayIndex: true, meals: true },
+    })) as { dayIndex: number; meals: unknown }[];
+
+    // Per ogni pasto: cosa usa QUESTA settimana (in ordine di giorno) e cosa usano le ALTRE.
+    const inQuesta = new Map<string, string[]>();
+    const altrove = new Map<string, Set<string>>();
     for (const t of templates) {
+      const w = Math.ceil(t.dayIndex / GIORNI_SETTIMANA);
       for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
         if (!m.slot || !m.recipeId) continue;
-        const lista = magazzino.get(m.slot) ?? [];
-        if (!lista.includes(m.recipeId)) lista.push(m.recipeId);
-        magazzino.set(m.slot, lista);
+        if (w === week) {
+          const lista = inQuesta.get(m.slot) ?? [];
+          if (!lista.includes(m.recipeId)) lista.push(m.recipeId);
+          inQuesta.set(m.slot, lista);
+        } else {
+          const set = altrove.get(m.slot) ?? new Set<string>();
+          set.add(m.recipeId);
+          altrove.set(m.slot, set);
+        }
       }
     }
-    const impegnate = (week - 1) * GIORNI_SETTIMANA;
+
     const out = new Map<string, string[]>();
-    for (const [slot, lista] of magazzino) {
-      const libere = lista.slice(impegnate, impegnate + GIORNI_SETTIMANA);
+    for (const [slot, lista] of inQuesta) {
+      const occupate = altrove.get(slot) ?? new Set<string>();
+      // Solo quelle che non sta usando nessun'altra settimana: se un piatto compare anche
+      // altrove, tenerlo qui vorrebbe dire ripeterlo nel ciclo.
+      const libere = lista.filter((id) => !occupate.has(id)).slice(0, GIORNI_SETTIMANA);
       if (libere.length) out.set(slot, libere);
     }
     return out;

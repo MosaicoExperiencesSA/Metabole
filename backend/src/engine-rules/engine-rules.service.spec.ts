@@ -253,11 +253,12 @@ describe('EngineRulesService', () => {
     preset5Pasti(prisma);
     aiSetteRicette(ai);
     prisma.diet.findMany.mockResolvedValue([{ id: 'dietVecchia', name: 'Keto', mealsPerDay: 5, fasting: false }]);
-    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 28 }); // catalogo vecchio: 28 giornate
-    // Il catalogo vecchio: 28 giornate fatte con SOLO 5 piatti per pasto, ricombinati.
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 });
+    // Catalogo vecchio di UNA settimana: 7 giornate fatte con SOLO 5 piatti per pasto,
+    // ricombinati. Quei 5 non li usa nessun'altra settimana, quindi sono davvero disponibili.
     prisma.dietDayTemplate.findMany.mockImplementation((args: any) => {
       if (args?.where?.OR || args?.where?.dietId?.in) return Promise.resolve([]);
-      return Promise.resolve(Array.from({ length: 28 }, (_, i) => ({
+      return Promise.resolve(Array.from({ length: 7 }, (_, i) => ({
         dayIndex: i + 1,
         meals: ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']
           .map((slot) => ({ slot, recipeId: `${slot}-${i % 5}` })),
@@ -278,6 +279,7 @@ describe('EngineRulesService', () => {
     const pranzi = giorni.map((d: any) => d.meals.find((m: any) => m.slot === 'lunch').recipeId);
     expect(new Set(pranzi).size).toBe(7);
     expect(pranzi.slice(0, 5)).toEqual(['lunch-0', 'lunch-1', 'lunch-2', 'lunch-3', 'lunch-4']);
+    // ← i 5 originali (quelli che il nutrizionista può aver corretto a mano) sono ancora lì.
   });
 
   it('COMPLETA: alla settimana 2 il magazzino è finito, quindi genera tutto nuovo', async () => {
@@ -300,6 +302,43 @@ describe('EngineRulesService', () => {
     expect(res.riusate).toBe(0);
     expect(res.recipes).toBe(35);
     expect(prisma.recipe.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('COMPLETA: non ruba le ricette alle altre settimane (difetto dell\'8/8)', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietVecchia', name: 'Keto', mealsPerDay: 5, fasting: false }]);
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 63 });
+    // Catalogo reale dopo il lavoro dell'8/8: settimane 1-4 fatte con 5 piatti ricombinati,
+    // settimane 5-9 già generate con 7 piatti nuovi ciascuna.
+    prisma.dietDayTemplate.findMany.mockImplementation((args: any) => {
+      if (args?.where?.OR || args?.where?.dietId?.in) return Promise.resolve([]);
+      return Promise.resolve(Array.from({ length: 63 }, (_, i) => {
+        const giorno = i + 1;
+        const vecchia = giorno <= 28;
+        return {
+          dayIndex: giorno,
+          meals: ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'].map((slot) => ({
+            slot,
+            recipeId: vecchia ? `${slot}-vecchia-${i % 5}` : `${slot}-nuova-${giorno}`,
+          })),
+        };
+      }));
+    });
+
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1, 'completa');
+
+    // I 5 piatti vecchi sono usati anche dalle settimane 2, 3 e 4: tenerli qui li ripeterebbe.
+    // Quindi la settimana 1 va generata da capo — ed è proprio quello che prima NON succedeva:
+    // pescava due piatti dalla settimana 5 e si fermava con `mancanti = 0`.
+    expect(res.riusate).toBe(0);
+    expect(res.recipes).toBe(35);
+    const giorni = prisma.dietDayTemplate.create.mock.calls.map((c: any) => c[0].data);
+    const pranzi = giorni.map((d: any) => d.meals.find((m: any) => m.slot === 'lunch').recipeId);
+    expect(new Set(pranzi).size).toBe(7);
+    // E nessuno dei piatti nuovi è preso in prestito dalle settimane già fatte.
+    expect(pranzi.some((id: string) => String(id).includes('nuova'))).toBe(false);
   });
 
   it('niente buchi: non si può saltare a una settimana lontana', async () => {

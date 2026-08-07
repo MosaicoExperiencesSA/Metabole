@@ -63,12 +63,12 @@ export function CreazioneValidazione() {
   /** Settimane già in catalogo per la variante scelta (per proporre la prossima). */
   const [weeksDone, setWeeksDone] = useState<number | null>(null);
   /**
-   * Settimane davvero PIENE (7 piatti diversi per pasto). Sulle diete generate col vecchio
-   * metodo le 28 giornate esistono ma sono fatte con 5 ricette ricombinate: marcarle «fatte»
-   * mandava il nutrizionista a lavorare dalla settimana 5 in poi, lasciandosi dietro proprio
-   * il mese che le clienti stanno ricevendo.
+   * Numeri delle settimane MAGRE: hanno le giornate ma non i piatti. Il conteggio è per
+   * settimana e non globale — misurare «piatti totali diviso sette» dava il risultato
+   * rovesciato, marcando piene le prime (fatte ricombinando 5 ricette) e magre proprio quelle
+   * appena generate con 7 piatti nuovi.
    */
-  const [weeksFull, setWeeksFull] = useState<number>(0);
+  const [weeksThin, setWeeksThin] = useState<number[]>([]);
   const [ricettePerPasto, setRicettePerPasto] = useState<number | null>(null);
   /**
    * Su una settimana che esiste già, il comportamento normale è COMPLETARLA: le ricette che ci
@@ -92,17 +92,19 @@ export function CreazioneValidazione() {
   useEffect(() => {
     if (!activePresetId) { setWeeksDone(null); setWeek(1); return; }
     let vivo = true;
-    api<{ settimane: number; settimanePiene?: number; ricettePerPasto?: number }>(`/engine-rules/presets/${activePresetId}/weeks`)
+    api<{ settimane: number; settimaneMagre?: number[]; ricettePerPasto?: number }>(`/engine-rules/presets/${activePresetId}/weeks`)
       .then((r) => {
         if (!vivo) return;
+        const magre = r.settimaneMagre ?? [];
         setWeeksDone(r.settimane);
-        setWeeksFull(r.settimanePiene ?? 0);
+        setWeeksThin(magre);
         setRicettePerPasto(r.ricettePerPasto ?? null);
-        // Si riparte dalla prima settimana NON piena: è quella che serve alle clienti adesso.
-        setWeek(Math.min(12, (r.settimanePiene ?? 0) + 1));
+        // Si riparte dalla prima settimana MAGRA: è il menu che le clienti stanno ricevendo
+        // adesso. Solo se non ce ne sono si passa alla prima settimana nuova.
+        setWeek(Math.min(12, magre.length ? magre[0] : r.settimane + 1));
         setRifaiDaCapo(false);
       })
-      .catch(() => { if (vivo) { setWeeksDone(null); setWeeksFull(0); setRicettePerPasto(null); setWeek(1); } });
+      .catch(() => { if (vivo) { setWeeksDone(null); setWeeksThin([]); setRicettePerPasto(null); setWeek(1); } });
     return () => { vivo = false; };
   }, [activePresetId]);
 
@@ -369,7 +371,13 @@ export function CreazioneValidazione() {
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
       void loadFamilyStatuses();
       // Avanza da sola alla settimana successiva: è il gesto che il nutrizionista farebbe comunque.
-      if (generated > 0 || completate > 0) { setWeeksDone((w) => Math.max(w ?? 0, week)); setWeeksFull((w) => Math.max(w, week)); setWeek((w) => Math.min(12, w + 1)); }
+      if (generated > 0 || completate > 0) {
+        setWeeksDone((w) => Math.max(w ?? 0, week));
+        const restanti = weeksThin.filter((n) => n !== week);
+        setWeeksThin(restanti);
+        // Prima si finiscono le magre, poi si va avanti: sono i menu già in mano alle clienti.
+        setWeek(restanti.length ? restanti[0] : Math.min(12, week + 1));
+      }
       const coda = (riusateTot ? ` ${riusateTot} ricette tenute da quelle che c'erano già (comprese le tue correzioni) o riprese dalle varianti sorelle: si è generato solo quello che mancava.` : '')
         + (incompleti.length ? ` ⚠️ L'AI non ha prodotto ricette per: ${incompleti.join(' · ')} — rigenera questa settimana.` : '');
       setNotice((targets.length > 1
@@ -717,13 +725,15 @@ export function CreazioneValidazione() {
             Settimana da generare
             {weeksDone !== null && weeksDone > 0 && (
               <>
-                {' '}— in catalogo: <b>{weeksDone * 7} giorni</b>,
-                di cui <b>{weeksFull === 1 ? '1 settimana completa' : `${weeksFull} settimane complete`}</b>
-                {ricettePerPasto !== null && <> ({ricettePerPasto} piatti diversi nel pasto messo peggio)</>}
+                {' '}— in catalogo: <b>{weeksDone * 7} giorni</b>
+                {weeksThin.length === 0
+                  ? <>, tutte complete</>
+                  : <>, <b>da completare: {weeksThin.join(', ')}</b></>}
+                {ricettePerPasto !== null && <> · {ricettePerPasto} piatti diversi nel pasto messo peggio</>}
               </>
             )}
           </div>
-          {weeksDone !== null && weeksDone > weeksFull && (
+          {weeksThin.length > 0 && (
             <div style={{ margin: '0 0 8px', padding: '9px 11px', borderRadius: 9, background: '#FDF6E8', border: '1px solid #F0DFBA', fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22' }}>
               Le settimane in <b>giallo</b> hanno le giornate ma pochi piatti: sono state generate col metodo
               vecchio, che faceva 5 ricette per pasto e le ricombinava. <b>Vanno completate</b>, e sono proprio
@@ -735,10 +745,11 @@ export function CreazioneValidazione() {
                 altrimenti chi arriva alla nona settimana legge «Genera la settimana 10» su un
                 pulsante che non c'è, perché la fila si fermava a otto. Il tetto è 12, che è
                 anche il massimo che accetta il backend (SETTIMANE_MAX). */}
-            {Array.from({ length: Math.min(12, Math.max(8, (weeksDone ?? 0) + 1, weeksFull + 1)) }, (_, i) => i + 1).map((n) => {
-              const piena = n <= weeksFull;
-              const magra = weeksDone !== null && n <= weeksDone && !piena;
-              const prossima = weeksDone !== null && n === weeksFull + 1;
+            {Array.from({ length: Math.min(12, Math.max(8, (weeksDone ?? 0) + 1)) }, (_, i) => i + 1).map((n) => {
+              const esiste = weeksDone !== null && n <= weeksDone;
+              const magra = weeksThin.includes(n);
+              const piena = esiste && !magra;
+              const prossima = weeksDone !== null && n === weeksDone + 1;
               const scelta = n === week;
               // Oltre la prossima non si può andare: un buco fra la 1 e la 3 lascerebbe il
               // ciclo con giornate mancanti in mezzo, e il motore non sa colmarle.
