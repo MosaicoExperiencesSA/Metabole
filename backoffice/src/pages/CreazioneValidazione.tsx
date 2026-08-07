@@ -473,6 +473,8 @@ export function CreazioneValidazione() {
   if (presets === null) return <Spinner />;
 
   const canGenerate = !!activePresetId && !dirty;
+  /** La variante scelta, per mostrarla accanto al pulsante che genera (vedi passo 2). */
+  const activePreset = (presets ?? []).find((p) => p.id === activePresetId) ?? null;
   // Riepilogo combinazioni selezionate (regime × obiettivo): quante nuove, quante già presenti.
   const selectedCombos: string[] = [];
   const selMeals = isFastingFamily ? ['fasting'] : form.meals;
@@ -632,6 +634,23 @@ export function CreazioneValidazione() {
             <span style={{ fontSize: 13 }}>Genera <b>tutte le {activeFamily.variants.length} varianti</b> del gruppo (ricette, allergeni, giornate e gruppi di equivalenza per ogni combinazione regime × obiettivo)</span>
           </label>
         )}
+        {/* SU CHE COSA STAI LAVORANDO. Sembra ridondante — la variante si sceglie al passo 1 —
+            e invece è la riga più importante della pagina: le varianti di una famiglia si
+            chiamano tutte allo stesso modo, e l'8/8 cinque settimane di lavoro sono finite su
+            «vegana · mantenimento · 3 pasti» mentre chi le generava era convinta di stare su
+            «onnivora · dimagrimento · 5 pasti». Nessun messaggio d'errore: il nome era giusto. */}
+        {activePreset && (
+          <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 10, background: 'var(--chip)', border: '1px solid var(--teal)' }}>
+            <div className="muted" style={{ fontSize: 11.5, letterSpacing: 0.3, textTransform: 'uppercase' }}>Stai lavorando su</div>
+            <div style={{ fontSize: 14.5, fontWeight: 700, color: '#10403a', marginTop: 2 }}>
+              {activePreset.label}
+            </div>
+            <div style={{ fontSize: 13, color: '#2E3E3B', marginTop: 1 }}>
+              {regLabelOf((activePreset.regime as string) || 'omnivore')} · {objLabel((activePreset.objective as string) || 'dimagrimento')} · <b>{mealLabel((activePreset.meals as string) || '5')}</b>
+            </div>
+          </div>
+        )}
+
         {/* Una settimana per volta. Il numero grande («28 giorni») prometteva 28 giornate
             diverse e non era vero: il generatore faceva 5 ricette per pasto e le ricombinava.
             Qui si vede quante settimane ci sono e qual è la prossima. */}
