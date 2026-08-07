@@ -23,8 +23,20 @@ function build() {
     productRule: { upsert: jest.fn().mockResolvedValue({}) },
     diet: { findUnique: jest.fn().mockResolvedValue({ id: 'diet1' }), findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 'dietGen', name: 'Keto — bozza generata' }) },
     staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff1' }) },
-    recipe: { create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: `r-${Math.round(data.kcal)}-${data.name}` })) },
-    dietDayTemplate: { create: jest.fn().mockResolvedValue({}) },
+    recipe: {
+      create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: `r-${Math.round(data.kcal)}-${data.name}` })),
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    recipeRating: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    menuWeight: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    $transaction: jest.fn().mockResolvedValue([]),
+    dietDayTemplate: {
+      create: jest.fn().mockResolvedValue({}),
+      findFirst: jest.fn().mockResolvedValue(null), // nessuna settimana ancora in catalogo
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     equivalenceGroup: { create: jest.fn().mockResolvedValue({}) },
   };
   const configParams = { update: jest.fn().mockResolvedValue({}) };
@@ -96,33 +108,154 @@ describe('EngineRulesService', () => {
 
   it('generateCatalog: AI non disponibile → errore chiaro', async () => {
     const { service, prisma, ai } = build();
-    prisma.rulePreset.findUnique.mockResolvedValue({ id: 'p1', label: 'Keto', style: 'keto', regime: 'omnivore', rules: {} });
+    prisma.rulePreset.findUnique.mockResolvedValue({ id: 'p1', label: 'Keto', style: 'keto', regime: 'omnivore', meals: '5', rules: {} });
     ai.generateJson.mockResolvedValue(null);
     await expect(service.generateCatalogFromPreset('p1', 'u1')).rejects.toThrow();
   });
 
-  it('generateCatalog: crea dieta bozza + ricette + giornate + gruppi dal JSON dell\'AI', async () => {
-    const { service, prisma, ai } = build();
+  /**
+   * Il catalogo si genera una SETTIMANA per volta. Prima si chiedeva «28 giorni» e si
+   * ottenevano 5 ricette per pasto ricombinate: la Keto Mediterranea aveva 28 ricette IN TUTTO,
+   * non 28 colazioni + 28 pranzi + 28 cene, e la stessa colazione tornava cinque volte al mese.
+   */
+  function preset5Pasti(prisma: any) {
     prisma.rulePreset.findUnique.mockResolvedValue({
-      id: 'p1', label: 'Keto', style: 'keto', regime: 'omnivore', objective: 'dimagrimento',
+      id: 'p1', label: 'Keto', style: 'keto', regime: 'omnivore', objective: 'dimagrimento', meals: '5',
       rules: { menu_daycombo_protein_min: 0.15, menu_daycombo_protein_max: 0.25, menu_repeat_two_days_default: true },
     });
-    ai.generateJson.mockResolvedValue({
-      recipes: [{ ref: 'r1', slot: 'lunch', name: 'Orata al forno', kcal: 500, ingredients: [{ name: 'orata' }], macros: { protein_g: 35, carbs_g: 5, fat_g: 30 } }],
-      days: [{ level: 1, dayIndex: 1, meals: [{ slot: 'lunch', ref: 'r1' }] }],
-      equivalenceGroups: [{ name: 'Pesci bianchi', items: ['orata', 'branzino'] }],
+  }
+  /** L'AI risponde con 7 ricette per ogni pasto (una richiesta per pasto). */
+  function aiSetteRicette(ai: any) {
+    let n = 0;
+    ai.generateJson.mockImplementation((_sys: string, user: string) => {
+      if (user.includes('equivalenceGroups')) {
+        return Promise.resolve({ equivalenceGroups: [{ name: 'Pesci bianchi', items: ['orata', 'branzino'] }] });
+      }
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      return Promise.resolve({
+        recipes: Array.from({ length: 7 }, (_, i) => ({
+          slot, name: `Piatto ${slot} ${++n}`, kcal: 400 + i,
+          ingredients: [{ name: 'orata' }], macros: { protein_g: 35, carbs_g: 5, fat_g: 30 },
+        })),
+      });
     });
-    // 1 sola giornata richiesta (il default sarebbe 28): qui si verifica la conversione
-    // del JSON dell'AI in dieta/ricette/giornate/gruppi, non la replica del ciclo.
+  }
+
+  it('genera UNA settimana: 7 ricette per ogni pasto e 7 giornate, nessun piatto ripetuto', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
     const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
-    expect(res).toEqual(expect.objectContaining({ recipes: 1, days: 1, groups: 1, dietId: 'dietGen' }));
-    expect(prisma.diet.create).toHaveBeenCalled();
-    expect(prisma.recipe.create).toHaveBeenCalledTimes(1);
+    // 5 pasti × 7 giorni = 35 ricette. Col vecchio generatore erano 5 per pasto in tutto.
+    expect(res).toEqual(expect.objectContaining({ week: 1, recipes: 35, days: 7, dietId: 'dietGen' }));
+    expect(prisma.recipe.create).toHaveBeenCalledTimes(35);
+    expect(prisma.dietDayTemplate.create).toHaveBeenCalledTimes(7);
     // ricetta creata in BOZZA (non attiva, allergeni da confermare)
     expect(prisma.recipe.create.mock.calls[0][0].data).toEqual(expect.objectContaining({ active: false, allergensReviewed: false }));
-    expect(prisma.dietDayTemplate.create).toHaveBeenCalledTimes(1);
     expect(prisma.equivalenceGroup.create).toHaveBeenCalledTimes(1);
     expect(prisma.productRule.upsert).toHaveBeenCalled(); // regole del preset applicate alla dieta
+
+    // Dentro la settimana ogni giorno ha piatti diversi dagli altri giorni: è tutto il punto.
+    const giorni = prisma.dietDayTemplate.create.mock.calls.map((c: any) => c[0].data);
+    expect(giorni.map((d: any) => d.dayIndex)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    const usate = giorni.flatMap((d: any) => d.meals.map((m: any) => m.recipeId));
+    expect(new Set(usate).size).toBe(usate.length);
+  });
+
+  it('la settimana 2 si aggiunge in coda alla 1, senza ricreare la dieta', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 }); // c'è già la settimana 1
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 2);
+    expect(res.week).toBe(2);
+    expect(prisma.diet.create).not.toHaveBeenCalled();
+    const indici = prisma.dietDayTemplate.create.mock.calls.map((c: any) => c[0].data.dayIndex);
+    expect(indici).toEqual([8, 9, 10, 11, 12, 13, 14]);
+    // Gruppi e regole appartengono alla dieta, non alla settimana: non si riscrivono.
+    expect(prisma.equivalenceGroup.create).not.toHaveBeenCalled();
+  });
+
+  it('una settimana già fatta non si tocca (a meno che non si chieda di rifarla)', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 14 });
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 2);
+    expect(res).toEqual(expect.objectContaining({ alreadyExists: true, week: 2, recipes: 0 }));
+    expect(prisma.recipe.create).not.toHaveBeenCalled();
+  });
+
+  it('la variante a 3 pasti RIUSA le ricette di quella a 5: stessa dieta, stesso regime', async () => {
+    const { service, prisma, ai } = build();
+    // Preset a 3 pasti della stessa famiglia già generata a 5 pasti.
+    prisma.rulePreset.findUnique.mockResolvedValue({
+      id: 'p1', label: 'Keto', style: 'keto', regime: 'omnivore', objective: 'dimagrimento', meals: '3', rules: {},
+    });
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([
+      { id: 'diet5', name: 'Keto', mealsPerDay: 5, fasting: false }, // la sorella già fatta
+    ]);
+    // La settimana 1 della sorella: 7 giornate con colazione, pranzo e cena (più gli spuntini).
+    prisma.dietDayTemplate.findMany.mockImplementation((args: any) => {
+      if (args?.where?.dayIndex && args?.where?.dietId?.in) {
+        return Promise.resolve(Array.from({ length: 7 }, (_, i) => ({
+          dayIndex: i + 1,
+          meals: [
+            { slot: 'breakfast', recipeId: `b${i}` },
+            { slot: 'morning_snack', recipeId: `ms${i}` },
+            { slot: 'lunch', recipeId: `l${i}` },
+            { slot: 'afternoon_snack', recipeId: `as${i}` },
+            { slot: 'dinner', recipeId: `d${i}` },
+          ],
+        })));
+      }
+      return Promise.resolve([]);
+    });
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    // Nessuna ricetta nuova: colazione, pranzo e cena arrivano dalla variante a 5 pasti.
+    expect(res.recipes).toBe(0);
+    expect(res.riusate).toBe(21); // 3 pasti × 7 giorni
+    expect(prisma.recipe.create).not.toHaveBeenCalled();
+    expect(ai.generateJson).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining('"slot":"breakfast"'), expect.anything());
+    // Le giornate però sono sue, con i suoi tre pasti.
+    const giorni = prisma.dietDayTemplate.create.mock.calls.map((c: any) => c[0].data);
+    expect(giorni).toHaveLength(7);
+    expect(giorni[0].meals.map((m: any) => m.slot)).toEqual(['breakfast', 'lunch', 'dinner']);
+    expect(giorni[0].meals.map((m: any) => m.recipeId)).toEqual(['b0', 'l0', 'd0']);
+  });
+
+  it('rigenerando una settimana non si cancellano ricette GIÀ ATTIVE (potrebbero stare in menu consegnati)', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 });
+    prisma.dietDayTemplate.findMany.mockImplementation((args: any) => {
+      // Le giornate DELLA settimana da rifare. La query delle "altre" (quella con OR) deve
+      // tornare vuota, altrimenti la ricetta non risulterebbe orfana e non si arriverebbe
+      // nemmeno al filtro che questo test verifica.
+      if (args?.where?.OR) return Promise.resolve([]);
+      return Promise.resolve([{ dayIndex: 1, meals: [{ slot: 'lunch', recipeId: 'attiva-1' }] }]);
+    });
+    // La query che filtra le cancellabili chiede `active: false`: qui non ne torna nessuna.
+    prisma.recipe.findMany.mockResolvedValue([]);
+    await service.generateCatalogFromPreset('p1', 'u1', 1, true);
+    const richiesta = prisma.recipe.findMany.mock.calls.find((c: any) => c[0]?.where?.active === false);
+    expect(richiesta).toBeTruthy(); // ← senza questo filtro si cancellavano anche le attive
+    expect(prisma.recipe.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('niente buchi: non si può saltare a una settimana lontana', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 });
+    // Settimana 1 e 3 senza la 2 darebbe un ciclo con giornate mancanti in mezzo.
+    await expect(service.generateCatalogFromPreset('p1', 'u1', 4)).rejects.toThrow(/in ordine/i);
   });
 
   it('createProposal: senza testo → errore; con testo → pending', async () => {

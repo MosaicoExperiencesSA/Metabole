@@ -7,6 +7,34 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BASE_RULES, ENGINE_RULES, ENGINE_RULE_BY_CODE, RULE_CATEGORIES } from './engine-rules.catalog';
 
 /**
+ * Il catalogo si genera una SETTIMANA per volta: 7 giorni, 7 ricette per ogni pasto previsto.
+ * Vedi `generateCatalogFromPreset` per il perché — in breve: chiedere all'AI 140 ricette in un
+ * colpo solo produce JSON rotto, chiederne 7 alla volta no.
+ */
+const GIORNI_SETTIMANA = 7;
+const SETTIMANE_MAX = 12;
+
+/** Nomi dei pasti in italiano: entrano nel prompt, quindi devono essere quelli veri. */
+const NOME_PASTO: Record<string, string> = {
+  breakfast: 'colazione',
+  morning_snack: 'spuntino di metà mattina',
+  lunch: 'pranzo',
+  afternoon_snack: 'merenda del pomeriggio',
+  dinner: 'cena',
+};
+
+/**
+ * Come si spartiscono le kcal della giornata fra i pasti. Prima la ripartizione la decideva
+ * l'AI componendo le giornate; ora che le giornate le compone il codice, la quota va detta —
+ * altrimenti ogni ricetta punterebbe alle kcal dell'intera giornata.
+ */
+function quoteKcalPerSlot(slots: string[], fasting: boolean): Record<string, number> {
+  if (fasting) return { lunch: 0.45, afternoon_snack: 0.1, dinner: 0.45 };
+  if (slots.length === 5) return { breakfast: 0.2, morning_snack: 0.1, lunch: 0.35, afternoon_snack: 0.1, dinner: 0.25 };
+  return { breakfast: 0.25, lunch: 0.4, dinner: 0.35 };
+}
+
+/**
  * Gestione delle regole del motore per il CAPO NUTRIZIONISTA:
  * - regole GLOBALI (config_param) — attive subito sul motore;
  * - regole SUGGERITE per tipo di nutrizione (rule_preset, flag `suggested`) — modificabili/aggiungibili;
@@ -165,12 +193,30 @@ export class EngineRulesService {
   }
 
   /**
-   * GENERA una BOZZA di catalogo dal preset con l'AI: ricette per pasto, giornate
-   * bilanciate, gruppi di equivalenza (alternative) e pre-tag allergeni. Tutto in BOZZA,
-   * non attivo: il nutrizionista rivede e approva (R7) e conferma gli allergeni (R8)
-   * prima che il motore lo usi. Ritorna i conteggi e l'id della dieta generata.
+   * GENERA una SETTIMANA di catalogo dal preset con l'AI: 7 ricette per ogni pasto previsto,
+   * più 7 giornate che le usano una per una. Tutto in BOZZA: il nutrizionista rivede e approva
+   * (R7) e conferma gli allergeni (R8) prima che il motore lo usi.
+   *
+   * ## Perché una settimana per volta
+   *
+   * Prima si chiedeva «per quanti giorni?» e si rispondeva 28 — ma il generatore produceva
+   * **5 ricette per pasto** e poi *ricombinava quelle* per 28 giornate. Il commento nel codice
+   * lo diceva («ridotto per output AI più piccolo e JSON più affidabile») e il conto tornava:
+   * la Keto Mediterranea aveva 28 ricette **in tutto**, non 28 colazioni + 28 pranzi + 28 cene.
+   * Con 5 colazioni su 28 giorni, ogni colazione torna cinque o sei volte: la ripetizione non
+   * era sfortuna, era aritmetica.
+   *
+   * Chiedere 140 ricette in un colpo solo riporterebbe il problema di partenza (JSON enorme e
+   * rotto). Quindi si lavora **una settimana per volta**, e dentro la settimana **un pasto per
+   * volta**: sette richieste piccole invece di una gigante, lanciate in parallelo. Il
+   * nutrizionista genera la settimana 1, guarda, genera la 2, e così via fino al mese.
+   *
+   * Le giornate si compongono **per indice**: il giorno 1 prende la prima ricetta di ogni pasto,
+   * il giorno 2 la seconda… Dentro la settimana non si ripete niente per costruzione, e le
+   * settimane successive partono da ricette nuove — all'AI si passa l'elenco dei nomi già in
+   * catalogo perché non li riproponga.
    */
-  async generateCatalogFromPreset(presetId: string, actorId: string, requestedDays = 28, replace = false) {
+  async generateCatalogFromPreset(presetId: string, actorId: string, settimanaRichiesta = 1, replace = false) {
     const preset = await this.prisma.rulePreset.findUnique({ where: { id: presetId } });
     if (!preset) throw new NotFoundException('Preset non trovato.');
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } })) as { id: string } | null;
@@ -192,168 +238,402 @@ export class EngineRulesService {
         ? ['lunch', 'afternoon_snack', 'dinner']
         : ['breakfast', 'lunch', 'dinner'];
     const mealsPerDay = slots.length;
-    const perSlot = 5; // ridotto per output AI più piccolo e JSON più affidabile
-    const days = Math.max(1, Math.min(60, Math.round(requestedDays) || 28));
-    const aiDays = Math.min(days, 10); // l'AI produce giornate campione bilanciate; il resto lo completa il codice
+    const week = Math.max(1, Math.min(SETTIMANE_MAX, Math.round(settimanaRichiesta) || 1));
+    const primoGiorno = (week - 1) * GIORNI_SETTIMANA + 1;
+    const ultimoGiorno = week * GIORNI_SETTIMANA;
 
-    // RIGENERARE = INTEGRARE: se questa variante (stesso nome+stile+regime+obiettivo+pasti)
-    // esiste già, di default NON si tocca (si integrano solo le varianti mancanti della
-    // famiglia). La sostituzione avviene solo su richiesta esplicita (replace=true).
     const objective = preset.objective ?? 'dimagrimento';
-    const variantWhere = { name: preset.label, style: preset.style, regime, objective, mealsPerDay, fasting } as never;
-    const existingVariant = (await this.prisma.diet.findFirst({ where: variantWhere, select: { id: true } })) as { id: string } | null;
-    if (existingVariant && !replace) {
-      return { alreadyExists: true as const, dietId: existingVariant.id, dietName: preset.label, recipes: 0, days: 0, groups: 0 };
+    // LA FAMIGLIA DI RICETTE è dieta + regime + obiettivo, SENZA la struttura pasti.
+    // Lo ha chiarito il nutrizionista: la Keto Mediterranea onnivora a 3 pasti, a 5 pasti e a
+    // digiuno intermittente mangia gli stessi piatti — cambia come sono distribuiti nella
+    // giornata, non che cosa sono. I piatti cambiano davvero quando cambia il REGIME (vegano,
+    // vegetariano) o lo STILE (keto invece di mediterranea).
+    // Quindi le tre varianti di struttura CONDIVIDONO le ricette: si generano una volta sola e
+    // le giornate delle altre varianti le riusano. Un Recipe non appartiene a una Diet — è
+    // referenziato dalle giornate — quindi condividerlo non richiede duplicati.
+    const famigliaWhere = { name: preset.label, style: preset.style, regime, objective } as never;
+    const famiglia = (await this.prisma.diet.findMany({
+      where: famigliaWhere,
+      select: { id: true, name: true, mealsPerDay: true, fasting: true },
+    })) as { id: string; name: string; mealsPerDay: number; fasting: boolean | null }[];
+    const existingVariant = famiglia.find((d) => d.mealsPerDay === mealsPerDay && !!d.fasting === fasting) ?? null;
+    const sorelle = famiglia.filter((d) => d.id !== existingVariant?.id).map((d) => d.id);
+
+    // Quante settimane esistono già su questa variante (dal giorno più alto in catalogo).
+    let settimaneFatte = 0;
+    if (existingVariant) {
+      const ultimo = (await this.prisma.dietDayTemplate.findFirst({
+        where: { dietId: existingVariant.id },
+        orderBy: { dayIndex: 'desc' },
+        select: { dayIndex: true },
+      })) as { dayIndex: number } | null;
+      settimaneFatte = Math.ceil((ultimo?.dayIndex ?? 0) / GIORNI_SETTIMANA);
     }
 
-    const mealPlanRule = fasting
-      ? 'DIGIUNO INTERMITTENTE 16:8: tutti i pasti nella finestra 12:00-20:00 (niente colazione né spuntino mattutino); pranzo e cena più sostanziosi per coprire il fabbisogno.'
-      : mealsPerDay === 3
-        ? '3 PASTI: colazione, pranzo e cena, senza spuntini; ogni pasto copre di più del fabbisogno.'
-        : '5 PASTI: colazione, spuntino, pranzo, merenda e cena.';
+    // Le settimane si generano in ordine: un buco (settimana 1 e 3 senza la 2) darebbe un ciclo
+    // con giornate mancanti in mezzo, che il motore non sa colmare.
+    if (week > settimaneFatte + 1) {
+      throw new BadRequestException(
+        `Le settimane si generano una alla volta e in ordine: la prossima da generare è la ${settimaneFatte + 1}.`,
+      );
+    }
+    // Settimana già in catalogo: non si tocca, a meno che non sia chiesto esplicitamente.
+    if (week <= settimaneFatte && !replace) {
+      return {
+        alreadyExists: true as const,
+        dietId: existingVariant!.id,
+        dietName: existingVariant!.name,
+        week,
+        settimaneFatte,
+        recipes: 0,
+        riusate: 0,
+        days: 0,
+        groups: 0,
+      };
+    }
+
+    // Nomi già in catalogo in TUTTA la famiglia: servono all'AI per non riproporre gli stessi
+    // piatti nelle settimane successive (è il punto di tutta l'operazione).
+    const nomiGiaUsati = await this.nomiRicetteFamiglia(famiglia.map((d) => d.id));
+
+    // SOSTITUZIONE di una settimana già fatta: si cancellano SOLO le sue giornate e le ricette
+    // che nessun'altra giornata usa — nemmeno quelle delle varianti sorelle. Il resto resta.
+    if (existingVariant && replace && week <= settimaneFatte) {
+      await this.cancellaSettimana(existingVariant.id, primoGiorno, ultimoGiorno);
+    }
+
+    // Ricette che le varianti SORELLE hanno già per questa settimana, pasto per pasto e in
+    // ordine di giornata. Se ci sono, questa variante le riusa invece di rigenerarle: stessa
+    // dieta, stesso regime, stessi piatti.
+    const condivise = await this.ricetteSettimanaDelleSorelle(sorelle, primoGiorno, ultimoGiorno);
+    const daGenerare = slots.filter((sl) => (condivise.get(sl) ?? []).length === 0);
+
     const regimeRule = regime === 'vegan' ? 'nessun alimento di origine animale' : regime === 'vegetarian' ? 'niente carne né pesce (uova/latticini sì)' : 'onnivoro';
-    const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido e minificato, senza testo attorno: ogni elemento di array/oggetto separato da virgola, nessuna virgola finale. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
-    const user =
-`Genera una bozza di catalogo per la dieta "${preset.label}" (stile ${preset.style}, regime ${regime}${preset.objective ? `, obiettivo ${preset.objective}` : ''}).
-Vincoli: proteine ${protMin}-${protMax}% delle kcal; giornata ~${targetKcal} kcal (tolleranza ±${kcalTol}%). Regime: ${regimeRule}. Struttura pasti: ${mealPlanRule}${preset.clinicalNotes ? ` Regole cliniche da rispettare: ${preset.clinicalNotes}` : ''}
-Per OGNI pasto tra [${slots.join(', ')}] genera ${perSlot} ricette. Ogni ricetta: {"ref":"slug-univoco","slot":"<pasto>","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"veloce|forno|meal_prep","steps":["passo 1","passo 2"]}]}.
-Poi ${aiDays} giornate bilanciate ~${targetKcal} kcal: {"level":1,"dayIndex":<1..${aiDays}>,"meals":[{"slot":"<pasto>","ref":"<ref di una ricetta di quel pasto>"}]}.
-Infine gruppi di equivalenza (alimenti intercambiabili a struttura simile): [{"name":"es. Pesci bianchi","items":["branzino","orata","merluzzo"]}].
-Rispondi con: {"recipes":[...],"days":[...],"equivalenceGroups":[...]}`;
+    const quote = quoteKcalPerSlot(slots, fasting);
 
-    type GenShape = { recipes?: unknown[]; days?: unknown[]; equivalenceGroups?: unknown[] };
-    // Su output grandi l'AI a volte restituisce JSON malformato (in punti diversi
-    // ogni volta): fino a 3 tentativi, poi si arrende con un errore chiaro.
-    let gen: GenShape | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      gen = await this.ai.generateJson<GenShape>(system, user, 12000);
-      if (gen && Array.isArray(gen.recipes) && gen.recipes.length > 0) break;
-    }
-    if (!gen) throw new BadRequestException(`Generazione non riuscita: ${this.ai.lastError ?? 'assistente AI non disponibile'}.`);
-    const recipes = Array.isArray(gen.recipes) ? (gen.recipes as Record<string, unknown>[]) : [];
-    if (recipes.length === 0) throw new BadRequestException('L\'AI non ha prodotto ricette valide: riprova.');
+    // Un pasto per volta, in parallelo: richieste piccole al posto di una gigante. Se una
+    // fallisce non trascina le altre — si genera quel che c'è e lo si dice.
+    const generati = await Promise.all(
+      daGenerare.map(async (slot) => ({
+        slot,
+        ricette: await this.generaRicetteDiUnPasto({
+          slot,
+          quante: GIORNI_SETTIMANA,
+          label: preset.label,
+          style: preset.style,
+          objective,
+          regime,
+          regimeRule,
+          clinicalNotes: preset.clinicalNotes ?? null,
+          kcalPasto: Math.round(targetKcal * (quote[slot] ?? 1 / slots.length)),
+          kcalGiorno: targetKcal,
+          kcalTol,
+          protMin,
+          protMax,
+          fasting,
+          settimana: week,
+          nomiDaEvitare: nomiGiaUsati,
+        }),
+      })),
+    );
 
-    // SOSTITUZIONE ESPLICITA (replace=true): la versione precedente di QUESTA variante
-    // (stesso nome+stile+regime+obiettivo+pasti) si elimina — con giornate, regole,
-    // gruppi e ricette generate non referenziate altrove — così non si accumulano doppioni
-    // nel catalogo. Le diete già usate in menu erogati NON si toccano (storia clienti).
-    const previous = (await this.prisma.diet.findMany({
-      where: variantWhere,
-      select: { id: true },
-    })) as { id: string }[];
-    for (const old of previous) {
-      const used = await this.prisma.menuDay.count({ where: { dietId: old.id } });
-      if (used > 0) continue;
-      // Ricette referenziate SOLO dalle giornate della vecchia versione (non da altre diete).
-      const oldTpls = (await this.prisma.dietDayTemplate.findMany({ where: { dietId: old.id }, select: { meals: true } })) as { meals: unknown }[];
-      const orphanIds = new Set<string>();
-      for (const t of oldTpls) for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) if (m.recipeId) orphanIds.add(m.recipeId);
-      const otherTpls = (await this.prisma.dietDayTemplate.findMany({ where: { dietId: { not: old.id } }, select: { meals: true } })) as { meals: unknown }[];
-      for (const t of otherTpls) for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) if (m.recipeId) orphanIds.delete(m.recipeId);
-      const ids = [...orphanIds];
-      await this.prisma.$transaction([
-        this.prisma.dietDayTemplate.deleteMany({ where: { dietId: old.id } }),
-        this.prisma.productRule.deleteMany({ where: { dietId: old.id } }),
-        this.prisma.equivalenceGroup.deleteMany({ where: { productId: old.id } as never }),
-        ...(ids.length ? [
-          this.prisma.recipeRating.deleteMany({ where: { recipeId: { in: ids } } }),
-          this.prisma.menuWeight.deleteMany({ where: { recipeId: { in: ids } } }),
-          this.prisma.recipe.deleteMany({ where: { id: { in: ids } } }),
-        ] : []),
-        this.prisma.diet.delete({ where: { id: old.id } }),
-      ]);
+    const vuoti = generati.filter((p) => p.ricette.length === 0).map((p) => p.slot);
+    if (daGenerare.length > 0 && vuoti.length === daGenerare.length && condivise.size === 0) {
+      throw new BadRequestException(`Generazione non riuscita: ${this.ai.lastError ?? 'assistente AI non disponibile'}.`);
     }
 
-    const validSlots = new Set(slots);
-    const diet = await this.prisma.diet.create({
-      data: {
-        name: preset.label,
-        regime, style: preset.style, mealsPerDay, fasting,
-        levels: [{ level: 1, kcal: targetKcal }], options: fasting ? { intermittentFasting: '16:8', window: '12-20' } : {},
-        authorId: staff.id, status: 'draft',
-        objective, clientVisible: false,
-      } as never,
-    });
+    // La dieta si crea solo alla prima settimana; dalla seconda si aggiunge a quella che c'è.
+    const diet = existingVariant
+      ? existingVariant
+      : ((await this.prisma.diet.create({
+          data: {
+            name: preset.label,
+            regime, style: preset.style, mealsPerDay, fasting,
+            levels: [{ level: 1, kcal: targetKcal }], options: fasting ? { intermittentFasting: '16:8', window: '12-20' } : {},
+            authorId: staff.id, status: 'draft',
+            objective, clientVisible: false,
+          } as never,
+        })) as { id: string; name: string });
 
-    const refToId = new Map<string, string>();
+    // Ricette in bozza, tenute in ordine per pasto: l'ordine È l'abbinamento alle giornate.
     const bySlot = new Map<string, string[]>();
     let recCount = 0;
-    for (const r of recipes) {
-      const slot = validSlots.has(String(r.slot)) ? String(r.slot) : 'lunch';
-      const ingredients = Array.isArray(r.ingredients) ? r.ingredients : [];
-      const allergens = suggestAllergens(ingredients).map((s) => s.allergen);
-      const created = await this.prisma.recipe.create({
-        data: {
-          name: String(r.name ?? 'Ricetta generata').slice(0, 120),
-          regime, mealSlot: slot as never,
-          kcal: Math.max(0, Math.round(Number(r.kcal) || 0)),
-          ingredients: ingredients as never,
-          cookingMethods: (Array.isArray(r.cookingMethods) ? r.cookingMethods : []) as never,
-          macros: (r.macros ?? undefined) as never,
-          tags: [`gen:${preset.style}`],
-          active: false, // BOZZA: non entra nel motore finché non approvata
-          allergens, allergensReviewed: false,
-        } as never,
-      });
-      if (r.ref) refToId.set(String(r.ref), created.id);
-      const arr = bySlot.get(slot) ?? [];
-      arr.push(created.id);
-      bySlot.set(slot, arr);
-      recCount++;
+    let riusate = 0;
+    for (const sl of slots) {
+      const gia = condivise.get(sl) ?? [];
+      if (gia.length) { bySlot.set(sl, gia); riusate += gia.length; continue; }
+      const ricette = generati.find((g) => g.slot === sl)?.ricette ?? [];
+      const ids: string[] = [];
+      for (const r of ricette) {
+        const ingredients = Array.isArray(r.ingredients) ? r.ingredients : [];
+        const allergens = suggestAllergens(ingredients).map((s) => s.allergen);
+        const created = await this.prisma.recipe.create({
+          data: {
+            name: String(r.name ?? 'Ricetta generata').slice(0, 120),
+            regime, mealSlot: sl as never,
+            kcal: Math.max(0, Math.round(Number(r.kcal) || 0)),
+            ingredients: ingredients as never,
+            cookingMethods: (Array.isArray(r.cookingMethods) ? r.cookingMethods : []) as never,
+            macros: (r.macros ?? undefined) as never,
+            tags: [`gen:${preset.style}`, `sett:${week}`],
+            active: false, // BOZZA: non entra nel motore finché non approvata
+            allergens, allergensReviewed: false,
+          } as never,
+        });
+        ids.push(created.id);
+        recCount++;
+      }
+      bySlot.set(sl, ids);
     }
 
+    // Giornate per INDICE: giorno 1 = prima ricetta di ogni pasto, giorno 2 = seconda…
+    // Dentro la settimana non si ripete niente per costruzione. Se un pasto ha prodotto meno
+    // di sette piatti si ruota su quelli disponibili invece di lasciare il giorno monco.
     let dayCount = 0;
-    // Giornate bilanciate dall'AI (dayIndex sequenziale, per evitare collisioni).
-    for (const d of (Array.isArray(gen.days) ? gen.days : []) as Record<string, unknown>[]) {
-      if (dayCount >= days) break;
-      const meals = (Array.isArray(d.meals) ? d.meals : [])
-        .map((m) => ({ slot: (m as Record<string, unknown>).slot, recipeId: refToId.get(String((m as Record<string, unknown>).ref)) }))
-        .filter((m) => m.recipeId);
-      if (meals.length === 0) continue;
-      await this.prisma.dietDayTemplate.create({
-        data: { dietId: diet.id, level: 1, dayIndex: dayCount + 1, meals: meals as never },
-      });
-      dayCount++;
-    }
-    // Completa fino ai giorni richiesti ruotando il pool di ricette per slot (varietà).
-    while (dayCount < days) {
-      const meals = slots
-        .map((sl, k) => {
+    for (let j = 0; j < GIORNI_SETTIMANA; j++) {
+      const pasti = slots
+        .map((sl) => {
           const pool = bySlot.get(sl) ?? [];
-          return pool.length ? { slot: sl, recipeId: pool[(dayCount + k) % pool.length] } : null;
+          return pool.length ? { slot: sl, recipeId: pool[j % pool.length] } : null;
         })
-        .filter((mm): mm is { slot: string; recipeId: string } => !!mm);
-      if (meals.length === 0) break;
+        .filter((m): m is { slot: string; recipeId: string } => !!m);
+      if (pasti.length === 0) break;
       await this.prisma.dietDayTemplate.create({
-        data: { dietId: diet.id, level: 1, dayIndex: dayCount + 1, meals: meals as never },
+        data: { dietId: diet.id, level: 1, dayIndex: primoGiorno + j, meals: pasti as never },
       });
       dayCount++;
     }
 
+    // Gruppi di equivalenza e regole del preset: roba della dieta, non della settimana.
+    // Si fanno solo quando la dieta nasce, altrimenti si riscriverebbero identici ogni volta.
     let grpCount = 0;
-    for (const g of (Array.isArray(gen.equivalenceGroups) ? gen.equivalenceGroups : []) as Record<string, unknown>[]) {
+    if (!existingVariant) {
+      grpCount = await this.generaGruppiEquivalenza(diet.id, preset.label, regime, regimeRule);
+      for (const [code, value] of Object.entries(rules)) {
+        const rule = ENGINE_RULE_BY_CODE.get(code);
+        if (!rule) continue;
+        const enabled = rule.kind === 'boolean' ? Boolean(value) : true;
+        await this.prisma.productRule.upsert({
+          where: { dietId_ruleCode: { dietId: diet.id, ruleCode: code } },
+          create: { dietId: diet.id, ruleCode: code, enabled, params: { value } as never },
+          update: { enabled, params: { value } as never },
+        });
+      }
+    }
+
+    await this.audit.log({
+      action: 'engine_rule.preset.generate_catalog',
+      actorId, entityType: 'diet', entityId: diet.id,
+      metadata: { presetId, week, recipes: recCount, riusate, days: dayCount, groups: grpCount, pastiVuoti: vuoti },
+    });
+    return {
+      dietId: diet.id,
+      dietName: diet.name,
+      week,
+      settimaneFatte: Math.max(settimaneFatte, week),
+      recipes: recCount,
+      /** Ricette prese da una variante sorella invece di rigenerarle (stessa dieta, stesso regime). */
+      riusate,
+      days: dayCount,
+      groups: grpCount,
+      /** Pasti per cui l'AI non ha prodotto niente: il nutrizionista deve saperlo. */
+      pastiIncompleti: vuoti,
+    };
+  }
+
+  /** Quante settimane di catalogo ha già la variante di questo preset (0 se non esiste). */
+  async settimaneGenerate(presetId: string): Promise<{ dietId: string | null; settimane: number; giorni: number }> {
+    const preset = await this.prisma.rulePreset.findUnique({ where: { id: presetId } });
+    if (!preset) throw new NotFoundException('Preset non trovato.');
+    const regime = ['omnivore', 'vegetarian', 'vegan'].includes(preset.regime ?? '') ? (preset.regime as string) : 'omnivore';
+    const meals = ['3', '5', 'fasting'].includes((preset as { meals?: string | null }).meals ?? '') ? String((preset as { meals?: string | null }).meals) : '5';
+    const fasting = meals === 'fasting';
+    const mealsPerDay = fasting ? 3 : meals === '5' ? 5 : 3;
+    const diet = (await this.prisma.diet.findFirst({
+      where: { name: preset.label, style: preset.style, regime, objective: preset.objective ?? 'dimagrimento', mealsPerDay, fasting } as never,
+      select: { id: true },
+    })) as { id: string } | null;
+    if (!diet) return { dietId: null, settimane: 0, giorni: 0 };
+    const ultimo = (await this.prisma.dietDayTemplate.findFirst({
+      where: { dietId: diet.id },
+      orderBy: { dayIndex: 'desc' },
+      select: { dayIndex: true },
+    })) as { dayIndex: number } | null;
+    const giorni = ultimo?.dayIndex ?? 0;
+    return { dietId: diet.id, settimane: Math.ceil(giorni / GIORNI_SETTIMANA), giorni };
+  }
+
+  /**
+   * Nomi delle ricette già presenti in TUTTA la famiglia (le varianti di struttura pasti della
+   * stessa dieta e dello stesso regime): servono per non farle ripetere all'AI settimana dopo
+   * settimana. Sulla famiglia e non sulla singola variante, perché le ricette sono condivise.
+   */
+  private async nomiRicetteFamiglia(dietIds: string[]): Promise<string[]> {
+    if (dietIds.length === 0) return [];
+    const templates = (await this.prisma.dietDayTemplate.findMany({
+      where: { dietId: { in: dietIds } },
+      select: { meals: true },
+    })) as { meals: unknown }[];
+    const ids = new Set<string>();
+    for (const t of templates) {
+      for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) if (m.recipeId) ids.add(m.recipeId);
+    }
+    if (ids.size === 0) return [];
+    const recipes = (await this.prisma.recipe.findMany({
+      where: { id: { in: [...ids] } },
+      select: { name: true },
+    })) as { name: string }[];
+    return recipes.map((r) => r.name);
+  }
+
+  /**
+   * Ricette che le varianti SORELLE (stessa dieta, stesso regime, altra struttura pasti) hanno
+   * già per questa settimana: pasto per pasto, in ordine di giornata.
+   *
+   * È quello che permette di generare una volta sola: la Keto Mediterranea onnivora a 5 pasti,
+   * a 3 pasti e a digiuno intermittente mangiano gli stessi piatti — cambia come sono
+   * distribuiti nella giornata. La variante a 3 pasti prende colazione, pranzo e cena da quella
+   * a 5 e non chiede niente all'AI; il digiuno prende pranzo, merenda e cena.
+   */
+  private async ricetteSettimanaDelleSorelle(
+    sorelle: string[],
+    dalGiorno: number,
+    alGiorno: number,
+  ): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    if (sorelle.length === 0) return out;
+    const templates = (await this.prisma.dietDayTemplate.findMany({
+      where: { dietId: { in: sorelle }, dayIndex: { gte: dalGiorno, lte: alGiorno } },
+      orderBy: { dayIndex: 'asc' },
+      select: { dayIndex: true, meals: true },
+    })) as { dayIndex: number; meals: unknown }[];
+    // Un pasto per giornata: se due sorelle hanno la stessa giornata, la prima vince — sono
+    // comunque le stesse ricette, e quel che conta è che l'ordine resti quello dei giorni.
+    const perSlot = new Map<string, Map<number, string>>();
+    for (const t of templates) {
+      for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
+        if (!m.slot || !m.recipeId) continue;
+        const perGiorno = perSlot.get(m.slot) ?? new Map<number, string>();
+        if (!perGiorno.has(t.dayIndex)) perGiorno.set(t.dayIndex, m.recipeId);
+        perSlot.set(m.slot, perGiorno);
+      }
+    }
+    for (const [slot, perGiorno] of perSlot) {
+      const ordinate = [...perGiorno.entries()].sort((a, b) => a[0] - b[0]).map(([, id]) => id);
+      if (ordinate.length) out.set(slot, ordinate);
+    }
+    return out;
+  }
+
+  /**
+   * Cancella UNA settimana: le sue giornate, e le ricette che nessun altro sta usando.
+   *
+   * Due protezioni, e la seconda è quella che conta:
+   *  1. una ricetta usata da un'ALTRA settimana o da una variante SORELLA non si tocca;
+   *  2. una ricetta **già attiva** non si cancella mai, nemmeno se non la usa più nessuna
+   *     giornata. Attiva vuol dire che il motore l'ha potuta erogare, quindi può stare dentro
+   *     un menu già consegnato: quel menu è una fotografia e continuerebbe a mostrarsi, ma le
+   *     valutazioni e le sostituzioni la cercano per id e non la troverebbero più.
+   *     Le bozze mai attivate (`active: false`) non sono mai uscite di qui: quelle si possono
+   *     buttare, ed è il caso normale di una rigenerazione.
+   * Il prezzo della protezione è qualche ricetta attiva orfana in catalogo dopo aver rigenerato
+   * una settimana di una dieta già pubblicata. È il verso giusto in cui sbagliare.
+   */
+  private async cancellaSettimana(dietId: string, dalGiorno: number, alGiorno: number): Promise<void> {
+    const dellaSettimana = (await this.prisma.dietDayTemplate.findMany({
+      where: { dietId, dayIndex: { gte: dalGiorno, lte: alGiorno } },
+      select: { meals: true },
+    })) as { meals: unknown }[];
+    const orfane = new Set<string>();
+    for (const t of dellaSettimana) {
+      for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) if (m.recipeId) orfane.add(m.recipeId);
+    }
+    const altre = (await this.prisma.dietDayTemplate.findMany({
+      where: { OR: [{ dietId: { not: dietId } }, { dayIndex: { lt: dalGiorno } }, { dayIndex: { gt: alGiorno } }] },
+      select: { meals: true },
+    })) as { meals: unknown }[];
+    for (const t of altre) {
+      for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) if (m.recipeId) orfane.delete(m.recipeId);
+    }
+    // Solo le bozze mai attivate: vedi sopra.
+    const cancellabili = orfane.size
+      ? ((await this.prisma.recipe.findMany({
+          where: { id: { in: [...orfane] }, active: false },
+          select: { id: true },
+        })) as { id: string }[]).map((r) => r.id)
+      : [];
+    await this.prisma.$transaction([
+      this.prisma.dietDayTemplate.deleteMany({ where: { dietId, dayIndex: { gte: dalGiorno, lte: alGiorno } } }),
+      ...(cancellabili.length ? [
+        this.prisma.recipeRating.deleteMany({ where: { recipeId: { in: cancellabili } } }),
+        this.prisma.menuWeight.deleteMany({ where: { recipeId: { in: cancellabili } } }),
+        this.prisma.recipe.deleteMany({ where: { id: { in: cancellabili } } }),
+      ] : []),
+    ]);
+  }
+
+  /**
+   * Un pasto per volta: 7 ricette diverse fra loro e diverse da quelle già in catalogo.
+   * Una richiesta piccola è molto più affidabile di una grande — è il motivo per cui prima
+   * si chiedevano solo 5 ricette per pasto in tutto.
+   */
+  private async generaRicetteDiUnPasto(p: {
+    slot: string;
+    quante: number;
+    label: string;
+    style: string;
+    objective: string;
+    regime: string;
+    regimeRule: string;
+    clinicalNotes: string | null;
+    kcalPasto: number;
+    kcalGiorno: number;
+    kcalTol: number;
+    protMin: number;
+    protMax: number;
+    fasting: boolean;
+    settimana: number;
+    nomiDaEvitare: string[];
+  }): Promise<Record<string, unknown>[]> {
+    const nomeSlot = NOME_PASTO[p.slot] ?? p.slot;
+    // Solo gli ultimi nomi: la lista completa dopo qualche settimana diventa lunghissima e
+    // mangia il contesto senza aggiungere niente (i doppioni si fanno con i piatti recenti).
+    const evita = p.nomiDaEvitare.slice(-60);
+    const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido e minificato, senza testo attorno: ogni elemento di array/oggetto separato da virgola, nessuna virgola finale. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
+    const user =
+`Genera ${p.quante} ricette per il pasto "${nomeSlot}" della dieta "${p.label}" (stile ${p.style}, regime ${p.regime}, obiettivo ${p.objective}).
+Ognuna ~${p.kcalPasto} kcal (è la quota di questo pasto su una giornata di ~${p.kcalGiorno} kcal, tolleranza ±${p.kcalTol}%); proteine ${p.protMin}-${p.protMax}% delle kcal sulla giornata. Regime: ${p.regimeRule}.${p.fasting ? ' Digiuno intermittente 16:8: pasti solo nella finestra 12:00-20:00.' : ''}${p.clinicalNotes ? ` Regole cliniche da rispettare: ${p.clinicalNotes}` : ''}
+Le ${p.quante} ricette devono essere DIVERSE fra loro per ingrediente principale e metodo di cottura: servono a coprire ${p.quante} giorni consecutivi senza che la cliente mangi due volte la stessa cosa.${evita.length ? `\nNON riproporre questi piatti, sono già in catalogo: ${evita.join('; ')}.` : ''}
+Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"veloce|forno|meal_prep","steps":["passo 1","passo 2"]}]}]}`;
+
+    // Su output grandi l'AI a volte restituisce JSON malformato (in punti diversi ogni volta):
+    // fino a 3 tentativi, poi si rinuncia a QUESTO pasto senza far cadere gli altri.
+    for (let tentativo = 0; tentativo < 3; tentativo++) {
+      const gen = await this.ai.generateJson<{ recipes?: unknown[] }>(system, user, 8000);
+      const ricette = Array.isArray(gen?.recipes) ? (gen!.recipes as Record<string, unknown>[]) : [];
+      const buone = ricette.filter((r) => r && typeof r.name === 'string' && r.name.trim());
+      if (buone.length > 0) return buone.slice(0, p.quante);
+    }
+    return [];
+  }
+
+  /** Gruppi di equivalenza (alimenti intercambiabili): una richiesta breve, solo alla nascita. */
+  private async generaGruppiEquivalenza(dietId: string, label: string, regime: string, regimeRule: string): Promise<number> {
+    const gen = await this.ai.generateJson<{ equivalenceGroups?: unknown[] }>(
+      'Rispondi SOLO con JSON valido e minificato, senza testo attorno.',
+      `Per la dieta "${label}" (regime ${regime}: ${regimeRule}) elenca 5-8 gruppi di alimenti intercambiabili fra loro (struttura nutrizionale simile).\nFormato: {"equivalenceGroups":[{"name":"es. Pesci bianchi","items":["branzino","orata","merluzzo"]}]}`,
+      2000,
+    );
+    let grpCount = 0;
+    for (const g of (Array.isArray(gen?.equivalenceGroups) ? gen!.equivalenceGroups : []) as Record<string, unknown>[]) {
       const items = Array.isArray(g.items) ? g.items.map((x) => String(x)) : [];
       if (!g.name || items.length < 2) continue;
       await this.prisma.equivalenceGroup.create({
-        data: { name: String(g.name).slice(0, 120), productId: diet.id, members: { items } as never, status: 'draft', version: 1 } as never,
+        data: { name: String(g.name).slice(0, 120), productId: dietId, members: { items } as never, status: 'draft', version: 1 } as never,
       });
       grpCount++;
     }
-
-    // Applica al prodotto le regole del preset (override per dieta).
-    for (const [code, value] of Object.entries(rules)) {
-      const rule = ENGINE_RULE_BY_CODE.get(code);
-      if (!rule) continue;
-      const enabled = rule.kind === 'boolean' ? Boolean(value) : true;
-      await this.prisma.productRule.upsert({
-        where: { dietId_ruleCode: { dietId: diet.id, ruleCode: code } },
-        create: { dietId: diet.id, ruleCode: code, enabled, params: { value } as never },
-        update: { enabled, params: { value } as never },
-      });
-    }
-
-    await this.audit.log({ action: 'engine_rule.preset.generate_catalog', actorId, entityType: 'diet', entityId: diet.id, metadata: { presetId, recipes: recCount, days: dayCount, groups: grpCount } });
-    return { dietId: diet.id, dietName: diet.name, recipes: recCount, days: dayCount, groups: grpCount };
+    return grpCount;
   }
 
   // ---------- Creazione e validazione (wizard) ----------

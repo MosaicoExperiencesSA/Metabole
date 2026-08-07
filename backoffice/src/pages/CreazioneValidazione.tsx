@@ -52,7 +52,16 @@ export function CreazioneValidazione() {
   // per niente, o peggio crede sia partita una generazione. Qui serve uno stato suo.
   const [generando, setGenerando] = useState(false);
 
-  const [days, setDays] = useState(28);
+  /**
+   * SETTIMANA da generare. Prima qui c'era «giorni da generare» con default 28, e sembrava
+   * dire «fammi 28 giornate diverse». Non era così: il generatore produceva 5 ricette per
+   * pasto e le ricombinava, quindi la stessa colazione tornava cinque o sei volte nel mese.
+   * Ora si genera una settimana per volta — 7 giorni con 7 ricette nuove per ogni pasto — e
+   * la pagina propone sempre la prossima.
+   */
+  const [week, setWeek] = useState(1);
+  /** Settimane già in catalogo per la variante scelta (per proporre la prossima). */
+  const [weeksDone, setWeeksDone] = useState<number | null>(null);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
   const [status, setStatus] = useState<ReviewStatus | null>(null);
   const { user } = useAuth();
@@ -64,6 +73,17 @@ export function CreazioneValidazione() {
   useEffect(() => {
     api<Preset[]>('/engine-rules/presets').then(setPresets).catch((e) => { setPresets([]); setError(e instanceof Error ? e.message : 'Caricamento diete non riuscito.'); });
   }, []);
+  // Quante settimane ha già la variante scelta: la pagina propone la prossima da generare,
+  // così il nutrizionista non deve ricordarselo a mente variante per variante.
+  useEffect(() => {
+    if (!activePresetId) { setWeeksDone(null); setWeek(1); return; }
+    let vivo = true;
+    api<{ settimane: number }>(`/engine-rules/presets/${activePresetId}/weeks`)
+      .then((r) => { if (!vivo) return; setWeeksDone(r.settimane); setWeek(Math.min(12, r.settimane + 1)); })
+      .catch(() => { if (vivo) { setWeeksDone(null); setWeek(1); } });
+    return () => { vivo = false; };
+  }, [activePresetId]);
+
   useEffect(() => {
     setShowPreview(false); setPreview(null);
     if (!dietId) { setStatus(null); return; }
@@ -242,8 +262,13 @@ export function CreazioneValidazione() {
   }
 
   async function generate() {
+    // Ordine dei target: prima quella con PIÙ pasti. Le ricette sono della dieta, non della
+    // struttura pasti (la Keto Mediterranea onnivora a 3, a 5 e a digiuno mangia gli stessi
+    // piatti), quindi chi viene dopo riusa quelle già generate: generando prima i 5 pasti si
+    // coprono tutti i pasti che servono agli altri e si fa una sola chiamata all'AI.
+    const pesoStruttura = (p: Preset) => ((p.meals as string) === '5' ? 0 : (p.meals as string) === '3' ? 1 : 2);
     const targets: Preset[] = (genAll && activeFamily)
-      ? activeFamily.variants
+      ? [...activeFamily.variants].sort((a, b) => pesoStruttura(a) - pesoStruttura(b))
       : ((presets ?? []).filter((p) => p.id === activePresetId));
     if (targets.length === 0) { setError('Scegli o salva una dieta prima di generare.'); return; }
     setBusy(true); setGenerando(true); setError(null); setNotice(null);
@@ -252,29 +277,40 @@ export function CreazioneValidazione() {
       let firstDietId: string | null = null;
       let generated = 0; let kept = 0;
       let idx = 0;
+      // Pasti per cui l'AI non ha prodotto niente: vanno detti, non nascosti dietro un "fatto".
+      const incompleti: string[] = [];
+      // Ricette prese da una variante sorella invece di rigenerarle.
+      let riusateTot = 0;
       for (const t of targets) {
         if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Genero ${idx + 1} di ${targets.length}: ${variantTag(t)}…` });
         idx += 1;
-        // INTEGRA, non sovrascrive: una variante già generata viene lasciata intatta.
-        // Solo sul singolo (non "genera tutte") si può scegliere di sostituirla.
-        let r = await api<{ dietId: string; alreadyExists?: boolean }>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ days }) });
+        // INTEGRA, non sovrascrive: una settimana già generata viene lasciata intatta.
+        // Solo sul singolo (non "genera tutte") si può scegliere di rifarla.
+        type GenRes = { dietId: string; alreadyExists?: boolean; week?: number; recipes?: number; riusate?: number; pastiIncompleti?: string[] };
+        let r = await api<GenRes>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ week }) });
         if (r.alreadyExists && targets.length === 1) {
           // eslint-disable-next-line no-alert
-          if (confirm('Questa variante ha già un catalogo generato. Vuoi SOSTITUIRLO con una nuova generazione? (Annulla = tienilo così)')) {
-            r = await api<{ dietId: string; alreadyExists?: boolean }>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ days, replace: true }) });
+          if (confirm(`La settimana ${week} di questa variante è già stata generata. Vuoi RIFARLA da capo? (Annulla = tienila così)`)) {
+            r = await api<GenRes>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ week, replace: true }) });
           }
         }
+        if ((r.pastiIncompleti ?? []).length) incompleti.push(`${variantTag(t)}: ${(r.pastiIncompleti ?? []).join(', ')}`);
+        riusateTot += r.riusate ?? 0;
         if (r.alreadyExists) kept += 1; else generated += 1;
         if (!firstDietId) firstDietId = r.dietId;
         if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Fatte ${idx} di ${targets.length}` });
       }
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
       void loadFamilyStatuses();
-      setNotice(targets.length > 1
-        ? `Fatto: ${generated} catalogo/i generato/i${kept ? `, ${kept} già esistenti lasciati intatti` : ''} (una variante per combinazione regime × obiettivo × pasti). Validali e pubblicali tutti insieme al passo 3.`
+      // Avanza da sola alla settimana successiva: è il gesto che il nutrizionista farebbe comunque.
+      if (generated > 0) { setWeeksDone((w) => Math.max(w ?? 0, week)); setWeek((w) => Math.min(12, w + 1)); }
+      const coda = (riusateTot ? ` ${riusateTot} ricette riprese dalle varianti sorelle (stessa dieta e stesso regime: i piatti sono gli stessi, cambia come sono distribuiti nella giornata).` : '')
+        + (incompleti.length ? ` ⚠️ L'AI non ha prodotto ricette per: ${incompleti.join(' · ')} — rigenera questa settimana.` : '');
+      setNotice((targets.length > 1
+        ? `Settimana ${week} fatta su ${generated} variante/i${kept ? `, ${kept} l'avevano già` : ''}. Quando hai le settimane che vuoi, valida e pubblica al passo 3.`
         : generated > 0
-          ? 'Catalogo bozza generato. Procedi con la validazione qui sotto.'
-          : 'La variante aveva già il suo catalogo: lasciato intatto.');
+          ? `Settimana ${week} generata: 7 giornate con ricette nuove per ogni pasto. Genera la settimana successiva, oppure valida qui sotto.`
+          : `La settimana ${week} c'era già: lasciata intatta.`) + coda);
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
     finally { setBusy(false); setGenerando(false); setProgress(null); }
   }
@@ -553,20 +589,52 @@ export function CreazioneValidazione() {
       {/* PASSO 2 — Genera */}
       <div className="card">
         <h2 style={{ marginTop: 0 }}><span className="chip" style={{ marginRight: 8 }}>2</span> Genera il catalogo</h2>
-        <p className="hint" style={{ marginTop: 0 }}>Crea una bozza (ricette, giornate, alternative, allergeni) dalla dieta scelta. Può richiedere fino a un minuto.</p>
+        <p className="hint" style={{ marginTop: 0 }}>Crea una bozza (ricette, giornate, alternative, allergeni) dalla dieta scelta, <b>una settimana per volta</b>. Può richiedere fino a un minuto per settimana.</p>
         {activeFamily && activeFamily.variants.length > 1 && (
           <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 10 }}>
             <input type="checkbox" checked={genAll} onChange={(e) => setGenAll(e.target.checked)} />
             <span style={{ fontSize: 13 }}>Genera <b>tutte le {activeFamily.variants.length} varianti</b> del gruppo (ricette, allergeni, giornate e gruppi di equivalenza per ogni combinazione regime × obiettivo)</span>
           </label>
         )}
-        <label className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
-          <span className="muted" style={{ fontSize: 13 }}>Giorni da generare</span>
-          <input className="input" type="number" min={1} max={60} value={days}
-            onChange={(e) => setDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
-            style={{ width: 90 }} />
-          <span className="muted" style={{ fontSize: 12 }}>(consigliato 28 = un mese)</span>
-        </label>
+        {/* Una settimana per volta. Il numero grande («28 giorni») prometteva 28 giornate
+            diverse e non era vero: il generatore faceva 5 ricette per pasto e le ricombinava.
+            Qui si vede quante settimane ci sono e qual è la prossima. */}
+        <div style={{ marginBottom: 12 }}>
+          <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>
+            Settimana da generare
+            {weeksDone !== null && weeksDone > 0 && (
+              <> — già in catalogo: <b>{weeksDone === 1 ? '1 settimana' : `${weeksDone} settimane`}</b> ({weeksDone * 7} giorni)</>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => {
+              const fatta = weeksDone !== null && n <= weeksDone;
+              const prossima = weeksDone !== null && n === weeksDone + 1;
+              const scelta = n === week;
+              // Oltre la prossima non si può andare: un buco fra la 1 e la 3 lascerebbe il
+              // ciclo con giornate mancanti in mezzo, e il motore non sa colmarle.
+              const bloccata = weeksDone !== null && n > weeksDone + 1;
+              return (
+                <button key={n} type="button" disabled={bloccata || busy}
+                  onClick={() => setWeek(n)}
+                  title={fatta ? 'Già generata: la puoi rifare' : prossima ? 'La prossima da generare' : bloccata ? 'Genera prima le settimane precedenti' : ''}
+                  style={{
+                    minWidth: 92, padding: '7px 10px', borderRadius: 9, fontSize: 12.5, fontWeight: 600,
+                    cursor: bloccata ? 'not-allowed' : 'pointer', opacity: bloccata ? 0.4 : 1,
+                    border: `1.5px solid ${scelta ? 'var(--teal)' : 'var(--line)'}`,
+                    background: scelta ? 'var(--teal)' : fatta ? '#EEF3F1' : '#fff',
+                    color: scelta ? '#fff' : fatta ? '#5F6E6B' : '#2E3E3B',
+                  }}>
+                  {fatta && !scelta ? '✓ ' : ''}Settimana {n}
+                </button>
+              );
+            })}
+          </div>
+          <p className="muted" style={{ fontSize: 12, margin: '7px 0 0' }}>
+            Ogni settimana sono <b>7 giornate</b> con <b>7 ricette nuove per ogni pasto</b> (nessun piatto ripetuto
+            dentro la settimana, e nemmeno rispetto alle settimane già fatte). Quattro settimane = un mese.
+          </p>
+        </div>
         <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
           {generando ? (
             <>
@@ -575,7 +643,7 @@ export function CreazioneValidazione() {
             </>
           ) : (
             <>
-              <i className="ti ti-sparkles" /> Genera catalogo bozza
+              <i className="ti ti-sparkles" /> Genera la settimana {week}
             </>
           )}
         </button>
@@ -586,7 +654,7 @@ export function CreazioneValidazione() {
         {generando && !progress && (
           <p className="muted" style={{ fontSize: 12, marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--line)', borderTopColor: 'var(--teal)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flex: 'none' }} />
-            Sto generando ricette, giornate, alternative e allergeni… può richiedere fino a un minuto.
+            Sto generando le ricette della settimana {week}, un pasto per volta… può richiedere fino a un minuto.
           </p>
         )}
         {!canGenerate && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>Scegli una dieta (o salvala se l'hai modificata) per abilitare la generazione.</p>}

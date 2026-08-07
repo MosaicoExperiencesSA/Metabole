@@ -7,6 +7,48 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-08
 
+- `[Prodotto]` 📅 **Il catalogo si genera una settimana per volta.** Aprendo le ricette della Keto
+  Mediterranea erano **28 in tutto**, non 28 colazioni + 28 pranzi + 28 cene + 28 merende. Il
+  generatore produceva **5 ricette per pasto** e poi *ricombinava quelle* per 28 giornate: il
+  commento nel codice lo diceva («ridotto per output AI più piccolo e JSON più affidabile»), e il
+  conto tornava — con 5 colazioni su 28 giorni ogni colazione torna cinque o sei volte. **La
+  ripetizione non era sfortuna, era aritmetica.**
+  Chiedere all'AI 140 ricette in un colpo solo riporterebbe il problema di partenza (JSON enorme e
+  rotto). Quindi: **una settimana per volta**, e dentro la settimana **un pasto per volta**. Sette
+  richieste piccole invece di una gigante, lanciate in parallelo.
+  Nel backoffice il campo «giorni da generare» è sparito: al suo posto ci sono i pulsanti
+  **Settimana 1, 2, 3…**, con la spunta su quelle già fatte e la prossima già selezionata. Oltre la
+  prossima non si può saltare: settimana 1 e 3 senza la 2 lascerebbe il ciclo con giornate mancanti
+  in mezzo, e il motore non sa colmarle.
+  Le giornate si compongono **per indice** — giorno 1 la prima ricetta di ogni pasto, giorno 2 la
+  seconda — quindi dentro la settimana non si ripete niente **per costruzione**, non per fortuna.
+  Alle settimane successive l'elenco dei piatti già in catalogo va nel prompt, così l'AI non li
+  ripropone.
+
+- `[Prodotto]` 🍽️ **Le ricette sono della dieta, non della struttura pasti.** Precisazione del
+  nutrizionista, e cambia parecchio: la Keto Mediterranea onnivora a **3 pasti**, a **5 pasti** e a
+  **digiuno intermittente** mangia gli **stessi piatti** — cambia come sono distribuiti nella
+  giornata, non che cosa sono. I piatti cambiano davvero quando cambia il **regime** (vegano,
+  vegetariano) o lo **stile** (keto invece di mediterranea).
+  Quindi le varianti di struttura ora **condividono le ricette**: si generano una volta sola e le
+  giornate delle altre le riusano (una ricetta non appartiene a una dieta, è referenziata dalle
+  giornate — condividerla non richiede duplicati). «Genera tutte le varianti» parte dalla variante
+  a 5 pasti, che copre tutti i pasti che servono alle altre: le altre due non chiamano più l'AI.
+  Da tre generazioni complete a una: meno attesa, meno costo, e soprattutto **le tre varianti
+  restano coerenti fra loro** invece di divergere ad ogni rigenerazione.
+  «Rigenera questa settimana» cancella solo le giornate di quella settimana e le ricette che
+  nessun altro sta usando — né un'altra settimana né una variante sorella. E **mai** una ricetta
+  già **attiva**: attiva vuol dire che il motore l'ha potuta erogare, quindi può stare dentro un
+  menu già consegnato. Quel menu è una fotografia e continuerebbe a mostrarsi, ma le valutazioni
+  e le sostituzioni cercano la ricetta per id e non la troverebbero più. Si buttano solo le bozze
+  mai attivate, che è il caso normale di una rigenerazione. Il prezzo è qualche ricetta orfana in
+  catalogo dopo aver rifatto una settimana di una dieta già pubblicata: è il verso giusto in cui
+  sbagliare.
+  ⚠️ **Le diete già generate col vecchio metodo restano magre.** La Keto Mediterranea ha 28
+  giornate, quindi risulta «4 settimane fatte»: per darle ricette vere va rifatta una settimana
+  per volta con «rigenera», partendo dalla variante a 5 pasti (le sorelle poi riusano le sue).
+  Test: +6 (658 in tutto).
+
 - `[Prodotto]` 🌶️ **Le spezie non sono più un cibo da escludere.** La regola l'ha dettata la
   nutrizionista, e nasce dalla cliente che riceveva lo stesso pranzo per quattro giorni di fila.
   Non era un difetto del motore: aveva trenta esclusioni, e fra quelle c'erano **curry** e

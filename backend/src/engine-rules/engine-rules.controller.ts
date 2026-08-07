@@ -26,8 +26,16 @@ class PresetDto {
   @IsOptional() @IsBoolean() suggested?: boolean;
 }
 class GenerateCatalogDto {
+  /**
+   * Settimana da generare: 1, poi 2, poi 3… una alla volta e in ordine. Ogni settimana sono
+   * 7 giorni con 7 ricette NUOVE per ogni pasto. Prima si chiedeva `days` (28), ma il
+   * generatore produceva 5 ricette per pasto e le ricombinava: 28 giornate fatte con 5
+   * colazioni sono 28 giorni in cui la stessa colazione torna cinque volte.
+   */
+  @IsOptional() @IsInt() @Min(1) @Max(12) week?: number;
+  /** @deprecated Sostituito da `week`. Resta accettato per non rompere chiamate vecchie. */
   @IsOptional() @IsInt() @Min(1) @Max(60) days?: number;
-  // true = sostituisce la variante già generata (default: integra, non tocca l'esistente).
+  // true = rigenera QUELLA settimana (default: non si tocca quello che c'è già).
   @IsOptional() @IsBoolean() replace?: boolean;
 }
 class ProposalDto {
@@ -85,11 +93,18 @@ export class EngineRulesController {
     return this.service.applyPresetToDiet(id, dietId, u.sub);
   }
 
-  /** Genera con l'AI una BOZZA di catalogo (ricette, giornate, alternative, allergeni)
-   *  dal preset: tutto in bozza, il nutrizionista rivede e approva. */
+  /** Genera con l'AI una BOZZA di catalogo per UNA settimana (7 giorni, 7 ricette per pasto):
+   *  tutto in bozza, il nutrizionista rivede e approva. Le settimane si chiedono in ordine. */
   @Post('presets/:id/generate-catalog')
   generateCatalog(@Param('id') id: string, @Body() dto: GenerateCatalogDto, @CurrentUser() u: AuthUser) {
-    return this.service.generateCatalogFromPreset(id, u.sub, dto.days, dto.replace ?? false);
+    return this.service.generateCatalogFromPreset(id, u.sub, dto.week ?? 1, dto.replace ?? false);
+  }
+
+  /** Quante settimane di catalogo ha già questa variante: serve al backoffice per proporre
+   *  la prossima da generare invece di far indovinare al nutrizionista. */
+  @Get('presets/:id/weeks')
+  weeks(@Param('id') id: string) {
+    return this.service.settimaneGenerate(id);
   }
 
   @Get('diets/:id/preview')
