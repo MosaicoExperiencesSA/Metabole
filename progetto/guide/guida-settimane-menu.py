@@ -300,37 +300,66 @@ def build(percorso):
     A(Paragraph('Da quali diete iniziare', S['h2']))
     A(Spacer(1, 5))
     A(Paragraph(
-        'Non serve rifare tutto subito. L\'ordine giusto è questo, dall\'alto in basso:', S['p']))
+        'In catalogo ci sono <b>287 varianti di dieta</b> e quasi tutte hanno il difetto dei cinque '
+        'piatti per pasto. Rifarle tutte a mano non è un lavoro da fare, e soprattutto non serve: '
+        '<b>solo 16 hanno una cliente sopra in questo momento</b>, e sono 25 clienti in tutto. '
+        'Quelle sedici sono le uniche in cui la ripetizione la sta vedendo qualcuno.', S['p']))
+    A(Spacer(1, 5))
+    A(Paragraph(
+        'E siccome le varianti della stessa dieta si passano i piatti, le sedici si riducono a '
+        '<b>dodici diete</b>. Questa è la lista, nell\'ordine in cui conviene farle.', S['p']))
     A(Spacer(1, 8))
+
     A(KeepTogether(tabella(
-        ['Ordine', 'Quali diete', 'Perché prima'],
+        ['', 'Dieta e regime', 'Clienti', 'Che cosa fare'],
         [
-            ['1',
-             'Le diete che <b>hanno clienti sopra adesso</b>, a partire da quelle con più clienti.',
-             'Sono le uniche in cui la ripetizione si vede davvero. Ogni giorno che passa è un menu ripetuto in mano a qualcuno.'],
-            ['2',
-             'Le diete che compaiono nel <b>questionario</b> e che quindi una cliente nuova può scegliere domani.',
-             'Meglio arrivarci prima noi che una cliente nuova.'],
-            ['3',
-             'Le diete <b>pubblicate ma senza clienti</b>.',
-             'Vanno sistemate, ma con calma.'],
-            ['4',
-             'Le diete <b>in bozza</b>, non ancora pubblicate.',
-             'Nessuno le sta ricevendo: si fanno per ultime, o si rigenerano quando servono.'],
+            ['1', '<b>Flexitariana</b> &#183; onnivora &#183; dimagrimento', '10',
+             'Settimane 1-4 sulla variante a <b>5 pasti</b>. Poi apri quella a <b>3 pasti</b> e quella a '
+             '<b>digiuno</b>: prendono i piatti da sola.'],
+            ['2', '<b>Pescetariana</b> &#183; onnivora &#183; dimagrimento', '3',
+             'Settimane 1-4 sui <b>5 pasti</b>, poi la variante a 3 pasti.'],
+            ['3', '<b>Keto (non terapeutica)</b> &#183; onnivora &#183; dimagrimento', '3',
+             'Settimane 1-4 sui <b>5 pasti</b>, poi il digiuno.'],
+            ['4', '<b>Vacanze in Serenità</b> &#183; onnivora &#183; dimagrimento', '1',
+             '<b>Da guardare per prima:</b> le mancano interi pasti, non solo varietà. Vedi il '
+             'riquadro qui sotto.'],
+            ['5', '<b>Iperproteica sportiva</b> &#183; onnivora &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti.'],
+            ['6', '<b>DASH</b> &#183; onnivora &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti.'],
+            ['7', '<b>Low carb</b> &#183; onnivora &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti.'],
+            ['8', '<b>Basso indice glicemico</b> &#183; onnivora &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti, poi i 3 pasti.'],
+            ['9', '<b>Proteica</b> &#183; onnivora &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti, poi i 3 pasti.'],
+            ['10', '<b>Pescetariana</b> &#183; vegetariana &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti, poi i 3 pasti.'],
+            ['11', '<b>Vegana</b> &#183; vegana &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti, poi i 3 pasti.'],
+            ['12', '<b>Keto-Mediterranea</b> &#183; onnivora &#183; dimagrimento', '1', 'Settimane 1-4 sui 5 pasti, poi il digiuno.'],
         ],
-        [20 * mm, 70 * mm, None])))
+        [11 * mm, 58 * mm, 17 * mm, None])))
     A(Spacer(1, 9))
     A(Paragraph(
-        'Dentro ogni dieta, l\'ordine delle varianti è sempre lo stesso: <b>5 pasti, poi 3 pasti, poi digiuno</b>.', S['p']))
-    A(Spacer(1, 8))
-    A(riquadro('L\'elenco preciso te lo prepara Simone', [
-        'C\'è un controllo automatico che legge il catalogo e stampa la lista <b>già nell\'ordine giusto</b>: '
-        'per ogni dieta dice quanti clienti ha, quante giornate, e soprattutto <b>quanti piatti diversi ha il pasto '
-        'messo peggio</b>.',
-        'È quello il numero da guardare. Una dieta con 28 giornate e <b>5 colazioni</b> è messa peggio di una con '
-        '7 giornate e 7 colazioni: la prima ripete, la seconda no.',
-        'Chiedi a Simone di lanciarlo e di passarti la lista: sono due minuti, e ti evita di lavorare a caso.',
-    ], sfondo=CHIP, bordo=LINE, stile_t='h3', stile_p='p'))
+        'Sono tutte con obiettivo <b>dimagrimento</b>: le versioni "mantenimento" delle stesse diete '
+        'oggi non le riceve nessuno.', S['small']))
+    A(Spacer(1, 9))
+
+    A(riquadro('Attenzione &#8212; una dieta da guardare subito: Vacanze in Serenità (3 pasti)', [
+        'Questa non è magra, è <b>rotta</b>: ha solo le colazioni. Pranzo e cena <b>non ci sono</b>, '
+        'e c\'è una cliente che la sta ricevendo.',
+        'Fai le settimane 1-4 su questa per prima, e quando hai finito usa <b>Anteprima giornate</b> per '
+        'controllare che ogni giorno abbia davvero colazione, pranzo e cena.',
+    ]))
+
+    A(Paragraph('Quanto lavoro è, davvero', S['h2']))
+    A(Spacer(1, 5))
+    A(Paragraph(
+        'Dodici diete &#215; quattro settimane sulla variante a 5 pasti = <b>48 generazioni</b>, circa un '
+        'minuto l\'una. Le varianti a 3 pasti e a digiuno sono quasi istantanee perché riusano i piatti. '
+        'In tutto: <b>meno di un\'ora</b> di attesa, che puoi spezzare come vuoi &#8212; la pagina si ricorda '
+        'sempre a che punto sei.', S['p']))
+    A(Spacer(1, 5))
+    A(Paragraph(
+        'Le altre 270 varianti non hanno nessuno sopra. <b>Non sono lavoro tuo da fare a mano</b>: '
+        'se ne occupa Simone, oppure si rigenerano quando servono davvero, cioè quando una cliente '
+        'sceglie quella dieta. Se dovessi aprirne una che risulta magra, completala sul momento con lo '
+        'stesso metodo.', S['p']))
+    A(Spacer(1, 10))
 
     # ---------------- Domande ----------------
     testa_domande = [Paragraph('Domande che ti verranno', S['h2']), Spacer(1, 8)]
@@ -379,7 +408,7 @@ def build(percorso):
     A(HRFlowable(width='100%', thickness=1, color=LINE, spaceAfter=10))
     A(Paragraph('Il promemoria, in cinque righe', S['h2']))
     A(Spacer(1, 7))
-    A(tabella(
+    A(KeepTogether(tabella(
         ['', 'Cosa fare'],
         [
             ['1', 'Vai su <b>Creazione e validazione</b> e scegli la dieta, <b>variante a 5 pasti</b>.'],
@@ -388,7 +417,7 @@ def build(percorso):
             ['4', 'Rifai lo stesso per la variante a <b>3 pasti</b> e per il <b>digiuno</b> (saranno velocissime).'],
             ['5', 'Al passo 3: anteprima, allergeni confermati, poi <b>pubblica</b>.'],
         ],
-        [10 * mm, None]))
+        [10 * mm, None])))
     A(Spacer(1, 10))
     A(Paragraph(
         'Se qualcosa non torna o un messaggio non è chiaro, scrivilo a Simone senza fare tentativi al buio: '

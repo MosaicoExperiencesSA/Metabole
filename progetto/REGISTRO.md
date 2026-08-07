@@ -70,6 +70,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   lavorarle** — clienti sopra, giornate, e soprattutto quanti piatti diversi ha il pasto messo
   peggio. È quel numero che conta: 28 giornate con 5 colazioni sono peggio di 7 giornate con 7.
 
+- `[Prodotto]` 🔢 **Il conto vero: 287 varianti, 286 magre, ma solo 16 con qualcuno sopra.** Il
+  primo giro di diagnostica ha ridimensionato il lavoro. Rifare tutto a mano non è un lavoro che
+  si fa; e non serve, perché **le clienti attive sono 25 su 16 varianti**, che condividendo le
+  ricette si riducono a **12 diete**. Nella guida c'è quella lista, in ordine, con quante clienti
+  ha ciascuna: sono circa 48 generazioni, meno di un'ora. Le altre 270 varianti non hanno nessuno
+  sopra e si rigenerano quando servono, non prima.
+  Due cose emerse dal giro, che non sono varietà ma difetti veri:
+  · **«Vacanze in Serenità» onnivora dimagrimento 3 pasti ha SOLO le colazioni** — niente pranzo,
+    niente cena — e **c'è una cliente che la sta ricevendo**. Va guardata per prima.
+  · **«Ritorno in Equilibrio» onnivora mantenimento 3 pasti è del tutto vuota**: zero giornate.
+    La diagnostica la contava fra quelle «già a posto» — un difetto suo, corretto: adesso una
+    dieta senza giornate esce come *VUOTA* e va in cima, e una a cui mancano interi pasti esce
+    marcata *MANCANO INTERI PASTI*, perché lì non è questione di ripetizioni.
+
 - `[Prodotto]` 🌶️ **Le spezie non sono più un cibo da escludere.** La regola l'ha dettata la
   nutrizionista, e nasce dalla cliente che riceveva lo stesso pranzo per quattro giorni di fila.
   Non era un difetto del motore: aveva trenta esclusioni, e fra quelle c'erano **curry** e

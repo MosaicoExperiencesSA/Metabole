@@ -91,9 +91,16 @@ async function main(): Promise<void> {
     // Settimane "piene" = quante settimane di piatti diversi ha davvero il pasto più povero.
     const settimaneVere = Math.floor(minimo / 7);
     const settimaneApparenti = Math.ceil(giornate / 7);
-    const daRifare = settimaneVere >= settimaneApparenti
-      ? '—'
-      : `settimane 1-${settimaneApparenti} (ne bastano ${settimaneApparenti})`;
+    // Una dieta SENZA giornate non è "a posto": è vuota, e va detto con parole diverse —
+    // altrimenti finisce nell'elenco di quelle da non toccare e nessuno la guarda più.
+    const daRifare = giornate === 0
+      ? 'VUOTA: nessuna giornata, da generare da zero'
+      : settimaneVere >= settimaneApparenti
+        ? '—'
+        : `settimane 1-${settimaneApparenti} (ne bastano ${settimaneApparenti})`;
+    // Un pasto previsto dalla variante e senza NESSUNA ricetta: la dieta è rotta, non magra.
+    const pastiAttesi = d.fasting ? 3 : d.mealsPerDay;
+    const rotta = giornate > 0 && conteggi.length < pastiAttesi;
 
     righe.push({
       dieta: `${d.name} (${d.style})`,
@@ -102,15 +109,17 @@ async function main(): Promise<void> {
       giornate,
       'ricette/pasto (minimo)': minimo,
       dettaglio: conteggi.map((c) => `${NOME_PASTO[c.slot] ?? c.slot} ${c.n}`).join(' · ') || '—',
-      'da rifare': daRifare,
+      'da rifare': rotta ? `${daRifare} — ⚠ MANCANO INTERI PASTI` : daRifare,
       // Ordine di lavoro: prima chi ha clienti sopra, poi chi ha meno ricette, e dentro la
       // famiglia prima la variante con più pasti (le altre riusano le sue).
-      _ordine: -clienti * 1000 + minimo * 10 - (d.fasting ? 0 : d.mealsPerDay),
+      // Le diete ROTTE (pasti interi mancanti) e quelle VUOTE vanno in cima a parità di clienti:
+      // lì non è questione di varietà, è che alla cliente manca proprio il pranzo.
+      _ordine: -clienti * 1000 + (rotta || giornate === 0 ? -500 : 0) + minimo * 10 - (d.fasting ? 0 : d.mealsPerDay),
     });
   }
 
   righe.sort((a, b) => a._ordine - b._ordine);
-  const daSistemare = righe.filter((r) => r['da rifare'] !== '—');
+  const daSistemare = righe.filter((r) => !r['da rifare'].startsWith('—'));
   const aPosto = righe.length - daSistemare.length;
 
   console.log(`Diete in catalogo: ${righe.length}. Già a posto: ${aPosto}. Da rifare: ${daSistemare.length}.\n`);
@@ -119,9 +128,15 @@ async function main(): Promise<void> {
 
   if (aPosto > 0) {
     console.log('\n--- Già a posto (7 ricette diverse per pasto in ogni settimana) ---');
-    console.table(righe.filter((r) => r['da rifare'] === '—').map(({ _ordine, ...r }) => r));
+    console.table(righe.filter((r) => r['da rifare'].startsWith('—')).map(({ _ordine, ...r }) => r));
   }
 
+  const conClienti = daSistemare.filter((r) => r.clienti > 0);
+  console.log(
+    `\nDI QUESTE, ${conClienti.length} HANNO CLIENTI SOPRA (${conClienti.reduce((n, r) => n + r.clienti, 0)} clienti in tutto).\n` +
+    'Sono le uniche in cui la ripetizione la sta vedendo qualcuno: si parte da lì, e il resto\n' +
+    'non è lavoro da fare a mano una variante per volta.\n',
+  );
   console.log(
     '\nCome si legge:\n' +
     '· "giornate" = quanti giorni ha il ciclo. "ricette/pasto (minimo)" = quanti piatti DIVERSI\n' +
