@@ -4,6 +4,7 @@ import AppHeader from '../components/AppHeader';
 import CarouselNav, { scrollCarouselTo } from '../components/CarouselNav';
 import ReportsSection from '../components/ReportsSection';
 import { parseMisura } from '../lib/misure';
+import { oggiIso } from '../lib/giorno';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
 
@@ -198,7 +199,7 @@ export default function Obiettivo() {
 
   // Misura di oggi già inviata? (le misure sono ordinate crescenti → l'ultima è la più
   // recente). Se sì, il tasto resta disattivato finché non modifichi un valore.
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = oggiIso();
   const lastMeas = measurements[measurements.length - 1];
   const sentToday = !!lastMeas && String(lastMeas.date).slice(0, 10) === todayIso;
   // Misura di oggi già corretta una volta? Allora niente altre modifiche dalla cliente.

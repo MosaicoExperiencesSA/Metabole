@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
+import { oggiIso } from '../lib/giorno';
 
 /**
  * Percorso — allineata al prototipo (docs/): "IL MENU DI OGGI" + "Diario del percorso"
@@ -79,7 +80,7 @@ export default function Percorso() {
     finally { setMonBusy(false); }
   }
 
-  const iso = new Date().toISOString().slice(0, 10);
+  const iso = oggiIso();
   // Piano scaduto/annullato: niente "menu di oggi" né "menu futuri" (lo STORICO resta).
   const expired = menuStatus?.state === 'expired';
   // SOLO il menu di oggi (niente ripiego su un giorno vecchio: a percorso concluso/in attesa

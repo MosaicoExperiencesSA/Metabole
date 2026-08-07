@@ -7,6 +7,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 📱 **Lo stesso difetto delle date era anche nell'app — in sette punti.** Corretto
+  il backend, la stessa riga (`new Date().toISOString().slice(0, 10)`, cioè il giorno **UTC**)
+  compariva ancora in Home, Percorso, Obiettivo, passi, StartDatePrompt, MenuReviewPopup e
+  PaymentResult. Nella finestra fra mezzanotte e le 02:00, per l'app era ancora ieri:
+  · il **menu di oggi** in Home e in Percorso veniva cercato alla data sbagliata e quindi **non
+    compariva** — schermata vuota su un piano perfettamente attivo;
+  · i **passi** finivano sul giorno precedente, e la baseline del contapassi si azzerava male;
+  · la pagina Obiettivo credeva che la misura di oggi non fosse stata inviata.
+  Va detta anche una cosa scomoda: **correggendo solo il backend avevo peggiorato la
+  situazione** in quella finestra. Prima app e server sbagliavano insieme, quindi almeno si
+  capivano; dopo, il server registrava il giorno italiano e l'app ne chiedeva un altro. Una
+  correzione a metà, su due sistemi che si parlano, può essere peggio di nessuna correzione:
+  vale la pena ricordarselo.
+  Ora c'è `app/src/lib/giorno.ts`, che dà la **stessa** risposta di `common/date-only.ts` lato
+  server.
+
+- `[Sviluppo]` 🧭 **Il giorno è quello del percorso, non quello del telefono.** Scelta esplicita:
+  l'app usa il calendario **italiano**, non il fuso del dispositivo. Usare quello del telefono
+  sembra più gentile, ma metterebbe di nuovo app e server in disaccordo appena una cliente parte
+  per un viaggio: lei chiederebbe il menu di un giorno e il database ne conoscerebbe un altro.
+  Il giorno del percorso è uno solo. Se un domani si cambia `APP_TIMEZONE` sul backend, va
+  cambiato anche in `giorno.ts` — sta scritto in cima a entrambi i file.
+  Corretto anche il **backoffice**, pagina Contabilità: un costo registrato di notte finiva al
+  giorno prima, e il 1° gennaio a notte fonda finiva nel **mese e nell'anno precedenti** — cioè
+  nel bilancio sbagliato.
+  Test: +5 nell'app (10 in tutto, la seconda cosa che i test dell'app intercettano da quando
+  esistono, cioè da stamattina).
+
 - `[Sviluppo]` 🌙 **Le misure inserite di notte finivano sul giorno prima — e cancellavano quelle
   del giorno prima.** Cercando altri difetti della stessa famiglia (logica giusta, contorno
   sbagliato) è saltato fuori questo, che è il più serio della giornata perché **perde dati**.

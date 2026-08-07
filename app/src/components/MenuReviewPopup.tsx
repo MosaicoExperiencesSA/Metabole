@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
+import { isoDi } from '../lib/giorno';
 
 /**
  * Popup "Com'è andata ieri?" — all'apertura fa valutare i menu del giorno prima:
@@ -8,11 +9,11 @@ import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
  * valutazione, così non serve un endpoint dedicato). Si mostra una volta al giorno.
  */
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+
 function yesterdayISO(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return iso(d);
+  return isoDi(d);
 }
 const dismissKey = (d: string) => `metabole_menu_review_${d}`;
 

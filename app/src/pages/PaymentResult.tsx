@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import WidgetInstall from '../components/WidgetInstall';
 import AppHeader from '../components/AppHeader';
+import { isoDi } from '../lib/giorno';
 
 /**
  * Ritorno da Stripe Checkout: /payment/success e /payment/cancelled.
@@ -11,7 +12,7 @@ import AppHeader from '../components/AppHeader';
  */
 
 const VISIBLE_DAYS_BEFORE = 2;
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const fmt = (d: Date) => d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -19,7 +20,7 @@ const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.get
 export default function PaymentResult({ ok }: { ok: boolean }) {
   const nav = useNavigate();
   const today = startOfDay(new Date());
-  const [date, setDate] = useState(iso(addDays(today, 3)));
+  const [date, setDate] = useState(isoDi(addDays(today, 3)));
   const [phase, setPhase] = useState<'date' | 'done'>('date');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -63,7 +64,7 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
         {err && <div className="banner err">{err}</div>}
         <div className="card">
           <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>Data di inizio</div>
-          <input className="input" type="date" min={iso(today)} value={date} onChange={(e) => setDate(e.target.value)} />
+          <input className="input" type="date" min={isoDi(today)} value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div className="card" style={{ background: '#EAF6F1', boxShadow: 'none', display: 'flex', gap: 9 }}>
           <i className="ti ti-eye" style={{ color: '#0E7C66', fontSize: 18 }} />

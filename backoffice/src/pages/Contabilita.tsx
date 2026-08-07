@@ -52,8 +52,12 @@ interface Report {
   commissions: { accruedPeriodCents: number; paidPeriodCents: number; accruedTotalCents: number; paidTotalCents: number; reserveCents: number; requestedCents: number; pendingCents: number };
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-const currentMonth = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+// Giorno e mese sul calendario ITALIANO, come il backend (`common/date-only.ts`). Col giorno
+// UTC, fra la mezzanotte e le 02:00 un costo registrato la notte finiva al giorno prima — e a
+// Capodanno, all'anno prima.
+const romano = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' });
+const todayIso = () => romano.format(new Date());
+const currentMonth = () => romano.format(new Date()).slice(0, 7); // 'YYYY-MM'
 /** Primo e ultimo giorno del mese selezionato. */
 function monthRange(month: string): { from: string; to: string } {
   const [y, m] = month.split('-').map(Number);

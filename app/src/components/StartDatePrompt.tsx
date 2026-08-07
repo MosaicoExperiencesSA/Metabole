@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { isoDi } from '../lib/giorno';
 
 /**
  * Rete di sicurezza: se l'abbonamento è ATTIVO ma manca la data di inizio piano
@@ -8,14 +9,14 @@ import { api } from '../api/client';
  * Non mostra nulla quando non serve.
  */
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 export default function StartDatePrompt() {
   const today = startOfDay(new Date());
   const [show, setShow] = useState(false);
-  const [date, setDate] = useState(iso(addDays(today, 3)));
+  const [date, setDate] = useState(isoDi(addDays(today, 3)));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function StartDatePrompt() {
         <span className="event-ic" style={{ background: '#12A386', color: '#fff' }}><i className="ti ti-calendar-check" /></span>
         <div><b style={{ fontSize: 14 }}>Quando vuoi iniziare?</b><div className="muted" style={{ fontSize: 11 }}>Il menu si sblocca 2 giorni prima.</div></div>
       </div>
-      <input className="input" type="date" min={iso(today)} value={date} onChange={(e) => setDate(e.target.value)} style={{ marginBottom: 8 }} />
+      <input className="input" type="date" min={isoDi(today)} value={date} onChange={(e) => setDate(e.target.value)} style={{ marginBottom: 8 }} />
       <button className="btn" style={{ width: '100%' }} onClick={confirm} disabled={busy}>{busy ? 'Salvo…' : 'Conferma data di inizio'}</button>
     </div>
   );

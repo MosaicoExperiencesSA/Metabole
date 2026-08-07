@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import { oggiIso } from './giorno';
 
 interface StepCounterPlugin {
   getStepCount(): Promise<{ steps: number; stale?: boolean }>;
@@ -23,7 +24,7 @@ export async function getTodaySteps(): Promise<number | null> {
     if (typeof steps !== 'number' || !Number.isFinite(steps)) return null;
     // iOS: passi di oggi già pronti, nessuna baseline da applicare.
     if (Capacitor.getPlatform() === 'ios') return Math.max(0, Math.round(steps));
-    const today = new Date().toISOString().slice(0, 10);
+    const today = oggiIso();
     const { value } = await Preferences.get({ key: KEY });
     let baseline = value ? (JSON.parse(value) as { date: string; value: number }) : null;
     // Nuovo giorno, prima lettura, o riavvio telefono (counter azzerato) → nuova baseline.

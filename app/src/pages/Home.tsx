@@ -17,6 +17,7 @@ import PendingBankTransfers from '../components/PendingBankTransfers';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 import { TypeText } from '../components/TypeText';
+import { oggiIso } from '../lib/giorno';
 
 interface Today {
   checkinDone: boolean;
@@ -272,7 +273,7 @@ export default function Home() {
   // sostituzione (prima la card restava col piatto vecchio e sembrava "non cambiare").
   const loadMenu = useCallback(() => {
     return api<{ days: ApiMenuDay[]; status?: MenuStatus }>('/me/menu').then((r) => {
-      const iso = new Date().toISOString().slice(0, 10);
+      const iso = oggiIso();
       // "IL MENU DI OGGI" = SOLO il menu con data di oggi. Niente ripiego su un giorno vecchio
       // (days[0]): a piano concluso / in attesa non deve comparire un menu passato come se fosse
       // di oggi. Se non c'è il menu di oggi → nessun pasto → compare il banner di stato.
@@ -413,7 +414,7 @@ export default function Home() {
                       <div className="meal-name">{m.name}</div>
                       <div className="row-between">
                         <span className="muted" style={{ fontSize: 12 }}>{m.kcal} kcal</span>
-                        <button className="btn-recipe" onClick={() => navigate(`/menu?ricetta=${m.recipeId}&giorno=${new Date().toISOString().slice(0, 10)}`)}>Ricetta</button>
+                        <button className="btn-recipe" onClick={() => navigate(`/menu?ricetta=${m.recipeId}&giorno=${oggiIso()}`)}>Ricetta</button>
                       </div>
                     </div>
                   </div>
