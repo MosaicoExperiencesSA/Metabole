@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
+import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -684,11 +685,17 @@ export class MenuService {
   private async needsInitialMeasures(clientId: string): Promise<boolean> {
     const profile = (await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { planStartDate: true, screeningFlag: true, travelState: true },
-    })) as { planStartDate: Date | null; screeningFlag: boolean | null; travelState: string | null } | null;
+      select: { planStartDate: true, screeningFlag: true, travelState: true, travelStart: true, travelEnd: true },
+    })) as {
+      planStartDate: Date | null; screeningFlag: boolean | null;
+      travelState: string | null; travelStart: Date | null; travelEnd: Date | null;
+    } | null;
     if (!profile?.planStartDate) return false;
     if (profile.screeningFlag) return false; // percorso supervisionato: dipende dalla visita
-    if (profile.travelState === 'in_vacanza') return false;
+    // In vacanza il popup misure non blocca — ma lo stato SCADE (vedi `stato-viaggio.ts`).
+    // Prima si leggeva il campo grezzo: un «in vacanza» che nessuno azzerava al rientro
+    // spegneva per sempre, in silenzio, la regola più severa che abbiamo.
+    if (statoViaggioAttivo(profile) === 'in_vacanza') return false;
     const activeSub = await this.prisma.subscription.findFirst({ where: { clientId, status: 'active' }, select: { id: true } });
     if (!activeSub) return false;
     const pause = await this.events.activePausePeriod(clientId);
@@ -711,9 +718,12 @@ export class MenuService {
     last: { date: Date },
     daysPerDelivery: number,
   ): Promise<boolean> {
-    // Piani estate: in vacanza il popup misure NON blocca l'erogazione.
-    const prof = await this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { travelState: true } });
-    if ((prof as { travelState?: string | null } | null)?.travelState === 'in_vacanza') return false;
+    // Piani estate: in vacanza il popup misure NON blocca l'erogazione (finché la vacanza dura).
+    const prof = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { travelState: true, travelStart: true, travelEnd: true },
+    });
+    if (statoViaggioAttivo(prof as { travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null) === 'in_vacanza') return false;
     const today = toDateOnly();
     const cycleEnd = toDateOnly(last.date.toISOString());
     if (today.getTime() < cycleEnd.getTime()) return false; // non ancora al 2° giorno
@@ -867,7 +877,10 @@ export class MenuService {
     // Modulazione dei pesi in base allo stato dell'agente.
     let wEff = wEffBase;
     let wGrad = wGradBase;
-    if (state === 'conforto') wGrad = wGradBase * boost; // menu più amati
+    // `vacanza` si comporta come il conforto — menu più amati — ma per una ragione diversa:
+    // non è umore basso, è che la cliente è via e mangerà quello che le va. Stato separato
+    // perché nei log e nelle diagnosi «in vacanza» e «giornata storta» non vanno confusi.
+    if (state === 'conforto' || state === 'vacanza') wGrad = wGradBase * boost; // menu più amati
     // plateau / post-evento / rientro → si spinge sull'efficacia (calo/recupero).
     else if (state === 'plateau' || state === 'post_evento' || state === 'rientro') wEff = wEffBase * boost;
     // R12 — modulazione da obiettivo della dieta: in MANTENIMENTO l'efficacia (appresa

@@ -47,7 +47,7 @@ describe('MenuService — gate misure', () => {
   it('2° giorno del ciclo passato e nessuna misura → bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
-      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -58,7 +58,7 @@ describe('MenuService — gate misure', () => {
   it('2° giorno del ciclo oggi e nessuna misura → bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(0)) }) },
-      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -68,7 +68,7 @@ describe('MenuService — gate misure', () => {
   it('2° giorno del ciclo nel futuro → non bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(1)) }) },
-      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn() },
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -79,7 +79,7 @@ describe('MenuService — gate misure', () => {
   it('misura del ciclo presente → non bloccante', async () => {
     const prisma = {
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
-      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
     };
     const res = await makeService(prisma).measurementGate('c1');

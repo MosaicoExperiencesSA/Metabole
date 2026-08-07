@@ -15,7 +15,22 @@ const base = (over: Record<string, unknown> = {}) => ({
   event: { findFirst: jest.fn().mockResolvedValue(null) },
   cycleFeedback: { findMany: jest.fn().mockResolvedValue([]) },
   dailyCheckin: { findMany: jest.fn().mockResolvedValue([]) },
+  // Modalità viaggio: di default nessuna. `clientProfile` va sempre presente, perché
+  // `stateFor` lo legge per primo — senza, ogni test morirebbe prima di arrivare al suo caso.
+  clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
+  analyticsEvent: { findFirst: jest.fn().mockResolvedValue(null) },
   ...over,
+});
+
+/** Profilo in modalità viaggio, con le date che l'operatrice avrebbe inserito. */
+const viaggio = (state: string, over: { start?: Date | null; end?: Date | null } = {}) => ({
+  clientProfile: {
+    findUnique: jest.fn().mockResolvedValue({
+      travelState: state,
+      travelStart: over.start ?? ago(3),
+      travelEnd: over.end === undefined ? new Date(Date.now() + 5 * DAY) : over.end,
+    }),
+  },
 });
 
 describe('DietAgentService.stateFor', () => {
@@ -82,6 +97,55 @@ describe('DietAgentService.stateFor', () => {
   it('conforto ignorato se il check-in più recente è vecchio', async () => {
     const prisma = base({
       dailyCheckin: { findMany: jest.fn().mockResolvedValue([{ mood: 'hard', date: ago(5) }]) },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('normale');
+  });
+
+  // --- Modalità viaggio (piani estate) ---
+
+  it('vacanza: la cliente è via → menu che mangerà davvero, e vince su tutto', async () => {
+    // Anche con un plateau in corso: spingere l'efficacia addosso a chi è al mare produce
+    // menu ignorati, non chili persi.
+    const prisma = base({
+      ...viaggio('in_vacanza'),
+      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'stabile' }, { esitoPeso: 'preso' }]) },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('vacanza');
+  });
+
+  it('in partenza: è un evento a tutti gli effetti → pre_evento', async () => {
+    const prisma = base(viaggio('in_partenza'));
+    expect(await make(prisma).stateFor('c1')).toBe('pre_evento');
+  });
+
+  it('una vacanza SCADUTA non conta più: si torna ai segnali normali', async () => {
+    // È il caso vero: nessuno azzera `travelState` al rientro.
+    const prisma = base({
+      ...viaggio('in_vacanza', { start: ago(60), end: ago(40) }),
+      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'stabile' }, { esitoPeso: 'preso' }]) },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('plateau');
+  });
+
+  it('rientrato da poco → spinta al recupero, contata dall\'evento travel_return', async () => {
+    const prisma = base({
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: 'rientrato', travelStart: null, travelEnd: null }) },
+      analyticsEvent: { findFirst: jest.fn().mockResolvedValue({ receivedAt: ago(2) }) },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('post_evento');
+  });
+
+  it('rientrato da mesi → non spinge più niente: il campo resta scritto, l\'evento no', async () => {
+    const prisma = base({
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: 'rientrato', travelStart: null, travelEnd: null }) },
+      analyticsEvent: { findFirst: jest.fn().mockResolvedValue({ receivedAt: ago(90) }) },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('normale');
+  });
+
+  it('rientrato senza nessun evento registrato → nessuna spinta inventata', async () => {
+    const prisma = base({
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: 'rientrato', travelStart: null, travelEnd: null }) },
     });
     expect(await make(prisma).stateFor('c1')).toBe('normale');
   });

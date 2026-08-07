@@ -321,6 +321,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Finestra (giorni) dopo un periodo difficile in cui, se l\'umore è risalito, l\'agente resta in "rientro" (spinta efficacia) per recuperare',
   },
   {
+    key: 'agent_return_days',
+    value: '7',
+    type: 'number',
+    description: 'Giorni dopo il RIENTRO dal viaggio in cui l\'agente resta in spinta al recupero («Ritorno in Equilibrio»). Si contano dall\'evento travel_return, non dal campo sul profilo: quello resta scritto per sempre, l\'evento ha una data',
+  },
+  {
+    key: 'travel_max_days',
+    value: '30',
+    type: 'number',
+    description: 'Rete di sicurezza: durata massima di una modalità viaggio SENZA data di fine (si conta dalla data di partenza). Serve solo a far scadere gli «in vacanza» che nessuno azzera al rientro — con la data di fine compilata vince quella',
+  },
+  {
     key: 'menu_state_boost',
     value: '1.8',
     type: 'number',

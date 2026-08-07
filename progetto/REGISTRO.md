@@ -7,6 +7,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🏖️ **La modalità viaggio ora la legge anche l'agente dieta — e scade.** Era
+  l'ultima cosa aperta dei piani estate (`STATO.md`: «`DietAgentService` non legge
+  `travelState`»). Lo stato c'era, con date e stati `in_partenza / in_vacanza / rientrato`, ma
+  serviva solo a sospendere il popup misure: il motore continuava a scegliere i menu come se la
+  cliente fosse a casa.
+  Ora:
+  · **in vacanza** → nuovo stato `vacanza`, che **vince su tutto**, plateau compreso. Spingere
+    l'efficacia addosso a chi è al mare non produce chili persi, produce menu ignorati. È il
+    senso di *Vacanze in Serenità*: si tiene il peso, non si cerca il calo. Nei pesi si comporta
+    come il conforto (menu più amati), ma resta uno **stato separato** perché nei log e nelle
+    diagnosi «in vacanza» e «giornata storta» non vanno confusi.
+  · **in partenza** → `pre_evento`: una partenza è un evento a tutti gli effetti, e riusa i pesi
+    già tarati (più proteico) invece di inventarne di nuovi.
+  · **rientrata** → `post_evento` per `agent_return_days` giorni (7 di default), che è
+    *Ritorno in Equilibrio*.
+
+- `[Sviluppo]` ⏳ **Il bug che ho trovato mentre lo collegavo: «in vacanza» non finiva mai.**
+  `travelState` lo scrive un'operatrice dalla scheda cliente e **non lo azzera nessuno** — non
+  c'è un lavoro notturno che lo pulisca, e non c'è motivo per cui una coach debba ricordarsene.
+  Il codice leggeva il campo grezzo, quindi un «in vacanza» di luglio valeva ancora a novembre.
+  Non è un dettaglio estetico: quello stato **sospende il popup misure**, cioè la regola più
+  severa che abbiamo (senza pesata, il giorno dopo l'app si blocca). Una vacanza dimenticata la
+  spegneva **per sempre** su quella cliente, senza un errore e senza un avviso — e dal di fuori
+  sembrava semplicemente che il gate non funzionasse.
+  Ora lo stato ha una scadenza (`stato-viaggio.ts`), e le date che l'operatrice inserisce servono
+  a qualcosa: con la **data di fine** vale fino a quel giorno compreso; con la sola **partenza**
+  vale `travel_max_days` giorni (30 di default, solo come rete di sicurezza per i casi
+  dimenticati); **senza nessuna data** vale come prima — inventare una scadenza dal nulla
+  spegnerebbe vacanze vere senza che nessuno capisca perché.
+  Il **rientro** non passa di lì, perché non è un periodo ma un istante: la sua durata si conta
+  dall'evento `travel_return`, che nasce nel momento esatto in cui l'operatrice segna il rientro
+  e quindi ha una data vera. Il campo sul profilo, invece, resta scritto per sempre — ed è
+  esattamente il motivo per cui non ci si può basare.
+  Due parametri nuovi da backoffice: `agent_return_days` (7) e `travel_max_days` (30).
+  Test: +14 (54 suite, 569 test).
+
 - `[Sviluppo]` 🩹 **Clienti già registrate: si fissa la dieta che ricevono già** (`npm run
   fix:diet-family`). Domanda di Simone appena finito il lavoro sulle famiglie: «per i clienti
   esistenti cosa facciamo?». Lasciare il campo vuoto **non era neutro**: `pickDiet` ordina per

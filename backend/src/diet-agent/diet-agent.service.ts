@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { statoViaggioAttivo } from '../common/stato-viaggio';
 
-export type AgentState = 'normale' | 'conforto' | 'pre_evento' | 'post_evento' | 'plateau' | 'rientro';
+export type AgentState = 'normale' | 'conforto' | 'pre_evento' | 'post_evento' | 'plateau' | 'rientro' | 'vacanza';
 
 const DAY = 86_400_000;
 const dateOnly = (d: Date): Date => new Date(d.toISOString().slice(0, 10) + 'T00:00:00.000Z');
@@ -18,7 +19,16 @@ const isLowMood = (m: string): boolean => m === 'hard' || m === 'stressed';
  * - rientro: guardrail dopo il conforto → si torna a spingere l'efficacia
  *   (o perché il conforto è durato troppi giorni di fila, o perché l'umore è risalito
  *   dopo un periodo difficile);
+ * - vacanza: la cliente è via (modalità viaggio, «Vacanze in Serenità») → menu che mangerà
+ *   davvero, non menu che la farebbero calare. Vince su tutto: spingere l'efficacia addosso a
+ *   chi è al mare produce menu ignorati, non chili persi;
  * - normale: massimizza efficacia × gradimento.
+ *
+ * La modalità viaggio la imposta lo staff dalla scheda cliente; qui si legge attraverso
+ * `statoViaggioAttivo`, che la fa SCADERE — un «in vacanza» dimenticato non deve restare
+ * acceso a novembre. Il rientro invece è un istante, non un periodo: dura `agent_return_days`
+ * dall'evento `travel_return`, che nasce nel momento esatto in cui l'operatrice segna il
+ * rientro.
  * La sicurezza (esclusioni) e il bilanciamento restano prioritari e li applica MenuService.
  * La "memoria" dello stato si ricava dallo storico dei check-in (nessuna tabella dedicata).
  */
@@ -30,14 +40,42 @@ export class DietAgentService {
   ) {}
 
   async stateFor(clientId: string): Promise<AgentState> {
-    const [preDays, postDays, plateauCycles, comfortMax, reentryDays] = await Promise.all([
+    const [preDays, postDays, plateauCycles, comfortMax, reentryDays, travelMaxDays, returnDays] = await Promise.all([
       this.configParams.getNumber('agent_pre_event_days', 3),
       this.configParams.getNumber('agent_post_event_days', 3),
       this.configParams.getNumber('agent_plateau_cycles', 2),
       this.configParams.getNumber('agent_comfort_max_days', 3),
       this.configParams.getNumber('agent_reentry_days', 3),
+      this.configParams.getNumber('travel_max_days', 30),
+      this.configParams.getNumber('agent_return_days', 7),
     ]);
     const today = dateOnly(new Date());
+
+    // 0. MODALITÀ VIAGGIO — segnale esplicito dello staff, quindi vince sui segnali dedotti.
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { travelState: true, travelStart: true, travelEnd: true },
+    })) as { travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null;
+    const viaggio = statoViaggioAttivo(profilo, new Date(), travelMaxDays);
+    // In vacanza: menu che mangerà davvero. È il senso di «Vacanze in Serenità» — si tiene il
+    // peso, non si cerca il calo — e vince anche su plateau e conforto.
+    if (viaggio === 'in_vacanza') return 'vacanza';
+    // In partenza: è un evento a tutti gli effetti, e ha lo stesso trattamento (più proteico).
+    if (viaggio === 'in_partenza') return 'pre_evento';
+
+    // 0-bis. RIENTRO dal viaggio («Ritorno in Equilibrio»): spinta al recupero, ma per pochi
+    // giorni. La durata si conta dall'evento `travel_return`, non dal campo sul profilo: lo
+    // stato `rientrato` resta scritto per sempre, l'evento invece ha una data.
+    if (profilo?.travelState === 'rientrato') {
+      const rientro = (await this.prisma.analyticsEvent.findFirst({
+        where: { userId: clientId, name: 'travel_return' },
+        orderBy: { receivedAt: 'desc' },
+        select: { receivedAt: true },
+      })) as { receivedAt: Date } | null;
+      if (rientro && dateOnly(rientro.receivedAt).getTime() >= today.getTime() - returnDays * DAY) {
+        return 'post_evento';
+      }
+    }
 
     // 1. Pre-evento: evento del cliente in arrivo entro N giorni.
     const horizon = new Date(today.getTime() + preDays * DAY);

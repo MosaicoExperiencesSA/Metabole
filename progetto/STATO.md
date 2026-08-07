@@ -260,8 +260,16 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   `in_partenza / in_vacanza / rientrato` (`clients.service.ts:634-653`, evento `travel_return`), e il
   popup misure è **sospeso in vacanza** (`menu.service.ts:690,715`). I due protocolli sono anche
   preset del generatore (`engine-rules.presets.ts`).
-  **Manca**: collegare lo stato di viaggio all'**agente dieta** (`DietAgentService` non legge
-  `travelState`), e creare i due prodotti in produzione dal backoffice.
+  **Fatto il 7/8**: lo stato di viaggio è collegato all'**agente dieta**. `in_vacanza` → nuovo
+  stato `vacanza` (menu più amati, vince su tutto plateau compreso: spingere l'efficacia addosso a
+  chi è al mare produce menu ignorati); `in_partenza` → `pre_evento` (più proteico); `rientrato` →
+  `post_evento` per `agent_return_days` giorni, contati dall'evento `travel_return`.
+  Nella stessa tornata, il bug trovato collegandolo: lo stato **non scadeva mai** — nessuno azzera
+  `travelState` al rientro — e siccome sospende il popup misure, un «in vacanza» dimenticato
+  spegneva per sempre il gate misure su quella cliente. Ora scade (`common/stato-viaggio.ts`):
+  vince la data di fine; con la sola partenza vale `travel_max_days` (30); senza date vale come
+  prima.
+  **Manca**: creare i due prodotti in produzione dal backoffice.
 
 ## Marketing / CRM (nuovo, da `../Metabole_Reparto_Marketing_e_Standard_CRM.pdf`) 🟡
 - Ruoli `marketing` + `head_marketing` **aggiunti** all'RBAC, ai permessi di default e al menu (voce
