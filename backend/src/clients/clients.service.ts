@@ -12,7 +12,7 @@ import { Role } from '../common/roles';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
-const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'intolerances', 'dislikedFoods', 'themeColor', 'fastingWindow', 'activityLevel', 'isStoreReviewer'] as const;
+const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'intolerances', 'dislikedFoods', 'themeColor', 'fastingWindow', 'activityLevel', 'isStoreReviewer'] as const;
 
 /**
  * Scheda cliente per lo staff: aggrega anagrafica, questionario, obiettivo,
@@ -325,13 +325,15 @@ export class ClientsService {
     // TIPO DI DIETA (regime + stile): cambiarlo richiede il permesso dedicato
     // "change_diet_type" (default: nutrizionisti e admin). Il resto della scheda
     // resta modificabile da chi ha accesso, come prima.
-    const DIET_TYPE_FIELDS = ['regime', 'dietStyle'] as const;
+    // La FAMIGLIA è tipo di dieta quanto lo stile: sceglie il prodotto vero (Vegana o
+    // Vegetariana, che condividono lo stile `flexible`). Cambiarla richiede lo stesso permesso.
+    const DIET_TYPE_FIELDS = ['regime', 'dietStyle', 'dietFamily'] as const;
     let dietTypeChange: { before: Record<string, unknown>; after: Record<string, unknown> } | null = null;
     if (DIET_TYPE_FIELDS.some((k) => profileData[k] !== undefined)) {
       const current = (await this.prisma.clientProfile.findUnique({
         where: { userId },
-        select: { regime: true, dietStyle: true },
-      })) as { regime: string | null; dietStyle: string | null } | null;
+        select: { regime: true, dietStyle: true, dietFamily: true },
+      })) as { regime: string | null; dietStyle: string | null; dietFamily: string | null } | null;
       const changedKeys = DIET_TYPE_FIELDS.filter(
         (k) => profileData[k] !== undefined && (profileData[k] ?? null) !== (current?.[k] ?? null),
       );
@@ -341,8 +343,12 @@ export class ClientsService {
           throw new ForbiddenException('Cambiare il tipo di dieta richiede il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).');
         }
         dietTypeChange = {
-          before: { regime: current?.regime ?? null, dietStyle: current?.dietStyle ?? null },
-          after: { regime: profileData.regime ?? current?.regime ?? null, dietStyle: profileData.dietStyle ?? current?.dietStyle ?? null },
+          before: { regime: current?.regime ?? null, dietStyle: current?.dietStyle ?? null, dietFamily: current?.dietFamily ?? null },
+          after: {
+            regime: profileData.regime ?? current?.regime ?? null,
+            dietStyle: profileData.dietStyle ?? current?.dietStyle ?? null,
+            dietFamily: profileData.dietFamily ?? current?.dietFamily ?? null,
+          },
         };
       }
     }

@@ -47,6 +47,10 @@ export class UpdateProfileDto {
   @IsString() @MaxLength(40)
   dietStyle?: string;
 
+  /** Famiglia (`Diet.name`): con lo stile identifica il prodotto scelto. */
+  @IsOptional() @IsString() @MaxLength(120)
+  dietFamily?: string;
+
   @IsOptional()
   @IsIn([3, 4, 5])
   mealsPerDay?: number;

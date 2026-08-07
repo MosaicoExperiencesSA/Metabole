@@ -7,6 +7,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🥗 **In registrazione una card per PRODOTTO, non più una per stile.** È la
+  segnalazione di Simone del 6/8: il backoffice mostrava 18 diete, l'app 8. La metà cosmetica
+  (il nome vero al posto del codice stile) era già sistemata; questa è la parte strutturale.
+  **Il problema non era la vetrina, era l'abbinamento.** La registrazione salvava solo lo
+  *stile*, e lo stile non identifica un prodotto: Vegana, Vegetariana, Flexitariana e Flessibile
+  hanno tutte `style = flexible`; Mediterranea, Mediterranea ipocalorica e Pescetariana sono
+  tutte `mediterranean`. Per questo l'elenco le schiacciava in una voce sola — e togliere il
+  raggruppamento senza toccare il motore avrebbe peggiorato le cose: la cliente ne sceglieva una
+  e poteva ricevere l'altra, in silenzio.
+  Ora sul profilo c'è la **famiglia** (`dietFamily`, cioè `Diet.name`): con lo stile identifica
+  il prodotto, ed è la stessa chiave nome+stile che il catalogo del sito usa già. Le varianti
+  interne (regime × obiettivo × pasti × digiuno) restano dettagli del motore e si fondono in una
+  card sola, tenendo i campi compilati migliori fra le varianti.
+  **Nessuna cliente esistente cambia comportamento**: il campo è nullo su chi si è registrata
+  prima di oggi e opzionale nel DTO, così anche le app già installate — che mandano solo lo
+  stile — continuano a funzionare come sempre.
+  Il filtro famiglia è **sempre combinato con lo stile**, e la cosa non è un dettaglio: se un
+  nutrizionista corregge lo stile dal backoffice, la vecchia famiglia non trova più niente e
+  l'abbinamento scende da solo ai criteri di prima. Senza quel vincolo la correzione non avrebbe
+  avuto alcun effetto, e nessuno se ne sarebbe accorto.
+  Cambiare la famiglia da backoffice chiede lo stesso permesso di cambiare lo stile
+  («Cambia tipo di dieta»), ed è tracciata nell'audit come gli altri due campi.
+
+- `[Sviluppo]` ♻️ **`pickDiet` era scritto due volte, identico: ora è uno solo.** La scala dei
+  ripieghi (famiglia → stile → obiettivo → regime → ultimo tentativo ignorando il piano pasti)
+  viveva copiata riga per riga in `menu.service.ts` e in `personal-base.service.ts`. Due copie
+  della stessa logica prima o poi divergono, e queste due decidono cose che devono coincidere:
+  il **menu del giorno** e la **base personalizzata sicura**. Se una avesse iniziato a scegliere
+  una dieta diversa dall'altra, il pool ricette approvato dal nutrizionista e i menu erogati si
+  sarebbero riferiti a due prodotti diversi — senza errori, senza avvisi.
+  Ora la logica sta in `src/catalog/pick-diet.ts`, in una funzione pura che riceve *come*
+  interrogare il catalogo e restituisce la dieta: i due servizi la chiamano e basta. Con 10 test
+  sull'**ordine** dei ripieghi, che è il punto: quando la famiglia c'è vince, quando manca o non
+  trova niente si scende ai criteri di sempre e nessuna cliente resta senza menu.
+  Test: +10 (53 suite, 555 test).
+
 - `[Sviluppo]` 🛒 **Gli abbonamenti si possono finalmente comprare: negozio, carrello, profilo.**
   Il backend ricorrente era scritto stamattina ma dall'app non lo raggiungeva nessuno — nessuna
   schermata mandava la scelta. Ora c'è tutto il giro:

@@ -354,6 +354,14 @@ model ClientProfile {
   startHipsCm            Float?     @map("start_hips_cm")
   regime                 String?
   dietStyle              String? @map("diet_style")
+  // FAMIGLIA di dieta scelta in registrazione: contiene `Diet.name`, e insieme a `dietStyle`
+  // identifica il PRODOTTO (la stessa chiave nome+stile usata dal catalogo del sito).
+  //
+  // Esiste perché lo stile da solo non basta: Vegana, Vegetariana, Flexitariana e Flessibile
+  // hanno tutte `style = flexible`, quindi la cliente ne sceglieva una e il motore poteva
+  // servirle un'altra. Null su tutte le clienti registrate prima del 7/8: per loro
+  // l'abbinamento resta quello di sempre (stile + regime + obiettivo + pasti).
+  dietFamily             String?    @map("diet_family")
   mealsPerDay            Int?       @map("meals_per_day")
   // Fase attuale del cliente per l'abbinamento dieta: dimagrimento | mantenimento.
   // Decisione clinica dello staff. Guida pickDiet a scegliere la variante giusta della

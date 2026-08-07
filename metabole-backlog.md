@@ -83,7 +83,7 @@ salva in scheda (PATCH /me/profile) prima di procedere.
 Telefono obbligatorio in registrazione (prefisso a discesa + numero, unicità sulle cifre); login
 con email o telefono (quest'ultimo già lato socio).
 
-## Registrazione — una card per PRODOTTO, non per stile — DA FARE (deciso 6/8)
+## Registrazione — una card per PRODOTTO, non per stile — FATTO (7/8)
 Segnalato da Simone il 6/8: i percorsi che la cliente vede in registrazione non corrispondono
 alle diete del backoffice. Metà del problema era cosmetica ed è risolta (il nome mostrato ora è
 quello vero della dieta, non il codice stile). Resta la parte strutturale.
@@ -110,6 +110,27 @@ cliente ne sceglierebbe uno e il motore potrebbe servirle l'altro: peggio della 
    nessuna modifica a `dietInfo.ts`.
 Serve una migrazione (campo su ClientProfile/OnboardingAnswer) e un giro di verifica sul motore:
 non è un lavoro da sera di pubblicazione.
+
+**FATTO il 7/8**, con una variante sul punto 1: la chiave non è l'id di una variante ma la
+**FAMIGLIA** — `ClientProfile.dietFamily` contiene `Diet.name` e, insieme a `dietStyle`, identifica
+il prodotto. È la stessa chiave nome+stile del catalogo del sito. L'id di una singola variante
+sarebbe stato sbagliato: avrebbe inchiodato la cliente a quella riga (un obiettivo, un numero di
+pasti), mentre il motore deve poter scegliere la variante giusta dentro la famiglia.
+
+- migrazione `20260807140000_diet_family`, campo **nullable e senza backfill**: sulle clienti già
+  registrate resta null e l'abbinamento è identico a prima;
+- `dietFamily` **opzionale** nel DTO → le app già installate, che mandano solo lo stile, continuano
+  a funzionare;
+- `pickDiet` prova famiglia+obiettivo → famiglia → stile+obiettivo → stile → obiettivo → regime,
+  e il filtro famiglia è **sempre combinato con lo stile**: se lo staff corregge lo stile dal
+  backoffice la vecchia famiglia smette di valere da sé, senza doverla azzerare a mano;
+- `dietProducts()` non deduplica più per stile: una voce per famiglia, con i campi compilati
+  migliori presi fra le varianti;
+- il "?" continua a leggere lo STILE, come previsto: `dietInfo.ts` non è stato toccato.
+
+Nella stessa tornata, `pickDiet` (che era copiato identico in `menu.service` e
+`personal-base.service`) è diventato uno solo: `src/catalog/pick-diet.ts`, +10 test sull'ordine
+dei ripieghi.
 
 ## Test — ZERO ROSSI e CI che blocca — CHIUSO (6/8)
 Misurato il 6/8: **99 test rossi in 18 suite**, non «~30 in src/commerce» come dicevano gli

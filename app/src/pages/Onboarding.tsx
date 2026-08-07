@@ -59,7 +59,7 @@ function cleanObj<T extends Record<string, unknown>>(obj: T): T | undefined {
   return Object.keys(out).length ? (out as T) : undefined;
 }
 
-interface DietProduct { id: string; style: string; name: string; description: string | null; highlights: string[]; seasonalTag: string | null; recommended?: boolean }
+interface DietProduct { id: string; style: string; family: string; name: string; description: string | null; highlights: string[]; seasonalTag: string | null; recommended?: boolean }
 
 /** Etichette leggibili di ripiego se una dieta non ha un nome cliente impostato:
  *  così non mostriamo mai il codice grezzo (es. "low_carb") ma "Low carb". */
@@ -73,7 +73,7 @@ const prettyStyle = (s: string) => STYLE_LABELS[s] ?? s.replace(/_/g, ' ').repla
 
 /** Schermo 16 "Stile che preferisci": prodotti (diete) letti dall'API a runtime (zero-redeploy).
  *  Ogni nome è toccabile → caratteristiche principali. Solo diete reali approvate: nessun ripiego statico. */
-function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: string, v: unknown) => void }) {
+function DietProductsBlock({ value, family, onChange }: { value: unknown; family: unknown; onChange: (k: string, v: unknown) => void }) {
   const [products, setProducts] = useState<DietProduct[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   // "?" accanto al nome: spiega il TIPO di alimentazione, non questo specifico percorso (voce #5).
@@ -99,16 +99,22 @@ function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: 
     );
   }
 
-  const sel = String(value ?? '');
+  const selStyle = String(value ?? '');
+  const selFamily = String(family ?? '');
   const recommended = products.filter((p) => p.recommended);
   const others = products.filter((p) => !p.recommended);
 
+  // La card è UNA PER PRODOTTO: due prodotti possono avere lo stesso stile (Vegana e
+  // Vegetariana sono entrambe `flexible`), quindi la chiave e la selezione vanno sulla
+  // famiglia. Le clienti che avevano già scelto prima del 7/8 hanno solo lo stile salvato:
+  // il ripiego su `selStyle` tiene evidenziata la loro card se la famiglia è unica.
   const renderCard = (p: DietProduct) => {
-    const on = sel === p.style;
-    const isOpen = open === p.style;
+    const key = `${p.family}|${p.style}`;
+    const on = selFamily ? selFamily === p.family && selStyle === p.style : selStyle === p.style;
+    const isOpen = open === key;
     return (
-      <div key={p.style} className="card" style={{ display: 'block', border: on ? '2px solid var(--teal)' : p.recommended ? '1px solid rgba(51,177,144,.35)' : undefined }}>
-        <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => onChange('dietStyle', p.style)}>
+      <div key={key} className="card" style={{ display: 'block', border: on ? '2px solid var(--teal)' : p.recommended ? '1px solid rgba(51,177,144,.35)' : undefined }}>
+        <div className="row-between" style={{ cursor: 'pointer' }} onClick={() => { onChange('dietStyle', p.style); onChange('dietFamily', p.family); }}>
           <b style={{ fontSize: 15 }}>
             {p.name && p.name !== p.style ? p.name : prettyStyle(p.style)}
             {DIET_INFO[p.style] && (
@@ -137,7 +143,7 @@ function DietProductsBlock({ value, onChange }: { value: unknown; onChange: (k: 
             type="button"
             className="link"
             style={{ background: 'none', border: 0, padding: '6px 0 0', cursor: 'pointer', fontSize: 12, margin: 0 }}
-            onClick={() => setOpen(isOpen ? null : p.style)}
+            onClick={() => setOpen(isOpen ? null : key)}
           >
             {isOpen ? 'Nascondi' : 'Caratteristiche principali'} <i className={`ti ti-chevron-${isOpen ? 'up' : 'down'}`} style={{ fontSize: 13, verticalAlign: '-2px' }} />
           </button>
@@ -418,6 +424,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       startWeightKg: Number(a.startWeightKg),
       regime: a.regime,
       dietStyle: a.dietStyle,
+      // Famiglia scelta: identifica il PRODOTTO, che lo stile da solo non basta a distinguere.
+      dietFamily: a.dietFamily,
       mealsPerDay,
       pathType: a.pathType,
       coachStyle: a.coachStyle,
@@ -581,7 +589,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               ) : cur.page.key === 'objective' ? (
                 <ObjectiveBlock page={cur.page} answers={answers} setAnswer={setAnswer} />
               ) : cur.page.key === 'style' ? (
-                <DietProductsBlock value={answers.dietStyle} onChange={setAnswer} />
+                <DietProductsBlock value={answers.dietStyle} family={answers.dietFamily} onChange={setAnswer} />
               ) : (
                 campiVisibili(cur.page.fields, answers)
                   .map((f) => <FieldInput key={f.key} field={f} value={answers[f.key]} onChange={setAnswer} />)

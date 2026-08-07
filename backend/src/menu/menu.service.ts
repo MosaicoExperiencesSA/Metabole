@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
+import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1540,44 +1541,15 @@ export class MenuService {
   }
 
   /**
-   * Dieta approvata più adatta al profilo: regime+PASTI (3/5 o digiuno intermittente,
-   * da pathType), preferendo stile e OBIETTIVO (fase dimagrimento/mantenimento).
-   * Chi ha scelto il digiuno intermittente (pathType='intermittent_fasting') riceve
-   * le varianti `fasting`; gli altri il match sul numero di pasti (3 o 5), escludendo
-   * le varianti digiuno. Fallback progressivi come prima; ULTIMO fallback: qualsiasi
-   * numero di pasti nello stesso regime (meglio una dieta vicina che nessuna).
+   * Dieta approvata più adatta al profilo. La scala dei ripieghi vive in `pick-diet.ts`, una
+   * sola volta: qui e in `personal-base.service.ts` era copiata identica riga per riga, e due
+   * copie della stessa logica prima o poi divergono — il menu del giorno e la base
+   * personalizzata sicura si costruirebbero su due diete diverse, in silenzio.
    */
-  private async pickDiet(profile: {
-    regime: string | null;
-    dietStyle: string | null;
-    mealsPerDay: number | null;
-    objective?: string | null;
-    pathType?: string | null;
-  }) {
-    if (!profile.regime || !profile.mealsPerDay) return null;
-    const wantsFasting = profile.pathType === 'intermittent_fasting';
-    const mealsWhere = wantsFasting
-      ? { fasting: true }
-      : { mealsPerDay: profile.mealsPerDay, fasting: false };
-    const base = { status: 'approved' as never, regime: profile.regime as never, ...mealsWhere } as Record<string, unknown>;
-    const styleWhere = profile.dietStyle ? { style: profile.dietStyle as never } : {};
-    const objWhere = { objective: (profile.objective || 'dimagrimento') as never };
-    const order = { approvedAt: 'desc' as const };
-    const exact = await this.prisma.diet.findFirst({ where: { ...base, ...styleWhere, ...objWhere } as never, orderBy: order });
-    if (exact) return exact;
-    const byStyle = await this.prisma.diet.findFirst({ where: { ...base, ...styleWhere } as never, orderBy: order });
-    if (byStyle) return byStyle;
-    const byObjective = await this.prisma.diet.findFirst({ where: { ...base, ...objWhere } as never, orderBy: order });
-    if (byObjective) return byObjective;
-    const anyMealPlan = await this.prisma.diet.findFirst({ where: base as never, orderBy: order });
-    if (anyMealPlan) return anyMealPlan;
-    // Nessuna variante col piano pasti richiesto: meglio una dieta dello stesso
-    // regime (stile/obiettivo preferiti) che lasciare la cliente senza menu.
-    const loose = { status: 'approved' as never, regime: profile.regime as never };
-    return (
-      (await this.prisma.diet.findFirst({ where: { ...loose, ...styleWhere, ...objWhere } as never, orderBy: order })) ??
-      (await this.prisma.diet.findFirst({ where: { ...loose, ...styleWhere } as never, orderBy: order })) ??
-      (await this.prisma.diet.findFirst({ where: loose as never, orderBy: order }))
+  private async pickDiet(profile: DietMatchProfile) {
+    return pickDietFor(
+      (where) => this.prisma.diet.findFirst({ where: where as never, orderBy: { approvedAt: 'desc' } }),
+      profile,
     );
   }
 

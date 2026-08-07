@@ -71,7 +71,7 @@ export class ProfileService {
 
     // Se cambiano regime/stile/numero pasti, il prodotto e il pool ricette possono
     // cambiare: rigeneriamo la base personalizzata sicura (non bloccante).
-    if (dto.regime !== undefined || dto.dietStyle !== undefined || dto.mealsPerDay !== undefined) {
+    if (dto.regime !== undefined || dto.dietStyle !== undefined || dto.dietFamily !== undefined || dto.mealsPerDay !== undefined) {
       try {
         await this.personalBase.buildPersonalBase(userId);
       } catch {
@@ -229,11 +229,11 @@ export class ProfileService {
     const profile = (await this.prisma.clientProfile.findUnique({
       where: { userId },
       select: {
-        regime: true, dietStyle: true, mealsPerDay: true, pathType: true, fastingWindow: true,
+        regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true, pathType: true, fastingWindow: true,
         assignedCoach: { select: { displayName: true } },
       },
     })) as {
-      regime: string | null; dietStyle: string | null; mealsPerDay: number | null;
+      regime: string | null; dietStyle: string | null; dietFamily: string | null; mealsPerDay: number | null;
       pathType: string | null; fastingWindow: string | null;
       assignedCoach: { displayName: string | null } | null;
     } | null;
@@ -248,6 +248,7 @@ export class ProfileService {
     return {
       regime: profile.regime,
       dietStyle: profile.dietStyle,
+      dietFamily: profile.dietFamily,
       mealsPerDay: profile.mealsPerDay,
       fasting: profile.pathType === 'intermittent_fasting',
       fastingWindow: profile.fastingWindow,

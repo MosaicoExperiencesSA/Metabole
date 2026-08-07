@@ -94,6 +94,14 @@ export class SubmitAnswersDto {
   @IsString() @MaxLength(40)
   dietStyle!: string;
 
+  /**
+   * FAMIGLIA scelta (`Diet.name`), che insieme a `dietStyle` identifica il PRODOTTO.
+   * Opzionale di proposito: le app già installate mandano solo `dietStyle` e devono continuare
+   * a funzionare — senza questo campo l'abbinamento resta quello di prima.
+   */
+  @IsOptional() @IsString() @MaxLength(120)
+  dietFamily?: string;
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

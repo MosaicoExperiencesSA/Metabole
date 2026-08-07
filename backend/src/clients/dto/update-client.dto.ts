@@ -22,6 +22,8 @@ export class UpdateClientDto {
   @IsOptional() @IsNumber() @Min(40) @Max(200) startHipsCm?: number;
   @IsOptional() @IsString() @MaxLength(40) regime?: string;
   @IsOptional() @IsString() @MaxLength(40) dietStyle?: string;
+  /** Famiglia (`Diet.name`): con lo stile identifica il prodotto. Vuota = abbinamento per stile. */
+  @IsOptional() @IsString() @MaxLength(120) dietFamily?: string;
   @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   @IsOptional() @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast']) fastingWindow?: string;
