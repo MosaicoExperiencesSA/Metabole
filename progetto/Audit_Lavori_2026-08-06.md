@@ -13,6 +13,29 @@ codice**, non nei documenti.
 
 ---
 
+> ## ⚠️ SUPERATO NELLA STESSA GIORNATA (sera del 6/8)
+>
+> Questo audit è stato scritto **a metà giornata** e quasi tutto ciò che segnalava è stato chiuso
+> nelle ore successive. Va letto come cronaca, non come lista di cose da fare:
+>
+> - **#2 Keto-Mediterranea** → generata dal nutrizionista dal generatore del backoffice.
+> - **#10 monitoraggio a pagamento** → la decisione che lo bloccava è stata presa (provvigioni sul
+>   rinnovo chiuse in tutte e tre le domande), e il listino è fissato: mantenimento €49/mese,
+>   monitoraggio €19/mese. Resta il codice dello Stripe ricorrente.
+> - **I quattro difetti della §2** («un interruttore che si può girare e non fa niente») → corretti
+>   tutti, più `npm run diag:parametri` che impedisce il ripetersi della famiglia.
+> - **§3 punto 3, «CI che non blocca niente, dietro ~30 test rossi»** → doppiamente sbagliato: erano
+>   **99 in 18 suite**, ora sono **zero su 527**, e `continue-on-error` è stato tolto.
+> - **§3 punto 8, «manca la select assegna a… nel form lead»** → fatta, col ciclo di accettazione e
+>   la notifica alla coach.
+> - **§4** → `OTA_VERSION` svuotata, Keto generata, quota coach decisa.
+> - **§5** → le quattro correzioni documentali sono state applicate.
+> - **Due segnalazioni erano sbagliate**, ed è giusto dirlo: la **certificazione di unicità** e il
+>   **Giudice/Publisher** erano dati come «mai iniziati». Esistono entrambi
+>   (`personal-base.service.ts:234-257` con seme, collision check e certificato firmato;
+>   `backend/src/social/`). È lo stesso errore che l'audit del 5/8 aveva fatto tre volte su otto:
+>   un audit che grida al lupo si smette di leggere.
+
 ## Risposta breve
 
 **No, non è tutto fatto — ma niente di ciò che manca blocca la 2.1.** Le 18 richieste del 5/8 sono

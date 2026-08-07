@@ -7,6 +7,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-06
 
+- `[Sviluppo]` **Ripuliti quattro documenti che dicevano il falso** (secondo giro della giornata:
+  il primo era di stamattina, e nel frattempo mezza giornata di lavoro li ha resi vecchi di nuovo).
+  · `STATO.md`: Stripe LIVE dato 🔶 «manca il pagamento di prova», fatto il 16/7; **OTA dati
+  ancora attivi** quando sono spenti dal pomeriggio; un follow-up di sicurezza sugli endpoint
+  `/engine/decisions/:id/confirm|correct` dato aperto quando lo scoping per paziente c'è per ogni
+  via (`engine.service.ts:221-238`); «porta un'amica ancora da fare» quando è in Home da stamattina;
+  Keto-Mediterranea «da generare» quando l'ha generata il nutrizionista.
+  · `Metabole_Checklist_GoLive.md`: il semaforo in fondo dava ancora le **4 conferme 🔴** mentre la
+  sezione sopra, nello stesso file, le dà chiuse dal 16/7. Una checklist che si contraddice da sola
+  è peggio di nessuna checklist.
+  · `NOTA_Handoff_Pubblicazione_2026-08-06.md`: quattro punti superati in giornata (#10 sbloccata,
+  OTA già svuotata, Keto generata, `continue-on-error` tolto).
+  · `progetto/Audit_Lavori_2026-08-06.md`: intestato come **superato nella stessa giornata**, con
+  l'elenco di cosa è caduto. Dentro c'è anche l'ammissione di **due segnalazioni sbagliate**:
+  certificazione di unicità e Giudice/Publisher erano dati come «mai iniziati» ed esistono
+  entrambi. È lo stesso errore che l'audit del 5/8 aveva fatto tre volte su otto, ed è la ragione
+  per cui vale la pena scriverlo invece di correggerlo in silenzio: **un audit che grida al lupo
+  si smette di leggere**, e allora tanto vale non farlo.
+
 - `[Prodotto]` 💶 **Listino di mantenimento e monitoraggio fissato** (Simone, 6/8 sera). Non è un
   ritocco di prezzo: definisce cosa deve fare il codice del ricorrente, che parte domattina.
   Il percorso della cliente dopo il peso raggiunto: **mantenimento per quanti mesi vuole**, poi

@@ -43,8 +43,9 @@ segreti fuori dal repo, `docs/` pubblica, dati sanitari cifrati, soglie in `conf
 - Contatori con **base storica Mosaico** in `/public/stats` (`stats_clients_base` 18.979 + abbonamenti
   attivati, `stats_reached_base` 85.218 + lead CRM, `years` 20 — config_param modificabili dal backoffice):
   backend live e sito ripubblicato con nuova dicitura e fallback il 14/7. ✅
-- **Stripe LIVE configurato** (chiave + webhook `checkout.session.completed` in Render, 14/7): manca solo
-  il pagamento reale di prova nello smoke test. 🔶
+- **Stripe LIVE configurato** (chiave + webhook `checkout.session.completed` in Render, 14/7) e
+  **pagamento reale di prova eseguito il 16/7**. ✅ (la riga diceva «manca solo il pagamento di prova»
+  fino al 6/8: era vera a luglio e nessuno l'ha più toccata)
 - Aggiornamento: dopo ogni push dei file del sito, ricopiare su SiteGround (lo fa Claude Cowork su
   richiesta) e svuotare la Cache Dinamica. ✅
 
@@ -84,9 +85,12 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   compare solo se c'è più di una scheda. ✅ (6/8)
 - **Notifiche push**: Android ✅ · iOS ✅ **solo dalla prossima build store** — la 2.0 pubblicata non
   registra alcun token (l'`AppDelegate` era privo dei metodi del delegato push, vedi REGISTRO 6/8).
-- **Aggiornamenti OTA** attivi (Capgo self-hosted sul backend). ⚠️ I bundle si costruiscono SOLO dal
-  Mac con `app/google-services.json` presente, e il numero di versione non si riusa mai: due guardie
-  in `ota-release.mjs` lo impediscono. ✅ (6/8)
+- **Aggiornamenti OTA: SPENTI dal 6/8** — `OTA_VERSION` svuotata su Render prima della
+  pubblicazione della 2.1, e il manifest pubblico risponde `{"version":null,"url":null}`. Serviva
+  ancora la **2.0.1**, cioè il bundle *senza* il codice delle push: ogni telefono che apriva l'app
+  se lo riscaricava sopra. L'impianto resta (Capgo self-hosted): i bundle si costruiscono SOLO dal
+  Mac con `app/google-services.json` presente, e il numero di versione non si riusa mai (due
+  guardie in `ota-release.mjs`). ⚠️ **Niente OTA prima di una pubblicazione store.** 🔴 (6/8)
 
 ## App Coach (nuova) 🟡
 - Prototipo pronto: `../Metabole_Coach_App.html` (+ web).
@@ -118,10 +122,9 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
 - Front-end: **Home Nutrizionista** dentro l'app staff (backoffice role-adattivo) ✅ — `NutritionistHome`
   (KPI clinici, coda validazione decisioni/diete/protocolli con Conferma/Correggi, pazienti da attenzionare).
   Resta: rifiniture mobile + pagine cliniche dedicate (dettaglio paziente, televisita).
-- ⚠️ Follow-up sicurezza: gli endpoint diretti `/engine/decisions/:id/confirm|correct` (ruolo
-  nutritionist) NON verificano che la decisione sia di un paziente assegnato — un nutrizionista potrebbe
-  revisionare decisioni di pazienti altrui. La via `/nutritionist/...` è scoped; valutare se stringere
-  anche quella diretta (o rimuoverla a favore della scoped).
+- ✅ Follow-up sicurezza **chiuso**: `/engine/decisions/:id/confirm|correct` verifica il paziente
+  assegnato per OGNI via, endpoint diretto compreso (`engine.service.ts:221-238`: capo nutrizionista
+  e admin passano, gli altri solo sui propri pazienti). La riga qui sopra lo dava aperto fino al 6/8.
 
 ## Backoffice (React + Vite)
 - Dashboard (moduli configurabili/trascinabili, grafici con assi mesi + tooltip), CRM/Lead,
@@ -165,8 +168,11 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   indicarlo in registrazione (il codice coach ha la precedenza). Alla prima attivazione dell'abbonamento
   dell'invitata, la referrer riceve `referral_reward_days` giorni extra sull'abbonamento attivo (config,
   default 30); se non ne ha uno attivo la ricompensa resta in sospeso. `GET /me/referral` per l'app.
-- Ancora da fare: schermata "porta un'amica" nell'app cliente (front-end) + eventuale notifica alla
-  referrer quando la ricompensa scatta.
+- ✅ Fatte entrambe il 6/8: la card **"Porta un'amica"** in Home dell'app cliente (compare dopo 15
+  giorni di percorso, `referral_card_after_days`) e la **notifica alla referrer** quando i giorni
+  arrivano davvero. Nella stessa tornata: la ricompensa non si perde più se la referrer è senza
+  abbonamento attivo (si riscuote alla prima attivazione utile), e l'amica invitata **eredita la
+  coach della referrer**, che quindi incassa le provvigioni.
 
 ## Motore / AI
 - **Keto-Mediterranea nel generatore** — dieta suggerita in *Creazione e validazione* con 12 varianti
@@ -175,7 +181,9 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   l'elenco esplicito dei vietati, sta nelle note cliniche del preset e finisce nel prompt del
   generatore. Il catalogo lo produce il generatore in **bozza** e lo valida la nutrizionista: ricette
   proprie della dieta, nessuna condivisione con la Keto (regola ferrea n.1). Vegana esclusa di
-  proposito (senza legumi e senza soia da negozio specializzato non regge). 🟡 (da generare e validare)
+  proposito (senza legumi e senza soia da negozio specializzato non regge). 🟡 **generata dal
+  nutrizionista il 6/8 dal generatore del backoffice** (usato come formazione): resta la validazione
+  e la pubblicazione delle varianti.
 - **Pausa vacanza sorvegliata** — durante una pausa i menu restano sospesi ma il sistema fissa un peso
   di riferimento, chiede una pesata ogni `pause_watch_ask_days` (5 gg) con tono da vacanza e, se il peso
   supera `pause_watch_regain_kg` (2 kg), crea un'attività per la coach e la avvisa una volta sola.

@@ -55,5 +55,5 @@ Aggiornata: 2026-07-14 (verifica live).
 
 ### Semaforo
 - **Infrastruttura**: **live** (backend, DB, pagamenti, app, sito).
-- **Go-live**: pronti, subordinato alle **4 conferme 🔴** (Stripe LIVE, email/DNS, backoffice, FCM) e allo **smoke test 🟢**.
+- **Go-live**: **aperto**. Le 4 conferme (Stripe LIVE, email/DNS, backoffice, FCM) sono chiuse dal 16/7 e lo smoke test è 🟢. *(questa riga le dava ancora 🔴 fino al 6/8, in contraddizione con la sezione qui sopra nello stesso file)*
 - Contenuti 🔵 completabili anche subito dopo l'apertura; voci ⚪ non bloccano.

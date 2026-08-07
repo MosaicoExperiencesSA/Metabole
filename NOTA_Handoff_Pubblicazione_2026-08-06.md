@@ -11,8 +11,11 @@ Racconto per esteso di ogni voce: `progetto/REGISTRO.md`, sezione 2026-08-06.
 
 ## 1. Cosa contiene questa release
 
-Le 18 richieste del feedback clienti del 5/8, tranne la #10 (monitoraggio a pagamento, ferma
-sulla decisione delle provvigioni sul rinnovo). In più: push iOS riparate, CI Android verde,
+Le 18 richieste del feedback clienti del 5/8, tranne la #10 (monitoraggio a pagamento).
+**Aggiornato la sera del 6/8:** la decisione che bloccava la #10 è stata presa — provvigioni sul
+rinnovo chiuse in tutte e tre le domande — e il listino è fissato (mantenimento €49/mese in
+abbonamento o mese singolo, monitoraggio €19/mese in abbonamento). Lo Stripe ricorrente è il primo
+lavoro del 7/8: `progetto/Stripe_Ricorrente_Sei_Domande.md`. In più: push iOS riparate, CI Android verde,
 chiave APNs esposta revocata e sostituita, repo fuori da iCloud.
 
 I 27 commit della giornata, dal più recente:
@@ -83,7 +86,9 @@ posto da guardare è quello.
 
 Nessuna nuova. Due da ricordare:
 
-- **`OTA_VERSION` su Render: va SVUOTATA dopo la pubblicazione.** Se resta valorizzata, le app
+- **`OTA_VERSION` su Render: SVUOTATA il 6/8 alle 15:58, PRIMA della pubblicazione** — ed era
+  l'ordine giusto, non un anticipo. Il manifest serviva ancora la 2.0.1, cioè il bundle senza il
+  codice delle push. Se resta valorizzata, le app
   appena aggiornate scaricano sopra un bundle OTA più vecchio del nativo.
 - `AI_API_KEY`: serve al generatore di catalogo. Senza, il pulsante «Genera» dà errore.
 
@@ -111,9 +116,9 @@ Nessuna nuova. Due da ricordare:
 ## 7. Test
 
 Nessun test nuovo in questa tornata (le voci di oggi sono quasi tutte UI e configurazione).
-La suite backend resta com'era. ⚠️ `ci.yml` ha ancora `continue-on-error: true`: la pipeline
-**non può fallire**, quindi non protegge niente. Dietro ci sono ~30 test rossi preesistenti in
-`src/commerce`: la riga si toglie solo dopo averli ripuliti, altrimenti blocca ogni push.
+⚠️ **Superato la sera del 6/8.** I test rossi non erano «~30 in `src/commerce`»: erano **99 in 18
+suite**. Sistemati tutti — **51 suite, 527 test, zero rossi** — e `continue-on-error: true` è stato
+tolto da `ci.yml` (commit `73cc4f2`). Da adesso un test rosso **blocca la push**, che è il punto.
 
 ---
 
@@ -135,14 +140,13 @@ Sulla shell di Render, in `~/project/src/backend`:
 
 ## 9. Cosa resta aperto
 
-- **#10 monitoraggio a pagamento** → serve la decisione sulle provvigioni sul rinnovo:
-  `progetto/Decisione_Provvigioni_Rinnovo.md` (già deciso: nutrizionista 0% su mantenimento e
-  monitoraggio; manca la quota coach).
-- **Keto-Mediterranea** → le 12 varianti vanno generate e validate dalla nutrizionista dal
-  backoffice: `progetto/Guida_Generatore_KetoMediterranea.md`. Non blocca la pubblicazione:
+- **#10 monitoraggio a pagamento** → ✅ decisione presa il 6/8 sera, non blocca più: nutrizionista
+  0%, coach quota piena a ogni rinnovo, solo se è ancora la coach assegnata, senza scadenza
+  (`progetto/Decisione_Provvigioni_Rinnovo.md`). Ora blocca solo il codice dello Stripe ricorrente.
+- **Keto-Mediterranea** → ✅ generate dal nutrizionista il 6/8 dal generatore del backoffice.
+  Resta la validazione e la pubblicazione: `progetto/Guida_Generatore_KetoMediterranea.md`. Non blocca la pubblicazione:
   una dieta non approvata non la vede nessuna cliente.
 - **Una card per prodotto in registrazione** (oggi una per stile) → `metabole-backlog.md`.
-- **`continue-on-error` in `ci.yml`** → dopo la pulizia dei test. I file `.github/` non li scrive
-  il bridge: si modificano dall'editor web di GitHub.
+- ~~**`continue-on-error` in `ci.yml`**~~ → ✅ tolto il 6/8 (commit `73cc4f2`), a test puliti.
 - **Deployment target iOS 15.0** → non stasera: cambia la configurazione Xcode a poche ore
   dall'archiviazione.
