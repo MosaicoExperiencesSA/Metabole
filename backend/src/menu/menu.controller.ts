@@ -18,39 +18,40 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { MenuService } from './menu.service';
 
 class RateRecipeDto {
-  @IsString()
-  @MinLength(1)
+  @IsString({ message: 'Ricetta non riconosciuta: riprova dal menu.' })
+  @MinLength(1, { message: 'Ricetta non riconosciuta: riprova dal menu.' })
   recipeId!: string;
 
-  @IsInt()
-  @Min(1)
-  @Max(5)
+  @IsInt({ message: 'Il voto va da 1 a 5 stelle.' })
+  @Min(1, { message: 'Il voto va da 1 a 5 stelle.' })
+  @Max(5, { message: 'Il voto va da 1 a 5 stelle.' })
   stars!: number;
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'Etichette non valide.' })
+  @IsString({ each: true, message: 'Etichette non valide.' })
   tags?: string[];
 
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Data non valida.' })
   date?: string;
 }
 
 class CheckItemDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(120)
+  @IsString({ message: 'Indica quale voce della lista.' })
+  @MinLength(1, { message: 'Indica quale voce della lista.' })
+  @MaxLength(120, { message: 'Nome della voce troppo lungo (massimo 120 caratteri).' })
   itemName!: string;
 
-  @IsBoolean()
+  @IsBoolean({ message: 'Valore non valido per la spunta.' })
   checked!: boolean;
 }
 
 class DislikeIngredientDto {
-  @IsString()
-  @MinLength(2)
-  @MaxLength(60)
+  // Testo libero digitato dalla cliente mentre guarda il menu: è il campo più esposto di tutti.
+  @IsString({ message: 'Scrivi l\'ingrediente che vuoi sostituire.' })
+  @MinLength(2, { message: 'Scrivi il nome dell\'ingrediente per esteso (almeno 2 lettere).' })
+  @MaxLength(60, { message: 'Nome troppo lungo: scrivi solo l\'ingrediente, senza la ricetta.' })
   ingredient!: string;
 
   /**
@@ -62,12 +63,12 @@ class DislikeIngredientDto {
    *  - `forever` come `days`, e in più il cibo entra fra i non graditi del profilo
    */
   @IsOptional()
-  @IsIn(['today', 'days', 'forever'])
+  @IsIn(['today', 'days', 'forever'], { message: 'Scelta non valida per la durata della sostituzione.' })
   scope?: 'today' | 'days' | 'forever';
 
   /** @deprecated Sostituito da `scope`. Resta accettato per le app già installate. */
   @IsOptional()
-  @IsBoolean()
+  @IsBoolean({ message: 'Valore non valido.' })
   forever?: boolean;
 }
 

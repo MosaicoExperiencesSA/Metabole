@@ -6,10 +6,10 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PauseService } from './pause.service';
 
 class RequestPauseDto {
-  @IsDateString()
+  @IsDateString({}, { message: 'Scegli il giorno da cui vuoi sospendere.' })
   startDate!: string;
 
-  @IsDateString()
+  @IsDateString({}, { message: 'Scegli il giorno in cui vuoi riprendere.' })
   endDate!: string;
 }
 

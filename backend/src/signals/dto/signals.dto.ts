@@ -23,7 +23,7 @@ import {
 export class CreateMeasurementDto {
   /** Default: oggi. Formato YYYY-MM-DD. */
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Data non valida.' })
   date?: string;
 
   @Type(() => Number)

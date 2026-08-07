@@ -49,18 +49,22 @@ class CompleteVisitDto {
 }
 
 class UploadDocumentDto {
-  @IsIn(['blood_test', 'photo', 'other'])
+  // Il file lo sceglie la cliente dal telefono: i formati fuori lista sono la norma, non
+  // l'eccezione. Il messaggio deve dire QUALI vanno bene, non elencare i mime-type.
+  @IsIn(['blood_test', 'photo', 'other'], { message: 'Indica di che tipo è il documento.' })
   type!: string;
 
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
+  @IsString({ message: 'Nome del file mancante.' })
+  @MinLength(1, { message: 'Nome del file mancante.' })
+  @MaxLength(200, { message: 'Nome del file troppo lungo: rinominalo più corto e riprova.' })
   fileName!: string;
 
-  @IsIn(['application/pdf', 'image/jpeg', 'image/png', 'image/heic'])
+  @IsIn(['application/pdf', 'image/jpeg', 'image/png', 'image/heic'], {
+    message: 'Puoi caricare un PDF o una foto (JPG, PNG, HEIC). Se hai un altro formato, fanne uno scatto.',
+  })
   mimeType!: string;
 
-  @IsBase64()
+  @IsBase64({}, { message: 'Non siamo riusciti a leggere il file: riprova a caricarlo.' })
   contentBase64!: string;
 }
 

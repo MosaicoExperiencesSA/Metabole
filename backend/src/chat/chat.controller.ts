@@ -7,9 +7,10 @@ import { ChatService } from './chat.service';
 import { ConversationSummaryService } from './conversation-summary.service';
 
 class SendMessageDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(4000)
+  // Il messaggio alla coach: testo libero, e i messaggi di errore li legge la cliente.
+  @IsString({ message: 'Scrivi un messaggio.' })
+  @MinLength(1, { message: 'Scrivi un messaggio.' })
+  @MaxLength(4000, { message: 'Il messaggio è troppo lungo: dividilo in due, si legge meglio.' })
   body!: string;
 }
 

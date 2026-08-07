@@ -40,22 +40,24 @@ class SetActiveDto {
 }
 
 class ValidateDiscountDto {
-  @IsString()
-  @MinLength(1)
+  // Il codice sconto è l'unico campo che si digita nel carrello: un errore tecnico qui arriva
+  // nel momento peggiore, quando la cliente sta per pagare.
+  @IsString({ message: 'Inserisci il codice del buono.' })
+  @MinLength(1, { message: 'Inserisci il codice del buono.' })
   code!: string;
 
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Importo del carrello non valido: riprova dal negozio.' })
+  @Min(0, { message: 'Importo del carrello non valido: riprova dal negozio.' })
   amountCents!: number;
 
   // Piano nel carrello: serve ai codici con prezzo TARGET per piano (Opzione B).
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'Piano non riconosciuto: riprova dal negozio.' })
   planId?: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Prezzo del piano non valido: riprova dal negozio.' })
+  @Min(0, { message: 'Prezzo del piano non valido: riprova dal negozio.' })
   planPriceCents?: number;
 }
 

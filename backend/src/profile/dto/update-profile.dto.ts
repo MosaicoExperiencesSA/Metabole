@@ -4,112 +4,114 @@ import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, Is
 
 class LifestylePatchDto {
   @IsOptional()
-  @IsIn(['sedentary', 'standing', 'shifts', 'travel'])
+  @IsIn(['sedentary', 'standing', 'shifts', 'travel'], { message: 'Scelta non valida per il tipo di lavoro.' })
   work?: string;
 
   @IsOptional()
-  @IsIn(['very_little', 'some', 'love_cooking'])
+  @IsIn(['very_little', 'some', 'love_cooking'], { message: 'Scelta non valida per il tempo in cucina.' })
   cookingTime?: string;
 
   @IsOptional()
-  @IsIn(['home', 'canteen', 'out', 'on_the_go'])
+  @IsIn(['home', 'canteen', 'out', 'on_the_go'], { message: 'Scelta non valida per il pranzo infrasettimanale.' })
   weekdayLunch?: string;
 }
 
 export class UpdateProfileDto {
   @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(80)
+  @IsString({ message: 'Il nome non è valido.' })
+  @MinLength(1, { message: 'Scrivi il tuo nome.' })
+  @MaxLength(80, { message: 'Nome troppo lungo (massimo 80 caratteri).' })
   name?: string;
 
   /** Lingua dell'utente (i18n): notifiche ed email arrivano in questa lingua. */
   @IsOptional()
-  @IsIn(['it', 'en'])
+  @IsIn(['it', 'en'], { message: 'Lingua non disponibile.' })
   locale?: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(18)
-  @Max(100)
+  @Transform(numeroOpzionale)
+  @IsInt({ message: 'L\'età va indicata con un numero intero (es. 42).' })
+  @Min(18, { message: 'Il percorso è per maggiorenni: sotto i 18 anni serve un altro tipo di seguito.' })
+  @Max(100, { message: 'Controlla l\'età inserita.' })
   age?: number;
 
   @IsOptional()
-  @IsInt()
-  @Min(120)
-  @Max(230)
+  @Transform(numeroOpzionale)
+  @IsInt({ message: 'L\'altezza va indicata in centimetri, con un numero intero (es. 165).' })
+  @Min(120, { message: 'L\'altezza sembra troppo bassa: controlla il valore in cm.' })
+  @Max(230, { message: 'L\'altezza sembra troppo alta: controlla il valore in cm.' })
   heightCm?: number;
 
   @IsOptional()
-  @IsString() @MaxLength(40)
+  @IsString({ message: 'Regime non valido.' }) @MaxLength(40, { message: 'Regime non valido.' })
   regime?: string;
 
   @IsOptional()
-  @IsString() @MaxLength(40)
+  @IsString({ message: 'Stile alimentare non valido.' }) @MaxLength(40, { message: 'Stile alimentare non valido.' })
   dietStyle?: string;
 
   /** Famiglia (`Diet.name`): con lo stile identifica il prodotto scelto. */
-  @IsOptional() @IsString() @MaxLength(120)
+  @IsOptional() @IsString({ message: 'Percorso non riconosciuto.' }) @MaxLength(120, { message: 'Percorso non riconosciuto.' })
   dietFamily?: string;
 
   @IsOptional()
-  @IsIn([3, 4, 5])
+  @IsIn([3, 4, 5], { message: 'I pasti al giorno possono essere 3, 4 o 5.' })
   mealsPerDay?: number;
 
   @IsOptional()
-  @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'])
+  @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'], { message: 'Tipo di percorso non valido.' })
   pathType?: string;
 
   @IsOptional()
-  @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'])
+  @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'], { message: 'Finestra del digiuno non valida.' })
   fastingWindow?: string;
 
   @IsOptional()
-  @IsIn(['daily', 'when_needed', 'on_request'])
+  @IsIn(['daily', 'when_needed', 'on_request'], { message: 'Scelta non valida per il tipo di seguito della coach.' })
   coachStyle?: string;
 
   @IsOptional()
-  @IsIn(['follows', 'needs_push', 'perseveres', 'quits'])
+  @IsIn(['follows', 'needs_push', 'perseveres', 'quits'], { message: 'Scelta non valida.' })
   character?: string;
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'Intolleranze non valide.' })
+  @IsString({ each: true, message: 'Intolleranze non valide.' })
   intolerances?: string[];
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'Elenco dei cibi non graditi non valido.' })
+  @IsString({ each: true, message: 'Elenco dei cibi non graditi non valido.' })
   dislikedFoods?: string[];
 
   /** La cliente preferisce ricette semplici (cucina italiana) quando disponibili. */
   @IsOptional()
-  @IsBoolean()
+  @IsBoolean({ message: 'Valore non valido.' })
   prefersSimpleRecipes?: boolean;
 
   /** Livello di attività fisica (domanda dedicata): guida il calcolo del fabbisogno calorico. */
   @IsOptional()
-  @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active'])
+  @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active'], { message: 'Livello di attività non valido.' })
   activityLevel?: string;
 
   @IsOptional()
-  @ValidateNested()
+  @ValidateNested({ message: 'Abitudini non valide.' })
   @Type(() => LifestylePatchDto)
   lifestyle?: LifestylePatchDto;
 
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Data di inizio non valida: scegline una dal calendario.' })
   planStartDate?: string;
 
   @IsOptional()
-  @IsObject()
+  @IsObject({ message: 'Consensi non validi.' })
   consents?: Record<string, unknown>;
 }
 
 export class UpdateThemeDto {
-  @IsString()
-  @MinLength(4)
-  @MaxLength(9)
+  @IsString({ message: 'Colore non valido.' })
+  @MinLength(4, { message: 'Colore non valido.' })
+  @MaxLength(9, { message: 'Colore non valido.' })
   color!: string;
 }
 

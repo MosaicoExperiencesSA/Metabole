@@ -4,28 +4,28 @@ import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsStri
 
 class LifestyleDto {
   @IsOptional()
-  @IsIn(['sedentary', 'standing', 'shifts', 'travel'])
+  @IsIn(['sedentary', 'standing', 'shifts', 'travel'], { message: 'Scelta non valida per il tipo di lavoro.' })
   work?: string;
 
   @IsOptional()
-  @IsIn(['very_little', 'some', 'love_cooking'])
+  @IsIn(['very_little', 'some', 'love_cooking'], { message: 'Scelta non valida per il tempo in cucina.' })
   cookingTime?: string;
 
   @IsOptional()
-  @IsIn(['home', 'canteen', 'out', 'on_the_go'])
+  @IsIn(['home', 'canteen', 'out', 'on_the_go'], { message: 'Scelta non valida per il pranzo infrasettimanale.' })
   weekdayLunch?: string;
 
   // Schermo 6 del prototipo: "Perché vuoi iniziare adesso?" (motivazione).
   @IsOptional()
-  @IsIn(['wellbeing', 'clothes', 'health', 'event'])
+  @IsIn(['wellbeing', 'clothes', 'health', 'event'], { message: 'Scelta non valida per la motivazione.' })
   motivation?: string;
 }
 
 class HealthDto {
-  @IsIn(['no', 'yes', 'tell_in_visit'])
+  @IsIn(['no', 'yes', 'tell_in_visit'], { message: 'Rispondi sulle condizioni di salute.' })
   hasConditions!: string;
 
-  @IsIn(['no', 'yes', 'tell_in_visit'])
+  @IsIn(['no', 'yes', 'tell_in_visit'], { message: 'Rispondi sui farmaci che assumi.' })
   takesMedications!: string;
 }
 
@@ -58,27 +58,27 @@ class ObjectiveInputDto {
 }
 
 export class SubmitAnswersDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(80)
+  @IsString({ message: 'Scrivi il tuo nome.' })
+  @MinLength(1, { message: 'Scrivi il tuo nome.' })
+  @MaxLength(80, { message: 'Nome troppo lungo (massimo 80 caratteri).' })
   name!: string;
 
-  @IsInt()
-  @Min(18)
-  @Max(100)
+  @IsInt({ message: 'L\'età va indicata con un numero intero (es. 42).' })
+  @Min(18, { message: 'Il percorso è per maggiorenni.' })
+  @Max(100, { message: 'Controlla l\'età inserita.' })
   age!: number;
 
-  @IsIn(['female', 'male', 'unspecified'])
+  @IsIn(['female', 'male', 'unspecified'], { message: 'Scelta non valida.' })
   sex!: 'female' | 'male' | 'unspecified';
 
-  @IsInt()
-  @Min(120)
-  @Max(230)
+  @IsInt({ message: 'L\'altezza va indicata in centimetri, con un numero intero (es. 165).' })
+  @Min(120, { message: 'L\'altezza sembra troppo bassa: controlla il valore in cm.' })
+  @Max(230, { message: 'L\'altezza sembra troppo alta: controlla il valore in cm.' })
   heightCm!: number;
 
-  @IsNumber()
-  @Min(35)
-  @Max(250)
+  @IsNumber({}, { message: 'Il peso deve essere un numero (es. 72,4).' })
+  @Min(35, { message: 'Il peso sembra troppo basso: controlla il valore in kg.' })
+  @Max(250, { message: 'Il peso sembra troppo alto: controlla il valore in kg.' })
   startWeightKg!: number;
 
   // Facoltative: chi non si è mai misurata le lascia in bianco. Senza il Transform la casella
@@ -98,10 +98,10 @@ export class SubmitAnswersDto {
   @Max(200, { message: 'I fianchi sembrano troppo grandi: controlla il valore in cm.' })
   startHipsCm?: number;
 
-  @IsString() @MaxLength(40)
+  @IsString({ message: 'Scegli il tuo regime alimentare.' }) @MaxLength(40, { message: 'Regime non valido.' })
   regime!: string;
 
-  @IsString() @MaxLength(40)
+  @IsString({ message: 'Scegli il percorso che preferisci.' }) @MaxLength(40, { message: 'Percorso non valido.' })
   dietStyle!: string;
 
   /**
@@ -109,73 +109,73 @@ export class SubmitAnswersDto {
    * Opzionale di proposito: le app già installate mandano solo `dietStyle` e devono continuare
    * a funzionare — senza questo campo l'abbinamento resta quello di prima.
    */
-  @IsOptional() @IsString() @MaxLength(120)
+  @IsOptional() @IsString({ message: 'Percorso non riconosciuto.' }) @MaxLength(120, { message: 'Percorso non riconosciuto.' })
   dietFamily?: string;
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'Elenco allergie non valido.' })
+  @IsString({ each: true, message: 'Elenco allergie non valido.' })
   allergies?: string[];
 
   /** Allergie fuori dai 14 codici UE: testo libero → forza revisione del nutrizionista. */
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'Elenco allergie non valido.' })
+  @IsString({ each: true, message: 'Elenco allergie non valido.' })
   allergiesOther?: string[];
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'Elenco intolleranze non valido.' })
+  @IsString({ each: true, message: 'Elenco intolleranze non valido.' })
   intolerances?: string[];
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
+  @IsArray({ message: 'Elenco dei cibi non graditi non valido.' })
+  @IsString({ each: true, message: 'Elenco dei cibi non graditi non valido.' })
   dislikedFoods?: string[];
 
   @IsOptional()
-  @ValidateNested()
+  @ValidateNested({ message: 'Abitudini non valide.' })
   @Type(() => LifestyleDto)
   lifestyle?: LifestyleDto;
 
-  @IsIn([3, 4, 5])
+  @IsIn([3, 4, 5], { message: 'I pasti al giorno possono essere 3, 4 o 5.' })
   mealsPerDay!: number;
 
-  @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'])
+  @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'], { message: 'Scegli il tipo di percorso.' })
   pathType!: string;
 
   @IsOptional()
-  @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'])
+  @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'], { message: 'Finestra del digiuno non valida.' })
   fastingWindow?: string;
 
   @IsOptional()
-  @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active'])
+  @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active'], { message: 'Livello di attività non valido.' })
   activityLevel?: string;
 
-  @ValidateNested()
+  @ValidateNested({ message: 'Rispondi alle domande sulla salute.' })
   @Type(() => HealthDto)
   health!: HealthDto;
 
-  @ValidateNested()
+  @ValidateNested({ message: 'Completa il tuo obiettivo.' })
   @Type(() => ObjectiveInputDto)
   objective!: ObjectiveInputDto;
 
-  @IsIn(['daily', 'when_needed', 'on_request'])
+  @IsIn(['daily', 'when_needed', 'on_request'], { message: 'Scegli come vuoi essere seguita dalla coach.' })
   coachStyle!: string;
 
-  @IsIn(['follows', 'needs_push', 'perseveres', 'quits'])
+  @IsIn(['follows', 'needs_push', 'perseveres', 'quits'], { message: 'Scegli l\'opzione che ti somiglia di più.' })
   character!: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(9)
+  @IsString({ message: 'Colore non valido.' })
+  @MaxLength(9, { message: 'Colore non valido.' })
   themeColor?: string;
 
   @IsOptional()
-  @IsObject()
+  @IsObject({ message: 'Consensi non validi.' })
   consents?: Record<string, unknown>;
 
   /** Accettazione esplicita del trattamento dei dati sanitari (GDPR art. 9). */
-  @IsBoolean()
+  @IsBoolean({ message: 'Per creare il percorso serve il consenso al trattamento dei dati sanitari.' })
   healthDataConsent!: boolean;
 }

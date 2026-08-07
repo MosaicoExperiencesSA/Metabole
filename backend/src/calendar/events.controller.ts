@@ -19,22 +19,24 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { EventsService } from './events.service';
 
 class CreateEventDto {
-  @IsIn(['wedding', 'baptism', 'dinner', 'monthly_cheat', 'vacation', 'other'])
+  @IsIn(['wedding', 'baptism', 'dinner', 'monthly_cheat', 'vacation', 'other'], {
+    message: 'Scegli che tipo di occasione è.',
+  })
   type!: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(80)
+  @IsString({ message: 'Il nome dell\'occasione non è valido.' })
+  @MaxLength(80, { message: 'Nome troppo lungo: bastano poche parole (massimo 80 caratteri).' })
   label?: string;
 
-  @IsDateString()
+  @IsDateString({}, { message: 'Scegli la data di inizio.' })
   startDate!: string;
 
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Data di fine non valida: scegline una dal calendario o lasciala vuota.' })
   endDate?: string;
 
-  @IsIn(['single_event', 'pause_period'])
+  @IsIn(['single_event', 'pause_period'], { message: 'Indica se è un giorno solo o un periodo.' })
   mode!: 'single_event' | 'pause_period';
 }
 

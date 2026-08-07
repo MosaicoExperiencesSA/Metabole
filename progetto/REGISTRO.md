@@ -7,6 +7,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🧹 **Finito il giro sui messaggi delle clienti, e ora c'è un test che li rende
+  obbligatori.** Completate le schermate che mancavano: chat con la coach, sostituzione
+  ingrediente, lista della spesa, valutazione ricette, caricamento documenti, buono sconto,
+  eventi in agenda, richiesta di sospensione, «i miei dati», tema. Erano tutte con i messaggi di
+  default di class-validator, in inglese e col nome della colonna del database dentro.
+  Qualche esempio di cosa cambia davvero:
+  · caricando un'analisi in formato sbagliato, prima arrivava l'elenco dei mime-type
+    (`mimeType must be one of the following values: application/pdf, image/jpeg…`); ora c'è
+    scritto **cosa fare**: «Puoi caricare un PDF o una foto (JPG, PNG, HEIC). Se hai un altro
+    formato, fanne uno scatto».
+  · sostituendo un ingrediente, `ingredient must be longer than or equal to 2 characters`
+    diventa «Scrivi il nome dell'ingrediente per esteso (almeno 2 lettere)».
+  · un messaggio troppo lungo alla coach non è più `body must be shorter than or equal to 4000
+    characters` ma «Il messaggio è troppo lungo: dividilo in due, si legge meglio».
+
+- `[Sviluppo]` 🔒 **La regola ora è verificata, non ricordata** (`messaggi-clienti.spec.ts`).
+  Il problema di fondo non era in un file: `class-validator` mette il messaggio in inglese **di
+  default**, quindi un DTO nuovo nasce sbagliato senza che nessuno faccia niente di male, e ce ne
+  accorgiamo solo quando ci sbatte contro una persona vera. È letteralmente quello che è
+  successo oggi, due volte.
+  Il test nuovo legge i **metadati dei decoratori** dei DTO che le clienti compilano e fallisce
+  se trova un vincolo senza `message`. Non controlla il testo — quello resta un mestiere umano —
+  ma garantisce che ce ne sia uno. Quando fallisce dice anche cosa scrivere: *cosa fare*, non
+  cosa è sbagliato.
+  Il limite è dichiarato nel test stesso: **non c'è modo di scoprire da soli quali DTO siano
+  client-facing**, quindi la lista si allunga a mano quando nasce una schermata. È comunque
+  meglio di una convenzione che nessuno può far rispettare: chi aggiunge un DTO a quella lista
+  lo protegge per sempre.
+  Test: +10 (58 suite, 611 test).
+
 - `[Sviluppo]` 🔎 **Lo stesso difetto era vivo in altri due posti, e uno era la REGISTRAZIONE.**
   Sistemata la segnalazione di Daniela, ho passato in rassegna tutti i DTO che una **cliente**
   compila (non quelli del backoffice: lì il messaggio in inglese è brutto ma lo legge
