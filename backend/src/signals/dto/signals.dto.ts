@@ -1,4 +1,5 @@
 import { Transform, Type } from 'class-transformer';
+import { numeroOpzionale } from '../../common/validazione';
 import {
   IsDateString,
   IsIn,
@@ -8,30 +9,6 @@ import {
   Max,
   Min,
 } from 'class-validator';
-
-/**
- * Circonferenza «non compilata» → `undefined`, cioè «non lo mando».
- *
- * Serve perché la casella vuota di un form non arriva sempre vuota: `Number('')` fa **0**, e uno
- * zero è un numero valido a tutti gli effetti — quindi passava la validazione «è un numero» e si
- * schiantava su «minimo 40». È esattamente quello che è successo a una cliente il 7/8: fianchi
- * mai misurati, casella vuota, e la correzione delle misure che non si salvava con un messaggio
- * in inglese sotto il pulsante.
- *
- * L'app è stata corretta perché non mandi più zeri, ma la correzione lato app arriva solo con una
- * pubblicazione sugli store: finché le clienti hanno la versione installata, deve reggere il
- * backend. E deve reggerlo comunque, perché **nessun client va creduto sulla parola**.
- *
- * Zero e negativi si possono trattare come «assente» senza ambiguità: non esiste una vita di
- * 0 cm. Il PESO invece resta fuori da qui — è obbligatorio, e uno zero lì è un errore da
- * segnalare, non un campo lasciato in bianco.
- */
-const circonferenzaOpzionale = ({ value }: { value: unknown }): number | undefined => {
-  if (value === null || value === undefined || value === '') return undefined;
-  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
-  if (!Number.isFinite(n) || n <= 0) return undefined;
-  return n;
-};
 
 /**
  * Misure inserite dalla CLIENTE: i messaggi qui sotto li legge lei, non noi.
@@ -56,76 +33,82 @@ export class CreateMeasurementDto {
   weightKg!: number;
 
   @IsOptional()
-  @Transform(circonferenzaOpzionale)
+  @Transform(numeroOpzionale)
   @IsNumber({}, { message: 'La vita deve essere un numero in centimetri (es. 82).' })
   @Min(40, { message: 'La vita sembra troppo piccola: controlla il valore in cm, o lascia il campo vuoto.' })
   @Max(200, { message: 'La vita sembra troppo grande: controlla il valore in cm.' })
   waistCm?: number;
 
   @IsOptional()
-  @Transform(circonferenzaOpzionale)
+  @Transform(numeroOpzionale)
   @IsNumber({}, { message: 'I fianchi devono essere un numero in centimetri (es. 98).' })
   @Min(40, { message: 'I fianchi sembrano troppo piccoli: controlla il valore in cm, o lascia il campo vuoto.' })
   @Max(200, { message: 'I fianchi sembrano troppo grandi: controlla il valore in cm.' })
   hipsCm?: number;
 
   @IsOptional()
-  @Transform(circonferenzaOpzionale)
+  @Transform(numeroOpzionale)
   @IsNumber({}, { message: 'Le cosce devono essere un numero in centimetri (es. 58).' })
   @Min(20, { message: 'Le cosce sembrano troppo piccole: controlla il valore in cm, o lascia il campo vuoto.' })
   @Max(120, { message: 'Le cosce sembrano troppo grandi: controlla il valore in cm.' })
   thighsCm?: number;
 }
 
+/** Check-in giornaliero: lo compila la cliente tutti i giorni, quindi i messaggi li legge lei. */
 export class CreateCheckinDto {
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Data non valida.' })
   date?: string;
 
-  @IsIn(['great', 'good', 'ok', 'hard', 'stressed'])
+  @IsIn(['great', 'good', 'ok', 'hard', 'stressed'], { message: 'Scegli come è andata la giornata.' })
   mood!: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(5)
+  @Transform(numeroOpzionale)
+  @IsInt({ message: 'L\'energia va indicata da 1 a 5.' })
+  @Min(1, { message: 'L\'energia va da 1 a 5.' })
+  @Max(5, { message: 'L\'energia va da 1 a 5.' })
   energy?: number;
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(5)
+  @Transform(numeroOpzionale)
+  @IsInt({ message: 'La fame va indicata da 1 a 5.' })
+  @Min(1, { message: 'La fame va da 1 a 5.' })
+  @Max(5, { message: 'La fame va da 1 a 5.' })
   hunger?: number;
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(5)
+  @Transform(numeroOpzionale)
+  @IsInt({ message: 'Lo stress va indicato da 1 a 5.' })
+  @Min(1, { message: 'Lo stress va da 1 a 5.' })
+  @Max(5, { message: 'Lo stress va da 1 a 5.' })
   stress?: number;
 }
 
 export class CreateWaterDto {
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Data non valida.' })
   date?: string;
 
-  @IsInt()
-  @Min(0)
-  @Max(30)
+  // Qui lo ZERO è legittimo: «oggi non ho bevuto niente» è un dato, non un campo vuoto.
+  @IsInt({ message: 'I bicchieri vanno indicati con un numero intero (es. 6).' })
+  @Min(0, { message: 'I bicchieri non possono essere un numero negativo.' })
+  @Max(30, { message: 'Più di 30 bicchieri in un giorno: controlla il numero.' })
   glasses!: number;
 }
 
 export class CreateStepsDto {
   @IsOptional()
-  @IsDateString()
+  @IsDateString({}, { message: 'Data non valida.' })
   date?: string;
 
-  @IsInt()
-  @Min(0)
-  @Max(150000)
+  // Zero legittimo (giornata ferma). Il messaggio dell'intero serve a chi scrive «10.000».
+  @IsInt({ message: 'I passi vanno indicati con un numero intero, senza punti (es. 10000).' })
+  @Min(0, { message: 'I passi non possono essere un numero negativo.' })
+  @Max(150000, { message: 'Più di 150.000 passi in un giorno: controlla il numero.' })
   steps!: number;
 
   @IsOptional()
-  @IsIn(['manual', 'healthkit', 'google_fit'])
+  @IsIn(['manual', 'healthkit', 'google_fit'], { message: 'Origine dei passi non riconosciuta.' })
   source?: string;
 }

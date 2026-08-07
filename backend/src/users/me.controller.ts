@@ -52,17 +52,32 @@ class UpdateAccountDto {
   @IsOptional() @ValidateIf((_, v) => v !== null) @IsString() @MaxLength(300000) photoUrl?: string | null;
 }
 
+// Password: sono i messaggi che legge la persona mentre sta cercando di entrare. Quelli di
+// default («newPassword must be longer than or equal to 8 characters») dicono la stessa cosa,
+// ma in inglese e col nome del campo del database — e chi li legge non sta programmando.
 class ChangePasswordDto {
-  @IsString() @MinLength(1) currentPassword!: string;
-  @IsString() @MinLength(8) @MaxLength(200) newPassword!: string;
+  @IsString({ message: 'Inserisci la password attuale.' })
+  @MinLength(1, { message: 'Inserisci la password attuale.' })
+  currentPassword!: string;
+
+  @IsString({ message: 'Inserisci la nuova password.' })
+  @MinLength(8, { message: 'La nuova password deve avere almeno 8 caratteri.' })
+  @MaxLength(200, { message: 'La password è troppo lunga (massimo 200 caratteri).' })
+  newPassword!: string;
 }
 
 class DeleteMyAccountDto {
-  @IsString() @MinLength(1) @MaxLength(200) password!: string;
+  @IsString({ message: 'Inserisci la tua password per confermare.' })
+  @MinLength(1, { message: 'Inserisci la tua password per confermare.' })
+  @MaxLength(200, { message: 'La password è troppo lunga (massimo 200 caratteri).' })
+  password!: string;
 }
 
 class SetInitialPasswordDto {
-  @IsString() @MinLength(8) @MaxLength(200) newPassword!: string;
+  @IsString({ message: 'Scegli la tua password.' })
+  @MinLength(8, { message: 'La password deve avere almeno 8 caratteri.' })
+  @MaxLength(200, { message: 'La password è troppo lunga (massimo 200 caratteri).' })
+  newPassword!: string;
 }
 
 class UpdateMyProfileDto {

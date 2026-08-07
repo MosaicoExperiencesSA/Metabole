@@ -7,6 +7,41 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🔎 **Lo stesso difetto era vivo in altri due posti, e uno era la REGISTRAZIONE.**
+  Sistemata la segnalazione di Daniela, ho passato in rassegna tutti i DTO che una **cliente**
+  compila (non quelli del backoffice: lì il messaggio in inglese è brutto ma lo legge
+  un'operatrice). Il difetto non era in un file, era in un **modo di scrivere i DTO** — campo
+  numerico facoltativo + `@Min` + casella vuota che arriva come `0` — e si ripete ogni volta che
+  se ne aggiunge uno. Trovato ancora aperto in due punti:
+  · **`startWaistCm` e `startHipsCm` del questionario di registrazione.** Chi non si è mai
+    misurata li lascia in bianco, e il questionario si rifiutava di partire con
+    «startWaistCm must not be less than 40». È il punto peggiore in cui potesse capitare: al
+    primo contatto col prodotto un errore incomprensibile non fa perdere una funzione, fa
+    perdere la persona. Non so quante si siano fermate lì.
+  · **`weightToLoseKg`, `weeks` e `waistToLoseCm` della modifica obiettivo**: svuotare una
+    casella per cambiarne un'altra faceva fallire il salvataggio.
+  La regola ora sta in un posto solo (`common/validazione.ts`), con **due varianti**, perché la
+  differenza conta: sulle circonferenze lo zero è un campo vuoto, ma su «quanti cm di girovita
+  voglio perdere» **0 è una risposta** — vuol dire «quella misura non me la pongo». Confonderle
+  avrebbe cancellato in silenzio la scelta di una cliente.
+
+- `[Sviluppo]` 🇮🇹 **Messaggi di errore in italiano dove li legge una persona.** Nella stessa
+  passata: registrazione, obiettivo, check-in giornaliero, acqua, passi, cambio password, primo
+  accesso, cancellazione account e login. Erano tutti quelli di default di class-validator, col
+  nome del campo del database dentro — «newPassword must be longer than or equal to 8
+  characters» a chi sta cercando di entrare per la prima volta.
+  Dove serviva ho scritto **cosa fare**, non cosa è sbagliato: «I passi vanno indicati con un
+  numero intero, senza punti (es. 10000)» invece di «steps must be an integer number», che è il
+  messaggio che riceve chi scrive «10.000» — cioè chiunque.
+  I limiti **non** sono stati allargati: 5 cm di girovita resta rifiutato, il peso resta
+  obbligatorio. Tollerare lo zero non vuol dire tollerare tutto.
+  Test: +16 (57 suite, 601 test).
+  ⚠️ Resta una lacuna nota, e vale la pena scriverla: **non c'è un `exceptionFactory`** nella
+  `ValidationPipe`, quindi ogni DTO nuovo nasce con i messaggi in inglese e nessuno se ne accorge
+  finché non ci sbatte contro qualcuno. Le parti più esposte sono coperte; il resto (chat,
+  documenti, buoni sconto, eventi) è elencato e ordinato per probabilità, da fare quando c'è
+  tempo.
+
 - `[Sviluppo]` 🩺 **«Salva correzione» non salvava: la colpa era di una casella VUOTA.**
   Segnalato da una cliente il 7/8, con lo screenshot: correggeva peso e vita, lasciava vuoti i
   **fianchi** perché non li aveva mai misurati, e sotto il pulsante compariva
