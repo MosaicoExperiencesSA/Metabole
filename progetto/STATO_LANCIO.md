@@ -3,7 +3,7 @@
 Pagina unica, sempre aggiornata: **"cosa manca per aprire"**. Guarda qui.
 Legenda: ✅ fatto · ⏳ in corso · ⬜ da fare · 🔴 gate (blocca il lancio pubblico).
 Responsabili: **[Ops]** pannelli servizi · **[Sv]** Simone · **[Pr]** Antonio.
-Ultimo aggiornamento: **2026-07-16** (smoke test end-to-end **fatto**; rifiniture sito: percorsi "gestiti"+carosello, galleria app 5 schermate auto-scroll, orbita Gaia allineata + bagliore centro; audio Gaia v02; 19 stendardi equipaggio).
+Ultimo aggiornamento: **2026-08-07** (abbonamenti ricorrenti Stripe: codice, app e configurazione Stripe fatti; restano prezzi e provvigioni da compilare in Negozio). Voce precedente: 2026-07-16 (smoke test end-to-end **fatto**; rifiniture sito: percorsi "gestiti"+carosello, galleria app 5 schermate auto-scroll, orbita Gaia allineata + bagliore centro; audio Gaia v02; 19 stendardi equipaggio).
 
 ---
 
@@ -13,7 +13,10 @@ Ultimo aggiornamento: **2026-07-16** (smoke test end-to-end **fatto**; rifinitur
 ## ✅ Già fatto (verificato live)
 - Backend in produzione (`/health` ok) · **DB Neon prod seedato** (3 piani reali €297/€497/€797).
 - **Contatori con base storica LIVE**: `/public/stats` → `{clients:18983, reached:85232, methods:4, years:20}`.
-- **Stripe LIVE configurato**: chiave `sk_live` + webhook `checkout.session.completed` in Render, redeploy ok (niente prodotti in Stripe: prezzi dal DB).
+- **Stripe LIVE configurato**: chiave `sk_live` in Render (niente prodotti in Stripe: prezzi dal DB).
+  Webhook a **5 eventi** dal 7/8 — `checkout.session.completed`, `invoice.paid`,
+  `invoice.payment_failed`, `customer.subscription.deleted`, `customer.subscription.updated` — e
+  **portale clienti** configurato (serve a «Aggiorna la carta»: prima non esisteva).
 - **Sito live e allineato al repo** (metabole.eu: restyling a box, MetaboleAI®, galleria app, dicitura contatori, 9 lingue, legali, form).
 - **App cliente live** (app.metabole.eu) · **Backoffice live** (backoffice.metabole.eu) · bundle → backend prod verificato.
 - Pagine **`/payment/success` e `/payment/cancelled`** esistono e funzionano col redirect Stripe (login persiste; scelta data di inizio piano inclusa).
@@ -33,8 +36,20 @@ Ultimo aggiornamento: **2026-07-16** (smoke test end-to-end **fatto**; rifinitur
 | Cosa | Chi | Stato |
 |---|---|---|
 | Backoffice testato con i ruoli reali (coach/nutrizionista/admin) | [Sv] | ⬜ |
-| Rimuovere `_to_delete/schema_1.prisma` dal repo (entrata per errore col commit ba16168) | [Sv] | ⬜ |
-| Build/test in pipeline (CI) | [Sv] | ⬜ |
+| Rimuovere `_to_delete/schema_1.prisma` dal repo | [Sv] | ✅ verificato 7/8: non è più tracciato da git (la riga era rimasta ⬜ per errore, due righe sopra era già segnato fatto) |
+| Build/test in pipeline (CI) | [Sv] | ✅ dal 6/8: `.github/workflows/ci.yml` compila backend+backoffice+app e lancia i test, **senza `continue-on-error`** — un rosso blocca davvero |
+
+## 🟡 Abbonamenti ricorrenti — cosa manca per venderne uno (7/8)
+Il codice c'è ed è testato, la configurazione Stripe è fatta. Quello che resta è **dati**, e si
+compila dal backoffice — nessuno dei due si accorge da solo di essere sbagliato.
+
+| Cosa | Chi | Stato |
+|---|---|---|
+| Codice backend + app + backoffice (checkout, disdetta, carta, rinnovi) | [Sv] | ✅ 7/8 |
+| Stripe: 5 eventi sulla webhook + portale clienti | [Sv] | ✅ 7/8 |
+| **Prezzi e provvigioni** di «Mantenimento Metabole» (€49) e «Monitoraggio Metabole» (€19) in Negozio | [Sv] | ⬜ **nascono a ZERO per tutti i ruoli**: finché restano così, al primo rinnovo la coach non prende niente. Deciso il 7/8: quota coach **ridotta sul monitoraggio** |
+| Verifica con `npm run diag:ricorrente` sulla shell di Render | [Sv] | ⬜ dice cosa manca e non tocca niente |
+| Primo addebito ricorrente vero (carta vera, poi rimborso) | [Sv] | ⬜ è l'equivalente del gate n.1, ma per l'abbonamento |
 
 ## 🔵 Contenuti (Prodotto) — anche subito dopo il lancio
 | Cosa | Stato |

@@ -7,6 +7,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🗺️ **`STATO_LANCIO.md` rimesso in pari: due righe dicevano il falso.** È la pagina
+  che si guarda per sapere «cosa manca per aprire», ed era ferma al 16 luglio.
+  · «**Build/test in pipeline (CI)**» risultava ⬜: la CI esiste dal 6/8, compila i tre pacchetti
+    e lancia i test, e da quel giorno **senza `continue-on-error`** — un rosso blocca davvero.
+    Verificato leggendo `.github/workflows/ci.yml`, non a memoria.
+  · «**Rimuovere `_to_delete/schema_1.prisma`**» risultava ⬜ mentre **due righe più su**, nella
+    lista delle cose fatte, c'era già «schema_1.prisma rimosso ✅». Aveva ragione la seconda:
+    `git ls-files` conferma che non è più tracciato.
+  Una pagina di stato che riporta come da fare cose fatte è peggio di una pagina assente: si
+  smette di crederle, e allora smette di servire.
+  Aggiunta una sezione nuova — **«Abbonamenti ricorrenti: cosa manca per venderne uno»** — che
+  separa quello che è chiuso (codice, app, backoffice, configurazione Stripe) da quello che
+  resta, cioè **dati**: prezzi e provvigioni dei due piani in Negozio, la verifica con
+  `diag:ricorrente`, e il primo addebito ricorrente vero con carta vera. Le provvigioni nascono
+  a zero per tutti i ruoli, ed è la cosa che nessuno dei due sistemi segnala da solo: il primo
+  rinnovo semplicemente non paga la coach.
+
 - `[Sviluppo]` 🧭 **`npm run diag:ricorrente` — «si può davvero vendere un abbonamento oggi?»**
   Il codice del ricorrente è scritto e testato, ma nessun test può rispondere a quella domanda:
   dipende da **dati** in produzione e da **configurazione**, non da logica. E tutti i modi di
