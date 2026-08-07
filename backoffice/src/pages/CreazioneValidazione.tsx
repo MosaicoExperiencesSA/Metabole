@@ -136,6 +136,38 @@ export function CreazioneValidazione() {
   const existingCombos = new Set((targetFamily?.variants ?? []).map((v) => comboKeyOf((v.regime as string) || 'omnivore', (v.objective as string) || 'dimagrimento', (v.meals as string) || '5')));
   const regLabelOf = (code: string) => regimes.find((r) => r.code === code)?.label ?? code;
 
+  /**
+   * SINCRONIZZA le spunte del passo 1 con la variante su cui si genera.
+   *
+   * Erano due stati indipendenti che sullo schermo sembravano lo stesso: le spunte
+   * (regime × obiettivo × pasti) servono a CREARE varianti nuove, mentre la generazione lavora
+   * sulla variante SELEZIONATA. Si poteva quindi avere «Vegetariana · Dimagrimento · 5 pasti»
+   * spuntato e generare su «Vegana · Mantenimento · 3 pasti» — che è esattamente quello che è
+   * successo l'8/8: cinque settimane di lavoro finite sulla variante sbagliata, senza un errore.
+   *
+   * Regola: se le spunte individuano UNA sola combinazione e quella combinazione esiste già,
+   * diventa quella attiva. Se le combinazioni spuntate sono più d'una siamo in modalità
+   * "creazione/genera tutte" e non si tocca niente — ma il riquadro del passo 2 lo dice.
+   */
+  useEffect(() => {
+    if (!targetFamily) return;
+    const selMeals = isFastingFamily ? ['fasting'] : form.meals;
+    const combos: { r: string; o: string; m: string }[] = [];
+    for (const r of form.regimes) for (const o of form.objectives) for (const m of selMeals) combos.push({ r, o, m });
+    if (combos.length !== 1) return;
+    const c = combos[0];
+    const trovata = targetFamily.variants.find(
+      (v) => ((v.regime as string) || 'omnivore') === c.r
+        && ((v.objective as string) || 'dimagrimento') === c.o
+        && ((v.meals as string) || '5') === c.m,
+    );
+    if (trovata && trovata.id !== activePresetId) {
+      setActivePresetId(trovata.id);
+      setActiveFamilyKey(targetFamily.key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.regimes, form.objectives, form.meals, targetFamily?.key, presets]);
+
   // Stato di TUTTE le varianti generate della famiglia attiva (per il passo 3):
   // una riga per dieta generata con "pronta" (tutti i passi ok) e "pubblicata".
   type FamVariant = { dietId: string; regime: string; objective: string; meals: string; status: string; ready: boolean };
@@ -648,6 +680,14 @@ export function CreazioneValidazione() {
             <div style={{ fontSize: 13, color: '#2E3E3B', marginTop: 1 }}>
               {regLabelOf((activePreset.regime as string) || 'omnivore')} · {objLabel((activePreset.objective as string) || 'dimagrimento')} · <b>{mealLabel((activePreset.meals as string) || '5')}</b>
             </div>
+            {/* Se al passo 1 sono spuntate più combinazioni, le spunte e la variante attiva NON
+                coincidono: va detto, altrimenti si legge una cosa e se ne genera un'altra. */}
+            {selectedCombos.length > 1 && !genAll && (
+              <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5, color: '#6B4E12' }}>
+                Al passo 1 hai spuntato <b>{selectedCombos.length} combinazioni</b>, ma la generazione lavora su
+                questa sola. Per farle tutte, metti la spunta <b>«Genera tutte le varianti»</b> qui sopra.
+              </div>
+            )}
           </div>
         )}
 
