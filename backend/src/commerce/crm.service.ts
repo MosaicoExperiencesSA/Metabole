@@ -7,6 +7,7 @@ import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { coachTeamScope } from '../common/coach-team';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { avanzaStatoSeIndietro } from './avanza-stato';
 import { PrismaService } from '../prisma/prisma.service';
 import { PipelineService } from './pipeline.service';
 
@@ -270,6 +271,14 @@ export class CrmService {
     } catch {
       /* il CRM non deve mai bloccare la registrazione */
     }
+  }
+
+  /**
+   * Avanzamento automatico che NON fa retrocedere la scheda: vedi `avanza-stato.ts`, dove sta
+   * la logica — la usano anche moduli che non possono dipendere da commerce (il questionario).
+   */
+  async autoAdvanceIfEarlier(clientId: string, stage: string, byUserId: string): Promise<boolean> {
+    return avanzaStatoSeIndietro(this.prisma as never, clientId, stage, byUserId);
   }
 
   /** Avanzamento automatico (es. paid all'approvazione). */

@@ -1442,15 +1442,23 @@ async function seedPipelineStages(): Promise<void> {
   const defaults = [
     { key: 'lead_in', label: 'Nuovo contatto', color: '#7c8c88', order: 0, isSystem: true },
     { key: 'worked', label: 'Lavorato', color: '#3a6ea5', order: 1, isSystem: false },
+    // Il questionario si compila PRIMA di scegliere il piano: sta fra "Lavorato" e "Prova".
+    // È di sistema perché lo scrive l'automazione (fine questionario) e le coach lo usano per
+    // sapere chi è pronta per la chiamata.
+    { key: 'questionnaire_done', label: 'Questionario completato', color: '#3a6ea5', order: 2, isSystem: true },
     // "Prova": cliente che ha attivato un prodotto GRATUITO (checkout a 0). Al primo
     // pagamento vero passa ad "Acquisito" (key 'paid', usata dalle query di sistema).
-    { key: 'trial', label: 'Prova', color: '#b8863b', order: 2, isSystem: true },
-    { key: 'paid', label: 'Acquisito', color: '#0e7c66', order: 2, isSystem: true },
-    { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 3, isSystem: false },
-    { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 4, isSystem: false },
-    { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 5, isSystem: false },
-    { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 6, isSystem: false },
-    { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 7, isSystem: false },
+    { key: 'trial', label: 'Prova', color: '#b8863b', order: 3, isSystem: true },
+    { key: 'paid', label: 'Acquisito', color: '#0e7c66', order: 3, isSystem: true },
+    { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 4, isSystem: false },
+    { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 5, isSystem: false },
+    { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 6, isSystem: false },
+    { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 7, isSystem: false },
+    { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 8, isSystem: false },
+    // Ultima colonna: il percorso è finito (piano scaduto da una settimana senza rinnovo).
+    // Sta DOPO "Acquisito", quindi nelle statistiche resta contata fra le convertite — perché
+    // lo è stata: ha comprato e ha finito.
+    { key: 'path_ended', label: 'Percorso concluso', color: '#7c8c88', order: 9, isSystem: true },
   ];
   const existing = await prisma.pipelineStage.count();
   if (existing === 0) {
@@ -1470,6 +1478,11 @@ async function seedPipelineStages(): Promise<void> {
   // Rinomina una tantum: se lo stato 'paid' ha ancora l'etichetta di default "Pagato",
   // diventa "Acquisito" (se l'admin l'ha già personalizzata, non si tocca).
   await prisma.pipelineStage.updateMany({ where: { key: 'paid', label: 'Pagato' }, data: { label: 'Acquisito' } });
+  // Riordino una tantum (8/8): "Questionario completato" entra al posto 2, quindi Prova e
+  // Acquisito scalano a 3. Si tocca SOLO chi è ancora all'ordine di default: se l'admin ha
+  // già riordinato la board, la sua scelta vale più della nostra.
+  await prisma.pipelineStage.updateMany({ where: { key: 'trial', order: 2 }, data: { order: 3 } });
+  await prisma.pipelineStage.updateMany({ where: { key: 'paid', order: 2 }, data: { order: 3 } });
   console.log('Seed: stati pipeline dell\'admin lasciati intatti (verificati i 3 di sistema).');
 }
 

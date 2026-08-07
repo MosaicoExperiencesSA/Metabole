@@ -264,6 +264,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       to: email, subject, html,
       templateKey: `lifecycle:${key}`,
       tags: [`lifecycle:${key}`],
+      // La coach di riferimento riceve copia: deve sapere che cosa è arrivato alla sua cliente
+      // e quando, altrimenti la cliente le scrive di una mail che lei non ha mai visto.
+      copiaCoach: true,
       ...(oneClickUrl ? { listUnsubscribeUrl: oneClickUrl } : {}),
     });
     if (!ok) return 'failed';

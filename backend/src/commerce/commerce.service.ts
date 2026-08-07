@@ -1577,18 +1577,26 @@ export class CommerceService {
       await this.discounts.redeem(payment.discountCodeId, payment.clientId, payment.id, payment.discountCents ?? 0);
     }
 
-    const receipt = await this.generateReceiptPdf(payment.id).catch(() => null);
-    await this.mail.sendPaymentReceipt(
-      payment.client.email,
-      {
-        description: payment.description,
-        amountCents: payment.amountCents,
-        paymentId: payment.id,
-        date: new Date(),
-      },
-      payment.client.locale,
-      receipt ? [{ name: receipt.fileName, content: receipt.contentBase64 }] : undefined,
-    );
+    // RICEVUTA: solo se ha pagato qualcosa.
+    // La prova gratuita passa di qui con `amountCents: 0`, e fino all'8/8 riceveva una
+    // «Ricevuta di pagamento» da € 0,00 con tanto di PDF numerato. Oltre a essere un documento
+    // che non documenta niente, è la prima email che una cliente riceve dopo l'iscrizione:
+    // parlarle di pagamenti quando non ha pagato è il modo più rapido per farle pensare che
+    // qualcosa le verrà addebitato.
+    if (payment.amountCents > 0) {
+      const receipt = await this.generateReceiptPdf(payment.id).catch(() => null);
+      await this.mail.sendPaymentReceipt(
+        payment.client.email,
+        {
+          description: payment.description,
+          amountCents: payment.amountCents,
+          paymentId: payment.id,
+          date: new Date(),
+        },
+        payment.client.locale,
+        receipt ? [{ name: receipt.fileName, content: receipt.contentBase64 }] : undefined,
+      );
+    }
     await this.notifications.notifyOncePerDay({
       userId: payment.clientId,
       type: 'payment_approved',

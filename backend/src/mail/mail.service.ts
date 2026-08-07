@@ -18,6 +18,19 @@ interface SendMailInput {
   // URL di disiscrizione con-un-click (email di massa/marketing): genera gli header
   // List-Unsubscribe + List-Unsubscribe-Post richiesti da Gmail/Yahoo/Microsoft.
   listUnsubscribeUrl?: string;
+  /**
+   * Copia nascosta alla COACH della cliente destinataria (richiesta delle coach, 8/8):
+   * «tutte le mail che inviamo alle clienti devono arrivare alla coach di riferimento».
+   *
+   * È un flag e non un indirizzo perché chi manda l'email quasi mai ha in mano la coach —
+   * ce l'ha il database. Qui si parte dall'indirizzo della destinataria e si risale.
+   *
+   * ⚠️ Non va messo sulle email che contengono un LINK PER ENTRARE NELL'ACCOUNT (reset
+   * password, verifica email, cambio email, credenziali del lead). Quei link aprono la
+   * casella e il profilo della cliente: girarli a una terza persona, per quanto fidata,
+   * è una porta aperta e non un servizio. Decisione presa con Simone l'8/8.
+   */
+  copiaCoach?: boolean;
 }
 
 /** Sostituisce i segnaposto {{var}} nel testo del template. */
@@ -135,6 +148,32 @@ export class MailService {
     return m ? html.replace(m[0], m[0] + header) : header + html;
   }
 
+  /**
+   * L'email della coach assegnata alla cliente che ha questo indirizzo, o `null`.
+   * Silenziosa: se la cliente non ha coach, o l'indirizzo non è di una cliente, non è un
+   * errore — semplicemente non c'è nessuno da mettere in copia.
+   */
+  private async emailCoachDi(emailCliente: string): Promise<string | null> {
+    try {
+      const utente = (await this.prisma.user.findFirst({
+        where: { email: emailCliente.trim().toLowerCase() },
+        select: {
+          clientProfile: {
+            select: { assignedCoach: { select: { active: true, user: { select: { email: true } } } } },
+          },
+        },
+      })) as { clientProfile: { assignedCoach: { active: boolean; user: { email: string } } | null } | null } | null;
+      const coach = utente?.clientProfile?.assignedCoach;
+      if (!coach?.active) return null;
+      const email = coach.user?.email?.trim();
+      if (!email || email.toLowerCase() === emailCliente.trim().toLowerCase()) return null;
+      return email;
+    } catch {
+      // Una copia mancata non deve mai impedire l'email alla cliente: lei è la destinataria.
+      return null;
+    }
+  }
+
   async send(input: SendMailInput): Promise<boolean> {
     const key = this.apiKey;
     if (!key) {
@@ -142,6 +181,10 @@ export class MailService {
       await this.log(input.to, input.subject, 'skipped', input.templateKey, 'BREVO_API_KEY non configurata', input.html);
       return false;
     }
+    // Copia alla coach: in BCC e non in CC, perché la cliente non deve leggere l'indirizzo
+    // della sua coach in ogni email — e soprattutto perché un "rispondi a tutti" della cliente
+    // finirebbe sulla casella personale della coach invece che in chat.
+    const bcc = input.copiaCoach ? await this.emailCoachDi(input.to) : null;
     try {
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
@@ -149,6 +192,7 @@ export class MailService {
         body: JSON.stringify({
           sender: this.sender,
           to: [{ email: input.to }],
+          ...(bcc ? { bcc: [{ email: bcc }] } : {}),
           subject: input.subject,
           htmlContent: this.withLogo(input.html),
           ...(input.attachments?.length ? { attachment: input.attachments } : {}),
@@ -280,7 +324,7 @@ export class MailService {
       subject: this.i18n.text(locale, 'mail.bank.subject', { description: input.description }),
       html: this.i18n.text(locale, 'mail.bank.body', vars),
     }, vars);
-    return this.send({ to, subject, html, templateKey: 'bank_transfer' });
+    return this.send({ to, subject, html, templateKey: 'bank_transfer', copiaCoach: true });
   }
 
   /** Ricevuta: inviata a OGNI acquisto approvato, con la ricevuta PDF in allegato. */
@@ -302,7 +346,7 @@ export class MailService {
       subject: this.i18n.text(locale, 'mail.receipt.subject'),
       html: this.i18n.text(locale, 'mail.receipt.body', vars),
     }, vars);
-    return this.send({ to, subject, html, templateKey: 'payment_receipt', attachments });
+    return this.send({ to, subject, html, templateKey: 'payment_receipt', attachments, copiaCoach: true });
   }
 
   /** Ricevuta di RIMBORSO: inviata quando l'operatore registra lo storno di un acquisto. */
@@ -324,7 +368,7 @@ export class MailService {
       subject: this.i18n.text(locale, 'mail.refund.subject'),
       html: this.i18n.text(locale, 'mail.refund.body', vars),
     }, vars);
-    return this.send({ to, subject, html, templateKey: 'refund_receipt', attachments });
+    return this.send({ to, subject, html, templateKey: 'refund_receipt', attachments, copiaCoach: true });
   }
 
   async sendPasswordReset(to: string, token: string, locale?: string | null, baseUrl?: string): Promise<boolean> {
@@ -345,7 +389,7 @@ export class MailService {
       subject: this.i18n.text(locale, 'mail.notification.subject', { title }),
       html: this.i18n.text(locale, 'mail.notification.body', vars),
     }, vars);
-    return this.send({ to, subject, html, templateKey: 'notification' });
+    return this.send({ to, subject, html, templateKey: 'notification', copiaCoach: true });
   }
 
   /** Report mensile alla cliente (con PDF allegato). */
@@ -371,7 +415,7 @@ export class MailService {
       subject: `Metabole — il tuo report di ${vars.period}`,
       html: defaultHtml,
     }, vars);
-    return this.send({ to, subject, html, templateKey: 'monthly_report', attachments });
+    return this.send({ to, subject, html, templateKey: 'monthly_report', attachments, copiaCoach: true });
   }
 
   /** Avviso al nutrizionista quando gli viene assegnata una cliente. */

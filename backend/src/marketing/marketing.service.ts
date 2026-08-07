@@ -473,6 +473,9 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
         to: r.email, subject, html,
         templateKey: `campaign:${c.templateKey}`,
         tags: [tag],
+        // Copia alla coach di riferimento (per chi ce l'ha): una campagna che parla di prezzi o
+        // di rinnovo arriva alla cliente, e la coach deve saperlo prima che le risponda.
+        copiaCoach: true,
         // Header di disiscrizione con-un-click (deliverability Gmail/Yahoo/Microsoft).
         listUnsubscribeUrl: this.unsubscribeOneClickUrl(r.recordId),
       });
