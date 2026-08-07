@@ -7,6 +7,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` **Verificata la CI dopo averla resa bloccante — e la prima rossa non era nostra.**
+  Avendo tolto `continue-on-error` poche ore prima, valeva la pena guardare che i push della notte
+  passassero davvero, invece di scoprirlo domani. Uno era rosso: la run **#321** (`bb3d8ed`, il
+  push dei test a zero). Non un test: tutti e tre i job — backend, backoffice, app — falliti dopo
+  **45 minuti** con *«The job was not acquired by Runner of type hosted even after multiple
+  attempts»* e un *Internal server error*. GitHub non riusciva ad assegnare i runner. La run
+  successiva è passata in **1m10s**, e quella dei filtri ricette in **58s**: catena sana.
+  Vale la pena averlo scritto, perché è il primo effetto collaterale della CI bloccante: **blocca
+  anche quando il guasto non è nostro**. Si riconosce da durate assurde e da un errore che parla
+  di *Runner* invece che di test, e si risolve con `Re-run jobs` — non rimettendo
+  `continue-on-error`, che sarebbe spegnere la rete di sicurezza per un singhiozzo altrui.
+
 - `[Sviluppo]` 🎉 **iOS 2.1 APPROVATA.** Con Android approvata ieri, la 2.1 è pubblicata su
   entrambi gli store. È la versione con le push iOS che funzionano davvero — verificate su
   TestFlight prima dell'invio, dopo l'indagine a cinque anelli del 6/8.

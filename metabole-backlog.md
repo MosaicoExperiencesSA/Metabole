@@ -129,6 +129,15 @@ sicurezza disattivata «temporaneamente» non resta ferma: peggiora, in silenzio
 ⚠️ Unico strascico: un test rosso ora blocca davvero. Se serve un'uscita d'emergenza, la si
 aggiunge come `if:` su un'etichetta del commit, non rimettendo `continue-on-error`.
 
+⚠️ **E blocca anche quando il guasto non è nostro.** Successo la sera stessa (run #321, commit
+`bb3d8ed`): tutti e tre i job falliti dopo 45 minuti con *«The job was not acquired by Runner of
+type hosted even after multiple attempts»* e un *Internal server error* — GitHub non riusciva ad
+assegnare i runner. Zero righe di codice coinvolte, e infatti la run successiva è passata in 1m10s.
+**Come si riconosce:** durate assurde (40-50 minuti su una pipeline da un minuto) e l'errore che
+parla di *Runner*, non di test. **Cosa si fa:** `Re-run jobs` sulla run fallita. Non si tocca il
+codice e non si rimette `continue-on-error` — l'infrastruttura di GitHub ogni tanto singhiozza, e
+non è un buon motivo per spegnere la rete di sicurezza.
+
 ## Catalogo ricette — filtri sul SERVER — FATTO (7/8)
 Lo screenshot del 6/8 mostrava il banner di troncamento **col solo regime vegetariano**: quelle
 ricette avevano già superato le 1000, cioè il tetto alzato quella mattina da 200. I filtri di
