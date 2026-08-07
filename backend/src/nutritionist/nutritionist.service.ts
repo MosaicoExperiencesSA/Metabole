@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { EngineService } from '../engine/engine.service';
+import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY = 86_400_000;
@@ -40,6 +41,7 @@ export class NutritionistService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly engine: EngineService,
+    private readonly personalBase: PersonalBaseService,
   ) {}
 
   private isSupervisor(user: AuthUser): boolean {
@@ -56,6 +58,128 @@ export class NutritionistService {
       where: { assignedNutritionistId: staffId },
       select: { userId: true, name: true },
     })) as ProfileRow[];
+  }
+
+  /**
+   * SEGNALAZIONI aperte sui suoi pazienti, con dentro il MOTIVO.
+   *
+   * Prima il numero c'era — `openEscalations` nella dashboard — ma serviva solo a gonfiare il
+   * badge della campanella: il testo della segnalazione non compariva da nessuna parte nell'app
+   * nutrizionista. Il risultato era che la cliente leggeva «la nutrizionista sta sistemando il
+   * tuo menu» e la nutrizionista non sapeva di doverlo sistemare, né perché.
+   *
+   * Le segnalazioni "Piano bloccato" vengono in cima: sono le uniche in cui la cliente, nel
+   * frattempo, **non riceve i menu**.
+   */
+  async segnalazioni(user: AuthUser): Promise<{ segnalazioni: unknown[] }> {
+    const staffId = await this.staffId(user.sub);
+    // Il capo e l'admin vedono tutto; una nutrizionista solo i suoi pazienti. Prima l'unico
+    // endpoint disponibile (`GET /admin/escalations`) restituiva le segnalazioni di TUTTE le
+    // clienti a chiunque avesse il ruolo, il che è anche un problema di riservatezza.
+    const supervisore = this.isSupervisor(user);
+    if (!staffId && !supervisore) return { segnalazioni: [] };
+    const profiles = staffId ? await this.patientIds(staffId) : [];
+    const ids = profiles.map((p) => p.userId);
+    if (!supervisore && ids.length === 0) return { segnalazioni: [] };
+
+    const righe = (await this.prisma.escalation.findMany({
+      where: {
+        status: { in: OPEN_ESC as never },
+        ...(supervisore ? {} : { clientId: { in: ids } }),
+      },
+      select: {
+        id: true, clientId: true, reason: true, category: true, status: true, createdAt: true,
+        client: { select: { email: true, clientProfile: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })) as {
+      id: string; clientId: string; reason: string; category: string; status: string; createdAt: Date;
+      client: { email: string; clientProfile: { name: string | null } | null } | null;
+    }[];
+
+    const segnalazioni = righe.map((e) => ({
+      id: e.id,
+      clientId: e.clientId,
+      paziente: e.client?.clientProfile?.name ?? e.client?.email ?? '(cliente)',
+      email: e.client?.email ?? null,
+      motivo: e.reason,
+      categoria: e.category,
+      stato: e.status,
+      creata: e.createdAt,
+      /** Se vero, la cliente NON sta ricevendo i menu: è la sola che blocca il servizio. */
+      bloccoPiano: e.category === 'diet_blocked' || e.reason.includes('Piano bloccato'),
+    }));
+    // Prima i blocchi piano, poi le altre; dentro ogni gruppo, la più vecchia in cima —
+    // quella che aspetta da più tempo è quella che sta facendo più danno.
+    segnalazioni.sort((a, b) =>
+      Number(b.bloccoPiano) - Number(a.bloccoPiano) || a.creata.getTime() - b.creata.getTime());
+    return { segnalazioni };
+  }
+
+  /**
+   * SBLOCCA il piano di una paziente: chiude la segnalazione e **riprova davvero** a costruire
+   * la base personalizzata sicura.
+   *
+   * Il punto è tutto qui. Chiudere la segnalazione a mano — l'unica cosa che si poteva fare
+   * prima, dal backoffice — è **cosmetico**: il blocco non è uno stato salvato, viene
+   * ricalcolato a ogni composizione del menu. Chiusa la segnalazione, alla prima apertura
+   * dell'app la stessa identica segnalazione si riapre, e nel frattempo la cliente ha visto
+   * sparire il messaggio senza ricevere niente.
+   *
+   * Quindi qui si rilancia `buildPersonalBase`, che è la cosa che decide davvero: se riesce,
+   * risolve i blocchi da sola e i menu ripartono; se non riesce, torna il motivo NUOVO —
+   * aggiornato, non quello vecchio — e la segnalazione resta aperta con l'informazione giusta.
+   */
+  async sbloccaPiano(user: AuthUser, escalationId: string): Promise<{
+    sbloccato: boolean;
+    messaggio: string;
+    motivi?: string[];
+    ricettePerPasto?: Record<string, number>;
+  }> {
+    const esc = (await this.prisma.escalation.findUnique({
+      where: { id: escalationId },
+      select: { id: true, clientId: true, status: true },
+    })) as { id: string; clientId: string; status: string } | null;
+    if (!esc) throw new NotFoundException('Segnalazione non trovata.');
+
+    if (!this.isSupervisor(user)) {
+      const staffId = await this.staffId(user.sub);
+      const mio = staffId
+        ? await this.prisma.clientProfile.findFirst({
+            where: { userId: esc.clientId, assignedNutritionistId: staffId },
+            select: { userId: true },
+          })
+        : null;
+      if (!mio) throw new ForbiddenException('Questa paziente non è assegnata a te.');
+    }
+
+    const esito = await this.personalBase.buildPersonalBase(esc.clientId);
+
+    if (esito.status === 'ready') {
+      // `buildPersonalBase` chiude da sé i blocchi quando riesce; questa è la rete per le
+      // segnalazioni di altra origine che il nutrizionista sta chiudendo a mano da qui.
+      await this.prisma.escalation.update({
+        where: { id: esc.id },
+        data: { status: 'resolved' as never },
+      });
+      return {
+        sbloccato: true,
+        messaggio:
+          'Piano sbloccato: la base personalizzata è di nuovo certificata. ' +
+          'I menu ripartono alla prossima apertura dell\'app da parte della paziente.',
+        ricettePerPasto: esito.perSlot,
+      };
+    }
+
+    return {
+      sbloccato: false,
+      messaggio:
+        'Non è ancora sbloccabile: il motore non riesce a comporre un piano sicuro. ' +
+        'Sistema le esclusioni della paziente o il catalogo della sua dieta, poi riprova.',
+      motivi: esito.reasons ?? [],
+      ricettePerPasto: esito.perSlot,
+    };
   }
 
   /** Elenco pazienti con riepilogo clinico per la lista. */

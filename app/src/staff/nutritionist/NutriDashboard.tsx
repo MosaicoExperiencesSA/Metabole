@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../api/client';
 import { euro } from '../format';
 import { useApi } from '../hooks';
 import { Async, Card, Kpi, Section, StaffShell } from '../ui';
@@ -21,10 +23,54 @@ interface ValidationQueue {
   protocolsPending: { id: string; name: string }[];
 }
 
+/**
+ * Segnalazioni aperte sui suoi pazienti. Il conteggio esisteva già (`openEscalations`), ma
+ * serviva solo a gonfiare il badge della campanella: il MOTIVO non compariva da nessuna parte.
+ * Così la cliente leggeva «la nutrizionista sta sistemando il tuo menu» e la nutrizionista non
+ * sapeva né di doverlo sistemare né perché.
+ */
+interface Segnalazione {
+  id: string;
+  clientId: string;
+  paziente: string;
+  motivo: string;
+  categoria: string;
+  creata: string;
+  /** Se vero la paziente NON sta ricevendo i menu: è l'unica che ferma il servizio. */
+  bloccoPiano: boolean;
+}
+
 export default function NutriDashboard() {
   const nav = useNavigate();
   const dash = useApi<Dash>('/nutritionist/dashboard');
   const queue = useApi<ValidationQueue>('/nutritionist/validation-queue');
+  const segn = useApi<{ segnalazioni: Segnalazione[] }>('/nutritionist/escalations');
+  const [lavoro, setLavoro] = useState<string | null>(null);
+  const [esito, setEsito] = useState<{ id: string; ok: boolean; testo: string } | null>(null);
+
+  /**
+   * Sblocca davvero: il backend riprova a costruire la base sicura. Chiudere la segnalazione e
+   * basta era cosmetico — il blocco si ricalcola a ogni menu e la segnalazione si riapriva
+   * identica alla prima apertura dell'app.
+   */
+  async function sblocca(sg: Segnalazione) {
+    setLavoro(sg.id); setEsito(null);
+    try {
+      const r = await api<{ sbloccato: boolean; messaggio: string; motivi?: string[] }>(
+        `/nutritionist/escalations/${sg.id}/sblocca`, { method: 'POST', body: '{}' },
+      );
+      setEsito({
+        id: sg.id,
+        ok: r.sbloccato,
+        testo: r.messaggio + ((r.motivi ?? []).length ? ` — ${(r.motivi ?? []).join('; ')}` : ''),
+      });
+      if (r.sbloccato) segn.reload();
+    } catch (e) {
+      setEsito({ id: sg.id, ok: false, testo: e instanceof Error ? e.message : 'Non riuscito.' });
+    } finally {
+      setLavoro(null);
+    }
+  }
 
   return (
     <StaffShell
@@ -83,6 +129,54 @@ export default function NutriDashboard() {
                 onClick={() => nav('/pazienti')}
               />
             </div>
+
+            {/* SEGNALAZIONI, con il motivo per esteso e due sole scelte: sbloccare o scrivere.
+                Sta in cima perché un piano bloccato è l'unica cosa in questa pagina per cui
+                una paziente, in questo momento, non sta ricevendo i menu. */}
+            <Async state={segn}>
+              {(sg) => {
+                const righe = sg.segnalazioni ?? [];
+                if (righe.length === 0) return <></>;
+                return (
+                  <>
+                    <Section title={`Segnalazioni (${righe.length})`} />
+                    <Card className="pad0">
+                      {righe.slice(0, 8).map((r) => (
+                        <div key={r.id} className="sf-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                          <span style={{ width: 34, height: 34, borderRadius: 11, background: r.bloccoPiano ? '#FBE3E3' : '#FDF6E8', color: r.bloccoPiano ? '#B4491F' : '#8A6D1F', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                            <i className={`ti ${r.bloccoPiano ? 'ti-lock' : 'ti-alert-circle'}`} style={{ fontSize: 18 }} />
+                          </span>
+                          <div className="sf-row-main" style={{ minWidth: 0 }}>
+                            <div className="sf-row-name">
+                              {r.paziente}
+                              {r.bloccoPiano && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#B4491F' }}>· NON RICEVE I MENU</span>}
+                            </div>
+                            <div className="sf-row-sub" style={{ whiteSpace: 'normal' }}>{r.motivo}</div>
+                            <div style={{ display: 'flex', gap: 7, marginTop: 8, flexWrap: 'wrap' }}>
+                              <button className="btn ghost sm" disabled={lavoro === r.id}
+                                style={{ width: 'auto', padding: '6px 12px', fontSize: 12.5 }}
+                                onClick={() => void sblocca(r)}>
+                                {lavoro === r.id ? 'Riprovo…' : 'Sblocca il piano'}
+                              </button>
+                              <button className="btn ghost sm"
+                                style={{ width: 'auto', padding: '6px 12px', fontSize: 12.5 }}
+                                onClick={() => nav(`/pazienti/${r.clientId}`)}>
+                                Apri la scheda
+                              </button>
+                            </div>
+                            {esito?.id === r.id && (
+                              <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 9, fontSize: 12.5, lineHeight: 1.5, background: esito.ok ? '#EAF6F1' : '#FDF6E8', color: esito.ok ? '#0E7C66' : '#6B4E12' }}>
+                                {esito.testo}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </Card>
+                  </>
+                );
+              }}
+            </Async>
 
             <Section
               title="Priorità cliniche"

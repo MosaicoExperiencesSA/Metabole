@@ -7,6 +7,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-08
 
+- `[Prodotto]` 🔓 **Le segnalazioni arrivano sulla dashboard della nutrizionista, col motivo.**
+  Il conteggio c'era già (`openEscalations`), ma serviva solo a gonfiare il badge della
+  campanella: **il testo della segnalazione non compariva da nessuna parte** nell'app
+  nutrizionista. Il risultato era il peggiore possibile — la cliente leggeva «la nutrizionista
+  sta sistemando il tuo menu» e la nutrizionista non sapeva né di doverlo sistemare né perché.
+  Ora c'è una sezione **Segnalazioni** in cima, prima delle priorità cliniche, con il motivo per
+  esteso. Quelle che bloccano il piano sono in rosso e marcate **«NON RICEVE I MENU»**, e stanno
+  per prime: sono le uniche in cui una paziente, in questo momento, non riceve niente. Due sole
+  scelte per riga: **Sblocca il piano** e **Apri la scheda** (da lì la chat).
+
+- `[Sviluppo]` 🧩 **«Sblocca» adesso sblocca davvero.** Prima l'unica cosa possibile era cambiare
+  lo stato della segnalazione dal backoffice, ed era **cosmetico**: il blocco non è uno stato
+  salvato, viene **ricalcolato a ogni composizione del menu**. Chiusa a mano, alla prima apertura
+  dell'app la stessa identica segnalazione si riapriva — e nel frattempo la cliente aveva visto
+  sparire il messaggio senza ricevere un menu.
+  Adesso il pulsante rilancia `buildPersonalBase`, che è la cosa che decide davvero: se riesce,
+  risolve i blocchi da sé e i menu ripartono; se non riesce, torna il motivo **aggiornato** — non
+  quello vecchio — e la segnalazione resta aperta con l'informazione giusta.
+
+- `[Sviluppo]` 🔒 **Un buco di riservatezza trovato per strada.** L'unico endpoint disponibile,
+  `GET /admin/escalations`, restituiva le segnalazioni di **tutte le clienti** a chiunque avesse
+  il ruolo — anche a una nutrizionista con tre pazienti, che si sarebbe letta i motivi clinici di
+  clienti non sue. Il nuovo `/nutritionist/escalations` è filtrato sui pazienti assegnati; capo e
+  admin continuano a vedere tutto.
+
+- `[Prodotto]` 🔔 **La notifica alla cliente quando lo staff le scrive: c'era già.** Verificato
+  riga per riga prima di rifarla: `chat.service.ts` crea la notifica in-app
+  `chat_reply_nutritionist` / `chat_reply_coach` e chiama subito la push, con anti-raffica di 3
+  minuti e rispetto dell'opt-out. Nell'app ci sono icona, deep-link a `/contatti` e interruttore
+  nelle preferenze. L'unica condizione è l'app nativa col permesso notifiche: su browser la push
+  non esiste, e non è un difetto nostro.
+
 - `[Prodotto]` 🔀 **Le richieste delle coach — primo blocco.** Dodici punti arrivati dalle coach
   l'8/8. **Tre esistevano già** e nessuno lo sapeva: il sollecito questionario a 24 ore
   (`profilo_incompleto`), la mail di compleanno (`ev_compleanno`) e la notifica «nuova

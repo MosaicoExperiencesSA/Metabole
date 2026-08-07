@@ -28,6 +28,26 @@ export class NutritionistController {
     return this.nutritionist.dashboard(user);
   }
 
+  /**
+   * Segnalazioni aperte sui suoi pazienti, CON IL MOTIVO. Prima l'unico endpoint era
+   * `GET /admin/escalations`, che restituiva le segnalazioni di TUTTE le clienti a chiunque
+   * avesse il ruolo — anche a una nutrizionista con tre pazienti.
+   */
+  @Get('escalations')
+  segnalazioni(@CurrentUser() user: AuthUser) {
+    return this.nutritionist.segnalazioni(user);
+  }
+
+  /**
+   * Sblocca il piano: chiude la segnalazione e RIPROVA davvero a costruire la base sicura.
+   * Chiudere la segnalazione e basta è cosmetico — il blocco si ricalcola a ogni menu.
+   */
+  @HttpCode(200)
+  @Post('escalations/:id/sblocca')
+  sblocca(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.nutritionist.sbloccaPiano(user, id);
+  }
+
   /** Coda di validazione: decisioni motore (per-paziente), diete in revisione, protocolli in attesa. */
   @Get('validation-queue')
   validationQueue(@CurrentUser() user: AuthUser) {

@@ -8,8 +8,14 @@ const user = { sub: 'u-nut', role: 'nutritionist' } as AuthUser;
 const head = { sub: 'u-head', role: 'head_nutritionist' } as AuthUser;
 
 const makeEngine = (over: Partial<EngineService> = {}) => ({ reviewDecision: jest.fn().mockResolvedValue({ id: 'd1' }), ...over }) as unknown as EngineService;
-const make = (prisma: Record<string, unknown>, engine: EngineService = makeEngine()) =>
-  new NutritionistService(prisma as unknown as PrismaService, engine);
+/** Base personalizzata finta: serve allo SBLOCCO del piano, non ai test di questo file. */
+const makePersonalBase = (over: Record<string, unknown> = {}) =>
+  ({ buildPersonalBase: jest.fn().mockResolvedValue({ status: 'ready', message: 'ok' }), ...over }) as never;
+const make = (
+  prisma: Record<string, unknown>,
+  engine: EngineService = makeEngine(),
+  personalBase = makePersonalBase(),
+) => new NutritionistService(prisma as unknown as PrismaService, engine, personalBase);
 
 describe('NutritionistService.patients', () => {
   it('elenca i pazienti con riepilogo e ordina per attenzione', async () => {
