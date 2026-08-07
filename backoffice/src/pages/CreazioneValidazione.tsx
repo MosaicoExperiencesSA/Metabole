@@ -62,6 +62,12 @@ export function CreazioneValidazione() {
   const [week, setWeek] = useState(1);
   /** Settimane già in catalogo per la variante scelta (per proporre la prossima). */
   const [weeksDone, setWeeksDone] = useState<number | null>(null);
+  /**
+   * Su una settimana che esiste già, il comportamento normale è COMPLETARLA: le ricette che ci
+   * sono restano (comprese quelle corrette a mano dal nutrizionista) e si genera solo quel che
+   * manca. Buttare e rifare cancella quel lavoro, quindi si sceglie apposta con questa spunta.
+   */
+  const [rifaiDaCapo, setRifaiDaCapo] = useState(false);
   const [dietId, setDietId] = useState<string | null>(() => { try { return localStorage.getItem(LS_DIET); } catch { return null; } });
   const [status, setStatus] = useState<ReviewStatus | null>(null);
   const { user } = useAuth();
@@ -79,7 +85,7 @@ export function CreazioneValidazione() {
     if (!activePresetId) { setWeeksDone(null); setWeek(1); return; }
     let vivo = true;
     api<{ settimane: number }>(`/engine-rules/presets/${activePresetId}/weeks`)
-      .then((r) => { if (!vivo) return; setWeeksDone(r.settimane); setWeek(Math.min(12, r.settimane + 1)); })
+      .then((r) => { if (!vivo) return; setWeeksDone(r.settimane); setWeek(Math.min(12, r.settimane + 1)); setRifaiDaCapo(false); })
       .catch(() => { if (vivo) { setWeeksDone(null); setWeek(1); } });
     return () => { vivo = false; };
   }, [activePresetId]);
@@ -281,6 +287,8 @@ export function CreazioneValidazione() {
       const incompleti: string[] = [];
       // Ricette prese da una variante sorella invece di rigenerarle.
       let riusateTot = 0;
+      // Settimane completate (ricette esistenti tenute + generata solo la differenza).
+      let completate = 0;
       for (const t of targets) {
         if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Genero ${idx + 1} di ${targets.length}: ${variantTag(t)}…` });
         idx += 1;
@@ -288,10 +296,20 @@ export function CreazioneValidazione() {
         // Solo sul singolo (non "genera tutte") si può scegliere di rifarla.
         type GenRes = { dietId: string; alreadyExists?: boolean; week?: number; recipes?: number; riusate?: number; pastiIncompleti?: string[] };
         let r = await api<GenRes>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ week }) });
-        if (r.alreadyExists && targets.length === 1) {
-          // eslint-disable-next-line no-alert
-          if (confirm(`La settimana ${week} di questa variante è già stata generata. Vuoi RIFARLA da capo? (Annulla = tienila così)`)) {
-            r = await api<GenRes>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ week, replace: true }) });
+        if (r.alreadyExists) {
+          // La settimana c'è già. Di default si COMPLETA: le ricette esistenti restano (comprese
+          // quelle corrette a mano) e si genera solo quel che manca per arrivare a sette per
+          // pasto. Buttare e rifare è l'eccezione, e la si sceglie con la spunta qui sotto.
+          if (rifaiDaCapo && targets.length === 1) {
+            // eslint-disable-next-line no-alert
+            const ok = confirm(
+              `Rifare da capo la settimana ${week} CANCELLA le ricette bozza di quella settimana, comprese eventuali correzioni fatte a mano.\n\n` +
+              'Se volevi solo aggiungere i piatti che mancano, annulla e togli la spunta "Rifai da capo".\n\nProcedo?',
+            );
+            if (ok) r = await api<GenRes>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ week, modalita: 'rifai' }) });
+          } else {
+            r = await api<GenRes>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ week, modalita: 'completa' }) });
+            completate += 1;
           }
         }
         if ((r.pastiIncompleti ?? []).length) incompleti.push(`${variantTag(t)}: ${(r.pastiIncompleti ?? []).join(', ')}`);
@@ -303,14 +321,16 @@ export function CreazioneValidazione() {
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
       void loadFamilyStatuses();
       // Avanza da sola alla settimana successiva: è il gesto che il nutrizionista farebbe comunque.
-      if (generated > 0) { setWeeksDone((w) => Math.max(w ?? 0, week)); setWeek((w) => Math.min(12, w + 1)); }
-      const coda = (riusateTot ? ` ${riusateTot} ricette riprese dalle varianti sorelle (stessa dieta e stesso regime: i piatti sono gli stessi, cambia come sono distribuiti nella giornata).` : '')
+      if (generated > 0 || completate > 0) { setWeeksDone((w) => Math.max(w ?? 0, week)); setWeek((w) => Math.min(12, w + 1)); }
+      const coda = (riusateTot ? ` ${riusateTot} ricette tenute da quelle che c'erano già (comprese le tue correzioni) o riprese dalle varianti sorelle: si è generato solo quello che mancava.` : '')
         + (incompleti.length ? ` ⚠️ L'AI non ha prodotto ricette per: ${incompleti.join(' · ')} — rigenera questa settimana.` : '');
       setNotice((targets.length > 1
         ? `Settimana ${week} fatta su ${generated} variante/i${kept ? `, ${kept} l'avevano già` : ''}. Quando hai le settimane che vuoi, valida e pubblica al passo 3.`
-        : generated > 0
-          ? `Settimana ${week} generata: 7 giornate con ricette nuove per ogni pasto. Genera la settimana successiva, oppure valida qui sotto.`
-          : `La settimana ${week} c'era già: lasciata intatta.`) + coda);
+        : completate > 0
+          ? `Settimana ${week} completata: le ricette che c'erano restano, sono stati aggiunti i piatti mancanti per arrivare a 7 per pasto.`
+          : generated > 0
+            ? `Settimana ${week} generata: 7 giornate con ricette nuove per ogni pasto. Genera la settimana successiva, oppure valida qui sotto.`
+            : `La settimana ${week} è rimasta com'era.`) + coda);
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
     finally { setBusy(false); setGenerando(false); setProgress(null); }
   }
@@ -616,7 +636,7 @@ export function CreazioneValidazione() {
               const bloccata = weeksDone !== null && n > weeksDone + 1;
               return (
                 <button key={n} type="button" disabled={bloccata || busy}
-                  onClick={() => setWeek(n)}
+                  onClick={() => { setWeek(n); setRifaiDaCapo(false); }}
                   title={fatta ? 'Già generata: la puoi rifare' : prossima ? 'La prossima da generare' : bloccata ? 'Genera prima le settimane precedenti' : ''}
                   style={{
                     minWidth: 92, padding: '7px 10px', borderRadius: 9, fontSize: 12.5, fontWeight: 600,
@@ -625,15 +645,30 @@ export function CreazioneValidazione() {
                     background: scelta ? 'var(--teal)' : fatta ? '#EEF3F1' : '#fff',
                     color: scelta ? '#fff' : fatta ? '#5F6E6B' : '#2E3E3B',
                   }}>
-                  {fatta && !scelta ? '✓ ' : ''}Settimana {n}
+                  {fatta && !scelta ? '\u2713 ' : ''}Settimana {n}
                 </button>
               );
             })}
           </div>
           <p className="muted" style={{ fontSize: 12, margin: '7px 0 0' }}>
-            Ogni settimana sono <b>7 giornate</b> con <b>7 ricette nuove per ogni pasto</b> (nessun piatto ripetuto
+            Ogni settimana sono <b>7 giornate</b> con <b>7 ricette diverse per ogni pasto</b> (nessun piatto ripetuto
             dentro la settimana, e nemmeno rispetto alle settimane già fatte). Quattro settimane = un mese.
           </p>
+          {weeksDone !== null && week <= weeksDone && (
+            <div style={{ marginTop: 9, padding: '10px 12px', borderRadius: 10, background: '#FDF6E8', border: '1px solid #F0DFBA' }}>
+              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22' }}>
+                La settimana {week} esiste già. Verrà <b>completata</b>: le ricette che ci sono restano — comprese
+                quelle che hai corretto a mano — e si generano solo i piatti che mancano per arrivare a 7 per pasto.
+              </div>
+              <label className="row" style={{ gap: 7, alignItems: 'flex-start', marginTop: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={rifaiDaCapo} onChange={(e) => setRifaiDaCapo(e.target.checked)} style={{ marginTop: 2 }} />
+                <span style={{ fontSize: 12, lineHeight: 1.5, color: '#6B4E12' }}>
+                  <b>Rifai da capo</b> invece di completare — cancella le ricette bozza di questa settimana,
+                  <b> comprese le correzioni fatte a mano</b>. Serve solo se i piatti non vanno proprio bene.
+                </span>
+              </label>
+            </div>
+          )}
         </div>
         <button className="btn" onClick={generate} disabled={busy || !canGenerate}>
           {generando ? (

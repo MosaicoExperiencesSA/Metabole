@@ -215,8 +215,21 @@ export class EngineRulesService {
    * il giorno 2 la seconda… Dentro la settimana non si ripete niente per costruzione, e le
    * settimane successive partono da ricette nuove — all'AI si passa l'elenco dei nomi già in
    * catalogo perché non li riproponga.
+   *
+   * ## Le ricette che ci sono già non si buttano
+   *
+   * Il nutrizionista ne ha corrette parecchie a mano, e quel lavoro vale più di qualunque
+   * generazione. Quindi la modalità normale su una settimana già esistente è **completa**: si
+   * tengono le ricette che ci sono, si genera solo la differenza per arrivare a sette per pasto,
+   * e si riscrivono le giornate perché nessun piatto torni due volte. Non si cancella niente.
+   * `rifai` (butta e rigenera) resta possibile, ma va chiesta apposta.
    */
-  async generateCatalogFromPreset(presetId: string, actorId: string, settimanaRichiesta = 1, replace = false) {
+  async generateCatalogFromPreset(
+    presetId: string,
+    actorId: string,
+    settimanaRichiesta = 1,
+    modalita: 'auto' | 'completa' | 'rifai' = 'auto',
+  ) {
     const preset = await this.prisma.rulePreset.findUnique({ where: { id: presetId } });
     if (!preset) throw new NotFoundException('Preset non trovato.');
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } })) as { id: string } | null;
@@ -277,8 +290,9 @@ export class EngineRulesService {
         `Le settimane si generano una alla volta e in ordine: la prossima da generare è la ${settimaneFatte + 1}.`,
       );
     }
-    // Settimana già in catalogo: non si tocca, a meno che non sia chiesto esplicitamente.
-    if (week <= settimaneFatte && !replace) {
+    // Settimana già in catalogo e nessuna istruzione: non si tocca niente e si torna indietro,
+    // così è il backoffice a chiedere se completarla o rifarla.
+    if (week <= settimaneFatte && modalita === 'auto') {
       return {
         alreadyExists: true as const,
         dietId: existingVariant!.id,
@@ -296,17 +310,46 @@ export class EngineRulesService {
     // piatti nelle settimane successive (è il punto di tutta l'operazione).
     const nomiGiaUsati = await this.nomiRicetteFamiglia(famiglia.map((d) => d.id));
 
-    // SOSTITUZIONE di una settimana già fatta: si cancellano SOLO le sue giornate e le ricette
-    // che nessun'altra giornata usa — nemmeno quelle delle varianti sorelle. Il resto resta.
-    if (existingVariant && replace && week <= settimaneFatte) {
-      await this.cancellaSettimana(existingVariant.id, primoGiorno, ultimoGiorno);
+    // Ricette che questa variante ha GIÀ e che possono servire a questa settimana: comprese
+    // quelle corrette a mano dal nutrizionista. Si leggono PRIMA di toccare le giornate.
+    const proprie = existingVariant && modalita !== 'rifai'
+      ? await this.ricetteDisponibiliPerSettimana(existingVariant.id, week)
+      : new Map<string, string[]>();
+
+    if (existingVariant && week <= settimaneFatte) {
+      if (modalita === 'rifai') {
+        // BUTTA E RIFAI: si cancellano le giornate della settimana e le bozze che non usa più
+        // nessuno. È l'unica strada che perde del lavoro fatto a mano, e va chiesta apposta.
+        await this.cancellaSettimana(existingVariant.id, primoGiorno, ultimoGiorno);
+      } else {
+        // COMPLETA: via solo le giornate, che vanno riscritte. Nessuna ricetta viene cancellata.
+        await this.prisma.dietDayTemplate.deleteMany({
+          where: { dietId: existingVariant.id, dayIndex: { gte: primoGiorno, lte: ultimoGiorno } },
+        });
+      }
     }
 
     // Ricette che le varianti SORELLE hanno già per questa settimana, pasto per pasto e in
     // ordine di giornata. Se ci sono, questa variante le riusa invece di rigenerarle: stessa
     // dieta, stesso regime, stessi piatti.
     const condivise = await this.ricetteSettimanaDelleSorelle(sorelle, primoGiorno, ultimoGiorno);
-    const daGenerare = slots.filter((sl) => (condivise.get(sl) ?? []).length === 0);
+
+    // Per ogni pasto: prima quello che c'è (sorelle, poi le proprie), e si genera SOLO la
+    // differenza per arrivare a sette. È così che il lavoro del nutrizionista non si perde.
+    const gia = new Map<string, string[]>();
+    const mancanti = new Map<string, number>();
+    for (const sl of slots) {
+      const base: string[] = [];
+      for (const fonte of [condivise.get(sl) ?? [], proprie.get(sl) ?? []]) {
+        for (const id of fonte) {
+          if (base.length >= GIORNI_SETTIMANA) break;
+          if (!base.includes(id)) base.push(id);
+        }
+      }
+      gia.set(sl, base);
+      mancanti.set(sl, Math.max(0, GIORNI_SETTIMANA - base.length));
+    }
+    const daGenerare = slots.filter((sl) => (mancanti.get(sl) ?? 0) > 0);
 
     const regimeRule = regime === 'vegan' ? 'nessun alimento di origine animale' : regime === 'vegetarian' ? 'niente carne né pesce (uova/latticini sì)' : 'onnivoro';
     const quote = quoteKcalPerSlot(slots, fasting);
@@ -318,7 +361,7 @@ export class EngineRulesService {
         slot,
         ricette: await this.generaRicetteDiUnPasto({
           slot,
-          quante: GIORNI_SETTIMANA,
+          quante: mancanti.get(slot) ?? GIORNI_SETTIMANA,
           label: preset.label,
           style: preset.style,
           objective,
@@ -337,8 +380,11 @@ export class EngineRulesService {
       })),
     );
 
-    const vuoti = generati.filter((p) => p.ricette.length === 0).map((p) => p.slot);
-    if (daGenerare.length > 0 && vuoti.length === daGenerare.length && condivise.size === 0) {
+    // Un pasto è "vuoto" solo se non ha NIENTE: né ricette già in casa né nuove.
+    const vuoti = generati
+      .filter((p) => p.ricette.length === 0 && (gia.get(p.slot) ?? []).length === 0)
+      .map((p) => p.slot);
+    if (vuoti.length === slots.length) {
       throw new BadRequestException(`Generazione non riuscita: ${this.ai.lastError ?? 'assistente AI non disponibile'}.`);
     }
 
@@ -356,14 +402,14 @@ export class EngineRulesService {
         })) as { id: string; name: string });
 
     // Ricette in bozza, tenute in ordine per pasto: l'ordine È l'abbinamento alle giornate.
+    // Prima quelle che c'erano già (comprese le correzioni a mano), poi le nuove in coda.
     const bySlot = new Map<string, string[]>();
     let recCount = 0;
     let riusate = 0;
     for (const sl of slots) {
-      const gia = condivise.get(sl) ?? [];
-      if (gia.length) { bySlot.set(sl, gia); riusate += gia.length; continue; }
+      const ids: string[] = [...(gia.get(sl) ?? [])];
+      riusate += ids.length;
       const ricette = generati.find((g) => g.slot === sl)?.ricette ?? [];
-      const ids: string[] = [];
       for (const r of ricette) {
         const ingredients = Array.isArray(r.ingredients) ? r.ingredients : [];
         const allergens = suggestAllergens(ingredients).map((s) => s.allergen);
@@ -484,6 +530,46 @@ export class EngineRulesService {
       select: { name: true },
     })) as { name: string }[];
     return recipes.map((r) => r.name);
+  }
+
+  /**
+   * Le ricette che la dieta ha GIÀ e che possono servire alla settimana `week`, pasto per pasto.
+   *
+   * Serve a non buttare via niente. Il nutrizionista ne ha corrette parecchie a mano, e le
+   * diete vecchie hanno cinque piatti per pasto ricombinati su ventotto giorni: quei cinque
+   * piatti sono buoni, mancano gli altri. Completare vuol dire tenerli e generare la differenza.
+   *
+   * Il criterio: si mette in fila il "magazzino" di ogni pasto nell'ordine in cui i piatti
+   * compaiono nelle giornate (dalla prima all'ultima, senza doppioni). Le prime `(week-1)*7`
+   * sono già impegnate nelle settimane precedenti; quelle che restano vanno a questa.
+   *
+   * Esempio con cinque pranzi su ventotto giorni: la settimana 1 se li prende tutti e cinque e
+   * chiede all'AI solo i due che mancano; la settimana 2 trova il magazzino esaurito e ne chiede
+   * sette nuovi. Alla fine i cinque corretti a mano sono ancora lì, e i pranzi sono ventotto
+   * diversi.
+   */
+  private async ricetteDisponibiliPerSettimana(dietId: string, week: number): Promise<Map<string, string[]>> {
+    const templates = (await this.prisma.dietDayTemplate.findMany({
+      where: { dietId },
+      orderBy: { dayIndex: 'asc' },
+      select: { meals: true },
+    })) as { meals: unknown }[];
+    const magazzino = new Map<string, string[]>();
+    for (const t of templates) {
+      for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
+        if (!m.slot || !m.recipeId) continue;
+        const lista = magazzino.get(m.slot) ?? [];
+        if (!lista.includes(m.recipeId)) lista.push(m.recipeId);
+        magazzino.set(m.slot, lista);
+      }
+    }
+    const impegnate = (week - 1) * GIORNI_SETTIMANA;
+    const out = new Map<string, string[]>();
+    for (const [slot, lista] of magazzino) {
+      const libere = lista.slice(impegnate, impegnate + GIORNI_SETTIMANA);
+      if (libere.length) out.set(slot, libere);
+    }
+    return out;
   }
 
   /**

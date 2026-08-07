@@ -35,7 +35,15 @@ class GenerateCatalogDto {
   @IsOptional() @IsInt() @Min(1) @Max(12) week?: number;
   /** @deprecated Sostituito da `week`. Resta accettato per non rompere chiamate vecchie. */
   @IsOptional() @IsInt() @Min(1) @Max(60) days?: number;
-  // true = rigenera QUELLA settimana (default: non si tocca quello che c'è già).
+  /**
+   * Che fare se quella settimana c'è già:
+   *  - assente → non si tocca niente e si risponde `alreadyExists`, così è il backoffice a chiedere;
+   *  - `completa` → si TENGONO le ricette esistenti (comprese quelle corrette a mano dal
+   *    nutrizionista) e si genera solo la differenza per arrivare a sette per pasto;
+   *  - `rifai` → si butta la settimana e si rigenera. Perde le correzioni: va chiesta apposta.
+   */
+  @IsOptional() @IsIn(['completa', 'rifai']) modalita?: 'completa' | 'rifai';
+  /** @deprecated Sostituito da `modalita`. `true` valeva "rifai". */
   @IsOptional() @IsBoolean() replace?: boolean;
 }
 class ProposalDto {
@@ -97,7 +105,8 @@ export class EngineRulesController {
    *  tutto in bozza, il nutrizionista rivede e approva. Le settimane si chiedono in ordine. */
   @Post('presets/:id/generate-catalog')
   generateCatalog(@Param('id') id: string, @Body() dto: GenerateCatalogDto, @CurrentUser() u: AuthUser) {
-    return this.service.generateCatalogFromPreset(id, u.sub, dto.week ?? 1, dto.replace ?? false);
+    const modalita = dto.modalita ?? (dto.replace === true ? 'rifai' : 'auto');
+    return this.service.generateCatalogFromPreset(id, u.sub, dto.week ?? 1, modalita);
   }
 
   /** Quante settimane di catalogo ha già questa variante: serve al backoffice per proporre

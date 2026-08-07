@@ -36,18 +36,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   a 5 pasti, che copre tutti i pasti che servono alle altre: le altre due non chiamano più l'AI.
   Da tre generazioni complete a una: meno attesa, meno costo, e soprattutto **le tre varianti
   restano coerenti fra loro** invece di divergere ad ogni rigenerazione.
-  «Rigenera questa settimana» cancella solo le giornate di quella settimana e le ricette che
-  nessun altro sta usando — né un'altra settimana né una variante sorella. E **mai** una ricetta
-  già **attiva**: attiva vuol dire che il motore l'ha potuta erogare, quindi può stare dentro un
-  menu già consegnato. Quel menu è una fotografia e continuerebbe a mostrarsi, ma le valutazioni
-  e le sostituzioni cercano la ricetta per id e non la troverebbero più. Si buttano solo le bozze
-  mai attivate, che è il caso normale di una rigenerazione. Il prezzo è qualche ricetta orfana in
-  catalogo dopo aver rifatto una settimana di una dieta già pubblicata: è il verso giusto in cui
-  sbagliare.
+
+- `[Prodotto]` 🧷 **Le ricette già corrette a mano non si buttano.** Obiezione di Simone, ed è
+  quella giusta: il nutrizionista ne ha sistemate parecchie, e quel lavoro vale più di qualunque
+  generazione. Quindi su una settimana che esiste già la modalità normale non è «rigenera» ma
+  **«completa»**: si tengono le ricette che ci sono, si chiede all'AI **solo la differenza** per
+  arrivare a sette per pasto, e si riscrivono le sette giornate perché nessun piatto torni due
+  volte. **Non si cancella niente.**
+  Il criterio è semplice: il «magazzino» di ogni pasto si mette in fila nell'ordine in cui i
+  piatti compaiono nelle giornate; le prime `(settimana-1)×7` sono impegnate nelle settimane
+  precedenti, quelle che restano vanno a questa.
+  *Sulla Keto Mediterranea, che ha 5 pranzi spalmati su 28 giorni:* la settimana 1 se li prende
+  tutti e cinque e ne chiede **2** nuovi; la settimana 2 trova il magazzino esaurito e ne chiede
+  **7**. Alla fine i pranzi sono 28 diversi e i 5 corretti a mano sono ancora lì.
+  «Rifai da capo» resta possibile, ma è una spunta da accendere apposta, con una seconda
+  conferma che dice a chiare lettere che cancella anche le correzioni. E anche lì non si tocca
+  mai una ricetta **già attiva**: attiva vuol dire che il motore l'ha potuta erogare, quindi può
+  stare dentro un menu già consegnato. Quel menu è una fotografia e continuerebbe a mostrarsi,
+  ma le valutazioni e le sostituzioni cercano la ricetta per id e non la troverebbero più. Si
+  buttano solo le bozze mai attivate. Il prezzo è qualche ricetta orfana in catalogo: è il verso
+  giusto in cui sbagliare.
   ⚠️ **Le diete già generate col vecchio metodo restano magre.** La Keto Mediterranea ha 28
-  giornate, quindi risulta «4 settimane fatte»: per darle ricette vere va rifatta una settimana
-  per volta con «rigenera», partendo dalla variante a 5 pasti (le sorelle poi riusano le sue).
-  Test: +6 (658 in tutto).
+  giornate, quindi risulta «4 settimane fatte»: vanno **completate** una settimana per volta,
+  partendo dalla variante a 5 pasti (le sorelle poi riusano le sue).
+  Test: +8 (660 in tutto).
+
+- `[Prodotto]` 📄 **Guida per la nutrizionista** (`progetto/guide/`): cinque pagine, passo per
+  passo, scritte per chi non è tecnico — perché i menu si ripetevano, che le sue correzioni non
+  si perdono, i sette passi da fare, da quali diete iniziare e le domande che le verranno.
+  Nel repo c'è anche lo script che la rigenera, così quando l'interfaccia cambia si rifà il PDF
+  invece di riscriverlo.
+  Insieme: `npm run diag:settimane`, che stampa le diete **già nell'ordine in cui conviene
+  lavorarle** — clienti sopra, giornate, e soprattutto quanti piatti diversi ha il pasto messo
+  peggio. È quel numero che conta: 28 giornate con 5 colazioni sono peggio di 7 giornate con 7.
 
 - `[Prodotto]` 🌶️ **Le spezie non sono più un cibo da escludere.** La regola l'ha dettata la
   nutrizionista, e nasce dalla cliente che riceveva lo stesso pranzo per quattro giorni di fila.
