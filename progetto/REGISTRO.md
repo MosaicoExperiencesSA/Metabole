@@ -7,6 +7,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-08
 
+- `[Sviluppo]` 🧾 **«Valida e pubblica» era sparito — e non era un difetto grafico.**
+  Il passo 3 lavora sulla variante selezionata: dopo una pubblicazione quella selezione resta
+  vuota, e la pagina rispondeva «Genera un catalogo per iniziare la validazione guidata» con
+  diciotto varianti elencate due centimetri più sopra. Ora la variante se la sceglie da sola
+  (la prima con dei passi ancora da fare), e il riquadro «Tutta la famiglia in un colpo» è
+  uscito da dentro il blocco della singola bozza: c'è sempre.
+  Sotto, però, c'era una cosa peggiore: il pulsante **saltava le varianti già pubblicate**.
+  Sembrava prudenza — ripubblicare una dieta approvata dà errore — ma è proprio lì che stanno
+  le ricette nuove: ogni settimana generata dopo la pubblicazione nasce **in bozza**, con le
+  ricette inattive. Su una famiglia interamente pubblicata il pulsante non faceva quindi
+  assolutamente niente, e le clienti continuavano a ricevere solo i piatti vecchi mentre il
+  backoffice diceva «18 pubblicate». Ora la validazione passa su tutte (attiva le ricette,
+  conferma gli allergeni, approva i gruppi) e si salta solo la *ripubblicazione* di chi è già
+  approvata. La pagina non si azzera più: dopo l'ultima settimana ci si ripassa ogni volta.
+
+- `[Sviluppo]` ✅ **Comando `npm run pubblica:tutto`** — lo stesso lavoro su tutto il catalogo in
+  un colpo, per rimettere in pari le diete generate in questi giorni:
+  `npm run pubblica:tutto` mostra cosa farebbe, `CONFERMA=1 npm run pubblica:tutto` applica, e
+  con un nome fra virgolette si limita a una famiglia. Non tocca le **archiviate** (sono fuori
+  apposta) né le diete senza giornate. Da leggere prima di lanciarlo: marcare gli allergeni
+  «confermati» in blocco è una dichiarazione, non una pulizia tecnica — è la stessa cosa che fa
+  il pulsante, ma su tutto il catalogo invece che su una famiglia guardata da chi l'ha generata.
+
+- `[Sviluppo]` 💶 **Pulsante «Ricalcola provvigioni» sulla riga dell'acquisto.** Corrette le
+  percentuali del piano (sono soglie **cumulative**: 25 / 35 / 45, non 25 / 10 / 10), i
+  pagamenti già fatti restavano com'erano. Ora si rilegge il singolo acquisto con le
+  percentuali di oggi e si **aggiunge solo quello che manca**: non cancella righe di
+  contabilità già registrate e, se qualcuno ha preso più del dovuto, lo segnala senza togliere
+  niente — togliere soldi a una persona non è un'operazione da bottone. Rilanciarlo non
+  raddoppia: la seconda volta la differenza è zero. Endpoint `POST /admin/purchases/:id/ricalcola-provvigioni`
+  (solo admin); da riga di comando resta `npm run ricalcola:provvigioni`, che fa gli stessi
+  conti su un'intera cliente o su tutti i pagamenti da una data.
+
+- `[Sviluppo]` 📐 **Pagina Acquisti impaginata.** Colonne a larghezza fissa, nome prodotto su una
+  riga sola coi puntini (per intero nel tooltip) e azioni a icone: cinque pulsanti scritti per
+  esteso spingevano la tabella oltre il bordo dello schermo e la colonna della ricevuta restava
+  tagliata. I due filtri per data sono ora uno sotto l'altro, e la pagina mostra 50 righe.
+
 - `[Prodotto]` 🔔 **Le tre notifiche coach che mancavano, e il clic che apre la scheda.**
   Delle cinque chieste dalle coach, due c'erano già (lead assegnato, nuova registrazione col
   codice). Le altre tre no, e sono i tre momenti in cui una cliente fa un passo avanti:

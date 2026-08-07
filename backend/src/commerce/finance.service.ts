@@ -229,6 +229,131 @@ export class FinanceService {
    * vendita della coordinatrice → 35 + 10. Livelli mancanti = differenza NON
    * erogata (resta all'azienda). Cliente non assegnato → accantona come legacy.
    */
+  /**
+   * RICALCOLO delle provvigioni di un pagamento già approvato: **aggiunge solo il mancante**.
+   *
+   * Nasce dall'8/8: il piano «Percorso Metabole 3 mesi» aveva le percentuali scritte come quote
+   * separate (25 / 10 / 10) invece che come soglie cumulative. Pagando a differenza, il secondo
+   * livello calcolava `10 − 25 = −15` — negativo — e si fermava: incassava solo la coach.
+   * Corretto il piano, i pagamenti già fatti **non si ricalcolano da soli**.
+   *
+   * Due scelte deliberate:
+   *  - **non cancella niente**: righe di contabilità già registrate sono compensi che qualcuno
+   *    può aver già visto o incassato;
+   *  - se qualcuno ha preso **più** del dovuto non gli toglie niente: lo riporta e basta.
+   *    Togliere soldi a una persona non è un'operazione da bottone.
+   * Rilanciarlo non raddoppia: la seconda volta la differenza è zero.
+   */
+  async ricalcolaProvvigioni(paymentId: string): Promise<{
+    aggiunte: { staff: string; ruolo: string; importoCents: number }[];
+    eccessi: { staff: string; ruolo: string; dovutoCents: number; presoCents: number }[];
+    totaleAggiuntoCents: number;
+    messaggio: string;
+  }> {
+    const pay = (await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { id: true, clientId: true, amountCents: true, status: true, subscriptionId: true },
+    })) as { id: string; clientId: string; amountCents: number; status: string; subscriptionId: string | null } | null;
+    if (!pay) throw new NotFoundException('Pagamento non trovato.');
+    if (pay.status !== 'approved') {
+      return { aggiunte: [], eccessi: [], totaleAggiuntoCents: 0, messaggio: 'Il pagamento non è approvato: niente da ricalcolare.' };
+    }
+    if (!pay.subscriptionId) {
+      return { aggiunte: [], eccessi: [], totaleAggiuntoCents: 0, messaggio: 'Acquisto senza abbonamento: le quote seguono i prodotti, non la scala del piano.' };
+    }
+
+    const full = (await this.prisma.payment.findUnique({
+      where: { id: pay.id },
+      select: {
+        subscription: { select: { plan: { select: { priceCents: true, commissionCoachPct: true, commissionCoordinatorPct: true, commissionManagerPct: true, commissionNutritionistPct: true, commissionHeadNutritionistPct: true } } } },
+        order: { select: { items: true } },
+      },
+    })) as never;
+    const pq = await this.percentAmounts(pay.amountCents, full);
+    if (!pq) {
+      return { aggiunte: [], eccessi: [], totaleAggiuntoCents: 0, messaggio: 'Questo piano non usa le percentuali: si applicano gli importi fissi storici.' };
+    }
+
+    const profile = (await this.prisma.clientProfile.findUnique({
+      where: { userId: pay.clientId },
+      select: { assignedCoachId: true, assignedNutritionistId: true },
+    })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
+
+    const atteso = new Map<string, { nome: string; ruolo: string; cents: number }>();
+    for (const [id, v] of await this.dovutoLungoCatena(profile?.assignedCoachId, [
+      { role: 'coach', amountCents: pq.coach },
+      { role: 'coach_coordinator', amountCents: pq.coordinator },
+      { role: 'sales', amountCents: pq.manager },
+    ])) atteso.set(id, v);
+    for (const [id, v] of await this.dovutoLungoCatena(profile?.assignedNutritionistId, [
+      { role: 'nutritionist', amountCents: pq.nutritionist },
+      { role: 'head_nutritionist', amountCents: pq.headNutritionist },
+    ])) atteso.set(id, v);
+
+    const righe = (await this.prisma.ledgerEntry.findMany({
+      where: { ref: pay.id, category: 'sales_commission' as never },
+      select: { staffId: true, amountCents: true },
+    })) as { staffId: string | null; amountCents: number }[];
+    const gia = new Map<string, number>();
+    for (const r of righe) if (r.staffId) gia.set(r.staffId, (gia.get(r.staffId) ?? 0) + r.amountCents);
+
+    const aggiunte: { staff: string; ruolo: string; importoCents: number }[] = [];
+    const eccessi: { staff: string; ruolo: string; dovutoCents: number; presoCents: number }[] = [];
+    for (const [staffId, v] of atteso) {
+      const preso = gia.get(staffId) ?? 0;
+      const diff = v.cents - preso;
+      if (diff > 0) {
+        await this.creditStaff({ staffId, amountCents: diff, kind: 'sales_commission', ref: pay.id, clientId: pay.clientId });
+        aggiunte.push({ staff: v.nome, ruolo: v.ruolo, importoCents: diff });
+      } else if (diff < 0) {
+        eccessi.push({ staff: v.nome, ruolo: v.ruolo, dovutoCents: v.cents, presoCents: preso });
+      }
+    }
+
+    const totale = aggiunte.reduce((n, x) => n + x.importoCents, 0);
+    const messaggio = aggiunte.length
+      ? `Aggiunte ${aggiunte.length} quote mancanti per un totale di € ${(totale / 100).toFixed(2).replace('.', ',')}.`
+      : eccessi.length
+        ? 'Niente da aggiungere. Attenzione: qualcuno ha preso più del dovuto (vedi dettaglio) — non è stato tolto niente.'
+        : 'Già a posto: nessuna quota mancante.';
+    return { aggiunte, eccessi, totaleAggiuntoCents: totale, messaggio };
+  }
+
+  /** Chi c'è nella catena e quanto gli spetta, con la stessa regola a differenza di `settleChain`. */
+  private async dovutoLungoCatena(
+    sellerStaffId: string | null | undefined,
+    ladder: { role: string; amountCents: number }[],
+  ): Promise<Map<string, { nome: string; ruolo: string; cents: number }>> {
+    const out = new Map<string, { nome: string; ruolo: string; cents: number }>();
+    if (!sellerStaffId) return out;
+    const chain: { id: string; nome: string; ruolo: string }[] = [];
+    const seen = new Set<string>();
+    let cur: string | null = sellerStaffId;
+    for (let hop = 0; hop < 4 && cur && !seen.has(cur); hop++) {
+      seen.add(cur);
+      const st = (await this.prisma.staff.findUnique({
+        where: { id: cur },
+        select: { id: true, displayName: true, managerId: true, user: { select: { role: true } } },
+      })) as { id: string; displayName: string; managerId: string | null; user: { role: string } | null } | null;
+      if (!st) break;
+      chain.push({ id: st.id, nome: st.displayName, ruolo: st.user?.role ?? '' });
+      cur = st.managerId;
+    }
+    const levelOf = (role: string) => ladder.findIndex((l) => l.role === role);
+    let paidLevel = -1;
+    let paidAmount = 0;
+    for (const link of chain) {
+      const lvl = levelOf(link.ruolo);
+      if (lvl < 0 || lvl <= paidLevel) continue;
+      const due = ladder[lvl].amountCents - paidAmount;
+      if (due > 0) out.set(link.id, { nome: link.nome, ruolo: link.ruolo, cents: due });
+      paidLevel = lvl;
+      paidAmount = Math.max(paidAmount, ladder[lvl].amountCents);
+      if (paidLevel >= ladder.length - 1) break;
+    }
+    return out;
+  }
+
   private async settleChain(
     payment: { id: string; clientId: string; amountCents: number },
     group: 'coach' | 'nutritionist',

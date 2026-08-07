@@ -37,8 +37,31 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-/** Gli inneschi che devono partire. Tutto il resto resta spento. */
-const DA_ACCENDERE = ['profilo_incompleto', 'ev_compleanno', 'trial_fine'];
+/**
+ * Gli inneschi che devono partire.
+ *
+ * ⚠️ LEZIONE DELL'8/8, e vale la pena leggerla prima di lanciare.
+ * Il seed mette il master a `false`, e su quel presupposto era stata scritta la prima versione
+ * di questo script: «accendi il master e i tre inneschi chiesti, tutto il resto resta spento».
+ * Ma in produzione il master **era già acceso**, e siccome il motore funziona a opt-out tutti
+ * gli inneschi implementati stavano già partendo — compresi i promemoria di rinnovo T-7/T-3/T-1.
+ * Lo script quindi non ha *acceso* tre cose: ne ha **spente venti**, fra cui quelle che portano
+ * i rinnovi.
+ *
+ * Da qui la variabile `ACCENDI`: si passa l'elenco, separato da virgole, di quello che deve
+ * restare acceso OLTRE ai tre di base. Serve a rimettere in piedi quello che c'era senza
+ * cliccare venti interruttori nel backoffice.
+ *
+ *   ACCENDI=rin_t7,rin_t3,rin_t1 CONFERMA=1 npm run accendi:automazioni
+ *
+ * E `SOLO_LEGGI=1` mostra lo stato attuale senza proporre nessuna modifica.
+ */
+const DA_ACCENDERE = [
+  'profilo_incompleto',
+  'ev_compleanno',
+  'trial_fine',
+  ...(process.env.ACCENDI ?? '').split(',').map((k) => k.trim()).filter(Boolean),
+];
 
 /**
  * Tutti gli inneschi IMPLEMENTATI del catalogo. L'elenco è copiato da
@@ -74,8 +97,13 @@ async function main(): Promise<void> {
   })) as { enabled: boolean; triggers: unknown } | null;
   const attuali = (settings?.triggers as Record<string, boolean> | null) ?? {};
 
+  const soloLeggi = process.env.SOLO_LEGGI === '1';
   const nuovi: Record<string, boolean> = { ...attuali };
-  for (const k of IMPLEMENTATI) nuovi[k] = DA_ACCENDERE.includes(k);
+  if (!soloLeggi) for (const k of IMPLEMENTATI) nuovi[k] = DA_ACCENDERE.includes(k);
+
+  // Un innesco senza flag esplicito è ACCESO (il motore è a opt-out): mostrarlo come
+  // «(default)» nascondeva proprio il fatto che stesse già partendo.
+  const acceso = (k: string) => (attuali[k] === undefined ? k !== 'trial_g6_offer' : attuali[k]);
 
   // Modelli email mancanti: senza il modello, l'innesco è acceso e non manda niente.
   const chiavi = await prisma.emailTemplate.findMany({
@@ -92,8 +120,9 @@ async function main(): Promise<void> {
   console.table(
     IMPLEMENTATI.map((k) => ({
       innesco: k,
-      prima: attuali[k] === undefined ? '(default)' : attuali[k] ? 'acceso' : 'spento',
+      prima: acceso(k) ? 'acceso' : 'spento',
       dopo: nuovi[k] ? 'ACCESO' : 'spento',
+      cambia: acceso(k) === !!nuovi[k] ? '' : (nuovi[k] ? '→ si accende' : '⚠ SI SPEGNE'),
       modello: DA_ACCENDERE.includes(k) ? (perKey.get(k)?.active ? 'ok' : '⚠ mancante o disattivato') : '—',
     })),
   );
@@ -106,6 +135,20 @@ async function main(): Promise<void> {
     );
   }
 
+  const siSpengono = IMPLEMENTATI.filter((k) => acceso(k) && !nuovi[k]);
+  if (siSpengono.length) {
+    console.log(
+      `\n⚠️  ATTENZIONE: questo comando SPEGNE ${siSpengono.length} inneschi che oggi partono:\n` +
+      `    ${siSpengono.join(', ')}\n` +
+      "    Se ce n'è qualcuno che ti serve, rilancia aggiungendolo a ACCENDI. Esempio:\n" +
+      '    ACCENDI=rin_t7,rin_t3,rin_t1 CONFERMA=1 npm run accendi:automazioni',
+    );
+  }
+
+  if (soloLeggi) {
+    console.log('\nSOLO_LEGGI=1: niente da scrivere, era solo una fotografia.');
+    return;
+  }
   if (!conferma) {
     console.log('\nNiente scritto: rilancia con  CONFERMA=1 npm run accendi:automazioni');
     return;

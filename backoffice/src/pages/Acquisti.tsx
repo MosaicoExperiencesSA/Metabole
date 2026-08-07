@@ -25,6 +25,8 @@ const clientName = (p: Purchase) => p.client?.clientProfile?.name ?? p.client?.e
 const methodLabel = (m: string) => (m === 'card' ? 'Carta' : m === 'manual' ? 'Manuale' : 'Bonifico');
 /** Stile compatto dei campi filtro nella riga sotto le intestazioni. */
 const F: CSSProperties = { fontSize: 12, padding: '4px 8px', fontWeight: 400, width: '100%' };
+/** Pulsante d'azione a sola icona (l'etichetta sta nel tooltip). */
+const ICON: CSSProperties = { padding: '4px 7px', lineHeight: 1 };
 const STATUS: Record<string, { label: string; chip: string }> = {
   approved: { label: 'Pagato', chip: '' },
   receipt_uploaded: { label: 'Da approvare', chip: 'amber' },
@@ -143,7 +145,45 @@ export function Acquisti() {
     }
   }
 
-  const pg = usePagination(filtered, 100);
+  /**
+   * RICALCOLA LE PROVVIGIONI di un acquisto già pagato.
+   *
+   * Le percentuali del piano sono SOGLIE CUMULATIVE e si paga a differenza: per dare 25% alla
+   * coach, 10% alla coordinatrice e 10% al manager si scrive 25 / 35 / 45. Scritte come quote
+   * separate (25 / 10 / 10) il secondo livello calcola 10 − 25 = −15, negativo, e la catena si
+   * ferma: incassa solo la coach. Corretto il piano, gli acquisti già fatti non si sistemano da
+   * soli — questo bottone li rilegge con le percentuali di oggi e accredita quel che manca.
+   * Non toglie niente a nessuno e rilanciarlo non raddoppia.
+   */
+  async function ricalcolaProvvigioni(p: Purchase) {
+    // eslint-disable-next-line no-alert
+    if (!confirm(
+      `Ricalcolare le provvigioni di ${clientName(p)} (${p.description}, ${euro(p.amountCents)})?\n\n`
+      + 'Vengono AGGIUNTE solo le quote mancanti, con le percentuali del piano di oggi.\n'
+      + 'Non viene tolto niente a nessuno e si può rilanciare senza raddoppiare.',
+    )) return;
+    setError(null);
+    setNotice(null);
+    setBusyId(p.id);
+    try {
+      const r = await api<{
+        aggiunte: { staff: string; ruolo: string; importoCents: number }[];
+        eccessi: { staff: string; ruolo: string; dovutoCents: number; presoCents: number }[];
+        totaleAggiuntoCents: number;
+        messaggio: string;
+      }>(`/admin/purchases/${p.id}/ricalcola-provvigioni`, { method: 'POST', body: JSON.stringify({}) });
+      const dettaglio = r.aggiunte.map((a) => `${a.staff} (${a.ruolo}) +${euro(a.importoCents)}`).join(' · ');
+      const troppo = r.eccessi.map((e) => `${e.staff} ha ${euro(e.presoCents)} invece di ${euro(e.dovutoCents)}`).join(' · ');
+      setNotice(`${r.messaggio}${dettaglio ? ` — ${dettaglio}` : ''}${troppo ? ` · Da guardare a mano: ${troppo}` : ''}`);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Solo un admin può ricalcolare le provvigioni.');
+      else setError(err instanceof Error ? err.message : 'Ricalcolo non riuscito.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const pg = usePagination(filtered, 50);
 
   if (loading) return <Spinner />;
 
@@ -165,7 +205,18 @@ export function Acquisti() {
         {filtered.length === 0 ? (
           <div className="empty">Nessun acquisto.</div>
         ) : (
-          <table className="grid">
+          // Larghezze fisse: senza, il nome del prodotto si prendeva tre righe e la colonna
+          // delle azioni finiva fuori dallo schermo, tagliata.
+          <table className="grid" style={{ tableLayout: 'fixed', width: '100%' }}>
+            <colgroup>
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '24%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '16%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Cliente</th>
@@ -174,7 +225,7 @@ export function Acquisti() {
                 <th>Metodo</th>
                 <th>Stato</th>
                 <th>Data</th>
-                <th style={{ textAlign: 'right' }}>Ricevuta</th>
+                <th style={{ textAlign: 'right' }}>Azioni</th>
               </tr>
               <tr className="filters">
                 <th><input className="input" style={F} placeholder="Filtra…" value={fCliente} onChange={(e) => setFCliente(e.target.value)} /></th>
@@ -199,9 +250,9 @@ export function Acquisti() {
                     <option value="refunded">Stornato</option>
                   </select>
                 </th>
-                <th style={{ whiteSpace: 'nowrap' }}>
-                  <input className="input" style={{ ...F, width: 118, display: 'inline-block' }} type="date" title="Dal giorno" value={fDataDa} onChange={(e) => setFDataDa(e.target.value)} />{' '}
-                  <input className="input" style={{ ...F, width: 118, display: 'inline-block' }} type="date" title="Al giorno" value={fDataA} onChange={(e) => setFDataA(e.target.value)} />
+                <th>
+                  <input className="input" style={{ ...F, marginBottom: 3 }} type="date" title="Dal giorno" value={fDataDa} onChange={(e) => setFDataDa(e.target.value)} />
+                  <input className="input" style={F} type="date" title="Al giorno" value={fDataA} onChange={(e) => setFDataA(e.target.value)} />
                 </th>
                 <th style={{ textAlign: 'right' }}>
                   {(fCliente || fProdotto || fImporto || fMetodo || fStato || fDataDa || fDataA) && (
@@ -215,32 +266,43 @@ export function Acquisti() {
             <tbody>
               {pg.pageItems.map((p) => (
                 <tr key={p.id}>
-                  <td>
-                    <b>{clientName(p)}</b>
-                    <div className="muted" style={{ fontSize: 12 }}>{p.client?.email ?? '—'}</div>
+                  <td style={{ overflow: 'hidden' }}>
+                    <b style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={clientName(p)}>{clientName(p)}</b>
+                    <div className="muted" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.client?.email ?? ''}>{p.client?.email ?? '—'}</div>
                   </td>
-                  <td>{p.description}</td>
-                  <td><b>{euro(p.amountCents)}</b></td>
-                  <td className="muted">{methodLabel(p.method)}</td>
+                  {/* Il nome del prodotto su una riga sola con i puntini: prima ne prendeva tre
+                      e spingeva la tabella fuori dallo schermo. Per intero resta nel tooltip. */}
+                  <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.description}>{p.description}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}><b>{euro(p.amountCents)}</b></td>
+                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>{methodLabel(p.method)}</td>
                   <td>
                     <span className={`chip ${STATUS[p.status]?.chip ?? 'gray'}`}>{STATUS[p.status]?.label ?? p.status}</span>
                     {p.refundedAt && (
                       <div><span className="chip red" title={`Stornato il ${date(p.refundedAt)}`}>Stornato −{euro(p.refundCents).replace('€ ', '€')}</span></div>
                     )}
                   </td>
-                  <td className="muted">{date(p.createdAt)}</td>
+                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>{date(p.createdAt)}</td>
+                  {/* Azioni a icone: cinque pulsanti con l'etichetta scritta non ci stavano.
+                      Il titolo (tooltip) dice cosa fa ciascuna. */}
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => downloadReceipt(p)} title="Scarica la ricevuta PDF">
-                      <i className="ti ti-download" /> Ricevuta
+                    <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => downloadReceipt(p)} title="Scarica la ricevuta PDF" style={ICON}>
+                      <i className="ti ti-download" />
                     </button>
                     {p.refundedAt && (
-                      <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => downloadRefundReceipt(p)} title="Scarica la ricevuta di rimborso" style={{ marginLeft: 6 }}>
-                        <i className="ti ti-receipt-refund" /> Rimborso
+                      <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => downloadRefundReceipt(p)} title="Scarica la ricevuta di rimborso" style={{ ...ICON, marginLeft: 4 }}>
+                        <i className="ti ti-receipt-refund" />
+                      </button>
+                    )}
+                    {isAdmin && p.status === 'approved' && (
+                      <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => ricalcolaProvvigioni(p)}
+                        title="Ricalcola provvigioni — aggiunge le quote mancanti dopo aver corretto le percentuali del piano (non toglie niente)"
+                        style={{ ...ICON, marginLeft: 4 }}>
+                        <i className="ti ti-refresh-dot" />
                       </button>
                     )}
                     {isAdmin && p.status === 'approved' && !p.refundedAt && (
-                      <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => setRefundTarget(p)} title="Storna l'acquisto (rimborso)" style={{ marginLeft: 6 }}>
-                        <i className="ti ti-arrow-back-up" /> Storno
+                      <button className="btn ghost sm" disabled={busyId === p.id} onClick={() => setRefundTarget(p)} title="Storna l'acquisto (rimborso)" style={{ ...ICON, marginLeft: 4 }}>
+                        <i className="ti ti-arrow-back-up" />
                       </button>
                     )}
                     {isAdmin && (
@@ -248,7 +310,7 @@ export function Acquisti() {
                         onClick={() => deletePurchase(p)}
                         disabled={busyId === p.id}
                         title="Elimina acquisto"
-                        style={{ border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4, marginLeft: 6, verticalAlign: 'middle' }}
+                        style={{ border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4, marginLeft: 4, verticalAlign: 'middle' }}
                       >
                         <i className="ti ti-x" />
                       </button>

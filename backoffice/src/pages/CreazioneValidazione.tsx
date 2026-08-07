@@ -198,6 +198,26 @@ export function CreazioneValidazione() {
     } catch { setFamVariants([]); }
   }
 
+  /**
+   * SCEGLIE DA SOLA una variante su cui aprire il passo 3.
+   *
+   * Il passo 3 lavora sulla variante selezionata (`dietId`). Dopo una pubblicazione — o
+   * semplicemente rientrando in pagina — `dietId` è nullo, e il passo 3 spariva dietro
+   * «Genera un catalogo per iniziare la validazione guidata» anche con diciotto varianti
+   * elencate lì sopra: sullo schermo sembrava che la validazione fosse sparita.
+   * Se la famiglia ha varianti, se ne apre una: la prima con dei passi ancora da fare
+   * (è quella che ha bisogno di attenzione), altrimenti la prima non archiviata.
+   */
+  useEffect(() => {
+    if (famVariants.length === 0) return;
+    if (dietId && famVariants.some((v) => v.dietId === dietId)) return;
+    const vive = famVariants.filter((v) => v.status !== 'rejected');
+    const scelta = vive.find((v) => !v.ready) ?? vive[0] ?? famVariants[0];
+    if (!scelta) return;
+    try { localStorage.setItem(LS_DIET, scelta.dietId); } catch { /* no-op */ }
+    setDietId(scelta.dietId);
+  }, [famVariants, dietId]);
+
   // Archivia una variante GENERATA (es. il 3-pasti creato per errore in una famiglia
   // digiuno): esce dai menu e dallo schermo 16 senza cancellarla (recuperabile). Così il
   // catalogo resta allineato a ciò che c'è nel generatore.
@@ -395,6 +415,14 @@ export function CreazioneValidazione() {
    * Valida e pubblica/invia TUTTE le varianti generate della famiglia in un colpo
    * (gemello di "Genera tutte le varianti"). Per ogni dieta della famiglia (match nome+stile):
    * attiva ricette → conferma allergeni → approva gruppi, poi pubblica (capo) o invia in revisione.
+   *
+   * ⚠️ La validazione passa anche sulle varianti GIÀ PUBBLICATE, ed è il punto importante.
+   * Ogni settimana nuova aggiunge ricette in **bozza** (inattive) a una dieta che è già
+   * approvata: finché non le si attiva, le clienti continuano a ricevere solo i piatti
+   * vecchi. Prima le già-pubblicate venivano saltate del tutto, quindi il pulsante non
+   * faceva assolutamente niente su una famiglia interamente pubblicata — che è esattamente
+   * il caso di chi genera le settimane 5-10 dopo aver pubblicato. Si salta invece la
+   * *pubblicazione* di chi è già approved (darebbe «stato approved: non pubblicabile»).
    */
   async function publishAllFamily() {
     if (!activeFamily) return;
@@ -408,43 +436,38 @@ export function CreazioneValidazione() {
     if (!fam.length) { setFamBusy(false); setFamMsg('Nessuna dieta generata per questa famiglia: genera prima le varianti (passo 2).'); return; }
 
     const verb = isResponsabile ? 'pubblicate' : 'inviate in revisione';
-    const resetPage = (msg: string) => {
-      try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
-      setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null);
-      setGenAll(false); setDirty(false); setFamVariants([]); setFamMsg(null);
-      setForm({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], meals: ['5'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
-      setNotice(msg);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    // Le varianti GIÀ pubblicate si saltano (ripubblicarle darebbe solo errori
-    // "stato approved: non pubblicabile" e la pagina non si azzererebbe mai).
-    const toWork = fam.filter((d) => d.status !== 'approved');
-    const already = fam.length - toWork.length;
     const famLabel = activeFamily.label;
-    if (toWork.length === 0) {
+
+    // Da validare: TUTTE le varianti vive (anche le già pubblicate — è lì che stanno le
+    // ricette nuove ancora in bozza). Da pubblicare: solo quelle non ancora approvate.
+    const daValidare = fam.filter((d) => d.status !== 'rejected');
+    const daPubblicare = daValidare.filter((d) => d.status !== 'approved');
+    const archiviate = fam.length - daValidare.length;
+    if (daValidare.length === 0) {
       setFamBusy(false);
-      resetPage(`Famiglia "${famLabel}" completata ✓ tutte le ${fam.length} varianti erano già ${verb}. La pagina è pronta per un nuovo lavoro.`);
+      setFamMsg(`Tutte le varianti di "${famLabel}" sono archiviate: non c'è niente da validare.`);
       return;
     }
 
     const errs: string[] = [];
     const tag = (v: { regime: string; objective?: string | null; mealsPerDay?: number; fasting?: boolean }) => `${v.regime}${v.objective ? ' · ' + v.objective : ''}${v.fasting ? ' · digiuno' : v.mealsPerDay ? ` · ${v.mealsPerDay} pasti` : ''}`;
-    const total = toWork.length * 2; // due passate: validazione + pubblicazione
+    const total = daValidare.length + daPubblicare.length; // due passate
     let step = 0;
-    // Pass 1 — contenuti (ricette, allergeni, gruppi) su ogni variante non ancora pubblicata.
-    for (const v of toWork) {
+    // Pass 1 — contenuti (ricette, allergeni, gruppi) su OGNI variante viva.
+    let validate = 0;
+    for (const v of daValidare) {
       setProgress({ done: step, total, label: `Valido ${tag(v)}…` });
       try {
         await api(`/engine-rules/diets/${v.id}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
         await api(`/engine-rules/diets/${v.id}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
         await api(`/engine-rules/diets/${v.id}/approve-groups`, { method: 'POST', body: JSON.stringify({}) });
+        validate += 1;
       } catch (e) { errs.push(`${tag(v)} (validazione): ${e instanceof ApiError ? e.message : 'errore'}`); }
       step += 1;
     }
     // Pass 2 — pubblica (capo) o invia in revisione, dopo che i gruppi sono approvati.
     let done = 0;
-    for (const v of toWork) {
+    for (const v of daPubblicare) {
       setProgress({ done: step, total, label: `${isResponsabile ? 'Pubblico' : 'Invio'} ${tag(v)}…` });
       try {
         await api(`/diets/${v.id}/${isResponsabile ? 'publish' : 'submit'}`, { method: 'POST', body: JSON.stringify({}) });
@@ -454,15 +477,19 @@ export function CreazioneValidazione() {
     }
     setProgress(null);
     setFamBusy(false);
-    if (errs.length) {
-      // Qualcosa da rivedere: la pagina resta aperta con gli stati aggiornati.
-      setFamMsg(`Completate ${done + already}/${fam.length} varianti (${verb}${already ? `, ${already} già fatte` : ''}). Da rivedere: ${errs.join(' · ')}`);
-      void loadFamilyStatuses();
-      if (dietId) { try { setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`)); } catch { /* no-op */ } }
-      return;
-    }
-    // Tutto ok → la pagina si AZZERA, pronta per la prossima famiglia (come la pubblicazione singola).
-    resetPage(`Famiglia "${famLabel}" completata ✓ tutte le ${fam.length} varianti ${verb}${already ? ` (${already} lo erano già)` : ''}. La pagina è pronta per un nuovo lavoro.`);
+
+    // La pagina RESTA aperta sulla famiglia: dopo l'ultima settimana si ripassa di qui
+    // ogni volta, e azzerare tutto costringeva a ricercare la dieta da capo.
+    void loadFamilyStatuses();
+    if (dietId) { try { setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/review-status`)); } catch { /* no-op */ } }
+    const coda = archiviate ? ` (${archiviate} archiviate, saltate)` : '';
+    setFamMsg(
+      errs.length
+        ? `Validate ${validate}/${daValidare.length} varianti, ${done} ${verb}${coda}. Da rivedere: ${errs.join(' · ')}`
+        : `Famiglia "${famLabel}" a posto ✓ ${validate} varianti validate (ricette attivate, allergeni confermati, gruppi approvati)` +
+          `${done ? `, ${done} ${verb}` : daPubblicare.length === 0 ? ' — erano già tutte pubblicate' : ''}${coda}.` +
+          ' Le ricette delle settimane nuove sono ora attive: le clienti le ricevono.',
+    );
   }
 
   async function act(path: string) {
@@ -486,7 +513,9 @@ export function CreazioneValidazione() {
         navigate('/gestione-dieta');
         return;
       }
-      setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null); setGenAll(false); setDirty(false);
+      // `setFamVariants([])` serve: senza, la scelta automatica della variante (vedi sopra)
+      // riaprirebbe subito il passo 3 sulla famiglia appena chiusa.
+      setDietId(null); setStatus(null); setActivePresetId(null); setActiveFamilyKey(null); setGenAll(false); setDirty(false); setFamVariants([]);
       setForm({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], meals: ['5'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
       setNotice('Dieta inviata in revisione ✓ La pagina è pronta per un nuovo lavoro.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -499,7 +528,8 @@ export function CreazioneValidazione() {
 
   function reset() {
     try { localStorage.removeItem(LS_DIET); } catch { /* no-op */ }
-    setDietId(null); setStatus(null); setNotice(null);
+    // Anche l'elenco delle varianti, altrimenti la scelta automatica riapre subito la bozza.
+    setDietId(null); setStatus(null); setNotice(null); setFamVariants([]);
   }
 
   async function loadPreview() {
@@ -868,6 +898,32 @@ export function CreazioneValidazione() {
             </div>
           </div>
         )}
+        {/* Il riquadro "tutta la famiglia" sta FUORI dal blocco della singola bozza: prima era
+            dentro, e quindi spariva insieme al resto ogni volta che non c'era una variante
+            selezionata — proprio quando serve, cioè dopo aver generato altre settimane. */}
+        {activeFamily && activeFamily.variants.length > 1 && (
+          <div style={{ marginBottom: 14, padding: 12, borderRadius: 10, border: '1px solid var(--teal)', background: 'var(--chip)' }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Tutta la famiglia in un colpo</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+              Valida (ricette, allergeni, gruppi) e {isResponsabile ? 'pubblica' : 'invia in revisione'} <b>tutte le {activeFamily.variants.length} varianti</b> (regime × obiettivo) della famiglia, senza farlo una per una. Le clienti scelgono lo stile e il motore pesca la variante giusta per regime e obiettivo.
+            </div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              Vale <b>anche sulle varianti già pubblicate</b>: ogni settimana nuova nasce in bozza, e finché non si attivano le sue ricette le clienti ricevono solo i piatti vecchi. Dopo l'ultima settimana, premi qui.
+            </div>
+            <button className="btn" onClick={publishAllFamily} disabled={busy || famBusy} style={{ marginTop: 8 }}>
+              {famBusy ? (
+                <>
+                  <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.45)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginRight: 6, verticalAlign: '-2px' }} />
+                  Lavoro…
+                </>
+              ) : (
+                <><i className="ti ti-stack-2" /> {isResponsabile ? `Valida e pubblica tutte le ${activeFamily.variants.length} varianti` : `Valida e invia tutte le ${activeFamily.variants.length} varianti`}</>
+              )}
+            </button>
+            {famBusy && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
+            {famMsg && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{famMsg}</div>}
+          </div>
+        )}
         {!s ? (
           <p className="muted" style={{ marginTop: 0 }}>Genera un catalogo per iniziare la validazione guidata.</p>
         ) : (
@@ -886,26 +942,6 @@ export function CreazioneValidazione() {
                 action={s.groups.total > 0 ? <button className="btn ghost sm" onClick={() => act('approve-groups')} disabled={busy}>Conferma tutti</button> : undefined}
                 link={<Link className="btn ghost sm" to="/gruppi-equivalenza">Rivedi</Link>} />
             </div>
-            {activeFamily && activeFamily.variants.length > 1 && (
-              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, border: '1px solid var(--teal)', background: 'var(--chip)' }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>Tutta la famiglia in un colpo</div>
-                <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                  Valida (ricette, allergeni, gruppi) e {isResponsabile ? 'pubblica' : 'invia in revisione'} <b>tutte le {activeFamily.variants.length} varianti</b> (regime × obiettivo) della famiglia, senza farlo una per una. Le clienti scelgono lo stile e il motore pesca la variante giusta per regime e obiettivo.
-                </div>
-                <button className="btn" onClick={publishAllFamily} disabled={busy || famBusy} style={{ marginTop: 8 }}>
-                  {famBusy ? (
-                    <>
-                      <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.45)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite', marginRight: 6, verticalAlign: '-2px' }} />
-                      Lavoro…
-                    </>
-                  ) : (
-                    <><i className="ti ti-stack-2" /> {isResponsabile ? `Valida e pubblica tutte le ${activeFamily.variants.length} varianti` : `Valida e invia tutte le ${activeFamily.variants.length} varianti`}</>
-                  )}
-                </button>
-                {famBusy && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
-                {famMsg && <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{famMsg}</div>}
-              </div>
-            )}
             <div className="row" style={{ gap: 8, marginTop: 16 }}>
               <button className="btn" onClick={publish} disabled={busy || !allReady} title={allReady ? '' : 'Completa tutti i passi'}>
                 <i className={`ti ${isResponsabile ? 'ti-rosette-discount-check' : 'ti-send'}`} /> {isResponsabile ? 'Approva e pubblica (solo questa)' : 'Invia in revisione (solo questa)'}

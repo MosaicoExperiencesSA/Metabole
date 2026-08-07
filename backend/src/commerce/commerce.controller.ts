@@ -452,7 +452,10 @@ class RefundPurchaseDto {
 @Controller('admin/purchases')
 @Roles('admin', 'sales')
 export class AdminPurchasesController {
-  constructor(private readonly commerce: CommerceService) {}
+  constructor(
+    private readonly commerce: CommerceService,
+    private readonly finance: FinanceService,
+  ) {}
 
   @Get()
   list(@Query('status') status?: string) {
@@ -498,6 +501,22 @@ export class AdminPurchasesController {
   @Get(':id/refund-receipt-pdf')
   refundReceiptPdf(@Param('id') id: string) {
     return this.commerce.generateRefundReceiptPdf(id);
+  }
+
+  /**
+   * Ricalcolo delle provvigioni di un acquisto gia' approvato.
+   *
+   * Serve quando la scala del piano era scritta male (le percentuali sono soglie CUMULATIVE:
+   * per dare 25 alla coach, 10 alla coordinatrice e 10 al manager si scrive 25 / 35 / 45) e
+   * quindi la catena si e' fermata al primo livello. Corretto il piano, i pagamenti gia' fatti
+   * non si sistemano da soli: questo bottone li rilegge con le percentuali di oggi e accredita
+   * la differenza. Non cancella niente e non toglie niente a nessuno; rilanciarlo non raddoppia.
+   */
+  @Roles('admin')
+  @HttpCode(200)
+  @Post(':id/ricalcola-provvigioni')
+  ricalcolaProvvigioni(@Param('id') id: string) {
+    return this.finance.ricalcolaProvvigioni(id);
   }
 }
 
