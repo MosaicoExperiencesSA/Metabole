@@ -7,6 +7,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 💣 **Il rinnovo non sarebbe MAI stato registrato — e i soldi arrivavano lo stesso.**
+  Trovato rileggendo il ricorrente prima che toccasse un pagamento vero. È il difetto peggiore
+  scritto finora, non per quanto è complicato ma per come si sarebbe manifestato: **da nessuna
+  parte**.
+  Nell'SDK Stripe 22 che abbiamo installato l'API predefinita è `2026-06-24.dahlia`, e da quella
+  versione la fattura **non ha più** il campo `invoice.subscription`: l'abbonamento sta in
+  `invoice.parent.subscription_details.subscription`. `handleInvoicePaid` leggeva solo il campo
+  vecchio, quindi ogni `invoice.paid` di rinnovo usciva alla seconda riga con «fattura non legata
+  a un abbonamento».
+  Il risultato al primo rinnovo vero: Stripe incassa i €49, la webhook risponde 200, e da noi non
+  nasce **niente** — nessun pagamento a database, nessuna provvigione alla coach, nessuna
+  ricevuta alla cliente. E soprattutto la **scadenza dell'abbonamento non si sposta**: la cliente
+  che paga regolarmente si sarebbe vista scadere il percorso. Un incasso mensile invisibile su
+  entrambi i lati del libro.
+  Ora si leggono **entrambe le forme**, con la nuova che ha la precedenza: la versione API con
+  cui Stripe consegna gli eventi dipende dall'**account** (e da come è configurato l'endpoint),
+  non dall'SDK — un account ancora su una versione precedente continua a mandare la forma
+  vecchia, e sbagliare al contrario sarebbe stato lo stesso guaio speculare. Stessa correzione su
+  `invoice.payment_failed`, e `checkout.session.completed` ora accetta l'abbonamento sia come id
+  sia come oggetto espanso.
+  Test: +7 in un file dedicato (55 suite, 575 test).
+  ⚠️ **Da fare in Stripe prima del primo abbonamento vero** (non è codice, è configurazione):
+  l'endpoint webhook oggi è iscritto al solo `checkout.session.completed` — quello che serviva
+  per gli acquisti una-tantum. Vanno aggiunti **`invoice.paid`**,
+  **`invoice.payment_failed`** e **`customer.subscription.deleted`**: senza, il codice qui sopra
+  non riceve niente da elaborare e siamo daccapo. Va anche attivato il **Customer Portal**
+  (Impostazioni → Fatturazione → Portale clienti), altrimenti «Aggiorna la carta» dal profilo
+  risponde errore.
+
 - `[Sviluppo]` 🏖️ **La modalità viaggio ora la legge anche l'agente dieta — e scade.** Era
   l'ultima cosa aperta dei piani estate (`STATO.md`: «`DietAgentService` non legge
   `travelState`»). Lo stato c'era, con date e stati `in_partenza / in_vacanza / rientrato`, ma

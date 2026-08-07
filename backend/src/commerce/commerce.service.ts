@@ -134,6 +134,34 @@ export function pickMainSubscription<T extends { status: string }>(subs: T[]): T
   );
 }
 
+/**
+ * L'id dell'abbonamento dentro una fattura Stripe — **da due punti diversi**, e non è pedanteria.
+ *
+ * Fino all'API 2025 la fattura aveva `invoice.subscription`. Dalla `2026-06-24.dahlia` (quella
+ * predefinita nell'SDK 22 che usiamo) quel campo **non esiste più**: l'abbonamento sta in
+ * `invoice.parent.subscription_details.subscription`.
+ *
+ * Il guaio è come si sarebbe manifestato. Il codice leggeva solo il campo vecchio, quindi ogni
+ * `invoice.paid` di rinnovo usciva subito con «fattura non legata a un abbonamento»: Stripe
+ * incassava i €49 ogni mese, e da noi non nasceva **nessun** pagamento, nessuna provvigione,
+ * nessuna ricevuta — e la scadenza dell'abbonamento non si spostava, quindi la cliente pagante
+ * si sarebbe vista scadere il percorso. Tutto questo con la webhook che risponde 200: nessun
+ * errore, nessun avviso, i soldi che arrivano lo stesso.
+ *
+ * Si leggono entrambe le forme perché la versione API che Stripe usa per consegnare gli eventi
+ * dipende dall'account (e da come è configurato l'endpoint), non dall'SDK: un account ancora su
+ * una versione precedente continuerà a mandare la forma vecchia.
+ */
+export function subscriptionIdDaFattura(inv: unknown): string | null {
+  const f = (inv ?? {}) as {
+    subscription?: string | { id?: string } | null;
+    parent?: { subscription_details?: { subscription?: string | { id?: string } | null } | null } | null;
+  };
+  const grezzo = f.parent?.subscription_details?.subscription ?? f.subscription ?? null;
+  if (!grezzo) return null;
+  return typeof grezzo === 'string' ? grezzo : grezzo.id ?? null;
+}
+
 @Injectable()
 export class CommerceService {
   private readonly receiptKey: Buffer;
@@ -1000,7 +1028,10 @@ export class CommerceService {
     if (!payment) return { handled: false, reason: 'pagamento sconosciuto' };
     // Abbonamento: da adesso i rinnovi arriveranno da soli. Ci serve l'id di Stripe per
     // ritrovare QUESTA riga a ogni fattura, e per poter disdire.
-    const stripeSubId = (event.data.object as { subscription?: string | null }).subscription ?? null;
+    // `subscription` può arrivare come id o come oggetto espanso: si accettano entrambi, così
+    // un giorno in cui qualcuno aggiunge un `expand` non si perde l'aggancio ai rinnovi.
+    const subGrezzo = (event.data.object as { subscription?: string | { id?: string } | null }).subscription ?? null;
+    const stripeSubId = typeof subGrezzo === 'string' ? subGrezzo : subGrezzo?.id ?? null;
     if (stripeSubId && payment.subscriptionId) {
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },
@@ -1124,18 +1155,18 @@ export class CommerceService {
   async handleInvoicePaid(event: { type: string; data: { object: unknown } }) {
     const inv = event.data.object as {
       id: string;
-      subscription?: string | null;
       billing_reason?: string | null;
       amount_paid?: number | null;
       lines?: { data?: { period?: { end?: number | null } | null }[] } | null;
     };
-    if (!inv.subscription) return { handled: false, reason: 'fattura non legata a un abbonamento' };
+    const subscriptionId = subscriptionIdDaFattura(inv);
+    if (!subscriptionId) return { handled: false, reason: 'fattura non legata a un abbonamento' };
     if (inv.billing_reason === 'subscription_create') {
       return { handled: true, primoAddebito: true }; // già incassato dal checkout
     }
 
     const sub = (await this.prisma.subscription.findUnique({
-      where: { stripeSubscriptionId: inv.subscription } as never,
+      where: { stripeSubscriptionId: subscriptionId } as never,
       include: { plan: true, client: { select: { email: true, locale: true } } },
     })) as
       | {
@@ -1212,10 +1243,11 @@ export class CommerceService {
    * `customer.subscription.deleted`: lì l'abbonamento passa a scaduto.
    */
   async handleInvoiceFailed(event: { type: string; data: { object: unknown } }) {
-    const inv = event.data.object as { id: string; subscription?: string | null; attempt_count?: number | null };
-    if (!inv.subscription) return { handled: false, reason: 'fattura non legata a un abbonamento' };
+    const inv = event.data.object as { id: string; attempt_count?: number | null };
+    const subscriptionId = subscriptionIdDaFattura(inv);
+    if (!subscriptionId) return { handled: false, reason: 'fattura non legata a un abbonamento' };
     const sub = (await this.prisma.subscription.findUnique({
-      where: { stripeSubscriptionId: inv.subscription } as never,
+      where: { stripeSubscriptionId: subscriptionId } as never,
       select: { id: true, clientId: true, lastPaymentFailedAt: true, client: { select: { email: true } } },
     })) as { id: string; clientId: string; lastPaymentFailedAt: Date | null; client: { email: string } | null } | null;
     if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };

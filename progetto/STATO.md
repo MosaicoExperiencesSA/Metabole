@@ -43,6 +43,13 @@ segreti fuori dal repo, `docs/` pubblica, dati sanitari cifrati, soglie in `conf
 - Contatori con **base storica Mosaico** in `/public/stats` (`stats_clients_base` 18.979 + abbonamenti
   attivati, `stats_reached_base` 85.218 + lead CRM, `years` 20 — config_param modificabili dal backoffice):
   backend live e sito ripubblicato con nuova dicitura e fallback il 14/7. ✅
+- ⚠️ **Stripe: la webhook è iscritta al SOLO `checkout.session.completed`.** Bastava per gli
+  acquisti una-tantum; per gli abbonamenti servono anche **`invoice.paid`**,
+  **`invoice.payment_failed`** e **`customer.subscription.deleted`** — senza, i rinnovi incassati
+  da Stripe non diventano mai pagamenti nostri e nessuno se ne accorge, perché i soldi arrivano lo
+  stesso. Da attivare anche il **Customer Portal** (Impostazioni → Fatturazione → Portale
+  clienti), altrimenti «Aggiorna la carta» dal profilo risponde errore. **Da fare prima del primo
+  abbonamento vero.**
 - **Stripe LIVE configurato** (chiave + webhook `checkout.session.completed` in Render, 14/7) e
   **pagamento reale di prova eseguito il 16/7**. ✅ (la riga diceva «manca solo il pagamento di prova»
   fino al 6/8: era vera a luglio e nessuno l'ha più toccata)
