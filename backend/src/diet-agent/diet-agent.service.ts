@@ -2,11 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
+import { aGiorno } from '../common/date-only';
 
 export type AgentState = 'normale' | 'conforto' | 'pre_evento' | 'post_evento' | 'plateau' | 'rientro' | 'vacanza';
 
 const DAY = 86_400_000;
-const dateOnly = (d: Date): Date => new Date(d.toISOString().slice(0, 10) + 'T00:00:00.000Z');
+
 const isLowMood = (m: string): boolean => m === 'hard' || m === 'stressed';
 
 /**
@@ -49,7 +50,7 @@ export class DietAgentService {
       this.configParams.getNumber('travel_max_days', 30),
       this.configParams.getNumber('agent_return_days', 7),
     ]);
-    const today = dateOnly(new Date());
+    const today = aGiorno(new Date());
 
     // 0. MODALITÀ VIAGGIO — segnale esplicito dello staff, quindi vince sui segnali dedotti.
     const profilo = (await this.prisma.clientProfile.findUnique({
@@ -72,7 +73,7 @@ export class DietAgentService {
         orderBy: { receivedAt: 'desc' },
         select: { receivedAt: true },
       })) as { receivedAt: Date } | null;
-      if (rientro && dateOnly(rientro.receivedAt).getTime() >= today.getTime() - returnDays * DAY) {
+      if (rientro && aGiorno(rientro.receivedAt).getTime() >= today.getTime() - returnDays * DAY) {
         return 'post_evento';
       }
     }
@@ -115,7 +116,7 @@ export class DietAgentService {
 
     if (checkins.length) {
       const latest = checkins[0];
-      const latestDaysAgo = Math.floor((today.getTime() - dateOnly(latest.date).getTime()) / DAY);
+      const latestDaysAgo = Math.floor((today.getTime() - aGiorno(latest.date).getTime()) / DAY);
       // Il segnale umore conta solo se il check-in più recente è di oggi/ieri.
       if (latestDaysAgo <= 1) {
         if (isLowMood(latest.mood)) {
@@ -132,7 +133,7 @@ export class DietAgentService {
         // Umore risalito: se c'è stato un periodo difficile nella finestra di rientro → rientro.
         const reentryFloor = new Date(today.getTime() - reentryDays * DAY);
         const recentLow = checkins.some(
-          (c) => isLowMood(c.mood) && dateOnly(c.date).getTime() >= reentryFloor.getTime(),
+          (c) => isLowMood(c.mood) && aGiorno(c.date).getTime() >= reentryFloor.getTime(),
         );
         if (recentLow) return 'rientro';
       }

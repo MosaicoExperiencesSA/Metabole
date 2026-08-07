@@ -7,6 +7,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🌙 **Le misure inserite di notte finivano sul giorno prima — e cancellavano quelle
+  del giorno prima.** Cercando altri difetti della stessa famiglia (logica giusta, contorno
+  sbagliato) è saltato fuori questo, che è il più serio della giornata perché **perde dati**.
+  `toDateOnly()` leggeva il giorno **UTC**. Il server sta a Francoforte, le clienti stanno in
+  Italia, e d'estate l'Italia è avanti di due ore: fra la **mezzanotte e le 02:00** — l'01:00
+  d'inverno — in Italia è già domani mentre per UTC è ancora ieri.
+  Quindi una cliente che si pesa alle 00:30 dell'8 agosto veniva registrata al **7**. E siccome
+  le misure hanno un vincolo di unicità per `(cliente, data)` e si salvano in `upsert`, quella
+  pesata **sovrascriveva la misura del 7**: il dato del giorno prima spariva. Nessun errore,
+  nessun avviso — solo un punto del grafico che cambia valore, e un calo che non torna.
+  Stesso effetto su check-in, acqua, passi e sul gate misure, che a quel punto crede che la
+  misura di «oggi» ci sia già e non la chiede.
+  Ora «oggi» è il giorno del **fuso dell'azienda** (`APP_TIMEZONE`, default `Europe/Rome`,
+  cambiabile da Render senza deploy), che è quello che intendono sia la cliente sia la coach.
+  Il dato resta salvato a mezzanotte UTC, perché la colonna è un DATE e il confronto deve
+  restare stabile.
+  Una scelta che vale la pena spiegare: una stringa di **sola data** (`2026-08-08`) si prende
+  alla lettera, senza conversione. Non contiene un orario, quindi non c'è niente da convertire —
+  e convertirla la sposterebbe di un giorno in tutti i fusi a ovest di Greenwich, cioè
+  introdurrebbe lo stesso difetto al contrario.
+  ⚠️ Il passato non si tocca: le misure già registrate restano dove sono. Se in un grafico c'è
+  un salto strano su una data, adesso si sa da dove può venire.
+
+- `[Sviluppo]` ♻️ **«Che giorno è oggi» era scritto in tre posti, e in tre posti sbagliato.**
+  La stessa riga (`toISOString().slice(0,10)`) era copiata in `diet-agent.service`, in
+  `conversation-summary.service` e dentro `stato-viaggio.ts`. Tutte e tre leggevano il giorno UTC,
+  quindi tutte e tre avevano lo stesso difetto — ma in punti che nessuno avrebbe collegato al caso
+  delle misure: lo stato dell'agente dieta, i riassunti delle conversazioni, la scadenza della
+  modalità viaggio.
+  È il terzo caso in due giorni di logica copiata che diverge — dopo `pickDiet` e la lettura dei
+  campi numerici — e la lezione è sempre la stessa: **una definizione, un posto**. Ora tutte
+  passano da `date-only.ts`, che è l'unico file dove sta scritto cosa vuol dire «oggi».
+  Test: +9 (59 suite, 620 test).
+
 - `[Sviluppo]` 🧹 **Finito il giro sui messaggi delle clienti, e ora c'è un test che li rende
   obbligatori.** Completate le schermate che mancavano: chat con la coach, sostituzione
   ingrediente, lista della spesa, valutazione ricette, caricamento documenti, buono sconto,

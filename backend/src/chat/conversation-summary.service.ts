@@ -2,11 +2,12 @@ import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { AiService } from '../ai/ai.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { aGiorno } from '../common/date-only';
 
 const DAY = 86_400_000;
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 
-const dateOnly = (d: Date): Date => new Date(d.toISOString().slice(0, 10) + 'T00:00:00.000Z');
+
 
 interface MsgRow {
   senderRole: string;
@@ -30,7 +31,7 @@ export class ConversationSummaryService {
 
   /** Genera i riassunti per un giorno (default: ieri) per i thread con messaggi quel giorno. */
   async generateDailyBatch(day?: Date): Promise<{ threads: number; created: number; errors: number }> {
-    const start = dateOnly(day ?? new Date(Date.now() - DAY));
+    const start = aGiorno(day ?? new Date(Date.now() - DAY));
     const end = new Date(start.getTime() + DAY);
 
     const messages = (await this.prisma.message.findMany({

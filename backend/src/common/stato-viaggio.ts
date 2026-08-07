@@ -1,3 +1,5 @@
+import { aGiorno } from './date-only';
+
 /**
  * Modalità viaggio/estate: **quando** lo stato scritto sul profilo vale ancora davvero.
  *
@@ -28,10 +30,13 @@ export interface ProfiloViaggio {
 
 const GIORNO = 86_400_000;
 
-function soloData(d: Date | string): number {
-  const v = typeof d === 'string' ? new Date(d) : d;
-  return new Date(v.toISOString().slice(0, 10) + 'T00:00:00.000Z').getTime();
-}
+/**
+ * Il giorno di un istante, nel fuso dell'azienda. Prima questa riga era scritta qui a mano e
+ * leggeva il giorno **UTC**: la stessa copia sbagliata trovata in altri due servizi il 7/8.
+ * Ora passa da `date-only.ts`, che è l'unico posto dove sta scritto cosa vuol dire «oggi».
+ */
+const soloData = (d: Date | string): number =>
+  aGiorno(typeof d === 'string' ? new Date(d) : d).getTime();
 
 /**
  * Lo stato di viaggio ancora VALIDO oggi, o `null` se scaduto (o mai impostato).
