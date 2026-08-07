@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react';
 import { existsSync, readFileSync } from 'fs';
 import { defineConfig } from 'vite';
@@ -13,6 +14,18 @@ const pushEnabled = existsSync(new URL('./google-services.json', import.meta.url
 // App cliente Metabole. In sviluppo l'API è su VITE_API_URL (default: backend Render).
 export default defineConfig({
   plugins: [react()],
+  // Test dell'app (vitest, aggiunto il 7/8). Non c'erano: backend e backoffice avevano i loro,
+  // l'app veniva solo compilata dalla CI. È il motivo per cui un difetto banale — una casella
+  // vuota che partiva come `0` e bloccava il salvataggio delle misure — è arrivato a una
+  // cliente invece di fermarsi qui.
+  //
+  // `environment: 'node'`: per ora si testa la logica pura (lib/), non i componenti. Il giorno
+  // che servirà provare una schermata si passa a 'jsdom' e si aggiunge testing-library, senza
+  // toccare nient'altro.
+  test: {
+    environment: 'node',
+    include: ['src/**/*.spec.ts', 'src/**/*.spec.tsx'],
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __ENABLE_PUSH__: JSON.stringify(pushEnabled),
