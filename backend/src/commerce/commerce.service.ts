@@ -1286,6 +1286,43 @@ export class CommerceService {
    * il periodo pagato è finito, oppure i tentativi di addebito sono esauriti. In entrambi i casi
    * il servizio finisce QUI, non prima: fino a questo momento i menu sono continuati.
    */
+  /**
+   * ABBONAMENTO MODIFICATO su Stripe — serve per una porta sola: il **portale clienti**.
+   *
+   * La disdetta si fa dall'app, ma il portale Stripe (quello di «Aggiorna la carta») mostra
+   * anche il pulsante «Annulla abbonamento», configurato a fine periodo come il nostro. Se una
+   * cliente lo usa lì, Stripe imposta `cancel_at_period_end` e noi non lo sapremmo: il profilo
+   * continuerebbe a dire «si rinnova il 5 settembre» per un mese intero, su un abbonamento che
+   * non si rinnoverà. Il finale sarebbe comunque corretto — `customer.subscription.deleted`
+   * arriva a scadenza — ma per un mese l'app direbbe una cosa falsa alla cliente.
+   *
+   * Si allinea solo quel flag, e solo quando è cambiato: tutto il resto delle modifiche
+   * (cambio prezzo, di piano, di stato) resta fuori di proposito, perché non sappiamo ancora
+   * cosa dovrebbero fare e indovinare qui significherebbe scriverlo su dati di pagamento.
+   */
+  async handleSubscriptionUpdated(event: { type: string; data: { object: unknown } }) {
+    const s = event.data.object as { id: string; cancel_at_period_end?: boolean | null };
+    const disdetta = !!s.cancel_at_period_end;
+    const sub = (await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId: s.id } as never,
+      select: { id: true, cancelAtPeriodEnd: true },
+    })) as { id: string; cancelAtPeriodEnd: boolean } | null;
+    if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };
+    if (sub.cancelAtPeriodEnd === disdetta) return { handled: true, invariato: true };
+
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { cancelAtPeriodEnd: disdetta } as never,
+    });
+    await this.audit.log({
+      action: disdetta ? 'commerce.subscription.cancel_requested' : 'commerce.subscription.cancel_undone',
+      entityType: 'subscription',
+      entityId: sub.id,
+      metadata: { stripeSubscriptionId: s.id, origine: 'portale-stripe' },
+    });
+    return { handled: true, disdettaChiesta: disdetta };
+  }
+
   async handleSubscriptionDeleted(event: { type: string; data: { object: unknown } }) {
     const s = event.data.object as { id: string };
     const sub = (await this.prisma.subscription.findUnique({

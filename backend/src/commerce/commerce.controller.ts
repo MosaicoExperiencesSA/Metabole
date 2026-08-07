@@ -590,6 +590,10 @@ export class StripeWebhookController {
           return await this.commerce.handleInvoiceFailed(event as never);
         case 'customer.subscription.deleted':
           return await this.commerce.handleSubscriptionDeleted(event as never);
+        // La disdetta si fa dall'app, ma il portale Stripe ha il suo pulsante: senza questo
+        // ramo, una disdetta fatta lì non si vedrebbe da noi per un mese intero.
+        case 'customer.subscription.updated':
+          return await this.commerce.handleSubscriptionUpdated(event as never);
         default:
           return await this.commerce.handleStripeEvent(event as never);
       }

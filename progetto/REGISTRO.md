@@ -7,6 +7,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` ⚙️ **Stripe configurato: la webhook ora ascolta 5 eventi e il portale clienti
+  esiste.** Fatto direttamente nel pannello (Simone ha aperto Stripe e ha dato il via libera).
+  · **Webhook** `metabole-backend.onrender.com/api/v1/payments/webhook`: da **1 evento a 5** —
+    `checkout.session.completed` (c'era), più `invoice.paid`, `invoice.payment_failed`,
+    `customer.subscription.deleted`, `customer.subscription.updated`. Senza questi, tutto il
+    codice del ricorrente scritto ieri non avrebbe ricevuto niente da elaborare.
+  · **Portale clienti**: prima non esisteva nessuna configurazione, quindi «Aggiorna la carta»
+    dal profilo avrebbe risposto errore alla prima cliente che ci provava. Ora c'è la
+    configurazione predefinita (`bpc_1U1hiG…`), con aggiornamento dei metodi di pagamento attivo
+    e **annullamento a fine periodo di fatturazione** — la stessa regola nostra, non
+    l'annullamento immediato.
+  · **Nuovo gestore `customer.subscription.updated`**: è il quinto evento, e serve per una porta
+    sola. La disdetta si fa dall'app, ma il portale Stripe ha *anche lui* il pulsante «Annulla
+    abbonamento». Se una cliente entra per aggiornare la carta e disdice da lì, Stripe imposta
+    `cancel_at_period_end` e noi non lo sapremmo: il profilo avrebbe continuato a dire «si
+    rinnova il 5 settembre» per un mese intero, su un abbonamento che non si sarebbe rinnovato.
+    Il finale sarebbe stato comunque corretto — `customer.subscription.deleted` arriva a
+    scadenza — ma per un mese l'app avrebbe detto una cosa falsa alla cliente. Ora quel flag si
+    allinea, e solo quello: le altre modifiche (prezzo, piano, stato) restano fuori di proposito,
+    perché indovinare cosa farne significherebbe scriverlo su dati di pagamento.
+
+- `[Sviluppo]` 🔍 **Correzione onesta alla voce di ieri sul campo `invoice.subscription`.**
+  Aprendo il pannello ho visto una cosa che ieri non sapevo: l'endpoint webhook è **fissato
+  all'API `2024-04-10`**, non alla versione dell'SDK. Stripe consegna gli eventi con la versione
+  dell'**endpoint**, quindi la fattura sarebbe arrivata nella forma vecchia — con
+  `invoice.subscription` presente — e il codice di ieri, così com'era, avrebbe funzionato.
+  Quindi: il difetto era reale ma **condizionale**, non certo. Diventava certo nel momento in cui
+  qualcuno avesse aggiornato la versione API dell'endpoint (una riga in un menu a tendina) o
+  creato un endpoint nuovo, che nasce sulla versione corrente dell'account. La correzione — che
+  legge entrambe le forme — resta giusta e anzi ora si sa perché: l'unica versione che conta è
+  quella dell'endpoint, e non è quella dell'SDK con cui scriviamo il codice. Ma la voce di ieri
+  diceva «ogni rinnovo sarebbe stato perso», e non era esatto: sarebbe stato perso **dopo** un
+  cambio di versione fatto senza pensarci.
+
 - `[Sviluppo]` 💣 **Il rinnovo non sarebbe MAI stato registrato — e i soldi arrivavano lo stesso.**
   Trovato rileggendo il ricorrente prima che toccasse un pagamento vero. È il difetto peggiore
   scritto finora, non per quanto è complicato ma per come si sarebbe manifestato: **da nessuna
