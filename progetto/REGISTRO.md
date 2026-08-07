@@ -7,6 +7,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-07
 
+- `[Sviluppo]` 🩹 **Clienti già registrate: si fissa la dieta che ricevono già** (`npm run
+  fix:diet-family`). Domanda di Simone appena finito il lavoro sulle famiglie: «per i clienti
+  esistenti cosa facciamo?». Lasciare il campo vuoto **non era neutro**: `pickDiet` ordina per
+  `approvedAt desc`, quindi il giorno in cui il nutrizionista approva una dieta nuova con lo
+  stesso stile+regime+obiettivo+pasti, quella diventa la vincitrice e la cliente **cambia dieta
+  da sola**, senza che nessuno l'abbia deciso. Con 18 diete su pochi codici stile non è un caso
+  di scuola: è quello che sarebbe successo alla prossima pubblicazione.
+  Non c'è niente da indovinare, perché la dieta vera è scritta: lo script legge l'**ultimo menu
+  erogato** (`menu_day.diet_id`) e, se i menu non sono ancora partiti, il **pool ricette**
+  personalizzato. Fissa quella famiglia sul profilo — quindi **oggi non cambia nulla per
+  nessuna**, e da domani il catalogo può crescere senza spostare le clienti già avviate.
+  Due categorie restano fuori, ed è voluto: chi non ha mai ricevuto un menu (nessuna dieta
+  "sua" da fissare: resta vuota e continua ad abbinarsi per stile) e chi sta ricevendo una dieta
+  di uno **stile diverso** da quello scelto. Quest'ultima lista è preziosa: è il ripiego di
+  `pickDiet` quando per lo stile richiesto non esiste una variante approvata — fissarla
+  renderebbe permanente un ripiego, mentre quello che serve è **pubblicare la variante
+  mancante**. Lo script la stampa a parte, come elenco dei buchi di catalogo da colmare.
+  Anteprima di default, scrive solo con `CONFERMA=1`, come `fix:assegnazioni`.
+
 - `[Sviluppo]` 🥗 **In registrazione una card per PRODOTTO, non più una per stile.** È la
   segnalazione di Simone del 6/8: il backoffice mostrava 18 diete, l'app 8. La metà cosmetica
   (il nome vero al posto del codice stile) era già sistemata; questa è la parte strutturale.
