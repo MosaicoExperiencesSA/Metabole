@@ -217,8 +217,19 @@ export class RecipesController {
     // Gestione dieta: senza, mostrava tutte le ricette del regime — comprese quelle di altre
     // famiglie — dando l'impressione che appartenessero alla dieta aperta.
     @Query('dietId') dietId?: string,
+    // Filtri di colonna: girano sul DATABASE. Prima la pagina filtrava le prime 1000 righe
+    // caricate, cioè cercava dentro una fetta del catalogo senza dirlo.
+    @Query('difficulty') difficulty?: string,
+    @Query('season') season?: string,
+    @Query('stato') stato?: string,
+    @Query('kcalMin') kcalMin?: string,
+    @Query('kcalMax') kcalMax?: string,
   ) {
-    return this.catalog.listRecipes({ regime, mealSlot, q, includeInactive: includeInactive === 'true', dietId });
+    const num = (v?: string) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : undefined);
+    return this.catalog.listRecipes({
+      regime, mealSlot, q, includeInactive: includeInactive === 'true', dietId,
+      difficulty, season, stato, kcalMin: num(kcalMin), kcalMax: num(kcalMax),
+    });
   }
 
   // Dettaglio ricetta: aperto a ogni utente autenticato (cliente inclusa) — NIENTE

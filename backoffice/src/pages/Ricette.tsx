@@ -76,9 +76,14 @@ function toForm(r: Recipe): Form {
 /**
  * Ogni intestazione ordina, e sotto ogni intestazione c'è il suo filtro (richiesta Simone 6/8:
  * col catalogo che cresce — la Keto-Mediterranea da sola porta centinaia di piatti — scorrere
- * l'elenco a occhio non è più un modo di lavorare). Filtri e ordinamento lavorano sulle righe
- * già caricate: il server ne manda fino a 1000 e se il tetto viene toccato lo diciamo, invece
- * di far credere che il catalogo sia più piccolo di com'è.
+ * l'elenco a occhio non è più un modo di lavorare).
+ *
+ * I FILTRI girano sul DATABASE (dal 7/8): prima si scaricavano le prime 1000 righe del regime e
+ * si filtrava qui, e con le sole ricette vegetariane già oltre quel tetto significava cercare
+ * dentro una fetta arbitraria del catalogo — senza dirlo. L'ordinamento resta sulle righe
+ * ricevute, e ha senso perché ormai sono il risultato dei filtri, non una fetta a caso.
+ * Unico filtro rimasto in memoria: il TAG (sottostringa dentro un array Postgres, che Prisma
+ * non sa esprimere).
  */
 type SortKey = 'name' | 'regime' | 'mealSlot' | 'kcal' | 'difficulty' | 'seasons' | 'tags' | 'active';
 const LIMITE_SERVER = 1000;
@@ -103,15 +108,32 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
   const [soloDieta, setSoloDieta] = useState(true);
   const dietScope = !!scopeDietId && soloDieta;
 
+  // Quante ricette corrispondono ai filtri IN TUTTO il catalogo (non quante ne abbiamo in mano).
+  const [totale, setTotale] = useState(0);
+  const [troncato, setTroncato] = useState(false);
+
   async function load() {
     setError(null);
     try {
-      // Si carica una volta sola e si filtra qui: il regime resta lato server solo quando la
-      // pagina è incorporata in una dieta (scopeRegime), dove le altre righe non servono mai.
+      // I FILTRI VANNO SUL SERVER. Prima si scaricavano le prime 1000 righe del regime e si
+      // filtrava qui: con le sole vegetariane già oltre quel tetto, filtrare voleva dire cercare
+      // dentro una fetta arbitraria del catalogo. Una ricetta che c'è ma non compare è peggio di
+      // un errore: chi cerca conclude che non esiste e la ricrea.
       const params = new URLSearchParams({ includeInactive: 'true' });
       if (scopeRegime) params.set('regime', scopeRegime);
+      else if (f.regime) params.set('regime', f.regime);
       if (dietScope) params.set('dietId', scopeDietId as string);
-      setRows(await api<Recipe[]>(`/recipes?${params.toString()}`));
+      if (f.name.trim()) params.set('q', f.name.trim());
+      if (f.slot) params.set('mealSlot', f.slot);
+      if (f.difficulty) params.set('difficulty', f.difficulty);
+      if (f.season) params.set('season', f.season);
+      if (f.stato) params.set('stato', f.stato);
+      if (f.kcalMin.trim()) params.set('kcalMin', f.kcalMin.trim());
+      if (f.kcalMax.trim()) params.set('kcalMax', f.kcalMax.trim());
+      const r = await api<{ items: Recipe[]; total: number; troncato: boolean }>(`/recipes?${params.toString()}`);
+      setRows(r.items);
+      setTotale(r.total);
+      setTroncato(r.troncato);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -119,7 +141,13 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeRegime, scopeDietId, soloDieta]);
+  // Si ricarica a ogni cambio di filtro, con una pausa: chi scrive nel campo nome non deve
+  // generare una richiesta per lettera.
+  useEffect(() => {
+    const t = setTimeout(() => { void load(); }, 300);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [scopeRegime, scopeDietId, soloDieta, f.name, f.regime, f.slot, f.difficulty, f.season, f.stato, f.kcalMin, f.kcalMax]);
 
   async function del(r: Recipe) {
     if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;
@@ -132,26 +160,14 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     }
   }
 
+  // Tutti gli altri filtri li ha già applicati il database. Qui resta il solo TAG: è una ricerca
+  // per sottostringa dentro un array Postgres, che Prisma non sa esprimere. Sulle righe ricevute
+  // va bene — e se il risultato è troncato la pagina lo dice, invece di lasciarlo credere.
   const filtrate = useMemo(() => {
-    const testo = (v: string) => v.trim().toLowerCase();
-    const nome = testo(f.name); const tag = testo(f.tag);
-    const min = f.kcalMin.trim() === '' ? null : Number(f.kcalMin);
-    const max = f.kcalMax.trim() === '' ? null : Number(f.kcalMax);
-    return rows.filter((r) => {
-      if (nome && !r.name.toLowerCase().includes(nome)) return false;
-      if (f.regime && r.regime !== f.regime) return false;
-      if (f.slot && r.mealSlot !== f.slot) return false;
-      if (min != null && Number.isFinite(min) && r.kcal < min) return false;
-      if (max != null && Number.isFinite(max) && r.kcal > max) return false;
-      if (f.difficulty && (r.difficulty ?? 'media') !== f.difficulty) return false;
-      if (f.season === 'none' && (r.seasons ?? []).length > 0) return false;
-      if (f.season && f.season !== 'none' && !(r.seasons ?? []).includes(f.season)) return false;
-      if (tag && !(r.tags ?? []).join(', ').toLowerCase().includes(tag)) return false;
-      if (f.stato === 'active' && !r.active) return false;
-      if (f.stato === 'archived' && r.active) return false;
-      return true;
-    });
-  }, [rows, f]);
+    const tag = f.tag.trim().toLowerCase();
+    if (!tag) return rows;
+    return rows.filter((r) => (r.tags ?? []).join(', ').toLowerCase().includes(tag));
+  }, [rows, f.tag]);
 
   const view = useMemo(() => {
     // Il pasto si ordina come nella giornata, non in alfabetico: "Cena, Colazione, Merenda"
@@ -221,7 +237,8 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
 
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <span className="muted" style={{ fontSize: 13 }}>
-          {filtriAttivi ? <><b>{view.length}</b> ricette su {rows.length} </> : <><b>{rows.length}</b> ricette </>}
+          {/* `totale` è il conteggio VERO sul database, non quante righe abbiamo in mano. */}
+          {filtriAttivi ? <><b>{view.length}</b> ricette trovate </> : <><b>{totale}</b> ricette </>}
           {filtriAttivi && (
             <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setF(emptyFilters(scopeRegime ?? ''))}>
               <i className="ti ti-filter-off" /> Azzera filtri
@@ -240,10 +257,13 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
           <b> Se ne modifichi o cancelli una, cambia ovunque venga usata.</b>
         </Banner>
       )}
-      {rows.length >= LIMITE_SERVER && (
+      {troncato && (
         <Banner kind="info">
-          L'elenco è troncato a {LIMITE_SERVER} ricette: quelle oltre non sono qui e i filtri non le vedono.
-          Apri le ricette dalla singola dieta, oppure scrivici per alzare il tetto.
+          I filtri girano sul catalogo intero e trovano <b>{totale}</b> ricette: qui ne vedi le prime{' '}
+          {LIMITE_SERVER} in ordine alfabetico. Restringi con un filtro per arrivare a quella che cerchi
+          — nessuna ricetta è nascosta, è solo un elenco lungo.
+          {f.tag.trim() && <> ⚠️ Il filtro <b>Tag</b> però lavora solo su queste {LIMITE_SERVER}: per usarlo
+          con sicurezza restringi prima con un altro filtro.</>}
         </Banner>
       )}
 

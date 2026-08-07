@@ -614,26 +614,65 @@ export class CatalogService {
     return [...ids];
   }
 
-  async listRecipes(filter: { regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean; dietId?: string }) {
+  /**
+   * Elenco ricette per il backoffice. **I filtri girano sul DATABASE, non sulle righe caricate.**
+   *
+   * Prima la pagina scaricava le prime 1000 righe del regime e filtrava lì: con le sole ricette
+   * vegetariane già oltre quel tetto (verificato il 6/8), filtrare voleva dire cercare dentro una
+   * fetta arbitraria del catalogo — e una ricetta che c'è ma non compare è peggio di un errore,
+   * perché chi cerca conclude che non esiste e la ricrea.
+   *
+   * Ritorna `{ items, total, troncato }`: `total` è il conteggio VERO di quante ricette
+   * corrispondono ai filtri, anche quando `items` è tagliato dal tetto. Così la pagina può dire
+   * "50 su 1.240" invece di far credere che il catalogo sia grande quanto quello che si vede.
+   *
+   * ⚠️ Un filtro resta fuori dal database ed è il **tag**: è una ricerca per sottostringa su un
+   * array Postgres, che Prisma non sa esprimere. Lo applica la pagina sulle righe ricevute, e
+   * quando il risultato è troncato lo dice a chiare lettere.
+   */
+  async listRecipes(filter: {
+    regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean; dietId?: string;
+    difficulty?: string; season?: string; stato?: string; kcalMin?: number; kcalMax?: number;
+  }): Promise<{ items: unknown[]; total: number; troncato: boolean }> {
     // Con `dietId` l'elenco è quello della SINGOLA dieta: il tetto non lo tocca mai, perché una
-    // dieta ha decine di ricette, non migliaia. Senza, resta il catalogo del regime, col tetto.
+    // dieta ha decine di ricette, non migliaia.
     const soloDieta = filter.dietId ? await this.recipeIdsDiDieta(filter.dietId) : null;
-    if (soloDieta && soloDieta.length === 0) return [];
-    return this.prisma.recipe.findMany({
-      where: {
-        ...(soloDieta ? { id: { in: soloDieta } } : {}),
-        ...(filter.includeInactive ? {} : { active: true }),
-        ...(filter.regime ? { regime: filter.regime as never } : {}),
-        ...(filter.mealSlot ? { mealSlot: filter.mealSlot as never } : {}),
-        ...(filter.q ? { name: { contains: filter.q, mode: 'insensitive' } } : {}),
-      },
-      orderBy: { name: 'asc' },
-      // Il catalogo cresce in fretta (la sola Keto-Mediterranea porta centinaia di piatti) e la
-      // pagina Ricette ora filtra e ordina sulle righe caricate: con un tetto a 200 avrebbe
-      // filtrato su una fetta, senza dirlo. A 1000 ci sta tutto il catalogo previsto, e quando il
-      // tetto viene toccato la pagina lo scrive invece di far finta di niente.
-      take: 1000,
-    });
+    if (soloDieta && soloDieta.length === 0) return { items: [], total: 0, troncato: false };
+
+    const kcal: Record<string, number> = {};
+    if (Number.isFinite(filter.kcalMin as number)) kcal.gte = filter.kcalMin as number;
+    if (Number.isFinite(filter.kcalMax as number)) kcal.lte = filter.kcalMax as number;
+
+    // `stato` vince su `includeInactive`: è la scelta esplicita fatta nella colonna Stato.
+    const attivo =
+      filter.stato === 'active' ? { active: true }
+      : filter.stato === 'archived' ? { active: false }
+      : filter.includeInactive ? {}
+      : { active: true };
+
+    // Stagioni: 'none' = buona tutto l'anno (array vuoto), altrimenti deve contenere quella stagione.
+    const stagione =
+      filter.season === 'none' ? { seasons: { isEmpty: true } }
+      : filter.season ? { seasons: { has: filter.season } }
+      : {};
+
+    const where = {
+      ...(soloDieta ? { id: { in: soloDieta } } : {}),
+      ...attivo,
+      ...stagione,
+      ...(filter.regime ? { regime: filter.regime as never } : {}),
+      ...(filter.mealSlot ? { mealSlot: filter.mealSlot as never } : {}),
+      ...(filter.difficulty ? { difficulty: filter.difficulty } : {}),
+      ...(Object.keys(kcal).length ? { kcal } : {}),
+      ...(filter.q ? { name: { contains: filter.q, mode: 'insensitive' } } : {}),
+    };
+
+    const TETTO = 1000;
+    const [items, total] = await Promise.all([
+      this.prisma.recipe.findMany({ where: where as never, orderBy: { name: 'asc' }, take: TETTO }),
+      this.prisma.recipe.count({ where: where as never }),
+    ]);
+    return { items, total, troncato: total > items.length };
   }
 
   /** Modifica ricetta (nutrizionista). Aggiorna solo i campi inviati. */

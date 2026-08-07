@@ -48,7 +48,10 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
     setLoading(true);
     try {
       const qs = scopeRegime ? `/recipes?includeInactive=false&regime=${encodeURIComponent(scopeRegime)}` : '/recipes?includeInactive=false';
-      setRows(await api<Recipe[]>(qs));
+      // `GET /recipes` risponde `{ items, total, troncato }` da quando i filtri girano sul
+      // database (7/8): prima era un array nudo.
+      const r = await api<{ items: Recipe[]; total: number }>(qs);
+      setRows(r.items);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata ai nutrizionisti.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');

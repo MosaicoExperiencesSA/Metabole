@@ -129,21 +129,24 @@ sicurezza disattivata «temporaneamente» non resta ferma: peggiora, in silenzio
 ⚠️ Unico strascico: un test rosso ora blocca davvero. Se serve un'uscita d'emergenza, la si
 aggiunge come `if:` su un'etichetta del commit, non rimettendo `continue-on-error`.
 
-## Catalogo ricette — filtri e ordinamento sul SERVER — DA FARE (emerso 6/8)
-Lo screenshot di Simone del 6/8 mostra il banner di troncamento **con il solo regime Vegetariana**:
-le ricette vegetariane hanno già superato le 1000, cioè il tetto alzato quella mattina da 200.
-Conseguenza: nella pagina Ricette (catalogo per regime) i filtri e gli ordinamenti di colonna
-lavorano sulle prime 1000 righe caricate, non su tutto il catalogo — e lo dicono, ma non è la
-stessa cosa che funzionare.
+## Catalogo ricette — filtri sul SERVER — FATTO (7/8)
+Lo screenshot del 6/8 mostrava il banner di troncamento **col solo regime vegetariano**: quelle
+ricette avevano già superato le 1000, cioè il tetto alzato quella mattina da 200. I filtri di
+colonna cercavano dentro le prime 1000 righe scaricate.
 
-Alzare ancora `take` è un rattoppo che si ripresenterà. La strada è portare filtri, ordinamento e
-paginazione su `GET /recipes` (già filtra `regime`, `mealSlot`, `q`, `dietId`): mancano
-`difficulty`, `season`, `tag`, `active`, `kcalMin/kcalMax`, `orderBy`, `skip/take`, e il conteggio
-totale. La tabella diventa "interroga a ogni cambio filtro" invece di "filtra in memoria".
+FATTO il 7/8: `GET /recipes` filtra sul database (`difficulty`, `season`, `stato`, `kcalMin`,
+`kcalMax` in aggiunta a regime/pasto/nome/dieta) e risponde `{ items, total, troncato }` col
+conteggio vero. La pagina interroga a ogni cambio di filtro, con 300 ms di pausa.
 
-NON urgente per il nutrizionista: dentro **Gestione dieta** l'elenco parte dalle ricette della
-singola dieta (`dietId`, dal 6/8), che sono decine — lì il tetto non si tocca mai. Il problema
-resta solo nella pagina Ricette generale.
+⬜ **Resta fuori il filtro TAG**: sottostringa dentro un array Postgres, che Prisma non sa
+esprimere. Lavora sulle righe ricevute e, quando il risultato è troncato, il banner lo dichiara.
+Si chiuderebbe con una query raw (`array_to_string(tags, ',') ILIKE …`) o normalizzando i tag in
+una tabella. Non urgente: i tag sono pochi e discreti.
+
+⬜ **L'ordinamento resta sulle righe ricevute.** Ha senso adesso, perché sono il risultato dei
+filtri e non una fetta a caso, ma su un elenco troncato ordinare per Kcal mostra il minimo delle
+prime 1000, non del catalogo. Se diventa un problema, serve `orderBy` + paginazione sul server —
+con l'avvertenza che difficoltà e stagioni non hanno un ordine naturale in SQL.
 
 ## iOS — deployment target da 13.0 a 15.0 — DA FARE entro primavera 2027
 Warning ricevuto da App Store Connect all'upload della 2.1 (6/8/26):

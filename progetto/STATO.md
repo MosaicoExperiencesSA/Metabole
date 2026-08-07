@@ -83,8 +83,9 @@ Analytics (grafici), Dashboard, Permissions/Roles, Signals/Widget, **Tracking (e
   contenitore di scorrimento fermo e l'header si ancorerebbe a quello). ✅ (6/8)
 - **Caroselli**: pallini cliccabili + frecce su desktop (`CarouselNav.tsx`); il suggerimento «scorri»
   compare solo se c'è più di una scheda. ✅ (6/8)
-- **Notifiche push**: Android ✅ · iOS ✅ **solo dalla prossima build store** — la 2.0 pubblicata non
-  registra alcun token (l'`AppDelegate` era privo dei metodi del delegato push, vedi REGISTRO 6/8).
+- **Notifiche push**: Android ✅ · iOS ✅ **dalla 2.1**, approvata su entrambi gli store il 7/8.
+  La 2.0 pubblicata non registrava alcun token (`AppDelegate` privo dei metodi del delegato push):
+  la catena completa che le teneva spente è raccontata nel REGISTRO del 6/8.
 - **Aggiornamenti OTA: SPENTI dal 6/8** — `OTA_VERSION` svuotata su Render prima della
   pubblicazione della 2.1, e il manifest pubblico risponde `{"version":null,"url":null}`. Serviva
   ancora la **2.0.1**, cioè il bundle *senza* il codice delle push: ogni telefono che apriva l'app

@@ -5,6 +5,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-07
+
+- `[Sviluppo]` 🎉 **iOS 2.1 APPROVATA.** Con Android approvata ieri, la 2.1 è pubblicata su
+  entrambi gli store. È la versione con le push iOS che funzionano davvero — verificate su
+  TestFlight prima dell'invio, dopo l'indagine a cinque anelli del 6/8.
+  ⚠️ Promemoria per la prossima build: il numero deve essere **≥ 8**, il 7 è già caricato.
+
+- `[Sviluppo]` **I filtri del catalogo ricette girano sul DATABASE, non su una fetta.** Emerso
+  dallo screenshot di Simone del 6/8: il banner di troncamento compariva con il **solo regime
+  vegetariano**, cioè quelle ricette avevano già superato le 1000 — il tetto alzato quella
+  mattina da 200. Conseguenza: i filtri di colonna cercavano dentro le prime 1000 righe
+  scaricate, e una ricetta che c'è ma non compare è **peggio di un errore**, perché chi cerca
+  conclude che non esiste e la ricrea. Con il nutrizionista che sta facendo manutenzione alle
+  ricette proprio in queste ore, era il momento giusto per toglierlo di mezzo.
+  `GET /recipes` ora accetta `difficulty`, `season`, `stato`, `kcalMin`, `kcalMax` oltre a quelli
+  che aveva già, e risponde **`{ items, total, troncato }`**: `total` è il conteggio vero sul
+  database, quindi la pagina può dire «ne ho trovate 1.240, qui vedi le prime 1000» invece di far
+  credere che il catalogo sia grande quanto quello che si vede. La pagina interroga il server a
+  ogni cambio di filtro, con 300 ms di pausa perché scrivere un nome non generi una richiesta per
+  lettera.
+  **Un filtro resta onestamente fuori: il TAG.** È una ricerca per sottostringa dentro un array
+  Postgres, che Prisma non sa esprimere, e continua a lavorare sulle righe ricevute. Quando il
+  risultato è troncato **il banner lo dice esplicitamente** e suggerisce di restringere prima con
+  un altro filtro: preferisco un limite dichiarato a un filtro che sembra funzionare.
+  Alzare ancora il tetto sarebbe stato il rattoppo che si ripresenta: era già passato da 200 a
+  1000 in un giorno.
+  `tsc --noEmit` pulito su backend e backoffice, 527 test verdi.
+
 ## 2026-08-06
 
 - `[Sviluppo]` **Ripuliti quattro documenti che dicevano il falso** (secondo giro della giornata:
