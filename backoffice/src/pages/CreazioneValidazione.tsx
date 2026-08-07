@@ -735,9 +735,10 @@ export function CreazioneValidazione() {
           </div>
           {weeksThin.length > 0 && (
             <div style={{ margin: '0 0 8px', padding: '9px 11px', borderRadius: 9, background: '#FDF6E8', border: '1px solid #F0DFBA', fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22' }}>
-              Le settimane in <b>giallo</b> hanno le giornate ma pochi piatti: sono state generate col metodo
-              vecchio, che faceva 5 ricette per pasto e le ricombinava. <b>Vanno completate</b>, e sono proprio
-              quelle che le clienti stanno ricevendo adesso — quindi si parte da lì, non dalla prima settimana vuota.
+              Le settimane in <b>giallo</b> hanno le giornate ma non abbastanza piatti <i>loro</i>: o sono state
+              generate col metodo vecchio (5 ricette per pasto ricombinate), o usano piatti che compaiono anche
+              in un'altra settimana — che per la cliente è la stessa cosa, li rivede. <b>Vanno completate</b>,
+              e si parte da lì: sono i menu che sta ricevendo adesso.
             </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -774,11 +775,28 @@ export function CreazioneValidazione() {
             Ogni settimana sono <b>7 giornate</b> con <b>7 ricette diverse per ogni pasto</b> (nessun piatto ripetuto
             dentro la settimana, e nemmeno rispetto alle settimane già fatte). Quattro settimane = un mese.
           </p>
-          {weeksDone !== null && week <= weeksDone && (
+          {/* Il riquadro compariva su QUALSIASI settimana già esistente, anche su una completa:
+              si leggeva la spunta verde e sotto «verrà completata», che si contraddicono. Ora
+              parla solo quando c'è davvero qualcosa da fare. */}
+          {weeksDone !== null && week <= weeksDone && !weeksThin.includes(week) && (
+            <div style={{ marginTop: 9, padding: '10px 12px', borderRadius: 10, background: '#EEF3F1', border: '1px solid #DCE5E2' }}>
+              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#42615A' }}>
+                La settimana {week} è già <b>completa</b>: ha 7 piatti diversi per ogni pasto, e nessuno di
+                quei piatti compare in un'altra settimana. Generarla di nuovo non aggiungerebbe niente.
+                {(weeksThin.length > 0 || weeksDone < 12) && (
+                  <> {weeksThin.length > 0
+                    ? <>Vai piuttosto sulla <b>settimana {weeksThin[0]}</b>, che è da completare.</>
+                    : <>Se vuoi allungare il ciclo, scegli la <b>settimana {weeksDone + 1}</b>.</>}</>
+                )}
+              </div>
+            </div>
+          )}
+          {weeksDone !== null && weeksThin.includes(week) && (
             <div style={{ marginTop: 9, padding: '10px 12px', borderRadius: 10, background: '#FDF6E8', border: '1px solid #F0DFBA' }}>
               <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22' }}>
-                La settimana {week} esiste già. Verrà <b>completata</b>: le ricette che ci sono restano — comprese
-                quelle che hai corretto a mano — e si generano solo i piatti che mancano per arrivare a 7 per pasto.
+                La settimana {week} ha le giornate ma non abbastanza piatti suoi. Verrà <b>completata</b>: le
+                ricette che usa solo lei restano — comprese quelle che hai corretto a mano — e si generano i
+                piatti mancanti per arrivare a 7 per pasto senza ripetere nulla del resto del ciclo.
               </div>
               <label className="row" style={{ gap: 7, alignItems: 'flex-start', marginTop: 8, cursor: 'pointer' }}>
                 <input type="checkbox" checked={rifaiDaCapo} onChange={(e) => setRifaiDaCapo(e.target.checked)} style={{ marginTop: 2 }} />

@@ -519,24 +519,31 @@ export class EngineRulesService {
     const giorni = ultimo?.dayIndex ?? 0;
 
     /**
-     * Quali settimane sono MAGRE, una per una.
+     * Quali settimane sono MAGRE. Terza versione, e le prime due sbagliavano bersaglio.
      *
-     * Il primo tentativo misurava il *magazzino*: piatti diversi in tutto, diviso sette. È una
-     * misura sbagliata, e sbagliata **al contrario**. Su una dieta con 63 giorni e 43 pranzi
-     * distinti dava «6 settimane piene» e marcava come magre la 7, la 8 e la 9 — cioè proprio
-     * quelle appena generate con sette piatti nuovi ciascuna. Le magre erano le prime quattro:
-     * 28 giornate costruite ricombinando cinque piatti, che il conteggio globale non distingue
-     * perché guarda solo il totale.
+     * 1. **Il magazzino** (piatti totali ÷ 7) dava il risultato *rovesciato*: su 63 giorni con
+     *    43 pranzi distinti diceva «6 settimane piene» e marcava magre proprio quelle appena
+     *    generate con sette piatti nuovi.
+     * 2. **Dentro la settimana** («questi sette giorni hanno sette piatti diversi?») è vero ma
+     *    non basta: una settimana può avere sette piatti diversi *fra loro* ed essere fatta di
+     *    piatti presi in prestito da altre settimane. Il catalogo diceva «70 giorni, tutte
+     *    complete» con 43 piatti in tutto — cioè quasi metà del mese era una ripetizione.
      *
-     * La domanda giusta si fa dentro la settimana: **in questi sette giorni, ogni pasto ha
-     * sette piatti diversi?** Se la settimana è parziale (meno di 7 giornate) il metro sono le
-     * giornate che ha.
+     * La promessa alla cliente è «28 giorni senza mai lo stesso piatto», e la promessa vale sul
+     * CICLO, non sulla singola settimana. Quindi un piatto conta per questa settimana solo se
+     * **non lo usa nessun'altra settimana**: è la stessa regola con cui `completa` decide cosa
+     * riusare, e le due cose devono dire la stessa cosa, altrimenti la pagina promette un lavoro
+     * che il generatore non fa.
+     *
+     * Se due settimane si contendono un piatto risultano magre entrambe: è corretto, e si
+     * risolve da sé — completando la prima, la seconda torna esclusiva e diventa piena.
      */
     const templates = (await this.prisma.dietDayTemplate.findMany({
       where: { dietId: diet.id },
       select: { dayIndex: true, meals: true },
     })) as { dayIndex: number; meals: unknown }[];
 
+    // Per ogni pasto: chi usa cosa, settimana per settimana.
     const perSettimana = new Map<number, { giorni: number; slot: Map<string, Set<string>> }>();
     const globale = new Map<string, Set<string>>();
     for (const t of templates) {
@@ -555,11 +562,22 @@ export class EngineRulesService {
       perSettimana.set(w, box);
     }
 
+    const settimane = [...perSettimana.entries()].sort((a, b) => a[0] - b[0]);
     const settimaneMagre: number[] = [];
-    for (const [w, box] of [...perSettimana.entries()].sort((a, b) => a[0] - b[0])) {
+    for (const [w, box] of settimane) {
       if (box.slot.size === 0) { settimaneMagre.push(w); continue; }
-      const minimoSettimana = Math.min(...[...box.slot.values()].map((v) => v.size));
-      if (minimoSettimana < box.giorni) settimaneMagre.push(w);
+      let magra = false;
+      for (const [slot, usate] of box.slot) {
+        // Quante di queste sono SOLO sue: un piatto condiviso con un'altra settimana è una
+        // ripetizione nel ciclo, quindi non conta.
+        let esclusive = 0;
+        for (const id of usate) {
+          const altrove = settimane.some(([w2, b2]) => w2 !== w && (b2.slot.get(slot)?.has(id) ?? false));
+          if (!altrove) esclusive++;
+        }
+        if (esclusive < box.giorni) { magra = true; break; }
+      }
+      if (magra) settimaneMagre.push(w);
     }
     const minimo = globale.size ? Math.min(...[...globale.values()].map((v) => v.size)) : 0;
 
