@@ -87,8 +87,20 @@ export class StaffThreadsController {
  * tutte le proprie clienti e non accetta un cliente: la scheda non aveva modo di chiedere
  * «le chat di questa persona».
  */
+/**
+ * ⚠️ `admin` DEVE stare in questo elenco. Sbagliato una volta, l'8/8: la decisione «l'admin legge
+ * tutte le conversazioni» era stata implementata nel servizio (`assertThreadAccess`) e lì funziona,
+ * ma il guardiano della ROTTA fermava l'admin prima — 403 — e la scheda mostrava «Nessuna
+ * conversazione visibile per il tuo ruolo». Sembrava che il ramo nel servizio non funzionasse, e
+ * Simone ha dovuto segnalarlo due volte.
+ *
+ * La lezione: qui i cancelli sono DUE, la rotta e il servizio, e vanno cambiati insieme. Il primo
+ * decide chi può bussare, il secondo cosa può leggere.
+ *
+ * `sales` (manager delle coach) resta fuori: vede lead, contatti e metriche, non il clinico.
+ */
 @Controller('staff/clients/:clientId')
-@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist')
+@Roles('admin', 'coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist')
 export class StaffClientChatController {
   constructor(private readonly chat: ChatService) {}
 

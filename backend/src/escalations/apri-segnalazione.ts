@@ -118,15 +118,32 @@ export async function apriSegnalazione(
       (v): v is string => !!v,
     );
     const destinatari = new Set<string>();
+    let coachUserId: string | null = null;
     if (staffIds.length) {
       const staff = await prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, userId: true } });
-      for (const s of staff) destinatari.add(s.userId);
+      for (const s of staff) {
+        destinatari.add(s.userId);
+        if (profilo?.assignedCoachId && s.id === profilo.assignedCoachId) coachUserId = s.userId;
+      }
     }
     if (ripiego) destinatari.add(ripiego.userId);
+
+    /**
+     * «NUTRIZIONISTA RICHIESTO» — regola operativa di Simone (8/8): oggi c'è **un solo**
+     * nutrizionista (il capo) e le clienti non ne hanno una assegnata. Quindi quando serve il
+     * nutrizionista «segnaliamo alla coach con "nutrizionista richiesto" così aiutano nella
+     * gestione».
+     *
+     * La coach una notifica la riceveva già — è fra i destinatari se è assegnata — ma con il titolo
+     * della categoria («Sicurezza clinica»), che le dice cosa è successo e non **cosa deve fare**.
+     * Con questa etichetta sa che la palla è sua finché il nutrizionista non entra in campo.
+     */
+    const serveNutrizionista = routing.primary === 'nutritionist' && !assegnato;
 
     const chi = profilo?.name ?? 'una cliente';
     const etichetta = ESCALATION_CATEGORY_LABEL[input.category];
     for (const userId of destinatari) {
+      const perLaCoach = serveNutrizionista && userId === coachUserId;
       await prisma.notification
         .create({
           data: {
@@ -135,14 +152,19 @@ export async function apriSegnalazione(
             scheduledFor: new Date(),
             sentAt: new Date(),
             payload: {
-              title: etichetta,
-              body: `${etichetta} · ${chi}${input.reason ? `: ${input.reason}` : ''}`,
+              title: perLaCoach ? 'Nutrizionista richiesto' : etichetta,
+              body: perLaCoach
+                ? `Serve il nutrizionista per ${chi}${input.reason ? `: ${input.reason}` : ''}. ` +
+                  'Nessuna nutrizionista è assegnata: intanto seguila tu e tieni la segnalazione aperta.'
+                : `${etichetta} · ${chi}${input.reason ? `: ${input.reason}` : ''}`,
               clientId: input.clientId,
               escalationId: created.id,
               category: input.category,
               // `nonAssegnata` dice che è arrivata al responsabile perché non c'era nessun
               // altro: è un'informazione da leggere, non un dettaglio tecnico.
               nonAssegnata: !assegnato,
+              // Lo leggono backoffice e app staff per mostrare l'etichetta giusta in elenco.
+              nutrizionistaRichiesto: perLaCoach,
             } as never,
           },
         })

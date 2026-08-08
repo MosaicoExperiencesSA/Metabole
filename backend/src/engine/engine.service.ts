@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
@@ -78,23 +79,22 @@ export class EngineService {
 
     // Escalation al nutrizionista se il caso esce dall'automatismo.
     if (guardrail?.escalate) {
-      const profile = await this.prisma.clientProfile.findUnique({
-        where: { userId: clientId },
-        select: { assignedNutritionistId: true },
-      });
       const open = await this.prisma.escalation.findFirst({
         where: { clientId, source: 'engine', status: 'open', reason: { contains: guardrail.reasonKey } },
       });
       if (!open) {
-        await this.prisma.escalation.create({
-          data: {
-            clientId,
-            reason: `[${guardrail.reasonKey}] ${guardrail.reason}`,
-            source: 'engine',
-            // R12: guardrail di sicurezza = categoria clinica → solo nutrizionista.
-            category: 'clinical' as never,
-            assignedToId: profile?.assignedNutritionistId,
-          },
+        // `apriSegnalazione` e non una `create` diretta: quella assegnava a
+        // `profile?.assignedNutritionistId` — vuoto per quasi tutte le clienti — e non avvisava
+        // nessuno. Una segnalazione di sicurezza che nessuno riceve è un guardrail spento.
+        // `dedupe: false`: il controllo per `reasonKey` qui sopra è più preciso di quello per
+        // categoria, che zittirebbe un guardrail diverso già aperto.
+        await apriSegnalazione(this.prisma as never, {
+          clientId,
+          // R12: guardrail di sicurezza = categoria clinica → nutrizionista, o chi ne risponde.
+          category: 'clinical',
+          reason: `[${guardrail.reasonKey}] ${guardrail.reason}`,
+          source: 'engine',
+          dedupe: false,
         });
       }
     }

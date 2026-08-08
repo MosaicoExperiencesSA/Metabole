@@ -81,3 +81,64 @@ describe('apriSegnalazione', () => {
     ).resolves.toBeNull();
   });
 });
+
+/**
+ * «NUTRIZIONISTA RICHIESTO» (regola di Simone, 8/8): c'è un solo nutrizionista, il capo, e le
+ * clienti non ne hanno una assegnata. Quando ne serve uno si avvisa la COACH con questa etichetta,
+ * «così aiutano nella gestione».
+ *
+ * La coach la notifica la riceveva già; quello che le mancava era sapere **cosa deve fare**. Il
+ * titolo della categoria («Sicurezza clinica») racconta cosa è successo, non di chi è la palla.
+ */
+describe('apriSegnalazione — quando il nutrizionista non c\'è', () => {
+  const conCoach = () =>
+    harness({
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({ assignedCoachId: 'staff-coach', assignedNutritionistId: null, name: 'Giusy' }),
+      },
+      staff: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'staff-coach', userId: 'user-coach' }]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'staff-capo', userId: 'user-capo' }),
+      },
+    });
+
+  const notificaA = (prisma: any, userId: string) =>
+    prisma.notification.create.mock.calls.map((c: any) => c[0].data).find((d: any) => d.userId === userId);
+
+  it('alla coach arriva «Nutrizionista richiesto», non l\'etichetta della categoria', async () => {
+    const prisma = conCoach();
+    await apriSegnalazione(prisma, { clientId: 'cli-1', category: 'clinical', reason: 'Calo rapido: 2.87 kg/settimana' });
+    const perCoach = notificaA(prisma, 'user-coach');
+    expect(perCoach.payload.title).toBe('Nutrizionista richiesto');
+    expect(perCoach.payload.nutrizionistaRichiesto).toBe(true);
+    // Il motivo resta nel corpo: la coach deve sapere di cosa si tratta, non solo che serve aiuto.
+    expect(perCoach.payload.body).toContain('Calo rapido');
+  });
+
+  it('al capo nutrizionista arriva la segnalazione normale, non l\'etichetta della coach', async () => {
+    const prisma = conCoach();
+    await apriSegnalazione(prisma, { clientId: 'cli-1', category: 'clinical', reason: 'x' });
+    const perCapo = notificaA(prisma, 'user-capo');
+    expect(perCapo.payload.title).not.toBe('Nutrizionista richiesto');
+    expect(perCapo.payload.nutrizionistaRichiesto).toBe(false);
+  });
+
+  it('se la nutrizionista C\'È, alla coach torna l\'etichetta normale', async () => {
+    const prisma = harness({
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({ assignedCoachId: 'staff-coach', assignedNutritionistId: 'staff-nutri', name: 'Giulia' }),
+      },
+      staff: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'staff-coach', userId: 'user-coach' },
+          { id: 'staff-nutri', userId: 'user-nutri' },
+        ]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    });
+    await apriSegnalazione(prisma, { clientId: 'cli-1', category: 'clinical', reason: 'x' });
+    expect(notificaA(prisma, 'user-coach').payload.nutrizionistaRichiesto).toBe(false);
+    // E il capo non viene disturbato: c'è chi se ne occupa.
+    expect(notificaA(prisma, 'user-capo')).toBeUndefined();
+  });
+});

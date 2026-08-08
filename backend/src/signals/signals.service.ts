@@ -3,6 +3,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietLearningService } from '../diet-learning/diet-learning.service';
+import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateCheckinDto,
@@ -225,19 +226,23 @@ export class SignalsService {
     });
     if (alreadyOpen) return true;
 
-    const profile = await this.prisma.clientProfile.findUnique({
-      where: { userId: clientId },
-      select: { assignedNutritionistId: true },
-    });
-    await this.prisma.escalation.create({
-      data: {
-        clientId,
-        reason: `Calo rapido: ${rate} kg/settimana sulle ultime rilevazioni (soglia ${threshold}). Verificare calorie ed energia.`,
-        source: 'engine',
-        // R12: calo rapido = sicurezza clinica → solo nutrizionista.
-        category: 'clinical' as never,
-        assignedToId: profile?.assignedNutritionistId,
-      },
+    // `apriSegnalazione` e non una `create` diretta: quella scriveva la riga con
+    // `assignedToId: profile?.assignedNutritionistId` — cioè **vuoto** per quasi tutte, perché una
+    // nutrizionista assegnata non ce l'ha nessuna — e non avvisava nessuno. Caso reale trovato
+    // l'8/8: una cliente con «Calo rapido: 2,87 kg/settimana» (soglia 1.5) ferma in elenco da **tre
+    // settimane**, senza destinatario e senza che sia partita una sola notifica. Il motore aveva
+    // fatto il suo lavoro; era il destinatario a non esistere.
+    //
+    // `dedupe: false` perché il controllo l'abbiamo già fatto qui sopra, ed è più fine del suo:
+    // guarda il MOTIVO («Calo rapido»), non la categoria. Col dedupe per categoria una segnalazione
+    // clinica aperta per un altro motivo avrebbe zittito questa.
+    await apriSegnalazione(this.prisma as never, {
+      clientId,
+      // R12: calo rapido = sicurezza clinica → nutrizionista, e se non c'è chi ne risponde.
+      category: 'clinical',
+      reason: `Calo rapido: ${rate} kg/settimana sulle ultime rilevazioni (soglia ${threshold}). Verificare calorie ed energia.`,
+      source: 'engine',
+      dedupe: false,
     });
     await this.audit.log({
       action: 'signals.rapid_loss_alert',

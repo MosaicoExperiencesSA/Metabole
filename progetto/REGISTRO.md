@@ -7,6 +7,59 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🔐 **«Admin vede tutto» non funzionava, e la colpa era di un secondo cancello.**
+  Simone l'ha dovuto segnalare **due volte**: in scheda cliente, da admin, leggeva ancora «Nessuna
+  conversazione visibile per il tuo ruolo» — la seconda volta aggiungendo che la cliente aveva usato
+  la chat cinque minuti prima. Aveva ragione, e la mia prima diagnosi («allora non ha thread») era
+  sbagliata.
+  Il ramo per l'admin in `ChatService.assertThreadAccess` era corretto e funzionava. Ma i cancelli
+  qui sono **due**: prima la rotta, poi il servizio. E il controller che ho scritto io stamattina
+  diceva `@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist')` — **senza
+  `admin`**. Quindi 403 sul guardiano della rotta, prima che il servizio potesse dire la sua.
+  Aggiunto `admin` alla rotta (`sales` resta fuori: vede il commerciale, non il clinico).
+  **Ma il difetto che ha reso tutto questo difficile da vedere è un altro**, ed è quello che mi
+  interessa di più: nella card delle conversazioni il `.catch` della chiamata faceva
+  `setThreads([])`. Cioè **un errore diventava «nessuna conversazione»**. Un 403 travestito da elenco
+  vuoto, senza un banner, senza una riga in console: il messaggio accusava il ruolo di chi guardava,
+  che è precisamente la spiegazione sbagliata. E il banner d'errore stava *dentro* il ramo «ci sono
+  conversazioni», quindi con l'elenco vuoto non poteva comparire nemmeno volendo. Ora l'errore si
+  vede, il 403 ha un messaggio suo, e il testo del caso vuoto non dà più la colpa al ruolo quando il
+  ruolo vede tutto.
+  Test nuovo `guardie-rotte.spec.ts`: legge i **decoratori** del controller e pretende `admin`
+  dentro, `sales` e `client` fuori. È l'unico modo di vedere questa classe di errori senza avviare
+  l'app — gli 864 test di prima erano tutti verdi mentre la funzione non funzionava, perché
+  guardavano i servizi e nessuno guardava le guardie.
+  **La lezione, che vale oltre il caso:** *quando un permesso sembra non funzionare, i posti da
+  guardare sono due — chi può bussare e cosa può leggere.* E: *un `catch` che finge un risultato
+  vuoto nasconde esattamente gli errori che stai cercando.*
+  868 test verdi, type-check pulito su backend e backoffice.
+
+- `[Sviluppo]` 🚨 **Le due segnalazioni che nascevano mute, e «nutrizionista richiesto» alla coach.**
+  `apriSegnalazione` esisteva già e faceva la cosa giusta, ma **due punti la scavalcavano** ancora,
+  scrivendo la riga a mano con `assignedToId: profile?.assignedNutritionistId` — vuoto per quasi
+  tutte, perché una nutrizionista assegnata non ce l'ha nessuna — e **senza avvisare nessuno**:
+  `signals.service.ts` (calo rapido) e `engine.service.ts` (guardrail di sicurezza). Sono le due
+  cliniche, cioè le uniche che non possono aspettare.
+  Trovato dal caso di `giusy.vita01@gmail.com`: **«Calo rapido: 2,87 kg/settimana»** — soglia 1.5,
+  quindi quasi il doppio — aperta il **22 luglio** e ancora lì, non assegnata, mai notificata. Tre
+  settimane. Il motore aveva fatto il suo lavoro: mancava il destinatario. Un guardrail che nessuno
+  riceve è un guardrail spento.
+  Entrambi passano ora da `apriSegnalazione`, con `dedupe: false` perché il loro controllo è **più
+  fine** di quello per categoria: guarda il motivo (`Calo rapido`, `reasonKey`), e col dedupe per
+  categoria una clinica già aperta per un altro motivo avrebbe zittito la nuova.
+  **E la regola nuova di Simone**, che cambia il destinatario: oggi c'è **un solo** nutrizionista (il
+  capo) e nessuna cliente ne ha una assegnata, quindi «quando necessario un nutrizionista segnaliamo
+  alla coach con "nutrizionista richiesto" così aiutano nella gestione». La coach una notifica la
+  riceveva già, ma col titolo della categoria («Sicurezza clinica»), che le dice **cosa è successo**
+  e non **di chi è la palla**. Ora, quando il ruolo primario è il nutrizionista e non c'è nessuno
+  assegnato, alla coach arriva **«Nutrizionista richiesto»** col motivo nel corpo e
+  `nutrizionistaRichiesto: true` nel payload (lo leggono backoffice e app staff); al capo
+  nutrizionista arriva la segnalazione normale. Se una nutrizionista c'è, tutto torna come prima e il
+  capo non viene disturbato.
+  ⚠️ Vale da adesso: le segnalazioni **già aperte** restano non assegnate. Serve una riparazione per
+  quelle — Giusy ne ha due, dal 17 e dal 22 luglio.
+  3 test nuovi sull'instradamento nei tre casi. 864 test verdi, type-check identico al baseline.
+
 - `[Sviluppo]` 🧾 **Un piano attivato a mano dalla scheda non entra più in contabilità.**
   Segnalazione di Simone dell'8/8: aveva attivato a mano il percorso del socio (€130) dalla scheda
   cliente, e in contabilità comparivano **€130 di ricavi mai incassati**. «Se lo attivo a mano da lì

@@ -1703,7 +1703,7 @@ const quantita = (qta: number | undefined, unita: string | undefined) =>
  * staff travestita da assistente ingannerebbe la cliente. Per parlarle c'è il thread proprio.
  */
 function ConversazioniCard({ clientId }: { clientId: string }) {
-  const { can } = useAuth();
+  const { can, user: me } = useAuth();
   const [threads, setThreads] = useState<ThreadRow[] | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [messaggi, setMessaggi] = useState<MsgRow[]>([]);
@@ -1726,7 +1726,19 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
         // nascono i cambi da verificare.
         setSel(ts.find((t) => t.counterpart === 'ai')?.id ?? ts[0]?.id ?? null);
       })
-      .catch(() => { if (vivo) setThreads([]); });
+      // ⚠️ Un errore NON è «nessuna conversazione». Prima finiva in `setThreads([])` e la card
+      // mostrava «Nessuna conversazione visibile per il tuo ruolo»: è così che un 403 sulla rotta
+      // (all'admin mancava il ruolo nel controller, 8/8) si è travestito da elenco vuoto e ci sono
+      // volute due segnalazioni per scovarlo. Se la richiesta fallisce lo diciamo.
+      .catch((e) => {
+        if (!vivo) return;
+        setThreads([]);
+        setErr(
+          e instanceof ApiError && e.status === 403
+            ? 'Il tuo ruolo non può leggere le conversazioni di questa cliente.'
+            : e instanceof Error ? e.message : 'Non riesco a leggere le conversazioni.',
+        );
+      });
     api<SostituzioneRow[]>(`/staff/clients/${clientId}/sostituzioni-chat`)
       .then((rs) => { if (vivo) setSostituzioni(rs); })
       .catch(() => { /* l'elenco è un extra: la card resta utile senza */ });
@@ -1824,8 +1836,24 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
         </div>
       )}
 
+      {/*
+        L'errore va FUORI dal ramo «ci sono conversazioni», dove stava prima: con l'elenco vuoto
+        non si vedeva, ed è l'altra metà del motivo per cui un 403 è passato per «vuoto».
+      */}
+      {err && <Banner kind="err">{err}</Banner>}
       {threads.length === 0 ? (
-        <p className="muted" style={{ marginBottom: 0 }}>Nessuna conversazione visibile per il tuo ruolo.</p>
+        /*
+          Il messaggio diceva sempre «non visibile per il tuo ruolo», anche a un admin che le vede
+          TUTTE: così un elenco vuoto sembrava un problema di permessi. Per chi vede tutto, vuoto
+          vuol dire vuoto — i thread nascono quando è la CLIENTE a entrare in chat dall'app.
+        */
+        !err && (
+          <p className="muted" style={{ marginBottom: 0 }}>
+            {me?.role === 'admin'
+              ? 'Questa cliente non ha ancora nessuna conversazione: i thread nascono quando entra in chat dall\'app.'
+              : 'Nessuna conversazione visibile per il tuo ruolo.'}
+          </p>
+        )
       ) : (
         <>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -1842,7 +1870,6 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
             ))}
           </div>
 
-          {err && <Banner kind="err">{err}</Banner>}
           {caricaMsg ? (
             <Spinner />
           ) : messaggi.length === 0 ? (
