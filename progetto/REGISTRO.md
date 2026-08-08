@@ -7,6 +7,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 📎 **La fattura si allega al costo, in Contabilità.** Richiesta di Simone dell'8/8:
+  «nei costi mi piacerebbe poter allegare le fatture in modo da avere tutto insieme». Un file per
+  costo — «la fattura», al singolare, scelta sua: se un giorno serviranno due allegati servirà una
+  tabella, non una seconda colonna appiccicata.
+  Nella riga del costo un solo pulsante che cambia faccia: la graffetta se la fattura non c'è, e se
+  c'è due icone — apri e togli. Aprire scarica e mostra in una scheda nuova (il PDF si legge, la foto
+  si vede); se il browser blocca il popup il file viene scaricato invece di non fare niente. Togliere
+  la fattura **non** tocca il costo: l'importo resta, cambia solo l'allegato.
+  **Come è salvata.** Tre colonne sulla riga (`invoice_data` BYTEA, `invoice_mime`, `invoice_name`),
+  file **cifrato AES-256-GCM** con la stessa chiave e lo stesso formato delle contabili dei pagamenti
+  (iv + authTag + ciphertext). Una fattura ha dentro partita IVA, indirizzi e importi di un
+  fornitore: non c'è motivo di tenerla in chiaro. Il servizio è **fail-closed**: senza
+  `FILE_ENCRYPTION_KEY` non parte, invece di cifrare con un ripiego che equivale a non cifrare.
+  Non usa la tabella `document` perché quella è legata a un `client_id`: la fattura di un fornitore
+  non è il documento di una cliente, e agganciarla lì avrebbe voluto dire rendere nullable una
+  relazione che oggi garantisce che ogni documento sanitario abbia una proprietaria.
+  **Il dettaglio che conta più del resto:** l'elenco dei costi NON restituisce più la riga intera.
+  Prima faceva `findMany` senza `select`, e con la colonna nuova avrebbe spedito al browser **tutti i
+  file di tutti i costi a ogni apertura della pagina** — megabyte per riga. Ora c'è una whitelist di
+  campi e l'elenco dice solo `fattura: { nome, mime } | null`: che ci sia si sa, il file si scarica
+  quando lo si chiede. Anche la lettura è tracciata (`accounting.cost_invoice_downloaded`): è un
+  documento fiscale, sapere chi l'ha aperto costa una riga.
+  Limiti: PDF, JPG, PNG, HEIC; 5 MB, come le contabili. Arriva in base64 e non in multipart, così
+  limite del body e validazione restano quelli di tutta l'API.
+  ⚠️ **Contiene una MIGRAZIONE** (`20260809120000_cost_entry_fattura`): tre colonne nullable, i costi
+  già registrati restano validi così come sono. La applica il deploy.
+  846 → 852 test verdi, type-check pulito su backend e backoffice.
+
 - `[Sviluppo]` 👁️ **L'admin vede tutte le conversazioni della cliente — e prima non ne vedeva
   nessuna.** Simone apre la scheda come admin e legge «Nessuna conversazione visibile per il tuo
   ruolo»: «ADMIN vede tutto». Guardando il codice il difetto era più grande della scelta di cui

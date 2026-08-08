@@ -63,6 +63,22 @@ class UpdateCostDto {
   note?: string | null;
 }
 
+/**
+ * Fattura di un costo. Arriva in base64 come le contabili dei pagamenti: nessun multipart, così il
+ * limite del body (12 MB) e la validazione restano quelli di tutto il resto dell'API.
+ */
+class FatturaDto {
+  @IsString() @MinLength(1) @MaxLength(200)
+  fileName!: string;
+
+  @IsIn(['application/pdf', 'image/jpeg', 'image/png', 'image/heic'])
+  mimeType!: string;
+
+  // ~6,8 MB di base64 per 5 MB di file: il limite vero, sui byte decodificati, è nel servizio.
+  @IsString() @MinLength(8) @MaxLength(7_000_000)
+  contentBase64!: string;
+}
+
 /** Contabilità (backlog #6): gestione costi + conto economico. Solo admin. */
 @Controller('admin/accounting')
 @Roles('admin')
@@ -105,5 +121,26 @@ export class AccountingController {
   @Delete('costs/:id')
   deleteCost(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.accounting.deleteCost(id, user.sub);
+  }
+
+  // ---------- Fattura allegata (richiesta di Simone, 8/8: «avere tutto insieme») ----------
+
+  /** Allega o sostituisce la fattura del costo. Un file per costo, max 5 MB, salvato cifrato. */
+  @HttpCode(200)
+  @Post('costs/:id/fattura')
+  allegaFattura(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: FatturaDto) {
+    return this.accounting.allegaFattura(id, dto, user.sub);
+  }
+
+  /** La fattura in base64: la pagina la apre in una scheda nuova o la scarica. */
+  @Get('costs/:id/fattura')
+  scaricaFattura(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.accounting.scaricaFattura(id, user.sub);
+  }
+
+  @HttpCode(200)
+  @Delete('costs/:id/fattura')
+  rimuoviFattura(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.accounting.rimuoviFattura(id, user.sub);
   }
 }

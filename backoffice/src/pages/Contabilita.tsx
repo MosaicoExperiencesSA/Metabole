@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
 import { MiniTrend } from '../components/MiniTrend';
@@ -38,6 +38,11 @@ interface CostEntry {
   endDate: string | null;
   vendor: string | null;
   note: string | null;
+  /**
+   * La fattura allegata: solo nome e tipo, MAI il file. L'elenco dei costi non deve trascinarsi
+   * dietro dei megabyte a ogni apertura della pagina — il file si scarica quando si clicca.
+   */
+  fattura: { nome: string; mime: string | null } | null;
 }
 interface Report {
   from: string;
@@ -73,6 +78,12 @@ export function Contabilita() {
   const [downloading, setDownloading] = useState<'pdf' | 'csv' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<CostEntry | 'new' | null>(null);
+  /** Id del costo su cui si sta lavorando la fattura: serve solo a disabilitare i suoi pulsanti. */
+  const [fatturaBusy, setFatturaBusy] = useState<string | null>(null);
+  // Un solo input file per tutta la tabella, con l'id del costo scelto messo da parte: un input
+  // nascosto per riga sarebbe la stessa cosa moltiplicata per cento righe.
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const costoScelto = useRef<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -128,6 +139,94 @@ export function Contabilita() {
     }
   }
 
+  // ---------- Fattura allegata al costo ----------
+
+  /** Apre la finestra di scelta del file, ricordando su quale costo si sta lavorando. */
+  function scegliFattura(costId: string) {
+    costoScelto.current = costId;
+    if (fileRef.current) {
+      fileRef.current.value = ''; // così riscegliere lo STESSO file fa scattare di nuovo onChange
+      fileRef.current.click();
+    }
+  }
+
+  async function caricaFattura(file: File) {
+    const costId = costoScelto.current;
+    if (!costId) return;
+    // Il controllo vero è sul server; qui si evita solo di spedire 20 MB per sentirsi dire no.
+    if (file.size > 5 * 1024 * 1024) {
+      setError('La fattura supera i 5 MB: allega un PDF più leggero o una foto meno grande.');
+      return;
+    }
+    setFatturaBusy(costId);
+    setError(null);
+    try {
+      const base64 = await new Promise<string>((risolvi, rifiuta) => {
+        const lettore = new FileReader();
+        // `readAsDataURL` dà «data:<mime>;base64,XXXX»: al server serve solo la parte dopo la virgola.
+        lettore.onload = () => risolvi(String(lettore.result).split(',')[1] ?? '');
+        lettore.onerror = () => rifiuta(new Error('Non riesco a leggere il file.'));
+        lettore.readAsDataURL(file);
+      });
+      await api(`/admin/accounting/costs/${costId}/fattura`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: file.name,
+          // Safari a volte non compila `type` sui file scelti da disco: se manca, il PDF è
+          // l'ipotesi giusta nove volte su dieci, e il server rifiuta comunque ciò che non accetta.
+          mimeType: file.type || 'application/pdf',
+          contentBase64: base64,
+        }),
+      });
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Caricamento della fattura non riuscito.');
+    } finally {
+      setFatturaBusy(null);
+      costoScelto.current = null;
+    }
+  }
+
+  /** Scarica la fattura e la apre in una scheda nuova (il PDF si legge, l'immagine si vede). */
+  async function apriFattura(c: CostEntry) {
+    setFatturaBusy(c.id);
+    setError(null);
+    try {
+      const f = await api<{ fileName: string; mimeType: string; contentBase64: string }>(
+        `/admin/accounting/costs/${c.id}/fattura`,
+      );
+      const byte = Uint8Array.from(atob(f.contentBase64), (ch) => ch.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([byte], { type: f.mimeType }));
+      const scheda = window.open(url, '_blank');
+      // Se il browser blocca il popup, almeno la scarichiamo invece di non fare niente.
+      if (!scheda) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = f.fileName;
+        a.click();
+      }
+      // L'URL si libera dopo, non subito: revocarlo prima che la scheda l'abbia letto la lascia bianca.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riesco ad aprire la fattura.');
+    } finally {
+      setFatturaBusy(null);
+    }
+  }
+
+  async function togliFattura(c: CostEntry) {
+    if (!confirm(`Togliere la fattura «${c.fattura?.nome}» dal costo "${c.label}"?\nIl costo e il suo importo restano.`)) return;
+    setFatturaBusy(c.id);
+    try {
+      await api(`/admin/accounting/costs/${c.id}/fattura`, { method: 'DELETE' });
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Rimozione non riuscita.');
+    } finally {
+      setFatturaBusy(null);
+    }
+  }
+
   const pg = usePagination(costs, 100);
 
   if (loading && !report) return <Spinner />;
@@ -135,6 +234,21 @@ export function Contabilita() {
   return (
     <>
       {error && <Banner kind="err">{error}</Banner>}
+
+      {/*
+        L'input file della tabella costi: uno solo, nascosto, condiviso da tutte le righe.
+        Su quale costo lavora lo dice `costoScelto`, messo da parte dal pulsante che l'ha aperto.
+      */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,image/heic"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void caricaFattura(file);
+        }}
+      />
 
       {/* Periodo */}
       <div className="card">
@@ -253,6 +367,41 @@ export function Contabilita() {
                     </td>
                     <td style={{ textAlign: 'right' }}><b>{euro(c.amountCents)}</b>{c.recurring && <span className="muted" style={{ fontSize: 11 }}>/{c.cadence === 'yearly' ? 'anno' : 'mese'}</span>}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {/*
+                        La fattura: se c'è si apre (e si può togliere), se non c'è si allega.
+                        Un pulsante solo, che cambia faccia — non due sempre presenti di cui uno
+                        inutile: la riga dei costi è già stretta.
+                      */}
+                      {c.fattura ? (
+                        <>
+                          <button
+                            className="btn ghost sm"
+                            onClick={() => void apriFattura(c)}
+                            disabled={fatturaBusy === c.id}
+                            title={`Apri la fattura: ${c.fattura.nome}`}
+                            style={{ color: 'var(--verde, #0e7c66)' }}
+                          >
+                            <i className="ti ti-file-check" />
+                          </button>
+                          <button
+                            className="btn ghost sm"
+                            onClick={() => void togliFattura(c)}
+                            disabled={fatturaBusy === c.id}
+                            title="Togli la fattura (il costo resta)"
+                          >
+                            <i className="ti ti-file-x" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="btn ghost sm"
+                          onClick={() => scegliFattura(c.id)}
+                          disabled={fatturaBusy === c.id}
+                          title="Allega la fattura (PDF o foto, max 5 MB)"
+                        >
+                          <i className={fatturaBusy === c.id ? 'ti ti-loader-2' : 'ti ti-paperclip'} />
+                        </button>
+                      )}
                       <button className="btn ghost sm" onClick={() => setEditing(c)} title="Modifica"><i className="ti ti-pencil" /></button>
                       <button className="btn ghost sm" onClick={() => void del(c)} title="Elimina"><i className="ti ti-trash" /></button>
                     </td>

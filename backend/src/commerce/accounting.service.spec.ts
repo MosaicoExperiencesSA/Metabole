@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountingService, buildReport, costInMonth, monthsBetween, type CostRow } from './accounting.service';
@@ -73,6 +74,14 @@ describe('buildReport', () => {
   });
 });
 
+
+/**
+ * `AccountingService` ora cifra le fatture allegate ai costi, quindi vuole la chiave in
+ * costruzione (fail-closed: senza chiave non parte). Questi test non toccano le fatture: basta una
+ * chiave finta perché il costruttore non si fermi.
+ */
+const configFinta = { get: () => 'chiave-di-prova-per-i-test' } as unknown as ConfigService;
+
 describe('AccountingService.report (KPI)', () => {
   const audit = { log: jest.fn() } as unknown as AuditService;
   it('calcola CAC e ARPU dal report + conteggi clienti', async () => {
@@ -98,7 +107,7 @@ describe('AccountingService.report (KPI)', () => {
       },
       clientProfile: { count: jest.fn().mockResolvedValue(2) }, // 2 nuovi clienti
     };
-    const svc = new AccountingService(prisma as unknown as PrismaService, audit);
+    const svc = new AccountingService(prisma as unknown as PrismaService, audit, configFinta);
     const res = await svc.report('2026-01-01', '2026-01-31');
     expect(res.incomeCents).toBe(30000);
     expect(res.costsCents).toBe(6000);
@@ -110,7 +119,7 @@ describe('AccountingService.report (KPI)', () => {
   });
 
   it('intervallo invertito → errore', async () => {
-    const svc = new AccountingService({} as unknown as PrismaService, audit);
+    const svc = new AccountingService({} as unknown as PrismaService, audit, configFinta);
     await expect(svc.report('2026-03-01', '2026-01-01')).rejects.toThrow('invertito');
   });
 });
@@ -118,7 +127,7 @@ describe('AccountingService.report (KPI)', () => {
 describe('AccountingService.registerCost (validazione)', () => {
   const audit = { log: jest.fn() } as unknown as AuditService;
   const svc = (create = jest.fn().mockResolvedValue({ id: 'c1', amountCents: 1000, category: 'marketing' })) =>
-    new AccountingService({ costEntry: { create } } as unknown as PrismaService, audit);
+    new AccountingService({ costEntry: { create } } as unknown as PrismaService, audit, configFinta);
 
   it('categoria non valida → errore', async () => {
     await expect(svc().registerCost({ label: 'Costo X', category: 'bogus', amountCents: 100, date: '2026-01-01' }, 'u1')).rejects.toThrow('Categoria');

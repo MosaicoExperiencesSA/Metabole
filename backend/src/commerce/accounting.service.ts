@@ -1,10 +1,27 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 import { AuditService } from '../audit/audit.service';
+import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const COST_CATEGORIES = ['salaries', 'infrastructure', 'marketing', 'payment_fees', 'ai', 'taxes', 'other'] as const;
 export const CADENCES = ['once', 'monthly', 'yearly'] as const;
+
+/** Fattura allegata a un costo: gli stessi limiti delle contabili dei pagamenti. */
+const FATTURA_MAX_BYTES = 5 * 1024 * 1024;
+const FATTURA_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
+
+/**
+ * Campi del costo che si possono mostrare in elenco. ⚠️ `invoiceData` NON c'è, ed è deliberato:
+ * sono megabyte per riga e l'elenco li manderebbe TUTTI al browser a ogni apertura della pagina.
+ * Che una fattura ci sia si sa da `invoiceName`; il file si scarica solo quando lo si chiede.
+ */
+const COSTO_SELECT = {
+  id: true, label: true, category: true, amountCents: true, recurring: true, cadence: true,
+  date: true, endDate: true, vendor: true, note: true, createdById: true, createdAt: true,
+  updatedAt: true, invoiceMime: true, invoiceName: true,
+} as const;
 
 // Etichette italiane delle categorie (costi manuali + voci a ledger) per i report.
 const CATEGORY_LABEL: Record<string, string> = {
@@ -179,10 +196,19 @@ interface CostInput {
  */
 @Injectable()
 export class AccountingService {
+  private readonly fatturaKey: Buffer;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    // Fail-closed come per le contabili: senza chiave non si parte, invece di cifrare con un
+    // ripiego che equivale a non cifrare. Su Render è generata automaticamente.
+    const fileKey = this.config.get<string>('FILE_ENCRYPTION_KEY');
+    if (!fileKey) throw new Error('FILE_ENCRYPTION_KEY mancante: configurarla nelle variabili d\'ambiente');
+    this.fatturaKey = deriveKey(fileKey);
+  }
 
   private toDate(iso: string, endOfDay = false): Date {
     const d = new Date(iso.slice(0, 10) + (endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'));
@@ -221,7 +247,98 @@ export class AccountingService {
   }
 
   async listCosts() {
-    return this.prisma.costEntry.findMany({ orderBy: [{ recurring: 'desc' }, { date: 'desc' }] });
+    const righe = await this.prisma.costEntry.findMany({
+      orderBy: [{ recurring: 'desc' }, { date: 'desc' }],
+      select: COSTO_SELECT as never,
+    });
+    // `fattura` invece del file: la pagina deve sapere SE c'è e come si chiama, non averla addosso.
+    return (righe as never as (Record<string, unknown> & { invoiceName: string | null; invoiceMime: string | null })[]).map(
+      ({ invoiceName, invoiceMime, ...resto }) => ({
+        ...resto,
+        fattura: invoiceName ? { nome: invoiceName, mime: invoiceMime } : null,
+      }),
+    );
+  }
+
+  // ---------- Fattura allegata al costo (richiesta di Simone, 8/8) ----------
+
+  /**
+   * Allega (o sostituisce) la fattura di un costo. Un file per costo: la scelta è di Simone,
+   * «la fattura», al singolare. Se ne serviranno due servirà una tabella, non una seconda colonna.
+   *
+   * Il file arriva in base64 e viene salvato **cifrato**: una fattura è un dato di un fornitore, con
+   * dentro partita IVA, indirizzi e importi, e non c'è motivo di tenerla in chiaro nel database.
+   */
+  async allegaFattura(
+    id: string,
+    input: { fileName: string; mimeType: string; contentBase64: string },
+    actorId: string,
+  ) {
+    const costo = await this.prisma.costEntry.findUnique({ where: { id }, select: { id: true, label: true } });
+    if (!costo) throw new NotFoundException('Costo non trovato');
+    if (!FATTURA_MIME.includes(input.mimeType)) {
+      throw new BadRequestException('Formato non supportato: serve un PDF o una foto (JPG, PNG, HEIC).');
+    }
+    const plain = Buffer.from(input.contentBase64, 'base64');
+    if (plain.length === 0) throw new BadRequestException('Il file è vuoto.');
+    if (plain.length > FATTURA_MAX_BYTES) {
+      throw new BadRequestException('La fattura supera i 5 MB: allega un PDF più leggero o una foto meno grande.');
+    }
+    // Un nome c'è sempre: è quello che in elenco dice «qui la fattura c'è».
+    const nome = (input.fileName ?? '').trim().slice(0, 200) || 'fattura';
+    await this.prisma.costEntry.update({
+      where: { id },
+      data: {
+        invoiceData: new Uint8Array(encryptBuffer(plain, this.fatturaKey)),
+        invoiceMime: input.mimeType,
+        invoiceName: nome,
+      } as never,
+    });
+    await this.audit.log({
+      action: 'accounting.cost_invoice_uploaded',
+      actorId,
+      entityType: 'cost_entry',
+      entityId: id,
+      metadata: { fileName: nome, mimeType: input.mimeType, bytes: plain.length },
+    });
+    return { ok: true, fattura: { nome, mime: input.mimeType } };
+  }
+
+  /** La fattura in base64, da aprire o scaricare. */
+  async scaricaFattura(id: string, actorId: string) {
+    const costo = (await this.prisma.costEntry.findUnique({
+      where: { id },
+      select: { invoiceData: true, invoiceMime: true, invoiceName: true } as never,
+    })) as never as { invoiceData: Uint8Array | null; invoiceMime: string | null; invoiceName: string | null } | null;
+    if (!costo) throw new NotFoundException('Costo non trovato');
+    if (!costo.invoiceData) throw new NotFoundException('Questo costo non ha una fattura allegata.');
+    // Anche la LETTURA si traccia: è un documento fiscale di un fornitore, e sapere chi l'ha
+    // aperto costa una riga.
+    await this.audit
+      .log({ action: 'accounting.cost_invoice_downloaded', actorId, entityType: 'cost_entry', entityId: id })
+      .catch(() => undefined);
+    return {
+      fileName: costo.invoiceName ?? 'fattura',
+      mimeType: costo.invoiceMime ?? 'application/pdf',
+      contentBase64: decryptBuffer(Buffer.from(costo.invoiceData), this.fatturaKey).toString('base64'),
+    };
+  }
+
+  /** Toglie la fattura senza toccare il costo: l'importo resta, cambia solo l'allegato. */
+  async rimuoviFattura(id: string, actorId: string) {
+    const costo = await this.prisma.costEntry.findUnique({ where: { id }, select: { id: true } });
+    if (!costo) throw new NotFoundException('Costo non trovato');
+    await this.prisma.costEntry.update({
+      where: { id },
+      data: { invoiceData: null, invoiceMime: null, invoiceName: null } as never,
+    });
+    await this.audit.log({
+      action: 'accounting.cost_invoice_removed',
+      actorId,
+      entityType: 'cost_entry',
+      entityId: id,
+    });
+    return { ok: true };
   }
 
   async updateCost(id: string, input: Partial<CostInput>, actorId: string) {

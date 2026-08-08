@@ -791,6 +791,12 @@ model CostEntry {
   endDate     DateTime? @map("end_date") @db.Date // ricorrente: fine (opzionale)
   vendor      String?
   note        String?
+  // Fattura allegata (8/8): stesso schema delle contabili dei pagamenti — il file sta nella riga,
+  // cifrato AES-256-GCM, formato iv(12B) + authTag(16B) + ciphertext. Non usa `Document` perché
+  // quella tabella è legata a una cliente, e la fattura di un fornitore non è di nessuna cliente.
+  invoiceData Bytes?    @map("invoice_data")
+  invoiceMime String?   @map("invoice_mime")
+  invoiceName String?   @map("invoice_name")
   createdById String?   @map("created_by_id")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
