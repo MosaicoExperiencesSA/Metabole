@@ -7,6 +7,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 📲 **OTA 2.1.3** — porta sui telefoni il lato app del cambio menu in chat, che finora
+  esisteva solo nel backend: il pulsante **«Sostituisci un ingrediente»** della home non apre più il
+  pop-up «oggi / questi giorni / per sempre» ma **porta nella chat con Gaia**, che scrive lei il
+  primo messaggio (elenca i piatti di oggi e chiede quale alimento cambiare); e nel Menu la
+  sostituzione si legge coi grammi e con **l'unità giusta per parte** («70 ml panna fresca → 70 g
+  burro»), che mentre si cucina è l'unica cosa che serve sapere.
+  - Tre verifiche fatte sul bundle prima della pubblicazione, tutte sull'archivio già costruito:
+    ① il numero **`"2.1.3"` è dentro `assets/index-*.js`**, quindi l'app mostra la versione che
+    esegue davvero — è l'errore che è costato la 2.1.1, dove sui telefoni compariva «2.1.0»;
+    ② **`app/package.json` allineato a 2.1.3** e incluso nel commit (senza quello i due numeri
+    tornano a divergere); ③ **le push sono accese**: nel bundle c'è il codice di
+    `PushNotifications` e *non* c'è la stringa «bundle costruito SENZA google-services.json»,
+    segno che `__ENABLE_PUSH__` era vero al build e il ramo di rinuncia è stato eliminato dal
+    minificatore. Un bundle costruito senza quel file spegne le notifiche a chi lo riceve, in
+    silenzio e senza errori: è la ragione della guardia in `ota-release.mjs`.
+  - I telefoni lo applicano **al riavvio dell'app**, non mentre è aperta.
+  - ⚠️ Alla prossima pubblicazione sugli store va **svuotata `OTA_VERSION`** su Render: altrimenti
+    un'installazione fresca scarica un bundle più vecchio del nativo appena installato.
 - `[Sviluppo]` 🚨 **Il filtro allergeni non riconosceva i derivati: Gaia ha proposto burro a una
   cliente allergica al latte** — trovato la sera dell'8/8 leggendo il `diag:cliente` di Giusy, che ha
   `allergies: ['latte']`. Nella conversazione di quel pomeriggio Gaia le proponeva **70 g di burro**
