@@ -7,6 +7,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Prodotto]` 🧹 **`npm run compatta:menu` — fare ordine nel catalogo.** Il catalogo si è
+  formato a strati: un pezzo col metodo vecchio, un pezzo generato bene settimana per settimana,
+  qualche piatto corretto a mano. I piatti ci sono, ma sono **sparsi** — la settimana 6 ha
+  quattordici spuntini e la 2 ne ha tre, la 1 usa piatti che compaiono anche nella 5. Contando a
+  mano non torna mai niente.
+  Il comando **non genera niente e non chiama l'AI**: ridistribuisce quello che c'è. Per ogni
+  pasto mette i piatti distinti in fila e ricostruisce le giornate in ordine — sette piatti
+  diversi per pasto, dalla settimana 1 in avanti. Quello che avanza resta fuori dal ciclo.
+  Il ciclo si accorcia (84 giorni con 44 pranzi diversi diventano 42), e va bene così: quei 42
+  giorni sono **tutti diversi**, gli 84 di prima contenevano quaranta ripetizioni.
+
+- `[Sviluppo]` ♻️ **Le ricette avanzate non si buttano.** Il generatore ora, prima di chiamare
+  l'AI, ripesca le **ricette orfane** — già generate per quella dieta e quel regime ma fuori dal
+  ciclo. Ne nascono compattando il catalogo e rifacendo le settimane: sono piatti pagati,
+  scritti e spesso già riletti dal nutrizionista, e chiederne di nuovi all'AI mentre quelli
+  stanno lì inutilizzati è spreco doppio — i soldi e il lavoro di chi li ha corretti.
+  Il filtro sul **regime** è la parte che non si può sbagliare: una ricetta onnivora dentro una
+  dieta vegana sarebbe un errore grave e silenzioso.
+
 - `[Sviluppo]` 🍳 **«Completa» non completava niente, e il pulsante sembrava rotto.** Settimane
   1-4 fatte col metodo vecchio, 5-12 fatte bene, spunta «genera tutte le 18 varianti»: si chiede
   di completare la settimana 1 e non succede niente. Rigenerando, identico.

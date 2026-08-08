@@ -360,13 +360,31 @@ export class EngineRulesService {
       if (libere.length) condivise.set(slot, libere);
     }
 
-    // Per ogni pasto: prima quello che c'è (sorelle, poi le proprie), e si genera SOLO la
-    // differenza per arrivare a sette. È così che il lavoro del nutrizionista non si perde.
+    /**
+     * RICETTE ORFANE: già generate per questa dieta e per questo regime, ma **fuori dal ciclo**
+     * — nessuna giornata le usa. Ne nascono ogni volta che si compatta il catalogo
+     * (`npm run compatta:menu` mette in fila i piatti e lascia fuori quello che avanza), e ogni
+     * volta che una settimana viene rifatta.
+     *
+     * Vanno usate PRIMA di chiamare l'AI: sono piatti pagati, scritti e — spesso — già corretti
+     * a mano dal nutrizionista. Chiedere all'AI un piatto nuovo mentre ne abbiamo uno buono che
+     * nessuno usa è buttare via due volte, i soldi e il lavoro di chi l'ha riletto.
+     *
+     * Il filtro sul **regime** non è un dettaglio: una ricetta onnivora dentro una dieta vegana
+     * sarebbe un errore grave e silenzioso. Si prendono solo quelle dello stesso regime e con il
+     * tag della stessa dieta, che è come il generatore le marca alla nascita.
+     */
+    const orfane = existingVariant
+      ? await this.ricetteOrfane(existingVariant.id, preset.label, regime, slots)
+      : new Map<string, string[]>();
+
+    // Per ogni pasto: prima quello che c'è (sorelle, poi le proprie, poi le orfane), e si genera
+    // SOLO la differenza per arrivare a sette. È così che il lavoro del nutrizionista non si perde.
     const gia = new Map<string, string[]>();
     const mancanti = new Map<string, number>();
     for (const sl of slots) {
       const base: string[] = [];
-      for (const fonte of [condivise.get(sl) ?? [], proprie.get(sl) ?? []]) {
+      for (const fonte of [condivise.get(sl) ?? [], proprie.get(sl) ?? [], orfane.get(sl) ?? []]) {
         for (const id of fonte) {
           if (base.length >= GIORNI_SETTIMANA) break;
           if (!base.includes(id)) base.push(id);
@@ -703,6 +721,49 @@ export class EngineRulesService {
       // altrove, tenerlo qui vorrebbe dire ripeterlo nel ciclo.
       const libere = lista.filter((id) => !occupate.has(id)).slice(0, GIORNI_SETTIMANA);
       if (libere.length) out.set(slot, libere);
+    }
+    return out;
+  }
+
+  /**
+   * Ricette della dieta che **non usa nessuna giornata**: generate e poi rimaste fuori dal ciclo
+   * (compattazione del catalogo, settimane rifatte). Si riusano prima di chiedere all'AI piatti
+   * nuovi: sono già scritte, spesso già corrette a mano, e ricomprarle è spreco doppio.
+   *
+   * Il filtro sul REGIME è la parte che non si può sbagliare: una ricetta onnivora finita in una
+   * dieta vegana è un errore grave e silenzioso. Si guarda anche il tag `dieta:<nome>`, che il
+   * generatore mette alla nascita, per non pescare da una famiglia diversa.
+   */
+  private async ricetteOrfane(
+    dietId: string,
+    label: string,
+    regime: string,
+    slots: string[],
+  ): Promise<Map<string, string[]>> {
+    const candidate = (await this.prisma.recipe.findMany({
+      where: { regime, tags: { has: `dieta:${label}` }, mealSlot: { in: slots as never } } as never,
+      select: { id: true, mealSlot: true },
+      take: 2000,
+    })) as { id: string; mealSlot: string }[];
+    if (candidate.length === 0) return new Map();
+
+    const templates = (await this.prisma.dietDayTemplate.findMany({
+      where: { dietId },
+      select: { meals: true },
+    })) as { meals: unknown }[];
+    const usate = new Set<string>();
+    for (const t of templates) {
+      for (const m of (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : [])) {
+        if (m.recipeId) usate.add(m.recipeId);
+      }
+    }
+
+    const out = new Map<string, string[]>();
+    for (const r of candidate) {
+      if (usate.has(r.id)) continue;
+      const lista = out.get(r.mealSlot) ?? [];
+      lista.push(r.id);
+      out.set(r.mealSlot, lista);
     }
     return out;
   }
