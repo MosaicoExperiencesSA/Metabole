@@ -208,6 +208,18 @@ export class MenuService {
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return { state: 'paused', availableFrom: null, planStartDate };
 
+    // 4-bis) MONITORAGGIO: qui i menu non arrivano, e va detto — non lasciato intendere.
+    // Senza questo ramo la cliente restava su «Menu in preparazione», che è una bugia gentile:
+    // aspetta qualcosa che non arriverà, e prima o poi scrive alla coach per un guasto che non
+    // c'è. Meglio una frase che spiega cosa sta pagando, e che i menu tornano al rientro.
+    const monitoraggio = (await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
+      select: { plan: { select: { period: true } } },
+    })) as { plan: { period: string | null } | null } | null;
+    if (monitoraggio?.plan?.period === 'monitoring') {
+      return { state: 'monitoring', availableFrom: null, planStartDate };
+    }
+
     // 5) Idoneo ma troppo presto: mostro la data in cui il menu comparirà.
     const visibleDaysBefore = await this.configParams.getNumber('menu_visible_days_before_start', 2);
     const start = toDateOnly(profile.planStartDate.toISOString());
@@ -252,9 +264,20 @@ export class MenuService {
     // Il piano alimentare si genera SOLO con abbonamento attivo (approvazione bonifico).
     const activeSubscription = (await this.prisma.subscription.findFirst({
       where: { clientId, status: 'active' },
-      include: { plan: { select: { priceCents: true } } },
-    })) as ({ endDate?: Date | null; plan: { priceCents: number } | null } & Record<string, unknown>) | null;
+      include: { plan: { select: { priceCents: true, period: true } } },
+    })) as ({ endDate?: Date | null; plan: { priceCents: number; period: string | null } | null } & Record<string, unknown>) | null;
     if (!activeSubscription) return [];
+
+    // MONITORAGGIO (€19/mese): **non è un piano alimentare**, e fin qui riceveva gli stessi
+    // identici menu del Mantenimento a €49 — perché questo controllo guardava solo che ci fosse
+    // un abbonamento attivo, mai QUALE. Due prezzi molto diversi per la stessa cosa: chi se ne
+    // accorgeva aveva ragione a sentirsi preso in giro.
+    // Il Monitoraggio promette altro, ed è scritto sul piano stesso: il peso sotto controllo, la
+    // coach raggiungibile, il rientro quando serve. I menu di rientro continuano ad arrivare —
+    // li eroga `monitoring.service.ts` per conto suo quando il peso risale oltre la soglia, e
+    // non passano di qui. (Decisione Simone, 9/8.)
+    if (activeSubscription.plan?.period === 'monitoring') return [];
+
     // Piano già CONCLUSO (fine passata) anche se lo stato è ancora 'active' (cron in ritardo):
     // niente erogazione. Coerente con menuStatus, così non compaiono menu di un percorso finito.
     if (activeSubscription.endDate && activeSubscription.endDate.getTime() < toDateOnly().getTime()) return [];
@@ -598,6 +621,20 @@ export class MenuService {
     }
     // Sblocco concesso dalla coach dalla chat: finestra di grazia, non un interruttore per sempre.
     if (prof?.measuresUnlockedUntil && prof.measuresUnlockedUntil.getTime() > Date.now()) {
+      return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
+    }
+    // MONITORAGGIO: il peso **si chiede, non si impone** (decisione Simone 9/8). Gaia lo domanda
+    // ogni tanto con una notifica; nessun popup bloccante e nessun blocco dell'app.
+    // Senza questo controllo il monitoraggio era la trappola perfetta: nessun menu in arrivo —
+    // è un piano che i menu non li prevede — quindi il gate restava «misure iniziali mancanti»
+    // per sempre, e chi paga €19 al mese si trovava l'app bloccata da un popup che chiede le
+    // misure per un menu che non arriverà. E dopo una settimana di menu di rientro sarebbe
+    // scattato anche il blocco di ciclo, con tanto di «contatta la tua coach».
+    const inMonitoraggio = (await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
+      select: { plan: { select: { period: true } } },
+    })) as { plan: { period: string | null } | null } | null;
+    if (inMonitoraggio?.plan?.period === 'monitoring') {
       return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
     }
 

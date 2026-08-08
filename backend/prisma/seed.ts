@@ -264,7 +264,7 @@ const CONFIG_PARAMS: SeedParam[] = [
     key: 'monitoring_regain_kg',
     value: '3',
     type: 'number',
-    description: 'Monitoraggio: kg di aumento rispetto al peso di riferimento oltre cui Gaia propone gli 8 menu di rientro',
+    description: 'Monitoraggio: kg di aumento rispetto al peso di riferimento oltre cui Gaia prepara la settimana di menu di rientro',
   },
   {
     key: 'monitoring_duration_days',
@@ -277,6 +277,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     value: '7',
     type: 'number',
     description: "Monitoraggio: giorni di validità dell'offerta menu di rientro; se non paga entro questo tempo il profilo si congela",
+  },
+  {
+    key: 'monitoring_rientro_days',
+    value: '7',
+    type: 'number',
+    description: 'Monitoraggio: quanti giorni dura la settimana di menu di rientro (scelti fra quelli che su di lei hanno funzionato meglio)',
   },
   {
     key: 'monitoring_measure_ask_days',

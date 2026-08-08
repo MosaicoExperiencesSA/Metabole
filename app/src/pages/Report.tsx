@@ -34,7 +34,7 @@ interface ReportFull {
   };
   milestones?: { label: string; date: string; weightKg: number }[];
   etaLabel?: string | null;
-  maintenance?: { planId: string; planName: string; priceCents: number } | null;
+  maintenance?: { planId: string; planName: string; priceCents: number; billing?: string } | null;
   monitoring?: { inclusiIMenuDiRientro: true } | null;
 }
 
@@ -561,7 +561,24 @@ export default function Report() {
                 Riposati dalla dieta: tieni il peso e rientri quando vuoi.
               </div>
               <button className="btn ghost" style={{ width: '100%', marginTop: 10, border: '1.5px solid #E8825A', color: '#B4491F' }}
-                onClick={() => { cart.setPlan({ id: r.maintenance!.planId, name: r.maintenance!.planName, priceCents: r.maintenance!.priceCents, period: 'maintenance' }); nav('/checkout'); }}>
+                onClick={() => {
+                  // `billing` va passato, altrimenti il Checkout non mostra la scelta fra
+                  // abbonamento e mese singolo e il mantenimento si vende SEMPRE come una
+                  // tantum. Questo pulsante è la strada principale di conversione a fine
+                  // percorso: senza, convertiva nel modo meno redditizio, e in silenzio.
+                  const billing = (r.maintenance!.billing ?? 'one_time') as 'one_time' | 'recurring' | 'both';
+                  cart.setPlan({
+                    id: r.maintenance!.planId,
+                    name: r.maintenance!.planName,
+                    priceCents: r.maintenance!.priceCents,
+                    period: 'maintenance',
+                    billing,
+                    // Proposto come abbonamento quando il piano lo consente: è quello che il
+                    // box promette («/mese») ed è ciò che tiene il percorso nel tempo.
+                    abbonamento: billing === 'recurring' || billing === 'both',
+                  });
+                  nav('/checkout');
+                }}>
                 Attiva il mantenimento
               </button>
             </div>

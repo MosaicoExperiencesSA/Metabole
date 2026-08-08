@@ -500,6 +500,30 @@ export function CreazioneValidazione() {
     finally { setBusy(false); }
   }
 
+  /**
+   * Su una dieta GIÀ PUBBLICATA non si ripubblica: si validano le ricette nuove.
+   *
+   * Dopo il 9/8 la pagina apre da sola una variante, e quasi sempre è una variante già
+   * approvata su cui il nutrizionista ha appena generato una settimana in più. Lì il pulsante
+   * «Approva e pubblica» chiamava `publish` e tornava indietro con «La dieta è in stato
+   * approved: non pubblicabile» — un errore rosso in cima alla pagina che sembrava dire «non
+   * puoi più approvare niente», mentre il lavoro da fare c'era ed era un altro: attivare le
+   * ricette della settimana appena generata, che nascono in bozza.
+   */
+  async function validaSolaQuesta() {
+    if (!dietId) return;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await api(`/engine-rules/diets/${dietId}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
+      await api(`/engine-rules/diets/${dietId}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
+      setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/approve-groups`, { method: 'POST', body: JSON.stringify({}) }));
+      void loadFamilyStatuses();
+      setNotice('Fatto ✓ Le ricette di questa variante sono attive e gli allergeni confermati: le clienti le ricevono. La dieta era già pubblicata, quindi non c\'è niente da ripubblicare.');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Operazione non riuscita.');
+    } finally { setBusy(false); }
+  }
+
   async function publish() {
     if (!dietId) return;
     setBusy(true); setError(null);
@@ -928,7 +952,15 @@ export function CreazioneValidazione() {
           <p className="muted" style={{ marginTop: 0 }}>Genera un catalogo per iniziare la validazione guidata.</p>
         ) : (
           <>
-            <p className="hint" style={{ marginTop: 0 }}>Bozza: <b>{s.name}</b> · stato {s.status}. Completa i passi (le spunte si aggiornano da sole).</p>
+            {/* «Bozza: … stato approved» era una contraddizione in due parole. Su una variante
+                già pubblicata la frase dice cosa c'è ancora da fare, che è un'altra cosa. */}
+            <p className="hint" style={{ marginTop: 0 }}>
+              {s.status === 'approved' ? (
+                <>Variante <b>{s.name}</b> · <b>già pubblicata</b>. Se hai generato altre settimane, le loro ricette nascono in bozza: attivale qui sotto e le clienti le ricevono.</>
+              ) : (
+                <>Bozza: <b>{s.name}</b> · stato {s.status}. Completa i passi (le spunte si aggiornano da sole).</>
+              )}
+            </p>
             <div style={{ display: 'grid', gap: 8 }}>
               <StepRow ok={!!done?.recipes} title="Ricette" detail={`${s.recipes.active}/${s.recipes.total} attive`}
                 action={<button className="btn ghost sm" onClick={() => act('activate-recipes')} disabled={busy}>Attiva tutte</button>}
@@ -943,9 +975,18 @@ export function CreazioneValidazione() {
                 link={<Link className="btn ghost sm" to="/gruppi-equivalenza">Rivedi</Link>} />
             </div>
             <div className="row" style={{ gap: 8, marginTop: 16 }}>
-              <button className="btn" onClick={publish} disabled={busy || !allReady} title={allReady ? '' : 'Completa tutti i passi'}>
-                <i className={`ti ${isResponsabile ? 'ti-rosette-discount-check' : 'ti-send'}`} /> {isResponsabile ? 'Approva e pubblica (solo questa)' : 'Invia in revisione (solo questa)'}
-              </button>
+              {/* Già pubblicata → non si ripubblica, si validano le ricette nuove. Prima il
+                  pulsante chiamava comunque `publish` e rispondeva «stato approved: non
+                  pubblicabile»: un errore rosso al posto del lavoro che c'era davvero da fare. */}
+              {s.status === 'approved' ? (
+                <button className="btn" onClick={validaSolaQuesta} disabled={busy} title="Attiva le ricette generate dopo la pubblicazione">
+                  <i className="ti ti-checks" /> Attiva le ricette nuove (solo questa)
+                </button>
+              ) : (
+                <button className="btn" onClick={publish} disabled={busy || !allReady} title={allReady ? '' : 'Completa tutti i passi'}>
+                  <i className={`ti ${isResponsabile ? 'ti-rosette-discount-check' : 'ti-send'}`} /> {isResponsabile ? 'Approva e pubblica (solo questa)' : 'Invia in revisione (solo questa)'}
+                </button>
+              )}
               <button className="btn ghost" onClick={showPreview ? () => setShowPreview(false) : loadPreview} disabled={busy}>
                 <i className="ti ti-eye" /> {showPreview ? 'Nascondi anteprima' : 'Anteprima giornate'}
               </button>

@@ -7,6 +7,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Prodotto]` 🛡️ **Il Monitoraggio a €19 adesso è un prodotto vero.** Fin qui erogava gli
+  **stessi identici menu** del Mantenimento a €49, perché il motore guardava solo che ci fosse un
+  abbonamento attivo, mai quale. Due prezzi molto diversi per la stessa cosa. Deciso (Simone) che
+  cosa deve essere, e scritto nel codice:
+  · **niente menu di piano** — non è quello che il piano promette;
+  · **il peso si chiede, non si impone**: Gaia lo domanda ogni tanto, nessun popup bloccante e
+    nessun blocco dell'app (era la trappola peggiore: senza menu in arrivo il gate misure restava
+    «mancano le misure iniziali» per sempre, a una persona che paga ogni mese);
+  · superata la soglia (+3 kg, parametrico) si prepara **una settimana** di menu scelti fra
+    quelli che su di lei hanno fatto perdere di più — erano 8 giorni, numero ereditato dal
+    prodotto «Menu di rientro (8 giorni)» che non esiste più (`monitoring_rientro_days`);
+  · **tutta l'app e la coach restano raggiungibili**, e in app compare una frase che spiega dove
+    si trova invece di un «menu in preparazione» che non arriverà mai.
+  Sotto c'era il difetto grosso: **pagare i €19 chiudeva il monitoraggio**. La regola «qualsiasi
+  piano a pagamento chiude il monitoraggio in corso» valeva anche per il piano che *è*
+  monitoraggio, quindi chi pagava si comprava la fine del servizio che stava comprando — niente
+  richieste del peso, e soprattutto **niente menu di rientro**, perché il giro giornaliero lavora
+  sui periodi attivi. Senza nessun errore: semplicemente non succedeva più niente.
+
+- `[Sviluppo]` 🛒 **Il pulsante del report vendeva solo il mese singolo.** «Attiva il
+  mantenimento» a fine percorso non passava `billing`, quindi nel Checkout non compariva la
+  scelta fra abbonamento e mese singolo: la strada principale di conversione convertiva nel modo
+  meno redditizio, e in silenzio (dal Negozio la scelta c'era, quindi nessuno se ne accorgeva).
+
+- `[Sviluppo]` 🩹 **«La dieta è in stato approved: non pubblicabile».** Da quando la pagina apre
+  da sola una variante, quasi sempre ne apre una già pubblicata su cui è appena stata generata
+  una settimana in più — e il pulsante «Approva e pubblica» rispondeva con quell'errore rosso in
+  cima alla pagina, che sembrava dire «non puoi più approvare niente». Il lavoro da fare c'era ed
+  era un altro: attivare le ricette della settimana nuova, che nascono in bozza. Ora su una
+  variante pubblicata il pulsante diventa **«Attiva le ricette nuove»** e la riga sopra dice
+  «già pubblicata» invece di «Bozza · stato approved», che era una contraddizione in due parole.
+
 - `[Sviluppo]` 🔗 **L'abbonamento orfano, e i soldi che entrano senza che nessuno se ne accorga.**
   `stripeSubscriptionId` lo scriveva **solo** `checkout.session.completed`. Se quel singolo
   webhook si perdeva — un deploy in corso, un 500, l'endpoint irraggiungibile per dieci minuti —
@@ -40,7 +72,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   l'app la rimandava a «scegli la password» — la stessa di due minuti prima. Nessun errore, solo
   una persona convinta di aver sbagliato qualcosa.
 
-  669 test verdi (erano 661).
+  676 test verdi (erano 661).
 
 ---
 

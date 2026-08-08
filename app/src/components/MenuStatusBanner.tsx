@@ -2,7 +2,7 @@
 // (spiega PERCHÉ e QUANDO arriva) invece di lasciarla pensare che l'app sia rotta.
 // Lo stato è calcolato dal backend (GET /me/menu → `status`).
 export interface MenuStatus {
-  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'paused' | 'blocked' | 'preparing' | 'expired';
+  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'paused' | 'blocked' | 'preparing' | 'expired' | 'monitoring';
   availableFrom: string | null; // yyyy-mm-dd in cui il menu diventa visibile
   planStartDate: string | null;
 }
@@ -59,6 +59,15 @@ export function menuStatusView(s: MenuStatus): { icon: string; title: string; te
         icon: 'ti-tools-kitchen-2',
         title: 'Menu in preparazione',
         text: 'Il tuo menu è in preparazione e arriverà a breve.',
+      };
+    // Monitoraggio: i menu non arrivano, e dirlo chiaro vale più che lasciarlo intendere.
+    // Chi paga €19 sta comprando il controllo del peso e la coach, non un piano alimentare:
+    // se legge «in preparazione» aspetta qualcosa che non arriverà.
+    case 'monitoring':
+      return {
+        icon: 'ti-heartbeat',
+        title: 'Sei in monitoraggio',
+        text: 'Qui teniamo d’occhio il tuo peso e la tua coach resta a disposizione. I menu tornano quando rientri in un percorso — e se il peso risale, te li prepariamo noi.',
       };
     default:
       return null; // available → nessun banner

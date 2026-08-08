@@ -91,7 +91,7 @@ export interface PlanReportData {
   /** Stima di arrivo all'obiettivo al ritmo attuale (es. "entro dicembre 2026"). */
   etaLabel?: string | null;
   /** Piano mantenimento (per il box "una pausa" a €29/mese), se esiste a catalogo. */
-  maintenance?: { planId: string; planName: string; priceCents: number } | null;
+  maintenance?: { planId: string; planName: string; priceCents: number; billing: string } | null;
   /** Prezzo dei menu di rientro del Monitoraggio (per il box "gratis · 1 mese"). */
   // I menu di rientro sono INCLUSI dal 7/8 (prima erano un prodotto a €29): qui non c'è più un
   // prezzo da mostrare, solo il fatto che il monitoraggio sia proponibile.
@@ -347,10 +347,14 @@ export class PlanReportService {
 
     // Box offerte: il mantenimento a catalogo. (Il prezzo dei menu di rientro non si legge più:
     // il prodotto da €29 è stato eliminato il 7/8 e i menu sono inclusi.)
+    // `billing` serve al pulsante del report: senza, il Checkout non mostrava la scelta fra
+    // abbonamento e mese singolo e il mantenimento si vendeva SEMPRE come una tantum — cioè la
+    // strada principale di conversione a fine percorso convertiva nel modo meno redditizio, e
+    // in silenzio (dal Negozio la scelta c'era, quindi nessuno lo notava).
     const maintenancePlan = (await this.prisma.plan.findFirst({
       where: { active: true, period: 'maintenance' },
-      select: { id: true, name: true, priceCents: true },
-    })) as { id: string; name: string; priceCents: number } | null;
+      select: { id: true, name: true, priceCents: true, billing: true },
+    })) as { id: string; name: string; priceCents: number; billing: string | null } | null;
 
     // Codice sconto personale ancora valido (inviato al giorno 6): compare nel report.
     const personal = (await this.prisma.discountCode.findFirst({
@@ -427,7 +431,12 @@ export class PlanReportService {
       etaLabel,
       // Mantenimento: solo a obiettivo RAGGIUNTO (e se il piano finito non era già il mantenimento).
       maintenance: objectiveReached && !endedIsMaintenance && maintenancePlan
-        ? { planId: maintenancePlan.id, planName: maintenancePlan.name, priceCents: maintenancePlan.priceCents }
+        ? {
+            planId: maintenancePlan.id,
+            planName: maintenancePlan.name,
+            priceCents: maintenancePlan.priceCents,
+            billing: maintenancePlan.billing ?? 'one_time',
+          }
         : null,
       // Monitoraggio: solo DOPO un piano di mantenimento concluso.
       monitoring: endedIsMaintenance ? { inclusiIMenuDiRientro: true as const } : null,

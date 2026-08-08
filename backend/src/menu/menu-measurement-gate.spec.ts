@@ -39,6 +39,9 @@ function makeService(prisma: unknown) {
 describe('MenuService — gate misure', () => {
   it('nessun menu erogato → gate non richiesto', async () => {
     const prisma = {
+      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
+      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
+      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue(null) }, // nessun piano → nessun popup
     };
@@ -51,6 +54,9 @@ describe('MenuService — gate misure', () => {
 
   it('2° giorno del ciclo passato e nessuna misura → bloccante', async () => {
     const prisma = {
+      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
+      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
+      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -62,6 +68,9 @@ describe('MenuService — gate misure', () => {
 
   it('2° giorno del ciclo oggi e nessuna misura → bloccante', async () => {
     const prisma = {
+      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
+      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
+      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(0)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -72,6 +81,9 @@ describe('MenuService — gate misure', () => {
 
   it('2° giorno del ciclo nel futuro → non bloccante', async () => {
     const prisma = {
+      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
+      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
+      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn() },
@@ -83,6 +95,9 @@ describe('MenuService — gate misure', () => {
 
   it('misura del ciclo presente → non bloccante', async () => {
     const prisma = {
+      // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
+      // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
+      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
@@ -189,5 +204,42 @@ describe('MenuService — gate misure', () => {
     };
     const created = await makeService(prisma).deliverIfEligible('c1');
     expect(created).toEqual([]); // held: l'avviso coach lo genera l'Alert engine
+  });
+});
+
+/**
+ * MONITORAGGIO (€19/mese): il peso **si chiede, non si impone** (decisione Simone 9/8).
+ *
+ * Senza questo controllo il monitoraggio era la trappola perfetta. È un piano che i menu non li
+ * prevede, quindi `menuDay` resta vuoto per sempre: il gate leggeva «mancano le misure iniziali»
+ * e mostrava il popup bloccante — a una persona che paga ogni mese, per sbloccare un menu che
+ * non sarebbe mai arrivato. E dopo la settimana di menu di rientro sarebbe scattato pure il
+ * blocco di ciclo, con tanto di «contatta la tua coach per sbloccare la app».
+ */
+describe('MenuService — gate misure nel Monitoraggio', () => {
+  const inMonitoraggio = { subscription: { findFirst: jest.fn().mockResolvedValue({ plan: { period: 'monitoring' } }) } };
+
+  it('nessun menu mai erogato → NON blocca (il popup misure non compare)', async () => {
+    const prisma = {
+      ...inMonitoraggio,
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: D(dayIso(-10)), travelState: null }) },
+      measurement: { findFirst: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
+      subscription2: null,
+    };
+    const res = await makeService(prisma).measurementGate('c1');
+    expect(res).toEqual({ required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null });
+  });
+
+  it('dopo i menu di rientro, ciclo scaduto senza misure → NON blocca lo stesso', async () => {
+    const prisma = {
+      ...inMonitoraggio,
+      menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-5)) }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
+      measurement: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const res = await makeService(prisma).measurementGate('c1');
+    expect(res.blocking).toBe(false);
+    expect(res.level).toBe('none');
   });
 });

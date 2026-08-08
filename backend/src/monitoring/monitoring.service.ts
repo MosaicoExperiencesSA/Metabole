@@ -20,10 +20,18 @@ interface Period {
 }
 
 /**
- * Livello "Monitoraggio": sorveglianza a tempo, GRATUITA, per chi finisce il percorso e non
- * rinnova. Gaia non eroga menu di piano: guarda le misure e, se il peso sale oltre la soglia
- * (+3 kg parametrizzabile), eroga gli 8 MENU DI RIENTRO presi dallo storico personale della
- * cliente — i giorni che su di lei hanno fatto perdere di più.
+ * Livello "Monitoraggio": sorveglianza a tempo. Esiste in due forme, e la regola è la stessa:
+ * Gaia **non eroga menu di piano**, guarda le misure, e se il peso sale oltre la soglia
+ * (+3 kg parametrizzabile) prepara una SETTIMANA DI MENU DI RIENTRO presi dallo storico
+ * personale della cliente — i giorni che su di lei hanno fatto perdere di più.
+ *  - **gratuito**, per chi finisce il percorso e non rinnova (`start()`, la chiede lei);
+ *  - **in abbonamento** a €19/mese, che si può tenere anche per sempre (`avviaPerAbbonamento()`,
+ *    parte dall'attivazione del piano).
+ *
+ * ⚠️ Il peso **si chiede, non si impone** (decisione Simone 9/8): Gaia lo domanda ogni tanto con
+ * una notifica, e nel monitoraggio non c'è nessun popup bloccante né blocco dell'app — il gate
+ * misure è disattivato apposta in `menu.service.ts → measurementGate`. Tutto il resto dell'app,
+ * e la coach in chat, restano raggiungibili come sempre.
  *
  * ⚠️ **I menu di rientro NON si vendono più** (decisione Simone 7/8). Erano un prodotto a €29
  * («Menu di rientro (8 giorni)»): la cliente riprendeva peso, e per riavere una mano doveva
@@ -192,7 +200,22 @@ export class MonitoringService {
 
         const last = await this.lastWeight(p.clientId);
 
-        // 3) Trigger di rientro: peso oltre la soglia → si EROGANO gli 8 menu, senza chiedere
+        // 2-bis) PESO DI RIFERIMENTO MANCANTE (solo monitoraggio in abbonamento: si entra anche
+        // senza essersi mai pesate). Alla prima pesata quello diventa il riferimento, e da lì
+        // in poi la soglia ha un senso. Senza questo blocco il confronto sarebbe `70 − 0 = 70`
+        // e i menu di rientro partirebbero il giorno stesso, a una persona che non è aumentata
+        // di un grammo.
+        if (p.referenceWeightKg <= 0) {
+          if (last) {
+            await this.prisma.monitoringPeriod.update({
+              where: { id: p.id },
+              data: { referenceWeightKg: last.weightKg } as never,
+            });
+          }
+          continue;
+        }
+
+        // 3) Trigger di rientro: peso oltre la soglia → si EROGANO i menu, senza chiedere
         //    niente. Prima qui partiva un'offerta a €29: la cliente riprendeva peso e, per
         //    avere una mano, doveva comprare. Dal 7/8 sono inclusi.
         if (!p.regainOfferedAt && last && last.weightKg - p.referenceWeightKg >= regainKg) {
@@ -270,7 +293,19 @@ export class MonitoringService {
   async onPlanActivated(clientId: string, plan: { id: string; name: string; priceCents: number; period: string }): Promise<void> {
     try {
       const period = await this.activePeriod(clientId);
-      // Conversione: qualsiasi piano a pagamento chiude il monitoraggio in corso.
+
+      // MONITORAGGIO IN ABBONAMENTO (€19/mese): è l'eccezione, e prima non c'era.
+      // «Qualsiasi piano a pagamento chiude il monitoraggio» valeva anche per QUESTO piano, che
+      // di monitoraggio è fatto: chi pagava si comprava la fine del servizio che stava
+      // comprando. Niente più richieste del peso e — soprattutto — niente menu di rientro se il
+      // peso risaliva, perché il giro giornaliero lavora solo sui periodi attivi. Senza nessun
+      // errore: semplicemente non succedeva più niente.
+      if (plan.period === 'monitoring') {
+        await this.avviaPerAbbonamento(clientId, period);
+        return;
+      }
+
+      // Conversione: qualsiasi ALTRO piano a pagamento chiude il monitoraggio in corso.
       if (period && plan.priceCents > 0) {
         const dest = plan.period === 'maintenance' ? 'mantenimento' : 'dimagrimento';
         await this.prisma.monitoringPeriod.update({
@@ -284,15 +319,70 @@ export class MonitoringService {
     }
   }
 
+  /**
+   * Apre (o prolunga) la sorveglianza per chi ha comprato il **Monitoraggio in abbonamento**.
+   *
+   * Differenze rispetto a `start()`, che è la versione gratuita richiesta dalla cliente:
+   *  - **non pretende che non ci sia un piano attivo**: qui il piano attivo è proprio questo;
+   *  - **non pretende una pesata già registrata**. Il peso di riferimento, se manca, si prende
+   *    alla prima pesata utile: chiederlo come condizione d'ingresso vorrebbe dire far pagare
+   *    un servizio e poi non erogarlo finché non sale sulla bilancia. Nel monitoraggio il peso
+   *    **si chiede, non si impone** (decisione Simone 9/8), e questo vale anche qui.
+   *  - se un periodo è già aperto lo **prolunga** invece di aprirne un altro: al rinnovo
+   *    mensile si passa di qui ogni volta.
+   */
+  private async avviaPerAbbonamento(clientId: string, esistente: Period | null): Promise<void> {
+    const giorni = await this.configParams.getNumber('monitoring_duration_days', 30);
+    const endsAt = new Date(Date.now() + giorni * 86_400_000);
+
+    if (esistente) {
+      // Prolunga e riapre la finestra del rientro: un mese nuovo è un'occasione nuova.
+      await this.prisma.monitoringPeriod.update({
+        where: { id: esistente.id },
+        data: { status: 'active', endsAt, regainOfferedAt: null } as never,
+      });
+      return;
+    }
+
+    const last = await this.lastWeight(clientId);
+    await this.prisma.monitoringPeriod.create({
+      data: {
+        clientId,
+        status: 'active',
+        endsAt,
+        // Senza pesate il riferimento resta 0: la soglia non può scattare finché non c'è un
+        // peso vero, ed è giusto così — non si può dire «sei aumentata di 3 kg» rispetto a niente.
+        referenceWeightKg: last?.weightKg ?? 0,
+      } as never,
+    });
+    await this.funnelEvent('monitoraggio_abbonamento_started', clientId, {
+      referenceWeightKg: last?.weightKg ?? null,
+      giorni,
+    });
+    await this.notifications
+      .notify({
+        userId: clientId,
+        type: 'monitoring_started',
+        title: 'Monitoraggio attivo 🛡️',
+        body: 'Resto in allerta con te: ogni tanto ti chiedo il peso — quando ti va, senza obblighi. Se dovesse risalire, ti preparo io una settimana di menu scelti fra quelli che su di te hanno funzionato meglio. E la tua coach resta qui.',
+      })
+      .catch(() => undefined);
+  }
+
   // ---------- Menu di rientro ----------
 
   /**
-   * Sceglie gli 8 giorni di menu che su QUESTA cliente hanno fatto perdere di più
-   * e li ricrea nei prossimi 8 giorni. Ordine di preferenza delle fonti:
+   * Sceglie i giorni di menu che su QUESTA cliente hanno fatto perdere di più e li ricrea nei
+   * giorni successivi. Ordine di preferenza delle fonti:
    * 1) cicli con esito peggiore→migliore dal learning del motore (cycle_feedback);
    * 2) delta misure attorno a ogni giorno di menu; 3) i giorni più recenti.
+   *
+   * Quanti giorni: **una settimana** (`monitoring_rientro_days`, default 7). Erano 8 — un numero
+   * ereditato dal vecchio prodotto «Menu di rientro (8 giorni)» a €29, che non esiste più. Sette
+   * è la settimana, che è come la cliente pensa il tempo: «per una settimana mangi così».
    */
   async generateRientroMenus(clientId: string): Promise<number> {
+    const giorni = Math.max(1, await this.configParams.getNumber('monitoring_rientro_days', 7));
     const history = (await this.prisma.menuDay.findMany({
       where: { clientId, date: { lte: new Date() } },
       orderBy: { date: 'desc' },
@@ -308,7 +398,7 @@ export class MonitoringService {
     const push = (d: { date: Date; dietId: string; level: number; meals: unknown } | undefined) => {
       if (!d) return;
       const k = d.date.toISOString().slice(0, 10);
-      if (pickedKeys.has(k) || picked.length >= 8) return;
+      if (pickedKeys.has(k) || picked.length >= giorni) return;
       pickedKeys.add(k);
       picked.push(d);
     };
@@ -324,11 +414,11 @@ export class MonitoringService {
       for (let t = this.dayKey(c.cycleStart); t <= this.dayKey(c.cycleEnd); t += 86_400_000) {
         push(byKey.get(new Date(t).toISOString().slice(0, 10)));
       }
-      if (picked.length >= 8) break;
+      if (picked.length >= giorni) break;
     }
 
     // 2) Delta misure attorno ai singoli giorni di menu.
-    if (picked.length < 8) {
+    if (picked.length < giorni) {
       const ms = (await this.prisma.measurement.findMany({
         where: { clientId },
         orderBy: { date: 'asc' },
@@ -354,11 +444,11 @@ export class MonitoringService {
     // 3) Riempi con i giorni più recenti.
     for (const h of history) push(h);
 
-    // Ricrea i giorni scelti nei prossimi 8 giorni (a partire da domani), saltando date già occupate.
+    // Ricrea i giorni scelti nei prossimi giorni (a partire da domani), saltando date già occupate.
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     let createdCount = 0;
-    for (let i = 0; i < picked.length; i++) {
+    for (let i = 0; i < Math.min(picked.length, giorni); i++) {
       const target = new Date(today.getTime() + (i + 1) * 86_400_000);
       const src = picked[i];
       try {
