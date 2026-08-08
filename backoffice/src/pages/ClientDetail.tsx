@@ -18,6 +18,8 @@ interface Detail {
   waterLogs: { id: string; date: string; glasses: number; goal: number }[];
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
   subscription: any | null;
+  /** Tutti i piani del cliente (recenti prima): serve per aprire i menu di un piano finito. */
+  subscriptions?: { id: string; status: string; startDate: string | null; endDate: string | null; planName: string | null }[];
   hasActivePlan?: boolean;
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string; approvedAt: string | null }[];
   crm: { stage: string; stageLabel?: string | null; valueCents: number | null } | null;
@@ -100,6 +102,68 @@ const date = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateStri
 const dateTime = (s: string | null | undefined) =>
   s ? new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const kg = (n: number | null | undefined) => (n == null ? '—' : `${n} kg`);
+
+/** Tetto della finestra menu accettato dal backend (`getMenus`): un piano annuale ci sta dentro. */
+const MENU_MAX_GIORNI = 400;
+
+/**
+ * I piani da mostrare in Acquisti come pulsanti "apri i menu". Uno per abbonamento, non solo per
+ * quello corrente: senza questo lo storico dei menu di un piano finito non era visibile da
+ * nessuna parte. Il piano principale (quello del badge) sta per primo.
+ * Funzione pura: prende la scheda e restituisce già il periodo pronto per la chiamata.
+ */
+function pianiPerMenu(d: Detail): {
+  id: string;
+  status: string;
+  planName: string | null;
+  startDate: string | null;
+  principale: boolean;
+  periodo?: { from: string; to: string; etichetta: string };
+}[] {
+  const giorno = (x: string | null | undefined) => (x ? String(x).slice(0, 10) : null);
+  const lista = d.subscriptions?.length
+    ? d.subscriptions
+    : d.subscription
+      ? [{
+          id: String(d.subscription.id ?? 'principale'),
+          status: String(d.subscription.status ?? ''),
+          startDate: d.subscription.startDate ?? null,
+          endDate: d.subscription.endDate ?? null,
+          planName: d.subscription.plan?.name ?? null,
+        }]
+      : [];
+  const idPrincipale = d.subscription?.id ? String(d.subscription.id) : lista[0]?.id;
+  const fraUnaSettimana = new Date();
+  fraUnaSettimana.setDate(fraUnaSettimana.getDate() + 7);
+  const righe = lista.map((s) => {
+    let from = giorno(s.startDate);
+    // Piano ancora in corso: non ha una fine da guardare, si arriva a una settimana avanti come
+    // nella finestra di default (i menu dei prossimi giorni sono già generati).
+    const to = giorno(s.endDate) ?? fraUnaSettimana.toISOString().slice(0, 10);
+    if (from && to < from) from = to;
+    // Se il periodo supera il tetto del backend (caso raro: piano aperto da più di un anno)
+    // si taglia l'INIZIO, non la fine: davanti serve avere i giorni recenti, e senza questo
+    // taglio la coach vedrebbe solo «Periodo troppo lungo».
+    if (from) {
+      const giorni = Math.round((new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / 86_400_000);
+      if (giorni > MENU_MAX_GIORNI) {
+        const limite = new Date(`${to}T00:00:00Z`);
+        limite.setUTCDate(limite.getUTCDate() - MENU_MAX_GIORNI);
+        from = limite.toISOString().slice(0, 10);
+      }
+    }
+    return {
+      id: String(s.id),
+      status: String(s.status ?? ''),
+      planName: s.planName ?? null,
+      startDate: giorno(s.startDate),
+      principale: String(s.id) === String(idPrincipale),
+      periodo: from ? { from, to, etichetta: `${s.planName ?? 'Piano'} · ${date(from)} → ${date(to)}` } : undefined,
+    };
+  });
+  righe.sort((a, b) => (a.principale ? -1 : 0) - (b.principale ? -1 : 0));
+  return righe;
+}
 
 // Umore: etichetta + colore chip.
 const MOOD: Record<string, { label: string; chip: string }> = {
@@ -275,12 +339,22 @@ export function ClientDetail() {
   const [menuDays, setMenuDays] = useState<MenuDayRow[]>([]);
   const [menusErr, setMenusErr] = useState<string | null>(null);
 
-  async function openMenus() {
+  /** Periodo aperto nel popup: `null` = finestra di default (ultime 8 settimane + 7 giorni). */
+  const [menusPeriodo, setMenusPeriodo] = useState<{ from: string; to: string; etichetta: string } | null>(null);
+
+  /**
+   * Apre i menu. Senza periodo mostra la finestra corrente; con un periodo (passato dal piano
+   * cliccato in Acquisti) mostra i menu di **quel** piano, anche finito da mesi — prima lo
+   * storico dei menu non era raggiungibile da nessuna parte.
+   */
+  async function openMenus(periodo?: { from: string; to: string; etichetta: string }) {
     setMenusOpen(true);
     setMenusLoading(true);
     setMenusErr(null);
+    setMenusPeriodo(periodo ?? null);
     try {
-      const r = await api<{ days: MenuDayRow[] }>(`/admin/clients/${id}/menus`);
+      const qs = periodo ? `?from=${encodeURIComponent(periodo.from)}&to=${encodeURIComponent(periodo.to)}` : '';
+      const r = await api<{ days: MenuDayRow[] }>(`/admin/clients/${id}/menus${qs}`);
       setMenuDays(r.days);
     } catch (err) {
       setMenusErr(err instanceof ApiError ? err.message : 'Caricamento dei menu non riuscito.');
@@ -1143,16 +1217,32 @@ export function ClientDetail() {
                 Nessun piano attivo
               </span>
             )}
-            {d.subscription && (
+            {/* Un pulsante per OGNI piano, non solo per quello corrente: premendolo si aprono i
+                menu erogati in quel periodo. È l'unico posto da cui si vede lo storico dei menu
+                di un piano finito (richiesta di Simone dell'8/8). Il piano principale sta per
+                primo ed è evidenziato; se il backend non manda ancora l'elenco si ricade sul
+                solo piano principale, come prima. */}
+            {pianiPerMenu(d).map((s) => (
               <button
+                key={s.id}
                 className="chip"
-                onClick={openMenus}
-                title="Apri i menu del cliente per controllarli (con le stelline date ai piatti)"
-                style={{ cursor: 'pointer', border: '1px solid var(--line)' }}
+                onClick={() => void openMenus(s.periodo)}
+                title={
+                  s.periodo
+                    ? `Apri i menu erogati durante «${s.planName ?? 'piano'}» (${s.periodo.from} → ${s.periodo.to}), con le stelline date ai piatti`
+                    : 'Apri i menu del cliente per controllarli (con le stelline date ai piatti)'
+                }
+                style={{
+                  cursor: 'pointer',
+                  border: s.principale ? '1px solid var(--brand, #7A8B5A)' : '1px solid var(--line)',
+                  opacity: s.principale ? 1 : 0.8,
+                }}
               >
-                {d.subscription.plan?.name} · {lab('subStatus', d.subscription.status)} <i className="ti ti-tools-kitchen-2" style={{ marginLeft: 4 }} />
+                {s.planName ?? 'Piano'} · {lab('subStatus', s.status)}
+                {s.startDate && <span className="muted" style={{ marginLeft: 4 }}>{date(s.startDate)}</span>}
+                <i className="ti ti-tools-kitchen-2" style={{ marginLeft: 4 }} />
               </button>
-            )}
+            ))}
           </div>
         </div>
         {/* Data di inizio piano: quella SCELTA dalla cliente (planStartDate, guida i menu);
@@ -1231,16 +1321,30 @@ export function ClientDetail() {
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, maxHeight: '82vh', overflowY: 'auto' }}>
             <div className="spread" style={{ marginBottom: 12 }}>
               <h2 style={{ margin: 0 }}><i className="ti ti-tools-kitchen-2" /> Menu del cliente</h2>
-              <button className="btn ghost sm" onClick={() => setMenusOpen(false)}><i className="ti ti-x" /> Chiudi</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {/* Con un piano vecchio aperto serve la strada di ritorno alla finestra corrente:
+                    altrimenti si resta nello storico senza capire perché mancano i menu di oggi. */}
+                {menusPeriodo && (
+                  <button className="btn ghost sm" onClick={() => void openMenus()} title="Torna alle ultime 8 settimane e ai prossimi 7 giorni">
+                    <i className="ti ti-arrow-back-up" /> Periodo corrente
+                  </button>
+                )}
+                <button className="btn ghost sm" onClick={() => setMenusOpen(false)}><i className="ti ti-x" /> Chiudi</button>
+              </div>
             </div>
             <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
-              Ultime 8 settimane e prossimi 7 giorni. Le stelline sono le valutazioni date dal cliente ai piatti; quando la valutazione è di un altro giorno lo indichiamo.
+              {menusPeriodo ? <><b>{menusPeriodo.etichetta}</b> — menu erogati durante questo piano. </> : 'Ultime 8 settimane e prossimi 7 giorni. '}
+              Le stelline sono le valutazioni date dal cliente ai piatti; quando la valutazione è di un altro giorno lo indichiamo.
             </p>
             {menusErr && <Banner kind="err">{menusErr}</Banner>}
             {menusLoading ? (
               <Spinner />
             ) : menuDays.length === 0 ? (
-              <div className="empty">Nessun menu generato per questo cliente.</div>
+              <div className="empty">
+                {menusPeriodo
+                  ? 'Nessun menu erogato in questo periodo: il piano potrebbe essere stato annullato prima di partire.'
+                  : 'Nessun menu generato per questo cliente.'}
+              </div>
             ) : (
               <div style={{ display: 'grid', gap: 12 }}>
                 {menuDays.map((day) => (
@@ -1671,6 +1775,8 @@ interface SostituzioneRow {
   fromQty?: number;
   toQty?: number;
   unit?: string;
+  /** Unità del sostituto quando è diversa (panna in ml → burro in g). Assente = la stessa. */
+  unitA?: string;
   motivo?: string;
   reason: string;
   stato: string;
@@ -1824,7 +1930,7 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                     )}
                     {s.tipo === 'piatto'
                       ? <>{s.from} → <b>{s.to}</b></>
-                      : <>{quantita(s.fromQty, s.unit)}{s.from} → <b>{quantita(s.toQty, s.unit)}{s.to}</b></>}
+                      : <>{quantita(s.fromQty, s.unit)}{s.from} → <b>{quantita(s.toQty, s.unitA ?? s.unit)}{s.to}</b></>}
                     {s.grammaturaCorretta && (
                       <div style={{ fontSize: 11.5, color: '#9A5B12' }}>
                         grammatura riportata a pari: da ricontrollare

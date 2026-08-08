@@ -1,0 +1,78 @@
+# Da fare — richieste memorizzate, non ancora implementate
+
+Lista unica delle cose che Simone ha chiesto di **ricordare** senza farle subito. Ogni voce ha
+già dentro il posto dove va e la decisione che manca, così quando si apre non si riparte da zero.
+Quando una voce viene fatta si sposta nel `REGISTRO.md` e si cancella da qui.
+
+---
+
+## 1. Revoca del consenso e cancellazione a 30 giorni (chiesta l'8/8)
+
+**Dove**: profilo della cliente nell'app (`app/src/pages/Profilo.tsx`), più un cron e le mail.
+
+Il pezzo visibile:
+
+- card **«Consenso»** col testo «Consenso fornito il … alle ore …» (il dato c'è già:
+  `clientProfile.consents.healthDataConsent.at`, scritto dall'onboarding);
+- pulsante **«Revoca consenso»** → popup: «Sei consapevole che revocando il consenso i tuoi dati
+  verranno cancellati entro 30 giorni?»;
+- se conferma, deve **scrivere `ELIMINA`** a mano: da lì parte un timer di 30 giorni;
+- **al 31° giorno** si cancella tutto, storico compreso.
+
+Le mail, tutte e due con il pulsante **«Sospendi l'eliminazione»**:
+
+- **subito**, alla cliente, in copia alla coach e alla manager coach;
+- **il giorno prima** della cancellazione, agli stessi.
+
+Decisioni ancora aperte (da prendere prima di scrivere il codice):
+
+- **chi può premere «sospendi»**: solo la cliente, o anche la coach? Se anche la coach, serve un
+  motivo scritto — è un dato che poi va difeso.
+- **abbonamento Stripe**: la revoca disdice anche il rinnovo? Sono due volontà diverse, e
+  cancellare i dati di chi continua a pagare non ha senso.
+- **le fatture si tengono**: obbligo di legge (10 anni). La cancellazione riguarda i dati
+  sanitari e il percorso, non la contabilità. Da dire in chiaro nella mail, o suona come una
+  promessa non mantenuta.
+
+## 2. Il «?» sulla dieta nel profilo (chiesto l'8/8)
+
+**Dove**: `app/src/pages/Profilo.tsx`, riga `riga('book', 'La tua dieta', n.dietName, …)`.
+
+Come nel questionario: un **«?»** accanto al nome che apre il popup con le caratteristiche di
+quella dieta. Il mestiere è già fatto in due posti, va solo ricucito:
+
+- il pattern del «?» + foglio che si apre sta in `app/src/pages/Onboarding.tsx` (`setInfo`,
+  `sheet-overlay`, riga ~124);
+- i contenuti stanno in `app/src/onboarding/dietInfo.ts` (`DIET_INFO`, con `DIET_INFO_FONTI`:
+  le fonti ci sono già, ed è la parte che dà credibilità al popup).
+
+Attenzione a una cosa: `DIET_INFO` è indicizzato per **stile** (`mediterranean`, `keto`,
+`flexible`…), mentre nel profilo si mostra il **nome della dieta** assegnata («Flexitariana»).
+Serve quindi mandare al client anche lo `style` della dieta (o usare
+`Diet.clientDescription`, che esiste ed è scritto per le clienti). Da decidere quale delle due:
+`clientDescription` è più specifico ma non sempre compilato, `DIET_INFO` è sempre presente e ha
+le fonti. La strada meno rischiosa: `clientDescription` se c'è, altrimenti `DIET_INFO[style]`.
+
+## 3. Tabella clienti: filtri, riordino e colonna coach (chiesta l'8/8)
+
+**Dove**: `backoffice/src/pages/Clients.tsx`.
+
+Filtri e riordino **in alto**, come nella board dei lead (`Leads.tsx`, da cui si può copiare la
+barra), più la **colonna Coach**. L'endpoint `GET /admin/clients` già restituisce la coach
+assegnata: è lavoro di sola tabella.
+
+## 4. Log modifiche del lead: cambi da backoffice e cambi dall'app (chiesto l'8/8)
+
+Da **verificare prima di implementare**: nel log del lead finiscono già le modifiche fatte dal
+backoffice e quelle fatte dalla cliente dall'app? Le modifiche al `CrmRecord` passano da più
+punti, e almeno uno scrive senza audit. Se non ci sono, va aggiunto — con la distinzione fra
+«modificato dallo staff» e «modificato dalla cliente», che è l'informazione utile.
+
+## 5. Correzione di un cambio piatto da parte della nutrizionista
+
+Oggi la nutrizionista **vede** i cambi concordati in chat (scheda cliente, card Conversazioni) ma
+non li può correggere: lo stato `corretta` esiste nel dato e non c'è il pulsante. Serve a chiudere
+il cerchio dei cambi nati da Gaia.
+
+Insieme a questo: **«lo voglio diverso» senza dire quale pasto** — oggi Gaia chiede lo slot solo
+se il testo lo contiene; se manca, va chiesto invece di scegliere per lei.

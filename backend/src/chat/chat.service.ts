@@ -355,7 +355,12 @@ export class ChatService {
     // I temi sensibili/sanitari NON passano dall'AI: restano gestiti sopra e instradati.
     let replyText: string = result.reply;
     let aiAnswered = false;
-    if ((result.kind === 'faq' || result.kind === 'route_coach') && (await this.ai.assistantEnabled())) {
+    // Alcune risposte NON si fanno riformulare: quella sui dati personali dice «non ho accesso ai
+    // tuoi dati», ed è una garanzia. Un modello che la riscrive potrebbe rispondere *come se* quei
+    // dati li avesse — il danno non è di stile. Vedi `senzaAi` in `ai-filter.ts`.
+    const senzaAi = result.kind === 'route_coach' && result.senzaAi === true;
+    if (result.kind === 'route_coach' && result.reason) meta.reason = result.reason;
+    if (!senzaAi && (result.kind === 'faq' || result.kind === 'route_coach') && (await this.ai.assistantEnabled())) {
       const u = await this.prisma.user.findUnique({ where: { id: clientId }, select: { locale: true } });
       const aiText = await this.ai.assistantReply(body, u?.locale === 'en' ? 'en' : 'it');
       if (aiText) { replyText = aiText; aiAnswered = true; meta.composer = 'ai'; }

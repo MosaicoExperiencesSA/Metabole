@@ -1,5 +1,12 @@
 import {
   apreFrase,
+  unitaPerSostituto,
+  sceltaDopoIlNo,
+  sensoDelNo,
+  testoAltroSostituto,
+  testoChiediPercheNo,
+  testoNienteAltroSostituto,
+  testoRifiutoNonCapito,
   testoAnnullato,
   soloNomeProprio,
   conNome,
@@ -435,5 +442,131 @@ describe('Gaia chiama per nome', () => {
   it('apreFrase sposta la maiuscola invece di lasciare un buco', () => {
     expect(apreFrase('Giulia', 'Per oggi va bene')).toBe('Giulia, per oggi va bene');
     expect(apreFrase(null, 'Per oggi va bene')).toBe('Per oggi va bene');
+  });
+});
+
+/**
+ * IL «NO» ALLA PROPOSTA — richiesta di Simone dell'8/8, la sera, guardando una conversazione vera:
+ * Gaia proponeva «70 ml di burro al posto di 70 ml di panna fresca», la cliente rispondeva «no
+ * perché non voglio 70 gr di burro» e Gaia chiudeva con «va bene, non cambio niente».
+ *
+ * «Quando la cliente dice no non si deve fermare, deve indagare sul perché.» La distinzione che
+ * regge tutto il resto è una sola: un no al SOSTITUTO non è un no al CAMBIO. Sbagliarla in un
+ * verso lascia la cliente col piatto che non vuole; sbagliarla nell'altro le rimette in mano una
+ * proposta quando aveva detto di lasciar perdere.
+ */
+describe('il «no» alla proposta: capire di che no si tratta', () => {
+  it('un «no» che nomina il sostituto proposto riguarda il sostituto', () => {
+    expect(sensoDelNo('no perchè non voglio 70 gr di burro', 'burro')).toBe('sostituto');
+    expect(sensoDelNo('no, il burro no', 'burro')).toBe('sostituto');
+    // Anche al plurale/singolare: il confronto è per radice, come tutto il resto del file.
+    expect(sensoDelNo('no, le biete non le mangio', 'bieta')).toBe('sostituto');
+  });
+
+  it('un motivo spiegato a parole riguarda il sostituto, anche senza nominarlo', () => {
+    expect(sensoDelNo('no, non mi piace', 'burro')).toBe('sostituto');
+    expect(sensoDelNo('no, non ce l\'ho in casa', 'burro')).toBe('sostituto');
+  });
+
+  it('«lascia stare» e «ho cambiato idea» sono un ripensamento, non una critica alla proposta', () => {
+    expect(sensoDelNo('no, lascia stare', 'burro')).toBe('ripensata');
+    expect(sensoDelNo('ho cambiato idea', 'burro')).toBe('ripensata');
+    expect(sensoDelNo('no, va bene così', 'burro')).toBe('ripensata');
+  });
+
+  it('un «no» secco non si interpreta: va chiesto', () => {
+    expect(sensoDelNo('no', 'burro')).toBeNull();
+    expect(sensoDelNo('No.', 'burro')).toBeNull();
+    expect(sensoDelNo('no grazie', 'burro')).toBeNull();
+  });
+
+  it('senza sapere cosa era stato proposto non si indovina', () => {
+    expect(sensoDelNo('no, il burro no')).toBeNull();
+  });
+
+  it('le tre strade si riconoscono dal numero e dalle parole', () => {
+    expect(sceltaDopoIlNo('1')).toBe('altro_sostituto');
+    expect(sceltaDopoIlNo('2')).toBe('altro_piatto');
+    expect(sceltaDopoIlNo('3')).toBe('annulla');
+    expect(sceltaDopoIlNo('proponimi un\'altra cosa')).toBe('altro_sostituto');
+    expect(sceltaDopoIlNo('preferisco cambiare tutto il piatto')).toBe('altro_piatto');
+    expect(sceltaDopoIlNo('lascia perdere')).toBe('annulla');
+    expect(sceltaDopoIlNo('boh')).toBeNull();
+  });
+
+  it('la domanda dopo il «no» nomina l\'alimento che resta nel piatto e mette prima l\'alternativa', () => {
+    const p = { data: '2026-08-08', slot: 'dinner', recipeId: 'r', piatto: 'Pasta alla panna', da: 'panna fresca', a: 'burro', qtaDa: 70, qtaA: 70, unita: 'ml' };
+    const t = testoChiediPercheNo(p, 'Giusy');
+    expect(t).toMatch(/^Giusy, /);
+    expect(t).toContain('panna fresca');
+    expect(t).toContain('1) non mi va bene questo sostituto');
+    // Non chiude: chiede.
+    expect(t).not.toContain('non cambio niente');
+  });
+
+  it('la seconda proposta dice perché è cambiata e chiede di nuovo conferma', () => {
+    const p = { data: '2026-08-08', slot: 'dinner', recipeId: 'r', piatto: 'Pasta alla panna', da: 'panna fresca', a: 'olio evo', qtaDa: 70, qtaA: 70, unita: 'ml' };
+    const t = testoAltroSostituto(p, MOTIVI[1], 'burro', 'Giusy');
+    expect(t).toContain('niente burro');
+    expect(t).toContain('olio evo');
+    expect(t).toMatch(/sì \/ no/);
+  });
+
+  it('quando le alternative finiscono lo dice, e passa alla nutrizionista', () => {
+    const t = testoNienteAltroSostituto('panna fresca', ['burro', 'mascarpone'], 'Giusy');
+    expect(t).toMatch(/^Giusy, /);
+    expect(t).toContain('nutrizionista');
+    // Niente colpa alla cliente per aver detto no due volte.
+    expect(t.toLowerCase()).toContain('hai ragione');
+    expect(t).toContain('«burro» e «mascarpone»');
+  });
+
+  it('arrendersi è l\'ultima cosa, e passa da una persona', () => {
+    expect(testoRifiutoNonCapito(false)).toContain('1)');
+    expect(testoRifiutoNonCapito(true)).toContain('coach');
+  });
+});
+
+/**
+ * L'UNITÀ DEL SOSTITUTO. Nella conversazione dell'8/8 Gaia ha detto «70 ml di burro al posto di 70
+ * ml di panna fresca»: il burro in millilitri non esiste, e la cliente l'ha notato prima di noi
+ * («non voglio 70 gr di burro»). L'unità veniva copiata dall'ingrediente sostituito.
+ *
+ * La conversione è volutamente timida: solo da `ml`, dove 1 ml ≈ 1 g per questi alimenti. Su `cl`,
+ * `dl` e `l` tenere lo stesso numero cambiando unità moltiplicherebbe la porzione per dieci o cento
+ * — meglio un'unità strana che una porzione sbagliata.
+ */
+describe('unità del sostituto', () => {
+  it('da ml a un solido diventa g', () => {
+    expect(unitaPerSostituto('ml', 'burro')).toBe('g');
+    expect(unitaPerSostituto('ml', 'mascarpone')).toBe('g');
+  });
+
+  it('fra due liquidi l\'unità resta ml', () => {
+    expect(unitaPerSostituto('ml', 'latte di mandorla')).toBe('ml');
+    expect(unitaPerSostituto('ml', 'panna vegetale')).toBe('ml');
+    expect(unitaPerSostituto('ml', 'olio evo')).toBe('ml');
+  });
+
+  it('i grammi e i pezzi non si toccano', () => {
+    expect(unitaPerSostituto('g', 'latte')).toBe('g');
+    expect(unitaPerSostituto('pz', 'burro')).toBe('pz');
+    expect(unitaPerSostituto(undefined, 'burro')).toBeUndefined();
+  });
+
+  it('cl, dl e l restano come sono: convertirli cambierebbe la porzione', () => {
+    expect(unitaPerSostituto('cl', 'burro')).toBe('cl');
+    expect(unitaPerSostituto('l', 'burro')).toBe('l');
+  });
+
+  it('nel testo della conferma le due unità convivono, ognuna al suo posto', () => {
+    const p = {
+      data: '2026-08-08', slot: 'dinner', recipeId: 'r', piatto: 'Pasta alla panna',
+      da: 'panna fresca', a: 'burro', qtaDa: 70, qtaA: 70, unita: 'ml', unitaA: 'g',
+    };
+    const t = testoConferma(p, MOTIVI[1], 'Giusy');
+    expect(t).toContain('70 g di burro');
+    expect(t).toContain('70 ml di panna fresca');
+    expect(t).not.toContain('70 ml di burro');
   });
 });

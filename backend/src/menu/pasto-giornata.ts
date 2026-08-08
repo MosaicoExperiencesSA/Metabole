@@ -26,8 +26,15 @@ export interface Substitution {
   fromQty?: number;
   /** Quantità del sostituto, quella che la cliente deve usare davvero. */
   toQty?: number;
-  /** Unità delle due quantità (g, ml, pz…). */
+  /** Unità della quantità di PARTENZA (g, ml, pz…). */
   unit?: string;
+  /**
+   * Unità del SOSTITUTO, quando è diversa da quella di partenza. Nasce da un difetto visto in una
+   * conversazione vera dell'8/8: «70 ml di burro al posto di 70 ml di panna fresca». Il burro in
+   * millilitri non esiste, e l'unità veniva copiata dall'ingrediente sostituito. Assente = la
+   * stessa di `unit`, che è il caso normale.
+   */
+  unitA?: string;
   /** Chi ha deciso il cambio. Assente = il motore, come è sempre stato. */
   origine?: 'chat';
   /** Il motivo DICHIARATO dalla cliente (vedi `MOTIVI` in `sostituzione-chat.ts`). */

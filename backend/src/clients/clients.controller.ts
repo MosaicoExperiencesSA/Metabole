@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
@@ -115,9 +115,18 @@ export class ClientsController {
   }
 
   /** Menu del cliente (giorni + piatti + stelline del cliente) per la revisione del nutrizionista. */
+  /**
+   * Menu erogati. Senza `from`/`to` la finestra è quella di sempre (ultimi 56 giorni); con il
+   * periodo si aprono i menu di un piano preciso — anche finito da mesi. Vedi `getMenus`.
+   */
   @Get(':id/menus')
-  menus(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.clients.getMenus(id, user.sub);
+  menus(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.clients.getMenus(id, user.sub, { from, to });
   }
 
   /** Correzione di una misura inserita male dal cliente: permesso dedicato "fix_measures". */

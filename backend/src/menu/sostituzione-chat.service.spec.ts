@@ -320,10 +320,85 @@ describe('SostituzioneChatService', () => {
     expect(prisma.clientProfile.update).not.toHaveBeenCalled();
   });
 
-  it('«no» annulla e non scrive niente', async () => {
+  /**
+   * IL «NO» NON CHIUDE LA CONVERSAZIONE (richiesta di Simone dell'8/8, la sera: «quando la cliente
+   * dice no non si deve fermare, deve indagare sul perché»).
+   *
+   * Il caso vero: Gaia proponeva il burro al posto della panna, la cliente rispondeva «no perché
+   * non voglio 70 gr di burro» e si chiudeva con «va bene, non cambio niente» — lasciandola con la
+   * panna nel piatto, cioè col problema di partenza. Un «no» alla PROPOSTA non è un «no» al cambio.
+   *
+   * Le due cose che questi test tengono ferme: non si scrive mai niente sul menu senza un sì, e
+   * non si chiude senza aver chiesto.
+   */
+  it('«no» secco non annulla: chiede cosa non va, e non scrive niente', async () => {
     const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
     const fatto = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no');
+    expect(fatto.esito).toBe('in_corso');
+    expect(fatto.stato?.passo).toBe('rifiuto');
+    expect(fatto.testo).toContain('non ti va');
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('«no, lascia stare» annulla davvero: quello è un ripensamento', async () => {
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    const fatto = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no, lascia stare');
     expect(fatto.esito).toBe('annullata');
+    expect(fatto.stato).toBeUndefined();
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('«no, non voglio le biete» propone l\'altra alternativa, senza rifare tutto il giro', async () => {
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    // Il gruppo del nutrizionista è carote/biete/spinaci: rifiutate le biete restano gli spinaci.
+    const fatto = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no, non voglio le biete');
+    expect(fatto.esito).toBe('in_corso');
+    expect(fatto.stato?.passo).toBe('conferma');
+    expect(fatto.stato?.proposta?.a).toBe('spinaci');
+    expect(fatto.stato?.scartati).toEqual(['biete']);
+    expect(fatto.testo).toContain('spinaci');
+    // Il motivo del cambio resta quello di prima: non è cambiato il perché.
+    expect(fatto.stato?.motivo).toBe(dopoMotivo.stato?.motivo);
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('la seconda proposta accettata si scrive sul menu', async () => {
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    const seconda = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no, le biete non mi piacciono');
+    const fatto = await service.avanza('client-1', seconda.stato as StatoSostituzione, 'sì');
+    expect(fatto.esito).toBe('applicata');
+    expect(sostituzioniDelPranzo()[0]).toEqual(expect.objectContaining({ from: 'carote', to: 'spinaci' }));
+  });
+
+  it('finite le alternative passa alla nutrizionista, non alla rinuncia', async () => {
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    const seconda = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no, non voglio le biete');
+    const terza = await service.avanza('client-1', seconda.stato as StatoSostituzione, 'no, gli spinaci non mi piacciono');
+    expect(terza.esito).toBe('rifiutata');
+    expect(terza.inoltraA).toBe('nutritionist');
+    expect(prisma.escalation.create).toHaveBeenCalled();
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('dopo il «no» secco, «1» fa proporre un altro sostituto e «3» chiude', async () => {
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    const chiesto = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no');
+    const uno = await service.avanza('client-1', chiesto.stato as StatoSostituzione, '1');
+    expect(uno.stato?.proposta?.a).toBe('spinaci');
+
+    const chiesto2 = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no');
+    const tre = await service.avanza('client-1', chiesto2.stato as StatoSostituzione, '3');
+    expect(tre.esito).toBe('annullata');
+  });
+
+  it('due risposte incomprensibili dopo il «no» passano alla coach, senza toccare il menu', async () => {
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    const chiesto = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'no');
+    const primo = await service.avanza('client-1', chiesto.stato as StatoSostituzione, 'boh');
+    expect(primo.esito).toBe('in_corso');
+    const secondo = await service.avanza('client-1', primo.stato as StatoSostituzione, 'mah');
+    expect(secondo.esito).toBe('arresa');
+    expect(secondo.inoltraA).toBe('coach');
     expect(prisma.menuDay.update).not.toHaveBeenCalled();
   });
 
@@ -620,10 +695,16 @@ describe('SostituzioneChatService — «voglio una colazione proteica»', () => 
     expect(esito.stato?.passo).toBe('scelta_piatto');
   });
 
-  it('un «no» secco resta un no: non si trasforma in una proposta', async () => {
+  /**
+   * Un «no» secco non si trasforma in una proposta di piatto nuovo: la richiesta di cambiare piatto
+   * deve esserci nel testo. E senza una proposta in mano non c'è niente su cui indagare — è l'unico
+   * caso in cui il «no» alla conferma chiude e basta.
+   */
+  it('un «no» secco senza una proposta in corso chiude, senza inventare un altro piatto', async () => {
     const { service } = await creaServizio();
     const esito = await service.avanza('cli-1', { passo: 'conferma', proposta: undefined as never }, 'no');
     expect(esito.esito).toBe('annullata');
+    expect(esito.stato?.passo).not.toBe('scelta_piatto');
   });
 
   it('scegliendo il numero, il piatto di oggi cambia e il cambio resta REGISTRATO', async () => {
@@ -678,5 +759,38 @@ describe('SostituzioneChatService — «voglio una colazione proteica»', () => 
     expect(esito.esito).toBe('arresa');
     expect(esito.inoltraA).toBe('nutritionist');
     expect(esito.testo).toContain('nutrizionista');
+  });
+});
+
+/**
+ * «70 ml di burro»: l'unità del sostituto veniva copiata da quella dell'ingrediente sostituito, e
+ * su una coppia liquido → solido è sbagliata. L'ha notato la cliente nella conversazione dell'8/8,
+ * rispondendo «non voglio 70 gr di burro». Qui si verifica il giro completo, perché il punto non è
+ * la frase: quell'unità finisce **scritta nel menu**, ed è quella che la cliente userà in cucina.
+ */
+describe('SostituzioneChatService — l\'unità del sostituto arriva fino al menu', () => {
+  it('la panna in ml diventa burro in g, nella frase e sulla giornata scritta', async () => {
+    const { service, giorno } = await creaServizio((prisma) => {
+      prisma.recipe.findMany = jest.fn().mockResolvedValue([
+        { ...RICETTA_PRANZO, ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }] },
+      ]);
+      prisma.equivalenceGroup.findMany = jest.fn().mockResolvedValue([
+        { productId: null, members: { items: ['panna fresca', 'burro'] } },
+      ]);
+    });
+
+    const aperto = await service.apriDaTesto('client-1', 'vorrei sostituire la panna');
+    expect(aperto.stato?.proposta?.a).toBe('burro');
+    expect(aperto.stato?.proposta?.unita).toBe('ml');
+    expect(aperto.stato?.proposta?.unitaA).toBe('g');
+
+    const conferma = await service.avanza('client-1', aperto.stato!, '2');
+    expect(conferma.testo).toContain('70 g di burro');
+    expect(conferma.testo).toContain('70 ml di panna fresca');
+
+    const fatto = await service.avanza('client-1', conferma.stato!, 'sì');
+    expect(fatto.esito).toBe('applicata');
+    const scritta = giorno().meals.find((m) => m.slot === 'lunch')?.substitutions?.[0];
+    expect(scritta).toEqual(expect.objectContaining({ from: 'panna fresca', to: 'burro', unit: 'ml', unitA: 'g' }));
   });
 });

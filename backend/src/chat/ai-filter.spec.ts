@@ -65,4 +65,46 @@ describe('Filtro AI (primo filtro deterministico, spec sez. 5)', () => {
     const result = classifyMessage('non mangio da tre giorni per sbloccare il menu più in fretta');
     expect(result.kind).toBe('sensitive');
   });
+
+  /**
+   * DATI PERSONALI E AMMINISTRATIVI (richiesta di Simone dell'8/8): Gaia non li vede, e lo dice.
+   *
+   * Prima queste domande finivano nel ramo generico — «Bella domanda! L'ho girata alla tua coach» —
+   * che è vero ma sembra una scelta di non rispondere. Due cose contano qui: la frase deve dire
+   * *non ho accesso*, e non deve passare dall'AI generativa (un modello che riformula «non ho i
+   * tuoi dati» rischia di rispondere come se li avesse).
+   */
+  describe('dati personali e amministrativi → coach, dicendo che non li vede', () => {
+    it.each([
+      'mi serve la fattura di luglio',
+      'quando mi addebitate il rinnovo?',
+      'ho fatto il bonifico ieri, lo vedete?',
+      'voglio disdire l\'abbonamento',
+      'posso sospendere l\'abbonamento per un mese?',
+      'come cambio il mio indirizzo di fatturazione?',
+      'voglio cancellare il mio account',
+      'come faccio a revocare il consenso?',
+    ])('"%s" → coach con la risposta dedicata', (text) => {
+      const result = classifyMessage(text);
+      expect(result.kind).toBe('route_coach');
+      expect(result.reply).toContain('non ho accesso');
+      expect(result.reply).toContain('coach');
+      // Non si fa riformulare dall'AI: la frase esatta è la sostanza.
+      expect((result as { senzaAi?: boolean }).senzaAi).toBe(true);
+      expect((result as { reason?: string }).reason).toBeTruthy();
+    });
+
+    it('non ruba le domande che non c\'entrano', () => {
+      // «matrimonio» resta la FAQ degli eventi, non una domanda sull'abbonamento.
+      expect(classifyMessage('la settimana prossima ho un matrimonio').kind).toBe('faq');
+      // E una domanda generica resta generica, con la vecchia risposta.
+      const generica = classifyMessage('che scarpe consigli per camminare?');
+      expect(generica.kind).toBe('route_coach');
+      expect((generica as { senzaAi?: boolean }).senzaAi).toBeUndefined();
+    });
+
+    it('il tema sensibile batte anche questo: prima la persona, poi la burocrazia', () => {
+      expect(classifyMessage('voglio disdire tutto, mi faccio schifo').kind).toBe('sensitive');
+    });
+  });
 });

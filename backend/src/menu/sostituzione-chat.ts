@@ -137,12 +137,18 @@ const SLOT_IN: Record<string, string> = {
 
 export const nelloSlot = (slot: string): string => SLOT_IN[slot] ?? `nel ${etichettaSlot(slot)}`;
 
-/** Passo del dialogo. Lo stato vive nel `meta` dell'ultimo messaggio di Gaia: niente tabelle. */
 /**
- * `scelta_piatto` è il ramo nato dalla conversazione dell'8/8: la cliente non vuole un ingrediente
- * diverso, vuole **un altro piatto**. Gaia propone due alternative approvate e aspetta un numero.
+ * Passo del dialogo. Lo stato vive nel `meta` dell'ultimo messaggio di Gaia: niente tabelle.
+ *
+ * Due passi nascono dalle conversazioni vere dell'8/8, ed è utile ricordare da quale difetto:
+ * - `scelta_piatto`: la cliente non vuole un ingrediente diverso, vuole **un altro piatto**. Gaia
+ *   propone due alternative approvate e aspetta un numero.
+ * - `rifiuto`: la cliente ha risposto «no perché non voglio 70 gr di burro» e Gaia ha chiuso con
+ *   «va bene, non cambio niente», lasciandola col piatto che non voleva. Simone: «quando la cliente
+ *   dice no non si deve fermare, deve indagare sul perché». Un «no» alla proposta non è un «no» al
+ *   cambio: quasi sempre vuol dire *non quel sostituto*. Qui si chiede quale delle tre cose è.
  */
-export type PassoSostituzione = 'cibo' | 'motivo' | 'conferma' | 'scelta_piatto';
+export type PassoSostituzione = 'cibo' | 'motivo' | 'conferma' | 'scelta_piatto' | 'rifiuto';
 
 export interface PropostaSostituzione {
   /** Giornata su cui si scrive (YYYY-MM-DD): quella di oggi. */
@@ -157,7 +163,10 @@ export interface PropostaSostituzione {
   a: string;
   qtaDa?: number;
   qtaA?: number;
+  /** Unità della quantità di partenza. */
   unita?: string;
+  /** Unità del sostituto, se diversa (vedi `unitaPerSostituto`). Assente = la stessa. */
+  unitaA?: string;
   /** Vero se `qtaA` è stata riportata a pari grammatura dal controllo di plausibilità. */
   grammaturaCorretta?: boolean;
 }
@@ -178,6 +187,13 @@ export interface StatoSostituzione {
   piattoAttuale?: { recipeId: string; nome: string; kcal: number };
   /** Che cosa aveva chiesto: serve nel testo e finisce nel registro del cambio. */
   preferenzaPiatto?: string | null;
+  /**
+   * Sostituti che la cliente ha già rifiutato in questa conversazione. Servono per non riproporre
+   * il burro dopo che ha detto «non voglio il burro» — e restano QUI, nella conversazione, senza
+   * finire nei cibi non graditi del profilo: quel campo restringe i menu futuri, e un alimento
+   * scartato in una proposta non è un gusto dichiarato su un alimento che ha nel piatto.
+   */
+  scartati?: string[];
 }
 
 /** Oltre questo, lo stato appeso a un messaggio vecchio non è più una conversazione in corso. */
@@ -353,6 +369,27 @@ export function correggiGrammatura(
   return { qta: qtaDa, corretta: true };
 }
 
+/**
+ * L'unità con cui esprimere il SOSTITUTO.
+ *
+ * Difetto visto l'8/8 nella conversazione vera: Gaia ha proposto «70 ml di burro al posto di 70 ml
+ * di panna fresca», e la cliente ha risposto parlando di «70 gr di burro» — perché il burro in
+ * millilitri non esiste. L'unità veniva copiata dall'ingrediente di partenza, e su una coppia
+ * liquido → solido copiarla è sbagliato.
+ *
+ * Si converte SOLO da `ml`, dove 1 ml ≈ 1 g per gli alimenti di cui parliamo; `cl`, `dl` e `l` si
+ * lasciano stare, perché lì lo stesso numero cambierebbe la porzione di un fattore dieci o cento.
+ * La grammatura resta quella di partenza: è la scelta dichiarata di tutto il flusso (pari
+ * grammatura, e la nutrizionista ricontrolla).
+ */
+const LIQUIDI = /acqua|latte|bevanda|panna|brodo|succo|olio|vino|aceto|sciroppo|caffe|birra|kefir|passata|salsa/;
+
+export function unitaPerSostituto(unita: string | undefined, sostituto: string): string | undefined {
+  if (!unita) return unita;
+  if (normalizza(unita) !== 'ml') return unita;
+  return LIQUIDI.test(normalizza(sostituto)) ? unita : 'g';
+}
+
 // ---------- Testi di Gaia ----------
 
 const quantita = (qta?: number, unita?: string): string =>
@@ -450,7 +487,7 @@ const testoDurata = (durata: Durata): string =>
 
 export function testoConferma(p: PropostaSostituzione, motivo: Motivo, nome?: string | null): string {
   const daQta = quantita(p.qtaDa, p.unita);
-  const aQta = quantita(p.qtaA, p.unita);
+  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
   return (
     `Allora facciamo così${conNome(nome)}: ${nelloSlot(p.slot)} metti ` +
     `${aQta}${p.a} al posto di ${daQta}${p.da} — ${testoDurata(motivo.durata)}.\n\n` +
@@ -462,8 +499,120 @@ export function testoAnnullato(nome?: string | null): string {
   return `Va bene${conNome(nome)}, non cambio niente: il menu di oggi resta com'è. Se cambi idea sono qui. 💚`;
 }
 
+// ---------- Il «no» alla proposta: indagare, non fermarsi ----------
+
+/**
+ * Che cosa c'è dentro un «no».
+ * - `sostituto`: non le va **quello che ho proposto** («no, non voglio il burro»). È il caso di
+ *   gran lunga più frequente, e l'unico in cui fermarsi è uno spreco: il cambio lo vuole ancora.
+ * - `ripensata`: ha cambiato idea sul cambio in sé («no, lascia stare»).
+ * - `null`: un «no» secco, che non dice quale delle due cose è. Si chiede.
+ */
+export type SensoDelNo = 'sostituto' | 'ripensata' | null;
+
+/** «lascia stare», «ho cambiato idea»: il cambio non le serve più. */
+const NO_RIPENSATA = /ho cambiato idea|lascia (stare|perdere)|va bene (cosi|com.e)|resta (cosi|com.e)|non importa|niente$|nulla$|non fa niente|meglio (cosi|niente)|tengo (quello|questo)|preferisco (lasciare|tenere)/;
+
+/**
+ * Dice se il «no» riguarda il SOSTITUTO proposto o il cambio in sé.
+ *
+ * Il primo controllo è sul nome del sostituto dentro la frase, ed è quello che conta: «non voglio
+ * 70 gr di burro» nomina il burro, quindi è un no a *quel* sostituto. Poi i motivi (`MOTIVI`): se
+ * la cliente spiega un perché — non mi piace, non ce l'ho in casa, mi resta sullo stomaco — sta
+ * parlando dell'alternativa, non annullando la richiesta.
+ */
+export function sensoDelNo(testo: string, sostitutoProposto?: string): SensoDelNo {
+  const t = normalizza(testo);
+  // Solo «no» (o «no.», «no grazie»): non dice niente di più, va chiesto.
+  if (/^no+[.! ]*(grazie)?[.!]*$/.test(t)) return null;
+  if (NO_RIPENSATA.test(t)) return 'ripensata';
+  if (sostitutoProposto) {
+    const paroleSostituto = paroleAlimento(sostitutoProposto).map(radice);
+    const paroleTesto = new Set(paroleAlimento(t).map(radice));
+    if (paroleSostituto.length && paroleSostituto.some((p) => paroleTesto.has(p))) return 'sostituto';
+  }
+  // Un motivo esplicito («non mi piace», «non ce l'ho in casa») riguarda la proposta.
+  if (riconosciMotivo(testo)) return 'sostituto';
+  return null;
+}
+
+/** Le tre strade dopo un «no» secco, nell'ordine in cui la cliente le legge. */
+export const STRADE_DOPO_IL_NO: { numero: number; label: string; scelta: 'altro_sostituto' | 'altro_piatto' | 'annulla' }[] = [
+  { numero: 1, label: 'non mi va bene questo sostituto: proponimene un altro', scelta: 'altro_sostituto' },
+  { numero: 2, label: 'preferisco cambiare tutto il piatto', scelta: 'altro_piatto' },
+  { numero: 3, label: 'ho cambiato idea, lascia il menu come è', scelta: 'annulla' },
+];
+
+/** Riconosce la risposta alla domanda «cosa non ti va?»: numero o parole. */
+export function sceltaDopoIlNo(testo: string): 'altro_sostituto' | 'altro_piatto' | 'annulla' | null {
+  const t = normalizza(testo);
+  const soloNumero = t.match(/^\(?([1-3])\)?[.)]?$/);
+  if (soloNumero) return STRADE_DOPO_IL_NO.find((s) => s.numero === Number(soloNumero[1]))?.scelta ?? null;
+  if (NO_RIPENSATA.test(t)) return 'annulla';
+  if (/altro piatto|un.altra ricetta|cambiare (tutto )?(il )?piatto|piatto diverso|tutta la ricetta/.test(t)) return 'altro_piatto';
+  if (/altro sostitut|un.altra (cosa|alternativa)|altra alternativa|qualcos.altro|altro al posto|proponi|proponimi|alternativ/.test(t)) {
+    return 'altro_sostituto';
+  }
+  return null;
+}
+
+/**
+ * La domanda dopo un «no» secco. Non ripete la proposta rifiutata — l'ha appena letta — e mette
+ * per prima la strada più probabile: cambiare il sostituto, non rinunciare al cambio.
+ */
+export function testoChiediPercheNo(p: PropostaSostituzione, nome?: string | null): string {
+  const elenco = STRADE_DOPO_IL_NO.map((s) => `${s.numero}) ${s.label}`).join('\n');
+  return (
+    apreFrase(nome, `Aspetta, non voglio lasciarti con il ${p.da} nel piatto se non lo vuoi: dimmi cos'è che non ti va.`) +
+    `\n\n${elenco}\n\nRispondi col numero, o a parole tue.`
+  );
+}
+
+export function testoRifiutoNonCapito(ultimoTentativo: boolean): string {
+  if (ultimoTentativo) {
+    return 'Non riesco a capire cosa non ti va, e non voglio farti girare a vuoto: ho passato tutto alla tua coach, che ti scrive nel vostro thread. 💚';
+  }
+  return `Scusa, non ho capito. Rispondi con un numero: ${STRADE_DOPO_IL_NO.map((s) => `${s.numero}) ${s.label}`).join(' · ')}.`;
+}
+
+/** Proposta numero due, dopo che la prima è stata rifiutata: si dice perché è cambiata. */
+export function testoAltroSostituto(
+  p: PropostaSostituzione,
+  motivo: Motivo,
+  rifiutato: string,
+  nome?: string | null,
+): string {
+  const daQta = quantita(p.qtaDa, p.unita);
+  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
+  return (
+    `Capito${conNome(nome)}: niente ${rifiutato}. Allora proviamo con un'altra cosa — ` +
+    `${nelloSlot(p.slot)} metti ${aQta}${p.a} al posto di ${daQta}${p.da}, ${testoDurata(motivo.durata)}.\n\n` +
+    'Ti va meglio? (sì / no)'
+  );
+}
+
+/**
+ * Le alternative sono finite. Non è un vicolo cieco: la richiesta passa alla nutrizionista, che è
+ * la persona che può inventare un'alternativa che il ricettario non ha.
+ */
+export function testoNienteAltroSostituto(da: string, rifiutati: string[], nome?: string | null): string {
+  // Gli alimenti si citano fra virgolette anche qui: «per la panna fresca» richiederebbe di sapere
+  // il genere di ogni alimento del ricettario, e sbagliarlo si legge subito.
+  const elenco = rifiutati.filter(Boolean).map((r) => `«${r}»`);
+  const scartati = elenco.length
+    ? ` — ${elenco.join(' e ')} non ${elenco.length > 1 ? 'ti vanno' : 'ti va'} —`
+    : '';
+  return (
+    apreFrase(
+      nome,
+      `Hai ragione a non accontentarti${scartati} ma altre alternative sicure per «${da}» non ne ho, ` +
+        'e non voglio inventarle. ',
+    ) + 'Ho passato la richiesta alla tua nutrizionista con tutto il contesto: ti risponde lei nel vostro thread. 🩺'
+  );
+}
+
 export function testoFatto(p: PropostaSostituzione, motivo: Motivo, nome?: string | null): string {
-  const aQta = quantita(p.qtaA, p.unita);
+  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
   let out =
     `Fatto${conNome(nome)}: il menu di oggi è aggiornato. ${maiuscola(nelloSlot(p.slot))} ` +
     `trovi ${aQta}${p.a} al posto ${/^[aeiou]/i.test(p.da) ? "dell'" : 'di '}${p.da}.`;
@@ -481,7 +630,7 @@ export function testoFatto(p: PropostaSostituzione, motivo: Motivo, nome?: strin
  * toccato niente» sarebbe falso — il cambio c'è, l'ha chiesto lei.
  */
 export function testoGiaFatto(p: PropostaSostituzione): string {
-  return `Quel cambio c'è già: ${nelloSlot(p.slot)} trovi ${quantita(p.qtaA, p.unita)}${p.a}. Non ho fatto niente di nuovo. 💚`;
+  return `Quel cambio c'è già: ${nelloSlot(p.slot)} trovi ${quantita(p.qtaA, p.unitaA ?? p.unita)}${p.a}. Non ho fatto niente di nuovo. 💚`;
 }
 
 export function testoNessunSostituto(cibo: string): string {

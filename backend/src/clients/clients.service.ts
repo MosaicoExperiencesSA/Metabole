@@ -9,6 +9,7 @@ import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
 import { Role } from '../common/roles';
+import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
@@ -199,6 +200,24 @@ export class ClientsService {
       waterLogs,
       stepLogs,
       subscription,
+      // Storico dei piani, per aprire i menu di un piano anche finito da mesi: senza questo
+      // elenco la scheda conosceva solo l'abbonamento "principale" e lo storico dei menu era
+      // irraggiungibile (richiesta di Simone dell'8/8: «se il cliente ha più piani, premendo
+      // sulla riga devo aprire i suoi vecchi menu»). Campi ridotti al minimo che serve al
+      // pulsante: nome, stato e periodo. Il prezzo resta fuori, non serve qui.
+      subscriptions: (subscriptions as {
+        id: string;
+        status: string;
+        startDate: Date | null;
+        endDate: Date | null;
+        plan: { name: string } | null;
+      }[]).map((s) => ({
+        id: s.id,
+        status: s.status,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        planName: s.plan?.name ?? null,
+      })),
       hasActivePlan,
       payments,
       crm: crm ? { ...(crm as Record<string, unknown>), stageLabel } : null,
@@ -432,18 +451,39 @@ export class ClientsService {
    * Per ogni piatto: valutazione del giorno esatto se c'è, altrimenti l'ultima
    * valutazione data a quella ricetta (contrassegnata come "altro giorno").
    */
-  async getMenus(userId: string, actorId: string) {
+  /**
+   * I menu erogati, per la scheda cliente.
+   *
+   * La finestra è **parametrica** da 8/8. Prima era fissa agli ultimi 56 giorni, e la conseguenza
+   * l'ha trovata Simone: «se il cliente ha più piani, nella riga di acquisto premendo devo aprire i
+   * suoi vecchi menu, altrimenti dove vedo lo storico?». Aveva ragione — i menu di un piano finito
+   * tre mesi prima esistevano nel database e non erano raggiungibili da nessuna schermata.
+   *
+   * Il default resta quello di prima (ultimi 56 giorni + una settimana avanti), così chi apre la
+   * scheda vede quello che ha sempre visto; passando `from`/`to` si guarda il periodo di un piano
+   * preciso. Il tetto sui giorni e sul `take` c'è perché un intervallo aperto su una cliente di due
+   * anni sarebbe una query da migliaia di righe per rispondere a un click.
+   */
+  async getMenus(userId: string, actorId: string, periodo?: { from?: string; to?: string }) {
     await this.assertClientAccess(actorId, userId);
-    const from = new Date();
-    from.setDate(from.getDate() - 56);
-    const to = new Date();
-    to.setDate(to.getDate() + 7);
+    // Finestra dei menu: di default gli ultimi 56 giorni + 7 avanti; con `from`/`to` si aprono i
+    // menu di un piano preciso, anche finito da mesi. Regole e limiti in `finestra-menu.ts`.
+    let from: Date;
+    let to: Date;
+    try {
+      ({ from, to } = finestraMenu(periodo));
+    } catch (e) {
+      throw new BadRequestException(e instanceof PeriodoNonValido ? e.message : 'Periodo non valido.');
+    }
 
     const [days, ratings] = await Promise.all([
       this.prisma.menuDay.findMany({
         where: { clientId: userId, date: { gte: from, lte: to } },
         orderBy: { date: 'desc' },
-        take: 70,
+        // Venti giorni in più del tetto della finestra: così il taglio non nasconde mai giorni
+        // dentro il periodo chiesto (con `orderBy: date desc` sarebbero spariti i più vecchi,
+        // cioè proprio l'inizio del piano che si sta guardando).
+        take: MENU_MAX_GIORNI + 20,
         select: { id: true, date: true, level: true, status: true, meals: true, diet: { select: { id: true, name: true } } },
       }) as Promise<{ id: string; date: Date; level: number; status: string; meals: unknown; diet: { id: string; name: string } | null }[]>,
       this.prisma.recipeRating.findMany({

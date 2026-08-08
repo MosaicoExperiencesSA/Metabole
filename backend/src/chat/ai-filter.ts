@@ -9,7 +9,18 @@
 export type FilterResult =
   | { kind: 'sensitive'; reason: string; reply: string; target: 'coach' | 'nutritionist' }
   | { kind: 'faq'; faqKey: string; reply: string }
-  | { kind: 'route_coach'; reply: string }
+  | {
+      kind: 'route_coach';
+      reply: string;
+      /** Perché è finita alla coach: compilato solo dai rami espliciti (es. dati personali). */
+      reason?: string;
+      /**
+       * Vero = questa risposta NON va riformulata dall'AI generativa. Serve dove la frase esatta
+       * è la sostanza: dire «non ho accesso ai tuoi dati» è una garanzia, e un modello che la
+       * riscrive potrebbe rispondere *come se* quei dati li avesse.
+       */
+      senzaAi?: boolean;
+    }
   | { kind: 'route_nutritionist'; reason: string; reply: string };
 
 const normalize = (text: string): string =>
@@ -45,6 +56,46 @@ const NUTRITIONIST_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /glicemi|colesterol|tiroid|analisi|referto|esami del sangue/, reason: 'valori clinici' },
   { pattern: /integrator|vitamin|proteine in polvere/, reason: 'integrazione' },
 ];
+
+/**
+ * DATI PERSONALI E AMMINISTRATIVI: Gaia non li vede, e la risposta giusta è dirlo.
+ *
+ * Richiesta di Simone (8/8): «se la cliente chiede cose sui dati personali a cui Gaia non ha
+ * accesso lei può invitarla a contattare la coach». Prima queste domande cadevano nel ramo
+ * generico — «Bella domanda! L'ho girata alla tua coach» — che è vero ma suona come se Gaia
+ * avesse scelto di non rispondere. Su fatture, pagamenti, contratto, anagrafica e richieste
+ * privacy la differenza conta: la cliente ha diritto di sapere che l'assistente quei dati non
+ * li ha, e a chi rivolgersi.
+ *
+ * Il messaggio arriva comunque alla coach (`route_coach`), quindi nessuna domanda si perde: qui
+ * cambia solo la frase che la cliente legge, e il fatto che l'AI generativa non la riscriva.
+ */
+const DATI_PERSONALI_PATTERNS: { pattern: RegExp; reason: string }[] = [
+  {
+    pattern: /fattur|ricevut|scontrin|iban|bonific|carta di credito|addebit|rimbors|pagament|quanto ho pagat|quando pago|scadenz.{0,12}pagament/,
+    reason: 'pagamenti e documenti fiscali',
+  },
+  {
+    pattern: /contratt|abbonament|rinnov|disdett|disdire|recess|annullare (l.)?(abbonament|iscrizion)|sospendere (l.)?abbonament/,
+    reason: 'contratto e abbonamento',
+  },
+  {
+    pattern: /(cambiar|modificar|aggiornar|correggere).{0,25}(indirizzo|email|e-mail|numero di telefono|cellulare|codice fiscale|dati (personali|anagrafici))|i miei dati (personali|anagrafici)/,
+    reason: 'dati anagrafici',
+  },
+  {
+    pattern: /(cancellar|eliminar|cancellazione).{0,25}(account|profilo|i miei dati|dati)|revocare il consenso|revoca del consenso|diritto all.oblio|privacy/,
+    reason: 'privacy e cancellazione dati',
+  },
+];
+
+/**
+ * La frase. Dice tre cose in tre righe: non ho accesso (non «non voglio rispondere»), a chi
+ * scrivere, e che il messaggio è già partito — così la cliente non deve riscriverlo.
+ */
+export const ROUTE_DATI_PERSONALI_REPLY =
+  'Su questo non posso aiutarti io: ai tuoi dati personali e amministrativi — pagamenti, fatture, contratto, anagrafica — io non ho accesso, e non voglio dirti qualcosa di impreciso. ' +
+  'Ci pensa la tua coach: le ho già girato il messaggio, ti risponde nel vostro thread. 💚';
 
 /** Libreria FAQ (parole chiave → risposta pronta). */
 const FAQ_LIBRARY: { key: string; pattern: RegExp; reply: string }[] = [
@@ -121,6 +172,13 @@ export function classifyMessage(text: string): FilterResult {
   for (const { pattern, reason } of BEHAVIORAL_SENSITIVE_PATTERNS) {
     if (pattern.test(normalized)) {
       return { kind: 'sensitive', reason, reply: SENSITIVE_HANDOFF_COACH, target: 'coach' };
+    }
+  }
+  // Dati personali e amministrativi PRIMA delle FAQ: «posso sospendere l'abbonamento?» non è la
+  // FAQ delle pause dalla dieta, e rispondere con quella sarebbe fuori bersaglio.
+  for (const { pattern, reason } of DATI_PERSONALI_PATTERNS) {
+    if (pattern.test(normalized)) {
+      return { kind: 'route_coach', reply: ROUTE_DATI_PERSONALI_REPLY, reason, senzaAi: true };
     }
   }
   for (const { key, pattern, reply } of FAQ_LIBRARY) {

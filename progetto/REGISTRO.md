@@ -7,6 +7,56 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 📅 **I menu dei piani vecchi si possono aprire** — in scheda cliente la finestra
+  dei menu era fissa (ultimi 56 giorni + 7 avanti): di una cliente al secondo o terzo percorso
+  **lo storico non era raggiungibile da nessuna parte**. Ora in Acquisti c'è **un pulsante per
+  ogni piano** — non solo per quello corrente — e premendolo si aprono i menu erogati in quel
+  periodo, con le stelline che aveva dato ai piatti. Il piano principale sta per primo ed è
+  evidenziato; dentro il popup si legge di quale piano si stanno guardando i menu e c'è la strada
+  di ritorno («Periodo corrente»).
+  - `GET /admin/clients/:id/menus` accetta `from`/`to`. Senza periodo **la finestra è identica a
+    prima**: la vista di ogni giorno non cambia. Il tetto è **400 giorni**, perché il piano più
+    lungo in vendita è 12 mesi e i suoi menu vanno aperti tutti; date invertite, mezzo periodo o
+    un periodo smisurato vengono rifiutati con una frase leggibile, non trasformati in una query
+    enorme. Le regole stanno in `backend/src/clients/finestra-menu.ts`, isolate per poterle
+    verificare senza istanziare il servizio (+10 test).
+  - `getDetail` restituisce anche l'elenco dei piani (`subscriptions`: nome, stato, periodo). Il
+    prezzo resta fuori: non serve a questo pulsante.
+- `[Sviluppo]` 🗣️ **Quando la cliente dice «no», Gaia indaga invece di fermarsi** — da una
+  conversazione vera dell'8/8. Gaia proponeva «70 ml di burro al posto di 70 ml di panna fresca»,
+  la cliente rispondeva «no perché non voglio 70 gr di burro» e Gaia chiudeva con «va bene, non
+  cambio niente»: corretto e inutile, perché la panna nel piatto restava. **Un «no» alla proposta
+  non è un «no» al cambio**: quasi sempre vuol dire *non quel sostituto*.
+  - Se il «no» **nomina il sostituto** o porta un motivo («non mi piace», «non ce l'ho in casa»),
+    Gaia propone **subito l'alternativa successiva** con le stesse regole di sicurezza — allergeni
+    ed esclusioni non diventano accettabili perché è la seconda proposta — e non ripropone quello
+    già scartato. Il motivo del cambio resta quello di prima: non è cambiato il perché.
+  - Se il «no» è **secco**, chiede: 1) questo sostituto no, proponimene un altro · 2) preferisco
+    cambiare tutto il piatto · 3) ho cambiato idea. «No, lascia stare» resta un annullamento, ed è
+    l'unico caso in cui si chiude.
+  - **Finite le alternative** la richiesta passa alla nutrizionista con l'elenco di cosa è stato
+    rifiutato, non alla rinuncia. Due risposte incomprensibili di fila passano alla coach.
+  - Gli alimenti scartati restano **nella conversazione**, non nei cibi non graditi del profilo:
+    quel campo restringe i menu futuri, e un'alternativa rifiutata non è un gusto dichiarato su
+    quello che ha nel piatto.
+- `[Sviluppo]` ⚖️ **«70 ml di burro» non lo dice più** — l'unità del sostituto veniva copiata da
+  quella dell'ingrediente sostituito, e su una coppia liquido → solido è sbagliata (l'ha notato la
+  cliente prima di noi). Ora da `ml` verso un solido si passa a `g`; fra due liquidi resta `ml`;
+  `cl`, `dl` e `l` non si toccano, perché lì tenere lo stesso numero cambiando unità
+  moltiplicherebbe la porzione per dieci. L'unità corretta arriva **fino al menu scritto** e alla
+  tabella della nutrizionista, non solo alla frase in chat.
+- `[Sviluppo]` 🔒 **Sui dati personali Gaia dice che non li vede** — fatture, pagamenti, contratto,
+  anagrafica, richieste privacy e cancellazione account finivano nel ramo generico («Bella
+  domanda! L'ho girata alla tua coach»): vero, ma sembra una scelta di non rispondere. Ora la
+  risposta dice **«ai tuoi dati personali e amministrativi non ho accesso»**, indica la coach e
+  conferma che il messaggio è già partito — e arriva comunque nel thread della coach, quindi non si
+  perde niente. Questa frase **non passa dall'AI generativa** quando verrà accesa: un modello che
+  riformula «non ho i tuoi dati» rischia di rispondere come se li avesse. I temi sensibili restano
+  davanti a tutto (+10 test).
+- `[Sviluppo]` 📝 **`progetto/DA_FARE.md`** — lista unica delle richieste memorizzate e non ancora
+  implementate, ognuna col posto dove va e la decisione che manca: revoca del consenso con
+  cancellazione a 30 giorni, il «?» sulla dieta nel profilo, filtri e colonna coach nella tabella
+  clienti, log modifiche del lead, correzione di un cambio piatto da parte della nutrizionista.
 - `[Sviluppo]` 🍳 **«Voglio una colazione proteica» adesso funziona, dalla richiesta al report.**
   Il cuore era già consegnato; questo è il collegamento, e chiude il caso della conversazione dell'8/8.
   **Il punto esatto in cui Gaia perdeva la richiesta** era il «no» alla conferma. La cliente aveva

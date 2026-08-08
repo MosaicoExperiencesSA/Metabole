@@ -28,17 +28,24 @@ import {
   etichettaSlot,
   riconosciConferma,
   riconosciMotivo,
+  sceltaDopoIlNo,
+  sensoDelNo,
   terminiCandidati,
   testoAllergene,
+  testoAltroSostituto,
   testoAnnullato,
   testoChiediCibo,
   testoChiediMotivo,
+  testoChiediPercheNo,
   testoCiboNonTrovato,
   testoConferma,
   testoFatto,
   testoGiaFatto,
   testoMotivoNonCapito,
   testoNessunSostituto,
+  testoNienteAltroSostituto,
+  testoRifiutoNonCapito,
+  unitaPerSostituto,
 } from './sostituzione-chat';
 import { sostitutoSicuro } from './sostituzioni-sicure';
 import { classificaSpezia } from './spezie';
@@ -86,6 +93,8 @@ export interface SostituzioneInChat {
   fromQty?: number;
   toQty?: number;
   unit?: string;
+  /** Unità del sostituto, se diversa da quella di partenza (es. panna in ml → burro in g). */
+  unitA?: string;
   motivo?: string;
   reason: string;
   stato: string;
@@ -115,12 +124,12 @@ export function ingredientiEffettivi(
     out = out.map((i) => {
       if (sostituito || !i?.name || !combaciaAlimento(i.name, s.from)) return i;
       sostituito = true;
-      return { name: s.to, qty: s.toQty ?? i.qty, unit: s.unit ?? i.unit };
+      return { name: s.to, qty: s.toQty ?? i.qty, unit: s.unitA ?? s.unit ?? i.unit };
     });
     // Sostituzione che non trova la sua origine (piatto cambiato, catena di cambi): il
     // sostituto va comunque considerato presente, altrimenti resta invisibile.
     if (!sostituito && !out.some((i) => !!i?.name && combaciaAlimento(i.name, s.to))) {
-      out.push({ name: s.to, qty: s.toQty, unit: s.unit });
+      out.push({ name: s.to, qty: s.toQty, unit: s.unitA ?? s.unit });
     }
   }
   return out;
@@ -229,12 +238,18 @@ export class SostituzioneChatService {
     // Uscita sempre disponibile, in qualunque passo. Deve essere una risposta SECCA: «no, non
     // mi piace» al passo del motivo è un motivo, non un annullamento, e trattarlo come tale
     // butterebbe via la conversazione proprio quando sta arrivando al punto.
-    if (ANNULLA_SECCO.test(normalizza(testoCliente))) {
+    //
+    // ⚠️ NON vale alla conferma né dopo un rifiuto: là il «no» è la risposta a una domanda che
+    // abbiamo fatto noi, e chiuderla come annullamento è esattamente il difetto che Simone ha
+    // visto l'8/8 («quando la cliente dice no non si deve fermare, deve indagare sul perché»).
+    const secco = ANNULLA_SECCO.test(normalizza(testoCliente));
+    if (secco && stato.passo !== 'conferma' && stato.passo !== 'rifiuto') {
       return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
     }
     if (stato.passo === 'cibo') return this.passoCibo(clientId, stato, testoCliente);
     if (stato.passo === 'motivo') return this.passoMotivo(clientId, stato, testoCliente);
     if (stato.passo === 'scelta_piatto') return this.passoSceltaPiatto(clientId, stato, testoCliente);
+    if (stato.passo === 'rifiuto') return this.passoRifiuto(clientId, stato, testoCliente);
     return this.passoConferma(clientId, stato, testoCliente);
   }
 
@@ -315,7 +330,19 @@ export class SostituzioneChatService {
       if (rilevaIntentoAltroPiatto(testoCliente)) {
         return this.proponiAltroPiatto(clientId, testoCliente, stato.proposta?.slot);
       }
-      return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+      if (!stato.proposta) return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+      // SECONDA CORREZIONE DELL'8/8, la sera. «no perché non voglio 70 gr di burro» è un no a
+      // QUEL sostituto, non al cambio: la cliente la panna la vuole ancora fuori dal piatto.
+      // Chiudere con «va bene, non cambio niente» la lasciava col problema di partenza.
+      const senso = sensoDelNo(testoCliente, stato.proposta.a);
+      if (senso === 'ripensata') return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+      if (senso === 'sostituto') return this.altroSostituto(clientId, stato);
+      // «No» secco: non sappiamo quale delle due cose sia, e indovinare è peggio che chiedere.
+      return {
+        testo: testoChiediPercheNo(stato.proposta, await this.nomeDi(clientId)),
+        stato: { ...stato, passo: 'rifiuto', tentativi: 0 },
+        esito: 'in_corso',
+      };
     }
     if (risposta !== 'si') {
       const tentativi = (stato.tentativi ?? 0) + 1;
@@ -331,6 +358,83 @@ export class SostituzioneChatService {
     const motivo = MOTIVI.find((m) => m.key === stato.motivo);
     if (!motivo || !stato.proposta) return this.apri(clientId);
     return this.applica(clientId, stato.proposta, motivo);
+  }
+
+  /**
+   * Dopo un «no» secco: la cliente ha detto quale delle tre strade prendere. Nessuna di queste
+   * chiude la conversazione a mani vuote, tranne quella che chiede lei.
+   */
+  private async passoRifiuto(
+    clientId: string,
+    stato: StatoSostituzione,
+    testoCliente: string,
+  ): Promise<EsitoSostituzione> {
+    if (rilevaIntentoAltroPiatto(testoCliente)) {
+      return this.proponiAltroPiatto(clientId, testoCliente, stato.proposta?.slot);
+    }
+    const scelta = sceltaDopoIlNo(testoCliente);
+    if (scelta === 'annulla') return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+    if (scelta === 'altro_piatto') return this.proponiAltroPiatto(clientId, testoCliente, stato.proposta?.slot);
+    // Un motivo scritto a parole («non mi piace», «non ce l'ho in casa») vale come «questo
+    // sostituto no»: è la stessa cosa detta in un altro modo.
+    if (scelta === 'altro_sostituto' || riconosciMotivo(testoCliente)) return this.altroSostituto(clientId, stato);
+
+    const tentativi = (stato.tentativi ?? 0) + 1;
+    if (tentativi >= 2) {
+      return { testo: testoRifiutoNonCapito(true), inoltraA: 'coach', esito: 'arresa' };
+    }
+    return { testo: testoRifiutoNonCapito(false), stato: { ...stato, tentativi }, esito: 'in_corso' };
+  }
+
+  /**
+   * Secondo giro: il sostituto proposto è stato rifiutato, se ne cerca un altro con le stesse
+   * regole di sicurezza. Il motivo del cambio resta quello di prima — non è cambiato il perché,
+   * è cambiata solo l'alternativa — quindi si torna direttamente alla conferma.
+   */
+  private async altroSostituto(clientId: string, stato: StatoSostituzione): Promise<EsitoSostituzione> {
+    const proposta = stato.proposta;
+    if (!proposta) return this.apri(clientId);
+    const nome = await this.nomeDi(clientId);
+    const scartati = [...(stato.scartati ?? []), proposta.a];
+
+    const pasti = await this.pastiDiOggi(clientId);
+    const pasto = pasti.find((p) => p.pasto.slot === proposta.slot);
+    const ingrediente = pasto?.ingredienti.find((i) => i?.name && combaciaAlimento(i.name, proposta.da));
+    // Il menu è cambiato sotto i piedi (rigenerato, o un altro cambio applicato nel frattempo):
+    // meglio ricominciare da capo che scrivere su una giornata che non è più quella.
+    if (!pasto || !ingrediente) return this.apri(clientId);
+
+    const scelta = await this.scegliSostituto(proposta.da, proposta.da, pasto.dietId, clientId, scartati);
+    if (!scelta.ok) {
+      await this.passaAllaNutrizionista(
+        clientId,
+        `Cambio in chat: la cliente ha rifiutato ${scartati.map((s) => `«${s}»`).join(', ')} come sostituto di «${proposta.da}» ` +
+          `(${etichettaSlot(proposta.slot)}: ${proposta.piatto}) e non restano alternative sicure. Serve una scelta della nutrizionista.`,
+      );
+      return {
+        testo:
+          scelta.perche === 'allergene'
+            ? testoAllergene(proposta.da)
+            : testoNienteAltroSostituto(proposta.da, scartati, nome),
+        inoltraA: 'nutritionist',
+        esito: 'rifiutata',
+      };
+    }
+
+    const motivo = MOTIVI.find((m) => m.key === stato.motivo) ?? MOTIVI.find((m) => m.key === 'non_piace')!;
+    const nuova: PropostaSostituzione = { ...proposta, a: scelta.sostituto };
+    await this.audit.log({
+      action: 'menu.sostituzione.altro_sostituto',
+      actorId: clientId,
+      entityType: 'client_profile',
+      entityId: clientId,
+      metadata: { da: proposta.da, rifiutati: scartati, nuovo: scelta.sostituto, slot: proposta.slot },
+    });
+    return {
+      testo: testoAltroSostituto(nuova, motivo, proposta.a, nome),
+      stato: { ...stato, passo: 'conferma', proposta: nuova, scartati, tentativi: 0 },
+      esito: 'in_corso',
+    };
   }
 
   // ---------- Proposta ----------
@@ -364,58 +468,22 @@ export class SostituzioneChatService {
       return { testo: spezia.testo, esito: 'rifiutata' };
     }
 
-    const profilo = await this.prisma.clientProfile.findUnique({
-      where: { userId: clientId },
-      select: { allergies: true, intolerances: true, dislikedFoods: true },
-    });
-    const allergeni = exclusionKeys((profilo?.allergies ?? []) as string[]);
-    const altreEsclusioni = exclusionKeys([
-      ...((profilo?.intolerances ?? []) as string[]),
-      ...((profilo?.dislikedFoods ?? []) as string[]),
-    ]);
-
-    const candidati = await this.candidati(nomeIngrediente, trovato.termine, trovato.pasto.dietId);
-    if (!candidati.length) {
-      await this.passaAllaNutrizionista(
-        clientId,
-        `Cambio piatto in chat: nessun sostituto sicuro per «${nomeIngrediente}» (${etichettaSlot(trovato.pasto.pasto.slot)}: ${trovato.pasto.nome}).`,
-      );
-      return { testo: testoNessunSostituto(nomeIngrediente), inoltraA: 'nutritionist', esito: 'rifiutata' };
-    }
-
-    // Allergeni: se il sostituto contiene un allergene dichiarato, il cambio si rifiuta e
-    // basta. Su questo non si media, e non è una questione di grammi.
-    const ammessi: string[] = [];
-    let scartatoPerAllergene = false;
-    for (const c of candidati) {
-      const testo = normalizza(c);
-      if ([...allergeni].some((k) => k && testo.includes(k))) {
-        scartatoPerAllergene = true;
-        continue;
-      }
-      if ([...altreEsclusioni].some((k) => k && testo.includes(k))) continue;
-      // Un sostituto che è una VARIANTE dello stesso cibo non è un sostituto: «yogurt greco» →
-      // «yogurt senza lattosio» risolve un'intolleranza, non risolve niente a chi lo yogurt non
-      // piace o non ce l'ha in casa. Vedi `condividonoAlimento`.
-      if (condividonoAlimento(nomeIngrediente, c)) continue;
-      ammessi.push(c);
-    }
-    if (!ammessi.length) {
-      const motivoTesto = scartatoPerAllergene
-        ? `Cambio piatto in chat: gli unici sostituti per «${nomeIngrediente}» toccano un allergene dichiarato. Serve una decisione clinica.`
-        : `Cambio piatto in chat: nessun sostituto compatibile con le esclusioni della cliente per «${nomeIngrediente}».`;
+    const scelta = await this.scegliSostituto(nomeIngrediente, trovato.termine, trovato.pasto.dietId, clientId);
+    if (!scelta.ok) {
+      const motivoTesto =
+        scelta.perche === 'nessun_candidato'
+          ? `Cambio piatto in chat: nessun sostituto sicuro per «${nomeIngrediente}» (${etichettaSlot(trovato.pasto.pasto.slot)}: ${trovato.pasto.nome}).`
+          : scelta.perche === 'allergene'
+            ? `Cambio piatto in chat: gli unici sostituti per «${nomeIngrediente}» toccano un allergene dichiarato. Serve una decisione clinica.`
+            : `Cambio piatto in chat: nessun sostituto compatibile con le esclusioni della cliente per «${nomeIngrediente}».`;
       await this.passaAllaNutrizionista(clientId, motivoTesto);
       return {
-        testo: scartatoPerAllergene ? testoAllergene(nomeIngrediente) : testoNessunSostituto(nomeIngrediente),
+        testo: scelta.perche === 'allergene' ? testoAllergene(nomeIngrediente) : testoNessunSostituto(nomeIngrediente),
         inoltraA: 'nutritionist',
         esito: 'rifiutata',
       };
     }
-
-    // Deterministico: a parità di idoneità vince l'ordine alfabetico, così due clienti con lo
-    // stesso profilo ricevono la stessa proposta e il risultato è riproducibile nei test.
-    ammessi.sort((a, b) => a.localeCompare(b));
-    const sostituto = ammessi[0];
+    const sostituto = scelta.sostituto;
 
     const qtaDa = typeof trovato.ingrediente.qty === 'number' ? trovato.ingrediente.qty : undefined;
     // `correggiGrammatura` è già qui, e per ora è inerte: proponiamo pari grammatura, quindi
@@ -432,7 +500,10 @@ export class SostituzioneChatService {
       a: sostituto,
       qtaDa,
       qtaA,
+      // Non l'unità dell'ingrediente di partenza: «70 ml di burro» non esiste. Vedi
+      // `unitaPerSostituto`.
       unita: trovato.ingrediente.unit,
+      unitaA: unitaPerSostituto(trovato.ingrediente.unit, sostituto),
       grammaturaCorretta: corretta,
     };
     return {
@@ -440,6 +511,63 @@ export class SostituzioneChatService {
       stato: { passo: 'motivo', cibo: nomeIngrediente, proposta, tentativi: 0 },
       esito: 'in_corso',
     };
+  }
+
+  /**
+   * Il sostituto da proporre, con tutti i filtri di sicurezza. Estratta da `proponi` perché la usa
+   * anche il secondo giro, quando la cliente ha detto «no, non voglio il burro»: le regole devono
+   * essere le stesse — un allergene non diventa accettabile perché è la seconda proposta.
+   *
+   * `escludi` sono i sostituti già rifiutati in questa conversazione.
+   */
+  private async scegliSostituto(
+    nomeIngrediente: string,
+    termine: string,
+    dietId: string | null,
+    clientId: string,
+    escludi: string[] = [],
+  ): Promise<{ ok: true; sostituto: string } | { ok: false; perche: 'nessun_candidato' | 'allergene' | 'incompatibile' }> {
+    const profilo = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { allergies: true, intolerances: true, dislikedFoods: true },
+    });
+    const allergeni = exclusionKeys((profilo?.allergies ?? []) as string[]);
+    const altreEsclusioni = exclusionKeys([
+      ...((profilo?.intolerances ?? []) as string[]),
+      ...((profilo?.dislikedFoods ?? []) as string[]),
+    ]);
+
+    const candidati = await this.candidati(nomeIngrediente, termine, dietId);
+    if (!candidati.length) return { ok: false, perche: 'nessun_candidato' };
+
+    // Allergeni: se il sostituto contiene un allergene dichiarato, il cambio si rifiuta e
+    // basta. Su questo non si media, e non è una questione di grammi.
+    const ammessi: string[] = [];
+    let scartatoPerAllergene = false;
+    for (const c of candidati) {
+      const testo = normalizza(c);
+      if ([...allergeni].some((k) => k && testo.includes(k))) {
+        scartatoPerAllergene = true;
+        continue;
+      }
+      if ([...altreEsclusioni].some((k) => k && testo.includes(k))) continue;
+      // Un sostituto che è una VARIANTE dello stesso cibo non è un sostituto: «yogurt greco» →
+      // «yogurt senza lattosio» risolve un'intolleranza, non risolve niente a chi lo yogurt non
+      // piace o non ce l'ha in casa. Vedi `condividonoAlimento`.
+      if (condividonoAlimento(nomeIngrediente, c)) continue;
+      // Già rifiutato a voce dalla cliente: riproporlo è il modo più rapido di perderne la
+      // fiducia. Il confronto è per parola, come tutto il resto: «burro» esclude «burro salato».
+      if (escludi.some((x) => x && (combaciaAlimento(c, x) || combaciaAlimento(x, c)))) continue;
+      ammessi.push(c);
+    }
+    if (!ammessi.length) {
+      return { ok: false, perche: scartatoPerAllergene ? 'allergene' : 'incompatibile' };
+    }
+
+    // Deterministico: a parità di idoneità vince l'ordine alfabetico, così due clienti con lo
+    // stesso profilo ricevono la stessa proposta e il risultato è riproducibile nei test.
+    ammessi.sort((a, b) => a.localeCompare(b));
+    return { ok: true, sostituto: ammessi[0] };
   }
 
   /**
@@ -548,6 +676,8 @@ export class SostituzioneChatService {
           fromQty: qtaDa,
           toQty: qtaA,
           unit: ingrediente.unit,
+          // L'unità del sostituto può non essere quella di partenza: vedi `unitaPerSostituto`.
+          unitA: unitaPerSostituto(ingrediente.unit, proposta.a),
           origine: 'chat',
           motivo: motivo.key,
           // Ogni cambio nasce «da verificare» finché il nutrizionista non lo guarda: è quello
@@ -991,6 +1121,7 @@ export class SostituzioneChatService {
             fromQty: s.fromQty,
             toQty: s.toQty,
             unit: s.unit,
+            unitA: s.unitA,
             motivo: s.motivo,
             reason: s.reason,
             stato: s.stato ?? 'da_verificare',
