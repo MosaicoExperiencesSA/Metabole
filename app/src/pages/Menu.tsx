@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
-import { slotInfo, METHOD_LABEL, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
+import { slotInfo, testoSostituzione, METHOD_LABEL, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 
 /**
@@ -225,7 +225,7 @@ export default function Menu() {
                     {m.substitutions && m.substitutions.length > 0 && (
                       <div style={{ fontSize: 11, color: '#0E7C66', margin: '2px 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
                         <i className="ti ti-replace" style={{ fontSize: 13 }} />
-                        {m.substitutions.map((sub) => `${sub.from} → ${sub.to}`).join(' · ')}
+                        {m.substitutions.map(testoSostituzione).join(' · ')}
                       </div>
                     )}
                     <div className="row-between">

@@ -12,48 +12,9 @@ import { toDateOnly } from '../common/date-only';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
+import { MealSnapshot, Substitution } from './pasto-giornata';
+import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 import { EsitoSpezia, classificaSpezia } from './spezie';
-
-interface Substitution {
-  from: string;
-  to: string;
-  reason: string;
-}
-interface MealSnapshot {
-  slot: string;
-  recipeId: string;
-  name: string;
-  kcal: number;
-  substitutions?: Substitution[];
-}
-
-// Sostituzioni equivalenti sicure (v1; spostabile in config). Chiave = parola chiave
-// nell'ingrediente → sostituto. Se un ingrediente escluso NON è qui e deriva da
-// un'intolleranza, il piano si blocca (frutta secca/pesce/crostacei/uova: nessuna
-// sostituzione sicura come cardine → blocco).
-const SUBSTITUTION_MAP: Record<string, string> = {
-  // lattosio
-  latte: 'bevanda vegetale',
-  yogurt: 'yogurt senza lattosio',
-  formaggio: 'formaggio senza lattosio',
-  mozzarella: 'mozzarella senza lattosio',
-  ricotta: 'ricotta senza lattosio',
-  burro: 'olio evo',
-  panna: 'panna vegetale',
-  parmigiano: 'parmigiano ben stagionato',
-  // glutine
-  pane: 'pane senza glutine',
-  pasta: 'pasta senza glutine',
-  farro: 'riso',
-  orzo: 'riso',
-  couscous: 'quinoa',
-  cracker: 'gallette di riso',
-  pizza: 'pizza senza glutine',
-  // gusti non graditi comuni
-  funghi: 'cavolfiore',
-  cipolla: 'porro',
-  peperoni: 'zucchine',
-};
 
 /**
  * Erogazione del menu (spec sez. 8):

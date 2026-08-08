@@ -77,120 +77,27 @@ function whenLabel(iso: string): string {
 const SHEETS: Record<string, { t: string; b: string; cta: string }> = {
   fame: { t: 'Ho fame adesso', b: "Bevi un bicchiere d'acqua e prendi un frutto o dei semi: spesso la fame passa in 15 minuti. Se ti capita spesso di pomeriggio, lo segnalo alla tua coach e anticipiamo lo spuntino.", cta: 'Chiedi alla coach' },
   fuori: { t: 'Mangio fuori', b: 'Scegli una proteina con verdure, evita bevande zuccherate e concediti un piccolo piacere senza sensi di colpa. Domani ti preparo un rientro morbido, tranquilla.', cta: 'Ok, grazie' },
-  sost: { t: 'Sostituisci un ingrediente', b: 'Non hai un ingrediente o non ti piace? Alternativa equivalente: al posto del farro, quinoa o orzo. Vuoi che aggiorni la ricetta di oggi?', cta: 'Aggiorna ricetta' },
 };
-const HELP: [string, string, string, string][] = [
-  ['ti-mood-sad', 'Ho fame', 'fame', '#E8825A'],
-  ['ti-tools-kitchen-2', 'Mangio fuori', 'fuori', '#3A6EA5'],
-  ['ti-arrows-exchange', 'Sostituisci', 'sost', '#6C5AB7'],
+
+/**
+ * Aiuto rapido. «Sostituisci» non apre più un pop-up: porta nella chat con Gaia, dove il
+ * cambio si concorda parlando e poi entra davvero nel menu della giornata.
+ *
+ * Il pop-up che c'era chiedeva PER QUANTO valeva la sostituzione — oggi / questi giorni /
+ * per sempre — cioè la conseguenza. La domanda che conta è PERCHÉ, e non l'abbiamo mai
+ * fatta: «non ce l'ho in casa» è un problema di martedì e domani il piatto deve tornare,
+ * «mi resta sullo stomaco» non è un gusto ma un segnale clinico, e finivano nella stessa
+ * casella. Ora la domanda la fa Gaia, e quello che la cliente risponde lo leggono anche la
+ * coach e la nutrizionista. Vedi `progetto/PROGETTO_gaia-cambio-menu.md`.
+ *
+ * L'endpoint del vecchio pop-up (`POST /me/menu/substitute`) resta: lo usano il Profilo per
+ * i cibi esclusi e le app già installate, dove gli aggiornamenti OTA sono spenti.
+ */
+const HELP: { icon: string; label: string; key: string; color: string; vaA?: string }[] = [
+  { icon: 'ti-mood-sad', label: 'Ho fame', key: 'fame', color: '#E8825A' },
+  { icon: 'ti-tools-kitchen-2', label: 'Mangio fuori', key: 'fuori', color: '#3A6EA5' },
+  { icon: 'ti-arrows-exchange', label: 'Sostituisci', key: 'sost', color: '#6C5AB7', vaA: '/assistente?who=ai&intent=sostituzione' },
 ];
-
-/** Portata della sostituzione. La cliente la sceglie PRIMA di applicare: prima veniva
- *  chiesta dopo, con un popup "escludere per sempre?" e un rifiuto che valeva comunque
- *  tre giorni. Non c'era modo di dire "oggi non ce l'ho, domani sì" — ed è esattamente
- *  quello che le clienti hanno segnalato. La distinzione non è cosmetica: solo "per
- *  sempre" scrive nei cibi esclusi, che restringono il pool di TUTTI i menu futuri. */
-const SUB_SCOPES: { key: 'today' | 'days' | 'forever'; label: string; hint: string }[] = [
-  { key: 'today', label: 'Solo per oggi', hint: 'Oggi non ce l\'ho o non mi va. Da domani torna.' },
-  { key: 'days', label: 'Questi giorni', hint: 'Oggi e i due giorni successivi.' },
-  { key: 'forever', label: 'Non mi piace', hint: 'Non comparirà più nei tuoi menu. Modificabile dal Profilo.' },
-];
-
-/** Sheet interattivo "Sostituisci un ingrediente": chiede il cibo e per quanto vale
- *  l'esclusione, poi applica (POST /me/menu/substitute con `scope`). */
-function SubstituteIngredient({ onClose, onChanged }: { onClose: () => void; onChanged?: () => void }) {
-  const [ing, setIng] = useState('');
-  const [scope, setScope] = useState<'today' | 'days' | 'forever'>('today');
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  // Pop-up delle spezie: il server risponde `applicato: false` e un avviso con titolo e testo.
-  // Vedi `backend/src/menu/spezie.ts` — una spezia esclusa cancella dal ricettario tutti i piatti
-  // che la contengono, quindi non si registra e si spiega perché.
-  const [avviso, setAvviso] = useState<{ titolo: string; testo: string } | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function submit() {
-    const v = ing.trim();
-    if (v.length < 2) { setErr("Scrivi l'ingrediente che non gradisci."); return; }
-    setBusy(true); setErr(null);
-    try {
-      const r = await api<{
-        applied: { day: string; from: string; to: string }[];
-        message: string;
-        applicato?: boolean;
-        avvisoSpezia?: { tipo: string; titolo: string; testo: string };
-      }>('/me/menu/substitute', {
-        method: 'POST', body: JSON.stringify({ ingredient: v, scope }),
-      });
-      if (r.avvisoSpezia) {
-        setAvviso({ titolo: r.avvisoSpezia.titolo, testo: r.avvisoSpezia.testo });
-        return; // niente da ricaricare: il menu non è cambiato
-      }
-      setMsg(r.message);
-      onChanged?.(); // ricarica il menu: la card mostra subito il piatto sostituito
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Non è stato possibile aggiornare il menu.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-        <span className="event-ic" style={{ background: avviso ? '#C98A2E' : 'var(--teal)', color: '#fff', flex: 'none' }}>
-          <i className={`ti ti-${avviso ? 'alert-circle' : 'sparkles'}`} />
-        </span>
-        <b style={{ fontSize: 15 }}>{avviso ? avviso.titolo : 'Sostituisci un ingrediente'}</b>
-      </div>
-      {avviso ? (
-        <>
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{avviso.testo}</div>
-          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={onClose}>Ho capito</button>
-        </>
-      ) : msg ? (
-        <>
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{msg}</div>
-          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={onClose}>Ok, grazie</button>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 10 }}>
-            Qual è l'ingrediente che non hai o non ti piace? Lo sostituisco con un'alternativa equivalente.
-          </div>
-          <input className="input" placeholder="Es. farro, funghi, pesce…" value={ing} autoFocus
-            onChange={(e) => setIng(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#5F6E6B', margin: '14px 0 7px' }}>Per quanto?</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {SUB_SCOPES.map((s) => {
-              const on = scope === s.key;
-              return (
-                <button key={s.key} type="button" onClick={() => setScope(s.key)}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 9, textAlign: 'left', width: '100%',
-                    padding: '10px 11px', borderRadius: 11, cursor: 'pointer',
-                    border: `1.5px solid ${on ? 'var(--teal)' : '#DCE5E2'}`,
-                    background: on ? '#F0F8F6' : '#fff',
-                  }}>
-                  <i className={`ti ti-${on ? 'circle-check-filled' : 'circle'}`}
-                    style={{ color: on ? 'var(--teal)' : '#B8C6C2', fontSize: 17, flex: 'none', marginTop: 1 }} />
-                  <span>
-                    <b style={{ fontSize: 13.5, color: '#2E3E3B' }}>{s.label}</b>
-                    <span style={{ display: 'block', fontSize: 11.5, lineHeight: 1.45, color: '#5F6E6B', marginTop: 2 }}>{s.hint}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 8 }}>{err}</div>}
-          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11, marginTop: 12 }} disabled={busy} onClick={submit}>
-            {busy ? 'Aggiorno…' : 'Aggiorna i menu'}
-          </button>
-        </>
-      )}
-    </>
-  );
-}
 
 function KpiTile({ icon, value, label, color, onClick, hint }: { icon: string; value: string; label: string; color: string; onClick?: () => void; hint?: string }) {
   // Come nel prototipo: sfondo a gradiente colorato + icona a tinta piena con
@@ -504,12 +411,12 @@ export default function Home() {
           e per giunta appiccicata alla card sopra. */}
       <div className="sec" style={{ margin: '14px 2px 8px' }}>Se ti serve una mano</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-        {HELP.map(([icon, lbl, key, color]) => (
-          <div key={key} className="card" style={{ flex: 1, margin: 0, textAlign: 'center', padding: '12px 4px', cursor: 'pointer' }} onClick={() => setHelp(key)}>
+        {HELP.map(({ icon, label, key, color, vaA }) => (
+          <div key={key} className="card" style={{ flex: 1, margin: 0, textAlign: 'center', padding: '12px 4px', cursor: 'pointer' }} onClick={() => (vaA ? navigate(vaA) : setHelp(key))}>
             <div style={{ width: 40, height: 40, borderRadius: 13, background: color + '1f', color, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 7px' }}>
               <i className={`ti ${icon}`} style={{ fontSize: 21 }} />
             </div>
-            <div style={{ fontSize: 11, fontWeight: 600 }}>{lbl}</div>
+            <div style={{ fontSize: 11, fontWeight: 600 }}>{label}</div>
           </div>
         ))}
       </div>
@@ -546,18 +453,12 @@ export default function Home() {
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
       {help && SHEETS[help] && (
         <Sheet onClose={() => setHelp(null)}>
-          {help === 'sost' ? (
-            <SubstituteIngredient onClose={() => setHelp(null)} onChanged={loadMenu} />
-          ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-                <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
-                <b style={{ fontSize: 15 }}>{SHEETS[help].t}</b>
-              </div>
-              <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{SHEETS[help].b}</div>
-              <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={() => { if (help === 'fame') navigate('/contatti'); setHelp(null); }}>{SHEETS[help].cta}</button>
-            </>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+            <span className="event-ic" style={{ background: 'var(--teal)', color: '#fff', flex: 'none' }}><i className="ti ti-sparkles" /></span>
+            <b style={{ fontSize: 15 }}>{SHEETS[help].t}</b>
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2E3E3B', marginBottom: 14 }}>{SHEETS[help].b}</div>
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11 }} onClick={() => { if (help === 'fame') navigate('/contatti'); setHelp(null); }}>{SHEETS[help].cta}</button>
         </Sheet>
       )}
     </div>

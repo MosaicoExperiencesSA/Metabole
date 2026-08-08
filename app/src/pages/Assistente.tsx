@@ -9,6 +9,11 @@ import AppHeader from '../components/AppHeader';
  * `?who=ai|coach|nutritionist` sceglie l'interlocutore (default: Gaia).
  * I messaggi si aggiornano da soli ogni 12 secondi: le risposte dello staff
  * arrivano senza ricaricare la pagina.
+ *
+ * `?intent=sostituzione` arriva dal pulsante «Sostituisci» della home: fa scrivere a Gaia
+ * il primo messaggio del dialogo (elenca i piatti di oggi e chiede quale alimento cambiare),
+ * così la cliente trova la conversazione già cominciata invece di un campo di testo vuoto e
+ * il dubbio su come si chiede. Vedi `progetto/PROGETTO_gaia-cambio-menu.md`.
  */
 
 interface Thread { id: string; counterpart: string; counterpartName: string }
@@ -19,22 +24,40 @@ const POLL_MS = 12_000;
 export default function Assistente() {
   const [params] = useSearchParams();
   const who = ['ai', 'coach', 'nutritionist'].includes(params.get('who') ?? '') ? (params.get('who') as string) : 'ai';
+  const intent = params.get('intent');
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
+  // L'apertura del dialogo scrive un messaggio: va fatta UNA volta sola. Senza questa guardia
+  // un secondo render (o il ritorno alla pagina) farebbe ripetere a Gaia la stessa domanda.
+  const intentoAvviato = useRef(false);
 
   useEffect(() => {
     setLoading(true);
     setThread(null);
     setMessages([]);
+    if (intent === 'sostituzione' && who === 'ai' && !intentoAvviato.current) {
+      intentoAvviato.current = true;
+      api<{ threadId: string }>('/me/threads/sostituzione', { method: 'POST' })
+        .then((r) => setThread({ id: r.threadId, counterpart: 'ai', counterpartName: 'Gaia' }))
+        .catch(() => {
+          // L'apertura può fallire (menu di oggi assente, rete): la chat resta usabile a mano.
+          intentoAvviato.current = false;
+          return api<Thread[]>('/me/threads')
+            .then((ts) => setThread(ts.find((x) => x.counterpart === 'ai') ?? ts[0] ?? null))
+            .catch(() => {});
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
     api<Thread[]>('/me/threads')
       .then((ts) => setThread(ts.find((x) => x.counterpart === who) ?? (who === 'ai' ? ts[0] ?? null : null)))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [who]);
+  }, [who, intent]);
 
   // Primo caricamento + aggiornamento automatico (le risposte dello staff arrivano da sole).
   useEffect(() => {

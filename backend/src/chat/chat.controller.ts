@@ -1,6 +1,7 @@
-import { BadRequestException, Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ChatService } from './chat.service';
@@ -30,6 +31,21 @@ export class MyThreadsController {
   @Get()
   myThreads(@CurrentUser() user: AuthUser) {
     return this.chat.myThreads(user.sub);
+  }
+
+  /**
+   * Apre il dialogo di sostituzione: è quello che chiama il pulsante «Sostituisci un
+   * ingrediente» dell'app quando porta la cliente nella chat con Gaia. Gaia scrive il primo
+   * messaggio (elenca i piatti di oggi e chiede quale alimento cambiare), così la cliente
+   * trova la conversazione già cominciata invece di un campo di testo vuoto.
+   *
+   * POST e non GET perché scrive un messaggio. Idempotente nella pratica: riaprirlo due volte
+   * ripete solo la domanda.
+   */
+  @Post('sostituzione')
+  @HttpCode(200)
+  avviaSostituzione(@CurrentUser() user: AuthUser) {
+    return this.chat.avviaSostituzione(user.sub);
   }
 
   /** Conversazioni passate (riassunti giornalieri) con un interlocutore. */
@@ -62,6 +78,38 @@ export class StaffThreadsController {
   ) {
     assertCounterpart(who);
     return this.summaries.listForStaff(user, clientId, who);
+  }
+}
+
+/**
+ * Le conversazioni di UNA cliente, per la scheda cliente in backoffice — thread con Gaia
+ * compreso. Serve un controller a parte perché `/staff/threads` risponde con l'elenco di
+ * tutte le proprie clienti e non accetta un cliente: la scheda non aveva modo di chiedere
+ * «le chat di questa persona».
+ */
+@Controller('staff/clients/:clientId')
+@Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist')
+export class StaffClientChatController {
+  constructor(private readonly chat: ChatService) {}
+
+  /** Thread leggibili da chi chiede (quelli che non può leggere non compaiono). */
+  @Get('threads')
+  @RequirePage('chat')
+  threads(@CurrentUser() user: AuthUser, @Param('clientId') clientId: string) {
+    return this.chat.threadsDiUnCliente(user, clientId);
+  }
+
+  /**
+   * I cambi di menu concordati in chat, con lo stato di verifica. È l'elenco che rende la
+   * verifica del nutrizionista una cosa che si può fare davvero: senza, verificare vorrebbe
+   * dire rileggere tutte le conversazioni.
+   */
+  @Get('sostituzioni-chat')
+  @RequirePage('chat')
+  sostituzioniChat(@CurrentUser() user: AuthUser, @Param('clientId') clientId: string) {
+    // `user` non è decorativo: il controllo di appartenenza sta nel service. Vedi
+    // `ChatService.sostituzioniDiChatPerStaff`.
+    return this.chat.sostituzioniDiChatPerStaff(user, clientId);
   }
 }
 

@@ -1203,6 +1203,10 @@ export function ClientDetail() {
         )}
       </div>
 
+      {/* Conversazioni (Gaia compresa) e cambi di menu concordati in chat, da verificare.
+          Vedi progetto/PROGETTO_gaia-cambio-menu.md, punto 2. */}
+      <ConversazioniCard clientId={id ?? ''} />
+
       {/* Popup: Menu del cliente (revisione nutrizionista, con stelline) */}
       {menusOpen && (
         <div className="overlay" onClick={() => setMenusOpen(false)}>
@@ -1598,5 +1602,245 @@ function AttivaPianoModal({
         </button>
       </div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Conversazioni e cambi di menu concordati in chat
+// (progetto/PROGETTO_gaia-cambio-menu.md, punto 2)
+// ---------------------------------------------------------------------------
+
+interface ThreadRow {
+  id: string;
+  counterpart: string;
+  counterpartName: string;
+  lastMessageAt: string | null;
+  messageCount: number;
+}
+interface MsgRow {
+  id: string;
+  senderRole: string;
+  body: string;
+  sentAt: string;
+  meta?: { sost?: { passo?: string }; esitoSostituzione?: string } | null;
+}
+interface SostituzioneRow {
+  data: string;
+  slotLabel: string;
+  piatto: string;
+  from: string;
+  to: string;
+  fromQty?: number;
+  toQty?: number;
+  unit?: string;
+  motivo?: string;
+  reason: string;
+  stato: string;
+  concordataIl?: string;
+  grammaturaCorretta?: boolean;
+}
+
+const MOTIVO_LABEL: Record<string, string> = {
+  non_disponibile: "non ce l'ho in casa",
+  non_piace: 'non mi piace',
+  digestione: 'mi resta sullo stomaco',
+  no_tempo: 'non ho tempo di cucinarlo',
+};
+
+const dataBreve = (iso: string) =>
+  new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+const oraBreve = (iso: string) =>
+  new Date(iso).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+const quantita = (qta: number | undefined, unita: string | undefined) =>
+  qta !== undefined && qta > 0 ? `${qta}${unita ? ` ${unita}` : ''} ` : '';
+
+/**
+ * La conversazione con Gaia sulla scheda cliente, accanto a quelle con coach e nutrizionista.
+ *
+ * Prima non c'era: `/staff/threads` è filtrato per ruolo sul `counterpart` e il thread `ai`
+ * non compariva a nessuno. Il risultato è che quello che la cliente diceva a Gaia — cosa non
+ * le piace, cosa non digerisce, cosa non ha tempo di cucinare — non lo sapeva nessuno: non la
+ * coach, non la nutrizionista, non il motore che le comporrà il menu del mese prossimo.
+ *
+ * Si LEGGE e non si scrive: in quel thread la voce è quella di Gaia, e una risposta dello
+ * staff travestita da assistente ingannerebbe la cliente. Per parlarle c'è il thread proprio.
+ */
+function ConversazioniCard({ clientId }: { clientId: string }) {
+  const { can } = useAuth();
+  const [threads, setThreads] = useState<ThreadRow[] | null>(null);
+  const [sel, setSel] = useState<string | null>(null);
+  const [messaggi, setMessaggi] = useState<MsgRow[]>([]);
+  const [caricaMsg, setCaricaMsg] = useState(false);
+  const [sostituzioni, setSostituzioni] = useState<SostituzioneRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+
+  const puoLeggere = can('chat');
+
+  useEffect(() => {
+    // Il gate sta DENTRO l'effetto: un `return null` prima degli hook non è lecito, e senza
+    // questa riga un ruolo senza il permesso `chat` sparava comunque due chiamate destinate a 403.
+    if (!clientId || !puoLeggere) return;
+    let vivo = true;
+    api<ThreadRow[]>(`/staff/clients/${clientId}/threads`)
+      .then((ts) => {
+        if (!vivo) return;
+        setThreads(ts);
+        // Si apre su Gaia: è la conversazione che prima non si vedeva, ed è quella dove
+        // nascono i cambi da verificare.
+        setSel(ts.find((t) => t.counterpart === 'ai')?.id ?? ts[0]?.id ?? null);
+      })
+      .catch(() => { if (vivo) setThreads([]); });
+    api<SostituzioneRow[]>(`/staff/clients/${clientId}/sostituzioni-chat`)
+      .then((rs) => { if (vivo) setSostituzioni(rs); })
+      .catch(() => { /* l'elenco è un extra: la card resta utile senza */ });
+    return () => { vivo = false; };
+  }, [clientId, puoLeggere]);
+
+  useEffect(() => {
+    if (!sel) { setMessaggi([]); return; }
+    let vivo = true;
+    setCaricaMsg(true);
+    setErr(null);
+    api<MsgRow[]>(`/threads/${sel}/messages`)
+      .then((ms) => { if (vivo) setMessaggi(ms); })
+      .catch((e) => { if (vivo) setErr(e instanceof ApiError ? e.message : 'Conversazione non leggibile.'); })
+      .finally(() => { if (vivo) setCaricaMsg(false); });
+    return () => { vivo = false; };
+  }, [sel]);
+
+  if (!puoLeggere) return null;
+  if (threads === null) return <div className="card"><Spinner /></div>;
+
+  const daVerificare = sostituzioni.filter((s) => s.stato === 'da_verificare');
+
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>
+        <i className="ti ti-messages" style={{ verticalAlign: '-2px', color: '#12A386' }} /> Conversazioni
+      </h2>
+      <p className="hint" style={{ marginTop: 0 }}>
+        Anche la chat con Gaia: è lì che la cliente dice cosa non le piace, cosa non digerisce e
+        cosa non ha tempo di cucinare. Si legge, non si risponde: per scriverle usa il suo thread.
+      </p>
+
+      {/* --- I cambi concordati in chat: l'elenco che rende la verifica una cosa fattibile --- */}
+      {sostituzioni.length > 0 && (
+        <div className="card" style={{ background: '#F7FBF9', boxShadow: 'none', marginBottom: 12 }}>
+          <div className="spread" style={{ alignItems: 'center', marginBottom: 8 }}>
+            <b style={{ fontSize: 13.5 }}>
+              <i className="ti ti-replace" style={{ verticalAlign: '-2px', color: '#0E7C66' }} /> Cambi concordati in chat
+            </b>
+            {daVerificare.length > 0 && (
+              <span
+                style={{
+                  fontSize: 11.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999,
+                  background: '#FFF1E2', color: '#9A5B12',
+                }}
+              >
+                {daVerificare.length} da verificare
+              </span>
+            )}
+          </div>
+          <table className="grid">
+            <thead>
+              <tr>
+                <th>Giorno</th>
+                <th>Pasto</th>
+                <th>Cambio</th>
+                <th>Motivo</th>
+                <th>Stato</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sostituzioni.map((s, i) => (
+                <tr key={`${s.data}-${s.from}-${i}`}>
+                  <td>{dataBreve(s.data)}</td>
+                  <td>
+                    {s.slotLabel}
+                    <div className="muted" style={{ fontSize: 11.5 }}>{s.piatto}</div>
+                  </td>
+                  <td>
+                    {quantita(s.fromQty, s.unit)}{s.from} → <b>{quantita(s.toQty, s.unit)}{s.to}</b>
+                    {s.grammaturaCorretta && (
+                      <div style={{ fontSize: 11.5, color: '#9A5B12' }}>
+                        grammatura riportata a pari: da ricontrollare
+                      </div>
+                    )}
+                  </td>
+                  <td>{s.motivo ? MOTIVO_LABEL[s.motivo] ?? s.motivo : s.reason}</td>
+                  <td>
+                    {s.stato === 'da_verificare' ? (
+                      <span style={{ color: '#9A5B12', fontWeight: 600 }}>da verificare</span>
+                    ) : (
+                      <span className="muted">{s.stato}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hint" style={{ marginBottom: 0 }}>
+            I grammi li propone Gaia a pari grammatura e la ricetta di catalogo non viene mai
+            toccata: il cambio vale solo per questa cliente. La correzione del nutrizionista
+            (che poi istruisce Gaia) è il passo successivo del progetto.
+          </p>
+        </div>
+      )}
+
+      {threads.length === 0 ? (
+        <p className="muted" style={{ marginBottom: 0 }}>Nessuna conversazione visibile per il tuo ruolo.</p>
+      ) : (
+        <>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            {threads.map((t) => (
+              <button
+                key={t.id}
+                className={t.id === sel ? 'btn sm' : 'btn ghost sm'}
+                onClick={() => setSel(t.id)}
+              >
+                {t.counterpart === 'ai' && <i className="ti ti-sparkles" style={{ marginRight: 4 }} />}
+                {t.counterpartName}
+                <span className="muted" style={{ marginLeft: 6, fontSize: 11.5 }}>{t.messageCount}</span>
+              </button>
+            ))}
+          </div>
+
+          {err && <Banner kind="err">{err}</Banner>}
+          {caricaMsg ? (
+            <Spinner />
+          ) : messaggi.length === 0 ? (
+            <p className="muted" style={{ marginBottom: 0 }}>Nessun messaggio in questa conversazione.</p>
+          ) : (
+            <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {messaggi.map((m) => {
+                const dellaCliente = m.senderRole === 'client';
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      alignSelf: dellaCliente ? 'flex-start' : 'flex-end',
+                      maxWidth: '78%',
+                      padding: '8px 11px',
+                      borderRadius: 12,
+                      background: dellaCliente ? '#F2EFE8' : '#DCEBE3',
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {m.body}
+                    <div className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
+                      {m.senderRole === 'ai' ? 'Gaia' : dellaCliente ? 'cliente' : m.senderRole} · {oraBreve(m.sentAt)}
+                      {m.meta?.esitoSostituzione === 'applicata' && ' · cambio applicato al menu'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }

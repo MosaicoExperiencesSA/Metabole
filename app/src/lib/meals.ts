@@ -20,7 +20,32 @@ export const METHOD_LABEL: Record<string, string> = {
   meal_prep: 'Meal prep',
 };
 
-export interface ApiMeal { slot: string; recipeId: string; name: string; kcal: number; substitutions?: { from: string; to: string; reason: string }[] }
+/**
+ * Una sostituzione annotata su un pasto. I primi tre campi ci sono da sempre; i grammi e
+ * l'origine li valorizza solo il cambio concordato in chat con Gaia, quindi sono opzionali:
+ * le giornate scritte prima si leggono ancora (vedi `backend/src/menu/pasto-giornata.ts`).
+ */
+export interface ApiSubstitution {
+  from: string;
+  to: string;
+  reason: string;
+  fromQty?: number;
+  toQty?: number;
+  unit?: string;
+  origine?: 'chat';
+}
+
+/**
+ * Come si legge una sostituzione nel menu. Coi grammi quando ci sono: «100 g carote → 100 g
+ * biete» dice alla cliente cosa mettere davvero nel piatto, che mentre cucina è l'unica cosa
+ * che le serve sapere. Senza grammi resta la forma di sempre.
+ */
+export function testoSostituzione(sub: ApiSubstitution): string {
+  const q = (qta?: number) => (qta !== undefined && qta > 0 ? `${qta}${sub.unit ? ` ${sub.unit}` : ''} ` : '');
+  return `${q(sub.fromQty)}${sub.from} → ${q(sub.toQty)}${sub.to}`;
+}
+
+export interface ApiMeal { slot: string; recipeId: string; name: string; kcal: number; substitutions?: ApiSubstitution[] }
 export interface ApiMenuDay { id: string; date: string; meals: ApiMeal[] }
 export interface ApiRecipe {
   id: string;

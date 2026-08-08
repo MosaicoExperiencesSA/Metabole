@@ -3,6 +3,20 @@
 Deciso il 9 agosto 2026 (Simone). Da costruire: qui c'è il disegno, le scelte già prese e
 l'ordine dei pezzi, così si parte senza ridiscutere.
 
+> **Stato: punti 1 e 2 FATTI** (8/8). Il pulsante «Sostituisci» dell'app porta nella chat, la
+> sostituzione concordata entra nel menu della giornata coi grammi, e la conversazione con Gaia
+> si legge dalla scheda cliente insieme all'elenco dei cambi «da verificare». Dettagli e scelte
+> di implementazione nel REGISTRO del 9/8. **Restano i punti 3, 4 e 5.**
+>
+> Due cose decise strada facendo, che vale la pena sapere prima di attaccare il punto 3:
+> - **il dialogo è deterministico**, non affidato all'AI. In produzione `ai_assistant_enabled`
+>   è `false`: un ponte che funzionasse solo con l'AI accesa non funzionerebbe affatto. E
+>   questo codice scrive grammi nel piatto di una persona. Quando l'AI si accenderà
+>   riformulerà i testi, senza toccare la decisione;
+> - **le due protezioni del punto 3 sono già in piedi** (allergeni e plausibilità dei grammi).
+>   La plausibilità oggi è inerte perché proponiamo pari grammatura: diventa viva nel momento
+>   in cui i grammi li dirà Gaia.
+
 ---
 
 ## Da dove nasce
@@ -29,7 +43,7 @@ prossimo.
 
 Quattro cose da costruire, in quest'ordine.
 
-### 1. Il cambio entra nel menu
+### 1. Il cambio entra nel menu ✅ FATTO (8/8)
 
 Quando la conversazione arriva a una sostituzione concordata, va scritta sulla giornata:
 l'ingrediente sostituito e la nuova quantità, **solo per quella cliente e solo per quel
@@ -38,7 +52,7 @@ JSON, la sostituzione ci sta dentro come nota della porzione.
 
 La ricetta di catalogo **non si tocca mai**: è di tutte, non di una.
 
-### 2. La cronologia sta in scheda
+### 2. La cronologia sta in scheda ✅ FATTO (8/8)
 
 Il posto c'è già: `ChatThread` con `counterpart = 'ai'` e `Message` con `senderRole = 'ai'`.
 La conversazione con Gaia è già una chat vera, va solo **mostrata sulla scheda cliente** in
@@ -89,9 +103,9 @@ il piano non le somiglia, e quello glielo deve dire una persona, non un report.
 
 ## Ordine di costruzione
 
-1. **Il ponte**: la sostituzione concordata in chat scrive sulla giornata. Senza questo, il
+1. ✅ **Il ponte**: la sostituzione concordata in chat scrive sulla giornata. Senza questo, il
    resto non serve a niente.
-2. **La scheda**: cronologia Gaia visibile a coach e nutrizionista + elenco dei cambi «da
+2. ✅ **La scheda**: cronologia Gaia visibile a coach e nutrizionista + elenco dei cambi «da
    verificare».
 3. **La correzione che insegna**: il nutrizionista corregge, la coppia si salva, il codice
    risponde al posto dell'AI.
