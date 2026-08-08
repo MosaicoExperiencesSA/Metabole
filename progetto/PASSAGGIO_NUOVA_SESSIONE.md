@@ -65,21 +65,85 @@ lanciare qualunque cosa. Stato: `app/package.json` = 2.1.2, bundle 2.1.2 pubblic
 
 ---
 
-## Lavori in coda, in ordine
+## Lavori in coda — elenco completo
 
-### Codice
-1. **Gaia ↔ menu**, punti 1 e 2 di `PROGETTO_gaia-cambio-menu.md` (vedi sopra). Poi i punti 3-5:
-   la correzione del nutrizionista che diventa conoscenza riutilizzabile, `MenuWeight` per i
-   gusti, il conteggio nel report di fine mese come **dato di personalizzazione**.
-2. **Reset password dalla scheda coach** (vedi sopra).
-3. Dalla lista delle coach: **scadenze e compleanni nel calendario**, **data di nascita nel
-   questionario**, **«nuova cliente assegnata da accettare»** per la riassegnazione.
-4. Dalla revisione del 7/8, restano: **#4** (il pulsante del report vende solo il mese singolo,
-   mai l'abbonamento: `cart.setPlan` senza `billing`) e **#9** (verificare in Acquisti se ci sono
-   ordini «Menu di rientro» in sospeso).
+Stato verificato sul codice il 9 agosto, non ricopiato dalle liste vecchie: quello che risultava
+da fare ed è già chiuso qui **non compare**.
 
-### Cose che aspettano Simone
-- **Archiviare `lovcarbciccio · omnivore · dimagrimento · 5 pasti`**: è una variante di prova che
-  `pubblica:tutto` ha reso visibile alle clienti.
-- Far **completare al nutrizionista le settimane** delle diete che hanno clienti (guida in
-  `progetto/guide/Metabole-Guida-settimane-menu.pdf`, si parte sempre dalla variante a 5 pasti).
+### A. Codice — da fare
+
+1. **Gaia ↔ menu**, punti 1 e 2 di `PROGETTO_gaia-cambio-menu.md` (vedi sopra). A seguire i
+   punti 3-5 dello stesso documento: la correzione del nutrizionista che diventa **conoscenza
+   riutilizzabile** (unica migrazione prevista), `MenuWeight` per i gusti + segnalazione per i
+   motivi clinici, e il conteggio nel report di fine mese come **dato di personalizzazione**.
+
+2. **Reset password dalla scheda coach** (vedi sopra). La coach non deve poter cambiare la
+   password: solo far partire il link.
+
+3. **Dalla lista delle coach — restano quattro punti su dodici.**
+   - **Scadenze nel calendario della coach.** `coachAgenda()` in `coach/coach.service.ts`
+     restituisce **solo gli appuntamenti**. Mancano la fine della prova gratuita e la fine del
+     piano. (L'agenda della *cliente*, `clientAgenda()`, la scadenza piano ce l'ha già: da lì si
+     copia la logica.)
+   - **Compleanno nel calendario della coach.** La mail di auguri esiste
+     (`marketing/lifecycle.service.ts`), l'appuntamento in agenda no.
+   - **Data di nascita nel questionario.** `onboarding/onboarding.questions.ts` chiede solo
+     `age`. Il campo `User.birthDate` esiste e si ricava dal codice fiscale
+     (`common/codice-fiscale.util.ts`), ma solo per chi lo inserisce: senza la domanda, il
+     compleanno lo abbiamo a metà.
+   - **«Nuova cliente assegnata da accettare».** Esiste `lead_assigned` per i lead e
+     `client_assigned_nutritionist` per la nutrizionista; **non** esiste per una cliente già
+     acquisita riassegnata da una coach a un'altra. Da chiarire con Simone se serve davvero.
+
+4. **Trovato il 9/8, non ancora in nessuna lista: `PlanFlow.tsx` vende sempre una tantum.**
+   È lo stesso difetto del punto #4 della revisione — che sul report è stato corretto — ma
+   sull'**altra** strada d'acquisto, e quella è la principale: il primo acquisto in onboarding.
+   `PlanFlow.tsx` dichiara `interface Plan` **senza `billing`** e chiama `cart.setPlan(...)`
+   senza passarlo, quindi nel Checkout la scelta fra abbonamento e pagamento unico non compare
+   mai. Correzione: aggiungere `billing` all'interfaccia e inoltrarlo, come già fa `Negozio.tsx`.
+   Da verificare prima quali piani `3m/6m/12m` hanno davvero `billing` diverso da `one_time`:
+   se sono tutti una tantum il difetto è latente, non attivo.
+
+### B. Verifiche (non è codice, è guardare)
+
+- **#9 della revisione 7/8**: controllare in **Acquisti** se ci sono ordini «Menu di rientro»
+  rimasti in sospeso.
+- **Le percentuali del piano «Percorso Metabole 3 mesi»**: devono essere **soglie cumulative**
+  — 25 / 35 / 45 per coach / coordinatrice / manager e 10 / 15 per nutrizionista / capo
+  nutrizionista. Scritte 25 / 10 / 10 il secondo livello calcola `10 − 25 = −15` e incassa solo
+  la coach. Se non sono ancora state corrette, correggerle **e poi** rilanciare
+  `CONFERMA=1 npm run ricalcola:provvigioni -- 2026-07-01` (aggiunge solo il mancante, non toglie
+  niente, rilanciarlo non raddoppia).
+- **`OTA_VERSION` su Render**: da **svuotare** alla prossima pubblicazione sugli store.
+
+### C. Cose che aspettano Simone
+
+- **Archiviare `lovcarbciccio · omnivore · dimagrimento · 5 pasti`**: variante di prova che
+  `pubblica:tutto` ha reso visibile alle clienti. Backoffice → Catalogo diete → Archivia.
+- **La scelta sulle ~260 varianti senza una settimana piena.** Tre strade, nessuna ovvia:
+  lasciarle magre e completarle quando una cliente le sceglie (costo zero, ma la prima cliente
+  prende un catalogo magro); togliere dal questionario quelle che non offrite davvero (meno
+  scelta, ma vera); uno script che le macina in background (costo AI, e nessuno le rivede).
+
+### D. Cose che aspettano la NUTRIZIONISTA
+
+- ⚠️ **«Vacanze in Serenità · onnivora · dimagrimento · 3 pasti»**: 28 giornate **senza pranzo né
+  cena**, e ha una cliente che la sta ricevendo (Rosaria Gruppuso — telefonata già fatta da
+  Simone). È la prima da guardare.
+- ⚠️ **Emanuela Curulli**: una giornata incompleta sulla sua dieta.
+- ⚠️ **«Ritorno in Equilibrio · onnivora · mantenimento · 3 pasti» è vuota**: zero giornate. Va
+  generata dal generatore, `pubblica:tutto` non può farci niente.
+- **Completare le settimane 1-4** delle diete che hanno clienti. Guida in
+  `progetto/guide/Metabole-Guida-settimane-menu.pdf`, con le 12 diete in ordine. Si parte sempre
+  dalla variante a **5 pasti**: le altre riusano le sue ricette.
+- **142 ricette finite su «Basso indice glicemico · vegana · mantenimento · 3 pasti»**, che non
+  ha clienti. Il lavoro utile va su `onnivora · dimagrimento · 5 pasti`.
+- **18 diete «Pescetariana» con regime onnivoro/vegetariano/vegano**: o è sbagliato il nome o è
+  sbagliato il regime. Solo lei può dirlo.
+- **20 clienti con famiglia di dieta ambigua** (`npm run diag:famiglie`).
+
+### Già chiuso — non riaprirlo
+
+Verificato nel codice il 9/8: «percorso concluso» automatico (`chiudiPercorsiConclusi`, chiamata
+dal cron), notifica sui piani bloccati (`apriSegnalazione`), e della revisione del 7/8 i punti
+**#2, #3, #4, #5, #6, #7**. Della lista delle coach, otto punti su dodici.

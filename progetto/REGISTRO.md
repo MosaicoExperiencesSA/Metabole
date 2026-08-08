@@ -24,8 +24,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 - `[Sviluppo]` 🤝 **Passaggio di consegne alla sessione nuova** — `progetto/PASSAGGIO_NUOVA_SESSIONE.md`:
   il messaggio d'apertura da incollare, il contesto minimo (come si consegna il codice sul mount e
   perché `cat > destinazione` è obbligatorio, perché `prisma generate` non gira sul Mac, dove si
-  lanciano i test) e i lavori in coda in ordine. Serve a non ricomprare ogni volta lo stesso mezzo
-  pomeriggio di contesto.
+  lanciano i test) e **tutto quello che resta da fare**, diviso fra codice, verifiche, cose che
+  aspettano Simone e cose che aspettano la nutrizionista. L'elenco è stato **riverificato sul
+  codice**, non ricopiato dalle liste vecchie: quello che risultava aperto ed è già chiuso non
+  compare più, ed è scritto in fondo perché nessuno lo riapra. Serve a non ricomprare ogni volta
+  lo stesso mezzo pomeriggio di contesto.
+  Dalla riverifica è uscito **un difetto nuovo**: `app/src/pages/PlanFlow.tsx` — l'acquisto del
+  primo piano in onboarding — dichiara `interface Plan` senza `billing` e non lo passa a
+  `cart.setPlan`, quindi nel Checkout la scelta fra abbonamento e pagamento unico **non compare
+  mai**. È lo stesso difetto che era stato corretto sul pulsante del report, ma sulla strada
+  d'acquisto principale. Non ancora corretto: prima va verificato quali piani `3m/6m/12m` hanno
+  davvero un `billing` diverso da `one_time`.
 
 - `[Prodotto]` 🔔 **Una segnalazione senza destinatario non è una segnalazione.** È la storia di
   una cliente vera, e vale la pena scriverla per intero. Si iscrive il 20 luglio. Dichiara una
