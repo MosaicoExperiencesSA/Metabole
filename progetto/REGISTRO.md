@@ -7,6 +7,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🍳 **«Voglio una colazione proteica» adesso funziona, dalla richiesta al report.**
+  Il cuore era già consegnato; questo è il collegamento, e chiude il caso della conversazione dell'8/8.
+  **Il punto esatto in cui Gaia perdeva la richiesta** era il «no» alla conferma. La cliente aveva
+  scritto «no, voglio una colazione proteica»: un rifiuto **e** una richiesta nuova, e noi rispondevamo
+  soltanto «va bene, non cambio niente» — corretto e inutile, perché la richiesta era già arrivata.
+  Ora quel «no» viene riletto: se contiene una richiesta di piatto diverso, il dialogo continua invece
+  di chiudersi. Un «no» secco resta un no (c'è il test).
+  **Da dove pesca le alternative:** solo dalla **base personale certificata** (`client_menu_pool`),
+  che è il catalogo già passato dai filtri di sicurezza. Se quel pool non c'è **non propone niente** e
+  passa alla nutrizionista: significa che il piano non è certificato, e pescare dai template
+  salterebbe i controlli sugli allergeni per proporre una colazione. Nessuna colazione vale quel rischio.
+  La tolleranza sulle kcal la legge da `menu_kcal_balance_tolerance_pct` — la **stessa** con cui il
+  motore bilancia le giornate, perché due tolleranze diverse per la stessa cosa sarebbero due verità.
+  **E il requisito che si dimentica** («i cambi vanno salvati nella scheda cliente e nel report di
+  fine mese»): il cambio **non** è una riscrittura del `recipeId`, è un evento registrato in
+  `MealSnapshot.cambioPiatto` — piatto vecchio, kcal vecchie, cosa aveva chiesto, `da_verificare`.
+  Senza quel record il piatto vecchio non lascerebbe traccia e in scheda non comparirebbe niente.
+  Da lì arriva in due posti: la **scheda cliente**, nella stessa tabella dei cambi di ingrediente ma
+  con un'etichetta «piatto» che li distingue a occhio (la nutrizionista non guarda «ha cambiato
+  l'olio» e «ha cambiato la colazione» con la stessa attenzione, e fra due piatti le grammature non
+  vogliono dire niente); e il **report di fine mese**, come `cambiInChat`. Nel report si contano
+  **solo** i cambi con `origine: 'chat'`: le altre sostituzioni le decide il motore per sicurezza, e
+  spacciarle per «adattamenti che hai chiesto tu» sarebbe raccontarle una cosa falsa. Zero cambi è un
+  numero legittimo e ha una frase sua, che non fa sembrare che sia mancato qualcosa.
+  Il finto database dei test è stato **estratto in una fabbrica** condivisa: due copie dello stesso
+  Prisma finto divergono, e a quel punto i due gruppi di test misurano due mondi diversi.
+  905 test verdi (12 nuovi fra dialogo e conteggio), type-check identico al baseline su backend e
+  backoffice.
+  ⚠️ Resta da fare, e non è banale: la **correzione del nutrizionista** su un cambio di piatto (oggi
+  può solo vederlo), e il caso «lo voglio diverso» quando la cliente non dice **quale** pasto e non se
+  ne stava già parlando — lì Gaia torna a chiedere invece di indovinare, che è giusto ma si può fare
+  meglio.
+
 - `[Sviluppo]` 💚 **Gaia chiama per nome.** Richiesta di Simone (8/8): «Gaia non potrebbe rispondere
   chiamando per nome la cliente?». Sì, e cambia il tono di tutta la conversazione — ma il modo
   sbagliato di farlo è peggio del non farlo, quindi tre regole: **una volta per messaggio** e in

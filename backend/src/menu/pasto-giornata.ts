@@ -48,12 +48,43 @@ export interface Substitution {
   grammaturaCorretta?: boolean;
 }
 
+/**
+ * Il piatto è stato CAMBIATO in chat (non un ingrediente: tutto il piatto).
+ *
+ * È un evento registrato, e non una semplice riscrittura di `recipeId`, per una ragione precisa
+ * (requisito di Simone, 8/8): «i cambi vanno poi salvati nella scheda cliente e nel report di fine
+ * mese». Se ci limitassimo a sovrascrivere il `recipeId`, in scheda e nel report non comparirebbe
+ * mai niente — il piatto vecchio non lascerebbe traccia e nessuno saprebbe che c'è stato un cambio.
+ *
+ * Resta separato da `substitutions`, che sono gli scambi di **ingrediente**: mischiarli renderebbe
+ * illeggibile l'elenco in scheda, dove la nutrizionista deve distinguere «ha cambiato l'olio» da
+ * «ha cambiato la colazione».
+ */
+export interface CambioPiatto {
+  /** Il piatto che c'era prima: senza questo il cambio è invisibile. */
+  daRecipeId: string;
+  daNome: string;
+  daKcal: number;
+  /** Che cosa aveva chiesto: proteico | leggero | veloce | diverso. */
+  preferenza?: string;
+  /** Chi ha deciso il cambio. Per ora solo la chat. */
+  origine: 'chat';
+  /** Come per le sostituzioni: nasce `da_verificare`, la nutrizionista lo ricontrolla. */
+  stato: 'da_verificare' | 'verificata' | 'corretta';
+  /** Quando è stato concordato (ISO). */
+  concordataIl: string;
+  /** Il messaggio in cui la cliente ha scelto: la conversazione è la prova. */
+  messageId?: string;
+}
+
 export interface MealSnapshot {
   slot: string;
   recipeId: string;
   name: string;
   kcal: number;
   substitutions?: Substitution[];
+  /** Presente solo se il piatto è stato cambiato in chat. Vedi `CambioPiatto`. */
+  cambioPiatto?: CambioPiatto;
 }
 
 /** Un ingrediente come sta in `Recipe.ingredients`. */

@@ -138,7 +138,11 @@ const SLOT_IN: Record<string, string> = {
 export const nelloSlot = (slot: string): string => SLOT_IN[slot] ?? `nel ${etichettaSlot(slot)}`;
 
 /** Passo del dialogo. Lo stato vive nel `meta` dell'ultimo messaggio di Gaia: niente tabelle. */
-export type PassoSostituzione = 'cibo' | 'motivo' | 'conferma';
+/**
+ * `scelta_piatto` è il ramo nato dalla conversazione dell'8/8: la cliente non vuole un ingrediente
+ * diverso, vuole **un altro piatto**. Gaia propone due alternative approvate e aspetta un numero.
+ */
+export type PassoSostituzione = 'cibo' | 'motivo' | 'conferma' | 'scelta_piatto';
 
 export interface PropostaSostituzione {
   /** Giornata su cui si scrive (YYYY-MM-DD): quella di oggi. */
@@ -166,6 +170,14 @@ export interface StatoSostituzione {
   /** Risposte non capite di fila: a 2 il flusso si arrende e passa alla coach. */
   tentativi?: number;
   proposta?: PropostaSostituzione;
+  /** Ramo «altro piatto»: le alternative proposte, nell'ordine mostrato alla cliente. */
+  alternativePiatto?: { recipeId: string; nome: string; kcal: number }[];
+  /** Lo slot su cui si sta cambiando il piatto (la proposta riguarda quello). */
+  slotPiatto?: string;
+  /** Il piatto attuale, per registrare il cambio e per i testi. */
+  piattoAttuale?: { recipeId: string; nome: string; kcal: number };
+  /** Che cosa aveva chiesto: serve nel testo e finisce nel registro del cambio. */
+  preferenzaPiatto?: string | null;
 }
 
 /** Oltre questo, lo stato appeso a un messaggio vecchio non è più una conversazione in corso. */

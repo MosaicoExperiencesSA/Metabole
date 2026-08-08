@@ -3,6 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MealSnapshot } from './pasto-giornata';
 import { MOTIVI, StatoSostituzione } from './sostituzione-chat';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { SostituzioneChatService } from './sostituzione-chat.service';
 
 /**
@@ -16,6 +17,13 @@ const oggiIso = () => OGGI.toISOString().slice(0, 10);
 const RICETTA_PRANZO = {
   id: 'r-pranzo',
   name: 'Insalata di farro',
+  // Come per la colazione: i campi che il cambio di piatto legge. Senza `mealSlot` qui, il filtro
+  // per slot del finto Prisma non compilava — le due ricette formano un'unione, e TypeScript
+  // pretende che il campo esista su tutte.
+  mealSlot: 'lunch',
+  kcal: 500,
+  macros: { protein_g: 18 },
+  difficulty: 'media',
   ingredients: [
     { name: 'farro', qty: 80, unit: 'g' },
     { name: 'carote', qty: 100, unit: 'g' },
@@ -25,6 +33,12 @@ const RICETTA_PRANZO = {
 const RICETTA_COLAZIONE = {
   id: 'r-colazione',
   name: 'Yogurt e avena',
+  // Servono al cambio di piatto: lo slot per cercare le alternative, le proteine per sapere se
+  // quelle proposte sono davvero «più proteiche».
+  mealSlot: 'breakfast',
+  kcal: 300,
+  macros: { protein_g: 8 },
+  difficulty: 'semplice',
   ingredients: [
     { name: 'yogurt greco', qty: 150, unit: 'g' },
     { name: 'avena', qty: 40, unit: 'g' },
@@ -36,23 +50,22 @@ const pastiDiOggi: MealSnapshot[] = [
   { slot: 'lunch', recipeId: 'r-pranzo', name: 'Insalata di farro', kcal: 500 },
 ];
 
-describe('SostituzioneChatService', () => {
-  let service: SostituzioneChatService;
-  let prisma: any;
-  let audit: { log: jest.Mock };
-
-  /** Il giorno di oggi in memoria: `menuDay.update` ci riscrive sopra, come farebbe il db. */
-  let giorno: { id: string; date: Date; dietId: string; meals: MealSnapshot[] };
-
-  beforeEach(async () => {
-    giorno = {
+/**
+ * La fabbrica del servizio col suo finto database. Estratta dal `beforeEach` per poterla usare
+ * anche dai test del cambio di piatto (8/8): due copie dello stesso finto Prisma divergono, e a
+ * quel punto i due gruppi di test misurano due mondi diversi.
+ *
+ * `tocca` permette a un singolo test di cambiare una risposta (es. «il pool non c'è»).
+ */
+async function creaServizio(tocca?: (prisma: any) => void) {
+    const giorno = {
       id: 'day-1',
       date: new Date(`${oggiIso()}T00:00:00.000Z`),
       dietId: 'diet-onnivora',
       meals: pastiDiOggi.map((m) => ({ ...m })),
     };
 
-    prisma = {
+    const prisma: any = {
       menuDay: {
         findFirst: jest.fn().mockImplementation(() => Promise.resolve(giorno)),
         findMany: jest.fn().mockImplementation(() => Promise.resolve([giorno])),
@@ -62,11 +75,23 @@ describe('SostituzioneChatService', () => {
         }),
       },
       recipe: {
-        findMany: jest.fn().mockImplementation(({ where }: any) =>
-          Promise.resolve(
-            [RICETTA_COLAZIONE, RICETTA_PRANZO].filter((r) => (where?.id?.in ?? []).includes(r.id)),
-          ),
-        ),
+        findMany: jest.fn().mockImplementation(({ where }: any) => {
+          const catalogo = [
+            RICETTA_COLAZIONE,
+            RICETTA_PRANZO,
+            // Alternative di colazione per il ramo «voglio una colazione proteica».
+            { id: 'r-uova', name: 'Uova strapazzate e pane di segale', mealSlot: 'breakfast', kcal: 340, macros: { protein_g: 24 }, difficulty: 'semplice', ingredients: [] },
+            { id: 'r-skyr', name: 'Skyr con mandorle', mealSlot: 'breakfast', kcal: 330, macros: { protein_g: 20 }, difficulty: 'semplice', ingredients: [] },
+            // Fuori tolleranza: non deve mai essere proposta.
+            { id: 'r-brioche', name: 'Brioche e cappuccino', mealSlot: 'breakfast', kcal: 520, macros: { protein_g: 12 }, difficulty: 'semplice', ingredients: [] },
+          ];
+          const perId = (where?.id?.in ?? null) as string[] | null;
+          return Promise.resolve(
+            catalogo
+              .filter((r) => (perId ? perId.includes(r.id) : true))
+              .filter((r) => (where?.mealSlot ? r.mealSlot === where.mealSlot : true)),
+          );
+        }),
       },
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({
@@ -92,17 +117,44 @@ describe('SostituzioneChatService', () => {
         findFirst: jest.fn().mockResolvedValue(null),
       },
       notification: { create: jest.fn().mockResolvedValue({}) },
+      // La base personale CERTIFICATA: è l'unico posto da cui il cambio di piatto pesca (8/8).
+      clientMenuPool: {
+        findFirst: jest.fn().mockResolvedValue({ recipeIds: ['r-colazione', 'r-uova', 'r-skyr', 'r-brioche'] }),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'Giulia' }) },
     };
-    audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         SostituzioneChatService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: audit },
+        // Soglia del cambio di piatto (kcal): il default 15 è quello del motore.
+        { provide: ConfigParamsService, useValue: { getNumber: jest.fn().mockResolvedValue(15) } },
       ],
     }).compile();
-    service = moduleRef.get(SostituzioneChatService);
+
+
+    if (tocca) tocca(prisma);
+    const service = moduleRef.get(SostituzioneChatService) as SostituzioneChatService;
+    return { service, prisma, audit, giorno: () => giorno };
+}
+
+describe('SostituzioneChatService', () => {
+  let service: SostituzioneChatService;
+  let prisma: any;
+  let audit: { log: jest.Mock };
+
+  /** Il giorno di oggi in memoria: `menuDay.update` ci riscrive sopra, come farebbe il db. */
+  let giorno: { id: string; date: Date; dietId: string; meals: MealSnapshot[] };
+
+  beforeEach(async () => {
+    const creato = await creaServizio();
+    service = creato.service;
+    prisma = creato.prisma;
+    audit = creato.audit;
+    giorno = creato.giorno();
   });
 
   /** Scorciatoia: dall'apertura fino alla conferma, come farebbe la chat. */
@@ -519,5 +571,112 @@ describe('SostituzioneChatService', () => {
       const fatto = await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'sì');
       expect(fatto.esito).toBe('applicata');
     }
+  });
+});
+
+/**
+ * IL RAMO NATO DALLA CONVERSAZIONE DELL'8/8.
+ *
+ *   Gaia    → «metti 40 g di olio evo al posto di 40 g di burro di macadamia — confermi?»
+ *   cliente → «no  voglio una colazione proteica»
+ *   Gaia    → «Mi piacerebbe aiutarti! 😊 Puoi dirmi di più?…»
+ *
+ * Quel «no» era anche una richiesta nuova, e rispondere solo «va bene, non cambio niente» era
+ * corretto e inutile. Questi test tengono fermo che adesso la richiesta viene raccolta.
+ */
+describe('SostituzioneChatService — «voglio una colazione proteica»', () => {
+  it('propone due alternative proteiche dentro le calorie, dalla base certificata', async () => {
+    const { service } = await creaServizio();
+    const esito = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    expect(esito.esito).toBe('in_corso');
+    expect(esito.stato?.passo).toBe('scelta_piatto');
+    expect(esito.testo).toContain('più proteine e le stesse calorie');
+    // Le due dentro tolleranza, ordinate per proteine. La brioche da 520 kcal non c'è.
+    expect(esito.stato?.alternativePiatto?.map((a) => a.nome)).toEqual([
+      'Uova strapazzate e pane di segale',
+      'Skyr con mandorle',
+    ]);
+    expect(esito.testo).not.toContain('Brioche');
+    // E la chiama per nome.
+    expect(esito.testo).toContain('Giulia');
+  });
+
+  it('il «no» alla sostituzione che contiene la richiesta nuova non chiude la conversazione', async () => {
+    const { service } = await creaServizio();
+    const esito = await service.avanza(
+      'cli-1',
+      {
+        passo: 'conferma',
+        proposta: {
+          data: oggiIso(), slot: 'breakfast', recipeId: 'r-colazione', piatto: 'Yogurt e avena',
+          da: 'avena', a: 'farro', qtaDa: 40, qtaA: 40, unita: 'g',
+        },
+        motivo: 'no_tempo',
+      },
+      'no  voglio una colazione proteica',
+    );
+    // Prima rispondeva «va bene, non cambio niente». Ora raccoglie la richiesta.
+    expect(esito.esito).toBe('in_corso');
+    expect(esito.stato?.passo).toBe('scelta_piatto');
+  });
+
+  it('un «no» secco resta un no: non si trasforma in una proposta', async () => {
+    const { service } = await creaServizio();
+    const esito = await service.avanza('cli-1', { passo: 'conferma', proposta: undefined as never }, 'no');
+    expect(esito.esito).toBe('annullata');
+  });
+
+  it('scegliendo il numero, il piatto di oggi cambia e il cambio resta REGISTRATO', async () => {
+    const { service, giorno } = await creaServizio();
+    const proposta = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    const esito = await service.avanza('cli-1', proposta.stato!, '1');
+    expect(esito.esito).toBe('applicata');
+
+    const colazione = giorno().meals.find((m) => m.slot === 'breakfast')!;
+    expect(colazione.recipeId).toBe('r-uova');
+    expect(colazione.kcal).toBe(340);
+    // Il record è ciò che rende il cambio visibile in scheda e contabile nel report: senza,
+    // avremmo solo sovrascritto un recipeId e nessuno saprebbe che c'è stato un cambio.
+    expect(colazione.cambioPiatto).toMatchObject({
+      daRecipeId: 'r-colazione',
+      daNome: 'Yogurt e avena',
+      daKcal: 300,
+      preferenza: 'proteico',
+      origine: 'chat',
+      stato: 'da_verificare',
+    });
+    // E il pranzo non si tocca.
+    expect(giorno().meals.find((m) => m.slot === 'lunch')?.recipeId).toBe('r-pranzo');
+  });
+
+  it('il cambio compare nell\'elenco della scheda cliente, distinto da quelli di ingrediente', async () => {
+    const { service } = await creaServizio();
+    const proposta = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    await service.avanza('cli-1', proposta.stato!, '1');
+    const elenco = await service.sostituzioniDiChat('cli-1');
+    const cambio = elenco.find((e) => e.tipo === 'piatto');
+    expect(cambio).toBeDefined();
+    expect(cambio!.from).toBe('Yogurt e avena');
+    expect(cambio!.to).toBe('Uova strapazzate e pane di segale');
+    expect(cambio!.stato).toBe('da_verificare');
+  });
+
+  it('un numero che non esiste non applica niente', async () => {
+    const { service, giorno } = await creaServizio();
+    const proposta = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    const esito = await service.avanza('cli-1', proposta.stato!, '7');
+    expect(esito.esito).toBe('in_corso');
+    expect(giorno().meals.find((m) => m.slot === 'breakfast')?.recipeId).toBe('r-colazione');
+  });
+
+  it('se la base certificata non c\'è, non propone niente e passa alla nutrizionista', async () => {
+    // Pool assente = piano non certificato: pescare dai template salterebbe i filtri di sicurezza.
+    const { service } = await creaServizio((prisma) => {
+      prisma.clientMenuPool.findFirst = jest.fn().mockResolvedValue(null);
+    });
+    const esito = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    expect(esito.esito).toBe('arresa');
+    expect(esito.inoltraA).toBe('nutritionist');
+    expect(esito.testo).toContain('nutrizionista');
   });
 });

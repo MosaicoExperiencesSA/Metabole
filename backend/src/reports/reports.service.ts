@@ -26,6 +26,16 @@ export interface MonthlyReport {
   stepsAvg: number | null;
   stepsGoal: number;
   stepsSeries: number[]; // passi per giorno (max 31)
+  /**
+   * Quante volte il menu è stato adattato a lei in chat nel mese: ingredienti scambiati e piatti
+   * cambiati, contati insieme. Richiesta di Simone (8/8): «i cambi vanno poi salvati nella scheda
+   * cliente e nel report di fine mese».
+   *
+   * Non è una statistica di servizio, è un **dato di personalizzazione** (punto 5 di
+   * `progetto/PROGETTO_gaia-cambio-menu.md`): dice alla cliente quante volte il piano si è piegato
+   * su di lei invece del contrario. Zero è un numero legittimo e va mostrato come tale.
+   */
+  cambiInChat: number;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -92,12 +102,28 @@ export class ReportsService {
     const targetWeightKg = objective?.targetWeightKg ?? null;
     const toGoKg = targetWeightKg != null && currentWeightKg != null ? round1(currentWeightKg - targetWeightKg) : null;
 
-    const [checkins, measurementsThisMonth, waterRows, stepRows] = await Promise.all([
+    const [checkins, measurementsThisMonth, waterRows, stepRows, giorniMese] = await Promise.all([
       this.prisma.dailyCheckin.count({ where: { clientId, date: { gte: monthAgo } } }),
       this.prisma.measurement.count({ where: { clientId, date: { gte: monthAgo } } }),
       this.prisma.waterLog.findMany({ where: { clientId, date: { gte: monthAgo } }, orderBy: { date: 'asc' }, select: { glasses: true } }) as Promise<{ glasses: number }[]>,
       this.prisma.stepLog.findMany({ where: { clientId, date: { gte: monthAgo } }, orderBy: { date: 'asc' }, select: { steps: true } }) as Promise<{ steps: number }[]>,
+      // I cambi concordati in chat nel mese. Si contano dai giorni erogati, dove sono registrati:
+      // gli scambi di ingrediente in `substitutions` (solo quelli con `origine: 'chat'` — gli altri
+      // sono sostituzioni di sicurezza decise dal motore, non scelte sue) e i piatti cambiati in
+      // `cambioPiatto`.
+      this.prisma.menuDay.findMany({
+        where: { clientId, date: { gte: monthAgo } },
+        select: { meals: true },
+      }) as Promise<{ meals: unknown }[]>,
     ]);
+    let cambiInChat = 0;
+    for (const g of giorniMese) {
+      for (const pasto of ((g.meals as { substitutions?: { origine?: string }[]; cambioPiatto?: { origine?: string } }[]) ?? [])) {
+        if (!pasto) continue;
+        cambiInChat += (pasto.substitutions ?? []).filter((s) => s?.origine === 'chat').length;
+        if (pasto.cambioPiatto?.origine === 'chat') cambiInChat += 1;
+      }
+    }
     // Abitudini: 1 bicchiere = 0,25 L; obiettivo acqua ~30 ml/kg sul peso attuale; passi 8.000.
     const waterSeries = waterRows.slice(-31).map((w) => round1(w.glasses * 0.25));
     const stepsSeries = stepRows.slice(-31).map((s) => s.steps);
@@ -125,6 +151,7 @@ export class ReportsService {
       stepsAvg,
       stepsGoal: 8000,
       stepsSeries,
+      cambiInChat,
     };
   }
 
@@ -217,6 +244,15 @@ export class ReportsService {
       stepsAvg: r.stepsAvg != null ? it(r.stepsAvg) : '—',
       stepsGoal: it(r.stepsGoal),
       stepsBars: this.barsHtml(r.stepsSeries, r.stepsGoal, '#137a55'),
+      // Il menu adattato a lei: è un dato di personalizzazione, non una statistica di servizio.
+      // Zero è legittimo e si scrive come tale, senza far sembrare che sia mancato qualcosa.
+      cambiInChat: it(r.cambiInChat),
+      cambiInChatFrase:
+        r.cambiInChat === 0
+          ? 'Questo mese il menu è andato bene così: nessun cambio richiesto.'
+          : r.cambiInChat === 1
+            ? 'Questo mese il tuo menu è stato adattato a te una volta.'
+            : `Questo mese il tuo menu è stato adattato a te ${it(r.cambiInChat)} volte.`,
     });
   }
 

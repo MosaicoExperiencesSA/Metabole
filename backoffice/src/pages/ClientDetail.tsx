@@ -1661,6 +1661,8 @@ interface MsgRow {
   meta?: { sost?: { passo?: string }; esitoSostituzione?: string } | null;
 }
 interface SostituzioneRow {
+  /** `piatto` = ha cambiato tutto il piatto · `ingrediente` = solo un alimento dentro il piatto. */
+  tipo?: 'ingrediente' | 'piatto';
   data: string;
   slotLabel: string;
   piatto: string;
@@ -1809,7 +1811,20 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                     <div className="muted" style={{ fontSize: 11.5 }}>{s.piatto}</div>
                   </td>
                   <td>
-                    {quantita(s.fromQty, s.unit)}{s.from} → <b>{quantita(s.toQty, s.unit)}{s.to}</b>
+                    {/*
+                      Il cambio di PIATTO va distinto a occhio da uno scambio di ingrediente: la
+                      nutrizionista non guarda «ha cambiato l'olio» e «ha cambiato la colazione» con
+                      la stessa attenzione. Le quantità non si mostrano: fra due piatti non vogliono
+                      dire niente.
+                    */}
+                    {s.tipo === 'piatto' && (
+                      <span className="chip" style={{ marginRight: 6, fontSize: 10.5, background: '#6c5ab7', color: '#fff' }}>
+                        piatto
+                      </span>
+                    )}
+                    {s.tipo === 'piatto'
+                      ? <>{s.from} → <b>{s.to}</b></>
+                      : <>{quantita(s.fromQty, s.unit)}{s.from} → <b>{quantita(s.toQty, s.unit)}{s.to}</b></>}
                     {s.grammaturaCorretta && (
                       <div style={{ fontSize: 11.5, color: '#9A5B12' }}>
                         grammatura riportata a pari: da ricontrollare

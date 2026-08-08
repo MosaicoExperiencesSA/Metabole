@@ -7,6 +7,7 @@ import {
 import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { rilevaIntentoAltroPiatto } from '../menu/cambio-piatto';
 import {
   SCADENZA_FLUSSO_MS,
   StatoSostituzione,
@@ -432,6 +433,11 @@ export class ChatService {
       esito = await this.sostituzione.avanza(clientId, stato, body);
     } else if (rilevaIntentoSostituzione(body)) {
       esito = await this.sostituzione.apriDaTesto(clientId, body);
+    } else if (rilevaIntentoAltroPiatto(body)) {
+      // «Voglio una colazione proteica» senza nessun dialogo aperto. Va DOPO la sostituzione:
+      // «vorrei sostituire il burro» è una richiesta di cambiare un ingrediente, e va trattata
+      // come tale — l'ordine di questi due rami è la differenza fra capire e fraintendere.
+      esito = await this.sostituzione.proponiAltroPiatto(clientId, body);
     } else {
       return null;
     }

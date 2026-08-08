@@ -1,8 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { toDateOnly } from '../common/date-only';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  ordinaAlternative,
+  preferenzaDaTesto,
+  rilevaIntentoAltroPiatto,
+  testoCambioPiattoFatto,
+  testoNessunaAlternativa,
+  testoProponiAlternative,
+  testoSceltaNonValida,
+  type CandidatoPiatto,
+} from './cambio-piatto';
 import { exclusionKeys } from './exclusions';
 import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
 import {
@@ -60,6 +71,12 @@ interface PastoConRicetta {
 
 /** Una sostituzione nata in chat, come la legge la scheda cliente in backoffice. */
 export interface SostituzioneInChat {
+  /**
+   * `ingrediente` = scambio di un alimento dentro il piatto · `piatto` = il piatto è stato cambiato
+   * tutto. In scheda vanno nella stessa tabella ma la nutrizionista deve poterli distinguere: «ha
+   * cambiato l'olio» e «ha cambiato la colazione» non si guardano con lo stesso occhio.
+   */
+  tipo: 'ingrediente' | 'piatto';
   data: string;
   slot: string;
   slotLabel: string;
@@ -141,6 +158,10 @@ export class SostituzioneChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    // La tolleranza sulle kcal del cambio di piatto è una SOGLIA: sta in `config_param`, non nel
+    // codice (regola di progetto). Riusa `menu_kcal_balance_tolerance_pct`, la stessa con cui il
+    // motore bilancia le giornate: due tolleranze diverse per la stessa cosa sarebbero due verità.
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   // ---------- Ingressi ----------
@@ -213,6 +234,7 @@ export class SostituzioneChatService {
     }
     if (stato.passo === 'cibo') return this.passoCibo(clientId, stato, testoCliente);
     if (stato.passo === 'motivo') return this.passoMotivo(clientId, stato, testoCliente);
+    if (stato.passo === 'scelta_piatto') return this.passoSceltaPiatto(clientId, stato, testoCliente);
     return this.passoConferma(clientId, stato, testoCliente);
   }
 
@@ -286,7 +308,15 @@ export class SostituzioneChatService {
     testoCliente: string,
   ): Promise<EsitoSostituzione> {
     const risposta = riconosciConferma(testoCliente);
-    if (risposta === 'no') return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+    if (risposta === 'no') {
+      // IL PUNTO DELLA CONVERSAZIONE DELL'8/8. Qui la cliente aveva scritto «no, voglio una
+      // colazione proteica»: un «no» alla sostituzione **e** una richiesta nuova. Rispondere solo
+      // «va bene, non cambio niente» era corretto e inutile — la richiesta era già arrivata.
+      if (rilevaIntentoAltroPiatto(testoCliente)) {
+        return this.proponiAltroPiatto(clientId, testoCliente, stato.proposta?.slot);
+      }
+      return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+    }
     if (risposta !== 'si') {
       const tentativi = (stato.tentativi ?? 0) + 1;
       if (tentativi >= 2) {
@@ -701,6 +731,211 @@ export class SostituzioneChatService {
    * I cambi nati in chat sulle giornate recenti e future: è l'elenco «da verificare» della
    * scheda cliente. Senza questo, verificare vorrebbe dire rileggere tutte le conversazioni.
    */
+
+  // ---------- Cambiare il PIATTO (non l'ingrediente) ----------
+
+  /**
+   * Le alternative possibili per uno slot: **solo** dalla base personale certificata della cliente
+   * (`client_menu_pool`), che è il catalogo già passato dai filtri di sicurezza — allergeni
+   * revisionati, regime compatibile, esclusioni applicate.
+   *
+   * Se quel pool non c'è si torna a mani vuote **di proposito**: significa che il piano di quella
+   * cliente non è certificato (e ha già una segnalazione «piano bloccato» aperta). Pescare dai
+   * template salterebbe i controlli di sicurezza per proporre una colazione: nessuna colazione vale
+   * quel rischio.
+   */
+  private async candidatiPerSlot(clientId: string, slot: string): Promise<CandidatoPiatto[]> {
+    const pool = (await this.prisma.clientMenuPool.findFirst({
+      where: { clientId },
+      orderBy: { version: 'desc' },
+      select: { recipeIds: true },
+    })) as { recipeIds: string[] } | null;
+    const ids = (pool?.recipeIds ?? []).filter(Boolean);
+    if (!ids.length) return [];
+
+    const ricette = (await this.prisma.recipe.findMany({
+      where: { id: { in: ids }, mealSlot: slot as never, active: true },
+      select: { id: true, name: true, kcal: true, macros: true, difficulty: true },
+    })) as { id: string; name: string; kcal: number; macros: unknown; difficulty: string | null }[];
+
+    return ricette.map((r) => {
+      const macro = (r.macros ?? {}) as { protein_g?: unknown };
+      const prot = typeof macro.protein_g === 'number' ? macro.protein_g : null;
+      return { recipeId: r.id, nome: r.name, kcal: r.kcal, proteineG: prot, difficolta: r.difficulty };
+    });
+  }
+
+  /**
+   * «Voglio una colazione proteica». Cerca due alternative e le propone.
+   *
+   * `slotVoluto` arriva dal ramo in cui la cliente stava già parlando di un piatto (il «no» alla
+   * sostituzione): in quel caso non le si richiede quale pasto, lo sappiamo già.
+   */
+  async proponiAltroPiatto(
+    clientId: string,
+    testoCliente: string,
+    slotVoluto?: string,
+  ): Promise<EsitoSostituzione> {
+    const [pasti, nome] = await Promise.all([this.pastiDiOggi(clientId), this.nomeDi(clientId)]);
+    if (!pasti.length) return { testo: testoChiediCibo([], nome), esito: 'rifiutata' };
+
+    // Su quale pasto: quello di cui si stava parlando, o quello nominato nel testo, o — se non è
+    // chiaro — non si indovina: si torna alla domanda, che è meglio di cambiare il pasto sbagliato.
+    const preferenza = preferenzaDaTesto(testoCliente);
+    const daTesto = this.trovaPiatto(pasti, testoCliente);
+    const bersaglio = slotVoluto
+      ? pasti.find((p) => p.pasto.slot === slotVoluto)
+      : daTesto ?? this.pastoDalloSlotNominato(pasti, testoCliente);
+    if (!bersaglio) {
+      return {
+        testo: testoChiediCibo(pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome })), nome),
+        stato: { passo: 'cibo', tentativi: 0 },
+        esito: 'aperto',
+      };
+    }
+
+    const attuale = bersaglio.pasto;
+    const candidati = await this.candidatiPerSlot(clientId, attuale.slot);
+    const proteineAttuali = candidati.find((c) => c.recipeId === attuale.recipeId)?.proteineG ?? null;
+    const tolleranza = await this.configParams
+      .getNumber('menu_kcal_balance_tolerance_pct', 15)
+      .catch(() => 15);
+    const alternative = ordinaAlternative(candidati, {
+      kcalAttuali: attuale.kcal,
+      proteineAttualiG: proteineAttuali,
+      preferenza,
+      // Il piatto attuale e tutti gli altri di oggi: proporle a colazione quello che ha a pranzo
+      // non è un'alternativa.
+      escludiRecipeIds: pasti.map((p) => p.pasto.recipeId),
+      tolleranzaKcalPct: tolleranza,
+    });
+
+    if (!alternative.length) {
+      await this.passaAllaNutrizionista(
+        clientId,
+        `Nessuna alternativa ${preferenza ?? 'diversa'} dentro le calorie per ${etichettaSlot(attuale.slot)} ` +
+        `(${attuale.name}, ${attuale.kcal} kcal): il catalogo approvato non ne ha.`,
+      ).catch(() => undefined);
+      return {
+        testo: testoNessunaAlternativa(etichettaSlot(attuale.slot), preferenza, nome),
+        inoltraA: 'nutritionist',
+        esito: 'arresa',
+      };
+    }
+
+    return {
+      testo: testoProponiAlternative(
+        etichettaSlot(attuale.slot),
+        { nome: bersaglio.nome, kcal: attuale.kcal },
+        alternative,
+        preferenza,
+        nome,
+      ),
+      stato: {
+        passo: 'scelta_piatto',
+        tentativi: 0,
+        slotPiatto: attuale.slot,
+        piattoAttuale: { recipeId: attuale.recipeId, nome: bersaglio.nome, kcal: attuale.kcal },
+        preferenzaPiatto: preferenza,
+        alternativePiatto: alternative.map((a) => ({ recipeId: a.recipeId, nome: a.nome, kcal: a.kcal })),
+      },
+      esito: 'in_corso',
+    };
+  }
+
+  /** Il pasto nominato a parole («la colazione»), quando non stiamo già parlando di un piatto. */
+  private pastoDalloSlotNominato(pasti: PastoConRicetta[], testoCliente: string): PastoConRicetta | null {
+    const t = normalizza(testoCliente);
+    const perSlot: Record<string, RegExp> = {
+      breakfast: /\bcolazione\b/,
+      lunch: /\bpranzo\b/,
+      dinner: /\bcena\b/,
+      snack: /\b(spuntino|merenda)\b/,
+    };
+    for (const p of pasti) {
+      const r = perSlot[p.pasto.slot];
+      if (r && r.test(t)) return p;
+    }
+    return null;
+  }
+
+  /** La cliente ha risposto con il numero dell'alternativa. */
+  private async passoSceltaPiatto(
+    clientId: string,
+    stato: StatoSostituzione,
+    testoCliente: string,
+  ): Promise<EsitoSostituzione> {
+    const alternative = stato.alternativePiatto ?? [];
+    const numero = Number((testoCliente.match(/\d+/) ?? [])[0]);
+    const scelta = Number.isFinite(numero) ? alternative[numero - 1] : undefined;
+    if (!scelta) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= 2) return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+      return { testo: testoSceltaNonValida(alternative.length), stato: { ...stato, tentativi }, esito: 'in_corso' };
+    }
+    return this.applicaCambioPiatto(clientId, stato, scelta);
+  }
+
+  /**
+   * Scrive il piatto nuovo sulla giornata di OGGI, e **registra il cambio**.
+   *
+   * Solo oggi: cambiare il piatto per sempre vuol dire riscrivere il piano, e quello non è un
+   * mestiere della chat. Il record (`cambioPiatto`) è ciò che lo rende visibile in scheda cliente e
+   * contabile nel report di fine mese: senza, avremmo sovrascritto un `recipeId` e nessuno saprebbe
+   * mai che c'è stato un cambio.
+   */
+  private async applicaCambioPiatto(
+    clientId: string,
+    stato: StatoSostituzione,
+    scelta: { recipeId: string; nome: string; kcal: number },
+  ): Promise<EsitoSostituzione> {
+    const oggi = toDateOnly();
+    const giorno = await this.prisma.menuDay.findFirst({ where: { clientId, date: oggi } });
+    if (!giorno) return { testo: testoChiediCibo([], await this.nomeDi(clientId)), esito: 'rifiutata' };
+
+    const pasti = ((giorno.meals as unknown as MealSnapshot[]) ?? []).filter(Boolean);
+    const slot = stato.slotPiatto;
+    const indice = pasti.findIndex((m) => m.slot === slot);
+    if (indice < 0) return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+
+    const prima = pasti[indice];
+    const nuovi = [...pasti];
+    nuovi[indice] = {
+      slot: prima.slot,
+      recipeId: scelta.recipeId,
+      name: scelta.nome,
+      kcal: scelta.kcal,
+      // Le sostituzioni di ingrediente del piatto VECCHIO non si portano dietro: erano sue, e su un
+      // piatto nuovo non vogliono dire niente.
+      cambioPiatto: {
+        daRecipeId: prima.recipeId,
+        daNome: prima.name,
+        daKcal: prima.kcal,
+        preferenza: stato.preferenzaPiatto ?? 'diverso',
+        origine: 'chat',
+        stato: 'da_verificare',
+        concordataIl: new Date().toISOString(),
+      },
+    };
+    await this.prisma.menuDay.update({ where: { id: giorno.id }, data: { meals: nuovi as never } });
+    await this.audit.log({
+      action: 'menu.cambio_piatto_chat',
+      actorId: clientId,
+      entityType: 'menu_day',
+      entityId: giorno.id,
+      metadata: {
+        slot: prima.slot,
+        da: { recipeId: prima.recipeId, nome: prima.name, kcal: prima.kcal },
+        a: { recipeId: scelta.recipeId, nome: scelta.nome, kcal: scelta.kcal },
+        preferenza: stato.preferenzaPiatto ?? null,
+      },
+    });
+    return {
+      testo: testoCambioPiattoFatto(etichettaSlot(prima.slot), scelta, await this.nomeDi(clientId)),
+      esito: 'applicata',
+    };
+  }
+
   async sostituzioniDiChat(clientId: string, giorniIndietro = 30): Promise<SostituzioneInChat[]> {
     const oggi = toDateOnly();
     const giorno = 24 * 60 * 60 * 1000;
@@ -724,9 +959,29 @@ export class SostituzioneChatService {
     for (const giorno of giorni) {
       const data = giorno.date.toISOString().slice(0, 10);
       for (const pasto of ((giorno.meals as unknown as MealSnapshot[]) ?? [])) {
+        // Il piatto cambiato: `from` è il piatto vecchio, `to` quello nuovo. Senza questo blocco il
+        // cambio esisteva nella giornata e in scheda non compariva — cioè, per la nutrizionista, non
+        // esisteva (requisito di Simone dell'8/8).
+        const cp = pasto.cambioPiatto;
+        if (cp && cp.origine === 'chat') {
+          out.push({
+            tipo: 'piatto',
+            data,
+            slot: pasto.slot,
+            slotLabel: etichettaSlot(pasto.slot),
+            piatto: pasto.name,
+            from: cp.daNome,
+            to: pasto.name,
+            motivo: cp.preferenza,
+            reason: `Piatto cambiato in chat${cp.preferenza ? ` (${cp.preferenza})` : ''}: ${cp.daKcal} → ${pasto.kcal} kcal`,
+            stato: cp.stato ?? 'da_verificare',
+            concordataIl: cp.concordataIl,
+          });
+        }
         for (const s of pasto.substitutions ?? []) {
           if (s.origine !== 'chat') continue;
           out.push({
+            tipo: 'ingrediente',
             data,
             slot: pasto.slot,
             slotLabel: etichettaSlot(pasto.slot),
