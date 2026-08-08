@@ -84,8 +84,15 @@ export class ClientsController {
     return this.clients.deleteNote(id, noteId, user.sub);
   }
 
-  /** Invio email di reset password alla cliente: solo admin. */
-  @Roles('admin')
+  /**
+   * Invio email di reset password alla cliente. **Lo fa anche la coach**, ma solo sulle proprie
+   * clienti: il controllo di appartenenza è `assertClientAccess` dentro il servizio, lo stesso che
+   * decide se questa scheda si può aprire. Prima era `@Roles('admin')` e la coach si trovava
+   * davanti «Solo un admin può inviare il reset password» proprio mentre era al telefono con la
+   * cliente che non riusciva a entrare (richiesta di Simone dell'8/8).
+   * Nessuno dello staff vede né scrive la password: parte un link, la scelta resta alla cliente.
+   * Per impostarne una da comunicare a voce c'è `:id/set-password`, dietro il suo permesso.
+   */
   @HttpCode(200)
   @Post(':id/reset-password')
   resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {

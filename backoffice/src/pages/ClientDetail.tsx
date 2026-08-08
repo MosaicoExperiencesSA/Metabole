@@ -220,7 +220,10 @@ export function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { can, user: me } = useAuth();
-  const isAdmin = can('permissions'); // il reset password è azione admin
+  // Azioni riservate a chi amministra (push di prova, log, eliminazione).
+  // ⚠️ NON è più il cancello del reset password: quello lo fanno anche le coach sulle proprie
+  // clienti, e il controllo di appartenenza sta nel backend.
+  const isAdmin = can('permissions');
   /**
    * Attivazione manuale di un piano dalla SCHEDA. L'operazione esisteva già, ma solo dalla
    * pagina Acquisti, dove la cliente va ripescata da una tendina di tutte le clienti: chi sta
@@ -425,10 +428,13 @@ export function ClientDetail() {
     setNotice(null);
     try {
       await api(`/admin/clients/${id}/reset-password`, { method: 'POST' });
-      setNotice('Email di reset inviata alla cliente.');
+      setNotice('Email di reset inviata alla cliente: nel messaggio trova il link per scegliere la nuova password.');
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) setError('Solo un admin può inviare il reset password.');
-      else setError(err instanceof Error ? err.message : 'Invio non riuscito.');
+      // Il 403 non è più «non sei admin» (adesso lo fanno anche le coach): è «questa cliente non è
+      // tua». Il messaggio del backend lo dice già meglio di qualunque testo fisso qui.
+      if (err instanceof ApiError && err.status === 403) {
+        setError(err.message || 'Questa cliente non è assegnata a te.');
+      } else setError(err instanceof Error ? err.message : 'Invio non riuscito.');
     } finally {
       setResetting(false);
     }
@@ -725,8 +731,20 @@ export function ClientDetail() {
                 <i className="ti ti-history" /> Log modifiche
               </button>
             )}
-            {isAdmin && !editing && (
-              <button className="btn ghost" onClick={resetPassword} disabled={resetting} style={{ background: 'rgba(255,255,255,.9)' }}>
+            {/*
+              Lo vede chiunque possa aprire questa scheda, coach comprese: se la scheda si apre la
+              cliente è sua, e a garantirlo è il backend (`assertClientAccess`), non il fatto di
+              nascondere il pulsante. Non è un'azione da admin — è il gesto più normale del mondo
+              mentre si è al telefono con una cliente che non riesce a entrare.
+            */}
+            {!editing && (
+              <button
+                className="btn ghost"
+                onClick={resetPassword}
+                disabled={resetting}
+                title="Manda alla cliente l'email col link per reimpostare la password: la sceglie lei, tu non la vedi"
+                style={{ background: 'rgba(255,255,255,.9)' }}
+              >
                 <i className="ti ti-key" /> {resetting ? 'Invio…' : 'Reset password'}
               </button>
             )}

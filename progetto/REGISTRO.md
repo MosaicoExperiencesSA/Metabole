@@ -7,6 +7,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🔑 **Il reset password dalla scheda lo fa anche la coach, sulle proprie clienti.**
+  Prima la rotta era `@Roles('admin')`: la coach premeva «Reset password» e leggeva «Solo un admin
+  può inviare il reset password» — proprio mentre era al telefono con la cliente che non riusciva a
+  entrare. Il pulsante era perfino nascosto (`isAdmin &&`), quindi il più delle volte non lo trovava
+  nemmeno.
+  Non serviva un endpoint nuovo: serviva **togliere il cancello sbagliato e mettere quello giusto**.
+  Il controllo di appartenenza esisteva già — `assertClientAccess`, lo stesso che decide se questa
+  scheda si può aprire — e ora protegge anche il reset: se la scheda si apre, la cliente è sua.
+  Coach → le sue (e la coordinatrice quelle del suo team), nutrizionista → le sue,
+  manager/capo/admin → tutte.
+  **Un secondo controllo, che prima non serviva e ora sì:** il bersaglio deve avere ruolo `client`.
+  `assertClientAccess` lascia passare chi non ha scope (manager, capo, admin), quindi senza quel
+  controllo un manager avrebbe potuto far ripartire la password di un **admin** passandone l'id. Non
+  era un buco solo perché la rotta era riservata agli admin: togliendo quel guardrail diventa
+  obbligatorio. C'è un test che si chiama `ESCALATION` e lo tiene inchiodato — verificato **rosso**
+  levando il controllo.
+  Resta vero che **nessuno dello staff vede né scrive la password**: parte un link e la scelta è
+  della cliente. Per dettarne una a voce esiste `:id/set-password`, dietro il suo permesso.
+  Lato backoffice il pulsante è visibile a chiunque possa aprire la scheda, con il messaggio d'errore
+  che ora arriva dal backend («questa cliente non è assegnata a te») invece del vecchio testo fisso
+  sull'admin. Nessuna migrazione; il backoffice si aggiorna da sé su Vercel, nessun OTA.
+  Suite: 846 test, 67 suite, verdi; type-check pulito anche sul backoffice.
+
 - `[Sviluppo]` 🩹 **Tre clienti bloccate al carrello: il questionario perdeva il consenso sanitario.**
   Segnalazione di Simone dell'8/8, tre casi in un pomeriggio (Gioia Lurve 12:52, Giusy 14:20,
   Ilaria Stefani 16:13), tutte con la **Prova Gratuita** nel carrello e tutte con lo stesso muro:

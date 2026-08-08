@@ -248,10 +248,24 @@ export class ClientsService {
     return { removed: noteId };
   }
 
-  /** Invia alla cliente l'email per reimpostare la password (nessuna password gestita dallo staff). */
+  /**
+   * Invia alla cliente l'email per reimpostare la password (nessuna password gestita dallo staff).
+   *
+   * Aperta alla COACH sulle proprie clienti (richiesta di Simone dell'8/8): il cancello non è più il
+   * ruolo admin sulla rotta, sono i due controlli qui sotto, e servono entrambi.
+   *  - `assertClientAccess` ferma la coach su una cliente che non è sua. Per manager/capo/admin
+   *    passa liscio, perché loro non hanno scope: vedono tutte.
+   *  - il controllo sul RUOLO ferma proprio quelli senza scope: senza, un manager avrebbe potuto
+   *    far ripartire la password di un ADMIN passandone l'id. Prima non era un buco solo perché la
+   *    rotta era riservata agli admin; togliendo quel guardrail questo diventa obbligatorio.
+   */
   async sendPasswordReset(userId: string, actorId: string, ip?: string) {
+    await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
     if (!user) throw new NotFoundException('Utente non trovato.');
+    if (user.role !== 'client') {
+      throw new ForbiddenException('Il reset password dalla scheda si fa solo per le clienti.');
+    }
     await this.auth.requestPasswordReset(user.email, ip);
     await this.audit.log({ action: 'client.password_reset.trigger', actorId, entityType: 'user', entityId: userId });
     return { sent: true, email: user.email };
