@@ -7,6 +7,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🧾 **Un piano attivato a mano dalla scheda non entra più in contabilità.**
+  Segnalazione di Simone dell'8/8: aveva attivato a mano il percorso del socio (€130) dalla scheda
+  cliente, e in contabilità comparivano **€130 di ricavi mai incassati**. «Se lo attivo a mano da lì
+  non deve andare in contabilità.»
+  Il trabocchetto: la scheda cliente e la pagina **Acquisti** chiamano lo **stesso** endpoint
+  (`POST /admin/purchases`), e da Acquisti si registrano **vendite vere** avvenute fuori dal negozio
+  — un bonifico gestito a mano. Escludere tutte le attivazioni manuali avrebbe fatto sparire quegli
+  incassi dai libri: un errore peggiore di quello che stavamo correggendo, e nella direzione in cui
+  nessuno controlla.
+  Quindi la distinzione è **da dove arriva l'attivazione** (scelta di Simone): `origine:
+  'scheda_cliente'` → attivazione interna (omaggio, staff, socio, prova), il piano si attiva davvero
+  ma **non** scrive ricavi; `origine: 'acquisti'` (default) → vendita vera, contabilizzata come
+  sempre. Nessuna casella da ricordarsi di spuntare: il posto da cui si preme *è* la scelta.
+  Il default contabilizza **di proposito**: un chiamante che non passa il campo non deve far sparire
+  in silenzio un incasso vero.
+  Tecnicamente basta non scrivere la riga nel `ledgerEntry` — il conto economico legge quello, non i
+  pagamenti — e il `payment` resta a documentare che l'attivazione c'è stata e chi l'ha fatta.
+  Nell'audit finiscono `origine` e `contabilizzato`: se un domani un ricavo non torna, c'è scritto se
+  quella attivazione doveva entrare nei conti.
+  Nel modale è stato corretto anche il testo, che diceva «con il pagamento registrato come già
+  incassato»: era vero, e per questo era il problema. Ora c'è un avviso esplicito, perché è l'unico
+  punto in cui si può capire **prima** di premere.
+  4 test nuovi che tengono ferma la distinzione nei due versi, incluso il caso «senza `origine`».
+  861 test verdi, type-check identico al baseline.
+  ⚠️ Resta da sistemare a mano la riga già scritta per il piano del socio: quel movimento è ancora
+  nel ledger di agosto.
+
 - `[Sviluppo]` 🔎 **`sistema:nomi` dice QUALI righe rileggere, invece di dire «rileggile tutte».**
   Lo script chiudeva con "leggi la colonna «diventa» prima di confermare… i cognomi doppi senza
   particella vengono divisi male, sono pochi". Simone l'ha rimandato indietro, e aveva ragione: su

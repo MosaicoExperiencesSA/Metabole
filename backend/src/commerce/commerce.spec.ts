@@ -281,3 +281,107 @@ describe('CommerceService (flusso bonifico)', () => {
     });
   });
 });
+
+/**
+ * ATTIVAZIONE MANUALE: incasso o omaggio?
+ *
+ * Segnalazione di Simone dell'8/8: aveva attivato a mano dalla scheda cliente il percorso del
+ * socio, e in contabilità comparivano €130 di ricavi mai incassati. Lo stesso endpoint però serve
+ * anche alla pagina Acquisti per registrare una vendita VERA fatta fuori dal negozio (un bonifico
+ * gestito a mano): escluderle tutte avrebbe fatto sparire incassi reali dai libri.
+ *
+ * La distinzione è l'origine, e questi test la tengono ferma nei due versi — perché sbagliarla non
+ * produce nessun errore, solo un numero falso che nessuno va a cercare mesi dopo.
+ */
+describe('CommerceService.createManualPurchase — cosa entra in contabilità', () => {
+  let service: CommerceService;
+  let finance: any;
+  let audit: any;
+
+  beforeEach(async () => {
+    const prisma: any = {
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'plan1', name: 'Percorso 1 mese', priceCents: 13000, period: '1m', active: true }) },
+      user: { findFirst: jest.fn().mockResolvedValue({ id: 'client-1', email: 'c@test.it', locale: 'it' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }) },
+      subscription: {
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'sub1', ...data })),
+        update: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue({ plan: { id: 'plan1', name: 'Percorso 1 mese', priceCents: 13000, period: '1m' } }),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      payment: {
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'pay-1', ...data })),
+        update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'pay-1', ...data })),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ name: 'Giulia' }), update: jest.fn() },
+      analyticsEvent: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
+      order: { update: jest.fn() },
+      crmRecord: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
+      ledgerEntry: { create: jest.fn() },
+    };
+    finance = { recordIncome: jest.fn().mockResolvedValue(undefined), generateCommissions: jest.fn().mockResolvedValue(undefined) };
+    audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        CommerceService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('chiave-file-test') } },
+        { provide: ConfigParamsService, useValue: { getString: jest.fn().mockResolvedValue(''), getNumber: jest.fn(), getBool: jest.fn().mockResolvedValue(false) } },
+        { provide: MailService, useValue: { sendPaymentReceipt: jest.fn().mockResolvedValue(true), sendBankTransferInstructions: jest.fn() } },
+        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined), notifyOncePerDay: jest.fn().mockResolvedValue(true) } },
+        { provide: FinanceService, useValue: finance },
+        {
+          provide: CrmService,
+          useValue: {
+            onPaid: jest.fn().mockResolvedValue(undefined),
+            avanzaStato: jest.fn().mockResolvedValue(undefined),
+            autoAdvance: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: DiscountsService, useValue: { validate: jest.fn(), redeem: jest.fn().mockResolvedValue(undefined) } },
+        { provide: StripeService, useValue: { enabled: false } },
+        { provide: AuditService, useValue: audit },
+        { provide: PdfService, useValue: { renderTemplatePdf: jest.fn().mockResolvedValue(Buffer.from('pdf')) } },
+        {
+          provide: ReferralService,
+          // ⚠️ devono restituire una PROMESSA: il servizio ci mette `.catch()` sopra, e un mock
+          // che torna undefined non fallisce un'asserzione — fa esplodere il metodo.
+          useValue: { onConvert: jest.fn().mockResolvedValue(undefined), riscuotiSospese: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MonitoringService, useValue: { onPlanActivated: jest.fn().mockResolvedValue(undefined) } },
+      ],
+    }).compile();
+    service = moduleRef.get(CommerceService);
+  });
+
+  const attiva = (origine?: string) =>
+    service.createManualPurchase(operator, { clientId: 'client-1', planId: 'plan1', generateCommissions: false, origine });
+
+  it('dalla SCHEDA CLIENTE: il piano si attiva ma NON scrive ricavi', async () => {
+    await attiva('scheda_cliente');
+    expect(finance.recordIncome).not.toHaveBeenCalled();
+  });
+
+  it('da ACQUISTI: è una vendita vera e va in contabilità', async () => {
+    await attiva('acquisti');
+    expect(finance.recordIncome).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 13000, category: 'subscription' }),
+    );
+  });
+
+  it('senza `origine` contabilizza: un chiamante vecchio non fa sparire un incasso vero', async () => {
+    await attiva(undefined);
+    expect(finance.recordIncome).toHaveBeenCalled();
+  });
+
+  it('l\'audit dice se doveva entrare nei conti, e da dove arrivava', async () => {
+    await attiva('scheda_cliente');
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'commerce.purchase.manual',
+        metadata: expect.objectContaining({ origine: 'scheda_cliente', contabilizzato: false }),
+      }),
+    );
+  });
+});

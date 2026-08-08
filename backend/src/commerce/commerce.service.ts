@@ -1596,7 +1596,15 @@ export class CommerceService {
     },
     byUserId: string,
     methodLabel: string,
-    options?: { skipCommissions?: boolean },
+    /**
+     * `skipIncome` — attivazione che NON è un incasso: non si scrive la riga nel `ledgerEntry`,
+     * quindi non entra nel conto economico. Serve alle attivazioni fatte a mano dalla scheda
+     * cliente (omaggi, staff, prove interne): segnalazione di Simone dell'8/8 — un piano da €130
+     * attivato a mano per Antonio gonfiava i ricavi di €130 mai incassati.
+     * Il conto economico legge il ledger, non i pagamenti: non scrivere la riga è sufficiente, e
+     * il `payment` resta a documentare che l'attivazione c'è stata e chi l'ha fatta.
+     */
+    options?: { skipCommissions?: boolean; skipIncome?: boolean },
   ) {
     // Attivazione abbonamento (durata dal periodo del piano: es. "3m").
     if (payment.subscriptionId && payment.subscription) {
@@ -1664,13 +1672,18 @@ export class CommerceService {
       await this.prisma.order.update({ where: { id: payment.orderId }, data: { status: 'paid' } });
     }
 
-    await this.finance.recordIncome({
-      amountCents: payment.amountCents,
-      category: payment.subscriptionId ? 'subscription' : 'order',
-      ref: payment.id,
-      clientId: payment.clientId,
-      note: payment.description,
-    });
+    // L'incasso in contabilità: si salta solo quando l'attivazione non è una vendita (vedi
+    // `skipIncome`). Un omaggio che scrive una riga di ricavo è un numero falso nel conto
+    // economico, e nessuno lo va a cercare mesi dopo.
+    if (!options?.skipIncome) {
+      await this.finance.recordIncome({
+        amountCents: payment.amountCents,
+        category: payment.subscriptionId ? 'subscription' : 'order',
+        ref: payment.id,
+        clientId: payment.clientId,
+        note: payment.description,
+      });
+    }
     if (!options?.skipCommissions) {
       await this.provvigioniSenzaPerdere(payment.id, payment.clientId, payment.amountCents);
     }
@@ -1892,7 +1905,22 @@ export class CommerceService {
    * provvigioni solo se richiesto. Utile per omaggi, regolarizzazioni, vendite
    * fuori piattaforma.
    */
-  async createManualPurchase(operator: AuthUser, input: { clientId: string; planId: string; generateCommissions: boolean; discountCode?: string | null }) {
+  /**
+   * Attivazione di un piano a mano dallo staff. Due posti la usano, e non sono la stessa cosa —
+   * distinzione decisa da Simone l'8/8 dopo aver trovato €130 di ricavi mai incassati:
+   *
+   *  - **pagina Acquisti** (`origine: 'acquisti'`, default): è una **vendita vera** avvenuta fuori
+   *    dal negozio — un bonifico gestito a mano, un pagamento raccolto dall'operatrice. Entra in
+   *    contabilità come qualunque incasso.
+   *  - **scheda cliente** (`origine: 'scheda_cliente'`): è un'attivazione **interna** — omaggio,
+   *    staff, socio, prova. Il piano si attiva davvero, ma **non** scrive ricavi.
+   *
+   * Il default è `acquisti` di proposito: un chiamante vecchio che non passa `origine` continua a
+   * contabilizzare, così l'aggiunta non fa sparire in silenzio degli incassi veri dai libri.
+   */
+  async createManualPurchase(operator: AuthUser, input: { clientId: string; planId: string; generateCommissions: boolean; discountCode?: string | null; origine?: string | null }) {
+    const origine = input.origine === 'scheda_cliente' ? 'scheda_cliente' : 'acquisti';
+    const contabilizza = origine === 'acquisti';
     const plan = await this.prisma.plan.findFirst({ where: { id: input.planId } });
     if (!plan) throw new NotFoundException('Piano non trovato');
     const client = await this.prisma.user.findFirst({
@@ -1945,14 +1973,16 @@ export class CommerceService {
       },
       operator.sub,
       'manuale',
-      { skipCommissions: !input.generateCommissions },
+      { skipCommissions: !input.generateCommissions, skipIncome: !contabilizza },
     );
     await this.audit.log({
       action: 'commerce.purchase.manual',
       actorId: operator.sub,
       entityType: 'payment',
       entityId: payment.id,
-      metadata: { planId: plan.id, amountCents, generateCommissions: input.generateCommissions },
+      // `contabilizzato` nell'audit: se un domani un ricavo non torna, qui c'è scritto se quella
+      // attivazione doveva entrare nei conti e chi l'ha decisa.
+      metadata: { planId: plan.id, amountCents, generateCommissions: input.generateCommissions, origine, contabilizzato: contabilizza },
     });
     return this.publicPayment(payment);
   }

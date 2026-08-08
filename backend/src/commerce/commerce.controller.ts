@@ -467,6 +467,17 @@ class CreateManualPurchaseDto {
   @IsString()
   @MaxLength(32)
   discountCode?: string | null;
+
+  /**
+   * DA DOVE arriva l'attivazione, e quindi se è un incasso (decisione di Simone, 8/8):
+   *  - `acquisti` (default) → vendita vera fatta fuori dal negozio: entra in contabilità;
+   *  - `scheda_cliente` → attivazione interna (omaggio, staff, socio, prova): NON scrive ricavi.
+   * Il default contabilizza di proposito: un chiamante che non passa questo campo non deve far
+   * sparire un incasso vero dai libri senza che nessuno lo noti.
+   */
+  @IsOptional()
+  @IsIn(['acquisti', 'scheda_cliente'])
+  origine?: string;
 }
 
 class RefundPurchaseDto {

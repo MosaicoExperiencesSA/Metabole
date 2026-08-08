@@ -1572,9 +1572,17 @@ function AttivaPianoModal({
           planId,
           generateCommissions: provvigioni,
           discountCode: buono.trim() || undefined,
+          // Attivazione dalla SCHEDA = interna (omaggio, staff, socio, prova): il piano si attiva
+          // davvero ma NON entra in contabilità. Le vendite vere si registrano da Acquisti, che
+          // non passa questo campo. Segnalazione di Simone dell'8/8: un piano da €130 attivato a
+          // mano qui gonfiava i ricavi di €130 mai incassati.
+          origine: 'scheda_cliente',
         }),
       });
-      onDone(`Piano attivato${provvigioni ? ' (con provvigioni)' : ' (senza provvigioni)'}.`);
+      onDone(
+        `Piano attivato${provvigioni ? ' (con provvigioni)' : ' (senza provvigioni)'}. ` +
+        'Non entra in contabilità: per registrare un incasso vero usa la pagina Acquisti.',
+      );
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Operazione non riuscita.');
     } finally {
@@ -1597,10 +1605,20 @@ function AttivaPianoModal({
       </div>
       {piano && (
         <p className="muted" style={{ fontSize: 13 }}>
-          Verrà attivato <b>{piano.name}</b> ({piano.period}) per <b>{euro(piano.priceCents)}</b>, con il
-          pagamento registrato come già incassato. I menu partono da subito.
+          Verrà attivato <b>{piano.name}</b> ({piano.period}) per <b>{euro(piano.priceCents)}</b>. I menu
+          partono da subito.
         </p>
       )}
+      {/*
+        Diceva «con il pagamento registrato come già incassato»: era vero e per questo sbagliato.
+        Da qui si attivano omaggi, staff e prove interne, e quei ricavi non esistono. L'avviso è
+        esplicito perché è l'unico posto in cui si può capire prima di premere.
+      */}
+      <p style={{ fontSize: 13, background: 'rgba(184,134,59,.12)', padding: '8px 10px', borderRadius: 8 }}>
+        <b>Non entra in contabilità.</b> Questa attivazione è per omaggi, staff o prove interne: il piano
+        si attiva davvero, ma non viene registrato nessun incasso. Per una <b>vendita vera</b> incassata
+        fuori dal negozio — un bonifico gestito a mano — usa la pagina <b>Acquisti</b>.
+      </p>
       <div className="field">
         <label>Buono sconto (facoltativo)</label>
         <input className="input" value={buono} onChange={(e) => setBuono(e.target.value.toUpperCase())}
