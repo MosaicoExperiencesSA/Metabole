@@ -50,6 +50,7 @@
     "diag:provvigioni": "ts-node --transpile-only prisma/diag-provvigioni.ts",
     "ricalcola:provvigioni": "ts-node --transpile-only prisma/ricalcola-provvigioni.ts",
     "pubblica:tutto": "ts-node --transpile-only prisma/pubblica-tutto.ts",
+    "sistema:nomi": "ts-node --transpile-only prisma/sistema-nomi.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"

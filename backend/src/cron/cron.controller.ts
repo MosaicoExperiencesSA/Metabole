@@ -15,6 +15,7 @@ import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { AuditService } from '../audit/audit.service';
 import { CommerceService } from '../commerce/commerce.service';
+import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { Public } from '../common/decorators/public.decorator';
 import { EngineService } from '../engine/engine.service';
@@ -49,6 +50,7 @@ export class CronController {
     private readonly coachTasks: CoachTasksService,
     private readonly monitoring: MonitoringService,
     private readonly pause: PauseService,
+    private readonly crm: CrmService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -103,6 +105,11 @@ export class CronController {
     // Report MENSILE in app al "mesiversario" di ogni piano attivo (stesso impianto
     // del report di fine piano; sostituisce il PDF via email — dati sanitari).
     await step('monthlyReports', () => this.planReports.generateMonthly());
+    // «Percorso concluso»: la scheda entra nell'ultima colonna quando il piano è finito da una
+    // settimana senza rinnovo. Va DOPO `trials` e `stalePayments`, che sono i due passi che
+    // possono ancora chiudere o annullare qualcosa: così si guarda lo stato definitivo di oggi
+    // e non si archivia una persona il cui pagamento è appena stato sistemato.
+    await step('percorsiConclusi', () => this.crm.chiudiPercorsiConclusi());
 
     const durationMs = Date.now() - startedAt;
     const meta = { durationMs, ok: failures.length === 0, failures };

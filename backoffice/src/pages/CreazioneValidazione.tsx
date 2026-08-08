@@ -19,6 +19,16 @@ type ReviewStatus = {
 };
 
 const LS_DIET = 'metabole_bo_wizard_diet';
+/**
+ * La VARIANTE su cui si stava lavorando, ricordata fra una sessione e l'altra.
+ *
+ * Senza, cliccando sulla famiglia si ripartiva da `variants[0]` — la prima che tornava dal
+ * server, cioè una a caso. Il nutrizionista che aveva finito le dodici settimane di
+ * «onnivora · dimagrimento · 5 pasti», usciva e rientrava, si ritrovava davanti le settimane
+ * 1-4 di «vegana · mantenimento · 3 pasti» tutte in giallo e pensava di aver perso il lavoro.
+ * Non aveva perso niente: stava guardando un'altra dieta con lo stesso nome.
+ */
+const LS_PRESET = 'metabole_bo_wizard_preset';
 const OBIETTIVI = [{ v: 'dimagrimento', l: 'Dimagrimento' }, { v: 'mantenimento', l: 'Mantenimento' }];
 // Terza dimensione delle varianti: struttura pasti (3/5 o digiuno intermittente 16:8).
 const PASTI = [{ v: '3', l: '3 pasti' }, { v: '5', l: '5 pasti' }, { v: 'fasting', l: 'Digiuno intermittente' }];
@@ -38,7 +48,13 @@ export function CreazioneValidazione() {
 
   const [form, setForm] = useState({ label: '', style: '', regimes: ['omnivore'], objectives: ['dimagrimento'], meals: ['5'], clinicalNotes: '', kcalTarget: 1500, proteinMin: 20, proteinMax: 35, kcalTol: 15 });
   const [sourceRules, setSourceRules] = useState<Record<string, unknown>>({});
-  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [activePresetId, setActivePresetIdRaw] = useState<string | null>(() => { try { return localStorage.getItem(LS_PRESET); } catch { return null; } });
+  // Ogni cambio di variante si ricorda: è l'unico modo perché «riapro la pagina domani» torni
+  // sulla stessa dieta invece che su una sorella scelta dall'ordine del database.
+  const setActivePresetId = (id: string | null) => {
+    setActivePresetIdRaw(id);
+    try { if (id) localStorage.setItem(LS_PRESET, id); else localStorage.removeItem(LS_PRESET); } catch { /* no-op */ }
+  };
   const [activeFamilyKey, setActiveFamilyKey] = useState<string | null>(null);
   const [genAll, setGenAll] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -170,6 +186,24 @@ export function CreazioneValidazione() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.regimes, form.objectives, form.meals, targetFamily?.key, presets]);
 
+  /**
+   * RIPRENDE il lavoro dove l'aveva lasciato: al caricamento della pagina, se c'è una variante
+   * ricordata, riapre la sua famiglia. Senza, la variante restava in memoria ma sullo schermo
+   * non c'era niente di selezionato, e il primo clic sulla famiglia ripartiva da capo.
+   */
+  useEffect(() => {
+    if (!presets || presets.length === 0) return;
+    if (activeFamilyKey) return;
+    let ricordata: string | null = null;
+    try { ricordata = localStorage.getItem(LS_PRESET); } catch { /* no-op */ }
+    if (!ricordata) return;
+    const p = presets.find((x) => x.id === ricordata);
+    if (!p) return;
+    const fam = families.find((f) => f.key === familyKeyOf(p.label, p.style));
+    if (fam) pickFamily(fam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presets]);
+
   // Stato di TUTTE le varianti generate della famiglia attiva (per il passo 3):
   // una riga per dieta generata con "pronta" (tutti i passi ok) e "pubblicata".
   type FamVariant = { dietId: string; regime: string; objective: string; meals: string; status: string; ready: boolean };
@@ -237,8 +271,29 @@ export function CreazioneValidazione() {
 
   useEffect(() => { void loadFamilyStatuses(); }, [activeFamilyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Quale variante aprire quando si clicca su una famiglia.
+   *
+   * Non `variants[0]`: quello è l'ordine con cui il database le restituisce, cioè il caso.
+   * Prima quella su cui si stava lavorando (se è di questa famiglia), poi la "maestra"
+   * — onnivora · dimagrimento · 5 pasti — che è quella da cui le altre riusano i piatti e
+   * quindi quella da cui ha senso partire. Solo in ultima istanza la prima dell'elenco.
+   */
+  function variantePreferita(fam: Family): Preset {
+    let ricordata: string | null = null;
+    try { ricordata = localStorage.getItem(LS_PRESET); } catch { /* no-op */ }
+    return (
+      fam.variants.find((v) => v.id === ricordata)
+      ?? fam.variants.find((v) =>
+        ((v.regime as string) || 'omnivore') === 'omnivore'
+        && ((v.objective as string) || 'dimagrimento') === 'dimagrimento'
+        && ((v.meals as string) || '5') === '5')
+      ?? fam.variants[0]
+    );
+  }
+
   function pickFamily(fam: Family) {
-    const p = fam.variants[0];
+    const p = variantePreferita(fam);
     const r = (p.rules as Record<string, unknown>) || {};
     setForm({
       label: fam.label, style: fam.style,
@@ -764,6 +819,32 @@ export function CreazioneValidazione() {
                   <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5, color: '#6B4E12' }}>
                     Al passo 1 hai spuntato <b>{selectedCombos.length} combinazioni</b>, ma la generazione lavora su
                     questa sola. Per farle tutte, metti la spunta <b>«Genera tutte le varianti»</b> qui sopra.
+                  </div>
+                )}
+                {/* CAMBIA VARIANTE, qui, con un clic. Le settimane gialle qui sotto sono di
+                    QUESTA variante: senza un modo evidente di spostarsi, chi rientrava in
+                    pagina e si ritrovava le prime settimane in giallo pensava di aver perso
+                    dodici settimane di lavoro — invece stava guardando una sorella. */}
+                {activeFamily && activeFamily.variants.length > 1 && (
+                  <div style={{ marginTop: 9 }}>
+                    <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Cambia variante — le settimane qui sotto sono di quella scelta:</div>
+                    <div className="row" style={{ gap: 5, flexWrap: 'wrap' }}>
+                      {[...activeFamily.variants]
+                        .sort((a, b) =>
+                          regLabelOf((a.regime as string) || 'omnivore').localeCompare(regLabelOf((b.regime as string) || 'omnivore'), 'it')
+                          || String(a.objective ?? '').localeCompare(String(b.objective ?? ''))
+                          || String(a.meals ?? '').localeCompare(String(b.meals ?? '')))
+                        .map((v) => {
+                          const sel = v.id === activePresetId;
+                          return (
+                            <button key={v.id} type="button" className={`chip ${sel ? '' : 'gray'}`}
+                              onClick={() => setActivePresetId(v.id)}
+                              style={{ cursor: 'pointer', borderColor: sel ? 'var(--teal)' : undefined, fontWeight: sel ? 700 : 400 }}>
+                              {regLabelOf((v.regime as string) || 'omnivore')} · {objLabel((v.objective as string) || 'dimagrimento')} · {mealLabel((v.meals as string) || '5')}
+                            </button>
+                          );
+                        })}
+                    </div>
                   </div>
                 )}
               </>

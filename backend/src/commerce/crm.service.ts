@@ -281,6 +281,75 @@ export class CrmService {
     return avanzaStatoSeIndietro(this.prisma as never, clientId, stage, byUserId);
   }
 
+  /**
+   * «PERCORSO CONCLUSO»: la scheda entra nell'ultima colonna quando il piano è finito da una
+   * settimana e non è stato rinnovato. Chiesto dalle coach (8/8).
+   *
+   * La colonna esisteva nella pipeline dal primo giorno — `path_ended`, ordine 9 — e **non la
+   * scriveva nessuno**: restava vuota per sempre, e le clienti che avevano finito il percorso
+   * rimanevano ferme nella colonna dell'ultima cosa fatta (di solito «Follow-up»), mescolate a
+   * quelle ancora in corso. Sulla board non si distingueva chi c'era da chi se n'era andato.
+   *
+   * Perché **+7 giorni** e non il giorno stesso: il rinnovo arriva quasi sempre nei giorni
+   * subito dopo la scadenza — un bonifico, una carta da rifare, una decisione presa con calma.
+   * Spostare la scheda il giorno della scadenza vorrebbe dire archiviare qualcuno che sta per
+   * tornare, e farlo proprio nella settimana in cui la coach dovrebbe richiamarlo.
+   *
+   * Tre garanzie, e tutte e tre servono:
+   *  - **non retrocede mai** (`avanzaStatoSeIndietro`): se la scheda è già più avanti, o la
+   *    coach l'ha spostata a mano, resta dov'è;
+   *  - **niente abbonamento attivo o in attesa**: chi ha rinnovato, chi è in prova, chi ha un
+   *    ordine ancora da pagare NON è concluso. Un bonifico in attesa è una persona che sta
+   *    tornando, non una che se n'è andata;
+   *  - **finestra e non data esatta**: si guarda l'intervallo fra 7 e 120 giorni fa, così una
+   *    notte in cui il cron non gira non lascia indietro delle schede per sempre.
+   */
+  async chiudiPercorsiConclusi(): Promise<{ esaminati: number; spostati: number }> {
+    const giorni = await this.configParams.getNumber('path_ended_days', 7);
+    const oggi = new Date();
+    const soglia = new Date(oggi.getTime() - Math.max(1, giorni) * 86_400_000);
+    // Limite indietro: le schede molto vecchie non si toccano più. Spostarle adesso in blocco
+    // farebbe apparire sulla board decine di «concluse» tutte insieme, come se fosse successo
+    // oggi — e nessuno saprebbe più cosa guardare.
+    const limite = new Date(oggi.getTime() - 120 * 86_400_000);
+
+    const scaduti = (await this.prisma.subscription.findMany({
+      where: { endDate: { lte: soglia, gte: limite } } as never,
+      select: { clientId: true },
+      distinct: ['clientId'],
+      take: 500,
+    })) as { clientId: string }[];
+
+    let spostati = 0;
+    for (const s of scaduti) {
+      try {
+        const vivo = await this.prisma.subscription.findFirst({
+          where: {
+            clientId: s.clientId,
+            OR: [
+              { status: 'pending' },
+              { status: 'active', OR: [{ endDate: null }, { endDate: { gte: oggi } }] },
+            ],
+          } as never,
+          select: { id: true },
+        });
+        if (vivo) continue;
+        if (await avanzaStatoSeIndietro(this.prisma as never, s.clientId, 'path_ended', 'sistema')) {
+          spostati += 1;
+          await this.audit.log({
+            action: 'crm.lead.path_ended',
+            entityType: 'crm_record',
+            entityId: s.clientId,
+            metadata: { motivo: `piano finito da almeno ${giorni} giorni, nessun rinnovo` },
+          }).catch(() => undefined);
+        }
+      } catch {
+        /* una scheda che non si sposta non deve fermare le altre */
+      }
+    }
+    return { esaminati: scaduti.length, spostati };
+  }
+
   /** Avanzamento automatico (es. paid all'approvazione). */
   async autoAdvance(clientId: string, stage: string, byUserId: string, valueCents?: number): Promise<void> {
     try {

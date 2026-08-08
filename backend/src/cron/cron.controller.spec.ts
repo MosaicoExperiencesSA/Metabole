@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { CommerceService } from '../commerce/commerce.service';
+import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { EngineService } from '../engine/engine.service';
 import { VisitsService } from '../health-area/visits.service';
@@ -72,6 +73,8 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: CoachTasksService, useValue: { generateDaily: jest.fn().mockResolvedValue({ created: 0 }) } },
         { provide: MonitoringService, useValue: monitoring },
         { provide: PauseService, useValue: { surveillanceTick: jest.fn().mockResolvedValue({ visti: 0 }) } },
+        // «Percorso concluso» a +7 giorni dalla fine del piano (richiesta delle coach, 8/8).
+        { provide: CrmService, useValue: { chiudiPercorsiConclusi: jest.fn().mockResolvedValue({ esaminati: 0, spostati: 0 }) } },
       ],
     }).compile();
     controller = moduleRef.get(CronController);

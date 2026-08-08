@@ -261,6 +261,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni dopo cui un bonifico rimasto "in attesa contabile" (senza contabile caricata) viene annullato in automatico dal cron giornaliero',
   },
   {
+    key: 'path_ended_days',
+    value: '7',
+    type: 'number',
+    description: 'Giorni dopo la fine del piano, senza rinnovo, oltre i quali la scheda passa a «Percorso concluso»',
+  },
+  {
     key: 'monitoring_regain_kg',
     value: '3',
     type: 'number',

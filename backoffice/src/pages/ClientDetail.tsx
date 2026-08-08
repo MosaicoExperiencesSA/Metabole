@@ -149,7 +149,10 @@ function EditCard({ form, setForm, lockDietType }: { form: Record<string, string
         {T('phone', 'Telefono')}{T('codiceFiscale', 'Codice fiscale')}
         {T('addressLine', 'Via e n. civico')}
         {T('postalCode', 'CAP')}{T('city', 'Città')}
-        {T('province', 'Provincia')}{T('name', 'Nome nel percorso')}
+        {/* Si chiama ALIAS, non «Nome nel percorso»: è il nome con cui la cliente si fa
+            chiamare in app. Chiamarlo «nome» invitava a riscriverci dentro nome e cognome —
+            ed è esattamente quello che è successo con l'import. */}
+        {T('province', 'Provincia')}{T('name', 'Alias (come si fa chiamare)')}
         {T('age', 'Età', 'number')}{S('sex', 'Sesso', [['female', 'Donna'], ['male', 'Uomo']])}
         {T('heightCm', 'Altezza (cm)', 'number')}{T('startWeightKg', 'Peso (kg)', 'number')}
         {T('startWaistCm', 'Vita (cm)', 'number')}{T('startHipsCm', 'Fianchi (cm)', 'number')}

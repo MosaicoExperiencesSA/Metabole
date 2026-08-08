@@ -198,6 +198,8 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         delete: jest.fn().mockResolvedValue({}),
       },
       crmListMember: { deleteMany: jest.fn(), upsert: jest.fn() },
+      subscription: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+      pipelineStage: { findUnique: jest.fn().mockResolvedValue({ order: 9 }) },
       staff: {
         findMany: jest.fn().mockResolvedValue([{ id: 'staff-c', refCode: 'VOLPEA01' }]),
         // `create` guarda lo staff di chi sta inserendo, per capire se sta assegnando a sé
@@ -403,5 +405,49 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     // Senza questo la scheda direbbe una cosa e la tabella un'altra, e nessuno saprebbe quale
     // delle due è quella vera.
     expect(upd.name).toBe('Anna Bianchini');
+  });
+  /**
+   * «PERCORSO CONCLUSO» (richiesta delle coach, 8/8). La colonna `path_ended` esisteva dal primo
+   * giorno e **non la scriveva nessuno**: restava vuota, e chi aveva finito il percorso restava
+   * fermo nella colonna dell'ultima cosa fatta, mescolato a chi era ancora in corso.
+   */
+  describe('chiudiPercorsiConclusi', () => {
+    it('piano finito da più di 7 giorni e nessun rinnovo → la scheda passa a «Percorso concluso»', async () => {
+      prisma.subscription.findMany.mockResolvedValue([{ clientId: 'cli-1' }]);
+      prisma.subscription.findFirst.mockResolvedValue(null); // niente di attivo né in attesa
+      prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+      prisma.pipelineStage.findUnique
+        .mockResolvedValueOnce({ order: 9 })  // path_ended
+        .mockResolvedValueOnce({ order: 8 }); // follow_up: più indietro, quindi si avanza
+
+      const res = await service.chiudiPercorsiConclusi();
+
+      expect(res).toEqual({ esaminati: 1, spostati: 1 });
+      expect(prisma.crmRecord.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ stage: 'path_ended' }) }),
+      );
+    });
+
+    it('ha rinnovato (o ha un bonifico in attesa) → NON si tocca', async () => {
+      prisma.subscription.findMany.mockResolvedValue([{ clientId: 'cli-1' }]);
+      // Un pagamento in attesa è una persona che sta tornando, non una che se n'è andata.
+      prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-nuovo' });
+
+      const res = await service.chiudiPercorsiConclusi();
+
+      expect(res).toEqual({ esaminati: 1, spostati: 0 });
+      expect(prisma.crmRecord.update).not.toHaveBeenCalled();
+    });
+
+    it('scheda già più avanti → non retrocede', async () => {
+      prisma.subscription.findMany.mockResolvedValue([{ clientId: 'cli-1' }]);
+      prisma.subscription.findFirst.mockResolvedValue(null);
+      prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'path_ended', stageDates: {} });
+      prisma.pipelineStage.findUnique.mockResolvedValue({ order: 9 }); // stesso ordine
+
+      const res = await service.chiudiPercorsiConclusi();
+
+      expect(res.spostati).toBe(0);
+    });
   });
 });
