@@ -38,16 +38,25 @@
  * `MenuDay.dietId` è obbligatorio e inventare una dieta sarebbe peggio.
  */
 import { PrismaClient } from '@prisma/client';
+import { toDateOnly } from '../src/common/date-only';
 
 const prisma = new PrismaClient();
 
 const NOME_RICETTA = 'Pasta alla panna (collaudo)';
 const NOME_GRUPPO = 'Grassi da cucina (collaudo)';
 
-const oggi = (): Date => {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-};
+/**
+ * «Oggi» è il giorno di **Europe/Rome**, non quello UTC — e non è una pignoleria: la prima versione
+ * di questo script calcolava il giorno UTC e alle 00:32 italiane ha preparato la giornata dell'**8**
+ * mentre l'app chiedeva quella del **9**. Risultato: «per cambiare un alimento mi serve il menu di
+ * oggi, e adesso non lo vedo», su un menu appena creato.
+ *
+ * `toDateOnly()` è lo stesso helper che usa il backend (`src/common/date-only.ts`), e quel file
+ * racconta per esteso lo stesso difetto sulle misure: fra mezzanotte e le 02:00 in Italia è già
+ * domani mentre per UTC è ancora ieri. Usare l'helper e non ricalcolare la data è l'unico modo per
+ * essere certi che script e app parlino dello stesso giorno.
+ */
+const oggi = (): Date => toDateOnly();
 
 async function main(): Promise<void> {
   const email = (process.argv[2] ?? '').trim().toLowerCase();
@@ -140,20 +149,29 @@ async function main(): Promise<void> {
   if (pulisci) {
     const ricetta = await prisma.recipe.findFirst({ where: { name: NOME_RICETTA }, select: { id: true } });
     const gruppo = await prisma.equivalenceGroup.findFirst({ where: { name: NOME_GRUPPO }, select: { id: true } });
-    const giornata = await prisma.menuDay.findFirst({ where: { clientId: user.id, date: oggi() }, select: { id: true, meals: true } });
-    const usaLaRicetta =
-      !!ricetta &&
-      !!giornata &&
-      ((giornata.meals as { recipeId?: string }[]) ?? []).some((m) => m?.recipeId === ricetta.id);
+    // Le giornate da togliere sono quelle che contengono la ricetta di collaudo, a QUALUNQUE data:
+    // il primo giro ne ha creata una col giorno sbagliato (UTC invece di Europe/Rome), e cercare
+    // solo «oggi» l'avrebbe lasciata lì per sempre.
+    const ultime = (await prisma.menuDay.findMany({
+      where: { clientId: user.id },
+      orderBy: { date: 'desc' },
+      take: 20,
+      select: { id: true, date: true, meals: true },
+    })) as { id: string; date: Date; meals: unknown }[];
+    const daCancellare = ricetta
+      ? ultime.filter((g) => ((g.meals as { recipeId?: string }[]) ?? []).some((m) => m?.recipeId === ricetta.id))
+      : [];
 
     console.log(`  ricetta di collaudo: ${ricetta ? 'presente' : 'assente'}`);
     console.log(`  gruppo di collaudo:  ${gruppo ? 'presente' : 'assente'}`);
-    console.log(`  giornata di oggi:    ${giornata ? (usaLaRicetta ? 'è quella del collaudo → la cancello' : '⚠️ NON è quella del collaudo → la lascio stare') : 'assente'}`);
+    console.log(
+      `  giornate di collaudo: ${daCancellare.length ? daCancellare.map((g) => g.date.toISOString().slice(0, 10)).join(', ') : 'nessuna'}`,
+    );
     if (!conferma) {
       console.log('\nProva: non ho scritto niente. Rilancia con PULISCI=1 CONFERMA=1.\n');
       return;
     }
-    if (giornata && usaLaRicetta) await prisma.menuDay.delete({ where: { id: giornata.id } });
+    for (const g of daCancellare) await prisma.menuDay.delete({ where: { id: g.id } });
     if (gruppo) await prisma.equivalenceGroup.delete({ where: { id: gruppo.id } });
     if (ricetta) await prisma.recipe.delete({ where: { id: ricetta.id } }).catch(() => {
       console.log('  (la ricetta ha valutazioni collegate: la disattivo invece di cancellarla)');
