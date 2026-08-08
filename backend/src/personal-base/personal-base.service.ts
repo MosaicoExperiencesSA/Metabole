@@ -1,4 +1,5 @@
 import { createHmac } from 'crypto';
+import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
@@ -327,16 +328,17 @@ export class PersonalBaseService {
   ): Promise<PersonalBaseResult> {
     const already = await this.openBlock(clientId);
     if (!already) {
-      await this.prisma.escalation.create({
-        data: {
-          clientId,
-          reason: `Piano bloccato: base personalizzata non certificabile in automatico (${reasons
-            .slice(0, 4)
-            .join('; ')}). Serve la revisione del nutrizionista.`,
-          source: 'engine' as never,
-          category: 'diet_blocked' as never,
-          assignedToId: nutritionistId ?? undefined,
-        },
+      // Passa da `apriSegnalazione` e non più da una `create` diretta: quella scriveva la riga
+      // e basta, e se la cliente non aveva ancora una nutrizionista la segnalazione restava
+      // senza destinatario — nessuna notifica, nessuno che la vedesse. Vedi il commento in
+      // `apri-segnalazione.ts`: è costato venti giorni di silenzio a una persona.
+      await apriSegnalazione(this.prisma as never, {
+        clientId,
+        category: 'diet_blocked',
+        source: 'engine',
+        reason: `Piano bloccato: base personalizzata non certificabile in automatico (${reasons
+          .slice(0, 4)
+          .join('; ')}). Serve la revisione del nutrizionista.`,
       });
       await this.audit.log({
         action: 'personal_base.blocked',

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
@@ -1600,18 +1601,13 @@ export class MenuService {
       select: { id: true },
     });
     if (already) return;
-    const profile = await this.prisma.clientProfile.findUnique({
-      where: { userId: clientId },
-      select: { assignedNutritionistId: true },
-    });
-    await this.prisma.escalation.create({
-      data: {
-        clientId,
-        reason: `Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`,
-        source: 'engine' as never,
-        category: 'diet_blocked' as never,
-        assignedToId: profile?.assignedNutritionistId,
-      },
+    // `apriSegnalazione` invece della `create` diretta: assegna, avvisa, e se non c'è nessuna
+    // nutrizionista sulla cliente la manda al capo nutrizionista invece di lasciarla lì.
+    await apriSegnalazione(this.prisma as never, {
+      clientId,
+      category: 'diet_blocked',
+      source: 'engine',
+      reason: `Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`,
     });
     await this.audit.log({
       action: 'menu.diet_blocked',

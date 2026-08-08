@@ -7,6 +7,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Prodotto]` 🔔 **Una segnalazione senza destinatario non è una segnalazione.** È la storia di
+  una cliente vera, e vale la pena scriverla per intero. Si iscrive il 20 luglio. Dichiara una
+  condizione clinica e un'allergia al pesce. Il motore non riesce a comporre un piano sicuro —
+  con le sue esclusioni restano **zero pranzi e zero cene** compatibili — e apre tre
+  segnalazioni: piano bloccato, screening clinico, e poi un calo di peso anomalo.
+  **Nessuna delle tre arriva a nessuno.** Non le era ancora stata assegnata una nutrizionista, e
+  il codice che scriveva la segnalazione la lasciava senza destinatario: nessuna notifica,
+  nessuna email, visibile solo a chi fosse andato a cercare l'elenco di sua iniziativa.
+  Riceve quattro giornate di menu con la sola colazione. La prova gratuita scade il 30 luglio.
+  Venti giorni di silenzio, e non un solo errore da nessuna parte.
+  Ora `personal-base` e `menu` passano da **`apriSegnalazione`** (senza dipendenze da Nest, come
+  `avanza-stato.ts`: importare il servizio delle notifiche dentro MenuModule chiude un anello e
+  Nest non parte). Assegna, avvisa, e **se il ruolo che deve prenderla in carico non è
+  assegnato la manda a chi ne risponde** — capo nutrizionista o coordinatrice coach — con la
+  notifica che dice esplicitamente che nessun altro l'aveva in mano.
+
 - `[Sviluppo]` 🍽️ **«Nel menu ci dev'essere da mangiare»: il controllo che non c'era.**
   Dalla compattazione del catalogo è saltata fuori questa riga:
   `Vacanze in Serenità · onnivora · dimagrimento · 3 pasti → colaz. 5 · pranzo 0 · cena 0`.
@@ -163,7 +179,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   l'app la rimandava a «scegli la password» — la stessa di due minuti prima. Nessun errore, solo
   una persona convinta di aver sbagliato qualcosa.
 
-  688 test verdi (erano 661).
+  692 test verdi (erano 661).
 
 ---
 
