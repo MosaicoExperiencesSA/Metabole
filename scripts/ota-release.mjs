@@ -7,8 +7,10 @@
  *   es:  node scripts/ota-release.mjs 3.1
  *
  * Cosa fa:
- *   1. build del web (npm run build in app/) → dist/
- *   2. zip del CONTENUTO di dist/ (index.html alla radice dello zip) →
+ *   1. scrive la versione in app/package.json (è il numero che l'app MOSTRA in Profilo:
+ *      senza questo passo il bundle "2.1.1" dichiarava ancora "2.1.0")
+ *   2. build del web (npm run build in app/) → dist/
+ *   3. zip del CONTENUTO di dist/ (index.html alla radice dello zip) →
  *      ota-out/metabole-<versione>.zip
  *
  * Poi, per pubblicare l'aggiornamento (tutto dal backend, niente metabole.eu):
@@ -79,6 +81,22 @@ async function main() {
     console.error(`   Alza il numero: aggiorna "version" in app/package.json e rilancia con la versione nuova.`);
     console.error('   (Se sei certo che nessuno l\'abbia scaricata: OTA_FORCE=1 node scripts/ota-release.mjs ' + version + ')\n');
     process.exit(1);
+  }
+
+  // ⛔ GUARDIA 3 (9/8/2026). Il numero che l'app MOSTRA (`__APP_VERSION__`, in Profilo) viene
+  // da `app/package.json` e veniva iniettato al build; questo script invece usava la versione
+  // solo come nome dello zip e come valore di OTA_VERSION. Erano due numeri scollegati: la
+  // 2.1.1 è stata costruita, pubblicata e scaricata, e sui telefoni compariva «2.1.0».
+  // Nessuno poteva più sapere che cosa stesse girando su un telefono — che è il motivo per cui
+  // il numero di versione esiste. Ora la versione si scrive PRIMA di costruire: quello che
+  // vedi in app è quello che hai pubblicato.
+  const pkgPath = path.join(APP, 'package.json');
+  const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'));
+  if (pkg.version !== version) {
+    console.log(`→ allineo app/package.json: ${pkg.version} → ${version}`);
+    pkg.version = version;
+    await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+    console.log('  (committa anche questo: il numero in app deve restare quello pubblicato)');
   }
 
   run('npm run build', APP);
