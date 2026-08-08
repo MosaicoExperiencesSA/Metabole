@@ -7,6 +7,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Prodotto]` 🧍 **Nome e Cognome, obbligatori. E un Alias facoltativo.** Nel form «Nuovo lead»
+  c'era un solo campo «Nome (facoltativo)»: si potevano inserire lead **senza nome** — che in
+  tabella diventano una riga con la sola email, e nessuno sa più chi sia — e chi il nome lo
+  scriveva lo scriveva come gli veniva, quindi ordinare per cognome era impossibile.
+  Ora sono due campi obbligatori, più un **Alias** facoltativo (come si fa chiamare). In
+  Gestione lead ci sono due colonne, **Nome** e **Cognome**, entrambe ordinabili; l'alias in
+  tabella non compare.
+  Tre scelte dietro, tutte con lo stesso movente — non rompere quello che già funziona:
+  · `name` resta e viene tenuto allineato come «Nome Cognome», perché lo leggono tabella,
+    pipeline, email, ricevute e import: riscrivere tutti quei punti sarebbe stato un rischio
+    senza guadagno;
+  · le colonne nuove sono **nullable**: le schede importate hanno solo il nome intero, e
+    spezzare «Maria Teresa De Santis» a occhio produrrebbe un cognome sbagliato che poi nessuno
+    ricontrolla. Su quelle la scheda mostra ancora il campo intero, finché non le si separa;
+  · nome, cognome e alias si correggono **anche dalla scheda**, altrimenti sarebbero dati che si
+    scrivono una volta sola.
+  Migrazione `20260809090000_lead_nome_cognome_alias` (tre colonne nullable, nessun dato toccato).
+
 - `[Prodotto]` 🛡️ **Il Monitoraggio a €19 adesso è un prodotto vero.** Fin qui erogava gli
   **stessi identici menu** del Mantenimento a €49, perché il motore guardava solo che ci fosse un
   abbonamento attivo, mai quale. Due prezzi molto diversi per la stessa cosa. Deciso (Simone) che
@@ -72,7 +90,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   l'app la rimandava a «scegli la password» — la stessa di due minuti prima. Nessun errore, solo
   una persona convinta di aver sbagliato qualcosa.
 
-  676 test verdi (erano 661).
+  679 test verdi (erano 661).
 
 ---
 

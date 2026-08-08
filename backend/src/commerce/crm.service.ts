@@ -333,6 +333,11 @@ export class CrmService {
       const or: Record<string, unknown>[] = [
         { email: { contains: q, mode: 'insensitive' } },
         { name: { contains: q, mode: 'insensitive' } },
+        // Anche sui campi separati: `name` è tenuto allineato, ma cercare per cognome deve
+        // funzionare pure sulle schede in cui, per qualsiasi motivo, `name` fosse rimasto indietro.
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+        { alias: { contains: q, mode: 'insensitive' } },
         { client: { email: { contains: q, mode: 'insensitive' } } },
       ];
       if (digits.length >= 3) or.push({ phone: { contains: digits } });
@@ -362,6 +367,11 @@ export class CrmService {
     const dir = filter.sortDir === 'asc' ? 'asc' : 'desc';
     const sortMap: Record<string, unknown> = {
       name: { name: dir },
+      // Ordinare per COGNOME è il motivo per cui nome e cognome stanno in due colonne: con un
+      // campo unico «Anna Bianchi» si ordina per «Anna», che non serve a nessuno.
+      // I lead importati non hanno il cognome (`null`): Postgres li mette in fondo in `asc` e
+      // in cima in `desc`, ed è la scelta giusta — le schede incomplete si vedono.
+      cognome: { lastName: dir },
       email: { email: dir },
       stage: { stage: dir },
       created: { createdAt: dir },
@@ -484,6 +494,9 @@ export class CrmService {
     recordId: string,
     input: {
       name?: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      alias?: string | null;
       email?: string;
       phone?: string | null;
       phone2?: string | null;
@@ -502,10 +515,30 @@ export class CrmService {
     await this.assertLeadAccess(byUserId, recordId);
     const record = await this.prisma.crmRecord.findUnique({ where: { id: recordId } });
     if (!record) throw new NotFoundException('Lead non trovato');
+    // Colonne nuove (nome/cognome/alias): il client Prisma locale non le conosce finché non
+    // viene rigenerato, e il deploy lo fa. Il dato c'è: è solo il tipo a essere indietro.
+    const vecchio = record as unknown as { firstName: string | null; lastName: string | null; name: string | null };
     const updated = await this.prisma.crmRecord.update({
       where: { id: recordId },
       data: {
         ...(input.name !== undefined ? { name: input.name || null } : {}),
+        // Correggendo nome o cognome si riallinea anche `name`, altrimenti la scheda direbbe
+        // una cosa e la tabella un'altra — e nessuno saprebbe quale delle due è quella vera.
+        ...(input.firstName !== undefined ? { firstName: input.firstName?.trim() || null } : {}),
+        ...(input.lastName !== undefined ? { lastName: input.lastName?.trim() || null } : {}),
+        ...(input.alias !== undefined ? { alias: input.alias?.trim() || null } : {}),
+        ...(input.firstName !== undefined || input.lastName !== undefined
+          ? {
+              name:
+                [
+                  input.firstName !== undefined ? input.firstName?.trim() || null : vecchio.firstName,
+                  input.lastName !== undefined ? input.lastName?.trim() || null : vecchio.lastName,
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+                  .trim() || record.name,
+            }
+          : {}),
         ...(input.email !== undefined ? { email: input.email || null } : {}),
         ...(input.phone !== undefined ? { phone: input.phone?.trim() || null } : {}),
         ...(input.phone2 !== undefined ? { phone2: input.phone2?.trim() || null } : {}),
@@ -720,8 +753,26 @@ export class CrmService {
     return { created, merged, skipped, coachAssigned, listLinks, newLists: dryRun ? [...newLists] : [] };
   }
 
-  async create(byUserId: string, input: { email: string; name?: string; phone?: string; assignedCoachId?: string }) {
+  async create(byUserId: string, input: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    alias?: string;
+    name?: string;
+    phone?: string;
+    assignedCoachId?: string;
+  }) {
     const email = input.email.trim();
+    // Nome e cognome sono due dati diversi (form «Nuovo lead», 9/8) e si conservano separati:
+    // così si ordina per cognome, cosa impossibile con un campo unico. `name` resta e viene
+    // tenuto allineato come «Nome Cognome», perché lo leggono decine di punti — tabella,
+    // pipeline, email, ricevute, import — e riscriverli tutti sarebbe stato un rischio senza
+    // guadagno. Se arriva solo `name` (import storico) i due campi restano vuoti: spezzare
+    // «Maria Teresa De Santis» a occhio produrrebbe un cognome sbagliato.
+    const firstName = input.firstName?.trim() || null;
+    const lastName = input.lastName?.trim() || null;
+    const alias = input.alias?.trim() || null;
+    const nomeCompleto = [firstName, lastName].filter(Boolean).join(' ').trim() || input.name?.trim() || null;
     // Anti-doppione: niente due schede CRM con la stessa email (confronto case-insensitive),
     // sia lead "puri" sia clienti già collegati. Coerente con import e registrazione.
     const dupe = (await this.prisma.crmRecord.findFirst({
@@ -772,9 +823,15 @@ export class CrmService {
     const daAccettare = !!assignedCoachId && !seStessa;
 
     const record = await this.prisma.crmRecord.create({
+      // `firstName`/`lastName`/`alias` sono colonne nuove: finché il client Prisma non viene
+      // rigenerato (lo fa il deploy) i tipi non le conoscono. Stesso `as never` già usato qui
+      // sotto per `stageDates`, e in mezzo repository per i campi appena aggiunti.
       data: {
         email,
-        name: input.name,
+        firstName,
+        lastName,
+        alias,
+        name: nomeCompleto,
         phone,
         stage: 'lead_in',
         stageDates: { lead_in: { at: new Date().toISOString(), byUserId } } as never,
@@ -786,7 +843,7 @@ export class CrmService {
               ...(daAccettare && staffCreatore ? { assignedById: staffCreatore.id } : {}),
             }
           : {}),
-      },
+      } as never,
     });
 
     if (daAccettare) {

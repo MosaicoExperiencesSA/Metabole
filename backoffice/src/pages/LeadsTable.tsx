@@ -16,6 +16,8 @@ interface Lead {
   clientId: string | null;
   email: string | null;
   name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   stage: string;
   valueCents: number | null;
   historicalPaidCents: number | null;
@@ -37,6 +39,20 @@ function euro(cents: number | null): string {
 function parseEuro(v: string): number | null { const n = parseFloat(v.replace(',', '.')); return v.trim() && !isNaN(n) ? Math.round(n * 100) : null; }
 function displayName(l: Lead): string {
   return l.client?.clientProfile?.name ?? l.name ?? l.client?.email ?? l.email ?? 'Senza nome';
+}
+/**
+ * Nome e COGNOME in due colonne (9/8): sono due dati diversi, e con un campo unico si ordinava
+ * per nome di battesimo — cioè per niente.
+ * Le schede vecchie (import storici, clienti registrati dall'app) hanno solo il nome intero:
+ * lì il nome sta tutto nella prima colonna e il cognome resta vuoto. Spezzarlo a occhio —
+ * «Maria Teresa De Santis» — produrrebbe cognomi sbagliati che poi nessuno ricontrolla.
+ */
+function nomeDi(l: Lead): string {
+  if (l.firstName) return l.firstName;
+  return l.client?.clientProfile?.name ?? l.name ?? l.client?.email ?? l.email ?? 'Senza nome';
+}
+function cognomeDi(l: Lead): string {
+  return l.lastName || '—';
 }
 // Classificazione persona coerente col marketing: cliente attivo, cliente storico (pre-Metabole) o lead.
 function classify(l: Lead): { label: string; chip: string; title: string } {
@@ -323,6 +339,7 @@ export function LeadsTable() {
                   </th>
                 )}
                 {th('Nome', 'name')}
+                {th('Cognome', 'cognome')}
                 {th('Email', 'email')}
                 {th('Stato', 'stage')}
                 {th('Coach', 'coach')}
@@ -334,8 +351,8 @@ export function LeadsTable() {
               </tr>
               <tr>
                 {canAssignCoach && <th style={{ padding: '4px 6px' }} />}
-                <th style={{ padding: '4px 6px' }}>
-                  <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome…" value={fName} onChange={(e) => setFName(e.target.value)} />
+                <th style={{ padding: '4px 6px' }} colSpan={2}>
+                  <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome o cognome…" value={fName} onChange={(e) => setFName(e.target.value)} />
                 </th>
                 <th style={{ padding: '4px 6px' }}>
                   <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Email o tel…" value={fEmail} onChange={(e) => setFEmail(e.target.value)} />
@@ -386,7 +403,7 @@ export function LeadsTable() {
             <tbody>
               {leads.length === 0 ? (
                 <tr>
-                  <td colSpan={canAssignCoach ? 10 : 9} className="empty" style={{ padding: 24, textAlign: 'center' }}>
+                  <td colSpan={canAssignCoach ? 11 : 10} className="empty" style={{ padding: 24, textAlign: 'center' }}>
                     {searching ? 'Carico…' : 'Nessun lead con questi filtri. Modifica o azzera i filtri qui sopra.'}
                   </td>
                 </tr>
@@ -401,12 +418,12 @@ export function LeadsTable() {
                     )}
                     <td>
                       {l.clientId ? (
-                        <Link to={`/clienti/${l.clientId}`} style={{ fontWeight: 700, textDecoration: 'none' }}>
-                          {displayName(l)}
+                        <Link to={`/clienti/${l.clientId}`} style={{ fontWeight: 700, textDecoration: 'none' }} title={displayName(l)}>
+                          {nomeDi(l)}
                         </Link>
                       ) : (
                         <Link to={`/crm/lead/${l.id}`} style={{ fontWeight: 700, textDecoration: 'none' }} title="Apri la scheda del lead">
-                          {displayName(l)}
+                          {nomeDi(l)}
                         </Link>
                       )}
                       {l.lists?.length > 0 && (
@@ -417,6 +434,7 @@ export function LeadsTable() {
                         </div>
                       )}
                     </td>
+                    <td style={{ fontWeight: 600 }} className={l.lastName ? undefined : 'muted'}>{cognomeDi(l)}</td>
                     <td className="muted">{l.client?.email ?? l.email ?? l.phone ?? '—'}</td>
                     <td>
                       <select

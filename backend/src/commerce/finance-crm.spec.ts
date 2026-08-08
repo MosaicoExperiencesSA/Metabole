@@ -198,7 +198,13 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         delete: jest.fn().mockResolvedValue({}),
       },
       crmListMember: { deleteMany: jest.fn(), upsert: jest.fn() },
-      staff: { findMany: jest.fn().mockResolvedValue([{ id: 'staff-c', refCode: 'VOLPEA01' }]) },
+      staff: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'staff-c', refCode: 'VOLPEA01' }]),
+        // `create` guarda lo staff di chi sta inserendo, per capire se sta assegnando a sé
+        // stessa (e quindi saltare il ciclo di accettazione). Qui l'attore è 'sales': nessuno
+        // staff, nessuna assegnazione automatica.
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $transaction: jest.fn().mockResolvedValue([]),
     };
     prisma.crmRecord.findFirst = jest.fn().mockResolvedValue(null);
@@ -359,5 +365,43 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     const data = (prisma.crmRecord.create as jest.Mock).mock.calls.at(-1)![0].data;
     expect('codiceFiscale' in data).toBe(false);
     expect('address' in data).toBe(false);
+  });
+  /**
+   * NOME E COGNOME SEPARATI + ALIAS (form «Nuovo lead», 9/8).
+   *
+   * Prima c'era un solo campo «Nome (facoltativo)»: si potevano inserire lead senza nome — che
+   * in tabella diventano una riga con la sola email, e nessuno sa più chi sia — e chi il nome lo
+   * scriveva lo scriveva come gli veniva, quindi ordinare per cognome era impossibile.
+   * `name` continua a esistere ed è tenuto allineato: lo leggono tabella, pipeline, email e
+   * ricevute, e riscrivere tutti quei punti sarebbe stato un rischio senza guadagno.
+   */
+  it('create: nome e cognome separati, alias, e `name` composto', async () => {
+    const rec: any = await service.create('sales-user', {
+      email: 'anna@test.it', firstName: ' Anna ', lastName: ' Bianchi ', alias: ' Annina ',
+    });
+    expect(rec.firstName).toBe('Anna');
+    expect(rec.lastName).toBe('Bianchi');
+    expect(rec.alias).toBe('Annina');
+    expect(rec.name).toBe('Anna Bianchi');
+  });
+
+  it('create: senza nome e cognome (import storico) tiene `name` e lascia vuoti gli altri due', async () => {
+    // Spezzare «Maria Teresa De Santis» a occhio produrrebbe un cognome sbagliato: meglio
+    // vuoto che inventato.
+    const rec: any = await service.create('sales-user', { email: 'mt@test.it', name: 'Maria Teresa De Santis' });
+    expect(rec.name).toBe('Maria Teresa De Santis');
+    expect(rec.firstName).toBeNull();
+    expect(rec.lastName).toBeNull();
+  });
+
+  it('updateInfo: correggendo il cognome si riallinea anche `name`', async () => {
+    prisma.crmRecord.findUnique.mockResolvedValue({
+      id: 'lead1', firstName: 'Anna', lastName: 'Bianchi', name: 'Anna Bianchi', stageDates: {},
+    });
+    const upd: any = await service.updateInfo('sales-user', 'lead1', { lastName: 'Bianchini' });
+    expect(upd.lastName).toBe('Bianchini');
+    // Senza questo la scheda direbbe una cosa e la tabella un'altra, e nessuno saprebbe quale
+    // delle due è quella vera.
+    expect(upd.name).toBe('Anna Bianchini');
   });
 });

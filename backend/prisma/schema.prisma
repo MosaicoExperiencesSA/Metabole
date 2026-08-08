@@ -639,6 +639,15 @@ model CrmRecord {
   email      String?
   phone      String? // per i lead puri (importati): il telefono è chiave insieme all'email
   phone2     String? @map("phone2") // secondo numero (es. import con due numeri appiccicati)
+  // Nome e cognome SEPARATI (form «Nuovo lead», 9/8): sono due dati diversi e si ordina per
+  // cognome, cosa impossibile con un campo unico. `name` resta ed è tenuto allineato come
+  // «Nome Cognome»: lo leggono decine di punti (tabella, pipeline, email, ricevute, import) e
+  // riscriverli tutti per un campo nuovo sarebbe stato un rischio senza guadagno.
+  // Restano NULLABLE perché i lead importati dalle liste storiche hanno solo il nome intero.
+  firstName  String? @map("first_name")
+  lastName   String? @map("last_name")
+  // Come si fa chiamare: soprannome, nome d'arte, il nome che usa sui social. Facoltativo.
+  alias      String?
   name       String?
   stage      String   @default("lead_in") // chiave di pipeline_stage (gestita da admin)
   stageDates Json     @default("{}") @map("stage_dates") // {stage: {at, byUserId}}

@@ -121,10 +121,27 @@ class CreateLeadDto {
   @IsEmail()
   email!: string;
 
+  /**
+   * Nome e cognome, **obbligatori** dal 9/8. Prima c'era un solo campo «Nome (facoltativo)»:
+   * si potevano inserire lead senza nome — e in tabella diventavano una riga con la sola email,
+   * che nessuno sa chi sia — e chi il nome lo scriveva lo scriveva come gli veniva, per cui
+   * ordinare per cognome era impossibile.
+   */
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  firstName!: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  lastName!: string;
+
+  /** Come si fa chiamare (soprannome, nome d'arte): facoltativo. */
   @IsOptional()
   @IsString()
-  @MaxLength(120)
-  name?: string;
+  @MaxLength(60)
+  alias?: string;
 
   @IsOptional()
   @IsString()
@@ -162,6 +179,22 @@ class UpdateLeadInfoDto {
   @IsString()
   @MaxLength(120)
   name?: string;
+
+  // Anche dalla scheda, altrimenti si potrebbero inserire e mai correggere.
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  firstName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  lastName?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  alias?: string | null;
 
   @IsOptional()
   @IsEmail()

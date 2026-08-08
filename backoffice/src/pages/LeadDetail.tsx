@@ -29,6 +29,9 @@ interface LeadDetailData {
   clientId: string | null;
   email: string | null;
   name: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  alias?: string | null;
   stage: string;
   stageDates: Record<string, { at?: string; byUserId?: string | null; meta?: { source?: string; message?: string; channel?: string } }>;
   valueCents: number | null;
@@ -98,6 +101,11 @@ export function LeadDetail() {
 
   // Campi modificabili (solo lead puro: l'anagrafica del cliente vive nella scheda cliente)
   const [name, setName] = useState('');
+  // Nome e cognome separati + alias (9/8): si inseriscono dal form «Nuovo lead», e vanno
+  // anche corretti da qui, altrimenti sarebbero campi che si scrivono una volta sola.
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [alias, setAlias] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [phone2, setPhone2] = useState('');
@@ -145,6 +153,9 @@ export function LeadDetail() {
       setAllLists(lists);
       setNotes(l.notes ?? []);
       setName(l.name ?? '');
+      setFirstName(l.firstName ?? '');
+      setLastName(l.lastName ?? '');
+      setAlias(l.alias ?? '');
       setEmail(l.email ?? '');
       setPhone(l.phone ?? '');
       setPhone2(l.phone2 ?? '');
@@ -186,6 +197,9 @@ export function LeadDetail() {
       }
       const body: Record<string, unknown> = {
         name: name.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        alias: alias.trim(),
         email: email.trim(),
         phone: phone.trim(),
         phone2: phone2.trim(),
@@ -201,7 +215,7 @@ export function LeadDetail() {
       if (consent !== '') body.marketingConsent = consent === 'si';
       if (valueCents !== undefined) body.valueCents = valueCents;
       const updated = await api<LeadDetailData>(`/crm/leads/${lead.id}/info`, { method: 'PATCH', body: JSON.stringify(body) });
-      setLead({ ...lead, name: updated.name, email: updated.email, phone: updated.phone, phone2: updated.phone2, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags, segment: updated.segment, channel: updated.channel, marketingConsent: updated.marketingConsent, consentChannels: updated.consentChannels });
+      setLead({ ...lead, name: updated.name, firstName: updated.firstName, lastName: updated.lastName, alias: updated.alias, email: updated.email, phone: updated.phone, phone2: updated.phone2, valueCents: updated.valueCents, previousStatus: updated.previousStatus, historicalPaidCents: updated.historicalPaidCents, codiceFiscale: updated.codiceFiscale, address: updated.address, tags: updated.tags, segment: updated.segment, channel: updated.channel, marketingConsent: updated.marketingConsent, consentChannels: updated.consentChannels });
       setEditing(false);
       setNotice('Scheda aggiornata.');
     } catch (err) {
@@ -592,10 +606,27 @@ export function LeadDetail() {
           <div className="row" style={{ gap: 14, flexWrap: 'wrap' }}>
             {!lead.clientId && (
               <>
-                <div className="field" style={{ minWidth: 200 }}>
+                <div className="field" style={{ minWidth: 150 }}>
                   <label>Nome</label>
-                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Anna Bianchi" />
+                  <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Anna" />
                 </div>
+                <div className="field" style={{ minWidth: 150 }}>
+                  <label>Cognome</label>
+                  <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Bianchi" />
+                </div>
+                <div className="field" style={{ minWidth: 150 }}>
+                  <label>Alias (facoltativo)</label>
+                  <input className="input" value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Come si fa chiamare" maxLength={60} />
+                </div>
+                {/* Lead importati dalle liste storiche: hanno solo il nome intero, e spezzarlo
+                    a occhio produrrebbe cognomi sbagliati («Maria Teresa De Santis»). Finché
+                    nome e cognome non ci sono, si corregge il campo intero — poi sparisce. */}
+                {!lead.firstName && !lead.lastName && (
+                  <div className="field" style={{ minWidth: 220 }}>
+                    <label>Nome completo (scheda importata)</label>
+                    <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Anna Bianchi" />
+                  </div>
+                )}
                 <div className="field" style={{ minWidth: 220 }}>
                   <label>Email</label>
                   <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="anna@example.com" />

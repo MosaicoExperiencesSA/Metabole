@@ -32,7 +32,12 @@ export function LeadForm() {
   const { can } = useAuth();
   const canAssignCoach = can('assign_coach', 'manage');
   const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
+  // Nome e cognome separati e OBBLIGATORI (9/8). Prima era un solo campo facoltativo: si
+  // potevano inserire lead senza nome, che in tabella diventano una riga con la sola email —
+  // e nessuno sa più chi sia. L'alias è il nome con cui si fa chiamare: facoltativo.
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [alias, setAlias] = useState('');
   const [phonePrefix, setPhonePrefix] = useState('+39');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [coachId, setCoachId] = useState('');
@@ -53,6 +58,14 @@ export function LeadForm() {
   async function submit(withCredentials = false) {
     setError(null);
     setOk(null);
+    if (firstName.trim().length < 2) {
+      setError('Manca il nome.');
+      return;
+    }
+    if (lastName.trim().length < 2) {
+      setError('Manca il cognome.');
+      return;
+    }
     if (!email.includes('@')) {
       setError('Inserisci un\'email valida.');
       return;
@@ -61,14 +74,25 @@ export function LeadForm() {
     // Numero completo col prefisso internazionale (come la registrazione app).
     const phone = phoneNumber.trim() ? `${phonePrefix} ${phoneNumber.trim()}` : undefined;
     try {
-      await api('/crm/leads', { method: 'POST', body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone, sendCredentials: withCredentials, assignedCoachId: coachId || undefined }) });
+      await api('/crm/leads', { method: 'POST', body: JSON.stringify({
+        email: email.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        alias: alias.trim() || undefined,
+        phone,
+        sendCredentials: withCredentials,
+        assignedCoachId: coachId || undefined,
+      }) });
       const chi = coaches.find((c) => c.id === coachId)?.displayName;
       const coda = chi ? ` Assegnato a ${chi}: le è arrivata la notifica, deve accettarlo.` : '';
+      const nomeCompleto = `${firstName.trim()} ${lastName.trim()}`.trim();
       setOk(withCredentials
-        ? `Lead "${name.trim() || email.trim()}" inserito e credenziali inviate a ${email.trim()}.${coda}`
-        : `Lead "${name.trim() || email.trim()}" inserito. Lo trovi in Gestione lead e nella Pipeline.${coda}`);
+        ? `Lead "${nomeCompleto}" inserito e credenziali inviate a ${email.trim()}.${coda}`
+        : `Lead "${nomeCompleto}" inserito. Lo trovi in Gestione lead e nella Pipeline.${coda}`);
       setEmail('');
-      setName('');
+      setFirstName('');
+      setLastName('');
+      setAlias('');
       setPhoneNumber('');
       setCoachId('');
     } catch (err) {
@@ -87,9 +111,19 @@ export function LeadForm() {
       {error && <Banner kind="err">{error}</Banner>}
       {ok && <Banner kind="ok">{ok}</Banner>}
 
+      <div className="row" style={{ gap: 10 }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label>Nome</label>
+          <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Anna" autoFocus />
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label>Cognome</label>
+          <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Bianchi" />
+        </div>
+      </div>
       <div className="field">
-        <label>Nome (facoltativo)</label>
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Anna Bianchi" autoFocus />
+        <label>Alias (facoltativo)</label>
+        <input className="input" value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Come si fa chiamare" maxLength={60} />
       </div>
       <div className="field">
         <label>Email</label>
@@ -139,10 +173,10 @@ export function LeadForm() {
         <button className="btn ghost" onClick={() => navigate('/crm/gestione')} disabled={busy}>
           Vai alla gestione
         </button>
-        <button className="btn ghost" onClick={() => submit(true)} disabled={busy || !email} title="Crea il lead e gli invia subito email + password provvisoria">
+        <button className="btn ghost" onClick={() => submit(true)} disabled={busy || !email || !firstName.trim() || !lastName.trim()} title="Crea il lead e gli invia subito email + password provvisoria">
           {busy ? 'Attendi…' : 'Inserisci e invia credenziali'}
         </button>
-        <button className="btn" onClick={() => submit(false)} disabled={busy || !email}>
+        <button className="btn" onClick={() => submit(false)} disabled={busy || !email || !firstName.trim() || !lastName.trim()}>
           {busy ? 'Inserisco…' : 'Inserisci lead'}
         </button>
       </div>
