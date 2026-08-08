@@ -7,6 +7,46 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 👁️ **L'admin vede tutte le conversazioni della cliente — e prima non ne vedeva
+  nessuna.** Simone apre la scheda come admin e legge «Nessuna conversazione visibile per il tuo
+  ruolo»: «ADMIN vede tutto». Guardando il codice il difetto era più grande della scelta di cui
+  avevamo discusso: l'admin **non era gestito affatto** in `assertThreadAccess`. Non è che gli
+  mancasse il thread con Gaia — cadeva sul `Nessuna scheda staff` prima ancora di arrivare ai
+  controlli, quindi non vedeva **nemmeno la chat con la sua coach**.
+  Ora un ramo esplicito: `role === 'admin'` in lettura passa, e sta **prima** della ricerca della
+  scheda staff, perché un admin può non averne una.
+  **Due limiti restano, e sono voluti.** L'admin **legge e non scrive**: un suo messaggio nel thread
+  della coach arriverebbe alla cliente come se fosse della coach, e per parlare come qualcun altro
+  esiste l'impersonazione, che è dichiarata e tracciata. E la **manager delle coach** (`sales`) resta
+  fuori dal clinico: vede lead, contatti e metriche, non i sintomi.
+  Qui c'era il ragionamento opposto, ed era motivato: `pages.ts` nega all'admin `health_documents`
+  con la nota «note cliniche riservate», e nel thread con Gaia c'è esattamente quel materiale. Ha
+  deciso Simone, e la contropartita è la **traccia**: `chat.staff_read_messages` registra ogni
+  apertura di una conversazione da parte dello staff — chi, quale thread, quale cliente. La cliente
+  che rilegge la propria non viene tracciata: sarebbe rumore che nasconde le righe che contano. Un
+  errore dell'audit non impedisce la lettura: meglio un messaggio letto senza riga che una scheda che
+  non si apre.
+  Il test che diceva «l'admin NON legge» è stato riscritto con la decisione nuova invece di essere
+  cancellato, e accanto ci sono quelli che tengono i due limiti. 852 test verdi, nessun OTA.
+
+- `[Sviluppo]` 🏷️ **`sistema:nomi` ora sistema anche i LEAD, che erano il grosso del problema.**
+  Lanciato in produzione diceva «Clienti esaminate: 41 · già a posto: 41 · Niente da sistemare ✓», e
+  Simone: «ma io voglio sistemare i lead anche». Aveva ragione, e il «niente da sistemare» era una
+  mezza verità: lo script interrogava `user` con ruolo `client`, cioè **solo chi ha un account**. I
+  lead importati dalle liste non ce l'hanno — sono `CrmRecord` con `clientId` a null — quindi non
+  erano né sistemati né contati: invisibili, non a posto.
+  Su un lead il guasto è più semplice: `firstName`/`lastName` vuoti e il nome intero in `name` (lo
+  dice il commento dello schema: restano nullable «perché i lead importati dalle liste storiche hanno
+  solo il nome intero»). Senza cognome, in Gestione lead non si ordina e non si cerca per cognome —
+  lo stesso problema delle clienti, sulla lista più grande.
+  Aggiunta una seconda fase con la stessa regola di divisione, lo stesso dry-run e la stessa
+  conferma. Tre scelte che vale la pena aver scritto: il limite numerico vale sul **totale** delle due
+  liste (altrimenti «40» diventava «40 clienti E 40 lead», e chi legge trenta righe se ne ritrova
+  ottanta scritte); i lead **con** account non vengono rifatti, perché il giro delle clienti già
+  allinea la loro scheda CRM; email e telefono non si toccano, sono le chiavi con cui il lead è stato
+  importato e riconosciuto. Nuovo interruttore `SOLO=lead` / `SOLO=clienti` per lavorarne una alla
+  volta.
+
 - `[Sviluppo]` 📏 **Quando la coach sblocca l'app, le misure si chiedono sul telefono.**
   Richiesta di Simone dell'8/8. Lo sblocco già mandava un avviso, ma con due difetti che si
   sommavano: **annunciava** («App sbloccata 💚») invece di **chiedere**, ed era solo `inapp`, cioè

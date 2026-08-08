@@ -17,6 +17,8 @@ describe('ChatService', () => {
   let service: ChatService;
   let prisma: any;
   let notifications: { notifyOncePerDay: jest.Mock };
+  /** Serve nei test della tracciatura: chi apre la conversazione di una cliente lascia una riga. */
+  let audit: { log: jest.Mock };
   let sostituzione: {
     apri: jest.Mock;
     apriDaTesto: jest.Mock;
@@ -25,6 +27,7 @@ describe('ChatService', () => {
   };
 
   beforeEach(async () => {
+    audit = { log: jest.fn().mockResolvedValue(undefined) };
     prisma = {
       chatThread: {
         upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'th-' + create.counterpart, ...create })),
@@ -69,7 +72,7 @@ describe('ChatService', () => {
         ChatService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationsService, useValue: notifications },
-        { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: AuditService, useValue: audit },
         { provide: AiService, useValue: { assistantEnabled: jest.fn().mockResolvedValue(false), assistantReply: jest.fn().mockResolvedValue(null) } },
         { provide: SostituzioneChatService, useValue: sostituzione },
       ],
@@ -314,18 +317,53 @@ describe('ChatService', () => {
     });
 
     /**
-     * L'admin no, e non è una dimenticanza: `pages.ts` gli nega `health_documents` con la nota
-     * «note cliniche riservate», e nel thread con Gaia c'è esattamente quel materiale — sintomi,
-     * gravidanza, farmaci: tutto quello che il filtro marca come sensibile resta scritto lì.
-     * Un permesso amministrativo non è un permesso clinico.
+     * L'ADMIN LEGGE TUTTO — deciso da Simone l'8/8 vedendo «Nessuna conversazione visibile per il
+     * tuo ruolo» nella scheda mentre era admin.
+     *
+     * Qui prima c'era il test opposto, e la ragione era buona: `pages.ts` nega all'admin
+     * `health_documents` con la nota «note cliniche riservate», e nel thread con Gaia c'è
+     * esattamente quel materiale. Ma il difetto era più grande della sola scelta clinica: l'admin
+     * non era gestito affatto e cadeva sul «Nessuna scheda staff», quindi non vedeva NEMMENO le
+     * conversazioni con la coach. Restano due limiti, e questi test li tengono fermi: l'admin
+     * **legge e non scrive**, e la manager delle coach resta fuori dal clinico.
      */
-    it('l\'admin NON legge il thread con Gaia', async () => {
+    it('l\'admin LEGGE il thread con Gaia', async () => {
       prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
-      await expect(service.listMessages(admin, 't-ai')).rejects.toThrow(ForbiddenException);
+      await expect(service.listMessages(admin, 't-ai')).resolves.toBeDefined();
+    });
+
+    it('l\'admin vede TUTTI i thread in scheda, anche quelli di una cliente che non è sua', async () => {
+      // Nessuna assegnazione che lo riguardi: per l'admin non conta, e il vecchio codice si fermava
+      // prima ancora di arrivare a guardarla.
+      prisma.clientProfile.findUnique.mockResolvedValue({ assignedCoachId: 'staff-ALTRO', assignedNutritionistId: 'staff-ALTRO' });
       prisma.chatThread.findMany.mockResolvedValue([
         { id: 't-ai', counterpart: 'ai', lastMessageAt: null, _count: { messages: 4 } },
+        { id: 't-coach', counterpart: 'coach', lastMessageAt: null, _count: { messages: 2 } },
+        { id: 't-nutri', counterpart: 'nutritionist', lastMessageAt: null, _count: { messages: 1 } },
       ]);
-      await expect(service.threadsDiUnCliente(admin, 'client-1')).resolves.toEqual([]);
+      const perAdmin = await service.threadsDiUnCliente(admin, 'client-1');
+      expect(perAdmin.map((t) => t.counterpart)).toEqual(['ai', 'coach', 'nutritionist']);
+    });
+
+    it('l\'admin NON scrive: leggere è sorveglianza, scrivere sarebbe impersonare', async () => {
+      // Un messaggio dell'admin nel thread della coach arriverebbe alla cliente come se fosse
+      // della sua coach. Per parlare come qualcun altro c'è l'impersonazione, che è dichiarata.
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-coach', clientId: 'client-1', counterpart: 'coach' });
+      await expect(service.postMessage(admin, 't-coach', 'ciao')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('ogni lettura dello staff lascia una traccia; quella della cliente no', async () => {
+      // È la contropartita dell'accesso ampio: se l'admin può leggere tutto, si deve poter sapere
+      // che l'ha fatto. La cliente che rilegge la propria chat non va tracciata: sarebbe rumore.
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
+      audit.log.mockClear();
+      await service.listMessages(admin, 't-ai');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'chat.staff_read_messages', actorId: admin.sub }),
+      );
+      audit.log.mockClear();
+      await service.listMessages({ sub: 'client-1', role: 'client' } as never, 't-ai');
+      expect(audit.log).not.toHaveBeenCalled();
     });
   });
 

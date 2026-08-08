@@ -123,6 +123,20 @@ export class ChatService {
       if (thread.clientId !== user.sub) throw new ForbiddenException('Non è un tuo thread');
       return;
     }
+    // L'ADMIN LEGGE TUTTO (decisione di Simone, 8/8). Va PRIMA della ricerca della scheda staff:
+    // un admin può non averne una, e senza questo ramo lo fermava il «Nessuna scheda staff» qui
+    // sotto — quindi in scheda cliente non vedeva NESSUNA conversazione, nemmeno quelle con la
+    // coach, e leggeva «Nessuna conversazione visibile per il tuo ruolo».
+    //
+    // Resta legato a `mode === 'read'`: **legge, non scrive**. Scrivere nel thread di una coach
+    // farebbe comparire alla cliente un messaggio che sembra della sua coach; per parlare come
+    // qualcun altro c'è l'impersonazione, che è dichiarata e tracciata.
+    //
+    // Nota per chi legge fra un anno: qui c'era il ragionamento opposto — l'admin fuori dal thread
+    // con Gaia, per la stessa ragione per cui `pages.ts` gli nega `health_documents` (un permesso
+    // amministrativo non è un permesso clinico). Ha deciso Simone, e la contropartita è la traccia:
+    // ogni apertura di un thread da parte dello staff finisce nell'audit.
+    if (user.role === 'admin' && mode === 'read') return;
     const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub } });
     if (!staff) throw new ForbiddenException('Nessuna scheda staff');
     const profile = await this.prisma.clientProfile.findUnique({
@@ -136,11 +150,11 @@ export class ChatService {
     if (user.role === 'nutritionist' && thread.counterpart === 'nutritionist' && eLaSuaNutrizionista) return;
     if (user.role === 'head_nutritionist' && thread.counterpart === 'nutritionist') return;
 
-    // Il thread con Gaia: SOLO le due persone che seguono la cliente, e il capo nutrizionista
-    // che risponde di loro. **L'admin no**, per la stessa ragione per cui `pages.ts` gli nega
-    // `health_documents`: là dentro ci sono sintomi, gravidanza, farmaci — tutto quello che il
-    // filtro classifica come sensibile resta scritto nel thread. Un permesso amministrativo non
-    // è un permesso clinico.
+    // Il thread con Gaia: le due persone che seguono la cliente, il capo nutrizionista che risponde
+    // di loro, e l'admin (gestito sopra). Nessun altro: là dentro ci sono sintomi, gravidanza,
+    // farmaci — tutto quello che il filtro classifica come sensibile resta scritto nel thread.
+    // In particolare la manager delle coach (`sales`) NON entra qui: vede lead, contatti e metriche,
+    // non il clinico.
     if (thread.counterpart === 'ai' && mode === 'read') {
       if ((user.role === 'coach' || user.role === 'coach_coordinator') && eLaSuaCoach) return;
       if (user.role === 'nutritionist' && eLaSuaNutrizionista) return;
@@ -152,6 +166,22 @@ export class ChatService {
   async listMessages(user: AuthUser, threadId: string) {
     const thread = await this.getThread(threadId);
     await this.assertThreadAccess(user, thread, 'read');
+    // Traccia di CHI ha aperto la conversazione di una cliente. La cliente che rilegge la propria
+    // non si registra: sarebbe rumore che nasconde le righe che contano.
+    // È la contropartita dell'aver aperto all'admin anche il thread con Gaia (8/8): un accesso
+    // ampio è accettabile se lascia una traccia, non se è invisibile. Un errore dell'audit non
+    // deve impedire la lettura — meglio un messaggio letto senza riga che una scheda che non apre.
+    if (user.role !== 'client') {
+      await this.audit
+        .log({
+          action: 'chat.staff_read_messages',
+          actorId: user.sub,
+          entityType: 'chat_thread',
+          entityId: threadId,
+          metadata: { counterpart: thread.counterpart, clientId: thread.clientId, role: user.role },
+        })
+        .catch(() => undefined);
+    }
     return this.prisma.message.findMany({
       where: { threadId },
       orderBy: { sentAt: 'asc' },
