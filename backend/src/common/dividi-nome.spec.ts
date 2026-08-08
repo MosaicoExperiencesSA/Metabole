@@ -1,4 +1,4 @@
-import { dividiNome } from './dividi-nome';
+import { certezzaDivisione, dividiNome } from './dividi-nome';
 
 /**
  * L'import delle liste storiche ha scaricato il nome intero — «Maria Grazia Cerchiara» — nel
@@ -30,5 +30,43 @@ describe('dividiNome', () => {
 
   it('spazi doppi e bordi non contano', () => {
     expect(dividiNome('  Anna   Bianchi  ')).toEqual({ nome: 'Anna', cognome: 'Bianchi' });
+  });
+});
+
+/**
+ * Di quali divisioni possiamo fidarci. Nasce dai lead importati (8/8): con centinaia di righe
+ * «leggi la colonna prima di confermare» non è un consiglio praticabile — va detto QUALI righe
+ * leggere.
+ */
+describe('certezzaDivisione', () => {
+  it('due parole: sicuro, non c\'è niente da decidere', () => {
+    expect(certezzaDivisione('Rosa Tinelli')).toBe('sicuro');
+    expect(certezzaDivisione('  Jolanda   Todde ')).toBe('sicuro');
+  });
+
+  it('tre parole CON particella: sicuro, la particella ancora il cognome', () => {
+    expect(certezzaDivisione('Maria Teresa De Santis')).toBe('sicuro');
+    expect(certezzaDivisione('Anna Di Palma')).toBe('sicuro');
+    expect(certezzaDivisione('Peter van Gogh')).toBe('sicuro');
+  });
+
+  it('tre parole SENZA particella: da controllare — le due forme sono indistinguibili', () => {
+    // Nome composto + cognome...
+    expect(certezzaDivisione('Maria Grazia Cerchiara')).toBe('da_controllare');
+    // ...e nome + cognome doppio: identiche per qualunque regola.
+    expect(certezzaDivisione('Anna Rossi Bianchi')).toBe('da_controllare');
+  });
+
+  it('la particella conta solo se sta IN MEZZO', () => {
+    // «Di» come primo nome (Di Caprio Leonardo non è questo caso): una particella in testa non
+    // ancora niente, il dubbio resta.
+    expect(certezzaDivisione('Di Maria Rossi Bianchi')).toBe('da_controllare');
+    // Ultima parola: è già il cognome, non aggiunge informazione.
+    expect(certezzaDivisione('Anna Maria Lo')).toBe('da_controllare');
+  });
+
+  it('una parola sola: `dividiNome` la rifiuta, la certezza non serve a niente', () => {
+    // Non è un caso da decidere: senza cognome non si scrive nulla comunque.
+    expect(dividiNome('Antonella')).toBeNull();
   });
 });

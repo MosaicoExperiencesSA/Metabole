@@ -46,6 +46,10 @@
  *   npm run sistema:nomi -- 40           → si ferma alle prime 40 (mostrate E, con CONFERMA, scritte)
  *   CONFERMA=1 npm run sistema:nomi      → applica a tutti (clienti E lead)
  *   SOLO=lead / SOLO=clienti             → lavora una sola delle due liste
+ *   CERTEZZA=sicuri                      → solo le divisioni senza ambiguità (2 parole, o
+ *                                          3+ con una particella): niente da rileggere
+ *   CERTEZZA=dubbi                       → solo quelle da rivedere a mano (3+ parole senza
+ *                                          particella: nome composto o cognome doppio?)
  *
  * ⚠️ Il numero limita **il lavoro**, non solo la stampa. Prima limitava la sola tabella: si
  * leggevano trenta righe e se ne scrivevano trecento — cioè si confermava alla cieca l'esatto
@@ -53,7 +57,7 @@
  * prima: così «40» significa 40 scritture, non 40 per lista.
  */
 import { PrismaClient } from '@prisma/client';
-import { dividiNome } from '../src/common/dividi-nome';
+import { certezzaDivisione, dividiNome } from '../src/common/dividi-nome';
 
 const prisma = new PrismaClient();
 
@@ -81,14 +85,18 @@ async function main(): Promise<void> {
   }[];
 
   const solo = (process.env.SOLO ?? '').toLowerCase(); // '' | 'lead' | 'clienti'
+  // Secondo asse, indipendente da SOLO: quali divisioni lavorare.
+  //   '' = tutte · 'sicuri' = solo quelle senza ambiguità · 'dubbi' = solo quelle da rivedere
+  const certezza = (process.env.CERTEZZA ?? '').toLowerCase();
   const tabella: Record<string, unknown>[] = [];
   /**
    * Una sola coda per due liste: il limite deve valere sul totale, altrimenti «40» diventa
    * «40 clienti e 40 lead» e chi legge trenta righe se ne ritrova ottanta scritte.
    */
+  type Certezza = 'sicuro' | 'da_controllare';
   const daScrivere: (
-    | { tipo: 'cliente'; userId: string; nome: string; cognome: string; svuotaAlias: boolean; crmId: string | null }
-    | { tipo: 'lead'; crmId: string; nome: string; cognome: string; svuotaAlias: boolean }
+    | { tipo: 'cliente'; esito: Certezza; userId: string; nome: string; cognome: string; svuotaAlias: boolean; crmId: string | null }
+    | { tipo: 'lead'; esito: Certezza; crmId: string; nome: string; cognome: string; svuotaAlias: boolean }
   )[] = [];
   let giaOk = 0;
   let senzaMateriale = 0;
@@ -108,14 +116,16 @@ async function main(): Promise<void> {
     if (!diviso) { senzaMateriale += 1; continue; }
 
     const svuotaAlias = uguale(u.clientProfile?.name, intero);
+    const esito = certezzaDivisione(intero);
     tabella.push({
       chi: 'cliente',
+      esito: esito === 'sicuro' ? 'sicuro' : '⚠️ da controllare',
       contatto: u.email,
       'com\'è ora': `nome «${u.firstName ?? '—'}» · cognome «${u.lastName ?? '—'}» · alias «${u.clientProfile?.name ?? '—'}»`,
       'diventa': `nome «${diviso.nome}» · cognome «${diviso.cognome}»`,
       alias: svuotaAlias ? 'svuotato (era il nome completo)' : (u.clientProfile?.name ? 'lasciato com\'è' : '—'),
     });
-    daScrivere.push({ tipo: 'cliente', userId: u.id, nome: diviso.nome, cognome: diviso.cognome, svuotaAlias, crmId: u.crmRecord?.id ?? null });
+    daScrivere.push({ tipo: 'cliente', esito, userId: u.id, nome: diviso.nome, cognome: diviso.cognome, svuotaAlias, crmId: u.crmRecord?.id ?? null });
   }
 
   console.log(`Clienti esaminate: ${utenti.length} · già a posto (hanno il cognome): ${giaOk} · senza materiale per dividere: ${senzaMateriale}`);
@@ -149,14 +159,16 @@ async function main(): Promise<void> {
       if (!diviso) { leadSenzaMateriale += 1; continue; }
 
       const svuotaAlias = uguale(l.alias, intero);
+      const esito = certezzaDivisione(intero);
       tabella.push({
         chi: 'lead',
+        esito: esito === 'sicuro' ? 'sicuro' : '⚠️ da controllare',
         contatto: l.email ?? l.phone ?? '(senza contatto)',
         'com\'è ora': `nome «${l.firstName ?? '—'}» · cognome «${l.lastName ?? '—'}» · name «${l.name ?? '—'}»`,
         'diventa': `nome «${diviso.nome}» · cognome «${diviso.cognome}»`,
         alias: svuotaAlias ? 'svuotato (era il nome completo)' : (l.alias ? 'lasciato com\'è' : '—'),
       });
-      daScrivere.push({ tipo: 'lead', crmId: l.id, nome: diviso.nome, cognome: diviso.cognome, svuotaAlias });
+      daScrivere.push({ tipo: 'lead', esito, crmId: l.id, nome: diviso.nome, cognome: diviso.cognome, svuotaAlias });
     }
     console.log(`Lead senza account: ${leadEsaminati} · già a posto: ${leadGiaOk} · senza materiale per dividere: ${leadSenzaMateriale}`);
   }
@@ -164,6 +176,34 @@ async function main(): Promise<void> {
     console.log('\nNiente da sistemare ✓  (clienti E lead: hanno già nome e cognome separati)');
     return;
   }
+  // ---------- Filtro per certezza (8/8) ----------
+  // «Leggi la colonna prima di confermare» non è praticabile su cinquecento righe: va detto QUALI
+  // righe leggere. I nomi di due parole, e quelli con una particella in mezzo, non hanno
+  // alternative — si applicano senza rileggerli. Il dubbio vive solo nei tre-e-più parole senza
+  // particella, dove «Maria Grazia Cerchiara» e «Anna Rossi Bianchi» hanno la stessa forma.
+  const nSicuri = daScrivere.filter((x) => x.esito === 'sicuro').length;
+  const nDubbi = daScrivere.length - nSicuri;
+  if (certezza === 'sicuri' || certezza === 'dubbi') {
+    const voluto = certezza === 'sicuri' ? 'sicuro' : 'da_controllare';
+    // Le due liste sono allineate per indice: si filtrano insieme o la tabella mente.
+    for (let i = daScrivere.length - 1; i >= 0; i--) {
+      if (daScrivere[i].esito !== voluto) { daScrivere.splice(i, 1); tabella.splice(i, 1); }
+    }
+    console.log(`Filtro CERTEZZA=${certezza}: lavoro ${daScrivere.length} righe su ${nSicuri + nDubbi}.`);
+  } else {
+    console.log(`Divisioni sicure: ${nSicuri} · da controllare a mano: ${nDubbi}`);
+    if (nDubbi > 0) {
+      console.log(
+        '  → CERTEZZA=sicuri npm run sistema:nomi   applica solo le sicure (nessuna da rileggere)\n' +
+        '  → CERTEZZA=dubbi  npm run sistema:nomi   mostra SOLO le dubbie, per rivederle',
+      );
+    }
+  }
+  if (tabella.length === 0) {
+    console.log('\nNiente da sistemare con questo filtro ✓');
+    return;
+  }
+
   // Il limite vale per TUTTO: quello che si vede è esattamente quello che si scrive.
   const totale = tabella.length;
   const tabellaVista = limite > 0 ? tabella.slice(0, limite) : tabella;
@@ -175,9 +215,11 @@ async function main(): Promise<void> {
     console.log(`Ne restano ${totale - limite}: rilancia senza numero per farle tutte.`);
   }
   console.log(
-    '\nLeggi la colonna «diventa» prima di confermare. La regola è: ULTIMA parola = cognome,\n' +
-    'con le particelle attaccate (De, Di, Della…). I cognomi doppi senza particella — «Rossi\n' +
-    'Bianchi» — vengono divisi male: quelli si correggono a mano dalla scheda, sono pochi.',
+    '\nLa regola è: ULTIMA parola = cognome, con le particelle attaccate (De, Di, Della…).\n' +
+    'Le righe «sicuro» non hanno alternative: puoi confermarle senza rileggerle.\n' +
+    'Guarda la colonna «diventa» SOLO sulle «⚠️ da controllare»: là dentro «Anna Rossi Bianchi»\n' +
+    '(cognome doppio) e «Maria Grazia Cerchiara» (nome composto) hanno la stessa forma, e la\n' +
+    'regola sceglie sempre la seconda. Chi conosce quella persona lo vede in un secondo.',
   );
 
   if (!conferma) {

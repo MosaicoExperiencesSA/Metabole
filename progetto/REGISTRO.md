@@ -7,6 +7,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🔎 **`sistema:nomi` dice QUALI righe rileggere, invece di dire «rileggile tutte».**
+  Lo script chiudeva con "leggi la colonna «diventa» prima di confermare… i cognomi doppi senza
+  particella vengono divisi male, sono pochi". Simone l'ha rimandato indietro, e aveva ragione: su
+  centinaia di lead quel consiglio non è praticabile — e «sono pochi» è una speranza, non un numero.
+  La divisione però **non è incerta allo stesso modo su tutte le righe**, e questa è la parte che
+  mancava. Due parole («Rosa Tinelli») non hanno alternative. Tre o più **con una particella in
+  mezzo** («Maria Teresa De Santis») nemmeno: il «De» ancora il cognome e il resto è nome, è
+  aritmetica. Il dubbio vive **solo** nei tre-e-più parole senza particella, dove «Maria Grazia
+  Cerchiara» (nome composto + cognome) e «Anna Rossi Bianchi» (nome + cognome doppio) hanno la
+  stessa forma e nessuna regola può distinguerle — un dizionario dei nomi propri sarebbe una
+  scorciatoia che sbaglia su ogni nome straniero, mentre chi conosce quella persona lo vede in un
+  secondo.
+  Quindi: `certezzaDivisione()` in `common/dividi-nome.ts` (dove sta la regola, non nello script),
+  una colonna **`esito`** nella tabella, il conteggio «sicure / da controllare» **prima** di
+  confermare, e due interruttori: `CERTEZZA=sicuri` applica solo ciò che non ha alternative,
+  `CERTEZZA=dubbi` mostra soltanto le righe da rivedere. Il filtro tocca le due liste in parallelo
+  (sono allineate per indice: filtrarne una sola farebbe mentire la tabella).
+  Il consiglio finale ora dice dove guardare e cosa cercare, invece di chiedere di rileggere tutto.
+  5 test nuovi sulla certezza, compreso il caso della particella in testa o in coda — che non ancora
+  niente e lascia il dubbio dov'è. 857 test verdi.
+
 - `[Sviluppo]` 🧱 **Backend su istanza Standard e due istanze, scritte nel blueprint.** L'8/8 alle 17:15 l'istanza è
   stata uccisa e riavviata: `Instance failed — HTTP health check failed (timed out after 5 seconds)
   while running your code`. Non un deploy fallito (i tre dell'8/8 erano tutti andati live), non un
