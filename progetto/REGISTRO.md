@@ -7,6 +7,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🧹 **Le segnalazioni già orfane si adottano: `npm run fix:segnalazioni`.**
+  La correzione di prima vale da adesso; le righe scritte prima restano senza destinatario e senza
+  che nessuno le abbia mai ricevute. Sono le più vecchie, quindi le peggiori.
+  Lo script prende ogni segnalazione `open`/`in_progress` con `assignedToId` vuoto, la assegna e
+  manda le notifiche — «Nutrizionista richiesto» alla coach compresa. Non chiude niente e non cambia
+  stato: una segnalazione la si chiude quando è stata gestita, e a deciderlo è una persona.
+  Per non far divergere due copie della stessa logica ho **estratto** da `apriSegnalazione` due
+  funzioni, `decidiDestinatari` e `avvisaSegnalazione`, e lo script usa quelle. Se domani cambia la
+  regola di instradamento, cambia in un posto solo.
+  Chi non è assegnabile viene elencato a parte: vuol dire che manca la **persona** che risponde di
+  quel ruolo, ed è un problema di organico che nessuno script risolve inventando un nome.
+  **La cosa più utile l'hanno detta i test.** Estraendo la decisione l'avevo messa *prima* della
+  `create`, senza protezione: sette test sono diventati rossi e mi hanno mostrato che così **la
+  segnalazione diventava ostaggio del suo instradamento** — tre letture in più che, se fallivano,
+  facevano sparire l'allarme invece di lasciarlo orfano. In produzione sarebbe stato un intoppo del
+  database al posto di un allarme clinico. Ora la decisione può fallire e si va avanti; la `create`
+  no. È un contratto **migliore** di quello di prima, dove un errore sul profilo annullava tutto: due
+  test nuovi lo fissano, e quello vecchio è stato riscritto invece di essere adattato.
+  Nei finti database di `signals` ed `engine` mancava la tabella `staff`: completati. In quello di
+  `signals` c'erano anche **due chiavi `notification`** nello stesso oggetto — in JS vince la seconda,
+  quindi `updateMany` era scomparso e nessuno se n'era accorto perché ts-jest ha le diagnostiche
+  spente. Unite: è il tipo di errore che solo `tsc` vede.
+  870 test verdi, type-check identico al baseline.
+
 - `[Sviluppo]` 🔐 **«Admin vede tutto» non funzionava, e la colpa era di un secondo cancello.**
   Simone l'ha dovuto segnalare **due volte**: in scheda cliente, da admin, leggeva ancora «Nessuna
   conversazione visibile per il tuo ruolo» — la seconda volta aggiungendo che la cliente aveva usato

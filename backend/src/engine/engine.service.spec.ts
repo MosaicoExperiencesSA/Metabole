@@ -68,7 +68,15 @@ describe('EngineService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
-      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-x' }) },
+      // `staff.findMany` e `findFirst` servono a `apriSegnalazione` per decidere i destinatari
+      // (8/8): senza, la decisione falliva e la segnalazione nasceva orfana — che è il
+      // comportamento voluto in produzione, ma qui nascondeva l'assegnazione che il test verifica.
+      staff: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-x' }),
+        findMany: jest.fn().mockResolvedValue([{ id: 'staff-n', userId: 'user-nutri' }]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'staff-capo', userId: 'user-capo' }),
+      },
+      notification: { create: jest.fn().mockResolvedValue({}) },
       user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }) },
     };
     collector = { collect: jest.fn().mockResolvedValue({ signals: signals(), screeningFlag: false }) };

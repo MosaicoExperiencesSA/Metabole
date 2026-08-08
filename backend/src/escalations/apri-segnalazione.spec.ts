@@ -74,11 +74,18 @@ describe('apriSegnalazione', () => {
     expect(prisma.escalation.create).not.toHaveBeenCalled();
   });
 
-  it('se qualcosa esplode NON trascina con sé l’erogazione del menu', async () => {
+  /**
+   * Aggiornato l'8/8 con un contratto MIGLIORE di quello di prima. Se la lettura del profilo cade,
+   * la segnalazione non veniva creata affatto; ora nasce **orfana** e la si adotta con
+   * `npm run fix:segnalazioni`. In entrambi i casi l'eccezione non risale — che era il punto del
+   * test — ma un allarme clinico che esiste vale più di uno perduto per un intoppo del database.
+   */
+  it('se la lettura del profilo esplode, non risale l\'eccezione e la segnalazione nasce comunque', async () => {
     const prisma = harness({ clientProfile: { findUnique: jest.fn().mockRejectedValue(new Error('db giù')) } });
-    await expect(
-      apriSegnalazione(prisma, { clientId: 'cli-1', category: 'diet_blocked', reason: 'x' }),
-    ).resolves.toBeNull();
+    const res = await apriSegnalazione(prisma, { clientId: 'cli-1', category: 'diet_blocked', reason: 'x' });
+    expect(res).not.toBeNull();
+    expect(prisma.escalation.create).toHaveBeenCalled();
+    expect(prisma.escalation.create.mock.calls[0][0].data.assignedToId).toBeUndefined();
   });
 });
 
@@ -140,5 +147,38 @@ describe('apriSegnalazione — quando il nutrizionista non c\'è', () => {
     expect(notificaA(prisma, 'user-coach').payload.nutrizionistaRichiesto).toBe(false);
     // E il capo non viene disturbato: c'è chi se ne occupa.
     expect(notificaA(prisma, 'user-capo')).toBeUndefined();
+  });
+});
+
+/**
+ * L'ORDINE fra decidere e creare. Sembra un dettaglio interno ed è la differenza fra una
+ * segnalazione riparabile e un allarme clinico perduto.
+ */
+describe('apriSegnalazione — la segnalazione vale più del suo instradamento', () => {
+  it('se la ricerca dei destinatari esplode, la segnalazione NASCE comunque (orfana)', async () => {
+    const prisma = harness({
+      // Il database fa i capricci proprio sulla lettura che serve a decidere a chi darla.
+      staff: {
+        findFirst: jest.fn().mockRejectedValue(new Error('connessione persa')),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    });
+    const res = await apriSegnalazione(prisma, { clientId: 'cli-1', category: 'clinical', reason: 'Calo rapido' });
+    expect(res).not.toBeNull();
+    expect(prisma.escalation.create).toHaveBeenCalled();
+    // Nasce senza destinatario: la si adotta con `npm run fix:segnalazioni`.
+    expect(prisma.escalation.create.mock.calls[0][0].data.assignedToId).toBeUndefined();
+    // E nessuna notifica, perché non sappiamo a chi: meglio muta che sbagliata.
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+  });
+
+  it('se invece è la CREATE a fallire, non si finge che sia andata', async () => {
+    const prisma = harness({
+      escalation: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockRejectedValue(new Error('vincolo violato')),
+      },
+    });
+    await expect(apriSegnalazione(prisma, { clientId: 'cli-1', category: 'clinical', reason: 'x' })).resolves.toBeNull();
   });
 });

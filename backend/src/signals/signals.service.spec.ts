@@ -58,13 +58,24 @@ describe('SignalsService', () => {
       },
       milestone: { createMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn() },
       // Sblocco gate misure: chiude gli avvisi coach "misure mancanti".
-      notification: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      notification: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        // `create`: le notifiche delle segnalazioni passano da `apriSegnalazione` (8/8).
+        create: jest.fn().mockResolvedValue({}),
+      },
       escalation: {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'e1' }),
       },
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({ startWeightKg: 68, assignedNutritionistId: 'staff-n' }),
+      },
+      // `staff.findMany` e `findFirst` servono a `apriSegnalazione` per decidere i destinatari
+      // (8/8): senza, la decisione falliva e la segnalazione nasceva orfana — che è il
+      // comportamento voluto in produzione, ma qui nascondeva l'assegnazione che il test verifica.
+      staff: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'staff-n', userId: 'user-nutri' }]),
+        findFirst: jest.fn().mockResolvedValue({ id: 'staff-capo', userId: 'user-capo' }),
       },
       objective: { findFirst: jest.fn().mockResolvedValue({ targetWeightKg: 62 }) },
       // Il check-in si propone SOLO con un piano attivo (voce #5 del 5/8): senza questo

@@ -83,22 +83,23 @@ export async function apriSegnalazione(
       if (esistente) return esistente;
     }
 
-    const routing = ESCALATION_ROUTING[input.category];
-    const profilo = await prisma.clientProfile.findUnique({
-      where: { userId: input.clientId },
-      select: { assignedCoachId: true, assignedNutritionistId: true, name: true },
-    });
-    const assegnato =
-      routing.primary === 'nutritionist' ? profilo?.assignedNutritionistId : profilo?.assignedCoachId;
-
-    // Nessuno assegnato per quel ruolo → si cerca chi ne risponde. È la differenza fra una
-    // segnalazione che qualcuno legge e una che resta lì.
-    let ripiego: { id: string; userId: string } | null = null;
-    if (!assegnato) {
-      ripiego = await prisma.staff.findFirst({
-        where: { user: { role: RESPONSABILE_DI[routing.primary] } },
-        select: { id: true, userId: true },
-      });
+    /**
+     * ⚠️ L'ORDINE QUI È UNA SCELTA, e per un momento l'avevo sbagliata.
+     *
+     * Decidere il destinatario richiede tre letture in più (profilo, staff, responsabile). Se una
+     * di quelle fallisce, **la segnalazione deve nascere comunque**: una riga senza destinatario si
+     * ripara (`npm run fix:segnalazioni`), una riga che non esiste è un allarme clinico perduto per
+     * sempre. Estraendo `decidiDestinatari` l'avevo messa *prima* della `create` senza protezione,
+     * e sette test sono diventati rossi mostrando esattamente questo: mock senza `staff` → nessuna
+     * segnalazione. In produzione sarebbe stato un intoppo del database al posto di un allarme.
+     *
+     * Quindi: la decisione può fallire e si va avanti; la `create` no.
+     */
+    let decisione: DecisioneSegnalazione | null = null;
+    try {
+      decisione = await decidiDestinatari(prisma, input.clientId, input.category);
+    } catch {
+      /* senza instradamento la segnalazione nasce orfana: brutto, ma esiste e si può riparare */
     }
 
     const created = await prisma.escalation.create({
@@ -109,70 +110,136 @@ export async function apriSegnalazione(
         category: input.category as never,
         // Se prende in carico il responsabile lo si scrive: una segnalazione «non assegnata a
         // nessuno» in elenco è esattamente quella che nessuno guarda.
-        assignedToId: assegnato ?? ripiego?.id ?? undefined,
+        assignedToId: decisione?.assegnato ?? decisione?.ripiego?.id ?? undefined,
       },
     });
 
-    // Chi avvisare: coach e nutrizionista assegnate, più il responsabile se è stato coinvolto.
-    const staffIds = [profilo?.assignedCoachId, profilo?.assignedNutritionistId].filter(
-      (v): v is string => !!v,
-    );
-    const destinatari = new Set<string>();
-    let coachUserId: string | null = null;
-    if (staffIds.length) {
-      const staff = await prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, userId: true } });
-      for (const s of staff) {
-        destinatari.add(s.userId);
-        if (profilo?.assignedCoachId && s.id === profilo.assignedCoachId) coachUserId = s.userId;
-      }
-    }
-    if (ripiego) destinatari.add(ripiego.userId);
-
-    /**
-     * «NUTRIZIONISTA RICHIESTO» — regola operativa di Simone (8/8): oggi c'è **un solo**
-     * nutrizionista (il capo) e le clienti non ne hanno una assegnata. Quindi quando serve il
-     * nutrizionista «segnaliamo alla coach con "nutrizionista richiesto" così aiutano nella
-     * gestione».
-     *
-     * La coach una notifica la riceveva già — è fra i destinatari se è assegnata — ma con il titolo
-     * della categoria («Sicurezza clinica»), che le dice cosa è successo e non **cosa deve fare**.
-     * Con questa etichetta sa che la palla è sua finché il nutrizionista non entra in campo.
-     */
-    const serveNutrizionista = routing.primary === 'nutritionist' && !assegnato;
-
-    const chi = profilo?.name ?? 'una cliente';
-    const etichetta = ESCALATION_CATEGORY_LABEL[input.category];
-    for (const userId of destinatari) {
-      const perLaCoach = serveNutrizionista && userId === coachUserId;
-      await prisma.notification
-        .create({
-          data: {
-            userId,
-            type: `escalation_${input.category}`,
-            scheduledFor: new Date(),
-            sentAt: new Date(),
-            payload: {
-              title: perLaCoach ? 'Nutrizionista richiesto' : etichetta,
-              body: perLaCoach
-                ? `Serve il nutrizionista per ${chi}${input.reason ? `: ${input.reason}` : ''}. ` +
-                  'Nessuna nutrizionista è assegnata: intanto seguila tu e tieni la segnalazione aperta.'
-                : `${etichetta} · ${chi}${input.reason ? `: ${input.reason}` : ''}`,
-              clientId: input.clientId,
-              escalationId: created.id,
-              category: input.category,
-              // `nonAssegnata` dice che è arrivata al responsabile perché non c'era nessun
-              // altro: è un'informazione da leggere, non un dettaglio tecnico.
-              nonAssegnata: !assegnato,
-              // Lo leggono backoffice e app staff per mostrare l'etichetta giusta in elenco.
-              nutrizionistaRichiesto: perLaCoach,
-            } as never,
-          },
-        })
-        .catch(() => undefined);
+    if (decisione) {
+      await avvisaSegnalazione(prisma, decisione, {
+        clientId: input.clientId,
+        category: input.category,
+        reason: input.reason,
+        escalationId: created.id,
+      });
     }
     return created;
   } catch {
     /* una segnalazione che non riesce a nascere non deve far cadere l'erogazione del menu */
     return null;
+  }
+}
+
+/** Chi prende in carico la segnalazione e chi va avvisato. Nessuna scrittura: solo la decisione. */
+export interface DecisioneSegnalazione {
+  /** Staff assegnato per il ruolo primario della categoria (null se non c'è). */
+  assegnato: string | null;
+  /** Chi risponde di quel ruolo, cercato solo se `assegnato` è vuoto. */
+  ripiego: { id: string; userId: string } | null;
+  /** `userId` di tutti quelli da avvisare. */
+  destinatari: string[];
+  /** `userId` della coach assegnata, per riconoscerla fra i destinatari. */
+  coachUserId: string | null;
+  /** Nome della cliente, per i testi. */
+  nomeCliente: string | null;
+  /** Il ruolo primario è il nutrizionista e non c'è nessuno: la palla passa alla coach. */
+  serveNutrizionista: boolean;
+}
+
+/**
+ * Decide destinatari e presa in carico. Estratta da `apriSegnalazione` per poterla riusare sulle
+ * segnalazioni **già aperte** (`prisma/fix-segnalazioni-orfane.ts`): quelle nate prima che
+ * l'instradamento esistesse sono rimaste senza destinatario, e ripararle a mano vorrebbe dire
+ * riscrivere questa logica una seconda volta — cioè farla divergere.
+ */
+export async function decidiDestinatari(
+  prisma: PrismaPerSegnalazione,
+  clientId: string,
+  category: EscalationCategory,
+): Promise<DecisioneSegnalazione> {
+  const routing = ESCALATION_ROUTING[category];
+  const profilo = await prisma.clientProfile.findUnique({
+    where: { userId: clientId },
+    select: { assignedCoachId: true, assignedNutritionistId: true, name: true },
+  });
+  const assegnato =
+    (routing.primary === 'nutritionist' ? profilo?.assignedNutritionistId : profilo?.assignedCoachId) ?? null;
+
+  // Nessuno assegnato per quel ruolo → si cerca chi ne risponde. È la differenza fra una
+  // segnalazione che qualcuno legge e una che resta lì.
+  let ripiego: { id: string; userId: string } | null = null;
+  if (!assegnato) {
+    ripiego = await prisma.staff.findFirst({
+      where: { user: { role: RESPONSABILE_DI[routing.primary] } },
+      select: { id: true, userId: true },
+    });
+  }
+
+  const staffIds = [profilo?.assignedCoachId, profilo?.assignedNutritionistId].filter(
+    (v): v is string => !!v,
+  );
+  const destinatari = new Set<string>();
+  let coachUserId: string | null = null;
+  if (staffIds.length) {
+    const staff = await prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, userId: true } });
+    for (const s of staff) {
+      destinatari.add(s.userId);
+      if (profilo?.assignedCoachId && s.id === profilo.assignedCoachId) coachUserId = s.userId;
+    }
+  }
+  if (ripiego) destinatari.add(ripiego.userId);
+
+  return {
+    assegnato,
+    ripiego,
+    destinatari: [...destinatari],
+    coachUserId,
+    nomeCliente: profilo?.name ?? null,
+    serveNutrizionista: routing.primary === 'nutritionist' && !assegnato,
+  };
+}
+
+/**
+ * Scrive le notifiche di una segnalazione (canale in-app).
+ *
+ * «NUTRIZIONISTA RICHIESTO» — regola operativa di Simone (8/8): oggi c'è **un solo** nutrizionista
+ * (il capo) e le clienti non ne hanno una assegnata. Quindi quando serve il nutrizionista
+ * «segnaliamo alla coach con "nutrizionista richiesto" così aiutano nella gestione».
+ * La coach una notifica la riceveva già, ma col titolo della categoria («Sicurezza clinica»), che le
+ * dice cosa è successo e non **di chi è la palla**.
+ */
+export async function avvisaSegnalazione(
+  prisma: PrismaPerSegnalazione,
+  decisione: DecisioneSegnalazione,
+  input: { clientId: string; category: EscalationCategory; reason?: string; escalationId: string },
+): Promise<void> {
+  const chi = decisione.nomeCliente ?? 'una cliente';
+  const etichetta = ESCALATION_CATEGORY_LABEL[input.category];
+  for (const userId of decisione.destinatari) {
+    const perLaCoach = decisione.serveNutrizionista && userId === decisione.coachUserId;
+    await prisma.notification
+      .create({
+        data: {
+          userId,
+          type: `escalation_${input.category}`,
+          scheduledFor: new Date(),
+          sentAt: new Date(),
+          payload: {
+            title: perLaCoach ? 'Nutrizionista richiesto' : etichetta,
+            body: perLaCoach
+              ? `Serve il nutrizionista per ${chi}${input.reason ? `: ${input.reason}` : ''}. ` +
+                'Nessuna nutrizionista è assegnata: intanto seguila tu e tieni la segnalazione aperta.'
+              : `${etichetta} · ${chi}${input.reason ? `: ${input.reason}` : ''}`,
+            clientId: input.clientId,
+            escalationId: input.escalationId,
+            category: input.category,
+            // `nonAssegnata` dice che è arrivata al responsabile perché non c'era nessun altro:
+            // è un'informazione da leggere, non un dettaglio tecnico.
+            nonAssegnata: !decisione.assegnato,
+            // Lo leggono backoffice e app staff per mostrare l'etichetta giusta in elenco.
+            nutrizionistaRichiesto: perLaCoach,
+          } as never,
+        },
+      })
+      .catch(() => undefined);
   }
 }
