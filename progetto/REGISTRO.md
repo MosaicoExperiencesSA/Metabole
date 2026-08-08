@@ -22,6 +22,11 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
     segno che `__ENABLE_PUSH__` era vero al build e il ramo di rinuncia è stato eliminato dal
     minificatore. Un bundle costruito senza quel file spegne le notifiche a chi lo riceve, in
     silenzio e senza errori: è la ragione della guardia in `ota-release.mjs`.
+  - Per provarlo in mano c'è **`npm run collaudo:menu-panna -- <email>`**: prepara sul proprio
+    profilo la giornata di oggi con «Pasta alla panna (collaudo)» — panna fresca **70 ml**, che è
+    il caso che fa emergere l'unità sbagliata — e il gruppo di equivalenza approvato senza cui il
+    cambio non partirebbe affatto. Dry-run per default, `PULISCI=1 CONFERMA=1` per rimuovere tutto:
+    il gruppo è globale e finché resta vale anche per le altre clienti.
   - I telefoni lo applicano **al riavvio dell'app**, non mentre è aperta.
   - ⚠️ Alla prossima pubblicazione sugli store va **svuotata `OTA_VERSION`** su Render: altrimenti
     un'installazione fresca scarica un bundle più vecchio del nativo appena installato.
