@@ -92,6 +92,43 @@ describe('OnboardingService', () => {
     await expect(service.submitAnswers('u1', dto)).rejects.toThrow(BadRequestException);
   });
 
+  /**
+   * L'8/8 tre clienti sono rimaste bloccate al carrello della Prova Gratuita: il consenso
+   * sanitario era scritto SOLO nel ramo `create` dell'upsert, quindi chi aveva già un profilo
+   * (i lead a cui la coach manda le credenziali, il codice invito, la modifica da backoffice)
+   * finiva nel ramo `update` e restava senza consenso — con `onboardingCompletedAt` scritto, cioè
+   * senza più il questionario da cui rimediare. Nessun test e nessun tipo se ne accorgeva.
+   */
+  describe('consenso sanitario in ENTRAMBI i rami', () => {
+    const consensoDi = (ramo: 'create' | 'update') =>
+      prisma.clientProfile.upsert.mock.calls[0][0][ramo].consents as {
+        healthDataConsent?: { accepted?: boolean };
+      };
+
+    it('profilo NUOVO: il consenso è scritto', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null);
+      await service.submitAnswers('u1', baseAnswers());
+      expect(consensoDi('create').healthDataConsent?.accepted).toBe(true);
+    });
+
+    it('profilo GIÀ ESISTENTE (lead con credenziali): il consenso è scritto anche nell\'update', async () => {
+      await service.submitAnswers('u1', baseAnswers());
+      expect(consensoDi('update').healthDataConsent?.accepted).toBe(true);
+    });
+
+    it('i consensi raccolti altrove non si perdono quando il questionario si rifà', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({
+        consents: { marketing: { accepted: true }, healthDataConsent: { accepted: true, at: '2026-01-01T00:00:00.000Z' } },
+      });
+      await service.submitAnswers('u1', baseAnswers());
+      const consents = consensoDi('update') as Record<string, unknown>;
+      expect(consents.marketing).toEqual({ accepted: true });
+      // Il consenso sanitario si riscrive con la data nuova, non si duplica né si perde.
+      expect((consents.healthDataConsent as { accepted: boolean }).accepted).toBe(true);
+      expect((consents.healthDataConsent as { at: string }).at).not.toBe('2026-01-01T00:00:00.000Z');
+    });
+  });
+
   it('flusso felice: profilo, obiettivo, team, nessuna escalation', async () => {
     const result = await service.submitAnswers('u1', baseAnswers());
     expect(prisma.clientProfile.upsert).toHaveBeenCalled();

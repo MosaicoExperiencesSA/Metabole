@@ -1,49 +1,53 @@
-# Passaggio alla sessione nuova — 9 agosto 2026
+# Passaggio alla sessione nuova
 
-Da incollare (o far leggere) alla nuova istanza. Contiene: **il messaggio d'apertura**, il
-**contesto minimo** per non ripartire da zero, e i **lavori in coda**.
+Aggiornato il 9 agosto 2026, **riverificato sul codice di `origin/main`** (commit `e424459`) e
+non ricopiato dalle liste dei giorni prima: quello che risultava aperto ed è già chiuso qui non
+compare più, ed è elencato in fondo perché nessuno lo riapra.
 
 ---
 
 ## Messaggio da incollare come primo messaggio
 
-> Progetto Metabole. Prima di tutto leggi `progetto/ISTRUZIONI_PER_AI.md`,
-> `progetto/PASSAGGIO_NUOVA_SESSIONE.md` e `progetto/REGISTRO.md` (le voci in cima).
+> Progetto Metabole. Prima di tutto leggi `progetto/PASSAGGIO_NUOVA_SESSIONE.md`,
+> `progetto/ISTRUZIONI_PER_AI.md` e le voci in cima a `progetto/REGISTRO.md`.
 > Parlami **sempre in italiano**. Ogni consegna aggiorna `progetto/REGISTRO.md` e finisce con
 > **Summary** e **Description** pronti da incollare in GitHub Desktop.
 >
-> Il lavoro da fare:
+> Il lavoro da fare, in quest'ordine:
 >
-> 1. Leggi `progetto/PROGETTO_gaia-cambio-menu.md` e implementa il **punto 1** e il **punto 2**:
->    il pulsante «Sostituisci un ingrediente» nell'app porta alla **chat con Gaia** invece che al
->    pop-up oggi/questi giorni/per sempre; la conversazione si salva nel thread `ai` (il modello
->    esiste già: `ChatThread.counterpart = 'ai'`, `Message.senderRole = 'ai'`, **nessuna
->    migrazione**) e si vede nella **scheda cliente in backoffice**, così la nutrizionista
->    verifica; quando in chat si concorda una sostituzione, **il menu della giornata viene
->    corretto** (`MenuDay.meals` è già JSON, la sostituzione ci sta dentro come nota della
->    porzione — la ricetta di catalogo non si tocca mai).
-> 2. Aggiungi alla scheda cliente il pulsante **«Invia link per reimpostare la password»**: la
->    coach preme e alla cliente parte la mail di reset. Serve un **endpoint dedicato** limitato
->    alle clienti assegnate a quella coach — **non** i permessi di amministrazione utenti, la
->    coach non deve poter cambiare la password, solo far partire il link.
+> 1. **Reset password dalla scheda cliente per la coach.** La coach preme un pulsante e alla
+>    cliente parte la mail col link di reset — **non** deve poter cambiare lei la password.
+>    L'endpoint che esiste (`POST /admin/users/:id/reset-password`) sta dietro i permessi di
+>    amministrazione utenti e darli a una coach aprirebbe tutta la gestione utenti: serve un
+>    **endpoint dedicato**, limitato alle clienti assegnate a quella coach.
+>
+> 2. **I punti 3, 4 e 5 di `progetto/PROGETTO_gaia-cambio-menu.md`** (i punti 1 e 2 sono già
+>    fatti — leggi il riquadro di stato in cima a quel file prima di toccare qualsiasi cosa):
+>    la correzione del nutrizionista che diventa **conoscenza riutilizzabile** (è l'unica
+>    migrazione prevista di tutto il progetto), `MenuWeight` per la memoria dei gusti, e il
+>    conteggio nel report di fine mese come **dato di personalizzazione**.
 
 ---
 
 ## Contesto minimo (per non rifare domande già fatte)
 
-**Cos'è**: app di nutrizione italiana in produzione, con clienti vere e pagamenti Stripe.
+**Cos'è**: app di nutrizione italiana **in produzione, con clienti vere e pagamenti Stripe**.
 Client React+Vite+Capacitor (con area staff), backend NestJS+Prisma+PostgreSQL su Render,
 backoffice React su Vercel.
 
 **Regole permanenti di Simone**
+
 - Si parla **in italiano**.
 - Ogni consegna **aggiorna `progetto/REGISTRO.md`** e finisce con **Summary + Description** da
   incollare in GitHub Desktop.
 
 **Come si consegna il codice (device bridge)**
+
 - Il repo autoritativo è **sul Mac**: `/Users/simonesalogni/Progetti/Metabole`, montato in
-  sandbox come `~/mnt/Progetti--Metabole`. Il clone in sandbox (`/tmp/metabole-fresh`) serve solo
-  a leggere e scrivere in fretta.
+  sandbox come `~/mnt/Progetti--Metabole`. Il clone in sandbox (`/tmp/metabole-fresh`) serve a
+  leggere e scrivere in fretta, ma **non è la verità**: prima di fidartene fai
+  `git fetch && git reset --hard origin/main`, perché può essere indietro di commit che non hai
+  visto.
 - Consegna: `SendUserFile` → `device_commit_files` in
   `~/Progetti/Metabole/backend/node_modules/.consegna/<nome>.tgz` → poi `device_bash`:
   `tar xzf` in una cartella di stage e
@@ -51,40 +55,49 @@ backoffice React su Vercel.
 - ⚠️ **`cat > destinazione` è obbligatorio**: il mount non sa fare `unlink`, quindi `cp` e `mv`
   sul file di destinazione falliscono.
 - ⚠️ **Mai `git` sulla cartella montata**: lascia un `.git/index.lock` che poi va tolto a mano.
-- ⚠️ `device_bash` ha un **timeout massimo di 45 secondi** e **non può cancellare file**.
+  Per sapere a che punto è il Mac si legge `.git/HEAD` e `.git/refs/heads/main` (sola lettura).
+- ⚠️ `device_bash` ha un **timeout massimo di 45 secondi** e **non può cancellare file** (`rm`
+  fallisce: si spostano in un `_to_delete/`).
 
 **Limiti dell'ambiente**
-- In sandbox `backend/node_modules` non c'è: **typecheck e jest si lanciano sul Mac**. Il
-  backoffice invece si builda in sandbox.
-- Sul Mac `npx prisma generate` **fallisce** (403 sui binari): per le colonne nuove si usa
-  `as never` sui `data` e `select` — è un pattern già diffuso nel repo, non un ripiego improvvisato.
 
-**Le OTA**: c'è una guida dedicata, `progetto/guide/COME_SI_FA_UNA_OTA.md`. Leggerla **prima** di
+- In sandbox `backend/node_modules` non c'è: **typecheck e jest si lanciano sul Mac**
+  (`cd ~/Progetti/Metabole/backend && npx tsc --noEmit && npm test`). Il backoffice invece si
+  builda in sandbox. Suite attuale: **837 test verdi**.
+- Sul Mac `npx prisma generate` **fallisce** (403 sui binari): per le colonne nuove si usa
+  `as never` sui `data` e sui `select` — è un pattern già diffuso nel repo, non un ripiego.
+
+**Le OTA**: guida dedicata, `progetto/guide/COME_SI_FA_UNA_OTA.md`. Leggerla **prima** di
 lanciare qualunque cosa. Stato: `app/package.json` = 2.1.2, bundle 2.1.2 pubblicato e verificato,
-`OTA_VERSION` su Render = 2.1.2. **2.1.0 e 2.1.1 sono bruciate**: la prossima parte da 2.1.3.
+`OTA_VERSION` su Render = 2.1.2. **2.1.0 e 2.1.1 sono bruciate**: la prossima parte da **2.1.3**.
 
 ---
 
 ## Lavori in coda — elenco completo
 
-Stato verificato sul codice il 9 agosto, non ricopiato dalle liste vecchie: quello che risultava
-da fare ed è già chiuso qui **non compare**.
-
 ### A. Codice — da fare
 
-1. **Gaia ↔ menu**, punti 1 e 2 di `PROGETTO_gaia-cambio-menu.md` (vedi sopra). A seguire i
-   punti 3-5 dello stesso documento: la correzione del nutrizionista che diventa **conoscenza
-   riutilizzabile** (unica migrazione prevista), `MenuWeight` per i gusti + segnalazione per i
-   motivi clinici, e il conteggio nel report di fine mese come **dato di personalizzazione**.
+1. **Reset password dalla scheda coach** (vedi il messaggio d'apertura). È il punto lasciato
+   fuori apposta dal commit `ab04330`, che ne spiega il motivo.
 
-2. **Reset password dalla scheda coach** (vedi sopra). La coach non deve poter cambiare la
-   password: solo far partire il link.
+2. **Gaia, punti 3-5** di `PROGETTO_gaia-cambio-menu.md`. I punti 1 e 2 sono chiusi.
+   - **Punto 3 — la correzione che insegna**: oggi la sostituzione nasce marcata «da
+     verificare» e il nutrizionista la vede in scheda, ma quando la corregge la correzione non
+     viene salvata da nessuna parte: lo stesso errore torna la settimana dopo con un'altra
+     cliente. Serve la tabella delle sostituzioni imparate (**unica migrazione del progetto**).
+     Le due protezioni — allergeni e plausibilità dei grammi — sono **già in piedi**.
+   - **Punto 4 — la memoria dei gusti**: `MenuWeight` non è ancora toccato dal ponte. La
+     segnalazione per i motivi clinici invece c'è già (`apriSegnalazione` in
+     `sostituzione-chat.service.ts`).
+   - **Punto 5 — il report**: il conteggio dei cambi come **dato di personalizzazione**
+     («hai personalizzato 7 piatti questo mese» + i tre alimenti che cambia più spesso), non
+     come conteggio di richiami. Non ancora fatto.
 
 3. **Dalla lista delle coach — restano quattro punti su dodici.**
    - **Scadenze nel calendario della coach.** `coachAgenda()` in `coach/coach.service.ts`
-     restituisce **solo gli appuntamenti**. Mancano la fine della prova gratuita e la fine del
-     piano. (L'agenda della *cliente*, `clientAgenda()`, la scadenza piano ce l'ha già: da lì si
-     copia la logica.)
+     restituisce **solo gli appuntamenti**. Mancano fine prova gratuita e fine piano.
+     (`clientAgenda()`, poco più sotto nello stesso file, la scadenza piano ce l'ha già: da lì
+     si copia la logica.)
    - **Compleanno nel calendario della coach.** La mail di auguri esiste
      (`marketing/lifecycle.service.ts`), l'appuntamento in agenda no.
    - **Data di nascita nel questionario.** `onboarding/onboarding.questions.ts` chiede solo
@@ -95,14 +108,14 @@ da fare ed è già chiuso qui **non compare**.
      `client_assigned_nutritionist` per la nutrizionista; **non** esiste per una cliente già
      acquisita riassegnata da una coach a un'altra. Da chiarire con Simone se serve davvero.
 
-4. **Trovato il 9/8, non ancora in nessuna lista: `PlanFlow.tsx` vende sempre una tantum.**
-   È lo stesso difetto del punto #4 della revisione — che sul report è stato corretto — ma
+4. **`PlanFlow.tsx` vende sempre una tantum** (trovato il 9/8, non era in nessuna lista).
+   È lo stesso difetto del punto #4 della revisione — corretto sul pulsante del report — ma
    sull'**altra** strada d'acquisto, e quella è la principale: il primo acquisto in onboarding.
-   `PlanFlow.tsx` dichiara `interface Plan` **senza `billing`** e chiama `cart.setPlan(...)`
-   senza passarlo, quindi nel Checkout la scelta fra abbonamento e pagamento unico non compare
-   mai. Correzione: aggiungere `billing` all'interfaccia e inoltrarlo, come già fa `Negozio.tsx`.
-   Da verificare prima quali piani `3m/6m/12m` hanno davvero `billing` diverso da `one_time`:
-   se sono tutti una tantum il difetto è latente, non attivo.
+   `app/src/pages/PlanFlow.tsx` dichiara `interface Plan` **senza `billing`** e chiama
+   `cart.setPlan(...)` senza passarlo, quindi nel Checkout la scelta fra abbonamento e pagamento
+   unico non compare mai. Correzione: aggiungere `billing` all'interfaccia e inoltrarlo, come già
+   fa `Negozio.tsx`. Da verificare prima quali piani `3m/6m/12m` hanno davvero `billing` diverso
+   da `one_time`: se sono tutti una tantum il difetto è latente, non attivo.
 
 ### B. Verifiche (non è codice, è guardare)
 
@@ -111,9 +124,9 @@ da fare ed è già chiuso qui **non compare**.
 - **Le percentuali del piano «Percorso Metabole 3 mesi»**: devono essere **soglie cumulative**
   — 25 / 35 / 45 per coach / coordinatrice / manager e 10 / 15 per nutrizionista / capo
   nutrizionista. Scritte 25 / 10 / 10 il secondo livello calcola `10 − 25 = −15` e incassa solo
-  la coach. Se non sono ancora state corrette, correggerle **e poi** rilanciare
+  la coach. Se non sono ancora corrette: correggerle **e poi** rilanciare
   `CONFERMA=1 npm run ricalcola:provvigioni -- 2026-07-01` (aggiunge solo il mancante, non toglie
-  niente, rilanciarlo non raddoppia).
+  niente a nessuno, rilanciarlo non raddoppia).
 - **`OTA_VERSION` su Render**: da **svuotare** alla prossima pubblicazione sugli store.
 
 ### C. Cose che aspettano Simone
@@ -128,7 +141,7 @@ da fare ed è già chiuso qui **non compare**.
 ### D. Cose che aspettano la NUTRIZIONISTA
 
 - ⚠️ **«Vacanze in Serenità · onnivora · dimagrimento · 3 pasti»**: 28 giornate **senza pranzo né
-  cena**, e ha una cliente che la sta ricevendo (Rosaria Gruppuso — telefonata già fatta da
+  cena**, con una cliente che la sta ricevendo (Rosaria Gruppuso — telefonata già fatta da
   Simone). È la prima da guardare.
 - ⚠️ **Emanuela Curulli**: una giornata incompleta sulla sua dieta.
 - ⚠️ **«Ritorno in Equilibrio · onnivora · mantenimento · 3 pasti» è vuota**: zero giornate. Va
@@ -142,8 +155,45 @@ da fare ed è già chiuso qui **non compare**.
   sbagliato il regime. Solo lei può dirlo.
 - **20 clienti con famiglia di dieta ambigua** (`npm run diag:famiglie`).
 
-### Già chiuso — non riaprirlo
+---
 
-Verificato nel codice il 9/8: «percorso concluso» automatico (`chiudiPercorsiConclusi`, chiamata
-dal cron), notifica sui piani bloccati (`apriSegnalazione`), e della revisione del 7/8 i punti
-**#2, #3, #4, #5, #6, #7**. Della lista delle coach, otto punti su dodici.
+## Comandi (shell di Render, cartella del backend)
+
+Girano tutti **in sola lettura**: si scrive solo con `CONFERMA=1`.
+
+| Comando | Cosa fa |
+|---|---|
+| `npm run pubblica:tutto` | Attiva ricette, conferma allergeni, approva gruppi, pubblica e rende visibile. Con un nome fra virgolette si limita a una famiglia |
+| `npm run compatta:menu` | Compatta i pasti sulle settimane: settimane piene a partire dalla 1, le ricette avanzate non si buttano |
+| `npm run diag:menu-incompleti` | Le diete con giornate a cui manca un pasto, e quali hanno clienti |
+| `npm run sistema:nomi` | Ricompone nome / cognome / alias sui nominativi importati male |
+| `npm run ricalcola:provvigioni -- <email o data>` | Aggiunge le quote di provvigione mancanti sui pagamenti già approvati |
+| `npm run diag:provvigioni -- <email>` | Perché su quel pagamento ha incassato solo una persona |
+| `npm run diag:settimane` | Le diete nell'ordine in cui conviene lavorarle |
+| `npm run diag:dieta -- "<nome>"` | Dove sono finite davvero le ricette di una famiglia |
+| `npm run diag:cliente -- <email>` | Perché quella cliente vede quel messaggio al posto del menu |
+| `npm run diag:famiglie` | Clienti con famiglia di dieta ambigua |
+| `npm run pulisci:spezie` | Toglie le spezie dai cibi esclusi delle clienti |
+| `npm run accendi:automazioni` | ⚠️ Leggere il riepilogo: il motore mail è **a opt-out**, senza `ACCENDI=` spegne quello che oggi parte |
+
+---
+
+## Già chiuso — non riaprirlo
+
+Verificato su `origin/main` il 9/8, con il commit che l'ha chiuso:
+
+- **Gaia, punti 1 e 2** — `2783bce`. Il pulsante «Sostituisci» porta nella chat, la sostituzione
+  concordata entra in `MenuDay.meals` coi grammi ed è marcata «da verificare»; in scheda cliente
+  c'è la card «Conversazioni» col thread di Gaia e l'elenco dei cambi da verificare. Il dialogo è
+  **deterministico**, non affidato all'AI (in produzione `ai_assistant_enabled` è `false`).
+- **Permessi coach** — `ab04330`: `clients` e `change_diet_type` in scrittura per coach e
+  coordinatrice (cambio dieta, numero di pasti, regime, anagrafica). La portata «solo le mie
+  clienti» resta applicata nei servizi.
+- **OTA allineate** — `63f63df` e `4a602f4`: il numero pubblicato e quello mostrato in app
+  coincidono.
+- **«Percorso concluso» automatico** — `chiudiPercorsiConclusi()`, chiamata dal cron giornaliero.
+- **Notifica sui piani bloccati** — `apriSegnalazione`, con il ripiego al responsabile quando il
+  ruolo non è assegnato a nessuno.
+- **Revisione del 7/8**: chiusi i punti **#2, #3, #4, #5, #6, #7**. Restano #9 (una verifica) e
+  il caso `PlanFlow` qui sopra, che è lo stesso difetto del #4 su un'altra strada.
+- Della lista delle coach: **otto punti su dodici**.

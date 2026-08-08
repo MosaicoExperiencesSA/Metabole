@@ -7,6 +7,52 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🩹 **Tre clienti bloccate al carrello: il questionario perdeva il consenso sanitario.**
+  Segnalazione di Simone dell'8/8, tre casi in un pomeriggio (Gioia Lurve 12:52, Giusy 14:20,
+  Ilaria Stefani 16:13), tutte con la **Prova Gratuita** nel carrello e tutte con lo stesso muro:
+  «Per il piano serve il consenso ai dati sanitari: completa prima il questionario». La domanda di
+  Simone era «come è possibile che una cliente sia arrivata fino all'acquisto senza passare dal
+  questionario?» — e la risposta è che **non ci è arrivata senza: il questionario l'ha fatto, ed è
+  lui che perdeva il consenso.**
+  Il salvataggio del profilo a fine questionario (`onboarding.service.ts`) è un `upsert`, e
+  `consents` era scritto **solo nel ramo `create`**. Chi aveva già un profilo finiva nel ramo
+  `update`, che scriveva `onboardingCompletedAt` **ma non il consenso**. Da lì due porte chiuse
+  che si incastrano: l'app guarda `onboardingCompletedAt` per decidere se mostrare il questionario,
+  quindi **non lo mostrava più** («mi dice di compilare il questionario ma non so dove sia»: vero
+  alla lettera), e il carrello pretende il consenso, quindi bloccava l'acquisto chiedendo l'unica
+  cosa che quella cliente non poteva più raggiungere.
+  **Chi aveva già un profilo?** Proprio i lead inseriti dal backoffice: il profilo nasce quando la
+  coach manda le credenziali (`agganciaAssegnazioneAlProfilo`). Più il codice invito e la modifica
+  cliente. Il commento di quella funzione dice che creare il profilo è sicuro «perché
+  `onboardingCompletedAt` resta null e il gate guarda quello» — ed era vero per il gate, ma
+  nessuno aveva guardato il ramo `update` del questionario.
+  Correzione: i consensi si calcolano **una volta** e si scrivono in **entrambi** i rami, **unendoli**
+  a quelli già presenti (un consenso raccolto altrove non si perde se il questionario si rifà).
+  Riparazione per chi era già bloccata: `npm run fix:consenso-sanitario` (dry-run; `CONFERMA=1` per
+  applicare). **Non inventa consensi**: ripristina solo se `onboardingAnswers.healthDataConsent`
+  è `true` — e quelle risposte sono una prova, perché il questionario si rifiuta di partire senza
+  quel consenso. Data registrata: quella del questionario, con nota di ripristino. Chi non ha la
+  prova viene elencato e non toccato.
+  Tutto **backend**: nessun OTA, nessun aggiornamento dell'app.
+  **La lezione**, che vale oltre il caso: *un `upsert` sono due scritture diverse travestite da una,
+  e il ramo `update` è quello che nessuno rilegge.* Ogni campo che è un cancello per qualcos'altro
+  va verificato in entrambi i rami. Tre test nuovi lo fissano — verificati rossi togliendo la
+  correzione, non solo verdi mettendola (suite: 840 test, 66 suite, tutte verdi).
+
+- `[Sviluppo]` ✋ **Il passaggio di consegne diceva di rifare una cosa già fatta.** Alla domanda
+  di Simone — «controlla bene, hai messo tutto?» — la risposta onesta era no. Il documento era
+  stato scritto guardando un clone in sandbox fermo a `8a701d0`, e nel frattempo su `origin/main`
+  c'era `2783bce`: **i punti 1 e 2 di Gaia erano già implementati e pushati**. La sessione nuova
+  avrebbe riscritto da capo 3.100 righe già in produzione. Corretto rileggendo `origin/main`
+  commit per commit e verificando ogni voce nel codice, non nelle liste dei giorni prima.
+  Il file ora porta in cima il commit su cui è stato verificato, ha una sezione **«già chiuso —
+  non riaprirlo»** con il commit che ha chiuso ogni punto, e dice esplicitamente che il clone in
+  sandbox non è la verità: prima di fidarsene va fatto `git fetch && git reset --hard
+  origin/main`. È la lezione più utile del giro: **un elenco di cose da fare che nessuno
+  riverifica invecchia più in fretta del codice**.
+  Il lavoro in cima alla coda cambia di conseguenza: non più il ponte Gaia, ma il **reset
+  password dalla scheda coach** e i **punti 3-5** del progetto Gaia.
+
 - `[Sviluppo]` 📖 **Le OTA hanno finalmente istruzioni scritte** — `progetto/guide/COME_SI_FA_UNA_OTA.md`.
   Nasce da una constatazione: ogni sessione nuova rifà gli stessi tre errori, e non per
   distrazione — la procedura ha tre passaggi che nessuno può indovinare. Si lancia **sul Mac**
