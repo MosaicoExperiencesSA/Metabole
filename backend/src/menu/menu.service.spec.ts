@@ -7,6 +7,9 @@ import { MenuService } from './menu.service';
 // Il "menu a necessità" non è oggetto di questi test: il fabbisogno non è calcolabile
 // (null) e il target kcal resta quello del livello della dieta (comportamento storico).
 const kcalNeedStub = () => ({ computeTargetKcal: jest.fn().mockResolvedValue(null) }) as never;
+// Le push non sono oggetto di questi test: stub silenzioso. `PushService` è entrato nel
+// costruttore di MenuService per la richiesta misure allo sblocco (8/8).
+const pushStub = () => ({ sendToUser: jest.fn().mockResolvedValue(undefined) }) as never;
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 const todayIso = new Date().toISOString().slice(0, 10);
@@ -91,6 +94,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         { provide: require('../diet-agent/diet-agent.service').DietAgentService, useValue: { stateFor: jest.fn().mockResolvedValue('normale') } },
         { provide: require('./day-combo.service').DayComboService, useValue: new (require('./day-combo.service').DayComboService)() },
         { provide: require('./kcal-need.service').KcalNeedService, useValue: kcalNeedStub() },
+        { provide: require('../notifications/push.service').PushService, useValue: pushStub() },
       ],
     }).compile();
     service = moduleRef.get(MenuService);
@@ -344,7 +348,7 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
       events as any,
       dietAgent as any,
       new DayComboService(),
-      kcalNeedStub(),
+      kcalNeedStub(), pushStub(),
     );
     return { service, prisma };
   }
@@ -411,7 +415,7 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
     const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
     const { DayComboService } = require('./day-combo.service');
-    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub());
+    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub(), pushStub());
     return { service, prisma };
   }
 
@@ -467,7 +471,7 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
     const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
     const { DayComboService } = require('./day-combo.service');
-    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub());
+    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub(), pushStub());
     return { service, prisma };
   }
 
@@ -525,7 +529,7 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
     const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
     const { DayComboService } = require('./day-combo.service');
-    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub());
+    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub(), pushStub());
     return { service, prisma };
   }
 
@@ -598,7 +602,7 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
     const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
     const { DayComboService } = require('./day-combo.service');
-    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub());
+    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub(), pushStub());
     return { service, prisma };
   }
   const lunchesOf = (prisma: any) =>
@@ -659,7 +663,7 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
     const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
     const { DayComboService } = require('./day-combo.service');
-    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub());
+    const service = new MenuService(prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService, events as any, dietAgent as any, new DayComboService(), kcalNeedStub(), pushStub());
     return { service, prisma };
   }
 
@@ -743,7 +747,7 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
       prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService,
       { activePausePeriod: jest.fn().mockResolvedValue(null) } as any,
       { stateFor: jest.fn().mockResolvedValue('normale') } as any,
-      new DayComboService(), kcalNeedStub(),
+      new DayComboService(), kcalNeedStub(), pushStub(),
     );
     return { service, prisma };
   }
@@ -844,7 +848,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
       prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService,
       { activePausePeriod: jest.fn().mockResolvedValue(null) } as any,
       { stateFor: jest.fn().mockResolvedValue('normale') } as any,
-      new DayComboService(), kcalNeedStub(),
+      new DayComboService(), kcalNeedStub(), pushStub(),
     );
     return { service, prisma };
   }
@@ -927,7 +931,7 @@ describe('MenuService — portata della sostituzione (solo oggi / questi giorni 
       prisma as PrismaService, config as unknown as ConfigParamsService, { log: jest.fn() } as unknown as AuditService,
       { activePausePeriod: jest.fn().mockResolvedValue(null) } as any,
       { stateFor: jest.fn().mockResolvedValue('normale') } as any,
-      new DayComboService(), kcalNeedStub(),
+      new DayComboService(), kcalNeedStub(), pushStub(),
     );
     return { service, prisma };
   }

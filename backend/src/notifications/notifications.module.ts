@@ -4,12 +4,14 @@ import { MessageComposerService } from './message-composer.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { AdminPushTestController, PushController } from './push.controller';
-import { PushService } from './push.service';
+import { PushModule } from './push.module';
 
 @Module({
-  imports: [MenuModule],
+  imports: [MenuModule, PushModule],
   controllers: [NotificationsController, PushController, AdminPushTestController],
-  providers: [NotificationsService, MessageComposerService, PushService],
-  exports: [NotificationsService, PushService],
+  providers: [NotificationsService, MessageComposerService],
+  // `PushModule` viene riesportato: chi importava questo modulo per avere `PushService` non cambia
+  // una riga. Vedi il commento in `push.module.ts` per il perché dell'estrazione.
+  exports: [NotificationsService, PushModule],
 })
 export class NotificationsModule {}

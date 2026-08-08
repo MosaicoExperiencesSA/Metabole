@@ -7,6 +7,7 @@ import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
+import { PushService } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 import { DayComboService, RecipeInfo } from './day-combo.service';
@@ -55,6 +56,7 @@ export class MenuService {
     private readonly dietAgent: DietAgentService,
     private readonly dayCombo: DayComboService,
     private readonly kcalNeed: KcalNeedService,
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -659,20 +661,34 @@ export class MenuService {
       entityId: clientId,
       metadata: { until: until.toISOString(), hours: ore },
     });
+    // Il messaggio CHIEDE le misure, non annuncia lo sblocco: è il punto della richiesta di Simone
+    // dell'8/8 («quando sblocca dobbiamo subito chiedere alla cliente le misure»). Lo sblocco da
+    // solo non fa arrivare nessun menu — quello lo sbloccano le misure — quindi dire «app
+    // sbloccata» e fermarsi lasciava la cliente a girare in un'app che ancora non le dava il menu,
+    // convinta che il problema fosse altrove.
+    const titolo = 'Le tue misure 📏';
+    const corpo =
+      'La tua coach ha riaperto l\'app: inserisci le misure adesso e il menu dei prossimi giorni ' +
+      'arriva subito.';
     await this.prisma.notification
       .create({
         data: {
           userId: clientId,
           type: 'measures_unlocked',
-          payload: {
-            title: 'App sbloccata 💚',
-            body: `La tua coach ha riaperto l'app. Quando puoi, inserisci le misure: servono per prepararti il menu giusto.`,
-          } as never,
+          payload: { title: titolo, body: corpo } as never,
           channel: 'inapp',
           scheduledFor: new Date(),
           sentAt: new Date(),
         },
       })
+      .catch(() => undefined);
+    // E soprattutto sul TELEFONO. La notifica in-app la vede solo chi apre l'app, cioè non chi si è
+    // fermata perché l'app era bloccata: la richiesta le arriverebbe solo dopo che ha già fatto da
+    // sé la cosa che le stiamo chiedendo. `sendToUser` è silenzioso se le push non sono configurate
+    // o se non ha dispositivi registrati, e un errore qui non deve far fallire lo sblocco: la
+    // finestra di grazia è già concessa e la coach ha avuto la sua conferma.
+    await this.push
+      .sendToUser(clientId, titolo, corpo, { type: 'measures_unlocked' })
       .catch(() => undefined);
     return { until: until.toISOString() };
   }

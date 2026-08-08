@@ -7,6 +7,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 📏 **Quando la coach sblocca l'app, le misure si chiedono sul telefono.**
+  Richiesta di Simone dell'8/8. Lo sblocco già mandava un avviso, ma con due difetti che si
+  sommavano: **annunciava** («App sbloccata 💚») invece di **chiedere**, ed era solo `inapp`, cioè
+  nel campanello. Il campanello lo vede chi apre l'app — precisamente quello che la cliente non
+  stava facendo, perché l'app era bloccata. L'avviso le arrivava quindi *dopo* che aveva già fatto
+  da sé la cosa che le stavamo chiedendo. E lo sblocco da solo non porta nessun menu: quello lo
+  sbloccano le misure. Il risultato era una cliente che girava in un'app riaperta e ancora senza
+  menu, convinta che il problema fosse un altro.
+  Ora il testo chiede le misure e dice cosa succede se le mette («il menu dei prossimi giorni arriva
+  subito»), e parte anche come **push**. La notifica nel campanello resta, per chi apre l'app dopo.
+  **Il pezzo di architettura, che è la parte interessante.** `PushService` stava dentro
+  `NotificationsModule`, e quel modulo **importa** `MenuModule`: chiunque stia nel menu non poteva
+  mandare una push senza dipendenza circolare. La soluzione facile era un `forwardRef` messo lì per
+  far tacere Nest; quella giusta era estrarre `PushModule` (nuovo), che dipende solo da Prisma e
+  ConfigService — entrambi globali — e non porta con sé nient'altro. `NotificationsModule` lo
+  **riesporta**, così chi prendeva `PushService` da lì non cambia una riga.
+  Un errore delle push non fa fallire lo sblocco: la finestra di grazia è già concessa e la coach ha
+  già avuto la sua conferma. C'è un test anche per questo, oltre a quello che pretende la parola
+  «misure» nel corpo del messaggio: se un domani qualcuno lo riscrive come «app sbloccata» e basta,
+  il test lo ferma.
+  Suite: 849 test, 67 suite, verdi; type-check ai 46 errori di baseline dello stub, nessuno nuovo.
+  Nessuna migrazione, **nessun OTA**: è tutto backend.
+  ⚠️ In coda, come richiesto: i promemoria misure alle **9, 12, 16 e 20**. Non è un'aggiunta banale
+  perché il cron su Render gira **una volta al giorno**: la scelta fra un cron più frequente e le
+  notifiche programmate va fatta prima di scrivere codice.
+
 - `[Sviluppo]` 🔑 **Il reset password dalla scheda lo fa anche la coach, sulle proprie clienti.**
   Prima la rotta era `@Roles('admin')`: la coach premeva «Reset password» e leggeva «Solo un admin
   può inviare il reset password» — proprio mentre era al telefono con la cliente che non riusciva a

@@ -14,6 +14,9 @@ import { MenuService } from './menu.service';
 const dayIso = (n: number) => giornoLocale(new Date(Date.now() + n * 86_400_000));
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
+/** Ultima push inviata dal servizio costruito da `makeService`, per i test dello sblocco. */
+let pushInviate: { userId: string; title: string; body: string; data?: Record<string, string> }[] = [];
+
 function makeService(prisma: unknown) {
   const config = {
     getNumber: jest.fn((k: string, def?: number) =>
@@ -33,6 +36,12 @@ function makeService(prisma: unknown) {
     new DayComboService(),
     // Il "menu a necessità" non è oggetto di questi test: fabbisogno non calcolabile → target dal livello.
     { computeTargetKcal: jest.fn().mockResolvedValue(null) } as never,
+    {
+      sendToUser: jest.fn((userId: string, title: string, body: string, data?: Record<string, string>) => {
+        pushInviate.push({ userId, title, body, data });
+        return Promise.resolve();
+      }),
+    } as never,
   );
 }
 
@@ -241,5 +250,52 @@ describe('MenuService — gate misure nel Monitoraggio', () => {
     const res = await makeService(prisma).measurementGate('c1');
     expect(res.blocking).toBe(false);
     expect(res.level).toBe('none');
+  });
+});
+
+/**
+ * Sblocco della coach: la cliente deve ricevere la richiesta delle misure SUL TELEFONO.
+ * Richiesta di Simone dell'8/8 («quando sblocca dobbiamo subito chiedere alla cliente le misure»).
+ * La sola notifica in-app non basta: la vede chi apre l'app, cioè non chi si era fermata perché
+ * l'app era bloccata — le arriverebbe dopo aver già fatto da sé la cosa che le stiamo chiedendo.
+ */
+describe('MenuService — sblocco misure: la richiesta arriva sul telefono', () => {
+  beforeEach(() => { pushInviate = []; });
+
+  const prismaSblocco = () => ({
+    clientProfile: { update: jest.fn().mockResolvedValue({}) },
+    notification: { create: jest.fn().mockResolvedValue({}) },
+  });
+
+  it('manda la push alla cliente, e CHIEDE le misure invece di annunciare lo sblocco', async () => {
+    const prisma = prismaSblocco();
+    await makeService(prisma).unlockMeasures('cliente-1', 'coach-1');
+    expect(pushInviate).toHaveLength(1);
+    const p = pushInviate[0];
+    expect(p.userId).toBe('cliente-1');
+    expect(p.data).toEqual({ type: 'measures_unlocked' });
+    // Il corpo deve chiedere le misure: se un giorno qualcuno lo riscrive come «app sbloccata» e
+    // basta, la cliente resta a girare in un'app che ancora non le dà il menu.
+    expect(p.body.toLowerCase()).toContain('misure');
+  });
+
+  it('la notifica nel campanello resta (chi apre l\'app la ritrova)', async () => {
+    const prisma = prismaSblocco();
+    await makeService(prisma).unlockMeasures('cliente-1', 'coach-1');
+    expect(prisma.notification.create).toHaveBeenCalledTimes(1);
+    const payload = prisma.notification.create.mock.calls[0][0].data;
+    expect(payload.type).toBe('measures_unlocked');
+    expect(payload.channel).toBe('inapp');
+  });
+
+  it('se le push sono spente o in errore lo sblocco riesce comunque', async () => {
+    // La finestra di grazia è già stata concessa e la coach ha avuto la conferma: un guasto FCM
+    // non deve trasformarsi in «sblocco non riuscito» sulla sua schermata.
+    const prisma = prismaSblocco();
+    const service = makeService(prisma);
+    (service as unknown as { push: { sendToUser: jest.Mock } }).push.sendToUser =
+      jest.fn().mockRejectedValue(new Error('FCM non configurato'));
+    await expect(service.unlockMeasures('cliente-1', 'coach-1')).resolves.toHaveProperty('until');
+    expect(prisma.clientProfile.update).toHaveBeenCalled();
   });
 });
