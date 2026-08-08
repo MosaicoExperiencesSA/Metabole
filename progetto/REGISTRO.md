@@ -7,6 +7,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-08
 
+- `[Sviluppo]` ✅ **`pubblica:tutto` lanciato in produzione su tutto il catalogo.** 1468 ricette
+  attivate, 1477 allergeni confermati, 273 gruppi approvati, 30 diete pubblicate e rese visibili
+  alle clienti. Saltate 13: le 12 «Digiuno intermittente (16:8)» archiviate e «Ritorno in
+  Equilibrio · onnivora · mantenimento · 3 pasti», che non ha nessuna giornata.
+  ⚠️ Fra le 30 pubblicate c'è **`lovcarbciccio · onnivora · dimagrimento · 5 pasti`**, che dal
+  nome è una prova: era in bozza, ora è visibile alle clienti e va archiviata. È il prezzo di un
+  comando che pubblica «tutto quello che trova»: la prossima volta conviene passargli il nome
+  della famiglia. Dettagli in `progetto/DA_RIPRENDERE_20260809.md`.
+
 - `[Sviluppo]` 🧾 **«Valida e pubblica» era sparito — e non era un difetto grafico.**
   Il passo 3 lavora sulla variante selezionata: dopo una pubblicazione quella selezione resta
   vuota, e la pagina rispondeva «Genera un catalogo per iniziare la validazione guidata» con
