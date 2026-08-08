@@ -80,7 +80,14 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     notifications: { view: true },
     posta: { view: true },
     charts: { view: true },
-    clients: { view: true },
+    // `manage` sulla scheda cliente (9/8, richiesta delle coach): la coach cambia dieta,
+    // numero di pasti e il resto dell'anagrafica delle SUE clienti. Prima poteva solo
+    // guardare, e per spostare una cliente da 3 a 5 pasti doveva chiedere a qualcun altro —
+    // cioè per fare il suo lavoro dipendeva da una persona che non conosce quella cliente.
+    // La portata («solo le mie») è applicata nei servizi, non qui.
+    clients: { view: true, manage: true },
+    // Regime (onnivora/vegetariana/vegana) e stile alimentare: stesso motivo.
+    change_diet_type: { view: true, manage: true },
     crm_leads: { view: true, manage: true }, // pipeline: la coach sposta i clienti tra gli stati
     lead_acceptance: { view: true, manage: true }, // casella dei lead da accettare
     escalations: { view: true, manage: true },
@@ -97,7 +104,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     notifications: { view: true },
     posta: { view: true },
     charts: { view: true },
-    clients: { view: true },
+    clients: { view: true, manage: true },
+    change_diet_type: { view: true, manage: true },
     crm_leads: { view: true, manage: true },
     lead_acceptance: { view: true, manage: true },
     escalations: { view: true, manage: true },
