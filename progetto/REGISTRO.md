@@ -7,6 +7,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🚨 **Il filtro allergeni non riconosceva i derivati: Gaia ha proposto burro a una
+  cliente allergica al latte** — trovato la sera dell'8/8 leggendo il `diag:cliente` di Giusy, che ha
+  `allergies: ['latte']`. Nella conversazione di quel pomeriggio Gaia le proponeva **70 g di burro**
+  al posto della panna. **L'ha fermata lei, dicendo no.**
+  - Il motivo è piccolo e va ricordato: il filtro cerca le parole chiave dell'esclusione dentro il
+    nome dell'alimento proposto, e `expandExclusion('latte')` restituiva **solo «latte»** — parola
+    che in «burro» non c'è. `INTOLERANCE_MAP` aveva `lattosio` e `latticini` ma **non `latte`**,
+    cioè proprio il termine con cui l'allergene si chiama nell'elenco UE e con cui il questionario
+    lo salva.
+  - Secondo buco sullo stesso profilo: le sue intolleranze dicono **`lactose`**, in inglese, e
+    nessuna chiave lo riconosceva. Aggiunta una tabella di **alias** (`milk`, `dairy`, `gluten`,
+    `nuts`, `peanuts`, `soy`, `fish`, `shellfish`, `eggs`, `sesame`…): un allergene scritto in una
+    lingua che la mappa non conosce si comporta come un'esclusione che non c'è, e non produce
+    nessun errore — quindi non se ne accorge nessuno finché non lo racconta una cliente.
+  - Completati anche gli altri elenchi (glutine, frutta a guscio, pesce, uova, molluschi, sesamo,
+    arachidi) e allineati i derivati del latte al dizionario UE scritto con la nutrizionista, con un
+    **test che fallisce se i due elenchi divergono**: sono in due file, e il buco di stasera nasce
+    esattamente da un divario del genere. +17 test, con lo scenario di Giusy scritto per nome.
+  - ⚠️ **Da guardare dopo il deploy**: più esclusioni vuol dire meno ricette utilizzabili. Su una
+    cliente allergica al latte il pool si restringe davvero — è corretto, ma va verificato che non
+    diventi un «piano bloccato»: `npm run diag:cliente -- giusy.vita01@gmail.com` e si guardano le
+    giornate erogate.
 - `[Sviluppo]` 👥 **Tabella clienti: filtri, riordino e colonna Coach** — richiesta della mattina
   dell'8/8 che era rimasta indietro. L'elenco clienti aveva una sola casella di ricerca e nessun
   ordinamento; per sapere di chi era una cliente si aprivano le schede una per una.

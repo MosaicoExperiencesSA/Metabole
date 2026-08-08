@@ -11,16 +11,70 @@
 // intolleranze sia per i cibi "non graditi": una categoria generica ("frutta secca",
 // "legumi", "latticini") deve intercettare i singoli alimenti (noci, ceci, formaggio…),
 // altrimenti un'esclusione generica non prende i piatti che li contengono.
+const DERIVATI_LATTE = [
+  'latte', 'yogurt', 'formaggio', 'formaggi', 'burro', 'panna', 'mozzarella', 'ricotta',
+  'parmigiano', 'grana', 'mascarpone', 'stracchino', 'scamorza', 'pecorino', 'gorgonzola',
+  'caciocavallo', 'cheddar', 'brie', 'feta', 'kefir', 'latticini', 'ghee', 'burrata', 'provola',
+];
+
 export const INTOLERANCE_MAP: Record<string, string[]> = {
-  lattosio: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano'],
-  latticini: ['latte', 'yogurt', 'formaggio', 'burro', 'panna', 'mozzarella', 'ricotta', 'parmigiano', 'stracchino', 'scamorza', 'mascarpone'],
-  glutine: ['pane', 'pasta', 'farro', 'orzo', 'couscous', 'grano', 'seitan', 'pizza', 'cracker'],
-  'frutta secca': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'arachidi'],
+  /**
+   * ⚠️ «latte» MANCAVA da questa mappa, e la conseguenza l'ha vista una cliente vera l'8/8/2026.
+   *
+   * Giusy ha `allergies: ['latte']`. `expandExclusion('latte')` restituiva la sola parola
+   * «latte», e il confronto cerca quella parola nel nome dell'alimento: «burro» non contiene
+   * «latte», quindi **il burro passava il filtro degli allergeni** e Gaia gliel'ha proposto come
+   * sostituto della panna. L'ha fermata lei, dicendo no.
+   *
+   * C'era la chiave `lattosio` e c'era `latticini`, ma non `latte` — cioè proprio il termine con
+   * cui l'allergene si chiama nell'elenco UE e con cui il questionario lo salva.
+   */
+  latte: DERIVATI_LATTE,
+  lattosio: DERIVATI_LATTE,
+  latticini: DERIVATI_LATTE,
+  glutine: ['pane', 'pasta', 'farro', 'orzo', 'couscous', 'grano', 'seitan', 'pizza', 'cracker', 'frumento', 'segale', 'bulgur', 'pangrattato'],
+  'frutta secca': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'arachidi', 'pinoli', 'macadamia', 'pecan'],
+  'frutta a guscio': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'pinoli', 'macadamia', 'pecan'],
   legumi: ['lenticchie', 'ceci', 'fagioli', 'piselli', 'fave', 'lupini', 'borlotti', 'cannellini', 'cicerchie', 'edamame'],
-  uova: ['uovo', 'uova', 'frittata', 'maionese'],
-  pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe'],
-  crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle'],
-  soia: ['soia', 'tofu', 'edamame'],
+  uova: ['uovo', 'uova', 'frittata', 'maionese', 'albume', 'tuorlo', 'omelette'],
+  pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe', 'alici', 'trota', 'sogliola', 'baccal'],
+  crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle', 'astice'],
+  molluschi: ['calamari', 'cozze', 'vongole', 'polpo', 'seppia', 'ostriche', 'capesante', 'totano'],
+  soia: ['soia', 'tofu', 'edamame', 'tempeh', 'miso'],
+  sesamo: ['sesamo', 'tahini'],
+  arachidi: ['arachidi', 'burro di arachidi'],
+};
+
+/**
+ * Alias con cui lo stesso allergene arriva scritto diversamente: dal questionario in italiano,
+ * dagli import in inglese, o come plurale.
+ *
+ * Non è pignoleria: Giusy ha `intolerances: ['lactose']`, non «lattosio». Una chiave che la mappa
+ * non riconosce si comporta esattamente come un'esclusione che non c'è — e non produce nessun
+ * errore, quindi nessuno se ne accorge finché non lo racconta una cliente.
+ */
+const ALIAS: Record<string, string> = {
+  lactose: 'lattosio',
+  milk: 'latte',
+  dairy: 'latticini',
+  'latte e derivati': 'latte',
+  gluten: 'glutine',
+  eggs: 'uova',
+  egg: 'uova',
+  fish: 'pesce',
+  soy: 'soia',
+  soya: 'soia',
+  shellfish: 'crostacei',
+  crustaceans: 'crostacei',
+  molluscs: 'molluschi',
+  mollusks: 'molluschi',
+  nuts: 'frutta a guscio',
+  'tree nuts': 'frutta a guscio',
+  peanuts: 'arachidi',
+  peanut: 'arachidi',
+  sesame: 'sesamo',
+  'frutta con guscio': 'frutta a guscio',
+  latticini_: 'latticini',
 };
 
 /**
@@ -29,10 +83,13 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
  * (noci, mandorle, …), altrimenti solo il termine stesso. Usato per intolleranze E dislikedFoods.
  */
 export function expandExclusion(term: string): string[] {
-  const t = (term ?? '').toLowerCase().trim();
-  if (!t) return [];
+  const grezzo = (term ?? '').toLowerCase().trim();
+  if (!grezzo) return [];
+  // Prima l'alias (`lactose` → `lattosio`), poi la mappa. Il termine originale resta sempre fra
+  // le parole chiave: se la mappa non lo conosce, almeno la parola scritta dalla cliente vale.
+  const t = ALIAS[grezzo] ?? grezzo;
   const members = INTOLERANCE_MAP[t];
-  return members ? [t, ...members] : [t];
+  return members ? [...new Set([grezzo, t, ...members])] : [grezzo];
 }
 
 /** Tutte le parole chiave escluse a partire dai termini grezzi del profilo. */

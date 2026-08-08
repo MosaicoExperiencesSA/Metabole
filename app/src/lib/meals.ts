@@ -32,6 +32,13 @@ export interface ApiSubstitution {
   fromQty?: number;
   toQty?: number;
   unit?: string;
+  /**
+   * Unità del SOSTITUTO, quando è diversa da quella di partenza. Senza questo campo il menu
+   * avrebbe letto «70 ml panna fresca → 70 ml burro»: il burro in millilitri non esiste, e la
+   * cliente che sta cucinando è l'unica a cui quel numero serve. Assente = la stessa di `unit`,
+   * che è il caso normale (vedi `unitaPerSostituto` nel backend).
+   */
+  unitA?: string;
   origine?: 'chat';
 }
 
@@ -41,8 +48,9 @@ export interface ApiSubstitution {
  * che le serve sapere. Senza grammi resta la forma di sempre.
  */
 export function testoSostituzione(sub: ApiSubstitution): string {
-  const q = (qta?: number) => (qta !== undefined && qta > 0 ? `${qta}${sub.unit ? ` ${sub.unit}` : ''} ` : '');
-  return `${q(sub.fromQty)}${sub.from} → ${q(sub.toQty)}${sub.to}`;
+  const q = (qta?: number, unita?: string) => (qta !== undefined && qta > 0 ? `${qta}${unita ? ` ${unita}` : ''} ` : '');
+  // A destra l'unità del sostituto: sono due alimenti diversi e possono misurarsi in modi diversi.
+  return `${q(sub.fromQty, sub.unit)}${sub.from} → ${q(sub.toQty, sub.unitA ?? sub.unit)}${sub.to}`;
 }
 
 export interface ApiMeal { slot: string; recipeId: string; name: string; kcal: number; substitutions?: ApiSubstitution[] }
