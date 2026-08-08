@@ -31,8 +31,11 @@
  *    Se una giornata di oggi esiste già, la **sostituisce** (e con PULISCI=1 la cancella: se era
  *    un menu vero, si rigenera dal backoffice con «Rigenera menu»).
  *
- * NB: la giornata usa la dieta già assegnata al tuo profilo. Se non ce n'è una, lo script si
- * fermerà dicendolo: `MenuDay.dietId` è obbligatorio e inventare una dieta sarebbe peggio.
+ * NB: la dieta della giornata è quella della tua **ultima giornata erogata** — il profilo non ha un
+ * campo `dietId`, la dieta la abbina il motore ogni volta (`catalog/pick-diet.ts`), e al primo
+ * lancio questo script si è fermato proprio lì. Se non hai menu passati si ripiega sulla prima
+ * variante approvata che combacia col regime, dicendolo; se non ne esiste nessuna si ferma:
+ * `MenuDay.dietId` è obbligatorio e inventare una dieta sarebbe peggio.
  */
 import { PrismaClient } from '@prisma/client';
 
@@ -70,8 +73,66 @@ async function main(): Promise<void> {
 
   const profilo = (await prisma.clientProfile.findUnique({
     where: { userId: user.id },
-    select: { dietId: true, allergies: true, intolerances: true, dislikedFoods: true },
-  })) as { dietId: string | null; allergies: string[]; intolerances: string[]; dislikedFoods: string[] } | null;
+    select: {
+      allergies: true,
+      intolerances: true,
+      dislikedFoods: true,
+      regime: true,
+      dietStyle: true,
+      dietFamily: true,
+      mealsPerDay: true,
+      objective: true,
+      pathType: true,
+    },
+  })) as {
+    allergies: string[];
+    intolerances: string[];
+    dislikedFoods: string[];
+    regime: string | null;
+    dietStyle: string | null;
+    dietFamily: string | null;
+    mealsPerDay: number | null;
+    objective: string | null;
+    pathType: string | null;
+  } | null;
+
+  /**
+   * QUALE DIETA usare per la giornata. `MenuDay.dietId` è obbligatorio, e il profilo **non** ha un
+   * `dietId`: la dieta non è un campo della cliente, è la variante di catalogo che il motore
+   * abbina ogni volta a partire da regime, stile, famiglia, pasti e obiettivo (vedi
+   * `catalog/pick-diet.ts`). Ci ho sbattuto il naso al primo lancio.
+   *
+   * Qui non si rifà quell'abbinamento: si prende la dieta **dell'ultima giornata già erogata** a
+   * questa cliente, che è per definizione quella giusta per lei. Se non ha mai avuto un menu si
+   * ripiega sulla prima variante approvata che combacia col suo regime — e lo si dice, perché in
+   * quel caso la giornata di collaudo non è rappresentativa del suo piano.
+   */
+  const ultimaGiornata = (await prisma.menuDay.findFirst({
+    where: { clientId: user.id },
+    orderBy: { date: 'desc' },
+    select: { dietId: true, diet: { select: { name: true } } },
+  })) as { dietId: string; diet: { name: string } | null } | null;
+
+  let dietId = ultimaGiornata?.dietId ?? null;
+  let dietaNome = ultimaGiornata?.diet?.name ?? null;
+  let dietaDiRipiego = false;
+  if (!dietId && profilo?.regime) {
+    const ripiego = (await prisma.diet.findFirst({
+      where: {
+        status: 'approved' as never,
+        regime: profilo!.regime,
+        ...(profilo!.dietStyle ? { style: profilo!.dietStyle } : {}),
+        ...(profilo!.mealsPerDay ? { mealsPerDay: profilo!.mealsPerDay, fasting: false } : {}),
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, name: true },
+    })) as { id: string; name: string } | null;
+    if (ripiego) {
+      dietId = ripiego.id;
+      dietaNome = ripiego.name;
+      dietaDiRipiego = true;
+    }
+  }
 
   console.log(`\n=== Collaudo cambio panna · ${email} ===`);
 
@@ -103,17 +164,18 @@ async function main(): Promise<void> {
   }
 
   // ---------- PREPARAZIONE ----------
-  if (!profilo?.dietId) {
+  if (!dietId) {
     console.error(
-      'Il profilo non ha una dieta assegnata, e `MenuDay` ne pretende una. Assegnala dalla scheda cliente\n' +
-        '(o attiva un piano) e rilancia: inventarne una qui vorrebbe dire scrivere un dato falso.',
+      'Non trovo una dieta da usare per la giornata: questa cliente non ha menu passati e nessuna\n' +
+        'variante approvata combacia col suo regime. `MenuDay.dietId` è obbligatorio e inventarne una\n' +
+        'qui vorrebbe dire scrivere un dato falso. Attiva un piano (o pubblica la variante) e rilancia.',
     );
     process.exit(1);
   }
 
   // Le esclusioni del profilo possono far scartare il sostituto: meglio saperlo prima di provare,
   // che è esattamente il caso di Giusy (allergia al latte → burro escluso, e giustamente).
-  const esclusioni = [...(profilo.allergies ?? []), ...(profilo.intolerances ?? []), ...(profilo.dislikedFoods ?? [])];
+  const esclusioni = [...(profilo?.allergies ?? []), ...(profilo?.intolerances ?? []), ...(profilo?.dislikedFoods ?? [])];
   const problema = esclusioni.filter((t) => /latt|milk|dairy|burro/i.test(t ?? ''));
   if (problema.length) {
     console.log(
@@ -123,7 +185,10 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log(`  dieta del profilo: ${profilo.dietId}`);
+  console.log(
+    `  dieta della giornata: ${dietaNome ?? dietId}` +
+      (dietaDiRipiego ? ' ⚠️ di ripiego (non hai menu passati): non rispecchia il tuo piano' : ' (dalla tua ultima giornata)'),
+  );
   console.log(`  giornata da preparare: ${oggi().toISOString().slice(0, 10)} (cena = ${NOME_RICETTA})`);
   console.log(`  ricetta: panna fresca 70 ml · pasta 80 g · parmigiano 10 g`);
   console.log(`  gruppo di equivalenza approvato: panna fresca / burro / olio evo`);
@@ -190,13 +255,13 @@ async function main(): Promise<void> {
     create: {
       clientId: user.id,
       date: oggi(),
-      dietId: profilo.dietId,
+      dietId,
       level: 1,
       meals: pasti as never,
       status: 'delivered',
       visibleFrom: oggi(),
     } as never,
-    update: { meals: pasti as never, status: 'delivered', visibleFrom: oggi(), dietId: profilo.dietId } as never,
+    update: { meals: pasti as never, status: 'delivered', visibleFrom: oggi(), dietId } as never,
   });
 
   console.log(
