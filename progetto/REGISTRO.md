@@ -7,6 +7,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🍽️ **«Nel menu ci dev'essere da mangiare»: il controllo che non c'era.**
+  Dalla compattazione del catalogo è saltata fuori questa riga:
+  `Vacanze in Serenità · onnivora · dimagrimento · 3 pasti → colaz. 5 · pranzo 0 · cena 0`.
+  Ventotto giornate erogate, **zero pranzi e zero cene**, dieta «approved · visibile».
+  Il gate di pubblicazione controllava allergeni e gruppi di equivalenza — cose serie — e **non
+  controllava che nelle giornate ci fosse da mangiare**. Nessun errore da nessuna parte, perché
+  nessuno guardava: una persona apre l'app all'ora di pranzo e non trova niente.
+  Ora `assertActivatable` rifiuta di rendere visibile una dieta con giornate a cui manca un
+  pasto, e il nuovo **`npm run diag:menu-incompleti`** trova quelle già pubblicate **e le
+  clienti che le stanno ricevendo** — cercate da `menu_day.diet_id`, cioè dalle giornate
+  davvero consegnate, non dalle preferenze scritte nel profilo.
+
 - `[Prodotto]` 🧹 **`npm run compatta:menu` — fare ordine nel catalogo.** Il catalogo si è
   formato a strati: un pezzo col metodo vecchio, un pezzo generato bene settimana per settimana,
   qualche piatto corretto a mano. I piatti ci sono, ma sono **sparsi** — la settimana 6 ha

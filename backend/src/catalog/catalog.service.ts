@@ -311,6 +311,41 @@ export class CatalogService {
     if (approvedGroups === 0) {
       throw new BadRequestException('Prodotto non attivabile: nessun gruppo di equivalenza approvato.');
     }
+
+    /**
+     * NEL MENU CI DEV'ESSERE DA MANGIARE. Sembra ovvio e non lo era.
+     *
+     * Il gate controllava gli allergeni e i gruppi di equivalenza — cose serie — e non
+     * controllava che le giornate avessero tutti i pasti. Il 9/8 è saltata fuori una dieta
+     * pubblicata e **visibile alle clienti** con ventotto giornate, cinque colazioni, **zero
+     * pranzi e zero cene**: una persona che apre l'app all'ora di pranzo e non trova niente.
+     * Nessun errore da nessuna parte, perché nessuno guardava.
+     */
+    const diet = (await this.prisma.diet.findUnique({
+      where: { id: dietId },
+      select: { mealsPerDay: true, fasting: true },
+    })) as { mealsPerDay: number; fasting: boolean | null } | null;
+    if (diet) {
+      const attesi = diet.fasting
+        ? ['lunch', 'afternoon_snack', 'dinner']
+        : diet.mealsPerDay === 5
+          ? ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']
+          : ['breakfast', 'lunch', 'dinner'];
+      const monche = templates.filter((t: { meals?: unknown }) => {
+        const suoi = new Set(
+          (Array.isArray(t.meals) ? (t.meals as Array<{ slot?: string; recipeId?: string }>) : [])
+            .filter((m) => m.slot && m.recipeId)
+            .map((m) => m.slot as string),
+        );
+        return !attesi.every((s) => suoi.has(s));
+      }).length;
+      if (monche > 0) {
+        throw new BadRequestException(
+          `Prodotto non attivabile: ${monche} giornate su ${templates.length} non hanno tutti i pasti previsti. ` +
+          'Completa le settimane prima di renderla visibile alle clienti.',
+        );
+      }
+    }
   }
 
   /**
