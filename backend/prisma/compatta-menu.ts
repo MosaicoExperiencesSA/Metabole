@@ -137,9 +137,14 @@ async function main(): Promise<void> {
   }
 
   let fatte = 0;
-  for (const w of lavori) {
+  for (const [i, w] of lavori.entries()) {
     try {
-      await prisma.dietDayTemplate.deleteMany({ where: { dietId: w.dietId } });
+      // Le giornate si riscrivono in blocco: su tutto il catalogo sono decine di migliaia di
+      // righe, e una `create` per volta significa una andata e ritorno per riga — dieci minuti
+      // di attesa davanti a un terminale fermo, con il rischio che qualcuno lo interrompa a
+      // metà. `deleteMany` + `createMany` dentro una transazione: o si riscrive tutta la dieta
+      // o non si tocca niente.
+      const righe: { dietId: string; level: number; dayIndex: number; meals: unknown }[] = [];
       for (let d = 1; d <= w.giorni; d++) {
         const pasti = w.slots
           .map((sl) => {
@@ -149,11 +154,15 @@ async function main(): Promise<void> {
           })
           .filter((m): m is { slot: string; recipeId: string } => !!m);
         if (pasti.length === 0) break;
-        await prisma.dietDayTemplate.create({
-          data: { dietId: w.dietId, level: 1, dayIndex: d, meals: pasti as never },
-        });
+        righe.push({ dietId: w.dietId, level: 1, dayIndex: d, meals: pasti });
       }
+      if (righe.length === 0) continue;
+      await prisma.$transaction([
+        prisma.dietDayTemplate.deleteMany({ where: { dietId: w.dietId } }),
+        prisma.dietDayTemplate.createMany({ data: righe as never }),
+      ]);
       fatte += 1;
+      if ((i + 1) % 25 === 0) console.log(`  …${i + 1} di ${lavori.length}`);
     } catch (e) {
       console.log(`⚠️  ${w.dietId}: ${e instanceof Error ? e.message : String(e)}`);
     }
