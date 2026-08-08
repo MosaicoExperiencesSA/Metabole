@@ -44,6 +44,13 @@ Ogni volta che consegni una modifica (codice, prototipo, specifica, voce, analis
 - Le decisioni/specifiche non si duplicano in `progetto/`: restano nei loro documenti, il diario le
   collega.
 
+## 4-bis. Procedure che si sbagliano se non le leggi prima
+- **Pubblicare un aggiornamento OTA**: `progetto/guide/COME_SI_FA_UNA_OTA.md`. Leggilo **per
+  intero** prima di lanciare qualsiasi comando. In breve: si lancia **sul Mac**, dalla radice
+  `~/Progetti/Metabole` (mai su Render, mai dalla home, mai in sandbox), serve
+  `app/google-services.json` (esiste solo sul Mac, senza spegne le push in silenzio), e **un
+  numero di versione non si riusa mai** — Capgo confronta la stringa, non il contenuto.
+
 ## 5. In una riga
 Leggi `progetto/STATO.md` + `progetto/REGISTRO.md` per capire dove siamo, fai il tuo lavoro, e prima di
 chiudere aggiorna quei due file con quello che hai fatto, marcandolo `[Prodotto]` o `[Sviluppo]`.

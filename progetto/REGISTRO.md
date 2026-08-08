@@ -7,53 +7,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
-- `[Sviluppo]` 🍲 **Il cambio piatto in chat arriva nel piatto** — punti 1 e 2 di
-  `progetto/PROGETTO_gaia-cambio-menu.md`. Gaia in chat il dialogo lo faceva già bene: la
-  cliente diceva che voleva cambiare le carote, Gaia chiedeva quante erano e proponeva le
-  biete. Mancava tutto quello che succede dopo. **La conversazione non toccava il menu**: la
-  cliente si accordava, chiudeva la chat, apriva il menu e trovava ancora le carote — doveva
-  ricordarselo lei. E quello che aveva detto — cosa non le piace, cosa non digerisce, cosa non
-  ha tempo di cucinare — **non lo sapeva nessuno**: non la coach, non la nutrizionista, non il
-  motore che le comporrà il menu del mese prossimo.
-  - **Il pulsante «Sostituisci» della home porta nella chat**, e Gaia scrive lei il primo
-    messaggio (elenca i piatti di oggi e chiede quale alimento cambiare):
-    `POST /me/threads/sostituzione`. Il pop-up coi tre bottoni **non c'è più**.
-  - **La domanda cambiata è quella che conta.** Il pop-up chiedeva *per quanto* — oggi /
-    questi giorni / per sempre — cioè la **conseguenza**. Ora si chiede **perché**, e la durata
-    la deduce il codice: «non ce l'ho in casa» vale un giorno, «non mi piace» entra nei cibi
-    non graditi, «mi resta sullo stomaco» **apre una segnalazione alla nutrizionista** invece
-    di finire nella casella dei gusti, «non ho tempo» vale un giorno. Solo un motivo di gusto
-    restringe i menu futuri: su una cliente vera 13 esclusioni accumulate avevano ridotto a 1
-    su 5 i pranzi utilizzabili, e non si arriva lì per una spesa saltata.
-  - **La sostituzione concordata viene scritta sulla giornata** con i grammi
-    (`MenuDay.meals[].substitutions`, già JSON: nessuna migrazione), marcata
-    `da_verificare`. **La ricetta di catalogo non si tocca mai**: è di tutte, non di una.
-  - **Deterministico, non affidato all'AI**, per due ragioni e la seconda decide: in
-    produzione `ai_assistant_enabled` è `false`, quindi un ponte che funzionasse solo con
-    l'AI accesa non funzionerebbe affatto; e questo codice scrive grammi nel piatto di una
-    persona, dove l'errore non è una frase goffa. Quando l'AI si accenderà riformulerà i
-    testi, senza toccare la decisione.
-  - **Due protezioni**: allergeni (se il sostituto tocca un allergene dichiarato il cambio si
-    rifiuta e la richiesta passa alla nutrizionista — su questo non si media) e plausibilità
-    dei grammi (fuori dal terzo/triplo si ripiega su pari grammatura e si segnala). La seconda
-    oggi è **inerte** — proponiamo pari grammatura — ma è in posizione per il punto 3.
-  - **I gruppi di equivalenza approvati dal nutrizionista finalmente servono a qualcosa**:
-    sono la prima fonte del sostituto, prima della mappa del motore. Le bozze no.
-  - **In scheda cliente** (backoffice) c'è la card «Conversazioni», thread con Gaia compreso,
-    più l'elenco dei cambi con lo stato di verifica: senza quell'elenco, «verificare»
-    vorrebbe dire rileggere tutte le chat. Il thread di Gaia si **legge e non si scrive**: là
-    la voce è di Gaia, e una risposta dello staff travestita da assistente ingannerebbe la
-    cliente. Nuovi `GET /staff/clients/:id/threads` e `/sostituzioni-chat`.
-  - `SUBSTITUTION_MAP` e la forma di `MenuDay.meals` sono uscite da `menu.service.ts` in
-    `sostituzioni-sicure.ts` e `pasto-giornata.ts`: ora ci scrivono in due, e due copie della
-    stessa mappa vorrebbero dire che la chat propone il porro e il motore la cipolla sulla
-    stessa cliente.
-  - 93 test nuovi (66 sulla logica pura, 27 sul servizio che scrive davvero sul menu) e 13
-    sulla chat, fra cui **la sicurezza non si scavalca**: un tema sensibile ha la precedenza
-    sul dialogo di sostituzione anche a dialogo aperto. Suite 797 verde.
-  - ⬜ Restano i punti 3–5 del progetto: la correzione del nutrizionista che istruisce Gaia
-    (chiede una piccola migrazione), `MenuWeight` per la memoria dei gusti, il conteggio nel
-    report di fine mese come dato di personalizzazione.
+- `[Sviluppo]` 📖 **Le OTA hanno finalmente istruzioni scritte** — `progetto/guide/COME_SI_FA_UNA_OTA.md`.
+  Nasce da una constatazione: ogni sessione nuova rifà gli stessi tre errori, e non per
+  distrazione — la procedura ha tre passaggi che nessuno può indovinare. Si lancia **sul Mac**
+  dalla radice del progetto (su Render `scripts/` non esiste e non esisterà mai: lì è deployato
+  solo `backend/`); serve `app/google-services.json`, che è gitignorato e quindi **non c'è su
+  nessun clone** — costruire senza spegne le notifiche push a chi riceve il bundle, in silenzio e
+  senza errori; e soprattutto **un numero di versione non si riusa mai**, perché Capgo confronta
+  la stringa e un telefono che ha applicato la X non la riscarica più, qualunque cosa ci sia
+  dentro lo zip. Nel file anche la tabella dei tre numeri che devono coincidere
+  (`app/package.json` · nome dello zip · `OTA_VERSION`), il modo di verificare un bundle senza
+  installarlo (il numero è compilato dentro il JS) e una tabella sintomo → causa. È puntato da
+  `ISTRUZIONI_PER_AI.md`, così una sessione che segue le istruzioni lo trova **prima** di
+  sbagliare invece che dopo.
+
+- `[Sviluppo]` 🤝 **Passaggio di consegne alla sessione nuova** — `progetto/PASSAGGIO_NUOVA_SESSIONE.md`:
+  il messaggio d'apertura da incollare, il contesto minimo (come si consegna il codice sul mount e
+  perché `cat > destinazione` è obbligatorio, perché `prisma generate` non gira sul Mac, dove si
+  lanciano i test) e i lavori in coda in ordine. Serve a non ricomprare ogni volta lo stesso mezzo
+  pomeriggio di contesto.
 
 - `[Prodotto]` 🔔 **Una segnalazione senza destinatario non è una segnalazione.** È la storia di
   una cliente vera, e vale la pena scriverla per intero. Si iscrive il 20 luglio. Dichiara una
