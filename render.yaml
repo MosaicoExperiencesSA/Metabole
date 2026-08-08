@@ -16,7 +16,31 @@ services:
     name: metabole-backend
     runtime: node
     region: frankfurt
-    plan: starter
+    # ⚠️ `plan` è il TIPO DI ISTANZA, non il piano del workspace (che è Pro e serve solo a dare il
+    # diritto di scalare). Questo campo è DICHIARATO qui, quindi il blueprint è la verità: cambiarlo
+    # dalla dashboard non dura, la sincronizzazione successiva rimette quello che c'è scritto qui.
+    #
+    # `standard` (2 GB / 1 CPU) dall'8/8, al posto di `starter` (512 MB / 0,5 CPU): su starter
+    # l'istanza è stata uccisa da un health check andato in timeout mentre nella shell di Render
+    # girava uno script `ts-node` — la shell vive DENTRO il container dell'app e le porta via
+    # memoria. Questa riga è la cura della causa; `numInstances` qui sotto copre il sintomo.
+    plan: standard
+    # Due istanze (8/8). Non è per il traffico: è perché con una sola qualunque riavvio è un buco
+    # visibile a tutte le clienti. L'8/8 alle 17:15 l'istanza è stata uccisa e riavviata per un
+    # health check andato in timeout (5s) — probabilmente soffocata dagli script `ts-node` lanciati
+    # nella shell di Render, che girano DENTRO lo stesso container dell'app. Con due istanze
+    # l'altra continua a servire e nessuno se ne accorge.
+    #
+    # Perché scriverlo qui anche se Simone l'ha già messo a 2 dalla dashboard: se il campo è
+    # assente Render *conserva* il valore corrente dei servizi esistenti (quindi non si perde), ma
+    # resta una scelta invisibile, che nessun altro ambiente creato da questo blueprint eredita e
+    # che il primo che guarda il file crederebbe di dover "sistemare".
+    #
+    # Vincoli: incompatibile con un disco persistente (qui non ce n'è) e ignorato se si accende
+    # l'autoscaling. Sicuro perché gli scheduler sono cron ESTERNI, non timer nel processo: due
+    # istanze non fanno partire due volte il giro giornaliero o i solleciti. `preDeployCommand`
+    # (migrazioni + seed) gira una volta per deploy, non una per istanza.
+    numInstances: 2
     rootDir: backend
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build
     # Retry sul lock delle migrazioni: due deploy ravvicinati (push + variabile/blueprint)

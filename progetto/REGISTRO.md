@@ -7,6 +7,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🧱 **Backend su istanza Standard e due istanze, scritte nel blueprint.** L'8/8 alle 17:15 l'istanza è
+  stata uccisa e riavviata: `Instance failed — HTTP health check failed (timed out after 5 seconds)
+  while running your code`. Non un deploy fallito (i tre dell'8/8 erano tutti andati live), non un
+  crash: l'app c'era e non ce la faceva a rispondere a `/health` in 5 secondi. Su un'istanza da
+  **512 MB** la spiegazione più probabile sono gli script `ts-node` lanciati nella shell di Render,
+  che girano **dentro lo stesso container dell'applicazione** e le portano via memoria e CPU. Per le
+  clienti sono stati ~40 secondi di app spenta, e per Simone un «Failed to fetch» sul login del
+  backoffice che sembrava un problema di password.
+  Simone ha scalato a 2 dalla dashboard alle 17:28 («Service recovered»). Qui la scelta viene
+  scritta in `render.yaml`, dove è la verità del servizio.
+  **Due chiarimenti che ci sono costati un giro a vuoto.** Primo: *Pro* è il piano del **workspace**,
+  `plan:` è il **tipo di istanza** — sono cose diverse, e avere Pro non sposta il servizio da
+  starter. Secondo: dei due campi, quello che rischia di tornare indietro è **`plan`**, perché è
+  dichiarato nel blueprint (cambiarlo dalla dashboard viene annullato alla sincronizzazione
+  successiva); `numInstances`, se assente, viene **conservato** da Render sui servizi esistenti.
+  Scriverlo comunque serve a non lasciare la scelta invisibile nel pannello.
+  Verificato prima di scrivere, perché sono le due cose che impediscono di scalare: **nessun disco
+  persistente** sul servizio, e gli scheduler sono **cron esterni** e non timer nel processo —
+  quindi due istanze non fanno partire due volte il giro giornaliero o i solleciti misure.
+  `preDeployCommand` (migrazioni + seed) gira una volta per deploy, non una per istanza.
+  **Le due righe curano due cose diverse**, e serve saperlo per decidere in futuro:
+  `plan: standard` (2 GB / 1 CPU, passato lo stesso giorno) toglie la **causa** — con quattro volte la
+  memoria uno script nella shell non soffoca più l'applicazione; `numInstances: 2` toglie il
+  **sintomo** di tutto il resto, cioè i riavvii su cui non abbiamo alcun controllo (manutenzione
+  della piattaforma, host che riparte, un nostro crash, un picco che sfora il timeout del health
+  check). Con una sola istanza ognuno di questi spegne il servizio a tutte le clienti per una
+  quarantina di secondi, e lo si scopre da un messaggio WhatsApp di una coach — che è esattamente
+  come l'abbiamo scoperto oggi. Con due, non se ne accorge nessuno.
+  Effetto collaterale utile: da adesso gli script pesanti nella shell sono innocui per le clienti —
+  la shell si attacca a una delle due istanze, l'altra continua a servire il traffico.
+  Se un mese passa senza nessun «Instance failed» e si vuole risparmiare, tornare a una istanza è
+  difendibile: si cambia la riga in `render.yaml`, non dalla dashboard.
+
 - `[Sviluppo]` 📎 **La fattura si allega al costo, in Contabilità.** Richiesta di Simone dell'8/8:
   «nei costi mi piacerebbe poter allegare le fatture in modo da avere tutto insieme». Un file per
   costo — «la fattura», al singolare, scelta sua: se un giorno serviranno due allegati servirà una
