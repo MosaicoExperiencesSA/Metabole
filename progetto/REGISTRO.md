@@ -27,6 +27,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
     il caso che fa emergere l'unità sbagliata — e il gruppo di equivalenza approvato senza cui il
     cambio non partirebbe affatto. Dry-run per default, `PULISCI=1 CONFERMA=1` per rimuovere tutto:
     il gruppo è globale e finché resta vale anche per le altre clienti.
+  - **Collaudata sul telefono la notte del 9/8**, giro completo: il pulsante apre la chat, Gaia
+    chiede il motivo, il cambio entra nel menu. E il «no» ha fatto quello per cui è nato — «aspetta,
+    non voglio lasciarti la panna nel piatto se non la vuoi: dimmi cos'è che non ti va» — invece di
+    chiudere la conversazione. Tre difetti visti in schermata (un errore di genere nel testo, la
+    controproposta della cliente non riconosciuta, e la conversione ml→g non ancora verificata perché
+    il sostituto proposto era l'olio) sono annotati in `progetto/DA_FARE.md`, punto 4.
   - I telefoni lo applicano **al riavvio dell'app**, non mentre è aperta.
   - ⚠️ Alla prossima pubblicazione sugli store va **svuotata `OTA_VERSION`** su Render: altrimenti
     un'installazione fresca scarica un bundle più vecchio del nativo appena installato.
