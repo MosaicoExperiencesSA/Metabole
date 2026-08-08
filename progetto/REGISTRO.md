@@ -5,6 +5,45 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-09
+
+- `[Sviluppo]` 🔗 **L'abbonamento orfano, e i soldi che entrano senza che nessuno se ne accorga.**
+  `stripeSubscriptionId` lo scriveva **solo** `checkout.session.completed`. Se quel singolo
+  webhook si perdeva — un deploy in corso, un 500, l'endpoint irraggiungibile per dieci minuti —
+  la colonna restava `null` **per sempre**. Da lì in poi nessuna fattura ritrovava più la riga:
+  la cliente pagava ogni mese, la scadenza non si spostava (quindi prima o poi restava senza
+  menu *pur pagando*) e la disdetta dall'app rispondeva «Nessun abbonamento da disdire». Tutto
+  con la webhook che risponde 200: nessun errore da nessuna parte.
+  Il rimedio era già nei dati e nessuno lo leggeva: alla creazione del checkout i nostri id
+  finiscono in `subscription_data.metadata`, e Stripe li rimanda su **ogni** fattura. Ora, se
+  l'aggancio manca, si risale da lì e si riscrive — quindi il difetto **si ripara da solo** alla
+  prima fattura successiva. Con un limite deliberato: se la riga punta già a un *altro*
+  abbonamento Stripe non si tocca niente e resta una segnalazione nell'audit
+  (`riaggancio_rifiutato`), perché spostare a mano il filo dei pagamenti di qualcuno è roba da
+  persone, non da webhook.
+
+- `[Sviluppo]` 💸 **La provvigione del rinnovo non può più sparire in silenzio.** Il pagamento
+  viene creato — e con lui il segno di idempotenza — *prima* di `generateCommissions`. Se quella
+  falliva, l'eccezione risaliva alla webhook (500), Stripe riconsegnava, e al secondo giro il
+  pagamento risultava già fatto: provvigioni, ricevuta e notifica alla coach **non nascevano
+  mai**. Ora l'errore viene fermato e scritto (`commerce.commission.failed`, col rimedio dentro),
+  la catena prosegue, e il recupero è il pulsante **↻ Ricalcola provvigioni** di ieri. Stessa
+  protezione sul primo pagamento, dov'era identica.
+
+- `[Sviluppo]` 🧾 **La ricevuta del rinnovo ora ha la ricevuta dentro.** Dal secondo mese in poi
+  l'email diceva «ecco la tua ricevuta» e non allegava niente: chi paga sei mesi aveva un
+  documento buono e cinque email vuote. Ora il PDF è allegato come al primo pagamento.
+
+- `[Sviluppo]` 🔑 **Il lead non sceglie più la password due volte.** L'account creato da
+  «Invia credenziali» nasce con `mustChangePassword: true` e riceve un link di reimpostazione;
+  la conferma del reset scriveva la password ma lasciava il flag alzato, quindi al primo accesso
+  l'app la rimandava a «scegli la password» — la stessa di due minuti prima. Nessun errore, solo
+  una persona convinta di aver sbagliato qualcosa.
+
+  669 test verdi (erano 661).
+
+---
+
 ## 2026-08-08
 
 - `[Sviluppo]` ✅ **`pubblica:tutto` lanciato in produzione su tutto il catalogo.** 1468 ricette

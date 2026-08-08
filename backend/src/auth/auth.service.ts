@@ -438,7 +438,14 @@ export class AuthService {
       }),
       this.prisma.user.update({
         where: { id: record.userId },
-        data: { passwordHash },
+        // `mustChangePassword: false` — la password ADESSO se l'è scelta lei.
+        // È la fine di un giro a vuoto: al lead che riceve le credenziali dal backoffice
+        // arriva un link di reimpostazione (`sendCredentials` usa lo stesso meccanismo del
+        // «password dimenticata») e l'account nasce con `mustChangePassword: true`. Qui la
+        // password veniva scritta ma il flag restava alzato, quindi al primo accesso l'app la
+        // rimandava a «scegli la password» — la stessa che aveva appena scelto due minuti prima.
+        // Non un errore visibile: solo una persona convinta di aver sbagliato qualcosa.
+        data: { passwordHash, mustChangePassword: false },
       }),
       // Revoca tutte le sessioni attive: dopo il reset serve un nuovo login.
       this.prisma.refreshToken.updateMany({

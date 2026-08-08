@@ -162,6 +162,41 @@ export function subscriptionIdDaFattura(inv: unknown): string | null {
   return typeof grezzo === 'string' ? grezzo : grezzo.id ?? null;
 }
 
+/**
+ * I NOSTRI id dentro una fattura Stripe — la seconda strada per ritrovare l'abbonamento.
+ *
+ * Alla creazione del checkout mettiamo `subscriptionId` e `clientId` in
+ * `subscription_data.metadata`: Stripe li appiccica all'abbonamento e li rimanda su **ogni**
+ * fattura. È una copia dei nostri identificativi che viaggia insieme al denaro.
+ *
+ * Serve perché `stripeSubscriptionId` da noi lo scrive **solo** `checkout.session.completed`.
+ * Se quel singolo webhook si perde — endpoint irraggiungibile durante un deploy, un 500, una
+ * disattivazione temporanea — la colonna resta `null` per sempre, e da quel momento nessuna
+ * fattura successiva trova più la riga: la cliente paga ogni mese, la scadenza non si sposta
+ * (quindi a un certo punto perde i menu, pur pagando) e la disdetta dall'app risponde
+ * «Nessun abbonamento da disdire». Tutto senza un errore da nessuna parte.
+ *
+ * Con questi metadati la fattura stessa dice a chi appartiene, e l'aggancio si può rifare.
+ * Come sopra si leggono due forme: `parent.subscription_details.metadata` (API 2026) e
+ * `subscription_details.metadata` (API precedenti).
+ */
+export function metadatiAbbonamentoDaFattura(inv: unknown): { subscriptionId?: string; clientId?: string } {
+  const f = (inv ?? {}) as {
+    subscription_details?: { metadata?: Record<string, string> | null } | null;
+    parent?: { subscription_details?: { metadata?: Record<string, string> | null } | null } | null;
+    lines?: { data?: { metadata?: Record<string, string> | null }[] } | null;
+  };
+  const m =
+    f.parent?.subscription_details?.metadata ??
+    f.subscription_details?.metadata ??
+    f.lines?.data?.[0]?.metadata ??
+    {};
+  return {
+    subscriptionId: m?.subscriptionId || undefined,
+    clientId: m?.clientId || undefined,
+  };
+}
+
 @Injectable()
 export class CommerceService {
   private readonly receiptKey: Buffer;
@@ -1152,6 +1187,100 @@ export class CommerceService {
    * Idempotente sull'id della fattura: Stripe riconsegna i webhook, e un rinnovo contato due
    * volte è denaro.
    */
+  /**
+   * Paga le provvigioni SENZA poter far cadere il resto della catena.
+   *
+   * Il pagamento, quando si arriva qui, è già registrato e già marcato: la sua riga esiste col
+   * suo `pspRef`. Se `generateCommissions` solleva, l'eccezione risale fino alla webhook, che
+   * risponde 500; Stripe la riconsegna, e la seconda volta il controllo di idempotenza trova il
+   * pagamento e esce subito. Risultato: le provvigioni di quel mese **non nascono mai**, e con
+   * loro saltano anche ricevuta, notifica alla coach e audit, che stanno più in basso.
+   * È il modo silenzioso in cui si perdono i soldi di una persona: nessun errore visibile, un
+   * webhook che risponde 200 al secondo tentativo, e un compenso che semplicemente non c'è.
+   *
+   * Qui l'errore viene fermato e scritto nell'audit come `commerce.commission.failed`. Il resto
+   * della catena prosegue, e il recupero c'è già: **Acquisti → ↻ Ricalcola provvigioni** su
+   * quel pagamento (o `npm run ricalcola:provvigioni`) rilegge la scala e accredita il mancante.
+   */
+  private async provvigioniSenzaPerdere(paymentId: string, clientId: string, amountCents: number): Promise<void> {
+    try {
+      await this.finance.generateCommissions({ id: paymentId, clientId, amountCents });
+    } catch (e) {
+      await this.audit
+        .log({
+          action: 'commerce.commission.failed',
+          entityType: 'payment',
+          entityId: paymentId,
+          metadata: {
+            clientId,
+            amountCents,
+            errore: e instanceof Error ? e.message : String(e),
+            rimedio: 'Acquisti → Ricalcola provvigioni su questo acquisto (oppure npm run ricalcola:provvigioni)',
+          },
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  /**
+   * Trova l'abbonamento di una fattura, e se l'aggancio si è perso lo RIFÀ.
+   *
+   * Prima strada: `stripeSubscriptionId`, che è quello normale. Se non trova niente prova con i
+   * metadati della fattura (vedi `metadatiAbbonamentoDaFattura`) e, se la riga esiste ed è
+   * ancora senza id di Stripe, gliel'ho scrive: da quel momento l'abbonamento è di nuovo
+   * raggiungibile e i rinnovi successivi passano dalla prima strada.
+   *
+   * ⚠️ Riaggancia SOLO righe con `stripeSubscriptionId` nullo. Se la riga puntasse già a un
+   * altro abbonamento Stripe, sovrascriverla vorrebbe dire spostare a mano il filo dei
+   * pagamenti di qualcun altro: in quel caso non si tocca niente e resta la segnalazione
+   * nell'audit, perché è una situazione che va guardata da una persona.
+   *
+   * Ritorna l'id NOSTRO dell'abbonamento, o null se non c'è modo di risalirci.
+   */
+  private async riagganciaAbbonamento(stripeSubId: string, inv: unknown): Promise<string | null> {
+    const perId = (await this.prisma.subscription.findUnique({
+      where: { stripeSubscriptionId: stripeSubId } as never,
+      select: { id: true },
+    })) as { id: string } | null;
+    if (perId) return perId.id;
+
+    const meta = metadatiAbbonamentoDaFattura(inv);
+    if (!meta.subscriptionId) return null;
+    const perMeta = (await this.prisma.subscription.findUnique({
+      where: { id: meta.subscriptionId },
+      select: { id: true, clientId: true, stripeSubscriptionId: true },
+    })) as { id: string; clientId: string; stripeSubscriptionId: string | null } | null;
+    if (!perMeta) return null;
+
+    if (perMeta.stripeSubscriptionId && perMeta.stripeSubscriptionId !== stripeSubId) {
+      await this.audit.log({
+        action: 'commerce.subscription.riaggancio_rifiutato',
+        entityType: 'subscription',
+        entityId: perMeta.id,
+        metadata: { atteso: stripeSubId, presente: perMeta.stripeSubscriptionId, motivo: 'punta già a un altro abbonamento Stripe' },
+      }).catch(() => undefined);
+      return perMeta.id;
+    }
+
+    if (!perMeta.stripeSubscriptionId) {
+      await this.prisma.subscription.update({
+        where: { id: perMeta.id },
+        data: { stripeSubscriptionId: stripeSubId } as never,
+      });
+      await this.audit.log({
+        action: 'commerce.subscription.riagganciato',
+        entityType: 'subscription',
+        entityId: perMeta.id,
+        metadata: {
+          stripeSubscriptionId: stripeSubId,
+          clientId: perMeta.clientId,
+          motivo: 'checkout.session.completed mai arrivato: id recuperato dai metadati della fattura',
+        },
+      }).catch(() => undefined);
+    }
+    return perMeta.id;
+  }
+
   async handleInvoicePaid(event: { type: string; data: { object: unknown } }) {
     const inv = event.data.object as {
       id: string;
@@ -1165,16 +1294,19 @@ export class CommerceService {
       return { handled: true, primoAddebito: true }; // già incassato dal checkout
     }
 
-    const sub = (await this.prisma.subscription.findUnique({
-      where: { stripeSubscriptionId: subscriptionId } as never,
-      include: { plan: true, client: { select: { email: true, locale: true } } },
-    })) as
-      | {
-          id: string; clientId: string; endDate: Date | null;
-          plan: { name: string } | null;
-          client: { email: string; locale: string | null } | null;
-        }
-      | null;
+    const subId = await this.riagganciaAbbonamento(subscriptionId, inv);
+    const sub = subId
+      ? ((await this.prisma.subscription.findUnique({
+          where: { id: subId },
+          include: { plan: true, client: { select: { email: true, locale: true } } },
+        })) as
+          | {
+              id: string; clientId: string; endDate: Date | null;
+              plan: { name: string } | null;
+              client: { email: string; locale: string | null } | null;
+            }
+          | null)
+      : null;
     if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };
 
     // Idempotenza: l'id della fattura finisce in `pspRef`. Se c'è già, questo rinnovo è fatto.
@@ -1211,13 +1343,20 @@ export class CommerceService {
     await this.finance
       .recordIncome({ amountCents: importo, category: 'subscription', ref: payment.id, clientId: sub.clientId })
       .catch(() => undefined);
-    await this.finance.generateCommissions({ id: payment.id, clientId: sub.clientId, amountCents: importo });
-    if (sub.client?.email) {
+    await this.provvigioniSenzaPerdere(payment.id, sub.clientId, importo);
+    // RICEVUTA DEL RINNOVO, **con il PDF allegato** come quella del primo pagamento.
+    // Prima l'allegato non c'era: dal secondo mese in poi la cliente riceveva un'email che
+    // diceva «ecco la tua ricevuta» e non conteneva nessuna ricevuta. Chi paga un abbonamento
+    // per sei mesi ha un documento buono e cinque email vuote — e se lo chiede al commercialista
+    // deve venirlo a chiedere a noi.
+    if (sub.client?.email && importo > 0) {
+      const ricevuta = await this.generateReceiptPdf(payment.id).catch(() => null);
       await this.mail
         .sendPaymentReceipt(
           sub.client.email,
           { description: payment.description, amountCents: importo, paymentId: payment.id, date: new Date() },
           sub.client.locale,
+          ricevuta ? [{ name: ricevuta.fileName, content: ricevuta.contentBase64 }] : undefined,
         )
         .catch(() => undefined);
     }
@@ -1257,10 +1396,15 @@ export class CommerceService {
     const inv = event.data.object as { id: string; attempt_count?: number | null };
     const subscriptionId = subscriptionIdDaFattura(inv);
     if (!subscriptionId) return { handled: false, reason: 'fattura non legata a un abbonamento' };
-    const sub = (await this.prisma.subscription.findUnique({
-      where: { stripeSubscriptionId: subscriptionId } as never,
-      select: { id: true, clientId: true, lastPaymentFailedAt: true, client: { select: { email: true } } },
-    })) as { id: string; clientId: string; lastPaymentFailedAt: Date | null; client: { email: string } | null } | null;
+    // Stesso riaggancio del rinnovo: se la carta viene rifiutata su un abbonamento che non
+    // abbiamo mai collegato, avvisare la cliente conta più che collegarlo.
+    const subIdFallito = await this.riagganciaAbbonamento(subscriptionId, inv);
+    const sub = subIdFallito
+      ? ((await this.prisma.subscription.findUnique({
+          where: { id: subIdFallito },
+          select: { id: true, clientId: true, lastPaymentFailedAt: true, client: { select: { email: true } } },
+        })) as { id: string; clientId: string; lastPaymentFailedAt: Date | null; client: { email: string } | null } | null)
+      : null;
     if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };
 
     const primoRifiuto = !sub.lastPaymentFailedAt;
@@ -1528,11 +1672,7 @@ export class CommerceService {
       note: payment.description,
     });
     if (!options?.skipCommissions) {
-      await this.finance.generateCommissions({
-        id: payment.id,
-        clientId: payment.clientId,
-        amountCents: payment.amountCents,
-      });
+      await this.provvigioniSenzaPerdere(payment.id, payment.clientId, payment.amountCents);
     }
     // Funnel del lancio: attivazione prova → trial_started; pagamento vero dopo
     // una prova → trial_converted (idempotente: solo se non già emesso).

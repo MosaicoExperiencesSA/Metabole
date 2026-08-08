@@ -297,5 +297,26 @@ describe('AuthService', () => {
         expect.objectContaining({ action: 'auth.password_reset_confirmed' }),
       );
     });
+
+    /**
+     * Il lead che riceve le credenziali dal backoffice sceglieva la password DUE volte:
+     * l'account nasce con `mustChangePassword: true` e il link che gli arriva è un reset, che
+     * scriveva l'hash ma lasciava il flag alzato. Al primo accesso l'app lo rimandava a
+     * «scegli la password» — la stessa di due minuti prima. Nessun errore, solo una persona
+     * convinta di aver sbagliato qualcosa.
+     */
+    it('conferma reset: abbassa anche mustChangePassword (niente password scelta due volte)', async () => {
+      prisma.actionToken.findUnique.mockResolvedValue({
+        id: 'at1', userId: 'u1', type: 'password_reset', usedAt: null,
+        expiresAt: new Date(Date.now() + 10_000),
+      });
+      await service.confirmPasswordReset('token-valido-lungo', 'nuovapassword1');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: expect.objectContaining({ mustChangePassword: false }),
+        }),
+      );
+    });
   });
 });
