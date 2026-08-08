@@ -1,4 +1,9 @@
 import {
+  apreFrase,
+  testoAnnullato,
+  soloNomeProprio,
+  conNome,
+  appellativo,
   MOTIVI,
   combaciaAlimento,
   condividonoAlimento,
@@ -384,5 +389,51 @@ describe('sostituzione in chat — i testi di Gaia', () => {
         expect(t.toLowerCase()).not.toContain('nel colazione');
       }
     }
+  });
+});
+
+/**
+ * IL NOME. «Gaia non potrebbe rispondere chiamando per nome la cliente?» (Simone, 8/8).
+ * Sì — con tre regole, perché il modo sbagliato di farlo è peggio del non farlo: una volta per
+ * messaggio, solo il nome proprio, e se il nome non c'è la frase deve restare corretta.
+ */
+describe('Gaia chiama per nome', () => {
+  it('usa solo il PRIMO nome, mai il cognome', () => {
+    expect(soloNomeProprio('Maria Grazia Cerchiara')).toBe('Maria');
+    expect(soloNomeProprio('  giulia  ')).toBe('Giulia');
+  });
+
+  it('senza nome non inventa niente e la frase resta corretta', () => {
+    expect(appellativo(null)).toBe('');
+    expect(conNome(undefined)).toBe('');
+    const senza = testoAnnullato();
+    expect(senza).toBe('Va bene, non cambio niente: il menu di oggi resta com\'è. Se cambi idea sono qui. 💚');
+    expect(senza).not.toContain('undefined');
+    expect(senza).not.toContain(', ,');
+  });
+
+  it('un «nome» che non è un nome viene ignorato', () => {
+    // Capita negli import: iniziali, sigle, campi con numeri dentro.
+    expect(soloNomeProprio('M')).toBeNull();
+    expect(soloNomeProprio('cliente123')).toBeNull();
+    expect(soloNomeProprio('')).toBeNull();
+  });
+
+  it('nei testi il nome compare UNA volta, e in testa', () => {
+    const t = testoAnnullato('Giulia Rossi');
+    expect(t).toBe('Va bene Giulia, non cambio niente: il menu di oggi resta com\'è. Se cambi idea sono qui. 💚');
+    expect(t.match(/Giulia/g)).toHaveLength(1);
+    expect(t).not.toContain('Rossi');
+  });
+
+  it('anche quando il menu non c\'è, la frase con il nome regge', () => {
+    expect(testoChiediCibo([], 'Antonella')).toMatch(/^Antonella, per cambiare/);
+    // E senza nome NON resta la minuscola: era il difetto che questo test ha trovato.
+    expect(testoChiediCibo([])).toMatch(/^Per cambiare/);
+  });
+
+  it('apreFrase sposta la maiuscola invece di lasciare un buco', () => {
+    expect(apreFrase('Giulia', 'Per oggi va bene')).toBe('Giulia, per oggi va bene');
+    expect(apreFrase(null, 'Per oggi va bene')).toBe('Per oggi va bene');
   });
 });

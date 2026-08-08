@@ -7,6 +7,57 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 💚 **Gaia chiama per nome.** Richiesta di Simone (8/8): «Gaia non potrebbe rispondere
+  chiamando per nome la cliente?». Sì, e cambia il tono di tutta la conversazione — ma il modo
+  sbagliato di farlo è peggio del non farlo, quindi tre regole: **una volta per messaggio** e in
+  testa alla frase, **solo il nome proprio** (mai il cognome: «Ciao Maria Grazia Cerchiara» è una
+  raccomandata), e se il nome non c'è **la frase deve restare identica e corretta**.
+  Da dove viene il nome: prima `clientProfile.name` — quello con cui vuole essere chiamata — e poi
+  `user.firstName`. Il ripiego non è teorico: `sistema:nomi` **svuota** l'alias quando è uguale al
+  nome completo, quindi da oggi quel campo è null per parecchie clienti e senza il ripiego Gaia le
+  chiamerebbe tutte per «niente».
+  Un test ha trovato subito un difetto che rileggendo non avevo visto: togliendo il nome la frase
+  cominciava **in minuscolo** («per cambiare un alimento mi serve…»). Da lì `apreFrase`, che sposta
+  la maiuscola invece di lasciare un buco. È il genere di dettaglio che non si vede in nessun log:
+  lo vede solo la cliente, in chat.
+  Scartati per scelta: nome nei messaggi di errore tecnico (suona finto) e nel testo delle
+  segnalazioni cliniche (là serve chiarezza, non calore).
+
+- `[Sviluppo]` 🍳 **Cambiare il PIATTO, non l'ingrediente: le decisioni, con i test.** La
+  conversazione girata da Simone l'8/8: la cliente rifiuta la sostituzione dell'ingrediente e scrive
+  «no, voglio una colazione proteica», poi «lo voglio diverso». Gaia risponde «Puoi dirmi di più?
+  Stai cercando di cambiare qualcosa nel tuo menu, nelle abitudini, o nell'approccio al
+  dimagrimento?» — una risposta da modulo davanti a una richiesta chiarissima.
+  Il motivo non è l'intelligenza, è il **codice**: il dialogo sapeva fare una cosa sola, scambiare un
+  ingrediente con uno equivalente dalla mappa sicura. «Una colazione proteica» è un'altra cosa: è un
+  **altro piatto**. E la stessa radice spiega anche la proposta precedente, «40 g di olio evo al
+  posto di 40 g di burro di macadamia»: corretta a pari grammatura, sbagliata come colazione — la
+  regola «stessi grammi» conserva le calorie e non sa cosa sia un pasto.
+  `menu/cambio-piatto.ts` (nuovo, puro, 17 test) contiene le decisioni:
+  **le calorie non si toccano** (fuori dalla tolleranza il piatto è scartato, non penalizzato: una
+  colazione da 340 kcal non diventa una da 700 perché è più proteica — è il vincolo che rende la
+  proposta accettabile senza il nutrizionista); si cerca **solo dentro le ricette approvate per
+  quella cliente**; «proteica» **pretende** più proteine di adesso, e una ricetta senza macro
+  dichiarate non può essere proposta come proteica; il piatto attuale e quelli che ha già oggi negli
+  altri slot non sono alternative; a parità vince chi resta più vicino alle calorie di partenza; e se
+  non c'è niente dentro le calorie **lo si dice e si passa alla nutrizionista**, invece di proporre
+  qualcosa fuori piano.
+  Anche qui un test ha fatto il suo lavoro: il riconoscimento dell'intenzione era troppo generoso e
+  «quando arriva il menu **nuovo**?» diventava una richiesta di cambiare piatto. Ora l'aggettivo vale
+  solo accanto a un pasto o dentro una frase di volontà; «proteica» invece basta da sola, perché in
+  una chat sul menu non vuol dire altro.
+  ⚠️ **Non è ancora collegato al dialogo**: il pezzo che manca è pescare i candidati dalla base
+  personale certificata (`client_menu_pool`), il passo «scegli 1 o 2» e la scrittura sulla giornata.
+  E, richiesta di Simone nella stessa sessione, il cambio di piatto deve **finire in due posti**: la
+  **scheda cliente** — accanto ai cambi di ingrediente già elencati, con lo stesso `da_verificare`,
+  perché è la nutrizionista a ricontrollarlo — e il **report di fine mese**, dove il numero dei cambi
+  è un dato di personalizzazione (è il punto 5 di `PROGETTO_gaia-cambio-menu.md`). Quindi il cambio
+  non può essere solo una riscrittura del `recipeId`: va **registrato** come evento, o in scheda e nel
+  report non comparirà mai.
+  Consegnato a parte di proposito: quella parte **scrive nel menu di una cliente**, e a fine di una
+  giornata così va scritta e verificata con la testa fresca, non aggiunta di corsa.
+  893 test verdi, type-check identico al baseline.
+
 - `[Sviluppo]` 🧹 **Le segnalazioni già orfane si adottano: `npm run fix:segnalazioni`.**
   La correzione di prima vale da adesso; le righe scritte prima restano senza destinatario e senza
   che nessuno le abbia mai ricevute. Sono le più vecchie, quindi le peggiori.

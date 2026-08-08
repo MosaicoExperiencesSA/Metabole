@@ -146,16 +146,39 @@ export class SostituzioneChatService {
   // ---------- Ingressi ----------
 
   /**
+   * Come si chiama, per i testi di Gaia (richiesta di Simone, 8/8).
+   *
+   * L'ordine conta: prima `clientProfile.name` — il nome con cui la cliente **vuole** essere
+   * chiamata — e poi `user.firstName`. Il ripiego non è teorico: `sistema:nomi` **svuota** l'alias
+   * quando è identico al nome completo, quindi da oggi quel campo è null per parecchie clienti, e
+   * senza il ripiego Gaia le chiamerebbe tutte per «niente». Un errore non si vede in nessun test:
+   * si vede in chat, e lo vedrebbe la cliente.
+   */
+  private async nomeDi(clientId: string): Promise<string | null> {
+    try {
+      const [profilo, utente] = await Promise.all([
+        this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { name: true } }),
+        this.prisma.user.findUnique({ where: { id: clientId }, select: { firstName: true } }),
+      ]);
+      return (profilo?.name ?? null) || ((utente as { firstName?: string | null } | null)?.firstName ?? null);
+    } catch {
+      // Il nome è una gentilezza, non un requisito: se non si legge, Gaia parla senza.
+      return null;
+    }
+  }
+
+
+  /**
    * Apertura dal pulsante «Sostituisci un ingrediente» dell'app: Gaia elenca i piatti di
    * oggi e chiede quale alimento cambiare.
    */
   async apri(clientId: string): Promise<EsitoSostituzione> {
-    const pasti = await this.pastiDiOggi(clientId);
+    const [pasti, nome] = await Promise.all([this.pastiDiOggi(clientId), this.nomeDi(clientId)]);
     const elenco = pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome }));
     if (!elenco.length) {
-      return { testo: testoChiediCibo([]), esito: 'rifiutata' };
+      return { testo: testoChiediCibo([], nome), esito: 'rifiutata' };
     }
-    return { testo: testoChiediCibo(elenco), stato: { passo: 'cibo', tentativi: 0 }, esito: 'aperto' };
+    return { testo: testoChiediCibo(elenco, nome), stato: { passo: 'cibo', tentativi: 0 }, esito: 'aperto' };
   }
 
   /**
@@ -163,12 +186,12 @@ export class SostituzioneChatService {
    * nel menu di oggi si salta la domanda e si passa direttamente al motivo.
    */
   async apriDaTesto(clientId: string, testoCliente: string): Promise<EsitoSostituzione> {
-    const pasti = await this.pastiDiOggi(clientId);
-    if (!pasti.length) return { testo: testoChiediCibo([]), esito: 'rifiutata' };
+    const [pasti, nome] = await Promise.all([this.pastiDiOggi(clientId), this.nomeDi(clientId)]);
+    if (!pasti.length) return { testo: testoChiediCibo([], nome), esito: 'rifiutata' };
     const trovato = this.trovaIngrediente(pasti, testoCliente);
     if (!trovato) {
       return {
-        testo: testoChiediCibo(pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome }))),
+        testo: testoChiediCibo(pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome })), nome),
         stato: { passo: 'cibo', tentativi: 0 },
         esito: 'aperto',
       };
@@ -186,7 +209,7 @@ export class SostituzioneChatService {
     // mi piace» al passo del motivo è un motivo, non un annullamento, e trattarlo come tale
     // butterebbe via la conversazione proprio quando sta arrivando al punto.
     if (ANNULLA_SECCO.test(normalizza(testoCliente))) {
-      return { testo: testoAnnullato(), esito: 'annullata' };
+      return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
     }
     if (stato.passo === 'cibo') return this.passoCibo(clientId, stato, testoCliente);
     if (stato.passo === 'motivo') return this.passoMotivo(clientId, stato, testoCliente);
@@ -201,7 +224,7 @@ export class SostituzioneChatService {
     testoCliente: string,
   ): Promise<EsitoSostituzione> {
     const pasti = await this.pastiDiOggi(clientId);
-    if (!pasti.length) return { testo: testoChiediCibo([]), esito: 'rifiutata' };
+    if (!pasti.length) return { testo: testoChiediCibo([], await this.nomeDi(clientId)), esito: 'rifiutata' };
 
     const trovato = this.trovaIngrediente(pasti, testoCliente);
     if (trovato) return this.proponi(clientId, trovato);
@@ -251,7 +274,7 @@ export class SostituzioneChatService {
       return this.apri(clientId);
     }
     return {
-      testo: testoConferma(stato.proposta, motivo),
+      testo: testoConferma(stato.proposta, motivo, await this.nomeDi(clientId)),
       stato: { ...stato, passo: 'conferma', motivo: motivo.key, tentativi: 0 },
       esito: 'in_corso',
     };
@@ -263,11 +286,11 @@ export class SostituzioneChatService {
     testoCliente: string,
   ): Promise<EsitoSostituzione> {
     const risposta = riconosciConferma(testoCliente);
-    if (risposta === 'no') return { testo: testoAnnullato(), esito: 'annullata' };
+    if (risposta === 'no') return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
     if (risposta !== 'si') {
       const tentativi = (stato.tentativi ?? 0) + 1;
       if (tentativi >= 2) {
-        return { testo: testoAnnullato(), esito: 'annullata' };
+        return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
       }
       return {
         testo: 'Non ho capito: confermi il cambio? Rispondi «sì» oppure «no».',
@@ -558,7 +581,7 @@ export class SostituzioneChatService {
     }
 
     return {
-      testo: testoFatto(proposta, motivo),
+      testo: testoFatto(proposta, motivo, await this.nomeDi(clientId)),
       esito: 'applicata',
       applicata: { giorni: giorniToccati, da: proposta.da, a: proposta.a, motivo: motivo.key, pasti: pastiToccati },
     };

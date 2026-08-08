@@ -1,0 +1,271 @@
+/**
+ * CAMBIARE IL PIATTO, non l'ingrediente.
+ *
+ * ## Da dove nasce
+ *
+ * Conversazione vera dell'8/8, girata da Simone. La cliente chiede di cambiare il burro di
+ * macadamia della colazione; Gaia propone «40 g di olio evo al posto di 40 g di burro di
+ * macadamia»; la cliente risponde:
+ *
+ *   > «no, voglio una colazione proteica»
+ *   > «lo voglio diverso»
+ *
+ * e Gaia va in palla: «Puoi dirmi di più? Stai cercando di cambiare qualcosa nel tuo menu, nelle
+ * abitudini, o nell'approccio al dimagrimento?». Una risposta da modulo, davanti a una richiesta
+ * perfettamente chiara.
+ *
+ * Il motivo è che il dialogo sapeva fare **una** cosa: scambiare un ingrediente con uno equivalente
+ * dalla mappa sicura. «Voglio una colazione proteica» non è quello: è **un altro piatto**. Mancava
+ * il codice, non l'intelligenza.
+ *
+ * (Nota, perché è la stessa radice: la proposta «40 g di olio evo» è corretta a pari grammatura e
+ * sbagliata come colazione. La regola «stessi grammi» conserva le calorie e non sa cosa sia un
+ * pasto. Cambiare il piatto invece ragiona sul piatto.)
+ *
+ * ## La regola, in una riga
+ *
+ * Fra le ricette **autorizzate per quella cliente** (la sua base personale certificata: allergeni
+ * revisionati, regime compatibile, esclusioni applicate) si cerca, per quello slot, un piatto con
+ * **calorie simili** e — se ha chiesto proteine — **più proteine** di quello che ha. Non si inventa
+ * niente e non si esce dal catalogo che il nutrizionista ha approvato: è la differenza fra
+ * proporre un'alternativa e improvvisare una dieta.
+ *
+ * Nessuna dipendenza da Nest né da Prisma: qui vivono solo le decisioni.
+ */
+
+/** Che tipo di alternativa ha chiesto. `null` = «diverso» e basta. */
+export type PreferenzaPiatto = 'proteico' | 'leggero' | 'veloce' | null;
+
+export interface CandidatoPiatto {
+  recipeId: string;
+  nome: string;
+  kcal: number;
+  /** Proteine in grammi, se la ricetta le dichiara (`Recipe.macros.protein_g`). */
+  proteineG?: number | null;
+  /** `Recipe.difficulty`: semplice | media | elaborata. Serve alla preferenza «veloce». */
+  difficolta?: string | null;
+}
+
+export interface AlternativaProposta extends CandidatoPiatto {
+  /** Scostamento dalle kcal del piatto attuale, in percentuale (può essere negativo). */
+  scartoKcalPct: number;
+  /** Differenza di proteine rispetto al piatto attuale, in grammi (se note per entrambi). */
+  deltaProteineG: number | null;
+}
+
+const normalizza = (testo: string): string =>
+  (testo ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * «Voglio un altro piatto». Deliberatamente generoso: se la cliente sta chiedendo qualcosa di
+ * diverso e noi non lo riconosciamo, la risposta è quella da modulo che ha fatto arrabbiare Simone.
+ * Il costo di un falso positivo è basso — Gaia propone due alternative e la cliente dice no.
+ */
+const PASTI = '(piatto|piatti|colazione|pranzo|cena|spuntino|merenda)';
+
+/**
+ * ⚠️ Generoso ma non ingenuo. La prima versione accettava l'aggettivo da solo — «altro», «nuovo»,
+ * «diverso» — e «quando arriva il menu nuovo?» diventava una richiesta di cambiare piatto. Un test
+ * l'ha preso subito. Ora l'aggettivo vale solo **accanto a un pasto** o dentro una frase di
+ * volontà («voglio…», «qualcosa di…»); le proteine invece bastano da sole, perché «proteica» in
+ * una chat sul menu non significa nient'altro.
+ */
+const INTENTO_ALTRO_PIATTO: RegExp[] = [
+  // «un altro piatto», «una colazione diversa» (nei due ordini)
+  new RegExp(`\\b(altro|altra|nuovo|nuova|diverso|diversa|diversi|diverse)\\s+${PASTI}\\b`),
+  new RegExp(`\\b${PASTI}\\s+(altro|altra|nuovo|nuova|diverso|diversa|diversi|diverse)\\b`),
+  // «voglio/vorrei/dammi qualcosa di diverso», «preferirei cambiare»
+  /\b(voglio|vorrei|preferirei|dammi|proponimi|fammi|mettimi|cambiamo)\b[^.]{0,30}\b(altro|altra|diverso|diversa|cambiare)\b/,
+  /\blo voglio diverso\b/, /\bla voglio diversa\b/,
+  new RegExp(`\\bcambia(re)?\\s*(il|la|lo)?\\s*${PASTI}\\b`),
+  /\bqualcos(a|altro) di (diverso|altro|leggero|leggera|proteico|proteica)\b/,
+  // Le proteine bastano da sole: in una chat sul menu non vogliono dire altro.
+  /\b(piu|più)\s*(proteic|protein)/,
+  /\bproteic(a|o|he|hi)\b/,
+  /\bnon (mi va|ne ho voglia|mi convince)\b/,
+];
+
+export function rilevaIntentoAltroPiatto(testo: string): boolean {
+  const t = normalizza(testo);
+  if (!t) return false;
+  return INTENTO_ALTRO_PIATTO.some((r) => r.test(t));
+}
+
+/**
+ * Che cosa vuole, se lo ha detto. Le proteine hanno la precedenza su «leggero»: chi scrive
+ * «una colazione proteica più leggera» sta chiedendo prima di tutto proteine.
+ */
+export function preferenzaDaTesto(testo: string): PreferenzaPiatto {
+  const t = normalizza(testo);
+  if (/proteic|protein/.test(t)) return 'proteico';
+  if (/\bveloce\b|\bsvelt|\bnon ho tempo\b|\brapid/.test(t)) return 'veloce';
+  if (/\bleggero\b|\bleggera\b|\bsgonfi|\bdigerib/.test(t)) return 'leggero';
+  return null;
+}
+
+/** Le proteine dichiarate, o null: una ricetta senza macro non si può ordinare per proteine. */
+const proteine = (c: CandidatoPiatto): number | null =>
+  typeof c.proteineG === 'number' && Number.isFinite(c.proteineG) ? c.proteineG : null;
+
+/**
+ * Ordina e filtra le alternative per uno slot.
+ *
+ * Le regole, in ordine di importanza:
+ *
+ *  1. **Le calorie non si toccano.** Fuori dalla tolleranza il piatto è scartato, non penalizzato:
+ *     una colazione da 340 kcal non si sostituisce con una da 700 perché «è più proteica». È il
+ *     vincolo che rende la proposta accettabile senza il nutrizionista.
+ *  2. **Il piatto attuale non è un'alternativa a sé stesso**, e nemmeno i piatti che la cliente ha
+ *     già oggi negli altri slot: proporle a colazione quello che ha a pranzo non è una scelta.
+ *  3. Poi la preferenza: `proteico` ordina per proteine (e **pretende** che ce ne siano più di
+ *     adesso, altrimenti non è un'alternativa proteica); `veloce` preferisce le ricette semplici;
+ *     `leggero` preferisce le kcal più basse dentro la tolleranza.
+ *  4. A parità, vince chi resta più vicino alle calorie di partenza: è la scelta più prudente.
+ */
+export function ordinaAlternative(
+  candidati: CandidatoPiatto[],
+  opzioni: {
+    kcalAttuali: number;
+    proteineAttualiG?: number | null;
+    preferenza: PreferenzaPiatto;
+    /** Ricette da non proporre: quella attuale e gli altri piatti di oggi. */
+    escludiRecipeIds?: string[];
+    /** Tolleranza sulle kcal, in percentuale. Default 15, come `menu_kcal_balance_tolerance_pct`. */
+    tolleranzaKcalPct?: number;
+    /** Quante proporne. Due: una è un ordine, tre sono un catalogo. */
+    quante?: number;
+  },
+): AlternativaProposta[] {
+  const tolleranza = opzioni.tolleranzaKcalPct ?? 15;
+  const quante = opzioni.quante ?? 2;
+  const esclusi = new Set(opzioni.escludiRecipeIds ?? []);
+  const proteineAttuali =
+    typeof opzioni.proteineAttualiG === 'number' && Number.isFinite(opzioni.proteineAttualiG)
+      ? opzioni.proteineAttualiG
+      : null;
+  // kcal a zero o assurde: senza un riferimento la tolleranza non vuol dire niente, meglio non
+  // proporre nulla che proporre a caso.
+  if (!Number.isFinite(opzioni.kcalAttuali) || opzioni.kcalAttuali <= 0) return [];
+
+  const ammessi = candidati
+    .filter((c) => !esclusi.has(c.recipeId))
+    .filter((c) => Number.isFinite(c.kcal) && c.kcal > 0)
+    .map((c) => ({
+      ...c,
+      scartoKcalPct: Math.round(((c.kcal - opzioni.kcalAttuali) / opzioni.kcalAttuali) * 100),
+      deltaProteineG:
+        proteine(c) !== null && proteineAttuali !== null
+          ? Math.round((proteine(c) as number) - proteineAttuali)
+          : null,
+    }))
+    .filter((c) => Math.abs(c.scartoKcalPct) <= tolleranza);
+
+  const proteici = ammessi.filter((c) => {
+    if (opzioni.preferenza !== 'proteico') return true;
+    const p = proteine(c);
+    if (p === null) return false; // senza macro non posso promettere «più proteica»
+    if (proteineAttuali === null) return true; // non so quelle di adesso: propongo le più proteiche
+    return p > proteineAttuali;
+  });
+
+  const vicinanzaKcal = (c: AlternativaProposta) => Math.abs(c.scartoKcalPct);
+  const ordinati = [...proteici].sort((a, b) => {
+    if (opzioni.preferenza === 'proteico') {
+      const pa = proteine(a) ?? -1;
+      const pb = proteine(b) ?? -1;
+      if (pb !== pa) return pb - pa;
+    }
+    if (opzioni.preferenza === 'veloce') {
+      const semplice = (c: AlternativaProposta) => (c.difficolta === 'semplice' ? 0 : c.difficolta === 'media' ? 1 : 2);
+      const sa = semplice(a);
+      const sb = semplice(b);
+      if (sa !== sb) return sa - sb;
+    }
+    if (opzioni.preferenza === 'leggero' && a.kcal !== b.kcal) return a.kcal - b.kcal;
+    return vicinanzaKcal(a) - vicinanzaKcal(b);
+  });
+
+  return ordinati.slice(0, quante);
+}
+
+// ---------- Testi ----------
+
+const kcalTxt = (n: number) => `${Math.round(n)} kcal`;
+
+/**
+ * La proposta. Dice **perché** quel piatto è la risposta alla sua richiesta (le proteine in più) e
+ * mostra le calorie: è la stessa informazione che guarderebbe il nutrizionista, e vederla scritta
+ * è ciò che rende la proposta credibile invece che magica.
+ */
+export function testoProponiAlternative(
+  slotEtichetta: string,
+  attuale: { nome: string; kcal: number },
+  alternative: AlternativaProposta[],
+  preferenza: PreferenzaPiatto,
+  nome?: string | null,
+): string {
+  const perche =
+    preferenza === 'proteico'
+      ? 'con più proteine e le stesse calorie'
+      : preferenza === 'leggero'
+        ? 'più leggero, restando nelle calorie del piano'
+        : preferenza === 'veloce'
+          ? 'più veloce da preparare, con le stesse calorie'
+          : 'con le stesse calorie';
+  const righe = alternative
+    .map((a, i) => {
+      const prot =
+        a.deltaProteineG !== null && a.deltaProteineG > 0
+          ? ` · +${a.deltaProteineG} g di proteine`
+          : a.proteineG != null
+            ? ` · ${Math.round(a.proteineG)} g di proteine`
+            : '';
+      return `${i + 1}) ${a.nome} — ${kcalTxt(a.kcal)}${prot}`;
+    })
+    .join('\n');
+  const apertura = nome ? `${nome}, ho` : 'Ho';
+  return (
+    `${apertura} cercato ${preferenza === 'proteico' ? 'una proteica' : "un'alternativa"} fra i piatti approvati per te ` +
+    `${perche}.\n\nAdesso a ${slotEtichetta.toLowerCase()} hai ${attuale.nome} (${kcalTxt(attuale.kcal)}). ` +
+    `Al suo posto posso metterti:\n\n${righe}\n\n` +
+    'Rispondi col numero, oppure «no» se nessuna ti va.'
+  );
+}
+
+/**
+ * Niente da proporre. Non è un fallimento da nascondere: se il catalogo approvato per lei non ha
+ * un'alternativa dentro le calorie, la decisione è del nutrizionista — e dirlo è più utile che
+ * proporre qualcosa fuori piano.
+ */
+export function testoNessunaAlternativa(slotEtichetta: string, preferenza: PreferenzaPiatto, nome?: string | null): string {
+  const cosa = preferenza === 'proteico' ? 'più proteica' : 'diversa';
+  const apertura = nome ? `${nome}, tra` : 'Tra';
+  return (
+    `${apertura} i piatti approvati per te non trovo un'alternativa ${cosa} per ${slotEtichetta.toLowerCase()} ` +
+    'che resti nelle tue calorie, e fuori da quelli non voglio andare da sola. ' +
+    'Ho girato la richiesta alla tua nutrizionista: decide lei. 🩺'
+  );
+}
+
+export function testoCambioPiattoFatto(
+  slotEtichetta: string,
+  scelta: { nome: string; kcal: number },
+  nome?: string | null,
+): string {
+  const apertura = nome ? `Fatto ${nome}` : 'Fatto';
+  return (
+    `${apertura}: a ${slotEtichetta.toLowerCase()} adesso trovi **${scelta.nome}** (${kcalTxt(scelta.kcal)}), ` +
+    'solo per oggi. La tua nutrizionista lo vede in scheda e lo ricontrolla. 💚'
+  );
+}
+
+/** La cliente ha risposto con un numero che non c'è. */
+export function testoSceltaNonValida(quante: number): string {
+  return `Non ho capito quale: rispondi con un numero da 1 a ${quante}, oppure «no».`;
+}

@@ -348,13 +348,63 @@ const quantita = (qta?: number, unita?: string): string =>
 
 const maiuscola = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-export function testoChiediCibo(pasti: { slot: string; piatto: string }[]): string {
+
+/**
+ * COME SI CHIAMA. Richiesta di Simone (8/8): «Gaia non potrebbe rispondere chiamando per nome la
+ * cliente?». Sì, e cambia il tono di tutta la conversazione — ma con tre regole, se no diventa il
+ * venditore che ripete il tuo nome ogni tre parole:
+ *
+ *  1. **una volta per messaggio**, e all'inizio, dove un nome sta naturalmente;
+ *  2. **solo il nome proprio**: la prima parola, e mai il cognome. «Ciao Maria Grazia Cerchiara»
+ *     è una raccomandata, non una conversazione;
+ *  3. se il nome non c'è (o è finito vuoto dopo la pulizia degli import), **non si inventa
+ *     niente**: la frase deve funzionare identica anche senza, e per questo l'appellativo è un
+ *     prefisso e non un buco in mezzo al testo.
+ */
+export function soloNomeProprio(nome?: string | null): string | null {
+  const pulito = (nome ?? '').trim().replace(/\s+/g, ' ');
+  if (!pulito) return null;
+  const primo = pulito.split(' ')[0];
+  // Un "nome" di una lettera o pieno di cifre non è un nome: meglio niente che «Ciao M3!».
+  if (primo.length < 2 || /\d/.test(primo)) return null;
+  return primo.charAt(0).toUpperCase() + primo.slice(1);
+}
+
+/** «Giulia, » se il nome c'è, stringa vuota se non c'è. Da mettere in TESTA alla frase. */
+export function appellativo(nome?: string | null): string {
+  const n = soloNomeProprio(nome);
+  return n ? `${n}, ` : '';
+}
+
+/**
+ * Apre una frase col nome, tenendo la maiuscola al posto giusto:
+ *   con nome → «Antonella, per cambiare un alimento…»
+ *   senza    → «Per cambiare un alimento…»
+ * Senza questo, togliendo il nome restava una frase che comincia in minuscolo — e l'ha trovato un
+ * test, non una rilettura: è il genere di dettaglio che si vede solo in chat, dalla cliente.
+ */
+export function apreFrase(nome: string | null | undefined, resto: string): string {
+  const n = soloNomeProprio(nome);
+  if (n) return `${n}, ${resto.charAt(0).toLowerCase()}${resto.slice(1)}`;
+  return `${resto.charAt(0).toUpperCase()}${resto.slice(1)}`;
+}
+
+/** Come sopra, ma per una frase che comincia già con una parola sua: «Certo Giulia, ...». */
+export function conNome(nome?: string | null): string {
+  const n = soloNomeProprio(nome);
+  return n ? ` ${n}` : '';
+}
+
+export function testoChiediCibo(pasti: { slot: string; piatto: string }[], nome?: string | null): string {
   if (!pasti.length) {
-    return 'Per cambiare un alimento mi serve il menu di oggi, e adesso non lo vedo. Prova a riaprire la home: se resta vuoto scrivilo alla tua coach, ci pensiamo noi. 💚';
+    return apreFrase(
+      nome,
+      'Per cambiare un alimento mi serve il menu di oggi, e adesso non lo vedo. Prova a riaprire la home: se resta vuoto scrivilo alla tua coach, ci pensiamo noi. 💚',
+    );
   }
   const elenco = pasti.map((p) => `${etichettaSlot(p.slot)}: ${p.piatto}`).join(' · ');
   return (
-    'Certo, vediamo insieme. Quale alimento vuoi cambiare?\n\n' +
+    `Certo${conNome(nome)}, vediamo insieme. Quale alimento vuoi cambiare?\n\n` +
     `Oggi hai — ${elenco}.\n\n` +
     'Scrivimi solo il nome dell\'alimento (per esempio «le carote»).'
   );
@@ -386,24 +436,24 @@ export function testoMotivoNonCapito(ultimoTentativo: boolean): string {
 const testoDurata = (durata: Durata): string =>
   durata === 'oggi' ? 'solo per oggi: domani torna come prima' : "da oggi in avanti, e non te lo propongo più nei menu nuovi";
 
-export function testoConferma(p: PropostaSostituzione, motivo: Motivo): string {
+export function testoConferma(p: PropostaSostituzione, motivo: Motivo, nome?: string | null): string {
   const daQta = quantita(p.qtaDa, p.unita);
   const aQta = quantita(p.qtaA, p.unita);
   return (
-    `Allora facciamo così: ${nelloSlot(p.slot)} metti ` +
+    `Allora facciamo così${conNome(nome)}: ${nelloSlot(p.slot)} metti ` +
     `${aQta}${p.a} al posto di ${daQta}${p.da} — ${testoDurata(motivo.durata)}.\n\n` +
     'Confermi? (sì / no)'
   );
 }
 
-export function testoAnnullato(): string {
-  return 'Va bene, non cambio niente: il menu di oggi resta com\'è. Se cambi idea sono qui. 💚';
+export function testoAnnullato(nome?: string | null): string {
+  return `Va bene${conNome(nome)}, non cambio niente: il menu di oggi resta com'è. Se cambi idea sono qui. 💚`;
 }
 
-export function testoFatto(p: PropostaSostituzione, motivo: Motivo): string {
+export function testoFatto(p: PropostaSostituzione, motivo: Motivo, nome?: string | null): string {
   const aQta = quantita(p.qtaA, p.unita);
   let out =
-    `Fatto: il menu di oggi è aggiornato. ${maiuscola(nelloSlot(p.slot))} ` +
+    `Fatto${conNome(nome)}: il menu di oggi è aggiornato. ${maiuscola(nelloSlot(p.slot))} ` +
     `trovi ${aQta}${p.a} al posto ${/^[aeiou]/i.test(p.da) ? "dell'" : 'di '}${p.da}.`;
   if (motivo.durata === 'sempre') out += ` E «${p.da}» non lo metterò più nei tuoi menu nuovi.`;
   if (p.grammaturaCorretta) out += ' Ho tenuto la stessa grammatura: la tua nutrizionista la ricontrolla.';
