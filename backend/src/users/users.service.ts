@@ -10,6 +10,7 @@ import { FinanceService } from '../commerce/finance.service';
 import { CrmService } from '../commerce/crm.service';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
+import { campiCambiati } from '../common/diff-campi';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseCodiceFiscale } from '../common/codice-fiscale.util';
 import { randomBytes } from 'crypto';
@@ -145,6 +146,20 @@ export class UsersService {
     } else if (cfDerivedBirth) {
       userData.birthDate = cfDerivedBirth;
     }
+    // I valori di PRIMA, per poter dire nel log cosa è cambiato. Si leggono anche quando non c'è
+    // niente da scrivere: costa una query e serve a non registrare modifiche che non ci sono.
+    const chiavi = [...Object.keys(userData), ...(dto.nickname !== undefined ? ['nickname'] : [])];
+    const prima = chiavi.length
+      ? ((await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            firstName: true, lastName: true, addressLine: true, postalCode: true, city: true,
+            province: true, country: true, phone: true, codiceFiscale: true, birthDate: true,
+            clientProfile: { select: { name: true } },
+          },
+        })) as (Record<string, unknown> & { clientProfile: { name: string | null } | null }) | null)
+      : null;
+
     if (Object.keys(userData).length) {
       await this.prisma.user.update({ where: { id: userId }, data: userData });
     }
@@ -152,7 +167,22 @@ export class UsersService {
       // Il nickname vive sul profilo cliente (updateMany: sicuro se il profilo non esiste ancora).
       await this.prisma.clientProfile.updateMany({ where: { userId }, data: { name: dto.nickname.trim() || null } });
     }
-    await this.audit.log({ action: 'me.profile.update', actorId: userId, entityType: 'user', entityId: userId });
+    // COSA ha cambiato la cliente, non solo che ha salvato. Prima questa riga di log era senza
+    // metadata: nella scheda compariva «Modifica dal profilo» e per sapere che cosa fosse cambiato
+    // non c'era nessun posto dove guardare (richiesta di Simone dell'8/8: i cambi dall'app devono
+    // stare nel log come quelli da backoffice). `origine: 'app'` è quello che li distingue.
+    const cambiati = campiCambiati(
+      { ...(prima ?? {}), nickname: prima?.clientProfile?.name ?? null },
+      { ...userData, ...(dto.nickname !== undefined ? { nickname: dto.nickname.trim() || null } : {}) },
+      chiavi,
+    );
+    await this.audit.log({
+      action: 'me.profile.update',
+      actorId: userId,
+      entityType: 'user',
+      entityId: userId,
+      metadata: { origine: 'app', campi: cambiati },
+    });
     return this.getMyProfile(userId);
   }
 

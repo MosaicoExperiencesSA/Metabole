@@ -71,13 +71,53 @@ export class ClientsService {
       deletedAt: null,
       ...(scope ? { clientProfile: { [scope.field]: { in: scope.staffIds } } } : {}),
     };
-    const items = await this.prisma.user.findMany({
-      where: where as never,
-      select: { id: true, email: true, firstName: true, lastName: true, status: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-      take: 500,
-    });
-    return { items, total: items.length };
+    const LIMITE = 500;
+    const [items, totale] = await Promise.all([
+      this.prisma.user.findMany({
+        where: where as never,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          status: true,
+          createdAt: true,
+          // La coach assegnata (richiesta di Simone dell'8/8: colonna Coach nella tabella clienti)
+          // e il nome del profilo — quello con cui la cliente vuole essere chiamata. Serve perché
+          // su molte clienti `firstName`/`lastName` sono vuoti e in tabella comparivano dei «—»
+          // pur avendo il nome nel profilo.
+          clientProfile: {
+            select: { name: true, assignedCoach: { select: { displayName: true } } },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: LIMITE,
+      }),
+      // Il conteggio VERO, separato dal `take`: prima `total` era `items.length`, cioè 500 con
+      // 500 e con 900. Ora la tabella può dire quante ne sta mostrando davvero — e non è un
+      // dettaglio da quando c'è un filtro sopra: filtrare 500 righe credendole tutte è il modo
+      // di concludere che una cliente «non c'è».
+      this.prisma.user.count({ where: where as never }),
+    ]);
+    const righe = (items as {
+      id: string;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+      status: string;
+      createdAt: Date;
+      clientProfile: { name: string | null; assignedCoach: { displayName: string } | null } | null;
+    }[]).map((u) => ({
+      id: u.id,
+      email: u.email,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      status: u.status,
+      createdAt: u.createdAt,
+      nickname: u.clientProfile?.name ?? null,
+      coach: u.clientProfile?.assignedCoach?.displayName ?? null,
+    }));
+    return { items: righe, total: totale, mostrati: righe.length, limite: LIMITE };
   }
 
   async getDetail(userId: string, actorId: string) {
@@ -728,6 +768,10 @@ export class ClientsService {
     const ids = [userId, profile?.id, crm?.id].filter((x): x is string => Boolean(x));
     const CHANGE_ACTIONS = [
       'client.update', 'me.profile.update',
+      // Le modifiche fatte dalla **scheda lead** (telefono, codice fiscale, tag, consenso): sono
+      // sugli stessi dati della cliente e mancavano da questo elenco, quindi non comparivano né
+      // qui né là. Ora i due log raccontano la stessa storia (richiesta di Simone dell'8/8).
+      'crm.lead.update_info', 'crm.lead.advance',
       'admin.assignment.update', 'crm.nutritionist.assign',
       'crm.lead.assign', 'crm.lead.accept', 'crm.lead.reject',
       'auth.email_change_requested', 'auth.email_change_confirmed',

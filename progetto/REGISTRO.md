@@ -7,6 +7,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 👥 **Tabella clienti: filtri, riordino e colonna Coach** — richiesta della mattina
+  dell'8/8 che era rimasta indietro. L'elenco clienti aveva una sola casella di ricerca e nessun
+  ordinamento; per sapere di chi era una cliente si aprivano le schede una per una.
+  - Intestazioni **cliccabili** per ordinare (nome, email, coach, stato, iscrizione) e riga di
+    **filtri** sotto le intestazioni, come nella board dei lead: coach (compreso «— non assegnata —»,
+    che è il filtro che serve davvero) e stato. Più «Azzera filtri» e il contatore «N di M».
+  - Nuova **colonna Coach** (`listClients` ora restituisce la coach assegnata) e il nome del
+    profilo come ripiego quando l'anagrafica è vuota: prima quelle righe mostravano «—» pur avendo
+    il nome nel profilo.
+  - Corretto un difetto trovato strada facendo: `total` era `items.length`, cioè **500 sia con 500
+    clienti sia con 900**. Ora il conteggio è una query a parte e, se il tetto viene raggiunto, la
+    tabella lo dice — filtrare 500 righe credendole tutte è il modo di concludere che una cliente
+    «non c'è».
+  - Il filtro qui resta **nel browser** (le clienti sono centinaia, non decine di migliaia come i
+    lead): la scelta è motivata nel file, insieme al segnale che dirà quando spostarlo sul server.
+- `[Sviluppo]` 🧾 **Log delle modifiche del lead: cambi da backoffice E cambi dall'app** — la
+  domanda dell'8/8 era «nel log modifiche del lead segnamo anche i cambi dati da backoffice? e i
+  cambi da app?». La risposta era **no due volte**, in due modi diversi: dal backoffice l'audit
+  esisteva ma registrava **tre campi su diciassette** (nome, email, valore) e **non era visibile da
+  nessuna parte** — nella scheda lead c'erano solo lo storico stati e le note; dall'app la riga di
+  log c'era ma non diceva *che cosa* fosse cambiato.
+  - Nuova card **«Modifiche ai dati»** nella scheda lead: chi, quando, e **campo per campo**
+    «prima → dopo» in italiano, con l'importo in euro, i tag come elenco e i sì/no leggibili. Una
+    pastiglia dice se è stata **la cliente dall'app** o una persona dello staff: sono due cose
+    diverse, e una modifica della cliente non è l'errore di un'operatrice.
+  - Il diff sta in `backend/src/common/diff-campi.ts` (+11 test) con le regole che evitano un log
+    che mente: si registrano solo i campi **presenti nella richiesta** e solo quelli **davvero
+    cambiati**; vuoto, `null` e spazi sono la stessa cosa; i tag si confrontano per contenuto e non
+    per ordine. Un salvataggio che non cambia niente non lascia righe.
+  - Le modifiche fatte dalla scheda lead ora compaiono **anche nel log della scheda cliente**:
+    mancavano dall'elenco delle azioni, quindi non si vedevano da nessuna delle due parti.
+  - Il percorso della rotta (`GET /crm/leads/:id/audit`) è fissato da un test: scrivendolo a mano
+    nel front-end l'avevo sbagliato, e un percorso sbagliato lì è un 404 che l'utente legge come
+    «il log non funziona».
 - `[Sviluppo]` 💸 **Il piano attivato a mano non gonfia più il fatturato — questa volta davvero** —
   la correzione precedente teneva pulito il **conto economico** (nessuna riga di ricavo nel ledger)
   ed era incompleta: **i grafici del fatturato non leggono il ledger**, sommano

@@ -75,22 +75,7 @@ Nota tecnica: la serie giornaliera non si ricava dai dati che l'endpoint manda o
 questo, che accetta l'anno-mese e restituisce le due serie affiancate (mese scelto + precedente),
 invece di far ricalcolare al front-end una serie che non ha.
 
-## 4. Tabella clienti: filtri, riordino e colonna coach (chiesta l'8/8)
-
-**Dove**: `backoffice/src/pages/Clients.tsx`.
-
-Filtri e riordino **in alto**, come nella board dei lead (`Leads.tsx`, da cui si può copiare la
-barra), più la **colonna Coach**. L'endpoint `GET /admin/clients` già restituisce la coach
-assegnata: è lavoro di sola tabella.
-
-## 5. Log modifiche del lead: cambi da backoffice e cambi dall'app (chiesto l'8/8)
-
-Da **verificare prima di implementare**: nel log del lead finiscono già le modifiche fatte dal
-backoffice e quelle fatte dalla cliente dall'app? Le modifiche al `CrmRecord` passano da più
-punti, e almeno uno scrive senza audit. Se non ci sono, va aggiunto — con la distinzione fra
-«modificato dallo staff» e «modificato dalla cliente», che è l'informazione utile.
-
-## 6. Correzione di un cambio piatto da parte della nutrizionista
+## 4. Correzione di un cambio piatto da parte della nutrizionista
 
 Oggi la nutrizionista **vede** i cambi concordati in chat (scheda cliente, card Conversazioni) ma
 non li può correggere: lo stato `corretta` esiste nel dato e non c'è il pulsante. Serve a chiudere

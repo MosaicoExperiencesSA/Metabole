@@ -51,4 +51,16 @@ describe('Rotte dei controller commerce (nessun percorso registrato due volte)',
     const doppie = rotte.filter((r, i) => rotte.indexOf(r) !== i);
     expect(doppie).toEqual([]);
   });
+
+  /**
+   * Il log delle modifiche del lead (8/8). Il percorso è nel test perché è la parte che il
+   * front-end deve indovinare: scrivendolo a mano l'avevo sbagliato («/admin/crm/records/…»), e un
+   * percorso sbagliato nel front-end non lo trova nessun test del backend — resta un 404 che
+   * l'utente legge come «il log non funziona». Qui è scritto una volta, dalla parte che decide.
+   */
+  it('il log delle modifiche del lead sta su GET /crm/leads/:id/audit', () => {
+    const crm = classi.find((c) => c.name === 'CrmController');
+    expect(crm).toBeDefined();
+    expect(rotteDi(crm as Classe)).toContain('GET /crm/leads/:param/audit');
+  });
 });

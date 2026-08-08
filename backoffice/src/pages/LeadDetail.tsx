@@ -24,6 +24,54 @@ interface LeadNote {
   createdAt: string;
   author: string | null;
 }
+/** Una riga del log delle modifiche (backoffice o app). */
+interface ModificaRow {
+  id: string;
+  action: string;
+  at: string;
+  self: boolean;
+  metadata: { origine?: string; campi?: { campo: string; prima: unknown; dopo: unknown }[] } | null;
+  actor: { name: string; email: string; role: string } | null;
+}
+
+const AZIONE_LABEL: Record<string, string> = {
+  'crm.lead.update_info': 'Modifica dati (backoffice)',
+  'crm.lead.advance': 'Cambio stato',
+  'crm.lead.assign': 'Assegnazione coach',
+  'crm.lead.accept': 'Coach ha accettato',
+  'crm.lead.reject': 'Coach ha rifiutato',
+  'crm.nutritionist.assign': 'Assegnazione nutrizionista',
+  'crm.lead.credentials_sent': 'Credenziali inviate',
+  'client.update': 'Modifica scheda cliente',
+  'me.profile.update': 'Modifica dal profilo (app)',
+  'admin.assignment.update': 'Riassegnazione staff',
+  'auth.email_change_confirmed': 'Email confermata',
+  'client.password_reset.trigger': 'Link reset password inviato',
+};
+
+const CAMPO_LABEL: Record<string, string> = {
+  name: 'Nome completo', firstName: 'Nome', lastName: 'Cognome', alias: 'Alias',
+  nickname: 'Come vuole essere chiamata', email: 'Email', phone: 'Telefono',
+  phone2: 'Secondo telefono', valueCents: 'Valore', previousStatus: 'Stato precedente',
+  historicalPaidCents: 'Totale già pagato', codiceFiscale: 'Codice fiscale',
+  address: 'Indirizzo', addressLine: 'Indirizzo', postalCode: 'CAP', city: 'Città',
+  province: 'Provincia', country: 'Paese', birthDate: 'Data di nascita', tags: 'Tag',
+  segment: 'Segmento', channel: 'Canale', marketingConsent: 'Consenso marketing',
+  consentChannels: 'Canali del consenso',
+};
+
+/** Il valore come lo legge una persona: vuoto, sì/no, elenco, importo. */
+function valoreLeggibile(campo: string, v: unknown): string {
+  if (v === null || v === undefined || v === '') return '— vuoto —';
+  if (typeof v === 'boolean') return v ? 'sì' : 'no';
+  if (Array.isArray(v)) return v.length ? v.join(', ') : '— vuoto —';
+  if (campo === 'valueCents' || campo === 'historicalPaidCents') {
+    return '€ ' + (Number(v) / 100).toFixed(2).replace('.', ',');
+  }
+  if (campo === 'birthDate') return new Date(String(v)).toLocaleDateString('it-IT');
+  return String(v);
+}
+
 interface LeadDetailData {
   id: string;
   clientId: string | null;
@@ -137,6 +185,24 @@ export function LeadDetail() {
   // Nuovo promemoria
   const [remTitle, setRemTitle] = useState('');
   const [remDue, setRemDue] = useState('');
+
+  // Log delle modifiche: si carica alla prima apertura della card, non al caricamento della
+  // pagina — è un dato che si guarda quando serve e sono fino a 150 righe.
+  const [logOpen, setLogOpen] = useState(false);
+  const [logRows, setLogRows] = useState<ModificaRow[] | null>(null);
+  const [logErr, setLogErr] = useState<string | null>(null);
+
+  async function apriLog() {
+    const apri = !logOpen;
+    setLogOpen(apri);
+    if (!apri || logRows) return;
+    setLogErr(null);
+    try {
+      setLogRows(await api<ModificaRow[]>(`/crm/leads/${id}/audit`));
+    } catch (e) {
+      setLogErr(e instanceof Error ? e.message : 'Caricamento del log non riuscito.');
+    }
+  }
   const [addingRem, setAddingRem] = useState(false);
 
   async function load() {
@@ -800,6 +866,65 @@ export function LeadDetail() {
             <i className="ti ti-plus" /> Aggiungi
           </button>
         </div>
+      </div>
+
+      {/*
+        LOG DELLE MODIFICHE. Prima nella scheda c'erano solo lo storico stati e le note: chi voleva
+        sapere «questo numero di telefono chi l'ha cambiato?» non aveva nessun posto dove guardare.
+        Qui stanno insieme le modifiche fatte dal backoffice e quelle fatte dalla cliente dall'app —
+        richiesta di Simone dell'8/8 — perché la domanda arriva senza sapere in anticipo chi è stato.
+      */}
+      <div className="card">
+        <div className="spread" style={{ alignItems: 'center' }}>
+          <h2 style={{ margin: 0 }}>Modifiche ai dati</h2>
+          <button className="btn ghost sm" onClick={() => void apriLog()}>
+            <i className={`ti ti-chevron-${logOpen ? 'up' : 'down'}`} /> {logOpen ? 'Chiudi' : 'Mostra'}
+          </button>
+        </div>
+        {logOpen && (
+          <div style={{ marginTop: 10 }}>
+            {logErr && <Banner kind="err">{logErr}</Banner>}
+            {logRows === null && !logErr && <Spinner />}
+            {logRows?.length === 0 && (
+              <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                Nessuna modifica registrata. Da qui in avanti ogni cambio — dal backoffice o dall'app —
+                lascia una riga.
+              </p>
+            )}
+            {!!logRows?.length && (
+              <div style={{ display: 'grid', gap: 2 }}>
+                {logRows.map((r) => {
+                  const daApp = r.metadata?.origine === 'app' || r.self;
+                  return (
+                    <div key={r.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--line)', fontSize: 13.5 }}>
+                      <div className="spread" style={{ gap: 8, flexWrap: 'wrap' }}>
+                        <span>
+                          {AZIONE_LABEL[r.action] ?? r.action}
+                          {/* Da chi: la cliente dall'app o una persona dello staff. Sono due cose
+                              diverse — una modifica della cliente non è un errore di un'operatrice. */}
+                          <span className="chip" style={{ fontSize: 10.5, marginLeft: 6 }}>
+                            {daApp ? 'dalla cliente (app)' : r.actor?.name ?? 'sistema'}
+                          </span>
+                        </span>
+                        <span className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(r.at)}</span>
+                      </div>
+                      {!!r.metadata?.campi?.length && (
+                        <div style={{ marginTop: 4, display: 'grid', gap: 2 }}>
+                          {r.metadata.campi.map((c) => (
+                            <div key={c.campo} className="muted" style={{ fontSize: 12.5 }}>
+                              <b style={{ color: 'var(--ink, #1F2933)' }}>{CAMPO_LABEL[c.campo] ?? c.campo}</b>:{' '}
+                              {valoreLeggibile(c.campo, c.prima)} → {valoreLeggibile(c.campo, c.dopo)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="card">

@@ -24,7 +24,10 @@
  *
  * USO (shell di Render, dentro ~/project/src/backend):
  *   npm run fix:attivazioni-manuali                                   → elenca, non scrive niente
- *   CONFERMA=1 PAGAMENTI=<id>,<id> npm run fix:attivazioni-manuali    → porta a 0 SOLO quegli id
+ *   CONFERMA=1 PAGAMENTI=id1,id2 npm run fix:attivazioni-manuali      → porta a 0 SOLO quegli id
+ *
+ * (Gli id si scrivono per esteso, separati da virgola e senza spazi. Niente parentesi angolari:
+ * in bash `<` è una redirezione e il comando muore con «No such file or directory».)
  *
  * Cosa scrive, sui pagamenti indicati: `amountCents = 0`, la descrizione diventa parlante
  * («attivazione interna, senza incasso (listino … €)») e resta una riga di audit
@@ -95,9 +98,18 @@ async function main(): Promise<void> {
   console.log(`\n  Totale che oggi entra nei grafici del fatturato: ${euro(totale)}`);
 
   if (!scelti.length) {
+    // L'esempio è già pronto da copiare, con gli id veri: la prima versione scriveva
+    // `PAGAMENTI=<id>,<id>` e copiandola bash la legge come una redirezione («bash: id: No such
+    // file or directory»). Un esempio che non si può incollare non è un esempio.
+    const esempio = pagamenti
+      .filter((p) => origineDi.get(p.id) === 'scheda_cliente')
+      .map((p) => p.id);
     console.log(
-      '\nPer azzerarne qualcuno indica gli id, uno per uno:\n' +
-        '  CONFERMA=1 PAGAMENTI=<id>,<id> npm run fix:attivazioni-manuali\n' +
+      '\nPer azzerarne qualcuno, copia questo comando (id separati da virgola, senza spazi):\n' +
+        `  CONFERMA=1 PAGAMENTI=${(esempio.length ? esempio : [pagamenti[0].id]).join(',')} npm run fix:attivazioni-manuali\n` +
+        (esempio.length
+          ? `  (sono i ${esempio.length} con origine «scheda_cliente»: controllali prima di lanciare)\n`
+          : '  (nessuno risulta «scheda_cliente» nell\'audit: quello sopra è solo il primo della lista, verifica tu)\n') +
         'Non c\'è un modo automatico: «manuale» comprende anche le vendite vere registrate da Acquisti.\n',
     );
     return;

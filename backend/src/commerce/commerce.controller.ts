@@ -761,6 +761,15 @@ export class CrmController {
     return this.crm.updateInfo(user.sub, id, dto);
   }
 
+  /**
+   * Log delle modifiche del lead: chi ha cambiato cosa, dal backoffice **e** dall'app.
+   * Stessa visibilità della scheda (`assertLeadAccess` dentro il servizio).
+   */
+  @Get(':id/audit')
+  logModifiche(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.crm.logModifiche(id, user.sub);
+  }
+
   /** Imposta le liste di un lead (rimpiazza le appartenenze). */
   @Post(':id/lists')
   @HttpCode(200)

@@ -8,6 +8,7 @@ import { coachTeamScope } from '../common/coach-team';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { avanzaStatoSeIndietro } from './avanza-stato';
+import { campiCambiati } from '../common/diff-campi';
 import { PrismaService } from '../prisma/prisma.service';
 import { PipelineService } from './pipeline.service';
 
@@ -624,17 +625,84 @@ export class CrmService {
         ...(input.consentChannels !== undefined ? { consentChannels: input.consentChannels.filter((c) => ['email', 'whatsapp', 'sms'].includes(c)) } : {}),
       } as never,
     });
+    // COSA è cambiato, campo per campo. Prima qui finivano solo nome, email e valore: chi
+    // correggeva un telefono, un codice fiscale o il consenso marketing lasciava una riga di log
+    // che non diceva niente di quel cambio (richiesta di Simone dell'8/8). `origine: 'backoffice'`
+    // distingue queste modifiche da quelle che la cliente fa dall'app.
+    const cambiati = campiCambiati(
+      record as unknown as Record<string, unknown>,
+      updated as unknown as Record<string, unknown>,
+      Object.keys(input),
+    );
     await this.audit.log({
       action: 'crm.lead.update_info',
       actorId: byUserId,
       entityType: 'crm_record',
       entityId: recordId,
       metadata: {
+        origine: 'backoffice',
+        campi: cambiati,
+        // Il riassunto di prima resta: qualche vista vecchia lo legge, e costa due campi.
         from: { name: record.name, email: record.email, valueCents: record.valueCents },
         to: { name: updated.name, email: updated.email, valueCents: updated.valueCents },
       },
     });
     return updated;
+  }
+
+  /**
+   * LOG DELLE MODIFICHE della scheda lead: chi ha cambiato cosa, e **da dove**.
+   *
+   * Richiesta di Simone dell'8/8: «nel log modifiche del lead segnamo anche i cambi dati da
+   * backoffice? e i cambi da app? se non è così va implementato». Erano entrambi mancanti, in due
+   * modi diversi: dal backoffice l'audit c'era ma registrava tre campi su diciassette e **non era
+   * visibile da nessuna parte** (nella scheda c'erano solo lo storico stati e le note); dall'app la
+   * riga di log non diceva che cosa fosse cambiato.
+   *
+   * Qui i due mondi finiscono nella stessa lista, ordinata per data: le azioni sulla scheda lead
+   * (`crm_record`) e quelle della cliente sul proprio profilo (`user`), quando il lead è diventato
+   * cliente. È l'unico modo per rispondere alla domanda che si fa davvero — «questo numero di
+   * telefono chi l'ha cambiato?» — senza sapere in anticipo se è stata la coach o la cliente.
+   */
+  async logModifiche(recordId: string, actorUserId: string) {
+    await this.assertLeadAccess(actorUserId, recordId);
+    const record = (await this.prisma.crmRecord.findUnique({
+      where: { id: recordId },
+      select: { id: true, clientId: true },
+    })) as { id: string; clientId: string | null } | null;
+    if (!record) throw new NotFoundException('Lead non trovato');
+
+    // Le entità da cui possono arrivare modifiche di questo lead: la scheda CRM e — se è diventata
+    // cliente — l'utente, da cui passano sia le modifiche dall'app sia quelle dalla scheda cliente.
+    const ids = [record.id, record.clientId].filter((x): x is string => Boolean(x));
+    const AZIONI = [
+      'crm.lead.update_info', 'crm.lead.advance', 'crm.lead.assign', 'crm.lead.accept',
+      'crm.lead.reject', 'crm.nutritionist.assign', 'crm.lead.credentials_sent',
+      'client.update', 'me.profile.update', 'admin.assignment.update',
+      'auth.email_change_confirmed', 'client.password_reset.trigger',
+    ];
+    const rows = (await this.prisma.auditLog.findMany({
+      where: { entityId: { in: ids }, action: { in: AZIONI } },
+      orderBy: { createdAt: 'desc' },
+      take: 150,
+      include: { actor: { select: { email: true, firstName: true, lastName: true, role: true } } },
+    })) as {
+      id: string; action: string; createdAt: Date; actorId: string | null; metadata: unknown;
+      actor: { email: string; firstName: string | null; lastName: string | null; role: string } | null;
+    }[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      action: r.action,
+      at: r.createdAt,
+      metadata: r.metadata ?? null,
+      // `self` = l'ha fatto la cliente stessa, non lo staff. In scheda cambia chi si ringrazia e
+      // chi si va a cercare: una modifica fatta dalla cliente non è un errore di un'operatrice.
+      self: !!record.clientId && r.actorId === record.clientId,
+      actor: r.actor
+        ? { name: [r.actor.firstName, r.actor.lastName].filter(Boolean).join(' ') || r.actor.email, email: r.actor.email, role: r.actor.role }
+        : null,
+    }));
   }
 
   // ---------- Liste CRM (raggruppamenti manuali) ----------
