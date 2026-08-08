@@ -7,6 +7,48 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🍳 **«Completa» non completava niente, e il pulsante sembrava rotto.** Settimane
+  1-4 fatte col metodo vecchio, 5-12 fatte bene, spunta «genera tutte le 18 varianti»: si chiede
+  di completare la settimana 1 e non succede niente. Rigenerando, identico.
+  Il motivo: le ricette *proprie* venivano filtrate — quei piatti compaiono anche nelle altre
+  settimane, quindi non contano — ma subito dopo entravano quelle delle **varianti sorelle**
+  (3 pasti, digiuno), che per la settimana 1 hanno esattamente gli stessi piatti presi in
+  prestito. Quelle passavano **senza nessun controllo**: `mancanti` tornava a zero, l'AI non
+  veniva chiamata, la settimana restava magra. Ora un piatto di una sorella vale solo se questa
+  variante non lo sta già usando in un'altra settimana: altrimenti prenderlo qui non aggiunge
+  varietà, la toglie.
+
+- `[Sviluppo]` 📊 **La striscia delle settimane ora risponde per tutte le 18 varianti** quando
+  la spunta è attiva (`?famiglia=1`). Prima mostrava lo stato della sola variante attiva: una
+  settimana poteva essere verde lì e magra su una sorella, e le clienti di quella sorella
+  ricevevano un menu che si ripete senza che nessuno lo vedesse. Magra da qualche parte = magra.
+
+- `[Sviluppo]` 📌 **La variante su cui si lavora viene ricordata.** Cliccando sulla famiglia si
+  apriva `variants[0]`, cioè la prima che il database restituisce: una a caso, e mai la stessa.
+  Chi aveva finito dodici settimane su «onnivora · 5 pasti» usciva, rientrava, e si trovava
+  davanti le settimane 1-4 di «vegana · mantenimento · 3 pasti» in giallo — convinto di aver
+  perso il lavoro. Ora la variante si ricorda fra le sessioni; se non c'è niente da ricordare si
+  apre la **maestra** (onnivora · dimagrimento · 5 pasti), quella da cui le altre riusano i
+  piatti; e nel passo 2 ci sono i chip per cambiarla con un clic.
+
+- `[Prodotto]` 🏷️ **«Nome nel percorso» si chiama ALIAS**, ed è il nome con cui la cliente si fa
+  chiamare in app. Chiamarlo «nome» invitava a scriverci dentro nome e cognome — ed è
+  esattamente quello che ha fatto l'import delle liste storiche: prima parola in *Nome*,
+  *Cognome* vuoto, nome intero nell'alias. Risultato: in app veniva chiamata con nome e cognome
+  per esteso, come una raccomandata, e in backoffice il cognome non c'era (niente ordinamento,
+  niente ricerca). Nuovo comando **`npm run sistema:nomi`** che divide — ultima parola =
+  cognome, particelle (De, Di, Della…) attaccate al cognome — mostra la tabella e scrive solo su
+  conferma. Il numero opzionale (`-- 30`) limita **il lavoro**, non solo la stampa: limitare la
+  sola tabella voleva dire leggerne trenta e scriverne trecento.
+
+- `[Prodotto]` 🏁 **«Percorso concluso» automatico a +7 giorni** dalla fine del piano, senza
+  rinnovo (richiesta delle coach, 8/8). La colonna esisteva nella pipeline dal primo giorno e
+  **non la scriveva nessuno**: chi finiva restava fermo nella colonna dell'ultima cosa fatta,
+  mescolato a chi era ancora in corso. Perché +7 e non subito: il rinnovo arriva quasi sempre
+  nei giorni dopo la scadenza, e archiviare qualcuno il giorno stesso vuol dire archiviare una
+  persona che sta per tornare. Chi ha un abbonamento attivo **o anche solo un bonifico in
+  attesa** non si tocca.
+
 - `[Prodotto]` 🧍 **Nome e Cognome, obbligatori. E un Alias facoltativo.** Nel form «Nuovo lead»
   c'era un solo campo «Nome (facoltativo)»: si potevano inserire lead **senza nome** — che in
   tabella diventano una riga con la sola email, e nessuno sa più chi sia — e chi il nome lo
@@ -90,7 +132,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   l'app la rimandava a «scegli la password» — la stessa di due minuti prima. Nessun errore, solo
   una persona convinta di aver sbagliato qualcosa.
 
-  679 test verdi (erano 661).
+  688 test verdi (erano 661).
 
 ---
 

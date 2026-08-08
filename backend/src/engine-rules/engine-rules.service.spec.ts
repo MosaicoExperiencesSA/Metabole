@@ -360,3 +360,47 @@ describe('EngineRulesService', () => {
     expect(data.title).toBe('Cap carbo');
   });
 });
+
+/**
+ * «Completa» che non completava niente — il difetto del 9/8, e vale la pena capirlo bene perché
+ * dal backoffice sembrava un pulsante rotto.
+ *
+ * Situazione vera: settimane 1-4 fatte col metodo vecchio (pochi piatti ricombinati), 5-12 fatte
+ * bene, e il nutrizionista lavora con la spunta «genera tutte le 18 varianti». Si chiede di
+ * completare la settimana 1. Le ricette *proprie* venivano filtrate — quei piatti compaiono
+ * anche nelle altre settimane, quindi non contano — ma subito dopo arrivavano quelle delle
+ * varianti SORELLE (3 pasti, digiuno), che per la settimana 1 hanno esattamente gli stessi
+ * piatti presi in prestito. Quelle entravano **senza nessun controllo**: `mancanti` tornava a
+ * zero, l'AI non veniva chiamata, la settimana restava magra. Rigenerando: identico.
+ */
+describe('EngineRulesService — completare una settimana magra', () => {
+  it('i piatti delle SORELLE non contano se questa variante li usa già in un’altra settimana', async () => {
+    const { service, prisma, ai } = build();
+    prisma.rulePreset.findUnique.mockResolvedValue({
+      id: 'p1', label: 'Basso indice glicemico', style: 'low_gi', regime: 'omnivore',
+      objective: 'dimagrimento', meals: '5', clinicalNotes: null, rules: {},
+    });
+    // La variante esiste già, con dodici settimane.
+    prisma.diet.findFirst.mockResolvedValue({ id: 'dietA', name: 'Basso indice glicemico' });
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietA' }, { id: 'dietB' }]); // A + una sorella
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 84 });
+
+    // Giornate: la settimana 1 usa `r-vecchia`, che però compare anche nella settimana 5 —
+    // quindi non è sua. La sorella (dietB) per la settimana 1 propone lo STESSO `r-vecchia`.
+    prisma.dietDayTemplate.findMany.mockImplementation(({ where }: any) => {
+      const id = where?.dietId?.in ? where.dietId.in[0] : where?.dietId;
+      const giorni: any[] = [];
+      for (let d = 1; d <= 7; d++) giorni.push({ dayIndex: d, meals: [{ slot: 'lunch', recipeId: 'r-vecchia' }] });
+      for (let d = 29; d <= 35; d++) giorni.push({ dayIndex: d, meals: [{ slot: 'lunch', recipeId: 'r-vecchia' }] });
+      return Promise.resolve(id === 'dietB' ? giorni.filter((g) => g.dayIndex <= 7) : giorni);
+    });
+    ai.generateJson.mockResolvedValue(null); // l'AI non risponde: qui conta solo SE viene chiamata
+
+    await service.generateCatalogFromPreset('p1', 'user-1', 1, 'completa').catch(() => undefined);
+
+    // Prima: `mancanti` era 0 e l'AI non veniva mai interpellata — il pulsante «non faceva
+    // niente». Ora il piatto della sorella viene scartato (questa variante lo usa nella
+    // settimana 5) e i piatti mancanti si chiedono davvero.
+    expect(ai.generateJson).toHaveBeenCalled();
+  });
+});

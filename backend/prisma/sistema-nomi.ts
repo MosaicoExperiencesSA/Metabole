@@ -30,8 +30,12 @@
  *
  * USO (shell di Render, dentro la cartella del backend):
  *   npm run sistema:nomi                 → mostra cosa farebbe, non scrive niente
- *   npm run sistema:nomi -- 40           → mostra solo le prime 40 righe
- *   CONFERMA=1 npm run sistema:nomi      → applica
+ *   npm run sistema:nomi -- 40           → si ferma alle prime 40 (mostrate E, con CONFERMA, scritte)
+ *   CONFERMA=1 npm run sistema:nomi      → applica a tutte
+ *
+ * ⚠️ Il numero limita **il lavoro**, non solo la stampa. Prima limitava la sola tabella: si
+ * leggevano trenta righe e se ne scrivevano trecento — cioè si confermava alla cieca l'esatto
+ * contrario di quello che si era appena letto.
  */
 import { PrismaClient } from '@prisma/client';
 import { dividiNome } from '../src/common/dividi-nome';
@@ -50,13 +54,15 @@ async function main(): Promise<void> {
     select: {
       id: true, email: true, firstName: true, lastName: true,
       clientProfile: { select: { name: true } },
-      crmRecord: { select: { id: true, name: true, firstName: true, lastName: true } },
+      // `firstName`/`lastName` sono colonne appena aggiunte: il client Prisma locale non le
+      // conosce finché non viene rigenerato (lo fa il deploy). Qui servono solo `id` e `name`.
+      crmRecord: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: 'asc' },
   })) as never as {
     id: string; email: string; firstName: string | null; lastName: string | null;
     clientProfile: { name: string | null } | null;
-    crmRecord: { id: string; name: string | null; firstName: string | null; lastName: string | null } | null;
+    crmRecord: { id: string; name: string | null } | null;
   }[];
 
   const tabella: Record<string, unknown>[] = [];
@@ -96,10 +102,15 @@ async function main(): Promise<void> {
     console.log('\nNiente da sistemare ✓');
     return;
   }
-  console.log(`\n--- DA SISTEMARE (${tabella.length}) ---`);
-  console.table(limite > 0 ? tabella.slice(0, limite) : tabella);
-  if (limite > 0 && tabella.length > limite) {
-    console.log(`(mostrate ${limite} di ${tabella.length}: lancia senza numero per vederle tutte)`);
+  // Il limite vale per TUTTO: quello che si vede è esattamente quello che si scrive.
+  const totale = tabella.length;
+  const tabellaVista = limite > 0 ? tabella.slice(0, limite) : tabella;
+  const daScrivereVere = limite > 0 ? daScrivere.slice(0, limite) : daScrivere;
+  console.log(`\n--- DA SISTEMARE (${totale}) ---`);
+  console.table(tabellaVista);
+  if (limite > 0 && totale > limite) {
+    console.log(`Ti fermi alle prime ${limite} di ${totale}: con CONFERMA=1 verranno sistemate SOLO queste.`);
+    console.log(`Ne restano ${totale - limite}: rilancia senza numero per farle tutte.`);
   }
   console.log(
     '\nLeggi la colonna «diventa» prima di confermare. La regola è: ULTIMA parola = cognome,\n' +
@@ -113,7 +124,7 @@ async function main(): Promise<void> {
   }
 
   let fatti = 0;
-  for (const x of daScrivere) {
+  for (const x of daScrivereVere) {
     try {
       await prisma.user.update({ where: { id: x.userId }, data: { firstName: x.nome, lastName: x.cognome } });
       if (x.svuotaAlias) {
@@ -132,7 +143,10 @@ async function main(): Promise<void> {
       console.log(`⚠️  ${x.userId}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  console.log(`\n✓ Sistemate ${fatti} schede su ${daScrivere.length}.`);
+  console.log(`\n✓ Sistemate ${fatti} schede su ${daScrivereVere.length} lavorate (${totale} in tutto).`);
+  if (totale > daScrivereVere.length) {
+    console.log(`Ne restano ${totale - daScrivereVere.length}: rilancia il comando per continuare.`);
+  }
   console.log('Le clienti che restano storte si correggono dalla loro scheda, campo Nome e Cognome.');
 }
 

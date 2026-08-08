@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsBoolean, IsDefined, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -112,8 +112,11 @@ export class EngineRulesController {
   /** Quante settimane di catalogo ha già questa variante: serve al backoffice per proporre
    *  la prossima da generare invece di far indovinare al nutrizionista. */
   @Get('presets/:id/weeks')
-  weeks(@Param('id') id: string) {
-    return this.service.settimaneGenerate(id);
+  weeks(@Param('id') id: string, @Query('famiglia') famiglia?: string) {
+    // `?famiglia=1`: la striscia risponde per tutte le varianti del gruppo. Serve quando il
+    // nutrizionista lavora con la spunta «genera tutte le 18 varianti»: lo stato di una sola
+    // variante lì è una mezza verità.
+    return this.service.settimaneGenerate(id, famiglia === '1' || famiglia === 'true');
   }
 
   @Get('diets/:id/preview')

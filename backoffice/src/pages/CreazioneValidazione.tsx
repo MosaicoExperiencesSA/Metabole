@@ -108,7 +108,12 @@ export function CreazioneValidazione() {
   useEffect(() => {
     if (!activePresetId) { setWeeksDone(null); setWeek(1); return; }
     let vivo = true;
-    api<{ settimane: number; settimaneMagre?: number[]; ricettePerPasto?: number }>(`/engine-rules/presets/${activePresetId}/weeks`)
+    // Con la spunta «genera tutte le 18 varianti» la striscia deve rispondere per TUTTO il
+    // gruppo: se una settimana è verde sulla variante attiva ma magra su una sorella, le
+    // clienti di quella sorella ricevono un menu che si ripete — e nessuno lo vede.
+    api<{ settimane: number; settimaneMagre?: number[]; ricettePerPasto?: number }>(
+      `/engine-rules/presets/${activePresetId}/weeks${genAll ? '?famiglia=1' : ''}`,
+    )
       .then((r) => {
         if (!vivo) return;
         const magre = r.settimaneMagre ?? [];
@@ -122,7 +127,7 @@ export function CreazioneValidazione() {
       })
       .catch(() => { if (vivo) { setWeeksDone(null); setWeeksThin([]); setRicettePerPasto(null); setWeek(1); } });
     return () => { vivo = false; };
-  }, [activePresetId]);
+  }, [activePresetId, genAll]);
 
   useEffect(() => {
     setShowPreview(false); setPreview(null);

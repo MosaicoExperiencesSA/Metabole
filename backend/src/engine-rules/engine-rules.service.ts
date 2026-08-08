@@ -332,7 +332,33 @@ export class EngineRulesService {
     // Ricette che le varianti SORELLE hanno già per questa settimana, pasto per pasto e in
     // ordine di giornata. Se ci sono, questa variante le riusa invece di rigenerarle: stessa
     // dieta, stesso regime, stessi piatti.
-    const condivise = await this.ricetteSettimanaDelleSorelle(sorelle, primoGiorno, ultimoGiorno);
+    const condiviseGrezze = await this.ricetteSettimanaDelleSorelle(sorelle, primoGiorno, ultimoGiorno);
+
+    /**
+     * I piatti delle SORELLE vanno filtrati con la stessa regola delle proprie, e senza questo
+     * filtro «completa» non completava niente.
+     *
+     * Il caso, quello vero del 9/8: settimane 1-4 fatte col metodo vecchio (pochi piatti
+     * ricombinati), 5-12 fatte bene. Si chiede di completare la settimana 1. Le *proprie*
+     * vengono filtrate — quei piatti compaiono anche nelle altre settimane, quindi non contano —
+     * e fin qui bene. Ma poi arrivavano le sorelle (la variante a 3 pasti, quella a digiuno) che
+     * per la settimana 1 hanno **esattamente gli stessi piatti presi in prestito**, e quelli
+     * entravano senza controlli: `mancanti` tornava a zero, l'AI non veniva chiamata, e la
+     * settimana restava magra. Rigenerando, identico. Dal backoffice: «il pulsante non fa
+     * niente» — ed era vero.
+     *
+     * Un piatto di una sorella vale solo se **questa variante non lo sta già usando in un'altra
+     * settimana**: altrimenti prenderlo qui non aggiunge varietà, la toglie.
+     */
+    const usoProprio = existingVariant && modalita !== 'rifai'
+      ? (await this.usoDeiPiatti(existingVariant.id, week)).altrove
+      : new Map<string, Set<string>>();
+    const condivise = new Map<string, string[]>();
+    for (const [slot, lista] of condiviseGrezze) {
+      const occupate = usoProprio.get(slot) ?? new Set<string>();
+      const libere = lista.filter((id) => !occupate.has(id));
+      if (libere.length) condivise.set(slot, libere);
+    }
 
     // Per ogni pasto: prima quello che c'è (sorelle, poi le proprie), e si genera SOLO la
     // differenza per arrivare a sette. È così che il lavoro del nutrizionista non si perde.
@@ -491,7 +517,7 @@ export class EngineRulesService {
   }
 
   /** Quante settimane di catalogo ha già la variante di questo preset (0 se non esiste). */
-  async settimaneGenerate(presetId: string): Promise<{
+  async settimaneGenerate(presetId: string, famiglia = false): Promise<{
     dietId: string | null;
     settimane: number;
     giorni: number;
@@ -511,8 +537,26 @@ export class EngineRulesService {
       select: { id: true },
     })) as { id: string } | null;
     if (!diet) return { dietId: null, settimane: 0, giorni: 0, settimaneMagre: [], ricettePerPasto: 0 };
+
+    /**
+     * `famiglia`: la striscia delle settimane risponde per TUTTE le varianti del gruppo, non
+     * per quella attiva. Serve perché il nutrizionista lavora con la spunta «genera tutte le 18
+     * varianti»: in quella modalità la generazione tocca tutto il gruppo, e mostrare lo stato di
+     * una sola variante è una mezza verità — la settimana appare verde mentre su una sorella è
+     * ancora magra, e le clienti di quella sorella ricevono un menu che si ripete.
+     * Una settimana è magra se è magra **da qualche parte**: finché non sono a posto tutte, non
+     * è a posto niente.
+     */
+    const diete = famiglia
+      ? ((await this.prisma.diet.findMany({
+          where: { name: preset.label, style: preset.style, status: { not: 'rejected' } } as never,
+          select: { id: true },
+        })) as { id: string }[])
+      : [diet];
+    if (diete.length === 0) return { dietId: diet.id, settimane: 0, giorni: 0, settimaneMagre: [], ricettePerPasto: 0 };
+
     const ultimo = (await this.prisma.dietDayTemplate.findFirst({
-      where: { dietId: diet.id },
+      where: { dietId: { in: diete.map((d) => d.id) } },
       orderBy: { dayIndex: 'desc' },
       select: { dayIndex: true },
     })) as { dayIndex: number } | null;
@@ -538,48 +582,59 @@ export class EngineRulesService {
      * Se due settimane si contendono un piatto risultano magre entrambe: è corretto, e si
      * risolve da sé — completando la prima, la seconda torna esclusiva e diventa piena.
      */
-    const templates = (await this.prisma.dietDayTemplate.findMany({
-      where: { dietId: diet.id },
-      select: { dayIndex: true, meals: true },
-    })) as { dayIndex: number; meals: unknown }[];
+    // Il conto si fa DIETA PER DIETA — la regola «esclusiva della settimana» ha senso solo
+    // dentro un ciclo, perché è quello che una cliente riceve. Poi si mette insieme: magra da
+    // qualche parte = magra.
+    const magreUnione = new Set<number>();
+    let minimo = 0;
+    let primo = true;
+    for (const d of diete) {
+      const templates = (await this.prisma.dietDayTemplate.findMany({
+        where: { dietId: d.id },
+        select: { dayIndex: true, meals: true },
+      })) as { dayIndex: number; meals: unknown }[];
+      if (templates.length === 0) continue;
 
-    // Per ogni pasto: chi usa cosa, settimana per settimana.
-    const perSettimana = new Map<number, { giorni: number; slot: Map<string, Set<string>> }>();
-    const globale = new Map<string, Set<string>>();
-    for (const t of templates) {
-      const w = Math.ceil(t.dayIndex / GIORNI_SETTIMANA);
-      const box = perSettimana.get(w) ?? { giorni: 0, slot: new Map<string, Set<string>>() };
-      box.giorni++;
-      for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
-        if (!m.slot || !m.recipeId) continue;
-        const set = box.slot.get(m.slot) ?? new Set<string>();
-        set.add(m.recipeId);
-        box.slot.set(m.slot, set);
-        const g = globale.get(m.slot) ?? new Set<string>();
-        g.add(m.recipeId);
-        globale.set(m.slot, g);
-      }
-      perSettimana.set(w, box);
-    }
-
-    const settimane = [...perSettimana.entries()].sort((a, b) => a[0] - b[0]);
-    const settimaneMagre: number[] = [];
-    for (const [w, box] of settimane) {
-      if (box.slot.size === 0) { settimaneMagre.push(w); continue; }
-      let magra = false;
-      for (const [slot, usate] of box.slot) {
-        // Quante di queste sono SOLO sue: un piatto condiviso con un'altra settimana è una
-        // ripetizione nel ciclo, quindi non conta.
-        let esclusive = 0;
-        for (const id of usate) {
-          const altrove = settimane.some(([w2, b2]) => w2 !== w && (b2.slot.get(slot)?.has(id) ?? false));
-          if (!altrove) esclusive++;
+      // Per ogni pasto: chi usa cosa, settimana per settimana.
+      const perSettimana = new Map<number, { giorni: number; slot: Map<string, Set<string>> }>();
+      const globale = new Map<string, Set<string>>();
+      for (const t of templates) {
+        const w = Math.ceil(t.dayIndex / GIORNI_SETTIMANA);
+        const box = perSettimana.get(w) ?? { giorni: 0, slot: new Map<string, Set<string>>() };
+        box.giorni++;
+        for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
+          if (!m.slot || !m.recipeId) continue;
+          const set = box.slot.get(m.slot) ?? new Set<string>();
+          set.add(m.recipeId);
+          box.slot.set(m.slot, set);
+          const g = globale.get(m.slot) ?? new Set<string>();
+          g.add(m.recipeId);
+          globale.set(m.slot, g);
         }
-        if (esclusive < box.giorni) { magra = true; break; }
+        perSettimana.set(w, box);
       }
-      if (magra) settimaneMagre.push(w);
+
+      const settimane = [...perSettimana.entries()].sort((a, b) => a[0] - b[0]);
+      for (const [w, box] of settimane) {
+        if (box.slot.size === 0) { magreUnione.add(w); continue; }
+        let magra = false;
+        for (const [slot, usate] of box.slot) {
+          // Quante di queste sono SOLO sue: un piatto condiviso con un'altra settimana è una
+          // ripetizione nel ciclo, quindi non conta.
+          let esclusive = 0;
+          for (const id of usate) {
+            const altrove = settimane.some(([w2, b2]) => w2 !== w && (b2.slot.get(slot)?.has(id) ?? false));
+            if (!altrove) esclusive++;
+          }
+          if (esclusive < box.giorni) { magra = true; break; }
+        }
+        if (magra) magreUnione.add(w);
+      }
+      const minDieta = globale.size ? Math.min(...[...globale.values()].map((v) => v.size)) : 0;
+      minimo = primo ? minDieta : Math.min(minimo, minDieta);
+      primo = false;
     }
-    const minimo = globale.size ? Math.min(...[...globale.values()].map((v) => v.size)) : 0;
+    const settimaneMagre = [...magreUnione].sort((a, b) => a - b);
 
     return {
       dietId: diet.id,
@@ -640,13 +695,33 @@ export class EngineRulesService {
    * mano); tutto il resto si genera nuovo.
    */
   private async ricetteDisponibiliPerSettimana(dietId: string, week: number): Promise<Map<string, string[]>> {
+    const { inQuesta, altrove } = await this.usoDeiPiatti(dietId, week);
+    const out = new Map<string, string[]>();
+    for (const [slot, lista] of inQuesta) {
+      const occupate = altrove.get(slot) ?? new Set<string>();
+      // Solo quelle che non sta usando nessun'altra settimana: se un piatto compare anche
+      // altrove, tenerlo qui vorrebbe dire ripeterlo nel ciclo.
+      const libere = lista.filter((id) => !occupate.has(id)).slice(0, GIORNI_SETTIMANA);
+      if (libere.length) out.set(slot, libere);
+    }
+    return out;
+  }
+
+  /**
+   * Chi usa cosa dentro una variante: i piatti di QUESTA settimana e quelli di TUTTE LE ALTRE.
+   * Estratto da `ricetteDisponibiliPerSettimana` perché serve anche a filtrare i piatti che
+   * arrivano dalle varianti sorelle (vedi sotto: era il buco che rendeva «completa» inutile).
+   */
+  private async usoDeiPiatti(dietId: string, week: number): Promise<{
+    inQuesta: Map<string, string[]>;
+    altrove: Map<string, Set<string>>;
+  }> {
     const templates = (await this.prisma.dietDayTemplate.findMany({
       where: { dietId },
       orderBy: { dayIndex: 'asc' },
       select: { dayIndex: true, meals: true },
     })) as { dayIndex: number; meals: unknown }[];
 
-    // Per ogni pasto: cosa usa QUESTA settimana (in ordine di giorno) e cosa usano le ALTRE.
     const inQuesta = new Map<string, string[]>();
     const altrove = new Map<string, Set<string>>();
     for (const t of templates) {
@@ -664,16 +739,7 @@ export class EngineRulesService {
         }
       }
     }
-
-    const out = new Map<string, string[]>();
-    for (const [slot, lista] of inQuesta) {
-      const occupate = altrove.get(slot) ?? new Set<string>();
-      // Solo quelle che non sta usando nessun'altra settimana: se un piatto compare anche
-      // altrove, tenerlo qui vorrebbe dire ripeterlo nel ciclo.
-      const libere = lista.filter((id) => !occupate.has(id)).slice(0, GIORNI_SETTIMANA);
-      if (libere.length) out.set(slot, libere);
-    }
-    return out;
+    return { inQuesta, altrove };
   }
 
   /**
