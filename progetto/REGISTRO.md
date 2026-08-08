@@ -7,6 +7,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 💸 **Il piano attivato a mano non gonfia più il fatturato — questa volta davvero** —
+  la correzione precedente teneva pulito il **conto economico** (nessuna riga di ricavo nel ledger)
+  ed era incompleta: **i grafici del fatturato non leggono il ledger**, sommano
+  `payment.amountCents` di tutti i pagamenti approvati (`analytics.service.ts`, e la dashboard fa
+  lo stesso). Il piano del socio da €130 restava dentro «Fatturato / mese» e «Fatturato cumulato».
+  Secondo richiamo di Simone sullo stesso punto: «va registrato a costo 0, lo avevo già detto».
+  - L'attivazione dalla scheda cliente ora **registra importo 0**. Il listino non si perde: sta
+    nella descrizione del pagamento («attivazione interna, senza incasso (listino 130,00 €)») e
+    nell'audit, con entrambi i numeri. Un'unica verità per tutte le somme, invece di un'eccezione
+    da ricordarsi in ogni punto che conta i soldi.
+  - **Nessuna provvigione**: senza incasso non c'è niente da cui pagarla, e il quadratino «Genera
+    le provvigioni» è stato **tolto** dal modale della scheda — mostrarlo e ignorarlo sarebbe stato
+    peggio. Chi ha incassato davvero registra la vendita da **Acquisti**, dove la scelta resta.
+  - Registrare 0 aveva tre effetti collaterali nascosti, tutti dietro lo stesso
+    `if (amountCents === 0)`: l'attivazione passava per una **prova**. Chiusi tutti e tre e
+    protetti da test: niente evento di funnel (falsava i tassi di conversione del lancio), il CRM
+    non si tocca (la cliente sarebbe retrocessa a «Prova» e alla coach sarebbe arrivato «ha attivato
+    la settimana di prova»), e la **durata resta quella del piano** — la rete di sicurezza degli 8
+    giorni sui piani gratuiti ora guarda il prezzo di listino, non l'importo registrato.
+  - Per i pagamenti già registrati: **`npm run fix:attivazioni-manuali`**. Elenca le attivazioni
+    manuali approvate con importo > 0, dice quello che sa l'audit sull'origine di ognuna, e azzera
+    **solo gli id indicati** (`CONFERMA=1 PAGAMENTI=<id>,<id>`). Non azzera in blocco per una
+    ragione precisa: `method: 'manual'` comprende anche le **vendite vere** registrate da Acquisti,
+    e farle sparire dai libri sarebbe un danno peggiore di quello che si sta riparando. Serve per
+    far tornare veri i grafici di oggi: il codice nuovo vale da qui in avanti.
 - `[Sviluppo]` 📅 **I menu dei piani vecchi si possono aprire** — in scheda cliente la finestra
   dei menu era fissa (ultimi 56 giorni + 7 avanti): di una cliente al secondo o terzo percorso
   **lo storico non era raggiungibile da nessuna parte**. Ora in Acquisti c'è **un pulsante per

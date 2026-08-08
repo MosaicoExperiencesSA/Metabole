@@ -1653,7 +1653,11 @@ function AttivaPianoModal({
   const [piani, setPiani] = useState<PianoRow[]>([]);
   const [planId, setPlanId] = useState('');
   const [buono, setBuono] = useState('');
-  const [provvigioni, setProvvigioni] = useState(true);
+  // Provvigioni: qui **non si generano mai**. L'attivazione dalla scheda non è una vendita
+  // (importo registrato 0), e una provvigione è un costo vero contro un ricavo che non esiste.
+  // Lo stato resta a `false` e il quadratino non si mostra: mostrarlo spento e ignorarlo sarebbe
+  // peggio che non averlo.
+  const provvigioni = false;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1684,8 +1688,8 @@ function AttivaPianoModal({
         }),
       });
       onDone(
-        `Piano attivato${provvigioni ? ' (con provvigioni)' : ' (senza provvigioni)'}. ` +
-        'Non entra in contabilità: per registrare un incasso vero usa la pagina Acquisti.',
+        'Piano attivato e registrato a importo 0. Non entra in contabilità né nei grafici del ' +
+        'fatturato, e non genera provvigioni: per registrare un incasso vero usa la pagina Acquisti.',
       );
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Operazione non riuscita.');
@@ -1709,8 +1713,9 @@ function AttivaPianoModal({
       </div>
       {piano && (
         <p className="muted" style={{ fontSize: 13 }}>
-          Verrà attivato <b>{piano.name}</b> ({piano.period}) per <b>{euro(piano.priceCents)}</b>. I menu
-          partono da subito.
+          Verrà attivato <b>{piano.name}</b> ({piano.period}). I menu partono da subito. Il listino è
+          {' '}<b>{euro(piano.priceCents)}</b>, ma il pagamento viene registrato a <b>€ 0,00</b>: non è
+          una vendita.
         </p>
       )}
       {/*
@@ -1719,21 +1724,20 @@ function AttivaPianoModal({
         esplicito perché è l'unico posto in cui si può capire prima di premere.
       */}
       <p style={{ fontSize: 13, background: 'rgba(184,134,59,.12)', padding: '8px 10px', borderRadius: 8 }}>
-        <b>Non entra in contabilità.</b> Questa attivazione è per omaggi, staff o prove interne: il piano
-        si attiva davvero, ma non viene registrato nessun incasso. Per una <b>vendita vera</b> incassata
-        fuori dal negozio — un bonifico gestito a mano — usa la pagina <b>Acquisti</b>.
+        <b>Non entra in contabilità né nei grafici.</b> Questa attivazione è per omaggi, staff o prove
+        interne: il piano si attiva davvero, ma il pagamento è registrato a <b>importo 0</b> — quindi
+        resta fuori dal conto economico, dal <b>fatturato</b> dei grafici e dalle provvigioni. Per una
+        <b> vendita vera</b> incassata fuori dal negozio — un bonifico gestito a mano — usa la pagina{' '}
+        <b>Acquisti</b>.
       </p>
       <div className="field">
         <label>Buono sconto (facoltativo)</label>
         <input className="input" value={buono} onChange={(e) => setBuono(e.target.value.toUpperCase())}
           placeholder="Es. ESTATE25" style={{ width: 200, textTransform: 'uppercase' }} />
       </div>
-      <label className="row" style={{ gap: 10, alignItems: 'center', cursor: 'pointer', marginTop: 6 }}>
-        <input type="checkbox" checked={provvigioni} onChange={(e) => setProvvigioni(e.target.checked)} />
-        <span>Genera le provvigioni (coach, nutrizionista e responsabili)</span>
-      </label>
       <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-        Toglila per un piano regalato o per una correzione: il piano si attiva lo stesso, ma nessuno viene pagato.
+        Da qui <b>non si generano provvigioni</b>: senza incasso non c'è niente da cui pagarle. Se la
+        cliente ha pagato davvero, registra la vendita da <b>Acquisti</b> — lì le provvigioni si scelgono.
       </p>
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>

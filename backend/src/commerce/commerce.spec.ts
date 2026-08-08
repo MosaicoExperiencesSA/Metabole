@@ -297,6 +297,8 @@ describe('CommerceService.createManualPurchase — cosa entra in contabilità', 
   let service: CommerceService;
   let finance: any;
   let audit: any;
+  let prismaSpia: any;
+  let crm: any;
 
   beforeEach(async () => {
     const prisma: any = {
@@ -322,6 +324,11 @@ describe('CommerceService.createManualPurchase — cosa entra in contabilità', 
     };
     finance = { recordIncome: jest.fn().mockResolvedValue(undefined), generateCommissions: jest.fn().mockResolvedValue(undefined) };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
+    crm = {
+      onPaid: jest.fn().mockResolvedValue(undefined),
+      avanzaStato: jest.fn().mockResolvedValue(undefined),
+      autoAdvance: jest.fn().mockResolvedValue(undefined),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         CommerceService,
@@ -331,14 +338,7 @@ describe('CommerceService.createManualPurchase — cosa entra in contabilità', 
         { provide: MailService, useValue: { sendPaymentReceipt: jest.fn().mockResolvedValue(true), sendBankTransferInstructions: jest.fn() } },
         { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined), notifyOncePerDay: jest.fn().mockResolvedValue(true) } },
         { provide: FinanceService, useValue: finance },
-        {
-          provide: CrmService,
-          useValue: {
-            onPaid: jest.fn().mockResolvedValue(undefined),
-            avanzaStato: jest.fn().mockResolvedValue(undefined),
-            autoAdvance: jest.fn().mockResolvedValue(undefined),
-          },
-        },
+        { provide: CrmService, useValue: crm },
         { provide: DiscountsService, useValue: { validate: jest.fn(), redeem: jest.fn().mockResolvedValue(undefined) } },
         { provide: StripeService, useValue: { enabled: false } },
         { provide: AuditService, useValue: audit },
@@ -353,10 +353,14 @@ describe('CommerceService.createManualPurchase — cosa entra in contabilità', 
       ],
     }).compile();
     service = moduleRef.get(CommerceService);
+    prismaSpia = prisma;
   });
 
-  const attiva = (origine?: string) =>
-    service.createManualPurchase(operator, { clientId: 'client-1', planId: 'plan1', generateCommissions: false, origine });
+  const attiva = (origine?: string, generateCommissions = false) =>
+    service.createManualPurchase(operator, { clientId: 'client-1', planId: 'plan1', generateCommissions, origine });
+
+  /** L'ultimo `payment.create` visto dal finto Prisma: è lì che si legge l'importo registrato. */
+  const pagamentoScritto = () => (prismaSpia.payment.create.mock.calls.at(-1)?.[0] as any).data;
 
   it('dalla SCHEDA CLIENTE: il piano si attiva ma NON scrive ricavi', async () => {
     await attiva('scheda_cliente');
@@ -383,5 +387,73 @@ describe('CommerceService.createManualPurchase — cosa entra in contabilità', 
         metadata: expect.objectContaining({ origine: 'scheda_cliente', contabilizzato: false }),
       }),
     );
+  });
+
+  /**
+   * SECONDO RICHIAMO DI SIMONE, la sera dell'8/8: «il prodotto attivato dalla scheda cliente
+   * impatta sui grafici… va registrato a costo 0 lo avevo già detto».
+   *
+   * Aveva ragione e la prima correzione era incompleta: teneva il ledger pulito, ma **i grafici del
+   * fatturato non leggono il ledger** — sommano `payment.amountCents` di tutti i pagamenti
+   * approvati (`analytics.service.ts`, e la dashboard fa lo stesso). Con l'importo pieno lì,
+   * «Fatturato / mese» e «Fatturato cumulato» mostravano €698 mai incassati.
+   *
+   * Da qui in avanti l'importo registrato è la verità unica: 0. Il listino resta nella descrizione
+   * e nell'audit, dove serve a ricostruire cosa è stato attivato senza inquinare nessuna somma.
+   */
+  it('dalla SCHEDA CLIENTE il pagamento è registrato a ZERO: è quello che i grafici sommano', async () => {
+    await attiva('scheda_cliente');
+    expect(pagamentoScritto().amountCents).toBe(0);
+  });
+
+  it('il listino non si perde: resta nella descrizione e nell\'audit', async () => {
+    await attiva('scheda_cliente');
+    expect(pagamentoScritto().description).toContain('130,00');
+    expect(pagamentoScritto().description).toContain('senza incasso');
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ amountCents: 0, prezzoListinoCents: 13000 }),
+      }),
+    );
+  });
+
+  it('da ACQUISTI l\'importo registrato è quello vero: i grafici devono vederlo', async () => {
+    await attiva('acquisti');
+    expect(pagamentoScritto().amountCents).toBe(13000);
+    expect(pagamentoScritto().description).toBe('Abbonamento Percorso 1 mese');
+  });
+
+  it('senza incasso non nascono provvigioni, nemmeno se la richiesta le chiede', async () => {
+    await attiva('scheda_cliente', true);
+    expect(finance.generateCommissions).not.toHaveBeenCalled();
+  });
+
+  it('da ACQUISTI le provvigioni restano una scelta di chi registra', async () => {
+    await attiva('acquisti', true);
+    expect(finance.generateCommissions).toHaveBeenCalled();
+  });
+
+  /**
+   * Registrare 0 aveva tre effetti collaterali, tutti a valle dello stesso `if (amountCents === 0)`:
+   * l'attivazione sarebbe passata per una PROVA. Questi tre test tengono chiusa quella porta.
+   */
+  it('non finisce nel funnel come prova: non è né una prova né una conversione', async () => {
+    await attiva('scheda_cliente');
+    expect(prismaSpia.analyticsEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('non tocca lo stato CRM della cliente', async () => {
+    await attiva('scheda_cliente');
+    expect(crm.autoAdvance).not.toHaveBeenCalled();
+  });
+
+  it('la durata resta quella del piano: 0 registrato non vuol dire piano gratuito', async () => {
+    await attiva('scheda_cliente');
+    const attivazione = prismaSpia.subscription.update.mock.calls.at(-1)[0];
+    const giorni = Math.round(
+      (attivazione.data.endDate.getTime() - attivazione.data.startDate.getTime()) / 86_400_000,
+    );
+    // Un mese, non gli 8 giorni della rete di sicurezza sui piani gratuiti.
+    expect(giorni).toBeGreaterThan(20);
   });
 });

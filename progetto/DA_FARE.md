@@ -53,7 +53,29 @@ Serve quindi mandare al client anche lo `style` della dieta (o usare
 `clientDescription` è più specifico ma non sempre compilato, `DIET_INFO` è sempre presente e ha
 le fonti. La strada meno rischiosa: `clientDescription` se c'è, altrimenti `DIET_INFO[style]`.
 
-## 3. Tabella clienti: filtri, riordino e colonna coach (chiesta l'8/8)
+## 3. I grafici del fatturato e dei clienti (chiesti l'8/8)
+
+**Dove**: `backend/src/analytics/analytics.service.ts` (la serie `monthly`),
+`backoffice/src/pages/Grafici.tsx`, `backoffice/src/lib/dashboardModules.ts`.
+
+Oggi la serie è **mensile e a 6 mesi fissi**, e questo non basta:
+
+1. **Fatturato cumulato a giorni, che si azzera ogni mese.** L'asse deve essere i giorni del mese
+   corrente (1 → oggi), non i mesi. E si deve poter **scorrere i mesi passati** (frecce avanti /
+   indietro), tenendo la stessa scala.
+2. **Nello stesso grafico il confronto col mese precedente, alla stessa giornata**: due linee — il
+   mese in corso fino a oggi e il mese prima fino allo stesso giorno. È il confronto che dice
+   qualcosa («l'8 agosto siamo sopra o sotto l'8 luglio»), mentre il totale di un mese finito
+   contro un mese a metà non dice niente.
+3. **Nuovi clienti per giornata**: stesso trattamento, oggi c'è solo il conteggio mensile
+   (`newClients` nella serie `monthly`).
+
+Nota tecnica: la serie giornaliera non si ricava dai dati che l'endpoint manda oggi — servono
+`revenueByDay` (e `newClientsByDay`) con `mese` come parametro. Conviene un endpoint solo per
+questo, che accetta l'anno-mese e restituisce le due serie affiancate (mese scelto + precedente),
+invece di far ricalcolare al front-end una serie che non ha.
+
+## 4. Tabella clienti: filtri, riordino e colonna coach (chiesta l'8/8)
 
 **Dove**: `backoffice/src/pages/Clients.tsx`.
 
@@ -61,14 +83,14 @@ Filtri e riordino **in alto**, come nella board dei lead (`Leads.tsx`, da cui si
 barra), più la **colonna Coach**. L'endpoint `GET /admin/clients` già restituisce la coach
 assegnata: è lavoro di sola tabella.
 
-## 4. Log modifiche del lead: cambi da backoffice e cambi dall'app (chiesto l'8/8)
+## 5. Log modifiche del lead: cambi da backoffice e cambi dall'app (chiesto l'8/8)
 
 Da **verificare prima di implementare**: nel log del lead finiscono già le modifiche fatte dal
 backoffice e quelle fatte dalla cliente dall'app? Le modifiche al `CrmRecord` passano da più
 punti, e almeno uno scrive senza audit. Se non ci sono, va aggiunto — con la distinzione fra
 «modificato dallo staff» e «modificato dalla cliente», che è l'informazione utile.
 
-## 5. Correzione di un cambio piatto da parte della nutrizionista
+## 6. Correzione di un cambio piatto da parte della nutrizionista
 
 Oggi la nutrizionista **vede** i cambi concordati in chat (scheda cliente, card Conversazioni) ma
 non li può correggere: lo stato `corretta` esiste nel dato e non c'è il pulsante. Serve a chiudere

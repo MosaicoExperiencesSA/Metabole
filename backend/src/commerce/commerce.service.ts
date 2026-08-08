@@ -1593,16 +1593,34 @@ export class CommerceService {
       client: { email: string; locale?: string | null };
       discountCodeId?: string | null;
       discountCents?: number | null;
+      /**
+       * Prezzo di LISTINO del piano, quando `amountCents` è stato azzerato perché l'attivazione
+       * non è una vendita. Serve a distinguere «attivazione senza incasso di un piano da €130» da
+       * «piano davvero gratuito»: senza questa distinzione la rete di sicurezza sulle durate (qui
+       * sotto) leggerebbe 0 e, su un piano con `period` scritto male, accorcerebbe l'abbonamento
+       * a 8 giorni.
+       */
+      prezzoListinoCents?: number;
     },
     byUserId: string,
     methodLabel: string,
     /**
-     * `skipIncome` — attivazione che NON è un incasso: non si scrive la riga nel `ledgerEntry`,
-     * quindi non entra nel conto economico. Serve alle attivazioni fatte a mano dalla scheda
-     * cliente (omaggi, staff, prove interne): segnalazione di Simone dell'8/8 — un piano da €130
-     * attivato a mano per Antonio gonfiava i ricavi di €130 mai incassati.
-     * Il conto economico legge il ledger, non i pagamenti: non scrivere la riga è sufficiente, e
-     * il `payment` resta a documentare che l'attivazione c'è stata e chi l'ha fatta.
+     * `skipIncome` — attivazione che **non è una vendita**. Nata dalla segnalazione di Simone
+     * dell'8/8: un piano da €130 attivato a mano per Antonio gonfiava i ricavi di €130 mai
+     * incassati. Governa tre cose, e ci sono volute due passate per capirlo tutto:
+     *  1. **nessuna riga nel `ledgerEntry`** → fuori dal conto economico;
+     *  2. **nessun evento del funnel** (`trial_started`, `trial_converted`, `plan_renewed`,
+     *     `maintenance_started`): un'attivazione interna non è né una prova né una conversione, e
+     *     contarla come tale falsa i tassi di conversione del lancio;
+     *  3. **il CRM non si tocca**: con importo 0 la cliente sarebbe retrocessa a «Prova» e la
+     *     coach avrebbe ricevuto «ha attivato la settimana di prova», che non è vero. Lo stato lo
+     *     mette l'operatrice, che sa perché sta attivando quel piano.
+     *
+     * Il `payment` resta, a documentare che l'attivazione c'è stata e chi l'ha fatta — ma con
+     * **importo 0**, perché i grafici del fatturato sommano i pagamenti approvati e non il ledger
+     * (`analytics.service.ts`, `dashboard.service.ts`): tenere l'importo pieno lì gonfiava
+     * «Fatturato / mese» e «Fatturato cumulato» anche col conto economico pulito. È il secondo
+     * richiamo di Simone sullo stesso punto — il ledger non era tutto.
      */
     options?: { skipCommissions?: boolean; skipIncome?: boolean },
   ) {
@@ -1636,7 +1654,10 @@ export class CommerceService {
       // subscriptionEnd (3 mesi): sarebbe accesso gratuito per mesi. Default prudente a 8
       // giorni (durata prova). I piani con period valido (es. '8d', 'maintenance') non cambiano.
       const rawPeriod = payment.subscription.plan.period;
-      const isFreeActivation = payment.amountCents === 0;
+      // Il confronto è sul prezzo di LISTINO quando c'è: un'attivazione senza incasso registra 0,
+      // ma il piano da €130 non è un piano gratuito e non deve finire nella rete di sicurezza
+      // degli 8 giorni.
+      const isFreeActivation = (payment.prezzoListinoCents ?? payment.amountCents) === 0;
       const safePeriod = isFreeActivation && !isKnownPeriod(rawPeriod) ? FREE_PLAN_FALLBACK_PERIOD : rawPeriod;
       if (safePeriod !== rawPeriod) {
         await this.audit.log({
@@ -1689,7 +1710,11 @@ export class CommerceService {
     }
     // Funnel del lancio: attivazione prova → trial_started; pagamento vero dopo
     // una prova → trial_converted (idempotente: solo se non già emesso).
-    if (payment.subscriptionId) {
+    //
+    // Le attivazioni interne (`skipIncome`) restano **fuori dal funnel**: non sono una prova né
+    // una conversione, e contarle come tali sposta i tassi del lancio senza che nessuno capisca
+    // perché. Vedi la nota su `skipIncome`.
+    if (payment.subscriptionId && !options?.skipIncome) {
       if (payment.amountCents === 0) {
         await this.funnelEvent(payment.clientId, 'trial_started', { subscriptionId: payment.subscriptionId });
       } else {
@@ -1725,7 +1750,14 @@ export class CommerceService {
     }
     // CRM: prodotto GRATUITO (totale 0) → stato "Prova" (trial); pagamento vero →
     // "Acquisito" (key 'paid'). Chi è già Acquisito non retrocede a Prova per un omaggio.
-    if (payment.amountCents > 0) {
+    //
+    // Sulle attivazioni interne il CRM **non si tocca**: registrando 0 la cliente sarebbe
+    // retrocessa a «Prova» e alla coach sarebbe arrivato «ha attivato la settimana di prova» —
+    // una notifica falsa su una cliente che magari è al terzo percorso. Lo stato lo mette
+    // l'operatrice, che sa perché ha attivato quel piano.
+    if (options?.skipIncome) {
+      // niente: né avanzamento né notifica.
+    } else if (payment.amountCents > 0) {
       await this.crm.autoAdvance(payment.clientId, 'paid', byUserId, payment.amountCents);
     } else {
       const rec = await this.prisma.crmRecord
@@ -1943,12 +1975,22 @@ export class CommerceService {
     const subscription = await this.prisma.subscription.create({
       data: { clientId: client.id, planId: plan.id, status: 'pending' },
     });
+    // L'IMPORTO REGISTRATO. Se l'attivazione non è una vendita si registra **zero**, non il
+    // prezzo del piano: i grafici del fatturato (`analytics.service.ts`) e la dashboard sommano i
+    // pagamenti approvati, non il ledger, quindi tenere qui €130 gonfiava «Fatturato / mese» e
+    // «Fatturato cumulato» anche col conto economico pulito. Secondo richiamo di Simone sullo
+    // stesso punto: «va registrato a costo 0».
+    // Il prezzo di listino non si perde: resta nella descrizione e nell'audit.
+    const importoRegistrato = contabilizza ? amountCents : 0;
+    const descrizione = contabilizza
+      ? `Abbonamento ${plan.name}`
+      : `Abbonamento ${plan.name} — attivazione interna, senza incasso (listino ${(amountCents / 100).toFixed(2).replace('.', ',')} €)`;
     const payment = await this.prisma.payment.create({
       data: {
         clientId: client.id,
         subscriptionId: subscription.id,
-        amountCents,
-        description: `Abbonamento ${plan.name}`,
+        amountCents: importoRegistrato,
+        description: descrizione,
         method: 'manual' as never,
         status: 'approved',
         approvedById: staff?.id,
@@ -1970,10 +2012,19 @@ export class CommerceService {
         client: { email: client.email, locale: client.locale },
         discountCodeId: discount?.codeId ?? null,
         discountCents: discount?.discountCents ?? null,
+        // Il listino, per la rete di sicurezza sulle durate: un piano da €130 registrato a 0 non
+        // è un piano gratuito e non deve durare 8 giorni.
+        prezzoListinoCents: amountCents,
       },
       operator.sub,
       'manuale',
-      { skipCommissions: !input.generateCommissions, skipIncome: !contabilizza },
+      {
+        // Senza incasso non nascono provvigioni: non c'è niente da cui pagarle, e una provvigione
+        // su un'attivazione interna è un costo vero contro un ricavo che non esiste. Chi vuole
+        // provvigioni registra la vendita da **Acquisti**.
+        skipCommissions: !contabilizza || !input.generateCommissions,
+        skipIncome: !contabilizza,
+      },
     );
     await this.audit.log({
       action: 'commerce.purchase.manual',
@@ -1982,7 +2033,17 @@ export class CommerceService {
       entityId: payment.id,
       // `contabilizzato` nell'audit: se un domani un ricavo non torna, qui c'è scritto se quella
       // attivazione doveva entrare nei conti e chi l'ha decisa.
-      metadata: { planId: plan.id, amountCents, generateCommissions: input.generateCommissions, origine, contabilizzato: contabilizza },
+      // Nell'audit ci sono TUTTI E DUE i numeri: quello registrato (0 per le attivazioni interne)
+      // e il listino. Se fra sei mesi un ricavo non torna, qui c'è scritto cosa è stato attivato,
+      // a quanto era di listino, se doveva entrare nei conti e chi l'ha deciso.
+      metadata: {
+        planId: plan.id,
+        amountCents: importoRegistrato,
+        prezzoListinoCents: amountCents,
+        generateCommissions: contabilizza && input.generateCommissions,
+        origine,
+        contabilizzato: contabilizza,
+      },
     });
     return this.publicPayment(payment);
   }
