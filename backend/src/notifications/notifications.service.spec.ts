@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MessageComposerService } from './message-composer.service';
 import { NotificationsService } from './notifications.service';
 import { PushService } from './push.service';
+import { toDateOnly } from '../common/date-only';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
@@ -230,8 +231,7 @@ describe('NotificationsService', () => {
   });
 
   it('misure migliorate oggi → incoraggiamento', async () => {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = toDateOnly(); // mezzanotte del giorno ITALIANO: vedi la nota in testa al file
     prisma.measurement.findMany.mockResolvedValue([
       { date: today, weightKg: 67.2, waistCm: 78 },
       { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
@@ -262,8 +262,7 @@ describe('NotificationsService', () => {
   });
 
   it('countdown pre-evento nei 3 giorni prima', async () => {
-    const in2days = new Date();
-    in2days.setUTCHours(0, 0, 0, 0);
+    const in2days = toDateOnly(); // idem: il giorno da cui contare è quello italiano
     prisma.event.findMany.mockResolvedValue([
       { label: 'Matrimonio Anna', type: 'wedding', startDate: new Date(in2days.getTime() + 2 * 86_400_000) },
     ]);
@@ -285,8 +284,7 @@ describe('NotificationsService', () => {
   // il messaggio era, letteralmente, falso.
 
   it('peso aumentato ma vita in calo: nessun complimento', async () => {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = toDateOnly(); // mezzanotte del giorno ITALIANO: vedi la nota in testa al file
     prisma.measurement.findMany.mockResolvedValue([
       { date: today, weightKg: 68.6, waistCm: 78 }, // +0,6 kg, −2 cm
       { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
@@ -296,8 +294,7 @@ describe('NotificationsService', () => {
   });
 
   it('vita aumentata ma peso in calo: nessun complimento', async () => {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = toDateOnly(); // mezzanotte del giorno ITALIANO: vedi la nota in testa al file
     prisma.measurement.findMany.mockResolvedValue([
       { date: today, weightKg: 67.2, waistCm: 82 }, // −0,8 kg, +2 cm
       { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
@@ -307,8 +304,7 @@ describe('NotificationsService', () => {
   });
 
   it('peso in calo e vita invariata: i complimenti restano (la correzione non è troppo severa)', async () => {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = toDateOnly(); // mezzanotte del giorno ITALIANO: vedi la nota in testa al file
     prisma.measurement.findMany.mockResolvedValue([
       { date: today, weightKg: 67.2, waistCm: 80 },
       { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },
@@ -324,8 +320,7 @@ describe('NotificationsService', () => {
 
   /** Misura di oggi + una precedente (68 kg, 80 cm), come le vede il servizio. */
   function measureToday(weightKg: number, waistCm: number) {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+    const today = toDateOnly(); // mezzanotte del giorno ITALIANO: vedi la nota in testa al file
     prisma.measurement.findMany.mockResolvedValue([
       { date: today, weightKg, waistCm },
       { date: new Date(today.getTime() - 2 * 86_400_000), weightKg: 68.0, waistCm: 80 },

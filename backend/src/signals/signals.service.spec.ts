@@ -10,7 +10,7 @@ import { ProgressService } from './progress.service';
 // `toDateOnly` vive in common/date-only: signals.service lo importa soltanto, non lo riesporta.
 // L'import sbagliato teneva ROSSA l'intera suite (TS2459 in compilazione), quindi fino a oggi
 // nessuno dei test qui sotto girava davvero.
-import { toDateOnly } from '../common/date-only';
+import { giornoLocale, toDateOnly } from '../common/date-only';
 import { SignalsService } from './signals.service';
 
 describe('toDateOnly', () => {
@@ -119,7 +119,7 @@ describe('SignalsService', () => {
   });
 
   it('misura nel futuro → rifiutata', async () => {
-    const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+    const future = giornoLocale(new Date(Date.now() + 3 * 86_400_000));
     await expect(service.upsertMeasurement('u1', { weightKg: 67, date: future })).rejects.toThrow(
       BadRequestException,
     );
@@ -192,7 +192,9 @@ describe('SignalsService', () => {
 
   it('salta per oggi: registrato sulla data di oggi, una riga sola', async () => {
     const res = await service.skipCheckinToday('u1');
-    const oggi = new Date().toISOString().slice(0, 10);
+    // Il giorno ITALIANO, non quello UTC: con `toISOString()` questo test cadeva ogni notte fra
+    // mezzanotte e le 2 (vedi la nota in `common/date-only.ts`).
+    const oggi = giornoLocale(new Date());
     expect(res).toEqual({ skipped: true, date: oggi });
     expect(prisma.checkinSkip.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -223,7 +225,7 @@ describe('SignalsService', () => {
     prisma.checkinSkip.findUnique.mockResolvedValue(null);
     const status = await service.todayStatus('u1');
     expect(status.checkinSkipped).toBe(false);
-    const oggi = toDateOnly(new Date().toISOString().slice(0, 10));
+    const oggi = toDateOnly();
     expect(prisma.checkinSkip.findUnique).toHaveBeenCalledWith({
       where: { clientId_date: { clientId: 'u1', date: oggi } },
     });

@@ -7,6 +7,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🕛 **Il CI era rosso per il fuso orario, non per il codice** — dal commit delle 00:09
+  in avanti il job «Backend · build + test» falliva: 11 prove su 984, in `menu.service.spec`,
+  `notifications.service.spec` e `signals.service.spec`. Il type-check passava, e i commit
+  precedenti della stessa serata erano verdi.
+  - Il motivo, leggendo il log: i test costruivano «oggi» con `new Date().toISOString()`, cioè il
+    giorno **UTC**, mentre il prodotto usa il giorno del fuso **aziendale** (`Europe/Rome`, vedi
+    `common/date-only.ts`). Fra le 22:00 e le 24:00 UTC — cioè fra mezzanotte e le 2 in Italia —
+    i due giorni non coincidono: il servizio erogava il menu del 9 e il test si aspettava quello
+    dell'8. Le prove erano dunque **fragili due ore al giorno**, e lo sono state per mesi senza che
+    si vedesse: nessuno pusha a quell'ora.
+  - Corretti i tre file usando gli helper del prodotto (`giornoLocale`, `toDateOnly`) invece di
+    ricalcolare la data: è la stessa lezione che `date-only.ts` racconta per le misure (una pesata a
+    mezzanotte finiva sul giorno prima e sovrascriveva quella vera).
+  - La correzione è stata **verificata riproducendo l'ora del guasto**, non a occhio: girando la
+    suite con `APP_TIMEZONE` spostato di un giorno (`Pacific/Kiritimati`) le tre suite fallivano
+    prima e passano dopo. Un modo per rifare la prova a qualsiasi ora, senza aspettare mezzanotte.
+
 - `[Sviluppo]` 📲 **OTA 2.1.3** — porta sui telefoni il lato app del cambio menu in chat, che finora
   esisteva solo nel backend: il pulsante **«Sostituisci un ingrediente»** della home non apre più il
   pop-up «oggi / questi giorni / per sempre» ma **porta nella chat con Gaia**, che scrive lei il

@@ -3,6 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MenuService } from './menu.service';
+import { giornoLocale } from '../common/date-only';
 
 // Il "menu a necessità" non è oggetto di questi test: il fabbisogno non è calcolabile
 // (null) e il target kcal resta quello del livello della dieta (comportamento storico).
@@ -12,9 +13,17 @@ const kcalNeedStub = () => ({ computeTargetKcal: jest.fn().mockResolvedValue(nul
 const pushStub = () => ({ sendToUser: jest.fn().mockResolvedValue(undefined) }) as never;
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
-const todayIso = new Date().toISOString().slice(0, 10);
-const daysFromToday = (n: number) =>
-  new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+/**
+ * «Oggi» come lo intende il servizio: il giorno del fuso AZIENDALE (`Europe/Rome`), non quello UTC.
+ *
+ * Prima qui c'era `new Date().toISOString().slice(0, 10)`, cioè il giorno UTC, e questi test
+ * fallivano ogni notte fra le 22:00 e le 24:00 UTC — fra mezzanotte e le 2 in Italia — perché il
+ * servizio erogava il menu del giorno italiano mentre il test si aspettava quello UTC. Il CI del
+ * 9/8 alle 00:09 italiane è caduto esattamente così, su codice sano. È la stessa trappola che
+ * `common/date-only.ts` racconta per le misure: usare l'helper del prodotto, non ricalcolare.
+ */
+const todayIso = giornoLocale(new Date());
+const daysFromToday = (n: number) => giornoLocale(new Date(Date.now() + n * 86_400_000));
 
 describe('MenuService (erogazione 2 giorni alla volta)', () => {
   let service: MenuService;
