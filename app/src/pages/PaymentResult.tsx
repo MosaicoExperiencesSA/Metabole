@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import WidgetInstall from '../components/WidgetInstall';
@@ -24,6 +24,29 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
   const [phase, setPhase] = useState<'date' | 'done'>('date');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /**
+   * DATA GIÀ DECISA DAL BACKEND. Se al ritorno dal pagamento il profilo ha già una data di inizio
+   * FUTURA, quella data non è da scegliere: è quella vera.
+   *
+   * Il caso che conta è il **piano in coda**: chi compra un secondo piano mentre uno è in corso
+   * parte alla scadenza del precedente, e la data scelta qui verrebbe ignorata dal backend. Prima
+   * il calendario compariva comunque — la cliente scegliva il 12, il piano partiva il 30 e nessuno
+   * le spiegava perché. Decisione di Simone del 10/8: «non le chiedo la data, glielo dico».
+   * `null` = ancora da leggere, `undefined` = nessuna data (si scegle), stringa = già decisa.
+   */
+  const [giaDecisa, setGiaDecisa] = useState<string | null | undefined>(null);
+
+  useEffect(() => {
+    if (!ok) return;
+    api<{ planStartDate?: string | null }>('/me/client-profile')
+      .then((p) => {
+        const d = p.planStartDate ? String(p.planStartDate).slice(0, 10) : null;
+        setGiaDecisa(d && startOfDay(new Date(d)).getTime() > today.getTime() ? d : undefined);
+      })
+      // Se il profilo non si legge si torna al comportamento di sempre: meglio chiedere la data
+      // che bloccare la cliente su una schermata vuota dopo aver pagato.
+      .catch(() => setGiaDecisa(undefined));
+  }, [ok]);
 
   async function confirm() {
     setErr(null);
@@ -46,6 +69,34 @@ export default function PaymentResult({ ok }: { ok: boolean }) {
         <h1>Pagamento annullato</h1>
         <p className="muted">Nessun addebito effettuato. Puoi completare il pagamento quando vuoi.</p>
         <button className="btn" style={{ marginTop: 8 }} onClick={() => nav('/')}>Vai alla home</button>
+      </div>
+    );
+  }
+
+  // Data già decisa (coda, o scelta in un giro precedente): si comunica, non si chiede.
+  if (phase === 'date' && typeof giaDecisa === 'string') {
+    const start = startOfDay(new Date(giaDecisa));
+    const visible = addDays(start, -VISIBLE_DAYS_BEFORE);
+    return (
+      <div className="onb-body" style={{ paddingTop: 12 }}>
+        <AppHeader title="Pagamento" />
+        <div style={{ textAlign: 'center' }}>
+          <span className="big-badge" style={{ background: '#DCF0D8', color: '#3B6D11', margin: '0 auto 12px' }}><i className="ti ti-circle-check" /></span>
+          <h1 style={{ marginBottom: 4 }}>Pagamento ricevuto!</h1>
+          <p className="muted" style={{ marginTop: 0 }}>Il tuo piano parte il {fmt(start)}.</p>
+        </div>
+        <div className="card" style={{ background: '#EAF6F1', boxShadow: 'none', display: 'flex', gap: 9 }}>
+          <i className="ti ti-eye" style={{ color: '#0E7C66', fontSize: 18 }} />
+          <div>
+            <div style={{ fontSize: 12.5, color: '#0E7C66', fontWeight: 600 }}>Menu visibile dal {fmt(visible)}</div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>Si sblocca 2 giorni prima dell'inizio, così arrivi preparata.</div>
+          </div>
+        </div>
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
+          Se avevi già un piano in corso, questo parte quando finisce quello: i due non si
+          sovrappongono. Vuoi cambiare la data? Chiedi a Gaia in chat.
+        </p>
+        <button className="btn" style={{ width: '100%', marginTop: 6 }} onClick={() => setPhase('done')}>Ho capito</button>
       </div>
     );
   }

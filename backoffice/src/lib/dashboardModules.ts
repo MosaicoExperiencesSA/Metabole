@@ -13,7 +13,7 @@ export interface DashboardModule {
 
 export const DASHBOARD_MODULES: DashboardModule[] = [
   { id: 'm_clienti', pageKey: 'clients', to: '/clienti', icon: 'ti-users', label: 'Clienti', preview: 'Percorsi in corso, schede e progressi dei clienti.' },
-  { id: 'm_grafici', pageKey: 'charts', to: '/grafici', icon: 'ti-chart-histogram', label: 'Grafici', preview: 'Kg persi nel mese, perdita media, fatturato e classifiche.' },
+  { id: 'm_grafici', pageKey: 'charts', to: '/grafici', icon: 'ti-chart-histogram', label: 'Grafici', preview: 'Fatturato del mese giorno per giorno, kg persi, perdita media e classifiche.' },
   { id: 'm_pagamenti', pageKey: 'accounting', to: '/pagamenti', icon: 'ti-cash', label: 'Bonifici & contabilità', preview: 'Contabili da verificare e incassi.' },
   { id: 'm_crm', pageKey: 'crm_leads', to: '/crm/gestione', icon: 'ti-list-details', label: 'CRM / Lead', preview: 'Lead, pipeline e conversioni.' },
   { id: 'm_lead_accept', pageKey: 'lead_acceptance', previewKey: 'lead_accept', to: '/crm/da-accettare', icon: 'ti-user-check', label: 'Lead da accettare', preview: 'Lead assegnati in attesa di accettazione.' },

@@ -120,13 +120,12 @@ function DietProductsBlock({ value, family, onChange }: { value: unknown; family
             {DIET_INFO[p.style] && (
               <button
                 type="button"
+                // La classe `.info-dot` invece degli stili inline: lo stesso pallino ora sta anche
+                // nel profilo, sulla dieta assegnata, e «come nel questionario» deve restare vero.
+                className="info-dot"
                 aria-label={`Cos'è la dieta ${DIET_INFO[p.style].titolo}`}
                 onClick={(e) => { e.stopPropagation(); setInfo(p.style); }}
-                style={{
-                  marginLeft: 7, width: 18, height: 18, borderRadius: '50%', padding: 0,
-                  border: '1px solid var(--line)', background: '#fff', color: 'var(--muted)',
-                  fontSize: 11, fontWeight: 700, lineHeight: 1, cursor: 'pointer', verticalAlign: '2px',
-                }}
+                style={{ marginLeft: 7, width: 18, height: 18, fontSize: 11, verticalAlign: '2px' }}
               >
                 ?
               </button>

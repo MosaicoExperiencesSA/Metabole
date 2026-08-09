@@ -304,6 +304,18 @@ a {
   background: #fff;
   color: var(--ink);
 }
+/*
+  Versione compatta, per i moduli che stanno DENTRO una cella di tabella (la verifica dei cambi
+  concordati in chat, in scheda cliente): con il padding pieno tre campi in colonna facevano
+  crescere la riga oltre il doppio, e la tabella diventava illeggibile proprio dove serve
+  confrontare le righe fra loro.
+*/
+.input.sm,
+.select.sm {
+  padding: 6px 9px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
 .input:focus,
 .select:focus {
   outline: none;

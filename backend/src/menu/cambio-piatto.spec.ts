@@ -5,6 +5,8 @@ import {
   testoNessunaAlternativa,
   testoProponiAlternative,
   type CandidatoPiatto,
+  slotDaRisposta,
+  testoChiediQualePasto,
 } from './cambio-piatto';
 
 /**
@@ -160,5 +162,56 @@ describe('i testi della proposta', () => {
     expect(t).toContain('nutrizionista');
     // Non promette di riprovare né inventa un piatto fuori piano.
     expect(t).not.toContain('riprova');
+  });
+});
+
+/**
+ * QUALE PASTO — «lo voglio diverso» senza dire di cosa (difetto in coda al collaudo dell'8/8).
+ *
+ * Prima il flusso ripiegava sulla domanda dell'**ingrediente**, che è un'altra domanda: la cliente
+ * aveva chiesto un piatto diverso e si sentiva chiedere quale alimento. La correzione è chiedere
+ * quale pasto — ma allora la risposta va capita in tutte le forme in cui arriva.
+ */
+describe('quale pasto', () => {
+  const PASTI = [
+    { slot: 'breakfast', piatto: 'Yogurt e avena' },
+    { slot: 'lunch', piatto: 'Insalata di farro' },
+    { slot: 'dinner', piatto: 'Merluzzo al forno' },
+  ];
+
+  it('la domanda elenca i pasti di oggi, numerati, col piatto accanto', () => {
+    const t = testoChiediQualePasto(PASTI, 'proteico', 'Giulia');
+    expect(t).toContain('Giulia');
+    expect(t).toContain('1) colazione — Yogurt e avena');
+    expect(t).toContain('3) cena — Merluzzo al forno');
+    expect(t).toContain('proteico');
+  });
+
+  it('il numero della riga', () => {
+    expect(slotDaRisposta('2', PASTI)).toBe('lunch');
+    expect(slotDaRisposta('3)', PASTI)).toBe('dinner');
+  });
+
+  it('il nome del pasto, come l\'ha appena letto', () => {
+    expect(slotDaRisposta('il pranzo', PASTI)).toBe('lunch');
+    expect(slotDaRisposta('la cena grazie', PASTI)).toBe('dinner');
+    expect(slotDaRisposta('colazione', PASTI)).toBe('breakfast');
+  });
+
+  it('«merenda» e «spuntino» valgono l\'uno per l\'altro', () => {
+    const conSpuntino = [{ slot: 'afternoon_snack', piatto: 'Mandorle' }, ...PASTI];
+    expect(slotDaRisposta('la merenda', conSpuntino)).toBe('afternoon_snack');
+    expect(slotDaRisposta('lo spuntino', conSpuntino)).toBe('afternoon_snack');
+  });
+
+  it('anche il nome del piatto: se lo nomina, sa quale vuole cambiare', () => {
+    expect(slotDaRisposta('il merluzzo', PASTI)).toBe('dinner');
+  });
+
+  it('quando non si capisce non si indovina', () => {
+    expect(slotDaRisposta('boh', PASTI)).toBeNull();
+    expect(slotDaRisposta('9', PASTI)).toBeNull();
+    // Un pasto che oggi non c'è non si può scegliere.
+    expect(slotDaRisposta('lo spuntino', PASTI)).toBeNull();
   });
 });

@@ -1648,6 +1648,30 @@ export class CommerceService {
         if (chosen && chosen.getTime() > now.getTime() && chosen.getTime() - now.getTime() <= 60 * 86_400_000) {
           start = chosen;
         }
+      } else {
+        /**
+         * PIANO IN CODA: parte alla scadenza di quello in corso, e la data scelta dalla cliente
+         * viene ignorata — giustamente, due piani non possono sovrapporsi.
+         *
+         * Quello che mancava è **dirlo**: `profile.planStartDate` restava la data che aveva scelto
+         * lei, mentre l'abbonamento partiva un'altra volta. Da lì in poi i due numeri raccontavano
+         * storie diverse — i menu seguono il profilo, la scadenza segue l'abbonamento — e in
+         * dashboard compariva una data che non era quella vera. Scriverla qui allinea tutto in una
+         * riga: banner, gate del menu e scheda dicono la stessa cosa (decisione di Simone del
+         * 10/8: «non le chiedo la data, glielo dico»).
+         */
+        await this.prisma.clientProfile
+          .updateMany({ where: { userId: payment.clientId }, data: { planStartDate: start } })
+          .catch(() => undefined);
+        await this.audit
+          .log({
+            action: 'commerce.plan.queued',
+            actorId: byUserId,
+            entityType: 'subscription',
+            entityId: payment.subscriptionId,
+            metadata: { inizioEffettivo: start.toISOString(), motivo: 'in coda al piano attivo' },
+          })
+          .catch(() => undefined);
       }
       // Rete di sicurezza (attivazione GRATUITA): se il piano è a €0 ma la sua durata
       // (`period`) non è configurata in un formato valido, NON usare il fallback lungo di

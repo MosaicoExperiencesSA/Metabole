@@ -1,5 +1,10 @@
 import {
   apreFrase,
+  contropropostaDaTesto,
+  testoContropropostaAllergene,
+  testoContropropostaEsclusa,
+  testoContropropostaNonPrevista,
+  testoContropropostaOk,
   unitaPerSostituto,
   sceltaDopoIlNo,
   sensoDelNo,
@@ -568,5 +573,105 @@ describe('unità del sostituto', () => {
     expect(t).toContain('70 g di burro');
     expect(t).toContain('70 ml di panna fresca');
     expect(t).not.toContain('70 ml di burro');
+  });
+});
+
+/**
+ * L'ARTICOLO SCRITTO A MANO — difetto visto in schermata nel collaudo dell'OTA 2.1.3 (9/8):
+ * «non voglio lasciarti con **il panna fresca** nel piatto».
+ *
+ * Il ricettario ha alimenti di ogni genere e numero e nessuna tabella ci dice il genere di
+ * «panna fresca», «uova», «yogurt». La regola del file è: il nome fra virgolette, mai un articolo
+ * davanti. Questo test la tiene ferma su tutti i testi che nominano un alimento, perché l'errore
+ * costa un secondo a scriverlo e lo legge la cliente.
+ */
+describe('nessun articolo appiccicato al nome di un alimento', () => {
+  const PROPOSTA = {
+    data: '2026-08-09', slot: 'dinner', recipeId: 'r', piatto: 'Pasta alla panna',
+    da: 'panna fresca', a: 'uova', qtaDa: 70, qtaA: 70, unita: 'ml', unitaA: 'g',
+  };
+  /** Articolo + nome femminile/plurale: se compare, la frase è sgrammaticata. */
+  const SGRAMMATICATO = /\b(il|lo|un)\s+(panna|uova|biete|carote|patate|mandorle|acqua)\b/i;
+
+  it.each([
+    ['testoChiediPercheNo', testoChiediPercheNo(PROPOSTA, 'Giulia')],
+    ['testoChiediMotivo', testoChiediMotivo(PROPOSTA)],
+    ['testoConferma', testoConferma(PROPOSTA, MOTIVI[1], 'Giulia')],
+    ['testoAltroSostituto', testoAltroSostituto(PROPOSTA, MOTIVI[1], 'burro', 'Giulia')],
+    ['testoNienteAltroSostituto', testoNienteAltroSostituto('panna fresca', ['burro'], 'Giulia')],
+    ['testoContropropostaOk', testoContropropostaOk(PROPOSTA, MOTIVI[1], 'Giulia')],
+    ['testoContropropostaAllergene', testoContropropostaAllergene('uova', 'Giulia')],
+    ['testoContropropostaEsclusa', testoContropropostaEsclusa('panna fresca', 'Giulia')],
+    ['testoContropropostaNonPrevista', testoContropropostaNonPrevista('panna fresca', 'Giulia')],
+  ])('%s', (_nome, testo) => {
+    expect(testo).not.toMatch(SGRAMMATICATO);
+  });
+
+  it('la domanda dopo il «no» nomina l\'alimento fra virgolette', () => {
+    expect(testoChiediPercheNo(PROPOSTA, 'Giulia')).toContain('«panna fresca»');
+  });
+});
+
+/**
+ * LA CONTROPROPOSTA (difetto 2 del collaudo del 9/8). Qui si verifica solo la **lettura**: se
+ * quel nome è un alimento ammissibile lo decide il servizio contro i gruppi approvati.
+ *
+ * `esplicita` è il campo che evita il danno peggiore: con un verbo di proposta un nome che non
+ * riconosciamo va comunque chiesto alla nutrizionista; senza verbo — «boh» — no, altrimenti ogni
+ * esitazione aprirebbe una richiesta che nessuno ha fatto.
+ */
+describe('contropropostaDaTesto', () => {
+  it('la frase del collaudo: legge il burro vegetale, non l\'olio rifiutato', () => {
+    const letto = contropropostaDaTesto("l'olio mi fa peso posso usare il burro vegetale?", ['panna fresca', 'olio evo']);
+    expect(letto?.esplicita).toBe(true);
+    expect(letto?.termini).toContain('burro vegetale');
+    // L'olio è quello che ha appena rifiutato: se sopravvivesse a questa lettura glielo
+    // riproporremmo come se fosse una sua idea.
+    expect(letto?.termini.some((t) => t.includes('olio'))).toBe(false);
+  });
+
+  it('un nome secco vale come proposta, senza bisogno del verbo', () => {
+    const letto = contropropostaDaTesto('gli spinaci', ['carote', 'biete']);
+    expect(letto?.termini).toContain('spinaci');
+    expect(letto?.esplicita).toBe(false);
+  });
+
+  it.each(['boh', 'mah', 'non so'])('«%s» non contiene nessun alimento da proporre', (testo) => {
+    // Devono restare fuori: erano esitazioni che, lette come proposte, aprivano una richiesta alla
+    // nutrizionista che nessuno aveva fatto (due test rossi in `sostituzione-chat.service.spec`).
+    expect(contropropostaDaTesto(testo, [])).toBeNull();
+  });
+
+  it('una frase lunga senza verbo di proposta non è una controproposta', () => {
+    expect(contropropostaDaTesto('oggi sono stata tutto il giorno fuori casa a correre', [])).toBeNull();
+  });
+
+  it('non riporta l\'alimento da cambiare né quello che abbiamo proposto noi', () => {
+    expect(contropropostaDaTesto('posso usare le carote?', ['carote'])).toBeNull();
+    expect(contropropostaDaTesto('non voglio le biete', ['carote', 'biete'])).toBeNull();
+  });
+});
+
+/**
+ * L'ELISIONE — difetto trovato mentre si scriveva la controproposta, e più vecchio di lei.
+ *
+ * `terminiCandidati` teneva l'apostrofo dentro la parola, quindi «l'olio» era un token a sé e non
+ * combaciava con «olio evo»: chi scriveva «vorrei togliere l'olio» si sentiva rispondere che non lo
+ * trovava fra gli ingredienti di oggi, e al secondo tentativo il dialogo passava alla coach. In
+ * italiano l'elisione è la norma, non un caso limite.
+ */
+describe('l\'apostrofo non nasconde l\'alimento', () => {
+  it.each([
+    ["vorrei togliere l'olio", 'olio'],
+    ["non voglio l'uovo", 'uovo'],
+    ["posso cambiare l'avena?", 'avena'],
+    ["togli il sale all'aglio", 'aglio'],
+    ["mi da fastidio dell'olio", 'olio'],
+  ])('«%s» → riconosce «%s»', (frase, atteso) => {
+    expect(terminiCandidati(frase)).toContain(atteso);
+  });
+
+  it('e l\'abbinamento con l\'ingrediente vero funziona', () => {
+    expect(terminiCandidati("vorrei togliere l'olio").some((t) => combaciaAlimento('olio evo', t))).toBe(true);
   });
 });

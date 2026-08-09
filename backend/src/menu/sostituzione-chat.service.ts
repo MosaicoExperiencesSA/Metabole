@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { toDateOnly } from '../common/date-only';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -8,7 +8,9 @@ import {
   ordinaAlternative,
   preferenzaDaTesto,
   rilevaIntentoAltroPiatto,
+  slotDaRisposta,
   testoCambioPiattoFatto,
+  testoChiediQualePasto,
   testoNessunaAlternativa,
   testoProponiAlternative,
   testoSceltaNonValida,
@@ -26,6 +28,7 @@ import {
   condividonoAlimento,
   correggiGrammatura,
   etichettaSlot,
+  contropropostaDaTesto,
   riconosciConferma,
   riconosciMotivo,
   sceltaDopoIlNo,
@@ -39,6 +42,11 @@ import {
   testoChiediPercheNo,
   testoCiboNonTrovato,
   testoConferma,
+  testoContropropostaAllergene,
+  testoContropropostaEsclusa,
+  testoContropropostaNonPrevista,
+  testoContropropostaOk,
+  testoContropropostaStessoAlimento,
   testoFatto,
   testoGiaFatto,
   testoMotivoNonCapito,
@@ -100,6 +108,30 @@ export interface SostituzioneInChat {
   stato: string;
   concordataIl?: string;
   grammaturaCorretta?: boolean;
+  /** Quando la nutrizionista l'ha guardato, e la sua nota: è ciò che rende visibile la verifica. */
+  verificataIl?: string;
+  nota?: string;
+}
+
+/**
+ * Quello che la nutrizionista decide su un cambio nato in chat. Il cambio si individua per
+ * **giornata + pasto + alimento** e non per un id, perché non ne ha uno: vive dentro il JSON dei
+ * pasti di quel giorno (nessuna migrazione, per scelta — vedi la testa di questa classe).
+ */
+export interface CorrezioneCambio {
+  /** `YYYY-MM-DD` della giornata. */
+  data: string;
+  slot: string;
+  tipo: 'ingrediente' | 'piatto';
+  /** L'alimento sostituito: identifica la sostituzione dentro il pasto. Solo per `ingrediente`. */
+  from?: string;
+  stato: 'verificata' | 'corretta' | 'annullata';
+  /** Il sostituto giusto, se quello concordato in chat non va (solo con `stato: 'corretta'`). */
+  to?: string;
+  toQty?: number;
+  unitA?: string;
+  /** Perché. La legge anche la cliente: vedi `Substitution.nota`. */
+  nota?: string;
 }
 
 /** Annullamento esplicito: solo una risposta secca, per non confonderla con «non mi piace». */
@@ -249,6 +281,7 @@ export class SostituzioneChatService {
     if (stato.passo === 'cibo') return this.passoCibo(clientId, stato, testoCliente);
     if (stato.passo === 'motivo') return this.passoMotivo(clientId, stato, testoCliente);
     if (stato.passo === 'scelta_piatto') return this.passoSceltaPiatto(clientId, stato, testoCliente);
+    if (stato.passo === 'scelta_pasto') return this.passoSceltaPasto(clientId, stato, testoCliente);
     if (stato.passo === 'rifiuto') return this.passoRifiuto(clientId, stato, testoCliente);
     return this.passoConferma(clientId, stato, testoCliente);
   }
@@ -336,6 +369,11 @@ export class SostituzioneChatService {
       // Chiudere con «va bene, non cambio niente» la lasciava col problema di partenza.
       const senso = sensoDelNo(testoCliente, stato.proposta.a);
       if (senso === 'ripensata') return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+      // TERZA CORREZIONE, dal collaudo dell'OTA del 9/8: dentro il «no» può esserci **la sua**
+      // proposta («no, posso usare il burro vegetale?»). Va guardata prima di `senso`, perché una
+      // frase che nomina il sostituto rifiutato *e* un'alternativa vale più della prima metà.
+      const daLei = await this.passoControproposta(clientId, stato, testoCliente);
+      if (daLei) return daLei;
       if (senso === 'sostituto') return this.altroSostituto(clientId, stato);
       // «No» secco: non sappiamo quale delle due cose sia, e indovinare è peggio che chiedere.
       return {
@@ -345,6 +383,11 @@ export class SostituzioneChatService {
       };
     }
     if (risposta !== 'si') {
+      // IL DIFETTO DEL COLLAUDO DEL 9/8, nella sua forma pura: «l'olio mi fa peso posso usare il
+      // burro vegetale?» non è né sì né no, ed è una richiesta precisa. Prima di dire «non ho
+      // capito» si guarda se dentro c'è un alimento che sta proponendo lei.
+      const daLei = await this.passoControproposta(clientId, stato, testoCliente);
+      if (daLei) return daLei;
       const tentativi = (stato.tentativi ?? 0) + 1;
       if (tentativi >= 2) {
         return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
@@ -375,6 +418,10 @@ export class SostituzioneChatService {
     const scelta = sceltaDopoIlNo(testoCliente);
     if (scelta === 'annulla') return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
     if (scelta === 'altro_piatto') return this.proponiAltroPiatto(clientId, testoCliente, stato.proposta?.slot);
+    // Anche qui la cliente può rispondere con un nome invece che con un numero («il burro
+    // vegetale»): è una quarta strada che non abbiamo elencato, e va capita.
+    const daLei = await this.passoControproposta(clientId, stato, testoCliente);
+    if (daLei) return daLei;
     // Un motivo scritto a parole («non mi piace», «non ce l'ho in casa») vale come «questo
     // sostituto no»: è la stessa cosa detta in un altro modo.
     if (scelta === 'altro_sostituto' || riconosciMotivo(testoCliente)) return this.altroSostituto(clientId, stato);
@@ -384,6 +431,143 @@ export class SostituzioneChatService {
       return { testo: testoRifiutoNonCapito(true), inoltraA: 'coach', esito: 'arresa' };
     }
     return { testo: testoRifiutoNonCapito(false), stato: { ...stato, tentativi }, esito: 'in_corso' };
+  }
+
+  /**
+   * LA CONTROPROPOSTA: quando è la cliente a dire quale sostituto vuole.
+   *
+   * Difetto visto nel collaudo dell'OTA 2.1.3 (9/8): alla conferma ha scritto «l'olio mi fa peso
+   * posso usare il burro vegetale?» e si è sentita rispondere «Non ho capito: confermi il cambio?».
+   * C'erano dentro due informazioni — un motivo e un sostituto scelto da lei — e chiedere di nuovo
+   * la stessa cosa è il modo più rapido di sprecare la fiducia appena costruita.
+   *
+   * Le regole di sicurezza NON si allentano perché la proposta arriva da lei: si accetta solo un
+   * alimento che sta fra gli **equivalenti approvati** per quell'ingrediente, e che passa allergeni
+   * ed esclusioni. Tutto il resto passa dalla nutrizionista — che è l'unica che può dire sì a una
+   * cosa che il ricettario non prevede.
+   *
+   * Torna `null` quando nel messaggio non c'è nessuna proposta: il chiamante continua per la sua
+   * strada (il «non ho capito», o le tre strade dopo il no).
+   */
+  private async passoControproposta(
+    clientId: string,
+    stato: StatoSostituzione,
+    testoCliente: string,
+  ): Promise<EsitoSostituzione | null> {
+    const proposta = stato.proposta;
+    if (!proposta) return null;
+    const letto = contropropostaDaTesto(testoCliente, [proposta.da, proposta.a, ...(stato.scartati ?? [])]);
+    if (!letto?.termini.length) return null;
+    const { termini, esplicita } = letto;
+
+    const nome = await this.nomeDi(clientId);
+    const pasti = await this.pastiDiOggi(clientId);
+    const pasto = pasti.find((p) => p.pasto.slot === proposta.slot);
+    // Il menu è cambiato sotto i piedi: meglio ricominciare che decidere su una giornata che non è
+    // più quella (stessa scelta di `altroSostituto`).
+    if (!pasto) return this.apri(clientId);
+
+    // Solo fra gli equivalenti approvati per QUESTO alimento: è il confine fra «la cliente scrive
+    // un nome» e «la cliente sceglie un sostituto». Il nome che si usa poi è quello del catalogo,
+    // non quello che ha scritto lei: è quello che finisce nel piatto e nella scheda.
+    const ammissibili = await this.candidati(proposta.da, proposta.da, pasto.dietId);
+    const scelto = ammissibili.find((c) => termini.some((t) => combaciaAlimento(c, t)));
+    if (!scelto) {
+      // Nessuna corrispondenza e nessun verbo di proposta: quello che ha scritto non è un alimento,
+      // è un'esitazione («boh», «mah»). Si torna indietro e ci pensa il «non ho capito» — mandare
+      // alla nutrizionista una richiesta che non è mai stata fatta è peggio che non capire.
+      if (!esplicita) return null;
+      await this.passaAllaNutrizionista(
+        clientId,
+        `Cambio in chat: la cliente propone lei un sostituto per «${proposta.da}» ` +
+          `(${etichettaSlot(proposta.slot)}: ${proposta.piatto}) che non è fra gli equivalenti approvati. ` +
+          `Ha scritto: «${testoCliente.trim().slice(0, 200)}». Serve una valutazione.`,
+      );
+      await this.audit.log({
+        action: 'menu.sostituzione.controproposta_non_prevista',
+        actorId: clientId,
+        entityType: 'client_profile',
+        entityId: clientId,
+        metadata: { da: proposta.da, termini, slot: proposta.slot },
+      });
+      return {
+        testo: testoContropropostaNonPrevista(proposta.da, nome),
+        inoltraA: 'nutritionist',
+        esito: 'arresa',
+      };
+    }
+
+    const esito = await this.verificaCandidato(clientId, proposta.da, scelto);
+    if (esito !== 'ok') {
+      // Rifiutata, ma non a mani vuote: si dice **perché** e si propone subito un'alternativa, con
+      // il suo alimento aggiunto agli scartati perché non lo riproponga il giro dopo.
+      const spiegazione =
+        esito === 'allergene'
+          ? testoContropropostaAllergene(scelto, nome)
+          : esito === 'stesso_alimento'
+            ? testoContropropostaStessoAlimento(proposta.da, scelto, nome)
+            : testoContropropostaEsclusa(scelto, nome);
+      const dopo = await this.altroSostituto(clientId, {
+        ...stato,
+        scartati: [...(stato.scartati ?? []), scelto],
+      });
+      return { ...dopo, testo: `${spiegazione}\n\n${dopo.testo}` };
+    }
+
+    const motivo = MOTIVI.find((m) => m.key === stato.motivo) ?? MOTIVI.find((m) => m.key === 'non_piace')!;
+    const nuova: PropostaSostituzione = {
+      ...proposta,
+      a: scelto,
+      // L'unità va ricalcolata sul suo alimento: «70 ml di burro» non esiste (vedi `unitaPerSostituto`).
+      unitaA: unitaPerSostituto(proposta.unita, scelto),
+    };
+    await this.audit.log({
+      action: 'menu.sostituzione.controproposta',
+      actorId: clientId,
+      entityType: 'client_profile',
+      entityId: clientId,
+      metadata: { da: proposta.da, nostro: proposta.a, suo: scelto, slot: proposta.slot },
+    });
+    return {
+      testo: testoContropropostaOk(nuova, motivo, nome),
+      stato: {
+        ...stato,
+        passo: 'conferma',
+        proposta: nuova,
+        // Il nostro suggerimento risulta scartato: se poi dice no a questo, non deve tornare quello.
+        scartati: [...(stato.scartati ?? []), proposta.a],
+        tentativi: 0,
+      },
+      esito: 'in_corso',
+    };
+  }
+
+  /**
+   * Un sostituto **specifico** è ammissibile per questa cliente? Serve alla controproposta, dove
+   * l'alimento lo sceglie lei e non c'è niente da ordinare: `scegliSostituto` sceglie il migliore
+   * fra tanti, questo dice sì o no su uno — e dice anche **perché** no, che è la parte che la
+   * cliente legge.
+   */
+  private async verificaCandidato(
+    clientId: string,
+    nomeIngrediente: string,
+    candidato: string,
+  ): Promise<'ok' | 'allergene' | 'escluso' | 'stesso_alimento'> {
+    const profilo = await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { allergies: true, intolerances: true, dislikedFoods: true },
+    });
+    const testo = normalizza(candidato);
+    const allergeni = exclusionKeys((profilo?.allergies ?? []) as string[]);
+    if ([...allergeni].some((k) => k && testo.includes(k))) return 'allergene';
+    const altre = exclusionKeys([
+      ...((profilo?.intolerances ?? []) as string[]),
+      ...((profilo?.dislikedFoods ?? []) as string[]),
+    ]);
+    if ([...altre].some((k) => k && testo.includes(k))) return 'escluso';
+    // Una variante dello stesso cibo non è un sostituto: vedi `condividonoAlimento`.
+    if (condividonoAlimento(nomeIngrediente, candidato)) return 'stesso_alimento';
+    return 'ok';
   }
 
   /**
@@ -917,9 +1101,14 @@ export class SostituzioneChatService {
       ? pasti.find((p) => p.pasto.slot === slotVoluto)
       : daTesto ?? this.pastoDalloSlotNominato(pasti, testoCliente);
     if (!bersaglio) {
+      // «Lo voglio diverso» senza dire di cosa. Prima qui si tornava alla domanda
+      // dell'INGREDIENTE — una domanda diversa da quella che serviva, in risposta a una richiesta
+      // capita benissimo. Adesso si chiede quale pasto, con l'elenco di oggi: chiedere costa un
+      // messaggio, scegliere per lei costa il pasto sbagliato.
+      const elenco = pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome }));
       return {
-        testo: testoChiediCibo(pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome })), nome),
-        stato: { passo: 'cibo', tentativi: 0 },
+        testo: testoChiediQualePasto(elenco, preferenza, nome),
+        stato: { passo: 'scelta_pasto', tentativi: 0, preferenzaPiatto: preferenza, pastiPerScelta: elenco },
         esito: 'aperto',
       };
     }
@@ -987,6 +1176,34 @@ export class SostituzioneChatService {
       if (r && r.test(t)) return p;
     }
     return null;
+  }
+
+  /**
+   * La cliente ha detto QUALE pasto vuole cambiare («2», «il pranzo», o il nome del piatto). Da qui
+   * si riprende la strada normale, con la preferenza che aveva espresso all'inizio: «più proteico»
+   * detto due messaggi fa vale ancora, e farglielo ripetere sarebbe non aver ascoltato.
+   */
+  private async passoSceltaPasto(
+    clientId: string,
+    stato: StatoSostituzione,
+    testoCliente: string,
+  ): Promise<EsitoSostituzione> {
+    const elenco = stato.pastiPerScelta ?? [];
+    const slot = slotDaRisposta(testoCliente, elenco);
+    if (!slot) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= 2) return { testo: testoAnnullato(await this.nomeDi(clientId)), esito: 'annullata' };
+      return {
+        testo: testoSceltaNonValida(elenco.length),
+        stato: { ...stato, tentativi },
+        esito: 'in_corso',
+      };
+    }
+    // Il testo che si passa è quello del PRIMO messaggio (la preferenza), non la risposta «2»:
+    // altrimenti `preferenzaDaTesto` leggerebbe un numero e la richiesta «più proteico» andrebbe
+    // persa proprio nel passo in cui si va a cercare l'alternativa.
+    const preferenzaScritta = stato.preferenzaPiatto ? `voglio qualcosa di più ${stato.preferenzaPiatto}` : '';
+    return this.proponiAltroPiatto(clientId, preferenzaScritta, slot);
   }
 
   /** La cliente ha risposto con il numero dell'alternativa. */
@@ -1066,6 +1283,120 @@ export class SostituzioneChatService {
     };
   }
 
+  // ---------- La verifica della nutrizionista ----------
+
+  /**
+   * Chiude il cerchio dei cambi nati da Gaia: fino a oggi la nutrizionista li **vedeva** in scheda e
+   * non li poteva toccare — lo stato `corretta` esisteva nel dato e non c'era nessun modo di
+   * scriverlo. Una verifica che non si può registrare non è una verifica: è una lettura.
+   *
+   * Le tre cose che può fare, e perché servono tutte e tre:
+   * - `verificata` — va bene così. È il caso più frequente, e senza un modo di dirlo l'elenco «da
+   *   verificare» cresce per sempre e nessuno sa più cosa ha già guardato;
+   * - `corretta` — va bene il cambio, non i dettagli: cambia il sostituto o i grammi. È il caso che
+   *   serve sul gruppo dei grassi, dove la pari grammatura non regge (70 ml di panna ≈ 200 kcal,
+   *   70 g di olio ≈ 630);
+   * - `annullata` — non va: il piatto torna esattamente come era.
+   *
+   * Si scrive sulla giornata e **non** si tocca la ricetta di catalogo, come per tutto il resto di
+   * questo file: il cambio vive dentro `MenuDay.meals` di quella cliente.
+   */
+  async correggiCambioInChat(
+    clientId: string,
+    actorId: string,
+    input: CorrezioneCambio,
+  ): Promise<{ stato: string; descrizione: string }> {
+    const data = toDateOnly(input.data);
+    const giorno = await this.prisma.menuDay.findFirst({ where: { clientId, date: data } });
+    if (!giorno) throw new NotFoundException('Nessun menu per quella data.');
+
+    const pasti = ((giorno.meals as unknown as MealSnapshot[]) ?? []).filter(Boolean);
+    const indice = pasti.findIndex((m) => m.slot === input.slot);
+    if (indice < 0) throw new NotFoundException('Quel pasto non c\'è in quella giornata.');
+    const pasto = { ...pasti[indice] };
+
+    let descrizione = '';
+    const adesso = new Date().toISOString();
+
+    if (input.tipo === 'piatto') {
+      const cambio = pasto.cambioPiatto;
+      if (!cambio || cambio.origine !== 'chat') throw new NotFoundException('Nessun cambio di piatto da verificare qui.');
+      if (input.stato === 'annullata') {
+        // Il piatto torna quello di prima. Si toglie anche il record del cambio: resta l'audit, che
+        // è il posto giusto per la storia — la giornata deve dire com'è il menu, non com'è stato.
+        pasti[indice] = {
+          slot: pasto.slot,
+          recipeId: cambio.daRecipeId,
+          name: cambio.daNome,
+          kcal: cambio.daKcal,
+        };
+        descrizione = `Cambio di piatto annullato: torna «${cambio.daNome}».`;
+      } else {
+        pasti[indice] = {
+          ...pasto,
+          cambioPiatto: { ...cambio, stato: input.stato, verificataIl: adesso, verificataDa: actorId, nota: input.nota },
+        };
+        descrizione =
+          input.stato === 'verificata'
+            ? `Cambio di piatto confermato: «${pasto.name}» va bene.`
+            : `Cambio di piatto rivisto dalla nutrizionista${input.nota ? `: ${input.nota}` : '.'}`;
+      }
+    } else {
+      const esistenti = pasto.substitutions ?? [];
+      // Si individua per `from` **e** origine chat: una giornata può avere più sostituzioni, e
+      // quelle messe dal motore per un'intolleranza non sono materia di questa verifica.
+      const i = esistenti.findIndex((s) => s.origine === 'chat' && combaciaAlimento(s.from, input.from ?? ''));
+      if (i < 0) throw new NotFoundException('Nessuna sostituzione da chat su quell\'alimento.');
+      const s = esistenti[i];
+
+      if (input.stato === 'annullata') {
+        pasti[indice] = { ...pasto, substitutions: esistenti.filter((_, k) => k !== i) };
+        descrizione = `Sostituzione annullata: nel piatto torna «${s.from}».`;
+      } else {
+        const nuovo: Substitution = {
+          ...s,
+          ...(input.to ? { to: input.to } : {}),
+          ...(input.toQty !== undefined ? { toQty: input.toQty } : {}),
+          // L'unità si ricalcola sul sostituto nuovo: «70 ml di burro» non esiste (vedi
+          // `unitaPerSostituto`). Se la nutrizionista la scrive a mano, vince la sua.
+          ...(input.unitA ? { unitA: input.unitA } : input.to ? { unitA: unitaPerSostituto(s.unit, input.to) } : {}),
+          stato: input.stato,
+          verificataIl: adesso,
+          verificataDa: actorId,
+          ...(input.nota ? { nota: input.nota } : {}),
+        };
+        const cambiato = [...esistenti];
+        cambiato[i] = nuovo;
+        pasti[indice] = { ...pasto, substitutions: cambiato };
+        descrizione =
+          input.stato === 'verificata'
+            ? `Sostituzione confermata: «${s.from}» → «${s.to}» va bene.`
+            : `Sostituzione corretta dalla nutrizionista: «${s.from}» → «${nuovo.to}»` +
+              `${nuovo.toQty ? ` ${nuovo.toQty} ${nuovo.unitA ?? nuovo.unit ?? ''}`.trimEnd() : ''}.`;
+      }
+    }
+
+    await this.prisma.menuDay.update({ where: { id: giorno.id }, data: { meals: pasti as never } });
+    await this.audit.log({
+      action: 'menu.cambio_chat.verifica',
+      actorId,
+      entityType: 'menu_day',
+      entityId: giorno.id,
+      metadata: {
+        clientId,
+        data: input.data,
+        slot: input.slot,
+        tipo: input.tipo,
+        stato: input.stato,
+        from: input.from ?? null,
+        to: input.to ?? null,
+        toQty: input.toQty ?? null,
+        nota: input.nota ?? null,
+      },
+    });
+    return { stato: input.stato, descrizione };
+  }
+
   async sostituzioniDiChat(clientId: string, giorniIndietro = 30): Promise<SostituzioneInChat[]> {
     const oggi = toDateOnly();
     const giorno = 24 * 60 * 60 * 1000;
@@ -1106,6 +1437,8 @@ export class SostituzioneChatService {
             reason: `Piatto cambiato in chat${cp.preferenza ? ` (${cp.preferenza})` : ''}: ${cp.daKcal} → ${pasto.kcal} kcal`,
             stato: cp.stato ?? 'da_verificare',
             concordataIl: cp.concordataIl,
+            verificataIl: cp.verificataIl,
+            nota: cp.nota,
           });
         }
         for (const s of pasto.substitutions ?? []) {
@@ -1127,6 +1460,8 @@ export class SostituzioneChatService {
             stato: s.stato ?? 'da_verificare',
             concordataIl: s.concordataIl,
             grammaturaCorretta: s.grammaturaCorretta,
+            verificataIl: s.verificataIl,
+            nota: s.nota,
           });
         }
       }

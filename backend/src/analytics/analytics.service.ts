@@ -2,6 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
+import { giornoLocale } from '../common/date-only';
+import {
+  confrontoAllaGiornata,
+  finestraDelMese,
+  giorniDelMese,
+  leggiMese,
+  meseAParole,
+  meseDi,
+  meseSpostato,
+  serieDelMese,
+} from './serie-giornaliera';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -20,16 +31,25 @@ interface Meas { clientId: string; date: Date; weightKg: number; waistCm: number
 export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async charts(user: AuthUser) {
+  /**
+   * Il filtro delle clienti che questo utente può vedere. Estratto perché ora lo usano DUE metodi —
+   * i grafici mensili e la serie giornaliera — e due copie di un controllo di portata divergono: il
+   * giorno in cui una si allarga, l'altra mostra numeri di clienti che non sono di chi guarda.
+   */
+  private async filtroClienti(user: AuthUser): Promise<{ where: Record<string, unknown>; scopeAll: boolean }> {
     const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
     const scopeAll = MANAGER_ROLES.includes(user.role);
-
     const where: Record<string, unknown> = { role: 'client', deletedAt: null };
     if (!scopeAll) {
       if (isCoachLike(user.role) && staff) where.clientProfile = { assignedCoachId: { in: (await coachTeamScope(this.prisma, user.sub)) ?? [] } };
       else if (user.role === 'nutritionist' && staff) where.clientProfile = { assignedNutritionistId: staff.id };
       else where.id = '__none__';
     }
+    return { where, scopeAll };
+  }
+
+  async charts(user: AuthUser) {
+    const { where, scopeAll } = await this.filtroClienti(user);
 
     const clients = (await this.prisma.user.findMany({
       where: where as never,
@@ -169,6 +189,72 @@ export class AnalyticsService {
   // ---------- Dati demo (per vedere i grafici popolati) ----------
 
   /** Crea 6 clienti demo con 6 mesi di misure, pagamenti e provvigioni. Idempotente. */
+  /**
+   * FATTURATO CUMULATO E NUOVE CLIENTI **PER GIORNATA**, per un mese, col mese precedente
+   * affiancato (richiesta di Simone dell'8/8).
+   *
+   * Un endpoint suo, e non un campo in più su `charts`: la serie giornaliera dipende da **quale
+   * mese** si sta guardando — la pagina ha le frecce per scorrere lo storico — e infilarla nel
+   * payload dei grafici vorrebbe dire ricalcolare tutto (misure comprese) a ogni freccia premuta.
+   *
+   * `mese` è `YYYY-MM`; se manca o non si legge, il mese corrente. Il mese si intende sempre nel
+   * fuso dell'azienda: vedi `serie-giornaliera.ts`, dove sta la ragione.
+   */
+  async serieGiornaliera(user: AuthUser, mese?: string) {
+    const oggiIso = giornoLocale(new Date());
+    const meseCorrente = oggiIso.slice(0, 7);
+    const scelto = leggiMese(mese) ? (mese as string) : meseCorrente;
+    const precedente = meseSpostato(scelto, -1);
+
+    const { where, scopeAll } = await this.filtroClienti(user);
+    const clienti = (await this.prisma.user.findMany({
+      where: where as never,
+      select: { id: true, createdAt: true },
+    })) as unknown as { id: string; createdAt: Date }[];
+    const ids = clienti.map((c) => c.id);
+
+    // Una finestra sola per i due mesi: due query per due mesi contigui sarebbero due viaggi per
+    // gli stessi dati. Il filtro fine per mese lo fa `serieDelMese`, sul giorno locale.
+    const daPrec = finestraDelMese(precedente).da;
+    const aScelto = finestraDelMese(scelto).a;
+    const pagamenti = ids.length
+      ? ((await this.prisma.payment.findMany({
+          where: {
+            clientId: { in: ids },
+            status: 'approved' as never,
+            createdAt: { gte: daPrec, lt: aScelto },
+          },
+          select: { amountCents: true, createdAt: true },
+        })) as { amountCents: number; createdAt: Date }[])
+      : [];
+    const iscrizioni = clienti.filter((c) => c.createdAt >= daPrec && c.createdAt < aScelto);
+
+    const serie = serieDelMese(scelto, { pagamenti, clienti: iscrizioni });
+    const seriePrecedente = serieDelMese(precedente, { pagamenti, clienti: iscrizioni });
+
+    // Fin dove confrontare: se il mese è quello in corso, fino a OGGI — confrontare un mese a metà
+    // con un mese intero è il modo di leggere un crollo che non c'è. Un mese chiuso, tutto.
+    const eIlMeseInCorso = scelto === meseCorrente;
+    const finoAlGiorno = eIlMeseInCorso ? Number(oggiIso.slice(8, 10)) : giorniDelMese(scelto);
+
+    return {
+      scope: scopeAll ? 'all' : 'own',
+      mese: scelto,
+      etichetta: meseAParole(scelto),
+      precedente,
+      etichettaPrecedente: meseAParole(precedente),
+      // Il mese dopo esiste solo se non siamo già arrivati a quello in corso: una freccia «avanti»
+      // che porta su un mese vuoto e futuro fa sembrare rotta la pagina.
+      successivo: eIlMeseInCorso ? null : meseSpostato(scelto, 1),
+      giorniNelMese: giorniDelMese(scelto),
+      /** Il giorno di oggi, se stiamo guardando il mese in corso: serve alla riga «oggi». */
+      oggi: eIlMeseInCorso ? Number(oggiIso.slice(8, 10)) : null,
+      serie,
+      seriePrecedente,
+      confronto: confrontoAllaGiornata(serie, seriePrecedente, finoAlGiorno),
+    };
+  }
+
   async seedDemo() {
     const coach = await this.prisma.staff.findFirst({ where: { user: { role: 'coach' } }, select: { id: true } });
     const nutri = await this.prisma.staff.findFirst({ where: { user: { role: 'nutritionist' } }, select: { id: true } });

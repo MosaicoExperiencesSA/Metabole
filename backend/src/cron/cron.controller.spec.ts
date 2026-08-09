@@ -17,6 +17,7 @@ import { PauseService } from '../pause/pause.service';
 import { PlanReportService } from '../reports/plan-report.service';
 import { ReportsService } from '../reports/reports.service';
 import { SignalsService } from '../signals/signals.service';
+import { PrivacyService } from '../privacy/privacy.service';
 import { CronController } from './cron.controller';
 
 /**
@@ -75,6 +76,13 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: PauseService, useValue: { surveillanceTick: jest.fn().mockResolvedValue({ visti: 0 }) } },
         // «Percorso concluso» a +7 giorni dalla fine del piano (richiesta delle coach, 8/8).
         { provide: CrmService, useValue: { chiudiPercorsiConclusi: jest.fn().mockResolvedValue({ esaminati: 0, spostati: 0 }) } },
+        // Revoca del consenso: avvisi del giorno prima e cancellazioni scadute (richiesta dell'8/8).
+        // È l'ULTIMO passo della notte, perché anonimizza un'utenza: tutto quello che riguarda ieri
+        // deve essere già stato fatto quando i dati esistevano ancora.
+        {
+          provide: PrivacyService,
+          useValue: { passoGiornaliero: jest.fn().mockResolvedValue({ aperte: 0, avvisate: 0, cancellate: 0, errori: [] }) },
+        },
       ],
     }).compile();
     controller = moduleRef.get(CronController);

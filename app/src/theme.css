@@ -382,6 +382,27 @@ p { line-height: 1.5; }
   overflow-y: auto;
 }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+/*
+  Il «?» accanto a un nome: apre la scheda informativa. Era scritto inline in `Onboarding.tsx`, ed è
+  diventato una classe quando lo stesso pallino è comparso anche nel profilo, sulla dieta assegnata
+  (richiesta di Simone dell'8/8: «mettiamo il ? come nel questionario»). Due copie inline dello
+  stesso pallino divergono, e «come nel questionario» smette di essere vero.
+*/
+.info-dot {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.info-dot:active { background: #f3f1ea; }
 .sheet-grab { width: 40px; height: 4px; background: #e2ded4; border-radius: 3px; margin: 0 auto 12px; }
 /* X di chiusura in alto a destra del pannello: resta visibile anche scrollando (sticky). */
 .sheet-close {

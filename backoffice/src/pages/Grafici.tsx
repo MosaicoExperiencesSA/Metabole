@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 import { MiniTrend } from '../components/MiniTrend';
+import { SerieGiornaliera } from '../components/SerieGiornaliera';
 
 interface NamedLoss { name: string; lossKg: number }
 interface NamedAmount { name: string; amountCents: number }
@@ -112,6 +113,15 @@ export function Grafici() {
             <button className="btn ghost sm" disabled={demoBusy} onClick={() => demo('clear')} style={{ color: 'var(--danger)' }}><i className="ti ti-trash" /> Rimuovi demo</button>
           </div>
         )}
+      </div>
+
+      {/*
+        La serie GIORNALIERA sta in cima, prima dei sei mesi: è la domanda che si fa più spesso
+        («come stiamo andando questo mese?»), e la risposta a sei mesi non la dava. I mesi restano
+        sotto — servono per la tendenza lunga, che a giorni non si vede.
+      */}
+      <div style={{ marginBottom: 16 }}>
+        <SerieGiornaliera />
       </div>
 
       {(() => {

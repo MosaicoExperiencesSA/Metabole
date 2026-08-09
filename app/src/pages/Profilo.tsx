@@ -7,7 +7,7 @@ import BrandPicker from '../components/BrandPicker';
 import WaterUnitPicker from '../components/WaterUnitPicker';
 import NotificationPrefs from '../components/NotificationPrefs';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
-import { DIET_INFO } from '../onboarding/dietInfo';
+import { DIET_INFO, DIET_INFO_FONTI } from '../onboarding/dietInfo';
 
 const PHONE_PREFIXES = ['+39', '+41', '+33', '+49', '+43', '+44', '+34', '+32', '+31', '+351', '+386', '+1'];
 const COUNTRIES = ['Italia', 'Svizzera', 'Francia', 'Germania', 'Austria', 'Regno Unito', 'Spagna', 'Belgio', 'Paesi Bassi', 'Portogallo', 'Slovenia', 'Altro'];
@@ -21,6 +21,17 @@ function splitPhone(p: string | null): { prefix: string; number: string } {
   return { prefix: '+39', number: p.trim() };
 }
 
+/**
+ * I pasti saltati, a parole. Le stesse tre voci di `FASTING_OPTIONS` (il selettore qui sotto) e
+ * della scheda cliente in backoffice: se divergono, cliente e coach chiamano la stessa scelta con
+ * due nomi diversi e al telefono non si capiscono.
+ */
+const SALTA_LABEL: Record<string, string> = {
+  skip_breakfast: 'Salti la colazione — mangi da pranzo a cena',
+  skip_breakfast_lunch: 'Salti colazione e pranzo — solo la cena',
+  skip_dinner_breakfast: 'Salti cena e colazione — finestra al mattino',
+};
+
 const REGIME_LABEL: Record<string, string> = {
   omnivore: 'Onnivora', vegetarian: 'Vegetariana', vegan: 'Vegana', pescetarian: 'Pescetariana',
 };
@@ -28,6 +39,10 @@ const REGIME_LABEL: Record<string, string> = {
 interface Nutrition {
   regime: string | null; dietStyle: string | null; mealsPerDay: number | null;
   fasting: boolean; fastingWindow: string | null; dietName: string | null; coachName: string | null;
+  /** La descrizione che la nutrizionista ha scritto per la cliente su QUESTA dieta. */
+  dietDescription?: string | null;
+  /** Lo stile della dieta assegnata: la chiave delle schede generali (`DIET_INFO`). */
+  dietStyleAssegnato?: string | null;
 }
 
 /**
@@ -41,6 +56,8 @@ function MyNutrition() {
   const nav = useNavigate();
   const [n, setN] = useState<Nutrition | null>(null);
   const [stato, setStato] = useState<'carico' | 'ok' | 'ko'>('carico');
+  /** Il foglio informativo sulla dieta è aperto: stesso pattern del «?» nel questionario. */
+  const [info, setInfo] = useState(false);
 
   useEffect(() => {
     api<Nutrition>('/me/nutrition')
@@ -60,29 +77,81 @@ function MyNutrition() {
   }
 
   const stile = n.dietStyle ? (DIET_INFO[n.dietStyle]?.titolo ?? n.dietStyle.replace(/_/g, ' ')) : null;
+  // ⚠️ Qui prima finiva la stringa tecnica: la cliente leggeva «Digiuno intermittente (finestra
+  // skip_breakfast)». Il nome dei pasti saltati ha una riga sua, qui sotto, con le parole vere.
   const pasti = n.fasting
-    ? `Digiuno intermittente${n.fastingWindow ? ` (finestra ${n.fastingWindow})` : ' 16:8'}`
+    ? 'Digiuno intermittente 16:8'
     : n.mealsPerDay
       ? `${n.mealsPerDay} pasti al giorno`
       : null;
-  const riga = (icona: string, etichetta: string, valore: string | null, vuoto: string) => (
+  const riga = (
+    icona: string,
+    etichetta: string,
+    valore: string | null,
+    vuoto: string,
+    // Il «?» come nel questionario: `onInfo` presente = la riga ha una spiegazione da aprire.
+    onInfo?: () => void,
+  ) => (
     <div className="row" style={{ gap: 10, alignItems: 'flex-start', padding: '9px 0', borderTop: '1px solid var(--line)' }}>
       <i className={`ti ti-${icona}`} style={{ fontSize: 17, color: 'var(--teal)', flex: 'none', marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="muted" style={{ fontSize: 11.5 }}>{etichetta}</div>
         <div style={{ fontSize: 14.5, fontWeight: 600 }}>{valore ?? <span className="muted" style={{ fontWeight: 400 }}>{vuoto}</span>}</div>
       </div>
+      {onInfo && (
+        <button
+          type="button"
+          className="info-dot"
+          aria-label={`Cos'è la dieta ${valore ?? ''}`.trim()}
+          onClick={onInfo}
+        >
+          ?
+        </button>
+      )}
     </div>
   );
+
+  /**
+   * Cosa mostrare nel foglio: prima la descrizione che la nutrizionista ha scritto per lei, poi la
+   * scheda generale dello stile. L'ordine è quello deciso l'8/8 e ha una ragione: `clientDescription`
+   * parla di *quel* percorso e vale più di una scheda generica, ma non è sempre compilata —
+   * `DIET_INFO` c'è sempre e porta le fonti, che sono la parte che rende credibile il popup.
+   */
+  const stileScheda = n.dietStyleAssegnato ?? n.dietStyle;
+  const scheda = stileScheda ? DIET_INFO[stileScheda] : undefined;
+  const haInfoDieta = Boolean(n.dietDescription || scheda);
 
   return (
     <div className="card">
       <div style={{ marginTop: -9 }}>
         {riga('salad', 'Tipo di alimentazione', stile, 'non ancora impostato')}
         {riga('clock-hour-4', 'Pasti', pasti, 'non ancora impostati')}
-        {riga('book', 'La tua dieta', n.dietName, 'te la assegna la nutrizionista')}
+        {/* QUALI pasti salta, a parole. Richiesta di Simone del 10/8: la cliente deve vedere cosa
+            ha scelto. Restano modificabili da lei (il selettore è più in basso in questa pagina) e
+            la nota dice anche l'altra strada, la coach — che è quella che serve quando non è una
+            preferenza ma un problema. */}
+        {n.fasting && riga(
+          'tools-kitchen-2-off',
+          'I pasti che salti',
+          n.fastingWindow ? (SALTA_LABEL[n.fastingWindow] ?? n.fastingWindow) : null,
+          'li decide la tua dieta',
+        )}
+        {riga(
+          'book',
+          'La tua dieta',
+          n.dietName,
+          'te la assegna la nutrizionista',
+          haInfoDieta ? () => setInfo(true) : undefined,
+        )}
         {n.regime && riga('leaf', 'Regime', REGIME_LABEL[n.regime] ?? n.regime, '')}
       </div>
+      {n.fasting && (
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: '10px 0 0' }}>
+          I pasti che salti puoi cambiarli tu più sotto, in questa pagina. Se non è una preferenza ma
+          qualcosa che non funziona — fame, giramenti di testa, orari di lavoro — parlane con la tua
+          coach: si può cambiare anche la finestra, non solo saltare un pasto in più.
+        </p>
+      )}
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: '12px 0 0' }}>
         Questi valori li imposta la nutrizionista e non si cambiano da qui: toccarli cambia i menu che
         ricevi. Se pensi che non siano più adatti a te{n.coachName ? `, parlane con ${n.coachName}` : ', parlane con la tua coach'} —
@@ -91,6 +160,59 @@ function MyNutrition() {
       <button className="btn ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => nav('/assistente?who=coach')}>
         <i className="ti ti-message-circle" /> Chiedi un cambio alla coach
       </button>
+
+      {/*
+        LA SCHEDA DELLA SUA DIETA (richiesta di Simone dell'8/8: «mettiamo il ? come nel
+        questionario, col popup con le caratteristiche di quella dieta»).
+
+        Fino a oggi la cliente leggeva un nome — «Flexitariana» — e nient'altro: aveva scelto in
+        registrazione, dove la spiegazione c'era, e nel profilo quel nome tornava nudo mesi dopo.
+        Qui si mostrano ENTRAMBE le cose quando ci sono: prima la descrizione che la nutrizionista
+        ha scritto per lei (parla del suo percorso), poi la scheda generale dello stile con le fonti.
+      */}
+      {info && (
+        <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setInfo(false); }}>
+          <div className="sheet-card" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '82vh', overflowY: 'auto' }}>
+            <div className="sheet-grab" />
+            <b style={{ fontSize: 16 }}>{n.dietName ?? scheda?.titolo ?? 'La tua dieta'}</b>
+
+            {n.dietDescription && (
+              <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: '8px 0 0' }}>{n.dietDescription}</p>
+            )}
+
+            {scheda && (
+              <>
+                {/* Il titolo dello stile si ripete solo se è diverso dal nome della dieta:
+                    «Mediterranea» sotto «Mediterranea» è rumore. */}
+                {scheda.titolo !== n.dietName && (
+                  <div className="sec" style={{ margin: '14px 0 4px' }}>{scheda.titolo}</div>
+                )}
+                <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: n.dietDescription ? '10px 0 0' : '8px 0 0' }}>
+                  {scheda.cose}
+                </p>
+
+                <div className="sec" style={{ margin: '14px 0 4px' }}>In pratica</div>
+                <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{scheda.inPratica}</p>
+
+                <div className="sec" style={{ margin: '14px 0 4px' }}>Cosa dice la ricerca</div>
+                <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{scheda.cosaDiceLaRicerca}</p>
+
+                <div className="sec" style={{ margin: '14px 0 4px' }}>Da tenere presente</div>
+                <p style={{ fontSize: 13.5, lineHeight: 1.55, margin: 0 }}>{scheda.attenzione}</p>
+
+                <p className="muted" style={{ fontSize: 11, lineHeight: 1.5, margin: '14px 0 0' }}>
+                  Fonti: {(scheda.fonti ?? DIET_INFO_FONTI).join(' · ')}. Sono informazioni generali, non un
+                  consiglio medico: il tuo piano lo decide la tua nutrizionista.
+                </p>
+              </>
+            )}
+
+            <button className="btn" style={{ width: '100%', marginTop: 14 }} onClick={() => setInfo(false)}>
+              Ho capito
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1032,6 +1154,11 @@ export default function Profilo() {
 
       <NotificationPrefs />
 
+      {/* Il consenso e la sua revoca: in fondo, dopo tutto il resto. Non si nasconde — è un diritto,
+          e nasconderlo sarebbe la scelta di chi spera che nessuno lo trovi — ma non sta nemmeno in
+          cima, dove si tocca per sbaglio scorrendo. */}
+      <ConsensoCard />
+
       {user?.linkedUserId && (
         <button className="btn" style={{ marginTop: 18, width: '100%', justifyContent: 'center' }} onClick={goToLinked} disabled={switching}>
           <i className="ti ti-switch-horizontal" /> {switching ? 'Passo…' : 'Passa al profilo professionale'}
@@ -1045,6 +1172,181 @@ export default function Profilo() {
       <div className="muted" style={{ textAlign: 'center', fontSize: 11, marginTop: 20, opacity: 0.7 }}>
         Metabole · v{__APP_VERSION__}
       </div>
+    </div>
+  );
+}
+
+/**
+ * LA CARD «CONSENSO» (richiesta di Simone dell'8/8).
+ *
+ * Tre cose in un posto: quando ha dato il consenso, il pulsante per revocarlo, e — se un termine è
+ * già partito — quanti giorni restano e come fermarlo.
+ *
+ * ## Perché l'attrito è tanto, e voluto
+ *
+ * Revocare fa partire una cancellazione irreversibile. Fra il pulsante e il fatto ci sono un popup
+ * che dice cosa succede, la parola ELIMINA da scrivere a mano, e poi trenta giorni in cui può
+ * cambiare idea con un clic dalla mail. Nessuno di questi passaggi è lì per scoraggiarla: sono lì
+ * perché nessuno cancelli il proprio percorso per una toccata distratta sullo schermo del telefono.
+ *
+ * I testi arrivano dal BACKEND (`/me/consent` → `testi`) e non sono scritti qui: la frase sulle
+ * fatture deve essere identica nel popup, nelle mail e nella pagina di trasparenza, e tre copie
+ * della stessa frase in tre posti diversi divergono sempre.
+ */
+interface StatoConsenso {
+  accettato: boolean;
+  il: string | null;
+  revocatoIl: string | null;
+  giorniAttesa: number;
+  parolaConferma: string;
+  testi: { titolo: string; corpo: string; fatture: string; richiesta: string };
+  cancellazione: { richiestaIl: string; previstaIl: string; giorniRimanenti: number } | null;
+}
+
+function ConsensoCard() {
+  const [stato, setStato] = useState<StatoConsenso | null>(null);
+  const [popup, setPopup] = useState(false);
+  const [parola, setParola] = useState('');
+  const [salvo, setSalvo] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const carica = () => {
+    api<StatoConsenso>('/me/consent')
+      .then(setStato)
+      .catch(() => { /* la card semplicemente non compare: non è il posto per un errore rosso */ });
+  };
+  useEffect(carica, []);
+
+  if (!stato) return null;
+
+  const dataLunga = (iso: string) =>
+    new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+  const oraBreve = (iso: string) =>
+    new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+  const parolaOk = parola.trim().toUpperCase() === stato.parolaConferma;
+
+  async function revoca() {
+    setSalvo(true);
+    setErr(null);
+    try {
+      await api('/me/consent/revoke', { method: 'POST', body: JSON.stringify({ conferma: parola.trim() }) });
+      setPopup(false);
+      setParola('');
+      carica();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Non riesco a registrare la revoca. Riprova.');
+    } finally {
+      setSalvo(false);
+    }
+  }
+
+  // TERMINE IN CORSO. Il pulsante per fermarlo NON è qui ma nella mail, e va detto: è la decisione
+  // del 10/8 («solo la cliente»), e il link mandato al suo indirizzo è ciò che la rende vera. Un
+  // pulsante in app, raggiungibile da chiunque abbia il telefono in mano, sarebbe più debole.
+  if (stato.cancellazione) {
+    const c = stato.cancellazione;
+    return (
+      <div className="card" style={{ border: '1px solid rgba(180,35,42,.35)' }}>
+        <b style={{ fontSize: 15 }}>
+          <i className="ti ti-alert-triangle" style={{ verticalAlign: '-2px', color: '#B4232A', marginRight: 6 }} />
+          Cancellazione in corso
+        </b>
+        <p style={{ fontSize: 13.5, lineHeight: 1.6, margin: '8px 0 0' }}>
+          Hai revocato il consenso il {dataLunga(c.richiestaIl)}. I tuoi dati verranno cancellati il{' '}
+          <b>{dataLunga(c.previstaIl)}</b> —{' '}
+          {c.giorniRimanenti === 0
+            ? 'oggi'
+            : c.giorniRimanenti === 1
+              ? 'fra un giorno'
+              : `fra ${c.giorniRimanenti} giorni`}.
+        </p>
+        <p style={{ fontSize: 13.5, lineHeight: 1.6, margin: '10px 0 0' }}>
+          Se hai cambiato idea, il pulsante <b>«Sospendi l'eliminazione»</b> è nella mail che ti
+          abbiamo mandato — quella con oggetto «La tua richiesta di cancellazione». Solo tu puoi
+          fermarla: per questo il link è lì e non qui.
+        </p>
+        <a
+          className="btn ghost"
+          href="/privacy/cancellazione"
+          style={{ width: '100%', marginTop: 12, justifyContent: 'center', textDecoration: 'none' }}
+        >
+          <i className="ti ti-list-check" /> Cosa cancelliamo e cosa resta
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <b style={{ fontSize: 15 }}>
+        <i className="ti ti-shield-check" style={{ verticalAlign: '-2px', color: 'var(--teal)', marginRight: 6 }} />
+        Consenso
+      </b>
+      <p className="muted" style={{ fontSize: 13, lineHeight: 1.6, margin: '8px 0 0' }}>
+        {stato.il ? (
+          <>Consenso fornito il {dataLunga(stato.il)} alle ore {oraBreve(stato.il)}.</>
+        ) : (
+          <>Il consenso al trattamento dei dati sanitari è quello che hai accettato in registrazione.</>
+        )}
+      </p>
+      <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.6, margin: '8px 0 0' }}>
+        È il consenso che ci permette di costruire i tuoi menu sui tuoi dati. Puoi revocarlo quando
+        vuoi: il percorso si interrompe e i tuoi dati vengono cancellati.
+      </p>
+      <button
+        className="btn ghost"
+        style={{ width: '100%', marginTop: 12, justifyContent: 'center', color: '#B4232A' }}
+        onClick={() => { setPopup(true); setParola(''); setErr(null); }}
+      >
+        <i className="ti ti-trash" /> Revoca consenso
+      </button>
+      <a
+        href="/privacy/cancellazione"
+        className="muted"
+        style={{ display: 'block', textAlign: 'center', fontSize: 12, marginTop: 8 }}
+      >
+        Cosa cancelliamo e cosa siamo obbligati a tenere
+      </a>
+
+      {popup && (
+        <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setPopup(false); }}>
+          <div className="sheet-card" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '86vh', overflowY: 'auto' }}>
+            <div className="sheet-grab" />
+            <b style={{ fontSize: 16 }}>{stato.testi.titolo}</b>
+            <p style={{ fontSize: 13.5, lineHeight: 1.6, margin: '10px 0 0' }}>{stato.testi.corpo}</p>
+            {/* La frase sulle fatture sta QUI e non solo nelle mail (decisione del 10/8): per
+                qualche minuto avrebbe creduto che si cancellasse anche la contabilità, e non è vero. */}
+            <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.6, margin: '10px 0 0' }}>
+              {stato.testi.fatture}
+            </p>
+            <p style={{ fontSize: 13.5, lineHeight: 1.6, margin: '14px 0 6px' }}>{stato.testi.richiesta}</p>
+            <input
+              className="input"
+              value={parola}
+              onChange={(e) => setParola(e.target.value)}
+              placeholder={stato.parolaConferma}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            {err && <p style={{ color: '#B4232A', fontSize: 12.5, margin: '8px 0 0' }}>{err}</p>}
+            <button
+              className="btn"
+              // Disabilitato finché la parola non è quella: l'attrito è il punto, e un pulsante
+              // che si può premere prima renderebbe il popup una formalità.
+              disabled={!parolaOk || salvo}
+              style={{ width: '100%', marginTop: 12, background: parolaOk ? '#B4232A' : undefined }}
+              onClick={revoca}
+            >
+              {salvo ? 'Registro…' : 'Revoca il consenso'}
+            </button>
+            <button className="btn ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setPopup(false)}>
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

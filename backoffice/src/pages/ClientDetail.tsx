@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -186,7 +186,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 const fldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' };
 
 /** Form di modifica della scheda (anagrafica + questionario). */
-function EditCard({ form, setForm, lockDietType }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean }) {
+function EditCard({ form, setForm, lockDietType, lockFasting }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean; lockFasting?: boolean }) {
   const { regimes, styles } = useTaxonomy();
   const up = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const T = (k: string, label: string, type = 'text') => (
@@ -194,7 +194,9 @@ function EditCard({ form, setForm, lockDietType }: { form: Record<string, string
   );
   // Regime e Stile = TIPO DI DIETA: modificabili solo col permesso "Cambia tipo di dieta".
   const S = (k: string, label: string, opts: [string, string][]) => {
-    const locked = !!lockDietType && (k === 'regime' || k === 'dietStyle');
+    // `fastingWindow` ha un permesso SUO («Cambia i pasti del digiuno»): si può dare alla coach
+    // senza darle anche regime e stile, che cambiano il prodotto.
+    const locked = (!!lockDietType && (k === 'regime' || k === 'dietStyle')) || (!!lockFasting && k === 'fastingWindow');
     return (
       <label style={fldStyle} title={locked ? 'Il tipo di dieta lo cambia chi ha il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).' : undefined}>
         <span>{label}{locked && <i className="ti ti-lock" style={{ marginLeft: 4, fontSize: 11 }} />}</span>
@@ -224,6 +226,12 @@ function EditCard({ form, setForm, lockDietType }: { form: Record<string, string
         {S('dietStyle', 'Stile', styles.map((st) => [st.code, st.label] as [string, string]))}
         {S('objective', 'Fase (obiettivo dieta)', [['dimagrimento', 'Dimagrimento'], ['mantenimento', 'Mantenimento']])}
         {S('pathType', 'Pasti / percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['intermittent_fasting', 'Digiuno intermittente']])}
+        {/* I pasti del digiuno: si mostra SOLO se il percorso è quello, altrimenti è un campo che
+            non vuol dire niente e invita a compilarlo per sbaglio. Richiesta di Simone del 10/8:
+            lo staff deve poter cambiare quali pasti la cliente salta. */}
+        {form.pathType === 'intermittent_fasting'
+          ? S('fastingWindow', 'Pasti che salta (digiuno)', Object.entries(FASTING_WINDOW_LABEL) as [string, string][])
+          : null}
         {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
         {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
         {T('intolerances', 'Intolleranze (virgola)')}{T('dislikedFoods', 'Cibi non graditi (virgola)')}
@@ -649,6 +657,7 @@ export function ClientDetail() {
       objective: pr.objective ?? 'dimagrimento',
       pathType: pr.pathType ?? '', coachStyle: pr.coachStyle ?? '', character: pr.character ?? '',
       intolerances: (pr.intolerances ?? []).join(', '), dislikedFoods: (pr.dislikedFoods ?? []).join(', '),
+      fastingWindow: pr.fastingWindow ?? '',
       themeColor: pr.themeColor ?? '',
     });
     setEditing(true);
@@ -669,6 +678,10 @@ export function ClientDetail() {
       pathType: f.pathType || undefined, coachStyle: f.coachStyle || undefined, character: f.character || undefined,
       themeColor: f.themeColor || undefined,
       intolerances: list(f.intolerances), dislikedFoods: list(f.dislikedFoods),
+      // Si manda SEMPRE (anche vuota): la stringa vuota è «la decide la dieta», e ometterla
+      // renderebbe impossibile togliere una finestra impostata per sbaglio. Il backend la
+      // azzera da sé se il percorso non è più digiuno.
+      fastingWindow: f.fastingWindow ?? '',
     };
     const age = num(f.age); if (age !== undefined) dto.age = age;
     const h = num(f.heightCm); if (h !== undefined) dto.heightCm = h;
@@ -957,7 +970,14 @@ export function ClientDetail() {
         </div>
       </div>
 
-      {editing && <EditCard form={form} setForm={setForm} lockDietType={!can('change_diet_type', 'manage')} />}
+      {editing && (
+          <EditCard
+            form={form}
+            setForm={setForm}
+            lockDietType={!can('change_diet_type', 'manage')}
+            lockFasting={!can('change_fasting_window', 'manage')}
+          />
+        )}
 
       {/* Questionario / profilo */}
       {!editing && (
@@ -978,6 +998,14 @@ export function ClientDetail() {
             <Row label="Stile alimentare" value={p.dietStyle ? styleLabel(p.dietStyle) : '—'} />
             <Row label="Fase (obiettivo dieta)" value={lab('objective', p.objective ?? 'dimagrimento')} />
             <Row label="Pasti / percorso" value={lab('pathType', p.pathType)} />
+          {/* Quali pasti salta: prima non compariva da nessuna parte nel backoffice, quindi lo
+              staff non poteva sapere se una cliente in digiuno saltava la colazione o la cena. */}
+          {p.pathType === 'intermittent_fasting' && (
+            <Row
+              label="Pasti che salta"
+              value={p.fastingWindow ? FASTING_WINDOW_LABEL[p.fastingWindow] ?? p.fastingWindow : 'li decide la dieta'}
+            />
+          )}
             <Row label="Lavoro" value={lab('work', p.lifestyle?.work)} />
             <Row label="Tempo per cucinare" value={lab('cookingTime', p.lifestyle?.cookingTime)} />
             <Row label="Pranzo nei feriali" value={lab('weekdayLunch', p.lifestyle?.weekdayLunch)} />
@@ -1772,6 +1800,8 @@ interface SostituzioneRow {
   /** `piatto` = ha cambiato tutto il piatto · `ingrediente` = solo un alimento dentro il piatto. */
   tipo?: 'ingrediente' | 'piatto';
   data: string;
+  /** Lo slot tecnico (`lunch`): serve alla verifica, che individua il cambio per giorno+pasto. */
+  slot: string;
   slotLabel: string;
   piatto: string;
   from: string;
@@ -1786,7 +1816,22 @@ interface SostituzioneRow {
   stato: string;
   concordataIl?: string;
   grammaturaCorretta?: boolean;
+  /** Quando la nutrizionista l'ha guardato, e la sua nota (la legge anche la cliente). */
+  verificataIl?: string;
+  nota?: string;
 }
+
+/**
+ * I pasti che salta chi fa digiuno intermittente. Le stesse tre voci che vede la cliente nel suo
+ * profilo: se qui si scrivessero diverse, staff e cliente parlerebbero di due cose con lo stesso
+ * nome. Lo spuntino del mattino segue sempre la colazione — è una regola del motore
+ * (`menu.service.slotSaltatiPerDigiuno`), non una scelta di questa tendina.
+ */
+const FASTING_WINDOW_LABEL: Record<string, string> = {
+  skip_breakfast: 'Salta la colazione (mangia da pranzo a cena)',
+  skip_breakfast_lunch: 'Salta colazione e pranzo (solo cena)',
+  skip_dinner_breakfast: 'Salta cena e colazione (finestra al mattino)',
+};
 
 const MOTIVO_LABEL: Record<string, string> = {
   non_disponibile: "non ce l'ho in casa",
@@ -1802,6 +1847,13 @@ const oraBreve = (iso: string) =>
 
 const quantita = (qta: number | undefined, unita: string | undefined) =>
   qta !== undefined && qta > 0 ? `${qta}${unita ? ` ${unita}` : ''} ` : '';
+
+/**
+ * Chiave di una riga di cambio. Non esiste un id: il cambio vive dentro il JSON dei pasti di quella
+ * giornata, e si individua per giorno + pasto + alimento — le stesse tre cose che la PATCH manda al
+ * backend. Tenere la stessa chiave nei due posti è ciò che fa aprire il modulo sulla riga giusta.
+ */
+const rigaChiave = (s: { data: string; slot: string; from: string }) => `${s.data}|${s.slot}|${s.from}`;
 
 /**
  * La conversazione con Gaia sulla scheda cliente, accanto a quelle con coach e nutrizionista.
@@ -1822,8 +1874,61 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
   const [caricaMsg, setCaricaMsg] = useState(false);
   const [sostituzioni, setSostituzioni] = useState<SostituzioneRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  /** Riga su cui è aperto il modulo di correzione (chiave riga), e cosa si sta scrivendo. */
+  const [correggo, setCorreggo] = useState<string | null>(null);
+  const [corr, setCorr] = useState<{ to: string; toQty: string; nota: string }>({ to: '', toQty: '', nota: '' });
+  const [salvo, setSalvo] = useState(false);
+  const [esitoVerifica, setEsitoVerifica] = useState<string | null>(null);
 
   const puoLeggere = can('chat');
+  /**
+   * Chi può TOCCARE un cambio, che non è chi lo legge. La coach lo legge — le serve per capire come
+   * sta andando — ma la grammatura di un piatto è materia clinica, e la decide chi se ne prende la
+   * responsabilità. Lo stesso elenco sta nel backend (`correggiCambioInChatPerStaff`): qui serve
+   * solo a non mostrare pulsanti che darebbero 403.
+   */
+  const puoVerificare = ['nutritionist', 'head_nutritionist', 'admin'].includes(me?.role ?? '');
+
+  const caricaCambi = useCallback(() => {
+    if (!clientId) return;
+    api<SostituzioneRow[]>(`/staff/clients/${clientId}/sostituzioni-chat`)
+      .then(setSostituzioni)
+      .catch(() => { /* l'elenco è un extra: la card resta utile senza */ });
+  }, [clientId]);
+
+  /**
+   * La verifica: conferma, correggi o annulla. Dopo la scrittura si ricarica l'elenco e non si
+   * aggiorna a mano la riga: la verità è quella scritta sulla giornata, e ricalcolarla qui sarebbe
+   * un secondo posto dove sbagliare.
+   */
+  const verifica = async (
+    riga: SostituzioneRow,
+    stato: 'verificata' | 'corretta' | 'annullata',
+    extra?: { to?: string; toQty?: number; nota?: string },
+  ) => {
+    setSalvo(true);
+    setEsitoVerifica(null);
+    try {
+      const r = await api<{ descrizione: string }>(`/staff/clients/${clientId}/sostituzioni-chat`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          data: riga.data,
+          slot: riga.slot,
+          tipo: riga.tipo ?? 'ingrediente',
+          ...(riga.tipo === 'piatto' ? {} : { from: riga.from }),
+          stato,
+          ...(extra ?? {}),
+        }),
+      });
+      setEsitoVerifica(r.descrizione);
+      setCorreggo(null);
+      caricaCambi();
+    } catch (e) {
+      setEsitoVerifica(e instanceof Error ? e.message : 'Non riesco a salvare la verifica.');
+    } finally {
+      setSalvo(false);
+    }
+  };
 
   useEffect(() => {
     // Il gate sta DENTRO l'effetto: un `return null` prima degli hook non è lecito, e senza
@@ -1851,11 +1956,12 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
             : e instanceof Error ? e.message : 'Non riesco a leggere le conversazioni.',
         );
       });
-    api<SostituzioneRow[]>(`/staff/clients/${clientId}/sostituzioni-chat`)
-      .then((rs) => { if (vivo) setSostituzioni(rs); })
-      .catch(() => { /* l'elenco è un extra: la card resta utile senza */ });
+    caricaCambi();
     return () => { vivo = false; };
-  }, [clientId, puoLeggere]);
+    // `caricaCambi` è stabile (useCallback su clientId): l'elenco si ricarica anche dopo una
+    // verifica, altrimenti la riga appena corretta resterebbe «da verificare» sotto gli occhi di
+    // chi l'ha appena sistemata.
+  }, [clientId, puoLeggere, caricaCambi]);
 
   useEffect(() => {
     if (!sel) { setMessaggi([]); return; }
@@ -1910,6 +2016,7 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                 <th>Cambio</th>
                 <th>Motivo</th>
                 <th>Stato</th>
+                {puoVerificare && <th style={{ width: 168 }}>Verifica</th>}
               </tr>
             </thead>
             <tbody>
@@ -1948,15 +2055,106 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                     ) : (
                       <span className="muted">{s.stato}</span>
                     )}
+                    {/* La nota della nutrizionista sta accanto allo stato: senza di lei «corretta»
+                        non dice perché, e il perché è la parte che serve — anche alla cliente, che
+                        la riceve in notifica. */}
+                    {s.nota && (
+                      <div className="muted" style={{ fontSize: 11.5, fontStyle: 'italic' }}>«{s.nota}»</div>
+                    )}
                   </td>
+                  {puoVerificare && (
+                    <td>
+                      {correggo === rigaChiave(s) ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {/* Il sostituto si cambia solo sugli scambi di ingrediente: fra due
+                              piatti «metti X al posto di Y» non è una correzione di grammatura, è
+                              un altro cambio — e quello lo fa il motore, non questo campo. */}
+                          {s.tipo !== 'piatto' && (
+                            <>
+                              <input
+                                className="input sm"
+                                placeholder={`sostituto (ora: ${s.to})`}
+                                value={corr.to}
+                                onChange={(e) => setCorr({ ...corr, to: e.target.value })}
+                              />
+                              <input
+                                className="input sm"
+                                placeholder={`quantità in ${s.unitA ?? s.unit ?? 'g'}`}
+                                inputMode="numeric"
+                                value={corr.toQty}
+                                onChange={(e) => setCorr({ ...corr, toQty: e.target.value.replace(/[^0-9]/g, '') })}
+                              />
+                            </>
+                          )}
+                          <input
+                            className="input sm"
+                            placeholder="nota (la legge la cliente)"
+                            value={corr.nota}
+                            onChange={(e) => setCorr({ ...corr, nota: e.target.value })}
+                          />
+                          <div className="row" style={{ gap: 5 }}>
+                            <button
+                              className="btn sm"
+                              disabled={salvo || (s.tipo !== 'piatto' && !corr.to.trim() && !corr.toQty && !corr.nota.trim())}
+                              onClick={() =>
+                                verifica(s, 'corretta', {
+                                  ...(corr.to.trim() ? { to: corr.to.trim() } : {}),
+                                  ...(corr.toQty ? { toQty: Number(corr.toQty) } : {}),
+                                  ...(corr.nota.trim() ? { nota: corr.nota.trim() } : {}),
+                                })
+                              }
+                            >
+                              Salva
+                            </button>
+                            <button className="btn ghost sm" disabled={salvo} onClick={() => setCorreggo(null)}>
+                              Annulla
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="row" style={{ gap: 5, flexWrap: 'wrap' }}>
+                          <button
+                            className="btn ghost sm"
+                            title="Va bene così"
+                            disabled={salvo}
+                            onClick={() => verifica(s, 'verificata')}
+                          >
+                            <i className="ti ti-check" />
+                          </button>
+                          <button
+                            className="btn ghost sm"
+                            title="Correggi sostituto o grammi"
+                            disabled={salvo}
+                            onClick={() => {
+                              setCorreggo(rigaChiave(s));
+                              setCorr({ to: '', toQty: '', nota: '' });
+                            }}
+                          >
+                            <i className="ti ti-pencil" />
+                          </button>
+                          <button
+                            className="btn ghost sm"
+                            title="Annulla il cambio: il piatto torna come era"
+                            disabled={salvo}
+                            onClick={() => verifica(s, 'annullata')}
+                          >
+                            <i className="ti ti-x" style={{ color: '#B4232A' }} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+          {esitoVerifica && <Banner kind="ok">{esitoVerifica}</Banner>}
           <p className="hint" style={{ marginBottom: 0 }}>
             I grammi li propone Gaia a pari grammatura e la ricetta di catalogo non viene mai
-            toccata: il cambio vale solo per questa cliente. La correzione del nutrizionista
-            (che poi istruisce Gaia) è il passo successivo del progetto.
+            toccata: il cambio vale solo per questa cliente.
+            {puoVerificare
+              ? ' Correggendo qui scrivi sulla giornata di questa cliente, e lei riceve una notifica con la tua nota. Sul gruppo dei grassi serve quasi sempre: 70 ml di panna sono ~200 kcal, 70 g di olio ~630.'
+              : ' La verifica la fa la nutrizionista: la grammatura è una decisione clinica.'}
           </p>
         </div>
       )}

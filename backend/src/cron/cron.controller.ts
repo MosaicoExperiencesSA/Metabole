@@ -24,6 +24,7 @@ import { ReportsService } from '../reports/reports.service';
 import { PlanReportService } from '../reports/plan-report.service';
 import { SignalsService } from '../signals/signals.service';
 import { VisitsService } from '../health-area/visits.service';
+import { PrivacyService } from '../privacy/privacy.service';
 
 /**
  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
@@ -51,6 +52,7 @@ export class CronController {
     private readonly monitoring: MonitoringService,
     private readonly pause: PauseService,
     private readonly crm: CrmService,
+    private readonly privacy: PrivacyService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -110,6 +112,15 @@ export class CronController {
     // possono ancora chiudere o annullare qualcosa: così si guarda lo stato definitivo di oggi
     // e non si archivia una persona il cui pagamento è appena stato sistemato.
     await step('percorsiConclusi', () => this.crm.chiudiPercorsiConclusi());
+    /**
+     * REVOCA DEL CONSENSO: l'avviso «domani cancelliamo» e le cancellazioni scadute.
+     *
+     * ULTIMO passo della notte, dopo tutto il resto, e non per eleganza: cancella e anonimizza
+     * un'utenza, quindi ogni passo che gira dopo di lui lavorerebbe su una persona che non c'è più
+     * — report, segnalazioni, task della coach. Mettendolo in fondo, tutto quello che riguarda la
+     * giornata di ieri è già stato fatto quando i dati esistevano ancora.
+     */
+    await step('cancellazioniPrivacy', () => this.privacy.passoGiornaliero());
 
     const durationMs = Date.now() - startedAt;
     const meta = { durationMs, ok: failures.length === 0, failures };

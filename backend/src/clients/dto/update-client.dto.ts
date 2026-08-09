@@ -26,7 +26,12 @@ export class UpdateClientDto {
   @IsOptional() @IsString() @MaxLength(120) dietFamily?: string;
   @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
-  @IsOptional() @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast']) fastingWindow?: string;
+  /**
+   * Quali pasti salta chi fa digiuno intermittente. La stringa vuota è ammessa e significa «la
+   * decide la dieta»: è il valore che manda la tendina quando si sceglie di non imporre nulla, e
+   * senza `''` fra i valori validi svuotare il campo dalla scheda restituiva un 400.
+   */
+  @IsOptional() @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast', '']) fastingWindow?: string;
   @IsOptional() @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active']) activityLevel?: string;
   /** Account dei recensori degli store: misure mai bloccanti (voce #6f del 5/8). */
   @IsOptional() @IsBoolean() isStoreReviewer?: boolean;

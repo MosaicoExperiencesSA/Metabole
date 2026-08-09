@@ -44,6 +44,15 @@ export interface Substitution {
    * questo, verificare vorrebbe dire rileggere tutte le conversazioni.
    */
   stato?: 'da_verificare' | 'verificata' | 'corretta';
+  /** Quando la nutrizionista l'ha guardata (ISO), e chi era. */
+  verificataIl?: string;
+  verificataDa?: string;
+  /**
+   * La nota della nutrizionista, quando corregge. La legge la cliente: è la differenza fra «il tuo
+   * cambio è stato modificato» e «ho messo 30 g invece di 70 perché a pari grammatura le calorie
+   * raddoppiavano». Senza la nota, una correzione è solo una cosa cambiata alle sue spalle.
+   */
+  nota?: string;
   /** Quando è stata concordata in chat (ISO). */
   concordataIl?: string;
   /** Il messaggio di chat in cui la cliente ha confermato: la conversazione è la prova. */
@@ -78,6 +87,11 @@ export interface CambioPiatto {
   origine: 'chat';
   /** Come per le sostituzioni: nasce `da_verificare`, la nutrizionista lo ricontrolla. */
   stato: 'da_verificare' | 'verificata' | 'corretta';
+  /** Quando la nutrizionista l'ha guardato (ISO), e chi era. */
+  verificataIl?: string;
+  verificataDa?: string;
+  /** La nota della nutrizionista: la legge anche la cliente. Vedi `Substitution.nota`. */
+  nota?: string;
   /** Quando è stato concordato (ISO). */
   concordataIl: string;
   /** Il messaggio in cui la cliente ha scelto: la conversazione è la prova. */

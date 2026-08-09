@@ -33,6 +33,11 @@
  * Nessuna dipendenza da Nest né da Prisma: qui vivono solo le decisioni.
  */
 
+// `etichettaSlot` viene da `sostituzione-chat`: le etichette dei pasti sono UNA tabella sola.
+// Duplicarle qui vorrebbe dire che un giorno l'elenco delle alternative e la domanda su quale pasto
+// chiamerebbero lo stesso pasto con due nomi diversi, nella stessa conversazione.
+import { etichettaSlot } from './sostituzione-chat';
+
 /** Che tipo di alternativa ha chiesto. `null` = «diverso» e basta. */
 export type PreferenzaPiatto = 'proteico' | 'leggero' | 'veloce' | null;
 
@@ -268,4 +273,64 @@ export function testoCambioPiattoFatto(
 /** La cliente ha risposto con un numero che non c'è. */
 export function testoSceltaNonValida(quante: number): string {
   return `Non ho capito quale: rispondi con un numero da 1 a ${quante}, oppure «no».`;
+}
+
+/**
+ * QUALE PASTO — quando la cliente dice «lo voglio diverso» senza dire di cosa.
+ *
+ * Prima, se il testo non nominava né un piatto né un pasto, il flusso ripiegava sulla domanda
+ * dell'**ingrediente** («quale alimento vuoi cambiare?»): una domanda diversa da quella che stava
+ * per fare, in risposta a una richiesta che aveva capito benissimo. L'alternativa è chiedere, e
+ * chiedere costa un messaggio; scegliere per lei costa il pasto sbagliato — e quello si vede solo
+ * quando è già nel piatto.
+ */
+export function testoChiediQualePasto(
+  pasti: { slot: string; piatto: string }[],
+  preferenza: PreferenzaPiatto,
+  nome?: string | null,
+): string {
+  const cosa =
+    preferenza === 'proteico'
+      ? 'qualcosa di più proteico'
+      : preferenza === 'leggero'
+        ? 'qualcosa di più leggero'
+        : preferenza === 'veloce'
+          ? 'qualcosa di più veloce'
+          : 'un piatto diverso';
+  const righe = pasti.map((p, i) => `${i + 1}) ${etichettaSlot(p.slot)} — ${p.piatto}`).join('\n');
+  const apertura = nome ? `${nome}, volentieri` : 'Volentieri';
+  return (
+    `${apertura}: ${cosa} si può fare. Per quale pasto di oggi?\n\n${righe}\n\n` +
+    'Rispondi col numero o col nome del pasto.'
+  );
+}
+
+/**
+ * Lo slot scelto dalla cliente: il numero della riga, o il nome del pasto scritto a parole.
+ *
+ * Si accettano entrambi perché entrambi arrivano: chi legge un elenco numerato risponde «2», chi
+ * legge «pranzo — Insalata di farro» risponde «il pranzo». Rifiutare la seconda forma sarebbe far
+ * ripetere una risposta già data.
+ */
+export function slotDaRisposta(testo: string, pasti: { slot: string; piatto: string }[]): string | null {
+  const t = (testo ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim();
+  const numero = t.match(/^\(?([1-9])\)?[.)]?$/);
+  if (numero) return pasti[Number(numero[1]) - 1]?.slot ?? null;
+  // Il nome del pasto. Le etichette sono quelle che la cliente ha appena letto, quindi si cercano
+  // quelle; «merenda» e «spuntino» valgono l'uno per l'altro perché in Italia si dicono entrambi.
+  for (const p of pasti) {
+    const etichetta = etichettaSlot(p.slot);
+    if (t.includes(etichetta)) return p.slot;
+    if (/snack/.test(p.slot) && /\b(spuntino|merenda)\b/.test(t)) return p.slot;
+  }
+  // In ultima istanza il nome del piatto: se lo nomina, sa quale vuole cambiare.
+  for (const p of pasti) {
+    const prima = p.piatto.toLowerCase().split(' ')[0];
+    if (prima.length >= 4 && t.includes(prima)) return p.slot;
+  }
+  return null;
 }

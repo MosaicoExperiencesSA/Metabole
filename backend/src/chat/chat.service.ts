@@ -8,12 +8,18 @@ import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { rilevaIntentoAltroPiatto } from '../menu/cambio-piatto';
+import { StatoDataInizio, rilevaIntentoDataInizio } from '../menu/data-inizio-chat';
+import { DataInizioChatService, EsitoDataInizio } from '../menu/data-inizio-chat.service';
 import {
   SCADENZA_FLUSSO_MS,
   StatoSostituzione,
   rilevaIntentoSostituzione,
 } from '../menu/sostituzione-chat';
-import { EsitoSostituzione, SostituzioneChatService } from '../menu/sostituzione-chat.service';
+import {
+  CorrezioneCambio,
+  EsitoSostituzione,
+  SostituzioneChatService,
+} from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { classifyMessage } from './ai-filter';
@@ -33,6 +39,7 @@ export class ChatService {
     private readonly audit: AuditService,
     private readonly ai: AiService,
     private readonly sostituzione: SostituzioneChatService,
+    private readonly dataInizio: DataInizioChatService,
   ) {}
 
   // ---------- Thread ----------
@@ -261,6 +268,54 @@ export class ChatService {
     return this.sostituzione.sostituzioniDiChat(clientId);
   }
 
+  /**
+   * LA VERIFICA della nutrizionista su un cambio nato in chat: conferma, correggi, annulla.
+   *
+   * Due cancelli, e sono diversi da quelli della lettura:
+   * - **il ruolo**: solo nutrizionista, capo nutrizionista e admin. La coach questi cambi li
+   *   **legge** (le servono per capire come sta andando) ma non li tocca: la grammatura di un
+   *   piatto è materia clinica, e chi la decide è chi se ne prende la responsabilità;
+   * - **la portata**: la solita, sulla cliente. Riusa `assertThreadAccess`, che è il posto dove
+   *   quel controllo vive già.
+   *
+   * E una cosa che non è un cancello ma conta di più: **la cliente viene avvisata**. Aveva
+   * concordato qualcosa con Gaia; se il piatto di domani non è quello, deve saperlo da noi e non
+   * scoprirlo aprendo il menu.
+   */
+  async correggiCambioInChatPerStaff(user: AuthUser, clientId: string, input: CorrezioneCambio) {
+    if (!['nutritionist', 'head_nutritionist', 'admin'].includes(user.role)) {
+      throw new ForbiddenException('Solo la nutrizionista (o un admin) può verificare un cambio concordato in chat.');
+    }
+    const thread = await this.prisma.chatThread.findUnique({
+      where: { clientId_counterpart: { clientId, counterpart: 'ai' as never } },
+    });
+    await this.assertThreadAccess(user, thread ?? { clientId, counterpart: 'ai' }, 'read');
+
+    const esito = await this.sostituzione.correggiCambioInChat(clientId, user.sub, input);
+
+    // Solo se qualcosa è **cambiato**: una conferma («va bene così») non è una notizia, e
+    // notificare anche quella insegnerebbe alla cliente a ignorare queste notifiche.
+    if (input.stato !== 'verificata') {
+      await this.notifications
+        .notify({
+          userId: clientId,
+          type: 'menu_cambio_verificato',
+          title: 'La tua nutrizionista ha guardato il tuo cambio',
+          body: input.nota ? `${esito.descrizione} ${input.nota}` : esito.descrizione,
+          payload: { kind: 'menu_cambio_verificato', data: input.data, slot: input.slot },
+        })
+        .catch(() => undefined);
+    }
+    await this.audit.log({
+      action: 'chat.cambio_verificato',
+      actorId: user.sub,
+      entityType: 'user',
+      entityId: clientId,
+      metadata: { ...input },
+    });
+    return esito;
+  }
+
   // ---------- Invio ----------
 
   async postMessage(user: AuthUser, threadId: string, body: string) {
@@ -345,7 +400,16 @@ export class ChatService {
     // alla coach, altrimenti la risposta «le carote» finirebbe in un thread umano a metà
     // dialogo, e la cliente resterebbe senza il cambio e senza risposta.
     if (result.kind !== 'sensitive') {
-      const daSostituzione = await this.gestisciSostituzione(clientId, threadId, body, result.kind);
+      // I flussi aperti si leggono UNA volta: stanno tutti nel `meta` dello stesso messaggio (il
+      // più recente di Gaia), e due letture della stessa riga sono due query per niente.
+      const flussi = await this.flussiAperti(threadId);
+      // La data di inizio prima della sostituzione: sono due flussi che non possono essere aperti
+      // insieme (lo stato vive nello stesso messaggio, e ne scrive uno solo), quindi l'ordine
+      // conta solo per l'APERTURA da testo libero — e «vorrei spostare l'inizio del piano» non
+      // somiglia a «vorrei sostituire un ingrediente».
+      const daDataInizio = await this.gestisciDataInizio(clientId, threadId, body, flussi, result.kind);
+      if (daDataInizio) return daDataInizio;
+      const daSostituzione = await this.gestisciSostituzione(clientId, threadId, body, result.kind, flussi.sost);
       if (daSostituzione) return daSostituzione;
     }
 
@@ -424,9 +488,9 @@ export class ChatService {
     threadId: string,
     body: string,
     kind: string,
+    stato: StatoSostituzione | null,
   ) {
     let esito: EsitoSostituzione;
-    const stato = await this.statoSostituzione(threadId);
     if (stato) {
       // Il dialogo si apre col solo tocco del pulsante, e resta aperto un'ora: se la cliente
       // cambia idea e fa una domanda vera, quella domanda deve avere la sua risposta. Senza
@@ -450,22 +514,108 @@ export class ChatService {
   }
 
   /**
-   * Stato del dialogo, letto dal `meta` dell'ULTIMO messaggio di Gaia: nessuna tabella nuova,
-   * nessuna migrazione. Guardare solo l'ultimo, e non il più recente che ne abbia uno, è
-   * quello che impedisce a un dialogo abbandonato di risuscitare tre messaggi dopo.
+   * TUTTI i dialoghi guidati aperti, letti dal `meta` dell'ULTIMO messaggio di Gaia: nessuna
+   * tabella nuova, nessuna migrazione. Guardare solo l'ultimo, e non il più recente che ne abbia
+   * uno, è quello che impedisce a un dialogo abbandonato di risuscitare tre messaggi dopo.
+   *
+   * Sono due — la sostituzione (`sost`) e la data di inizio (`dataInizio`) — e può essere aperto
+   * solo uno alla volta, perché ogni risposta di Gaia riscrive quel `meta` da zero.
    */
-  private async statoSostituzione(threadId: string): Promise<StatoSostituzione | null> {
+  private async flussiAperti(
+    threadId: string,
+  ): Promise<{ sost: StatoSostituzione | null; dataInizio: StatoDataInizio | null }> {
+    const vuoto = { sost: null, dataInizio: null };
     const ultimo = await this.prisma.message.findFirst({
       where: { threadId, senderRole: 'ai' },
       orderBy: { sentAt: 'desc' },
       select: { meta: true, sentAt: true },
     });
-    if (!ultimo) return null;
-    const stato = (ultimo.meta as { sost?: StatoSostituzione } | null)?.sost;
-    if (!stato?.passo) return null;
+    if (!ultimo) return vuoto;
     // Una conversazione lasciata a metà ieri non è una conversazione in corso.
-    if (Date.now() - ultimo.sentAt.getTime() > SCADENZA_FLUSSO_MS) return null;
-    return stato;
+    if (Date.now() - ultimo.sentAt.getTime() > SCADENZA_FLUSSO_MS) return vuoto;
+    const meta = (ultimo.meta ?? {}) as { sost?: StatoSostituzione; dataInizio?: StatoDataInizio };
+    return {
+      sost: meta.sost?.passo ? meta.sost : null,
+      dataInizio: meta.dataInizio?.passo ? meta.dataInizio : null,
+    };
+  }
+
+  // ---------- Data di inizio piano in chat ----------
+
+  /**
+   * «Posso spostare l'inizio a lunedì?» — il flusso che rende vera la frase che la cliente legge
+   * in dashboard («se vuoi cambiare la data di inizio, chiedi a Gaia in chat»).
+   *
+   * Restituisce `null` quando non c'entra niente, e la chat continua come sempre. Non si apre
+   * mentre è aperto un dialogo di sostituzione: la cliente sta rispondendo a un'altra domanda.
+   */
+  private async gestisciDataInizio(
+    clientId: string,
+    threadId: string,
+    body: string,
+    flussi: { sost: StatoSostituzione | null; dataInizio: StatoDataInizio | null },
+    kind: string,
+  ) {
+    let esito: EsitoDataInizio;
+    if (flussi.dataInizio) {
+      // Stessa uscita del dialogo di sostituzione: una domanda vera, fatta mentre aspettiamo una
+      // data, deve avere la sua risposta. Senza, «quando si sblocca il menu?» si sentiva rispondere
+      // «non ho capito la data» — con la FAQ giusta a un centimetro di distanza. Vale solo al primo
+      // passo: alla conferma la risposta è «sì» o «no», e non somiglia a una domanda.
+      if (kind === 'faq' && flussi.dataInizio.passo === 'data') return null;
+      esito = await this.dataInizio.avanza(clientId, flussi.dataInizio, body);
+    } else if (!flussi.sost && rilevaIntentoDataInizio(body)) {
+      esito = await this.dataInizio.apriDaTesto(clientId, body);
+    } else {
+      return null;
+    }
+    return this.scriviEsitoDataInizio(clientId, threadId, body, esito);
+  }
+
+  /** Scrive la risposta di Gaia con lo stato nel `meta`, e gestisce l'inoltro alla coach. */
+  private async scriviEsitoDataInizio(
+    clientId: string,
+    threadId: string,
+    body: string | null,
+    esito: EsitoDataInizio,
+  ) {
+    const meta: Record<string, unknown> = { kind: 'data_inizio', esitoDataInizio: esito.esito };
+    if (esito.stato) meta.dataInizio = esito.stato;
+    if (esito.applicata) meta.applicata = esito.applicata;
+
+    if (esito.inoltraA && body) {
+      meta.routedTo = esito.inoltraA;
+      const target = await this.prisma.chatThread.upsert({
+        where: { clientId_counterpart: { clientId, counterpart: esito.inoltraA as never } },
+        create: { clientId, counterpart: esito.inoltraA as never },
+        update: { lastMessageAt: new Date() },
+      });
+      await this.prisma.message.create({
+        data: {
+          threadId: target.id,
+          senderRole: 'client',
+          senderUserId: clientId,
+          body,
+          meta: { forwardedFrom: 'ai', motivo: 'data_inizio' } as never,
+        },
+      });
+      await this.notifyCounterpartStaff(clientId, esito.inoltraA);
+    }
+
+    const message = await this.prisma.message.create({
+      data: { threadId, senderRole: 'ai', body: esito.testo, meta: meta as never },
+    });
+    await this.prisma.chatThread.update({ where: { id: threadId }, data: { lastMessageAt: new Date() } });
+    if (esito.esito === 'applicata') {
+      await this.audit.log({
+        action: 'chat.data_inizio_applicata',
+        actorId: clientId,
+        entityType: 'chat_thread',
+        entityId: threadId,
+        metadata: { ...esito.applicata, messageId: message.id },
+      });
+    }
+    return message;
   }
 
   /** Scrive la risposta di Gaia, con lo stato del dialogo nel `meta`, e gestisce le uscite. */

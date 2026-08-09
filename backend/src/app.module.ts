@@ -22,6 +22,7 @@ import { AgentsModule } from './agents/agents.module';
 import { CoachTasksModule } from './coach-tasks/coach-tasks.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PauseModule } from './pause/pause.module';
+import { PrivacyModule } from './privacy/privacy.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PageGuard } from './common/guards/page.guard';
@@ -109,6 +110,7 @@ import { AppUpdatesModule } from './app-updates/app-updates.module';
     PersonalBaseModule,
     CycleModule,
     PauseModule,
+    PrivacyModule,
     AgentsModule,
     CoachTasksModule,
     AppUpdatesModule,

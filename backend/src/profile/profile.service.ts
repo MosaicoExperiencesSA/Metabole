@@ -253,8 +253,14 @@ export class ProfileService {
     const ultimo = (await this.prisma.menuDay.findFirst({
       where: { clientId: userId },
       orderBy: { date: 'desc' },
-      select: { diet: { select: { name: true, clientName: true } } },
-    })) as { diet: { name: string; clientName: string | null } | null } | null;
+      // `clientDescription` è la descrizione che il nutrizionista scrive PER la cliente: serve al
+      // «?» accanto al nome della dieta nel profilo (richiesta di Simone dell'8/8). Si manda anche
+      // lo `style`, che è la chiave delle schede generali in app: la descrizione del prodotto è più
+      // specifica ma non sempre compilata, la scheda dello stile c'è sempre e ha le fonti.
+      select: { diet: { select: { name: true, clientName: true, clientDescription: true, style: true } } },
+    })) as {
+      diet: { name: string; clientName: string | null; clientDescription: string | null; style: string | null } | null;
+    } | null;
 
     return {
       regime: profile.regime,
@@ -264,6 +270,13 @@ export class ProfileService {
       fasting: profile.pathType === 'intermittent_fasting',
       fastingWindow: profile.fastingWindow,
       dietName: ultimo?.diet ? (ultimo.diet.clientName || ultimo.diet.name) : null,
+      dietDescription: ultimo?.diet?.clientDescription ?? null,
+      /**
+       * Lo stile della DIETA ASSEGNATA, che può non essere quello scelto in registrazione
+       * (`profile.dietStyle`): se la nutrizionista l'ha spostata su un'altra dieta, il popup deve
+       * spiegare quella che sta seguendo — non quella che aveva chiesto. Ripiega sul profilo.
+       */
+      dietStyleAssegnato: ultimo?.diet?.style ?? profile.dietStyle,
       coachName: profile.assignedCoach?.displayName ?? null,
     };
   }

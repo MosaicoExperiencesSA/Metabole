@@ -5,6 +5,188 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-10
+
+- `[Prodotto]` 📄 **Documento per Nocanty: le grammature dei grassi** —
+  `progetto/Metabole_Grammature_Grassi_Domande.md` (+ PDF da mandarle). Spiega il difetto in numeri
+  (70 ml di panna → 70 g di olio porta un piatto da 500 a ~890 kcal, +77%), il vincolo che decide la
+  risposta — **nel sistema non esiste nessuna tabella di composizione degli alimenti**, quindi il
+  fattore o lo dà lei o i grassi escono dai cambi automatici — e le due strade con le conseguenze di
+  ciascuna. Chiede **un numero per alimento** (grammi equivalenti a 100 g di un riferimento del
+  gruppo), non uno per coppia: il rapporto fra due membri qualsiasi lo ricava il codice, e la
+  conversione resta coerente nei due versi. Segnalato anche l'inciampo che nessuno vedrebbe: il
+  limite di plausibilità già attivo (un terzo–triplo) **rifiuterebbe** un fattore sotto 0,33, e Gaia
+  ripiegherebbe su pari grammatura — cioè sull'errore che stiamo togliendo.
+- `[Sviluppo]` 🔒 **Revoca del consenso e cancellazione a 30 giorni** (chiesta l'8/8, decisioni prese
+  il 10/8) — nuovo modulo `privacy`, migrazione `richiesta_cancellazione` (validata su PG16, e
+  rieseguibile).
+  - Nel profilo dell'app una card **«Consenso»** con la data e l'ora in cui è stato dato (il dato
+    c'era già in `consents.healthDataConsent.at`, non lo leggeva nessuno), il pulsante «Revoca
+    consenso», il popup che dice cosa succede e la parola **ELIMINA** da scrivere a mano. Il pulsante
+    di conferma resta spento finché la parola non è quella: l'attrito è il punto, e un pulsante
+    premibile prima renderebbe il popup una formalità. Nessuno deve cancellare il proprio percorso
+    per una toccata distratta sullo schermo.
+  - **Le tre decisioni, e dove sono scritte nel codice.**
+    1. **Solo la cliente può sospendere.** Il pulsante sta unicamente nel link mandato al suo
+       indirizzo, e la rotta è pubblica proprio per questo: il token *è* l'autorizzazione, quindi
+       nessuna sessione dello staff — nemmeno un admin — può arrivarci. Coach e manager ricevono una
+       copia con un testo diverso, **senza** il pulsante, che spiega perché non ce l'hanno: un test
+       verifica che quel link non finisca mai nella mail allo staff, altrimenti la decisione sarebbe
+       scritta nel codice e smentita da un'email.
+    2. **La revoca disdice il rinnovo automatico**, riusando `cancelMyRecurring`. Il piano già pagato
+       resta valido fino alla scadenza: si ferma il rinnovo, non il servizio. Se poi sospende, il
+       rinnovo **non** torna da sé — riabbonare qualcuno senza chiederglielo sarebbe peggio — e
+       questo viene detto sia nella mail sia nella pagina che apre col link.
+    3. **Le fatture restano, e si dice in tre posti**: nel popup (prima che scriva ELIMINA), nelle due
+       mail e in una pagina pubblica `/privacy/cancellazione` con il perché accanto a ogni voce. I
+       testi arrivano dal backend, da un'unica fonte: tre copie della stessa frase in tre posti
+       divergono sempre, e questa è una frase che deve restare vera.
+  - **La cancellazione anonimizza l'utenza, non elimina la riga**, e non è un compromesso al ribasso:
+    una fattura appesa a un id che non esiste più è una fattura che in contabilità nessuno sa più
+    leggere — e il database la rifiuterebbe comunque (`payment`, `order`, `subscription` hanno vincoli
+    verso `user`). Quindi tutto il resto viene distrutto — profilo, misure, menu, conversazioni,
+    documenti, note cliniche, notifiche, sessioni — e dell'utenza resta un guscio senza nome, senza
+    email vera, senza indirizzo, con la password sostituita da rumore. È la forma in cui l'obbligo
+    fiscale e il diritto alla cancellazione stanno insieme senza che uno dei due sia finto.
+  - **Cosa non si tocca**, con un test per ciascuna: `payment`, `order`, `subscription`,
+    `ledgerEntry`, `pendingCommission`, `staffCompensation`, `discountRedemption`. Le fatture per
+    legge; provvigioni e compensi perché sono fatti avvenuti fra noi e persone terze, che non hanno
+    chiesto niente — cancellarli falserebbe il conto economico e i compensi di qualcun altro.
+  - Ultimo passo del cron notturno, e in fondo di proposito: anonimizza un'utenza, quindi ogni passo
+    che girasse dopo lavorerebbe su una persona che non c'è più. Gli avvisi vengono **prima** delle
+    cancellazioni: se il cron salta un giorno, chi doveva essere avvisata ieri lo è oggi e non si
+    trova cancellata senza preavviso — è l'unica delle due cose che non si può rimediare. Una
+    cancellazione che fallisce resta `pending` e ripassa domani: segnarla fatta per far tacere il cron
+    sarebbe un adempimento dichiarato e non eseguito.
+  - Revocare due volte non fa partire due termini né sposta la data, e non manda una seconda mail. Il
+    token in chiaro non si conserva (in tabella solo l'hash, come per i reset password); l'ultimo
+    avviso ne genera uno nuovo, così esiste sempre un solo link valido. **+53 test.**
+- `[Sviluppo]` 🗣️ **I tre difetti visti nel collaudo dell'OTA 2.1.3, chiusi** — erano in schermata, in
+  ordine di quanto si notano.
+  - **«non voglio lasciarti con *il* panna fresca nel piatto»**: l'articolo era scritto a mano
+    (`il ${p.da}`) e il ricettario ha alimenti di ogni genere. Ora il nome sta fra virgolette, come
+    già altrove nello stesso file — nessuna tabella ci dice il genere di «panna fresca». Un test
+    scorre tutti i testi che nominano un alimento e cerca l'articolo appiccicato: era una correzione
+    da cinque minuti, ma la legge la cliente e tornerebbe alla prima frase nuova.
+  - **La controproposta ora si capisce.** Alla conferma la cliente aveva scritto «l'olio mi fa peso
+    posso usare il burro vegetale?» e Gaia aveva risposto «Non ho capito: confermi il cambio?».
+    Adesso il sostituto proposto **da lei** viene letto e verificato con le stesse regole di
+    sicurezza — solo ciò che sta fra gli equivalenti approvati e passa allergeni ed esclusioni. Se
+    regge, diventa la proposta; se è un allergene, Gaia dice **perché** no e propone subito
+    un'alternativa nello stesso messaggio; se non è in catalogo, la richiesta va alla nutrizionista
+    (che è l'unica che può dire sì a una cosa che il ricettario non prevede) invece di finire in un
+    «non ho capito». Distinzione che è costata due test rossi: «boh» e «mah» non sono proposte, e
+    trattarle come tali apriva alla nutrizionista una richiesta che nessuno aveva fatto.
+  - Strada facendo, un difetto **più vecchio**: `terminiCandidati` teneva l'apostrofo dentro la
+    parola, quindi «l'olio» non combaciava con «olio evo». Chi scriveva «vorrei togliere l'olio» si
+    sentiva rispondere che non lo trovava fra gli ingredienti di oggi, e al secondo tentativo il
+    dialogo passava alla coach. In italiano l'elisione è la norma: +6 test.
+  - **«Lo voglio diverso» senza dire di cosa**: prima si ripiegava sulla domanda dell'*ingrediente*
+    — un'altra domanda, in risposta a una richiesta capita benissimo. Ora Gaia chiede **quale pasto**
+    con l'elenco di oggi, e accetta il numero, il nome del pasto o il nome del piatto. La preferenza
+    detta due messaggi prima («più proteico») non si perde per strada.
+- `[Sviluppo]` 🩺 **La nutrizionista può correggere un cambio nato in chat** — li vedeva in scheda e
+  non li poteva toccare: lo stato `corretta` esisteva nel dato e non c'era nessun modo di scriverlo.
+  Una verifica che non si può registrare non è una verifica, è una lettura.
+  - Tre azioni in scheda cliente (card Conversazioni): **conferma** («va bene così» — è quello che
+    svuota l'elenco da verificare), **correggi** (sostituto e/o grammi, con una nota), **annulla**
+    (il piatto torna esattamente come era; su un cambio di piatto rimette `recipeId`, nome e kcal di
+    prima). `PATCH /staff/clients/:id/sostituzioni-chat`, audit `menu.cambio_chat.verifica`.
+  - Due cancelli, diversi da quelli della lettura: la coach questi cambi li **legge** — le servono
+    per capire come sta andando — ma non li tocca, perché la grammatura è materia clinica. Più il
+    solito controllo di portata sulla cliente.
+  - E la cosa che conta più dei cancelli: **la cliente viene avvisata**, con la nota della
+    nutrizionista dentro la notifica. Aveva concordato qualcosa con Gaia; se il piatto di domani non
+    è quello, deve saperlo da noi e non scoprirlo aprendo il menu. La semplice conferma non manda
+    niente: notificare anche «va bene così» insegnerebbe a ignorare queste notifiche.
+  - Serve soprattutto sul **gruppo dei grassi**, dove la pari grammatura non regge (70 ml di panna
+    ≈ 200 kcal, 70 g di olio ≈ 630): finché la regola non è decisa, la mano umana è la risposta.
+- `[Sviluppo]` 📊 **Fatturato e nuove clienti PER GIORNATA** (chiesto l'8/8) — `GET /admin/charts/daily`
+  + card in cima alla pagina Grafici. L'asse è a giorni e il cumulato **si azzera ogni mese**; le
+  frecce scorrono i mesi storici (quella «avanti» sparisce sul mese in corso, per non portare su un
+  mese vuoto e futuro). Sovrapposta, tratteggiata, la linea del **mese precedente**, e in cima il
+  confronto **alla stessa giornata**: è quello che risponde alla domanda vera a metà mese, mentre i
+  totali — un mese finito contro un mese a metà — sembrano sempre un crollo. Sotto, le nuove clienti
+  al giorno a barre (sono conteggi: una linea suggerirebbe mezze clienti).
+  - Il giorno è quello di **Europe/Rome**: un incasso delle 00:30 del 1° agosto è di luglio per UTC, e
+    finirebbe nel mese sbagliato lasciando giusto il totale — solo i grafici non tornerebbero, e
+    nessuno saprebbe perché. La serie ha un punto per **ogni** giorno, vuoti compresi: un grafico che
+    salta i giorni senza incassi mente sulla pendenza. Un endpoint suo e non un campo in più su
+    `charts`, perché ogni freccia premuta ricalcolerebbe anche le misure. +16 test.
+- `[Sviluppo]` ❓ **Il «?» sulla dieta nel profilo dell'app** (chiesto l'8/8) — la cliente leggeva un
+  nome nudo, «Flexitariana», mesi dopo averlo scelto in registrazione, dove la spiegazione c'era. Ora
+  il pallino apre il foglio: prima la descrizione che la nutrizionista ha scritto **per lei**
+  (`Diet.clientDescription`), poi la scheda generale dello stile con le fonti. Lo stile è quello della
+  **dieta assegnata**, non quello scelto in registrazione: se la nutrizionista l'ha spostata, il popup
+  spiega quella che sta seguendo. Il pallino è diventato una classe (`.info-dot`) usata da entrambe le
+  pagine — due copie inline dello stesso pallino divergono, e «come nel questionario» smette di essere vero.
+- `[Sviluppo]` 🗓️ **Gaia sposta la data di inizio, parlandone** — completa la richiesta del 10/8: in
+  dashboard c'era scritto «se vuoi cambiare la data di inizio, chiedi a Gaia in chat», e Gaia non
+  sapeva farlo. Finora la data si spostava **solo** dal backoffice, col permesso `change_plan_start`:
+  la cliente che aveva sbagliato il calendario doveva scrivere alla coach e aspettare.
+  - **Il confine, deciso con Simone: solo prima che il piano parta.** Finché l'inizio è nel futuro
+    spostarlo non butta via niente — nessun menu consegnato, nessuna spesa fatta. A piano avviato Gaia
+    non tocca niente e passa la mano alla coach, che è anche la risposta giusta: a quel punto la
+    domanda non è «che giorno metto», è «cosa è andato storto».
+    Lo stesso confine copre senza un ramo in più il **piano in coda** (`planStartDate` futura ma un
+    piano *è* in corso): quella data non è una sua scelta, è la scadenza di quello che sta usando, e
+    spostarla sovrapporrebbe due piani.
+  - **Il riconoscimento delle date sta in una funzione pura** (`menu/data-inizio-chat.ts`), perché è
+    la parte che si sbaglia: «15/9» è il 15 settembre e non il 9 maggio; «lunedì» detto di lunedì è
+    il lunedì **prossimo** (chi dice il nome di un giorno intende un giorno che deve ancora venire);
+    «il 3» detto il 12 agosto è il 3 **settembre**; «il 3 gennaio» detto a dicembre è dell'anno dopo;
+    «fra un mese» conta un mese di calendario, non trenta giorni. Due difetti chiusi dai test appena
+    scritti: il «il 3» faceva scorrere l'**anno** invece del mese (sbagliato di undici mesi, e
+    plausibile), e il 31 febbraio non veniva rifiutato ma **scivolava** al 3 marzo — una data che
+    nessuno aveva detto, che avrebbe passato tutti i controlli a valle.
+  - Ogni proposta si rilegge **a parole** («martedì 15 settembre») e nomina anche il giorno di sblocco
+    del menu: una data in cifre non si riconosce sbagliata a occhio, una scritta così sì. Due
+    tentativi non capiti e passa alla coach invece di insistere.
+  - Sul «sì» scrive le stesse tre cose della scheda cliente — `planStartDate`, `subscription.startDate`
+    e la fine **ricalcolata** dalla durata — e rigenera i menu con `regenerateFromToday`, **mai**
+    `restartFromPlanStart` (che cancella anche lo storico). Su un piano `pending` l'abbonamento non si
+    tocca: le sue date le mette `finalizeApproval`, scriverle qui sarebbe attivare un piano non pagato.
+  - La data si **ricontrolla alla conferma**, non ci si fida dello stato appeso al messaggio: fra la
+    proposta e il «sì» può passare la mezzanotte, o il piano può essere partito.
+  - Audit `chat.data_inizio.spostata` + `chat.data_inizio_applicata`. I due dialoghi guidati di Gaia
+    (sostituzione e data) non si rubano i turni, e una FAQ vera fatta mentre aspettiamo una data ha la
+    sua risposta invece di «non ho capito la data». **+56 test**, suite 1099 verde.
+- `[Sviluppo]` 🍽️ **I pasti del digiuno si vedono e si cambiano dalla scheda** — richiesta di Simone
+  del 10/8. `fastingWindow` (quali pasti salta chi fa digiuno intermittente) esisteva da tempo, la
+  cliente la impostava dal suo profilo, e il backoffice **non la mostrava affatto**: lo staff non
+  poteva sapere se una cliente in digiuno saltava la colazione o la cena.
+  - In scheda ora c'è in sola lettura («Pasti che salta») e, in modifica, una tendina che compare
+    **solo** se il percorso è il digiuno — un campo che non vuol dire niente invita a compilarlo per
+    sbaglio. Le tre voci sono scritte con le stesse parole che legge la cliente nel suo profilo: se
+    divergessero, al telefono coach e cliente parlerebbero di due cose con lo stesso nome.
+  - Permesso dedicato **«Cambia i pasti del digiuno»** (`change_fasting_window`), separato da
+    «Cambia tipo di dieta»: è il motivo per cui esiste, poterlo dare alla coach senza darle anche
+    regime e stile. Default: coach, coordinatrice, nutrizioniste e admin.
+  - Due difetti chiusi strada facendo: il percorso diverso dal digiuno ora **azzera** la finestra
+    (restava scritta, e al ritorno al digiuno riprendeva un valore vecchio in silenzio) — e senza
+    chiedere il permesso, perché è una conseguenza tecnica del cambio percorso, non una scelta. E il
+    permesso si chiede **solo se il valore cambia davvero**: un test rosso ha mostrato che, chiedendolo
+    alla presenza del campo, chi non aveva quel flag non poteva più salvare nemmeno un numero di
+    telefono, perché il form rimanda tutti i campi ogni volta.
+  - Nell'app la cliente **vede a parole** quali pasti salta: prima leggeva la stringa tecnica
+    «Digiuno intermittente (finestra skip_breakfast)». Resta lei a poterli cambiare (scelta di
+    Simone), con la nota che se non è una preferenza ma un problema — fame, giramenti di testa,
+    orari — se ne parla con la coach, che può cambiare anche la finestra. +6 test.
+- `[Sviluppo]` 📆 **La data di inizio piano si legge, e la coda non mente più** — chi compra con
+  partenza futura vedeva in dashboard «sarà disponibile il 12» avendo scelto di partire il 14, senza
+  che nulla spiegasse quel 12 (è la data di **sblocco** del menu, due giorni prima).
+  - Il messaggio ora dice **entrambe** le date e perché sono diverse — «il tuo piano parte il 14, e il
+    menu si sblocca il 12: due giorni prima, così hai tempo per la spesa» — e invita a **chiedere a
+    Gaia** se vuole spostare l'inizio.
+  - **Piano in coda**: chi compra un secondo piano mentre uno è in corso parte alla scadenza del
+    precedente, e la data scelta veniva ignorata *senza dirlo* — `profile.planStartDate` restava la
+    sua, l'abbonamento partiva un'altra volta, e da lì i menu (che seguono il profilo) e la scadenza
+    (che segue l'abbonamento) raccontavano due storie. Ora l'accodamento **scrive** la data vera nel
+    profilo, con audit `commerce.plan.queued`: banner, gate del menu e scheda dicono la stessa cosa.
+  - Al ritorno dal pagamento, se la data è già decisa **non si chiede più**: si comunica, con la
+    spiegazione «se avevi già un piano in corso, questo parte quando finisce quello». Niente
+    calendario finto (decisione di Simone: «non le chiedo la data, glielo dico»).
+
 ## 2026-08-09
 
 - `[Sviluppo]` 🔎 **In elenco clienti si vede chi è senza glutine** — Simone, dopo il primo giro:

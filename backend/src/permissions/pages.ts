@@ -57,6 +57,10 @@ export const BACKOFFICE_PAGES = [
   'fix_measures',        // Correzione misure del cliente dalla scheda (flag dedicato, richiesta Simone)
   'change_diet_type',    // Cambio del TIPO DI DIETA (regime + stile) dalla scheda cliente (flag dedicato)
   'change_plan_start',   // Cambio della DATA DI INIZIO del piano dalla scheda cliente (flag dedicato)
+  // Quali pasti salta chi fa digiuno intermittente, dalla scheda cliente. Flag dedicato perché
+  // cambia gli slot che il motore eroga: chi lo tocca decide se quella cliente domani mattina
+  // avrà una colazione o no (richiesta di Simone del 10/8).
+  'change_fasting_window',
   'set_client_password', // Imposta una password scelta per la cliente dalla scheda (flag dedicato)
 ] as const;
 
@@ -88,6 +92,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clients: { view: true, manage: true },
     // Regime (onnivora/vegetariana/vegana) e stile alimentare: stesso motivo.
     change_diet_type: { view: true, manage: true },
+    // I pasti del digiuno: la coach li vede e li corregge, come il resto della scheda.
+    change_fasting_window: { view: true, manage: true },
     crm_leads: { view: true, manage: true }, // pipeline: la coach sposta i clienti tra gli stati
     lead_acceptance: { view: true, manage: true }, // casella dei lead da accettare
     escalations: { view: true, manage: true },
@@ -106,6 +112,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     charts: { view: true },
     clients: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
+    change_fasting_window: { view: true, manage: true },
     crm_leads: { view: true, manage: true },
     lead_acceptance: { view: true, manage: true },
     escalations: { view: true, manage: true },
@@ -120,6 +127,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clients: { view: true, manage: true },
     fix_measures: { view: true, manage: true }, // corregge le misure inserite male dal cliente
     change_diet_type: { view: true, manage: true }, // cambia il tipo di dieta (regime/stile)
+    change_fasting_window: { view: true, manage: true }, // e quali pasti salta nel digiuno
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
@@ -137,6 +145,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clients: { view: true, manage: true },
     fix_measures: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
+    change_fasting_window: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
@@ -222,6 +231,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     withdrawals: { view: true, manage: true },
     fix_measures: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
+    change_fasting_window: { view: true, manage: true },
     change_plan_start: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
     set_client_password: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
   },

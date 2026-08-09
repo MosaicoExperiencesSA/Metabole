@@ -2079,3 +2079,42 @@ model ClientReport {
   @@index([clientId, createdAt])
   @@map("client_report")
 }
+
+/**
+ * RICHIESTA DI CANCELLAZIONE dopo la revoca del consenso (richiesta di Simone dell'8/8).
+ *
+ * La cliente revoca il consenso dal suo profilo, scrive ELIMINA a mano, e da lì parte un termine di
+ * 30 giorni: al 31° i dati sanitari e il percorso vengono cancellati. Nel frattempo può fermare
+ * tutto dal link nelle mail — e **solo lei**, perché quel link è la sua firma (decisione del 10/8).
+ *
+ * Sta in una tabella sua, e non in due colonne su `ClientProfile`, per due ragioni:
+ *  - il profilo cliente è **esattamente ciò che viene cancellato**: tenere lì lo stato vorrebbe dire
+ *    distruggere la prova di ciò che si è fatto insieme al dato;
+ *  - la richiesta va conservata anche dopo l'esecuzione (chi, quando, chi l'ha sospesa, cosa è stato
+ *    cancellato): è la documentazione dell'adempimento, e serve proprio quando viene contestata.
+ *
+ * FK-less: `clientId` resta valido anche dopo che l'utenza è stata anonimizzata, e nessun vincolo
+ * può impedire la cancellazione che questa tabella governa.
+ */
+model DeletionRequest {
+  id           String    @id @default(cuid())
+  clientId     String    @map("client_id")
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  /** Il giorno in cui si cancella: scritto alla richiesta e mai ricalcolato, così il termine non si sposta se qualcuno cambia la soglia in configurazione mentre l'attesa è in corso. */
+  scheduledFor DateTime  @map("scheduled_for")
+  /** pending | suspended | done | cancelled */
+  status       String    @default("pending")
+  /** Hash del token del link «Sospendi»: in chiaro non si conserva, come per i reset password. */
+  tokenHash    String    @unique @map("token_hash")
+  suspendedAt  DateTime? @map("suspended_at")
+  suspendedBy  String?   @map("suspended_by")
+  completedAt  DateTime? @map("completed_at")
+  /** L'avviso «manca un giorno» è già partito: senza questo il cron lo rimanderebbe ogni notte. */
+  warnedAt     DateTime? @map("warned_at")
+  /** Cosa è stato cancellato davvero, per tabella: la ricevuta dell'adempimento. */
+  report       Json?
+
+  @@index([status, scheduledFor])
+  @@index([clientId])
+  @@map("deletion_request")
+}

@@ -1,5 +1,15 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import {
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -13,6 +23,54 @@ class SendMessageDto {
   @MinLength(1, { message: 'Scrivi un messaggio.' })
   @MaxLength(4000, { message: 'Il messaggio è troppo lungo: dividilo in due, si legge meglio.' })
   body!: string;
+}
+
+/**
+ * La verifica di un cambio nato in chat. Il cambio non ha un id — vive dentro il JSON dei pasti di
+ * quella giornata — quindi si individua per **giornata + pasto + alimento**.
+ *
+ * La validazione è stretta su `stato` e sui grammi per una ragione pratica: questo endpoint scrive
+ * nel piatto di una persona, e `toQty` arriva da un campo di testo del backoffice. Un 700 battuto
+ * per 70 non deve poter diventare una porzione.
+ */
+class CorreggiCambioDto {
+  @IsISO8601({ strict: true }, { message: 'Data non valida (AAAA-MM-GG).' })
+  data!: string;
+
+  @IsString()
+  slot!: string;
+
+  @IsIn(['ingrediente', 'piatto'], { message: 'Tipo di cambio non valido.' })
+  tipo!: 'ingrediente' | 'piatto';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  from?: string;
+
+  @IsIn(['verificata', 'corretta', 'annullata'], { message: 'Esito non valido.' })
+  stato!: 'verificata' | 'corretta' | 'annullata';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  to?: string;
+
+  @IsOptional()
+  @IsInt({ message: 'La quantità deve essere un numero intero.' })
+  @Min(1, { message: 'La quantità deve essere almeno 1.' })
+  @Max(2000, { message: 'Quantità fuori scala: controlla il numero.' })
+  toQty?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  unitA?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'La nota è troppo lunga: la legge anche la cliente.' })
+  nota?: string;
 }
 
 const COUNTERPARTS = ['ai', 'coach', 'nutritionist'];
@@ -122,6 +180,25 @@ export class StaffClientChatController {
     // `user` non è decorativo: il controllo di appartenenza sta nel service. Vedi
     // `ChatService.sostituzioniDiChatPerStaff`.
     return this.chat.sostituzioniDiChatPerStaff(user, clientId);
+  }
+
+  /**
+   * La VERIFICA di un cambio: conferma, correggi i grammi, o annulla.
+   *
+   * `@RequirePage('chat', 'manage')` non basta e non è il cancello che conta: la coach ha quel
+   * permesso perché deve poter scrivere alle sue clienti. Chi può toccare un cambio è deciso per
+   * RUOLO dentro `ChatService.correggiCambioInChatPerStaff` — nutrizionista, capo nutrizionista,
+   * admin — perché la grammatura di un piatto è materia clinica. Sono due cancelli, come per la
+   * lettura: vedi il commento in testa a questo controller.
+   */
+  @Patch('sostituzioni-chat')
+  @RequirePage('chat', 'manage')
+  correggiCambio(
+    @CurrentUser() user: AuthUser,
+    @Param('clientId') clientId: string,
+    @Body() body: CorreggiCambioDto,
+  ) {
+    return this.chat.correggiCambioInChatPerStaff(user, clientId, body);
   }
 }
 

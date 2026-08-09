@@ -794,3 +794,339 @@ describe('SostituzioneChatService — l\'unità del sostituto arriva fino al men
     expect(scritta).toEqual(expect.objectContaining({ from: 'panna fresca', to: 'burro', unit: 'ml', unitA: 'g' }));
   });
 });
+
+/**
+ * LA CONTROPROPOSTA (difetto 2 del collaudo dell'OTA 2.1.3, 9/8).
+ *
+ * Alla conferma la cliente ha scritto «L'olio mi fa peso posso usare il burro vegetale?» e Gaia ha
+ * risposto «Non ho capito: confermi il cambio?». Dentro quella frase c'erano un motivo e un
+ * sostituto scelto da lei: chiedere di nuovo la stessa cosa è il modo più rapido di sprecare la
+ * fiducia costruita nei tre messaggi precedenti.
+ *
+ * Il confine che questi test tengono fermo: le regole di sicurezza NON si allentano perché la
+ * proposta arriva da lei. Si accetta solo ciò che sta fra gli equivalenti approvati e passa
+ * allergeni ed esclusioni; tutto il resto passa dalla nutrizionista.
+ */
+describe('SostituzioneChatService — la controproposta della cliente', () => {
+  /** Il gruppo del fixture: carote ↔ biete ↔ spinaci. Noi proponiamo «biete» (ordine alfabetico). */
+  async function fino_alla_conferma_carote(service: SostituzioneChatService) {
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'le carote');
+    expect(dopoCibo.stato?.proposta?.a).toBe('biete');
+    return service.avanza('client-1', dopoCibo.stato!, '2');
+  }
+
+  it('«posso usare gli spinaci?» diventa la proposta, senza scrivere niente', async () => {
+    const { service, prisma } = await creaServizio();
+    const conferma = await fino_alla_conferma_carote(service);
+    const suo = await service.avanza('client-1', conferma.stato!, 'posso usare gli spinaci?');
+
+    expect(suo.esito).toBe('in_corso');
+    expect(suo.stato?.passo).toBe('conferma');
+    expect(suo.stato?.proposta?.a).toBe('spinaci');
+    // Il nostro suggerimento risulta scartato: se dice no a questo, non deve tornare quello.
+    expect(suo.stato?.scartati).toContain('biete');
+    expect(suo.testo).toContain('spinaci');
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('e il «sì» dopo la sua proposta scrive il SUO alimento sulla giornata', async () => {
+    const { service, giorno } = await creaServizio();
+    const conferma = await fino_alla_conferma_carote(service);
+    const suo = await service.avanza('client-1', conferma.stato!, 'posso usare gli spinaci?');
+    const fatto = await service.avanza('client-1', suo.stato!, 'sì');
+
+    expect(fatto.esito).toBe('applicata');
+    const scritta = giorno().meals.find((m) => m.slot === 'lunch')?.substitutions?.[0];
+    expect(scritta).toEqual(expect.objectContaining({ from: 'carote', to: 'spinaci' }));
+  });
+
+  it('un nome secco basta: non serve la frase intera', async () => {
+    const { service } = await creaServizio();
+    const conferma = await fino_alla_conferma_carote(service);
+    const suo = await service.avanza('client-1', conferma.stato!, 'gli spinaci');
+    expect(suo.stato?.proposta?.a).toBe('spinaci');
+  });
+
+  /**
+   * La frase esatta del collaudo. «Burro vegetale» non è fra gli equivalenti approvati per le
+   * carote, e Gaia non se lo inventa: passa alla nutrizionista, che è l'unica che può dire sì a una
+   * cosa che il ricettario non prevede. Il punto è che la richiesta **arriva** a qualcuno.
+   */
+  it('un alimento fuori dagli equivalenti approvati va alla nutrizionista, non nel piatto', async () => {
+    const { service, prisma, audit } = await creaServizio();
+    const conferma = await fino_alla_conferma_carote(service);
+    const suo = await service.avanza('client-1', conferma.stato!, "l'olio mi fa peso posso usare il burro vegetale?");
+
+    expect(suo.esito).toBe('arresa');
+    expect(suo.inoltraA).toBe('nutritionist');
+    expect(prisma.escalation.create).toHaveBeenCalled();
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+    // La segnalazione porta con sé la frase della cliente: senza, la nutrizionista non sa cosa
+    // le è stato chiesto.
+    const creata = prisma.escalation.create.mock.calls.at(-1)?.[0] as any;
+    expect(creata.data.reason).toContain('burro vegetale');
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'menu.sostituzione.controproposta_non_prevista' }),
+    );
+  });
+
+  /**
+   * Il caso che non deve regredire: un'esitazione non è una proposta. Prima di distinguere
+   * `esplicita`, «boh» apriva una richiesta alla nutrizionista che nessuno aveva fatto.
+   */
+  it('«boh» resta un «non ho capito», e non disturba nessuno', async () => {
+    const { service, prisma } = await creaServizio();
+    const conferma = await fino_alla_conferma_carote(service);
+    const incerto = await service.avanza('client-1', conferma.stato!, 'boh');
+    expect(incerto.esito).toBe('in_corso');
+    expect(prisma.escalation.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ALLERGENE PROPOSTO DA LEI. Non basta rifiutare: si dice perché — su un allergene è anche
+   * un'informazione che le serve — e si propone subito un'alternativa, nello stesso messaggio.
+   */
+  it('se la sua proposta è un allergene, Gaia spiega e propone un\'altra cosa', async () => {
+    const { service, prisma } = await creaServizio((p) => {
+      p.clientProfile.findUnique = jest.fn().mockResolvedValue({
+        allergies: ['spinaci'],
+        intolerances: [],
+        dislikedFoods: [],
+        name: 'Giulia',
+      });
+    });
+    const conferma = await fino_alla_conferma_carote(service);
+    const suo = await service.avanza('client-1', conferma.stato!, 'posso usare gli spinaci?');
+
+    expect(suo.testo).toContain('allergia');
+    expect(suo.testo).toContain('spinaci');
+    // La proposta non è quella: nel piatto non ci finiscono.
+    expect(suo.stato?.proposta?.a).not.toBe('spinaci');
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('se la sua proposta è fra le cose che ha escluso lei, glielo dice', async () => {
+    const { service } = await creaServizio((p) => {
+      p.clientProfile.findUnique = jest.fn().mockResolvedValue({
+        allergies: [],
+        intolerances: [],
+        dislikedFoods: ['spinaci'],
+        name: 'Giulia',
+      });
+    });
+    const conferma = await fino_alla_conferma_carote(service);
+    const suo = await service.avanza('client-1', conferma.stato!, 'posso usare gli spinaci?');
+    expect(suo.testo).toContain('spinaci');
+    expect(suo.stato?.proposta?.a).not.toBe('spinaci');
+  });
+
+  /** Dopo il «no» secco, la quarta strada che non abbiamo elencato: dire un nome. */
+  it('anche dopo il «no» secco, un nome vale come proposta', async () => {
+    const { service } = await creaServizio();
+    const conferma = await fino_alla_conferma_carote(service);
+    const chiesto = await service.avanza('client-1', conferma.stato!, 'no');
+    expect(chiesto.stato?.passo).toBe('rifiuto');
+    const suo = await service.avanza('client-1', chiesto.stato!, 'posso usare gli spinaci?');
+    expect(suo.stato?.proposta?.a).toBe('spinaci');
+  });
+});
+
+/**
+ * «LO VOGLIO DIVERSO» SENZA DIRE DI COSA — il giro completo, dalla domanda alla scrittura.
+ *
+ * Prima il flusso ripiegava sulla domanda dell'ingrediente: la cliente chiedeva un piatto diverso
+ * e si sentiva chiedere quale alimento. Il rischio opposto — scegliere il pasto per lei — è peggio,
+ * perché si vede solo quando il piatto sbagliato è già nel menu.
+ */
+describe('SostituzioneChatService — quale pasto, quando non lo dice', () => {
+  it('chiede quale pasto invece di chiedere un ingrediente', async () => {
+    const { service } = await creaServizio();
+    const chiesto = await service.proponiAltroPiatto('client-1', 'lo voglio diverso');
+    expect(chiesto.stato?.passo).toBe('scelta_pasto');
+    expect(chiesto.testo).toContain('colazione');
+    expect(chiesto.testo).toContain('pranzo');
+    // NON la domanda sull'alimento: è quella che rendeva incomprensibile la risposta.
+    expect(chiesto.testo).not.toMatch(/quale alimento/i);
+  });
+
+  it('e la preferenza detta all\'inizio non si perde per strada', async () => {
+    const { service } = await creaServizio();
+    const chiesto = await service.proponiAltroPiatto('client-1', 'lo voglio più proteico');
+    expect(chiesto.stato?.preferenzaPiatto).toBe('proteico');
+    const scelto = await service.avanza('client-1', chiesto.stato!, '1');
+    // Alternative della colazione, ordinate per proteine: le uova stanno prima dello skyr.
+    expect(scelto.stato?.passo).toBe('scelta_piatto');
+    expect(scelto.stato?.alternativePiatto?.[0]?.nome).toContain('Uova');
+    expect(scelto.testo).toContain('proteine');
+  });
+
+  it('risponde col nome del pasto e funziona uguale', async () => {
+    const { service } = await creaServizio();
+    const chiesto = await service.proponiAltroPiatto('client-1', 'lo voglio diverso');
+    const scelto = await service.avanza('client-1', chiesto.stato!, 'la colazione');
+    expect(scelto.stato?.slotPiatto).toBe('breakfast');
+  });
+
+  it('due risposte non capite chiudono senza toccare il menu', async () => {
+    const { service, prisma } = await creaServizio();
+    const chiesto = await service.proponiAltroPiatto('client-1', 'lo voglio diverso');
+    const primo = await service.avanza('client-1', chiesto.stato!, 'mah');
+    expect(primo.esito).toBe('in_corso');
+    const secondo = await service.avanza('client-1', primo.stato!, 'non so');
+    expect(secondo.esito).toBe('annullata');
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * LA VERIFICA DELLA NUTRIZIONISTA. Fino a oggi vedeva i cambi nati in chat e non li poteva
+ * toccare: lo stato `corretta` esisteva nel dato e non c'era nessun modo di scriverlo. Una verifica
+ * che non si può registrare non è una verifica, è una lettura.
+ *
+ * Il caso che rende tutto questo necessario è il gruppo dei grassi: 70 ml di panna sono ~200 kcal,
+ * 70 g di olio ~630. La pari grammatura che Gaia propone lì non regge, e serve una mano umana che
+ * scriva il numero giusto **sulla giornata di quella cliente**.
+ */
+describe('SostituzioneChatService — la nutrizionista verifica', () => {
+  /** Concorda «carote → biete» e restituisce il servizio pronto per la verifica. */
+  async function conUnCambio() {
+    const creato = await creaServizio();
+    const apertura = await creato.service.apri('client-1');
+    const dopoCibo = await creato.service.avanza('client-1', apertura.stato!, 'le carote');
+    const conferma = await creato.service.avanza('client-1', dopoCibo.stato!, '2');
+    await creato.service.avanza('client-1', conferma.stato!, 'sì');
+    return creato;
+  }
+
+  const sostituzione = (giorno: () => any) =>
+    giorno().meals.find((m: any) => m.slot === 'lunch')?.substitutions?.[0];
+
+  it('«va bene così» resta scritto: è quello che svuota l\'elenco da verificare', async () => {
+    const { service, giorno, audit } = await conUnCambio();
+    const esito = await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'carote',
+      stato: 'verificata',
+    });
+    expect(esito.stato).toBe('verificata');
+    expect(sostituzione(giorno)).toEqual(
+      expect.objectContaining({ to: 'biete', stato: 'verificata', verificataDa: 'nutri-1' }),
+    );
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'menu.cambio_chat.verifica' }),
+    );
+  });
+
+  it('correggere cambia sostituto e grammi, e la nota resta con loro', async () => {
+    const { service, giorno } = await conUnCambio();
+    await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'carote',
+      stato: 'corretta',
+      to: 'spinaci',
+      toQty: 150,
+      nota: 'Meglio gli spinaci, e 150 g per restare sulle stesse fibre.',
+    });
+    expect(sostituzione(giorno)).toEqual(
+      expect.objectContaining({ to: 'spinaci', toQty: 150, stato: 'corretta', nota: expect.stringContaining('fibre') }),
+    );
+    // Il `from` non si tocca mai: è l'alimento della ricetta, e cambiarlo scollegherebbe il
+    // cambio dal piatto.
+    expect(sostituzione(giorno)?.from).toBe('carote');
+  });
+
+  it('annullare toglie la sostituzione: nel piatto torna l\'alimento di prima', async () => {
+    const { service, giorno } = await conUnCambio();
+    const esito = await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'carote',
+      stato: 'annullata',
+    });
+    expect(sostituzione(giorno)).toBeUndefined();
+    expect(esito.descrizione).toContain('carote');
+  });
+
+  it('l\'unità si ricalcola sul sostituto nuovo: niente «70 ml di burro»', async () => {
+    const { service, giorno } = await creaServizio((prisma) => {
+      prisma.recipe.findMany = jest.fn().mockResolvedValue([
+        { ...RICETTA_PRANZO, ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }] },
+      ]);
+      prisma.equivalenceGroup.findMany = jest.fn().mockResolvedValue([
+        { productId: null, members: { items: ['panna fresca', 'burro', 'olio evo'] } },
+      ]);
+    });
+    const aperto = await service.apriDaTesto('client-1', 'vorrei sostituire la panna');
+    const conferma = await service.avanza('client-1', aperto.stato!, '2');
+    await service.avanza('client-1', conferma.stato!, 'sì');
+
+    await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'panna fresca',
+      stato: 'corretta',
+      to: 'olio evo',
+      toQty: 20,
+    });
+    const s = giorno().meals.find((m: any) => m.slot === 'lunch')?.substitutions?.[0];
+    // L'olio è un liquido: l'unità resta ml. Il punto è che venga RICALCOLATA, non copiata.
+    expect(s).toEqual(expect.objectContaining({ to: 'olio evo', toQty: 20, unitA: 'ml' }));
+  });
+
+  it('annullare un cambio di PIATTO rimette esattamente il piatto di prima', async () => {
+    const { service, giorno } = await creaServizio();
+    const proposta = await service.proponiAltroPiatto('client-1', 'voglio una colazione proteica');
+    await service.avanza('client-1', proposta.stato!, '1');
+    const colazione = () => giorno().meals.find((m: any) => m.slot === 'breakfast');
+    expect(colazione()?.cambioPiatto?.daNome).toBe('Yogurt e avena');
+
+    await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'breakfast',
+      tipo: 'piatto',
+      stato: 'annullata',
+    });
+    expect(colazione()?.name).toBe('Yogurt e avena');
+    expect(colazione()?.recipeId).toBe('r-colazione');
+    // Il record del cambio se ne va con lui: la giornata dice com'è il menu, la storia sta nell'audit.
+    expect(colazione()?.cambioPiatto).toBeUndefined();
+  });
+
+  it('un cambio che non esiste non si verifica: 404, non una scrittura a caso', async () => {
+    const { service, giorno } = await conUnCambio();
+    await expect(
+      service.correggiCambioInChat('client-1', 'nutri-1', {
+        data: giorno().date.toISOString().slice(0, 10),
+        slot: 'lunch',
+        tipo: 'ingrediente',
+        from: 'zucchine',
+        stato: 'verificata',
+      }),
+    ).rejects.toThrow(/Nessuna sostituzione/);
+  });
+
+  it('la verifica compare nell\'elenco della scheda, con la nota', async () => {
+    const { service, giorno } = await conUnCambio();
+    await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'carote',
+      stato: 'corretta',
+      to: 'spinaci',
+      nota: 'Più ferro.',
+    });
+    const elenco = await service.sostituzioniDiChat('client-1');
+    expect(elenco[0]).toEqual(
+      expect.objectContaining({ stato: 'corretta', nota: 'Più ferro.', to: 'spinaci' }),
+    );
+    expect(elenco[0].verificataIl).toBeTruthy();
+  });
+});

@@ -453,6 +453,60 @@ export class ClientsService {
       }
     }
 
+    /**
+     * I PASTI DEL DIGIUNO (`fastingWindow`): permesso dedicato «Cambia i pasti del digiuno».
+     *
+     * Sta a parte dal tipo di dieta perché è una decisione di natura diversa — non cambia il
+     * prodotto, cambia **quali pasti la cliente riceve domani mattina** — e Simone ha chiesto un
+     * flag suo per poterla dare alla coach senza dare anche regime e stile.
+     *
+     * Due cose in più che il codice faceva a metà:
+     *  - se il percorso non è più digiuno intermittente, la finestra si **azzera**. Prima restava
+     *    scritta in database (solo l'onboarding la ripuliva): inerte finché il percorso era un
+     *    altro, ma al ritorno al digiuno riprendeva un valore vecchio, in silenzio;
+     *  - la finestra si può **svuotare** («la decide la dieta»): la select manda `''`, che qui è
+     *    già diventato `null` insieme a tutti gli altri campi.
+     */
+    let fastingChange: { before: string | null; after: string | null } | null = null;
+    let fastingAzzerata = false;
+    if (profileData.fastingWindow !== undefined || profileData.pathType !== undefined) {
+      const current = (await this.prisma.clientProfile.findUnique({
+        where: { userId },
+        select: { fastingWindow: true, pathType: true },
+      })) as { fastingWindow: string | null; pathType: string | null } | null;
+      const prima = current?.fastingWindow ?? null;
+      const percorsoFinale = (profileData.pathType !== undefined ? profileData.pathType : current?.pathType) ?? null;
+
+      if (percorsoFinale !== 'intermittent_fasting') {
+        // Percorso diverso dal digiuno: la finestra non ha più senso e si azzera. È una
+        // CONSEGUENZA, non una scelta: non si chiede il permesso, altrimenti cambiare il percorso
+        // — che è libero — sarebbe bloccato da un flag che parla di un altro campo. Resta l'audit.
+        if (prima !== null) {
+          profileData.fastingWindow = null;
+          fastingAzzerata = true;
+        } else if (profileData.fastingWindow !== undefined) {
+          profileData.fastingWindow = null;
+        }
+      } else if (profileData.fastingWindow !== undefined) {
+        // Cambio ESPLICITO della finestra su una cliente che digiuna: qui sì, serve il permesso.
+        // `undefined` invece vuol dire «non l'ho toccata»: non si scrive e non si chiede niente,
+        // altrimenti un chiamante che manda solo `pathType` la cancellerebbe di straforo.
+        const dopo = (profileData.fastingWindow ?? null) as string | null;
+        if (dopo !== prima) {
+          const attore = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
+          if (!(await this.roleCanManage(attore?.role ?? '', 'change_fasting_window'))) {
+            throw new ForbiddenException(
+              'Cambiare i pasti del digiuno richiede il permesso "Cambia i pasti del digiuno".',
+            );
+          }
+          fastingChange = { before: prima, after: dopo };
+        } else {
+          // Stesso valore rimandato dal form: niente da scrivere.
+          delete profileData.fastingWindow;
+        }
+      }
+    }
+
     // Fase precedente: serve per accorgersi del passaggio dimagrimento → mantenimento.
     const prevObjective = profileData.objective !== undefined
       ? ((await this.prisma.clientProfile.findUnique({ where: { userId }, select: { objective: true } }))?.objective ?? null)
@@ -472,6 +526,27 @@ export class ClientsService {
     if (ops.length) await this.prisma.$transaction(ops as never);
     await this.audit.log({ action: 'client.update', actorId, entityType: 'user', entityId: userId });
     // Cambio del tipo di dieta: voce di audit dedicata con prima/dopo (visibile nel Log modifiche).
+    // I pasti del digiuno hanno un evento SUO nel log: «modifica scheda» non dice che da domani
+    // quella cliente non riceve più la colazione, e nel log delle modifiche è la riga che serve
+    // quando chiederà perché il menu è cambiato.
+    if (fastingAzzerata) {
+      await this.audit.log({
+        action: 'client.fasting_window.azzerata',
+        actorId,
+        entityType: 'user',
+        entityId: userId,
+        metadata: { motivo: 'percorso diverso dal digiuno intermittente' } as never,
+      });
+    }
+    if (fastingChange) {
+      await this.audit.log({
+        action: 'client.fasting_window.change',
+        actorId,
+        entityType: 'user',
+        entityId: userId,
+        metadata: fastingChange as never,
+      });
+    }
     if (dietTypeChange) {
       await this.audit.log({
         action: 'client.diet_type.change',
@@ -803,7 +878,7 @@ export class ClientsService {
     ]);
     const ids = [userId, profile?.id, crm?.id].filter((x): x is string => Boolean(x));
     const CHANGE_ACTIONS = [
-      'client.update', 'me.profile.update',
+      'client.update', 'me.profile.update', 'client.fasting_window.change',
       // Le modifiche fatte dalla **scheda lead** (telefono, codice fiscale, tag, consenso): sono
       // sugli stessi dati della cliente e mancavano da questo elenco, quindi non comparivano né
       // qui né là. Ora i due log raccontano la stessa storia (richiesta di Simone dell'8/8).

@@ -22,14 +22,32 @@ export function menuStatusView(s: MenuStatus): { icon: string; title: string; te
         title: 'Nessun piano attivo',
         text: 'Il tuo piano è terminato: al momento non hai un abbonamento attivo. Riattiva un piano dal Negozio per ricevere di nuovo i menu.',
       };
-    case 'scheduled':
+    /**
+     * PIANO CHE COMINCIA PIÙ AVANTI. Qui la cliente ha scelto una data futura e non vede ancora
+     * niente: le due informazioni che le servono sono QUANDO parte il piano e QUANDO si sblocca il
+     * menu, e sono date diverse (il menu arriva 2 giorni prima, per farle fare la spesa).
+     *
+     * Prima il banner nominava **solo** la data di sblocco: la cliente leggeva «sarà disponibile il
+     * 12» avendo scelto di partire il 14, e non c'era modo di capire da dove uscisse quel 12.
+     * Richiesta di Simone del 10/8: qui deve comparire anche la data prevista di inizio, e l'invito
+     * a chiedere a Gaia se la vuole spostare — perché è la cosa che si vuole fare guardando quella
+     * schermata, e finora non esisteva nessuna strada per farlo dall'app.
+     */
+    case 'scheduled': {
+      const inizio = s.planStartDate ? itDate(s.planStartDate) : null;
+      const sblocco = s.availableFrom ? itDate(s.availableFrom) : null;
+      const testo = inizio
+        ? `Il tuo piano parte il ${inizio}` +
+          (sblocco ? `, e il menu si sblocca il ${sblocco} — due giorni prima, così hai tempo per la spesa.` : '.')
+        : sblocco
+          ? `Sarà disponibile il ${sblocco}. Ti avvisiamo appena è pronto.`
+          : 'Sarà disponibile a breve. Ti avvisiamo appena è pronto.';
       return {
         icon: 'ti-calendar-event',
         title: 'Il tuo menu sta arrivando',
-        text: s.availableFrom
-          ? `Sarà disponibile il ${itDate(s.availableFrom)}. Ti avvisiamo appena è pronto.`
-          : 'Sarà disponibile a breve. Ti avvisiamo appena è pronto.',
+        text: `${testo} Se vuoi cambiare la data di inizio, chiedi a Gaia in chat.`,
       };
+    }
     case 'awaiting_visit':
       return {
         icon: 'ti-stethoscope',

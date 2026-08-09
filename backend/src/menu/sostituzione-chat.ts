@@ -148,7 +148,18 @@ export const nelloSlot = (slot: string): string => SLOT_IN[slot] ?? `nel ${etich
  *   dice no non si deve fermare, deve indagare sul perché». Un «no» alla proposta non è un «no» al
  *   cambio: quasi sempre vuol dire *non quel sostituto*. Qui si chiede quale delle tre cose è.
  */
-export type PassoSostituzione = 'cibo' | 'motivo' | 'conferma' | 'scelta_piatto' | 'rifiuto';
+export type PassoSostituzione =
+  | 'cibo'
+  | 'motivo'
+  | 'conferma'
+  | 'scelta_piatto'
+  | 'rifiuto'
+  /**
+   * «Lo voglio diverso» senza dire di quale pasto. Prima si ripiegava sulla domanda
+   * dell'ingrediente — una domanda diversa da quella che serviva — o, peggio, si scegliva il pasto
+   * per lei. Qui si chiede quale, con l'elenco di oggi.
+   */
+  | 'scelta_pasto';
 
 export interface PropostaSostituzione {
   /** Giornata su cui si scrive (YYYY-MM-DD): quella di oggi. */
@@ -194,6 +205,12 @@ export interface StatoSostituzione {
    * scartato in una proposta non è un gusto dichiarato su un alimento che ha nel piatto.
    */
   scartati?: string[];
+  /**
+   * I pasti di oggi, come sono stati elencati alla cliente quando le si è chiesto **quale** pasto
+   * vuole cambiare: l'ordine è quello che ha letto, quindi «2» qui vuol dire la seconda riga di
+   * quel messaggio. Rileggerli dal database al giro dopo darebbe un ordine che nessuno ha visto.
+   */
+  pastiPerScelta?: { slot: string; piatto: string }[];
 }
 
 /** Oltre questo, lo stato appeso a un messaggio vecchio non è più una conversazione in corso. */
@@ -260,6 +277,13 @@ const STOPWORDS = new Set([
   'pasto', 'pranzo', 'cena', 'colazione', 'spuntino', 'ricetta', 'vorrei', 'voglio', 'posso',
   'cambiare', 'cambio', 'sostituire', 'sostituisci', 'togliere', 'togli', 'grammi', 'grammo',
   'quantita', 'proprio', 'tanto', 'poco', 'molto', 'sono', 'sto', 'una', 'anche',
+  // Verbi e avverbi con cui si PROPONE qualcosa. Aggiunti col riconoscimento della controproposta
+  // (9/8): senza di loro «posso usare il burro vegetale?» produceva anche il termine «usare», che
+  // non combacia con niente in catalogo e faceva finire alla nutrizionista una richiesta che era
+  // già stata capita. Nessuno di questi è il nome di un alimento.
+  'usare', 'uso', 'usiamo', 'userei', 'mettere', 'metto', 'mettiamo', 'metterei', 'preferirei',
+  'preferisco', 'invece', 'piuttosto', 'magari', 'andrebbe', 'bene', 'peso', 'forse', 'boh', 'mah',
+  'grazie', 'allora', 'ecco', 'davvero', 'sicura', 'certo',
 ]);
 
 /**
@@ -271,8 +295,13 @@ const STOPWORDS = new Set([
  * davvero nel piatto oggi.
  */
 export function terminiCandidati(testo: string): string[] {
+  // L'apostrofo si tratta come uno spazio, e non è un dettaglio ortografico: prima restava dentro
+  // la parola, quindi «l'olio» era un token a sé — non combaciava con «olio evo», e chi scriveva
+  // «vorrei togliere l'olio» si sentiva rispondere che non lo trovava fra gli ingredienti di oggi.
+  // In italiano l'elisione è la norma («l'uovo», «l'avena», «dell'olio»). Gli articoli elisi
+  // restano fuori da soli, perché più corti di tre lettere; «all'aglio» diventa «aglio».
   const parole = normalizza(testo)
-    .replace(/[^a-z0-9\s']/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((p) => p.length >= 3 && !STOPWORDS.has(p));
   const coppie: string[] = [];
@@ -297,7 +326,7 @@ export function radice(parola: string): string {
 /** Le parole che portano significato dentro il nome di un alimento. */
 export function paroleAlimento(nome: string): string[] {
   return normalizza(nome)
-    .replace(/[^a-z0-9\s']/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter((p) => p.length >= 3 && !PAROLE_NEUTRE.has(p));
 }
@@ -536,6 +565,117 @@ export function sensoDelNo(testo: string, sostitutoProposto?: string): SensoDelN
   return null;
 }
 
+// ---------- La controproposta: quando è lei a dire cosa vuole ----------
+
+/**
+ * Segnali che la cliente sta **proponendo** qualcosa, non rispondendo sì/no.
+ *
+ * Nel collaudo del 9/8 ha scritto «l'olio mi fa peso posso usare il burro vegetale?» e Gaia ha
+ * risposto «Non ho capito: confermi il cambio?». Dentro quella frase c'erano due informazioni — un
+ * motivo e un **sostituto scelto da lei** — e buttarle via è il modo più rapido di far sentire una
+ * persona non ascoltata proprio nel momento in cui si sta fidando.
+ */
+const PROPONE = /(posso|potrei|si pu[oò]|va bene|andrebbe|preferirei|preferisco|mett(o|iamo|erei)|us(o|are|iamo|erei)|invece|al posto|piuttosto|magari|e se|ci sta)/;
+
+/**
+ * I termini con cui la cliente potrebbe aver proposto un alimento suo, o `null` se non sta
+ * proponendo niente.
+ *
+ * `escludi` sono i nomi già in gioco — l'alimento da cambiare e il sostituto proposto da noi: sono
+ * quelli che la frase nomina *per rifiutarli* («l'olio mi fa peso»), e prenderli per una
+ * controproposta vorrebbe dire riproporle esattamente ciò che ha appena scartato.
+ *
+ * Due strade per riconoscere l'intenzione, perché nel parlato ci sono entrambe:
+ *  - una frase che propone («posso usare il burro vegetale?»);
+ *  - un messaggio **corto**, che è solo un nome («burro vegetale»). Alla conferma, due parole che
+ *    non sono né sì né no sono quasi sempre un nome di alimento.
+ *
+ * Chi verifica che quel nome sia un alimento vero — e ammissibile — è il servizio, contro i gruppi
+ * di equivalenza approvati: qui non si decide niente, si legge.
+ */
+export function contropropostaDaTesto(
+  testo: string,
+  escludi: string[] = [],
+): { termini: string[]; esplicita: boolean } | null {
+  const t = normalizza(testo);
+  // Lo scarto è per PAROLA (`condividonoAlimento`), non per nome intero: la frase del collaudo
+  // produce anche la coppia «olio burro», che non è né l'uno né l'altro e non combacia con niente —
+  // ma contiene l'alimento appena rifiutato, e portarsela dietro significa proporglielo di nuovo.
+  const termini = terminiCandidati(testo).filter(
+    (termine) => !escludi.some((x) => x && condividonoAlimento(x, termine)),
+  );
+  if (!termini.length) return null;
+  const parole = t.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const esplicita = PROPONE.test(t);
+  // Il messaggio corto vale come tentativo di proposta solo se è corto DAVVERO: fino a tre parole.
+  if (!esplicita && parole.length > 3) return null;
+  // `esplicita` distingue i due casi, e la distinzione è quella che evita di far girare richieste
+  // che nessuno ha fatto: con un verbo di proposta («posso usare X?») un nome che non troviamo in
+  // catalogo va comunque **chiesto alla nutrizionista**, perché la cliente ha chiesto qualcosa di
+  // preciso. Senza verbo — «boh», «mah» — se il nome non è in catalogo non è un alimento: è
+  // un'esitazione, e va trattata come tale.
+  return { termini, esplicita };
+}
+
+/** La sua proposta si può fare: si conferma con le sue parole, non con le nostre. */
+export function testoContropropostaOk(
+  p: PropostaSostituzione,
+  motivo: Motivo,
+  nome?: string | null,
+): string {
+  const daQta = quantita(p.qtaDa, p.unita);
+  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
+  return (
+    `Sì${conNome(nome)}, «${p.a}» si può — ${nelloSlot(p.slot)} metti ${aQta}${p.a} al posto di ` +
+    `${daQta}${p.da}, ${testoDurata(motivo.durata)}.\n\nConfermo? (sì / no)`
+  );
+}
+
+/**
+ * La sua proposta tocca un allergene dichiarato. Si dice **perché** no: è l'unica risposta che non
+ * suona come un rifiuto arbitrario, e su un allergene la spiegazione è anche una cosa che le serve
+ * sapere. Il seguito (un'altra alternativa) lo aggiunge il servizio in coda a questa frase.
+ */
+export function testoContropropostaAllergene(alimento: string, nome?: string | null): string {
+  return apreFrase(
+    nome,
+    `«${alimento}» purtroppo no: rientra fra le cose che hai dichiarato come allergia, e su quelle non passo mai sopra.`,
+  );
+}
+
+/** La sua proposta è fra le cose che ha escluso lei (intolleranza o non gradito). */
+export function testoContropropostaEsclusa(alimento: string, nome?: string | null): string {
+  return apreFrase(
+    nome,
+    `«${alimento}» ce l'hai fra le cose che non vuoi nel piano, quindi non te lo metto io — se hai cambiato idea dimmelo e lo sistemiamo insieme alla tua coach.`,
+  );
+}
+
+/**
+ * La sua proposta è una **variante dello stesso alimento** («yogurt greco» → «yogurt senza
+ * lattosio»): non risolve il problema per cui aveva chiesto il cambio. Vedi `condividonoAlimento`.
+ */
+export function testoContropropostaStessoAlimento(da: string, alimento: string, nome?: string | null): string {
+  return apreFrase(
+    nome,
+    `«${alimento}» è ancora «${da}» con un altro nome, quindi non cambierebbe niente per te. Ti propongo una cosa diversa.`,
+  );
+}
+
+/**
+ * La sua proposta non è fra gli equivalenti approvati per quell'alimento: non si nomina, perché il
+ * termine letto dal messaggio potrebbe non essere quello che intendeva, e ripeterglielo storpiato
+ * peggiora una risposta già negativa. Non è un vicolo cieco: passa alla nutrizionista, che è la
+ * persona che può dire sì a una cosa che il ricettario non prevede.
+ */
+export function testoContropropostaNonPrevista(da: string, nome?: string | null): string {
+  return apreFrase(
+    nome,
+    `Quello che mi proponi non è fra le alternative che posso decidere io per «${da}»: l'ho girato alla tua nutrizionista, ` +
+      'che può valutarlo e dirmi di metterlo. Ti scrive lei. 💚',
+  );
+}
+
 /** Le tre strade dopo un «no» secco, nell'ordine in cui la cliente le legge. */
 export const STRADE_DOPO_IL_NO: { numero: number; label: string; scelta: 'altro_sostituto' | 'altro_piatto' | 'annulla' }[] = [
   { numero: 1, label: 'non mi va bene questo sostituto: proponimene un altro', scelta: 'altro_sostituto' },
@@ -563,7 +703,12 @@ export function sceltaDopoIlNo(testo: string): 'altro_sostituto' | 'altro_piatto
 export function testoChiediPercheNo(p: PropostaSostituzione, nome?: string | null): string {
   const elenco = STRADE_DOPO_IL_NO.map((s) => `${s.numero}) ${s.label}`).join('\n');
   return (
-    apreFrase(nome, `Aspetta, non voglio lasciarti con il ${p.da} nel piatto se non lo vuoi: dimmi cos'è che non ti va.`) +
+    // Il nome fra virgolette, senza articolo davanti. Prima era scritto `il ${p.da}` e il ricettario
+    // ha alimenti di ogni genere e numero: in schermata, nel collaudo del 9/8, si leggeva «non voglio
+    // lasciarti con **il panna fresca** nel piatto». Le virgolette sono la strada già usata nel resto
+    // del file (vedi `testoNienteAltroSostituto`) e non richiedono di sapere il genere di ogni voce
+    // del ricettario — che nessuna tabella ci dice.
+    apreFrase(nome, `Aspetta, non voglio lasciarti «${p.da}» nel piatto se non lo vuoi: dimmi cos'è che non ti va.`) +
     `\n\n${elenco}\n\nRispondi col numero, o a parole tue.`
   );
 }

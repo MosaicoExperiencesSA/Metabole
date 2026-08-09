@@ -11,6 +11,7 @@ import MeasuresGate from './components/MeasuresGate';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import { PrivacyCosaCancelliamo, PrivacySospendi } from './pages/PrivacyCancellazione';
 import ResetPassword from './pages/ResetPassword';
 import Diversi from './pages/Diversi';
 import Home from './pages/Home';
@@ -71,6 +72,12 @@ function Shell() {
           <Route path="/payment/success" element={<PaymentResult ok />} />
           <Route path="/payment/cancelled" element={<PaymentResult ok={false} />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          {/* Le due pagine della cancellazione stanno in ENTRAMBI gli alberi di rotte, dentro e
+              fuori dal login: chi clicca il pulsante della mail può essere già entrata (e allora
+              deve funzionare senza buttarla fuori) oppure aver disinstallato l'app, che è il caso
+              più probabile dato che sta andando via. Il token vale da solo, la sessione non serve. */}
+          <Route path="/privacy/sospendi" element={<PrivacySospendi />} />
+          <Route path="/privacy/cancellazione" element={<PrivacyCosaCancelliamo />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
@@ -144,6 +151,8 @@ export default function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/conferma-email" element={<ConfermaEmail />} />
         <Route path="/verifica-email" element={<VerificaEmail />} />
+        <Route path="/privacy/sospendi" element={<PrivacySospendi />} />
+        <Route path="/privacy/cancellazione" element={<PrivacyCosaCancelliamo />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );

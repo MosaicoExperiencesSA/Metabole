@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { DataInizioChatService } from '../menu/data-inizio-chat.service';
 import { SostituzioneChatService } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,7 +17,7 @@ const admin: AuthUser = { sub: 'admin-user', email: 'a@m.eu', role: 'admin' };
 describe('ChatService', () => {
   let service: ChatService;
   let prisma: any;
-  let notifications: { notifyOncePerDay: jest.Mock };
+  let notifications: { notifyOncePerDay: jest.Mock; notify: jest.Mock };
   /** Serve nei test della tracciatura: chi apre la conversazione di una cliente lascia una riga. */
   let audit: { log: jest.Mock };
   let sostituzione: {
@@ -24,7 +25,10 @@ describe('ChatService', () => {
     apriDaTesto: jest.Mock;
     avanza: jest.Mock;
     sostituzioniDiChat: jest.Mock;
+    correggiCambioInChat: jest.Mock;
   };
+  /** L'altro dialogo guidato di Gaia: spostare la data di inizio del piano (10/8). */
+  let dataInizio: { apriDaTesto: jest.Mock; avanza: jest.Mock };
 
   beforeEach(async () => {
     audit = { log: jest.fn().mockResolvedValue(undefined) };
@@ -59,12 +63,24 @@ describe('ChatService', () => {
       },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
     };
-    notifications = { notifyOncePerDay: jest.fn().mockResolvedValue(true) };
+    notifications = {
+      notifyOncePerDay: jest.fn().mockResolvedValue(true),
+      notify: jest.fn().mockResolvedValue(undefined),
+    };
     sostituzione = {
       apri: jest.fn().mockResolvedValue({ testo: 'Quale alimento?', stato: { passo: 'cibo', tentativi: 0 }, esito: 'aperto' }),
       apriDaTesto: jest.fn().mockResolvedValue({ testo: 'Quale alimento?', stato: { passo: 'cibo', tentativi: 0 }, esito: 'aperto' }),
       avanza: jest.fn().mockResolvedValue({ testo: 'Perché?', stato: { passo: 'motivo', tentativi: 0 }, esito: 'in_corso' }),
       sostituzioniDiChat: jest.fn().mockResolvedValue([]),
+      correggiCambioInChat: jest.fn().mockResolvedValue({ stato: 'corretta', descrizione: 'Sostituzione corretta.' }),
+    };
+    dataInizio = {
+      apriDaTesto: jest.fn().mockResolvedValue({
+        testo: 'Da quando vuoi partire?',
+        stato: { passo: 'data', tentativi: 0 },
+        esito: 'aperto',
+      }),
+      avanza: jest.fn().mockResolvedValue({ testo: 'Confermi?', stato: { passo: 'conferma', tentativi: 0 }, esito: 'in_corso' }),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -75,6 +91,7 @@ describe('ChatService', () => {
         { provide: AuditService, useValue: audit },
         { provide: AiService, useValue: { assistantEnabled: jest.fn().mockResolvedValue(false), assistantReply: jest.fn().mockResolvedValue(null) } },
         { provide: SostituzioneChatService, useValue: sostituzione },
+        { provide: DataInizioChatService, useValue: dataInizio },
       ],
     }).compile();
     service = moduleRef.get(ChatService);
@@ -274,6 +291,109 @@ describe('ChatService', () => {
     });
   });
 
+  // ---------- L'altro dialogo guidato: la DATA DI INIZIO (richiesta del 10/8) ----------
+
+  /**
+   * In dashboard, chi ha comprato con una data futura legge «se vuoi cambiare la data di inizio,
+   * chiedi a Gaia in chat». Questi test tengono ferma la parte di cablaggio: che la frase apra il
+   * dialogo giusto, che lo stato si riprenda, e che i due dialoghi guidati non si rubino i turni.
+   */
+  describe('data di inizio piano concordata in chat', () => {
+    beforeEach(() => {
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
+    });
+
+    it('«posso cambiare la data di inizio?» apre il dialogo della data', async () => {
+      const res: any = await service.postMessage(client, 't-ai', 'posso cambiare la data di inizio?');
+      expect(dataInizio.apriDaTesto).toHaveBeenCalledWith('client-1', 'posso cambiare la data di inizio?');
+      expect(sostituzione.apriDaTesto).not.toHaveBeenCalled();
+      expect(res.aiReply.meta.kind).toBe('data_inizio');
+      expect(res.aiReply.meta.dataInizio.passo).toBe('data');
+    });
+
+    it('con il dialogo aperto la risposta lo fa avanzare', async () => {
+      prisma.message.findFirst.mockResolvedValue({
+        meta: { dataInizio: { passo: 'data', tentativi: 0 } },
+        sentAt: new Date(),
+      });
+      const res: any = await service.postMessage(client, 't-ai', 'lunedì');
+      expect(dataInizio.avanza).toHaveBeenCalledWith('client-1', { passo: 'data', tentativi: 0 }, 'lunedì');
+      expect(res.aiReply.meta.dataInizio.passo).toBe('conferma');
+    });
+
+    /**
+     * I due dialoghi guidati non si rubano i turni: se è aperto quello della sostituzione, la
+     * cliente sta rispondendo a un'altra domanda — e una frase che *somiglia* a un intento sulla
+     * data non deve buttare via il dialogo a metà.
+     */
+    it('con la sostituzione aperta il dialogo della data non si apre', async () => {
+      prisma.message.findFirst.mockResolvedValue({
+        meta: { sost: { passo: 'motivo', tentativi: 0 } },
+        sentAt: new Date(),
+      });
+      await service.postMessage(client, 't-ai', 'vorrei spostare la data di inizio');
+      expect(dataInizio.apriDaTesto).not.toHaveBeenCalled();
+      expect(sostituzione.avanza).toHaveBeenCalled();
+    });
+
+    it('un dialogo della data lasciato a metà ieri non risuscita', async () => {
+      prisma.message.findFirst.mockResolvedValue({
+        meta: { dataInizio: { passo: 'conferma', data: '2026-09-15' } },
+        sentAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
+      });
+      await service.postMessage(client, 't-ai', 'sì');
+      expect(dataInizio.avanza).not.toHaveBeenCalled();
+    });
+
+    it('a piano già partito il messaggio finisce nel thread della coach', async () => {
+      dataInizio.apriDaTesto.mockResolvedValue({
+        testo: 'Il tuo piano è già cominciato…',
+        inoltraA: 'coach',
+        esito: 'arresa',
+      });
+      const res: any = await service.postMessage(client, 't-ai', 'posso cambiare la data di inizio?');
+      const inoltrato = prisma.message.create.mock.calls.find((c: any) => c[0].data.meta?.forwardedFrom === 'ai');
+      expect(inoltrato[0].data.threadId).toBe('th-coach');
+      expect(inoltrato[0].data.meta.motivo).toBe('data_inizio');
+      expect(res.aiReply.meta.dataInizio).toBeUndefined();
+    });
+
+    it('quando la data viene applicata resta una riga di tracciatura', async () => {
+      prisma.message.findFirst.mockResolvedValue({
+        meta: { dataInizio: { passo: 'conferma', data: '2026-09-15' } },
+        sentAt: new Date(),
+      });
+      dataInizio.avanza.mockResolvedValue({
+        testo: 'Fatto: si parte martedì 15 settembre.',
+        esito: 'applicata',
+        applicata: { da: '2026-09-01', a: '2026-09-15', subscriptionId: 'sub-1' },
+      });
+      await service.postMessage(client, 't-ai', 'sì');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'chat.data_inizio_applicata',
+          metadata: expect.objectContaining({ a: '2026-09-15' }),
+        }),
+      );
+    });
+
+    it('una FAQ vera non viene dirottata dal dialogo della data aperto', async () => {
+      prisma.message.findFirst.mockResolvedValue({
+        meta: { dataInizio: { passo: 'data', tentativi: 0 } },
+        sentAt: new Date(),
+      });
+      const res: any = await service.postMessage(client, 't-ai', 'quando si sblocca il nuovo menu?');
+      expect(dataInizio.avanza).not.toHaveBeenCalled();
+      expect(res.aiReply.meta.matchedFaq).toBe('menu_sblocco');
+    });
+
+    it('una conversazione normale non entra nel dialogo della data', async () => {
+      await service.postMessage(client, 't-ai', 'quando inizio a vedere i risultati?');
+      expect(dataInizio.apriDaTesto).not.toHaveBeenCalled();
+      expect(dataInizio.avanza).not.toHaveBeenCalled();
+    });
+  });
+
   // ---------- Il thread di Gaia in scheda cliente (punto 2) ----------
 
   describe('lettura del thread con Gaia da parte dello staff', () => {
@@ -403,4 +523,69 @@ describe('ChatService', () => {
       await expect(service.sostituzioniDiChatPerStaff(coach, 'client-1')).rejects.toThrow(ForbiddenException);
     });
   });
+
+  /**
+   * LA VERIFICA di un cambio nato in chat. I due cancelli sono diversi da quelli della lettura, e
+   * la differenza è il punto: la coach questi cambi li **legge** — le servono per capire come sta
+   * andando — ma non li tocca, perché la grammatura di un piatto è materia clinica e la decide chi
+   * se ne prende la responsabilità.
+   */
+  describe('la nutrizionista verifica un cambio nato in chat', () => {
+    const CORREZIONE = {
+      data: '2026-08-10',
+      slot: 'lunch',
+      tipo: 'ingrediente' as const,
+      from: 'carote',
+      stato: 'corretta' as const,
+      to: 'spinaci',
+      nota: 'Più ferro.',
+    };
+
+    beforeEach(() => {
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
+    });
+
+    it('la nutrizionista assegnata corregge, e la cliente viene avvisata', async () => {
+      const esito = await service.correggiCambioInChatPerStaff(nutri, 'client-1', CORREZIONE);
+      expect(esito.stato).toBe('corretta');
+      expect(sostituzione.correggiCambioInChat).toHaveBeenCalledWith('client-1', 'nutri-user', CORREZIONE);
+      // La cliente aveva concordato qualcosa con Gaia: se il piatto non è quello, lo deve sapere
+      // da noi e non scoprirlo aprendo il menu.
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'client-1', type: 'menu_cambio_verificato' }),
+      );
+    });
+
+    it('la COACH non tocca un cambio, nemmeno delle sue clienti', async () => {
+      await expect(service.correggiCambioInChatPerStaff(coach, 'client-1', CORREZIONE)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(sostituzione.correggiCambioInChat).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Il secondo cancello: il ruolo giusto non basta, serve anche che la cliente sia sua. Senza
+     * questo, una nutrizionista qualunque potrebbe riscrivere i grammi di una paziente non sua.
+     */
+    it('una nutrizionista di un\'altra cliente non passa', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValue({ assignedNutritionistId: 'staff-ALTRO' });
+      await expect(service.correggiCambioInChatPerStaff(nutri, 'client-1', CORREZIONE)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('l\'admin può, e resta la riga di tracciatura', async () => {
+      await service.correggiCambioInChatPerStaff(admin, 'client-1', CORREZIONE);
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'chat.cambio_verificato' }),
+      );
+    });
+
+    /** «Va bene così» non è una notizia: notificarla insegnerebbe a ignorare queste notifiche. */
+    it('la semplice conferma non disturba la cliente', async () => {
+      await service.correggiCambioInChatPerStaff(nutri, 'client-1', { ...CORREZIONE, stato: 'verificata' });
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+  });
+
 });
