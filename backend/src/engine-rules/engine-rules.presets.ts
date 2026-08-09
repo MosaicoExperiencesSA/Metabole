@@ -200,6 +200,42 @@ export const SUGGESTED_PRESETS: PresetSeed[] = [
       'Impostazione EVIDENCE-BASED, senza claim medici: il corpo si depura da solo (fegato/reni); nessuna promessa di "eliminare tossine" — le detox commerciali (succhi/digiuni/integratori) non hanno evidenza clinica. Questo piano SUPPORTA gli organi emuntori: verdure ≥ 4–5 porzioni/die con crucifere (broccoli, cavolo) e foglie amare quotidiane; fibra ≥ 25–30 g/die; idratazione ~2 L acqua/die (acqua, tè verde/tisane non zuccherate); ALCOL ZERO per tutta la durata; zuccheri aggiunti < 5–10% kcal; sodio ≤ 2000 mg/die; niente ultra-processati e fritture; proteine adeguate 18–25% (gli enzimi epatici richiedono aminoacidi: MAI abbinare "detox" a proteine bassissime); kcal mai sotto il metabolismo basale, niente digiuni né soli liquidi. Durata 1–2 settimane, poi passaggio a mediterranea o flessibile. Controindicazioni (gravidanza/allattamento, patologie epato-renali, DCA): solo con validazione del nutrizionista. (Richiedono parametri motore: porzioni min verdura, fibre_min_g, cap sodio/zuccheri, flag no-alcol.)',
     source: 'Klein & Kiat, Detox diets: critical review (J Hum Nutr Diet 2015) — nessuna evidenza per le detox commerciali; consenso dietetico (BDA/AND): supporto agli organi emuntori via fibra, idratazione, riduzione alcol/ultra-processati.',
   },
+  /**
+   * MEDITERRANEA SENZA GLUTINE — richiesta di Simone del 9/8.
+   *
+   * Nasce da una domanda pratica: «abbiamo una dieta gluten free?». No, e il documento delle
+   * regole suggerite mette il «senza glutine a scopo terapeutico» fra gli stili **esclusi** dalla
+   * piattaforma, perché la celiachia richiede diagnosi e follow-up clinico. Questa variante non
+   * cambia quella posizione: è una **Mediterranea che non usa fonti di glutine**, pensata per chi
+   * il glutine lo evita (intolleranza non celiaca, scelta) e per accorciare il lavoro di chi la
+   * validerà. Nasce in BOZZA e vale solo dopo l'approvazione del nutrizionista, come ogni altra.
+   *
+   * ⚠️ Non è un prodotto «certificato senza glutine»: noi controlliamo gli **ingredienti**, non la
+   * filiera né la contaminazione in cucina. A una celiaca questa distinzione va detta prima, ed è
+   * scritta nelle note perché finisca sotto gli occhi di chi valida.
+   *
+   * Perché funziona senza codice nuovo: `clinicalNotes` viene passato **letteralmente nel prompt**
+   * del generatore (vedi `generaRicetteDiUnPasto`: «Regole cliniche da rispettare: …»). Quindi il
+   * vincolo sul glutine è espresso lì, in italiano, insieme all'elenco dei cereali ammessi — che è
+   * la parte che fa la differenza fra un menu povero e uno vario.
+   *
+   * `rules` sono **identiche alla Mediterranea**: togliere il glutine non cambia la ripartizione
+   * dei macro né le tolleranze, e inventare numeri nuovi qui vorrebbe dire scostarsi dalle linee
+   * guida senza una ragione.
+   */
+  {
+    style: 'mediterranean', label: 'Mediterranea senza glutine', sortOrder: 11,
+    description:
+      'La Mediterranea costruita senza fonti di glutine: al posto di pane e pasta di frumento, riso, mais, grano saraceno, quinoa, miglio, patate e legumi. Stessa impostazione cardio-protettiva (carbo 45–55%, proteine 15–20%, grassi 30–40% da olio d’oliva) e stessa varietà.',
+    rules: R(0.15, 0.22, 13, 1.5, 0.8, 1.2, false),
+    clinicalNotes:
+      'SENZA GLUTINE. Vietati in TUTTE le ricette: frumento/grano (e farine), farro, orzo, segale, spelta, kamut, triticale, couscous, bulgur, semolino, seitan, pane/pasta/pizza/piadina/cracker/grissini comuni, pangrattato, birra, salsa di soia non certificata, besciamella e salse addensate con farina di frumento. Avena SOLO se indicata come «certificata senza glutine». '
+      + 'Cereali e fonti di carboidrati AMMESSE, da alternare per non impoverire il menu: riso (anche integrale, venere, basmati), mais e polenta, grano saraceno, quinoa, miglio, amaranto, teff, sorgo, patate e patate dolci, castagne, legumi (ceci, lenticchie, fagioli, piselli) e la loro pasta, tapioca. Dove serve pane o pasta, indicare esplicitamente «pane senza glutine» / «pasta di riso o di mais» / «pasta di legumi». '
+      + 'Restano le regole della Mediterranea: SFA < 10% kcal; pesce ≥ 2/sett, legumi ≥ 2–3/sett, carne rossa limitata; fibra ≥ 25 g/die — con attenzione in più alla fibra, perché i sostitutivi senza glutine ne hanno meno dei prodotti integrali: usare legumi, verdura, frutta con buccia e pseudocereali. '
+      + 'NON è un piano per la celiachia: qui si escludono gli ingredienti, non si garantisce l’assenza di contaminazione né la certificazione dei prodotti. Per una cliente celiaca serve la validazione del nutrizionista e l’indicazione di prodotti certificati. (Richiedono parametri motore: cap SFA, frequenze settimanali, fibre_g.)',
+    source:
+      'SINU LARN 2014; PREDIMED (NEJM 2013/2018) per l’impostazione mediterranea. Per l’esclusione del glutine e il rischio di ridotto apporto di fibra e micronutrienti nelle diete senza glutine: Associazione Italiana Celiachia / Ministero della Salute, indicazioni sulla dieta senza glutine; linee guida europee ESsCD 2019 sulla celiachia.',
+  },
   // ---- Protocolli stagionali estate (luglio) ----
   {
     style: 'summer_holiday', label: 'Vacanze in Serenità', sortOrder: 5,

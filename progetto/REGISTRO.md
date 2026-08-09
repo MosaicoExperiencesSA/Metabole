@@ -7,6 +7,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🌾 **«Mediterranea senza glutine» pronta da generare** — alla domanda «abbiamo una
+  dieta gluten free?» la risposta era no, e per una ragione scritta: il documento delle regole
+  suggerite mette il «senza glutine a scopo terapeutico» fra gli stili **esclusi**, perché la
+  celiachia richiede diagnosi e follow-up. Questa variante non cambia quella posizione — è una
+  Mediterranea che **non usa fonti di glutine**, per chi lo evita per intolleranza non celiaca o per
+  scelta — ma toglie alla nutrizionista il lavoro di partenza.
+  - Non è servito codice nuovo: le **note cliniche di un preset finiscono letteralmente nel prompt**
+    del generatore (`generaRicetteDiUnPasto`). Il vincolo è scritto lì, in italiano, con l'elenco
+    dei cereali vietati **e di quelli ammessi** — riso, mais, grano saraceno, quinoa, miglio,
+    amaranto, teff, patate, castagne, legumi e la loro pasta. L'elenco delle alternative è la parte
+    che decide se il menu sarà vario o sarà riso ogni giorno.
+  - Le `rules` sono **identiche alla Mediterranea**: togliere il glutine non cambia la ripartizione
+    dei macro né le tolleranze, e inventare numeri diversi vorrebbe dire scostarsi dalle linee guida
+    senza motivo. L'etichetta invece è diversa, e non per estetica: il generatore cerca la famiglia
+    per (etichetta, stile, regime, obiettivo), quindi un nome nuovo è ciò che le dà **ricette
+    proprie** invece di agganciarla a quelle della Mediterranea, che il glutine ce l'hanno.
+  - Nelle note ci sono anche le due cose che si dimenticano: **l'avena solo se certificata** senza
+    glutine, e la **fibra** — i sostitutivi senza glutine ne hanno meno dei prodotti integrali,
+    quindi legumi, verdura e pseudocereali vanno usati di più.
+  - ⚠️ Scritto nel preset perché lo legga chi valida: **non è un prodotto certificato senza
+    glutine.** Si escludono gli ingredienti, non si garantisce la filiera né l'assenza di
+    contaminazione. Per una cliente celiaca serve la validazione della nutrizionista e l'indicazione
+    di prodotti certificati.
+  - Il preset arriva col **seed**, quindi compare nel generatore dopo il deploy senza lanciare
+    niente, col flag «suggerita». +24 test sulle note: non sono documentazione, sono l'istruzione
+    che governa la generazione, e accorciarle romperebbe il vincolo in silenzio.
+
 - `[Sviluppo]` 🕛 **Il CI era rosso per il fuso orario, non per il codice** — dal commit delle 00:09
   in avanti il job «Backend · build + test» falliva: 11 prove su 984, in `menu.service.spec`,
   `notifications.service.spec` e `signals.service.spec`. Il type-check passava, e i commit
