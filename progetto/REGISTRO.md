@@ -7,6 +7,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🔎 **In elenco clienti si vede chi è senza glutine** — Simone, dopo il primo giro:
+  «lo script ha corretto due clienti ma io le vedo in Mediterranea, come faccio a distinguere?».
+  Il dato era giusto e la domanda legittima: **la tendina «Stile» non può distinguerle.** Quella
+  tendina elenca gli *stili* delle diete approvate (`catalog.service.styles`) e la variante senza
+  glutine ha lo stesso stile della Mediterranea — `mediterranean` — perché è la stessa impostazione
+  nutrizionale. La differenza sta nella **famiglia** (`dietFamily`), che è il campo «nome dieta» dove
+  lui infatti leggeva «Mediterranea senza glutine».
+  - Nell'elenco clienti ora c'è una **pastiglia «senza glutine»** accanto al nome, con due stati: se
+    la dieta dedicata è assegnata è pulita, se è stata dichiarata ma la dieta è un'altra c'è un ⚠️ e
+    il passaggio del mouse dice quale dieta ha davvero. È la distinzione che serve dopo un'assegnazione
+    in blocco: chi è a posto e chi aspetta ancora.
+  - Nuovo filtro **«Glutine»** con due voci: chi l'ha dichiarato, e — quella utile — chi l'ha
+    dichiarato **senza avere la dieta dedicata**. Dopo aver generato la variante, quello è l'elenco
+    delle clienti da sistemare.
 - `[Sviluppo]` 🌾 **Chi dichiara il glutine riceve la dieta senza glutine, e glielo diciamo** —
   richiesta di Simone del 9/8, nei due versi: da qui in avanti in automatico, e per **chi è già
   iscritto** con una notifica e il cambio.

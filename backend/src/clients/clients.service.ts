@@ -9,7 +9,7 @@ import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
 import { Role } from '../common/roles';
-import { assegnaSenzaGlutineEAvvisa } from '../menu/senza-glutine';
+import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
 
@@ -88,7 +88,18 @@ export class ClientsService {
           // su molte clienti `firstName`/`lastName` sono vuoti e in tabella comparivano dei «—»
           // pur avendo il nome nel profilo.
           clientProfile: {
-            select: { name: true, assignedCoach: { select: { displayName: true } } },
+            select: {
+              name: true,
+              assignedCoach: { select: { displayName: true } },
+              // Serve per il segno «senza glutine» in tabella: dalla tendina «Stile» non si
+              // distingue, perché la variante senza glutine ha lo STESSO stile (mediterranean)
+              // della Mediterranea — la differenza sta nella famiglia. Chi guarda l'elenco vuole
+              // vederlo a colpo d'occhio, non aprendo le schede una per una.
+              dietFamily: true,
+              allergies: true,
+              intolerances: true,
+              dislikedFoods: true,
+            },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -107,7 +118,14 @@ export class ClientsService {
       lastName: string | null;
       status: string;
       createdAt: Date;
-      clientProfile: { name: string | null; assignedCoach: { displayName: string } | null } | null;
+      clientProfile: {
+        name: string | null;
+        assignedCoach: { displayName: string } | null;
+        dietFamily: string | null;
+        allergies: string[];
+        intolerances: string[];
+        dislikedFoods: string[];
+      } | null;
     }[]).map((u) => ({
       id: u.id,
       email: u.email,
@@ -117,6 +135,14 @@ export class ClientsService {
       createdAt: u.createdAt,
       nickname: u.clientProfile?.name ?? null,
       coach: u.clientProfile?.assignedCoach?.displayName ?? null,
+      dietFamily: u.clientProfile?.dietFamily ?? null,
+      // Vero se l'ha dichiarato, indipendentemente dal fatto che la variante sia già assegnata:
+      // così in elenco si vede anche chi lo ha dichiarato e sta ancora aspettando la dieta.
+      senzaGlutine: dichiaraSenzaGlutine([
+        ...(u.clientProfile?.allergies ?? []),
+        ...(u.clientProfile?.intolerances ?? []),
+        ...(u.clientProfile?.dislikedFoods ?? []),
+      ]),
     }));
     return { items: righe, total: totale, mostrati: righe.length, limite: LIMITE };
   }

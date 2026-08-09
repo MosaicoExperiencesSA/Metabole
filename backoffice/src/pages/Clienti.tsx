@@ -14,6 +14,10 @@ interface ClientRow {
   nickname?: string | null;
   /** Coach assegnata (richiesta di Simone dell'8/8). */
   coach?: string | null;
+  /** Famiglia di dieta assegnata (es. «Mediterranea senza glutine»). */
+  dietFamily?: string | null;
+  /** Ha dichiarato il glutine: si mostra come pastiglia accanto al nome. */
+  senzaGlutine?: boolean;
 }
 
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
@@ -48,6 +52,8 @@ export function Clienti() {
   const [filter, setFilter] = useState('');
   const [fCoach, setFCoach] = useState('');
   const [fStato, setFStato] = useState('');
+  /** Filtro «senza glutine»: la domanda pratica è «chi devo guardare fra queste». */
+  const [fGlutine, setFGlutine] = useState('');
   const [sortKey, setSortKey] = useState<Chiave | ''>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -86,6 +92,10 @@ export function Clienti() {
       if (fCoach === 'none' && r.coach) return false;
       if (fCoach && fCoach !== 'none' && r.coach !== fCoach) return false;
       if (fStato && r.status !== fStato) return false;
+      if (fGlutine === 'si' && !r.senzaGlutine) return false;
+      // «da sistemare» = l'ha dichiarato ma la dieta senza glutine non ce l'ha: sono quelle su cui
+      // c'è ancora qualcosa da fare, ed è l'elenco che serve dopo aver generato la variante.
+      if (fGlutine === 'da_sistemare' && (!r.senzaGlutine || r.dietFamily === 'Mediterranea senza glutine')) return false;
       return true;
     });
     if (sortKey) {
@@ -101,10 +111,10 @@ export function Clienti() {
       out = [...out].sort((a, b) => valore(a).localeCompare(valore(b)) * (sortDir === 'asc' ? 1 : -1));
     }
     return out;
-  }, [rows, filter, fCoach, fStato, sortKey, sortDir]);
+  }, [rows, filter, fCoach, fStato, fGlutine, sortKey, sortDir]);
 
   const pg = usePagination(filtered, 100);
-  const filtriAttivi = !!(filter || fCoach || fStato);
+  const filtriAttivi = !!(filter || fCoach || fStato || fGlutine);
 
   function ordina(key: Chiave) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -112,7 +122,7 @@ export function Clienti() {
   }
 
   function azzera() {
-    setFilter(''); setFCoach(''); setFStato('');
+    setFilter(''); setFCoach(''); setFStato(''); setFGlutine('');
   }
 
   const th = (label: string, key: Chiave) => (
@@ -140,6 +150,11 @@ export function Clienti() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
+          <select className="select" style={{ maxWidth: 230 }} value={fGlutine} onChange={(e) => setFGlutine(e.target.value)} title="Clienti che hanno dichiarato il glutine">
+            <option value="">Glutine: tutte</option>
+            <option value="si">Ha dichiarato il glutine</option>
+            <option value="da_sistemare">Glutine senza la dieta dedicata</option>
+          </select>
           {filtriAttivi && (
             <button className="btn ghost" onClick={azzera} title="Rimuovi tutti i filtri">
               <i className="ti ti-filter-off" /> Azzera filtri
@@ -204,7 +219,25 @@ export function Clienti() {
             <tbody>
               {pg.pageItems.map((r) => (
                 <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clienti/${r.id}`)}>
-                  <td>{name(r) || <span className="muted">—</span>}</td>
+                  <td>
+                    {name(r) || <span className="muted">—</span>}
+                    {/* Il glutine NON si vede dalla tendina «Stile»: la variante senza glutine ha
+                        lo stesso stile della Mediterranea, la differenza sta nella famiglia. Qui
+                        si vede a colpo d'occhio, che è la domanda di chi apre questo elenco. */}
+                    {r.senzaGlutine && (
+                      <span
+                        className="chip"
+                        style={{ marginLeft: 6, fontSize: 10.5, background: '#F3E7E1', color: '#8A4B2A', border: '1px solid #E0A98A' }}
+                        title={
+                          r.dietFamily === 'Mediterranea senza glutine'
+                            ? 'Ha dichiarato il glutine e ha la dieta senza glutine assegnata.'
+                            : `Ha dichiarato il glutine, ma la dieta assegnata è «${r.dietFamily ?? '—'}»: la variante senza glutine non le è ancora arrivata.`
+                        }
+                      >
+                        senza glutine{r.dietFamily === 'Mediterranea senza glutine' ? '' : ' ⚠️'}
+                      </span>
+                    )}
+                  </td>
                   <td>{r.email}</td>
                   <td>{r.coach ?? <span className="muted" title="Nessuna coach assegnata">—</span>}</td>
                   <td><span className={`chip ${r.status === 'active' ? '' : 'amber'}`}>{r.status === 'active' ? 'Attivo' : 'Sospeso'}</span></td>
