@@ -7,6 +7,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-09
 
+- `[Sviluppo]` 🌾 **Chi dichiara il glutine riceve la dieta senza glutine, e glielo diciamo** —
+  richiesta di Simone del 9/8, nei due versi: da qui in avanti in automatico, e per **chi è già
+  iscritto** con una notifica e il cambio.
+  - Scatta da tre punti: il **questionario** (appena salvato, prima della base personale — che si
+    costruisce sulla dieta, e costruirla su quella sbagliata vorrebbe dire rifarla), la **scheda
+    cliente** quando la coach aggiunge l'intolleranza, e lo script per lo storico. Un'unica funzione
+    (`menu/senza-glutine.ts`) usata da tutti e tre: la stessa decisione scritta in tre posti diventa
+    tre decisioni diverse entro un mese.
+  - **La regola che regge tutto: non si promette una dieta che non c'è.** Assegnare vuol dire
+    scrivere `dietFamily`, e da lì il motore abbina la variante; ma `pickDietFor` ha una catena di
+    ripieghi, e se la variante senza glutine non è in catalogo scende a una dieta **col glutine**,
+    senza errori. Quindi l'ordine è: serve? · la variante approvata esiste per il suo regime e numero
+    di pasti? · **solo allora** si scrive e si avvisa. Se manca, non si scrive niente, alla cliente
+    non si dice niente e nasce una segnalazione per la nutrizionista.
+  - Riconoscimento volutamente **stretto**: `glutine`, `gluten`, `celiac`. NON i singoli cereali —
+    «farro» fra i cibi non graditi vuol dire «non mi piace il farro», e cambiare la dieta per quello
+    sarebbe decidere al posto della cliente su un dato che dice un'altra cosa. Vale sia fra le
+    allergie sia fra le intolleranze sia nel testo libero.
+  - Il messaggio alla cliente dice cosa cambia (riso, mais, grano saraceno, quinoa, patate, legumi al
+    posto di pane e pasta di frumento) e **non promette la certificazione**: noi scegliamo gli
+    ingredienti, non garantiamo la filiera né l'assenza di contaminazione. Chi è celiaca legge di
+    usare prodotti certificati e di parlarne con la nutrizionista.
+  - Se la cliente ha **giornate già erogate** da oggi in avanti, quelle hanno ancora il glutine
+    dentro: si conta e si apre una segnalazione perché vanno rigenerate («Rigenera menu» dalla
+    scheda). Senza questa riga la cliente riceve «il tuo piano è senza glutine» e per tre giorni
+    mangia pasta di grano.
+  - Per lo storico: **`npm run assegna:senza-glutine`** — dry-run che elenca chi verrebbe cambiata e
+    dice subito se la variante approvata esiste (se non esiste, il lancio non serve a niente e lo
+    scrive), `CONFERMA=1` per assegnare e avvisare. Usa la stessa funzione del prodotto.
+  - +28 test, fra riconoscimento, testo del messaggio e i casi dell'assegnazione (variante mancante,
+    già assegnata, giornate da rifare).
+
 - `[Sviluppo]` 🌾 **«Mediterranea senza glutine» pronta da generare** — alla domanda «abbiamo una
   dieta gluten free?» la risposta era no, e per una ragione scritta: il documento delle regole
   suggerite mette il «senza glutine a scopo terapeutico» fra gli stili **esclusi**, perché la

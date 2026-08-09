@@ -9,6 +9,7 @@ import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
 import { Role } from '../common/roles';
+import { assegnaSenzaGlutineEAvvisa } from '../menu/senza-glutine';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
 
@@ -481,6 +482,15 @@ export class ClientsService {
           payload: { from: 'dimagrimento', to: 'mantenimento' },
         })
         .catch(() => undefined);
+    }
+    // SENZA GLUTINE: se la coach ha appena aggiunto il glutine fra allergie o intolleranze, la
+    // variante dedicata si assegna da sé e la cliente viene avvisata (richiesta di Simone del 9/8).
+    // Idempotente: chi ce l'ha già non riceve un secondo messaggio. Best effort come sopra — il
+    // salvataggio della scheda non deve dipendere da questo.
+    try {
+      await assegnaSenzaGlutineEAvvisa(this.prisma as never, userId);
+    } catch {
+      /* non bloccante: il glutine resta escluso dai menu dalle esclusioni del profilo */
     }
     return { updated: true };
   }
