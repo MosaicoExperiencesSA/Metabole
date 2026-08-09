@@ -7,6 +7,45 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-10
 
+- `[Sviluppo]` 🥗 **Si vede QUALE dieta è collegata a una cliente** — chiesto da Simone davanti alla
+  scheda: «di Mediterranea ne ho tre tipi, devo vedere tutta la descrizione così scelgo nel modo
+  giusto o capisco se la cliente è in quella corretta».
+  - In scheda c'era solo lo **stile** («Mediterranea»), che con tre diete che si chiamano così non
+    dice niente: «Mediterranea», «Mediterranea senza glutine» e la Keto-Mediterranea hanno tutte
+    `style = mediterranean`. Quello che disambigua è `dietFamily` (= `Diet.name`), che era scritto sul
+    profilo e **non compariva da nessuna parte**.
+  - Riga nuova **«Dieta assegnata»**: nome vero, **descrizione per esteso e non troncata** (è quella
+    che fa scegliere), regime e numero di pasti della variante, ed etichetta rossa se quel nome non è
+    in catalogo o è ancora una bozza. Se la descrizione manca lo dice: senza, in app la cliente vede
+    solo il nome.
+  - Riga **«⚠️ Menu in corso»** quando la dieta assegnata e quella delle giornate già erogate sono
+    diverse. È il caso visto stasera: sul profilo «senza glutine», nel menu di domani ancora il pane.
+    Con il glutine di mezzo non è una sfumatura da lasciare implicita — e dice anche cosa fare
+    («Rigenera menu»).
+  - **Nell'app**, `/me/nutrition` dà ora la precedenza alla dieta **assegnata**. Prima il nome veniva
+    solo dalla dieta dei menu già erogati: dopo un cambio la cliente leggeva il nome vecchio — corretto
+    rispetto a quello che sta mangiando, sbagliato rispetto a quello che è stato deciso, e
+    indistinguibile da un'assegnazione fallita. Nessuna OTA serve: il nome arriva dal server. Nel
+    payload c'è anche `menuAncoraSullaDietaPrecedente`, che l'app userà alla prossima OTA.
+- `[Sviluppo]` 📱 **OTA 2.1.4 pubblicata** — porta sull'app le schermate della serata (card Consenso e
+  revoca, pagine `/privacy/*`, «?» sulla dieta, pasti del digiuno a parole, messaggio della data di
+  inizio). Verifiche fatte sullo zip **prima** di pubblicarlo: `index.html` alla radice, tutte le
+  stringhe delle schermate nuove, unica versione nel JS `2.1.4`, e le **push presenti** — provate nei
+  due versi (ci sono `/me/push-tokens` e il listener `registration`, ed è assente la stringa del ramo
+  «costruito SENZA google-services.json», eliminata dal build perché `__ENABLE_PUSH__` era true).
+- `[Sviluppo]` 🔎 **`diag:cancellazioni`** — elenca le richieste di cancellazione con stato, data
+  prevista e giorni rimanenti, ed evidenzia quelle scadute o che scadono oggi. Nasce da una necessità
+  immediata: una prova di revoca lasciata a metà non si vede da nessuna parte, e al 31° giorno il cron
+  anonimizza l'account per davvero. `FERMA=<id>` la sospende e rimette il consenso, come il link della
+  mail; il rinnovo automatico no, perché riabbonare qualcuno da uno script sarebbe peggio.
+- `[Prodotto]` 🌾 **Senza glutine attivo in produzione** — variante «Mediterranea senza glutine»
+  generata e approvata (9 combinazioni regime × pasti), `assegna:senza-glutine` lanciato: le 2 clienti
+  che avevano dichiarato il glutine su 45 risultano assegnate. Resta da premere **«Rigenera menu»** per
+  entrambe: finché non si fa, ricevono ancora piatti con glutine. ⚠️ In catalogo le varianti approvate
+  risultano **18 = 9 combinazioni duplicate**: non fa danni (il motore prende la prima che combacia) ma
+  rende inutilizzabile una tendina di scelta. Da ripulire con `dedupe:diets` prima di aggiungere in
+  scheda la scelta della dieta assegnata.
+
 - `[Prodotto]` 📄 **Documento per Nocanty: le grammature dei grassi** —
   `progetto/Metabole_Grammature_Grassi_Domande.md` (+ PDF da mandarle). Spiega il difetto in numeri
   (70 ml di panna → 70 g di olio porta un piatto da 500 a ~890 kcal, +77%), il vincolo che decide la

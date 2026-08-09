@@ -258,9 +258,69 @@ export class ClientsService {
       safeProfile = p as typeof profile;
     }
 
+    /**
+     * QUALE DIETA È COLLEGATA A QUESTA CLIENTE, con la sua descrizione per esteso.
+     *
+     * Chiesto da Simone il 10/8, davanti alla scheda: «di Mediterranea ne ho tre tipi, devo vedere
+     * tutta la descrizione così scelgo nel modo giusto, o capisco se la cliente è in quella
+     * corretta». In scheda c'era solo lo **stile** («Mediterranea»), che con tre diete che si
+     * chiamano così non dice niente: «Mediterranea», «Mediterranea senza glutine» e la
+     * Keto-Mediterranea hanno tutte `style = mediterranean`.
+     *
+     * Quello che disambigua è `dietFamily` (= `Diet.name`, vedi `pick-diet.ts`), che era scritto sul
+     * profilo e non compariva da nessuna parte.
+     *
+     * Si mandano DUE diete, e la differenza è la cosa che serve sapere:
+     *  - `dietaAssegnata`: quella decisa (dal questionario, dalla nutrizionista, o
+     *    dall'assegnazione automatica del senza glutine);
+     *  - `dietaMenuInCorso`: quella su cui sono costruite le giornate già erogate. Le due divergono
+     *    fra il cambio e la rigenerazione dei menu — ed è esattamente il momento in cui una cliente
+     *    celiaca ha «senza glutine» sul profilo e il pane nel menu di domani.
+     */
+    const dietFamilyAssegnata = (profile as { dietFamily?: string | null } | null)?.dietFamily ?? null;
+    const [dietaAssegnata, giornoRecente] = await Promise.all([
+      dietFamilyAssegnata
+        ? (this.prisma.diet.findFirst({
+            where: { name: dietFamilyAssegnata },
+            // Approvata per prima: se esiste anche una bozza con lo stesso nome, è quella approvata
+            // a raccontare la dieta vera. ('approved' < 'draft' in ordine alfabetico.)
+            orderBy: { status: 'asc' },
+            select: { id: true, name: true, clientName: true, clientDescription: true, style: true, status: true, regime: true, mealsPerDay: true },
+          }) as Promise<{
+            id: string; name: string; clientName: string | null; clientDescription: string | null;
+            style: string | null; status: string; regime: string | null; mealsPerDay: number | null;
+          } | null>)
+        : Promise.resolve(null),
+      this.prisma.menuDay.findFirst({
+        where: { clientId: userId },
+        orderBy: { date: 'desc' },
+        select: { date: true, diet: { select: { name: true, clientName: true, status: true } } },
+      }) as Promise<{ date: Date; diet: { name: string; clientName: string | null; status: string } | null } | null>,
+    ]);
+    const nomeInCorso = giornoRecente?.diet ? giornoRecente.diet.clientName || giornoRecente.diet.name : null;
+    const nomeAssegnata = dietaAssegnata ? dietaAssegnata.clientName || dietaAssegnata.name : dietFamilyAssegnata;
+
     return {
       user,
       profile: safeProfile, // dati clinici presenti solo per lo staff clinico
+      dietaAssegnata: dietaAssegnata
+        ? {
+            id: dietaAssegnata.id,
+            nome: nomeAssegnata,
+            descrizione: dietaAssegnata.clientDescription,
+            style: dietaAssegnata.style,
+            status: dietaAssegnata.status,
+            regime: dietaAssegnata.regime,
+            mealsPerDay: dietaAssegnata.mealsPerDay,
+          }
+        : dietFamilyAssegnata
+          ? // Il nome è scritto sul profilo ma in catalogo non c'è nessuna dieta con quel nome:
+            // succede se una dieta viene rinominata o cancellata. Va detto, non nascosto — il
+            // motore cercherà quel nome e non lo troverà.
+            { id: null, nome: dietFamilyAssegnata, descrizione: null, style: null, status: 'non_in_catalogo', regime: null, mealsPerDay: null }
+          : null,
+      dietaMenuInCorso: nomeInCorso,
+      menuAncoraSullaDietaPrecedente: !!nomeInCorso && !!nomeAssegnata && nomeInCorso !== nomeAssegnata,
       objective,
       measurements,
       checkins,

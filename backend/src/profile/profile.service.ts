@@ -262,6 +262,33 @@ export class ProfileService {
       diet: { name: string; clientName: string | null; clientDescription: string | null; style: string | null } | null;
     } | null;
 
+    /**
+     * LA DIETA ASSEGNATA, che è quella che conta, e ha la precedenza su quella dei menu erogati.
+     *
+     * Difetto visto il 10/8 da Simone: assegnata la «Mediterranea senza glutine» a una cliente, in
+     * profilo continuava a leggersi «Mediterranea». Il nome veniva **solo** dalla dieta dell'ultima
+     * giornata erogata, e quelle giornate restano costruite sulla dieta di prima finché la
+     * nutrizionista non le rigenera. Risultato: la cliente leggeva il nome vecchio, e da fuori non
+     * si poteva sapere se il cambio fosse andato a buon fine o si fosse perso per strada.
+     *
+     * `ClientProfile.dietFamily` è `Diet.name` (vedi `pick-diet.ts`), quindi si può cercare la
+     * variante e prenderne descrizione e stile. Approvata per prima: se ne esiste anche una bozza,
+     * è quella approvata a raccontare la dieta vera.
+     */
+    const assegnata = profile.dietFamily
+      ? (((await this.prisma.diet.findFirst({
+          where: { name: profile.dietFamily, status: 'approved' },
+          select: { name: true, clientName: true, clientDescription: true, style: true },
+        })) ??
+          (await this.prisma.diet.findFirst({
+            where: { name: profile.dietFamily },
+            select: { name: true, clientName: true, clientDescription: true, style: true },
+          }))) as { name: string; clientName: string | null; clientDescription: string | null; style: string | null } | null)
+      : null;
+
+    const nomeConsegnata = ultimo?.diet ? ultimo.diet.clientName || ultimo.diet.name : null;
+    const nomeAssegnata = assegnata ? assegnata.clientName || assegnata.name : profile.dietFamily;
+
     return {
       regime: profile.regime,
       dietStyle: profile.dietStyle,
@@ -269,14 +296,28 @@ export class ProfileService {
       mealsPerDay: profile.mealsPerDay,
       fasting: profile.pathType === 'intermittent_fasting',
       fastingWindow: profile.fastingWindow,
-      dietName: ultimo?.diet ? (ultimo.diet.clientName || ultimo.diet.name) : null,
-      dietDescription: ultimo?.diet?.clientDescription ?? null,
+      // Prima quella assegnata: è la decisione della nutrizionista. Il ripiego resta la dieta dei
+      // menu, che è tutto quello che sappiamo delle clienti registrate prima del 7/8 (`dietFamily`
+      // è null per loro).
+      dietName: nomeAssegnata ?? nomeConsegnata,
+      dietDescription: assegnata?.clientDescription ?? ultimo?.diet?.clientDescription ?? null,
       /**
        * Lo stile della DIETA ASSEGNATA, che può non essere quello scelto in registrazione
        * (`profile.dietStyle`): se la nutrizionista l'ha spostata su un'altra dieta, il popup deve
        * spiegare quella che sta seguendo — non quella che aveva chiesto. Ripiega sul profilo.
        */
-      dietStyleAssegnato: ultimo?.diet?.style ?? profile.dietStyle,
+      dietStyleAssegnato: assegnata?.style ?? ultimo?.diet?.style ?? profile.dietStyle,
+      /**
+       * I menu di questi giorni sono ancora quelli della dieta PRECEDENTE: il cambio è stato
+       * deciso ma le giornate già erogate non sono state rigenerate.
+       *
+       * Va detto, e non nascosto: è la differenza fra «la tua dieta è cambiata e i menu arrivano
+       * appena sono pronti» e una cliente celiaca che legge «senza glutine» in profilo e trova il
+       * pane nel menu di domani. Con il glutine di mezzo è una cosa che deve sapere.
+       */
+      menuAncoraSullaDietaPrecedente:
+        !!nomeConsegnata && !!nomeAssegnata && nomeConsegnata !== nomeAssegnata,
+      dietNameMenuInCorso: nomeConsegnata,
       coachName: profile.assignedCoach?.displayName ?? null,
     };
   }

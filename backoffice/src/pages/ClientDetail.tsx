@@ -12,6 +12,18 @@ interface Detail {
     addressLine: string | null; postalCode: string | null; city: string | null; province: string | null; phone: string | null; codiceFiscale: string | null; linkedUserId: string | null;
   };
   profile: any | null;
+  /**
+   * La dieta COLLEGATA alla cliente, con la descrizione per esteso. Lo stile («Mediterranea») non
+   * basta a dire quale sia: tre diete diverse hanno `style = mediterranean`. Vedi il commento in
+   * `clients.service.getDetail`.
+   */
+  dietaAssegnata: {
+    id: string | null; nome: string | null; descrizione: string | null;
+    style: string | null; status: string; regime: string | null; mealsPerDay: number | null;
+  } | null;
+  /** La dieta su cui sono costruite le giornate GIÀ EROGATE: può non essere quella assegnata. */
+  dietaMenuInCorso: string | null;
+  menuAncoraSullaDietaPrecedente: boolean;
   objective: any | null;
   measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; replacedSnapshot?: { weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm?: number | null; replacedAt?: string } | null }[];
   checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
@@ -996,6 +1008,78 @@ export function ClientDetail() {
             <Row label="Fianchi" value={p.startHipsCm ? `${p.startHipsCm} cm` : '—'} />
             <Row label="Regime" value={p.regime ? regimeLabel(p.regime) : '—'} />
             <Row label="Stile alimentare" value={p.dietStyle ? styleLabel(p.dietStyle) : '—'} />
+            {/*
+              QUALE DIETA È COLLEGATA (richiesta di Simone del 10/8, davanti a questa scheda: «di
+              Mediterranea ne ho tre tipi, devo vedere tutta la descrizione così scelgo nel modo
+              giusto o capisco se la cliente è in quella corretta»).
+
+              Lo stile qui sopra non lo dice: «Mediterranea», «Mediterranea senza glutine» e la
+              Keto-Mediterranea hanno tutte `style = mediterranean`. Quello che disambigua è il NOME
+              della dieta, che era scritto sul profilo e non compariva da nessuna parte.
+            */}
+            <Row
+              label="Dieta assegnata"
+              value={
+                d.dietaAssegnata ? (
+                  <>
+                    <b>{d.dietaAssegnata.nome}</b>
+                    {d.dietaAssegnata.status === 'non_in_catalogo' && (
+                      <span className="chip" style={{ marginLeft: 6, fontSize: 10.5, background: '#FDECEA', color: '#B4232A' }}>
+                        non è in catalogo
+                      </span>
+                    )}
+                    {d.dietaAssegnata.status === 'draft' && (
+                      <span className="chip" style={{ marginLeft: 6, fontSize: 10.5, background: '#FFF1E2', color: '#9A5B12' }}>
+                        bozza, non approvata
+                      </span>
+                    )}
+                    {(d.dietaAssegnata.regime || d.dietaAssegnata.mealsPerDay) && (
+                      <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>
+                        {[d.dietaAssegnata.regime, d.dietaAssegnata.mealsPerDay ? `${d.dietaAssegnata.mealsPerDay} pasti` : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    )}
+                    {/* La descrizione PER ESTESO, non troncata: è quella che fa scegliere. */}
+                    {d.dietaAssegnata.descrizione ? (
+                      <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--ink)', marginTop: 4, whiteSpace: 'pre-wrap' }}>
+                        {d.dietaAssegnata.descrizione}
+                      </div>
+                    ) : (
+                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        Questa dieta non ha una descrizione per le clienti: senza, in app la cliente vede
+                        solo il nome. Si scrive dal catalogo diete.
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <span className="muted">
+                    nessuna dieta fissata: il motore la sceglie da stile, regime, obiettivo e pasti
+                  </span>
+                )
+              }
+            />
+            {/*
+              IL CASO CHE VA DETTO. Fra il cambio di dieta e la rigenerazione dei menu le due cose
+              divergono: sul profilo c'è «senza glutine» e nel menu di domani c'è ancora il pane.
+              Con il glutine di mezzo non è una sfumatura.
+            */}
+            {d.menuAncoraSullaDietaPrecedente && (
+              <Row
+                label="⚠️ Menu in corso"
+                value={
+                  <>
+                    <span style={{ color: '#9A5B12', fontWeight: 600 }}>
+                      ancora sulla dieta precedente ({d.dietaMenuInCorso})
+                    </span>
+                    <div style={{ fontSize: 12.5, lineHeight: 1.55, marginTop: 3 }}>
+                      Le giornate già erogate sono costruite sulla dieta di prima. Finché non premi
+                      «Rigenera menu» qui sotto, la cliente riceve i piatti della dieta vecchia.
+                    </div>
+                  </>
+                }
+              />
+            )}
             <Row label="Fase (obiettivo dieta)" value={lab('objective', p.objective ?? 'dimagrimento')} />
             <Row label="Pasti / percorso" value={lab('pathType', p.pathType)} />
           {/* Quali pasti salta: prima non compariva da nessuna parte nel backoffice, quindi lo
