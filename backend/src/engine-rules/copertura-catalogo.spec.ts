@@ -1,4 +1,4 @@
-import { coperturaCatalogo, slotAttesi, statoCopertura, type CoperturaVariante } from './copertura-catalogo';
+import { coperturaCatalogo, finestraGiorni, slotAttesi, statoCopertura, type CoperturaVariante } from './copertura-catalogo';
 
 /**
  * LA TABELLA CHE DISTINGUE LE IPOTESI (11/8).
@@ -15,6 +15,7 @@ const variante = (over: Partial<CoperturaVariante> & { perSlot?: Record<string, 
   giorni: 7,
   ultimoGiorno: 7,
   settimane: 1,
+  giorniSettimana: 7,
   perSlot: {},
   ...over,
 });
@@ -68,6 +69,57 @@ describe('statoCopertura — la diagnosi in una parola', () => {
     expect(esito.stato).toBe('magra');
     expect(esito.dettaglio).toContain('84');
   });
+
+  /**
+   * GUARDANDO UNA SOLA SETTIMANA (11/8) il metro cambia: l'atteso è 7, non 7 × le settimane. Senza
+   * questo, filtrare la settimana 3 di una variante che ne ha 12 mostrerebbe `7/84` su ogni pasto —
+   * tutto rosso, e la conclusione sbagliata («è tutto magro») al posto di quella giusta.
+   */
+  describe('dentro una settimana sola', () => {
+    it('sette piatti per pasto in quella settimana: completa, anche se la variante ne ha dodici', () => {
+      const c = variante({
+        settimane: 12, giorni: 84, ultimoGiorno: 84, giorniSettimana: 7,
+        perSlot: { breakfast: pieno(7), lunch: pieno(7), dinner: pieno(7) },
+      });
+      expect(statoCopertura(c, tre, 3).stato).toBe('completa');
+      // Senza il filtro la stessa riga è magra: 7 piatti su 84 attesi. Sono due verità diverse.
+      expect(statoCopertura(c, tre).stato).toBe('magra');
+    });
+
+    it('quella settimana non esiste: vuota, e lo dice fin dove arriva la variante', () => {
+      const c = variante({ settimane: 4, giorni: 28, ultimoGiorno: 28, giorniSettimana: 0, perSlot: {} });
+      const esito = statoCopertura(c, tre, 9);
+      expect(esito.stato).toBe('vuota');
+      expect(esito.dettaglio).toContain('arriva alla 4');
+    });
+
+    it('piatti ripetuti dentro la settimana: magra con l\'atteso a 7', () => {
+      const c = variante({
+        settimane: 12, giorni: 84, ultimoGiorno: 84, giorniSettimana: 7,
+        perSlot: { breakfast: pieno(7), lunch: pieno(2), dinner: pieno(7) },
+      });
+      const esito = statoCopertura(c, tre, 6);
+      expect(esito.stato).toBe('magra');
+      expect(esito.dettaglio).toContain('meno di 7');
+      expect(esito.dettaglio).toContain('lunch');
+    });
+  });
+});
+
+describe('finestraGiorni — da quale giornata a quale', () => {
+  it('la settimana N sono le giornate (N-1)*7+1 … N*7', () => {
+    expect(finestraGiorni(1)).toEqual({ da: 1, a: 7 });
+    expect(finestraGiorni(2)).toEqual({ da: 8, a: 14 });
+    expect(finestraGiorni(12)).toEqual({ da: 78, a: 84 });
+  });
+
+  it('senza settimana la finestra è tutto: così la query non ha due versioni', () => {
+    expect(finestraGiorni(undefined).da).toBe(1);
+    expect(finestraGiorni(null).a).toBeGreaterThan(84);
+    // Valori assurdi valgono «tutto»: una tabella su tutto il catalogo è sempre una risposta sensata.
+    expect(finestraGiorni(0)).toEqual(finestraGiorni(undefined));
+    expect(finestraGiorni(-3)).toEqual(finestraGiorni(undefined));
+  });
 });
 
 describe('slotAttesi — i pasti che una struttura prevede', () => {
@@ -90,12 +142,15 @@ describe('slotAttesi — i pasti che una struttura prevede', () => {
 describe('coperturaCatalogo — i conteggi li fa il database', () => {
   const finto = (giornate: unknown[], pasti: unknown[]) => {
     const sql: string[] = [];
+    const valori: unknown[][] = [];
     let i = 0;
     return {
       sql,
+      valori,
       prisma: {
-        $queryRaw: (strings: TemplateStringsArray) => {
+        $queryRaw: (strings: TemplateStringsArray, ...v: unknown[]) => {
           sql.push(strings.join('?'));
+          valori.push(v);
           return Promise.resolve(i++ === 0 ? giornate : pasti);
         },
       },
@@ -115,12 +170,28 @@ describe('coperturaCatalogo — i conteggi li fa il database', () => {
 
   it('mette insieme giornate e pasti per variante, e calcola le settimane', async () => {
     const { prisma } = finto(
-      [{ dietId: 'd1', giorni: 84, ultimoGiorno: 84 }],
+      [{ dietId: 'd1', giorni: 84, ultimoGiorno: 84, giorniSettimana: 84 }],
       [{ dietId: 'd1', slot: 'lunch', piatti: 84, attivi: 84, rotti: 0 }],
     );
     const out = await coperturaCatalogo(prisma);
     expect(out.get('d1')!.settimane).toBe(12);
     expect(out.get('d1')!.perSlot.lunch).toEqual({ piatti: 84, attivi: 84, rotti: 0 });
+  });
+
+  it('con una settimana chiesta passa al database gli estremi di QUELLE giornate', async () => {
+    const { prisma, valori, sql } = finto(
+      [{ dietId: 'd1', giorni: 84, ultimoGiorno: 84, giorniSettimana: 7 }],
+      [{ dietId: 'd1', slot: 'lunch', piatti: 7, attivi: 7, rotti: 0 }],
+    );
+    const out = await coperturaCatalogo(prisma, 3);
+    // Settimana 3 = giornate 15-21, sia nel conteggio delle giornate sia in quello dei pasti:
+    // filtrare solo uno dei due darebbe una riga che parla di due finestre diverse.
+    expect(valori[0]).toEqual([15, 21]);
+    expect(valori[1]).toEqual([15, 21]);
+    expect(sql[1]).toContain('day_index BETWEEN');
+    // Le settimane restano il TOTALE della variante: dentro il filtro serve sapere che arriva a 12.
+    expect(out.get('d1')!.settimane).toBe(12);
+    expect(out.get('d1')!.giorniSettimana).toBe(7);
   });
 
   it('una variante con pasti ma senza giornate contate compare comunque: una riga in più si nota, una mancante no', async () => {

@@ -7,6 +7,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔎 **Copertura catalogo: si guarda DENTRO una settimana, non «quante ne ho»** — «non
+  voglio vedere quante settimane ho, voglio filtrare la settimana 1 poi la 2 ecc.». Il filtro messo
+  poco prima rispondeva a un'altra domanda: diceva quali varianti hanno 2 settimane, cioè chi è
+  rimasto indietro, e non com'è fatta la settimana 3. Sono due domande diverse e serviva la seconda,
+  perché il sospetto da verificare è che il generatore ammucchi i piatti nella prima settimana invece
+  di distribuirli.
+  Ora in cima alla pagina c'è un selettore «Guarda dentro una settimana»: scegliendo la 3, i conteggi
+  li rifà il database sulle **sole giornate 15-21** (`day_index BETWEEN`, sia sul conteggio delle
+  giornate sia su quello dei pasti — filtrarne uno solo darebbe una riga che parla di due finestre
+  diverse). Cambia anche il metro: l'atteso per pasto non è più 7 × le settimane presenti ma **7**,
+  altrimenti una variante da 12 settimane mostrerebbe `7/84` su ogni pasto e si leggerebbe «tutto
+  magro» dove invece è tutto giusto. «Vuota» dentro il filtro vuol dire «quella settimana non esiste»,
+  e lo dice fin dove arriva la variante («arriva alla 4»): è l'informazione che serve per capire se il
+  buco è un buco o è la fine del catalogo. Dove le giornate di quella settimana sono meno di sette, la
+  colonna lo scrive («4/7 gg»).
+  Il selettore sta **sopra** la tabella e non nella riga dei filtri, con un avviso quando è attivo:
+  gli altri filtri scelgono quali righe vedere, questo cambia il significato di ogni numero, e un
+  numero che vuol dire una cosa diversa senza dirlo è il difetto peggiore di una tabella diagnostica.
+  La colonna «Settimane» resta e continua a mostrare il totale della variante.
+
 - `[Sviluppo]` 0️⃣ **Acquisti: gli importi a 0 € nascosti di default, con un flag per riaccenderli** —
   gli acquisti a zero sono le **attivazioni**: prova gratuita e piani messi a mano dalla scheda
   cliente, che per decisione di Simone entrano in Acquisti ma non in contabilità. Sono righe vere e

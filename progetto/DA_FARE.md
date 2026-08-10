@@ -39,6 +39,63 @@ le esclusioni**, altrimenti il sostituto proposto è l'olio evo — un liquido, 
 
 ---
 
+## 2. Ricombinare i menu ad alto gradimento — la personalizzazione sulla cliente
+
+> **In coda per decisione di Simone (11/8)**, dopo le 12 settimane di catalogo. Precondizione vera:
+> con 5 piatti per pasto non c'è niente da ricombinare, quindi questa voce si apre quando il catalogo
+> è pieno.
+
+Richiesta: «considera che i menu ad alto gradimento li puoi riutilizzare, magari prendi la cena di uno
+ci metti il pranzo dell'altro… cercando le combinazioni che fanno **1** perdere più peso alla cliente
+**2** i menu che la gratificano (soprattutto quando l'umore scende)».
+
+### Metà c'è già, e va detto prima di riprogettare
+
+`menu/day-combo.service.ts` compone la giornata prendendo **un piatto per pasto** dal pool della dieta
+della cliente, dentro la banda calorica del suo livello e con una penalità sulla quota proteica fuori
+banda, massimizzando `efficacia appresa + gradimento` e ruotando fra le tre migliori combinazioni per
+varietà. «La cena di uno con il pranzo dell'altro» è esattamente quello che fa.
+
+I due segnali esistono e sono per cliente: **efficacia** da `MenuWeight` (`score/samples`, appresa sul
+calo peso) e **gradimento** da `RecipeRating` (stelle 1-5). Anche la modulazione sull'umore c'è:
+`diet-agent.service.ts` mette lo stato `conforto` quando l'umore recente è basso, e in quello stato
+`menu.service.ts` moltiplica il peso del gradimento per `menu_state_boost` — cioè fa già «menu più
+amati quando l'umore scende», con il guardrail `agent_comfort_max_days` che dopo qualche giorno passa a
+`rientro` per non lasciarla ferma nei piatti coccola.
+
+### Cosa manca davvero — quattro cose, in ordine di valore
+
+1. **Il gradimento COLLETTIVO non esiste.** Il punteggio usa `starOf.get(id) ?? 5`: una cliente senza
+   voti vede ogni piatto come un cinque stelle. Un piatto che duecento clienti hanno bocciato parte
+   pari a uno amato da tutte. Serve una media di popolazione (con un minimo di voti perché conti) come
+   punto di partenza, sostituita dai voti suoi appena ne ha. È la cosa che vale di più e costa meno.
+2. **L'efficacia collettiva nemmeno.** `MenuWeight` è per cliente: quali piatti facciano perdere peso
+   *in generale* non lo sa nessuno, quindi ogni cliente riparte da zero e i primi due mesi la scelta è
+   cieca.
+3. **Nessuna memoria della COMBINAZIONE.** Il punteggio di una giornata è la somma dei punteggi dei
+   piatti: «questo pranzo con quella cena» non è un'entità che il sistema impara, e la richiesta è
+   proprio sulle combinazioni. Servirebbe una tabella tipo `combo_weight` (la coppia/terna di ricette,
+   l'esito sul peso, il gradimento) e una ricerca sulle combinazioni migliori, non sui piatti migliori.
+4. **Il tetto dell'enumerazione, che diventa un problema con le 12 settimane.** `maxCombos = 20.000`:
+   con 5 piatti per pasto le combinazioni sono 5⁵ = 3.125, quindi si enumerano tutte e si ruota fra le
+   tre migliori. Con 84 piatti per pasto sono 84⁵ ≈ 4 miliardi → si passa alla `greedy`, che produce
+   **una sola** combinazione: se cade fuori dalla banda calorica la giornata torna `null` e si ricade
+   sui template. Cioè la ricombinazione si spegne proprio quando il catalogo diventa abbastanza ricco
+   da renderla interessante. La correzione è una **preselezione**: i migliori 7 per pasto (7⁵ = 16.807,
+   sotto il tetto) e poi enumerazione su quelli. La varietà non si perde, la garantisce già la penalità
+   di ripetizione `menu_repeat_window_days`.
+
+### Decisioni che servono prima di scrivere codice
+
+- Quanto peso dare al gradimento collettivo rispetto al suo, e il minimo di voti perché un piatto
+  conti come «amato».
+- Se l'efficacia collettiva è accettabile per la nutrizionista: «questo piatto fa perdere peso»,
+  misurato su una popolazione, è un'affermazione clinica e la decide lei, non noi.
+- Se la ricerca sulle combinazioni può cambiare le giornate di una cliente **già in corso** o solo dal
+  ciclo successivo.
+
+---
+
 ## Chiuse l'11/8 (restano qui solo le decisioni che valgono per il futuro)
 
 - **La testa delle tabelle** ora si incolla in alto dall'helper (`testaFissa`), titoli **e** riga dei

@@ -116,8 +116,13 @@ export class EngineRulesController {
    */
   @Get('copertura')
   @RequirePage('catalog_coverage')
-  copertura() {
-    return this.service.coperturaVarianti();
+  copertura(@Query('settimana') settimana?: string) {
+    // `?settimana=3` guarda DENTRO la settimana 3 (12/8): i conteggi si fanno sulle sue sette
+    // giornate e l'atteso per pasto diventa 7. Un valore non numerico o fuori scala vale «tutto»,
+    // perché una tabella su tutto il catalogo è sempre una risposta sensata.
+    const n = Number(settimana);
+    const scelta = Number.isFinite(n) && n >= 1 && n <= 60 ? Math.floor(n) : undefined;
+    return this.service.coperturaVarianti(scelta);
   }
 
   /** Quante settimane di catalogo ha già questa variante: serve al backoffice per proporre

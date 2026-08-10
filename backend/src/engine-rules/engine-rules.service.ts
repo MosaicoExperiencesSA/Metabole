@@ -561,8 +561,12 @@ export class EngineRulesService {
    * piatti nel database ci sono: le tre colonne per pasto (piatti / attivi / rotti) distinguono
    * «generata e non validata» da «riferimenti morti» da «mai generata», che sono tre difetti diversi
    * con tre correzioni diverse. Vedi `copertura-catalogo.ts`.
+   *
+   * `settimana` guarda DENTRO una settimana (11/8): i conteggi si fanno solo sulle giornate da
+   * `(N-1)*7+1` a `N*7` e l'atteso per pasto diventa 7. Serve a vedere se il ciclo è distribuito o
+   * ammucchiato all'inizio — cosa che i totali nascondono per costruzione.
    */
-  async coperturaVarianti() {
+  async coperturaVarianti(settimana?: number | null) {
     const [diete, copertura] = await Promise.all([
       this.prisma.diet.findMany({
         select: {
@@ -576,13 +580,13 @@ export class EngineRulesService {
         mealsPerDay: number; fasting: boolean | null; status: string;
         clientVisible: boolean | null; siteVisible: boolean | null; updatedAt: Date;
       }[]>,
-      coperturaCatalogo(this.prisma),
+      coperturaCatalogo(this.prisma, settimana),
     ]);
 
     const righe = diete.map((d) => {
       const c = copertura.get(d.id);
       const attesi = slotAttesi(d.mealsPerDay, !!d.fasting);
-      const { stato, dettaglio } = statoCopertura(c, attesi);
+      const { stato, dettaglio } = statoCopertura(c, attesi, settimana);
       /** I pasti che questa struttura NON prevede tornano `null`: uno zero lì sembrerebbe un buco. */
       const perSlot: Record<string, { piatti: number; attivi: number; rotti: number } | null> = {};
       for (const sl of SLOT_ORDINE) {
@@ -592,11 +596,16 @@ export class EngineRulesService {
         ...d,
         settimane: c?.settimane ?? 0,
         giorni: c?.giorni ?? 0,
+        /** Giornate dentro la settimana guardata (= `giorni` quando si guarda tutto). */
+        giorniSettimana: c?.giorniSettimana ?? 0,
         perSlot,
         stato,
         dettaglio,
-        /** Quanti piatti diversi per pasto servirebbero per le settimane che ci sono. */
-        attesoPerPasto: (c?.settimane ?? 0) * GIORNI_SETTIMANA,
+        /**
+         * Quanti piatti diversi per pasto servirebbero. Guardando tutto è 7 × le settimane presenti;
+         * guardando UNA settimana è 7, perché il metro è «questa settimana si ripete o no».
+         */
+        attesoPerPasto: settimana ? GIORNI_SETTIMANA : (c?.settimane ?? 0) * GIORNI_SETTIMANA,
       };
     });
 
@@ -607,6 +616,14 @@ export class EngineRulesService {
       daValidare: righe.filter((r) => r.stato === 'da_validare').length,
       rotte: righe.filter((r) => r.stato === 'rotta').length,
       vuote: righe.filter((r) => r.stato === 'vuota').length,
+      /** La settimana guardata (`null` = tutto il catalogo): la pagina la rilegge da qui. */
+      settimana: settimana ?? null,
+      /**
+       * La settimana più alta esistente in catalogo. Serve alla tendina della pagina: offrire 1-12
+       * fissi vorrebbe dire proporre settimane che non esistono da nessuna parte, e ogni scelta a
+       * vuoto è un giro di query per una tabella vuota.
+       */
+      settimaneMassime: righe.reduce((m, r) => Math.max(m, r.settimane), 0),
     };
     return { righe, riassunto };
   }
