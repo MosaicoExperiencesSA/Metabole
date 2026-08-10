@@ -221,7 +221,7 @@ export function Posta() {
     ...(folder === 'inbox' ? [{ chiave: 'cestino', titolo: '', stile: { width: 50 } } as Colonna<InboxItem>] : []),
   ];
 
-  const t = useTabella(inbox, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(inbox, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' }, testaFissa: true });
 
   if (loading) return <Spinner />;
 

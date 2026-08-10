@@ -454,6 +454,20 @@ model Escalation {
   assignedToId String?          @map("assigned_to_id")
   assignedTo   Staff?           @relation("EscalationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   status       EscalationStatus @default(open)
+  // QUANDO è stata chiusa, e QUANTO era grave: le due cose che servono per non riaprirla da sola
+  // (richiesta dell'11/8: «se ha risolto basta fino a nuova segnalazione»). Vedi
+  // `escalations/riapertura.ts`.
+  //
+  // `resolvedAt` e non `updatedAt`: quest'ultimo si muove a ogni modifica — riassegnare la
+  // segnalazione a un'altra nutrizionista sposterebbe la data di chiusura e farebbe ripartire la
+  // tregua da zero.
+  //
+  // `severity` è il numero che misura la gravità (es. kg/settimana di calo) al momento in cui è
+  // stata aperta. Serve per riaprirla se la cosa PEGGIORA: prima quel numero esisteva solo dentro la
+  // frase del motivo («Calo rapido: 2,87 kg/settimana»), e un dato che si può solo estrarre da una
+  // frase è un dato che si perde alla prima riscrittura della frase.
+  resolvedAt   DateTime?        @map("resolved_at")
+  severity     Float?           @map("severity")
   createdAt    DateTime         @default(now()) @map("created_at")
   updatedAt    DateTime         @updatedAt @map("updated_at")
 

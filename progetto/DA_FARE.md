@@ -39,16 +39,14 @@ le esclusioni**, altrimenti il sostituto proposto è l'olio evo — un liquido, 
 
 ---
 
-## 2. La riga dei filtri non è «sticky» in Utenti (11/8)
+## Chiuse l'11/8 (restano qui solo le decisioni che valgono per il futuro)
 
-In `Users.tsx` le intestazioni restano attaccate in alto scorrendo (`position: sticky`), la riga dei
-filtri no: gli stili di `rigaFiltri()` stanno dentro l'helper, e per cambiare un filtro si deve
-tornare in cima. Si sistema nell'helper (un'opzione per lo scostamento della riga sotto
-l'intestazione) o nel CSS, non nella pagina.
-
-## 3. `LeadsTable` resta fuori dall'helper (11/8)
-
-È l'unica tabella che filtra e ordina **lato server** (decine di migliaia di lead: `page` +
-`pageSize=100`, `sortKey`/`sortDir` come parametri di query). L'helper è tutto client e non la
-copre: servirebbe una modalità «emetti parametri di query invece di ordinare in memoria». Le altre
-quattro copie divergenti (`Clienti`, `Diete`, `Users`, `Ricette`) sono state unificate l'11/8.
+- **La testa delle tabelle** ora si incolla in alto dall'helper (`testaFissa`), titoli **e** riga dei
+  filtri: lo scostamento della seconda riga si misura, perché un numero fisso sbaglia appena un
+  titolo va a capo. Vale per Utenti, Home coach, Agenti, Posta e lead.
+- **`LeadsTable` condivide la testa, non il filtro.** L'ordinamento e i titoli cliccabili vengono da
+  `useOrdinamentoServer`; il filtro resta suo e lato server, e non è un lavoro rimasto a metà: lì ci
+  sono intervalli di valore e di data su decine di migliaia di lead, che l'helper (tutto in memoria,
+  filtri «testo» o «scelta») non sa né disegnare né sostenere. Se un giorno servisse unificare anche
+  quello, la cosa da aggiungere all'helper è un tipo di filtro «intervallo» e una modalità che emette
+  parametri di query invece di ordinare in memoria — non il contrario.

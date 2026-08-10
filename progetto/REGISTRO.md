@@ -7,6 +7,66 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🤫 **Le segnalazioni risolte non si riaprono da sole** — due segnalazioni di Simone
+  nello stesso giorno, che erano lo stesso difetto: «se il nutrizionista mette risolta perché
+  continui a riaprirle? Se ha risolto basta fino a nuova segnalazione» e «il calo peso se è troppo
+  rapido e il nutrizionista dice ok, resta ok, non devi continuare a tediarlo».
+  Il motivo: chi apriva una segnalazione controllava **una cosa sola** — «ce n'è già una *aperta*?».
+  Giusto, e insufficiente, perché guarda solo il presente: appena la nutrizionista metteva «risolta»
+  quel controllo tornava a dire «nessuna», e la condizione clinica nel frattempo non era cambiata —
+  una cliente che perde 2,8 kg/settimana continua a perderli anche dopo che qualcuno ha detto «lo so,
+  la sto seguendo». Quindi la stessa segnalazione tornava al primo peso del giorno dopo, ogni giorno.
+  Il danno non è il fastidio: è che **le segnalazioni smettono di voler dire qualcosa**, e chi le
+  riceve impara a chiuderle senza leggerle. Comprese quelle nuove.
+  La regola ora sta in un posto solo (`escalations/riapertura.ts`) e vale per tutti i punti che
+  aprono segnalazioni: dentro la tregua di `escalation_reopen_days` (14 giorni, da Parametri) una
+  segnalazione risolta non si riapre; passata la tregua, se la condizione è ancora lì torna — dopo
+  tre settimane non è insistenza, è un problema che non si è risolto.
+  **E l'eccezione che rende la regola sicura invece che solo silenziosa:** si riapre comunque se la
+  cosa è **peggiorata** oltre `rapid_loss_reopen_worsening_kg` (0,5 kg/settimana). Un calo di 1,8 su
+  cui la nutrizionista ha detto «ok» che diventa 3,5 non è la stessa segnalazione che torna: è un
+  fatto nuovo, ed è il caso in cui tacere farebbe danno. Le segnalazioni che non hanno un «quanto»
+  (piano bloccato, umore, aderenza) usano solo la tregua: inventare un peggioramento dove non è
+  definibile sarebbe peggio.
+  Due colonne nuove: `resolved_at` (e non `updated_at`, che si muove a ogni modifica — riassegnare
+  una segnalazione avrebbe fatto ripartire la tregua da zero) e `severity`, il numero della gravità,
+  che prima esisteva solo dentro la frase del motivo e da lì si poteva soltanto estrarre con una
+  regex. Migrazione con backfill delle chiusure già fatte: senza, la prima notte dopo il rilascio si
+  sarebbero riaperte tutte in blocco — esattamente il difetto che stiamo togliendo. Validata su
+  PostgreSQL 16.
+  18 test nuovi. Uno era rosso pur essendo giusto il codice: il finto config della suite dei segnali
+  risponde `?? 0` alle chiavi che non conosce, quindi la tregua valeva **zero giorni**. È la seconda
+  volta che quello zero inganna un test in quel file — ora le chiavi nuove sono dichiarate lì dentro
+  con un commento che lo dice.
+
+- `[Sviluppo]` ✏️ **`rinomina:prodotto` — il nome nuovo anche nello storico** — «correggiamo anche le
+  vecchie». Rinominare il piano in Gestione negozio aggiorna tutto quello che lo legge via relazione
+  (abbonamenti, scheda cliente, Acquisti, pipeline) ma **non** le copie: la descrizione dei pagamenti
+  («Abbonamento Prova Gratuita») è testo congelato al momento dell'acquisto, e deve esserlo — una
+  ricevuta non cambia da sola sotto gli occhi di chi l'ha ricevuta. Il risultato però è che dopo un
+  rinomino Acquisti e Contabilità mostrano il nome vecchio per sempre. Lo script allinea quelle
+  copie, e solo la parte del testo che è il nome: importi, date e stati non si toccano. **Parte a
+  vuoto**: senza `SCRIVI=1` stampa i testi diversi con quante volte compaiono e cosa diventerebbero,
+  e si ferma — su una tabella di contabilità è il minimo. Una `updateMany` per testo e non una per
+  riga (i testi diversi sono una decina, i pagamenti migliaia), ed è ripetibile: girato due volte, la
+  seconda non trova niente. `DA=… A=… SCRIVI=1 npm run rinomina:prodotto`.
+- `[Sviluppo]` 📌 **La riga dei filtri resta in alto anche lei** — segnalato l'11/8 su Utenti: i
+  titoli restavano incollati scorrendo, la riga dei filtri no, quindi per cambiare un filtro si
+  doveva tornare in cima. Il motivo: la testa fissa la mettevano le *pagine*, scrivendo
+  `position: sticky` nello stile di ogni colonna, e quello stile alla riga dei filtri — disegnata
+  dentro l'helper — non arrivava. Ora è l'helper a farlo (`testaFissa`), per entrambe le righe, e lo
+  scostamento della seconda si **misura**: scritto a mano sbaglia appena un titolo va a capo o cambia
+  il carattere. Vale per Utenti, Home coach, Agenti e Posta con una riga a testa.
+- `[Sviluppo]` 🔗 **`LeadsTable` condivide la testa con tutte le altre** (punto 3 del DA_FARE) — era
+  l'ultima tabella con l'ordinamento copiato a mano, e già divergeva: la freccia c'era, la testa
+  incollata no. Ora titoli cliccabili e ordinamento vengono da `useOrdinamentoServer`, che tiene lo
+  stato e disegna la testa esattamente come `useTabella`. Il **filtro** resta suo e lato server, e
+  non è un lavoro a metà: lì ci sono intervalli di valore e di data su decine di migliaia di lead,
+  che un helper tutto in memoria con filtri «testo» o «scelta» non sa né disegnare né sostenere. La
+  card ora scorre al suo interno, come in Utenti, altrimenti la testa incollata non ha niente a cui
+  incollarsi e finisce sotto la barra del titolo — così restano fermi anche il totale, la ricerca e
+  il paginatore.
+
 - `[Sviluppo]` 🔔 **Cambi ed equivalenze nuove: adesso la nutrizionista lo sa** — «quando si creano
   sostituzioni nuove o equivalenze nuove mandiamo una notifica al nutrizionista». Erano due code che
   si riempivano **in silenzio**. Ogni cambio concordato in chat nasce «da verificare» — è giusto, la

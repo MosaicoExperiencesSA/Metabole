@@ -37,7 +37,7 @@
  * Il filtro libero in cima alla pagina (quello che cerca in tutte le colonne insieme) resta dove
  * era: si passa `ricerca` a `useTabella` e cerca in tutte le colonne che hanno un `valore`.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { RIGHE_OPZIONI } from '../lib/preferenzeHome';
 import { usePagination } from './ui';
 
@@ -90,6 +90,19 @@ interface Opzioni {
    * sola. Il filtro di colonna è uno, e parte selezionato; «Azzera filtri» lo apre a tutto.
    */
   filtriIniziali?: Record<string, string>;
+  /**
+   * Intestazione e riga dei filtri INCOLLATE in alto quando la tabella scorre.
+   *
+   * Prima ogni pagina se la faceva a mano, mettendo `position: sticky` nello `stile` di ogni
+   * colonna: funzionava per i titoli e **non** per la riga dei filtri, che è disegnata qui dentro e
+   * non riceveva quello stile. Il risultato è quello segnalato l'11/8 in Utenti: scorri l'elenco, i
+   * titoli restano, ma per cambiare un filtro devi tornare in cima.
+   *
+   * Qui la riga dei filtri si incolla **sotto** i titoli, allo scostamento giusto: l'altezza della
+   * riga dei titoli si misura, perché scritta a mano sarebbe sbagliata al primo titolo che va a capo
+   * o al primo cambio di carattere.
+   */
+  testaFissa?: boolean;
 }
 
 /** Confronto di due valori di colonna: vuoti in fondo, numeri come numeri. */
@@ -105,6 +118,101 @@ function confronta(a: string | number | null | undefined, b: string | number | n
   return String(a).localeCompare(String(b), 'it', { numeric: true, sensitivity: 'base' });
 }
 
+/**
+ * TESTA INCOLLATA IN ALTO — la misurazione, in un posto solo.
+ *
+ * Serve a `useTabella` e serve anche a chi **non** può usarla: `LeadsTable` filtra e ordina lato
+ * server e resta fuori dall'helper, ma il problema di far restare in alto titoli e filtri è
+ * identico. Il numero che conta è lo scostamento della riga dei filtri, cioè l'altezza vera della
+ * riga dei titoli: scritto a mano sarebbe sbagliato al primo titolo che va a capo o al primo cambio
+ * di carattere, quindi si misura e si rimisura quando le colonne cambiano larghezza.
+ */
+export function useTestaFissa(attiva: boolean | undefined, dipendenza: unknown) {
+  const rifTesta = useRef<HTMLTableRowElement | null>(null);
+  const [altezzaTesta, setAltezzaTesta] = useState(0);
+  useLayoutEffect(() => {
+    const tr = rifTesta.current;
+    if (!tr || !attiva) return;
+    const misura = () => setAltezzaTesta(tr.offsetHeight);
+    misura();
+    if (typeof ResizeObserver === 'undefined') return;
+    const osservatore = new ResizeObserver(misura);
+    osservatore.observe(tr);
+    return () => osservatore.disconnect();
+  }, [attiva, dipendenza]);
+
+  /** Lo stile «incollata in alto» di una delle due righe di testa. */
+  const stileFissa = useCallback(
+    (livello: 'titoli' | 'filtri'): CSSProperties =>
+      attiva
+        ? {
+            position: 'sticky',
+            top: livello === 'titoli' ? 0 : altezzaTesta,
+            background: '#fff',
+            // I titoli sopra i filtri: quando si scorre, le celle passano sotto entrambi.
+            zIndex: livello === 'titoli' ? 3 : 2,
+            ...(livello === 'filtri' ? { boxShadow: '0 1px 0 var(--line)' } : {}),
+          }
+        : {},
+    [attiva, altezzaTesta],
+  );
+  return { rifTesta, stileFissa };
+}
+
+/**
+ * ORDINAMENTO **LATO SERVER**, con la stessa testa cliccabile delle altre tabelle.
+ *
+ * `LeadsTable` è l'unica tabella che non può usare `useTabella`: i lead sono decine di migliaia,
+ * quindi filtro, ordinamento e pagine li fa il database (`sortKey`/`sortDir` in query). Ma la
+ * *testa* è la stessa cosa — un titolo che si clicca, una freccia che dice come sta ordinato, la
+ * riga incollata in alto — e finché era copiata a mano lì dentro divergeva: la freccia c'era, la
+ * testa incollata no.
+ *
+ * Questo hook tiene lo stato dell'ordinamento e disegna i titoli; il filtro resta di chi chiama,
+ * perché quello lì è davvero diverso (intervalli di valore e di data, che l'helper non ha).
+ */
+export function useOrdinamentoServer(opzioni: {
+  chiaveIniziale?: string;
+  direzioneIniziale?: 'asc' | 'desc';
+  testaFissa?: boolean;
+  /** Cambiando ordinamento si torna alla prima pagina: quella dopo potrebbe non esistere più. */
+  allCambio?: () => void;
+} = {}) {
+  const [chiave, setChiave] = useState(opzioni.chiaveIniziale ?? '');
+  const [direzione, setDirezione] = useState<'asc' | 'desc'>(opzioni.direzioneIniziale ?? 'asc');
+  const { rifTesta, stileFissa } = useTestaFissa(opzioni.testaFissa, chiave);
+
+  const ordina = (k: string) => {
+    if (chiave === k) setDirezione((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setChiave(k); setDirezione('asc'); }
+    opzioni.allCambio?.();
+  };
+
+  /** Un titolo cliccabile, identico a quello di `useTabella`. */
+  const titolo = (etichetta: string, k: string, stile?: CSSProperties) => (
+    <th
+      key={k}
+      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', ...stileFissa('titoli'), ...stile }}
+      onClick={() => ordina(k)}
+      title="Clicca per ordinare"
+    >
+      {etichetta}{chiave === k ? (direzione === 'asc' ? ' ▲' : ' ▼') : ''}
+    </th>
+  );
+
+  return {
+    chiave,
+    direzione,
+    ordina,
+    titolo,
+    rifTesta,
+    /** Da mettere sui `<th>` della riga dei titoli che NON sono ordinabili (es. «Azioni»). */
+    stileTitoli: stileFissa('titoli'),
+    /** Da mettere sui `<th>` della riga dei filtri. */
+    stileFiltri: stileFissa('filtri'),
+  };
+}
+
 export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzioni = {}) {
   const [chiaveOrdine, setChiaveOrdine] = useState<string>(opzioni.ordineIniziale?.chiave ?? '');
   const [direzione, setDirezione] = useState<'asc' | 'desc'>(opzioni.ordineIniziale?.direzione ?? 'asc');
@@ -114,6 +222,8 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
   const [ricerca, setRicerca] = useState('');
 
   const perChiave = useMemo(() => new Map(colonne.map((c) => [c.chiave, c])), [colonne]);
+
+  const { rifTesta, stileFissa } = useTestaFissa(opzioni.testaFissa, colonne.length);
 
   /** Opzioni delle tendine: i valori che ci sono davvero nelle righe caricate. */
   const scelte = useMemo(() => {
@@ -214,14 +324,19 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
   /** La riga dei titoli: cliccabili dove la colonna è ordinabile. */
   function intestazione() {
     return (
-      <tr>
+      <tr ref={rifTesta}>
         {colonne.map((c) => {
           const ordinabile = !!c.valore && !c.nonOrdinabile;
           return (
             <th
               key={c.chiave}
               colSpan={c.colSpan}
-              style={{ ...(ordinabile ? { cursor: 'pointer', userSelect: 'none' } : {}), whiteSpace: 'nowrap', ...c.stile }}
+              style={{
+                ...(ordinabile ? { cursor: 'pointer', userSelect: 'none' } : {}),
+                whiteSpace: 'nowrap',
+                ...stileFissa('titoli'),
+                ...c.stile,
+              }}
               onClick={ordinabile ? () => ordina(c.chiave) : undefined}
               title={ordinabile ? 'Clicca per ordinare' : undefined}
             >
@@ -240,7 +355,7 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
     return (
       <tr>
         {colonne.map((c) => (
-          <th key={c.chiave} colSpan={c.colSpan} style={{ padding: '4px 6px' }}>
+          <th key={c.chiave} colSpan={c.colSpan} style={{ padding: '4px 6px', ...stileFissa('filtri') }}>
             {c.filtro === 'testo' && (
               <input
                 className="input sm"

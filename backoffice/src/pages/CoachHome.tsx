@@ -135,7 +135,7 @@ export function CoachHome() {
 
   // Come le manda il server: prima chi ha più avvisi aperti, che è da chi si comincia la giornata.
   // `perPagina` viene dalle preferenze: la coach scegle quante righe vedere e la scelta resta.
-  const t = useTabella(clients, COLONNE, { ordineIniziale: { chiave: 'avvisi', direzione: 'desc' }, perPagina: pref.righe });
+  const t = useTabella(clients, COLONNE, { ordineIniziale: { chiave: 'avvisi', direzione: 'desc' }, perPagina: pref.righe, testaFissa: true });
 
   if (loading) return <Spinner />;
 

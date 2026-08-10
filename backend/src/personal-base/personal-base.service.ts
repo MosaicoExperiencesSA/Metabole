@@ -358,7 +358,8 @@ export class PersonalBaseService {
         status: { in: ['open', 'in_progress'] as never },
         reason: { contains: 'Piano bloccato' },
       },
-      data: { status: 'resolved' as never },
+      // `resolvedAt`: la chiusura automatica conta come chiusura, quindi vale la stessa tregua.
+      data: { status: 'resolved' as never, resolvedAt: new Date() } as never,
     });
   }
 }

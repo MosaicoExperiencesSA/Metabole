@@ -88,7 +88,19 @@ describe('SignalsService', () => {
           // water_ml_per_kg mancava: il finto config rispondeva 0 ml/kg, l'obiettivo d'acqua
           // finiva schiacciato sul minimo (6 bicchieri) e i due test sotto sembravano sbagliati
           // pur essendo sbagliato il mock.
-          ({ max_weight_change_alert_kg_week: 1.5, water_ml_per_kg: 33, water_goal_glasses: 8, steps_goal: 8000, moving_average_window: 3 } as Record<string, number>)[key] ?? 0,
+          // Le due chiavi dell'11/8 (tregua dopo una «risolta» e soglia di peggioramento) sono qui
+          // per lo stesso motivo di `water_ml_per_kg`: il `?? 0` in fondo NON è un default, è uno
+          // zero. Con `escalation_reopen_days: 0` la tregua non esisteva e il test «non si riapre»
+          // era rosso pur essendo giusto il codice.
+          ({
+            max_weight_change_alert_kg_week: 1.5,
+            water_ml_per_kg: 33,
+            water_goal_glasses: 8,
+            steps_goal: 8000,
+            moving_average_window: 3,
+            escalation_reopen_days: 14,
+            rapid_loss_reopen_worsening_kg: 0.5,
+          } as Record<string, number>)[key] ?? 0,
         ),
       ),
       getString: jest.fn(),
@@ -158,6 +170,63 @@ describe('SignalsService', () => {
     prisma.escalation.findFirst.mockResolvedValue({ id: 'e-open' });
     await service.upsertMeasurement('u1', { weightKg: 66 });
     expect(prisma.escalation.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * «SE IL NUTRIZIONISTA DICE OK, RESTA OK: NON DEVI CONTINUARE A TEDIARLO» (Simone, 11/8).
+   *
+   * Il finto Prisma qui risponde in base allo `status` chiesto, perché è esattamente la differenza
+   * che il difetto sfruttava: il controllo di prima chiedeva solo le APERTE, quindi una «risolta»
+   * per lui non esisteva e la segnalazione tornava al primo peso del giorno dopo.
+   */
+  const conSegnalazioneRisolta = (giorniFa: number, severity: number | null = 1.75) => {
+    prisma.escalation.findFirst.mockImplementation(({ where }: any) => {
+      const stato = where.status;
+      if (typeof stato === 'object' && Array.isArray(stato?.in)) return Promise.resolve(null); // nessuna aperta
+      return Promise.resolve({
+        id: 'e-chiusa',
+        status: 'resolved',
+        severity,
+        resolvedAt: new Date(Date.now() - giorniFa * 86_400_000),
+      });
+    });
+  };
+  /** Calo di 1,75 kg/settimana: sopra la soglia di 1,5. */
+  const caloRapido = () => {
+    const mk = (n: number, w: number) => ({ date: new Date(Date.UTC(2026, 6, n)), weightKg: w });
+    prisma.measurement.findMany.mockResolvedValue([mk(1, 68), mk(5, 67), mk(9, 66)]);
+  };
+
+  it('calo rapido già RISOLTO ieri: non si riapre', async () => {
+    caloRapido();
+    conSegnalazioneRisolta(1);
+    const result = await service.upsertMeasurement('u1', { weightKg: 66 });
+    // Il guardrail vede ancora il calo — è vero, la cliente sta calando così — ma non disturba.
+    expect(result.rapidLossAlert).toBe(true);
+    expect(prisma.escalation.create).not.toHaveBeenCalled();
+  });
+
+  it('risolto venti giorni fa e il calo continua: torna a segnalarlo', async () => {
+    caloRapido();
+    conSegnalazioneRisolta(20);
+    await service.upsertMeasurement('u1', { weightKg: 66 });
+    expect(prisma.escalation.create).toHaveBeenCalled();
+  });
+
+  it('risolto ieri ma il calo è PEGGIORATO: si riapre — è la valvola di sicurezza', async () => {
+    // Chiusa quando calava 1,0 kg/settimana; ora 1,75: +0,75, oltre la soglia di 0,5.
+    caloRapido();
+    conSegnalazioneRisolta(1, 1.0);
+    await service.upsertMeasurement('u1', { weightKg: 66 });
+    expect(prisma.escalation.create).toHaveBeenCalled();
+  });
+
+  it('la gravità di adesso si scrive sulla riga: è il numero con cui si misurerà il peggioramento', async () => {
+    caloRapido();
+    await service.upsertMeasurement('u1', { weightKg: 66 });
+    const creata = prisma.escalation.create.mock.calls[0][0].data;
+    expect(typeof creata.severity).toBe('number');
+    expect(creata.severity).toBeGreaterThan(1.5);
   });
 
   it('check-in: upsert per giorno', async () => {

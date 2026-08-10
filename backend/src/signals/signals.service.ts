@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietLearningService } from '../diet-learning/diet-learning.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
+import { decidiRiapertura } from '../escalations/riapertura';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateCheckinDto,
@@ -30,6 +31,9 @@ export class SignalsService {
   /** Limiti prudenti dell'obiettivo acqua in bicchieri: 6 = 1,5 L, 16 = 4 L. */
   private static readonly WATER_GOAL_MIN = 6;
   private static readonly WATER_GOAL_MAX = 16;
+
+  /** Serve solo a lasciare traccia quando una segnalazione NON si riapre: vedi il calo rapido. */
+  private readonly logger = new Logger(SignalsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -221,10 +225,24 @@ export class SignalsService {
     );
     if (rate === null || rate <= threshold) return false;
 
-    const alreadyOpen = await this.prisma.escalation.findFirst({
-      where: { clientId, source: 'engine', status: 'open', reason: { contains: 'Calo rapido' } },
-    });
-    if (alreadyOpen) return true;
+    /**
+     * «SE IL NUTRIZIONISTA DICE OK, RESTA OK: NON DEVI CONTINUARE A TEDIARLO» (Simone, 11/8).
+     *
+     * Il controllo che c'era qui guardava solo `status: 'open'`: appena la nutrizionista metteva
+     * «risolta», al primo peso del giorno dopo la segnalazione tornava identica — perché la cliente
+     * continuava a perdere 2,8 kg/settimana anche dopo che qualcuno aveva detto «lo so, la sto
+     * seguendo». Il risultato non era il fastidio: era che le segnalazioni smettevano di voler dire
+     * qualcosa, e chi le riceve impara a chiuderle senza leggerle. Comprese quelle nuove.
+     *
+     * Ora la decisione sta in `riapertura.ts`, con la tregua da `escalation_reopen_days` — e
+     * l'eccezione che la rende sicura: se il ritmo **peggiora** oltre
+     * `rapid_loss_reopen_worsening_kg` si riapre comunque, perché 1,8 kg/settimana che diventano 3,5
+     * non sono la stessa segnalazione che torna.
+     */
+    const [finestraGiorni, peggioramentoMinimo] = await Promise.all([
+      this.configParams.getNumber('escalation_reopen_days', 14),
+      this.configParams.getNumber('rapid_loss_reopen_worsening_kg', 0.5),
+    ]);
 
     // `apriSegnalazione` e non una `create` diretta: quella scriveva la riga con
     // `assignedToId: profile?.assignedNutritionistId` — cioè **vuoto** per quasi tutte, perché una
@@ -236,12 +254,32 @@ export class SignalsService {
     // `dedupe: false` perché il controllo l'abbiamo già fatto qui sopra, ed è più fine del suo:
     // guarda il MOTIVO («Calo rapido»), non la categoria. Col dedupe per categoria una segnalazione
     // clinica aperta per un altro motivo avrebbe zittito questa.
+    const decisione = await decidiRiapertura(this.prisma as never, {
+      clientId,
+      motivoContiene: 'Calo rapido',
+      gravita: rate,
+      finestraGiorni,
+      peggioramentoMinimo,
+    });
+    if (!decisione.apri) {
+      // Si torna `true` comunque: il guardrail ha visto il calo rapido, e chi chiama usa questo
+      // valore per sapere se la condizione c'è — non se è partita una notifica.
+      this.logger.log(`Calo rapido per ${clientId}: non riaperta — ${decisione.motivo}`);
+      return true;
+    }
+
     await apriSegnalazione(this.prisma as never, {
       clientId,
       // R12: calo rapido = sicurezza clinica → nutrizionista, e se non c'è chi ne risponde.
       category: 'clinical',
       reason: `Calo rapido: ${rate} kg/settimana sulle ultime rilevazioni (soglia ${threshold}). Verificare calorie ed energia.`,
       source: 'engine',
+      // `gravita` è il ritmo di calo: si scrive sulla riga (`severity`) ed è il numero con cui il
+      // prossimo controllo capirà se la cosa è peggiorata.
+      gravita: rate,
+      // `dedupe: false` perché la decisione l'abbiamo già presa qui sopra, e la nostra è più fine
+      // della sua: guarda il MOTIVO («Calo rapido») e non la categoria `clinical`, altrimenti una
+      // segnalazione clinica aperta per un altro motivo zittirebbe questa.
       dedupe: false,
     });
     await this.audit.log({

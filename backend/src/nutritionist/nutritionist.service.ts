@@ -164,7 +164,8 @@ export class NutritionistService {
       // segnalazioni di altra origine che il nutrizionista sta chiudendo a mano da qui.
       await this.prisma.escalation.update({
         where: { id: esc.id },
-        data: { status: 'resolved' as never },
+        // `resolvedAt`: da qui parte la tregua in cui la segnalazione non si riapre da sola (11/8).
+        data: { status: 'resolved' as never, resolvedAt: new Date() } as never,
       });
       return {
         sbloccato: true,

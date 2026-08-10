@@ -275,7 +275,7 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
 
   // Lo storico si legge dalla più recente, che è l'ordine del server. Niente `Pager`: il server
   // manda al massimo 50 righe e stanno in una schermata che scorre.
-  const t = useTabella(rows ?? [], COLONNE, { perPagina: 500, ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
+  const t = useTabella(rows ?? [], COLONNE, { perPagina: 500, ordineIniziale: { chiave: 'quando', direzione: 'desc' }, testaFissa: true });
 
   return (
     <Modal title={`Esecuzioni — ${agent.name}`} onClose={onClose}>

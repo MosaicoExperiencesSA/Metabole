@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
 import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
+import { useOrdinamentoServer } from '../components/tabella';
 
 interface Stage {
   key: string;
@@ -96,15 +97,18 @@ export function LeadsTable() {
   const [fValMax, setFValMax] = useState('');
   const [fDateFrom, setFDateFrom] = useState('');
   const [fDateTo, setFDateTo] = useState('');
-  const [sortKey, setSortKey] = useState('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  /**
+   * L'ordinamento e la testa incollata in alto arrivano dall'helper condiviso (`useOrdinamentoServer`).
+   * Il FILTRO invece resta qui: questa è l'unica tabella che filtra lato server, e ha intervalli di
+   * valore e di data che l'helper non sa disegnare. Vedi il commento nell'helper — punto 3 del
+   * DA_FARE, chiuso l'11/8 per la parte che si poteva condividere davvero.
+   */
+  const ord = useOrdinamentoServer({ testaFissa: true, allCambio: () => setPage(0) });
+  const sortKey = ord.chiave;
+  const sortDir = ord.direzione;
   function clearFilters() {
     setFilter(''); setListFilter(''); setFName(''); setFEmail(''); setFStage(''); setFCoach(''); setFNutri(''); setFTipo('');
     setFValMin(''); setFValMax(''); setFDateFrom(''); setFDateTo(''); setPage(0);
-  }
-  function toggleSort(key: string) {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('asc'); }
   }
 
   async function assignCoach(l: Lead, coachStaffId: string) {
@@ -270,12 +274,6 @@ export function LeadsTable() {
 
   if (loading) return <Spinner />;
 
-  const th = (label: string, key: string) => (
-    <th style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => toggleSort(key)} title="Clicca per ordinare">
-      {label}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-    </th>
-  );
-
   return (
     <>
       <div className="spread" style={{ marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
@@ -324,12 +322,15 @@ export function LeadsTable() {
       )}
       {showLists && <ListsManager lists={allLists} onClose={() => setShowLists(false)} onChanged={load} />}
 
-      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+      {/* L'elenco scorre DENTRO la card: è la condizione perché titoli e filtri restino incollati in
+          alto (come in Utenti). Con la pagina che scorre invece, la testa finirebbe sotto la barra
+          del titolo. Restano fermi anche il totale, la ricerca e il paginatore. */}
+      <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
           <table className="grid" style={{ minWidth: 920 }}>
             <thead>
-              <tr>
+              <tr ref={ord.rifTesta}>
                 {canAssignCoach && (
-                  <th style={{ width: 34 }}>
+                  <th style={{ width: 34, ...ord.stileTitoli }}>
                     <input
                       type="checkbox"
                       checked={leads.length > 0 && leads.every((l) => selected.has(l.id))}
@@ -338,46 +339,46 @@ export function LeadsTable() {
                     />
                   </th>
                 )}
-                {th('Nome', 'name')}
-                {th('Cognome', 'cognome')}
-                {th('Email', 'email')}
-                {th('Stato', 'stage')}
-                {th('Coach', 'coach')}
-                {th('Nutrizionista', 'nutri')}
-                {th('Tipo', 'tipo')}
-                {th('Valore', 'value')}
-                {th('Creato', 'created')}
-                <th style={{ textAlign: 'right' }}>Azioni</th>
+                {ord.titolo('Nome', 'name')}
+                {ord.titolo('Cognome', 'cognome')}
+                {ord.titolo('Email', 'email')}
+                {ord.titolo('Stato', 'stage')}
+                {ord.titolo('Coach', 'coach')}
+                {ord.titolo('Nutrizionista', 'nutri')}
+                {ord.titolo('Tipo', 'tipo')}
+                {ord.titolo('Valore', 'value')}
+                {ord.titolo('Creato', 'created')}
+                <th style={{ textAlign: 'right', ...ord.stileTitoli }}>Azioni</th>
               </tr>
               <tr>
-                {canAssignCoach && <th style={{ padding: '4px 6px' }} />}
-                <th style={{ padding: '4px 6px' }} colSpan={2}>
+                {canAssignCoach && <th style={{ padding: '4px 6px', ...ord.stileFiltri }} />}
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }} colSpan={2}>
                   <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Nome o cognome…" value={fName} onChange={(e) => setFName(e.target.value)} />
                 </th>
-                <th style={{ padding: '4px 6px' }}>
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
                   <input className="input" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} placeholder="Email o tel…" value={fEmail} onChange={(e) => setFEmail(e.target.value)} />
                 </th>
-                <th style={{ padding: '4px 6px' }}>
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
                   <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fStage} onChange={(e) => setFStage(e.target.value)}>
                     <option value="">Tutti</option>
                     {stages.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
                   </select>
                 </th>
-                <th style={{ padding: '4px 6px' }}>
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
                   <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fCoach} onChange={(e) => setFCoach(e.target.value)}>
                     <option value="">Tutte</option>
                     <option value="none">— non assegnato —</option>
                     {coaches.map((c) => <option key={c.id} value={c.id}>{c.displayName}</option>)}
                   </select>
                 </th>
-                <th style={{ padding: '4px 6px' }}>
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
                   <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fNutri} onChange={(e) => setFNutri(e.target.value)}>
                     <option value="">Tutti</option>
                     <option value="none">— non assegnato —</option>
                     {nutritionists.map((n) => <option key={n.id} value={n.id}>{n.displayName}</option>)}
                   </select>
                 </th>
-                <th style={{ padding: '4px 6px' }}>
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
                   <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fTipo} onChange={(e) => setFTipo(e.target.value)} title="Tipo persona">
                     <option value="">Tutti i tipi</option>
                     <option value="client">Cliente</option>
@@ -385,19 +386,19 @@ export function LeadsTable() {
                     <option value="lead">Lead</option>
                   </select>
                 </th>
-                <th style={{ padding: '4px 6px' }}>
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <input className="input" style={{ width: 58, padding: '4px 6px', fontWeight: 400 }} placeholder="min €" inputMode="decimal" value={fValMin} onChange={(e) => setFValMin(e.target.value)} title="Valore minimo (€)" />
                     <input className="input" style={{ width: 58, padding: '4px 6px', fontWeight: 400 }} placeholder="max €" inputMode="decimal" value={fValMax} onChange={(e) => setFValMax(e.target.value)} title="Valore massimo (€)" />
                   </div>
                 </th>
-                <th style={{ padding: '4px 6px' }}>
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <input className="input" style={{ width: 130, padding: '3px 6px', fontWeight: 400, fontSize: 11 }} type="date" value={fDateFrom} onChange={(e) => setFDateFrom(e.target.value)} title="Creato dal" />
                     <input className="input" style={{ width: 130, padding: '3px 6px', fontWeight: 400, fontSize: 11 }} type="date" value={fDateTo} onChange={(e) => setFDateTo(e.target.value)} title="Creato al" />
                   </div>
                 </th>
-                <th style={{ padding: '4px 6px' }} />
+                <th style={{ padding: '4px 6px', ...ord.stileFiltri }} />
               </tr>
             </thead>
             <tbody>

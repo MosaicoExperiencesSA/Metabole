@@ -1,9 +1,14 @@
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscalationRoutingService } from './escalation-routing.service';
 
-function make(over: { existing?: { id: string } | null; profile?: Record<string, unknown> | null }) {
+function make(over: {
+  existing?: { id: string; status?: string; resolvedAt?: Date | null } | null;
+  profile?: Record<string, unknown> | null;
+  finestraGiorni?: number;
+}) {
   const creates: Record<string, unknown>[] = [];
   const prisma = {
     escalation: {
@@ -18,12 +23,20 @@ function make(over: { existing?: { id: string } | null; profile?: Record<string,
   // Terzo parametro aggiunto al servizio (avviso a chi riceve l'escalation) e mai arrivato
   // qui: la suite non compilava, quindi da allora non verificava piu' nulla.
   const notifications = { notify: jest.fn().mockResolvedValue(undefined) };
+  /**
+   * Quarto parametro (11/8): la configurazione, per la tregua dopo una «risolta». `escalation_reopen_days`
+   * a 14 come in produzione; i test che vogliono provare la tregua passano `over.finestraGiorni`.
+   */
+  const configParams = {
+    getNumber: jest.fn().mockResolvedValue(over.finestraGiorni ?? 14),
+  };
   const service = new EscalationRoutingService(
     prisma as unknown as PrismaService,
     audit as unknown as AuditService,
     notifications as unknown as NotificationsService,
+    configParams as unknown as ConfigParamsService,
   );
-  return { service, creates, prisma, notifications };
+  return { service, creates, prisma, notifications, configParams };
 }
 
 describe('EscalationRoutingService.open', () => {

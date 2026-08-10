@@ -1,4 +1,12 @@
 import { ESCALATION_CATEGORY_LABEL, ESCALATION_ROUTING, EscalationCategory } from './escalation-routing';
+import { decidiRiapertura } from './riapertura';
+
+/**
+ * La tregua di default dopo una «risolta», quando chi chiama non passa il valore letto da
+ * `config_param` (`escalation_reopen_days`). Due settimane: abbastanza perché una decisione clinica
+ * valga qualcosa, abbastanza poco perché un problema che non si è risolto torni a farsi sentire.
+ */
+export const FINESTRA_RIAPERTURA_DEFAULT = 14;
 
 /**
  * Apre una segnalazione **e avvisa qualcuno**. Senza dipendenze da Nest, come `avanza-stato.ts`.
@@ -34,7 +42,13 @@ import { ESCALATION_CATEGORY_LABEL, ESCALATION_ROUTING, EscalationCategory } fro
 /** Il minimo del client Prisma che serve: così è testabile con un oggetto finto. */
 export interface PrismaPerSegnalazione {
   escalation: {
-    findFirst(args: unknown): Promise<{ id: string } | null>;
+    findFirst(args: unknown): Promise<{
+      id: string;
+      status?: string;
+      severity?: number | null;
+      resolvedAt?: Date | null;
+      updatedAt?: Date | null;
+    } | null>;
     create(args: unknown): Promise<{ id: string }>;
   };
   clientProfile: {
@@ -58,6 +72,24 @@ export interface SegnalazioneInput {
   source?: 'engine' | 'coach' | 'screening';
   /** Se ne esiste già una APERTA della stessa categoria non se ne crea un'altra. */
   dedupe?: boolean;
+  /**
+   * Quanto è GRAVE, se questa segnalazione ha un «quanto» (es. kg/settimana di calo). Si scrive
+   * sulla riga e serve a decidere se riaprirla quando peggiora: vedi `riapertura.ts`.
+   */
+  gravita?: number | null;
+  /**
+   * La regola «se ha risolto, basta fino a nuova segnalazione» (11/8). Quando c'è, il controllo non
+   * guarda solo le segnalazioni aperte ma anche l'ultima **risolta**: dentro la tregua non si
+   * riapre, a meno che la cosa non sia peggiorata oltre la soglia.
+   *
+   * Chi chiama passa i valori letti da `config_param` (`escalation_reopen_days` e la soglia di
+   * peggioramento del suo caso): questa funzione non legge la configurazione perché riceve solo il
+   * client Prisma — è la ragione per cui la possono chiamare anche i moduli che non arrivano ai
+   * servizi di Nest.
+   */
+  riapertura?: { finestraGiorni: number; peggioramentoMinimo?: number | null; adesso?: Date };
+  /** Chiamata quando NON si apre, col perché: serve a chi vuole scriverlo nei log. */
+  alSilenzio?: (motivo: string) => void;
 }
 
 /** Ruolo utente che risponde quando il ruolo primario non è assegnato a nessuno. */
@@ -72,15 +104,25 @@ export async function apriSegnalazione(
 ): Promise<{ id: string } | null> {
   try {
     if (input.dedupe !== false) {
-      const esistente = await prisma.escalation.findFirst({
-        where: {
-          clientId: input.clientId,
-          category: input.category as never,
-          status: { in: ['open', 'in_progress'] as never },
-        },
-        select: { id: true },
+      /**
+       * Non è più «ce n'è una aperta?» ma «va aperta?», e la differenza è tutta nelle segnalazioni
+       * **risolte**: il controllo di prima guardava solo il presente, quindi appena la nutrizionista
+       * metteva «risolta» la stessa segnalazione tornava, perché la condizione clinica non era
+       * cambiata. Vedi `riapertura.ts` per la regola e per il perché il peggioramento resta
+       * un'eccezione.
+       */
+      const decisione = await decidiRiapertura(prisma as never, {
+        clientId: input.clientId,
+        category: input.category,
+        gravita: input.gravita,
+        finestraGiorni: input.riapertura?.finestraGiorni ?? FINESTRA_RIAPERTURA_DEFAULT,
+        peggioramentoMinimo: input.riapertura?.peggioramentoMinimo,
+        adesso: input.riapertura?.adesso,
       });
-      if (esistente) return esistente;
+      if (!decisione.apri) {
+        input.alSilenzio?.(decisione.motivo);
+        return decisione.precedente ? { id: decisione.precedente.id } : null;
+      }
     }
 
     /**
@@ -108,6 +150,9 @@ export async function apriSegnalazione(
         reason: input.reason,
         source: (input.source ?? 'engine') as never,
         category: input.category as never,
+        // La gravità di ADESSO: è quella con cui si confronterà il prossimo controllo per capire se
+        // la cosa è peggiorata (e quindi se vale la pena disturbare di nuovo).
+        ...(typeof input.gravita === 'number' ? { severity: input.gravita } : {}),
         // Se prende in carico il responsabile lo si scrive: una segnalazione «non assegnata a
         // nessuno» in elenco è esattamente quella che nessuno guarda.
         assignedToId: decisione?.assegnato ?? decisione?.ripiego?.id ?? undefined,

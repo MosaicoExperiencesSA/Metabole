@@ -63,7 +63,8 @@
     "diag:percorsi-conclusi": "ts-node --transpile-only prisma/diag-percorsi-conclusi.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "rinomina:prodotto": "ts-node --transpile-only prisma/rinomina-prodotto.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

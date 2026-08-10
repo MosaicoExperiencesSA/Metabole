@@ -37,9 +37,16 @@ export class EscalationsController {
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateStatusDto, @CurrentUser() user: AuthUser) {
+    /**
+     * `resolvedAt` si scrive QUI, alla chiusura, e non si deduce da `updatedAt` (11/8): quello si
+     * muove a ogni modifica, e riassegnare la segnalazione a un'altra nutrizionista farebbe
+     * ripartire da zero la tregua durante la quale non si riapre. Se qualcuno la riapre a mano la
+     * data si azzera, altrimenti resterebbe la chiusura di prima a tenerla zitta.
+     */
+    const chiude = dto.status === 'resolved';
     const updated = await this.prisma.escalation.update({
       where: { id },
-      data: { status: dto.status as never },
+      data: { status: dto.status as never, resolvedAt: chiude ? new Date() : null } as never,
     });
     await this.audit.log({
       action: 'escalation.status',

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -19,12 +19,6 @@ interface User {
   deletedAt: string | null;
   staff: { id: string; displayName: string; managerId: string | null; refCode: string | null } | null;
 }
-
-/**
- * L'elenco scorre dentro la card (`maxHeight` più sotto): le intestazioni restano incollate in
- * alto, altrimenti a metà pagina non si sa più quale colonna si sta guardando.
- */
-const TESTA_FISSA: CSSProperties = { position: 'sticky', top: 0, background: '#fff', zIndex: 2, boxShadow: '0 1px 0 var(--line)' };
 
 /** Traduce la scelta di un ruolo (chiave) nel payload {role, customRoleKey}. */
 function rolePayload(selectedKey: string, roles: RoleInfo[]): { role: Role; customRoleKey: string | null } {
@@ -189,19 +183,22 @@ export function Users() {
     // Il nome visibile sta nel valore anche se la cella mostra la sola email: la ricerca in alto
     // cercava per email, nome o ref code e deve continuare a trovare per nome. L'ordinamento resta
     // di fatto sull'email, che è la parte davanti.
-    { chiave: 'email', titolo: 'Email', valore: (u) => `${u.email} ${u.staff?.displayName ?? ''}`.trim(), filtro: 'testo', stile: TESTA_FISSA },
+    { chiave: 'email', titolo: 'Email', valore: (u) => `${u.email} ${u.staff?.displayName ?? ''}`.trim(), filtro: 'testo' },
     // Nessun filtro: il ruolo lo filtra il server, con la tendina sopra la tabella.
-    { chiave: 'role', titolo: 'Ruolo', valore: roleLabelOf, stile: TESTA_FISSA },
-    { chiave: 'manager', titolo: 'Responsabile', valore: managerNameOf, filtro: 'scelta', etichettaTutti: 'Tutti', stile: TESTA_FISSA },
-    { chiave: 'refcode', titolo: 'Ref code', valore: (u) => u.staff?.refCode, stile: TESTA_FISSA },
-    { chiave: 'status', titolo: 'Stato', valore: statoLabelOf, filtro: 'scelta', etichettaTutti: 'Tutti', stile: TESTA_FISSA },
-    { chiave: 'locale', titolo: 'Lingua', valore: (u) => u.locale.toUpperCase(), filtro: 'scelta', etichettaTutti: 'Tutte', stile: TESTA_FISSA },
-    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right', ...TESTA_FISSA } },
+    { chiave: 'role', titolo: 'Ruolo', valore: roleLabelOf },
+    { chiave: 'manager', titolo: 'Responsabile', valore: managerNameOf, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'refcode', titolo: 'Ref code', valore: (u) => u.staff?.refCode },
+    { chiave: 'status', titolo: 'Stato', valore: statoLabelOf, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'locale', titolo: 'Lingua', valore: (u) => u.locale.toUpperCase(), filtro: 'scelta', etichettaTutti: 'Tutte' },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
 
   // Senza `ordineIniziale` l'elenco resta nell'ordine del server (dall'ultimo creato), che è quello
   // con cui la pagina si è sempre aperta.
-  const t = useTabella(users, COLONNE);
+  // `testaFissa`: l'elenco scorre dentro la card, quindi titoli E riga dei filtri restano incollati
+  // in alto. Prima lo faceva lo `stile` di ogni colonna, che però non arrivava ai filtri: per
+  // cambiare un filtro si doveva tornare in cima (segnalato l'11/8).
+  const t = useTabella(users, COLONNE, { testaFissa: true });
 
   return (
     <>

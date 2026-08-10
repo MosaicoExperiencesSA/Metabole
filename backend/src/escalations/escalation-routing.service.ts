@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscalationCategory, ESCALATION_ROUTING } from './escalation-routing';
+import { decidiRiapertura } from './riapertura';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ESCALATION_NOTIF } from '../notifications/staff-notifications';
 
@@ -23,24 +25,34 @@ interface OpenInput {
  */
 @Injectable()
 export class EscalationRoutingService {
+  private readonly logger = new Logger(EscalationRoutingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   async open(input: OpenInput) {
     const routing = ESCALATION_ROUTING[input.category];
     if (input.dedupe !== false) {
-      const existing = await this.prisma.escalation.findFirst({
-        where: {
-          clientId: input.clientId,
-          category: input.category as never,
-          status: { in: ['open', 'in_progress'] as never },
-        },
-        select: { id: true },
+      /**
+       * «Se ha risolto, basta fino a nuova segnalazione» (11/8): il controllo guarda anche l'ultima
+       * **risolta** e non solo quelle aperte. Vedi `riapertura.ts` — e nota che il caso in cui si
+       * riapre comunque (peggioramento) qui non si applica: queste segnalazioni non hanno un
+       * «quanto», e le apre chi ha già deciso che serve.
+       */
+      const finestraGiorni = await this.configParams.getNumber('escalation_reopen_days', 14);
+      const decisione = await decidiRiapertura(this.prisma as never, {
+        clientId: input.clientId,
+        category: input.category,
+        finestraGiorni,
       });
-      if (existing) return existing;
+      if (!decisione.apri) {
+        this.logger.log(`Segnalazione ${input.category} per ${input.clientId}: non riaperta — ${decisione.motivo}`);
+        return decisione.precedente ? { id: decisione.precedente.id } : null;
+      }
     }
 
     const profile = await this.prisma.clientProfile.findUnique({

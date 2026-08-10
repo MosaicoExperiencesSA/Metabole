@@ -90,6 +90,20 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Variazione peso massima (kg/settimana) prima dell\'alert al nutrizionista',
   },
   {
+    key: 'escalation_reopen_days',
+    value: '14',
+    type: 'number',
+    description:
+      'Giorni di tregua dopo che una segnalazione è stata messa a «risolta»: in questo periodo la stessa segnalazione non si riapre da sola, anche se la condizione è ancora presente. Serve perché una decisione di chi l\'ha guardata valga qualcosa. Passati questi giorni, se la condizione persiste la segnalazione torna.',
+  },
+  {
+    key: 'rapid_loss_reopen_worsening_kg',
+    value: '0.5',
+    type: 'number',
+    description:
+      'Di quanto deve peggiorare il calo (kg/settimana) perché una segnalazione «Calo rapido» già risolta si riapra DURANTE la tregua. Es. 0,5: chiusa a 1,8 kg/settimana, torna solo se supera 2,3. È la valvola di sicurezza: un peggioramento vero non è la stessa segnalazione che ritorna.',
+  },
+  {
     key: 'moving_average_window',
     value: '3',
     type: 'number',
