@@ -3,13 +3,23 @@
 Tutto quello che è ancora aperto, verificato nel codice l'11/8. Quando una voce viene fatta si sposta
 nel `REGISTRO.md` e si cancella da qui.
 
-> **Perché questa riscrittura.** Prima qui c'erano **due** voci, e le altre trentacinque vivevano solo
+> **Perché questa lista esiste.** Prima qui c'erano **due** voci, e le altre trentacinque vivevano solo
 > nel `REGISTRO.md`, sepolte in mezzo a migliaia di righe di prosa: un log cronologico è il posto
 > giusto per raccontare cosa è stato fatto e quello sbagliato per ricordare cosa resta. Il risultato
 > era che le cose più urgenti non stavano in nessuna lista.
 >
-> Le voci marcate **[dati]** non sono verificabili dal repository: dipendono dal database di
-> produzione, e chi le chiude dev'essere sicuro guardando lì.
+> **Come è stata verificata, e cosa è andato storto la prima volta (12/8).** La versione dell'11/8
+> conteneva **sette voci false**, tutte per la stessa ragione: le avevo lette da un clone del
+> repository vecchio di quattro giorni, dandolo per attuale. Erano: la cancellazione account (era la
+> prova di Simone, già sbloccata), Rosaria senza pranzo e cena (piano concluso), le provvigioni di
+> rinnovo (già implementate per costruzione), «l'app non ha un test runner» (ha vitest), il promemoria
+> misure ogni due ore (c'è, `metabole-cron-measures-nudge` in `render.yaml`), `app/package.json` non
+> allineato all'ultima OTA (è a 2.1.4, allineato), e i due documenti «persi» che invece esistono.
+> Un allarme falso costa più del silenzio: dopo due o tre non si crede più alla lista.
+>
+> Le voci di questa versione sono state verificate **sull'albero vero**, file per file, e non su una
+> copia locale. Quelle marcate **[dati]** non sono verificabili da nessun repository: dipendono dal
+> database di produzione, e chi le chiude dev'essere sicuro guardando lì.
 
 ---
 
@@ -145,21 +155,26 @@ Guardare in Acquisti. **[dati]**
 
 ## §3 — Guardrail spenti di default (serve una decisione, non codice)
 
-Quattro protezioni esistono e non girano. Nessuno se ne accorge, perché il silenzio è indistinguibile
-da «tutto bene».
+Tre protezioni esistono e non girano — e sono spente **per scelta**, non per dimenticanza: il catalogo
+del motore le descrive come «Di norma OFF» e si accendono da Parametri, senza deploy. Restano in questa
+lista perché nessuno se ne accorge: il silenzio di una protezione spenta è indistinguibile da «tutto
+bene».
 
 - **`low_adherence_days` = 0**, e zero significa spenta: una cliente che smette di fare check-in non
   genera **nessuna** segnalazione alla coach.
 - **`no_progress_escalation` = false**: lo stallo del peso viene calcolato e non segnalato alla
   nutrizionista.
-- **`escalation-routing.ts`, campo `also`: è solo informativo.** `diet_blocked` e `no_progress` sono
-  mappati «nutrizionista + coach», ma la coach non riceve niente: la cliente resta senza il contatto
-  che si aspetta.
 - **`menu_daycombo_enabled` = false**: la composizione della giornata sul fabbisogno calorico è spenta,
   si usa solo il template. Le kcal target del livello non guidano niente finché non si accende per
   dieta. (È anche la precondizione tecnica di §8.2.)
 
-Due controlli nutrizionali dichiarati inerti o approssimati, dello stesso genere:
+**Verificato oggi, e non è un buco:** `diet_blocked` e `no_progress` **arrivano anche alla coach**, ma
+non grazie al campo `also` della tabella di instradamento — `decidiDestinatari` mette fra i destinatari
+*sempre* sia la coach sia la nutrizionista assegnate. Quel campo descrive quindi una cosa che accade per
+altra via: non manca niente, manca la corrispondenza fra il nome e il meccanismo. Se un domani si
+volesse instradare davvero per ruolo, è la riga da cui partire.
+
+Tre controlli nutrizionali dichiarati inerti o approssimati, dello stesso genere:
 
 - **Il vincolo keto** («carboidrati < 50 g/die, 20-30 netti — non negoziabile») vive **solo nel prompt
   all'AI**: nessun parametro del motore lo verifica. È l'unica promessa clinica del prodotto e non è
@@ -249,12 +264,7 @@ Precondizione di §8.2: l'efficacia misurata su una popolazione la valida lei, n
 - Il rifiuto di un piatto per gusto **non scrive su `MenuWeight`**: il motore non impara dal no.
 - Il conteggio delle personalizzazioni non entra nel report di fine mese.
 
-### 6.3 Promemoria misure alle 9, 12, 16 e 20
-Chiesto l'8/8, mai fatto: il cron su Render gira una volta al giorno. Serve la tua scelta fra **cron più
-frequente** (semplice, costa una schedulazione) e **notifiche programmate** (più preciso, più codice).
-Va decisa prima di scrivere.
-
-### 6.4 Credenziali al lead anche via WhatsApp, passi 2 e 3
+### 6.3 Credenziali al lead anche via WhatsApp, passi 2 e 3
 Manca il servizio (modelli, opt-out, log) e l'aggancio come secondo canale. Bloccato sul **numero Meta
 Business dedicato**. Il passo 1 (link invece della password) è fatto.
 
@@ -331,7 +341,6 @@ Business dedicato**. Il passo 1 (link invece della password) è fatto.
 - **Serve una OTA 2.1.5.** Tre cose sono nel codice e invisibili alle clienti: data e ora dei messaggi
   in chat, il pulsante «sposta la data di inizio» nel profilo, e `menuAncoraSullaDietaPrecedente`.
   Ultima pubblicata: 2.1.4.
-- **`app/package.json` è a 2.1.2 mentre l'OTA è a 2.1.4**: da allineare.
 - **`OTA_VERSION` va svuotata su Render PRIMA di ogni pubblicazione sugli store**, altrimenti
   un'installazione fresca scarica un bundle più vecchio del nativo appena installato. È già succeduto
   il 6/8.
@@ -352,14 +361,6 @@ Business dedicato**. Il passo 1 (link invece della password) è fatto.
 - **Fase 0 dell'onboarding**: che ogni risposta finisca 1:1 su `ClientProfile`.
 - **Le due rifiniture R12** (efficacia in mantenimento; guardrail `clinical` vs `mood_risk`): aspettano
   la validazione del socio.
-
----
-
-## §11 — Due documenti promessi e mai arrivati
-
-Il 9/8 il registro dichiara creati `progetto/guide/COME_SI_FA_UNA_OTA.md` e
-`progetto/PASSAGGIO_NUOVA_SESSIONE.md`. **Nel repository non ci sono.** Vanno riscritti, e la prima è
-la guida che serviva proprio a non sbagliare più le OTA — cioè il §9 di questa lista.
 
 ---
 
