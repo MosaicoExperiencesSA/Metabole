@@ -1,109 +1,358 @@
-# Da fare — richieste memorizzate, non ancora implementate
+# Da fare — la lista unica
 
-Lista unica delle cose che Simone ha chiesto di **ricordare** senza farle subito. Ogni voce ha
-già dentro il posto dove va e la decisione che manca, così quando si apre non si riparte da zero.
-Quando una voce viene fatta si sposta nel `REGISTRO.md` e si cancella da qui.
+Tutto quello che è ancora aperto, verificato nel codice l'11/8. Quando una voce viene fatta si sposta
+nel `REGISTRO.md` e si cancella da qui.
 
----
-
-## 1. La pari grammatura non regge sui gruppi di grassi (per la nutrizionista)
-
-> **Palla a Nocanty (10/8).** Le domande sono scritte in
-> `progetto/Metabole_Grammature_Grassi_Domande.md` (c'è anche il PDF da mandarle). Bloccanti: **Q1**
-> (fattore di conversione o grassi fuori dall'equivalenza) e **Q3** (la tabella dei numeri). Appena
-> risponde: nessuna migrazione — il campo `members` dei gruppi è già JSON libero — colonna del
-> fattore nell'editor dei gruppi, applicazione in `scegliSostituto`, e taratura del limite di
-> plausibilità come da Q4.
-
-Il cambio in chat propone sempre **pari grammatura**, ed è una scelta dichiarata: sui gruppi tipo
-«carote / biete / spinaci» va bene. Sul gruppo dei **grassi** no: 70 ml di panna fresca sono ~200
-kcal, 70 g di burro ~500, 70 g di olio ~630. Il collaudo del 9/8 l'ha mostrato in schermata.
-
-Due strade, e la scelta è della nutrizionista, non nostra:
-
-- **togliere i grassi dall'equivalenza**: chi vuole cambiare la panna passa da lei;
-- **un fattore di conversione per gruppo** (es. 100 g di olio ≈ 300 ml di panna a pari grassi), da
-  scrivere nel gruppo di equivalenza insieme ai membri.
-
-Finché non è deciso, il controllo di plausibilità (`grammaturaAmmessa`) non se ne accorge: guarda il
-rapporto fra le quantità, non le calorie.
-
-**Cosa è cambiato attorno a questa voce (10/8)**: la nutrizionista adesso può **correggere a mano** i
-grammi di un cambio nato in chat, dalla scheda cliente (card Conversazioni → matita), e la cliente
-riceve la nota. Non risolve la regola — continua a servire una decisione, altrimenti ogni cambio sui
-grassi passa da una persona — ma toglie l'urgenza: oggi un numero sbagliato si sistema, prima no.
-
-**Terza cosa vista nel collaudo, ancora da provare**: la conversione ml → g («70 ml panna → 70 g
-burro») non è mai stata collaudata su un profilo vero. Serve un'utenza di prova **senza lattosio fra
-le esclusioni**, altrimenti il sostituto proposto è l'olio evo — un liquido, che resta in ml.
+> **Perché questa riscrittura.** Prima qui c'erano **due** voci, e le altre trentacinque vivevano solo
+> nel `REGISTRO.md`, sepolte in mezzo a migliaia di righe di prosa: un log cronologico è il posto
+> giusto per raccontare cosa è stato fatto e quello sbagliato per ricordare cosa resta. Il risultato
+> era che le cose più urgenti — una cliente senza pranzo e cena, due clienti che mangiano glutine, una
+> cancellazione account che si autodistrugge — non stavano in nessuna lista.
+>
+> Le voci marcate **[dati]** non sono verificabili dal repository: dipendono dal database di
+> produzione, e chi le chiude dev'essere sicuro guardando lì.
 
 ---
 
-## 2. Ricombinare i menu ad alto gradimento — la personalizzazione sulla cliente
+## §0 — ADESSO: sta danneggiando qualcuno
 
-> **In coda per decisione di Simone (11/8)**, dopo le 12 settimane di catalogo. Precondizione vera:
-> con 5 piatti per pasto non c'è niente da ricombinare, quindi questa voce si apre quando il catalogo
-> è pieno.
+### 0.1 Una cancellazione account lasciata a metà: al 31° giorno il cron anonimizza per davvero
+**[dati] · irreversibile · unica voce di questa lista che dopo non si rimedia.**
+Sulla shell di Render: `npm run diag:cancellazioni`, e per fermarne una `FERMA=<id> npm run
+diag:cancellazioni`. Una prova di revoca lasciata a metà non si vede da nessuna parte fino al giorno in
+cui l'account sparisce.
 
-Richiesta: «considera che i menu ad alto gradimento li puoi riutilizzare, magari prendi la cena di uno
-ci metti il pranzo dell'altro… cercando le combinazioni che fanno **1** perdere più peso alla cliente
-**2** i menu che la gratificano (soprattutto quando l'umore scende)».
+### 0.2 Rosaria Gruppuso è su una dieta senza pranzo e senza cena
+`Vacanze in Serenità · omnivore · dimagrimento · 3 pasti`: 28 giornate, **zero pranzi e zero cene**
+(confermato da `diag:menu-incompleti` l'11/8; ultimo menu erogato 25/7). Due strade: generare la
+settimana 1 di quella variante — un clic, ed è comunque la prima riga del lavoro sul catalogo — oppure
+spostarla dalla scheda su `5 pasti` della stessa famiglia, che i pasti li ha.
+Sulla stessa lista: **Emanuela Curulli** su `Pescetariana · omnivore · dimagrimento · 5 pasti`, una
+giornata monca (meno grave: il pasto esiste, manca in un giorno).
 
-### Metà c'è già, e va detto prima di riprogettare
+### 0.3 Due clienti senza glutine ricevono ancora piatti con glutine
+L'assegnazione è stata fatta il 10/8, ma i menu già erogati restano finché non si premi **«Rigenera
+menu»** dalla scheda di ognuna. Due clic. **[dati]**
 
-`menu/day-combo.service.ts` compone la giornata prendendo **un piatto per pasto** dal pool della dieta
-della cliente, dentro la banda calorica del suo livello e con una penalità sulla quota proteica fuori
-banda, massimizzando `efficacia appresa + gradimento` e ruotando fra le tre migliori combinazioni per
-varietà. «La cena di uno con il pranzo dell'altro» è esattamente quello che fa.
+### 0.4 Segnalazioni cliniche di luglio che nessuno ha mai ricevuto
+Le segnalazioni aperte prima della correzione del routing sono senza destinatario: Giusy ne ha due, del
+17 e del 22 luglio, di cui una è «calo rapido 2,87 kg/settimana». `npm run fix:segnalazioni` (a vuoto,
+poi con conferma). Chi non è assegnabile va risolto come organico. **[dati]**
 
-I due segnali esistono e sono per cliente: **efficacia** da `MenuWeight` (`score/samples`, appresa sul
-calo peso) e **gradimento** da `RecipeRating` (stelle 1-5). Anche la modulazione sull'umore c'è:
-`diet-agent.service.ts` mette lo stato `conforto` quando l'umore recente è basso, e in quello stato
-`menu.service.ts` moltiplica il peso del gradimento per `menu_state_boost` — cioè fa già «menu più
-amati quando l'umore scende», con il guardrail `agent_comfort_max_days` che dopo qualche giorno passa a
-`rientro` per non lasciarla ferma nei piatti coccola.
+### 0.5 Il gruppo di equivalenza del collaudo panna è GLOBALE
+Creato per il collaudo del 9/8 e mai ripulito: vale per **tutte** le clienti.
+`PULISCI=1 CONFERMA=1 npm run collaudo:menu-panna -- <email>`. **[dati]**
 
-### Cosa manca davvero — quattro cose, in ordine di valore
-
-1. **Il gradimento COLLETTIVO non esiste.** Il punteggio usa `starOf.get(id) ?? 5`: una cliente senza
-   voti vede ogni piatto come un cinque stelle. Un piatto che duecento clienti hanno bocciato parte
-   pari a uno amato da tutte. Serve una media di popolazione (con un minimo di voti perché conti) come
-   punto di partenza, sostituita dai voti suoi appena ne ha. È la cosa che vale di più e costa meno.
-2. **L'efficacia collettiva nemmeno.** `MenuWeight` è per cliente: quali piatti facciano perdere peso
-   *in generale* non lo sa nessuno, quindi ogni cliente riparte da zero e i primi due mesi la scelta è
-   cieca.
-3. **Nessuna memoria della COMBINAZIONE.** Il punteggio di una giornata è la somma dei punteggi dei
-   piatti: «questo pranzo con quella cena» non è un'entità che il sistema impara, e la richiesta è
-   proprio sulle combinazioni. Servirebbe una tabella tipo `combo_weight` (la coppia/terna di ricette,
-   l'esito sul peso, il gradimento) e una ricerca sulle combinazioni migliori, non sui piatti migliori.
-4. **Il tetto dell'enumerazione, che diventa un problema con le 12 settimane.** `maxCombos = 20.000`:
-   con 5 piatti per pasto le combinazioni sono 5⁵ = 3.125, quindi si enumerano tutte e si ruota fra le
-   tre migliori. Con 84 piatti per pasto sono 84⁵ ≈ 4 miliardi → si passa alla `greedy`, che produce
-   **una sola** combinazione: se cade fuori dalla banda calorica la giornata torna `null` e si ricade
-   sui template. Cioè la ricombinazione si spegne proprio quando il catalogo diventa abbastanza ricco
-   da renderla interessante. La correzione è una **preselezione**: i migliori 7 per pasto (7⁵ = 16.807,
-   sotto il tetto) e poi enumerazione su quelli. La varietà non si perde, la garantisce già la penalità
-   di ripetizione `menu_repeat_window_days`.
-
-### Decisioni che servono prima di scrivere codice
-
-- Quanto peso dare al gradimento collettivo rispetto al suo, e il minimo di voti perché un piatto
-  conti come «amato».
-- Se l'efficacia collettiva è accettabile per la nutrizionista: «questo piatto fa perdere peso»,
-  misurato su una popolazione, è un'affermazione clinica e la decide lei, non noi.
-- Se la ricerca sulle combinazioni può cambiare le giornate di una cliente **già in corso** o solo dal
-  ciclo successivo.
+### 0.6 La notifica di fine monitoraggio promette il mantenimento a €29/mese, ma costa €49
+`backend/src/monitoring/monitoring.service.ts:194`, testo scritto nel codice. La cliente riceve un
+prezzo sbagliato da noi. Correzione di una riga; i commenti di `reports/plan-report.service.ts:93` e
+`app/src/pages/Report.tsx` portano lo stesso numero vecchio.
 
 ---
 
-## Chiuse l'11/8 (restano qui solo le decisioni che valgono per il futuro)
+## §1 — Comandi che aspettano te su Render
 
-- **La testa delle tabelle** ora si incolla in alto dall'helper (`testaFissa`), titoli **e** riga dei
-  filtri: lo scostamento della seconda riga si misura, perché un numero fisso sbaglia appena un
-  titolo va a capo. Vale per Utenti, Home coach, Agenti, Posta e lead.
-- **`LeadsTable` condivide la testa, non il filtro.** L'ordinamento e i titoli cliccabili vengono da
-  `useOrdinamentoServer`; il filtro resta suo e lato server, e non è un lavoro rimasto a metà: lì ci
-  sono intervalli di valore e di data su decine di migliaia di lead, che l'helper (tutto in memoria,
-  filtri «testo» o «scelta») non sa né disegnare né sostenere. Se un giorno servisse unificare anche
-  quello, la cosa da aggiungere all'helper è un tipo di filtro «intervallo» e una modalità che emette
-  parametri di query invece di ordinare in memoria — non il contrario.
+Tutti esistono, nessuno risulta lanciato. In dry-run non scrivono niente.
+
+| Comando | Cosa succede se non si lancia |
+|---|---|
+| `npm run accendi:automazioni` | Sollecito questionario 24h, auguri di compleanno e avviso fine prova **non partono**: il master delle mail automatiche è spento di default. Leggere il riepilogo prima: è a opt-out. |
+| `npm run fix:consenso-sanitario` | Clienti bloccate al carrello per il consenso perso (tre casi in un pomeriggio il 9/8). |
+| `npm run fix:segnalazioni` | Vedi 0.4. |
+| `npm run dedupe:diets` | 18 varianti «senza glutine» approvate = 9 duplicate. Non fa danni al motore, rende inservibile una tendina — e blocca l'aggiunta della scelta dieta in scheda cliente. |
+| `npm run pulisci:spezie` | Chi ha curry o cumino fra i cibi esclusi continua a vedersi svuotare il ricettario. Chi ha escluso «le spezie» in generale va chiamato dalla coach: non lo sostituisce uno script. |
+| `npm run fix:stato-questionario` | Clienti che l'hanno già compilato risultano in sospeso. |
+| `npm run sistema:nomi` (fase lead) | Gli 86k lead importati hanno nome e cognome tutto dentro `name`. |
+| `npm run fix:assegnazioni` | Assegnazioni incoerenti rimaste dal 6/8. |
+| `npm run diag:ricorrente` | Non sappiamo se il primo rinnovo automatico funzionerà. Vedi §2.1. |
+| `npm run diag:cliente -- giusy.vita01@gmail.com` | Verifica mai fatta: dopo il filtro allergeni più severo, che non sia diventato «piano bloccato». |
+| `npm run diag:famiglie` | 20 clienti con famiglia di dieta ambigua, mai chiuse. |
+
+Da fare a mano dal backoffice: **archiviare la bozza duplicata `Keto-Mediterranea (5 pasti)`**;
+**correggere la riga da €130 nel ledger di agosto** (piano del socio: attivazione manuale che non
+doveva contabilizzare — la regola ora è giusta, il movimento già scritto no), con
+`CONFERMA=1 PAGAMENTI=<id> npm run fix:attivazioni-manuali` mai in blocco, perché `method: 'manual'`
+comprende anche vendite vere. **Creare il prodotto «Ritorno in Equilibrio» in Negozio**: non esiste in
+produzione, quindi metà del prodotto estate non è in vendita.
+
+---
+
+## §2 — Soldi: da sistemare PRIMA del primo rinnovo vero
+
+Il momento è adesso: finché nessun rinnovo automatico è passato, si correggono regole. Dopo diventano
+revisioni di compensi già erogati.
+
+### 2.1 Il primo addebito ricorrente reale non è mai stato fatto
+Codice e Stripe risultano a posto, ma nessun rinnovo vero è mai passato. Serve un acquisto con carta
+vera e poi il rimborso. **[dati]**
+
+### 2.2 La decisione del 6/8 sulle provvigioni di rinnovo NON è nel codice
+La colonna `Payment.billingReason` esiste e il commento nello schema dichiara la regola («le
+provvigioni sul rinnovo si pagano SOLO se la coach è ancora quella assegnata»), ma in
+`finance.service.ts:96` il campo è **selezionato e mai usato**: primo pagamento e rinnovo sono
+trattati uguale. È il difetto peggiore da avere, perché a leggerlo sembra fatto.
+Mancano anche gli importi di rinnovo sul `Plan` e il contatore.
+
+### 2.3 Percentuali del «Percorso Metabole 3 mesi» e ricalcolo dei pagamenti già fatti
+Le soglie sono **cumulative**: 25/35/45 per coach/coordinatrice/manager, non 25/10/10 — col secondo
+valore sbagliato il livello sopra calcola una differenza negativa e la catena si ferma alla coach. È un
+dato in Negozio. Poi `CONFERMA=1 npm run ricalcola:provvigioni -- 2026-07-01`: aggiunge il mancante,
+non toglie niente. **[dati]**
+
+### 2.4 Idempotenza del rinnovo non atomica e `pspRef` senza indice univoco
+`commerce.service.ts:1347` fa `findFirst` + `create`, e `Payment.pspRef` non è `@unique` (a differenza
+di `stripeSubscriptionId`, che lo è): due `invoice.paid` in concorrenza scrivono **due pagamenti e due
+provvigioni**. Serve una migrazione con indice univoco e un claim atomico.
+
+### 2.5 `handleInvoicePaid` non emette `plan_renewed`
+La dashboard marketing vede **zero rinnovi** sui piani ricorrenti: l'evento esiste solo sul percorso
+manuale/bonifico.
+
+### 2.6 Nel primo acquisto non compare mai la scelta abbonamento / pagamento unico
+`app/src/pages/PlanFlow.tsx` dichiara `interface Plan` senza `billing` e non lo passa a `cart.setPlan`:
+al Checkout la scelta non appare. È lo stesso difetto già corretto sul pulsante del report, ma sulla
+strada d'acquisto principale. Prima di correggere serve sapere quali piani `3m/6m/12m` hanno davvero un
+`billing` diverso da `one_time`.
+
+### 2.7 Prezzi a DB da confermare
+Il seed porta ancora 297/497/797 mentre il listino deciso è €99 / €249, e il report cliente cita
+€249/€299. Il seed non sovrascrive, quindi i prezzi veri sono quelli messi a mano in Negozio: va
+guardato lì. **Finché non è confermato, non mandare il report a una cliente vera.** **[dati]**
+
+### 2.8 Ordini «Menu di rientro (8 giorni)» eventualmente ancora in sospeso
+Il prodotto è ritirato e il ramo che erogava le 8 giornate è stato rimosso: se resta un bonifico da €29
+in attesa e qualcuno lo approva, la cliente si ritrova 8 giorni di abbonamento senza le giornate.
+Guardare in Acquisti. **[dati]**
+
+---
+
+## §3 — Guardrail spenti di default (serve una decisione, non codice)
+
+Quattro protezioni esistono e non girano. Nessuno se ne accorge, perché il silenzio è indistinguibile
+da «tutto bene».
+
+- **`low_adherence_days` = 0**, e zero significa spenta: una cliente che smette di fare check-in non
+  genera **nessuna** segnalazione alla coach.
+- **`no_progress_escalation` = false**: lo stallo del peso viene calcolato e non segnalato alla
+  nutrizionista.
+- **`escalation-routing.ts`, campo `also`: è solo informativo.** `diet_blocked` e `no_progress` sono
+  mappati «nutrizionista + coach», ma la coach non riceve niente: la cliente resta senza il contatto
+  che si aspetta.
+- **`menu_daycombo_enabled` = false**: la composizione della giornata sul fabbisogno calorico è spenta,
+  si usa solo il template. Le kcal target del livello non guidano niente finché non si accende per
+  dieta. (È anche la precondizione tecnica di §8.2.)
+
+Due controlli nutrizionali dichiarati inerti o approssimati, dello stesso genere:
+
+- **Il vincolo keto** («carboidrati < 50 g/die, 20-30 netti — non negoziabile») vive **solo nel prompt
+  all'AI**: nessun parametro del motore lo verifica. È l'unica promessa clinica del prodotto e non è
+  applicata dal codice.
+- **La regola della ripetizione bigiornaliera** cerca la ricetta gemella solo fra gruppi di
+  equivalenza `approved`: finché la nutrizionista non ne approva, il parametro si può accendere e la
+  regola resta muta.
+- **La quota proteica della giornata** è una media semplice dei piatti, non ponderata sulle kcal
+  (`day-combo.service.ts:130`): una giornata può passare `menu_daycombo_protein_min` ed essere sotto
+  soglia.
+- **La sostituzione in chat propone pari grammatura** e `correggiGrammatura` è dichiarato inerte: vedi
+  §5.1, è la stessa questione.
+
+---
+
+## §4 — Il catalogo: le 12 settimane
+
+Stato all'11/8, da `compatta:menu`: Basso indice glicemico a 12 settimane, DASH a 4, Mediterranea senza
+glutine a 2, **le altre 17 famiglie a zero settimane piene** (28 giornate costruite con 5 piatti per
+pasto, cioè ogni piatto torna cinque o sei volte al mese). Niente da compattare, 1 riferimento rotto
+residuo che si pulisce rigenerando.
+
+Il lavoro: ~223 generazioni (una per settimana per famiglia, con la spunta «genera tutte le varianti»),
+3-5 minuti ciascuna, **13-14 ore** spalmabili. Protocollo: apri la famiglia → spunta «genera tutte le
+varianti» → genera la settimana proposta (avanza da sola) → se compare **pasti incompleti** rigenera
+invece di validare → alla fine «Valida e pubblica tutte le varianti» → controlla su **Copertura
+catalogo** che le celle siano verdi, settimana per settimana col selettore.
+
+Ordine: prima le varianti con clienti (§0.2), poi le famiglie con clienti, poi il resto.
+**Decisione tua ancora aperta:** cosa fare delle ~270 varianti senza nessuna cliente — completarle,
+togliere quelle combinazioni dal questionario, o lasciarle magre e non visibili.
+**Da verificare mentre si genera:** il sospetto che il generatore ammucchi i piatti nella prima
+settimana. Il selettore della settimana su Copertura catalogo serve esattamente a questo.
+
+Aperto e senza soluzione: **«alcune cene come colazioni»**. L'impianto degli slot è corretto, quindi i
+piatti nello slot sbagliato arrivano dal modello. Serve una passata di revisione, da costruire su casi
+veri quando Nocanty ne segnala.
+
+---
+
+## §5 — In attesa della nutrizionista (Nocanty)
+
+### 5.1 La pari grammatura non regge sui gruppi di grassi
+Domande in `progetto/Metabole_Grammature_Grassi_Domande.md` (c'è il PDF pronto da mandarle).
+Bloccanti: **Q1** (fattore di conversione, o grassi fuori dall'equivalenza) e **Q3** (la tabella dei
+numeri). Il cambio in chat propone sempre pari grammatura: su «carote / biete / spinaci» va bene, sui
+grassi no — 70 ml di panna ≈ 200 kcal, 70 g di burro ≈ 500, 70 g di olio ≈ 630, mostrato in schermata
+il 9/8. Il controllo `grammaturaAmmessa` guarda il rapporto fra le quantità, non le calorie, e
+**rifiuterebbe** un fattore sotto 0,33: va tarato insieme.
+Mitigazione già in produzione dal 10/8: la nutrizionista corregge i grammi a mano dalla scheda cliente
+e la cliente riceve la nota. Toglie l'urgenza, non la decisione.
+**Mai collaudato:** la conversione ml → g su un profilo vero. Serve un'utenza di prova **senza lattosio
+fra le esclusioni**, altrimenti il sostituto proposto è l'olio evo, che resta in ml.
+
+### 5.2 La coda «da confermare» dei valori nutrizionali
+`nutrient_fact` è seminato con ~60 alimenti e la fonte di ognuno, e Gaia li usa già: ma finché nessuno
+li guarda restano «da confermare». E `nutrient_lookup_miss` conta quante volte le clienti hanno chiesto
+un alimento che non abbiamo: «tempeh chiesto 40 volte» è la prossima riga da scrivere. Nessuna
+scadenza, quindi è il lavoro che si dimentica.
+
+### 5.3 Contenuti e firme
+Proteica sportiva ancora «da approvare». Grammature reali e **firma sul Keto**. Le 142 ricette finite su
+`Basso indice glicemico · vegana · mantenimento · 3 pasti`, una variante senza clienti. Le 18 diete
+«Pescetariana» con regime onnivoro/vegetariano/vegano: nome o regime sbagliato, va deciso quale.
+
+### 5.4 «Questo piatto fa perdere peso» è un'affermazione clinica
+Precondizione di §8.2: l'efficacia misurata su una popolazione la valida lei, non noi.
+
+---
+
+## §6 — Richieste tue non ancora fatte
+
+### 6.1 Lista delle coach: quattro voci su dodici
+- **Scadenze nel calendario**: oggi nasce un promemoria solo per piani a pagamento in scadenza entro 7
+  giorni. Mancano **fine prova gratuita** (è a €0, quindi non entra) e **fine piano** (genera un task,
+  non un appunto in agenda).
+- **Compleanno in agenda**: la mail parte, l'appuntamento no.
+- **Data di nascita nel questionario**: si chiede solo l'età (`onboarding.questions.ts:20`). La data si
+  può mettere solo dal profilo app o a mano, quindi **il compleanno lo sappiamo per pochi** — e questo
+  limita sia la mail sia l'agenda.
+- **«Nuova cliente assegnata da accettare»** quando una cliente **già acquisita** viene riassegnata:
+  esiste solo `lead_assigned`. Serve una decisione: se vogliamo l'accettazione anche lì.
+
+### 6.2 Gaia cambio menu, punti 3-4-5 del progetto
+- La correzione della nutrizionista **non diventa conoscenza**: la coppia «carote 100 g → biete 150 g»
+  non si salva da nessuna parte, quindi la prossima volta si ricomincia.
+- Il rifiuto di un piatto per gusto **non scrive su `MenuWeight`**: il motore non impara dal no.
+- Il conteggio delle personalizzazioni non entra nel report di fine mese.
+
+### 6.3 Promemoria misure alle 9, 12, 16 e 20
+Chiesto l'8/8, mai fatto: il cron su Render gira una volta al giorno. Serve la tua scelta fra **cron più
+frequente** (semplice, costa una schedulazione) e **notifiche programmate** (più preciso, più codice).
+Va decisa prima di scrivere.
+
+### 6.4 Credenziali al lead anche via WhatsApp, passi 2 e 3
+Manca il servizio (modelli, opt-out, log) e l'aggancio come secondo canale. Bloccato sul **numero Meta
+Business dedicato**. Il passo 1 (link invece della password) è fatto.
+
+---
+
+## §7 — Debito nostro, dichiarato nel codice
+
+- **`ValidationPipe` senza `exceptionFactory`**: ogni DTO nuovo nasce con messaggi d'errore in inglese.
+  Le parti esposte sono coperte, il resto (chat, documenti, buoni sconto, eventi) no.
+- **L'app non ha un test runner.** È il motivo per cui un difetto banale è arrivato a una cliente.
+- **Nessun error tracker esterno** (né backend né app): un crash della schermata si scopre solo se la
+  cliente scrive alla coach. `ErrorBoundary` logga in locale e basta.
+- **Il filtro TAG del catalogo ricette lavora in memoria**: su un elenco troncato, ordinare per kcal
+  mostra il minimo delle righe scaricate, non del catalogo.
+- **Documenti sanitari sul database** invece che su un bucket UE.
+- **26 inneschi email su 50 spenti** (`implemented: false`): tutta la catena nurture e gli eventi
+  peso/misure/morale. Sono esposti in backoffice come «In arrivo», quindi nessuno li confonde con gli
+  attivi.
+- **`diet-learning`: l'attribuzione per distintività è opt-in e spenta.** In produzione gira la v1
+  naive che dà credito uniforme a tutte le ricette del ciclo, comprese quelle identiche fra un ciclo e
+  l'altro: i pesi `MenuWeight` sono più rumorosi di quanto potrebbero.
+- **`statoViaggioAttivo` chiamato senza `travel_max_days`** (default 30) mentre l'agente dieta legge il
+  parametro: se qualcuno lo porta a 60, gate misure e agente si contraddicono.
+- **`monitoring_offer_days` letto e inutile**, con una descrizione nel seed che parla di un
+  congelamento rimosso il 7/8.
+- **Commenti superati** che fanno sembrare spente cose che funzionano: `rules-evaluator.ts:28`
+  (l'agenda è popolata davvero), `agents.service.ts:28` (il runtime esiste), `chat/ai-filter.ts:4`.
+  Costano poco e fanno perdere tempo alla prossima ricerca.
+- **`app/src/pages/Placeholder.tsx`**: nessuna rotta lo importa. Da togliere prima che qualcuno lo
+  agganci e una cliente veda «in costruzione» in un'app a pagamento.
+- **Aggiornamenti major** (React 19, Vite, Prisma 7, Capacitor 8): in una finestra dedicata, non a
+  spizzichi.
+
+---
+
+## §8 — Filoni grossi non iniziati
+
+1. **Prodotti dinamici / zero-redeploy.** `model Product` è il catalogo integratori, non l'entità
+   percorso: non esiste il wizard «Crea nuovo prodotto» né la lettura dinamica nell'app. Meno urgente
+   di come lo raccontano i documenti di luglio, perché il pezzo che faceva male — la card per stile
+   invece che per prodotto in registrazione — è chiuso dal 7/8 con `dietFamily`. Collegato: **lo
+   schermo 16 del questionario è statico**, quindi un prodotto nuovo non è selezionabile in onboarding.
+2. **Ricombinare i menu ad alto gradimento** (precondizione: §4).
+   Metà esiste già: `DayComboService` compone la giornata prendendo un piatto per pasto dal pool della
+   cliente, dentro la banda calorica, massimizzando efficacia + gradimento; e lo stato `conforto`
+   (umore basso recente) alza già il peso del gradimento, con il guardrail `agent_comfort_max_days`.
+   Manca davvero:
+   - **il gradimento collettivo**: `starOf.get(id) ?? 5` — una cliente senza voti vede ogni piatto come
+     cinque stelle, quindi i voti delle altre non servono a niente. Vale molto e costa poco;
+   - **l'efficacia collettiva**: `MenuWeight` è per cliente, quindi ognuna riparte da zero;
+   - **la memoria della combinazione**: il punteggio è la somma dei piatti, «questo pranzo con quella
+     cena» non è un'entità che il sistema impara — ed è esattamente la richiesta;
+   - **la preselezione per il tetto `maxCombos = 20.000`**: con 84 piatti per pasto le combinazioni sono
+     84⁵, si cade in `greedy` che ne prova **una sola**, e la ricombinazione si spegne proprio quando il
+     catalogo diventa ricco. Correzione: i migliori 7 per pasto (7⁵ = 16.807) e poi enumerazione.
+   Decisioni tue: peso del gradimento collettivo, minimo di voti perché conti, e se toccare le clienti
+   già in corso o solo dal ciclo successivo.
+3. **Blog automatizzato**: nessun modulo, l'agente redattore esiste solo come riga di catalogo.
+4. **Login social Google/Apple**: zero codice, e in registrazione le due voci dicono «in arrivo».
+5. **Publisher social**: auto-publish Instagram/Facebook ed export da Canva mancano, bloccati sulle
+   credenziali. Oggi si registra a mano, e la UI lo dice.
+6. **Rifiniture app**: anteprima menu (schermata 30) e widget «tutto pronto» (34). Video 27-28 e
+   schermi 29, 33.
+7. **Certificazione unicità**: certificato e collision check esistono; da chiarire se il «registro
+   firmato» sia qualcosa in più o solo un modo diverso di dire la stessa cosa.
+
+---
+
+## §9 — Rilascio app: le trappole che si ripetono
+
+- **Serve una OTA 2.1.5.** Tre cose sono nel codice e invisibili alle clienti: data e ora dei messaggi
+  in chat, il pulsante «sposta la data di inizio» nel profilo, e `menuAncoraSullaDietaPrecedente`.
+  Ultima pubblicata: 2.1.4.
+- **`app/package.json` è a 2.1.2 mentre l'OTA è a 2.1.4**: da allineare.
+- **`OTA_VERSION` va svuotata su Render PRIMA di ogni pubblicazione sugli store**, altrimenti
+  un'installazione fresca scarica un bundle più vecchio del nativo appena installato. È già succeduto
+  il 6/8.
+- **iOS**: la prossima build deve essere **≥ 8**; il **certificato Apple Distribution scade ogni anno** e
+  senza di quello l'archivio si firma in development e le push si spengono in silenzio;
+  `MinimumOSVersion` è 13.0 e dalla primavera 2027 il minimo sarà 15.0 — va messo in `install-ios.mjs`,
+  perché `ios/` viene rigenerato ogni volta.
+- **Le push sono spente a compile-time** se `google-services.json` non c'era al momento del build: la
+  funzione esce subito e l'unico segnale è una riga di log lato server.
+
+---
+
+## §10 — Da collaudare a occhio
+
+- **«Lead da accettare» e «Prelievi»**: erano elenchi di schede, ora sono tabelle. Sono le due pagine
+  che cambiano aspetto più delle altre.
+- **Backoffice con i ruoli reali** (coach, nutrizionista, admin): mai spuntato.
+- **Fase 0 dell'onboarding**: che ogni risposta finisca 1:1 su `ClientProfile`.
+- **Le due rifiniture R12** (efficacia in mantenimento; guardrail `clinical` vs `mood_risk`): aspettano
+  la validazione del socio.
+
+---
+
+## §11 — Due documenti promessi e mai arrivati
+
+Il 9/8 il registro dichiara creati `progetto/guide/COME_SI_FA_UNA_OTA.md` e
+`progetto/PASSAGGIO_NUOVA_SESSIONE.md`. **Nel repository non ci sono.** Vanno riscritti, e la prima è
+la guida che serviva proprio a non sbagliare più le OTA — cioè il §9 di questa lista.
+
+---
+
+## Decisioni che valgono per il futuro (non sono lavori)
+
+- **La testa delle tabelle** si incolla in alto dall'helper (`testaFissa`), titoli **e** riga dei
+  filtri: lo scostamento della seconda riga si misura, perché un numero fisso sbaglia appena un titolo
+  va a capo.
+- **`LeadsTable` condivide la testa, non il filtro.** Lì ci sono intervalli di valore e di data su
+  decine di migliaia di lead, che l'helper (tutto in memoria) non sa né disegnare né sostenere. Se un
+  giorno servisse unificare, la cosa da aggiungere all'helper è un filtro «intervallo» e una modalità
+  che emette parametri di query — non il contrario.
+- **Le attivazioni manuali dalla scheda cliente non entrano in contabilità** (`origine:
+  'scheda_cliente'`, importo 0): entrano in Acquisti, e in Acquisti sono nascoste di default.
+- **Il tag `sett:N` dice dove la ricetta è USATA**, non quando è stata creata. Un'etichetta che dice una
+  cosa diversa da quella che sembra dire è peggio di un'etichetta assente.
