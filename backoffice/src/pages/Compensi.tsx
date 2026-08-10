@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface CompRow {
   staffId: string;
@@ -46,21 +47,38 @@ export function Compensi() {
     })();
   }, [period]);
 
-  const totals = rows.reduce(
+  const COLONNE: Colonna<CompRow>[] = [
+    { chiave: 'persona', titolo: 'Persona', valore: (r) => r.displayName, filtro: 'testo' },
+    { chiave: 'ruolo', titolo: 'Ruolo', valore: (r) => r.role, filtro: 'scelta', etichetta: (v) => ROLE[v] ?? v, etichettaTutti: 'Tutti' },
+    // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
+    { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (r) => r.commissionCents, stile: { textAlign: 'right' } },
+    { chiave: 'compensi', titolo: 'Compensi visite', valore: (r) => r.compensationCents, stile: { textAlign: 'right' } },
+    { chiave: 'totale', titolo: 'Totale', valore: (r) => r.totalCents, stile: { textAlign: 'right' } },
+  ];
+
+  // Il server manda chi prende più in cima: lo stesso ordine resta quello di partenza.
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'totale', direzione: 'desc' } });
+
+  // I totali seguono i filtri: sono la somma di quello che si sta guardando, non di tutto.
+  const totals = t.tutte.reduce(
     (acc, r) => ({ commission: acc.commission + r.commissionCents, compensation: acc.compensation + r.compensationCents, total: acc.total + r.totalCents }),
     { commission: 0, compensation: 0, total: 0 },
   );
 
-  const pg = usePagination(rows, 100);
-
   return (
     <>
-      <div className="spread" style={{ marginBottom: 14 }}>
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
         <p className="muted" style={{ margin: 0 }}>Quanto spetta a ciascuno (provvigioni vendita + compensi visite).</p>
-        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input className="input" style={{ maxWidth: 220 }} placeholder="Cerca in tutte le colonne…" value={t.ricerca} onChange={(e) => t.setRicerca(e.target.value)} />
+          {/* Il mese lo filtra il server (`?period=`): cambia le righe, non le riordina. */}
           <input className="input" type="month" value={period || currentMonth()} onChange={(e) => setPeriod(e.target.value)} style={{ width: 160 }} />
           <button className="btn ghost sm" onClick={() => setPeriod('')}>Tutto</button>
         </div>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="persone" />
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
@@ -69,21 +87,16 @@ export function Compensi() {
         <Spinner />
       ) : (
         <div className="card" style={{ padding: 0 }}>
-          {rows.length === 0 ? (
-            <div className="empty">Nessun compenso nel periodo.</div>
+          {t.conteggio.mostrate === 0 ? (
+            <div className="empty">{rows.length === 0 ? 'Nessun compenso nel periodo.' : 'Nessuna persona con questi filtri.'}</div>
           ) : (
             <table className="grid">
               <thead>
-                <tr>
-                  <th>Persona</th>
-                  <th>Ruolo</th>
-                  <th style={{ textAlign: 'right' }}>Provvigioni</th>
-                  <th style={{ textAlign: 'right' }}>Compensi visite</th>
-                  <th style={{ textAlign: 'right' }}>Totale</th>
-                </tr>
+                {t.intestazione()}
+                {t.rigaFiltri()}
               </thead>
               <tbody>
-                {pg.pageItems.map((r) => (
+                {t.pagina.map((r) => (
                   <tr key={r.staffId}>
                     <td>{r.displayName}</td>
                     <td className="muted">{ROLE[r.role] ?? r.role}</td>
@@ -101,7 +114,7 @@ export function Compensi() {
               </tbody>
             </table>
           )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
         </div>
       )}
     </>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 /**
  * Registro Agenti AI (mirror del prototipo Metabole_Dashboard_Agenti.html):
@@ -248,37 +249,80 @@ function RunModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
   );
 }
 
+const RUN_ST: Record<string, { label: string; chip: string }> = {
+  done: { label: 'Completata', chip: '' }, running: { label: 'In corso', chip: 'amber' },
+  error: { label: 'Errore', chip: 'red' }, blocked: { label: 'Bloccata (budget)', chip: 'red' }, queued: { label: 'In coda', chip: 'gray' },
+};
+
+// Tetto del server (`agents.controller.ts`: `limit = 50`).
+const TETTO_RUNS = 50;
+
 /** Storico esecuzioni di un agente (stato, token, costo). */
 function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
   const [rows, setRows] = useState<RunRow[] | null>(null);
   useEffect(() => {
     api<RunRow[]>(`/agents/${agent.id}/runs`).then(setRows).catch(() => setRows([]));
   }, [agent.id]);
-  const ST: Record<string, { label: string; chip: string }> = {
-    done: { label: 'Completata', chip: '' }, running: { label: 'In corso', chip: 'amber' },
-    error: { label: 'Errore', chip: 'red' }, blocked: { label: 'Bloccata (budget)', chip: 'red' }, queued: { label: 'In coda', chip: 'gray' },
-  };
+
+  const COLONNE: Colonna<RunRow>[] = [
+    { chiave: 'quando', titolo: 'Quando', valore: (r) => r.startedAt },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status, filtro: 'scelta', etichettaTutti: 'Tutti', etichetta: (v) => RUN_ST[v]?.label ?? v },
+    // Il verdetto è già una parola italiana (approva/rivedi/blocca): nella tendina va così com'è.
+    { chiave: 'giudice', titolo: 'Giudice', valore: (r) => r.verdict, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'token', titolo: 'Token', valore: (r) => r.inputTokens + r.outputTokens },
+    { chiave: 'costo', titolo: 'Costo', valore: (r) => r.costCents },
+  ];
+
+  // Lo storico si legge dalla più recente, che è l'ordine del server. Niente `Pager`: il server
+  // manda al massimo 50 righe e stanno in una schermata che scorre.
+  const t = useTabella(rows ?? [], COLONNE, { perPagina: 500, ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
+
   return (
     <Modal title={`Esecuzioni — ${agent.name}`} onClose={onClose}>
       {!rows ? <Spinner /> : rows.length === 0 ? (
         <div className="empty">Nessuna esecuzione ancora: usa "Esegui" sulla card dell'agente.</div>
       ) : (
-        <div style={{ maxHeight: 380, overflowY: 'auto' }}>
-          <table className="grid">
-            <thead><tr><th>Quando</th><th>Stato</th><th>Giudice</th><th>Token</th><th>Costo</th></tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} title={r.error ?? undefined}>
-                  <td className="muted" style={{ fontSize: 12 }}>{new Date(r.startedAt).toLocaleString('it-IT')}</td>
-                  <td><span className={`chip ${ST[r.status]?.chip ?? 'gray'}`} style={{ fontSize: 11 }}>{ST[r.status]?.label ?? r.status}</span></td>
-                  <td>{r.verdict ? <span className={`chip ${VERDICT_CHIP[r.verdict]?.chip ?? 'gray'}`} style={{ fontSize: 10 }}>{r.verdict}</span> : <span className="muted">—</span>}</td>
-                  <td className="muted" style={{ fontSize: 12 }}>{r.inputTokens + r.outputTokens}</td>
-                  <td className="muted" style={{ fontSize: 12 }}>€ {(r.costCents / 100).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="spread" style={{ marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
+            <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="esecuzioni" />
+            <input
+              className="input"
+              style={{ maxWidth: 220 }}
+              placeholder="Cerca in tutte le colonne…"
+              value={t.ricerca}
+              onChange={(e) => t.setRicerca(e.target.value)}
+            />
+          </div>
+          {rows.length >= TETTO_RUNS && (
+            <Banner kind="info">
+              Sono le <b>{TETTO_RUNS}</b> esecuzioni più recenti: i filtri cercano solo fra queste, quindi
+              un'esecuzione più vecchia non compare nemmeno filtrando.
+            </Banner>
+          )}
+          {t.conteggio.mostrate === 0 ? (
+            <div className="empty">Nessuna esecuzione con questi filtri.</div>
+          ) : (
+            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+              <table className="grid">
+                <thead>
+                  {t.intestazione()}
+                  {t.rigaFiltri()}
+                </thead>
+                <tbody>
+                  {t.pagina.map((r) => (
+                    <tr key={r.id} title={r.error ?? undefined}>
+                      <td className="muted" style={{ fontSize: 12 }}>{new Date(r.startedAt).toLocaleString('it-IT')}</td>
+                      <td><span className={`chip ${RUN_ST[r.status]?.chip ?? 'gray'}`} style={{ fontSize: 11 }}>{RUN_ST[r.status]?.label ?? r.status}</span></td>
+                      <td>{r.verdict ? <span className={`chip ${VERDICT_CHIP[r.verdict]?.chip ?? 'gray'}`} style={{ fontSize: 10 }}>{r.verdict}</span> : <span className="muted">—</span>}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{r.inputTokens + r.outputTokens}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>€ {(r.costCents / 100).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </Modal>
   );

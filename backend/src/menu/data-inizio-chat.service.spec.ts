@@ -35,6 +35,8 @@ interface Opzioni {
   /** Abbonamenti finti. Di default: uno attivo che parte fra 10 giorni. */
   subs?: unknown[];
   planStartDate?: Date | null;
+  /** `plan_start_change_lock_hours`: le ore entro cui la data non si sposta più. Default 24. */
+  oreBlocco?: number;
 }
 
 async function crea(opzioni: Opzioni = {}) {
@@ -66,7 +68,17 @@ async function crea(opzioni: Opzioni = {}) {
       { provide: PrismaService, useValue: prisma },
       { provide: AuditService, useValue: audit },
       { provide: MenuService, useValue: menu },
-      { provide: ConfigParamsService, useValue: { getNumber: jest.fn().mockResolvedValue(2) } },
+      {
+        provide: ConfigParamsService,
+        // Due parametri diversi: le ore di blocco e i giorni di sblocco del menu. Rispondere lo
+        // stesso numero a entrambi confonderebbe i due limiti, che ora sono davvero diversi (24h
+        // contro 2 giorni).
+        useValue: {
+          getNumber: jest.fn().mockImplementation((chiave: string, def: number) =>
+            Promise.resolve(chiave === 'plan_start_change_lock_hours' ? (opzioni.oreBlocco ?? 24) : def),
+          ),
+        },
+      },
     ],
   }).compile();
   return { service: moduleRef.get(DataInizioChatService), prisma, audit, menu };
@@ -274,5 +286,156 @@ describe('Gaia sposta la data di inizio', () => {
     const { service } = await crea();
     const esito = await service.avanza('cli-1', { passo: 'data', tentativi: 0 }, 'domani');
     expect(esito.stato?.data).toBe(traIso(1));
+  });
+});
+
+/**
+ * IL CONFINE STRETTO ALLA FINESTRA DI SBLOCCO (11/8).
+ *
+ * Il 10/8 la regola era «finché il piano non parte». Poi lo stesso limite è comparso sul pulsante nel
+ * profilo dell'app — «fino a 48 ore prima» — e due regole diverse per la stessa azione (Gaia più
+ * permissiva dell'app) è come si ottiene «Gaia me la sposta e dall'app non si può».
+ *
+ * Le 48 ore non sono un numero a caso: sono la finestra con cui il menu si sblocca. Prima, spostare
+ * la data non costa niente; dopo, la cliente ha già i menu davanti e magari ha fatto la spesa.
+ */
+describe('Gaia dentro le 24 ore dall\'inizio', () => {
+  /**
+   * Il blocco è in ORE e si conta dall'istante, non dal giorno: «manca meno di un giorno» alle 23:00
+   * e a mezzanotte non è la stessa cosa, e arrotondare regalerebbe o ruberebbe mezza giornata a
+   * seconda di quando la cliente apre l'app.
+   */
+  it('a poche ore dall\'inizio non sposta più niente e passa alla coach', async () => {
+    const { service, prisma, menu } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(1),
+    });
+    const esito = await service.apriDaTesto('cli-1', 'posso spostare la data di inizio?');
+    expect(esito.esito).toBe('arresa');
+    expect(esito.inoltraA).toBe('coach');
+    // La frase dice che manca poco E che la coach può farlo: «non si può» da solo sembrerebbe una
+    // porta chiusa.
+    expect(esito.testo).toMatch(/Ci siamo quasi/i);
+    expect(esito.testo).toMatch(/coach/i);
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+    expect(menu.regenerateFromToday).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A due giorni si sposta ancora, ed è la differenza col confine di ieri: il menu è già sbloccato
+   * (2 giorni prima) ma la data si muove ancora. Scelta di Simone — quei menu vengono rifatti.
+   */
+  it('a due giorni si sposta ancora, anche se il menu è già visibile', async () => {
+    const { service } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(2), endDate: fra(92), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(2),
+    });
+    const esito = await service.apriDaTesto('cli-1', 'posso spostare la data di inizio?');
+    expect(esito.esito).toBe('aperto');
+    expect(esito.stato?.passo).toBe('data');
+  });
+
+  /** Il limite segue il PARAMETRO: portandolo a 72 ore, a due giorni dall'inizio è già chiuso. */
+  it('con un blocco più lungo il limite si allarga con lui', async () => {
+    const { service } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(2), endDate: fra(92), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(2),
+      oreBlocco: 72,
+    });
+    const esito = await service.apriDaTesto('cli-1', 'posso spostare la data di inizio?');
+    expect(esito.esito).toBe('arresa');
+    expect(esito.inoltraA).toBe('coach');
+  });
+
+  /** E il ricontrollo alla conferma vale anche per questo: il tempo passa fra la proposta e il «sì». */
+  it('alla conferma, se siamo dentro il blocco, non si applica', async () => {
+    const { service, prisma } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(1),
+    });
+    const esito = await service.avanza('cli-1', { passo: 'conferma', data: traIso(20) }, 'sì');
+    expect(esito.esito).toBe('arresa');
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * LO STESSO SPOSTAMENTO, DAL PROFILO DELL'APP (richiesta dell'11/8).
+ *
+ * Il rischio di avere due strade per la stessa azione è che divergano: una accetta e l'altra nega,
+ * o una scrive due cose su tre. Questi test fissano che la regola sia **una**, letta dal solito
+ * parametro, e che le scritture passino per lo stesso codice della chat.
+ */
+describe('data di inizio dal profilo dell\'app', () => {
+  it('dice che si può, e con quali limiti, senza scrivere niente', async () => {
+    const { service, prisma } = await crea();
+    const stato = await service.statoPerApp('cli-1');
+
+    expect(stato.puo).toBe(true);
+    expect(stato.inizio).toBe(traIso(10));
+    expect(stato.oreDiBlocco).toBe(24);
+    expect(stato.massimoGiorniAvanti).toBe(60);
+    // Il primo giorno scegliibile è OGGI, non «oggi + 24h»: il blocco riguarda quanto manca
+    // all'inizio attuale, non quanto è vicina la data nuova.
+    expect(stato.minimoSelezionabile).toBe(traIso(0));
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+
+  it('a piano già partito lo dice PRIMA, così l\'app non mostra un pulsante che non funziona', async () => {
+    const { service } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(-5), endDate: fra(85), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(-5),
+    });
+    const stato = await service.statoPerApp('cli-1');
+    expect(stato.puo).toBe(false);
+    expect(stato.perche).toBe('gia_partito');
+  });
+
+  it('dentro le 24 ore dice «troppo tardi» e quante ore mancano davvero', async () => {
+    const { service } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(1),
+    });
+    const stato = await service.statoPerApp('cli-1');
+    expect(stato.puo).toBe(false);
+    expect(stato.perche).toBe('troppo_tardi');
+    expect(stato.oreMancanti).toBeLessThanOrEqual(24);
+  });
+
+  it('spostando dall\'app scrive le STESSE tre cose della chat', async () => {
+    const { service, prisma, audit, menu } = await crea();
+    const r = await service.spostaDaApp('cli-1', traIso(20));
+
+    expect(r.inizio).toBe(traIso(20));
+    expect(scritta(prisma)).toBe(traIso(20));
+    const sub = prisma.subscription.update.mock.calls[0][0];
+    expect(iso(sub.data.startDate)).toBe(traIso(20));
+    expect(iso(sub.data.endDate)).toBe(iso(subscriptionEnd(toDateOnly(traIso(20)), '3m')));
+    expect(menu.regenerateFromToday).toHaveBeenCalledWith('cli-1');
+    // L'audit distingue la strada: serve per rispondere a «l'ha spostata lei o Gaia?».
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ origine: 'app' }) }));
+  });
+
+  it('rifiuta con un errore parlante, non con una frase di Gaia', async () => {
+    const { service, prisma } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(1),
+    });
+    await expect(service.spostaDaApp('cli-1', traIso(20))).rejects.toMatchObject({ status: 409 });
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+
+  it('una data passata o troppo lontana si ferma a 400, non arriva al database', async () => {
+    const { service, prisma } = await crea();
+    await expect(service.spostaDaApp('cli-1', traIso(-1))).rejects.toMatchObject({ status: 400 });
+    await expect(service.spostaDaApp('cli-1', traIso(90))).rejects.toMatchObject({ status: 400 });
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+
+  it('spostare a domani è permesso: è la data NUOVA, non il ritardo', async () => {
+    // La cliente ha l'inizio fra 10 giorni (fuori dal blocco) e vuole partire domani: legittimo.
+    const { service } = await crea();
+    const r = await service.spostaDaApp('cli-1', traIso(1));
+    expect(r.inizio).toBe(traIso(1));
   });
 });

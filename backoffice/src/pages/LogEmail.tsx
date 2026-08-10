@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface LogRow {
   id: string;
@@ -23,6 +24,10 @@ const STATUS: Record<string, { label: string; chip: string }> = {
   skipped: { label: 'Non inviata', chip: 'amber' },
 };
 
+// Tetto del server (`logs(limit = 300)` in email-templates.service.ts): oltre queste righe non
+// arriva niente, e chi filtra deve saperlo.
+const TETTO = 300;
+
 // Documento isolato per l'anteprima: sandbox senza script, sola lettura.
 const previewDoc = (html: string) =>
   `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>html,body{margin:0;padding:0;background:#fff}body{font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#2b2b2b;padding:12px}img{max-width:100%}</style></head><body>${html}</body></html>`;
@@ -31,7 +36,6 @@ export function LogEmail() {
   const [rows, setRows] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState('');
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<LogDetail | null>(null);
@@ -67,42 +71,56 @@ export function LogEmail() {
     })();
   }, [openId]);
 
-  const filtered = useMemo(() => (status ? rows.filter((r) => r.status === status) : rows), [rows, status]);
+  const COLONNE: Colonna<LogRow>[] = [
+    { chiave: 'quando', titolo: 'Data e ora', valore: (r) => r.createdAt },
+    { chiave: 'a', titolo: 'Destinatario', valore: (r) => r.to, filtro: 'testo' },
+    { chiave: 'modello', titolo: 'Modello', valore: (r) => r.templateKey, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'oggetto', titolo: 'Oggetto', valore: (r) => r.subject, filtro: 'testo' },
+    // Lo stato si confronta sul valore grezzo (`sent`/`failed`/`skipped`) e si legge con le stesse
+    // etichette del chip: è il filtro che prima stava nella tendina in cima alla pagina.
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status, filtro: 'scelta', etichettaTutti: 'Tutti gli stati', etichetta: (v) => STATUS[v]?.label ?? v },
+  ];
 
-  const pg = usePagination(filtered, 100);
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
 
   if (loading) return <Spinner />;
 
   return (
     <>
-      <div className="spread" style={{ marginBottom: 14 }}>
-        <p className="muted" style={{ margin: 0 }}>Ultimi 300 invii email (clicca una riga per l'anteprima).</p>
-        <select className="select" style={{ width: 180 }} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">Tutti gli stati</option>
-          <option value="sent">Inviate</option>
-          <option value="failed">Fallite</option>
-          <option value="skipped">Non inviate</option>
-        </select>
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="email caricate" />
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <p className="muted" style={{ margin: 0 }}>Clicca una riga per l'anteprima.</p>
+          <input
+            className="input"
+            style={{ maxWidth: 260 }}
+            placeholder="Cerca in tutte le colonne…"
+            value={t.ricerca}
+            onChange={(e) => t.setRicerca(e.target.value)}
+          />
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
 
+      {rows.length >= TETTO && (
+        <Banner kind="info">
+          Stai guardando le <b>{TETTO}</b> email più recenti: i filtri cercano solo fra queste, quindi
+          un invio più vecchio non compare nemmeno filtrando.
+        </Banner>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
-        {filtered.length === 0 ? (
-          <div className="empty">Nessuna email registrata.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessuna email registrata.' : 'Nessuna email con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Data e ora</th>
-                <th>Destinatario</th>
-                <th>Modello</th>
-                <th>Oggetto</th>
-                <th>Stato</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id} onClick={() => setOpenId(r.id)} style={{ cursor: 'pointer' }} title="Apri anteprima">
                   <td className="muted">{dateTime(r.createdAt)}</td>
                   <td>{r.to}</td>
@@ -117,7 +135,7 @@ export function LogEmail() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
 
       {openId && (

@@ -119,11 +119,51 @@ describe('ClientsService.updatePlanStart', () => {
     expect(data.status).toBe('active');
   });
 
-  it('se la nuova fine resta nel PASSATO non riattiva niente', async () => {
-    const r = await service.updatePlanStart('giusy', 'admin', iso(inDays(-30)));
+  it('se la nuova fine resta nel PASSATO non riattiva niente (confermando l\'avviso)', async () => {
+    // `conferma: true` perché da qui in avanti una data che manda il piano nel passato viene
+    // fermata e rimandata all'operatore: vedi il gruppo di test qui sotto.
+    const r = await service.updatePlanStart('giusy', 'admin', iso(inDays(-30)), true);
 
     expect(r.reactivated).toBe(false);
     expect(prisma.subscription.update.mock.calls[0][0].data.status).toBeUndefined();
+  });
+
+  /**
+   * L'AVVISO SULLA MATITA (11/8).
+   *
+   * Il 10/8 Simone segnala che un piano appena attivato non compare in dashboard. La causa era una
+   * data di inizio con il mese sbagliato: sommata la durata, il piano risultava finito da giorni,
+   * quindi «Nessun piano attivo» e nessun menu. La conclusione fu «errore mio» — ed era vero — ma
+   * il sistema aveva eseguito senza dire niente un comando che cancellava il percorso della
+   * cliente, e da fuori era indistinguibile da un difetto.
+   *
+   * Quindi: non un divieto (spostare all'indietro un piano finito per davvero è legittimo), una
+   * domanda. Il conto lo fa il server, che è l'unico posto dove la durata del piano è conosciuta.
+   */
+  describe('avviso «con questa data il piano risulta già finito»', () => {
+    it('si ferma con 409 e spiega la conseguenza, senza scrivere niente', async () => {
+      await expect(service.updatePlanStart('giusy', 'admin', iso(inDays(-30)))).rejects.toMatchObject({ status: 409 });
+
+      // La parte che conta: nessuna scrittura. Un avviso che arriva DOPO l'update non è un avviso.
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
+      expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+      expect(menu.restartFromPlanStart).not.toHaveBeenCalled();
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('il messaggio dice la data di fine calcolata e cosa vedrà la cliente', async () => {
+      const errore = await service.updatePlanStart('giusy', 'admin', '2026-07-11').catch((e: Error) => e);
+      const testo = (errore as Error).message;
+      // 11/07 + 8 giorni = 19/07: è il numero che fa capire all'operatore che ha sbagliato mese.
+      expect(testo).toContain('19/07/2026');
+      expect(testo).toContain('Nessun piano attivo');
+      expect(testo).toContain('Prova Gratuita');
+    });
+
+    it('una data che lascia il piano in corso non chiede niente', async () => {
+      await expect(service.updatePlanStart('giusy', 'admin', iso(inDays(-2)))).resolves.toBeDefined();
+      expect(prisma.subscription.update).toHaveBeenCalled();
+    });
   });
 
   it('non riattiva un abbonamento IN ATTESA (pagamento non approvato)', async () => {

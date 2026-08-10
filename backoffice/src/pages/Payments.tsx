@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 type Status = 'pending' | 'receipt_uploaded' | 'approved' | 'rejected' | 'cancelled';
 
@@ -39,6 +40,9 @@ const STATUS: Record<Status, { label: string; chip: string }> = {
   rejected: { label: 'Rifiutato', chip: 'red' },
   cancelled: { label: 'Annullato', chip: 'gray' },
 };
+
+/** Quante righe manda al massimo `GET /admin/payments`: oltre questo tetto i filtri non arrivano. */
+const TETTO_SERVER = 200;
 
 const TABS: { key: Status; label: string }[] = [
   { key: 'receipt_uploaded', label: 'Da approvare' },
@@ -94,7 +98,7 @@ export function Payments() {
     return c;
   }, [payments]);
 
-  const rows = payments.filter((p) => p.status === tab);
+  const rows = useMemo(() => payments.filter((p) => p.status === tab), [payments, tab]);
 
   async function viewReceipt(p: Payment) {
     setError(null);
@@ -171,7 +175,23 @@ export function Payments() {
     }
   }
 
-  const pg = usePagination(rows, 100);
+  const COLONNE: Colonna<Payment>[] = [
+    // Nome ed email nello stesso valore: la cella li mostra entrambi, e chi cerca un pagamento parte
+    // da uno dei due. L'ordinamento resta di fatto sul nome, che è la parte davanti.
+    { chiave: 'cliente', titolo: 'Cliente', valore: (p) => `${clientName(p)} ${p.client?.email ?? ''}`.trim(), filtro: 'testo' },
+    { chiave: 'descrizione', titolo: 'Descrizione', valore: (p) => p.description, filtro: 'testo' },
+    // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
+    { chiave: 'importo', titolo: 'Importo', valore: (p) => p.amountCents },
+    { chiave: 'metodo', titolo: 'Metodo', valore: (p) => p.method, filtro: 'scelta', etichetta: methodLabel, etichettaTutti: 'Tutti' },
+    // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
+    { chiave: 'data', titolo: 'Data', valore: (p) => p.createdAt },
+    // Senza filtro: lo stato lo scelgono già i tab qui sopra, la tendina avrebbe una voce sola.
+    { chiave: 'stato', titolo: 'Stato', valore: (p) => STATUS[p.status].label },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  // Il server manda i più recenti in cima: lo stesso ordine resta quello di partenza.
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
 
   if (loading) return <Spinner />;
 
@@ -207,26 +227,39 @@ export function Payments() {
         })}
       </div>
 
+      <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="pagamenti" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
+
+      {/* Il tetto si dichiara: filtrare e non trovare niente non vuol dire che il pagamento non c'è. */}
+      {payments.length >= TETTO_SERVER && (
+        <Banner kind="info">
+          Sono caricati gli <b>ultimi {TETTO_SERVER} pagamenti</b>: ordinamento e filtri lavorano solo su questi.
+        </Banner>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
+        {t.conteggio.mostrate === 0 ? (
           <div className="empty">
-            {tab === 'receipt_uploaded' ? 'Nessun bonifico da approvare. Tutto in ordine. 👍' : 'Nessun pagamento in questo stato.'}
+            {rows.length > 0
+              ? 'Nessun pagamento con questi filtri.'
+              : tab === 'receipt_uploaded' ? 'Nessun bonifico da approvare. Tutto in ordine. 👍' : 'Nessun pagamento in questo stato.'}
           </div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Descrizione</th>
-                <th>Importo</th>
-                <th>Metodo</th>
-                <th>Data</th>
-                <th>Stato</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((p) => (
+              {t.pagina.map((p) => (
                 <tr key={p.id}>
                   <td>
                     <b>{clientName(p)}</b>
@@ -269,7 +302,7 @@ export function Payments() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
 
       {receipt && (

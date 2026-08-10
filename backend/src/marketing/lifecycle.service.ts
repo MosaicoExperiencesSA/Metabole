@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { randomUUID } from 'crypto';
@@ -430,11 +431,9 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
         // riparte dalla cena, chi salta cena e colazione dal pranzo.
         const inDigiuno = (p as { pathType?: string | null }).pathType === 'intermittent_fasting';
         const finestra = (p as { fastingWindow?: string | null }).fastingWindow ?? null;
-        const primoPasto = !inDigiuno
-          ? 'colazione'
-          : finestra === 'skip_breakfast_lunch'
-            ? 'cena'
-            : 'pranzo';
+        // Il pasto da cui riparte viene dalla tabella delle finestre: qui c'era un ternario che
+        // conosceva due valori su cinque (11/8).
+        const primoPasto = !inDigiuno ? 'colazione' : pastoPrincipaleDigiuno(finestra);
         const r = await this.sendLifecycle({
           userId: p.userId,
           email: p.user?.email ?? null,

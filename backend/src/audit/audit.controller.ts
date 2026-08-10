@@ -14,7 +14,14 @@ export class AuditController {
     @Query('page') page = '1',
     @Query('limit') limit = '50',
   ) {
-    const take = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    /**
+     * Tetto alzato da 200 a 1000 l'11/8: da quando la pagina «Log attività» filtra e ordina
+     * lato client, il tetto non è più «quante righe stanno in una schermata» ma «su quante
+     * righe si può cercare». Con 200 una ricerca per nome non trovava niente semplicemente
+     * perché quella riga era la 240ª, e il risultato vuoto sembrava un'assenza di fatti.
+     * La pagina dichiara quante ne ha caricate su quante esistono, così il limite si vede.
+     */
+    const take = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 1000);
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take;
     const where = {
       ...(action ? { action: { startsWith: action } } : {}),

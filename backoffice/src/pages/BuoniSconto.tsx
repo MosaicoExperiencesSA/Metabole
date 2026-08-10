@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Discount {
   id: string;
@@ -20,6 +21,9 @@ interface Discount {
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
 const valueLabel = (d: Discount) => (d.planTargets && Object.keys(d.planTargets).length ? Object.values(d.planTargets).map((c) => '→ ' + euro(c)).join(' · ') : d.type === 'percent' ? `${d.value}%` : euro(d.value));
+
+// Tetto del server (`discounts.service.ts`: `take: 500`).
+const TETTO = 500;
 
 export function BuoniSconto() {
   const [rows, setRows] = useState<Discount[]>([]);
@@ -62,7 +66,22 @@ export function BuoniSconto() {
     }
   }
 
-  const pg = usePagination(rows, 100);
+  const COLONNE: Colonna<Discount>[] = [
+    { chiave: 'codice', titolo: 'Codice', valore: (d) => d.code, filtro: 'testo' },
+    // Ordinabile ma senza filtro: il valore grezzo è una percentuale per i codici `percent` e
+    // centesimi per i `fixed`, quindi si ordina bene fra codici dello stesso tipo e cercare
+    // «20» qui vorrebbe dire due cose diverse a seconda della riga.
+    { chiave: 'sconto', titolo: 'Sconto', valore: (d) => d.value },
+    { chiave: 'utilizzi', titolo: 'Utilizzi', valore: (d) => d.usedCount },
+    { chiave: 'maxCliente', titolo: 'Max per cliente', valore: (d) => d.maxPerClient },
+    { chiave: 'scadenza', titolo: 'Scadenza', valore: (d) => d.expiresAt },
+    { chiave: 'stato', titolo: 'Stato', valore: (d) => (d.active ? 'Attivo' : 'Disattivo'), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  // Il server ordina per data di creazione, che qui non è una colonna: l'elenco si legge per
+  // codice, ed è quello che si cerca quando una cliente ne detta uno al telefono.
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'codice' } });
 
   if (loading) return <Spinner />;
 
@@ -75,27 +94,38 @@ export function BuoniSconto() {
         </button>
       </div>
 
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="buoni" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
+
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
+      {rows.length >= TETTO && (
+        <Banner kind="info">
+          Stai guardando i <b>{TETTO}</b> buoni più recenti: i filtri cercano solo fra questi, quindi un
+          codice più vecchio non compare nemmeno filtrando.
+        </Banner>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessun buono sconto. Creane uno con "Nuovo buono".</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessun buono sconto. Creane uno con "Nuovo buono".' : 'Nessun buono con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Codice</th>
-                <th>Sconto</th>
-                <th>Utilizzi</th>
-                <th>Max per cliente</th>
-                <th>Scadenza</th>
-                <th>Stato</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((d) => (
+              {t.pagina.map((d) => (
                 <tr key={d.id}>
                   <td><b>{d.code}</b>{d.clientId && <span className="chip amber" style={{ marginLeft: 6, fontSize: 10 }} title="Codice personale di una cliente (inviato al giorno 6 della prova)">personale</span>}</td>
                   <td>{valueLabel(d)}</td>
@@ -114,7 +144,7 @@ export function BuoniSconto() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
 
       {showCreate && (

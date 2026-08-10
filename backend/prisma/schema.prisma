@@ -311,6 +311,9 @@ model Staff {
   coachLeads            CrmRecord[]     @relation("LeadCoach")
   nutritionistLeads     CrmRecord[]     @relation("LeadNutritionist")
   assignedLeads         CrmRecord[]     @relation("LeadAssigner")
+  // Storico assegnazioni: le sue (come coach) e quelle che ha fatto lei (come assegnante).
+  assignmentsReceived   LeadAssignment[] @relation("AssignmentCoach")
+  assignmentsMade       LeadAssignment[] @relation("AssignmentAssigner")
   compensations         StaffCompensation[] @relation("CompensationStaff")
   authoredClientNotes   ClientNote[]        @relation("ClientNoteAuthor")
   withdrawals           CommissionWithdrawal[] @relation("StaffWithdrawals")
@@ -694,8 +697,69 @@ model CrmRecord {
   @@index([email])
   @@index([phone])
   crmNotes CrmNote[]
+  assignments LeadAssignment[]
 
   @@map("crm_record")
+}
+
+/**
+ * STORICO DELLE ASSEGNAZIONI DEI LEAD — una riga per ogni «questo lead è andato a quella coach».
+ *
+ * Richiesta di Simone dell'11/8: «nella tabella lead da accettare mettere il flag "mostra
+ * accettati" con la cronologia, quindi tutti i dati vanno archiviati».
+ *
+ * Il flag da solo non bastava, perché la cronologia non esisteva: su `crm_record` ci sono tre campi
+ * (`assignedCoachId`, `assignmentStatus`, `assignedAt`) che descrivono **lo stato di adesso**, e
+ * ogni passaggio successivo cancellava il precedente. In particolare:
+ *  - un rifiuto azzerava `assignedCoachId` e `assignmentStatus`: dopo il rifiuto non era più
+ *    possibile sapere CHI aveva rifiutato, né che un rifiuto ci fosse stato;
+ *  - la scadenza automatica (cron) faceva la stessa cosa e non scriveva nemmeno una riga di audit:
+ *    il lead tornava alla responsabile e l'unica traccia era una notifica, che si legge e sparisce;
+ *  - l'assegnazione massiva scriveva UN audit con l'id del primo lead, quindi per gli altri
+ *    duecento non c'era storia.
+ *
+ * L'audit non poteva fare da archivio: è un registro di azioni singole, senza il concetto di
+ * «assegnazione» che nasce, resta in attesa e finisce in un modo. Qui ogni riga è un'assegnazione
+ * con il suo esito, e «questo lead da quante coach è passato prima di essere accettato?» diventa
+ * una query invece di un'archeologia.
+ *
+ * I nomi di coach e assegnante sono **copiati** (`coachName`, `assignedByName`) e non soltanto
+ * referenziati: quando una coach lascia, la sua scheda Staff può sparire, e uno storico che a quel
+ * punto dice «assegnato a —» non è uno storico.
+ */
+model LeadAssignment {
+  id       String    @id @default(uuid())
+  recordId String    @map("record_id")
+  record   CrmRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  coachId   String? @map("coach_id")
+  coach     Staff?  @relation("AssignmentCoach", fields: [coachId], references: [id], onDelete: SetNull)
+  coachName String  @map("coach_name")
+
+  assignedById   String? @map("assigned_by_id")
+  assignedBy     Staff?  @relation("AssignmentAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  assignedByName String? @map("assigned_by_name")
+
+  /**
+   * pending    in attesa che la coach accetti
+   * accepted   accettata
+   * rejected   rifiutata dalla coach (torna alla responsabile)
+   * expired    scaduta senza risposta (cron)
+   * reassigned riassegnata a un'altra coach mentre era ancora in attesa
+   */
+  status String @default("pending")
+  /** Come è nata: manual | bulk | ref_code. */
+  origin String @default("manual")
+
+  assignedAt DateTime  @default(now()) @map("assigned_at")
+  resolvedAt DateTime? @map("resolved_at")
+  /** Motivo del rifiuto, così come l'ha scritto la coach. */
+  reason String?
+
+  @@index([recordId, assignedAt])
+  @@index([coachId, status])
+  @@index([status, assignedAt])
+  @@map("lead_assignment")
 }
 
 // Note dello staff sul LEAD (scheda CRM): come le note cliente, ma agganciate alla

@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
+import { noteModifica, righeModifica } from '../lib/logModifiche';
 
 interface Stage {
   key: string;
@@ -49,29 +50,11 @@ const AZIONE_LABEL: Record<string, string> = {
   'client.password_reset.trigger': 'Link reset password inviato',
 };
 
-const CAMPO_LABEL: Record<string, string> = {
-  name: 'Nome completo', firstName: 'Nome', lastName: 'Cognome', alias: 'Alias',
-  nickname: 'Come vuole essere chiamata', email: 'Email', phone: 'Telefono',
-  phone2: 'Secondo telefono', valueCents: 'Valore', previousStatus: 'Stato precedente',
-  historicalPaidCents: 'Totale già pagato', codiceFiscale: 'Codice fiscale',
-  address: 'Indirizzo', addressLine: 'Indirizzo', postalCode: 'CAP', city: 'Città',
-  province: 'Provincia', country: 'Paese', birthDate: 'Data di nascita', tags: 'Tag',
-  segment: 'Segmento', channel: 'Canale', marketingConsent: 'Consenso marketing',
-  consentChannels: 'Canali del consenso',
-};
-
-/** Il valore come lo legge una persona: vuoto, sì/no, elenco, importo. */
-function valoreLeggibile(campo: string, v: unknown): string {
-  if (v === null || v === undefined || v === '') return '— vuoto —';
-  if (typeof v === 'boolean') return v ? 'sì' : 'no';
-  if (Array.isArray(v)) return v.length ? v.join(', ') : '— vuoto —';
-  if (campo === 'valueCents' || campo === 'historicalPaidCents') {
-    return '€ ' + (Number(v) / 100).toFixed(2).replace('.', ',');
-  }
-  if (campo === 'birthDate') return new Date(String(v)).toLocaleDateString('it-IT');
-  return String(v);
-}
-
+/*
+  `CAMPO_LABEL` e `valoreLeggibile` stavano qui, in copia: ora sono in `lib/logModifiche`, insieme al
+  riconoscimento delle tre forme di metadata. Erano già divergenti — qui i campi cambiati si
+  vedevano, nel log della scheda cliente no (corretto il 10/8).
+*/
 interface LeadDetailData {
   id: string;
   clientId: string | null;
@@ -908,16 +891,31 @@ export function LeadDetail() {
                         </span>
                         <span className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(r.at)}</span>
                       </div>
-                      {!!r.metadata?.campi?.length && (
-                        <div style={{ marginTop: 4, display: 'grid', gap: 2 }}>
-                          {r.metadata.campi.map((c) => (
-                            <div key={c.campo} className="muted" style={{ fontSize: 12.5 }}>
-                              <b style={{ color: 'var(--ink, #1F2933)' }}>{CAMPO_LABEL[c.campo] ?? c.campo}</b>:{' '}
-                              {valoreLeggibile(c.campo, c.prima)} → {valoreLeggibile(c.campo, c.dopo)}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {/* Le stesse righe del log della scheda cliente, dalla stessa funzione. */}
+                      {(() => {
+                        const righe = righeModifica(r.metadata as Record<string, unknown> | null);
+                        const note = noteModifica(r.metadata as Record<string, unknown> | null);
+                        const etichettaAzione = AZIONE_LABEL[r.action] ?? r.action;
+                        return (
+                          <>
+                            {righe.length > 0 && (
+                              <div style={{ marginTop: 4, display: 'grid', gap: 2 }}>
+                                {righe.map((c) => (
+                                  <div key={c.campo} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                                    <span className="muted">{c.campo === 'valore' ? etichettaAzione : c.etichetta}: </span>
+                                    <span style={{ textDecoration: 'line-through', color: 'var(--muted)' }}>{c.prima}</span>
+                                    {' → '}
+                                    <b>{c.dopo}</b>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {note.map((n) => (
+                              <div key={n} className="muted" style={{ fontSize: 12, marginTop: 3, fontStyle: 'italic' }}>{n}</div>
+                            ))}
+                          </>
+                        );
+                      })()}
                     </div>
                   );
                 })}

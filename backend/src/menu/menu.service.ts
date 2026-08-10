@@ -10,6 +10,8 @@ import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PushService } from '../notifications/push.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
+// La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
+import { slotSaltati } from './finestre-digiuno';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
@@ -1106,17 +1108,10 @@ export class MenuService {
    * dieci riaprirebbe la finestra e il digiuno non sarebbe più tale.
    */
   private slotSaltatiPerDigiuno(pathType?: string | null, fastingWindow?: string | null): Set<string> {
-    if (pathType !== 'intermittent_fasting' || !fastingWindow) return new Set();
-    switch (fastingWindow) {
-      case 'skip_breakfast':
-        return new Set(['breakfast', 'morning_snack']);
-      case 'skip_breakfast_lunch':
-        return new Set(['breakfast', 'morning_snack', 'lunch']);
-      case 'skip_dinner_breakfast':
-        return new Set(['breakfast', 'morning_snack', 'dinner']);
-      default:
-        return new Set();
-    }
+    // La mappa sta in `finestre-digiuno.ts`, con le altre sette cose che dipendono dalla stessa
+    // lista: prima era uno `switch` qui, e aggiungere una voce voleva dire toccare otto punti
+    // sparsi — sette dei quali sarebbero passati inosservati (11/8).
+    return slotSaltati(pathType, fastingWindow);
   }
 
   /** Pool DayCombo (RecipeInfo per slot) dal contesto di scoring. */

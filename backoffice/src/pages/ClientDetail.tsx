@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
+import { noteModifica, righeModifica } from '../lib/logModifiche';
 import { useTaxonomy } from '../lib/taxonomy';
 
 interface Detail {
@@ -401,8 +402,26 @@ export function ClientDetail() {
     const iso = m ? `${m[3]}-${m[2]}-${m[1]}` : val;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { setError('Data non valida: usa AAAA-MM-GG (o GG/MM/AAAA).'); return; }
     setError(null); setNotice(null);
+    await inviaDataInizio(iso, false);
+  }
+
+  /**
+   * L'invio vero, separato perché può servire due volte: la prima senza conferma e — se il server
+   * risponde 409 «con questa data il piano risulta già finito» — la seconda con la conferma
+   * dell'operatore.
+   *
+   * L'avviso lo compone il SERVER e non questa pagina: la durata del piano la conosce lui, e
+   * ricalcolarla qui vorrebbe dire tenere allineate due copie della stessa regola. Il 10/8 una
+   * data col mese sbagliato ha fatto sparire il piano di una cliente senza che nulla lo dicesse:
+   * l'errore era di distrazione, ma un comando che manda un piano nel passato in silenzio resta
+   * un difetto — e questo è il punto in cui viene chiesto «sei sicuro».
+   */
+  async function inviaDataInizio(iso: string, conferma: boolean) {
     try {
-      const r = await api<{ startDate: string; endDate: string; plan?: string; status?: string; reactivated?: boolean }>(`/admin/clients/${id}/plan-start`, { method: 'PATCH', body: JSON.stringify({ date: iso }) });
+      const r = await api<{ startDate: string; endDate: string; plan?: string; status?: string; reactivated?: boolean }>(
+        `/admin/clients/${id}/plan-start`,
+        { method: 'PATCH', body: JSON.stringify({ date: iso, conferma }) },
+      );
       // Diciamo SU QUALE abbonamento abbiamo agito e com'è rimasto: con più abbonamenti in scheda
       // il solo "spostato" non basta a capire se si è toccato quello giusto.
       setNotice(
@@ -412,6 +431,11 @@ export function ClientDetail() {
       );
       void loadDetail();
     } catch (err) {
+      // 409 = l'avviso, non un errore: la data è valida, ma il piano nascerebbe già finito.
+      if (err instanceof ApiError && err.status === 409 && !conferma) {
+        if (confirm(`${err.message}\n\nProcedo comunque?`)) await inviaDataInizio(iso, true);
+        return;
+      }
       setError(err instanceof ApiError ? err.message : 'Cambio data non riuscito.');
     }
   }
@@ -1530,18 +1554,53 @@ export function ClientDetail() {
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {logRows.map((r) => {
-                  const meta = r.metadata ?? {};
-                  const newEmail = typeof meta.newEmail === 'string' ? meta.newEmail : null;
+                  /*
+                    COSA è cambiato, non solo CHE è cambiato qualcosa (richiesta di Simone del
+                    10/8). Prima qui c'erano due righe che dicevano la stessa cosa — «Modifica dati
+                    (dal cliente)» e «Modificato dal cliente» — e mai quella che serve: quale campo,
+                    da cosa a cosa. Vale per le modifiche della cliente e per quelle dello staff.
+
+                    Il riconoscimento delle tre forme di metadata sta in `lib/logModifiche`, la
+                    stessa che usa il log del lead: erano due rendering diversi della stessa cosa, e
+                    nel lead i campi si vedevano già mentre qui no.
+                  */
+                  const righe = righeModifica(r.metadata);
+                  const note = noteModifica(r.metadata);
+                  const etichettaAzione = CHANGE_ACTION_LABEL[r.action] ?? r.action;
                   return (
                     <div key={r.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
                       <div className="spread" style={{ alignItems: 'baseline' }}>
-                        <b style={{ fontSize: 14 }}>{CHANGE_ACTION_LABEL[r.action] ?? r.action}</b>
+                        <b style={{ fontSize: 14 }}>{etichettaAzione}</b>
                         <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(r.at).toLocaleString('it-IT')}</span>
                       </div>
                       <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
                         {r.self ? 'Modificato dal cliente' : r.actor ? <>Da <b>{r.actor.name}</b> ({r.actor.role})</> : 'Da sistema'}
-                        {newEmail && <> · nuova email: <b>{newEmail}</b></>}
                       </div>
+                      {righe.length > 0 && (
+                        <div style={{ marginTop: 6, display: 'grid', gap: 2 }}>
+                          {righe.map((c) => (
+                            <div key={c.campo} style={{ fontSize: 12, lineHeight: 1.5 }}>
+                              {/* Con la forma «due scalari» il nome del campo non è nel metadata:
+                                  lo dà l'azione, che è l'unica cosa che lo sa. */}
+                              <span className="muted">{c.campo === 'valore' ? etichettaAzione : c.etichetta}: </span>
+                              <span style={{ textDecoration: 'line-through', color: 'var(--muted)' }}>{c.prima}</span>
+                              {' → '}
+                              <b>{c.dopo}</b>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {note.map((n) => (
+                        <div key={n} className="muted" style={{ fontSize: 12, marginTop: 3, fontStyle: 'italic' }}>{n}</div>
+                      ))}
+                      {/* Una riga senza dettaglio è una modifica registrata prima del 10/8, quando
+                          l'audit non salvava i campi: dirlo è meglio di lasciar pensare che non
+                          fosse cambiato niente. */}
+                      {righe.length === 0 && note.length === 0 && (
+                        <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                          dettaglio dei campi non registrato per questa modifica
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1911,8 +1970,16 @@ interface SostituzioneRow {
  * nome. Lo spuntino del mattino segue sempre la colazione — è una regola del motore
  * (`menu.service.slotSaltatiPerDigiuno`), non una scelta di questa tendina.
  */
+/**
+ * ⚠️ Copia delle etichette staff di `backend/src/menu/finestre-digiuno.ts` — un frontend non può
+ * importare dal backend. Se lì si aggiunge una finestra, va aggiunta anche qui: fino all'11/8
+ * mancavano «salta la cena» e «salta il pranzo», che il motore avrebbe saputo gestire ma che nessuno
+ * poteva scegliere. L'ordine è quello della tabella.
+ */
 const FASTING_WINDOW_LABEL: Record<string, string> = {
   skip_breakfast: 'Salta la colazione (mangia da pranzo a cena)',
+  skip_dinner: 'Salta la cena (mangia da colazione a pranzo)',
+  skip_lunch: 'Salta il pranzo (colazione e cena)',
   skip_breakfast_lunch: 'Salta colazione e pranzo (solo cena)',
   skip_dinner_breakfast: 'Salta cena e colazione (finestra al mattino)',
 };

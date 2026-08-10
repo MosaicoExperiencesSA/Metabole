@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -87,6 +87,17 @@ export class LeadAssignmentController {
   @Get('my-assignments')
   mine(@CurrentUser() user: AuthUser) {
     return this.svc.myPending(user.sub);
+  }
+
+  /**
+   * Storico delle assegnazioni nel proprio perimetro: è il «mostra accettati» della tabella
+   * «Lead da accettare», e comprende anche i rifiuti e le scadenze. Stesse regole di visibilità
+   * di `my-assignments`: la coach le sue, la coordinatrice quelle del team, sopra tutte.
+   */
+  @Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
+  @Get('my-assignments/storico')
+  storico(@CurrentUser() user: AuthUser, @Query('limite') limite?: string) {
+    return this.svc.storicoAssegnazioni(user.sub, limite ? parseInt(limite, 10) || 500 : 500);
   }
 
   /** Invito dello staff: proprio ref code + link di registrazione precompilato (backlog #2).

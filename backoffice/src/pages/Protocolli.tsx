@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner, Toggle } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Condition { field: string; op: string; value?: unknown }
 interface ActionDef { menu?: string; tone?: string; timing?: string; levelDelta?: number; flagForReview?: boolean; note?: string }
@@ -79,13 +80,37 @@ export function Protocolli() {
     }
   }
 
+  // Lo stato ha già la tendina in cima, che è un filtro del server: qui la colonna resta solo
+  // ordinabile. La colonna dei pulsanti c'è solo per chi può modificare, e come tutte le colonne
+  // di soli pulsanti non ha `valore`: niente titolo, niente ordinamento, niente filtro.
+  const COLONNE: Colonna<ProtocolRow>[] = [
+    { chiave: 'nome', titolo: 'Nome', valore: (r) => r.name, filtro: 'testo' },
+    { chiave: 'tipo', titolo: 'Tipo', valore: (r) => TYPE[r.type] ?? r.type, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'applica', titolo: 'Si applica a', valore: (r) => r.appliesTo, filtro: 'testo' },
+    { chiave: 'autore', titolo: 'Autore', valore: (r) => r.author?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'validatore', titolo: 'Validato da', valore: (r) => r.validatedBy?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status },
+    ...(isNutri ? [{ chiave: 'azioni', titolo: 'Azioni' } as Colonna<ProtocolRow>] : []),
+  ];
+
+  // Senza `ordineIniziale` le righe restano nell'ordine del server (dal protocollo più recente):
+  // è l'ordine in cui si guardano quelli appena proposti.
+  const t = useTabella(rows, COLONNE);
+
   if (loading) return <Spinner />;
 
   return (
     <>
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <p className="muted" style={{ margin: 0 }}>Regole del motore (menu, soglie): create dai nutrizionisti, validate dal capo.</p>
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <input
+            className="input"
+            style={{ maxWidth: 240 }}
+            placeholder="Cerca in tutte le colonne…"
+            value={t.ricerca}
+            onChange={(e) => t.setRicerca(e.target.value)}
+          />
           <select className="select" style={{ width: 170 }} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Tutti gli stati</option>
             <option value="pending">Da validare</option>
@@ -96,21 +121,23 @@ export function Protocolli() {
         </div>
       </div>
 
+      <div style={{ marginBottom: 10 }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="protocolli" />
+      </div>
+
       {error && <Banner kind="err">{error}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessun protocollo.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessun protocollo.' : 'Nessun protocollo con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Nome</th><th>Tipo</th><th>Si applica a</th><th>Autore</th><th>Validato da</th><th>Stato</th>
-                {isNutri && <th>Azioni</th>}
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id}>
                   <td>{r.name}</td>
                   <td className="muted">{TYPE[r.type] ?? r.type}</td>
@@ -138,6 +165,7 @@ export function Protocolli() {
             </tbody>
           </table>
         )}
+        <Pager {...t.pager} />
       </div>
 
       {editing && (

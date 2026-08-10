@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface MailStatus {
   configured: boolean;
@@ -26,6 +27,9 @@ interface FullMessage {
 }
 
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+
+/** Quanti messaggi si chiedono al server per cartella: i filtri lavorano solo su questi. */
+const QUANTI = 30;
 
 /** Estrae l'indirizzo email da "Nome <a@b.it>" (o restituisce la stringa se già pulita). */
 const addressOf = (from: string) => {
@@ -139,7 +143,7 @@ export function Posta() {
     setLoadingInbox(true);
     setError(null);
     try {
-      setInbox(await api<InboxItem[]>(`/me/mailbox/${which}?limit=30`));
+      setInbox(await api<InboxItem[]>(`/me/mailbox/${which}?limit=${QUANTI}`));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lettura della posta non riuscita.');
     } finally {
@@ -195,6 +199,18 @@ export function Posta() {
     }
   }
 
+  // La cartella la sceglie il server (due chiamate diverse), quindi non è una colonna: qui si
+  // ordina e si filtra solo dentro la cartella aperta. La colonna del cestino esiste solo nella
+  // posta in arrivo, e sono i pulsanti: nessun `valore`, nessun titolo.
+  const COLONNE: Colonna<InboxItem>[] = [
+    { chiave: 'da', titolo: folder === 'inbox' ? 'Mittente' : 'Destinatario', valore: (it) => it.fromName || it.from, filtro: 'testo', stile: { width: 220 } },
+    { chiave: 'oggetto', titolo: 'Oggetto', valore: (it) => it.subject, filtro: 'testo' },
+    { chiave: 'data', titolo: 'Data', valore: (it) => it.date, stile: { width: 130 } },
+    ...(folder === 'inbox' ? [{ chiave: 'cestino', titolo: '', stile: { width: 50 } } as Colonna<InboxItem>] : []),
+  ];
+
+  const t = useTabella(inbox, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+
   if (loading) return <Spinner />;
 
   if (!status?.configured) {
@@ -246,23 +262,41 @@ export function Posta() {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
+      <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="messaggi caricati" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
+
+      {/*
+        La casella non è caricata tutta: si chiedono gli ultimi 30 messaggi. Filtrare 30 messaggi e
+        non trovare quello di marzo non vuol dire che non c'è: vuol dire che non è stato scaricato.
+      */}
+      {inbox.length >= QUANTI && (
+        <Banner kind="info">
+          Stai guardando gli ultimi <b>{QUANTI}</b> messaggi di questa cartella: ricerca e filtri
+          cercano solo fra questi, non in tutta la casella.
+        </Banner>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
         {loadingInbox ? (
           <div style={{ padding: 24 }}><Spinner /></div>
-        ) : inbox.length === 0 ? (
-          <div className="empty">Nessun messaggio.</div>
+        ) : t.conteggio.mostrate === 0 ? (
+          <div className="empty">{inbox.length === 0 ? 'Nessun messaggio.' : 'Nessun messaggio con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th style={{ width: 220 }}>{folder === 'inbox' ? 'Mittente' : 'Destinatario'}</th>
-                <th>Oggetto</th>
-                <th style={{ width: 130 }}>Data</th>
-                {folder === 'inbox' && <th style={{ width: 50 }} />}
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {inbox.map((it) => (
+              {t.pagina.map((it) => (
                 <tr key={it.uid} style={{ cursor: 'pointer', fontWeight: it.seen ? 400 : 600 }} onClick={() => void openMessage(it)}>
                   <td>{it.fromName || it.from}</td>
                   <td>{it.subject}</td>
@@ -284,6 +318,7 @@ export function Posta() {
             </tbody>
           </table>
         )}
+        <Pager {...t.pager} />
       </div>
 
       {open && (

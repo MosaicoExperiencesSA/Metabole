@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { nextRuleCode, refCodeBase, splitDisplayName } from '../common/ref-code';
@@ -19,6 +19,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  */
 @Injectable()
 export class LeadAssignmentService {
+  private readonly logger = new Logger(LeadAssignmentService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
@@ -39,6 +41,71 @@ export class LeadAssignmentService {
   private async staffIdOf(userId: string): Promise<string | null> {
     const s = await this.prisma.staff.findUnique({ where: { userId }, select: { id: true } });
     return s?.id ?? null;
+  }
+
+  // ---------- Storico delle assegnazioni (tabella `lead_assignment`) ----------
+  //
+  // Ogni assegnazione è una riga che nasce «pending» e finisce in un modo solo: accepted, rejected,
+  // expired o reassigned. I tre campi su `crm_record` restano la verità sullo stato di ADESSO (li
+  // leggono la dashboard, i filtri, la pipeline); qui c'è la storia, che prima veniva sovrascritta.
+  // Le scritture sullo storico non devono mai far fallire l'assegnazione: se questa tabella ha un
+  // problema, il lavoro delle coach continua e l'errore finisce nei log, come per l'audit.
+
+  private nomeStaff(s: { displayName: string | null } | null | undefined): string | null {
+    return s?.displayName?.trim() || null;
+  }
+
+  /**
+   * Apre una riga di storico, chiudendo prima come `reassigned` quelle ancora in attesa sullo
+   * stesso lead: un lead può essere in attesa da una coach sola, e la riassegnazione mentre l'altra
+   * non aveva ancora risposto è essa stessa un fatto da conservare.
+   */
+  private async apriStorico(
+    recordId: string,
+    coachStaffId: string,
+    byStaffId: string | null,
+    origin: 'manual' | 'bulk' | 'ref_code',
+    esitoIniziale: 'pending' | 'accepted' = 'pending',
+  ): Promise<void> {
+    try {
+      const [coach, assegnante] = await Promise.all([
+        this.prisma.staff.findUnique({ where: { id: coachStaffId }, select: { displayName: true } }),
+        byStaffId ? this.prisma.staff.findUnique({ where: { id: byStaffId }, select: { displayName: true } }) : Promise.resolve(null),
+      ]);
+      const adesso = new Date();
+      await this.prisma.leadAssignment.updateMany({
+        where: { recordId, status: 'pending' },
+        data: { status: 'reassigned', resolvedAt: adesso },
+      });
+      await this.prisma.leadAssignment.create({
+        data: {
+          recordId,
+          coachId: coachStaffId,
+          coachName: this.nomeStaff(coach) ?? 'coach senza nome',
+          assignedById: byStaffId,
+          assignedByName: this.nomeStaff(assegnante),
+          status: esitoIniziale,
+          origin,
+          assignedAt: adesso,
+          // Il ref code è già accettato in partenza: nasce e si chiude nello stesso istante.
+          resolvedAt: esitoIniziale === 'accepted' ? adesso : null,
+        },
+      });
+    } catch (err) {
+      this.logger.error('Storico assegnazioni: apertura non riuscita', err instanceof Error ? err.stack : String(err));
+    }
+  }
+
+  /** Chiude l'assegnazione in attesa su questo lead con il suo esito. */
+  private async chiudiStorico(recordId: string, esito: 'accepted' | 'rejected' | 'expired', reason?: string): Promise<void> {
+    try {
+      await this.prisma.leadAssignment.updateMany({
+        where: { recordId, status: 'pending' },
+        data: { status: esito, resolvedAt: new Date(), ...(reason ? { reason } : {}) },
+      });
+    } catch (err) {
+      this.logger.error('Storico assegnazioni: chiusura non riuscita', err instanceof Error ? err.stack : String(err));
+    }
   }
 
   /** La responsabile assegna un lead a una coach (in attesa di accettazione). */
@@ -73,6 +140,7 @@ export class LeadAssignmentService {
       body: `Ti è stato assegnato un lead (${this.label(record)}). Hai 2 giorni per accettarlo, poi torna alla responsabile.`,
       payload: { recordId },
     });
+    await this.apriStorico(recordId, coachStaffId, byStaff, 'manual');
     await this.audit.log({ action: 'crm.lead.assign', actorId: byUserId, entityType: 'crm_record', entityId: recordId, metadata: { coachStaffId } });
     return updated;
   }
@@ -123,13 +191,24 @@ export class LeadAssignmentService {
           : `Ti sono stati assegnati ${n} lead. Hai 2 giorni per accettarli, poi tornano alla responsabile.`,
       payload: { recordIds: existingIds },
     });
-    await this.audit.log({
-      action: 'crm.lead.assign_bulk',
-      actorId: byUserId,
-      entityType: 'crm_record',
-      entityId: existingIds[0],
-      metadata: { coachStaffId, count: n, recordIds: existingIds },
-    });
+    for (const id of existingIds) await this.apriStorico(id, coachStaffId, byStaff, 'bulk');
+    /**
+     * UNA riga di audit per OGNI lead, non una sola con l'id del primo.
+     *
+     * Prima era `entityId: existingIds[0]`: il log della scheda di un lead si legge per `entityId`,
+     * quindi 199 lead su 200 avevano una scheda che diceva «nessuno ti ha mai assegnato». Il conteggio
+     * complessivo resta nel metadata di ogni riga, così si capisce che faceva parte di un'azione di
+     * massa e non di duecento clic.
+     */
+    await this.audit.logMany(
+      existingIds.map((id) => ({
+        action: 'crm.lead.assign_bulk',
+        actorId: byUserId,
+        entityType: 'crm_record',
+        entityId: id,
+        metadata: { coachStaffId, count: n },
+      })),
+    );
     return { assigned: n, coachStaffId };
   }
 
@@ -163,6 +242,7 @@ export class LeadAssignmentService {
         payload: { recordId },
       });
     }
+    await this.chiudiStorico(recordId, 'accepted');
     await this.audit.log({ action: 'crm.lead.accept', actorId: coachUserId, entityType: 'crm_record', entityId: recordId });
     return updated;
   }
@@ -177,6 +257,9 @@ export class LeadAssignmentService {
     const staffId = await this.staffIdOf(coachUserId);
     if (record.assignedCoachId !== staffId) throw new ForbiddenException('Non sei la coach assegnata a questo lead.');
 
+    // Lo storico si chiude PRIMA di azzerare i campi sul lead: dopo l'update non si sa più chi era
+    // la coach, ed è esattamente l'informazione che il rifiuto deve conservare.
+    await this.chiudiStorico(recordId, 'rejected', reason);
     const updated = await this.prisma.crmRecord.update({ where: { id: recordId }, data: { assignmentStatus: null, assignedCoachId: null } });
     if (record.assignedBy?.userId) {
       await this.notifications.notify({
@@ -223,6 +306,75 @@ export class LeadAssignmentService {
     });
   }
 
+  /**
+   * STORICO delle assegnazioni nel perimetro di chi guarda — il «mostra accettati» di Simone.
+   *
+   * Il perimetro è lo stesso di `myPending`: la coach vede le sue, la coordinatrice quelle del suo
+   * team, la responsabile e l'admin tutte. Non è un dettaglio di comodo: lo storico contiene nomi di
+   * clienti e motivi di rifiuto scritti dalle colleghe, e la regola su chi può leggerli deve essere
+   * la stessa che vale per l'elenco in attesa, non una più larga perché «è solo storico».
+   *
+   * Include le pendenti: la tabella è una sola e il flag decide cosa mostrare, quindi il server
+   * manda tutto e il filtro sta dove c'è la spunta.
+   */
+  async storicoAssegnazioni(userId: string, limite = 500) {
+    const staffId = await this.staffIdOf(userId);
+    // `coachTeamScope` restituisce null per chi non ha limiti di perimetro (responsabile, capo
+    // nutrizioniste, admin): per loro il filtro non c'è. Per tutti gli altri il perimetro è il team,
+    // o solo sé stessi.
+    const scope = await coachTeamScope(this.prisma, userId);
+    const righe = await this.prisma.leadAssignment.findMany({
+      where: scope === null ? {} : { coachId: { in: scope } },
+      orderBy: { assignedAt: 'desc' },
+      take: Math.min(Math.max(limite, 1), 2000),
+      include: { record: { select: { id: true, name: true, email: true, clientId: true, stage: true } } },
+    });
+    return this.formattaStorico(righe, staffId);
+  }
+
+  private async formattaStorico(
+    righe: unknown[],
+    staffId: string | null,
+  ) {
+    type Riga = {
+      id: string;
+      recordId: string;
+      coachId: string | null;
+      coachName: string;
+      assignedByName: string | null;
+      status: string;
+      origin: string;
+      assignedAt: Date;
+      resolvedAt: Date | null;
+      reason: string | null;
+      record: { id: string; name: string | null; email: string | null; clientId: string | null; stage: string } | null;
+    };
+    const windowMs = await this.acceptWindowMs();
+    const now = Date.now();
+    return (righe as Riga[]).map((r) => ({
+      id: r.id,
+      recordId: r.recordId,
+      name: r.record?.name ?? r.record?.email ?? 'Senza nome',
+      email: r.record?.email ?? null,
+      /** true se il lead è diventata una cliente registrata: nella tabella si linka alla scheda. */
+      clientId: r.record?.clientId ?? null,
+      stage: r.record?.stage ?? null,
+      coachName: r.coachName,
+      assignedBy: r.assignedByName,
+      status: r.status,
+      origin: r.origin,
+      assignedAt: r.assignedAt,
+      resolvedAt: r.resolvedAt,
+      reason: r.reason,
+      mine: !!staffId && r.coachId === staffId,
+      // Solo per le pendenti: quanto manca. Sulle chiuse non vuol dire niente e resta null.
+      hoursLeft:
+        r.status === 'pending'
+          ? Math.max(0, Math.round((r.assignedAt.getTime() + windowMs - now) / 3_600_000))
+          : null,
+    }));
+  }
+
   /** Cron: fa scadere le assegnazioni non accettate oltre la finestra (config). */
   async expireStale(): Promise<{ expired: number }> {
     const days = await this.configParams.getNumber('lead_accept_days', 2);
@@ -233,6 +385,19 @@ export class LeadAssignmentService {
     });
     type Row = { id: string; name: string | null; email: string | null; assignedBy: { userId: string } | null };
     for (const r of stale as Row[]) {
+      // Come per il rifiuto: prima lo storico, poi l'azzeramento dei campi.
+      await this.chiudiStorico(r.id, 'expired');
+      /**
+       * L'audit della scadenza: prima non c'era. Un lead tornava alla responsabile e nel log non
+       * compariva nulla — l'unica traccia era la notifica, che si legge e sparisce. È la riga che
+       * risponde a «perché questo lead è di nuovo da assegnare?».
+       */
+      await this.audit.log({
+        action: 'crm.lead.assign_expired',
+        entityType: 'crm_record',
+        entityId: r.id,
+        metadata: { days },
+      });
       await this.prisma.crmRecord.update({ where: { id: r.id }, data: { assignmentStatus: null, assignedCoachId: null } });
       if (r.assignedBy?.userId) {
         await this.notifications.notify({
@@ -485,6 +650,9 @@ export class LeadAssignmentService {
           assignedById: null, // auto-assegnazione via codice, non da un manager
         },
       });
+      // Anche il ref code entra nell'archivio, marcato per come è nato: senza questa riga le coach
+      // che lavorano solo col proprio link avrebbero uno storico vuoto.
+      await this.apriStorico(record.id, resolved.staffId, null, 'ref_code', 'accepted');
     } else {
       await this.prisma.crmRecord.update({
         where: { id: record.id },

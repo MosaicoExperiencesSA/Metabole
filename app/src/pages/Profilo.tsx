@@ -22,14 +22,19 @@ function splitPhone(p: string | null): { prefix: string; number: string } {
 }
 
 /**
- * I pasti saltati, a parole. Le stesse tre voci di `FASTING_OPTIONS` (il selettore qui sotto) e
- * della scheda cliente in backoffice: se divergono, cliente e coach chiamano la stessa scelta con
- * due nomi diversi e al telefono non si capiscono.
+ * I pasti saltati, a parole. Le stesse voci di `FASTING_OPTIONS` (il selettore qui sotto) e della
+ * scheda cliente in backoffice: se divergono, cliente e coach chiamano la stessa scelta con due nomi
+ * diversi e al telefono non si capiscono.
+ *
+ * ⚠️ Copia delle etichette cliente di `backend/src/menu/finestre-digiuno.ts`, che è la tabella
+ * unica: un frontend non può importare dal backend. Se lì nasce una finestra, va aggiunta anche qui.
  */
 const SALTA_LABEL: Record<string, string> = {
   skip_breakfast: 'Salti la colazione — mangi da pranzo a cena',
+  skip_dinner: 'Salti la cena — mangi da colazione a pranzo',
+  skip_lunch: 'Salti il pranzo — mangi a colazione e a cena',
   skip_breakfast_lunch: 'Salti colazione e pranzo — solo la cena',
-  skip_dinner_breakfast: 'Salti cena e colazione — finestra al mattino',
+  skip_dinner_breakfast: 'Salti cena e colazione — finestra a metà giornata',
 };
 
 const REGIME_LABEL: Record<string, string> = {
@@ -263,6 +268,147 @@ function planProgress(sub: Subscription): { day: number; total: number; pct: num
   const total = Math.max(1, Math.round((end - start) / DAY));
   const day = Math.min(total, Math.max(1, Math.floor((now - start) / DAY) + 1));
   return { day, total, pct: Math.round((day / total) * 100) };
+}
+
+/**
+ * SPOSTARE LA DATA DI INIZIO DEL PIANO, dal profilo (richiesta di Simone dell'11/8: «dal profilo,
+ * cliccando sul piano, mi fa modificare la data di inizio fino a 24 ore prima»).
+ *
+ * Fino a ieri questa cosa si poteva fare in due modi: dal backoffice (una coach, col suo permesso)
+ * oppure chiedendolo a Gaia in chat. Chi comprava con la data sbagliata e non se la sentiva di
+ * scrivere in chat non aveva nessuna strada.
+ *
+ * ## Perché prima si CHIEDE al server e poi si disegna
+ *
+ * `GET /me/plan-start` risponde se si può, e con quali limiti. La regola sta lì e non qui: le ore di
+ * blocco sono un parametro di configurazione (`plan_start_change_lock_hours`) che si cambia dal
+ * backoffice senza nessuna pubblicazione, e un'app che le avesse scritte dentro resterebbe indietro
+ * fino alla OTA successiva — dicendo «puoi» dove il server dice «no», che è il modo più rapido di
+ * far sembrare l'app rotta.
+ *
+ * Per lo stesso motivo il pulsante **non compare** quando non si può: un pulsante che c'è e poi
+ * risponde «non si può» è peggio di un pulsante che non c'è, perché la spiegazione arriva dopo il
+ * tocco invece che al posto suo. Quando manca poco, al suo posto c'è la frase con la strada che
+ * resta aperta (la coach in chat).
+ */
+function DataInizioPiano({ onSpostata }: { onSpostata: () => void }) {
+  interface Stato {
+    puo: boolean;
+    perche?: 'nessun_piano' | 'gia_partito' | 'troppo_tardi';
+    inizio: string | null;
+    oreMancanti?: number;
+    oreDiBlocco: number;
+    massimoGiorniAvanti: number;
+    minimoSelezionabile: string;
+  }
+  const nav = useNavigate();
+  const [stato, setStato] = useState<Stato | null>(null);
+  const [aperto, setAperto] = useState(false);
+  const [scelta, setScelta] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [fatto, setFatto] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<Stato>('/me/plan-start')
+      .then((s) => { setStato(s); setScelta((s.inizio ?? s.minimoSelezionabile).slice(0, 10)); })
+      // Un errore qui non è un problema della cliente: la sezione non compare e il resto del
+      // profilo funziona. Serviva a mostrare un pulsante in più, non un messaggio d'errore.
+      .catch(() => setStato(null));
+  }, []);
+
+  const giorno = (s: string) => new Date(s).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  /** Il giorno più in là che si può scegliere: `massimoGiorniAvanti` da oggi. */
+  const massimo = stato ? new Date(Date.now() + stato.massimoGiorniAvanti * DAY).toISOString().slice(0, 10) : undefined;
+
+  async function salva() {
+    if (!scelta) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await api<{ inizio: string; sbloccoMenu: string }>('/me/plan-start', {
+        method: 'PATCH',
+        body: JSON.stringify({ data: scelta }),
+      });
+      setAperto(false);
+      setFatto(
+        `Fatto: il piano parte ${giorno(r.inizio)}. I menu li vedrai dal ` +
+          `${new Date(r.sbloccoMenu).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}.`,
+      );
+      setStato((s) => (s ? { ...s, inizio: r.inizio } : s));
+      // La scheda qui sopra mostra le date del piano: va ricaricata, o resta quella vecchia.
+      onSpostata();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Non è stato possibile spostare la data. Riprova.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!stato) return null;
+  // Piano già partito, o nessun piano: non c'è niente da spostare e niente da spiegare.
+  if (!stato.puo && stato.perche !== 'troppo_tardi') return null;
+
+  if (!stato.puo) {
+    return (
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: '12px 0 0' }}>
+        <i className="ti ti-clock-hour-4" /> Il piano parte fra poco: da qui la data non si sposta più.
+        Se ti serve cambiarla,{' '}
+        <span style={{ textDecoration: 'underline' }} onClick={() => nav('/assistente?who=coach')}>scrivilo alla tua coach</span>{' '}
+        — lei può ancora farlo.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <button className="btn ghost" style={{ width: '100%', marginTop: 12 }} onClick={() => { setAperto(true); setFatto(null); }}>
+        <i className="ti ti-calendar-event" /> Sposta la data di inizio
+      </button>
+      {fatto && <p style={{ fontSize: 12.5, lineHeight: 1.5, margin: '8px 0 0', color: '#0E7C66' }}>{fatto}</p>}
+
+      {aperto && (
+        <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) setAperto(false); }}>
+          <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-grab" />
+            <b style={{ fontSize: 16 }}>Quando vuoi partire?</b>
+            {stato.inizio && (
+              <p className="muted" style={{ fontSize: 12.5, margin: '6px 0 0' }}>
+                Adesso il piano è previsto per {giorno(stato.inizio)}.
+              </p>
+            )}
+            <input
+              type="date"
+              className="input"
+              style={{ width: '100%', marginTop: 12 }}
+              value={scelta}
+              min={stato.minimoSelezionabile}
+              max={massimo}
+              onChange={(e) => setScelta(e.target.value)}
+            />
+            {/*
+              Si dice PRIMA che i menu si rifanno. Il blocco è di 24 ore ma i menu si sbloccano due
+              giorni prima: c'è una finestra in cui la cliente ha già i menu davanti — e magari ha
+              fatto la spesa — e spostando la data quei menu vengono rigenerati. Scoprirlo dopo
+              sarebbe la cosa peggiore che questa schermata può fare.
+            */}
+            <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: '10px 0 0' }}>
+              I menu vengono ricalcolati sulla data nuova: se ne avevi già qualcuno davanti, cambierà.
+              Si può spostare fino a {stato.massimoGiorniAvanti} giorni da oggi, e non nelle
+              ultime {stato.oreDiBlocco} ore prima della partenza.
+            </p>
+            {err && <p style={{ fontSize: 12.5, lineHeight: 1.5, margin: '10px 0 0', color: '#B3261E' }}>{err}</p>}
+            <button className="btn" style={{ width: '100%', marginTop: 14 }} disabled={busy || !scelta} onClick={salva}>
+              {busy ? 'Sposto…' : 'Confermo questa data'}
+            </button>
+            <button className="btn ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setAperto(false)}>
+              Lascia com'è
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 /**
@@ -500,8 +646,12 @@ function ActivityPref() {
  */
 const FASTING_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: 'skip_breakfast', label: 'Salto la colazione', hint: 'mangi da pranzo a cena' },
+  { value: 'skip_dinner', label: 'Salto la cena', hint: 'mangi da colazione a pranzo' },
+  // Due pasti lontani, non una finestra unica: il suggerimento lo dice, così nessuna crede di stare
+  // facendo un 16:8 che con colazione e cena non c'è.
+  { value: 'skip_lunch', label: 'Salto il pranzo', hint: 'colazione e cena, due pasti' },
   { value: 'skip_breakfast_lunch', label: 'Salto colazione e pranzo', hint: 'un solo pasto, la cena' },
-  { value: 'skip_dinner_breakfast', label: 'Salto cena e colazione', hint: 'finestra al mattino-pomeriggio' },
+  { value: 'skip_dinner_breakfast', label: 'Salto cena e colazione', hint: 'finestra a metà giornata' },
 ];
 
 function FastingWindowPref() {
@@ -617,6 +767,11 @@ export default function Profilo() {
       if (pr) { setProfile(pr); setForm(pr); const sp = splitPhone(pr.phone); setPhonePrefix(sp.prefix); setPhoneNumber(sp.number); }
     }).finally(() => setLoading(false));
   }, []);
+
+  /** Ricarica il piano dal server: lo chiama chi ne cambia le date (lo spostamento dell'inizio). */
+  async function ricaricaPiano() {
+    setSub(await api<Subscription | null>('/me/subscription').catch(() => null));
+  }
 
   /** Disdetta / ripensamento: entrambe passano da qui e ricaricano lo stato vero dal server. */
   async function azioneRicorrente(azione: 'cancel' | 'resume') {
@@ -1025,11 +1180,19 @@ export default function Profilo() {
               </div>
             </>
           )}
+          {/* Se il piano non è ancora partito, da qui la data si sposta (fino a 24h prima). */}
+          <DataInizioPiano onSpostata={ricaricaPiano} />
         </div>
       ) : sub && sub.status === 'pending' ? (
         <div className="card">
           <b style={{ fontSize: 14 }}>{sub.plan?.name ?? 'Piano'}</b>
           <p className="muted" style={{ margin: '6px 0 0', fontSize: 13 }}>In attesa di conferma del pagamento.</p>
+          {/*
+            Anche in attesa di pagamento: la data si può ancora spostare, e il server sa che su un
+            abbonamento `pending` va scritta solo la base dei menu — le date dell'abbonamento le
+            mette l'approvazione. È il caso di chi compra oggi per partire lunedì e sbaglia lunedì.
+          */}
+          <DataInizioPiano onSpostata={ricaricaPiano} />
         </div>
       ) : (
         <div className="card">

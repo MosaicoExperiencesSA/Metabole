@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
-import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { MiniTrend } from '../components/MiniTrend';
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -227,7 +228,22 @@ export function Contabilita() {
     }
   }
 
-  const pg = usePagination(costs, 100);
+  const COLONNE: Colonna<CostEntry>[] = [
+    // Voce e fornitore nello stesso valore: la cella li mostra entrambi e il fornitore è il secondo
+    // modo di cercare un costo. L'ordinamento resta di fatto sulla voce, che è la parte davanti.
+    { chiave: 'voce', titolo: 'Voce', valore: (c) => `${c.label} ${c.vendor ?? ''}`.trim(), filtro: 'testo' },
+    { chiave: 'categoria', titolo: 'Categoria', valore: (c) => c.category, filtro: 'scelta', etichetta: (v) => CAT_LABEL[v] ?? v, etichettaTutti: 'Tutte' },
+    { chiave: 'tipo', titolo: 'Tipo', valore: (c) => (c.recurring ? c.cadence : 'once'), filtro: 'scelta', etichetta: (v) => CADENCE_LABEL[v] ?? v, etichettaTutti: 'Tutti' },
+    // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
+    { chiave: 'periodo', titolo: 'Periodo', valore: (c) => c.date },
+    // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
+    { chiave: 'importo', titolo: 'Importo', valore: (c) => c.amountCents, stile: { textAlign: 'right' } },
+    { chiave: 'azioni', titolo: '' },
+  ];
+
+  // Nessun ordine iniziale: il server manda prima i ricorrenti e poi per data, e non è un ordine
+  // che si possa dire con una colonna sola. Il primo clic su un'intestazione lo sostituisce.
+  const t = useTabella(costs, COLONNE);
 
   if (loading && !report) return <Spinner />;
 
@@ -330,27 +346,31 @@ export function Contabilita() {
 
       {/* Anagrafica costi */}
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="spread" style={{ marginBottom: 8 }}>
+        <div className="spread" style={{ marginBottom: 8, gap: 10, flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0 }}>Costi registrati</h2>
-          <span className="muted" style={{ fontSize: 13 }}>{costs.length} voci</span>
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* I costi arrivano tutti, senza il filtro del mese: quello vale sul report qui sopra. */}
+            <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="voci" />
+            <input
+              className="input"
+              style={{ maxWidth: 220 }}
+              placeholder="Cerca in tutte le colonne…"
+              value={t.ricerca}
+              onChange={(e) => t.setRicerca(e.target.value)}
+            />
+          </div>
         </div>
-        {costs.length === 0 ? (
-          <div className="empty">Nessun costo. Registrane uno con "Registra costo".</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{costs.length === 0 ? 'Nessun costo. Registrane uno con "Registra costo".' : 'Nessun costo con questi filtri.'}</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="grid">
               <thead>
-                <tr>
-                  <th>Voce</th>
-                  <th>Categoria</th>
-                  <th>Tipo</th>
-                  <th>Periodo</th>
-                  <th style={{ textAlign: 'right' }}>Importo</th>
-                  <th />
-                </tr>
+                {t.intestazione()}
+                {t.rigaFiltri()}
               </thead>
               <tbody>
-                {pg.pageItems.map((c) => (
+                {t.pagina.map((c) => (
                   <tr key={c.id}>
                     <td>
                       <b>{c.label}</b>
@@ -409,7 +429,7 @@ export function Contabilita() {
                 ))}
               </tbody>
             </table>
-            <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+            <Pager {...t.pager} />
           </div>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Withdrawal {
   id: string; staffName: string; staffEmail: string | null;
@@ -10,12 +11,18 @@ interface Withdrawal {
 }
 
 const euro = (c: number) => (c / 100).toFixed(2).replace('.', ',') + ' €';
+const giorno = (s: string | null) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
 const TABS: { key: string; label: string }[] = [
   { key: 'requested', label: 'In attesa' },
   { key: 'paid', label: 'Pagate' },
   { key: 'rejected', label: 'Rifiutate' },
   { key: '', label: 'Tutte' },
 ];
+const STATO_LABEL: Record<string, string> = { requested: 'In attesa', paid: 'Pagato', rejected: 'Rifiutato' };
+const STATO_CHIP: Record<string, string> = { requested: 'amber', paid: '', rejected: 'red' };
+
+/** Quante righe manda al massimo `GET /admin/withdrawals`: oltre questo tetto i filtri non arrivano. */
+const TETTO_SERVER = 300;
 
 export function Prelievi() {
   const [tab, setTab] = useState('requested');
@@ -69,54 +76,106 @@ export function Prelievi() {
     } catch (err) { setError(err instanceof ApiError ? err.message : 'Download non riuscito.'); }
   }
 
+  const COLONNE: Colonna<Withdrawal>[] = [
+    // Nome ed email nello stesso valore: la cella li mostra entrambi e chi cerca una richiesta parte
+    // da uno dei due. L'ordinamento resta di fatto sul nome, che è la parte davanti.
+    { chiave: 'staff', titolo: 'Staff', valore: (w) => `${w.staffName} ${w.staffEmail ?? ''}`.trim(), filtro: 'testo' },
+    { chiave: 'iban', titolo: 'IBAN', valore: (w) => w.iban, filtro: 'testo' },
+    // I centesimi, non «100,00 €»: come testo «100,00 €» finirebbe prima di «20,00 €».
+    { chiave: 'importo', titolo: 'Importo', valore: (w) => w.amountCents, stile: { textAlign: 'right' } },
+    // Il filtro serve nel tab «Tutte»: negli altri i tab hanno già scelto lo stato.
+    { chiave: 'stato', titolo: 'Stato', valore: (w) => w.status, filtro: 'scelta', etichetta: (v) => STATO_LABEL[v] ?? v, etichettaTutti: 'Tutti' },
+    // Le date ISO grezze: si ordinano bene alfabeticamente, quelle formattate in italiano no.
+    { chiave: 'richiesto', titolo: 'Richiesto il', valore: (w) => w.requestedAt },
+    { chiave: 'pagato', titolo: 'Pagato il', valore: (w) => w.paidAt },
+    { chiave: 'nota', titolo: 'Nota', valore: (w) => w.note, filtro: 'testo' },
+    { chiave: 'azioni', titolo: '', stile: { textAlign: 'right' } },
+  ];
+
+  // Una coda si smaltisce dalla richiesta più vecchia: è l'ordine del server dentro ogni tab.
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'richiesto', direzione: 'asc' } });
+
   return (
     <>
       <p className="hint" style={{ marginTop: 0 }}>Verifica gli importi (non oltre il saldo prelevabile), scarica la ricevuta e conferma dopo aver fatto il bonifico.</p>
       <div className="row" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        {TABS.map((t) => (
-          <button key={t.key} className={`chip ${t.key === tab ? '' : 'ghost'}`} style={{ cursor: 'pointer', border: t.key === tab ? '2px solid var(--teal)' : undefined }} onClick={() => setTab(t.key)}>{t.label}</button>
+        {TABS.map((x) => (
+          <button key={x.key} className={`chip ${x.key === tab ? '' : 'ghost'}`} style={{ cursor: 'pointer', border: x.key === tab ? '2px solid var(--teal)' : undefined }} onClick={() => setTab(x.key)}>{x.label}</button>
         ))}
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
-      {loading ? <Spinner /> : rows.length === 0 ? (
-        <div className="card"><div className="empty">Nessuna richiesta.</div></div>
-      ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
-          {rows.map((w) => (
-            <div className="card" key={w.id} style={{ margin: 0 }}>
-              <div className="spread" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ minWidth: 220 }}>
-                  <b style={{ fontSize: 15 }}>{w.staffName}</b>
-                  {w.staffEmail && <div className="muted" style={{ fontSize: 12 }}>{w.staffEmail}</div>}
-                  <div style={{ fontSize: 13, marginTop: 6 }}>IBAN: <b>{w.iban}</b></div>
-                  <div className="muted" style={{ fontSize: 12 }}>Richiesto il {new Date(w.requestedAt).toLocaleDateString('it-IT')}{w.paidAt ? ` · pagato il ${new Date(w.paidAt).toLocaleDateString('it-IT')}` : ''}</div>
-                  {w.note && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Nota: {w.note}</div>}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 20, fontWeight: 800 }}>{euro(w.amountCents)}</div>
-                  {w.status === 'requested' && (
-                    <div className={`chip ${w.congruent ? '' : 'red'}`} style={{ marginTop: 4 }}>
-                      {w.congruent ? `OK · prelevabile ${euro(w.withdrawableCents)}` : `⚠ supera il prelevabile (${euro(w.withdrawableCents)})`}
-                    </div>
-                  )}
-                  {w.status === 'paid' && <span className="chip" style={{ marginTop: 4 }}>Pagato</span>}
-                  {w.status === 'rejected' && <span className="chip red" style={{ marginTop: 4 }}>Rifiutato</span>}
-                </div>
-              </div>
-              <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                {w.hasReceipt && <button className="btn ghost sm" onClick={() => downloadReceipt(w)}><i className="ti ti-download" /> Ricevuta</button>}
-                {w.status === 'requested' && (
-                  <>
-                    <button className="btn sm" disabled={busyId === w.id} onClick={() => confirmPay(w)}><i className="ti ti-check" /> Conferma pagamento</button>
-                    <button className="btn ghost sm" disabled={busyId === w.id} onClick={() => reject(w)} style={{ color: 'var(--danger)' }}><i className="ti ti-x" /> Rifiuta</button>
-                  </>
-                )}
-              </div>
+      {/* Il tetto si dichiara: filtrare e non trovare niente non vuol dire che la richiesta non c'è. */}
+      {rows.length >= TETTO_SERVER && (
+        <Banner kind="info">
+          Sono caricate <b>{TETTO_SERVER} richieste</b> al massimo: ordinamento e filtri lavorano solo su queste.
+        </Banner>
+      )}
+
+      <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="richieste" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
+
+      {loading ? <Spinner /> : (
+        <div className="card" style={{ padding: 0 }}>
+          {t.conteggio.mostrate === 0 ? (
+            <div className="empty">{rows.length === 0 ? 'Nessuna richiesta.' : 'Nessuna richiesta con questi filtri.'}</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="grid">
+                <thead>
+                  {t.intestazione()}
+                  {t.rigaFiltri()}
+                </thead>
+                <tbody>
+                  {t.pagina.map((w) => (
+                    <tr key={w.id}>
+                      <td>
+                        <b>{w.staffName}</b>
+                        {w.staffEmail && <div className="muted" style={{ fontSize: 12 }}>{w.staffEmail}</div>}
+                      </td>
+                      <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{w.iban}</td>
+                      {/* La congruità sta sotto l'importo perché parla dell'importo: è la domanda
+                          «questi soldi ci sono?», non uno stato della richiesta. */}
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <b>{euro(w.amountCents)}</b>
+                        {w.status === 'requested' && (
+                          <div className={`chip ${w.congruent ? '' : 'red'}`} style={{ marginTop: 4, fontSize: 11 }}>
+                            {w.congruent ? `OK · prelevabile ${euro(w.withdrawableCents)}` : `⚠ supera il prelevabile (${euro(w.withdrawableCents)})`}
+                          </div>
+                        )}
+                      </td>
+                      <td><span className={`chip ${STATO_CHIP[w.status] ?? 'gray'}`}>{STATO_LABEL[w.status] ?? w.status}</span></td>
+                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{giorno(w.requestedAt)}</td>
+                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{giorno(w.paidAt)}</td>
+                      <td className="muted" style={{ fontSize: 12, maxWidth: 220 }}>{w.note || '—'}</td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {w.hasReceipt && <button className="btn ghost sm" onClick={() => downloadReceipt(w)} title="Scarica la ricevuta"><i className="ti ti-download" /></button>}
+                        {/* Confermare un pagamento sposta dei soldi: questi due pulsanti restano
+                            scritti, non a sola icona come il download della ricevuta. */}
+                        {w.status === 'requested' && (
+                          <>
+                            <button className="btn sm" style={{ marginLeft: 6 }} disabled={busyId === w.id} onClick={() => confirmPay(w)} title="Conferma il pagamento (bonifico già fatto)"><i className="ti ti-check" /> Conferma</button>
+                            <button className="btn ghost sm" style={{ marginLeft: 6, color: 'var(--danger)' }} disabled={busyId === w.id} onClick={() => reject(w)} title="Rifiuta la richiesta"><i className="ti ti-x" /> Rifiuta</button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
+          <Pager {...t.pager} />
         </div>
       )}
     </>

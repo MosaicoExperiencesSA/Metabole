@@ -5,6 +5,63 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-11
+
+- `[Sviluppo]` 🗃️ **Lo storico delle assegnazioni dei lead** — chiesto da Simone: «nella tabella lead
+  da accettare mettere il flag "mostra accettati" con la cronologia, quindi **tutti i dati vanno
+  archiviati**». Il flag era la parte facile: la cronologia non esisteva. Su `crm_record` i tre campi
+  dell'assegnazione (`assignedCoachId`, `assignmentStatus`, `assignedAt`) dicono lo stato di **adesso**,
+  e ogni passaggio cancellava il precedente — con tre conseguenze che nessuno poteva vedere:
+  - il **rifiuto** azzerava la coach: dopo, «chi l'ha rifiutato e perché» era una domanda senza
+    risposta possibile;
+  - la **scadenza automatica** (cron) faceva lo stesso e non scriveva nemmeno una riga di audit: il
+    lead tornava alla responsabile e l'unica traccia era una notifica, che si legge e sparisce;
+  - l'**assegnazione in massa** scriveva UN audit con l'id del primo lead: la scheda degli altri
+    duecento diceva «nessuno ti ha mai assegnato».
+  Ora c'è la tabella `lead_assignment`: una riga per assegnazione, che nasce `pending` e finisce in un
+  modo solo (`accepted`, `rejected`, `expired`, `reassigned`), con il motivo del rifiuto e con i nomi
+  di coach e assegnante **copiati dentro** — uno storico che dice «assegnato a —» perché quella coach
+  non lavora più qui non è uno storico. La migrazione **recupera** lo stato corrente dei lead già
+  assegnati, altrimenti il giorno del rilascio il flag mostrava una tabella vuota anche a chi ha
+  decine di lead accettati. Validata su PostgreSQL 16 locale, backfill compreso.
+- `[Sviluppo]` 🧮 **Filtri e riordino sulle colonne, su tutte le tabelle** — «in quella tabella come in
+  quella dei log mettere i filtri e riordino sulle colonne… controllale tutte». Guardandole tutte: 37
+  tabelle, **cinque** avevano l'ordinamento, e le cinque erano cinque copie divergenti dello stesso
+  blocchetto copiato a mano. Ora c'è `backoffice/src/components/tabella.tsx`: si dichiarano le colonne
+  (titolo + come si legge il valore + se ha un filtro) e le celle restano scritte a mano.
+  Tre decisioni dentro l'ordinamento, che prima ogni copia prendeva a modo suo: i **vuoti vanno in
+  fondo** anche in decrescente (righe vuote in cima nascondono quelle che cerchi); gli **importi si
+  ordinano come numeri**, non come «€ 100,00» che viene prima di «€ 20,00»; le tendine dei filtri
+  offrono **solo i valori presenti** nelle righe caricate.
+  Applicato a 20 pagine. Dove il server manda un tetto di righe la pagina lo **dichiara**: filtrare 200
+  righe su 5.000 e non trovare niente non vuol dire che il fatto non c'è. Per lo stesso motivo il tetto
+  del log attività è passato da 200 a 1000, con la scelta in pagina.
+  - **«Lead da accettare» e «Prelievi» erano elenchi di schede, non tabelle**: convertite in tabella,
+    che è l'unico modo di avere filtri e ordinamento per colonna. Nessun dato e nessun pulsante persi,
+    ma sono le due pagine che cambiano aspetto: da guardare.
+- `[Sviluppo]` 🔎 **Nel log attività si vede COSA è cambiato** — la stessa richiesta del 10/8 sul log
+  del lead, applicata al log generale: «Parametro aggiornato» senza dire quale parametro, e da quanto a
+  quanto, è una riga che non risponde a nessuna domanda. Colonna nuova, filtrabile, che usa lo stesso
+  lettore dei tre formati di metadata della scheda cliente (`righeModifica`).
+- `[Sviluppo]` 📅 **La data di inizio si sposta anche dal profilo dell'app** — «dal profilo, cliccando
+  sul piano, mi fa modificare la data di inizio fino a 24 ore prima». Stessa azione di Gaia, stessa
+  regola letta dallo **stesso** parametro (`plan_start_change_lock_hours`), stesse tre scritture — che
+  adesso passano da un solo punto del codice, perché due strade che scrivono due volte le stesse tre
+  cose prima o poi ne dimenticano una.
+  L'app **chiede prima** al server se si può (`GET /me/plan-start`) e disegna il pulsante solo se sì:
+  un pulsante che c'è e poi risponde «non si può» è peggio di un pulsante che non c'è. Quando manca
+  poco, al suo posto c'è la strada che resta aperta (la coach in chat). Vale anche sui piani in attesa
+  di pagamento. **Serve una OTA** per vederlo.
+- `[Sviluppo]` ⚠️ **Avviso sulla matita quando la data manda il piano nel passato** — dal caso di ieri
+  mattina: un piano appena attivato non compariva in dashboard perché la data di inizio aveva il mese
+  sbagliato e il piano, sommata la durata, risultava finito da giorni. La conclusione era «errore mio»,
+  ed era vero: ma il sistema aveva eseguito **in silenzio** un comando che cancellava il percorso della
+  cliente, e da fuori era indistinguibile da un difetto. Ora il server si ferma (409) e dice cosa
+  succederebbe — la data di fine calcolata, «la cliente vedrà Nessun piano attivo» — e si procede solo
+  confermando. Non un divieto: spostare all'indietro un piano finito per davvero resta legittimo.
+
+---
+
 ## 2026-08-10
 
 - `[Sviluppo]` 🥗 **Si vede QUALE dieta è collegata a una cliente** — chiesto da Simone davanti alla

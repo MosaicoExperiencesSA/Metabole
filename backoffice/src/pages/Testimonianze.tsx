@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Testimonial {
   id: string;
@@ -57,6 +58,18 @@ export function Testimonianze() {
     }
   }
 
+  const COLONNE: Colonna<Testimonial>[] = [
+    { chiave: 'ordine', titolo: '#', valore: (t) => t.order, stile: { width: 48 } },
+    { chiave: 'nome', titolo: 'Nome', valore: (t) => t.name, filtro: 'testo' },
+    { chiave: 'eta', titolo: 'Età', valore: (t) => t.age, stile: { width: 60 } },
+    { chiave: 'testo', titolo: 'Testo', valore: (t) => t.text, filtro: 'testo' },
+    { chiave: 'stato', titolo: 'Stato', valore: (t) => (t.published ? 'Pubblicata' : 'Nascosta'), filtro: 'scelta', etichettaTutti: 'Tutte', stile: { width: 90 } },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  // L'ordine di apertura è quello del sito: il campo «Ordine» decide come compaiono online.
+  const tab = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'ordine' } });
+
   if (loading) return <Spinner />;
 
   return (
@@ -70,26 +83,31 @@ export function Testimonianze() {
         </button>
       </div>
 
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={tab.conteggio} filtriAttivi={tab.filtriAttivi} azzera={tab.azzera} nome="testimonianze" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={tab.ricerca}
+          onChange={(e) => tab.setRicerca(e.target.value)}
+        />
+      </div>
+
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessuna testimonianza. Aggiungine una con “Nuova testimonianza”.</div>
+        {tab.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessuna testimonianza. Aggiungine una con “Nuova testimonianza”.' : 'Nessuna testimonianza con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th style={{ width: 48 }}>#</th>
-                <th>Nome</th>
-                <th style={{ width: 60 }}>Età</th>
-                <th>Testo</th>
-                <th style={{ width: 90 }}>Stato</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
+              {tab.intestazione()}
+              {tab.rigaFiltri()}
             </thead>
             <tbody>
-              {rows.map((t) => (
+              {tab.pagina.map((t) => (
                 <tr key={t.id}>
                   <td className="muted">{t.order}</td>
                   <td><b>{t.name}</b></td>
@@ -108,6 +126,7 @@ export function Testimonianze() {
             </tbody>
           </table>
         )}
+        <Pager {...tab.pager} />
       </div>
 
       {editing && (

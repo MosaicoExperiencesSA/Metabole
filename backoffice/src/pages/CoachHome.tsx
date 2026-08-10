@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
 import { WalletWidget } from '../components/WalletWidget';
 
@@ -121,6 +122,17 @@ export function CoachHome() {
       setTimeout(() => setCopied(false), 2000);
     });
   }
+
+  const COLONNE: Colonna<CoachClient>[] = [
+    { chiave: 'cliente', titolo: 'Cliente', valore: (c) => c.name, filtro: 'testo' },
+    { chiave: 'piano', titolo: 'Piano', valore: (c) => (c.planActive ? 'attivo' : 'nessun piano'), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    // La data grezza (`AAAA-MM-GG`), non quella scritta: si ordina per giorno, non per come si legge.
+    { chiave: 'misura', titolo: 'Ultima misura', valore: (c) => c.lastMeasureDate },
+    { chiave: 'avvisi', titolo: 'Avvisi', valore: (c) => c.openAlerts, stile: { textAlign: 'center' } },
+  ];
+
+  // Come le manda il server: prima chi ha più avvisi aperti, che è da chi si comincia la giornata.
+  const t = useTabella(clients, COLONNE, { ordineIniziale: { chiave: 'avvisi', direzione: 'desc' } });
 
   if (loading) return <Spinner />;
 
@@ -243,16 +255,29 @@ export function CoachHome() {
           <h2 style={{ margin: 0 }}>Le mie clienti</h2>
           <Link className="muted" style={{ fontSize: 13 }} to="/clienti">Tutte →</Link>
         </div>
-        {clients.length === 0 ? (
-          <div className="empty">Nessuna cliente assegnata.</div>
+        {clients.length > 0 && (
+          <div className="spread" style={{ padding: '6px 20px 10px', gap: 10, flexWrap: 'wrap' }}>
+            <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="clienti" />
+            <input
+              className="input"
+              style={{ maxWidth: 240 }}
+              placeholder="Cerca in tutte le colonne…"
+              value={t.ricerca}
+              onChange={(e) => t.setRicerca(e.target.value)}
+            />
+          </div>
+        )}
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{clients.length === 0 ? 'Nessuna cliente assegnata.' : 'Nessuna cliente con questi filtri.'}</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="grid">
               <thead>
-                <tr><th>Cliente</th><th>Piano</th><th>Ultima misura</th><th style={{ textAlign: 'center' }}>Avvisi</th></tr>
+                {t.intestazione()}
+                {t.rigaFiltri()}
               </thead>
               <tbody>
-                {clients.map((c) => (
+                {t.pagina.map((c) => (
                   <tr key={c.clientId}>
                     <td><Link to={`/clienti/${c.clientId}`} className="link"><b>{c.name ?? 'Cliente'}</b></Link></td>
                     <td>
@@ -272,6 +297,7 @@ export function CoachHome() {
             </table>
           </div>
         )}
+        <Pager {...t.pager} />
       </div>
       <DashboardModules />
     </>

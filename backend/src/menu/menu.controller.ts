@@ -15,6 +15,7 @@ import {
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { DataInizioChatService } from './data-inizio-chat.service';
 import { MenuService } from './menu.service';
 
 class RateRecipeDto {
@@ -35,6 +36,14 @@ class RateRecipeDto {
   @IsOptional()
   @IsDateString({}, { message: 'Data non valida.' })
   date?: string;
+}
+
+/** Nuova data di inizio scelta dal profilo dell'app. */
+class SpostaInizioDto {
+  @IsString({ message: 'Data non valida.' })
+  @MinLength(10, { message: 'Data non valida.' })
+  @MaxLength(10, { message: 'Data non valida.' })
+  data!: string; // AAAA-MM-GG
 }
 
 class CheckItemDto {
@@ -75,7 +84,31 @@ class DislikeIngredientDto {
 @Controller('me')
 @Roles('client')
 export class MenuController {
-  constructor(private readonly menu: MenuService) {}
+  constructor(
+    private readonly menu: MenuService,
+    private readonly dataInizio: DataInizioChatService,
+  ) {}
+
+  /**
+   * DATA DI INIZIO DEL PIANO, dal profilo dell'app (richiesta di Simone dell'11/8: «dal profilo,
+   * cliccando sul piano, mi fa modificare la data di inizio fino a 24 ore prima»).
+   *
+   * Sono due endpoint e non uno con un `PATCH` che si arrangia, perché la schermata ha bisogno di
+   * sapere PRIMA se il pulsante va mostrato e con che limiti: un pulsante che c'è e poi risponde
+   * «non si può» è peggio di un pulsante che non c'è, e la spiegazione arriva dopo il tocco invece
+   * che al posto suo.
+   *
+   * La regola è quella di Gaia, letta dallo stesso parametro: vedi `DataInizioChatService`.
+   */
+  @Get('plan-start')
+  statoInizio(@CurrentUser() user: AuthUser) {
+    return this.dataInizio.statoPerApp(user.sub);
+  }
+
+  @Patch('plan-start')
+  spostaInizio(@CurrentUser() user: AuthUser, @Body() dto: SpostaInizioDto) {
+    return this.dataInizio.spostaDaApp(user.sub, dto.data.trim());
+  }
 
   /** Menu visibile (eroga automaticamente i giorni successivi se spetta). */
   @Get('menu')

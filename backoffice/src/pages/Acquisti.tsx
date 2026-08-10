@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Purchase {
   id: string;
@@ -23,8 +24,6 @@ const euro = (c: number | null | undefined) => (c == null ? '—' : '€ ' + (c 
 const date = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('it-IT') : '—');
 const clientName = (p: Purchase) => p.client?.clientProfile?.name ?? p.client?.email ?? 'Cliente';
 const methodLabel = (m: string) => (m === 'card' ? 'Carta' : m === 'manual' ? 'Manuale' : 'Bonifico');
-/** Stile compatto dei campi filtro nella riga sotto le intestazioni. */
-const F: CSSProperties = { fontSize: 12, padding: '4px 8px', fontWeight: 400, width: '100%' };
 /** Pulsante d'azione a sola icona (l'etichetta sta nel tooltip). */
 const ICON: CSSProperties = { padding: '4px 7px', lineHeight: 1 };
 const STATUS: Record<string, { label: string; chip: string }> = {
@@ -33,7 +32,12 @@ const STATUS: Record<string, { label: string; chip: string }> = {
   pending: { label: 'In attesa', chip: 'gray' },
   rejected: { label: 'Rifiutato', chip: 'red' },
   cancelled: { label: 'Annullato', chip: 'gray' },
+  // Non è uno stato del database: è la voce che serve nella tendina dello stato (vedi COLONNE).
+  refunded: { label: 'Stornato', chip: 'red' },
 };
+
+/** Quante righe manda al massimo `GET /admin/purchases`: oltre questo tetto i filtri non arrivano. */
+const TETTO_SERVER = 200;
 
 export function Acquisti() {
   const { can } = useAuth();
@@ -42,15 +46,11 @@ export function Acquisti() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [filter, setFilter] = useState('');
-  // Filtri per colonna (tutti combinabili tra loro e con la ricerca globale).
-  const [fCliente, setFCliente] = useState('');
-  const [fProdotto, setFProdotto] = useState('');
+  // Importo e intervallo di date stanno sopra la tabella e non fra i filtri di colonna: l'helper
+  // filtra per testo o per scelta, e «297» sull'importo o «dal 1° al 15» non sono né l'uno né l'altro.
   const [fImporto, setFImporto] = useState('');
-  const [fMetodo, setFMetodo] = useState('');
-  const [fStato, setFStato] = useState('');
-  const [fDataDa, setFDataDa] = useState('');
-  const [fDataA, setFDataA] = useState('');
+  const [fDal, setFDal] = useState('');
+  const [fAl, setFAl] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [refundTarget, setRefundTarget] = useState<Purchase | null>(null);
@@ -67,28 +67,17 @@ export function Acquisti() {
   }
   useEffect(() => { void load(); }, []);
 
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    const qCli = fCliente.trim().toLowerCase();
-    const qProd = fProdotto.trim().toLowerCase();
+  const preFiltrate = useMemo(() => {
     const qImp = fImporto.trim().replace(',', '.');
-    const list = rows.filter((r) => {
-      if (q && !(clientName(r).toLowerCase().includes(q) || (r.client?.email ?? '').toLowerCase().includes(q) || r.description.toLowerCase().includes(q))) return false;
-      if (qCli && !(clientName(r).toLowerCase().includes(qCli) || (r.client?.email ?? '').toLowerCase().includes(qCli))) return false;
-      if (qProd && !r.description.toLowerCase().includes(qProd)) return false;
+    if (!qImp && !fDal && !fAl) return rows;
+    return rows.filter((r) => {
       if (qImp && !(r.amountCents / 100).toFixed(2).includes(qImp)) return false;
-      if (fMetodo && r.method !== fMetodo) return false;
-      if (fStato === 'refunded') {
-        if (!r.refundedAt) return false;
-      } else if (fStato && r.status !== fStato) return false;
-      const day = r.createdAt.slice(0, 10);
-      if (fDataDa && day < fDataDa) return false;
-      if (fDataA && day > fDataA) return false;
+      const giorno = r.createdAt.slice(0, 10);
+      if (fDal && giorno < fDal) return false;
+      if (fAl && giorno > fAl) return false;
       return true;
     });
-    // Più recenti in alto (il backend ora ordina già così; qui è la garanzia lato UI).
-    return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [rows, filter, fCliente, fProdotto, fImporto, fMetodo, fStato, fDataDa, fDataA]);
+  }, [rows, fImporto, fDal, fAl]);
 
   async function downloadReceipt(p: Purchase) {
     setError(null);
@@ -183,27 +172,76 @@ export function Acquisti() {
     }
   }
 
-  const pg = usePagination(filtered, 50);
+  const COLONNE: Colonna<Purchase>[] = [
+    // Nome ed email nello stesso valore: il filtro cliente cercava in entrambi e la cella li mostra
+    // entrambi. L'ordinamento resta di fatto sul nome, che è la parte davanti.
+    { chiave: 'cliente', titolo: 'Cliente', valore: (p) => `${clientName(p)} ${p.client?.email ?? ''}`.trim(), filtro: 'testo' },
+    { chiave: 'prodotto', titolo: 'Prodotto', valore: (p) => p.description, filtro: 'testo' },
+    // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
+    { chiave: 'importo', titolo: 'Importo', valore: (p) => p.amountCents },
+    { chiave: 'metodo', titolo: 'Metodo', valore: (p) => p.method, filtro: 'scelta', etichetta: methodLabel, etichettaTutti: 'Tutti' },
+    // Uno stornato ha `status = approved` e la data di rimborso: «Stornato» deve restare una voce a
+    // sé nella tendina, come nel filtro scritto a mano che c'era prima.
+    {
+      chiave: 'stato',
+      titolo: 'Stato',
+      valore: (p) => (p.refundedAt ? 'refunded' : p.status),
+      filtro: 'scelta',
+      etichetta: (v) => STATUS[v]?.label ?? v,
+      etichettaTutti: 'Tutti',
+    },
+    // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
+    { chiave: 'data', titolo: 'Data', valore: (p) => p.createdAt },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  const t = useTabella(preFiltrate, COLONNE, { perPagina: 50, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const filtriSopra = fImporto !== '' || fDal !== '' || fAl !== '';
+  function azzeraTutto() {
+    t.azzera();
+    setFImporto('');
+    setFDal('');
+    setFAl('');
+  }
 
   if (loading) return <Spinner />;
 
   return (
     <>
-      <div className="spread" style={{ marginBottom: 16 }}>
-        <input className="input" style={{ maxWidth: 300 }} placeholder="Cerca per cliente o prodotto…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        {isAdmin && (
-          <button className="btn" onClick={() => setShowCreate(true)}>
-            <i className="ti ti-plus" /> Nuovo acquisto
-          </button>
-        )}
+      <div className="spread" style={{ marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
+        {/* «di quanti»: il totale è quello caricato dal server, non quello già scremato qui sopra. */}
+        <ContatoreRighe
+          conteggio={{ mostrate: t.conteggio.mostrate, totali: rows.length }}
+          filtriAttivi={t.filtriAttivi || filtriSopra}
+          azzera={azzeraTutto}
+          nome="acquisti"
+        />
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input className="input" style={{ maxWidth: 240 }} placeholder="Cerca in tutte le colonne…" value={t.ricerca} onChange={(e) => t.setRicerca(e.target.value)} />
+          <input className="input sm" style={{ width: 120 }} placeholder="Importo es. 297" title="Importo (anche parziale)" value={fImporto} onChange={(e) => setFImporto(e.target.value)} />
+          <input className="input sm" type="date" style={{ width: 150 }} title="Dal giorno" value={fDal} onChange={(e) => setFDal(e.target.value)} />
+          <input className="input sm" type="date" style={{ width: 150 }} title="Al giorno" value={fAl} onChange={(e) => setFAl(e.target.value)} />
+          {isAdmin && (
+            <button className="btn" onClick={() => setShowCreate(true)}>
+              <i className="ti ti-plus" /> Nuovo acquisto
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
+      {/* Il tetto si dichiara: filtrare e non trovare niente non vuol dire che l'acquisto non c'è. */}
+      {rows.length >= TETTO_SERVER && (
+        <Banner kind="info">
+          Sono caricati gli <b>ultimi {TETTO_SERVER} acquisti</b>: ordinamento e filtri lavorano solo su questi.
+        </Banner>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
-        {filtered.length === 0 ? (
-          <div className="empty">Nessun acquisto.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessun acquisto.' : 'Nessun acquisto con questi filtri.'}</div>
         ) : (
           // Larghezze fisse: senza, il nome del prodotto si prendeva tre righe e la colonna
           // delle azioni finiva fuori dallo schermo, tagliata.
@@ -218,53 +256,11 @@ export function Acquisti() {
               <col style={{ width: '16%' }} />
             </colgroup>
             <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Prodotto</th>
-                <th>Importo</th>
-                <th>Metodo</th>
-                <th>Stato</th>
-                <th>Data</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
-              <tr className="filters">
-                <th><input className="input" style={F} placeholder="Filtra…" value={fCliente} onChange={(e) => setFCliente(e.target.value)} /></th>
-                <th><input className="input" style={F} placeholder="Filtra…" value={fProdotto} onChange={(e) => setFProdotto(e.target.value)} /></th>
-                <th><input className="input" style={F} placeholder="es. 297" value={fImporto} onChange={(e) => setFImporto(e.target.value)} /></th>
-                <th>
-                  <select className="input" style={F} value={fMetodo} onChange={(e) => setFMetodo(e.target.value)}>
-                    <option value="">Tutti</option>
-                    <option value="card">Carta</option>
-                    <option value="bank_transfer">Bonifico</option>
-                    <option value="manual">Manuale</option>
-                  </select>
-                </th>
-                <th>
-                  <select className="input" style={F} value={fStato} onChange={(e) => setFStato(e.target.value)}>
-                    <option value="">Tutti</option>
-                    <option value="approved">Pagato</option>
-                    <option value="receipt_uploaded">Da approvare</option>
-                    <option value="pending">In attesa</option>
-                    <option value="rejected">Rifiutato</option>
-                    <option value="cancelled">Annullato</option>
-                    <option value="refunded">Stornato</option>
-                  </select>
-                </th>
-                <th>
-                  <input className="input" style={{ ...F, marginBottom: 3 }} type="date" title="Dal giorno" value={fDataDa} onChange={(e) => setFDataDa(e.target.value)} />
-                  <input className="input" style={F} type="date" title="Al giorno" value={fDataA} onChange={(e) => setFDataA(e.target.value)} />
-                </th>
-                <th style={{ textAlign: 'right' }}>
-                  {(fCliente || fProdotto || fImporto || fMetodo || fStato || fDataDa || fDataA) && (
-                    <button className="btn ghost sm" title="Pulisci i filtri" onClick={() => { setFCliente(''); setFProdotto(''); setFImporto(''); setFMetodo(''); setFStato(''); setFDataDa(''); setFDataA(''); }}>
-                      <i className="ti ti-filter-off" /> Pulisci
-                    </button>
-                  )}
-                </th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((p) => (
+              {t.pagina.map((p) => (
                 <tr key={p.id}>
                   <td style={{ overflow: 'hidden' }}>
                     <b style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={clientName(p)}>{clientName(p)}</b>
@@ -321,7 +317,7 @@ export function Acquisti() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
 
       {showCreate && (

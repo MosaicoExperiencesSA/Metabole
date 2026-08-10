@@ -126,6 +126,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni prima dell\'inizio piano in cui il menu diventa visibile',
   },
   {
+    key: 'plan_start_change_lock_hours',
+    value: '24',
+    type: 'number',
+    description: 'Ore prima dell\'inizio piano entro cui la cliente non puo\' piu\' spostare la data (da sola o con Gaia)',
+  },
+  {
     key: 'low_rating_threshold_stars',
     value: '2',
     type: 'number',

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Banner, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface VisitRow {
   id: string;
@@ -42,40 +43,59 @@ export function Agenda() {
 
   const name = (c: VisitRow['client']) => (c ? [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email : '—');
 
-  const pg = usePagination(rows, 100);
+  // Lo stato ha già la tendina in cima, che è un filtro del server (rifà la chiamata): qui la
+  // colonna resta solo ordinabile, per non avere due filtri sulla stessa cosa.
+  const COLONNE: Colonna<VisitRow>[] = [
+    { chiave: 'quando', titolo: 'Quando', valore: (r) => r.datetime },
+    // `name` restituisce il trattino per la cella; per ordinare serve il vuoto vero, altrimenti le
+    // visite senza cliente si ordinano come se si chiamassero «—».
+    { chiave: 'cliente', titolo: 'Cliente', valore: (r) => (r.client ? name(r.client) : null), filtro: 'testo' },
+    { chiave: 'nutrizionista', titolo: 'Nutrizionista', valore: (r) => r.nutritionist?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'tipo', titolo: 'Tipo', valore: (r) => r.type, filtro: 'scelta', etichettaTutti: 'Tutti', etichetta: (v) => TYPE[v] ?? v },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status },
+  ];
+
+  // L'agenda si legge dalla prima visita in poi: è l'ordine del server (`datetime asc`).
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'quando', direzione: 'asc' } });
 
   if (loading) return <Spinner />;
 
   return (
     <>
-      <div className="spread" style={{ marginBottom: 14 }}>
-        <p className="muted" style={{ margin: 0 }}>Visite col nutrizionista (le note cliniche restano nella scheda).</p>
-        <select className="select" style={{ width: 180 }} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="scheduled">In programma</option>
-          <option value="done">Effettuate</option>
-          <option value="cancelled">Annullate</option>
-          <option value="">Tutte</option>
-        </select>
+      <p className="muted" style={{ marginTop: 0 }}>Visite col nutrizionista (le note cliniche restano nella scheda).</p>
+
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="visite" />
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <input
+            className="input"
+            style={{ maxWidth: 240 }}
+            placeholder="Cerca in tutte le colonne…"
+            value={t.ricerca}
+            onChange={(e) => t.setRicerca(e.target.value)}
+          />
+          <select className="select" style={{ width: 180 }} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="scheduled">In programma</option>
+            <option value="done">Effettuate</option>
+            <option value="cancelled">Annullate</option>
+            <option value="">Tutte</option>
+          </select>
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessuna visita.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessuna visita.' : 'Nessuna visita con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Quando</th>
-                <th>Cliente</th>
-                <th>Nutrizionista</th>
-                <th>Tipo</th>
-                <th>Stato</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id}>
                   <td>{dateTime(r.datetime)}</td>
                   <td>
@@ -91,7 +111,7 @@ export function Agenda() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
     </>
   );

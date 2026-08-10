@@ -3,6 +3,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { MailService } from '../mail/mail.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { eUnicoPasto, pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
 import { giornoLocale, toDateOnly } from '../common/date-only';
 import { MessageComposerService, MessageTone } from './message-composer.service';
 import { PushService } from './push.service';
@@ -327,9 +328,11 @@ export class NotificationsService {
       (profile as { pathType?: string | null }).pathType === 'intermittent_fasting'
     ) {
       const finestra = (profile as { fastingWindow?: string | null }).fastingWindow ?? null;
-      // Chi già salta colazione e pranzo mangia solo a cena: la 20-4 la sta già facendo.
-      if (finestra !== 'skip_breakfast_lunch') {
-        const quale = finestra === 'skip_dinner_breakfast' ? 'il pranzo' : 'la cena';
+      // Chi è già a un pasto solo la 20-4 la sta già facendo. Le due domande — «è già a un pasto
+      // solo?» e «quale pasto resta?» — vengono dalla tabella delle finestre: erano due `if` in due
+      // file diversi, e nessuno dei due sapeva delle voci aggiunte l'11/8.
+      if (!eUnicoPasto(finestra)) {
+        const quale = `il ${pastoPrincipaleDigiuno(finestra)}`.replace('il colazione', 'la colazione').replace('il cena', 'la cena');
         const fatta = await this.notifyOncePerDay({
           userId: clientId,
           type: 'fasting_204_tip',

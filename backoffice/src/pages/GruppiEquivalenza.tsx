@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface EqGroup {
   id: string;
@@ -60,6 +61,18 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
     }
   }
 
+  const COLONNE: Colonna<EqGroup>[] = [
+    { chiave: 'gruppo', titolo: 'Gruppo', valore: (g) => g.name, filtro: 'testo' },
+    { chiave: 'alimenti', titolo: 'Alimenti intercambiabili', valore: (g) => itemsOf(g).join(', '), filtro: 'testo' },
+    { chiave: 'ambito', titolo: 'Ambito', valore: (g) => (g.productId ? 'Prodotto' : 'Globale'), filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 90 } },
+    { chiave: 'stato', titolo: 'Stato', valore: (g) => g.status, filtro: 'scelta', etichettaTutti: 'Tutti', etichetta: (v) => (v === 'approved' ? 'Approvato' : 'Bozza'), stile: { width: 100 } },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  // Nessun ordine iniziale: il server manda le bozze e gli approvati raggruppati per stato e poi
+  // per nome, ed è l'ordine con cui si rivedono i gruppi.
+  const t = useTabella(rows, COLONNE);
+
   if (loading) return <Spinner />;
 
   const draftCount = rows.filter((g) => g.status !== 'approved').length;
@@ -76,25 +89,31 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
         </button>
       </div>
 
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="gruppi" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
+
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessun gruppo di equivalenza. Creane uno con "Nuovo gruppo".</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessun gruppo di equivalenza. Creane uno con "Nuovo gruppo".' : 'Nessun gruppo con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Gruppo</th>
-                <th>Alimenti intercambiabili</th>
-                <th style={{ width: 90 }}>Ambito</th>
-                <th style={{ width: 100 }}>Stato</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {rows.map((g) => (
+              {t.pagina.map((g) => (
                 <tr key={g.id} onClick={() => setEditing(g)} style={{ cursor: 'pointer' }} title="Apri il gruppo">
                   <td><b>{g.name}</b>{g.members?.note && <div className="muted" style={{ fontSize: 12 }}>{g.members.note}</div>}</td>
                   <td className="muted" style={{ maxWidth: 460 }}>{itemsOf(g).join(', ')}</td>
@@ -112,6 +131,7 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
             </tbody>
           </table>
         )}
+        <Pager {...t.pager} />
       </div>
 
       {editing && (

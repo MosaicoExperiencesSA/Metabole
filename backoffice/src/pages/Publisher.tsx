@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface SocialPost {
   id: string;
@@ -25,6 +26,9 @@ const statusLabel: Record<string, string> = {
   draft: 'Bozza', judged: 'Giudicato', approved: 'Approvato',
   scheduled: 'Programmato', published: 'Pubblicato', rejected: 'Rifiutato',
 };
+
+// Tetto del server (`publisher.service.ts`: `take: 200`).
+const TETTO = 200;
 
 /** Coda dell'agente Publisher: crea → Giudice → approva → pubblica. */
 export function Publisher() {
@@ -85,6 +89,18 @@ export function Publisher() {
     }
   }
 
+  const COLONNE: Colonna<SocialPost>[] = [
+    { chiave: 'canale', titolo: 'Canale', valore: (p) => p.channel, filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 100 } },
+    // La ricerca dentro un post deve trovare anche gli hashtag: nella cella stanno sotto la caption.
+    { chiave: 'contenuto', titolo: 'Contenuto', valore: (p) => [p.caption, ...p.hashtags].join(' '), filtro: 'testo' },
+    { chiave: 'stato', titolo: 'Stato', valore: (p) => statusLabel[p.status] ?? p.status, filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 130 } },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  // Senza ordine iniziale restano nell'ordine del server (ultimi modificati in cima): la coda si
+  // lavora dall'ultimo toccato, e la data di modifica non è una colonna di questa tabella.
+  const t = useTabella(rows, COLONNE);
+
   if (loading) return <Spinner />;
 
   return (
@@ -103,24 +119,38 @@ export function Publisher() {
         </div>
       </div>
 
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="post" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
+
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
+      {rows.length >= TETTO && (
+        <Banner kind="info">
+          Stai guardando i <b>{TETTO}</b> post modificati più di recente: i filtri cercano solo fra questi,
+          quindi un post più vecchio non compare nemmeno filtrando.
+        </Banner>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessun post. Creane uno con "Nuovo post".</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessun post. Creane uno con "Nuovo post".' : 'Nessun post con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th style={{ width: 100 }}>Canale</th>
-                <th>Contenuto</th>
-                <th style={{ width: 130 }}>Stato</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {rows.map((p) => (
+              {t.pagina.map((p) => (
                 <tr key={p.id}>
                   <td className="muted" style={{ textTransform: 'capitalize' }}>{p.channel}</td>
                   <td style={{ maxWidth: 460 }}>
@@ -149,6 +179,7 @@ export function Publisher() {
             </tbody>
           </table>
         )}
+        <Pager {...t.pager} />
       </div>
 
       {editing && (

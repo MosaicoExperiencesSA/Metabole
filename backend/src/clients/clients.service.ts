@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
 import { MenuService } from '../menu/menu.service';
@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
+import { campiCambiati } from '../common/diff-campi';
 import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
 import { Role } from '../common/roles';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
@@ -572,6 +573,18 @@ export class ClientsService {
       ? ((await this.prisma.clientProfile.findUnique({ where: { userId }, select: { objective: true } }))?.objective ?? null)
       : null;
 
+    // Il PRIMA, per il log delle modifiche: si legge subito prima di scrivere, e solo se c'è
+    // qualcosa da scrivere. Due letture intere invece di un `select` mirato perché le chiavi da
+    // confrontare le decide la richiesta, non questo punto del codice.
+    const [prevUser, prevProfile] = await Promise.all([
+      Object.keys(userData).length
+        ? (this.prisma.user.findUnique({ where: { id: userId } }) as Promise<Record<string, unknown> | null>)
+        : Promise.resolve(null),
+      Object.keys(profileData).length
+        ? (this.prisma.clientProfile.findUnique({ where: { userId } }) as Promise<Record<string, unknown> | null>)
+        : Promise.resolve(null),
+    ]);
+
     const ops: unknown[] = [];
     if (Object.keys(userData).length) ops.push(this.prisma.user.update({ where: { id: userId }, data: userData as never }));
     if (Object.keys(profileData).length) {
@@ -583,8 +596,33 @@ export class ClientsService {
         }),
       );
     }
-    if (ops.length) await this.prisma.$transaction(ops as never);
-    await this.audit.log({ action: 'client.update', actorId, entityType: 'user', entityId: userId });
+    /**
+     * COSA è cambiato, non solo CHE la scheda è stata salvata.
+     *
+     * Richiesta di Simone del 10/8: «nel log modifiche va specificato anche cosa ha modificato,
+     * altrimenti non serve a nulla — e la stessa cosa vale per le modifiche fatte da admin, coach o
+     * nutrizionista». Questa riga di audit non aveva **nessun** metadata: nel log si leggeva
+     * «Modifica scheda · Da Mario (coach)» e nient'altro. La domanda vera è sempre «chi ha cambiato
+     * quel numero di telefono, e quando».
+     *
+     * Si legge il PRIMA dai valori già caricati sopra (`prevUser`/`prevProfile`) e si confronta con
+     * quello che stiamo scrivendo, con le regole di `campiCambiati`: solo i campi presenti nella
+     * richiesta e solo quelli davvero diversi — il form della scheda rimanda tutti i campi a ogni
+     * salvataggio, quindi senza quel filtro ogni salvataggio scriverebbe venti righe identiche.
+     */
+    const campi = [
+      ...campiCambiati(prevUser as Record<string, unknown> | null, userData as Record<string, unknown>, Object.keys(userData)),
+      ...campiCambiati(prevProfile as Record<string, unknown> | null, profileData as Record<string, unknown>, Object.keys(profileData)),
+    ];
+    await this.audit.log({
+      action: 'client.update',
+      actorId,
+      entityType: 'user',
+      entityId: userId,
+      // Niente riga muta: se non è cambiato niente il metadata lo dice, invece di far sembrare che
+      // il dettaglio sia andato perso.
+      metadata: { campi, nessunCambio: campi.length === 0 },
+    });
     // Cambio del tipo di dieta: voce di audit dedicata con prima/dopo (visibile nel Log modifiche).
     // I pasti del digiuno hanno un evento SUO nel log: «modifica scheda» non dice che da domani
     // quella cliente non riceve più la colazione, e nel log delle modifiche è la riga che serve
@@ -793,8 +831,17 @@ export class ClientsService {
    * sposta l'inizio dell'abbonamento mostrato in scheda (attivo > in attesa > più
    * recente), ricalcola la FINE dalla durata del piano e allinea la base dei menu
    * (profile.planStartDate). Tutto in audit con prima/dopo.
+   *
+   * `conferma` esiste per un solo caso, ed è il caso che è già costato una mattinata: una data di
+   * inizio talmente indietro che il piano, sommata la durata, risulta **già finito**. Il sistema
+   * eseguiva l'ordine senza fiatare, il piano diventava scaduto, la cliente vedeva «Nessun piano
+   * attivo» e in dashboard non compariva niente — e da fuori sembrava un difetto del software.
+   * (Il 10/8 era un mese sbagliato per distrazione, e la conclusione era «errore mio»: ma un
+   * comando che manda un piano nel passato in silenzio è comunque un difetto del software.)
+   * Senza `conferma: true` l'operazione si ferma e restituisce 409 con la frase da mostrare: non è
+   * un divieto — spostare all'indietro un piano finito davvero è legittimo — è una domanda.
    */
-  async updatePlanStart(userId: string, actorId: string, dateIso: string) {
+  async updatePlanStart(userId: string, actorId: string, dateIso: string, conferma = false) {
     await this.assertClientAccess(actorId, userId);
     const d = new Date(String(dateIso).slice(0, 10) + 'T00:00:00.000Z');
     if (Number.isNaN(d.getTime())) throw new BadRequestException('Data non valida (formato AAAA-MM-GG).');
@@ -817,6 +864,17 @@ export class ClientsService {
     if (!sub) throw new NotFoundException('Nessun abbonamento su cui spostare la data.');
 
     const newEnd = subscriptionEnd(d, sub.plan.period);
+
+    // L'AVVISO: con questa data il piano nasce già finito.
+    if (!conferma && newEnd.getTime() <= now) {
+      const gg = (x: Date) => x.toISOString().slice(0, 10).split('-').reverse().join('/');
+      throw new ConflictException(
+        `Attenzione: con l'inizio al ${gg(d)} il piano «${sub.plan.name}» (${sub.plan.period}) risulta già finito il ` +
+          `${gg(newEnd)}. La cliente vedrà «Nessun piano attivo», non riceverà menu e non comparirà in dashboard. ` +
+          'Se è quello che vuoi, conferma; altrimenti controlla il mese.',
+      );
+    }
+
     // RIATTIVAZIONE: spostare l'inizio nel futuro deve rendere il piano di nuovo attivo.
     // Se la nuova fine è nel futuro e l'abbonamento era già approvato (attivo o SCADUTO), lo
     // riportiamo ad 'active'. Non tocchiamo 'pending' (pagamento non approvato) né 'cancelled'

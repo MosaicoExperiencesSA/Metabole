@@ -1,3 +1,5 @@
+import { FINESTRE_DIGIUNO } from '../menu/finestre-digiuno';
+
 /**
  * Schema del questionario di onboarding.
  * Fonte di verità: docs/Metabole_Prototipo_Navigabile.html (direttiva replica 1:1).
@@ -107,8 +109,10 @@ export const ONBOARDING_QUESTIONS = {
           key: 'fastingWindow',
           type: 'choice',
           label: 'Quali pasti preferisci saltare?',
-          options: ['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'],
-          labels: ['Colazione', 'Colazione e pranzo', 'Cena e colazione'],
+          // Dalla tabella unica: aggiungere una finestra non deve richiedere di ricordarsi del
+          // questionario (mancavano «cena» e «pranzo» fino all'11/8).
+          options: FINESTRE_DIGIUNO.map((f) => f.valore),
+          labels: FINESTRE_DIGIUNO.map((f) => f.etichettaBreve),
           required: true,
           showIf: { key: 'pathType', equals: 'intermittent_fasting' },
         },

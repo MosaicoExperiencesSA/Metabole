@@ -24,6 +24,7 @@ export interface EngineRule {
 export const ENGINE_RULES: EngineRule[] = [
   // --- Composizione del ciclo ---
   { code: 'menu_days_delivered', label: 'Giorni erogati per ciclo', description: 'Quanti giorni di menù vengono consegnati insieme (di norma 2, "bigiornaliero").', category: 'composizione', kind: 'number', default: 2, min: 1, max: 7, step: 1, unit: 'giorni' },
+  { code: 'plan_start_change_lock_hours', label: 'Blocco cambio data inizio', description: 'Quante ore prima dell’inizio la cliente non puo’ piu’ spostare la data del piano, da sola o con Gaia. La coach puo’ sempre, dalla scheda.', category: 'composizione', kind: 'number', default: 24, min: 0, max: 168, step: 1, unit: 'ore' },
   { code: 'menu_visible_days_before_start', label: 'Anticipo di visibilità', description: 'Quanti giorni prima dell’inizio piano il menù diventa visibile alla cliente.', category: 'composizione', kind: 'number', default: 2, min: 0, max: 7, step: 1, unit: 'giorni' },
   { code: 'menu_daycombo_enabled', label: 'Composizione giornata bilanciata (DayCombo)', description: 'Compone la giornata dal pool della dieta puntando alle kcal del livello, invece del solo template.', category: 'composizione', kind: 'boolean', default: false, perDiet: true },
 

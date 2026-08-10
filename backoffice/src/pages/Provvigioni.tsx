@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
-import { Banner, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Commission {
   id: string;
@@ -16,14 +17,16 @@ interface Commission {
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
 
+/** Quante righe manda al massimo `GET /admin/commissions`: oltre questo tetto i filtri non arrivano. */
+const TETTO_SERVER = 1000;
+
 export function Provvigioni() {
   const [rows, setRows] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [client, setClient] = useState('');
-  const [product, setProduct] = useState('');
-  const [recipient, setRecipient] = useState('');
+  // Cliente, prodotto e ricevente sono diventati filtri di colonna; min/max restano qui sopra
+  // perché l'helper filtra per testo o per scelta, e «da 50 a 200 €» non è né l'uno né l'altro.
   const [min, setMin] = useState('');
   const [max, setMax] = useState('');
 
@@ -50,24 +53,35 @@ export function Provvigioni() {
     }
   }
 
-  const recipients = useMemo(() => Array.from(new Set(rows.map((r) => r.recipient))).sort(), [rows]);
-
-  const filtered = useMemo(() => {
+  const preFiltrate = useMemo(() => {
     const minC = min ? parseFloat(min) * 100 : null;
     const maxC = max ? parseFloat(max) * 100 : null;
+    if (minC == null && maxC == null) return rows;
     return rows.filter((r) => {
-      if (client.trim() && !r.client.toLowerCase().includes(client.trim().toLowerCase())) return false;
-      if (product.trim() && !r.product.toLowerCase().includes(product.trim().toLowerCase())) return false;
-      if (recipient && r.recipient !== recipient) return false;
       if (minC != null && r.amountCents < minC) return false;
       if (maxC != null && r.amountCents > maxC) return false;
       return true;
     });
-  }, [rows, client, product, recipient, min, max]);
+  }, [rows, min, max]);
 
-  const total = filtered.reduce((a, r) => a + r.amountCents, 0);
+  const COLONNE: Colonna<Commission>[] = [
+    // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
+    { chiave: 'data', titolo: 'Data', valore: (r) => r.date },
+    { chiave: 'cliente', titolo: 'Cliente', valore: (r) => r.client, filtro: 'testo' },
+    { chiave: 'prodotto', titolo: 'Prodotto', valore: (r) => r.product, filtro: 'testo' },
+    { chiave: 'ricevente', titolo: 'Ricevente', valore: (r) => r.recipient, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
+    { chiave: 'importo', titolo: 'Importo', valore: (r) => r.amountCents, stile: { textAlign: 'right' } },
+    { chiave: 'azioni', titolo: '' },
+  ];
 
-  const pg = usePagination(filtered, 100);
+  // Il server manda le più recenti in cima: lo stesso ordine resta quello di partenza.
+  const t = useTabella(preFiltrate, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const filtriSopra = min !== '' || max !== '';
+  function azzeraTutto() { t.azzera(); setMin(''); setMax(''); }
+
+  // Il totale segue i filtri: è la somma di quello che si sta guardando, non di tutto.
+  const total = t.tutte.reduce((a, r) => a + r.amountCents, 0);
 
   if (loading) return <Spinner />;
 
@@ -75,46 +89,39 @@ export function Provvigioni() {
     <>
       {error && <Banner kind="err">{error}</Banner>}
 
-      <div className="card" style={{ marginBottom: 16 }}>
+      {/* Il tetto si dichiara: filtrare e non trovare niente non vuol dire che la provvigione non c'è. */}
+      {rows.length >= TETTO_SERVER && (
+        <Banner kind="info">
+          Sono caricate le <b>ultime {TETTO_SERVER} provvigioni</b>: ordinamento e filtri lavorano solo su queste.
+        </Banner>
+      )}
+
+      <div className="spread" style={{ marginBottom: 10, gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <ContatoreRighe
+          conteggio={{ mostrate: t.conteggio.mostrate, totali: rows.length }}
+          filtriAttivi={t.filtriAttivi || filtriSopra}
+          azzera={azzeraTutto}
+          nome="provvigioni"
+        />
         <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label="Cliente"><input className="input" style={{ width: 180 }} value={client} onChange={(e) => setClient(e.target.value)} placeholder="Nome o email" /></Field>
-          <Field label="Prodotto"><input className="input" style={{ width: 180 }} value={product} onChange={(e) => setProduct(e.target.value)} placeholder="Es. Percorso" /></Field>
-          <Field label="Ricevente">
-            <select className="select" style={{ width: 180 }} value={recipient} onChange={(e) => setRecipient(e.target.value)}>
-              <option value="">Tutti</option>
-              {recipients.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </Field>
-          <Field label="Importo min (€)"><input className="input" type="number" step="0.01" style={{ width: 110 }} value={min} onChange={(e) => setMin(e.target.value)} /></Field>
-          <Field label="Importo max (€)"><input className="input" type="number" step="0.01" style={{ width: 110 }} value={max} onChange={(e) => setMax(e.target.value)} /></Field>
-          {(client || product || recipient || min || max) && (
-            <button className="btn ghost sm" onClick={() => { setClient(''); setProduct(''); setRecipient(''); setMin(''); setMax(''); }}>Azzera filtri</button>
-          )}
+          <input className="input" style={{ maxWidth: 220 }} placeholder="Cerca in tutte le colonne…" value={t.ricerca} onChange={(e) => t.setRicerca(e.target.value)} />
+          <Field label="Importo min (€)"><input className="input sm" type="number" step="0.01" style={{ width: 110 }} value={min} onChange={(e) => setMin(e.target.value)} /></Field>
+          <Field label="Importo max (€)"><input className="input sm" type="number" step="0.01" style={{ width: 110 }} value={max} onChange={(e) => setMax(e.target.value)} /></Field>
+          <span><b>Totale: {euro(total)}</b></span>
         </div>
       </div>
 
-      <div className="spread" style={{ marginBottom: 10 }}>
-        <span className="muted" style={{ fontSize: 13 }}>{filtered.length} provvigioni</span>
-        <span><b>Totale: {euro(total)}</b></span>
-      </div>
-
       <div className="card" style={{ padding: 0 }}>
-        {filtered.length === 0 ? (
-          <div className="empty">Nessuna provvigione con questi filtri.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessuna provvigione.' : 'Nessuna provvigione con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Data</th>
-                <th>Cliente</th>
-                <th>Prodotto</th>
-                <th>Ricevente</th>
-                <th style={{ textAlign: 'right' }}>Importo</th>
-                <th></th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id}>
                   <td className="muted">{date(r.date)}</td>
                   <td>{r.client}</td>
@@ -135,7 +142,7 @@ export function Provvigioni() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
     </>
   );

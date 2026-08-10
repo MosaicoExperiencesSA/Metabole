@@ -1,4 +1,6 @@
 import { Transform, Type } from 'class-transformer';
+// I valori ammessi vengono dalla tabella unica delle finestre: vedi `menu/finestre-digiuno.ts`.
+import { VALORI_FINESTRA_DIGIUNO } from '../../menu/finestre-digiuno';
 import { numeroOpzionale, numeroOpzionaleConZero } from '../../common/validazione';
 import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
@@ -63,7 +65,7 @@ export class UpdateProfileDto {
   pathType?: string;
 
   @IsOptional()
-  @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast'], { message: 'Finestra del digiuno non valida.' })
+  @IsIn(VALORI_FINESTRA_DIGIUNO, { message: 'Finestra del digiuno non valida.' })
   fastingWindow?: string;
 
   @IsOptional()

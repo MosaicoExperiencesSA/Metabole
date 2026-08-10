@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Commissions {
   commissionCoachCents: number;
@@ -28,8 +29,14 @@ const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
 const toCents = (s: string) => Math.round((Number((s ?? '').replace(',', '.')) || 0) * 100);
 const fromCents = (c: number | null | undefined) => (c ? (c / 100).toString().replace('.', ',') : '');
 
-/** Riepilogo compatto delle provvigioni per la tabella (mostra solo le quote > 0). */
-function commSummary(c: Commissions): string {
+/**
+ * Riepilogo compatto delle provvigioni per la tabella (mostra solo le quote > 0).
+ *
+ * `perOrdinare`: la cella vuole leggere «—» quando non ci sono provvigioni, l'ordinamento vuole una
+ * stringa vuota. Sono due esigenze diverse sullo stesso dato: col trattino i piani senza provvigioni
+ * finivano in mezzo all'alfabeto, invece che tutti in fondo dove li mette l'helper.
+ */
+function commSummary(c: Commissions, perOrdinare = false): string {
   const parts: string[] = [];
   // Rete a differenza (percentuali): se impostate, vincono sugli importi fissi legacy.
   const pct = (c.commissionCoachPct ?? 0) || (c.commissionCoordinatorPct ?? 0) || (c.commissionManagerPct ?? 0) || (c.commissionNutritionistPct ?? 0) || (c.commissionHeadNutritionistPct ?? 0);
@@ -45,7 +52,7 @@ function commSummary(c: Commissions): string {
   if (c.commissionManagerCoachCents) parts.push(`Mgr coach ${euro(c.commissionManagerCoachCents)}`);
   if (c.commissionNutritionistCents) parts.push(`Nutriz. ${euro(c.commissionNutritionistCents)}`);
   if (c.commissionHeadNutritionistCents) parts.push(`Capo nutr. ${euro(c.commissionHeadNutritionistCents)}`);
-  return parts.length ? parts.join(' · ') : '—';
+  return parts.length ? parts.join(' · ') : perOrdinare ? '' : '—';
 }
 
 /**
@@ -190,6 +197,29 @@ export function GestioneNegozio() {
     }
   }
 
+  const COLONNE_PIANI: Colonna<Plan>[] = [
+    { chiave: 'nome', titolo: 'Nome', valore: (p) => p.name, filtro: 'testo' },
+    // Centesimi, non «€ 12,00»: come testo «€ 100,00» starebbe prima di «€ 20,00».
+    { chiave: 'prezzo', titolo: 'Prezzo', valore: (p) => p.priceCents },
+    { chiave: 'periodo', titolo: 'Periodo', valore: (p) => p.period, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'billing', titolo: 'Come si vende', valore: (p) => BILLING_LABEL[p.billing ?? 'one_time'] ?? p.billing, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (p) => commSummary(p, true), filtro: 'testo' },
+    { chiave: 'stato', titolo: 'Stato', valore: (p) => (p.active ? 'Attivo' : 'Nascosto'), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'azioni', titolo: '' },
+  ];
+  const COLONNE_PRODOTTI: Colonna<Product>[] = [
+    { chiave: 'nome', titolo: 'Nome', valore: (p) => p.name, filtro: 'testo' },
+    { chiave: 'prezzo', titolo: 'Prezzo', valore: (p) => p.priceCents },
+    { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (p) => commSummary(p, true), filtro: 'testo' },
+    { chiave: 'stato', titolo: 'Stato', valore: (p) => (p.active ? 'Attivo' : 'Nascosto'), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'azioni', titolo: '' },
+  ];
+
+  // Due tabelle, due stati indipendenti: filtrare i piani non deve toccare i prodotti. Niente
+  // paginazione perché sono poche righe (`perPagina` alto = nessuna pagina da sfogliare).
+  const tPiani = useTabella(plans, COLONNE_PIANI, { perPagina: 500, ordineIniziale: { chiave: 'nome' } });
+  const tProdotti = useTabella(products, COLONNE_PRODOTTI, { perPagina: 500, ordineIniziale: { chiave: 'nome' } });
+
   if (loading) return <Spinner />;
 
   return (
@@ -198,9 +228,21 @@ export function GestioneNegozio() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       {/* Piani */}
-      <div className="spread" style={{ marginBottom: 10 }}>
-        <h2 style={{ margin: 0 }}>Piani</h2>
-        <button className="btn sm" onClick={() => setPlanForm({ period: '3m', billing: 'one_time', active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo piano</button>
+      <div className="spread" style={{ marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
+        <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>Piani</h2>
+          <ContatoreRighe conteggio={tPiani.conteggio} filtriAttivi={tPiani.filtriAttivi} azzera={tPiani.azzera} nome="piani" />
+        </div>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <input
+            className="input"
+            style={{ maxWidth: 220 }}
+            placeholder="Cerca in tutte le colonne…"
+            value={tPiani.ricerca}
+            onChange={(e) => tPiani.setRicerca(e.target.value)}
+          />
+          <button className="btn sm" onClick={() => setPlanForm({ period: '3m', billing: 'one_time', active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo piano</button>
+        </div>
       </div>
 
       {planForm && (
@@ -274,10 +316,16 @@ export function GestioneNegozio() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        {tPiani.conteggio.mostrate === 0 ? (
+          <div className="empty">{plans.length === 0 ? 'Nessun piano.' : 'Nessun piano con questi filtri.'}</div>
+        ) : (
         <table className="grid">
-          <thead><tr><th>Nome</th><th>Prezzo</th><th>Periodo</th><th>Come si vende</th><th>Provvigioni</th><th>Stato</th><th></th></tr></thead>
+          <thead>
+            {tPiani.intestazione()}
+            {tPiani.rigaFiltri()}
+          </thead>
           <tbody>
-            {plans.map((p) => (
+            {tPiani.pagina.map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td>
@@ -301,12 +349,28 @@ export function GestioneNegozio() {
             ))}
           </tbody>
         </table>
+        )}
+        {/* Invisibile finché sta tutto in una pagina: c'è perché oltre il tetto le righe non
+            spariscano in silenzio. */}
+        <Pager {...tPiani.pager} />
       </div>
 
       {/* Prodotti */}
-      <div className="spread" style={{ margin: '22px 0 10px' }}>
-        <h2 style={{ margin: 0 }}>Integratori / prodotti</h2>
-        <button className="btn sm" onClick={() => setProdForm({ active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo prodotto</button>
+      <div className="spread" style={{ margin: '22px 0 10px', gap: 10, flexWrap: 'wrap' }}>
+        <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>Integratori / prodotti</h2>
+          <ContatoreRighe conteggio={tProdotti.conteggio} filtriAttivi={tProdotti.filtriAttivi} azzera={tProdotti.azzera} nome="prodotti" />
+        </div>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <input
+            className="input"
+            style={{ maxWidth: 220 }}
+            placeholder="Cerca in tutte le colonne…"
+            value={tProdotti.ricerca}
+            onChange={(e) => tProdotti.setRicerca(e.target.value)}
+          />
+          <button className="btn sm" onClick={() => setProdForm({ active: 'true', repurchasable: 'true' })}><i className="ti ti-plus" /> Nuovo prodotto</button>
+        </div>
       </div>
 
       {prodForm && (
@@ -336,10 +400,16 @@ export function GestioneNegozio() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        {tProdotti.conteggio.mostrate === 0 ? (
+          <div className="empty">{products.length === 0 ? 'Nessun prodotto.' : 'Nessun prodotto con questi filtri.'}</div>
+        ) : (
         <table className="grid">
-          <thead><tr><th>Nome</th><th>Prezzo</th><th>Provvigioni</th><th>Stato</th><th></th></tr></thead>
+          <thead>
+            {tProdotti.intestazione()}
+            {tProdotti.rigaFiltri()}
+          </thead>
           <tbody>
-            {products.map((p) => (
+            {tProdotti.pagina.map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td>{euro(p.priceCents)}</td>
@@ -353,6 +423,8 @@ export function GestioneNegozio() {
             ))}
           </tbody>
         </table>
+        )}
+        <Pager {...tProdotti.pager} />
       </div>
     </>
   );

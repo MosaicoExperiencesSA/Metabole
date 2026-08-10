@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -23,6 +23,12 @@ class TravelDto {
 
 class PlanStartDto {
   @IsString() @MaxLength(10) @MinLength(10) date!: string; // AAAA-MM-GG
+  /**
+   * «Sì, so che con questa data il piano risulta già finito.» Senza questo flag il server
+   * risponde 409 con la frase da mostrare, invece di eseguire in silenzio un comando che
+   * fa sparire il piano della cliente.
+   */
+  @IsOptional() @IsBoolean() conferma?: boolean;
 }
 
 class SetPasswordDto {
@@ -147,7 +153,7 @@ export class ClientsController {
   @HttpCode(200)
   @Patch(':id/plan-start')
   planStart(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PlanStartDto) {
-    return this.clients.updatePlanStart(id, user.sub, dto.date);
+    return this.clients.updatePlanStart(id, user.sub, dto.date, dto.conferma === true);
   }
 
   /** Rigenera i menu da oggi in poi (corregge menu vecchi sbagliati). Stesso permesso del cambio data inizio. */

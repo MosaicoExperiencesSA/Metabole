@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Pager, Spinner, Toggle, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Template {
   key: string;
@@ -10,6 +11,11 @@ interface Template {
   active: boolean;
   updatedAt: string;
 }
+
+// Etichette dello stato: una volta sola, perché servono identiche nel chip e nella tendina del
+// filtro di colonna, dove il confronto resta sul valore grezzo (`active`/`inactive`).
+const STATO_LABEL: Record<string, string> = { active: 'Attivo', inactive: 'Disattivo' };
+const stato = (t: Template) => (t.active ? 'active' : 'inactive');
 
 // Segnaposto disponibili per ogni modello.
 const PLACEHOLDERS: Record<string, string[]> = {
@@ -45,7 +51,14 @@ export function ModelliEmail() {
   }
   useEffect(() => { void load(); }, []);
 
-  const pg = usePagination(rows, 100);
+  const COLONNE: Colonna<Template>[] = [
+    { chiave: 'nome', titolo: 'Modello', valore: (m) => m.name, filtro: 'testo' },
+    { chiave: 'oggetto', titolo: 'Oggetto', valore: (m) => m.subject, filtro: 'testo' },
+    { chiave: 'stato', titolo: 'Stato', valore: stato, filtro: 'scelta', etichettaTutti: 'Tutti', etichetta: (v) => STATO_LABEL[v] ?? v },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'nome', direzione: 'asc' } });
 
   if (loading) return <Spinner />;
 
@@ -57,43 +70,50 @@ export function ModelliEmail() {
         </p>
         <button className="btn" onClick={() => setNuovo(true)}><i className="ti ti-plus" /> Nuovo modello</button>
       </div>
+
+      <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="modelli" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessun modello.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessun modello.' : 'Nessun modello con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Modello</th>
-                <th>Oggetto</th>
-                <th>Stato</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((t) => (
-                <tr key={t.key}>
-                  <td><b>{t.name}</b></td>
-                  <td className="muted">{t.subject}</td>
-                  <td><span className={`chip ${t.active ? '' : 'gray'}`}>{t.active ? 'Attivo' : 'Disattivo'}</span></td>
+              {t.pagina.map((m) => (
+                <tr key={m.key}>
+                  <td><b>{m.name}</b></td>
+                  <td className="muted">{m.subject}</td>
+                  <td><span className={`chip ${m.active ? '' : 'gray'}`}>{STATO_LABEL[stato(m)]}</span></td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="btn ghost sm" onClick={() => setEditing(t)}><i className="ti ti-edit" /> Modifica</button>
+                    <button className="btn ghost sm" onClick={() => setEditing(m)}><i className="ti ti-edit" /> Modifica</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
 
       {nuovo && (
         <NewTemplateModal
           onClose={() => setNuovo(false)}
-          onCreated={(t) => { setRows((rs) => [...rs, t].sort((a, b) => a.name.localeCompare(b.name, 'it'))); setNuovo(false); setNotice(`Modello "${t.name}" creato. Ora puoi scriverne il testo.`); }}
+          onCreated={(creato) => { setRows((rs) => [...rs, creato].sort((a, b) => a.name.localeCompare(b.name, 'it'))); setNuovo(false); setNotice(`Modello "${creato.name}" creato. Ora puoi scriverne il testo.`); }}
         />
       )}
 

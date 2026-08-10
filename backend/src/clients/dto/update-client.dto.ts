@@ -1,4 +1,5 @@
 import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { VALORI_FINESTRA_DIGIUNO } from '../../menu/finestre-digiuno';
 
 /** Aggiornamento scheda cliente: anagrafica (User) + questionario (ClientProfile). Tutti i campi opzionali. */
 export class UpdateClientDto {
@@ -31,7 +32,9 @@ export class UpdateClientDto {
    * decide la dieta»: è il valore che manda la tendina quando si sceglie di non imporre nulla, e
    * senza `''` fra i valori validi svuotare il campo dalla scheda restituiva un 400.
    */
-  @IsOptional() @IsIn(['skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner_breakfast', '']) fastingWindow?: string;
+  // `''` = svuota («li decide la dieta»), ed è una scelta legittima. I valori vengono dalla
+  // tabella unica: vedi `menu/finestre-digiuno.ts`.
+  @IsOptional() @IsIn([...VALORI_FINESTRA_DIGIUNO, '']) fastingWindow?: string;
   @IsOptional() @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active']) activityLevel?: string;
   /** Account dei recensori degli store: misure mai bloccanti (voce #6f del 5/8). */
   @IsOptional() @IsBoolean() isStoreReviewer?: boolean;

@@ -9,6 +9,7 @@ import { validateObjective } from '../onboarding/objective-validator';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
+import { campiCambiati } from '../common/diff-campi';
 import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -65,12 +66,28 @@ export class ProfileService {
         ...(planStartDate ? { planStartDate: new Date(planStartDate) } : {}),
       } as never,
     });
+    /**
+     * COSA ha cambiato la cliente dall'app, non solo QUALI campi ha toccato.
+     *
+     * Prima qui c'era `fields: Object.keys(dto)` — l'elenco dei nomi, senza i valori — e in scheda
+     * cliente il log mostrava «Modifica dati (dal cliente)» e nient'altro (richiesta di Simone del
+     * 10/8: «altrimenti non serve a nulla»).
+     *
+     * `entityId` è ora l'**utente** e non il profilo: il log delle modifiche cerca gli audit per
+     * `entityId` fra l'id del lead e quello dell'utente, quindi con l'id del profilo queste righe
+     * non comparivano affatto nel log del lead. L'id del profilo resta nel metadata.
+     */
+    const campi = campiCambiati(
+      current as unknown as Record<string, unknown>,
+      { ...(rest as Record<string, unknown>), ...(planStartDate ? { planStartDate: new Date(planStartDate) } : {}) },
+      [...Object.keys(rest), ...(planStartDate ? ['planStartDate'] : [])],
+    );
     await this.audit.log({
       action: 'profile.update',
       actorId: userId,
       entityType: 'client_profile',
-      entityId: profile.id,
-      metadata: { fields: Object.keys(dto) },
+      entityId: userId,
+      metadata: { campi, profileId: profile.id, origine: 'app', nessunCambio: campi.length === 0 },
     });
 
     // Primo inserimento della data d'inizio → allinea la subscription (date + riattivazione).

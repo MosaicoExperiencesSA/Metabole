@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Banner, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface EscalationRow {
   id: string;
@@ -70,15 +71,39 @@ export function Segnalazioni() {
 
   const name = (c: EscalationRow['client']) => (c ? [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email : '—');
 
-  const pg = usePagination(rows, 100);
+  // Categoria e stato hanno già la loro tendina in cima: sono filtri del server (rifanno la
+  // chiamata), quindi qui restano solo ordinabili — due filtri per la stessa colonna, uno che
+  // ricarica e uno che no, sarebbero solo un modo di litigare con sé stessi.
+  const COLONNE: Colonna<EscalationRow>[] = [
+    // `name` restituisce il trattino per la cella; per ordinare serve il vuoto vero, altrimenti le
+    // righe senza cliente si ordinano come se si chiamassero «—».
+    { chiave: 'cliente', titolo: 'Cliente', valore: (r) => (r.client ? name(r.client) : null), filtro: 'testo' },
+    { chiave: 'categoria', titolo: 'Categoria', valore: (r) => (r.category ? CATEGORY_LABEL[r.category] ?? r.category : null) },
+    { chiave: 'motivo', titolo: 'Motivo', valore: (r) => r.reason, filtro: 'testo' },
+    { chiave: 'origine', titolo: 'Origine', valore: (r) => r.source, filtro: 'scelta', etichettaTutti: 'Tutte', etichetta: (v) => SOURCE[v] ?? v },
+    { chiave: 'incarico', titolo: 'Presa in carico', valore: (r) => r.assignedTo?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'data', titolo: 'Data', valore: (r) => r.createdAt },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status },
+  ];
+
+  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
 
   if (loading) return <Spinner />;
 
   return (
     <>
-      <div className="spread" style={{ marginBottom: 14 }}>
-        <p className="muted" style={{ margin: 0 }}>Segnalazioni da screening, coach o motore. Presa in carico dal nutrizionista.</p>
-        <div style={{ display: 'flex', gap: 8 }}>
+      <p className="muted" style={{ marginTop: 0 }}>Segnalazioni da screening, coach o motore. Presa in carico dal nutrizionista.</p>
+
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="segnalazioni" />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            className="input"
+            style={{ maxWidth: 240 }}
+            placeholder="Cerca in tutte le colonne…"
+            value={t.ricerca}
+            onChange={(e) => t.setRicerca(e.target.value)}
+          />
           <select className="select" style={{ width: 200 }} value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">Tutte le categorie</option>
             {Object.entries(CATEGORY_LABEL).map(([k, label]) => (
@@ -97,23 +122,16 @@ export function Segnalazioni() {
       {error && <Banner kind="err">{error}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessuna segnalazione.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessuna segnalazione.' : 'Nessuna segnalazione con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Categoria</th>
-                <th>Motivo</th>
-                <th>Origine</th>
-                <th>Presa in carico</th>
-                <th>Data</th>
-                <th>Stato</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id}>
                   <td>
                     {r.client ? (
@@ -143,7 +161,7 @@ export function Segnalazioni() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
     </>
   );

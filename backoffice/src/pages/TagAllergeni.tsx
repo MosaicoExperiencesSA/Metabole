@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 // I 14 allergeni UE (allineati al backend src/catalog/allergens.ts).
 const EU_ALLERGENS: { code: string; label: string }[] = [
@@ -43,6 +44,8 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   const [notice, setNotice] = useState<string | null>(null);
   const [onlyTodo, setOnlyTodo] = useState(true);
   const [editing, setEditing] = useState<Recipe | null>(null);
+  const [totale, setTotale] = useState(0);
+  const [troncato, setTroncato] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -50,8 +53,10 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
       const qs = scopeRegime ? `/recipes?includeInactive=false&regime=${encodeURIComponent(scopeRegime)}` : '/recipes?includeInactive=false';
       // `GET /recipes` risponde `{ items, total, troncato }` da quando i filtri girano sul
       // database (7/8): prima era un array nudo.
-      const r = await api<{ items: Recipe[]; total: number }>(qs);
+      const r = await api<{ items: Recipe[]; total: number; troncato?: boolean }>(qs);
       setRows(r.items);
+      setTotale(r.total ?? r.items.length);
+      setTroncato(!!r.troncato);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata ai nutrizionisti.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -76,6 +81,18 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   const shown = useMemo(() => rows.filter((r) => (onlyTodo ? !r.allergensReviewed : true)), [rows, onlyTodo]);
   const todo = rows.filter((r) => !r.allergensReviewed).length;
 
+  const COLONNE: Colonna<Recipe>[] = [
+    { chiave: 'ricetta', titolo: 'Ricetta', valore: (r) => r.name, filtro: 'testo' },
+    { chiave: 'pasto', titolo: 'Pasto', valore: (r) => MEAL[r.mealSlot] ?? r.mealSlot, filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 110 } },
+    { chiave: 'allergeni', titolo: 'Allergeni', valore: (r) => (r.allergens ?? []).map((a) => LABEL.get(a) ?? a).join(', '), filtro: 'testo' },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => (r.allergensReviewed ? 'Confermata' : 'Da rivedere'), filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 120 } },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
+  ];
+
+  // La spunta «Solo da rivedere» resta il filtro della pagina: taglia le righe prima della
+  // tabella, così il contatore e i filtri di colonna lavorano su quelle che si stanno guardando.
+  const t = useTabella(shown, COLONNE, { ordineIniziale: { chiave: 'ricetta' } });
+
   if (loading) return <Spinner />;
 
   return (
@@ -89,25 +106,43 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
         </label>
       </div>
 
+      <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="ricette" />
+        <input
+          className="input"
+          style={{ maxWidth: 260 }}
+          placeholder="Cerca in tutte le colonne…"
+          value={t.ricerca}
+          onChange={(e) => t.setRicerca(e.target.value)}
+        />
+      </div>
+
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
+      {troncato && (
+        <Banner kind="info">
+          Il catalogo ha <b>{totale}</b> ricette e il server ne manda le prime <b>{rows.length}</b> in ordine
+          alfabetico: i filtri di questa tabella cercano solo fra queste. Una ricetta oltre l'elenco non
+          compare nemmeno filtrando — non vuol dire che non ci sia.
+        </Banner>
+      )}
+
       <div className="card" style={{ padding: 0 }}>
-        {shown.length === 0 ? (
-          <div className="empty">{onlyTodo ? 'Tutte le ricette hanno gli allergeni confermati 🎉' : 'Nessuna ricetta.'}</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">
+            {t.filtriAttivi
+              ? 'Nessuna ricetta con questi filtri.'
+              : onlyTodo ? 'Tutte le ricette hanno gli allergeni confermati 🎉' : 'Nessuna ricetta.'}
+          </div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <th>Ricetta</th>
-                <th style={{ width: 110 }}>Pasto</th>
-                <th>Allergeni</th>
-                <th style={{ width: 120 }}>Stato</th>
-                <th style={{ textAlign: 'right' }}>Azioni</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {shown.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la revisione allergeni">
                   <td><b>{r.name}</b></td>
                   <td className="muted">{MEAL[r.mealSlot] ?? r.mealSlot}</td>
@@ -126,6 +161,7 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
             </tbody>
           </table>
         )}
+        <Pager {...t.pager} />
       </div>
 
       {editing && (

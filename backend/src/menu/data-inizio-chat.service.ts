@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { pickMainSubscription, subscriptionEnd } from '../commerce/commerce.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { toDateOnly } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  MAX_GIORNI_AVANTI,
   StatoDataInizio,
   leggiData,
   testoAnnullato,
@@ -13,6 +14,7 @@ import {
   testoDataNonCapita,
   testoDataPassata,
   testoFatto,
+  testoTroppoTardi,
   testoNessunPiano,
   testoPianoGiaPartito,
   testoTroppoLontana,
@@ -36,6 +38,20 @@ export interface EsitoDataInizio {
 type Situazione =
   | { puo: false; perche: 'nessun_piano' }
   | { puo: false; perche: 'gia_partito'; inizio: string | null }
+  /**
+   * Il piano non è ancora partito, ma manca troppo poco: siamo dentro le ore di blocco
+   * (`plan_start_change_lock_hours`, di default **24**).
+   *
+   * Confine deciso con Simone l'11/8, in due passi: prima «finché il piano non parte», poi le 24 ore.
+   * Il numero sta in configurazione e non nel codice perché è una soglia — regola di progetto — e
+   * perché è la manopola con cui si stringe o si allarga senza un deploy.
+   *
+   * ⚠️ 24 ore è **meno** dell'anticipo con cui il menu si sblocca (2 giorni): significa che nelle
+   * ultime 24-48 ore la data si può ancora spostare, e quei menu — che la cliente ha già davanti e
+   * su cui può aver fatto la spesa — vengono rifatti. È una scelta di Simone, ed è il motivo per cui
+   * la conferma lo dice invece di rigenerare in silenzio.
+   */
+  | { puo: false; perche: 'troppo_tardi'; inizio: string | null; oreMancanti: number }
   | {
       puo: true;
       /** L'inizio come lo vede la cliente: quello dell'abbonamento, o il `planStartDate`. */
@@ -59,12 +75,24 @@ type Situazione =
  * spostava **solo** dal backoffice, col permesso `change_plan_start`, e la cliente che aveva
  * sbagliato il calendario non aveva nessuna strada che non fosse scrivere alla coach e aspettare.
  *
- * ## Il confine: solo PRIMA che il piano parta
+ * ## Il confine: fino a 24 ore prima dell'inizio
  *
- * Deciso con Simone. Finché l'inizio è nel futuro, spostarlo non butta via niente: non c'è nessun
- * menu consegnato, nessuna spesa fatta. A piano avviato Gaia **non tocca niente** e passa la mano
- * alla coach — perché a quel punto la domanda vera non è «che giorno metto», è «cosa è andato
- * storto», e i menu di questi giorni sono lavoro fatto.
+ * Deciso con Simone il 10/8 come «finché il piano non parte», e stretto l'11/8 a **24 ore prima**
+ * (`plan_start_change_lock_hours`) quando è comparso lo stesso limite sul pulsante nel profilo
+ * dell'app: «il blocco sul cambio piano facciamolo di 24 ore non di 48».
+ *
+ * Il numero sta in configurazione e **una volta sola**: lo leggono Gaia e il pulsante dell'app, che
+ * sono due strade per la stessa azione. Due regole diverse per la stessa azione è come si ottiene
+ * «Gaia me la sposta e dall'app non si può», che è il tipo di incoerenza che nessuno segnala come
+ * difetto e tutti raccontano come «l'app fa quello che vuole».
+ *
+ * Dentro le 24 ore, e a piano già avviato, Gaia **non tocca niente** e passa la mano alla coach —
+ * che dalla scheda può ancora forzare la data col suo permesso `change_plan_start`.
+ *
+ * ⚠️ 24 ore è **meno** dei due giorni con cui il menu si sblocca: nelle ultime 24-48 ore la data si
+ * può ancora spostare, e quei menu — che la cliente ha già davanti, e su cui può aver fatto la
+ * spesa — vengono rifatti. È una scelta di Simone, ed è il motivo per cui la conferma lo dice
+ * invece di rigenerare in silenzio.
  *
  * Lo stesso confine copre, senza un ramo in più, il caso del **piano in coda**: chi ha un piano in
  * corso e ne ha comprato un secondo ha `planStartDate` nel futuro (la data della coda, scritta da
@@ -219,6 +247,27 @@ export class DataInizioChatService {
       return { testo: testoTroppoLontana(), stato: { passo: 'data', tentativi: 0 }, esito: 'in_corso' };
     }
 
+    await this.scrivi(clientId, data, situazione, 'chat');
+
+    return {
+      testo: testoFatto(data, await this.sblocco(data), nome),
+      esito: 'applicata',
+      applicata: { da: situazione.inizio, a: data, subscriptionId: situazione.subscriptionId },
+    };
+  }
+
+  /**
+   * LE TRE SCRITTURE, in un posto solo — perché ora ci sono due strade per arrivarci: la chat e il
+   * pulsante nel profilo dell'app. Se una delle due dimenticasse una delle tre, il banner in
+   * dashboard, il gate del menu e la scadenza direbbero tre date diverse: è già successo, e la
+   * differenza si nota settimane dopo, quando il piano scade nel giorno sbagliato.
+   */
+  private async scrivi(
+    clientId: string,
+    data: string,
+    situazione: Extract<Situazione, { puo: true }>,
+    origine: 'chat' | 'app',
+  ): Promise<void> {
     const d = toDateOnly(data);
     const scritture: unknown[] = [
       this.prisma.clientProfile.upsert({
@@ -250,7 +299,7 @@ export class DataInizioChatService {
         prima: situazione.inizio,
         dopo: data,
         subscriptionId: situazione.subscriptionId,
-        origine: 'chat',
+        origine,
       },
     });
 
@@ -267,12 +316,93 @@ export class DataInizioChatService {
         err instanceof Error ? err.stack : String(err),
       );
     }
+  }
 
-    return {
-      testo: testoFatto(data, await this.sblocco(data), nome),
-      esito: 'applicata',
-      applicata: { da: situazione.inizio, a: data, subscriptionId: situazione.subscriptionId },
+  // ---------- Il pulsante nel profilo dell'app ----------
+  //
+  // Richiesta di Simone dell'11/8: «dal profilo, cliccando sul piano, mi fa modificare la data di
+  // inizio fino a 24 ore prima». È la stessa azione della chat, con la stessa regola e le stesse
+  // scritture — cambia solo che qui non c'è nessuna conversazione da interpretare, quindi il server
+  // non restituisce frasi ma **fatti**: può o non può, da quando, entro quando, e perché no.
+  // I testi li scrive l'app, che è dove vive la sua lingua; i numeri li dà il server, che è dove
+  // vive la regola.
+
+  /** Quello che serve all'app per decidere se mostrare il pulsante e cosa scriverci. */
+  async statoPerApp(clientId: string): Promise<{
+    puo: boolean;
+    perche?: 'nessun_piano' | 'gia_partito' | 'troppo_tardi';
+    /** L'inizio attuale (AAAA-MM-GG), quando esiste. */
+    inizio: string | null;
+    /** Solo per `troppo_tardi`: quante ore mancano davvero all'inizio. */
+    oreMancanti?: number;
+    /** La soglia in vigore (`plan_start_change_lock_hours`): l'app la scrive nel messaggio. */
+    oreDiBlocco: number;
+    /** Il massimo in avanti, per limitare il calendario invece di far sbagliare e poi negare. */
+    massimoGiorniAvanti: number;
+    /**
+     * Il primo giorno selezionabile: **oggi**.
+     *
+     * Non «oggi + le 24 ore di blocco», che sarebbe l'errore facile da fare: il blocco riguarda
+     * quanto manca all'inizio ATTUALE, cioè se è troppo tardi per rimettere mano al piano. La data
+     * NUOVA può essere anche domani o oggi stesso — «vorrei partire subito» è una richiesta
+     * legittima, e Gaia la accetta. Se questo campo dicesse dopodomani, l'app e la chat
+     * risponderebbero due cose diverse alla stessa domanda.
+     */
+    minimoSelezionabile: string;
+  }> {
+    const [situazione, ore] = await Promise.all([this.situazione(clientId), this.oreDiBlocco()]);
+    const base = {
+      oreDiBlocco: ore,
+      massimoGiorniAvanti: MAX_GIORNI_AVANTI,
+      minimoSelezionabile: toDateOnly().toISOString().slice(0, 10),
     };
+    if (situazione.puo) return { puo: true, inizio: situazione.inizio, ...base };
+    return {
+      puo: false,
+      perche: situazione.perche,
+      inizio: situazione.perche === 'nessun_piano' ? null : situazione.inizio,
+      ...(situazione.perche === 'troppo_tardi' ? { oreMancanti: situazione.oreMancanti } : {}),
+      ...base,
+    };
+  }
+
+  /**
+   * Sposta la data dal profilo dell'app. Rifiuta con un errore parlante invece di una frase di
+   * Gaia: qui il messaggio finisce in un banner, non in una conversazione.
+   *
+   * La situazione si rilegge **adesso**: fra l'apertura della schermata e il tocco su «Salva» può
+   * essere passata la mezzanotte, oppure il piano può essere partito. Fidarsi di quello che l'app
+   * aveva letto vorrebbe dire lasciare aperta una finestra in cui la regola non vale.
+   */
+  async spostaDaApp(clientId: string, data: string): Promise<{ inizio: string; sbloccoMenu: string }> {
+    const situazione = await this.situazione(clientId);
+    if (!situazione.puo) {
+      if (situazione.perche === 'nessun_piano') {
+        throw new BadRequestException('Non c\'è nessun piano in attesa di partire: non c\'è una data da spostare.');
+      }
+      if (situazione.perche === 'troppo_tardi') {
+        const ore = await this.oreDiBlocco();
+        throw new ConflictException(
+          `Il piano parte fra meno di ${ore} ore: da qui la data non si sposta più. Scrivi alla tua coach in chat, ` +
+            'lei può ancora farlo.',
+        );
+      }
+      throw new ConflictException('Il piano è già partito: la data di inizio non si sposta più. Parlane con la tua coach in chat.');
+    }
+    const motivo = verificaData(data, this.oggi());
+    if (motivo === 'passata') throw new BadRequestException('Quella data è già passata: scegline una nei prossimi giorni.');
+    if (motivo === 'troppo_lontana') {
+      throw new BadRequestException(
+        `Troppo in là: si può spostare fino a ${MAX_GIORNI_AVANTI} giorni da oggi. Se ti serve più tempo, chiedi alla ` +
+          'coach di mettere il piano in pausa.',
+      );
+    }
+    // Anche il blocco delle ore va ricontrollato sulla data NUOVA? No: il blocco riguarda quanto
+    // manca all'inizio ATTUALE (è quello che rende tardivo lo spostamento), e `situazione.puo`
+    // l'ha già verificato. Una data nuova vicina è legittima: sposta l'inizio a domani, non lo
+    // sposta «troppo tardi».
+    await this.scrivi(clientId, data, situazione, 'app');
+    return { inizio: data, sbloccoMenu: await this.sblocco(data) };
   }
 
   // ---------- Lettura ----------
@@ -280,6 +410,11 @@ export class DataInizioChatService {
   /** Oggi nel fuso dell'azienda, a mezzanotte UTC: lo stesso «oggi» del resto del prodotto. */
   private oggi(): Date {
     return toDateOnly();
+  }
+
+  /** Le ore entro cui la data non si sposta più da qui. Soglia in configurazione, non nel codice. */
+  private async oreDiBlocco(): Promise<number> {
+    return this.configParams.getNumber('plan_start_change_lock_hours', 24).catch(() => 24);
   }
 
   /** Il giorno in cui il menu si sblocca: `menu_visible_days_before_start` prima dell'inizio. */
@@ -340,6 +475,21 @@ export class DataInizioChatService {
 
     const inizio =
       sub.startDate?.toISOString().slice(0, 10) ?? profilo?.planStartDate?.toISOString().slice(0, 10) ?? null;
+
+    /**
+     * MANCA TROPPO POCO? Il blocco è in ORE (`plan_start_change_lock_hours`, default 24) e si conta
+     * dall'istante, non dal giorno: «manca meno di un giorno» a mezzanotte e alle 23 non è la stessa
+     * cosa, e arrotondare al giorno regalerebbe o ruberebbe mezza giornata a seconda dell'ora in cui
+     * la cliente apre l'app.
+     */
+    if (inizio) {
+      const ore = await this.oreDiBlocco();
+      const mancanti = (toDateOnly(inizio).getTime() - Date.now()) / 3_600_000;
+      if (mancanti <= ore) {
+        return { puo: false, perche: 'troppo_tardi', inizio, oreMancanti: Math.max(0, Math.round(mancanti)) };
+      }
+    }
+
     return {
       puo: true,
       inizio,
@@ -358,6 +508,13 @@ export class DataInizioChatService {
   ): Promise<EsitoDataInizio> {
     if (situazione.perche === 'nessun_piano') {
       return { testo: testoNessunPiano(), esito: 'rifiutata' };
+    }
+    if (situazione.perche === 'troppo_tardi') {
+      return {
+        testo: testoTroppoTardi(situazione.inizio, situazione.oreMancanti, nome),
+        inoltraA: 'coach',
+        esito: 'arresa',
+      };
     }
     return {
       testo: testoPianoGiaPartito(situazione.inizio, nome),

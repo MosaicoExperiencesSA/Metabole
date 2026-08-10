@@ -7,7 +7,7 @@ import { LeadAssignmentService } from './lead-assignment.service';
 const make = (prisma: Record<string, unknown>, days = 2, notify = jest.fn()) => {
   const config = { getNumber: jest.fn(async (_k: string, def?: number) => days ?? def) } as unknown as ConfigParamsService;
   const notifications = { notify } as unknown as NotificationsService;
-  const audit = { log: jest.fn() } as unknown as AuditService;
+  const audit = { log: jest.fn(), logMany: jest.fn() } as unknown as AuditService;
   return new LeadAssignmentService(prisma as unknown as PrismaService, notifications, audit, config);
 };
 
@@ -22,6 +22,9 @@ describe('LeadAssignmentService.expireStale (finestra da config)', () => {
         ]),
         update,
       },
+      // Lo storico delle assegnazioni (dall'11/8): qui interessa solo che non disturbi.
+      // Cosa ci scrive è verificato in `lead-assignment.storico.spec.ts`.
+      leadAssignment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), create: jest.fn() },
     };
     const res = await make(prisma, 1, notify).expireStale();
     expect(res).toEqual({ expired: 1 });
@@ -38,7 +41,10 @@ describe('LeadAssignmentService.expireStale (finestra da config)', () => {
 
   it('nessun lead scaduto → nessuna notifica', async () => {
     const notify = jest.fn();
-    const prisma = { crmRecord: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() } };
+    const prisma = {
+      crmRecord: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+      leadAssignment: { updateMany: jest.fn(), create: jest.fn() },
+    };
     const res = await make(prisma, 3, notify).expireStale();
     expect(res).toEqual({ expired: 0 });
     expect(notify).not.toHaveBeenCalled();

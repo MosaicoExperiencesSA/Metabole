@@ -6,12 +6,20 @@
  * discorsivo. Fino a oggi la data si poteva cambiare **solo** dal backoffice, col permesso
  * «Cambia data inizio piano»: la cliente che aveva sbagliato il calendario non aveva nessuna strada.
  *
- * ## Il confine, deciso con Simone: solo PRIMA che il piano parta
+ * ## Il confine: fino a 24 ore prima dell'inizio
  *
- * Finché la data di inizio è nel futuro, spostarla non butta via niente. Dopo, il piano è avviato:
- * spostarlo vorrebbe dire rifare menu già consegnati (e la funzione che li rigenera cancellava tutto
- * lo storico). A piano avviato Gaia non tocca niente e passa la mano alla coach — che è anche la
- * risposta giusta, perché a quel punto la domanda è «cosa è andato storto», non «che giorno metto».
+ * Deciso con Simone il 10/8 come «solo prima che il piano parta» e stretto l'11/8 a **24 ore prima**
+ * (`plan_start_change_lock_hours`), lo stesso limite del pulsante nel profilo dell'app.
+ *
+ * Il perché: prima dello sblocco spostare la data non butta via niente — nessun menu consegnato,
+ * nessuna spesa fatta. Dopo, la cliente ha davanti i menu dei prossimi giorni e magari ha già
+ * comprato. Dentro le 48 ore, e a piano avviato, Gaia non tocca niente e passa la mano alla coach,
+ * che dalla scheda può ancora forzarla: la frase lo dice, altrimenti «non si può» suona come una
+ * porta chiusa quando invece una strada c'è.
+ *
+ * Il numero **non è scritto qui**: è lo stesso parametro che decide lo sblocco. Due copie
+ * divergerebbero, e il giorno in cui qualcuno cambia la finestra il limite resterebbe indietro senza
+ * che si veda.
  *
  * ## Perché il riconoscimento delle date sta qui, in una funzione pura
  *
@@ -302,6 +310,30 @@ export function testoPianoGiaPartito(inizio: string | null, nome?: string | null
     `Il tuo piano è già cominciato${quando}, quindi la data di inizio non la posso più spostare io${conNome(nome)}: ` +
     'i menu di questi giorni sono già stati preparati per te. Ne ho parlato alla tua coach — se ti serve ' +
     'una pausa o un cambio di ritmo, lo sistema lei. 💚'
+  );
+}
+
+/**
+ * IL MENU È GIÀ PRONTO. Il piano non è ancora partito, ma siamo dentro la finestra di sblocco: la
+ * cliente ha già davanti i menu dei prossimi giorni e magari ha già fatto la spesa.
+ *
+ * Confine stretto l'11/8, quando lo stesso limite è comparso sul pulsante nel profilo dell'app: due
+ * regole diverse per la stessa azione — Gaia più permissiva dell'app — è come si ottiene «Gaia me la
+ * sposta e dall'app non si può». La coach può ancora forzarla dalla scheda, e la frase lo dice:
+ * altrimenti «non si può» suona come una porta chiusa quando invece una strada c'è.
+ */
+export function testoTroppoTardi(inizio: string | null, oreMancanti: number, nome?: string | null): string {
+  const quando = inizio ? ` ${dataAParole(inizio)}` : '';
+  const fra =
+    oreMancanti <= 0
+      ? 'è questione di ore'
+      : oreMancanti === 1
+        ? "manca un'ora"
+        : `mancano ${oreMancanti} ore`;
+  return (
+    `Ci siamo quasi${conNome(nome)}: il tuo piano parte${quando} e ${fra}. Così a ridosso non riesco ` +
+    'più a spostare la data io — i menu dei primi giorni sono già pronti e magari hai già fatto la spesa.\n\n' +
+    'Se ti serve davvero, ne ho parlato alla tua coach: lei può farlo. 💚'
   );
 }
 
