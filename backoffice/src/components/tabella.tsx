@@ -435,7 +435,10 @@ export function ContatoreRighe({
         style={{ fontSize: 14, fontWeight: 800, background: 'var(--chip)', borderRadius: 999, padding: '7px 14px', whiteSpace: 'nowrap' }}
         title={`${nome} che rispettano i filtri correnti`}
       >
-        {filtriAttivi ? `${conteggio.mostrate} di ${conteggio.totali}` : `${conteggio.totali} ${nome}`}
+        {/* «32 acquisti di 120»: il nome sta in mezzo, non in fondo (Simone, 11/8). Prima era «32 di
+            120» e bisognava indovinare di cosa; il totale è quello della tabella intera, così si vede
+            sempre quanto sta togliendo il filtro. */}
+        {filtriAttivi ? `${conteggio.mostrate} ${nome} di ${conteggio.totali}` : `${conteggio.totali} ${nome}`}
       </span>
       {filtriAttivi && (
         <button className="btn ghost sm" onClick={azzera} title="Rimuovi tutti i filtri">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
 import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
@@ -178,6 +178,12 @@ export function CoperturaCatalogo() {
     );
   };
 
+  /** I numeri di settimane presenti, in ordine numerico: la tendina non offre scelte vuote. */
+  const settimaneDisponibili = useMemo(
+    () => [...new Set(righe.map((r) => r.settimane))].sort((a, b) => a - b).map(String),
+    [righe],
+  );
+
   const COLONNE: Colonna<Riga>[] = [
     { chiave: 'name', titolo: 'Dieta', valore: (r) => r.name, filtro: 'scelta', etichettaTutti: 'Tutte le diete' },
     { chiave: 'regime', titolo: 'Regime', valore: (r) => regimeLabel(r.regime), filtro: 'scelta', etichettaTutti: 'Tutti' },
@@ -187,7 +193,22 @@ export function CoperturaCatalogo() {
       filtro: 'scelta', etichettaTutti: 'Tutti',
     },
     { chiave: 'struttura', titolo: 'Pasti', valore: strutturaLabel, filtro: 'scelta', etichettaTutti: 'Tutte' },
-    { chiave: 'settimane', titolo: 'Settimane', valore: (r) => r.settimane },
+    {
+      chiave: 'settimane',
+      titolo: 'Settimane',
+      valore: (r) => r.settimane,
+      /**
+       * Filtro per numero di settimane (11/8). Serve a isolare le varianti rimaste indietro: con
+       * tutte a 12 la colonna non dice niente, con il filtro si trovano le tre che sono a 2.
+       *
+       * `ordineScelte` è calcolato in ordine NUMERICO: le scelte di una tendina sono testo, e in
+       * ordine alfabetico verrebbe 1, 10, 11, 12, 2 — corretto e inservibile.
+       */
+      filtro: 'scelta',
+      etichettaTutti: 'Tutte',
+      ordineScelte: settimaneDisponibili,
+      etichetta: (v) => (v === '0' ? 'nessuna settimana' : v === '1' ? '1 settimana' : `${v} settimane`),
+    },
     { chiave: 'atteso', titolo: 'Atteso/pasto', valore: (r) => r.attesoPerPasto },
     ...SLOT.map<Colonna<Riga>>((s) => ({
       chiave: s.chiave,

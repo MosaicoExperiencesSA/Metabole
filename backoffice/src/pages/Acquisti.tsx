@@ -49,6 +49,12 @@ export function Acquisti() {
   // Importo e intervallo di date stanno sopra la tabella e non fra i filtri di colonna: l'helper
   // filtra per testo o per scelta, e «297» sull'importo o «dal 1° al 15» non sono né l'uno né l'altro.
   const [fImporto, setFImporto] = useState('');
+  const [mostraZero, setMostraZero] = useState(() => {
+    try { return localStorage.getItem('acquisti.mostraZero') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('acquisti.mostraZero', mostraZero ? '1' : '0'); } catch { /* no-op */ }
+  }, [mostraZero]);
   const [fDal, setFDal] = useState('');
   const [fAl, setFAl] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -67,17 +73,36 @@ export function Acquisti() {
   }
   useEffect(() => { void load(); }, []);
 
+  /**
+   * L'UNIVERSO su cui si conta: gli acquisti a 0 € dentro o fuori, secondo il flag.
+   *
+   * Gli acquisti a zero sono le attivazioni — prova gratuita e piani messi a mano dalla scheda
+   * cliente, che per decisione di Simone entrano in Acquisti ma NON in contabilità. Sono righe vere,
+   * ma in mezzo agli incassi sono rumore: nascoste di default (11/8).
+   *
+   * Il flag cambia **l'universo**, non è un filtro sopra di esso: così il contatore dice il numero
+   * degli acquisti che stiamo guardando («250 acquisti») e non quello di tutta la tabella con un «di
+   * 317» accanto, che è un'informazione che nessuno ha chiesto.
+   */
+  const universo = useMemo(
+    () => (mostraZero ? rows : rows.filter((r) => r.amountCents !== 0)),
+    [rows, mostraZero],
+  );
+
   const preFiltrate = useMemo(() => {
     const qImp = fImporto.trim().replace(',', '.');
-    if (!qImp && !fDal && !fAl) return rows;
-    return rows.filter((r) => {
+    if (!qImp && !fDal && !fAl) return universo;
+    return universo.filter((r) => {
       if (qImp && !(r.amountCents / 100).toFixed(2).includes(qImp)) return false;
       const giorno = r.createdAt.slice(0, 10);
       if (fDal && giorno < fDal) return false;
       if (fAl && giorno > fAl) return false;
       return true;
     });
-  }, [rows, fImporto, fDal, fAl]);
+  }, [universo, fImporto, fDal, fAl]);
+
+  /** Quante righe a zero ci sono in tutto: serve a scrivere il numero accanto al flag. */
+  const quantiZero = useMemo(() => rows.filter((r) => r.amountCents === 0).length, [rows]);
 
   async function downloadReceipt(p: Purchase) {
     setError(null);
@@ -197,12 +222,26 @@ export function Acquisti() {
   ];
 
   const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, perPagina: 50, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
-  const filtriSopra = fImporto !== '' || fDal !== '' || fAl !== '';
+  /**
+   * «Mostra anche gli acquisti a 0»: spento di default (richiesta dell'11/8).
+   *
+   * La scelta si ricorda sul dispositivo. Non finisce nelle preferenze del profilo perché è una
+   * scelta di vista, non di persona: chi apre Acquisti per controllare gli incassi li vuole nascosti,
+   * e la volta che deve verificare un'attivazione li riaccende per due minuti.
+   */
+  /**
+   * Il flag degli zero conta come filtro: così il contatore scrive «32 acquisti di 120» e si vede
+   * quanto sta togliendo, invece di mostrare un numero solo che sembra tutto (Simone, 11/8).
+   */
+  const filtriSopra = fImporto !== '' || fDal !== '' || fAl !== '' || (!mostraZero && quantiZero > 0);
   function azzeraTutto() {
     t.azzera();
     setFImporto('');
     setFDal('');
     setFAl('');
+    // Torna alla vista di DEFAULT, che è con gli zero nascosti: «azzera» rimette le cose come si
+    // aprono, non mostra tutto quello che esiste.
+    setMostraZero(false);
   }
 
   if (loading) return <Spinner />;
@@ -212,6 +251,8 @@ export function Acquisti() {
       <div className="spread" style={{ marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
         {/* «di quanti»: il totale è quello caricato dal server, non quello già scremato qui sopra. */}
         <ContatoreRighe
+          // `totali` è la tabella INTERA: «32 acquisti di 120» dice sia quanti si vedono sia quanti
+          // ce ne sono, quindi si capisce quanto stanno togliendo il flag e i filtri.
           conteggio={{ mostrate: t.conteggio.mostrate, totali: rows.length }}
           filtriAttivi={t.filtriAttivi || filtriSopra}
           azzera={azzeraTutto}
@@ -222,6 +263,18 @@ export function Acquisti() {
           <input className="input sm" style={{ width: 120 }} placeholder="Importo es. 297" title="Importo (anche parziale)" value={fImporto} onChange={(e) => setFImporto(e.target.value)} />
           <input className="input sm" type="date" style={{ width: 150 }} title="Dal giorno" value={fDal} onChange={(e) => setFDal(e.target.value)} />
           <input className="input sm" type="date" style={{ width: 150 }} title="Al giorno" value={fAl} onChange={(e) => setFAl(e.target.value)} />
+          {/* Il flag degli acquisti a zero: in fondo alla barra, dove non intralcia i filtri che si
+              usano ogni giorno. Il numero accanto dice quante righe sta nascondendo, altrimenti uno
+              spegne un filtro senza sapere cosa stava togliendo. */}
+          <label
+            className="row"
+            style={{ gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap', cursor: 'pointer' }}
+            title="Le attivazioni a 0 € (prova gratuita, piani messi a mano) sono acquisti veri ma non incassi: di default restano nascoste."
+          >
+            <input type="checkbox" checked={mostraZero} onChange={(e) => setMostraZero(e.target.checked)} />
+            Mostra anche i 0 €
+            {quantiZero > 0 && <span className="muted">({quantiZero})</span>}
+          </label>
           {isAdmin && (
             <button className="btn" onClick={() => setShowCreate(true)}>
               <i className="ti ti-plus" /> Nuovo acquisto

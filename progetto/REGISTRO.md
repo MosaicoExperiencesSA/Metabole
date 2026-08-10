@@ -7,6 +7,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 0️⃣ **Acquisti: gli importi a 0 € nascosti di default, con un flag per riaccenderli** —
+  gli acquisti a zero sono le **attivazioni**: prova gratuita e piani messi a mano dalla scheda
+  cliente, che per decisione di Simone entrano in Acquisti ma non in contabilità. Sono righe vere e
+  servono, ma in mezzo agli incassi sono rumore. Ora sono nascoste all'apertura, con una spunta in
+  fondo alla barra dei filtri («Mostra anche i 0 €») che dice **quante** ne sta nascondendo: senza quel
+  numero si spegne un filtro senza sapere cosa stava togliendo. La scelta si ricorda sul dispositivo, e
+  «Azzera filtri» riporta alla vista di default.
+  Il contatore ora scrive **«32 acquisti di 120»** invece di «32 di 120» — il nome in mezzo, e il
+  totale è quello della tabella intera, così si vede sempre quanto stanno togliendo flag e filtri. Vale
+  per tutte le tabelle, perché il contatore è condiviso.
+
 - `[Sviluppo]` 🏷️ **Il tag `sett:N` ora dice DOVE la ricetta è usata** — «quel tag per me è dove viene
   utilizzato, non mi interessa quando è stato creato». Era il difetto, e ha fatto perdere tempo a
   Simone su una diagnosi sbagliata: il tag lo scriveva il generatore **alla nascita** della ricetta,
