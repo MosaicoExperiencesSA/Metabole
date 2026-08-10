@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AccountingService, buildReport, costInMonth, monthsBetween, type CostRow, METODI_PAGAMENTO_DEFAULT } from './accounting.service';
+import { AccountingService, buildReport, costInMonth, monthsBetween, type CostRow } from './accounting.service';
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
@@ -172,10 +172,24 @@ describe('AccountingService — con cosa è stato pagato', () => {
     expect(await s.metodiPagamento()).toEqual(['Carta rossa', 'Conto BCC']);
   });
 
-  it('parametro vuoto → le voci di default, così la tendina non è mai inutilizzabile', async () => {
+  /**
+   * Parametro vuoto = tendina vuota, NON un elenco di ripiego scritto nel codice.
+   *
+   * La prima versione ne aveva uno, e Simone l'ha bocciato: «avevo detto che dovevo decidere io le
+   * voci da parametri». Il difetto non era estetico — con un ripiego, svuotare il parametro non
+   * svuota la tendina, e un'impostazione che non si può azzerare non è un'impostazione.
+   */
+  it('parametro vuoto → NESSUNA voce: le decide chi configura, non il codice', async () => {
     const s = new AccountingService({} as unknown as PrismaService, audit, configFinta, conVoci(''));
-    expect((await s.metodiPagamento()).length).toBeGreaterThan(0);
-    expect(await s.metodiPagamento()).toEqual(METODI_PAGAMENTO_DEFAULT);
+    expect(await s.metodiPagamento()).toEqual([]);
+  });
+
+  it('con la tendina vuota, salvare un metodo dice dove si aggiungono le voci', async () => {
+    const { servizio, create } = svc(conVoci(''));
+    await expect(
+      servizio.registerCost({ label: 'Render', category: 'infrastructure', amountCents: 100, date: '2026-08-05', paidWith: 'Carta aziendale' }, 'u1'),
+    ).rejects.toThrow('Parametri');
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('una voce configurata si registra', async () => {

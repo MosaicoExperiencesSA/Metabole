@@ -190,7 +190,7 @@ export function Dashboard() {
 
 export function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: PreviewRow[] | null }) {
   return (
-    <Link to={m.to} className="card" style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', margin: 0 }}>
+    <Link to={m.to} className="card" style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', margin: 0, minWidth: 0, overflow: 'hidden' }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
         <span style={{ width: 42, height: 42, borderRadius: 12, background: 'var(--chip)', color: 'var(--chip-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
           <i className={`ti ${m.icon}`} style={{ fontSize: 22 }} />
@@ -198,9 +198,18 @@ export function ModuleCard({ module: m, rows }: { module: DashboardModule; rows:
         <b style={{ fontSize: 16 }}>{m.label}</b>
       </div>
       {rows && rows.length > 0 ? (
-        <div style={{ display: 'grid', gap: 2, flex: 1 }}>
+        /*
+          `minWidth: 0` QUI, non solo sulla riga interna.
+          Il `minWidth` sul testo dell'importo aveva sistemato la prima riga, ma la seconda (il nome del
+          prodotto, con `nowrap`) continuava a contribuire la sua larghezza intera alla dimensione
+          minima di questo contenitore, poi del grid item, poi della card: quindi era la CARD a sfondare
+          la propria colonna. La catena si taglia sull'antenato che ha la larghezza da rispettare —
+          `overflow: hidden` insieme a `minWidth: 0`, perché su un contenitore a blocco il solo
+          `min-width: 0` non riduce il contributo a contenuto minimo.
+        */
+        <div style={{ display: 'grid', gap: 2, flex: 1, minWidth: 0, overflow: 'hidden' }}>
           {rows.slice(0, 5).map((r, i) => (
-            <div key={i} style={{ fontSize: 13, padding: '5px 0', borderBottom: i < Math.min(rows.length, 5) - 1 ? '1px solid var(--line)' : 'none' }}>
+            <div key={i} style={{ minWidth: 0, overflow: 'hidden', fontSize: 13, padding: '5px 0', borderBottom: i < Math.min(rows.length, 5) - 1 ? '1px solid var(--line)' : 'none' }}>
               <div className="spread">
                 {/*
                   `minWidth: 0` è la riga che fa funzionare i puntini di sospensione.

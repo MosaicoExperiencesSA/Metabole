@@ -90,12 +90,12 @@ export class PipelineService {
     };
 
     /**
-     * Schede per colonna. `PER_COLONNA` è il tetto di ciò che si disegna: sopra le 50 la colonna
-     * scorre dentro sé stessa (scelta di Simone: «se le righe in una colonna sono più di 50 rendile
-     * scorrevoli così la pagina non è troppo lunga»), quindi caricarne un po' più di 50 serve a
-     * riempire lo scorrimento senza spedire migliaia di schede a un browser.
+     * Quante schede si disegnano per colonna. Cento, chieste da Simone l'11/8 («mostrami le 100 più
+     * recenti non 60») dopo aver visto i numeri veri: 86.323 schede in tutto, 86.274 in «Nuovo
+     * contatto». Il tetto serve al browser, non al database: le colonne scorrono dentro sé stesse, e
+     * quello che sta oltre le cento si cerca dai lead, con i filtri.
      */
-    const PER_COLONNA = 60;
+    const PER_COLONNA = 100;
     const perStato = await Promise.all(
       stages.map((st) =>
         this.prisma.crmRecord.findMany({

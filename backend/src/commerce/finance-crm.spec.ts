@@ -179,6 +179,7 @@ describe('FinanceService (eventi economici automatici)', () => {
 });
 
 describe('CrmService (data + responsabile su ogni transizione)', () => {
+  let notifiche: { notify: jest.Mock };
   let service: CrmService;
   let prisma: any;
 
@@ -212,6 +213,8 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
       crmListMember: { deleteMany: jest.fn(), upsert: jest.fn() },
       subscription: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
       pipelineStage: { findUnique: jest.fn().mockResolvedValue({ order: 9 }) },
+      // Serve all'avviso alla coach: da qui si ricava chi segue quella cliente.
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
       staff: {
         findMany: jest.fn().mockResolvedValue([{ id: 'staff-c', refCode: 'VOLPEA01' }]),
         // `create` guarda lo staff di chi sta inserendo, per capire se sta assegnando a sé
@@ -221,6 +224,9 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
       },
       $transaction: jest.fn().mockResolvedValue([]),
     };
+    // Le notifiche si catturano: dall'11/8 la chiusura automatica del percorso avvisa la coach, e
+    // «l'avviso non è partito» è un difetto che non si vede da nessun'altra parte.
+    notifiche = { notify: jest.fn().mockResolvedValue(undefined) };
     prisma.crmRecord.findFirst = jest.fn().mockResolvedValue(null);
     prisma.crmRecord.create = jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'new1', ...data }));
     const pipeline = {
@@ -241,7 +247,7 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         // Provider aggiunti al costruttore del servizio ma dimenticati qui: il test non
         // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
         { provide: MailService, useValue: { sendLeadCredentials: jest.fn().mockResolvedValue(undefined) } },
-        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
+        { provide: NotificationsService, useValue: notifiche },
         // Serve a `sendCredentials`: legge `lead_credentials_link_days` per la scadenza del link.
         { provide: ConfigParamsService, useValue: { getNumber: jest.fn().mockResolvedValue(7) } },
       ],
@@ -438,6 +444,43 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
       expect(prisma.crmRecord.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ stage: 'path_ended' }) }),
       );
+    });
+
+    /**
+     * L'AVVISO ALLA COACH (richiesta di Simone dell'11/8: «e soprattutto che mandavamo notifiche alla
+     * sua coach? dello spostamento?»). Prima lo spostamento lasciava solo una riga di audit: la scheda
+     * cambiava colonna di notte, e la coach lo scopriva guardando la board — se la guardava. È
+     * l'avviso più utile di tutti, perché arriva nella settimana in cui una telefonata fa ancora
+     * rinnovare.
+     */
+    it('avvisa la COACH assegnata dello spostamento', async () => {
+      prisma.subscription.findMany.mockResolvedValue([{ clientId: 'cli-1' }]);
+      prisma.subscription.findFirst.mockResolvedValue(null);
+      prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+      prisma.pipelineStage.findUnique.mockResolvedValueOnce({ order: 9 }).mockResolvedValueOnce({ order: 8 });
+      prisma.clientProfile.findUnique.mockResolvedValue({ name: 'Anna Lisa', assignedCoachId: 'staff-c' });
+      prisma.staff.findUnique.mockResolvedValue({ userId: 'u-coach' });
+
+      await service.chiudiPercorsiConclusi();
+
+      expect(notifiche.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'u-coach', type: 'client_path_ended', payload: { clientId: 'cli-1' } }),
+      );
+      expect(notifiche.notify.mock.calls[0][0].body).toContain('Anna Lisa');
+    });
+
+    it('cliente senza coach assegnata: si sposta comunque, e non si avvisa nessun altro', async () => {
+      prisma.subscription.findMany.mockResolvedValue([{ clientId: 'cli-1' }]);
+      prisma.subscription.findFirst.mockResolvedValue(null);
+      prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+      prisma.pipelineStage.findUnique.mockResolvedValueOnce({ order: 9 }).mockResolvedValueOnce({ order: 8 });
+      prisma.clientProfile.findUnique.mockResolvedValue({ name: 'Anna Lisa', assignedCoachId: null });
+
+      const res = await service.chiudiPercorsiConclusi();
+
+      expect(res.spostati).toBe(1);
+      // Un avviso mandato a chi non segue quella cliente è rumore, e insegna a ignorare le notifiche.
+      expect(notifiche.notify).not.toHaveBeenCalled();
     });
 
     it('ha rinnovato (o ha un bonifico in attesa) → NON si tocca', async () => {

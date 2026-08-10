@@ -84,9 +84,14 @@ describe('NutritionistService.validationQueue', () => {
     const prisma = {
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
       clientProfile: { findMany: jest.fn().mockResolvedValue([{ userId: 'p1', name: 'Anna' }]) },
-      engineDecision: { findMany: engineDecisionFindMany },
-      diet: { findMany: jest.fn().mockResolvedValue([]) },
-      protocol: { findMany: jest.fn().mockResolvedValue([{ id: 'pr1', name: 'Menu corr', type: 'menu_correction', updatedAt: D('2026-07-10') }]) },
+      // Dall'11/8 i numeri fra parentesi nei titoli vengono da `count()` e non dalla lunghezza
+      // dell'elenco troncato: qui i conteggi sono più alti delle righe, ed è il punto del test.
+      engineDecision: { findMany: engineDecisionFindMany, count: jest.fn().mockResolvedValue(240) },
+      diet: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      protocol: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'pr1', name: 'Menu corr', type: 'menu_correction', updatedAt: D('2026-07-10') }]),
+        count: jest.fn().mockResolvedValue(1),
+      },
     };
     const res = await make(prisma).validationQueue(user);
     // le decisioni sono filtrate sui pazienti assegnati
@@ -95,7 +100,9 @@ describe('NutritionistService.validationQueue', () => {
     expect((res.engineDecisions[0] as { patientName: string }).patientName).toBe('Anna');
     expect(res.dietsInReview).toHaveLength(0); // il nutrizionista non approva diete
     expect(res.protocolsPending).toHaveLength(1);
-    expect(res.counts).toEqual({ engineDecisions: 1, dietsInReview: 0, protocolsPending: 1 });
+    // `counts` = quante ce ne sono nel database; `mostrati` = quante righe sono arrivate.
+    expect(res.counts).toEqual({ engineDecisions: 240, dietsInReview: 0, protocolsPending: 1 });
+    expect(res.mostrati).toEqual({ engineDecisions: 1, dietsInReview: 0, protocolsPending: 1 });
   });
 
   it('nutrizionista senza pazienti → nessuna query globale sulle decisioni', async () => {
@@ -103,9 +110,9 @@ describe('NutritionistService.validationQueue', () => {
     const prisma = {
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
       clientProfile: { findMany: jest.fn().mockResolvedValue([]) },
-      engineDecision: { findMany: engineDecisionFindMany },
-      diet: { findMany: jest.fn().mockResolvedValue([]) },
-      protocol: { findMany: jest.fn().mockResolvedValue([]) },
+      engineDecision: { findMany: engineDecisionFindMany, count: jest.fn().mockResolvedValue(0) },
+      diet: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      protocol: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
     };
     await make(prisma).validationQueue(user);
     expect(engineDecisionFindMany.mock.calls[0][0].where.clientId).toEqual({ in: ['__none__'] });
@@ -118,9 +125,12 @@ describe('NutritionistService.validationQueue', () => {
     const prisma = {
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'head-1' }) },
       clientProfile: { findMany: jest.fn().mockResolvedValue([{ userId: 'p9', name: 'Zoe' }]) },
-      engineDecision: { findMany: engineDecisionFindMany },
-      diet: { findMany: jest.fn().mockResolvedValue([{ id: 'di1', name: 'Mediterranea', regime: 'omnivore', style: 'mediterranean', updatedAt: D('2026-07-11') }]) },
-      protocol: { findMany: jest.fn().mockResolvedValue([]) },
+      engineDecision: { findMany: engineDecisionFindMany, count: jest.fn().mockResolvedValue(1) },
+      diet: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'di1', name: 'Mediterranea', regime: 'omnivore', style: 'mediterranean', updatedAt: D('2026-07-11') }]),
+        count: jest.fn().mockResolvedValue(1),
+      },
+      protocol: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
     };
     const res = await make(prisma).validationQueue(head);
     // il capo non filtra per paziente (nessun clientId nel where)

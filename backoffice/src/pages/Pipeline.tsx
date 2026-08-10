@@ -36,12 +36,6 @@ interface Board {
   totali?: Record<string, number>;
 }
 
-/**
- * Oltre quante schede una colonna comincia a scorrere dentro sé stessa invece di allungare la pagina.
- * Numero scelto da Simone l'11/8: «se le righe in una colonna sono più di 50 rendile scorrevoli».
- */
-const SOGLIA_SCORRIMENTO = 50;
-
 function euro(cents: number | null): string | null {
   if (cents == null) return null;
   return '€ ' + (cents / 100).toFixed(0);
@@ -161,12 +155,7 @@ export function Pipeline() {
            */
           const totale = board.totali?.[s.key] ?? cards.length;
           const troncata = totale > cards.length;
-          /**
-           * Sopra le 50 schede la colonna scorre dentro sé stessa (scelta di Simone dell'11/8): con
-           * 485 lead in «Nuovo contatto» la pagina diventava un rotolo di dieci metri e le altre
-           * colonne finivano fuori schermo.
-           */
-          const scorre = cards.length > SOGLIA_SCORRIMENTO;
+
           return (
             <div
               key={s.key}
@@ -190,7 +179,14 @@ export function Pipeline() {
                 </span>
                 <span className="chip gray" title={troncata ? `${cards.length} mostrate di ${totale}` : undefined}>{totale}</span>
               </div>
-              <div style={scorre ? { maxHeight: '68vh', overflowY: 'auto', paddingRight: 2 } : undefined}>
+              {/*
+                Scorrimento su TUTTE le colonne, non solo su quelle piene (indicazione di Simone
+                dell'11/8: «va fatto così su tutte le colonne»). `maxHeight` è un tetto, non un'altezza:
+                una colonna con tre schede resta alta tre schede. Averlo su tutte vuol dire che nessuna
+                colonna può allungare la pagina, e che l'altezza della board non dipende da quale
+                colonna è piena oggi.
+              */}
+              <div style={{ maxHeight: '68vh', overflowY: 'auto', paddingRight: 2 }}>
               {cards.map((c) => (
                 <div
                   key={c.id}

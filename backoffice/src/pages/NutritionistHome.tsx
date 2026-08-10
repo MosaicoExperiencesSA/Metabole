@@ -40,8 +40,21 @@ interface Queue {
   engineDecisions: Decision[];
   dietsInReview: { id: string; name: string; regime: string; style: string }[];
   protocolsPending: { id: string; name: string; type: string }[];
+  /** Quante ce ne sono nel database (da `count()`), non quante righe sono nell'elenco. */
   counts: { engineDecisions: number; dietsInReview: number; protocolsPending: number };
+  /** Quante righe sono arrivate: se è meno di `counts`, l'elenco è troncato e va detto. */
+  mostrati?: { engineDecisions: number; dietsInReview: number; protocolsPending: number };
 }
+
+/**
+ * Il numero fra parentesi nei titoli della coda.
+ *
+ * Prima era `elenco.length`, cioè la lunghezza di un array troncato a 100: nel giorno in cui il
+ * motore segnala più di cento clienti — quello in cui il numero serve — diceva «100» qualunque fosse
+ * la verità. Adesso `totale` viene dal database e, quando l'elenco è più corto, si dice entrambi.
+ */
+const conteggio = (totale: number, mostrati: number): string =>
+  mostrati < totale ? `${mostrati} di ${totale}` : String(totale);
 
 export function NutritionistHome() {
   const { user, can } = useAuth();
@@ -129,7 +142,7 @@ export function NutritionistHome() {
         <div className="card" style={{ margin: 0, flex: 1.3 }}>
           <h2 style={{ marginTop: 0 }}>Da validare</h2>
 
-          <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0' }}>Decisioni del motore ({queue?.counts.engineDecisions ?? 0})</h3>
+          <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0' }}>Decisioni del motore ({conteggio(queue?.counts.engineDecisions ?? 0, queue?.mostrati?.engineDecisions ?? queue?.engineDecisions.length ?? 0)})</h3>
           {(!queue || queue.engineDecisions.length === 0) ? (
             <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Nessuna decisione da rivedere.</div>
           ) : (
@@ -153,7 +166,7 @@ export function NutritionistHome() {
 
           {queue && queue.dietsInReview.length > 0 && (
             <>
-              <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '14px 0 4px' }}>Diete in revisione ({queue.dietsInReview.length})</h3>
+              <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '14px 0 4px' }}>Diete in revisione ({conteggio(queue.counts.dietsInReview, queue.mostrati?.dietsInReview ?? queue.dietsInReview.length)})</h3>
               {queue.dietsInReview.map((d) => (
                 <div key={d.id} className="spread" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
                   <span><b>{d.name}</b> <span className="muted" style={{ fontSize: 12 }}>({d.regime} · {d.style})</span></span>
@@ -165,7 +178,7 @@ export function NutritionistHome() {
 
           {queue && queue.protocolsPending.length > 0 && (
             <>
-              <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '14px 0 4px' }}>Protocolli in attesa ({queue.protocolsPending.length})</h3>
+              <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '14px 0 4px' }}>Protocolli in attesa ({conteggio(queue.counts.protocolsPending, queue.mostrati?.protocolsPending ?? queue.protocolsPending.length)})</h3>
               {queue.protocolsPending.map((p) => (
                 <div key={p.id} className="spread" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
                   <span><b>{p.name}</b> <span className="muted" style={{ fontSize: 12 }}>({p.type})</span></span>

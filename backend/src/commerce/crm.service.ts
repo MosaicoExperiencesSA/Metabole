@@ -10,6 +10,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { avanzaStatoSeIndietro } from './avanza-stato';
 import { campiCambiati } from '../common/diff-campi';
 import { PrismaService } from '../prisma/prisma.service';
+import { avvisaCoachDellaCliente } from '../common/avvisa-coach';
 import { PipelineService } from './pipeline.service';
 
 /** Password provvisoria leggibile: niente caratteri ambigui, con cifre (come users.service). */
@@ -337,6 +338,21 @@ export class CrmService {
         if (vivo) continue;
         if (await avanzaStatoSeIndietro(this.prisma as never, s.clientId, 'path_ended', 'sistema')) {
           spostati += 1;
+          /**
+           * LA COACH DEVE SAPERLO (richiesta di Simone dell'11/8: «e soprattutto che mandavamo
+           * notifiche alla sua coach? dello spostamento?»).
+           *
+           * Prima lo spostamento lasciava solo una riga di audit: la scheda cambiava colonna di
+           * notte e la coach lo scopriva — se lo scopriva — guardando la board. È l'avviso più utile
+           * di tutti, perché arriva nel momento in cui una telefonata può ancora far rinnovare: il
+           * piano è finito da una settimana e nessuno ha comprato niente.
+           */
+          await avvisaCoachDellaCliente(this.prisma, this.notifications, s.clientId, {
+            type: 'client_path_ended',
+            title: 'Percorso concluso',
+            body: (nome) =>
+              `${nome} ha il piano finito da ${giorni} giorni e non ha rinnovato: la scheda è passata in «Percorso concluso».`,
+          });
           await this.audit.log({
             action: 'crm.lead.path_ended',
             entityType: 'crm_record',

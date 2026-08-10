@@ -603,7 +603,9 @@ function CostModal({ cost, onClose, onSaved }: { cost: CostEntry | null; onClose
           ))}
         </select>
         <p className="muted" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
-          Le voci si aggiungono in <b>Parametri → Con cosa si paga</b>, una per riga.
+          {metodi.length === 0
+            ? <>Nessuna voce configurata: scrivile tu in <b>Parametri → Contabilità → «Con cosa si paga»</b>, una per riga.</>
+            : <>Le voci le decidi tu in <b>Parametri → Con cosa si paga</b>, una per riga.</>}
         </p>
       </div>
       <div className="field">

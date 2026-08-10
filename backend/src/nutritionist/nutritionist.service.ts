@@ -36,6 +36,9 @@ interface DecisionRow {
   rule: { id: string; name: string } | null;
 }
 
+/** Quante righe si mandano per ogni coda di validazione. I conteggi arrivano da `count()`, non da qui. */
+const TETTO_CODA = 100;
+
 @Injectable()
 export class NutritionistService {
   constructor(
@@ -298,10 +301,13 @@ export class NutritionistService {
     dietsInReview: unknown[];
     protocolsPending: unknown[];
     counts: { engineDecisions: number; dietsInReview: number; protocolsPending: number };
+    /** Quante righe ci sono negli elenchi: `counts` dice quante esistono, questo quante se ne vedono. */
+    mostrati: { engineDecisions: number; dietsInReview: number; protocolsPending: number };
   }> {
     const supervisor = this.isSupervisor(user);
     const staffId = await this.staffId(user.sub);
-    const empty = { engineDecisions: [], dietsInReview: [], protocolsPending: [], counts: { engineDecisions: 0, dietsInReview: 0, protocolsPending: 0 } };
+    const zero = { engineDecisions: 0, dietsInReview: 0, protocolsPending: 0 };
+    const empty = { engineDecisions: [], dietsInReview: [], protocolsPending: [], counts: zero, mostrati: zero };
     if (!staffId && !supervisor) return empty;
 
     // Filtro pazienti per le decisioni motore: il nutrizionista solo i suoi.
@@ -317,12 +323,25 @@ export class NutritionistService {
       clientFilter = { clientId: { in: ids.length ? ids : ['__none__'] } };
     }
 
-    const decisions = (await this.prisma.engineDecision.findMany({
-      where: { flaggedForReview: true, reviewedAt: null, ...clientFilter },
-      orderBy: { date: 'desc' },
-      take: 100,
-      select: { id: true, clientId: true, date: true, flagReason: true, action: true, rule: { select: { id: true, name: true } } },
-    })) as DecisionRow[];
+    /**
+     * `take: 100` sull'elenco, ma il CONTEGGIO da `count()`.
+     *
+     * Prima i numeri fra parentesi nei titoli («Decisioni del motore (N)») erano la lunghezza
+     * dell'array troncato: nel giorno in cui il motore segnala più di cento clienti — cioè
+     * esattamente il giorno in cui quel numero serve — la coda diceva «100» qualunque fosse la
+     * verità, e non c'era modo di accorgersene. Nella stessa classe la dashboard usava già `count()`
+     * per gli stessi dati, quindi le due schermate potevano dire numeri diversi.
+     */
+    const filtroDecisioni = { flaggedForReview: true, reviewedAt: null, ...clientFilter };
+    const [decisions, totaleDecisioni] = (await Promise.all([
+      this.prisma.engineDecision.findMany({
+        where: filtroDecisioni,
+        orderBy: { date: 'desc' },
+        take: TETTO_CODA,
+        select: { id: true, clientId: true, date: true, flagReason: true, action: true, rule: { select: { id: true, name: true } } },
+      }),
+      this.prisma.engineDecision.count({ where: filtroDecisioni }),
+    ])) as [DecisionRow[], number];
 
     // Il capo/admin vede pazienti di più nutrizionisti: recupera i nomi mancanti.
     if (supervisor && decisions.length) {
@@ -346,30 +365,43 @@ export class NutritionistService {
 
     // Diete in revisione: solo il capo le approva; escluse le proprie.
     let dietsInReview: unknown[] = [];
+    let totaleDiete = 0;
     if (supervisor) {
-      const diets = (await this.prisma.diet.findMany({
-        where: { status: 'in_review' as never, ...(staffId ? { NOT: { authorId: staffId } } : {}) },
-        orderBy: { updatedAt: 'desc' },
-        take: 100,
-        select: { id: true, name: true, regime: true, style: true, updatedAt: true },
-      })) as { id: string; name: string; regime: string; style: string; updatedAt: Date }[];
+      const filtroDiete = { status: 'in_review' as never, ...(staffId ? { NOT: { authorId: staffId } } : {}) };
+      const [diets, conteggio] = (await Promise.all([
+        this.prisma.diet.findMany({
+          where: filtroDiete,
+          orderBy: { updatedAt: 'desc' },
+          take: TETTO_CODA,
+          select: { id: true, name: true, regime: true, style: true, updatedAt: true },
+        }),
+        this.prisma.diet.count({ where: filtroDiete }),
+      ])) as [{ id: string; name: string; regime: string; style: string; updatedAt: Date }[], number];
       dietsInReview = diets.map((x) => ({ id: x.id, name: x.name, regime: x.regime, style: x.style, updatedAt: x.updatedAt.toISOString() }));
+      totaleDiete = conteggio;
     }
 
     // Protocolli in attesa: nutrizionista/capo, mai i propri.
-    const protocols = (await this.prisma.protocol.findMany({
-      where: { status: 'pending' as never, ...(staffId ? { NOT: { authorId: staffId } } : {}) },
-      orderBy: { updatedAt: 'desc' },
-      take: 100,
-      select: { id: true, name: true, type: true, updatedAt: true },
-    })) as { id: string; name: string; type: string; updatedAt: Date }[];
+    const filtroProtocolli = { status: 'pending' as never, ...(staffId ? { NOT: { authorId: staffId } } : {}) };
+    const [protocols, totaleProtocolli] = (await Promise.all([
+      this.prisma.protocol.findMany({
+        where: filtroProtocolli,
+        orderBy: { updatedAt: 'desc' },
+        take: TETTO_CODA,
+        select: { id: true, name: true, type: true, updatedAt: true },
+      }),
+      this.prisma.protocol.count({ where: filtroProtocolli }),
+    ])) as [{ id: string; name: string; type: string; updatedAt: Date }[], number];
     const protocolsPending = protocols.map((p) => ({ id: p.id, name: p.name, type: p.type, updatedAt: p.updatedAt.toISOString() }));
 
     return {
       engineDecisions,
       dietsInReview,
       protocolsPending,
-      counts: { engineDecisions: engineDecisions.length, dietsInReview: dietsInReview.length, protocolsPending: protocolsPending.length },
+      // I conteggi vengono dal database; `mostrati` dice quante righe sono nell'elenco, così la
+      // pagina può distinguere «ce ne sono 100» da «te ne mostro 100 di 240».
+      counts: { engineDecisions: totaleDecisioni, dietsInReview: totaleDiete, protocolsPending: totaleProtocolli },
+      mostrati: { engineDecisions: engineDecisions.length, dietsInReview: dietsInReview.length, protocolsPending: protocolsPending.length },
     };
   }
 

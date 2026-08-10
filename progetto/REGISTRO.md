@@ -7,6 +7,61 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` ⚖️ **La schermata Progressi si congelava dopo quattro mesi di pesate** — trovato
+  cercando altri troncamenti come quello della pipeline. `ProgressService` leggeva le misure con
+  `orderBy: 'asc', take: 120`: le 120 **più vecchie**. Le misure sono una al giorno, quindi dopo circa
+  quattro mesi di costanza la finestra si riempiva di passato e da lì in poi: «misure registrate» fermo
+  a 120 per sempre, peso «attuale» quello di mesi prima, chili persi e proiezione della data obiettivo
+  sul tratto sbagliato del percorso, e **giorni di stallo su una data ferma** → `stalled: true` falso.
+  Lo leggono in tre: l'app della cliente, l'alert di stallo della coach e il motore che decide i menu.
+  Non peggiorava col volume del database — peggiorava con la **costanza della cliente**.
+  Ora si leggono le 120 più recenti e si rimettono in ordine cronologico; il conteggio arriva da
+  `count()`, e il peso di partenza — quando il profilo non lo ha — dalla **prima misura in assoluto**,
+  che con `asc` era la stessa cosa e con `desc` non lo è più (altrimenti i chili persi sarebbero quelli
+  degli ultimi quattro mesi invece di quelli di tutto il percorso). Il finto Prisma dei test ora
+  rispetta `orderBy` e `take`: prima ignorava la query, ed è il motivo per cui il difetto è passato
+  inosservato con i test verdi.
+- `[Sviluppo]` 🔔 **Percorso concluso: adesso la coach lo sa** — «non avevamo detto che dopo x giorni
+  di piano scaduto passavano in automatico in percorso concluso? E soprattutto che mandavamo notifiche
+  alla sua coach dello spostamento?». L'automazione c'era (a +7 giorni, nel cron notturno) e non è mai
+  mancata; l'**avviso** sì: lo spostamento lasciava solo una riga di audit, la scheda cambiava colonna
+  di notte e la coach lo scopriva guardando la board. È l'avviso più utile di tutti, perché arriva
+  nella settimana in cui una telefonata fa ancora rinnovare. La funzione che cerca la coach di una
+  cliente sta ora in `common/avvisa-coach.ts`, usata anche dai rinnovi e dalle prove: due copie che la
+  cercano in due modi smettono di avvisare in momenti diversi, e l'assenza di una notifica non si nota.
+- `[Sviluppo]` 🔎 **`diag:percorsi-conclusi`** — quando una scheda col piano scaduto resta dov'è, la
+  board mostra solo il risultato: l'automazione ha **quattro** condizioni e non si sa quale l'ha
+  fermata. Lo script le dice per ogni cliente: da spostare stanotte · troppo presto (la pastiglia
+  «piano scaduto» compare dal primo giorno, la soglia è a sette: fra i due non c'è niente di rotto) ·
+  sta tornando (abbonamento attivo o bonifico in attesa) · fuori finestra oltre i 120 giorni · già in
+  «Percorso concluso» · senza scheda CRM. `EMAIL=<email>` per una sola.
+- `[Sviluppo]` 🔢 **Coda «Da validare»: i numeri fra parentesi erano lunghezze di array** — decisioni
+  del motore, diete in revisione e protocolli in attesa erano elencati con `take: 100` e contati con
+  `.length`: nel giorno in cui il motore segnala più di cento clienti — quello in cui il numero serve —
+  la coda diceva «100» qualunque fosse la verità, e la dashboard della stessa nutrizionista usava già
+  `count()` per gli stessi dati, quindi le due schermate potevano dire numeri diversi. Ora il conteggio
+  viene dal database e, quando l'elenco è più corto, il titolo dice «100 di 240».
+
+- `[Sviluppo]` 🧾 **«Con cosa si paga»: nessun elenco di ripiego nel codice** — Simone, vedendo cinque
+  voci che non aveva scritto lui: «avevo detto che dovevo decidere io le voci da parametri». Le voci
+  arrivavano davvero dal parametro, ma esisteva un ripiego nel codice per il caso «parametro vuoto» —
+  e con un ripiego **svuotare** il parametro non svuota la tendina: le cinque voci tornavano, e per
+  togliere «PayPal» bisognava scriverci qualcos'altro sopra. Un'impostazione che non si può azzerare
+  non è un'impostazione. Togliato il ripiego, e il seed non semina più nessuna voce: finché il
+  parametro è vuoto la tendina offre solo «non indicato» e il modulo dice dove si scrivono. Chi salva
+  un metodo con la tendina vuota riceve un messaggio che indica la pagina, non un errore generico.
+- `[Sviluppo]` 📐 **La card del widget non sborda più (per davvero)** — il primo `minWidth: 0` aveva
+  sistemato la riga dell'importo, ma la seconda riga (il nome del prodotto, con `nowrap`) continuava a
+  contribuire la sua larghezza intera alla dimensione minima del contenitore, poi del grid item, poi
+  della card: era la **card** a sfondare la propria colonna. La catena va tagliata sull'antenato che ha
+  la larghezza da rispettare, con `overflow: hidden` insieme a `minWidth: 0` — su un contenitore a
+  blocco il solo `min-width: 0` non riduce il contributo a contenuto minimo.
+- `[Sviluppo]` 🔢 **Pipeline: 100 schede per colonna e scorrimento su tutte** — coi numeri veri sotto
+  gli occhi (86.323 schede in tutto, 86.274 in «Nuovo contatto») Simone ha alzato il tetto a 100 e
+  chiesto lo scorrimento su **tutte** le colonne, non solo su quelle piene: `maxHeight` è un tetto e
+  non un'altezza, quindi una colonna con tre schede resta alta tre schede — e l'altezza della board
+  non dipende più da quale colonna è piena oggi.
+
 - `[Sviluppo]` 🖥️ **Dashboard: ognuno si tiene i blocchi che guarda** — «tutti i moduli della
   dashboard, anche portafoglio ecc, devono essere attivabili e disattivabili da impostazioni moduli
   dashboard». I riquadri-anteprima si gestivano già; le parti fisse delle home di coach e nutrizionista

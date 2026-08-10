@@ -504,9 +504,12 @@ const CONFIG_PARAMS: SeedParam[] = [
    */
   {
     key: 'cost_payment_methods',
-    value: 'Carta aziendale\nBonifico dal conto\nAddebito automatico su carta\nPayPal\nContanti',
+    // VUOTO di proposito: le voci le decide Simone («avevo detto che dovevo decidere io le voci da
+    // parametri»). Nessun elenco plausibile inventato qui — finché è vuoto la tendina offre solo
+    // «non indicato» e la pagina dice dove si scrivono.
+    value: '',
     type: 'string',
-    description: 'Con cosa si pagano i costi: una voce per riga, sono le scelte della tendina in Contabilità.',
+    description: 'Con cosa si pagano i costi: una voce per riga (es. «Carta aziendale», «Bonifico dal conto»). Sono le scelte della tendina in Contabilità.',
   },
   // NB: qui non c'è NESSUN parametro di provvigione, ed è voluto: dal 14/07 sono importi in €
   // definiti su ogni piano/prodotto del negozio (campi commission*Cents). L'ultimo rimasto era

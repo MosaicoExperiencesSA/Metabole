@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { avvisaCoachDellaCliente } from '../common/avvisa-coach';
 import { clienteNelPerimetro, filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
@@ -2510,31 +2511,18 @@ export class CommerceService {
    * Il `clientId` va SEMPRE nel payload: è quello che permette di aprire la scheda dalla
    * notifica con un tocco, invece di cercare il nome nell'elenco.
    */
+  /**
+   * Avvisa la coach di una sua cliente. Il corpo sta in `common/avvisa-coach.ts` da quando lo usa
+   * anche la chiusura automatica dei percorsi (`CrmService`): due copie che cercano la coach in due
+   * modi smettono di avvisare in momenti diversi, e l'assenza di una notifica non si nota.
+   */
   private async notifyCoachOfClient(
     clientId: string,
     type: string,
     title: string,
     body: (nome: string) => string,
   ): Promise<void> {
-    const profile = await this.prisma.clientProfile.findUnique({
-      where: { userId: clientId },
-      select: { name: true, assignedCoachId: true },
-    });
-    if (!profile?.assignedCoachId) return;
-    const coach = await this.prisma.staff.findUnique({
-      where: { id: profile.assignedCoachId },
-      select: { userId: true },
-    });
-    if (!coach) return;
-    await this.notifications
-      .notify({
-        userId: coach.userId,
-        type,
-        title,
-        body: body(profile.name ?? 'Una tua cliente'),
-        payload: { clientId },
-      })
-      .catch(() => undefined);
+    await avvisaCoachDellaCliente(this.prisma, this.notifications, clientId, { type, title, body });
   }
 
   private async notifyCoachOfPayment(clientId: string, amountCents: number): Promise<void> {

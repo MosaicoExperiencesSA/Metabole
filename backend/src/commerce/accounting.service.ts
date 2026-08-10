@@ -12,19 +12,22 @@ export const CADENCES = ['once', 'monthly', 'yearly'] as const;
 /**
  * «CON COSA HAI PAGATO»: le voci della tendina stanno in configurazione, una per riga.
  *
- * Richiesta di Simone dell'11/8, e la parte importante della richiesta è «le voci che inserisco io
- * dai Parametri»: il modo di pagare un fornitore cambia (una carta nuova, un conto chiuso) e non
- * deve servire un rilascio per aggiungerne uno. Questo è solo il ripiego usato quando il parametro
- * non è ancora stato salvato: serve perché al primo avvio la tendina non sia vuota, cioè
- * inutilizzabile, e sono le forme di pagamento che l'azienda usa oggi.
+ * Richiesta di Simone dell'11/8, e la parte importante della richiesta è **«le voci che inserisco io
+ * dai Parametri»**: il modo di pagare un fornitore cambia (una carta nuova, un conto chiuso) e non
+ * deve servire un rilascio per aggiungerne uno.
+ *
+ * ## Perché NON c'è un elenco di ripiego nel codice
+ *
+ * La prima versione ne aveva uno — cinque voci plausibili usate quando il parametro era vuoto — con
+ * la buona intenzione di non far trovare una tendina vuota al primo avvio. Simone l'ha visto e ha
+ * detto: «avevo detto che dovevo decidere io le voci da parametri». Aveva ragione, e non era una
+ * questione di gusto: con un ripiego nel codice, **svuotare** il parametro non svuota la tendina —
+ * ricompaiono cinque voci che nessuno ha scelto, e l'unico modo di togliere «PayPal» diventa
+ * scrivere qualcos'altro al suo posto. Un'impostazione che non si può azzerare non è un'impostazione.
+ *
+ * Elenco vuoto = tendina con la sola voce «non indicato», e la pagina che dice dove si aggiungono.
+ * Meno comodo il primo giorno, vero tutti gli altri.
  */
-export const METODI_PAGAMENTO_DEFAULT = [
-  'Carta aziendale',
-  'Bonifico dal conto',
-  'Addebito automatico su carta',
-  'PayPal',
-  'Contanti',
-];
 
 /** Le voci configurate, da un testo con una voce per riga. Vuote e duplicati si scartano. */
 export function metodiDaTesto(testo: string | null | undefined): string[] {
@@ -32,7 +35,7 @@ export function metodiDaTesto(testo: string | null | undefined): string[] {
     .split(/\r?\n/)
     .map((r) => r.trim())
     .filter((r) => r.length > 0);
-  return voci.length ? [...new Set(voci)] : METODI_PAGAMENTO_DEFAULT;
+  return [...new Set(voci)];
 }
 
 /** Fattura allegata a un costo: gli stessi limiti delle contabili dei pagamenti. */
@@ -267,7 +270,9 @@ export class AccountingService {
     const ammessi = await this.metodiPagamento();
     if (!ammessi.includes(v)) {
       throw new BadRequestException(
-        `«${v}» non è fra i modi di pagamento configurati. Le voci si aggiungono in Parametri → «Con cosa si paga».`,
+        ammessi.length === 0
+          ? 'Non c\'è ancora nessun modo di pagamento configurato: le voci si scrivono in Parametri → «Con cosa si paga», una per riga.'
+          : `«${v}» non è fra i modi di pagamento configurati. Le voci si aggiungono in Parametri → «Con cosa si paga».`,
       );
     }
     return v;

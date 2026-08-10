@@ -60,6 +60,7 @@
     "diag:menu-incompleti": "ts-node --transpile-only prisma/diag-menu-incompleti.ts",
     "diag:cancellazioni": "ts-node --transpile-only prisma/diag-cancellazioni.ts",
     "diag:acquisti-pipeline": "ts-node --transpile-only prisma/diag-acquisti-pipeline.ts",
+    "diag:percorsi-conclusi": "ts-node --transpile-only prisma/diag-percorsi-conclusi.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"
