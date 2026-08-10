@@ -6,6 +6,7 @@ import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
+import { perimetroClienti, type PerimetroClienti } from '../common/perimetro-clienti';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { campiCambiati } from '../common/diff-campi';
 import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
@@ -37,18 +38,11 @@ export class ClientsService {
    * (sales), il capo nutrizionista e l'admin vedono tutti.
    * Ritorna il vincolo da applicare alle liste, o null se l'attore vede tutto.
    */
-  private async clientScope(actorUserId: string): Promise<{ field: 'assignedCoachId' | 'assignedNutritionistId'; staffIds: string[] } | null> {
-    const actor = await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { role: true } });
-    const role = actor?.role as string | undefined;
-    if (isCoachLike(role)) {
-      // Coach → le sue; coordinatrice → sue + del suo team.
-      const ids = (await coachTeamScope(this.prisma, actorUserId)) ?? [];
-      return { field: 'assignedCoachId', staffIds: ids };
-    }
-    if (role !== 'nutritionist') return null;
-    const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
-    // Senza scheda staff → id impossibile: non vede nessun cliente, mai tutti per errore.
-    return { field: 'assignedNutritionistId', staffIds: [staff?.id ?? '00000000-0000-0000-0000-000000000000'] };
+  private async clientScope(actorUserId: string): Promise<PerimetroClienti | null> {
+    // La regola sta in `common/perimetro-clienti.ts` da quando la usa anche la tabella Acquisti
+    // (11/8): due copie del perimetro divergono, e qui una divergenza vuol dire una coach che vede
+    // le clienti di un'altra.
+    return perimetroClienti(this.prisma, actorUserId);
   }
 
   /** Blocca l'accesso alla scheda di un cliente non assegnato all'attore. */

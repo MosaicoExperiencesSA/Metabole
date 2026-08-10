@@ -7,6 +7,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🛒 **Gli Acquisti si aprono alle coach, ma solo sulla loro rete** — richiesta di
+  Simone: «la tabella acquisti voglio renderla visibile alle coach, ma devono vedere solo le clienti
+  nella loro rete». Erano due cose diverse e mancavano entrambe.
+  - **Chi entra.** Il controller aveva `@Roles('admin', 'sales')`: accendere la spunta «vede» sugli
+    Acquisti nella pagina Permessi faceva comparire la voce di menu, e poi l'API rispondeva «Ruolo
+    non autorizzato per questa risorsa» — una spunta che non fa niente. Ora la decisione sta dove
+    Simone la prende: `@RequirePage('purchases')` legge la matrice dei permessi, quindi vale anche per
+    i ruoli personalizzati e si cambia senza rilascio.
+  - **Quanto vede.** L'elenco è filtrato sul perimetro di chi guarda, e le ricevute PDF sono
+    controllate **una per una**: filtrare l'elenco non basta, perché l'id di una riga fuori elenco si
+    può sempre chiedere a mano — e una ricevuta contiene nome, indirizzo e importo.
+  - Il perimetro («le clienti della mia rete») era scritto dentro `ClientsService` come metodo
+    privato: aprire una seconda pagina allo stesso perimetro voleva dire copiarlo. Ora sta in
+    `common/perimetro-clienti.ts` e la scheda cliente lo usa da lì — una definizione sola, perché qui
+    una divergenza non è un difetto grafico, è una coach che legge i pagamenti delle clienti di
+    un'altra. Con test sui casi in cui «non si sa»: coach senza scheda staff, cliente senza coach
+    assegnata, profilo mancante → **zero clienti**, non tutte.
+  - Le azioni sui soldi (acquisto manuale, storno, eliminazione, ricalcolo provvigioni) restano
+    `@Roles('admin')`: aprire la lettura non apre la scrittura.
+- `[Sviluppo]` 🔎 **`diag:acquisti-pipeline`** — nasce dalla domanda «gli acquisti non corrispondono
+  allo stato che vedo in pipeline, perché?». Le due viste divergono per **tre motivi voluti**, e lo
+  script dice per ogni cliente quale dei tre è, invece di lasciarlo dedurre: la prova gratuita è un
+  acquisto a € 0 che porta in «Prova» e non in «Acquisito»; l'attivazione manuale dalla scheda cliente
+  è registrata a 0 e **non tocca il CRM** (regola chiesta da Simone: altrimenti una cliente al terzo
+  percorso verrebbe retrocessa a «Prova»); il «€» sulla scheda della pipeline è `valueCents` — il
+  valore della trattativa, che può essere stato scritto a mano — non la somma degli incassi.
+  Elenca anche l'unico caso che è davvero da guardare: chi ha incassato e in pipeline non è
+  «Acquisito». `EMAIL=<email>` per il dettaglio di una sola.
+
 - `[Sviluppo]` 🧾 **Nei costi si dice con cosa hai pagato** — «manca la voce con cosa hai pagato, che
   dovrebbe essere una casella a discesa con le voci che inserisco io dai Parametri». Colonna nuova su
   `cost_entry` (`paid_with`), tendina nel modulo di registrazione, colonna filtrabile nell'elenco.

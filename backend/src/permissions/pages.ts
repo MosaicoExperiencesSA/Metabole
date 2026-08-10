@@ -99,6 +99,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     escalations: { view: true, manage: true },
     chat: { view: true, manage: true },
     visits_agenda: { view: true },
+    // Acquisti delle SUE clienti (11/8): il perimetro lo applica il servizio, non questa matrice —
+    // qui c'è solo «può entrare nella pagina». Le azioni sui soldi restano admin.
+    purchases: { view: true },
   },
   // Coordinatrice Coach: come una coach (le SUE clienti) + visibilità sul suo team
   // (la portata "propria + team" è applicata nei servizi, non qui).
@@ -118,6 +121,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     escalations: { view: true, manage: true },
     chat: { view: true, manage: true },
     visits_agenda: { view: true },
+    purchases: { view: true }, // gli acquisti del suo perimetro: lei + le coach del suo team
   },
   nutritionist: {
     dashboard: { view: true },

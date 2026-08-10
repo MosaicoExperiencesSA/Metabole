@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { clienteNelPerimetro, filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { MailService } from '../mail/mail.service';
@@ -978,15 +979,48 @@ export class CommerceService {
 
   // ---------- Operatore (admin/commerciale) ----------
 
-  async listPayments(status?: string) {
+  /**
+   * Elenco acquisti. `actorUserId` restringe alla **rete di chi guarda**: da quando la pagina è
+   * aperta anche alle coach (richiesta di Simone dell'11/8: «visibile alle coach, ma devono vedere
+   * solo le clienti nella loro rete») il filtro non è un dettaglio grafico, è la regola di accesso.
+   *
+   * Il perimetro è lo stesso della tabella Clienti — `perimetroClienti`, un solo posto — perché due
+   * definizioni di «le mie clienti» che divergono qui vogliono dire una coach che legge i pagamenti
+   * delle clienti di un'altra. Chi non ha perimetro (admin, commerciale) vede tutto, come prima.
+   */
+  async listPayments(status?: string, actorUserId?: string) {
+    const perimetro = await perimetroClienti(this.prisma, actorUserId);
     const payments = await this.prisma.payment.findMany({
-      where: status ? { status: status as never } : {},
+      where: {
+        ...(status ? { status: status as never } : {}),
+        ...filtroPerimetroSuCliente(perimetro),
+      } as never,
       // Più recenti in alto; col take:200 l'ordine desc garantisce di tenere gli ultimi.
       orderBy: { createdAt: 'desc' },
       include: { client: { select: { email: true, clientProfile: { select: { name: true } } } } },
       take: 200,
     });
     return payments.map((p: Record<string, unknown>) => this.publicPayment(p));
+  }
+
+  /**
+   * Blocca un'azione su UN acquisto fuori dalla rete di chi guarda.
+   *
+   * Filtrare l'elenco non basta: l'id di una riga che non compare in elenco si può sempre chiedere a
+   * mano, e le ricevute contengono nome, indirizzo e importo di una cliente. Il messaggio è lo stesso
+   * della scheda cliente, perché è lo stesso confine.
+   */
+  private async assertAcquistoNelPerimetro(paymentId: string, actorUserId?: string): Promise<void> {
+    const perimetro = await perimetroClienti(this.prisma, actorUserId);
+    if (!perimetro) return;
+    const payment = (await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: { clientId: true },
+    })) as { clientId: string | null } | null;
+    if (!payment) throw new NotFoundException('Acquisto non trovato');
+    if (!(await clienteNelPerimetro(this.prisma, perimetro, payment.clientId))) {
+      throw new ForbiddenException('Questa cliente non è assegnata a te.');
+    }
   }
 
   /** L'operatore scarica la contabile per verificarla. */
@@ -2073,7 +2107,10 @@ export class CommerceService {
   }
 
   /** Ricevuta PDF di un pagamento (numero, data, cliente, prodotto, importo). */
-  async generateReceiptPdf(paymentId: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+  async generateReceiptPdf(paymentId: string, actorUserId?: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+    // La ricevuta contiene nome, indirizzo e importo: chi la scarica deve avere quella cliente
+    // nella propria rete. Con `actorUserId` assente (chiamate interne) il controllo non si applica.
+    await this.assertAcquistoNelPerimetro(paymentId, actorUserId);
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
@@ -2393,7 +2430,8 @@ export class CommerceService {
   }
 
   /** Ricevuta di RIMBORSO in PDF (per la cliente e scaricabile dal backoffice). */
-  async generateRefundReceiptPdf(paymentId: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+  async generateRefundReceiptPdf(paymentId: string, actorUserId?: string): Promise<{ fileName: string; mimeType: string; contentBase64: string }> {
+    await this.assertAcquistoNelPerimetro(paymentId, actorUserId);
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: { client: { select: { email: true, clientProfile: { select: { name: true } } } } },

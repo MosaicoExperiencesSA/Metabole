@@ -31,6 +31,7 @@ import { Request } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { CommerceService } from './commerce.service';
@@ -492,9 +493,30 @@ class RefundPurchaseDto {
   note?: string | null;
 }
 
-/** Acquisti: elenco completo, ricevuta PDF, inserimento manuale (operatore). */
+/**
+ * Acquisti: elenco, ricevuta PDF, inserimento manuale (operatore).
+ *
+ * ## Chi entra, e quanto vede (11/8)
+ *
+ * Simone: «la tabella acquisti voglio renderla visibile alle coach, ma devono vedere solo le clienti
+ * nella loro rete». Erano due cose diverse e mancavano entrambe.
+ *
+ * 1. **Chi entra.** C'era `@Roles('admin', 'sales')` e basta: la spunta «vede» sugli Acquisti nella
+ *    pagina Permessi accendeva la voce di menu, e poi l'API rispondeva «Ruolo non autorizzato per
+ *    questa risorsa» — una spunta che non fa niente. Ora la decisione sta dove Simone la prende:
+ *    `@RequirePage('purchases')` legge la matrice dei permessi, quindi vale anche per i ruoli
+ *    personalizzati e si cambia senza rilascio. `@Roles` resta come rete di sicurezza sui ruoli che
+ *    possono anche solo essere considerati (nessun cliente, mai).
+ * 2. **Quanto vede.** L'elenco è filtrato sul perimetro di chi guarda (`perimetroClienti`, lo stesso
+ *    della tabella Clienti) e le ricevute di UNA riga sono controllate una per una: filtrare
+ *    l'elenco non basta, perché l'id di una riga fuori elenco si può sempre chiedere a mano.
+ *
+ * Le azioni che toccano i soldi (inserimento manuale, storno, eliminazione, ricalcolo provvigioni)
+ * restano `@Roles('admin')`: aprire la lettura non apre la scrittura.
+ */
 @Controller('admin/purchases')
-@Roles('admin', 'sales')
+@Roles('admin', 'sales', 'coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist')
+@RequirePage('purchases')
 export class AdminPurchasesController {
   constructor(
     private readonly commerce: CommerceService,
@@ -502,8 +524,8 @@ export class AdminPurchasesController {
   ) {}
 
   @Get()
-  list(@Query('status') status?: string) {
-    return this.commerce.listPayments(status);
+  list(@CurrentUser() user: AuthUser, @Query('status') status?: string) {
+    return this.commerce.listPayments(status, user.sub);
   }
 
   /**
@@ -511,14 +533,16 @@ export class AdminPurchasesController {
    * Il modale "Nuovo acquisto manuale" leggeva `GET /plans`, che ora nasconde il mantenimento:
    * senza questo endpoint l'operatrice non potrebbe piu' attivarlo a nessuno.
    */
+  // Serve solo al modale «Nuovo acquisto manuale», che è admin: non si apre a chi non può usarlo.
+  @Roles('admin', 'sales')
   @Get('plans')
   plans() {
     return this.commerce.listPlans();
   }
 
   @Get(':id/receipt-pdf')
-  receiptPdf(@Param('id') id: string) {
-    return this.commerce.generateReceiptPdf(id);
+  receiptPdf(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.commerce.generateReceiptPdf(id, user.sub);
   }
 
   @Roles('admin')
@@ -543,8 +567,8 @@ export class AdminPurchasesController {
   }
 
   @Get(':id/refund-receipt-pdf')
-  refundReceiptPdf(@Param('id') id: string) {
-    return this.commerce.generateRefundReceiptPdf(id);
+  refundReceiptPdf(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.commerce.generateRefundReceiptPdf(id, user.sub);
   }
 
   /**
