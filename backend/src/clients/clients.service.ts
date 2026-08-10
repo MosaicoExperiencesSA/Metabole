@@ -9,8 +9,7 @@ import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { perimetroClienti, type PerimetroClienti } from '../common/perimetro-clienti';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { campiCambiati } from '../common/diff-campi';
-import { DEFAULT_PERMISSIONS, PageKey } from '../permissions/pages';
-import { Role } from '../common/roles';
+import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -454,14 +453,11 @@ export class ClientsService {
    * Vero se il ruolo può GESTIRE la pagina/permesso indicato: stessa logica del
    * PageGuard (riga della matrice se esiste, altrimenti default; admin sempre sì).
    */
-  private async roleCanManage(role: string, pageKey: string): Promise<boolean> {
-    if (role === 'admin') return true;
-    const row = (await this.prisma.rolePagePermission
-      .findUnique({ where: { role_pageKey: { role, pageKey } }, select: { canManage: true } })
-      .catch(() => null)) as { canManage: boolean } | null;
-    if (row) return row.canManage;
-    const def = DEFAULT_PERMISSIONS[role as Role]?.[pageKey as PageKey];
-    return !!def?.manage;
+  private roleCanManage(role: string, pageKey: string): Promise<boolean> {
+    // La logica sta in `permissions/permesso-di-ruolo.ts`: la stessa domanda se la fa anche
+    // `ChatService` (verifica dei cambi in chat), e due copie che divergono vorrebbero dire un
+    // permesso che in una schermata conta e nell'altra no.
+    return ruoloPuo(this.prisma, role, pageKey, 'manage');
   }
 
   /** Aggiorna anagrafica (User) e questionario (ClientProfile) di un cliente. */

@@ -164,7 +164,7 @@ export class StaffClientChatController {
 
   /** Thread leggibili da chi chiede (quelli che non può leggere non compaiono). */
   @Get('threads')
-  @RequirePage('chat')
+  @RequirePage('client_conversations')
   threads(@CurrentUser() user: AuthUser, @Param('clientId') clientId: string) {
     return this.chat.threadsDiUnCliente(user, clientId);
   }
@@ -175,7 +175,7 @@ export class StaffClientChatController {
    * dire rileggere tutte le conversazioni.
    */
   @Get('sostituzioni-chat')
-  @RequirePage('chat')
+  @RequirePage('client_conversations')
   sostituzioniChat(@CurrentUser() user: AuthUser, @Param('clientId') clientId: string) {
     // `user` non è decorativo: il controllo di appartenenza sta nel service. Vedi
     // `ChatService.sostituzioniDiChatPerStaff`.
@@ -185,14 +185,17 @@ export class StaffClientChatController {
   /**
    * La VERIFICA di un cambio: conferma, correggi i grammi, o annulla.
    *
-   * `@RequirePage('chat', 'manage')` non basta e non è il cancello che conta: la coach ha quel
-   * permesso perché deve poter scrivere alle sue clienti. Chi può toccare un cambio è deciso per
-   * RUOLO dentro `ChatService.correggiCambioInChatPerStaff` — nutrizionista, capo nutrizionista,
-   * admin — perché la grammatura di un piatto è materia clinica. Sono due cancelli, come per la
-   * lettura: vedi il commento in testa a questo controller.
+   * Il permesso è `client_conversations` e non `chat`, ed è il motivo per cui esiste quella chiave
+   * separata: `chat` è la pagina delle conversazioni dell'azienda, e la coach ce l'ha in gestione
+   * perché deve poter scrivere alle sue clienti — usarla qui avrebbe voluto dire che chiunque può
+   * scrivere in chat può anche correggere i grammi di un piatto.
+   *
+   * Restano DUE cancelli, come per la lettura: questo, e `manage` verificato di nuovo dentro
+   * `ChatService.correggiCambioInChatPerStaff` insieme alla portata sulla cliente. Vedi il commento
+   * in testa a questo controller.
    */
   @Patch('sostituzioni-chat')
-  @RequirePage('chat', 'manage')
+  @RequirePage('client_conversations', 'manage')
   correggiCambio(
     @CurrentUser() user: AuthUser,
     @Param('clientId') clientId: string,

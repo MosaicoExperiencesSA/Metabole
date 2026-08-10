@@ -78,7 +78,11 @@ const META: Record<string, Meta> = {
   ai_assistant_enabled: { label: 'Assistente AI in chat', group: 'AI', kind: 'toggle', help: 'Se attivo (e con AI_API_KEY su Render) l’assistente risponde con Claude ai messaggi generici; i temi sensibili/sanitari restano instradati al nutrizionista.' },
 };
 
-const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'Marketing', 'App', 'AI', 'Altro'];
+/**
+ * L'ordine in cui compaiono i riquadri. Non è l'elenco di cosa si vede: vedi `grouped` più sotto,
+ * dove i gruppi non citati qui finiscono in fondo invece di sparire.
+ */
+const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Contabilità', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'Marketing', 'App', 'AI', 'Altro'];
 
 const metaFor = (p: Param): Meta =>
   META[p.key] ?? { label: p.key, group: 'Altro', kind: 'text', help: p.description ?? undefined };
@@ -118,7 +122,20 @@ export function Parametri() {
       const g = metaFor(p).group;
       (by[g] ??= []).push(p);
     }
-    return GROUP_ORDER.filter((g) => by[g]?.length).map((g) => ({ group: g, items: by[g] }));
+    /**
+     * Prima qui c'era solo `GROUP_ORDER.filter(...)`: un parametro il cui gruppo non era in
+     * quell'elenco **non compariva da nessuna parte**, senza errori. È esattamente quello che è
+     * successo a «Con cosa si paga» (gruppo «Contabilità», mai aggiunto all'ordine): il valore era
+     * nel database, l'etichetta era nel codice, la tendina in Contabilità restava vuota e in
+     * Parametri non c'era niente da correggere. Segnalato da Simone l'11/8.
+     *
+     * Ora l'ordine decide solo **dove** sta un riquadro: i gruppi che non nomina finiscono in coda
+     * (prima di «Altro», che per convenzione è l'ultimo). Un parametro nuovo si vede sempre.
+     */
+    const noti = new Set(GROUP_ORDER);
+    const inCoda = Object.keys(by).filter((g) => !noti.has(g)).sort();
+    const ordine = [...GROUP_ORDER.filter((g) => g !== 'Altro'), ...inCoda, 'Altro'];
+    return ordine.filter((g) => by[g]?.length).map((g) => ({ group: g, items: by[g] }));
   }, [params]);
 
   async function save(p: Param) {

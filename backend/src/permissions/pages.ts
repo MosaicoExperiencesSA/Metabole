@@ -41,6 +41,12 @@ export const BACKOFFICE_PAGES = [
   'charts',
   'withdrawals',
   // Schermate separate per una gestione granulare dei permessi (ereditano l'accesso dalla pagina "genitore").
+  // Card «Conversazioni» nella scheda cliente: i thread (Gaia compresa) e i cambi di menu
+  // concordati in chat. Separata da `chat` (la pagina) perché sono due decisioni diverse: chi legge
+  // le chat dell'azienda e chi legge — e verifica — quelle di UNA cliente dalla sua scheda.
+  // Richiesta di Simone dell'11/8: «la visibilità e la scrittura di questa parte devo poterla
+  // abilitare dai permessi». `manage` = può confermare, correggere i grammi o annullare un cambio.
+  'client_conversations',
   'crm_lead_new',       // Inserimento lead (da crm_leads)
   'crm_import',         // Import liste (da crm_leads)
   'crm_pipeline',       // Pipeline (da crm_leads)
@@ -98,6 +104,11 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     lead_acceptance: { view: true, manage: true }, // casella dei lead da accettare
     escalations: { view: true, manage: true },
     chat: { view: true, manage: true },
+    // Le conversazioni di UNA cliente dalla sua scheda (thread + cambi concordati in chat). La coach
+    // le LEGGE — le servono per capire come sta andando — ma di default non le verifica: la
+    // grammatura di un piatto è materia clinica. Da qui in poi la decisione è di Simone in pagina
+    // Permessi, non di un elenco di ruoli scritto nel codice (richiesta dell'11/8).
+    client_conversations: { view: true },
     visits_agenda: { view: true },
     // Acquisti delle SUE clienti (11/8): il perimetro lo applica il servizio, non questa matrice —
     // qui c'è solo «può entrare nella pagina». Le azioni sui soldi restano admin.
@@ -120,6 +131,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     lead_acceptance: { view: true, manage: true },
     escalations: { view: true, manage: true },
     chat: { view: true, manage: true },
+    client_conversations: { view: true }, // legge, come la coach; la verifica resta clinica
     visits_agenda: { view: true },
     purchases: { view: true }, // gli acquisti del suo perimetro: lei + le coach del suo team
   },
@@ -139,6 +151,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     escalations: { view: true, manage: true },
     visits_agenda: { view: true, manage: true },
     chat: { view: true, manage: true },
+    // `manage` = verifica i cambi concordati in chat: conferma, corregge i grammi, annulla.
+    client_conversations: { view: true, manage: true },
     health_documents: { view: true, manage: true },
   },
   head_nutritionist: {
@@ -157,6 +171,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     escalations: { view: true, manage: true },
     visits_agenda: { view: true, manage: true },
     chat: { view: true, manage: true },
+    client_conversations: { view: true, manage: true },
     health_documents: { view: true, manage: true },
     assignments: { view: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista

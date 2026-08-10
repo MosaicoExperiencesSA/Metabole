@@ -22,6 +22,7 @@ import {
 } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { classifyMessage } from './ai-filter';
 
 type Counterpart = 'ai' | 'coach' | 'nutritionist';
@@ -272,9 +273,11 @@ export class ChatService {
    * LA VERIFICA della nutrizionista su un cambio nato in chat: conferma, correggi, annulla.
    *
    * Due cancelli, e sono diversi da quelli della lettura:
-   * - **il ruolo**: solo nutrizionista, capo nutrizionista e admin. La coach questi cambi li
-   *   **legge** (le servono per capire come sta andando) ma non li tocca: la grammatura di un
-   *   piatto è materia clinica, e chi la decide è chi se ne prende la responsabilità;
+   * - **il permesso**: `manage` su «Conversazioni della cliente» (`client_conversations`), che di
+   *   default hanno nutrizionista, capo nutrizionista e admin — la coach questi cambi li **legge**
+   *   (le servono per capire come sta andando) ma non li tocca, perché la grammatura di un piatto è
+   *   materia clinica. Di *default*: dall'11/8 la decisione è di Simone in pagina Permessi e non di
+   *   un elenco di ruoli scritto qui dentro, che si poteva solo cambiare con un rilascio;
    * - **la portata**: la solita, sulla cliente. Riusa `assertThreadAccess`, che è il posto dove
    *   quel controllo vive già.
    *
@@ -283,8 +286,10 @@ export class ChatService {
    * scoprirlo aprendo il menu.
    */
   async correggiCambioInChatPerStaff(user: AuthUser, clientId: string, input: CorrezioneCambio) {
-    if (!['nutritionist', 'head_nutritionist', 'admin'].includes(user.role)) {
-      throw new ForbiddenException('Solo la nutrizionista (o un admin) può verificare un cambio concordato in chat.');
+    if (!(await ruoloPuo(this.prisma, user.role, 'client_conversations', 'manage'))) {
+      throw new ForbiddenException(
+        'Il tuo ruolo non può verificare un cambio concordato in chat: serve la gestione su «Conversazioni della cliente» (pagina Permessi).',
+      );
     }
     const thread = await this.prisma.chatThread.findUnique({
       where: { clientId_counterpart: { clientId, counterpart: 'ai' as never } },

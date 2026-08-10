@@ -7,6 +7,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔑 **Le conversazioni della cliente si accendono dai Permessi** — «la visibilità e la
+  scrittura di questa parte devo poterla abilitare dai permessi». La card Conversazioni nella scheda
+  cliente stava dietro a `chat`, cioè lo **stesso** interruttore della pagina Chat dell'azienda:
+  spegnerla per un ruolo voleva dire togliere alla coach anche la possibilità di scrivere alle sue
+  clienti, quindi non si spegneva mai. E la *verifica* di un cambio concordato in chat (conferma,
+  correggi i grammi, annulla) non era un permesso affatto: era un elenco di ruoli scritto nel codice
+  — `['nutritionist', 'head_nutritionist', 'admin']` — in tre posti diversi (rotta, servizio,
+  frontend). Un interruttore che non accende niente è peggio di un interruttore assente, perché chi
+  lo tocca crede di aver deciso qualcosa.
+  Ora la chiave è **«Conversazioni della cliente»** (`client_conversations`), separata da Chat:
+  *vede* = legge i thread (Gaia compresa) e l'elenco dei cambi; *gestisce* = li verifica. Default:
+  coach e coordinatrice **leggono**, nutrizionista e capo nutrizionista **verificano** — la grammatura
+  di un piatto resta materia clinica — ma da qui in poi la decisione è in pagina Permessi, senza
+  rilascio. La risposta a «questo ruolo può?» vive in un posto solo (`permissions/permesso-di-ruolo.ts`,
+  usata anche dalla scheda cliente): due copie che divergono vorrebbero dire un permesso che in una
+  schermata conta e nell'altra no. Su errore del database si ricade sui **default**, mai su «sì»:
+  dietro questo cancello non c'è nient'altro. 8 test nuovi, di cui uno tiene fermo il divorzio da
+  `chat` sui decoratori delle rotte — è il tipo di regressione che nessun altro test vedrebbe, perché
+  «funziona» resterebbe vero per l'admin e per la nutrizionista.
+- `[Sviluppo]` 🧾 **«Con cosa si paga» non compariva in Parametri** — segnalato da Simone: admin, e la
+  voce non c'era. Il valore era nel database e l'etichetta nel codice, ma la pagina ordinava i riquadri
+  con un elenco fisso di gruppi e **scartava in silenzio** tutto quello che non era in elenco: il
+  gruppo «Contabilità» non c'era, quindi la tendina in Contabilità restava vuota e in Parametri non
+  c'era niente da correggere. Aggiunto il gruppo, e soprattutto tolto il difetto di classe: adesso
+  quell'elenco decide solo **dove** sta un riquadro, e un gruppo che non nomina finisce in coda invece
+  di sparire. Un parametro nuovo si vede sempre.
+- `[Sviluppo]` 🍝 **«Se nella tabella alternative ho la pasta integrale perché Gaia dice che non ce
+  l'ha?»** — quando la cliente chiedeva un cambio, Gaia scartava le alternative che *condividono
+  l'alimento base* con il piatto di partenza: una regola giusta per le sostituzioni automatiche (non
+  proporre riso al posto del riso) applicata dove non serviva, perché la pasta integrale al posto della
+  pasta è esattamente quello che una cliente chiede. Ora la provenienza di ogni candidato viaggia con
+  il candidato stesso (`gruppo` = gruppo di equivalenza approvato dal nutrizionista, `mappa` = mappa
+  generica): il filtro sull'alimento condiviso vale solo per la mappa generica, mentre quello che il
+  nutrizionista ha messo in un gruppo di equivalenza **è già una sua decisione** e Gaia non la
+  ridiscute. 206 test nelle suite delle sostituzioni verdi.
+
 - `[Sviluppo]` ⚖️ **La schermata Progressi si congelava dopo quattro mesi di pesate** — trovato
   cercando altri troncamenti come quello della pipeline. `ProgressService` leggeva le misure con
   `orderBy: 'asc', take: 120`: le 120 **più vecchie**. Le misure sono una al giorno, quindi dopo circa

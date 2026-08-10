@@ -2031,14 +2031,22 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
   const [salvo, setSalvo] = useState(false);
   const [esitoVerifica, setEsitoVerifica] = useState<string | null>(null);
 
-  const puoLeggere = can('chat');
+  /**
+   * `client_conversations` e non `chat`, ed è il senso della richiesta di Simone dell'11/8 («la
+   * visibilità e la scrittura di questa parte devo poterla abilitare dai permessi»): leggere le
+   * conversazioni di UNA cliente dalla sua scheda è una decisione diversa da entrare nella pagina
+   * Chat dell'azienda, e prima erano lo stesso interruttore.
+   */
+  const puoLeggere = can('client_conversations');
   /**
    * Chi può TOCCARE un cambio, che non è chi lo legge. La coach lo legge — le serve per capire come
    * sta andando — ma la grammatura di un piatto è materia clinica, e la decide chi se ne prende la
-   * responsabilità. Lo stesso elenco sta nel backend (`correggiCambioInChatPerStaff`): qui serve
-   * solo a non mostrare pulsanti che darebbero 403.
+   * responsabilità: perciò `manage` ce l'hanno per default solo nutrizionista, capo nutrizionista e
+   * admin. Prima l'elenco dei ruoli era scritto qui e nel backend; ora il permesso è uno e si
+   * cambia dai Permessi. Qui serve solo a non mostrare pulsanti che darebbero 403: il cancello vero
+   * resta `correggiCambioInChatPerStaff`.
    */
-  const puoVerificare = ['nutritionist', 'head_nutritionist', 'admin'].includes(me?.role ?? '');
+  const puoVerificare = can('client_conversations', 'manage');
 
   const caricaCambi = useCallback(() => {
     if (!clientId) return;

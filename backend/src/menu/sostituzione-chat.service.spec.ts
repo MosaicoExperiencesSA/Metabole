@@ -501,6 +501,48 @@ describe('SostituzioneChatService', () => {
   });
 
   /**
+   * IL GRUPPO DELLA NUTRIZIONISTA VINCE SULL'EURISTICA (segnalazione di Simone dell'11/8: «se nella
+   * tabella alternative ho la pasta integrale, perché Gaia alla cliente dice che non la ha?»).
+   *
+   * `condividonoAlimento` scarta i candidati che condividono una parola col cibo di partenza — nasce
+   * per la mappa automatica, dove «yogurt» → «yogurt senza lattosio» è una variante e non un
+   * sostituto. Ma un gruppo di equivalenza è costruito **intorno** a una parola comune: ogni membro
+   * di «Pasta integrale» contiene «pasta», quindi il filtro azzerava l'intero gruppo e Gaia girava la
+   * richiesta alla nutrizionista — che quel gruppo l'aveva scritto proprio per evitarlo.
+   */
+  it('un gruppo approvato vale anche se i membri condividono la parola: «pasta integrale» → «pasta di ceci»', async () => {
+    prisma.recipe.findMany.mockResolvedValue([
+      { id: 'r-pranzo', name: 'Insalata di farro', ingredients: [{ name: 'pasta integrale', qty: 80, unit: 'g' }] },
+    ]);
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      {
+        productId: null,
+        members: { items: ['pasta integrale', 'pasta di ceci', 'pasta di farro', 'pasta integrale di grano'] },
+      },
+    ]);
+    const apertura = await service.apri('client-1');
+    const esito = await service.avanza('client-1', apertura.stato as StatoSostituzione, 'la pasta integrale');
+
+    expect(esito.esito).toBe('in_corso');
+    expect(esito.inoltraA).toBeUndefined();
+    // «pasta integrale di grano» è la stessa cosa e resta fuori (lo fa già `candidati`);
+    // fra i due che restano vince l'ordine alfabetico, che è la regola dichiarata.
+    expect(esito.stato?.proposta?.a).toBe('pasta di ceci');
+  });
+
+  /**
+   * L'altra metà: sulla MAPPA il filtro deve restare. Se cadesse, Gaia tornerebbe a rispondere «metti
+   * 150 g di yogurt senza lattosio al posto di 150 g di yogurt greco», che è una presa in giro.
+   */
+  it('sulla mappa automatica il filtro «è la stessa cosa» resta attivo', async () => {
+    prisma.equivalenceGroup.findMany.mockResolvedValue([]);
+    const apertura = await service.apri('client-1');
+    const esito = await service.avanza('client-1', apertura.stato as StatoSostituzione, 'lo yogurt greco');
+    expect(esito.esito).toBe('rifiutata');
+    expect(esito.inoltraA).toBe('nutritionist');
+  });
+
+  /**
    * `EquivalenceGroup.productId` è il `Diet.id`, `null` = globale. Senza il filtro, un gruppo
    * scritto per la dieta vegana finiva addosso a una cliente onnivora.
    */

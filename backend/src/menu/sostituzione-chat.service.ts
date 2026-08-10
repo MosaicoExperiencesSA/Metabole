@@ -58,6 +58,18 @@ import {
 import { sostitutoSicuro } from './sostituzioni-sicure';
 import { classificaSpezia } from './spezie';
 
+/**
+ * Un possibile sostituto, con la sua provenienza.
+ *
+ * La `fonte` non è decorativa: decide quali filtri si applicano. Un candidato che viene da un gruppo
+ * di equivalenza **approvato** porta con sé il giudizio della nutrizionista, e non va passato al
+ * setaccio delle euristiche pensate per la mappa automatica. Vedi `scegliSostituto`.
+ */
+interface Candidato {
+  nome: string;
+  fonte: 'gruppo' | 'mappa';
+}
+
 /** Cosa deve fare la chat con la risposta del flusso. */
 export interface EsitoSostituzione {
   /** Il testo che Gaia scrive alla cliente. */
@@ -471,7 +483,9 @@ export class SostituzioneChatService {
     // un nome» e «la cliente sceglie un sostituto». Il nome che si usa poi è quello del catalogo,
     // non quello che ha scritto lei: è quello che finisce nel piatto e nella scheda.
     const ammissibili = await this.candidati(proposta.da, proposta.da, pasto.dietId);
-    const scelto = ammissibili.find((c) => termini.some((t) => combaciaAlimento(c, t)));
+    // Qui interessa solo il nome: la provenienza serve ai filtri di `scegliSostituto`, non a
+    // riconoscere quello che la cliente ha scritto.
+    const scelto = ammissibili.map((c) => c.nome).find((c) => termini.some((t) => combaciaAlimento(c, t)));
     if (!scelto) {
       // Nessuna corrispondenza e nessun verbo di proposta: quello che ha scritto non è un alimento,
       // è un'esitazione («boh», «mah»). Si torna indietro e ci pensa il «non ho capito» — mandare
@@ -728,17 +742,35 @@ export class SostituzioneChatService {
     // basta. Su questo non si media, e non è una questione di grammi.
     const ammessi: string[] = [];
     let scartatoPerAllergene = false;
-    for (const c of candidati) {
+    for (const { nome: c, fonte } of candidati) {
       const testo = normalizza(c);
       if ([...allergeni].some((k) => k && testo.includes(k))) {
         scartatoPerAllergene = true;
         continue;
       }
       if ([...altreEsclusioni].some((k) => k && testo.includes(k))) continue;
-      // Un sostituto che è una VARIANTE dello stesso cibo non è un sostituto: «yogurt greco» →
-      // «yogurt senza lattosio» risolve un'intolleranza, non risolve niente a chi lo yogurt non
-      // piace o non ce l'ha in casa. Vedi `condividonoAlimento`.
-      if (condividonoAlimento(nomeIngrediente, c)) continue;
+      /**
+       * IL FILTRO «È LA STESSA COSA» VALE SOLO PER LA MAPPA, NON PER I GRUPPI.
+       *
+       * Segnalazione di Simone dell'11/8: «se nella tabella alternative ho la pasta integrale, perché
+       * Gaia alla cliente dice che non la ha?». La nutrizionista aveva scritto il gruppo «Pasta
+       * integrale» con dentro pasta di ceci, di farro, di legumi, d'orzo — e Gaia rispondeva «non ho
+       * un'alternativa che mi convinca» girando la richiesta a lei.
+       *
+       * La causa: `condividonoAlimento` scarta i candidati che condividono una parola con il cibo di
+       * partenza. Nasce per la MAPPA delle sostituzioni sicure, dove «yogurt» → «yogurt senza
+       * lattosio» è una variante e non un sostituto. Ma un gruppo di equivalenza è costruito, per sua
+       * natura, intorno a una parola comune: **ogni** membro di «Pasta integrale» contiene «pasta»,
+       * quindi il filtro azzerava l'intero gruppo. Il commento di `condividonoAlimento` diceva che la
+       * soluzione era «un gruppo di equivalenza che il nutrizionista deve ancora scrivere»: lo ha
+       * scritto, e il codice lo buttava via.
+       *
+       * Un gruppo approvato è il **giudizio di una professionista** su cosa equivale a cosa. Vale più
+       * di un'euristica sulle parole condivise, e la variante identica è già stata scartata in
+       * `candidati` (`combaciaAlimento(i, nomeIngrediente)` toglie «pasta integrale di grano» quando si
+       * chiede di cambiare «pasta integrale»).
+       */
+      if (fonte === 'mappa' && condividonoAlimento(nomeIngrediente, c)) continue;
       // Già rifiutato a voce dalla cliente: riproporlo è il modo più rapido di perderne la
       // fiducia. Il confronto è per parola, come tutto il resto: «burro» esclude «burro salato».
       if (escludi.some((x) => x && (combaciaAlimento(c, x) || combaciaAlimento(x, c)))) continue;
@@ -769,7 +801,7 @@ export class SostituzioneChatService {
     nomeIngrediente: string,
     termine: string,
     dietId: string | null,
-  ): Promise<string[]> {
+  ): Promise<Candidato[]> {
     const gruppi = (await this.prisma.equivalenceGroup.findMany({
       where: { status: 'approved', OR: [{ productId: null }, ...(dietId ? [{ productId: dietId }] : [])] },
       orderBy: { name: 'asc' },
@@ -786,10 +818,10 @@ export class SostituzioneChatService {
         dalGruppo.push(i.trim());
       }
     }
-    if (dalGruppo.length) return [...new Set(dalGruppo)];
+    if (dalGruppo.length) return [...new Set(dalGruppo)].map((nome) => ({ nome, fonte: 'gruppo' as const }));
 
     const sicuro = sostitutoSicuro(nomeIngrediente, termine);
-    return sicuro ? [sicuro] : [];
+    return sicuro ? [{ nome: sicuro, fonte: 'mappa' as const }] : [];
   }
 
   // ---------- Applicazione ----------
