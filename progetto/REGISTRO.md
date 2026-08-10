@@ -7,6 +7,45 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📊 **Banca dati nutrizionale: Gaia non ricorda più, cita** — la risposta alla decisione
+  di Simone sul caso basmati: «può affermarlo ma deve prima verificare sulle banche dati e dare dati
+  corretti; magari poi li memorizza e arricchisce il suo sapere».
+  Ora esiste `nutrient_fact`: ~60 alimenti con indice glicemico e valori per 100 g, **la fonte su ogni
+  riga** (CREA per i valori, International Tables / Università di Sydney / Linus Pauling per gli IG) e
+  tre cose che una tabella nutrizionale normale non ha:
+  · il **range** e l'**affidabilità**, perché l'IG delle patate va da 73 a 111 secondo la fonte e
+    quello dell'anguria da 50 a 76: con affidabilità «debole» Gaia dice il range e **non** il numero,
+    perché «l'anguria ha IG 72» è una precisione che i dati non hanno — ed è la stessa falsa sicurezza
+    dell'errore di partenza;
+  · lo **stato** (crudo/bollito/secco): il CREA dà le lenticchie secche a 319 kcal e bollite a 109,
+    confonderli sbaglia le calorie di un fattore tre;
+  · **chi ha confermato** il valore. Gaia lo usa subito (aspettare l'approvazione vorrebbe dire che
+    nei primi tempi ogni domanda finisce comunque alla nutrizionista, cioè il problema di oggi), ma
+    finché nessuno l'ha guardato resta nella coda «da confermare». E una riga confermata **nessun
+    deploy la sovrascrive**: il seed la salta, come per i parametri.
+  **Il controllo che rende tutto questo verificabile:** i valori vanno davanti al modello, e la
+  guardia in uscita si capovolge — non più «hai detto un numero?» ma «hai detto un numero che non ti ho
+  dato?». Se nella risposta compare una cifra che non è nella scheda, la risposta non parte. È l'unica
+  differenza tecnica fra un modello che cita e un modello che ricorda. Restano vietati anche coi dati
+  davanti gli effetti fisiologici («sazia meno»: la sazietà non è in tabella) e i giudizi su cosa può
+  sostituire cosa, che li decidono i gruppi di equivalenza.
+  **Gli alimenti che non abbiamo** non si stimano e non si prendono «da uno simile»: la domanda va alla
+  nutrizionista e il termine finisce in `nutrient_lookup_miss` col conteggio delle volte. È la parte
+  «arricchisce il suo sapere» fatta senza inventare niente: «tempeh chiesto 40 volte» è la prossima
+  riga da scrivere, e non serve indovinarlo.
+  Un difetto trovato collegando i pezzi: il filtro in entrata mandava alla nutrizionista **tutto**
+  quello che conteneva «glicemi», quindi «il basmati ha un indice glicemico più basso dell'integrale?»
+  usciva dalla chat senza risposta — proprio la domanda per cui la tabella esiste. Ora «indice
+  glicemico» (proprietà di un alimento) e «glicemia» (valore clinico di una persona) sono due cose
+  diverse; se una frase contiene entrambe, vince la persona.
+  Nuova pagina **Valori nutrizionali** (permesso `nutrient_facts`): elenco filtrabile, coda «da
+  confermare», correzione in linea di IG, range, affidabilità e macro, e l'elenco degli alimenti
+  chiesti dalle clienti e mancanti. Correggere **è** confermare: se una nutrizionista mette le mani su
+  un numero, quel numero è suo. Le coach la vedono in sola lettura, per sapere su che dato Gaia ha
+  risposto a una loro cliente.
+  Migrazione validata su PostgreSQL 16. 50 test nuovi, fra cui la domanda del basmati rifatta per
+  intero: stessa frase del 1° agosto, risposta corretta col range e con la fonte.
+
 - `[Sviluppo]` 🤫 **Le segnalazioni risolte non si riaprono da sole** — due segnalazioni di Simone
   nello stesso giorno, che erano lo stesso difetto: «se il nutrizionista mette risolta perché
   continui a riaprirle? Se ha risolto basta fino a nuova segnalazione» e «il calo peso se è troppo

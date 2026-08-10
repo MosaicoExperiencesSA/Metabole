@@ -308,6 +308,8 @@ model Staff {
   clinicalNotes         ClinicalNote[]  @relation("NoteAuthor")
   approvedPayments      Payment[]       @relation("PaymentApprover")
   ownedLeads            CrmRecord[]     @relation("LeadOwner")
+  // I valori nutrizionali che ha confermato: vedi `model NutrientFact` (11/8).
+  verifiedNutrientFacts NutrientFact[]  @relation("NutrientFactVerifier")
   coachLeads            CrmRecord[]     @relation("LeadCoach")
   nutritionistLeads     CrmRecord[]     @relation("LeadNutritionist")
   assignedLeads         CrmRecord[]     @relation("LeadAssigner")
@@ -2210,4 +2212,100 @@ model DeletionRequest {
   @@index([status, scheduledFor])
   @@index([clientId])
   @@map("deletion_request")
+}
+
+/**
+ * BANCA DATI NUTRIZIONALE — i numeri che Gaia può dire, e da dove vengono.
+ *
+ * Nasce da un errore vero (11/8): a una cliente che chiedeva «posso sostituire il riso integrale con
+ * basmati?» Gaia ha risposto che il basmati «ha un indice glicemico più alto», che è **invertito**.
+ * L'aveva detto a memoria, con la sicurezza di chi cita una tabella. La decisione di Simone non è
+ * stata vietarle di parlare di numeri — «può affermarlo ma deve prima verificare e dare dati
+ * corretti» — quindi i numeri devono stare qui, con la fonte accanto, e Gaia può dire solo quello che
+ * legge in questa tabella.
+ *
+ * ## Tre cose che questa tabella ha e una tabella nutrizionale normale non ha
+ *
+ * 1. **Il range e l'affidabilità.** L'indice glicemico delle patate va da 73 a 111 secondo la fonte,
+ *    quello dell'anguria da 50 a 76. Dire «82» a una cliente è una precisione che i dati non hanno.
+ *    Quando `giMin`/`giMax` sono larghi o l'affidabilità è `debole`, si dice il range o non si dice
+ *    niente — mai il numero da solo.
+ * 2. **La fonte, per riga.** Non «fonte CREA» in fondo alla pagina: la riga del basmati sa di venire
+ *    dalle International Tables 2008, voce «quick cooking», che è un dato debole. Serve alla
+ *    nutrizionista per decidere se fidarsi, e serve a noi per sapere cosa correggere.
+ * 3. **Chi l'ha confermato.** Un valore entra e Gaia lo usa subito (decisione di Simone: aspettare
+ *    l'approvazione vorrebbe dire che nei primi tempi ogni domanda finisce comunque alla
+ *    nutrizionista, cioè il problema di oggi), ma finché `verifiedAt` è vuoto resta nella lista «da
+ *    confermare» della nutrizionista, che può correggerlo o approvarlo.
+ *
+ * Lo `state` non è un dettaglio: il CREA dà il riso **crudo** (334 kcal) e le lenticchie in due
+ * righe, secche (319) e bollite (109). Confondere i due stati sbaglia le calorie di un fattore tre.
+ */
+model NutrientFact {
+  id       String   @id @default(uuid())
+  /** Nome normalizzato in italiano, come lo scriverebbe una cliente: «riso basmati», non «Oryza sativa». */
+  name     String   @unique
+  /** Gli altri modi di chiamarlo: «basmati», «riso profumato». La ricerca guarda anche qui. */
+  synonyms String[] @default([])
+  category String?
+  /** crudo | bollito | cotto | secco — vedi il commento in testa. */
+  state    String?
+
+  // --- Indice glicemico (scala glucosio = 100) ---
+  glycemicIndex            Int?    @map("glycemic_index")
+  glycemicIndexMin         Int?    @map("glycemic_index_min")
+  glycemicIndexMax         Int?    @map("glycemic_index_max")
+  glycemicIndexSource      String? @map("glycemic_index_source")
+  /** solida | media | debole. `debole` = non si dice il numero, si dice il range. */
+  glycemicIndexReliability String? @map("glycemic_index_reliability")
+
+  // --- Valori per 100 g ---
+  kcal    Float?
+  protein Float?
+  carbs   Float?
+  sugars  Float?
+  fat     Float?
+  fiber   Float?
+
+  source    String?
+  sourceRef String? @map("source_ref")
+  note      String?
+
+  /** Chi l'ha confermato e quando. Vuoti = «da confermare», e Gaia lo usa comunque. */
+  verifiedById String?   @map("verified_by_id")
+  verifiedBy   Staff?    @relation("NutrientFactVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedAt   DateTime? @map("verified_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([verifiedAt])
+  @@map("nutrient_fact")
+}
+
+/**
+ * GLI ALIMENTI CHE LE CLIENTI HANNO CHIESTO E NON CI SONO.
+ *
+ * È la parte «e poi li memorizza e arricchisce il suo sapere» della richiesta di Simone, fatta nel
+ * modo che non inventa niente: quando una cliente chiede un alimento che non è in tabella, Gaia non
+ * risponde col numero — gira la domanda alla nutrizionista — e il termine finisce **qui**, con
+ * quante volte è stato chiesto.
+ *
+ * Così la tabella cresce guidata dalle domande vere invece che da un elenco deciso a tavolino: se
+ * «tempeh» è stato chiesto 40 volte, quella è la prossima riga da aggiungere, e lo sappiamo senza
+ * doverlo indovinare. Il conteggio è la ragione per cui questa tabella esiste: senza, sarebbe un log.
+ */
+model NutrientLookupMiss {
+  id        String   @id @default(uuid())
+  /** Il termine normalizzato, così «Basmati» e «basmati» sono la stessa riga. */
+  term      String   @unique
+  times     Int      @default(1)
+  firstAskedAt DateTime @default(now()) @map("first_asked_at")
+  lastAskedAt  DateTime @default(now()) @map("last_asked_at")
+  /** open | filled | ignored — `ignored` per i termini che non sono alimenti. */
+  status    String   @default("open")
+
+  @@index([status, times])
+  @@map("nutrient_lookup_miss")
 }

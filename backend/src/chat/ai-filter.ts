@@ -186,8 +186,23 @@ export function classifyMessage(text: string): FilterResult {
       return { kind: 'faq', faqKey: key, reply };
     }
   }
+  /**
+   * «INDICE GLICEMICO» NON È «GLICEMIA» (11/8, con la banca dati nutrizionale).
+   *
+   * `NUTRITIONIST_PATTERNS` manda alla nutrizionista tutto quello che contiene «glicemi», e per la
+   * glicemia di una persona è giusto: è un valore clinico suo. Ma l'**indice** glicemico è una
+   * proprietà di un alimento, che adesso sta nella nostra banca dati con la fonte accanto — e con la
+   * regola di prima una domanda come «il basmati ha un indice glicemico più basso dell'integrale?»
+   * usciva dalla chat senza risposta, cioè esattamente la domanda per cui abbiamo costruito la
+   * tabella.
+   *
+   * Quindi la frase «indice/carico glicemico» si toglie dal testo prima di cercare i temi clinici.
+   * «La mia glicemia è alta» resta clinica e va alla nutrizionista come sempre: cambia solo la
+   * domanda sul cibo.
+   */
+  const senzaIndiceGlicemico = normalized.replace(/(indice|carico)\s+glicemic\w*/g, ' ');
   for (const { pattern, reason } of NUTRITIONIST_PATTERNS) {
-    if (pattern.test(normalized)) {
+    if (pattern.test(senzaIndiceGlicemico)) {
       return { kind: 'route_nutritionist', reason, reply: ROUTE_NUTRITIONIST_REPLY };
     }
   }

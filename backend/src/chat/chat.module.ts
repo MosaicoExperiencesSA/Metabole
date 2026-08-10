@@ -4,6 +4,8 @@ import { AiModule } from '../ai/ai.module';
 // (è lui che scrive su `MenuDay`). `MenuModule` non importa `ChatModule`: nessun ciclo.
 import { MenuModule } from '../menu/menu.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+// La banca dati nutrizionale (11/8): Gaia legge i valori da lì prima di dire un numero.
+import { NutrientFactsModule } from '../nutrient-facts/nutrient-facts.module';
 import {
   MyThreadsController,
   StaffClientChatController,
@@ -14,7 +16,7 @@ import { ChatService } from './chat.service';
 import { ConversationSummaryService } from './conversation-summary.service';
 
 @Module({
-  imports: [NotificationsModule, AiModule, MenuModule],
+  imports: [NotificationsModule, AiModule, MenuModule, NutrientFactsModule],
   controllers: [
     MyThreadsController,
     StaffThreadsController,

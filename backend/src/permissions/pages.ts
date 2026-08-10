@@ -47,6 +47,10 @@ export const BACKOFFICE_PAGES = [
   // Richiesta di Simone dell'11/8: «la visibilità e la scrittura di questa parte devo poterla
   // abilitare dai permessi». `manage` = può confermare, correggere i grammi o annullare un cambio.
   'client_conversations',
+  // La banca dati nutrizionale (11/8): l'elenco dei valori che Gaia cita alle clienti, e la coda di
+  // quelli da confermare. È di chi risponde di cosa mangiano le clienti, quindi sta con la
+  // nutrizionista e non con l'amministrazione.
+  'nutrient_facts',
   'crm_lead_new',       // Inserimento lead (da crm_leads)
   'crm_import',         // Import liste (da crm_leads)
   'crm_pipeline',       // Pipeline (da crm_leads)
@@ -109,6 +113,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // grammatura di un piatto è materia clinica. Da qui in poi la decisione è di Simone in pagina
     // Permessi, non di un elenco di ruoli scritto nel codice (richiesta dell'11/8).
     client_conversations: { view: true },
+    // I valori nutrizionali in sola lettura: le serve per sapere su che dato Gaia ha risposto a una
+    // sua cliente. Correggerli no: è materia clinica.
+    nutrient_facts: { view: true },
     visits_agenda: { view: true },
     // Acquisti delle SUE clienti (11/8): il perimetro lo applica il servizio, non questa matrice —
     // qui c'è solo «può entrare nella pagina». Le azioni sui soldi restano admin.
@@ -153,6 +160,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     chat: { view: true, manage: true },
     // `manage` = verifica i cambi concordati in chat: conferma, corregge i grammi, annulla.
     client_conversations: { view: true, manage: true },
+    // I valori nutrizionali: li vede e li corregge. È il senso della pagina.
+    nutrient_facts: { view: true, manage: true },
     health_documents: { view: true, manage: true },
   },
   head_nutritionist: {
@@ -172,6 +181,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     visits_agenda: { view: true, manage: true },
     chat: { view: true, manage: true },
     client_conversations: { view: true, manage: true },
+    nutrient_facts: { view: true, manage: true },
     health_documents: { view: true, manage: true },
     assignments: { view: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista

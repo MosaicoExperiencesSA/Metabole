@@ -108,3 +108,37 @@ describe('Filtro AI (primo filtro deterministico, spec sez. 5)', () => {
     });
   });
 });
+
+/**
+ * «INDICE GLICEMICO» NON È «GLICEMIA» (11/8, con l'arrivo della banca dati nutrizionale).
+ *
+ * Prima ogni frase con «glicemi» dentro usciva dalla chat verso la nutrizionista. Giusto per la
+ * glicemia di una persona, sbagliato per l'indice glicemico di un alimento — che è un dato che ora
+ * abbiamo in tabella, e che era esattamente la domanda per cui la tabella esiste.
+ */
+describe('classifyMessage — indice glicemico contro glicemia', () => {
+  it('l\'indice glicemico di un alimento resta in chat: c\'è un dato da citare', () => {
+    for (const frase of [
+      'il riso basmati ha un indice glicemico più basso del riso integrale?',
+      'qual è l\'indice glicemico della pasta integrale?',
+      'il carico glicemico della banana è alto?',
+    ]) {
+      expect(classifyMessage(frase).kind).not.toBe('route_nutritionist');
+    }
+  });
+
+  it('la glicemia della PERSONA va alla nutrizionista, come sempre', () => {
+    for (const frase of [
+      'ho la glicemia alta, posso mangiare la pasta?',
+      'la mia glicemia a digiuno era 110',
+      'ho fatto le analisi e il colesterolo è alto',
+    ]) {
+      expect(classifyMessage(frase).kind).toBe('route_nutritionist');
+    }
+  });
+
+  it('e una frase che ha entrambe le cose resta clinica: vince la persona sull\'alimento', () => {
+    expect(classifyMessage('con la mia glicemia alta va bene un alimento a indice glicemico basso?').kind)
+      .toBe('route_nutritionist');
+  });
+});

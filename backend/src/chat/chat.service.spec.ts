@@ -6,6 +6,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { DataInizioChatService } from '../menu/data-inizio-chat.service';
 import { SostituzioneChatService } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatService } from './chat.service';
 
@@ -92,6 +93,18 @@ describe('ChatService', () => {
         { provide: AiService, useValue: { assistantEnabled: jest.fn().mockResolvedValue(false), assistantReply: jest.fn().mockResolvedValue(null) } },
         { provide: SostituzioneChatService, useValue: sostituzione },
         { provide: DataInizioChatService, useValue: dataInizio },
+        /**
+         * La banca dati nutrizionale (11/8). Di default risponde «nessun alimento trovato»: la
+         * grande maggioranza di questi test non parla di cibo, e un finto che trova sempre qualcosa
+         * cambierebbe il comportamento di tutta la suite.
+         */
+        {
+          provide: ValoriNutrizionaliService,
+          useValue: {
+            schedaPerRisposta: jest.fn().mockResolvedValue({ trovati: [], righe: [], numeriAmmessi: [], fonti: [], mancanti: [] }),
+            registraMancante: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
     service = moduleRef.get(ChatService);
@@ -653,6 +666,13 @@ describe('ChatService — quando Gaia inventa un dato nutrizionale', () => {
           },
         },
         { provide: DataInizioChatService, useValue: { apriDaTesto: jest.fn(), avanza: jest.fn() } },
+        {
+          provide: ValoriNutrizionaliService,
+          useValue: {
+            schedaPerRisposta: jest.fn().mockResolvedValue({ trovati: [], righe: [], numeriAmmessi: [], fonti: [], mancanti: [] }),
+            registraMancante: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
     return { service: moduleRef.get(ChatService), prisma, notifications };
@@ -689,5 +709,120 @@ describe('ChatService — quando Gaia inventa un dato nutrizionale', () => {
     expect(r.aiReply.meta.composer).toBe('ai');
     expect(r.aiReply.meta.routedTo).toBeUndefined();
     expect(prisma.message.create.mock.calls.find((c: any) => c[0].data.meta?.forwardedFrom === 'ai')).toBeUndefined();
+  });
+});
+
+/**
+ * LA DOMANDA DEL BASMATI, RIFATTA CON I DATI (11/8, seconda decisione).
+ *
+ * Il 1° agosto la cliente ha chiesto «posso sostituire il riso integrale con basmati?» e Gaia ha
+ * risposto a memoria, sbagliando il verso del confronto. Questo test rifà la stessa domanda con la
+ * banca dati collegata, e verifica le tre cose che devono succedere: i dati si cercano PRIMA di far
+ * parlare il modello, gli vengono messi davanti, e la risposta passa solo se contiene quei numeri.
+ */
+describe('ChatService — la domanda nutrizionale con la banca dati', () => {
+  const SCHEDA = {
+    trovati: [{ name: 'riso basmati' }, { name: 'riso integrale' }],
+    righe: [
+      "l'indice glicemico del/della riso basmati sta fra 57 e 67 [International Tables 2008]",
+      "l'indice glicemico del/della riso integrale sta fra 50 e 68 [International Tables 2021]",
+    ],
+    numeriAmmessi: [57, 67, 50, 68],
+    fonti: ['International Tables 2008', 'International Tables 2021'],
+    mancanti: [],
+  };
+
+  const monta = async (rispostaAi: string, scheda: unknown = SCHEDA) => {
+    const prisma: any = {
+      chatThread: {
+        upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'th-' + create.counterpart, ...create })),
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' }),
+        update: jest.fn(),
+      },
+      message: {
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'm1', ...data })),
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          assignedCoachId: 'staff-c', assignedNutritionistId: 'staff-n',
+          assignedCoach: { userId: 'coach-user', displayName: 'Marta' },
+          assignedNutritionist: { userId: 'nutri-user', displayName: 'Dr.ssa Bini' },
+        }),
+      },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-n' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ locale: 'it' }) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+    };
+    const ai = {
+      assistantEnabled: jest.fn().mockResolvedValue(true),
+      assistantReply: jest.fn().mockResolvedValue(rispostaAi),
+    };
+    const valori = {
+      schedaPerRisposta: jest.fn().mockResolvedValue(scheda),
+      registraMancante: jest.fn().mockResolvedValue(undefined),
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationsService, useValue: { notifyOncePerDay: jest.fn().mockResolvedValue(true), notify: jest.fn().mockResolvedValue(undefined) } },
+        { provide: AuditService, useValue: { log: jest.fn().mockResolvedValue(undefined) } },
+        { provide: AiService, useValue: ai },
+        { provide: SostituzioneChatService, useValue: { apri: jest.fn(), apriDaTesto: jest.fn(), avanza: jest.fn(), sostituzioniDiChat: jest.fn().mockResolvedValue([]), correggiCambioInChat: jest.fn() } },
+        { provide: DataInizioChatService, useValue: { apriDaTesto: jest.fn(), avanza: jest.fn() } },
+        { provide: ValoriNutrizionaliService, useValue: valori },
+      ],
+    }).compile();
+    return { service: moduleRef.get(ChatService), ai, valori, prisma };
+  };
+
+  /** Una domanda nutrizionale che NON è una richiesta di sostituzione (quella apre il dialogo guidato). */
+  const DOMANDA = 'il riso basmati ha un indice glicemico più basso del riso integrale?';
+
+  it('i dati si cercano prima, e finiscono davanti al modello', async () => {
+    const { service, ai, valori } = await monta('L\'indice glicemico del basmati sta fra 57 e 67, quello dell\'integrale fra 50 e 68: sono vicini.');
+    await service.postMessage(client, 't-ai', DOMANDA);
+    expect(valori.schedaPerRisposta).toHaveBeenCalledWith(DOMANDA);
+    // Terzo argomento: la scheda. Senza, il modello risponderebbe a memoria come il 1° agosto.
+    expect(ai.assistantReply).toHaveBeenCalledWith(DOMANDA, 'it', expect.objectContaining({ righe: expect.any(Array) }));
+  });
+
+  it('la risposta fondata arriva alla cliente, con le fonti tracciate nel meta', async () => {
+    const buona = 'Secondo le tabelle internazionali il basmati sta fra 57 e 67 e l\'integrale fra 50 e 68: sono vicini.';
+    const { service } = await monta(buona);
+    const r: any = await service.postMessage(client, 't-ai', DOMANDA);
+    expect(r.aiReply.body).toBe(buona);
+    expect(r.aiReply.meta.composer).toBe('ai');
+    expect(r.aiReply.meta.datiNutrizionali.fonti.length).toBe(2);
+  });
+
+  it('se il modello aggiunge un numero suo, la risposta NON parte', async () => {
+    // 58 non è fra i numeri della scheda: è tornato a ricordare invece di citare.
+    const { service } = await monta('L\'indice glicemico del basmati è 58, più basso dell\'integrale.');
+    const r: any = await service.postMessage(client, 't-ai', DOMANDA);
+    expect(r.aiReply.body).toContain('nutrizionista');
+    expect(r.aiReply.meta.composer).toBe('guardia');
+    expect(r.aiReply.meta.aiScartata.motivo).toContain('non presenti nei dati forniti');
+  });
+
+  it('alimento che non abbiamo: si registra fra i mancanti e la domanda va alla nutrizionista', async () => {
+    const vuota = { trovati: [], righe: [], numeriAmmessi: [], fonti: [], mancanti: [] };
+    const { service, valori, ai } = await monta('Il tempeh ha circa 190 kcal.', vuota);
+    const r: any = await service.postMessage(client, 't-ai', 'quante calorie ha il tempeh?');
+    // È così che la tabella cresce: guidata dalle domande vere.
+    expect(valori.registraMancante).toHaveBeenCalled();
+    // Senza dati il modello NON riceve la scheda, e la sua risposta con numeri viene fermata.
+    expect(ai.assistantReply).toHaveBeenCalledWith('quante calorie ha il tempeh?', 'it', null);
+    expect(r.aiReply.meta.composer).toBe('guardia');
+    expect(r.aiReply.meta.routedTo).toBe('nutritionist');
+  });
+
+  it('una domanda che non è nutrizionale non va a leggere la banca dati', async () => {
+    const { service, valori } = await monta('Il menu di domani si apre stasera.');
+    await service.postMessage(client, 't-ai', 'quando arriva il menu di domani?');
+    expect(valori.schedaPerRisposta).not.toHaveBeenCalled();
   });
 });

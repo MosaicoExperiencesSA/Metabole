@@ -22,9 +22,11 @@ import {
 } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { classifyMessage } from './ai-filter';
 import { RISPOSTA_FERMATA, verificaRispostaGaia } from './guardia-risposta-ai';
+import { domandaNutrizionale, terminiAlimentoCandidati } from './domanda-nutrizionale';
 
 type Counterpart = 'ai' | 'coach' | 'nutritionist';
 
@@ -42,6 +44,8 @@ export class ChatService {
     private readonly ai: AiService,
     private readonly sostituzione: SostituzioneChatService,
     private readonly dataInizio: DataInizioChatService,
+    /** La banca dati nutrizionale: i numeri che Gaia può dire vengono da qui (11/8). */
+    private readonly valori: ValoriNutrizionaliService,
   ) {}
 
   // ---------- Thread ----------
@@ -438,9 +442,27 @@ export class ChatService {
     let fermataDallaGuardia = false;
     if (!senzaAi && (result.kind === 'faq' || result.kind === 'route_coach') && (await this.ai.assistantEnabled())) {
       const u = await this.prisma.user.findUnique({ where: { id: clientId }, select: { locale: true } });
-      const aiText = await this.ai.assistantReply(body, u?.locale === 'en' ? 'en' : 'it');
+      /**
+       * I DATI PRIMA DELLA RISPOSTA (11/8, seconda decisione di Simone sullo stesso caso).
+       *
+       * Se il messaggio è una domanda su un alimento, si cercano i valori nella nostra banca dati
+       * **prima** di far parlare il modello. Trovati: si mettono davanti a lui e la risposta può
+       * contenere quei numeri e nessun altro. Non trovati: il modello risponde senza numeri e la
+       * guardia lo tiene onesto, mentre l'alimento chiesto finisce nella lista dei mancanti — è così
+       * che la tabella cresce guidata dalle domande vere.
+       */
+      let scheda: { righe: string[]; fonti: string[]; numeriAmmessi: number[] } | null = null;
+      if (domandaNutrizionale(body)) {
+        scheda = await this.valori.schedaPerRisposta(body).catch(() => null);
+        if (scheda && scheda.righe.length === 0) {
+          for (const t of terminiAlimentoCandidati(body)) await this.valori.registraMancante(t);
+          scheda = null;
+        }
+        if (scheda) meta.datiNutrizionali = { fonti: scheda.fonti, righe: scheda.righe.length };
+      }
+      const aiText = await this.ai.assistantReply(body, u?.locale === 'en' ? 'en' : 'it', scheda);
       if (aiText) {
-        const guardia = verificaRispostaGaia(aiText);
+        const guardia = verificaRispostaGaia(aiText, scheda ? { numeriAmmessi: scheda.numeriAmmessi } : null);
         if (guardia.ok) {
           replyText = aiText;
           aiAnswered = true;

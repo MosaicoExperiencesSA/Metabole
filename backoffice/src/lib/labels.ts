@@ -33,6 +33,7 @@ export const PAGE_LABEL: Record<string, string> = {
   visits_agenda: 'Agenda visite',
   chat: 'Chat',
   client_conversations: 'Conversazioni della cliente',
+  nutrient_facts: 'Valori nutrizionali',
   health_documents: 'Documenti sanitari',
   crm_leads: 'Gestione lead',
   lead_acceptance: 'Lead da accettare',

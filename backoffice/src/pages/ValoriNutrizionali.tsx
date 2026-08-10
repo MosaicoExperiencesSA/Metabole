@@ -1,0 +1,405 @@
+import { useEffect, useState } from 'react';
+import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, stileScorrevole, type Colonna } from '../components/tabella';
+
+/**
+ * VALORI NUTRIZIONALI — la tabella da cui Gaia prende i numeri, e l'unico posto dove si correggono.
+ *
+ * Nasce dall'errore dell'11/8: a una cliente che chiedeva del riso basmati Gaia ha risposto a memoria,
+ * invertendo l'indice glicemico. Da allora i numeri che dice vengono da qui, con la fonte accanto —
+ * e questa pagina esiste perché **le fonti pubbliche non sono vangelo**. L'indice glicemico delle
+ * patate va da 73 a 111 secondo la tabella che si guarda: chi risponde di cosa mangiano le clienti
+ * deve poter dire «questo numero non va bene».
+ *
+ * Le tre cose che si fanno qui, in ordine di importanza:
+ *  1. **la coda «da confermare»** — i valori che nessuno ha ancora guardato. Gaia li usa già (aspettare
+ *     l'approvazione vorrebbe dire che nei primi tempi ogni domanda finisce comunque alla
+ *     nutrizionista, cioè il problema che stiamo risolvendo), ma finché sono lì sono nostri e non suoi;
+ *  2. **la correzione** di un valore. Correggere è confermare: se ci mette le mani, quel numero è suo,
+ *     e nessun deploy lo sovrascrive più;
+ *  3. **gli alimenti chiesti e mancanti**, col numero di volte. È il modo in cui la tabella cresce
+ *     guidata dalle domande vere invece che da un elenco deciso a tavolino.
+ *
+ * L'**affidabilità** non è un commento: decide come Gaia dice il dato. Con `debole` non dice il
+ * numero, dice il range — perché «l'anguria ha IG 72» è una precisione che i dati non hanno.
+ */
+
+interface Valore {
+  id: string;
+  name: string;
+  synonyms: string[];
+  category: string | null;
+  state: string | null;
+  glycemicIndex: number | null;
+  glycemicIndexMin: number | null;
+  glycemicIndexMax: number | null;
+  glycemicIndexSource: string | null;
+  glycemicIndexReliability: string | null;
+  kcal: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+  source: string | null;
+  note: string | null;
+  verifiedAt: string | null;
+  verifiedBy: { displayName: string } | null;
+}
+
+interface Mancante {
+  id: string;
+  term: string;
+  times: number;
+  lastAskedAt: string;
+}
+
+const AFFIDABILITA: Record<string, { etichetta: string; chip: string; spiega: string }> = {
+  solida: { etichetta: 'Solida', chip: '', spiega: 'Più fonti concordano: Gaia dice il numero.' },
+  media: { etichetta: 'Media', chip: 'amber', spiega: 'Una fonte autorevole o un range noto: Gaia dice il numero se il range è stretto, altrimenti il range.' },
+  debole: { etichetta: 'Debole', chip: 'red', spiega: 'Un solo dato, un surrogato o fonti in disaccordo: Gaia dice SOLO il range, mai il numero.' },
+};
+
+const numero = (v: number | null) => (v === null || v === undefined ? '—' : String(v).replace('.', ','));
+
+export function ValoriNutrizionali() {
+  const { can } = useAuth();
+  const puoModificare = can('nutrient_facts', 'manage');
+  const [valori, setValori] = useState<Valore[]>([]);
+  const [mancanti, setMancanti] = useState<Mancante[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [soloDaConfermare, setSoloDaConfermare] = useState(false);
+  const [modifico, setModifico] = useState<string | null>(null);
+  const [bozza, setBozza] = useState<Record<string, string>>({});
+  const [salvo, setSalvo] = useState(false);
+
+  async function carica() {
+    setLoading(true);
+    try {
+      const [v, m] = await Promise.all([
+        api<Valore[]>(`/nutrient-facts${soloDaConfermare ? '?daConfermare=1' : ''}`),
+        api<Mancante[]>('/nutrient-facts/mancanti').catch(() => [] as Mancante[]),
+      ]);
+      setValori(v);
+      setMancanti(m);
+      setError(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setError('Il tuo ruolo non può vedere i valori nutrizionali.');
+      else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { void carica(); }, [soloDaConfermare]);
+
+  function apriModifica(v: Valore) {
+    setModifico(v.id);
+    setBozza({
+      glycemicIndex: v.glycemicIndex?.toString() ?? '',
+      glycemicIndexMin: v.glycemicIndexMin?.toString() ?? '',
+      glycemicIndexMax: v.glycemicIndexMax?.toString() ?? '',
+      glycemicIndexReliability: v.glycemicIndexReliability ?? '',
+      kcal: v.kcal?.toString() ?? '',
+      protein: v.protein?.toString() ?? '',
+      carbs: v.carbs?.toString() ?? '',
+      fat: v.fat?.toString() ?? '',
+      fiber: v.fiber?.toString() ?? '',
+      state: v.state ?? '',
+      note: v.note ?? '',
+    });
+  }
+
+  /** I numeri arrivano come testo dai campi: virgola o punto, e vuoto vuol dire «nessun valore». */
+  const num = (s: string): number | null | undefined => {
+    const t = (s ?? '').trim().replace(',', '.');
+    if (t === '') return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  async function salva(v: Valore) {
+    const corpo: Record<string, unknown> = { state: bozza.state.trim() || null, note: bozza.note.trim() || null, glycemicIndexReliability: bozza.glycemicIndexReliability || null };
+    for (const campo of ['glycemicIndex', 'glycemicIndexMin', 'glycemicIndexMax', 'kcal', 'protein', 'carbs', 'fat', 'fiber']) {
+      const n = num(bozza[campo]);
+      if (n === undefined) { setError(`«${campo}» non è un numero valido.`); return; }
+      corpo[campo] = n;
+    }
+    setSalvo(true);
+    setError(null);
+    try {
+      await api(`/nutrient-facts/${v.id}`, { method: 'PATCH', body: JSON.stringify(corpo) });
+      setNotice(`«${v.name}» aggiornato e confermato a tuo nome: da adesso nessun aggiornamento del sistema lo sovrascrive.`);
+      setModifico(null);
+      await carica();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Salvataggio non riuscito.');
+    } finally {
+      setSalvo(false);
+    }
+  }
+
+  async function conferma(v: Valore) {
+    if (!confirm(`Confermare i valori di «${v.name}» così come sono?`)) return;
+    try {
+      await api(`/nutrient-facts/${v.id}/conferma`, { method: 'POST' });
+      setNotice(`«${v.name}» confermato.`);
+      await carica();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
+  async function ignoraMancante(m: Mancante) {
+    if (!confirm(`Togliere «${m.term}» dalla lista? Usalo quando non è il nome di un alimento.`)) return;
+    try {
+      await api(`/nutrient-facts/mancanti/${m.id}`, { method: 'PATCH' });
+      setMancanti((xs) => xs.filter((x) => x.id !== m.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
+  const COLONNE: Colonna<Valore>[] = [
+    { chiave: 'name', titolo: 'Alimento', valore: (v) => v.name, filtro: 'testo' },
+    { chiave: 'category', titolo: 'Categoria', valore: (v) => v.category, filtro: 'scelta', etichettaTutti: 'Tutte' },
+    { chiave: 'state', titolo: 'Stato', valore: (v) => v.state, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'ig', titolo: 'Indice glicemico', valore: (v) => v.glycemicIndex },
+    {
+      chiave: 'affidabilita', titolo: 'Affidabilità',
+      valore: (v) => (v.glycemicIndexReliability ? AFFIDABILITA[v.glycemicIndexReliability]?.etichetta ?? v.glycemicIndexReliability : null),
+      filtro: 'scelta', etichettaTutti: 'Tutte', ordineScelte: ['Solida', 'Media', 'Debole'],
+    },
+    { chiave: 'kcal', titolo: 'kcal/100 g', valore: (v) => v.kcal },
+    { chiave: 'macro', titolo: 'P / C / G / F', nonOrdinabile: true },
+    {
+      chiave: 'stato', titolo: 'Confermato',
+      valore: (v) => (v.verifiedAt ? `Sì — ${v.verifiedBy?.displayName ?? 'staff'}` : 'Da confermare'),
+      filtro: 'scelta', etichettaTutti: 'Tutti',
+    },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' }, nonOrdinabile: true },
+  ];
+
+  const t = useTabella(valori, COLONNE, { ordineIniziale: { chiave: 'name' }, testaFissa: true });
+  const daConfermare = valori.filter((v) => !v.verifiedAt).length;
+
+  if (loading) return <Spinner />;
+
+  return (
+    <>
+      {error && <Banner kind="err">{error}</Banner>}
+      {notice && <Banner kind="ok">{notice}</Banner>}
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
+          Questi sono i valori che <b>Gaia cita</b> alle clienti: non dice nessun numero che non sia
+          scritto qui. I dati arrivano dal CREA (valori per 100 g) e dalle tabelle internazionali
+          dell'indice glicemico, con la fonte su ogni riga.
+          {' '}
+          L'<b>affidabilità</b> decide come li dice: con «debole» non dice il numero ma il range,
+          perché su alcuni alimenti le fonti non concordano — l'indice glicemico delle patate va da 73
+          a 111 secondo la tabella che si guarda.
+          {' '}
+          Quando correggi un valore, quel valore diventa tuo: <b>nessun aggiornamento del sistema lo
+          sovrascrive più</b>.
+        </p>
+      </div>
+
+      {mancanti.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginTop: 0, fontSize: 16 }}>
+            Alimenti che le clienti hanno chiesto e non abbiamo ({mancanti.length})
+          </h3>
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+            Quando un'alimento non è in tabella, Gaia non inventa: gira la domanda a te e lo scrive
+            qui. I più chiesti sono i primi da aggiungere.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {mancanti.slice(0, 40).map((m) => (
+              <span key={m.id} className="chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <b>{m.term}</b>
+                <span className="muted">×{m.times}</span>
+                {puoModificare && (
+                  <button
+                    className="btn ghost sm"
+                    style={{ padding: '0 4px' }}
+                    title="Non è un alimento: togli dalla lista"
+                    onClick={() => void ignoraMancante(m)}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+        <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            className={soloDaConfermare ? 'btn' : 'btn ghost'}
+            onClick={() => setSoloDaConfermare((s) => !s)}
+            title="I valori che nessuno ha ancora guardato: Gaia li usa già, ma non li ha confermati nessuno"
+          >
+            <i className="ti ti-checkup-list" /> Da confermare{daConfermare > 0 ? ` (${daConfermare})` : ''}
+          </button>
+          <input
+            className="input"
+            style={{ maxWidth: 240 }}
+            placeholder="Cerca un alimento…"
+            value={t.ricerca}
+            onChange={(e) => t.setRicerca(e.target.value)}
+          />
+        </div>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="alimenti" />
+      </div>
+
+      <div className="card" style={{ padding: 0, ...stileScorrevole(t.conteggio.mostrate) }}>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">Nessun alimento per questi filtri.</div>
+        ) : (
+          <table className="grid">
+            <thead>
+              {t.intestazione()}
+              {t.rigaFiltri()}
+            </thead>
+            <tbody>
+              {t.pagina.map((v) => {
+                const aff = v.glycemicIndexReliability ? AFFIDABILITA[v.glycemicIndexReliability] : null;
+                const range = v.glycemicIndexMin !== null && v.glycemicIndexMax !== null
+                  ? `${v.glycemicIndexMin}–${v.glycemicIndexMax}`
+                  : null;
+                return (
+                  <>
+                    <tr key={v.id} style={!v.verifiedAt ? { background: 'rgba(255,193,7,0.06)' } : undefined}>
+                      <td>
+                        <b>{v.name}</b>
+                        {v.synonyms.length > 0 && (
+                          <div className="muted" style={{ fontSize: 12 }}>anche: {v.synonyms.join(', ')}</div>
+                        )}
+                      </td>
+                      <td>{v.category ?? '—'}</td>
+                      <td>{v.state ?? '—'}</td>
+                      <td>
+                        {v.glycemicIndex !== null ? numero(v.glycemicIndex) : '—'}
+                        {range && <span className="muted" style={{ fontSize: 12 }}> ({range})</span>}
+                      </td>
+                      <td>
+                        {aff ? <span className={`chip ${aff.chip}`} title={aff.spiega}>{aff.etichetta}</span> : '—'}
+                      </td>
+                      <td>{numero(v.kcal)}</td>
+                      <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                        {numero(v.protein)} / {numero(v.carbs)} / {numero(v.fat)} / {numero(v.fiber)}
+                      </td>
+                      <td>
+                        {v.verifiedAt ? (
+                          <span title={`Confermato il ${new Date(v.verifiedAt).toLocaleDateString('it-IT')}`}>
+                            {v.verifiedBy?.displayName ?? 'staff'}
+                          </span>
+                        ) : (
+                          <span className="chip amber">Da confermare</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {puoModificare && (
+                          <>
+                            <button className="btn ghost sm" onClick={() => apriModifica(v)} title="Correggi i valori">
+                              <i className="ti ti-pencil" />
+                            </button>
+                            {!v.verifiedAt && (
+                              <button className="btn ghost sm" onClick={() => void conferma(v)} title="I valori vanno bene così">
+                                <i className="ti ti-check" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                    {modifico === v.id && (
+                      <tr key={`${v.id}-mod`}>
+                        <td colSpan={COLONNE.length} style={{ background: 'var(--chip)' }}>
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                            {[
+                              ['glycemicIndex', 'IG'],
+                              ['glycemicIndexMin', 'IG min'],
+                              ['glycemicIndexMax', 'IG max'],
+                              ['kcal', 'kcal'],
+                              ['protein', 'Proteine'],
+                              ['carbs', 'Carboidrati'],
+                              ['fat', 'Grassi'],
+                              ['fiber', 'Fibre'],
+                            ].map(([campo, etichetta]) => (
+                              <label key={campo} style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                {etichetta}
+                                <input
+                                  className="input sm"
+                                  style={{ width: 84 }}
+                                  inputMode="decimal"
+                                  value={bozza[campo] ?? ''}
+                                  onChange={(e) => setBozza((b) => ({ ...b, [campo]: e.target.value }))}
+                                />
+                              </label>
+                            ))}
+                            <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              Affidabilità
+                              <select
+                                className="select sm"
+                                value={bozza.glycemicIndexReliability ?? ''}
+                                onChange={(e) => setBozza((b) => ({ ...b, glycemicIndexReliability: e.target.value }))}
+                                title="Con «debole» Gaia dice il range e non il numero"
+                              >
+                                <option value="">—</option>
+                                <option value="solida">Solida</option>
+                                <option value="media">Media</option>
+                                <option value="debole">Debole</option>
+                              </select>
+                            </label>
+                            <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              Stato
+                              <input
+                                className="input sm"
+                                style={{ width: 110 }}
+                                placeholder="crudo / bollito"
+                                value={bozza.state ?? ''}
+                                onChange={(e) => setBozza((b) => ({ ...b, state: e.target.value }))}
+                              />
+                            </label>
+                            <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 220 }}>
+                              Nota (la legge Gaia insieme al valore)
+                              <input
+                                className="input sm"
+                                value={bozza.note ?? ''}
+                                onChange={(e) => setBozza((b) => ({ ...b, note: e.target.value }))}
+                              />
+                            </label>
+                            <div className="row" style={{ gap: 6 }}>
+                              <button className="btn" disabled={salvo} onClick={() => void salva(v)}>
+                                <i className="ti ti-device-floppy" /> Salva e conferma
+                              </button>
+                              <button className="btn ghost" disabled={salvo} onClick={() => setModifico(null)}>Annulla</button>
+                            </div>
+                          </div>
+                          {v.glycemicIndexSource && (
+                            <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+                              Fonte dell'indice glicemico: {v.glycemicIndexSource}
+                              {v.source ? ` · valori per 100 g: ${v.source}` : ''}
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <Pager {...t.pager} />
+    </>
+  );
+}

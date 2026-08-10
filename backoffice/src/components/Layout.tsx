@@ -87,6 +87,9 @@ export const NAV: NavSection[] = [
       { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
       { key: 'allergens', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
       { key: 'equivalence_groups', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
+      // Accanto ai gruppi di equivalenza di proposito: sono le due tabelle che decidono cosa Gaia
+      // può dire a una cliente su un alimento (11/8).
+      { key: 'nutrient_facts', label: 'Valori nutrizionali', to: '/valori-nutrizionali', icon: 'ti-database-search' },
       { key: 'engine_protocols', label: 'Protocolli motore', to: '/protocolli', icon: 'ti-cpu' },
       { key: 'engine_rules', label: 'Regole motore', to: '/regole-motore', icon: 'ti-adjustments-cog' },
     ],

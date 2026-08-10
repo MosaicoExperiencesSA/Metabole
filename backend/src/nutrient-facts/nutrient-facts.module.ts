@@ -1,0 +1,14 @@
+import { Module } from '@nestjs/common';
+import { NutrientFactsController } from './nutrient-facts.controller';
+import { ValoriNutrizionaliService } from './valori-nutrizionali.service';
+
+/**
+ * La banca dati nutrizionale (11/8). La usano la chat — per far **citare** a Gaia dei valori invece di
+ * ricordarli — e la nutrizionista dal backoffice, che è l'unica che può correggerli.
+ */
+@Module({
+  controllers: [NutrientFactsController],
+  providers: [ValoriNutrizionaliService],
+  exports: [ValoriNutrizionaliService],
+})
+export class NutrientFactsModule {}

@@ -78,8 +78,20 @@ export class AiService {
     return (await this.configParams.getString('ai_assistant_enabled', 'false')) === 'true';
   }
 
-  /** Risposta conversazionale dell'assistente. Ritorna null se non disponibile. */
-  async assistantReply(userMessage: string, locale: 'it' | 'en'): Promise<string | null> {
+  /**
+   * Risposta conversazionale dell'assistente. Ritorna null se non disponibile.
+   *
+   * `dati` sono i valori della banca dati nutrizionale che riguardano gli alimenti citati nel
+   * messaggio (vedi `nutrient-facts/valori-nutrizionali.service.ts`). Quando ci sono, il divieto di
+   * affermare numeri diventa il suo contrario: **usa questi e nessun altro**. È la richiesta di
+   * Simone dell'11/8 — «può affermarlo ma deve prima verificare e dare dati corretti» — e chi
+   * controlla che sia rispettata non è il prompt ma `chat/guardia-risposta-ai.ts`.
+   */
+  async assistantReply(
+    userMessage: string,
+    locale: 'it' | 'en',
+    dati?: { righe: string[]; fonti: string[] } | null,
+  ): Promise<string | null> {
     const key = this.config.get<string>('AI_API_KEY');
     if (!key) return null;
     const model = this.config.get<string>('AI_MODEL') ?? 'claude-haiku-4-5';
@@ -100,6 +112,25 @@ export class AiService {
       `che la domanda la giri a lei. Dire «non lo so, te lo faccio dire da chi lo sa» è una risposta giusta. ` +
       `Non inventare dati personali della persona (peso, misure, piano). Rispondi SOLO con il messaggio, senza premesse.`;
 
+    /**
+     * MODALITÀ FONDATA: i dati arrivano dalla nostra banca dati, con la fonte. Le istruzioni si
+     * capovolgono — non «non dire numeri» ma «di' SOLO questi numeri» — e i vincoli che restano sono
+     * quelli che i dati non coprono: la sazietà non è in tabella, e cosa può sostituire cosa lo
+     * decide la nutrizionista.
+     */
+    const systemFondato =
+      dati && dati.righe.length
+        ? `${system}\n\n` +
+          `DATI VERIFICATI dal nostro archivio nutrizionale, con la fonte fra parentesi quadre:\n` +
+          dati.righe.map((r) => `- ${r}`).join('\n') +
+          `\n\nUsa SOLO questi numeri: non aggiungerne altri, non arrotondare, non stimare, non ricordare valori a memoria. ` +
+          `Se un range è indicato (es. «fra 50 e 76»), dillo come range e spiega in una frase che dipende da varietà e cottura: ` +
+          `non scegliere un numero al centro. Puoi confrontare fra loro i valori qui sopra. ` +
+          `NON dire che un alimento sazia più o meno di un altro, né che si assorbe più lentamente: non lo sappiamo. ` +
+          `NON dire se un alimento può sostituire un altro: quella decisione è della nutrizionista. ` +
+          `Puoi citare la fonte in modo naturale («secondo le tabelle internazionali»).`
+        : system;
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 9_000);
     try {
@@ -113,7 +144,7 @@ export class AiService {
         body: JSON.stringify({
           model,
           max_tokens: 300,
-          system,
+          system: systemFondato,
           messages: [{ role: 'user', content: userMessage }],
         }),
         signal: controller.signal,

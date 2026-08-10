@@ -11,6 +11,7 @@ import { DEFAULT_PDF_TEMPLATES } from '../src/pdf/pdf.defaults';
 import { SUGGESTED_PRESETS } from '../src/engine-rules/engine-rules.presets';
 import { MARKETING_EMAIL_TEMPLATES } from './seed_email_marketing';
 import { seedKetoCatalog } from './seed_keto';
+import { seedValoriNutrizionali } from './seed-valori-nutrizionali';
 import { deriveKey, encryptBuffer } from '../src/health-area/crypto.util';
 
 const prisma = new PrismaClient();
@@ -1270,6 +1271,15 @@ async function main(): Promise<void> {
   }
 
   await ensureAdminFromEnv();
+  // Banca dati nutrizionale (11/8): i valori che Gaia legge prima di dire un numero. Non sovrascrive
+  // le righe che la nutrizionista ha confermato — vedi `seed-valori-nutrizionali.ts`.
+  const nutrienti = await seedValoriNutrizionali(prisma);
+  if (nutrienti.creati || nutrienti.aggiornati) {
+    console.log(
+      `Seed: valori nutrizionali — ${nutrienti.creati} creati, ${nutrienti.aggiornati} aggiornati, ` +
+        `${nutrienti.saltati} intatti (confermati dalla nutrizionista).`,
+    );
+  }
   await seedPipelineStages();
   await retireRientroPlan();              // «Menu di rientro (8 giorni)»: ritirato, ora è incluso
   await seedMaintenancePlan();            // €49/mese, abbonamento O mese singolo
