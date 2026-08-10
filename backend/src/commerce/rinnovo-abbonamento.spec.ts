@@ -206,3 +206,57 @@ describe('handleInvoicePaid — la provvigione non può sparire', () => {
     );
   });
 });
+
+/**
+ * UN PAGAMENTO PER FATTURA, ANCHE SE I WEBHOOK ARRIVANO INSIEME (12/8).
+ *
+ * L'idempotenza era `findFirst` + `create`: fra le due chiamate non c'è niente che tenga, e Stripe i
+ * webhook non li manda in fila indiana. Due copie della stessa fattura passavano entrambe il
+ * controllo e scrivevano due pagamenti — quindi **due provvigioni**, che si scoprono solo confrontando
+ * i compensi con gli incassi. Adesso la garanzia è un indice unico sul database
+ * (`payment_psp_ref_renewal_key`) e il rifiuto del vincolo È la risposta «c'era già».
+ */
+describe('handleInvoicePaid — idempotenza garantita dal database', () => {
+  it('se il vincolo rifiuta la scrittura, il rinnovo si chiude come già fatto e NON rifà niente', async () => {
+    const h = harness();
+    const service = await build(h);
+    // La strada normale: l'abbonamento si trova al primo colpo dal suo id di Stripe.
+    h.prisma.subscription.findUnique
+      .mockResolvedValueOnce({ id: 'nostro-sub-1', clientId: 'cli-1', stripeSubscriptionId: 'sub_STRIPE_1' })
+      .mockResolvedValue({
+        id: 'nostro-sub-1', clientId: 'cli-1', endDate: new Date('2026-08-08T00:00:00.000Z'),
+        plan: { name: 'Mantenimento' }, client: { email: 'giulia@test.it', locale: 'it' },
+      });
+    // La lettura veloce non vede niente (è la corsa fra due webhook), il vincolo sì.
+    h.prisma.payment.findFirst.mockResolvedValue(null);
+    h.prisma.payment.create.mockRejectedValue(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }));
+
+    const res = await service.handleInvoicePaid({ type: 'invoice.paid', data: { object: fattura() } } as never);
+
+    expect(res).toEqual({ handled: true, idempotent: true });
+    // Il lavoro a valle è già stato fatto dall'altra copia: rifarlo è esattamente il danno.
+    expect(h.finance.generateCommissions).not.toHaveBeenCalled();
+    expect(h.finance.recordIncome).not.toHaveBeenCalled();
+    expect(h.mail.sendPaymentReceipt).not.toHaveBeenCalled();
+    expect(h.prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it('un errore DIVERSO risale: non si scambia un guasto per un duplicato', async () => {
+    const h = harness();
+    const service = await build(h);
+    // La strada normale: l'abbonamento si trova al primo colpo dal suo id di Stripe.
+    h.prisma.subscription.findUnique
+      .mockResolvedValueOnce({ id: 'nostro-sub-1', clientId: 'cli-1', stripeSubscriptionId: 'sub_STRIPE_1' })
+      .mockResolvedValue({
+        id: 'nostro-sub-1', clientId: 'cli-1', endDate: new Date('2026-08-08T00:00:00.000Z'),
+        plan: { name: 'Mantenimento' }, client: { email: 'giulia@test.it', locale: 'it' },
+      });
+    h.prisma.payment.findFirst.mockResolvedValue(null);
+    h.prisma.payment.create.mockRejectedValue(new Error('database non raggiungibile'));
+
+    // Se questo venisse inghiottito, un rinnovo pagato resterebbe senza pagamento e senza traccia.
+    await expect(
+      service.handleInvoicePaid({ type: 'invoice.paid', data: { object: fattura() } } as never),
+    ).rejects.toThrow('database non raggiungibile');
+  });
+});

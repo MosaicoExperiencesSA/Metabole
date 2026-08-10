@@ -7,6 +7,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-12
 
+- `[Sviluppo]` 💳 **Un pagamento per fattura di rinnovo, garantito dal database** — l'idempotenza era
+  `findFirst` sul `pspRef` e poi `create`. Fra le due righe non c'è niente che tenga: Stripe ritenta i
+  webhook e non li manda in fila indiana, quindi due copie della stessa fattura passavano **entrambe**
+  il controllo e scrivevano due pagamenti — e con due pagamenti nascono **due provvigioni**, che si
+  scoprono solo quando qualcuno confronta i compensi con gli incassi. Nessun vincolo lo impediva:
+  `stripe_subscription_id` è unico, `psp_ref` no.
+  Ora la garanzia è dove può stare — nel database: indice unico `payment_psp_ref_renewal_key`. È
+  **parziale** (`WHERE billing_reason = 'renewal'`) e non su tutta la colonna, perché in `psp_ref`
+  finiscono anche l'id della sessione di checkout e il `payment_intent`: riferimenti di natura diversa,
+  scritti in momenti diversi, e un vincolo su tutto avrebbe messo una regola che non appartiene a quei
+  casi — col primo effetto di rompere il checkout per proteggere i rinnovi. L'invariante vera è
+  ristretta: una fattura di rinnovo = un pagamento.
+  Il codice si appoggia al **rifiuto** del vincolo: chi arriva secondo si prende `P2002` e quel rifiuto
+  *è* la risposta «c'era già», non un errore. Il `findFirst` resta come strada veloce per il caso
+  normale (webhook ripetuto) e non come garanzia. Un errore diverso risale invece di essere scambiato
+  per un duplicato — inghiottirlo lascerebbe un rinnovo pagato senza pagamento e senza traccia.
+  Migrazione riprovata su PostgreSQL 16 con la prova dell'invariante: la seconda fattura identica viene
+  rifiutata, due riferimenti di checkout uguali passano.
+
+- `[Sviluppo]` ✅ **Correzione a una mia diagnosi dell'11/8: le provvigioni di rinnovo ERANO nel
+  codice** — avevo scritto in `DA_FARE.md` che la decisione del 6/8 non era implementata perché
+  `billingReason` è selezionato e mai usato. Falso, e l'ho scoperto andando a scriverla:
+  `generateCommissions` calcola sempre la catena su `profile.assignedCoachId`, cioè sulla coach
+  **attuale**, quindi «al rinnovo paga chi segue la cliente adesso» è vero per costruzione e nessuna
+  condizione in più serviva. Resta un'ambiguità vera, ed è di prodotto: lo schema dice «solo se la coach
+  è ancora quella assegnata» (che suona come «altrimenti non paga nessuno») e il servizio dice «paga chi
+  c'è adesso». Il codice fa la seconda. La domanda è in `DA_FARE.md` §2.2, perché riguarda i soldi e la
+  decide Simone.
+
 - `[Sviluppo]` 🔌 **Il credito AI esaurito ora si capisce, e non fa sparare 270 chiamate a vuoto** —
   «ho cliccato ma non ha generato nulla», sulla settimana 10 della senza glutine. Il messaggio c'era,
   ma in cima alla pagina: era il credito Anthropic finito a metà generazione (per questo si era fermata

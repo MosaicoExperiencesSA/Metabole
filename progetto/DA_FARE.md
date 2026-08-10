@@ -84,12 +84,26 @@ revisioni di compensi già erogati.
 Codice e Stripe risultano a posto, ma nessun rinnovo vero è mai passato. Serve un acquisto con carta
 vera e poi il rimborso. **[dati]**
 
-### 2.2 La decisione del 6/8 sulle provvigioni di rinnovo NON è nel codice
-La colonna `Payment.billingReason` esiste e il commento nello schema dichiara la regola («le
-provvigioni sul rinnovo si pagano SOLO se la coach è ancora quella assegnata»), ma in
-`finance.service.ts:96` il campo è **selezionato e mai usato**: primo pagamento e rinnovo sono
-trattati uguale. È il difetto peggiore da avere, perché a leggerlo sembra fatto.
-Mancano anche gli importi di rinnovo sul `Plan` e il contatore.
+### 2.2 Provvigioni di rinnovo: serve la tua lettura della decisione del 6/8, non del codice
+**Correzione di quello che avevo scritto l'11/8.** Avevo detto che la regola non era nel codice: è
+falso, e me ne sono accorto andando a implementarla. `generateCommissions` calcola sempre la catena su
+`profile.assignedCoachId`, cioè sulla coach **attuale**: al rinnovo incassa chi segue la cliente
+adesso, e se la cliente è stata spostata dal rinnovo dopo incassa la nuova. Nessuna condizione in più
+serviva.
+
+Resta però un'ambiguità vera, e riguarda i soldi. Due commenti nel codice dicono cose diverse:
+
+- lo **schema** (`Payment.billingReason`): «le provvigioni sul rinnovo si pagano SOLO se la coach è
+  ancora quella assegnata… senza questa colonna un rinnovo è indistinguibile da un primo acquisto e la
+  condizione non si potrebbe applicare» — che suona come «se la coach originale non c'è più, **non paga
+  nessuno**»;
+- il **servizio** (`finance.service.ts`): «la quota si calcola sempre sulla coach ATTUALE… nessuna riga
+  in più serve» — cioè **paga chi c'è adesso**.
+
+Il codice fa la seconda. Se intendevi la prima, cambia chi prende i soldi e va scritto. Collegato e già
+tuo, deciso il 7/8: al rinnovo di una cliente **senza coach** la provvigione viene accantonata e pagata
+a chi verrà assegnato — cioè una rendita costruita da un'altra.
+Mancano comunque gli importi di rinnovo sul `Plan` e il contatore.
 
 ### 2.3 Percentuali del «Percorso Metabole 3 mesi» e ricalcolo dei pagamenti già fatti
 Le soglie sono **cumulative**: 25/35/45 per coach/coordinatrice/manager, non 25/10/10 — col secondo
@@ -97,10 +111,11 @@ valore sbagliato il livello sopra calcola una differenza negativa e la catena si
 dato in Negozio. Poi `CONFERMA=1 npm run ricalcola:provvigioni -- 2026-07-01`: aggiunge il mancante,
 non toglie niente. **[dati]**
 
-### 2.4 Idempotenza del rinnovo non atomica e `pspRef` senza indice univoco
-`commerce.service.ts:1347` fa `findFirst` + `create`, e `Payment.pspRef` non è `@unique` (a differenza
-di `stripeSubscriptionId`, che lo è): due `invoice.paid` in concorrenza scrivono **due pagamenti e due
-provvigioni**. Serve una migrazione con indice univoco e un claim atomico.
+### ~~2.4 Idempotenza del rinnovo non atomica~~ — FATTA il 12/8
+Indice unico **parziale** `payment_psp_ref_renewal_key` (una fattura di rinnovo = un pagamento) e
+scrittura che si appoggia al rifiuto del vincolo invece di guardare-e-poi-scrivere. Parziale e non su
+tutta la colonna perché in `psp_ref` finiscono anche gli id delle sessioni di checkout, che hanno
+un'altra natura: un vincolo su tutto avrebbe rotto il checkout per proteggere i rinnovi.
 
 ### 2.5 `handleInvoicePaid` non emette `plan_renewed`
 La dashboard marketing vede **zero rinnovi** sui piani ricorrenti: l'evento esiste solo sul percorso

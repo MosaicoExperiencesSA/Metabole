@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { eViolazioneUnicita } from '../common/violazione-unicita';
 import {
   BadRequestException,
   ForbiddenException,
@@ -1344,24 +1345,45 @@ export class CommerceService {
       : null;
     if (!sub) return { handled: false, reason: 'abbonamento sconosciuto' };
 
-    // Idempotenza: l'id della fattura finisce in `pspRef`. Se c'è già, questo rinnovo è fatto.
+    /**
+     * IDEMPOTENZA: una fattura di rinnovo = un pagamento, e lo garantisce il DATABASE.
+     *
+     * Il `findFirst` qui sotto resta come strada veloce — il caso normale è un webhook ripetuto, e
+     * intercettarlo con una lettura evita di sporcare i log con un errore atteso — ma **non è la
+     * garanzia**: fra il controllo e la scrittura passa un istante, e Stripe i webhook non li manda
+     * in fila indiana. Due copie della stessa fattura passavano entrambe questo controllo e
+     * scrivevano due pagamenti, quindi **due provvigioni**: un errore che si scopre solo confrontando
+     * i compensi con gli incassi.
+     *
+     * La garanzia è l'indice `payment_psp_ref_renewal_key` (migrazione del 12/8): un solo pagamento
+     * per `psp_ref` fra i rinnovi. Chi arriva secondo si prende il rifiuto del vincolo, e quel
+     * rifiuto **è** la risposta — «c'era già» — non un errore da segnalare.
+     */
     const gia = await this.prisma.payment.findFirst({ where: { pspRef: inv.id }, select: { id: true } });
     if (gia) return { handled: true, idempotent: true };
 
     const importo = inv.amount_paid ?? 0;
-    const payment = await this.prisma.payment.create({
-      data: {
-        clientId: sub.clientId,
-        subscriptionId: sub.id,
-        amountCents: importo,
-        description: `${sub.plan?.name ?? 'Abbonamento'} — rinnovo mensile`,
-        method: 'card' as never,
-        status: 'approved',
-        approvedAt: new Date(),
-        pspRef: inv.id,
-        billingReason: 'renewal',
-      } as never,
-    });
+    let payment: { id: string; description: string };
+    try {
+      payment = (await this.prisma.payment.create({
+        data: {
+          clientId: sub.clientId,
+          subscriptionId: sub.id,
+          amountCents: importo,
+          description: `${sub.plan?.name ?? 'Abbonamento'} — rinnovo mensile`,
+          method: 'card' as never,
+          status: 'approved',
+          approvedAt: new Date(),
+          pspRef: inv.id,
+          billingReason: 'renewal',
+        } as never,
+      })) as { id: string; description: string };
+    } catch (e) {
+      // Il vincolo ha detto no: un'altra copia di questo webhook ha già fatto tutto il lavoro qui
+      // sotto (scadenza, incasso, provvigioni, ricevuta). Rifarlo è precisamente il danno.
+      if (eViolazioneUnicita(e)) return { handled: true, idempotent: true };
+      throw e;
+    }
 
     // Nuova scadenza: quella del periodo fatturato da Stripe, che è la verità. Se manca (non
     // dovrebbe), si aggiunge un mese alla scadenza attuale.
