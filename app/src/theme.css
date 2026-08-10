@@ -425,6 +425,29 @@ p { line-height: 1.5; }
 .chat-col { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
 .bubble-in { align-self: flex-start; max-width: 82%; background: #f4f1ea; border-radius: 14px; padding: 9px 11px; font-size: 13px; }
 .bubble-out { align-self: flex-end; max-width: 82%; background: var(--teal); color: #fff; border-radius: 14px; padding: 9px 11px; font-size: 13px; }
+/* Data e ora dei messaggi (11/8: «in app non c'è data e ora delle chat»).
+   Il giorno una volta sola, come riga in mezzo alla conversazione; l'ora su ogni bolla, perché
+   quella cambia sempre. `float: right` con uno spazio prima: così l'ora si accoda al testo se c'è
+   posto e va a capo da sola quando il testo riempie la riga, senza allargare la bolla. */
+.chat-giorno {
+  align-self: center;
+  font-size: 11px;
+  color: var(--muted, #8b8579);
+  background: #f4f1ea;
+  border-radius: 999px;
+  padding: 3px 12px;
+  margin: 6px 0 2px;
+  text-transform: capitalize;
+}
+.bubble-ora {
+  float: right;
+  margin: 4px 0 -2px 10px;
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.65;
+}
+.bubble-out .bubble-ora { color: #eaf3ef; }
+
 .chat-input { display: flex; gap: 8px; align-items: center; }
 .chat-input .btn { flex: none; }
 

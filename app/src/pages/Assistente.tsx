@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { oraBreve, separatoreGiorno } from '../lib/oraChat';
 import AppHeader from '../components/AppHeader';
 
 /**
@@ -111,9 +112,19 @@ export default function Assistente() {
         <>
           <div className="chat-col" style={{ minHeight: '50vh' }}>
             {messages.length === 0 && <div className="muted" style={{ fontSize: 13, textAlign: 'center', padding: '10px 0' }}>{emptyHint}</div>}
-            {messages.map((m) => (
-              <div key={m.id} className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}>{m.body}</div>
-            ))}
+            {messages.map((m, i) => {
+              const giorno = separatoreGiorno(messages[i - 1]?.sentAt, m.sentAt);
+              return (
+                <Fragment key={m.id}>
+                  {giorno && <div className="chat-giorno">{giorno}</div>}
+                  <div className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}>
+                    {m.body}
+                    {/* L'ora dentro la bolla, in fondo: il giorno lo dice il separatore sopra. */}
+                    <span className="bubble-ora">{oraBreve(m.sentAt)}</span>
+                  </div>
+                </Fragment>
+              );
+            })}
             <div ref={endRef} />
           </div>
 

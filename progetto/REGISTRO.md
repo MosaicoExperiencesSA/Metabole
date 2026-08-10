@@ -7,6 +7,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🕐 **Data e ora dei messaggi in chat (app)** — «in app non c'è data e ora delle chat».
+  Il dato (`sentAt`) arrivava dal server da sempre e non si vedeva da nessuna parte: una conversazione
+  lunga era un muro di bolle senza tempo, e non si capiva se una risposta della coach fosse di dieci
+  minuti o di tre giorni prima. Su una chat dove si aspetta la nutrizionista quella è l'informazione
+  più importante dopo il testo.
+  Il **giorno** compare una volta sola, come riga in mezzo alla conversazione, e cambia solo quando
+  cambia: scriverlo su ogni messaggio raddoppierebbe il rumore senza aggiungere niente, perché dentro
+  la stessa giornata è sempre lo stesso. L'**ora** sta su ogni bolla, perché quella cambia sempre. E
+  si chiamano «Oggi» e «Ieri», che sono le parole che una persona usa: leggere «11 agosto» per
+  intendere oggi costringe a fare un calcolo.
+  Vale su entrambe le chat dell'app (Assistente e il pannello della coach), da un posto solo
+  (`lib/oraChat.ts`). 10 test, mezzanotte compresa — «00:05 di oggi» non deve diventare «ieri» solo
+  perché sono passate poche ore. ⚠️ Serve una **pubblicazione OTA** perché le clienti lo vedano.
+
 - `[Sviluppo]` 📐 **Tutte le tabelle impaginate come quella dei Permessi** — «devono scorrere
   liberamente nella finestra e risultare sempre perfettamente leggibili». Il difetto si vedeva in
   Ricette: l'ultima colonna, i pulsanti «Modifica», finiva **fuori dal bordo** della card, sopra il
