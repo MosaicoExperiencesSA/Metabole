@@ -7,6 +7,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-12
 
+- `[Sviluppo]` 📱 **OTA 2.1.5 pubblicata** — il manifest risponde `2.1.5` col bundle giusto, verificato
+  dall'esterno. Porta alle clienti tre cose che erano in produzione e invisibili: **data e ora nei
+  messaggi in chat** (separatore del giorno «Oggi»/«Ieri» e ora su ogni bolla), il pulsante **«Sposta la
+  data di inizio»** nel profilo, e la **scelta abbonamento / mese singolo nel primo acquisto** — quel
+  pulsante al Checkout esisteva già nella 2.1.4, mancava il dato che lo fa comparire.
+  Verifiche sullo zip prima di pubblicare: `index.html` alla radice, le tre cose nuove presenti, **una
+  sola** stringa di versione, e soprattutto le push intatte (`/me/push-tokens` e listener `registration`
+  presenti, **assente** il ramo del build senza `google-services.json`, che avrebbe spento le notifiche a
+  chiunque avesse ricevuto l'aggiornamento, in silenzio).
+
+- `[Prodotto]` 🔒 **Il Monitoraggio si mostra solo a mantenimento scaduto e non rinnovato** — decisione di
+  Simone, presa dopo che la verifica della sequenza dei piani ha fatto emergere lo scostamento: il codice
+  chiede di *aver avuto* il mantenimento contando anche gli abbonamenti attivi, quindi il Monitoraggio
+  compariva dal **primo giorno** di mantenimento e una cliente che pagava €49 vedeva già l'opzione da €19.
+  La regola nuova: si mostra **dal giorno dopo** che il mantenimento è scaduto e non è stato rinnovato.
+  Così il Monitoraggio resta una **scelta di rientro** e non un'alternativa più economica offerta mentre
+  sta pagando. Specifica e casi al bordo (disdetta con fine nel futuro, rinnovo, più mantenimenti nella
+  storia) scritti in `PUNTO_DELLA_SITUAZIONE.md` §2; **codice da scrivere**, ed è la prima cosa in coda.
+
 - `[Sviluppo]` 🧭 **Un solo documento dice come siamo: `progetto/PUNTO_DELLA_SITUAZIONE.md`** — c'erano
   sei liste di cose aperte (`DA_FARE.md`, tre `DA_RIPRENDERE_*`, `STATO.md`, `STATO_LANCIO.md`) e si
   contraddicevano: `DA_RIPRENDERE_20260809` dice che una cliente sta ricevendo una dieta senza pranzi né

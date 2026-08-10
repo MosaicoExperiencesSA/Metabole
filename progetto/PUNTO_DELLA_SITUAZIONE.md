@@ -73,11 +73,31 @@ entrambi:
 L'acquisto manuale da backoffice è **volutamente** esente: lì c'è un'operatrice che sa com'è messa la
 cliente (peso misurato in studio e non ancora inserito, per esempio).
 
-**Uno scostamento da decidere.** Tu dici «dopo **un mese** di mantenimento»; il codice chiede di *aver
-avuto* il mantenimento, contando gli abbonamenti `active` o `expired`. Quindi il Monitoraggio compare
-dal **primo giorno** di mantenimento, non alla sua fine: una cliente che paga €49 oggi vede già l'opzione
-da €19. Se l'intenzione è «solo a mantenimento concluso», è una riga da cambiare — ed è una tua
-decisione, perché sposta dei soldi. → §4.1
+### Lo scostamento trovato, e la decisione presa (12/8)
+
+Il codice chiedeva di *aver avuto* il mantenimento, contando anche gli abbonamenti `active`: quindi il
+Monitoraggio compariva dal **primo giorno** di mantenimento, e una cliente che pagava €49 oggi vedeva
+già l'opzione da €19.
+
+**Deciso da Simone:** il Monitoraggio si mostra **solo dal giorno dopo che il mantenimento è scaduto e
+non è stato rinnovato.** Finché il mantenimento è in corso — o è stato rinnovato — il Monitoraggio non
+esiste per lei.
+
+Da fare (non ancora implementato), in `commerce.service.ts`:
+
+- `hasHadMaintenance` diventa qualcosa come `mantenimentoConclusoENonRinnovato`: serve un abbonamento di
+  mantenimento con **fine passata** (`endDate < oggi`) **e nessun** mantenimento attivo in questo momento.
+  Oggi la condizione accetta `status in ('active','expired')`, che è esattamente ciò che va tolto;
+- la stessa condizione vale nei **due** punti di §2 — l'elenco e `assertPlanPurchasable` — o la porta
+  resta aperta da una parte;
+- casi al bordo da rispettare: mantenimento **disdetto** ma con fine ancora nel futuro → non si mostra
+  ancora (il periodo pagato è suo); mantenimento **rinnovato** → non si mostra; più mantenimenti nella
+  storia → conta l'ultimo.
+- il messaggio di rifiuto va riscritto: oggi dice «il Monitoraggio viene dopo il Mantenimento», che con
+  la regola nuova non basta più a spiegare un «non ancora».
+
+Nota di prodotto, perché la regola non è neutra: così il Monitoraggio è una **scelta di rientro** e non
+un'alternativa più economica offerta mentre sta pagando il mantenimento.
 
 ---
 
@@ -118,7 +138,9 @@ Il momento è adesso: finché nessun rinnovo automatico è passato si correggono
 revisioni di compensi già erogati.
 
 ### 4.1 Decisioni che aspettano te
-- **Il Monitoraggio dopo quanto?** Vedi §2: oggi compare dal primo giorno di mantenimento.
+- ~~**Il Monitoraggio dopo quanto?**~~ **Deciso il 12/8**: solo dal giorno dopo che il mantenimento è
+  scaduto e non è stato rinnovato. La specifica e i casi al bordo sono in §2; **il codice è da
+  scrivere** — è la prima cosa in coda.
 - **Provvigioni di rinnovo, due letture della decisione del 6/8.** Lo schema dice «solo se la coach è
   ancora quella assegnata» (che suona come *altrimenti non paga nessuno*), il servizio dice «paga chi
   c'è adesso». **Il codice fa la seconda**, per costruzione: la catena si calcola sempre su
@@ -155,16 +177,17 @@ Codice e Stripe risultano a posto e l'idempotenza ora è garantita dal database,
 
 ## 5. App e rilascio
 
-### 5.1 La OTA 2.1.5 è pronta e manca un passo
-Bundle costruito e **verificato**: `index.html` alla radice, le tre cose nuove presenti, una sola stringa
-di versione (`2.1.5`), push intatte (`/me/push-tokens` e listener `registration` presenti, assente il
-ramo del build senza `google-services.json`). Zip in `backend/ota-bundles/`, deploy online, bundle
-scaricabile.
-**Manca**: Render → Environment → `OTA_VERSION = 2.1.5` → Salva. Il manifest continua ad annunciare
-2.1.4 finché non è fatto.
-Contenuto: data e ora dei messaggi in chat · «Sposta la data di inizio» dal profilo · la scelta
-abbonamento / mese singolo nel primo acquisto (il pulsante al Checkout esisteva già nel 2.1.4: mancava
-il dato che lo fa comparire).
+### 5.1 La OTA 2.1.5 è PUBBLICATA — sera del 12/8
+Il manifest risponde `version: "2.1.5"` con l'URL del bundle giusto (verificato leggendo
+`/api/v1/app-updates/latest.json` dall'esterno). I telefoni la scaricano al primo avvio utile e la
+attivano al passaggio successivo in background: le clienti vedono **data e ora nei messaggi in chat**, il
+pulsante **«Sposta la data di inizio»** nel profilo e la **scelta abbonamento / mese singolo** nel primo
+acquisto (il pulsante al Checkout c'era già nella 2.1.4: mancava il dato che lo fa comparire) senza dover
+fare niente.
+Verifiche fatte sullo zip **prima** di pubblicare, per memoria del metodo: `index.html` alla radice, le
+tre cose nuove presenti, **una sola** stringa di versione (`2.1.5`), push intatte (`/me/push-tokens` e
+listener `registration` presenti, **assente** il ramo del build senza `google-services.json` — quello che
+spegnerebbe le notifiche in silenzio).
 
 ### 5.2 Le trappole che si ripetono
 - **`OTA_VERSION` va svuotata su Render PRIMA di ogni pubblicazione sugli store**, altrimenti
