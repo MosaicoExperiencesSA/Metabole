@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Pager, Spinner, Toggle, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
+import { useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
 
 interface Ingredient { name: string; qty?: number | null; unit?: string | null }
@@ -84,8 +85,11 @@ function toForm(r: Recipe): Form {
  * ricevute, e ha senso perché ormai sono il risultato dei filtri, non una fetta a caso.
  * Unico filtro rimasto in memoria: il TAG (sottostringa dentro un array Postgres, che Prisma
  * non sa esprimere).
+ *
+ * Per questo la riga dei filtri qui è scritta a mano e non è quella di `useTabella`: i filtri di
+ * colonna dell'helper lavorano sulle righe caricate, e qui devono arrivare al database. Dall'helper
+ * vengono l'ordinamento, le intestazioni e la paginazione.
  */
-type SortKey = 'name' | 'regime' | 'mealSlot' | 'kcal' | 'difficulty' | 'seasons' | 'tags' | 'active';
 const LIMITE_SERVER = 1000;
 
 const emptyFilters = (regime = '') => ({
@@ -101,7 +105,6 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [f, setF] = useState(emptyFilters(scopeRegime ?? ''));
-  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
   // Dentro Gestione dieta si parte dalle ricette DELLA dieta aperta. Prima l'elenco era tutto il
   // regime: si vedevano i piatti di altre famiglie sotto il nome di questa dieta (segnalazione
   // Simone 6/8). L'interruttore serve quando devi pescare una ricetta nuova da aggiungere.
@@ -169,51 +172,27 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     return rows.filter((r) => (r.tags ?? []).join(', ').toLowerCase().includes(tag));
   }, [rows, f.tag]);
 
-  const view = useMemo(() => {
-    // Il pasto si ordina come nella giornata, non in alfabetico: "Cena, Colazione, Merenda"
-    // sarebbe corretto e inutile.
-    const val = (r: Recipe): string | number => {
-      switch (sort.key) {
-        case 'name': return r.name.toLowerCase();
-        case 'regime': return regimeLabel(r.regime).toLowerCase();
-        case 'mealSlot': return SLOTS.indexOf(r.mealSlot);
-        case 'kcal': return r.kcal;
-        case 'difficulty': return DIFFICULTIES.indexOf(r.difficulty ?? 'media');
-        case 'seasons': return seasonsText(r.seasons).toLowerCase();
-        case 'tags': return (r.tags ?? []).join(', ').toLowerCase();
-        case 'active': return r.active ? 0 : 1;
-      }
-    };
-    const segno = sort.dir === 'asc' ? 1 : -1;
-    return [...filtrate].sort((a, b) => {
-      const va = val(a); const vb = val(b);
-      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * segno;
-      return String(va).localeCompare(String(vb), 'it') * segno;
-    });
-  }, [filtrate, sort, regimeLabel]);
+  const COLONNE: Colonna<Recipe>[] = [
+    { chiave: 'name', titolo: 'Nome', valore: (r) => r.name },
+    { chiave: 'regime', titolo: 'Regime', valore: (r) => regimeLabel(r.regime) },
+    // Il posto nella giornata, non l'etichetta: in alfabetico verrebbe «Cena, Colazione, Merenda»,
+    // corretto e inutile.
+    { chiave: 'mealSlot', titolo: 'Pasto', valore: (r) => SLOTS.indexOf(r.mealSlot) },
+    { chiave: 'kcal', titolo: 'Kcal', valore: (r) => r.kcal },
+    // Il posto nella scala (semplice → media → elaborata): in alfabetico «Elaborata» sarebbe la prima.
+    { chiave: 'difficulty', titolo: 'Difficoltà', valore: (r) => DIFFICULTIES.indexOf(r.difficulty ?? 'media') },
+    { chiave: 'seasons', titolo: 'Stagioni', valore: (r) => seasonsText(r.seasons) },
+    { chiave: 'tags', titolo: 'Tag', valore: (r) => (r.tags ?? []).join(', ') },
+    // Le attive prima: come etichetta «Archiviata» starebbe davanti ad «Attiva».
+    { chiave: 'active', titolo: 'Stato', valore: (r) => (r.active ? 0 : 1) },
+    // La colonna dei pulsanti c'è solo per chi può modificare: come la cella, sotto.
+    ...(canEdit ? [{ chiave: 'azioni', titolo: '' } as Colonna<Recipe>] : []),
+  ];
 
-  const pg = usePagination(view, 100);
+  // Il server manda le ricette in ordine alfabetico, ed è l'ordine con cui la pagina si apre.
+  const t = useTabella(filtrate, COLONNE, { ordineIniziale: { chiave: 'name', direzione: 'asc' } });
   const filtriAttivi = JSON.stringify(f) !== JSON.stringify(emptyFilters(scopeRegime ?? ''));
 
-  function ordina(k: SortKey) {
-    setSort((s) => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }));
-  }
-  const Th = ({ k, label, width }: { k: SortKey; label: string; width?: number }) => {
-    const on = sort.key === k;
-    return (
-      <th
-        style={{ cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', width }}
-        onClick={() => ordina(k)}
-        title={`Ordina per ${label.toLowerCase()}`}
-      >
-        {label}{' '}
-        <i
-          className={`ti ti-${on ? (sort.dir === 'asc' ? 'chevron-up' : 'chevron-down') : 'arrows-sort'}`}
-          style={{ fontSize: 12, opacity: on ? 0.9 : 0.28, verticalAlign: '-1px' }}
-        />
-      </th>
-    );
-  };
   const filterCell = (node: React.ReactNode) => <th style={{ padding: '6px 8px', fontWeight: 400 }}>{node}</th>;
   const sel = { padding: '4px 6px', fontSize: 12, width: '100%' } as const;
   const inp = { padding: '4px 6px', fontSize: 12, width: '100%' } as const;
@@ -238,9 +217,9 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <span className="muted" style={{ fontSize: 13 }}>
           {/* `totale` è il conteggio VERO sul database, non quante righe abbiamo in mano. */}
-          {filtriAttivi ? <><b>{view.length}</b> ricette trovate </> : <><b>{totale}</b> ricette </>}
+          {filtriAttivi ? <><b>{t.conteggio.mostrate}</b> ricette trovate </> : <><b>{totale}</b> ricette </>}
           {filtriAttivi && (
-            <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setF(emptyFilters(scopeRegime ?? ''))}>
+            <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => { setF(emptyFilters(scopeRegime ?? '')); t.azzera(); }}>
               <i className="ti ti-filter-off" /> Azzera filtri
             </button>
           )}
@@ -277,17 +256,8 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <Th k="name" label="Nome" />
-                <Th k="regime" label="Regime" />
-                <Th k="mealSlot" label="Pasto" />
-                <Th k="kcal" label="Kcal" />
-                <Th k="difficulty" label="Difficoltà" />
-                <Th k="seasons" label="Stagioni" />
-                <Th k="tags" label="Tag" />
-                <Th k="active" label="Stato" />
-                {canEdit && <th></th>}
-              </tr>
+              {t.intestazione()}
+              {/* Riga dei filtri scritta a mano: questi filtri vanno al database, non all'helper. */}
               <tr>
                 {filterCell(
                   <input className="input" style={inp} placeholder="Cerca…" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />,
@@ -337,9 +307,9 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
               </tr>
             </thead>
             <tbody>
-              {view.length === 0 ? (
+              {t.conteggio.mostrate === 0 ? (
                 <tr><td colSpan={canEdit ? 9 : 8}><div className="empty" style={{ padding: '18px 0' }}>Nessuna ricetta con questi filtri.</div></td></tr>
-              ) : pg.pageItems.map((r) => (
+              ) : t.pagina.map((r) => (
                 <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la ricetta">
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>
@@ -366,7 +336,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
 
       {editing && (

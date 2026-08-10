@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Pager, RoleChip, Spinner, StatusChip, usePagination } from '../components/ui';
+import { Banner, Modal, Pager, RoleChip, Spinner, StatusChip } from '../components/ui';
+import { useTabella, type Colonna } from '../components/tabella';
 import { ROLE_LABEL, STAFF_ROLES, type Role } from '../lib/labels';
 import { fetchRoles, type RoleInfo } from '../lib/roles';
 
@@ -19,7 +20,11 @@ interface User {
   staff: { id: string; displayName: string; managerId: string | null; refCode: string | null } | null;
 }
 
-type SortKey = 'email' | 'role' | 'manager' | 'refcode' | 'status' | 'locale';
+/**
+ * L'elenco scorre dentro la card (`maxHeight` più sotto): le intestazioni restano incollate in
+ * alto, altrimenti a metà pagina non si sa più quale colonna si sta guardando.
+ */
+const TESTA_FISSA: CSSProperties = { position: 'sticky', top: 0, background: '#fff', zIndex: 2, boxShadow: '0 1px 0 var(--line)' };
 
 /** Traduce la scelta di un ruolo (chiave) nel payload {role, customRoleKey}. */
 function rolePayload(selectedKey: string, roles: RoleInfo[]): { role: Role; customRoleKey: string | null } {
@@ -36,13 +41,10 @@ export function Users() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Ruolo e archiviati filtrano sul SERVER (cambiarli ricarica la lista): restano sopra la tabella
+  // e non diventano filtri di colonna, che sarebbero un secondo controllo sullo stesso dato.
   const [roleFilter, setRoleFilter] = useState<Role | ''>('');
   const [showArchived, setShowArchived] = useState(false);
-  // Filtri locali (sulla lista caricata) + ordinamento per colonna.
-  const [q, setQ] = useState('');
-  const [managerFilter, setManagerFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'suspended'>('');
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [pwdReset, setPwdReset] = useState<{ email: string; password: string } | null>(null);
 
@@ -179,56 +181,27 @@ export function Users() {
     }
   }
 
-  // Responsabili presenti in lista (per il filtro).
-  const managerOptions = (() => {
-    const ids = new Set(users.map((u) => u.staff?.managerId).filter((x): x is string => !!x));
-    return [...ids]
-      .map((id) => ({ id, name: users.find((x) => x.staff?.id === id)?.staff?.displayName ?? id }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'it'));
-  })();
-
   const roleLabelOf = (u: User) => u.customRole?.label ?? ROLE_LABEL[u.role] ?? u.role;
   const managerNameOf = (u: User) => (u.staff?.managerId ? users.find((x) => x.staff?.id === u.staff!.managerId)?.staff?.displayName ?? '' : '');
+  const statoLabelOf = (u: User) => (u.status === 'active' ? 'Attivo' : u.status === 'suspended' ? 'Sospeso' : u.status);
 
-  const needle = q.trim().toLowerCase();
-  const filtered = users.filter((u) => {
-    if (managerFilter && u.staff?.managerId !== managerFilter) return false;
-    if (statusFilter && u.status !== statusFilter) return false;
-    if (needle) {
-      const hay = `${u.email} ${u.staff?.displayName ?? ''} ${u.staff?.refCode ?? ''}`.toLowerCase();
-      if (!hay.includes(needle)) return false;
-    }
-    return true;
-  });
+  const COLONNE: Colonna<User>[] = [
+    // Il nome visibile sta nel valore anche se la cella mostra la sola email: la ricerca in alto
+    // cercava per email, nome o ref code e deve continuare a trovare per nome. L'ordinamento resta
+    // di fatto sull'email, che è la parte davanti.
+    { chiave: 'email', titolo: 'Email', valore: (u) => `${u.email} ${u.staff?.displayName ?? ''}`.trim(), filtro: 'testo', stile: TESTA_FISSA },
+    // Nessun filtro: il ruolo lo filtra il server, con la tendina sopra la tabella.
+    { chiave: 'role', titolo: 'Ruolo', valore: roleLabelOf, stile: TESTA_FISSA },
+    { chiave: 'manager', titolo: 'Responsabile', valore: managerNameOf, filtro: 'scelta', etichettaTutti: 'Tutti', stile: TESTA_FISSA },
+    { chiave: 'refcode', titolo: 'Ref code', valore: (u) => u.staff?.refCode, stile: TESTA_FISSA },
+    { chiave: 'status', titolo: 'Stato', valore: statoLabelOf, filtro: 'scelta', etichettaTutti: 'Tutti', stile: TESTA_FISSA },
+    { chiave: 'locale', titolo: 'Lingua', valore: (u) => u.locale.toUpperCase(), filtro: 'scelta', etichettaTutti: 'Tutte', stile: TESTA_FISSA },
+    { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right', ...TESTA_FISSA } },
+  ];
 
-  const sorted = sort
-    ? [...filtered].sort((a, b) => {
-        const val = (u: User): string => {
-          switch (sort.key) {
-            case 'email': return u.email;
-            case 'role': return roleLabelOf(u);
-            case 'manager': return managerNameOf(u);
-            case 'refcode': return u.staff?.refCode ?? '';
-            case 'status': return u.status;
-            case 'locale': return u.locale;
-          }
-        };
-        return val(a).localeCompare(val(b), 'it') * sort.dir;
-      })
-    : filtered;
-
-  function toggleSort(key: SortKey) {
-    setSort((s0) => (!s0 || s0.key !== key ? { key, dir: 1 } : s0.dir === 1 ? { key, dir: -1 } : null));
-  }
-
-  const Th = ({ k, children, right }: { k: SortKey; children: React.ReactNode; right?: boolean }) => (
-    <th onClick={() => toggleSort(k)} style={{ cursor: 'pointer', userSelect: 'none', textAlign: right ? 'right' : undefined, position: 'sticky', top: 0, background: '#fff', zIndex: 2, boxShadow: '0 1px 0 var(--line)' }} title="Ordina per questa colonna">
-      {children}
-      {sort?.key === k && <i className={`ti ${sort.dir === 1 ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: 12, marginLeft: 4, verticalAlign: '-1px' }} />}
-    </th>
-  );
-
-  const pg = usePagination(sorted, 100);
+  // Senza `ordineIniziale` l'elenco resta nell'ordine del server (dall'ultimo creato), che è quello
+  // con cui la pagina si è sempre aperta.
+  const t = useTabella(users, COLONNE);
 
   return (
     <>
@@ -245,25 +218,16 @@ export function Users() {
           <input
             className="input"
             style={{ width: 240 }}
-            placeholder="Cerca email, nome o ref code…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            placeholder="Cerca in tutte le colonne…"
+            value={t.ricerca}
+            onChange={(e) => t.setRicerca(e.target.value)}
           />
-          <select className="select" style={{ width: 180 }} value={managerFilter} onChange={(e) => setManagerFilter(e.target.value)} title="Filtra per responsabile">
-            <option value="">Tutti i responsabili</option>
-            {managerOptions.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <select className="select" style={{ width: 140 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'suspended')} title="Filtra per stato">
-            <option value="">Tutti gli stati</option>
-            <option value="active">Attivi</option>
-            <option value="suspended">Sospesi</option>
-          </select>
           <label className="row" style={{ gap: 6, fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Mostra archiviati
           </label>
-          {(q || managerFilter || statusFilter) && (
-            <button className="btn ghost sm" onClick={() => { setQ(''); setManagerFilter(''); setStatusFilter(''); }} title="Pulisci i filtri">
+          {t.filtriAttivi && (
+            <button className="btn ghost sm" onClick={t.azzera} title="Pulisci i filtri">
               <i className="ti ti-x" /> Pulisci
             </button>
           )}
@@ -281,23 +245,16 @@ export function Users() {
       <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
         {loading ? (
           <Spinner />
-        ) : sorted.length === 0 ? (
+        ) : t.conteggio.mostrate === 0 ? (
           <div className="empty">Nessun membro dello staff per questi filtri.</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                <Th k="email">Email</Th>
-                <Th k="role">Ruolo</Th>
-                <Th k="manager">Responsabile</Th>
-                <Th k="refcode">Ref code</Th>
-                <Th k="status">Stato</Th>
-                <Th k="locale">Lingua</Th>
-                <th style={{ textAlign: 'right', position: 'sticky', top: 0, background: '#fff', zIndex: 2, boxShadow: '0 1px 0 var(--line)' }}>Azioni</th>
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((u) => {
+              {t.pagina.map((u) => {
                 const isSelf = u.id === me?.id;
                 const archived = !!u.deletedAt;
                 return (
@@ -414,7 +371,7 @@ export function Users() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
 
       {showCreate && (

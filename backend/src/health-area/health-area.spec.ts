@@ -2,7 +2,6 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
-import { FinanceService } from '../commerce/finance.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -89,7 +88,6 @@ describe('Area sanitaria', () => {
         // falliva su un'asserzione, non partiva proprio (Nest non risolve le dipendenze).
         { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('chiave-file-test') } },
-        { provide: FinanceService, useValue: { creditVisitCompensation: jest.fn() } },
       ],
     }).compile();
     visits = moduleRef.get(VisitsService);

@@ -65,9 +65,9 @@ describe('FinanceService (eventi economici automatici)', () => {
         {
           provide: ConfigParamsService,
           useValue: {
-            getNumber: jest.fn((key: string) =>
-              Promise.resolve(({ visit_compensation_amount_cents: 4000 } as Record<string, number>)[key]),
-            ),
+            // Nessun parametro letto da questi test: le provvigioni arrivano dagli importi del
+            // piano, e il compenso a visita (l'unico che leggeva un parametro) non esiste più.
+            getNumber: jest.fn(() => Promise.resolve(undefined)),
           },
         },
         { provide: AuditService, useValue: { log: jest.fn() } },
@@ -147,11 +147,23 @@ describe('FinanceService (eventi economici automatici)', () => {
     expect(paid.every((s: string) => s === 'paid')).toBe(true);
   });
 
-  it('compenso visita: 40€ alla nutrizionista con expense a ledger', async () => {
-    await service.creditVisitCompensation({ id: 'v1', clientId: 'c1', nutritionistId: 'staff-n' });
-    expect(prisma.staffCompensation.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ amountCents: 4000 }) }),
-    );
+  /**
+   * Il compenso a visita non esiste più (11/8, «togliamolo totalmente»). Al posto del test che
+   * verificava i 40 €, il test che verifica che quella strada sia chiusa: `FinanceService` non deve
+   * più esporre nessun modo di accreditare un compenso a visita. Senza questo, il metodo potrebbe
+   * tornare per copia-incolla e nessuno se ne accorgerebbe fino al primo accredito di troppo.
+   */
+  it('non esiste più un compenso a visita da accreditare', () => {
+    expect((service as unknown as Record<string, unknown>).creditVisitCompensation).toBeUndefined();
+  });
+
+  /**
+   * La CATEGORIA invece resta viva: gli accrediti già fatti sono soldi dovuti o già pagati, e
+   * `creditStaff` deve continuare a saperla scrivere — è quello che tiene leggibili le righe vecchie
+   * in Contabilità, nei Compensi staff e nei Prelievi.
+   */
+  it('la categoria «visit_compensation» resta accreditabile per lo storico', async () => {
+    await service.creditStaff({ staffId: 'staff-n', amountCents: 4000, kind: 'visit_compensation', ref: 'v1', clientId: 'c1' });
     expect(prisma.ledgerEntry.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ category: 'visit_compensation' }) }),
     );

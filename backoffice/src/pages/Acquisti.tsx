@@ -185,10 +185,11 @@ export function Acquisti() {
     {
       chiave: 'stato',
       titolo: 'Stato',
-      valore: (p) => (p.refundedAt ? 'refunded' : p.status),
+      valore: (p) => STATUS[p.refundedAt ? 'refunded' : p.status]?.label ?? p.status,
       filtro: 'scelta',
-      etichetta: (v) => STATUS[v]?.label ?? v,
       etichettaTutti: 'Tutti',
+      // L'ordine di un pagamento nella sua vita, non l'alfabeto: la tendina si legge come il flusso.
+      ordineScelte: ['In attesa', 'Da approvare', 'Pagato', 'Stornato', 'Rifiutato', 'Annullato'],
     },
     // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
     { chiave: 'data', titolo: 'Data', valore: (p) => p.createdAt },

@@ -93,7 +93,8 @@ export function Publisher() {
     { chiave: 'canale', titolo: 'Canale', valore: (p) => p.channel, filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 100 } },
     // La ricerca dentro un post deve trovare anche gli hashtag: nella cella stanno sotto la caption.
     { chiave: 'contenuto', titolo: 'Contenuto', valore: (p) => [p.caption, ...p.hashtags].join(' '), filtro: 'testo' },
-    { chiave: 'stato', titolo: 'Stato', valore: (p) => statusLabel[p.status] ?? p.status, filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 130 } },
+    // L'ordine della coda: crea → Giudice → approva → programma → pubblica.
+    { chiave: 'stato', titolo: 'Stato', valore: (p) => statusLabel[p.status] ?? p.status, filtro: 'scelta', etichettaTutti: 'Tutti', ordineScelte: ['Bozza', 'Giudicato', 'Approvato', 'Programmato', 'Pubblicato', 'Rifiutato'], stile: { width: 130 } },
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
 

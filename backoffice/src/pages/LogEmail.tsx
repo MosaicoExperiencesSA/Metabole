@@ -78,7 +78,7 @@ export function LogEmail() {
     { chiave: 'oggetto', titolo: 'Oggetto', valore: (r) => r.subject, filtro: 'testo' },
     // Lo stato si confronta sul valore grezzo (`sent`/`failed`/`skipped`) e si legge con le stesse
     // etichette del chip: è il filtro che prima stava nella tendina in cima alla pagina.
-    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status, filtro: 'scelta', etichettaTutti: 'Tutti gli stati', etichetta: (v) => STATUS[v]?.label ?? v },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => STATUS[r.status]?.label ?? r.status, filtro: 'scelta', etichettaTutti: 'Tutti gli stati', ordineScelte: ['Fallita', 'Non inviata', 'Inviata'] },
   ];
 
   const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'quando', direzione: 'desc' } });

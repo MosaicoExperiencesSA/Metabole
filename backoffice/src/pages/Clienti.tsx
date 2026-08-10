@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { Banner, Pager, Spinner, usePagination } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface ClientRow {
   id: string;
@@ -21,8 +22,6 @@ interface ClientRow {
 }
 
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
-
-type Chiave = 'nome' | 'email' | 'coach' | 'stato' | 'creato';
 
 /**
  * Elenco clienti.
@@ -48,14 +47,8 @@ export function Clienti() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtri (colonna per colonna, come nei lead) + ricerca libera.
-  const [filter, setFilter] = useState('');
-  const [fCoach, setFCoach] = useState('');
-  const [fStato, setFStato] = useState('');
   /** Filtro «senza glutine»: la domanda pratica è «chi devo guardare fra queste». */
   const [fGlutine, setFGlutine] = useState('');
-  const [sortKey, setSortKey] = useState<Chiave | ''>('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     (async () => {
@@ -78,88 +71,74 @@ export function Clienti() {
   /** Nome da mostrare: anagrafica se c'è, altrimenti il nome del profilo. */
   const name = (r: ClientRow) => [r.firstName, r.lastName].filter(Boolean).join(' ') || (r.nickname ?? '');
 
-  /** Le coach presenti fra queste clienti: la tendina si costruisce dai dati, senza un altro giro. */
-  const coaches = useMemo(
-    () => [...new Set(rows.map((r) => r.coach).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b)),
-    [rows],
-  );
-
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    let out = rows.filter((r) => {
-      if (q && !name(r).toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
-      // «— non assegnata —» è un filtro che serve: sono le clienti che nessuno sta seguendo.
-      if (fCoach === 'none' && r.coach) return false;
-      if (fCoach && fCoach !== 'none' && r.coach !== fCoach) return false;
-      if (fStato && r.status !== fStato) return false;
+  /**
+   * Il glutine resta un filtro sopra la tabella e non un filtro di colonna: incrocia la
+   * dichiarazione della cliente con la famiglia di dieta assegnata, e nessuna delle due è una
+   * colonna di questa tabella (la pastiglia sta dentro la cella del nome).
+   */
+  const preFiltrate = useMemo(() => {
+    if (!fGlutine) return rows;
+    return rows.filter((r) => {
       if (fGlutine === 'si' && !r.senzaGlutine) return false;
       // «da sistemare» = l'ha dichiarato ma la dieta senza glutine non ce l'ha: sono quelle su cui
       // c'è ancora qualcosa da fare, ed è l'elenco che serve dopo aver generato la variante.
       if (fGlutine === 'da_sistemare' && (!r.senzaGlutine || r.dietFamily === 'Mediterranea senza glutine')) return false;
       return true;
     });
-    if (sortKey) {
-      const valore = (r: ClientRow): string => {
-        if (sortKey === 'nome') return name(r).toLowerCase();
-        if (sortKey === 'email') return r.email.toLowerCase();
-        // Chi non ha coach va in fondo in ordine crescente, non in cima come farebbe la stringa
-        // vuota: le righe "vuote" davanti nascondono quelle che stai cercando.
-        if (sortKey === 'coach') return (r.coach ?? 'zzz').toLowerCase();
-        if (sortKey === 'stato') return r.status;
-        return r.createdAt; // ISO: l'ordine alfabetico è quello cronologico
-      };
-      out = [...out].sort((a, b) => valore(a).localeCompare(valore(b)) * (sortDir === 'asc' ? 1 : -1));
-    }
-    return out;
-  }, [rows, filter, fCoach, fStato, fGlutine, sortKey, sortDir]);
+  }, [rows, fGlutine]);
 
-  const pg = usePagination(filtered, 100);
-  const filtriAttivi = !!(filter || fCoach || fStato || fGlutine);
+  const COLONNE: Colonna<ClientRow>[] = [
+    { chiave: 'nome', titolo: 'Nome', valore: (r) => name(r), filtro: 'testo' },
+    { chiave: 'email', titolo: 'Email', valore: (r) => r.email, filtro: 'testo' },
+    // Le clienti senza coach vanno in fondo: lo fa l'helper per tutte le colonne. Prima qui c'era
+    // un `?? 'zzz'`, che una coach col nome che inizia per z avrebbe scavalcato.
+    { chiave: 'coach', titolo: 'Coach', valore: (r) => r.coach, filtro: 'scelta', etichettaTutti: 'Tutte' },
+    // L'etichetta che si legge nella cella, non `active`/`suspended`.
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => (r.status === 'active' ? 'Attivo' : 'Sospeso'), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    // La data ISO grezza: si ordina bene alfabeticamente, quella scritta in italiano no.
+    { chiave: 'creato', titolo: 'Iscritto il', valore: (r) => r.createdAt },
+    { chiave: 'apri', titolo: '' },
+  ];
 
-  function ordina(key: Chiave) {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('asc'); }
+  // L'elenco arriva dal server dalla più recente: è l'ordine con cui la pagina si apre da sempre.
+  const t = useTabella(preFiltrate, COLONNE, { ordineIniziale: { chiave: 'creato', direzione: 'desc' } });
+  const filtriAttivi = t.filtriAttivi || fGlutine !== '';
+  function azzeraTutto() {
+    t.azzera();
+    setFGlutine('');
   }
-
-  function azzera() {
-    setFilter(''); setFCoach(''); setFStato(''); setFGlutine('');
-  }
-
-  const th = (label: string, key: Chiave) => (
-    <th style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => ordina(key)} title="Clicca per ordinare">
-      {label}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-    </th>
-  );
 
   if (loading) return <Spinner />;
 
   return (
     <>
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
+        {/*
+          Senza filtri si dice il totale VERO (il `count` del server), non le righe caricate: «340
+          clienti» è il numero che l'ufficio si aspetta di leggere, e mostrarne uno più piccolo
+          perché il server ne manda 500 alla volta sarebbe una bugia sul dato più guardato della
+          pagina. Con i filtri attivi il «di quante» è quello caricato — è l'insieme su cui i filtri
+          lavorano davvero — e la differenza fra i due la dichiara l'avviso del tetto qui sotto.
+        */}
+        <ContatoreRighe
+          conteggio={{ mostrate: t.conteggio.mostrate, totali: filtriAttivi ? rows.length : totale || rows.length }}
+          filtriAttivi={filtriAttivi}
+          azzera={azzeraTutto}
+          nome="clienti"
+        />
         <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-          <span
-            style={{ alignSelf: 'center', fontSize: 14, fontWeight: 800, background: 'var(--chip)', borderRadius: 999, padding: '7px 14px', whiteSpace: 'nowrap' }}
-            title="Clienti che rispettano i filtri correnti"
-          >
-            {filtriAttivi ? `${filtered.length} di ${rows.length}` : `${totale} clienti`}
-          </span>
           <input
             className="input"
             style={{ maxWidth: 280 }}
-            placeholder="Cerca per nome o email…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Cerca in tutte le colonne…"
+            value={t.ricerca}
+            onChange={(e) => t.setRicerca(e.target.value)}
           />
           <select className="select" style={{ maxWidth: 230 }} value={fGlutine} onChange={(e) => setFGlutine(e.target.value)} title="Clienti che hanno dichiarato il glutine">
             <option value="">Glutine: tutte</option>
             <option value="si">Ha dichiarato il glutine</option>
             <option value="da_sistemare">Glutine senza la dieta dedicata</option>
           </select>
-          {filtriAttivi && (
-            <button className="btn ghost" onClick={azzera} title="Rimuovi tutti i filtri">
-              <i className="ti ti-filter-off" /> Azzera filtri
-            </button>
-          )}
         </div>
       </div>
 
@@ -174,50 +153,16 @@ export function Clienti() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
-        {filtered.length === 0 ? (
+        {t.conteggio.mostrate === 0 ? (
           <div className="empty">{filtriAttivi ? 'Nessuna cliente con questi filtri.' : 'Nessun cliente.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                {th('Nome', 'nome')}
-                {th('Email', 'email')}
-                {th('Coach', 'coach')}
-                {th('Stato', 'stato')}
-                {th('Iscritto il', 'creato')}
-                <th></th>
-              </tr>
-              {/* Riga dei filtri sotto le intestazioni, come nella board dei lead. */}
-              <tr>
-                <th style={{ padding: '4px 6px' }} colSpan={2}>
-                  <input
-                    className="input"
-                    style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }}
-                    placeholder="Nome o email…"
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                  />
-                </th>
-                <th style={{ padding: '4px 6px' }}>
-                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fCoach} onChange={(e) => setFCoach(e.target.value)}>
-                    <option value="">Tutte</option>
-                    <option value="none">— non assegnata —</option>
-                    {coaches.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </th>
-                <th style={{ padding: '4px 6px' }}>
-                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fStato} onChange={(e) => setFStato(e.target.value)}>
-                    <option value="">Tutti</option>
-                    <option value="active">Attivo</option>
-                    <option value="suspended">Sospeso</option>
-                  </select>
-                </th>
-                <th style={{ padding: '4px 6px' }} />
-                <th style={{ padding: '4px 6px' }} />
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {pg.pageItems.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/clienti/${r.id}`)}>
                   <td>
                     {name(r) || <span className="muted">—</span>}
@@ -248,7 +193,7 @@ export function Clienti() {
             </tbody>
           </table>
         )}
-        <Pager page={pg.page} totalPages={pg.totalPages} total={pg.total} from={pg.from} to={pg.to} onPage={pg.setPage} />
+        <Pager {...t.pager} />
       </div>
     </>
   );

@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
-import { FinanceService } from '../commerce/finance.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -21,7 +20,6 @@ export class VisitsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly finance: FinanceService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -193,12 +191,9 @@ export class VisitsService {
       }
     }
 
-    // Evento economico automatico: compenso visita + uscita a ledger (spec sez. 8).
-    await this.finance.creditVisitCompensation({
-      id: visitId,
-      clientId: visit.clientId,
-      nutritionistId: visit.nutritionistId,
-    });
+    // Nessun evento economico al completamento della visita: dall'11/8 il compenso a visita non
+    // esiste più (deciso con Simone). Quello che la nutrizionista guadagna è la provvigione definita
+    // sul piano, che viene accreditata all'acquisto — vedi il commento in `FinanceService`.
 
     await this.audit.log({
       action: 'health.visit.complete',

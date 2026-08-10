@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
 import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
@@ -42,7 +42,6 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [onlyTodo, setOnlyTodo] = useState(true);
   const [editing, setEditing] = useState<Recipe | null>(null);
   const [totale, setTotale] = useState(0);
   const [troncato, setTroncato] = useState(false);
@@ -78,20 +77,27 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
     }
   }
 
-  const shown = useMemo(() => rows.filter((r) => (onlyTodo ? !r.allergensReviewed : true)), [rows, onlyTodo]);
   const todo = rows.filter((r) => !r.allergensReviewed).length;
 
   const COLONNE: Colonna<Recipe>[] = [
     { chiave: 'ricetta', titolo: 'Ricetta', valore: (r) => r.name, filtro: 'testo' },
     { chiave: 'pasto', titolo: 'Pasto', valore: (r) => MEAL[r.mealSlot] ?? r.mealSlot, filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 110 } },
     { chiave: 'allergeni', titolo: 'Allergeni', valore: (r) => (r.allergens ?? []).map((a) => LABEL.get(a) ?? a).join(', '), filtro: 'testo' },
-    { chiave: 'stato', titolo: 'Stato', valore: (r) => (r.allergensReviewed ? 'Confermata' : 'Da rivedere'), filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 120 } },
+    // «Da rivedere» prima di «Confermata»: è l'ordine del lavoro, non dell'alfabeto.
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => (r.allergensReviewed ? 'Confermata' : 'Da rivedere'), filtro: 'scelta', etichettaTutti: 'Tutti', ordineScelte: ['Da rivedere', 'Confermata'], stile: { width: 120 } },
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
 
-  // La spunta «Solo da rivedere» resta il filtro della pagina: taglia le righe prima della
-  // tabella, così il contatore e i filtri di colonna lavorano su quelle che si stanno guardando.
-  const t = useTabella(shown, COLONNE, { ordineIniziale: { chiave: 'ricetta' } });
+  /**
+   * La pagina si apre su «Da rivedere», che è il lavoro da fare, ma il filtro è **uno**: la colonna
+   * Stato. Prima c'era anche una spunta «Solo da rivedere» sopra la tabella, cioè due controlli
+   * sullo stesso dato: con la spunta attiva la tendina della colonna offriva una voce sola, e chi
+   * la usava non capiva perché non cambiasse niente. «Azzera filtri» apre a tutte le ricette.
+   */
+  const t = useTabella(rows, COLONNE, {
+    ordineIniziale: { chiave: 'ricetta' },
+    filtriIniziali: { stato: 'Da rivedere' },
+  });
 
   if (loading) return <Spinner />;
 
@@ -101,9 +107,6 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
         <p className="muted" style={{ margin: 0 }}>
           Conferma gli allergeni di ogni ricetta. Il motore usa <b>solo</b> ricette con allergeni confermati; un prodotto non è attivabile finché tutte le sue ricette non sono confermate. <b>{todo}</b> da rivedere.
         </p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <input type="checkbox" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} /> Solo da rivedere
-        </label>
       </div>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
@@ -131,9 +134,11 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
       <div className="card" style={{ padding: 0 }}>
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">
-            {t.filtriAttivi
-              ? 'Nessuna ricetta con questi filtri.'
-              : onlyTodo ? 'Tutte le ricette hanno gli allergeni confermati 🎉' : 'Nessuna ricetta.'}
+            {rows.length === 0
+              ? 'Nessuna ricetta.'
+              : todo === 0 && t.filtri.stato === 'Da rivedere'
+                ? 'Tutte le ricette hanno gli allergeni confermati 🎉'
+                : 'Nessuna ricetta con questi filtri.'}
           </div>
         ) : (
           <table className="grid">

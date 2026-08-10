@@ -1,0 +1,12 @@
+-- CON COSA È STATO PAGATO, sui costi registrati (richiesta di Simone dell'11/8).
+--
+-- «Manca la voce con cosa hai pagato, che dovrebbe essere una casella a discesa con le voci che
+-- inserisco io dai Parametri.» La colonna è un testo, non un enum e non una chiave verso una
+-- tabella: le voci della tendina stanno nel parametro `cost_payment_methods` (una per riga), così
+-- aggiungere «carta nuova» è una modifica che Simone fa da solo dal backoffice, senza una migrazione
+-- e senza un rilascio. Il prezzo è che rinominare una voce non riscrive i costi già registrati — e
+-- va bene: la riga vecchia deve continuare a dire con cosa è stata pagata **allora**.
+--
+-- NULL sui costi registrati prima di oggi: non si può indovinare con cosa sono stati pagati, e
+-- riempirli con un valore plausibile sarebbe inventare un dato contabile. In elenco si leggono «—».
+ALTER TABLE "cost_entry" ADD COLUMN IF NOT EXISTS "paid_with" TEXT;

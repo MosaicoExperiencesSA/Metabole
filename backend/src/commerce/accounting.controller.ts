@@ -32,6 +32,14 @@ class CreateCostDto {
 
   @IsOptional() @IsString() @MaxLength(1000)
   note?: string | null;
+
+  /**
+   * Con cosa è stato pagato. Nessun `@IsIn` qui, di proposito: le voci ammesse le decide Simone nei
+   * Parametri e cambiano senza rilascio — il controllo sta nel servizio, che le legge, e restituisce
+   * un messaggio che dice dove si aggiungono.
+   */
+  @IsOptional() @IsString() @MaxLength(80)
+  paidWith?: string | null;
 }
 
 class UpdateCostDto {
@@ -61,6 +69,9 @@ class UpdateCostDto {
 
   @IsOptional() @IsString() @MaxLength(1000)
   note?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(80)
+  paidWith?: string | null;
 }
 
 /**
@@ -100,6 +111,16 @@ export class AccountingController {
   @Get('report/csv')
   reportCsv(@Query('from') from: string, @Query('to') to: string) {
     return this.accounting.reportCsv(from, to);
+  }
+
+  /**
+   * Le voci della tendina «con cosa hai pagato». Endpoint a sé e non un campo dentro `costs`: la
+   * pagina le usa in due punti (il modulo di inserimento e il filtro della colonna) e le vuole anche
+   * quando di costi non ce n'è ancora nessuno.
+   */
+  @Get('payment-methods')
+  metodiPagamento() {
+    return this.accounting.metodiPagamento();
   }
 
   @Get('costs')

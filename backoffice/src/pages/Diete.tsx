@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
 
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
@@ -45,7 +46,7 @@ const STATUS: Record<string, { label: string; chip: string }> = {
 const STATUS_ORDER: Record<string, number> = { draft: 0, in_review: 1, approved: 2, rejected: 3 };
 
 export function Diete() {
-  const { regimeLabel, styleLabel, regimes } = useTaxonomy();
+  const { regimeLabel, styleLabel } = useTaxonomy();
   const { permissions } = useAuth();
   const role = permissions?.role;
   const isHead = role === 'head_nutritionist';
@@ -54,18 +55,10 @@ export function Diete() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
-  const [regimeF, setRegimeF] = useState(''); // filtro per regime (il catalogo è lungo)
   const [busy, setBusy] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [daysId, setDaysId] = useState<string | null>(null);
   const [productId, setProductId] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-
-  function toggleSort(key: string) {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(key); setSortDir('asc'); }
-  }
 
   async function load() {
     try {
@@ -111,52 +104,39 @@ export function Diete() {
 
   const showActions = isNutri; // nutrizionisti/capo vedono la colonna azioni
 
-  // Ordinamento client-side (la lista arriva intera): si ordina su ciò che si VEDE (etichette tradotte).
-  const sorted = useMemo(() => {
-    if (!sortKey) return rows;
-    const val = (r: DietRow): string | number => {
-      switch (sortKey) {
-        case 'name': return r.name.toLowerCase();
-        case 'regime': return regimeLabel(r.regime).toLowerCase();
-        case 'style': return styleLabel(r.style).toLowerCase();
-        case 'objective': return (OBIETTIVO_LABEL[r.objective ?? 'dimagrimento'] ?? r.objective ?? '').toLowerCase();
-        case 'meals': return r.mealsPerDay + (r.fasting ? 0.5 : 0); // a parità di pasti, il digiuno dopo
-        case 'days': return r._count?.dayTemplates ?? 0;
-        case 'author': return (r.author?.displayName ?? '').toLowerCase();
-        case 'status': return STATUS_ORDER[r.status] ?? 99;
-        default: return 0;
-      }
-    };
-    const dir = sortDir === 'asc' ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const va = val(a); const vb = val(b);
-      if (va < vb) return -dir;
-      if (va > vb) return dir;
-      return a.name.localeCompare(b.name); // spareggio stabile sul nome
-    });
-  }, [rows, sortKey, sortDir, regimeLabel, styleLabel]);
+  // Si ordina e si filtra su ciò che si VEDE (etichette tradotte), tranne dove l'alfabeto darebbe
+  // un ordine sbagliato: là il valore è un numero.
+  const COLONNE: Colonna<DietRow>[] = [
+    { chiave: 'name', titolo: 'Nome', valore: (r) => r.name, filtro: 'testo' },
+    // Il filtro del regime era una tendina sopra la tabella: il catalogo è lungo e guardarne un
+    // regime alla volta lo rende leggibile. Sta sulla colonna, dove si legge il regime.
+    { chiave: 'regime', titolo: 'Regime', valore: (r) => regimeLabel(r.regime), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'style', titolo: 'Stile', valore: (r) => styleLabel(r.style), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    { chiave: 'objective', titolo: 'Obiettivo', valore: (r) => OBIETTIVO_LABEL[r.objective ?? 'dimagrimento'] ?? r.objective, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    // Numero, non «5 · digiuno»: e il mezzo punto mette il digiuno dopo, a parità di pasti.
+    { chiave: 'meals', titolo: 'Pasti', valore: (r) => r.mealsPerDay + (r.fasting ? 0.5 : 0) },
+    { chiave: 'days', titolo: 'Giorni', valore: (r) => r._count?.dayTemplates ?? 0 },
+    { chiave: 'author', titolo: 'Autore', valore: (r) => r.author?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
+    // Il numero della lavorazione, non l'etichetta: in alfabetico «Approvata» starebbe davanti a
+    // «Bozza». Nessun filtro qui: lo stato lo filtra il server, con la tendina sopra la tabella.
+    { chiave: 'status', titolo: 'Stato', valore: (r) => STATUS_ORDER[r.status] ?? 99 },
+    // La colonna delle azioni esiste solo per chi la vede: sta nella stessa condizione della cella.
+    ...(showActions ? [{ chiave: 'azioni', titolo: 'Azioni' } as Colonna<DietRow>] : []),
+  ];
 
-  // Filtro per regime: il catalogo è lungo, mostrarne uno alla volta lo rende leggibile
-  // (in combinazione con l'ordinamento per colonna: clicca "Regime" o "Pasti").
-  const shown = regimeF ? sorted.filter((r) => r.regime === regimeF) : sorted;
+  // Senza `ordineIniziale` le righe restano nell'ordine del server, che le manda dall'ultima
+  // modificata: è l'ordine con cui questa pagina si è sempre aperta.
+  const t = useTabella(rows, COLONNE);
 
   if (loading) return <Spinner />;
-
-  const th = (label: string, key: string) => (
-    <th style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }} onClick={() => toggleSort(key)} title="Clicca per ordinare">
-      {label}{sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-    </th>
-  );
 
   return (
     <>
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <p className="muted" style={{ margin: 0 }}>Diete del catalogo (create dai nutrizionisti, approvate dal capo).</p>
         <div className="row" style={{ gap: 8 }}>
-          <select className="select" style={{ width: 160 }} value={regimeF} onChange={(e) => setRegimeF(e.target.value)}>
-            <option value="">Tutti i regimi</option>
-            {regimes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
-          </select>
+          {/* Lo stato lo filtra il server (`GET /diets?status=`) e resta qui: come filtro di colonna
+              sarebbero due controlli sullo stesso dato, che si contraddicono a vicenda. */}
           <select className="select" style={{ width: 170 }} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Tutti gli stati</option>
             <option value="draft">Bozze</option>
@@ -170,26 +150,21 @@ export function Diete() {
 
       {error && <Banner kind="err">{error}</Banner>}
 
+      <div className="row" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="diete" />
+      </div>
+
       <div className="card" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="empty">Nessuna dieta.</div>
+        {t.conteggio.mostrate === 0 ? (
+          <div className="empty">{rows.length === 0 ? 'Nessuna dieta.' : 'Nessuna dieta con questi filtri.'}</div>
         ) : (
           <table className="grid">
             <thead>
-              <tr>
-                {th('Nome', 'name')}
-                {th('Regime', 'regime')}
-                {th('Stile', 'style')}
-                {th('Obiettivo', 'objective')}
-                {th('Pasti', 'meals')}
-                {th('Giorni', 'days')}
-                {th('Autore', 'author')}
-                {th('Stato', 'status')}
-                {showActions && <th>Azioni</th>}
-              </tr>
+              {t.intestazione()}
+              {t.rigaFiltri()}
             </thead>
             <tbody>
-              {shown.map((r) => (
+              {t.pagina.map((r) => (
                 <tr key={r.id}>
                   <td>{r.name}</td>
                   <td className="muted">{regimeLabel(r.regime)}</td>
@@ -228,6 +203,7 @@ export function Diete() {
             </tbody>
           </table>
         )}
+        <Pager {...t.pager} />
       </div>
 
       {createOpen && <CreateDietModal onClose={() => setCreateOpen(false)} onSaved={() => { setCreateOpen(false); void load(); }} />}

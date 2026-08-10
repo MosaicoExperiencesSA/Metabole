@@ -495,15 +495,24 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'boolean',
     description: 'Abilita il pagamento con bonifico nel checkout dell\'app',
   },
-  // NB: le provvigioni NON sono più percentuali globali qui: dal 14/07 sono importi in €
-  // definiti su ogni piano/prodotto del negozio (campi commission*Cents). Il compenso
-  // visita resta un parametro globale.
+  /**
+   * «CON COSA SI PAGA»: le voci della tendina dei costi in Contabilità, una per riga.
+   *
+   * Richiesta di Simone dell'11/8, e la parte che conta è «le voci che inserisco io dai Parametri».
+   * Queste sono solo il punto di partenza — le forme di pagamento in uso oggi — perché una tendina
+   * vuota alla prima apertura non è configurabile, è rotta.
+   */
   {
-    key: 'visit_compensation_amount_cents',
-    value: '4000',
-    type: 'number',
-    description: 'Compenso per visita completata (centesimi)',
+    key: 'cost_payment_methods',
+    value: 'Carta aziendale\nBonifico dal conto\nAddebito automatico su carta\nPayPal\nContanti',
+    type: 'string',
+    description: 'Con cosa si pagano i costi: una voce per riga, sono le scelte della tendina in Contabilità.',
   },
+  // NB: qui non c'è NESSUN parametro di provvigione, ed è voluto: dal 14/07 sono importi in €
+  // definiti su ogni piano/prodotto del negozio (campi commission*Cents). L'ultimo rimasto era
+  // `visit_compensation_amount_cents` (40 € a visita completata), togliato l'11/8 su decisione di
+  // Simone perché pagava di lato una cosa già pagata dalla provvigione del piano. La chiave può
+  // restare nel database delle installazioni esistenti: nessuno la legge più.
   // Le altre chiavi che il codice leggeva senza che comparissero da nessuna parte: stessi
   // valori che usa oggi, quindi non cambia niente — cambia che ora si vedono.
   { key: 'measures_lock_after_hours', value: '24', type: 'number', description: 'Ore dal primo sollecito prima che l\'app si blocchi per misure non inserite.' },

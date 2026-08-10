@@ -2,11 +2,38 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const COST_CATEGORIES = ['salaries', 'infrastructure', 'marketing', 'payment_fees', 'ai', 'taxes', 'other'] as const;
 export const CADENCES = ['once', 'monthly', 'yearly'] as const;
+
+/**
+ * «CON COSA HAI PAGATO»: le voci della tendina stanno in configurazione, una per riga.
+ *
+ * Richiesta di Simone dell'11/8, e la parte importante della richiesta è «le voci che inserisco io
+ * dai Parametri»: il modo di pagare un fornitore cambia (una carta nuova, un conto chiuso) e non
+ * deve servire un rilascio per aggiungerne uno. Questo è solo il ripiego usato quando il parametro
+ * non è ancora stato salvato: serve perché al primo avvio la tendina non sia vuota, cioè
+ * inutilizzabile, e sono le forme di pagamento che l'azienda usa oggi.
+ */
+export const METODI_PAGAMENTO_DEFAULT = [
+  'Carta aziendale',
+  'Bonifico dal conto',
+  'Addebito automatico su carta',
+  'PayPal',
+  'Contanti',
+];
+
+/** Le voci configurate, da un testo con una voce per riga. Vuote e duplicati si scartano. */
+export function metodiDaTesto(testo: string | null | undefined): string[] {
+  const voci = (testo ?? '')
+    .split(/\r?\n/)
+    .map((r) => r.trim())
+    .filter((r) => r.length > 0);
+  return voci.length ? [...new Set(voci)] : METODI_PAGAMENTO_DEFAULT;
+}
 
 /** Fattura allegata a un costo: gli stessi limiti delle contabili dei pagamenti. */
 const FATTURA_MAX_BYTES = 5 * 1024 * 1024;
@@ -19,7 +46,7 @@ const FATTURA_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'
  */
 const COSTO_SELECT = {
   id: true, label: true, category: true, amountCents: true, recurring: true, cadence: true,
-  date: true, endDate: true, vendor: true, note: true, createdById: true, createdAt: true,
+  date: true, endDate: true, vendor: true, note: true, paidWith: true, createdById: true, createdAt: true,
   updatedAt: true, invoiceMime: true, invoiceName: true,
 } as const;
 
@@ -186,6 +213,8 @@ interface CostInput {
   endDate?: string | null;
   vendor?: string | null;
   note?: string | null;
+  /** Con cosa è stato pagato: una delle voci di `cost_payment_methods`. */
+  paidWith?: string | null;
 }
 
 /**
@@ -202,6 +231,7 @@ export class AccountingService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly configParams: ConfigParamsService,
   ) {
     // Fail-closed come per le contabili: senza chiave non si parte, invece di cifrare con un
     // ripiego che equivale a non cifrare. Su Render è generata automaticamente.
@@ -216,6 +246,33 @@ export class AccountingService {
     return d;
   }
 
+  /** Le voci della tendina «con cosa hai pagato», come le ha scritte Simone nei Parametri. */
+  async metodiPagamento(): Promise<string[]> {
+    const testo = await this.configParams.getString('cost_payment_methods', '').catch(() => '');
+    return metodiDaTesto(testo);
+  }
+
+  /**
+   * Il metodo dev'essere una delle voci configurate.
+   *
+   * Senza questo controllo un refuso dall'API creerebbe una voce fantasma, e la colonna della
+   * tabella si riempirebbe di «Carta azindale» accanto a «Carta aziendale» — con un filtro a tendina
+   * che le offre entrambe come se fossero due conti diversi. Si valida solo in SCRITTURA: le righe
+   * già registrate con un nome poi rinominato nei Parametri restano valide, perché raccontano come
+   * si chiamava quel conto allora.
+   */
+  private async validatePaidWith(paidWith: string | null | undefined): Promise<string | null> {
+    const v = paidWith?.trim();
+    if (!v) return null;
+    const ammessi = await this.metodiPagamento();
+    if (!ammessi.includes(v)) {
+      throw new BadRequestException(
+        `«${v}» non è fra i modi di pagamento configurati. Le voci si aggiungono in Parametri → «Con cosa si paga».`,
+      );
+    }
+    return v;
+  }
+
   private validateCost(input: CostInput): void {
     if (!input.label || input.label.trim().length < 2) throw new BadRequestException('Etichetta troppo corta');
     if (!Number.isFinite(input.amountCents) || input.amountCents <= 0) throw new BadRequestException('Importo non valido');
@@ -227,6 +284,7 @@ export class AccountingService {
 
   async registerCost(input: CostInput, actorId: string) {
     this.validateCost(input);
+    const paidWith = await this.validatePaidWith(input.paidWith);
     const recurring = !!input.recurring;
     const created = await this.prisma.costEntry.create({
       data: {
@@ -239,6 +297,7 @@ export class AccountingService {
         endDate: input.endDate ? this.toDate(input.endDate) : null,
         vendor: input.vendor?.trim() || null,
         note: input.note?.trim() || null,
+        paidWith,
         createdById: actorId,
       },
     });
@@ -354,8 +413,14 @@ export class AccountingService {
       endDate: input.endDate !== undefined ? input.endDate : existing.endDate?.toISOString() ?? null,
       vendor: input.vendor !== undefined ? input.vendor : existing.vendor,
       note: input.note !== undefined ? input.note : existing.note,
+      // `undefined` = non toccare, stringa vuota = svuota: è la differenza che permette di correggere
+      // un costo senza dover ridire con cosa era stato pagato.
+      paidWith: input.paidWith !== undefined ? input.paidWith : (existing as { paidWith?: string | null }).paidWith ?? null,
     };
     this.validateCost(merged);
+    // Si rivalida solo se il campo è arrivato nella richiesta: un valore già in tabella che nel
+    // frattempo è stato rinominato nei Parametri non deve bloccare la correzione dell'importo.
+    const paidWith = input.paidWith !== undefined ? await this.validatePaidWith(input.paidWith) : merged.paidWith ?? null;
     const updated = await this.prisma.costEntry.update({
       where: { id },
       data: {
@@ -368,6 +433,7 @@ export class AccountingService {
         endDate: merged.endDate ? this.toDate(merged.endDate) : null,
         vendor: merged.vendor?.trim() || null,
         note: merged.note?.trim() || null,
+        paidWith,
       },
     });
     await this.audit.log({ action: 'accounting.cost.update', actorId, entityType: 'cost_entry', entityId: id });

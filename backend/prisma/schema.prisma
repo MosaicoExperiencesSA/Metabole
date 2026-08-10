@@ -855,6 +855,21 @@ model CostEntry {
   endDate     DateTime? @map("end_date") @db.Date // ricorrente: fine (opzionale)
   vendor      String?
   note        String?
+  /**
+   * CON COSA È STATO PAGATO (richiesta di Simone dell'11/8: «manca la voce con cosa hai pagato, che
+   * dovrebbe essere una casella a discesa con le voci che inserisco io dai Parametri»).
+   *
+   * Testo libero in colonna, ma scelto da una tendina: le voci le decide Simone nel parametro
+   * `cost_payment_methods` (una per riga). NON è un enum e non è una tabella:
+   *  - un enum vorrebbe una migrazione per aggiungere «carta nuova», che è esattamente la cosa che
+   *    lui vuole fare da solo senza chiamare nessuno;
+   *  - una tabella con le sue chiavi vorrebbe una pagina per gestirla, quando la pagina dei
+   *    Parametri esiste già ed è dove lui è andato a cercarla.
+   * Il prezzo di questa scelta è che rinominare una voce nei Parametri non riscrive i costi già
+   * registrati: le righe vecchie continuano a dire il nome vecchio, che è la verità storica di come
+   * si chiamava quel conto allora. Nullo sui costi registrati prima dell'11/8.
+   */
+  paidWith    String?   @map("paid_with")
   // Fattura allegata (8/8): stesso schema delle contabili dei pagamenti — il file sta nella riga,
   // cifrato AES-256-GCM, formato iv(12B) + authTag(16B) + ciphertext. Non usa `Document` perché
   // quella tabella è legata a una cliente, e la fattura di un fornitore non è di nessuna cliente.

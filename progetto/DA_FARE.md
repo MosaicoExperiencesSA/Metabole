@@ -39,45 +39,16 @@ le esclusioni**, altrimenti il sostituto proposto è l'olio evo — un liquido, 
 
 ---
 
-## 2. «Compenso per visita» nei Parametri: decisione da prendere (11/8)
+## 2. La riga dei filtri non è «sticky» in Utenti (11/8)
 
-> **Palla a Simone.** Non l'ho toccato di proposito.
+In `Users.tsx` le intestazioni restano attaccate in alto scorrendo (`position: sticky`), la riga dei
+filtri no: gli stili di `rigaFiltri()` stanno dentro l'helper, e per cambiare un filtro si deve
+tornare in cima. Si sistema nell'helper (un'opzione per lo scostamento della riga sotto
+l'intestazione) o nel CSS, non nella pagina.
 
-Simone, davanti alla pagina Parametri: «questo non serve più, lo abbiamo inserito a livello di
-prodotto». Le **provvigioni di vendita** sono davvero passate al prodotto il 14/07 (campi
-`commission*Cents` su ogni piano). Il **compenso per visita** no: è ancora un parametro globale
-(`visit_compensation_amount_cents`, 40 €) e viene ancora **pagato** — `FinanceService.creditVisitCompensation`
-lo legge a ogni visita completata e scrive provvigione + uscita a ledger
-(`backend/src/commerce/finance.service.ts:543`, chiamato da `health-area/visits.service.ts:196`).
+## 3. `LeadsTable` resta fuori dall'helper (11/8)
 
-Togliere solo la riga dalla pagina lo renderebbe **invisibile e non modificabile**, cioè esattamente
-il difetto che `diag:parametri` esiste per intercettare. Le due strade:
-
-- **a) La visita non si paga più a parte** (la nutrizionista guadagna dalla provvigione del piano):
-  via la riga dai Parametri, via la chiamata da `visits.service`, via la chiave dal seed. Gli importi
-  già registrati restano in contabilità e nei Compensi staff.
-- **b) Il compenso va sul prodotto** come le provvigioni: campo nuovo sul piano, editabile in Gestione
-  negozio, letto al posto del parametro globale. Serve una migrazione.
-
-Con (a) le nutrizioniste smettono di essere pagate per visita: è un cambio di soldi e non lo faccio
-senza un sì.
-
----
-
-## 3. Le cinque copie vecchie dell'ordinamento (11/8)
-
-`Clienti`, `Diete`, `Users`, `Ricette` e `LeadsTable` avevano già l'ordinamento **prima**
-dell'helper condiviso, ognuna con la sua copia. Funzionano e non le ho toccate: cambiarle è un
-refactoring senza nessun beneficio visibile e con la possibilità di rompere pagine che si usano ogni
-giorno. Da fare quando una di quelle pagine va comunque aperta per un altro motivo.
-
-`LeadsTable` è il caso a parte: filtra e ordina **lato server** (decine di migliaia di lead) e non
-può usare l'helper così com'è — servirebbe una modalità «emetti parametri di query».
-
-## 4. L'ordine delle voci nelle tendine di stato (11/8)
-
-Le tendine `filtro: 'scelta'` ordinano le voci in alfabetico. Su una colonna «Stato» l'ordine utile
-sarebbe quello del ciclo di vita (In attesa → Pagato → Rifiutato), non «In attesa, Pagato, Rifiutato»
-per caso. Si risolve con un `ordineScelte?: string[]` in `Colonna`. Non urgente: le voci sono poche
-e si trovano comunque.
-
+È l'unica tabella che filtra e ordina **lato server** (decine di migliaia di lead: `page` +
+`pageSize=100`, `sortKey`/`sortDir` come parametri di query). L'helper è tutto client e non la
+copre: servirebbe una modalità «emetti parametri di query invece di ordinare in memoria». Le altre
+quattro copie divergenti (`Clienti`, `Diete`, `Users`, `Ricette`) sono state unificate l'11/8.

@@ -12,10 +12,22 @@ interface InboxItem {
   uid: number;
   from: string;
   fromName: string;
+  /**
+   * Il destinatario. `collectRecent` (backend) lo manda da sempre per entrambe le cartelle, ma qui
+   * non era dichiarato: in «Inviata» la colonna intestata «Destinatario» mostrava `fromName`, cioè
+   * la casella dell'ufficio — la stessa riga su ogni messaggio, e l'unica informazione che serve
+   * per ritrovare una mail inviata mancava.
+   */
+  to?: string;
+  toName?: string;
   subject: string;
   date: string | null;
   seen: boolean;
 }
+
+/** Chi mostrare nella colonna: in arrivo il mittente, in inviata il destinatario. */
+const controparte = (it: InboxItem, folder: 'inbox' | 'sent'): string =>
+  folder === 'inbox' ? it.fromName || it.from : it.toName || it.to || it.fromName || it.from;
 interface FullMessage {
   uid: number;
   from: string;
@@ -203,7 +215,7 @@ export function Posta() {
   // ordina e si filtra solo dentro la cartella aperta. La colonna del cestino esiste solo nella
   // posta in arrivo, e sono i pulsanti: nessun `valore`, nessun titolo.
   const COLONNE: Colonna<InboxItem>[] = [
-    { chiave: 'da', titolo: folder === 'inbox' ? 'Mittente' : 'Destinatario', valore: (it) => it.fromName || it.from, filtro: 'testo', stile: { width: 220 } },
+    { chiave: 'da', titolo: folder === 'inbox' ? 'Mittente' : 'Destinatario', valore: (it) => controparte(it, folder), filtro: 'testo', stile: { width: 220 } },
     { chiave: 'oggetto', titolo: 'Oggetto', valore: (it) => it.subject, filtro: 'testo' },
     { chiave: 'data', titolo: 'Data', valore: (it) => it.date, stile: { width: 130 } },
     ...(folder === 'inbox' ? [{ chiave: 'cestino', titolo: '', stile: { width: 50 } } as Colonna<InboxItem>] : []),
@@ -298,7 +310,7 @@ export function Posta() {
             <tbody>
               {t.pagina.map((it) => (
                 <tr key={it.uid} style={{ cursor: 'pointer', fontWeight: it.seen ? 400 : 600 }} onClick={() => void openMessage(it)}>
-                  <td>{it.fromName || it.from}</td>
+                  <td>{controparte(it, folder)}</td>
                   <td>{it.subject}</td>
                   <td className="muted">{fmtDate(it.date)}</td>
                   {folder === 'inbox' && (

@@ -39,6 +39,8 @@ interface CostEntry {
   endDate: string | null;
   vendor: string | null;
   note: string | null;
+  /** Con cosa è stato pagato: una delle voci di Parametri → «Con cosa si paga». */
+  paidWith?: string | null;
   /**
    * La fattura allegata: solo nome e tipo, MAI il file. L'elenco dei costi non deve trascinarsi
    * dietro dei megabyte a ogni apertura della pagina — il file si scarica quando si clicca.
@@ -234,6 +236,9 @@ export function Contabilita() {
     { chiave: 'voce', titolo: 'Voce', valore: (c) => `${c.label} ${c.vendor ?? ''}`.trim(), filtro: 'testo' },
     { chiave: 'categoria', titolo: 'Categoria', valore: (c) => c.category, filtro: 'scelta', etichetta: (v) => CAT_LABEL[v] ?? v, etichettaTutti: 'Tutte' },
     { chiave: 'tipo', titolo: 'Tipo', valore: (c) => (c.recurring ? c.cadence : 'once'), filtro: 'scelta', etichetta: (v) => CADENCE_LABEL[v] ?? v, etichettaTutti: 'Tutti' },
+    // «Con cosa» (richiesta dell'11/8). I costi registrati prima non l'hanno: restano vuoti, e
+    // l'helper li mette in fondo invece di inventare un pagamento che nessuno ha fatto.
+    { chiave: 'con', titolo: 'Con cosa', valore: (c) => c.paidWith ?? null, filtro: 'scelta', etichettaTutti: 'Tutti' },
     // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
     { chiave: 'periodo', titolo: 'Periodo', valore: (c) => c.date },
     // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
@@ -380,6 +385,7 @@ export function Contabilita() {
                     <td>
                       <span className="chip gray" style={{ fontSize: 11 }}>{CADENCE_LABEL[c.recurring ? c.cadence : 'once']}</span>
                     </td>
+                    <td className="muted" style={{ fontSize: 12 }}>{c.paidWith ?? '—'}</td>
                     <td className="muted" style={{ fontSize: 12 }}>
                       {c.date.slice(0, 10)}
                       {c.recurring && c.endDate && ` → ${c.endDate.slice(0, 10)}`}
@@ -487,8 +493,21 @@ function CostModal({ cost, onClose, onSaved }: { cost: CostEntry | null; onClose
   const [endDate, setEndDate] = useState((cost?.endDate ?? '').slice(0, 10));
   const [vendor, setVendor] = useState(cost?.vendor ?? '');
   const [note, setNote] = useState(cost?.note ?? '');
+  const [paidWith, setPaidWith] = useState(cost?.paidWith ?? '');
+  /**
+   * Le voci della tendina arrivano dal server (`cost_payment_methods`, gestito in Parametri) e non
+   * da un elenco scritto qui: è tutto il senso della richiesta di Simone — aggiungere una carta nuova
+   * deve essere una sua modifica in Parametri, non un rilascio.
+   */
+  const [metodi, setMetodi] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Un errore qui non deve bloccare la registrazione del costo: la tendina resta con la sola voce
+    // già salvata (o vuota) e tutto il resto del modulo funziona.
+    api<string[]>('/admin/accounting/payment-methods').then(setMetodi).catch(() => setMetodi([]));
+  }, []);
 
   async function submit() {
     setError(null);
@@ -505,6 +524,9 @@ function CostModal({ cost, onClose, onSaved }: { cost: CostEntry | null; onClose
       endDate: recurring && endDate ? new Date(endDate + 'T00:00:00.000Z').toISOString() : null,
       vendor: vendor.trim() || undefined,
       note: note.trim() || undefined,
+      // Stringa vuota e non `undefined`: in modifica `undefined` vorrebbe dire «non toccare», e
+      // svuotare il campo su un costo già registrato non sarebbe più possibile.
+      paidWith: paidWith || '',
     };
     setBusy(true);
     try {
@@ -569,6 +591,20 @@ function CostModal({ cost, onClose, onSaved }: { cost: CostEntry | null; onClose
       <div className="field">
         <label>Fornitore (facoltativo)</label>
         <input className="input" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Es. Neon, Vercel, Meta…" />
+      </div>
+      <div className="field">
+        <label>Con cosa hai pagato</label>
+        <select className="select" value={paidWith} onChange={(e) => setPaidWith(e.target.value)}>
+          <option value="">— non indicato —</option>
+          {/* Se il costo ha un valore che nel frattempo è stato togliato dai Parametri, resta
+              selezionabile: altrimenti salvando una modifica dell'importo si perderebbe. */}
+          {[...new Set([...(paidWith ? [paidWith] : []), ...metodi])].map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+        <p className="muted" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
+          Le voci si aggiungono in <b>Parametri → Con cosa si paga</b>, una per riga.
+        </p>
       </div>
       <div className="field">
         <label>Note (facoltative)</label>

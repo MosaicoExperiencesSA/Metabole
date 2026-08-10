@@ -28,9 +28,15 @@ const META: Record<string, Meta> = {
 
   bank_transfer_details: { label: 'Estremi del bonifico', group: 'Bonifico', kind: 'textarea', help: 'Testo inviato via email alla cliente per pagare con bonifico (intestatario, IBAN, BIC…).' },
 
-  // Le provvigioni di vendita non sono più parametri globali: dal 14/07 sono importi in €
-  // definiti su ogni piano/prodotto in Gestione negozio. Resta solo il compenso visita.
-  visit_compensation_amount_cents: { label: 'Compenso per visita', group: 'Provvigioni e compensi', kind: 'euro', help: 'Compenso alla nutrizionista per ogni visita completata.' },
+  // Le voci della tendina «Con cosa» dei costi in Contabilità. Stanno qui e non in un elenco fisso
+  // nel codice perché il modo di pagare un fornitore cambia — una carta nuova, un conto chiuso — e
+  // aggiungerne uno non deve richiedere un rilascio.
+  cost_payment_methods: { label: 'Con cosa si paga', group: 'Contabilità', kind: 'textarea', help: 'Le scelte della tendina «Con cosa» quando registri un costo in Contabilità: una voce per riga (es. «Carta aziendale», «Bonifico dal conto»). Le voci già usate nei costi registrati non cambiano nome se le modifichi qui.' },
+
+  // Niente provvigioni in questa pagina, ed è voluto: dal 14/07 sono importi in € definiti su ogni
+  // piano/prodotto in Gestione negozio. L'ultima voce rimasta qui era «Compenso per visita»,
+  // togliata l'11/8 insieme al compenso stesso (vedi `FinanceService`): un parametro che non decide
+  // più niente è peggio di un parametro assente, perché chi lo cambia crede di aver cambiato qualcosa.
 
   water_ml_per_kg: { label: 'Acqua per kg di peso', group: 'Obiettivi cliente', kind: 'number', unit: 'ml/kg', help: 'Personalizza l’obiettivo acqua sul peso della cliente (30-35 tipico). Obiettivo = peso × ml/kg ÷ 250 ml (bicchiere), limitato 6-16 bicchieri (1,5-4 L).' },
   water_goal_glasses: { label: 'Obiettivo acqua (ripiego)', group: 'Obiettivi cliente', kind: 'number', unit: 'bicchieri/giorno', help: 'Usato solo quando il peso della cliente non è ancora noto. Altrimenti l’obiettivo è personalizzato sul peso.' },

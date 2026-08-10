@@ -55,6 +55,14 @@ export interface Colonna<T> {
   /** Etichetta dell'opzione «tutti» della tendina (default «Tutti»). */
   etichettaTutti?: string;
   /**
+   * Ordine delle voci della tendina, quando l'alfabeto non è l'ordine giusto.
+   *
+   * Su una colonna «Stato» l'ordine utile è quello del ciclo di vita — In attesa, Pagato,
+   * Rifiutato — e che coincida con l'alfabeto è un caso. Le voci non elencate qui vanno in fondo
+   * in ordine alfabetico: aggiungerne una al prodotto e dimenticarla qui la fa comparire comunque.
+   */
+  ordineScelte?: string[];
+  /**
    * Per i filtri a scelta: come si scrive l'opzione nella tendina, se il valore grezzo non è
    * leggibile (es. `active` → «Attivo»). Il confronto resta sul valore grezzo.
    */
@@ -72,6 +80,15 @@ interface Opzioni {
   perPagina?: number;
   /** Colonna ordinata all'apertura; senza questa le righe restano nell'ordine del server. */
   ordineIniziale?: { chiave: string; direzione?: 'asc' | 'desc' };
+  /**
+   * Filtri già impostati all'apertura, per chiave di colonna.
+   *
+   * Serve alle pagine che si aprono su una vista ristretta — «solo le ricette da rivedere» — e che
+   * prima lo facevano con una spunta a parte sopra la tabella. Due controlli sullo stesso dato si
+   * contraddicono a vicenda: con la spunta attiva la tendina della stessa colonna offriva una voce
+   * sola. Il filtro di colonna è uno, e parte selezionato; «Azzera filtri» lo apre a tutto.
+   */
+  filtriIniziali?: Record<string, string>;
 }
 
 /** Confronto di due valori di colonna: vuoti in fondo, numeri come numeri. */
@@ -91,7 +108,7 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
   const [chiaveOrdine, setChiaveOrdine] = useState<string>(opzioni.ordineIniziale?.chiave ?? '');
   const [direzione, setDirezione] = useState<'asc' | 'desc'>(opzioni.ordineIniziale?.direzione ?? 'asc');
   /** Valore corrente di ogni filtro di colonna, per chiave. */
-  const [filtri, setFiltri] = useState<Record<string, string>>({});
+  const [filtri, setFiltri] = useState<Record<string, string>>(opzioni.filtriIniziali ?? {});
   /** Ricerca libera su tutte le colonne con un `valore`. */
   const [ricerca, setRicerca] = useState('');
 
@@ -110,7 +127,17 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
         // senso in questa colonna (vedi `conVuoti`).
         else viste.add(VUOTO);
       }
-      out[c.chiave] = [...viste].sort((a, b) => a.localeCompare(b, 'it'));
+      const ordine = c.ordineScelte;
+      out[c.chiave] = [...viste].sort((a, b) => {
+        if (!ordine) return a.localeCompare(b, 'it');
+        const ia = ordine.indexOf(a);
+        const ib = ordine.indexOf(b);
+        // Le voci non elencate finiscono dopo quelle elencate, fra loro in alfabetico.
+        if (ia === -1 && ib === -1) return a.localeCompare(b, 'it');
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      });
     }
     return out;
   }, [righe, colonne]);
@@ -262,8 +289,13 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
   };
 }
 
-/** Valore speciale della tendina per «righe senza valore in questa colonna». */
-export const VUOTO = ' vuoto';
+/**
+ * Valore speciale della tendina per «righe senza valore in questa colonna».
+ *
+ * I due punti in testa e in coda perché deve essere impossibile che coincida con un valore vero
+ * della colonna: se coincidesse, scegliere quel valore filtrerebbe le righe vuote.
+ */
+export const VUOTO = '::vuoto::';
 
 /**
  * Etichetta compatta del filtro: «12 di 340» quando i filtri sono attivi, altrimenti il totale.

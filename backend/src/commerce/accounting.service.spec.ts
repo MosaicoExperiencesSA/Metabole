@@ -1,7 +1,8 @@
 import { ConfigService } from '@nestjs/config';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AccountingService, buildReport, costInMonth, monthsBetween, type CostRow } from './accounting.service';
+import { AccountingService, buildReport, costInMonth, monthsBetween, type CostRow, METODI_PAGAMENTO_DEFAULT } from './accounting.service';
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
@@ -82,6 +83,13 @@ describe('buildReport', () => {
  */
 const configFinta = { get: () => 'chiave-di-prova-per-i-test' } as unknown as ConfigService;
 
+/**
+ * I parametri di configurazione. Dall'11/8 il servizio ne legge uno: `cost_payment_methods`, le voci
+ * della tendina «con cosa hai pagato». Stringa vuota = si usano quelle di default, che è lo stato in
+ * cui si trova un'installazione appena seminata.
+ */
+const parametriFinti = { getString: jest.fn(async (_k: string, def?: string) => def ?? '') } as unknown as ConfigParamsService;
+
 describe('AccountingService.report (KPI)', () => {
   const audit = { log: jest.fn() } as unknown as AuditService;
   it('calcola CAC e ARPU dal report + conteggi clienti', async () => {
@@ -107,7 +115,7 @@ describe('AccountingService.report (KPI)', () => {
       },
       clientProfile: { count: jest.fn().mockResolvedValue(2) }, // 2 nuovi clienti
     };
-    const svc = new AccountingService(prisma as unknown as PrismaService, audit, configFinta);
+    const svc = new AccountingService(prisma as unknown as PrismaService, audit, configFinta, parametriFinti);
     const res = await svc.report('2026-01-01', '2026-01-31');
     expect(res.incomeCents).toBe(30000);
     expect(res.costsCents).toBe(6000);
@@ -119,7 +127,7 @@ describe('AccountingService.report (KPI)', () => {
   });
 
   it('intervallo invertito → errore', async () => {
-    const svc = new AccountingService({} as unknown as PrismaService, audit, configFinta);
+    const svc = new AccountingService({} as unknown as PrismaService, audit, configFinta, parametriFinti);
     await expect(svc.report('2026-03-01', '2026-01-01')).rejects.toThrow('invertito');
   });
 });
@@ -127,7 +135,7 @@ describe('AccountingService.report (KPI)', () => {
 describe('AccountingService.registerCost (validazione)', () => {
   const audit = { log: jest.fn() } as unknown as AuditService;
   const svc = (create = jest.fn().mockResolvedValue({ id: 'c1', amountCents: 1000, category: 'marketing' })) =>
-    new AccountingService({ costEntry: { create } } as unknown as PrismaService, audit, configFinta);
+    new AccountingService({ costEntry: { create } } as unknown as PrismaService, audit, configFinta, parametriFinti);
 
   it('categoria non valida → errore', async () => {
     await expect(svc().registerCost({ label: 'Costo X', category: 'bogus', amountCents: 100, date: '2026-01-01' }, 'u1')).rejects.toThrow('Categoria');
@@ -140,5 +148,55 @@ describe('AccountingService.registerCost (validazione)', () => {
     await svc(create).registerCost({ label: 'Anthropic', category: 'ai', amountCents: 2000, date: '2026-01-01' }, 'u1');
     expect(create).toHaveBeenCalled();
     expect((audit.log as jest.Mock)).toHaveBeenCalled();
+  });
+});
+
+/**
+ * «CON COSA HAI PAGATO» (11/8). Le voci le decide Simone nei Parametri, una per riga: il rischio da
+ * fissare non è il campo, è che una voce fuori elenco entri in tabella e la colonna finisca per
+ * offrire «Carta azindale» accanto a «Carta aziendale» come se fossero due conti diversi.
+ */
+describe('AccountingService — con cosa è stato pagato', () => {
+  const audit = { log: jest.fn() } as unknown as AuditService;
+  const conVoci = (testo: string) =>
+    ({ getString: jest.fn(async () => testo) } as unknown as ConfigParamsService);
+
+  const svc = (params: ConfigParamsService, create = jest.fn().mockResolvedValue({ id: 'c1', amountCents: 1000, category: 'ai' })) =>
+    ({
+      servizio: new AccountingService({ costEntry: { create } } as unknown as PrismaService, audit, configFinta, params),
+      create,
+    });
+
+  it('legge le voci dal parametro, una per riga, senza vuote né duplicati', async () => {
+    const s = new AccountingService({} as unknown as PrismaService, audit, configFinta, conVoci('Carta rossa\n\n  Conto BCC  \nCarta rossa\n'));
+    expect(await s.metodiPagamento()).toEqual(['Carta rossa', 'Conto BCC']);
+  });
+
+  it('parametro vuoto → le voci di default, così la tendina non è mai inutilizzabile', async () => {
+    const s = new AccountingService({} as unknown as PrismaService, audit, configFinta, conVoci(''));
+    expect((await s.metodiPagamento()).length).toBeGreaterThan(0);
+    expect(await s.metodiPagamento()).toEqual(METODI_PAGAMENTO_DEFAULT);
+  });
+
+  it('una voce configurata si registra', async () => {
+    const { servizio, create } = svc(conVoci('Carta rossa\nConto BCC'));
+    await servizio.registerCost({ label: 'Render', category: 'infrastructure', amountCents: 4529, date: '2026-08-05', paidWith: 'Conto BCC' }, 'u1');
+    expect(create.mock.calls[0][0].data.paidWith).toBe('Conto BCC');
+  });
+
+  it('una voce FUORI elenco viene rifiutata, e il messaggio dice dove si aggiunge', async () => {
+    const { servizio, create } = svc(conVoci('Carta rossa'));
+    await expect(
+      servizio.registerCost({ label: 'Render', category: 'infrastructure', amountCents: 100, date: '2026-08-05', paidWith: 'Carta azindale' }, 'u1'),
+    ).rejects.toThrow('Parametri');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('campo assente o vuoto → resta nullo: i costi vecchi non si devono inventare un pagamento', async () => {
+    const { servizio, create } = svc(conVoci('Carta rossa'));
+    await servizio.registerCost({ label: 'Render', category: 'infrastructure', amountCents: 100, date: '2026-08-05' }, 'u1');
+    expect(create.mock.calls[0][0].data.paidWith).toBeNull();
+    await servizio.registerCost({ label: 'Vercel', category: 'infrastructure', amountCents: 100, date: '2026-08-05', paidWith: '   ' }, 'u1');
+    expect(create.mock.calls[1][0].data.paidWith).toBeNull();
   });
 });

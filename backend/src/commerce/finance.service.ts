@@ -538,17 +538,22 @@ export class FinanceService {
     }
   }
 
-  /** Compenso visita (chiamato al complete della visita). */
-  async creditVisitCompensation(visit: { id: string; clientId: string; nutritionistId: string }) {
-    const amountCents = await this.configParams.getNumber('visit_compensation_amount_cents', 4000);
-    await this.creditStaff({
-      staffId: visit.nutritionistId,
-      amountCents,
-      kind: 'visit_compensation',
-      ref: visit.id,
-      clientId: visit.clientId,
-    });
-  }
+  /*
+   * COMPENSO VISITA: TOLTO (11/8, decisione di Simone: «togliamolo totalmente»).
+   *
+   * C'era `creditVisitCompensation`: al completamento di ogni visita accreditava alla nutrizionista
+   * un importo fisso (`visit_compensation_amount_cents`, 40 €) e scriveva l'uscita a ledger.
+   * Dal 14/07 quello che lo staff guadagna è definito **sul prodotto** — gli importi in € su ogni
+   * piano (`commission*Cents` / `commission*Pct`) — e il compenso a visita era l'ultimo residuo del
+   * modello precedente: pagava una seconda volta, di lato, una cosa già pagata dalla provvigione del
+   * piano, con un numero che viveva in un parametro globale e non nel prodotto.
+   *
+   * Cosa NON è stato toccato, di proposito: la categoria `visit_compensation` resta in
+   * `COMMISSION_CATEGORIES`, nelle etichette della Contabilità, nei Compensi staff e nei Prelievi.
+   * Gli importi già accreditati sono soldi già dovuti o già pagati: se sparissero dalle etichette
+   * resterebbero in tabella come una categoria senza nome. Non nascono più righe nuove; le vecchie
+   * si continuano a leggere.
+   */
 
   // ---------- Dashboard e ledger ----------
 

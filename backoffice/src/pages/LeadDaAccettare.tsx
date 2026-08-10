@@ -199,6 +199,8 @@ export function LeadDaAccettare() {
       valore: (r) => STATO_LABEL[r.status] ?? r.status,
       filtro: 'scelta',
       etichettaTutti: 'Tutti',
+      // «In attesa» in cima: è l'unico stato su cui c'è ancora qualcosa da fare.
+      ordineScelte: ['In attesa', 'Accettato', 'Rifiutato', 'Scaduto', 'Riassegnato'],
     },
     { chiave: 'azioni', titolo: '' },
   ];

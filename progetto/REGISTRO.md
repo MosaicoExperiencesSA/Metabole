@@ -7,6 +7,52 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🧾 **Nei costi si dice con cosa hai pagato** — «manca la voce con cosa hai pagato, che
+  dovrebbe essere una casella a discesa con le voci che inserisco io dai Parametri». Colonna nuova su
+  `cost_entry` (`paid_with`), tendina nel modulo di registrazione, colonna filtrabile nell'elenco.
+  La parte che conta della richiesta è **«le voci che inserisco io»**: stanno nel parametro
+  `cost_payment_methods` (Parametri → Contabilità → «Con cosa si paga», una voce per riga), non in un
+  elenco dentro il codice — un conto nuovo o una carta chiusa non devono richiedere un rilascio. Non è
+  un enum e non è una tabella a parte per lo stesso motivo: l'enum vorrebbe una migrazione a ogni
+  voce nuova, la tabella una pagina per gestirla, quando la pagina dei Parametri è quella in cui
+  Simone è andato a cercarla.
+  Due decisioni dentro: il server **rifiuta** un valore fuori elenco e dice dove si aggiunge (senza
+  quel controllo un refuso dall'API creerebbe «Carta azindale» accanto a «Carta aziendale», e il
+  filtro le offrirebbe come due conti diversi); rinominare una voce nei Parametri **non riscrive** i
+  costi già registrati, che continuano a dire con cosa sono stati pagati allora. I costi registrati
+  prima di oggi restano vuoti — con cosa siano stati pagati non si può indovinare, e riempirli con un
+  valore plausibile sarebbe inventare un dato contabile.
+
+- `[Sviluppo]` 💸 **Il compenso a visita non esiste più** — Simone, davanti alla pagina Parametri:
+  «questo non serve più, lo abbiamo inserito a livello di prodotto» → «togliamolo totalmente».
+  `FinanceService.creditVisitCompensation` accreditava alla nutrizionista 40 € fissi al completamento
+  di ogni visita, con l'uscita a ledger, leggendo `visit_compensation_amount_cents`. Era l'ultimo
+  residuo del modello prima del 14/07: pagava una seconda volta, di lato, una cosa già pagata dalla
+  provvigione definita **sul piano** — e lo faceva con un numero che viveva in un parametro globale
+  invece che nel prodotto. Tolti il metodo, la chiamata dal completamento visita, la riga nei
+  Parametri e la chiave dal seed; con essi la dipendenza da `FinanceService` in `VisitsService`, che
+  non serviva ad altro.
+  **Cosa NON è stato toccato, di proposito:** la categoria `visit_compensation` resta viva nelle
+  etichette di Contabilità, Compensi staff e Prelievi, e `creditStaff` la sa ancora scrivere. Gli
+  importi già accreditati sono soldi dovuti o già pagati: togliere l'etichetta li lascerebbe in
+  tabella come una categoria senza nome. Non nascono righe nuove, le vecchie si leggono ancora — e
+  c'è un test che verifica entrambe le cose.
+- `[Sviluppo]` 🧮 **Le quattro copie vecchie dell'ordinamento sono passate all'helper** — `Clienti`,
+  `Diete`, `Users` e `Ricette` avevano l'ordinamento da prima di `tabella.tsx`, ognuna con la sua
+  copia del blocchetto: ora la copia è una. I filtri che vanno al server restano al server (ruolo e
+  archiviati in Utenti, tutti quelli di Ricette, lo stato in Diete): due strati sullo stesso dato si
+  contraddicono a vicenda. `LeadsTable` resta fuori, ed è scritto perché (filtra e ordina lato
+  server su decine di migliaia di righe).
+  Tre difetti trovati rileggendo le venti pagine e corretti: in **Posta**, nella cartella «Inviata»,
+  la colonna intestata «Destinatario» mostrava il mittente — cioè la casella dell'ufficio, la stessa
+  riga su ogni messaggio, e l'unica informazione utile per ritrovare una mail inviata mancava (il
+  dato arrivava dal server da sempre, non era dichiarato nel tipo); in **Buoni sconto** la colonna
+  «Sconto» ordinava su un campo che mescola percentuali e centesimi, e ignorava i prezzi target che
+  la cella mostra; in **Tag allergeni** la spunta «Solo da rivedere» e il filtro della colonna Stato
+  erano due controlli sullo stesso dato — ora è uno, che parte già su «Da rivedere».
+  Aggiunto `ordineScelte`: le tendine di stato seguono il ciclo di vita (In attesa → Pagato →
+  Rifiutato) invece dell'alfabeto, che le faceva sembrare in ordine casuale.
+
 - `[Sviluppo]` 🗃️ **Lo storico delle assegnazioni dei lead** — chiesto da Simone: «nella tabella lead
   da accettare mettere il flag "mostra accettati" con la cronologia, quindi **tutti i dati vanno
   archiviati**». Il flag era la parte facile: la cronologia non esisteva. Su `crm_record` i tre campi

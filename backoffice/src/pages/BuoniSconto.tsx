@@ -71,7 +71,24 @@ export function BuoniSconto() {
     // Ordinabile ma senza filtro: il valore grezzo è una percentuale per i codici `percent` e
     // centesimi per i `fixed`, quindi si ordina bene fra codici dello stesso tipo e cercare
     // «20» qui vorrebbe dire due cose diverse a seconda della riga.
-    { chiave: 'sconto', titolo: 'Sconto', valore: (d) => d.value },
+    /**
+     * In questa colonna convivono TRE cose che non si confrontano fra loro: una percentuale, un
+     * importo fisso in centesimi e uno o più prezzi target per piano. Ordinare su `d.value` metteva
+     * «10%» accanto a «15,00 €» perché 10 < 1500, e i buoni con i prezzi target — che nella cella si
+     * leggono e in `value` non ci sono — finivano tutti insieme in un punto qualsiasi.
+     * Si ordina per TIPO e, dentro il tipo, per valore: prima le percentuali dalla più bassa, poi gli
+     * importi fissi, poi i prezzi target. È l'unico ordine che si può spiegare a chi guarda.
+     */
+    {
+      chiave: 'sconto',
+      titolo: 'Sconto',
+      valore: (d) => {
+        const target = d.planTargets && Object.keys(d.planTargets).length;
+        const tipo = target ? '3' : d.type === 'percent' ? '1' : '2';
+        const numero = target ? Math.min(...Object.values(d.planTargets!)) : d.value;
+        return `${tipo}${String(numero).padStart(9, '0')}`;
+      },
+    },
     { chiave: 'utilizzi', titolo: 'Utilizzi', valore: (d) => d.usedCount },
     { chiave: 'maxCliente', titolo: 'Max per cliente', valore: (d) => d.maxPerClient },
     { chiave: 'scadenza', titolo: 'Scadenza', valore: (d) => d.expiresAt },

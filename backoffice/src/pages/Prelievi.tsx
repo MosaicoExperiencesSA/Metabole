@@ -84,7 +84,8 @@ export function Prelievi() {
     // I centesimi, non «100,00 €»: come testo «100,00 €» finirebbe prima di «20,00 €».
     { chiave: 'importo', titolo: 'Importo', valore: (w) => w.amountCents, stile: { textAlign: 'right' } },
     // Il filtro serve nel tab «Tutte»: negli altri i tab hanno già scelto lo stato.
-    { chiave: 'stato', titolo: 'Stato', valore: (w) => w.status, filtro: 'scelta', etichetta: (v) => STATO_LABEL[v] ?? v, etichettaTutti: 'Tutti' },
+    // Il filtro serve nel tab «Tutte»; ordine del ciclo di vita, non alfabetico.
+    { chiave: 'stato', titolo: 'Stato', valore: (w) => STATO_LABEL[w.status] ?? w.status, filtro: 'scelta', etichettaTutti: 'Tutti', ordineScelte: ['In attesa', 'Pagato', 'Rifiutato'] },
     // Le date ISO grezze: si ordinano bene alfabeticamente, quelle formattate in italiano no.
     { chiave: 'richiesto', titolo: 'Richiesto il', valore: (w) => w.requestedAt },
     { chiave: 'pagato', titolo: 'Pagato il', valore: (w) => w.paidAt },
