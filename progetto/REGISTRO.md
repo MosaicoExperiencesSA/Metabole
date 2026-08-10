@@ -7,6 +7,66 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📏 **Senza una misura DI QUESTO PIANO il menu non parte — e adesso la chiediamo** — una
+  cliente: «non mi sono state richieste le misure, ma i menu li ho ricevuti». Aveva ragione su tutt'e
+  due i pezzi, ed erano due difetti diversi.
+  Il gate contava `measurement.count({ clientId })`: **nessun filtro sulla data e nessun legame col
+  piano**. Lei aveva pesate dal 20 luglio e il piano è partito il 6 agosto, quindi alla partenza il
+  controllo risultava già soddisfatto da misure di un'altra stagione della sua storia — niente popup,
+  niente blocco, menu dal primo giorno. La regola ora è quella data da Simone: «ci serve **sempre** una
+  misura per erogare il menu, anche a costo di registrare due misure consecutive». La finestra entro cui
+  una pesata vale non è un parametro nuovo da indovinare: è `menu_visible_days_before_start`, cioè da
+  quando il piano comincia a esistere per la cliente. Verso il futuro non c'è limite — chi si pesa al
+  terzo giorno ha comunque una partenza.
+  Secondo difetto, il più antipatico: **nessuno chiedeva niente**. Il gate sapeva solo bloccare, il
+  popup lo vede chi apre l'app, e l'unica notifica che diceva «inserisci le misure» viveva dentro
+  `unlockMeasures` — partiva **soltanto dopo** che una coach aveva sbloccato una cliente già murata
+  fuori. La richiesta esisteva come punizione, non come richiesta. Ora, finché il menu è trattenuto,
+  parte notifica in app **e** push (`measures_required`), ripetuta a distanza di
+  `measures_ask_repeat_days` (2 giorni) perché una push sola si perde e una al giorno diventa rumore. Si
+  spegne da sé: appena la misura arriva non c'è più niente da chiedere.
+
+- `[Sviluppo]` 🔢 **Generatore: la settimana 10 si bloccava perché il conto lo fa la famiglia e il
+  controllo la variante** — «ha generato Mediterranea senza glutine fino alla 9, la 10 no». Non era il
+  numero a due cifre: la striscia delle settimane, con la spunta «genera tutte le varianti», conta le
+  settimane della **famiglia** (il giorno più alto fra tutte le varianti), mentre il servizio le contava
+  sulla **singola variante**. Le due cose divergono appena una variante resta indietro — una settimana
+  fallita, o un giro interrotto a metà famiglia — e da quel momento la famiglia dice «la prossima è la
+  10» e quella variante dice «la mia è la 9». Il servizio rispondeva con un'eccezione e, non avendo il
+  giro un `try` per variante, **quell'eccezione fermava anche tutte le varianti dopo**: diciassette sane
+  bloccate da una, senza che dal messaggio si capisse quale.
+  Due correzioni. Il servizio, invece di rifiutare, genera `settimaneFatte + 1`: **non crea nessun buco**
+  — è esattamente l'invariante che il controllo difendeva — e fa quello che uno intende chiedendo
+  «portale alla 10». La risposta porta sia `week` (fatta) sia `settimanaChiesta`, quindi il backoffice
+  lo dice: «erano rimaste indietro e hanno recuperato un passo, ripremi Genera». E ogni variante ora
+  risponde per sé: quelle che falliscono si annotano («❌ Non riuscite: …»), le altre si generano.
+
+- `[Sviluppo]` 💶 **Il prezzo si legge dal Negozio, non si scrive nel codice** — «dobbiamo prendere il
+  prezzo da quello impostato nel negozio, che se lo cambiamo non impazziamo». La notifica di fine
+  monitoraggio diceva «mantenimento a **€29/mese**»: il Mantenimento costa **€49**, e il numero era
+  scritto a mano da quando il piano costava 29. Un prezzo sbagliato mandato da noi a una cliente vera, e
+  l'unico modo di accorgersene era leggere quella riga di codice per caso.
+  Ora `commerce/prezzo-piano.ts` legge la riga `Plan` attiva — la stessa che la cliente vede nel Negozio
+  e su cui pagherà. Se il piano non si trova torna **`null` e la frase esce senza cifra** («tenere il
+  peso col mantenimento»): un valore di riserva nel codice sarebbe lo stesso difetto con un'aria più
+  rispettabile, e meglio una parola in meno che una promessa da spiegare. Ripuliti anche i commenti che
+  ripetevano «€29» in `plan-report.service.ts` e in `app/pages/Report.tsx` — l'app il prezzo lo prendeva
+  già dal piano.
+
+- `[Sviluppo]` 🚨 **Le diagnostiche dicono se il piano è ANCORA attivo** — due falsi allarmi in fila,
+  entrambi miei. `diag:menu-incompleti` ha stampato «Rosaria Gruppuso resta senza pranzo e cena» e l'ho
+  messa in cima alle urgenze: il suo piano era **scaduto il 22/07**, nessun menu in arrivo, nessun
+  danno. Lo script guardava l'ultimo menu *erogato*, che di per sé non dice niente sul presente. Subito
+  dopo Simone: «non è che anche questi hanno il piano concluso?» — domanda giusta, e la risposta non
+  stava in nessuno script.
+  Il difetto è di categoria: **una diagnostica che nomina una cliente senza dire se il suo piano è
+  attivo produce allarmi che sembrano urgenti e non lo sono**, e il costo non è il tempo perso ma che
+  dopo due o tre non si crede più alla lista. `common/piano-attivo.ts` risponde per un gruppo di clienti
+  in una query sola, con quattro stati (attivo · scaduto ma ancora «active», da chiudere · concluso il
+  gg/mm · mai avuto un piano). `diag:menu-incompleti` ha una colonna **«di cui attive»**, mette il
+  campanello ⚠️ solo se qualcuno la sta ricevendo davvero, e per le altre scrive «nessuna cliente
+  attiva: non sta danneggiando nessuno adesso — da sistemare prima che qualcuno la scelga».
+
 - `[Sviluppo]` 🔎 **Copertura catalogo: si guarda DENTRO una settimana, non «quante ne ho»** — «non
   voglio vedere quante settimane ho, voglio filtrare la settimana 1 poi la 2 ecc.». Il filtro messo
   poco prima rispondeva a un'altra domanda: diceva quali varianti hanno 2 settimane, cioè chi è

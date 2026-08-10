@@ -90,7 +90,11 @@ export interface PlanReportData {
   milestones?: { label: string; date: string; weightKg: number }[];
   /** Stima di arrivo all'obiettivo al ritmo attuale (es. "entro dicembre 2026"). */
   etaLabel?: string | null;
-  /** Piano mantenimento (per il box "una pausa" a €29/mese), se esiste a catalogo. */
+  /**
+   * Piano mantenimento per il box «una pausa», se esiste a catalogo. Il prezzo è quello del Negozio
+   * (`priceCents`) e l'app mostra quello: qui c'era scritto «a €29/mese», che era il prezzo di un
+   * tempo — un commento con un prezzo dentro invecchia come il codice, ma nessuno lo verifica.
+   */
   maintenance?: { planId: string; planName: string; priceCents: number; billing: string } | null;
   /** Prezzo dei menu di rientro del Monitoraggio (per il box "gratis · 1 mese"). */
   // I menu di rientro sono INCLUSI dal 7/8 (prima erano un prodotto a €29): qui non c'è più un

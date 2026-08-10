@@ -419,12 +419,23 @@ export function CreazioneValidazione() {
       let riusateTot = 0;
       // Settimane completate (ricette esistenti tenute + generata solo la differenza).
       let completate = 0;
+      /**
+       * Varianti su cui la generazione è ANDATA MALE, e varianti che erano RIMASTE INDIETRO.
+       *
+       * Il difetto dell'11/8 («fino alla settimana 9 le genera, la 10 no»): il giro sulle diciotto
+       * varianti non aveva un `try` per variante, quindi il primo errore saltava fuori dal ciclo e
+       * lasciava senza generazione tutte quelle dopo — diciassette sane fermate da una, e dal messaggio
+       * non si capiva quale. Ora ogni variante risponde per sé e alla fine si dice chi ha fallito.
+       */
+      const falliti: string[] = [];
+      const recuperate: string[] = [];
       for (const t of targets) {
         if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Genero ${idx + 1} di ${targets.length}: ${variantTag(t)}…` });
         idx += 1;
         // INTEGRA, non sovrascrive: una settimana già generata viene lasciata intatta.
         // Solo sul singolo (non "genera tutte") si può scegliere di rifarla.
-        type GenRes = { dietId: string; alreadyExists?: boolean; week?: number; recipes?: number; riusate?: number; pastiIncompleti?: string[] };
+        type GenRes = { dietId: string; alreadyExists?: boolean; week?: number; settimanaChiesta?: number; recipes?: number; riusate?: number; pastiIncompleti?: string[] };
+        try {
         let r = await api<GenRes>(`/engine-rules/presets/${t.id}/generate-catalog`, { method: 'POST', body: JSON.stringify({ week }) });
         if (r.alreadyExists) {
           // La settimana c'è già. Di default si COMPLETA: le ricette esistenti restano (comprese
@@ -443,9 +454,16 @@ export function CreazioneValidazione() {
           }
         }
         if ((r.pastiIncompleti ?? []).length) incompleti.push(`${variantTag(t)}: ${(r.pastiIncompleti ?? []).join(', ')}`);
+        // Variante rimasta indietro: il server ha generato la SUA prossima settimana invece di
+        // rifiutare. Va detto, altrimenti sembra che la settimana chiesta sia stata fatta.
+        if (r.week && r.week !== week) recuperate.push(`${variantTag(t)}: fatta la ${r.week}`);
         riusateTot += r.riusate ?? 0;
         if (r.alreadyExists) kept += 1; else generated += 1;
         if (!firstDietId) firstDietId = r.dietId;
+        } catch (e) {
+          // Una variante che salta non porta giù le altre: si annota e si va avanti.
+          falliti.push(`${variantTag(t)} (${e instanceof Error ? e.message : 'errore'})`);
+        }
         if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Fatte ${idx} di ${targets.length}` });
       }
       if (firstDietId) { try { localStorage.setItem(LS_DIET, firstDietId); } catch { /* no-op */ } setDietId(firstDietId); }
@@ -459,7 +477,9 @@ export function CreazioneValidazione() {
         setWeek(restanti.length ? restanti[0] : Math.min(12, week + 1));
       }
       const coda = (riusateTot ? ` ${riusateTot} ricette tenute da quelle che c'erano già (comprese le tue correzioni) o riprese dalle varianti sorelle: si è generato solo quello che mancava.` : '')
-        + (incompleti.length ? ` ⚠️ L'AI non ha prodotto ricette per: ${incompleti.join(' · ')} — rigenera questa settimana.` : '');
+        + (recuperate.length ? ` ↩️ Erano rimaste indietro e hanno recuperato un passo: ${recuperate.join(' · ')}. Ripremi «Genera» per portarle alla ${week}.` : '')
+        + (incompleti.length ? ` ⚠️ L'AI non ha prodotto ricette per: ${incompleti.join(' · ')} — rigenera questa settimana.` : '')
+        + (falliti.length ? ` ❌ Non riuscite: ${falliti.join(' · ')}. Le altre sono state fatte.` : '');
       setNotice((targets.length > 1
         ? `Settimana ${week} fatta su ${generated} variante/i${kept ? `, ${kept} l'avevano già` : ''}. Quando hai le settimane che vuoi, valida e pubblica al passo 3.`
         : completate > 0

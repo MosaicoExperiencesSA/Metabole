@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { aPrezzoAlMese, prezzoPiano } from '../commerce/prezzo-piano';
 
 interface Period {
   id: string;
@@ -186,12 +187,19 @@ export class MonitoringService {
             data: { status: 'expired', closedAt: now } as never,
           });
           await this.funnelEvent('monitoraggio_scaduto', p.clientId);
+          // Il prezzo lo dice il NEGOZIO, non questa riga: qui c'era «€29/mese» scritto a mano da
+          // quando il Mantenimento costava 29, e dal giorno in cui è passato a 49 mandavamo un
+          // prezzo sbagliato senza che nessuno potesse accorgersene. Se il piano non si trova la
+          // frase esce senza cifra — meglio una parola in meno che una promessa da spiegare.
+          const mantenimento = await prezzoPiano(this.prisma, { period: 'maintenance' });
           await this.notifications
             .notify({
               userId: p.clientId,
               type: 'monitoring_expired',
               title: 'Il mese di monitoraggio è finito 🌱',
-              body: 'Come vuoi proseguire? Puoi ripartire con un percorso di dimagrimento, tenere il peso col mantenimento a €29/mese, o riattivare un altro mese di monitoraggio. Ti aspetto in app.',
+              body: 'Come vuoi proseguire? Puoi ripartire con un percorso di dimagrimento, tenere il peso '
+                + `col mantenimento${aPrezzoAlMese(mantenimento)}, o riattivare un altro mese di monitoraggio. `
+                + 'Ti aspetto in app.',
             })
             .catch(() => undefined);
           expired++;

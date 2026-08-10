@@ -535,6 +535,12 @@ const CONFIG_PARAMS: SeedParam[] = [
   // valori che usa oggi, quindi non cambia niente — cambia che ora si vedono.
   { key: 'measures_lock_after_hours', value: '24', type: 'number', description: 'Ore dal primo sollecito prima che l\'app si blocchi per misure non inserite.' },
   { key: 'measures_unlock_hours', value: '48', type: 'number', description: 'Durata della finestra di grazia concessa dalla coach quando sblocca l\'app.' },
+  // Il PUNTO A di un piano deve essere una misura di QUEL piano: «ci serve sempre una misura per
+  // erogare il menu, anche a costo di registrare due misure consecutive» (Simone, 11/8). Prima il
+  // gate accettava qualunque misura mai inserita, e una cliente con pesate di luglio ha iniziato il
+  // piano di agosto senza che nessuno le chiedesse niente. La finestra entro cui una pesata vale NON
+  // è un parametro nuovo: è `menu_visible_days_before_start`, cioè da quando il piano esiste per lei.
+  { key: 'measures_ask_repeat_days', value: '2', type: 'number', description: 'Ogni quanti giorni ripetere la richiesta delle misure di partenza mentre il menu è trattenuto.' },
   { key: 'measures_nudge_start_hour', value: '8', type: 'number', description: 'Ora di inizio della finestra in cui si sollecitano le misure (niente solleciti di notte).' },
   { key: 'measures_nudge_end_hour', value: '22', type: 'number', description: 'Ora di fine della finestra dei solleciti misure.' },
   { key: 'measures_nudge_hours', value: '2', type: 'number', description: 'Ogni quante ore ripetere il sollecito delle misure.' },

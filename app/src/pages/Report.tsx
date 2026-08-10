@@ -11,7 +11,8 @@ import AppHeader from '../components/AppHeader';
  * Consegna IN APP: dati sanitari, mai via email/WhatsApp.
  * Sezioni: diario del percorso (timeline) · numeri del mese · Gaia consiglia
  * (aderenza/acqua/passi) · tappe verso l'obiettivo · tre mosse · coach reale ·
- * le tre strade (Rinnovo / Mantenimento €29 / Monitoraggio gratis).
+ * le tre strade (Rinnovo / Mantenimento / Monitoraggio gratis). I prezzi NON stanno qui: il
+ * mantenimento mostra `r.maintenance.priceCents`, cioè quello impostato nel Negozio.
  */
 
 interface ReportHead { id: string; kind: string; planName: string; periodStart: string; periodEnd: string; read: boolean; createdAt: string }
@@ -507,7 +508,7 @@ export default function Report() {
             </div>
           )}
 
-          {/* Le tre strade (fine percorso): Rinnova · Mantenimento €29 · Monitoraggio gratis */}
+          {/* Le tre strade (fine percorso): Rinnova · Mantenimento · Monitoraggio gratis */}
           {r.kind !== 'monthly' && <div className="sec" style={{ margin: '0 2px 8px' }}>Come vuoi proseguire?</div>}
           {r.offer && r.kind !== 'monthly' && (
             <div className="card" style={{ border: '2px solid #0E7C66', marginBottom: 10 }}>

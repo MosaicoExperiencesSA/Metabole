@@ -20,6 +20,7 @@
  *   npm run diag:menu-incompleti
  */
 import { PrismaClient } from '@prisma/client';
+import { pianiDiClienti } from '../src/common/piano-attivo';
 
 const prisma = new PrismaClient();
 
@@ -104,6 +105,12 @@ async function main(): Promise<void> {
         })) as { id: string; email: string; firstName: string | null; lastName: string | null }[])
       : [];
 
+    // Chi di loro ha ANCORA un piano attivo: senza questa domanda lo script grida. È il caso
+    // dell'11/8 — «Rosaria Gruppuso resta senza pranzo e cena» su un piano scaduto il 22/07 — e un
+    // allarme falso costa più del silenzio, perché dopo due o tre non si crede più alla lista.
+    const piani = await pianiDiClienti(prisma as never, utenti.map((u) => u.id));
+    const attive = utenti.filter((u) => piani.get(u.id)?.riceveMenu);
+
     tabella.push({
       dieta: `${g.d.name} · ${g.d.regime} · ${g.d.objective ?? '—'} · ${g.d.fasting ? 'digiuno' : `${g.d.mealsPerDay} pasti`}`,
       stato: g.d.status + (g.d.clientVisible ? ' · VISIBILE' : ' · nascosta'),
@@ -111,16 +118,23 @@ async function main(): Promise<void> {
       'giornate monche': g.giorniMonchi,
       'pasti che non esistono': g.mancanti.map((s) => NOME_PASTO[s] ?? s).join(', ') || '—',
       clienti: utenti.length,
+      'di cui attive': attive.length,
     });
 
     if (utenti.length) {
-      console.log(`⚠️  ${g.d.name} · ${g.d.regime} · ${g.d.objective ?? '—'} · ${g.d.fasting ? 'digiuno' : `${g.d.mealsPerDay} pasti`}`);
+      // Il campanello suona SOLO se qualcuno la sta ricevendo adesso. Con le clienti tutte a piano
+      // concluso resta una riga informativa: la dieta è comunque da sistemare prima della prossima.
+      const testa = `${g.d.name} · ${g.d.regime} · ${g.d.objective ?? '—'} · ${g.d.fasting ? 'digiuno' : `${g.d.mealsPerDay} pasti`}`;
+      console.log(attive.length ? `⚠️  ${testa}` : `·   ${testa} (nessuna cliente attiva: non sta danneggiando nessuno adesso)`);
       if (g.mancanti.length) {
-        console.log(`    NON HA: ${g.mancanti.map((s) => NOME_PASTO[s] ?? s).join(', ')} — chi la riceve resta senza quei pasti.`);
+        console.log(attive.length
+          ? `    NON HA: ${g.mancanti.map((s) => NOME_PASTO[s] ?? s).join(', ')} — chi la riceve resta senza quei pasti.`
+          : `    NON HA: ${g.mancanti.map((s) => NOME_PASTO[s] ?? s).join(', ')} — da sistemare prima che qualcuno la scelga.`);
       }
       for (const u of utenti) {
         const nome = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || '(senza nome)';
-        console.log(`    · ${nome} · ${u.email} · ultimo menu ${perCliente.get(u.id)?.toISOString().slice(0, 10)}`);
+        const piano = piani.get(u.id);
+        console.log(`    · ${nome} · ${u.email} · ultimo menu ${perCliente.get(u.id)?.toISOString().slice(0, 10)} · piano: ${piano?.etichetta ?? '—'}`);
       }
       console.log('');
     }
@@ -129,9 +143,11 @@ async function main(): Promise<void> {
   console.table(tabella);
   console.log(
     'Che cosa fare, in ordine:\n' +
-    '1. Le diete con CLIENTI e con pasti mancanti sono la prima cosa: o si generano i pasti che\n' +
+    '1. Le diete con clienti ATTIVE e con pasti mancanti sono la prima cosa: o si generano i pasti che\n' +
     '   mancano (schermo 15, la variante giusta), o si sposta la cliente su una variante sana\n' +
     '   della stessa famiglia dalla sua scheda.\n' +
+    '   (La colonna «di cui attive» è quella che conta: una cliente col piano concluso compare perché\n' +
+    '   quei menu li ha ricevuti in passato, ma oggi non riceve niente e non è un\'urgenza.)\n' +
     '2. Le diete senza clienti si possono lasciare lì: da oggi il gate non le rende più visibili\n' +
     '   finché le giornate non sono complete, quindi non ne arriveranno altre in questo stato.\n' +
     '3. «giornate monche» senza «pasti che non esistono» = il pasto c\'è ma non in tutti i giorni:\n' +

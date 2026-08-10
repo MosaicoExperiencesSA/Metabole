@@ -254,9 +254,9 @@ export class EngineRulesService {
         ? ['lunch', 'afternoon_snack', 'dinner']
         : ['breakfast', 'lunch', 'dinner'];
     const mealsPerDay = slots.length;
-    const week = Math.max(1, Math.min(SETTIMANE_MAX, Math.round(settimanaRichiesta) || 1));
-    const primoGiorno = (week - 1) * GIORNI_SETTIMANA + 1;
-    const ultimoGiorno = week * GIORNI_SETTIMANA;
+    // La settimana CHIESTA. Quella che si genera davvero può essere più bassa: vedi il «recupero»
+    // qui sotto, dopo che si sa a che punto è questa variante.
+    const settimanaChiesta = Math.max(1, Math.min(SETTIMANE_MAX, Math.round(settimanaRichiesta) || 1));
 
     const objective = preset.objective ?? 'dimagrimento';
     // LA FAMIGLIA DI RICETTE è dieta + regime + obiettivo, SENZA la struttura pasti.
@@ -286,13 +286,32 @@ export class EngineRulesService {
       settimaneFatte = Math.ceil((ultimo?.dayIndex ?? 0) / GIORNI_SETTIMANA);
     }
 
-    // Le settimane si generano in ordine: un buco (settimana 1 e 3 senza la 2) darebbe un ciclo
-    // con giornate mancanti in mezzo, che il motore non sa colmare.
-    if (week > settimaneFatte + 1) {
-      throw new BadRequestException(
-        `Le settimane si generano una alla volta e in ordine: la prossima da generare è la ${settimaneFatte + 1}.`,
-      );
-    }
+    /**
+     * SETTIMANA CHIESTA vs SETTIMANA POSSIBILE — il difetto dell'11/8 («fino alla 9 le ha generate,
+     * la 10 no»).
+     *
+     * Le settimane si generano in ordine: un buco (la 1 e la 3 senza la 2) darebbe un ciclo con
+     * giornate mancanti in mezzo, che il motore non sa colmare. Il controllo è giusto. Ma qui prima
+     * c'era un'**eccezione**, e l'eccezione era la trappola:
+     *
+     *  - la striscia delle settimane nel backoffice, con la spunta «genera tutte le varianti»,
+     *    conta le settimane della **famiglia** (il giorno più alto fra tutte le varianti);
+     *  - questo controllo le conta sulla **singola variante**.
+     *
+     * Le due cose divergono appena una variante resta indietro — succede quando una settimana le
+     * fallisce, o quando il giro precedente si è interrotto a metà famiglia. Da quel momento la
+     * famiglia dice «la prossima è la 10» e quella variante dice «la mia prossima è la 9»: la
+     * richiesta veniva rifiutata con un'eccezione, e in un giro su diciotto varianti quell'eccezione
+     * fermava anche tutte quelle dopo. Diciassette varianti sane bloccate da una.
+     *
+     * Generare `settimaneFatte + 1` invece di rifiutare **non crea nessun buco** — è esattamente
+     * l'invariante che il controllo difende — e fa quello che uno intende chiedendo «portale alla
+     * 10»: chi è indietro recupera un passo per volta. Chi chiama sa cosa è stato fatto perché la
+     * risposta dice sia la settimana chiesta sia quella generata.
+     */
+    const week = Math.min(settimanaChiesta, settimaneFatte + 1);
+    const primoGiorno = (week - 1) * GIORNI_SETTIMANA + 1;
+    const ultimoGiorno = week * GIORNI_SETTIMANA;
     // Settimana già in catalogo e nessuna istruzione: non si tocca niente e si torna indietro,
     // così è il backoffice a chiedere se completarla o rifarla.
     if (week <= settimaneFatte && modalita === 'auto') {
@@ -301,6 +320,7 @@ export class EngineRulesService {
         dietId: existingVariant!.id,
         dietName: existingVariant!.name,
         week,
+        settimanaChiesta,
         settimaneFatte,
         recipes: 0,
         riusate: 0,
@@ -542,6 +562,8 @@ export class EngineRulesService {
       dietId: diet.id,
       dietName: diet.name,
       week,
+      /** Quella chiesta: se è diversa da `week`, questa variante era rimasta indietro e ha recuperato. */
+      settimanaChiesta,
       settimaneFatte: Math.max(settimaneFatte, week),
       recipes: recCount,
       /** Ricette prese da una variante sorella invece di rigenerarle (stessa dieta, stesso regime). */

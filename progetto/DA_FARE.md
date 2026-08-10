@@ -6,47 +6,45 @@ nel `REGISTRO.md` e si cancella da qui.
 > **Perché questa riscrittura.** Prima qui c'erano **due** voci, e le altre trentacinque vivevano solo
 > nel `REGISTRO.md`, sepolte in mezzo a migliaia di righe di prosa: un log cronologico è il posto
 > giusto per raccontare cosa è stato fatto e quello sbagliato per ricordare cosa resta. Il risultato
-> era che le cose più urgenti — una cliente senza pranzo e cena, due clienti che mangiano glutine, una
-> cancellazione account che si autodistrugge — non stavano in nessuna lista.
+> era che le cose più urgenti non stavano in nessuna lista.
 >
 > Le voci marcate **[dati]** non sono verificabili dal repository: dipendono dal database di
 > produzione, e chi le chiude dev'essere sicuro guardando lì.
 
 ---
 
-## §0 — ADESSO: sta danneggiando qualcuno
+## §0 — Le prime cose (e la lezione: prima di gridare, guardare se il piano è attivo)
 
-### 0.1 Una cancellazione account lasciata a metà: al 31° giorno il cron anonimizza per davvero
-**[dati] · irreversibile · unica voce di questa lista che dopo non si rimedia.**
-Sulla shell di Render: `npm run diag:cancellazioni`, e per fermarne una `FERMA=<id> npm run
-diag:cancellazioni`. Una prova di revoca lasciata a metà non si vede da nessuna parte fino al giorno in
-cui l'account sparisce.
+> Tre voci di questa sezione erano allarmi **falsi**, scritti l'11/8 da documenti che nominavano una
+> cliente senza dire se il suo piano fosse ancora attivo. Da qui `common/piano-attivo.ts` e la colonna
+> «di cui attive» in `diag:menu-incompleti`: un allarme falso costa più del silenzio, perché dopo due o
+> tre non si crede più alla lista.
 
-### 0.2 Rosaria Gruppuso è su una dieta senza pranzo e senza cena
-`Vacanze in Serenità · omnivore · dimagrimento · 3 pasti`: 28 giornate, **zero pranzi e zero cene**
-(confermato da `diag:menu-incompleti` l'11/8; ultimo menu erogato 25/7). Due strade: generare la
-settimana 1 di quella variante — un clic, ed è comunque la prima riga del lavoro sul catalogo — oppure
-spostarla dalla scheda su `5 pasti` della stessa famiglia, che i pasti li ha.
-Sulla stessa lista: **Emanuela Curulli** su `Pescetariana · omnivore · dimagrimento · 5 pasti`, una
-giornata monca (meno grave: il pasto esiste, manca in un giorno).
+### 0.1 La variante «Vacanze in Serenità · onnivora · dimagrimento · 3 pasti» è visibile e non ha pranzi né cene
+28 giornate, **zero pranzi e zero cene**. Nessuna cliente attiva la sta ricevendo — l'unica che l'ha
+avuta, Rosaria Gruppuso, ha il piano concluso dal 22/07 — quindi non sta danneggiando nessuno **adesso**:
+la trappola è armata per la prossima che la sceglie. Si chiude generandole la settimana 1, che è comunque
+la prima riga del lavoro sul catalogo (§4).
+Sulla stessa lista, tutte senza clienti attive: `Pescetariana · onnivora · dimagrimento · 5 pasti`
+(Emanuela Curulli, piano concluso) e altre dieci varianti con una o due giornate monche.
 
-### 0.3 Due clienti senza glutine ricevono ancora piatti con glutine
-L'assegnazione è stata fatta il 10/8, ma i menu già erogati restano finché non si premi **«Rigenera
-menu»** dalla scheda di ognuna. Due clic. **[dati]**
+### 0.2 Due clienti senza glutine: verificare se hanno ancora un piano attivo
+L'assegnazione è del 10/8, ma i menu già erogati restano finché non si preme **«Rigenera menu»** dalla
+scheda. Prima però va guardato se un piano attivo ce l'hanno: se sono concluse, non c'è niente da
+rigenerare. Si trovano dalla pastiglia «senza glutine» in Elenco clienti. **[dati]**
 
-### 0.4 Segnalazioni cliniche di luglio che nessuno ha mai ricevuto
+### 0.3 Segnalazioni cliniche di luglio che nessuno ha mai ricevuto
 Le segnalazioni aperte prima della correzione del routing sono senza destinatario: Giusy ne ha due, del
 17 e del 22 luglio, di cui una è «calo rapido 2,87 kg/settimana». `npm run fix:segnalazioni` (a vuoto,
 poi con conferma). Chi non è assegnabile va risolto come organico. **[dati]**
 
-### 0.5 Il gruppo di equivalenza del collaudo panna è GLOBALE
+### 0.4 Il gruppo di equivalenza del collaudo panna è GLOBALE
 Creato per il collaudo del 9/8 e mai ripulito: vale per **tutte** le clienti.
 `PULISCI=1 CONFERMA=1 npm run collaudo:menu-panna -- <email>`. **[dati]**
 
-### 0.6 La notifica di fine monitoraggio promette il mantenimento a €29/mese, ma costa €49
-`backend/src/monitoring/monitoring.service.ts:194`, testo scritto nel codice. La cliente riceve un
-prezzo sbagliato da noi. Correzione di una riga; i commenti di `reports/plan-report.service.ts:93` e
-`app/src/pages/Report.tsx` portano lo stesso numero vecchio.
+### ~~0.5 La notifica di fine monitoraggio prometteva il mantenimento a €29/mese~~ — FATTA l'11/8
+Il prezzo si legge dal Negozio (`commerce/prezzo-piano.ts`); se il piano non si trova la frase esce
+senza cifra invece di inventarne una.
 
 ---
 
@@ -58,7 +56,7 @@ Tutti esistono, nessuno risulta lanciato. In dry-run non scrivono niente.
 |---|---|
 | `npm run accendi:automazioni` | Sollecito questionario 24h, auguri di compleanno e avviso fine prova **non partono**: il master delle mail automatiche è spento di default. Leggere il riepilogo prima: è a opt-out. |
 | `npm run fix:consenso-sanitario` | Clienti bloccate al carrello per il consenso perso (tre casi in un pomeriggio il 9/8). |
-| `npm run fix:segnalazioni` | Vedi 0.4. |
+| `npm run fix:segnalazioni` | Vedi 0.3. |
 | `npm run dedupe:diets` | 18 varianti «senza glutine» approvate = 9 duplicate. Non fa danni al motore, rende inservibile una tendina — e blocca l'aggiunta della scelta dieta in scheda cliente. |
 | `npm run pulisci:spezie` | Chi ha curry o cumino fra i cibi esclusi continua a vedersi svuotare il ricettario. Chi ha escluso «le spezie» in generale va chiamato dalla coach: non lo sostituisce uno script. |
 | `npm run fix:stato-questionario` | Clienti che l'hanno già compilato risultano in sospeso. |

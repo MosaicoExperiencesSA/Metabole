@@ -217,6 +217,77 @@ describe('MenuService — gate misure', () => {
 });
 
 /**
+ * IL PUNTO A DEVE ESSERE UNA MISURA DI QUESTO PIANO, E VA CHIESTA (11/8).
+ *
+ * Il caso vero: una cliente con pesate dal 20 luglio ha iniziato il piano il 6 agosto e i menu sono
+ * partiti — il gate contava le misure di sempre (`count({ clientId })`) — e nessuno le ha chiesto
+ * niente, perché la richiesta esisteva solo dopo lo sblocco della coach.
+ */
+describe('MenuService — misura di partenza del piano', () => {
+  const profiloConPiano = {
+    planStartDate: D(dayIso(-3)),
+    regime: 'omnivore',
+    dietStyle: 'mediterranean',
+    mealsPerDay: 5,
+  };
+
+  it('nessuna pesata nella finestra del piano → niente menu, E la richiesta parte (push + in-app)', async () => {
+    pushInviate = [];
+    const creaNotifica = jest.fn().mockResolvedValue({ id: 'n1' });
+    const prisma = {
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      // Il finto risponde `null`: nessuna misura dal giorno di visibilità in poi. Le pesate di
+      // luglio esistono ma cadono fuori dalla finestra, ed è tutto il punto.
+      measurement: { findFirst: jest.fn().mockResolvedValue(null) },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: creaNotifica },
+    };
+    const created = await makeService(prisma).deliverIfEligible('c1');
+    expect(created).toEqual([]);
+    expect(creaNotifica).toHaveBeenCalled();
+    expect(pushInviate).toHaveLength(1);
+    expect(pushInviate[0].data).toEqual({ type: 'measures_required' });
+    // Il testo CHIEDE, non annuncia: è la differenza fra una richiesta e una punizione.
+    expect(pushInviate[0].body).toContain('inserisci');
+  });
+
+  it('la richiesta non si ripete ogni giro: se è già partita di recente resta zitta', async () => {
+    pushInviate = [];
+    const creaNotifica = jest.fn();
+    const prisma = {
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue(null) },
+      notification: { findFirst: jest.fn().mockResolvedValue({ id: 'giaChiesto' }), create: creaNotifica },
+    };
+    await makeService(prisma).deliverIfEligible('c1');
+    // Un sollecito al giorno su una cosa che richiede una bilancia diventa rumore e si impara a
+    // ignorarlo: peggio di non chiedere.
+    expect(creaNotifica).not.toHaveBeenCalled();
+    expect(pushInviate).toHaveLength(0);
+  });
+
+  it('con la pesata del piano il gate non trattiene e non chiede niente', async () => {
+    pushInviate = [];
+    const creaNotifica = jest.fn();
+    const prisma = {
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm-oggi' }) },
+      notification: { findFirst: jest.fn(), create: creaNotifica },
+      // Oltre il gate il resto della catena non è oggetto di questo test: senza dieta si ferma lì.
+      diet: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    };
+    await makeService(prisma).deliverIfEligible('c1');
+    expect(creaNotifica).not.toHaveBeenCalled();
+    expect(pushInviate).toHaveLength(0);
+  });
+});
+
+/**
  * MONITORAGGIO (€19/mese): il peso **si chiede, non si impone** (decisione Simone 9/8).
  *
  * Senza questo controllo il monitoraggio era la trappola perfetta. È un piano che i menu non li

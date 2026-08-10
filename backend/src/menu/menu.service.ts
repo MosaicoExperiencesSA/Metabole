@@ -15,6 +15,7 @@ import { slotSaltati } from './finestre-digiuno';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
+import { mancaMisuraDiPartenza } from './misura-di-partenza';
 import { MealSnapshot, Substitution } from './pasto-giornata';
 import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 import { EsitoSpezia, classificaSpezia } from './spezie';
@@ -195,16 +196,21 @@ export class MenuService {
       return { state: 'scheduled', availableFrom, planStartDate };
     }
 
-    // 6) MISURE INIZIALI (punto A): per QUALSIASI piano attivo, se non c'è ancora nessuna
-    // misura il menu resta trattenuto e l'app mostra il popup misure (bloccante). Prima
-    // valeva solo per la prova €0; ora vale sempre (le misure servono per ogni ciclo).
+    // 6) MISURE INIZIALI (punto A): per QUALSIASI piano attivo, se manca la misura di partenza
+    // DI QUESTO PIANO il menu resta trattenuto e l'app mostra il popup misure (bloccante).
+    // Prima qui si contavano le misure di sempre (`count({ clientId })`): una cliente con
+    // pesate di tre settimane prima passava il gate senza che nessuno le chiedesse niente, e i
+    // menu partivano. Vedi `misura-di-partenza.ts`.
     const activeSubscription = await this.prisma.subscription.findFirst({
       where: { clientId, status: 'active' },
       select: { id: true },
     });
     if (activeSubscription) {
-      const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
-      if (hasMeasure === 0) return { state: 'awaiting_measures', availableFrom: null, planStartDate };
+      // La finestra del punto A è la stessa della visibilità: una pesata fatta dentro quella
+      // finestra è di questo piano, una fatta prima è di un'altra storia.
+      if (await mancaMisuraDiPartenza(this.prisma, clientId, profile.planStartDate, visibleDaysBefore)) {
+        return { state: 'awaiting_measures', availableFrom: null, planStartDate };
+      }
     }
 
     // 7) Piano in sistemazione col nutrizionista (esclusioni non sostituibili).
@@ -252,19 +258,28 @@ export class MenuService {
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return [];
 
-    // MISURE INIZIALI (punto A) obbligatorie al giorno 0 per QUALSIASI piano: senza la prima
-    // misura non esiste il report A→B e non si eroga il primo menu. Finché non arriva, il menu
-    // resta trattenuto e il popup misure (bloccante) guida la cliente a inserirla. Le misure
-    // servono poi per OGNI ciclo (vedi cycleNeedsMeasure più sotto).
-    {
-      const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
-      if (hasMeasure === 0) return [];
-    }
-
     const today = toDateOnly();
     const start = toDateOnly(profile.planStartDate.toISOString());
     const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
     if (today.getTime() < visibleFrom.getTime()) return []; // troppo presto
+
+    // MISURE INIZIALI (punto A) obbligatorie per QUALSIASI piano: senza la misura di partenza di
+    // QUESTO piano non esiste il report A→B e non si eroga il primo menu.
+    //
+    // Due correzioni dell'11/8, dalla segnalazione «non mi sono state richieste le misure ma i menu
+    // li ho ricevuti» (vedi `misura-di-partenza.ts`):
+    //  - il controllo era `count({ clientId })`, cioè «una misura qualsiasi, in tutta la storia»:
+    //    pesate di tre settimane prima soddisfacevano il gate di un piano appena partito;
+    //  - e non si CHIEDEVA niente. Il popup lo vede chi apre l'app, e l'unica notifica che chiedeva
+    //    le misure partiva solo dopo lo sblocco della coach: la richiesta esisteva come punizione,
+    //    non come richiesta. Adesso, finché il menu è trattenuto, si chiede.
+    //
+    // Il controllo sta DOPO la finestra di visibilità di proposito: a un piano che parte fra una
+    // settimana non si chiede niente, perché non c'è ancora niente da sbloccare.
+    if (await mancaMisuraDiPartenza(this.prisma, clientId, profile.planStartDate, visibleDaysBefore)) {
+      await this.chiediMisureDiPartenza(clientId).catch(() => undefined);
+      return [];
+    }
 
     const last = await this.prisma.menuDay.findFirst({
       where: { clientId },
@@ -723,8 +738,53 @@ export class MenuService {
     const start = toDateOnly(profile.planStartDate.toISOString());
     const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
     if (today.getTime() < visibleFrom.getTime()) return false; // troppo presto
-    const hasMeasure = await this.prisma.measurement.count({ where: { clientId } });
-    return hasMeasure === 0;
+    // La misura di partenza di QUESTO piano, non una qualsiasi mai fatta: `misura-di-partenza.ts`.
+    return mancaMisuraDiPartenza(this.prisma, clientId, profile.planStartDate, visibleDaysBefore);
+  }
+
+  /**
+   * CHIEDE le misure di partenza, in app e sul telefono, finché il menu resta trattenuto.
+   *
+   * Il difetto che chiude: il gate sapeva bloccare e non chiedere. Una cliente restava senza menu
+   * senza sapere perché — e se non apriva l'app non vedeva nemmeno il popup. La richiesta esisteva
+   * solo dopo lo sblocco della coach, cioè solo per chi era già rimasta fuori.
+   *
+   * Si ripete a distanza (`measures_ask_repeat_days`, 2 giorni) perché una push sola si perde: arriva
+   * mentre si guida, si scarta senza leggere, il telefono era spento. Ma non ogni giorno, perché un
+   * sollecito quotidiano su una cosa che richiede una bilancia diventa rumore e si impara a
+   * ignorarlo. E si spegne da sé: appena la misura arriva il menu non è più trattenuto e questa
+   * funzione non viene più chiamata.
+   */
+  private async chiediMisureDiPartenza(clientId: string): Promise<void> {
+    const giorni = await this.configParams.getNumber('measures_ask_repeat_days', 2);
+    const da = new Date(Date.now() - Math.max(1, giorni) * 86_400_000);
+    const giaChiesto = await this.prisma.notification.findFirst({
+      where: { userId: clientId, type: 'measures_required', createdAt: { gte: da } } as never,
+      select: { id: true },
+    });
+    if (giaChiesto) return;
+
+    const titolo = 'Le tue misure di partenza 📏';
+    const corpo =
+      'Per farti partire mi serve il punto A: inserisci peso e misure in app e il menu dei primi '
+      + 'giorni arriva subito.';
+    await this.prisma.notification
+      .create({
+        data: {
+          userId: clientId,
+          type: 'measures_required',
+          payload: { title: titolo, body: corpo } as never,
+          channel: 'inapp',
+          scheduledFor: new Date(),
+          sentAt: new Date(),
+        },
+      })
+      .catch(() => undefined);
+    // Sul telefono soprattutto: la notifica in app la vede solo chi l'app la apre, cioè non chi si è
+    // fermata proprio perché non le arrivava niente. Silenziosa se le push non sono configurate.
+    await this.push
+      .sendToUser(clientId, titolo, corpo, { type: 'measures_required' })
+      .catch(() => undefined);
   }
 
   /**

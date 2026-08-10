@@ -341,14 +341,31 @@ describe('EngineRulesService', () => {
     expect(pranzi.some((id: string) => String(id).includes('nuova'))).toBe(false);
   });
 
-  it('niente buchi: non si può saltare a una settimana lontana', async () => {
+  /**
+   * NIENTE BUCHI, MA NIENTE ECCEZIONI: chi è indietro RECUPERA un passo per volta (11/8).
+   *
+   * Prima qui si pretendeva un'eccezione, e l'eccezione era la trappola: la striscia del backoffice
+   * conta le settimane della FAMIGLIA, questo servizio le conta sulla singola VARIANTE. Appena una
+   * variante resta indietro le due cose divergono, la richiesta «settimana 10» veniva rifiutata, e nel
+   * giro su diciotto varianti quel rifiuto fermava anche tutte quelle dopo: diciassette sane bloccate
+   * da una. È il caso vero di «Mediterranea senza glutine»: fino alla 9 sì, la 10 no.
+   *
+   * Generare `settimaneFatte + 1` rispetta l'invariante che il controllo difendeva — nessun buco — e fa
+   * quello che uno intende chiedendo «portale alla 10».
+   */
+  it('settimana lontana: genera la prossima possibile e dice che era stata chiesta un\'altra', async () => {
     const { service, prisma, ai } = build();
     preset5Pasti(prisma);
     aiSetteRicette(ai);
     prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
-    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 });
-    // Settimana 1 e 3 senza la 2 darebbe un ciclo con giornate mancanti in mezzo.
-    await expect(service.generateCatalogFromPreset('p1', 'u1', 4)).rejects.toThrow(/in ordine/i);
+    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 }); // una settimana fatta
+    const r = await service.generateCatalogFromPreset('p1', 'u1', 4);
+    // La 2, non la 4: fra la 1 e la 4 ci sarebbero due settimane vuote in mezzo.
+    expect(r.week).toBe(2);
+    expect((r as { settimanaChiesta?: number }).settimanaChiesta).toBe(4);
+    // E le giornate scritte sono quelle della settimana 2, non della 4.
+    const indici = prisma.dietDayTemplate.create.mock.calls.map((c: any) => c[0].data.dayIndex);
+    expect(indici).toEqual([8, 9, 10, 11, 12, 13, 14]);
   });
 
   it('createProposal: senza testo → errore; con testo → pending', async () => {
