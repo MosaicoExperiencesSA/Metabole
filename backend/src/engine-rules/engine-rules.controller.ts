@@ -109,6 +109,15 @@ export class EngineRulesController {
     return this.service.generateCatalogFromPreset(id, u.sub, dto.week ?? 1, modalita);
   }
 
+  /**
+   * LA TABELLA DELLA COPERTURA: tutte le varianti con quanti piatti diversi hanno per ogni pasto.
+   * «Così a colpo d'occhio capiamo dove siamo» (11/8).
+   */
+  @Get('copertura')
+  copertura() {
+    return this.service.coperturaVarianti();
+  }
+
   /** Quante settimane di catalogo ha già questa variante: serve al backoffice per proporre
    *  la prossima da generare invece di far indovinare al nutrizionista. */
   @Get('presets/:id/weeks')

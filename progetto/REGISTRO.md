@@ -7,6 +7,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔍 **Pagina «Copertura catalogo»: dove siamo, a colpo d'occhio** — «crea una tabella con
+  tutti i tipi, con le colonne n pranzi, n cene, n merende, n spuntini», nata dalla segnalazione «dice
+  settimana creata e validata, poi ci torno sopra ed è vuota». Prima di correggere serviva
+  **distinguere le ipotesi**, perché sono tre difetti diversi con tre correzioni opposte: mai generata,
+  generata e non validata, oppure generata e con i piatti cancellati sotto.
+  Una riga per variante (dieta × regime × obiettivo × struttura pasti) e per ogni pasto **due numeri**:
+  i piatti diversi che le giornate nominano, e fra parentesi quanti sono **attivi**, cioè quanti il
+  motore usa davvero. `84 (84)` a posto; `84 (0)` = generata e non validata, e da fuori sembra vuota;
+  `84 (60)` = validata a metà. Più una terza colonna che prima non si poteva vedere da nessuna parte:
+  i **riferimenti rotti**, cioè giornate che nominano ricette che non esistono più. I pasti stanno in un
+  campo JSON, quindi nessun vincolo del database impedisce di cancellare una ricetta ancora nominata:
+  quando capita la giornata resta in piedi e il pasto è un buco — ed è il candidato numero uno per «era
+  vuota».
+  I conteggi li fa Postgres (`jsonb_array_elements` + `COUNT(DISTINCT)`), non il codice: leggere tutte
+  le giornate di tutte le varianti per contarle in memoria sarebbe lo stesso errore per cui il funnel
+  sottostimava. Il join sulle ricette è **LEFT** di proposito: con un join interno i riferimenti rotti
+  spariscono dal conteggio invece di comparire, e la tabella direbbe «tutto a posto» esattamente nel
+  caso che stiamo cercando.
+  Filtri e ordinamento su tutte le colonne, riassunto in testa (complete · magre · da validare · con
+  riferimenti rotti · vuote). Le varianti a digiuno intermittente non hanno la colazione e la tabella lo
+  sa: un «—» invece di uno zero, altrimenti risulterebbero tutte incomplete. 13 test nuovi, query
+  provata su PostgreSQL 16 con dati finti che includono una ricetta cancellata.
+
 - `[Sviluppo]` 🎂 **Gli auguri di compleanno che a qualcuno non arrivavano MAI** — il più antipatico
   dei troncamenti trovati, perché invisibile per costruzione. La query prendeva **500 clienti a caso**
   (`take: 500`, senza nemmeno un `orderBy`) e *poi* guardava in JavaScript chi fosse nato oggi. Con più

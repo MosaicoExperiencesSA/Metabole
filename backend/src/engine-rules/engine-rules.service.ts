@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AuditService } from '../audit/audit.service';
 import { AiService } from '../ai/ai.service';
 import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
+import { SLOT_ORDINE, coperturaCatalogo, slotAttesi, statoCopertura } from './copertura-catalogo';
 import { suggestAllergens } from '../catalog/allergens';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -533,6 +534,64 @@ export class EngineRulesService {
       /** Pasti per cui l'AI non ha prodotto niente: il nutrizionista deve saperlo. */
       pastiIncompleti: vuoti,
     };
+  }
+
+  /**
+   * LA TABELLA DELLA COPERTURA: una riga per variante, con quanti piatti diversi ha per ogni pasto.
+   *
+   * Richiesta di Simone dell'11/8 — «così a colpo d'occhio capiamo dove siamo» — nata dal problema
+   * «dice creata e validata, poi ci torno ed è vuota». Prima di correggere qualcosa serve sapere se i
+   * piatti nel database ci sono: le tre colonne per pasto (piatti / attivi / rotti) distinguono
+   * «generata e non validata» da «riferimenti morti» da «mai generata», che sono tre difetti diversi
+   * con tre correzioni diverse. Vedi `copertura-catalogo.ts`.
+   */
+  async coperturaVarianti() {
+    const [diete, copertura] = await Promise.all([
+      this.prisma.diet.findMany({
+        select: {
+          id: true, name: true, style: true, regime: true, objective: true,
+          mealsPerDay: true, fasting: true, status: true, clientVisible: true, siteVisible: true,
+          updatedAt: true,
+        },
+        orderBy: [{ name: 'asc' }, { regime: 'asc' }, { objective: 'asc' }, { mealsPerDay: 'asc' }],
+      }) as unknown as Promise<{
+        id: string; name: string; style: string | null; regime: string; objective: string | null;
+        mealsPerDay: number; fasting: boolean | null; status: string;
+        clientVisible: boolean | null; siteVisible: boolean | null; updatedAt: Date;
+      }[]>,
+      coperturaCatalogo(this.prisma),
+    ]);
+
+    const righe = diete.map((d) => {
+      const c = copertura.get(d.id);
+      const attesi = slotAttesi(d.mealsPerDay, !!d.fasting);
+      const { stato, dettaglio } = statoCopertura(c, attesi);
+      /** I pasti che questa struttura NON prevede tornano `null`: uno zero lì sembrerebbe un buco. */
+      const perSlot: Record<string, { piatti: number; attivi: number; rotti: number } | null> = {};
+      for (const sl of SLOT_ORDINE) {
+        perSlot[sl] = attesi.includes(sl) ? (c?.perSlot[sl] ?? { piatti: 0, attivi: 0, rotti: 0 }) : null;
+      }
+      return {
+        ...d,
+        settimane: c?.settimane ?? 0,
+        giorni: c?.giorni ?? 0,
+        perSlot,
+        stato,
+        dettaglio,
+        /** Quanti piatti diversi per pasto servirebbero per le settimane che ci sono. */
+        attesoPerPasto: (c?.settimane ?? 0) * GIORNI_SETTIMANA,
+      };
+    });
+
+    const riassunto = {
+      varianti: righe.length,
+      complete: righe.filter((r) => r.stato === 'completa').length,
+      magre: righe.filter((r) => r.stato === 'magra').length,
+      daValidare: righe.filter((r) => r.stato === 'da_validare').length,
+      rotte: righe.filter((r) => r.stato === 'rotta').length,
+      vuote: righe.filter((r) => r.stato === 'vuota').length,
+    };
+    return { righe, riassunto };
   }
 
   /** Quante settimane di catalogo ha già la variante di questo preset (0 se non esiste). */
