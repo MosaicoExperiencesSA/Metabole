@@ -7,6 +7,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-12
 
+- `[Sviluppo]` 📈 **Il funnel adesso vede i rinnovi automatici** — `plan_renewed` esisteva solo sul
+  percorso manuale/bonifico, dove per capire se un pagamento è un rinnovo bisogna andare a cercare se
+  prima c'era un abbonamento pagato. Dentro `invoice.paid` quella domanda non si pone: con
+  `billing_reason` diverso da `subscription_create` quel pagamento **è** un rinnovo per definizione — e
+  non emettendolo, sui piani ricorrenti (cioè la strategia) la dashboard marketing mostrava **zero
+  rinnovi**: un prodotto in cui nessuno rinnova mai.
+  L'evento si scrive **dopo** la creazione del pagamento, così è protetto dalla stessa idempotenza e due
+  webhook della stessa fattura non producono due rinnovi nei grafici. L'importo sta nel payload e non
+  nella condizione: un rinnovo scontato a zero resta un rinnovo del rapporto, e chi legge i numeri lo
+  filtra sapendo che c'è. Se il tracciamento fallisce l'incasso prosegue — i soldi valgono più del
+  grafico, ed è coperto da un test.
+
 - `[Sviluppo]` 💳 **Un pagamento per fattura di rinnovo, garantito dal database** — l'idempotenza era
   `findFirst` sul `pspRef` e poi `create`. Fra le due righe non c'è niente che tenga: Stripe ritenta i
   webhook e non li manda in fila indiana, quindi due copie della stessa fattura passavano **entrambe**

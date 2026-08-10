@@ -41,6 +41,10 @@ function harness() {
       create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'pay-rinnovo', ...data })),
     },
     clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+    // Il funnel: `plan_renewed` nasce da qui, e senza questi due il rinnovo cadrebbe su un
+    // `undefined.create` — cioè il tracciamento porterebbe giù l'incasso.
+    crmRecord: { findUnique: jest.fn().mockResolvedValue(null) },
+    analyticsEvent: { create: jest.fn().mockResolvedValue({}) },
     staff: { findUnique: jest.fn().mockResolvedValue(null) },
     notification: { create: jest.fn() },
   };
@@ -258,5 +262,69 @@ describe('handleInvoicePaid — idempotenza garantita dal database', () => {
     await expect(
       service.handleInvoicePaid({ type: 'invoice.paid', data: { object: fattura() } } as never),
     ).rejects.toThrow('database non raggiungibile');
+  });
+});
+
+/**
+ * IL FUNNEL DEVE VEDERE I RINNOVI (12/8).
+ *
+ * `plan_renewed` esisteva solo sul percorso manuale/bonifico: sui piani ricorrenti — cioè la strategia
+ * — la dashboard marketing mostrava **zero rinnovi**, e un prodotto in cui nessuno rinnova mai.
+ */
+describe('handleInvoicePaid — evento plan_renewed', () => {
+  const abbonamentoNormale = (h: ReturnType<typeof harness>) => {
+    h.prisma.subscription.findUnique
+      .mockResolvedValueOnce({ id: 'nostro-sub-1', clientId: 'cli-1', stripeSubscriptionId: 'sub_STRIPE_1' })
+      .mockResolvedValue({
+        id: 'nostro-sub-1', clientId: 'cli-1', endDate: new Date('2026-08-08T00:00:00.000Z'),
+        plan: { name: 'Mantenimento' }, client: { email: 'giulia@test.it', locale: 'it' },
+      });
+  };
+
+  it('un rinnovo pagato scrive l\'evento, con importo e origine', async () => {
+    const h = harness();
+    const service = await build(h);
+    abbonamentoNormale(h);
+
+    const res: any = await service.handleInvoicePaid({ type: 'invoice.paid', data: { object: fattura() } });
+
+    expect(res).toEqual({ handled: true, renewed: true });
+    expect(h.prisma.analyticsEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'plan_renewed',
+          userId: 'cli-1',
+          phase: 'funnel',
+          data: expect.objectContaining({ amountCents: 4900, origine: 'stripe' }),
+        }),
+      }),
+    );
+  });
+
+  it('il PRIMO addebito non è un rinnovo: nessun evento', async () => {
+    const h = harness();
+    const service = await build(h);
+    abbonamentoNormale(h);
+
+    await service.handleInvoicePaid({
+      type: 'invoice.paid',
+      data: { object: fattura({ billing_reason: 'subscription_create' }) },
+    });
+
+    // Contarlo come rinnovo raddoppierebbe il primo mese in ogni grafico di conversione.
+    expect(h.prisma.analyticsEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('se il tracciamento fallisce l\'incasso NON si ferma: i soldi valgono più del grafico', async () => {
+    const h = harness();
+    const service = await build(h);
+    abbonamentoNormale(h);
+    h.prisma.analyticsEvent.create.mockRejectedValue(new Error('tabella eventi piena'));
+
+    const res: any = await service.handleInvoicePaid({ type: 'invoice.paid', data: { object: fattura() } });
+
+    expect(res).toEqual({ handled: true, renewed: true });
+    expect(h.finance.recordIncome).toHaveBeenCalled();
+    expect(h.finance.generateCommissions).toHaveBeenCalled();
   });
 });

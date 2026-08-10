@@ -117,9 +117,10 @@ scrittura che si appoggia al rifiuto del vincolo invece di guardare-e-poi-scrive
 tutta la colonna perché in `psp_ref` finiscono anche gli id delle sessioni di checkout, che hanno
 un'altra natura: un vincolo su tutto avrebbe rotto il checkout per proteggere i rinnovi.
 
-### 2.5 `handleInvoicePaid` non emette `plan_renewed`
-La dashboard marketing vede **zero rinnovi** sui piani ricorrenti: l'evento esiste solo sul percorso
-manuale/bonifico.
+### ~~2.5 `handleInvoicePaid` non emette `plan_renewed`~~ — FATTA il 12/8
+L'evento si scrive dentro `invoice.paid`, dopo la creazione del pagamento (quindi coperto dalla stessa
+idempotenza). La dashboard marketing legge già `plan_renewed` come «Rinnovi»: dal prossimo rinnovo vero
+il numero comparirà da sé.
 
 ### 2.6 Nel primo acquisto non compare mai la scelta abbonamento / pagamento unico
 `app/src/pages/PlanFlow.tsx` dichiara `interface Plan` senza `billing` e non lo passa a `cart.setPlan`:

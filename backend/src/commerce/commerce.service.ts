@@ -1397,6 +1397,27 @@ export class CommerceService {
       data: { status: 'active', endDate: nuovaFine, lastPaymentFailedAt: null } as never,
     });
 
+    /**
+     * L'EVENTO `plan_renewed` — mancava, e la dashboard marketing vedeva **zero rinnovi**.
+     *
+     * L'evento esisteva solo sul percorso manuale/bonifico (`approvePayment`), dove per capire se un
+     * pagamento è un rinnovo bisogna andare a cercare se prima c'era un abbonamento pagato. Qui la
+     * domanda non si pone: siamo dentro `invoice.paid` con `billing_reason` diverso da
+     * `subscription_create`, quindi questo pagamento **è** un rinnovo per definizione. Non emetterlo
+     * significava che sui piani ricorrenti — cioè la strategia — il funnel raccontava un prodotto in
+     * cui nessuno rinnova mai.
+     *
+     * Sta dopo la creazione del pagamento di proposito: così è protetto dalla stessa idempotenza, e
+     * due webhook della stessa fattura non producono due rinnovi nei grafici.
+     *
+     * L'importo va nel payload e non nella condizione: un rinnovo a zero (uno sconto totale) resta
+     * un rinnovo del rapporto, e chi legge i numeri può filtrarlo sapendo che c'è.
+     */
+    await this.funnelEvent(sub.clientId, 'plan_renewed', {
+      subscriptionId: sub.id,
+      amountCents: importo,
+      origine: 'stripe',
+    }).catch(() => undefined);
     await this.finance
       .recordIncome({ amountCents: importo, category: 'subscription', ref: payment.id, clientId: sub.clientId })
       .catch(() => undefined);
