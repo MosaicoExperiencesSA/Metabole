@@ -125,3 +125,50 @@ describe('copreUnoDi', () => {
     expect(await copreUnoDi(prisma, 'resp', [null, undefined])).toBe(false);
   });
 });
+
+/**
+ * LA REGOLA VALE PER TUTTE LE PAGINE, NON SOLO PER LE CHAT (11/8).
+ *
+ * «Visto il problema avuto nella chat, verifica in tutte le funzioni che la rete venga risalita fino
+ * in cima e non solo due livelli.» La verifica è stata fatta e il risultato è questo: quindici moduli
+ * (clienti, acquisti, dashboard, pipeline, avvisi, report, compiti coach, CRM, analytics…) leggono la
+ * portata da `coachTeamScope`, e quello ora risale tutta la rete. Questo test lo tiene fermo: se
+ * qualcuno riporta lì una query a un livello, diventa rosso.
+ */
+describe('coachTeamScope — la portata risale la rete, non un livello', () => {
+  it('la responsabile ha nella portata anche le coach delle sue coordinatrici', async () => {
+    const { coachTeamScope } = await import('./coach-team');
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach_coordinator' }) },
+      staff: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'resp' }),
+        findMany: jest.fn().mockImplementation(({ where }: any) => {
+          const chiesti: string[] = (where?.OR ?? []).flatMap((o: any) => o.managerId?.in ?? o.headNutritionistId?.in ?? []);
+          const figli: Record<string, string[]> = { resp: ['coord1'], coord1: ['coachA', 'coachB'] };
+          return Promise.resolve(chiesti.flatMap((id) => (figli[id] ?? []).map((x) => ({ id: x }))));
+        }),
+      },
+    } as never;
+    const portata = await coachTeamScope(prisma, 'resp-user');
+    expect(portata?.sort()).toEqual(['coachA', 'coachB', 'coord1', 'resp'].sort());
+  });
+
+  it('una coach resta con le sue clienti: risalire non allarga chi sta in fondo', async () => {
+    const { coachTeamScope } = await import('./coach-team');
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coachA' }), findMany: jest.fn().mockResolvedValue([]) },
+    } as never;
+    expect(await coachTeamScope(prisma, 'coach-user')).toEqual(['coachA']);
+  });
+
+  it('senza scheda staff non vede NIENTE, non tutto: in dubbio si chiude', async () => {
+    const { coachTeamScope } = await import('./coach-team');
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach_coordinator' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    } as never;
+    const portata = await coachTeamScope(prisma, 'ignota');
+    expect(portata).toEqual(['00000000-0000-0000-0000-000000000000']);
+  });
+});

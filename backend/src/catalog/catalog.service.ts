@@ -637,16 +637,43 @@ export class CatalogService {
    * interrogare). Quindi si leggono le giornate e si estraggono gli id qui.
    */
   private async recipeIdsDiDieta(dietId: string): Promise<string[]> {
+    return [...(await this.settimanePerRicetta(dietId)).keys()];
+  }
+
+  /**
+   * IN QUALI SETTIMANE è usata ogni ricetta di questa dieta.
+   *
+   * Richiesta di Simone dell'11/8: «mettimi il filtro anche per settimana, perché forse ho capito dove
+   * sta l'anomalia: il generatore le mette tutte nella prima settimana». L'osservazione nasceva dal tag
+   * `sett:1` che compare su tutte le ricette di una dieta — e quel tag **non dice quello che sembra
+   * dire**: viene scritto alla nascita della ricetta e registra in quale *generazione* è stata creata,
+   * non in quale settimana del ciclo è finita. Se la settimana 2 riusa un piatto avanzato dalla
+   * generazione della settimana 1 (cosa voluta: sono piatti già pagati e già riletti), quel piatto
+   * porta `sett:1` per sempre pur stando nella settimana 2.
+   *
+   * Quindi la settimana vera si legge da un posto solo, quello che decide davvero: la **giornata** che
+   * usa la ricetta. `dayIndex` 1-7 = settimana 1, 8-14 = settimana 2, e così via. Una ricetta può
+   * comparire in più settimane, ed è un'informazione che conta — è il modo di vedere a occhio se il
+   * ciclo si ripete invece di allungarsi.
+   */
+  private async settimanePerRicetta(dietId: string): Promise<Map<string, number[]>> {
     const giorni = (await this.prisma.dietDayTemplate.findMany({
       where: { dietId },
-      select: { meals: true },
-    })) as { meals: unknown }[];
-    const ids = new Set<string>();
+      select: { dayIndex: true, meals: true },
+      orderBy: { dayIndex: 'asc' },
+    })) as { dayIndex: number; meals: unknown }[];
+    const out = new Map<string, Set<number>>();
     for (const g of giorni) {
+      const settimana = Math.max(1, Math.ceil((g.dayIndex ?? 1) / 7));
       const pasti = (Array.isArray(g.meals) ? g.meals : []) as { recipeId?: unknown }[];
-      for (const m of pasti) if (typeof m?.recipeId === 'string' && m.recipeId) ids.add(m.recipeId);
+      for (const m of pasti) {
+        if (typeof m?.recipeId !== 'string' || !m.recipeId) continue;
+        const viste = out.get(m.recipeId) ?? new Set<number>();
+        viste.add(settimana);
+        out.set(m.recipeId, viste);
+      }
     }
-    return [...ids];
+    return new Map([...out].map(([id, viste]) => [id, [...viste].sort((a, b) => a - b)]));
   }
 
   /**
@@ -671,7 +698,11 @@ export class CatalogService {
   }): Promise<{ items: unknown[]; total: number; troncato: boolean }> {
     // Con `dietId` l'elenco è quello della SINGOLA dieta: il tetto non lo tocca mai, perché una
     // dieta ha decine di ricette, non migliaia.
-    const soloDieta = filter.dietId ? await this.recipeIdsDiDieta(filter.dietId) : null;
+    // Con `dietId` si sa anche IN QUALI SETTIMANE ogni ricetta è usata: serve al filtro per settimana
+    // (11/8), e si legge dalle giornate perché il tag `sett:N` dice un'altra cosa (vedi
+    // `settimanePerRicetta`).
+    const settimane = filter.dietId ? await this.settimanePerRicetta(filter.dietId) : null;
+    const soloDieta = settimane ? [...settimane.keys()] : null;
     if (soloDieta && soloDieta.length === 0) return { items: [], total: 0, troncato: false };
 
     const kcal: Record<string, number> = {};
@@ -707,7 +738,15 @@ export class CatalogService {
       this.prisma.recipe.findMany({ where: where as never, orderBy: { name: 'asc' }, take: TETTO }),
       this.prisma.recipe.count({ where: where as never }),
     ]);
-    return { items, total, troncato: total > items.length };
+    /**
+     * `settimane` sulla riga: in quali settimane del ciclo quella ricetta è davvero usata. Presente
+     * solo quando si guarda UNA dieta, perché fuori da una dieta la domanda non ha senso — la stessa
+     * ricetta serve più famiglie, in settimane diverse.
+     */
+    const conSettimane = settimane
+      ? (items as { id: string }[]).map((r) => ({ ...r, settimane: settimane.get(r.id) ?? [] }))
+      : items;
+    return { items: conSettimane, total, troncato: total > items.length };
   }
 
   /** Modifica ricetta (nutrizionista). Aggiorna solo i campi inviati. */

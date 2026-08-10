@@ -19,6 +19,15 @@ interface Recipe {
   difficulty?: string;
   seasons?: string[];
   active: boolean;
+  /**
+   * In quali settimane del ciclo è usata questa ricetta. Arriva solo quando si guarda UNA dieta,
+   * perché fuori da una dieta la domanda non ha senso: la stessa ricetta serve più famiglie.
+   *
+   * Si legge dalle GIORNATE, non dal tag: il tag `sett:N` diceva in quale generazione la ricetta era
+   * nata, e dall'11/8 lo allineiamo alle giornate proprio perché quella differenza aveva fatto
+   * sembrare «tutte nella prima settimana» un catalogo distribuito su due.
+   */
+  settimane?: number[];
 }
 
 const SLOT: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
@@ -94,6 +103,9 @@ const LIMITE_SERVER = 1000;
 
 const emptyFilters = (regime = '') => ({
   name: '', regime, slot: '', kcalMin: '', kcalMax: '', difficulty: '', season: '', tag: '', stato: '',
+  // Settimana del ciclo (11/8): ha senso solo dentro una dieta, e si filtra sulle righe ricevute
+  // perché il dato arriva dalle giornate e non è una colonna del database.
+  settimana: '',
 });
 
 export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegime?: string; scopeDietId?: string; scopeDietName?: string } = {}) {
@@ -168,9 +180,25 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
   // va bene — e se il risultato è troncato la pagina lo dice, invece di lasciarlo credere.
   const filtrate = useMemo(() => {
     const tag = f.tag.trim().toLowerCase();
-    if (!tag) return rows;
-    return rows.filter((r) => (r.tags ?? []).join(', ').toLowerCase().includes(tag));
-  }, [rows, f.tag]);
+    const settimana = f.settimana.trim();
+    let out = rows;
+    if (tag) out = out.filter((r) => (r.tags ?? []).join(', ').toLowerCase().includes(tag));
+    if (settimana) {
+      const n = Number(settimana);
+      out = settimana === 'nessuna'
+        // Le orfane: generate e fuori dal ciclo. Vederle è il modo di sapere quanto lavoro pagato
+        // sta lì senza servire a nessuna cliente.
+        ? out.filter((r) => (r.settimane ?? []).length === 0)
+        : out.filter((r) => (r.settimane ?? []).includes(n));
+    }
+    return out;
+  }, [rows, f.tag, f.settimana]);
+
+  /** Le settimane che esistono davvero in questa dieta: la tendina non offre scelte vuote. */
+  const settimanePresenti = useMemo(
+    () => [...new Set(rows.flatMap((r) => r.settimane ?? []))].sort((a, b) => a - b),
+    [rows],
+  );
 
   const COLONNE: Colonna<Recipe>[] = [
     { chiave: 'name', titolo: 'Nome', valore: (r) => r.name },
@@ -183,6 +211,9 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     { chiave: 'difficulty', titolo: 'Difficoltà', valore: (r) => DIFFICULTIES.indexOf(r.difficulty ?? 'media') },
     { chiave: 'seasons', titolo: 'Stagioni', valore: (r) => seasonsText(r.seasons) },
     { chiave: 'tags', titolo: 'Tag', valore: (r) => (r.tags ?? []).join(', ') },
+    // La settimana del ciclo: solo dentro una dieta (fuori non è definita). Si ordina sulla PRIMA
+    // settimana in cui compare, che è quella che conta per capire dov'è finita.
+    ...(dietScope ? [{ chiave: 'settimana', titolo: 'Settimana', valore: (r: Recipe) => (r.settimane ?? [])[0] ?? null } as Colonna<Recipe>] : []),
     // Le attive prima: come etichetta «Archiviata» starebbe davanti ad «Attiva».
     { chiave: 'active', titolo: 'Stato', valore: (r) => (r.active ? 0 : 1) },
     // La colonna dei pulsanti c'è solo per chi può modificare: come la cella, sotto.
@@ -296,6 +327,13 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
                 {filterCell(
                   <input className="input" style={inp} placeholder="Cerca…" value={f.tag} onChange={(e) => setF({ ...f, tag: e.target.value })} />,
                 )}
+                {dietScope && filterCell(
+                  <select className="select" style={sel} value={f.settimana} onChange={(e) => setF({ ...f, settimana: e.target.value })} title="In quale settimana del ciclo è usata">
+                    <option value="">Tutte</option>
+                    {settimanePresenti.map((n) => <option key={n} value={String(n)}>Settimana {n}</option>)}
+                    <option value="nessuna">— fuori dal ciclo —</option>
+                  </select>,
+                )}
                 {filterCell(
                   <select className="select" style={sel} value={f.stato} onChange={(e) => setF({ ...f, stato: e.target.value })}>
                     <option value="">Tutti</option>
@@ -308,7 +346,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
             </thead>
             <tbody>
               {t.conteggio.mostrate === 0 ? (
-                <tr><td colSpan={canEdit ? 9 : 8}><div className="empty" style={{ padding: '18px 0' }}>Nessuna ricetta con questi filtri.</div></td></tr>
+                <tr><td colSpan={(canEdit ? 9 : 8) + (dietScope ? 1 : 0)}><div className="empty" style={{ padding: '18px 0' }}>Nessuna ricetta con questi filtri.</div></td></tr>
               ) : t.pagina.map((r) => (
                 <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la ricetta">
                   <td>{r.name}</td>
@@ -322,6 +360,13 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
                       : (r.seasons ?? []).map((s) => <span key={s} className="chip gray" style={{ marginRight: 4 }}>{SEASON_LABEL[s] ?? s}</span>)}
                   </td>
                   <td className="muted">{(r.tags ?? []).join(', ') || '—'}</td>
+                  {dietScope && (
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {(r.settimane ?? []).length === 0
+                        ? <span className="chip gray" title="Nessuna giornata la usa: è fuori dal ciclo">fuori dal ciclo</span>
+                        : (r.settimane ?? []).map((n) => <span key={n} className="chip" style={{ marginRight: 4 }}>{n}</span>)}
+                    </td>
+                  )}
                   <td><span className={`chip ${r.active ? '' : 'gray'}`}>{r.active ? 'Attiva' : 'Archiviata'}</span></td>
                   {canEdit && (
                     <td>

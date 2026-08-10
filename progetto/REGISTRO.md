@@ -7,6 +7,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🏷️ **Il tag `sett:N` ora dice DOVE la ricetta è usata** — «quel tag per me è dove viene
+  utilizzato, non mi interessa quando è stato creato». Era il difetto, e ha fatto perdere tempo a
+  Simone su una diagnosi sbagliata: il tag lo scriveva il generatore **alla nascita** della ricetta,
+  quindi registrava in quale generazione era stata prodotta. Un piatto creato generando la settimana 1
+  e poi usato nella settimana 2 continuava a portare `sett:1` — e guardando il catalogo si leggeva
+  «le mette tutte nella prima settimana» su una dieta distribuita su due. Un'etichetta che dice una
+  cosa diversa da quella che sembra dire è peggio di un'etichetta assente: ci si costruiscono sopra
+  dei ragionamenti, ed è successo.
+  Ora la settimana si legge da dove è decisa: la **giornata** che usa la ricetta (`dayIndex` 1-7 =
+  settimana 1, 8-14 = settimana 2). Il generatore non scrive più `sett:` alla nascita e allinea i tag
+  in fondo, dopo aver scritto le giornate (`menu/tag-settimane.ts`). Una ricetta usata in più
+  settimane porta più tag (`sett:1`, `sett:3`) — non è un caso da nascondere, è il modo più rapido di
+  vedere se il ciclo si ripete invece di allungarsi. Una ricetta che nessuna giornata usa **perde** il
+  tag: dire «settimana 1» su un piatto che nessuno serve è l'informazione falsa da cui è nato tutto.
+  Le varianti sorelle condividono le ricette, quindi il tag porta l'**unione** delle settimane: un
+  conteggio per una dieta sola darebbe un'etichetta che cambia a seconda di chi la guarda.
+  Per i dati esistenti: `npm run fix:tag-settimane` (senza `CONFERMA=1` mostra cosa cambierebbe, riga
+  per riga, e non scrive).
+- `[Sviluppo]` 📅 **Filtro e colonna «Settimana» nel catalogo ricette** — chiesto per verificare
+  l'anomalia. Compare solo dentro una dieta, perché fuori la domanda non ha senso: la stessa ricetta
+  serve più famiglie in settimane diverse. Si legge dalle giornate e non dal tag, quindi dice la verità
+  anche prima di aver girato la correzione. C'è anche la voce «fuori dal ciclo»: le ricette generate
+  che nessuna giornata usa, cioè lavoro pagato che non arriva a nessuna cliente.
+- `[Sviluppo]` 🔍 **Verifica: la rete si risale fino in cima, in tutte le funzioni** — «visto il
+  problema avuto nella chat, verifica in tutte le funzioni che la rete venga risalita fino in cima e
+  non solo due livelli». Fatta. Quindici moduli (clienti, acquisti, dashboard, pipeline, avvisi,
+  report, compiti coach, CRM, analytics…) leggono la portata da un posto solo — `coachTeamScope`,
+  attraverso `perimetroClienti` — e quello adesso risale tutta la rete: la correzione di prima li
+  copre tutti. Sul lato nutrizioniste il capo non ha perimetro (vede tutto) e la nutrizionista vede le
+  sue, che è la regola voluta.
+  Un solo posto climba la rete per conto suo e **resta com'è**: la catena delle provvigioni in
+  `finance.service`, che sale di livello in livello (fino a quattro anelli, cicli esclusi) perché lì
+  ogni superiore incassa la differenza — è una regola di pagamento, non di visibilità, e allargarla
+  cambierebbe i soldi. Tre test nuovi tengono ferma la regola sulla portata: se qualcuno riporta lì una
+  query a un livello, diventano rossi.
+
 - `[Sviluppo]` 🕸️ **I permessi di lettura risalgono la rete** — «perché la responsabile delle coach non
   vede le chat? I permessi di lettura devono risalire la rete, quindi coach, coordinatrice,
   responsabile», e poi «anche in chat va risalita la rete come autorizzazioni di lettura».

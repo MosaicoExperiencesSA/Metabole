@@ -3,6 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { AiService } from '../ai/ai.service';
 import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
 import { SLOT_ORDINE, coperturaCatalogo, slotAttesi, statoCopertura } from './copertura-catalogo';
+import { sincronizzaTagSettimane } from '../menu/tag-settimane';
 import { suggestAllergens } from '../catalog/allergens';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -470,7 +471,12 @@ export class EngineRulesService {
             // Il tag registrava solo lo STILE (`gen:low_carb`), e due diete diverse possono
             // condividerlo — "Basso indice glicemico" e "Low carb" sono entrambe `low_carb`.
             // Guardando la riga in catalogo non si capiva da quale dieta venisse la ricetta.
-            tags: [`gen:${preset.style}`, `dieta:${preset.label}`, `sett:${week}`],
+            // NIENTE `sett:` qui: il tag della settimana lo scrive `sincronizzaTagSettimane` in
+            // fondo, leggendolo dalle GIORNATE. Scriverlo alla nascita voleva dire registrare in
+            // quale generazione era nata la ricetta, non dove finiva — e un piatto creato generando
+            // la settimana 1 e poi usato nella 2 restava «sett:1» per sempre. Simone, 11/8: «quel tag
+            // per me è dove viene utilizzato, non mi interessa quando è stato creato».
+            tags: [`gen:${preset.style}`, `dieta:${preset.label}`],
             active: false, // BOZZA: non entra nel motore finché non approvata
             allergens, allergensReviewed: false,
           } as never,
@@ -498,6 +504,17 @@ export class EngineRulesService {
       });
       dayCount++;
     }
+
+    /**
+     * I TAG DELLE SETTIMANE, allineati alle giornate appena scritte (11/8).
+     *
+     * Va fatto **dopo** le giornate, perché è da quelle che si legge la settimana. Si passa l'elenco
+     * delle ricette toccate — le nuove e quelle riusate — così non si rilegge tutto il catalogo a ogni
+     * generazione. L'unione fra le varianti sorelle la fa la funzione: la stessa ricetta può stare
+     * nella settimana 1 di una variante e nella 2 di un'altra.
+     */
+    const toccate = [...new Set([...bySlot.values()].flat())];
+    await sincronizzaTagSettimane(this.prisma, toccate).catch(() => undefined);
 
     // Gruppi di equivalenza e regole del preset: roba della dieta, non della settimana.
     // Si fanno solo quando la dieta nasce, altrimenti si riscriverebbero identici ogni volta.
