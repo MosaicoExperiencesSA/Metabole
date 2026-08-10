@@ -202,10 +202,19 @@ export function ModuleCard({ module: m, rows }: { module: DashboardModule; rows:
           {rows.slice(0, 5).map((r, i) => (
             <div key={i} style={{ fontSize: 13, padding: '5px 0', borderBottom: i < Math.min(rows.length, 5) - 1 ? '1px solid var(--line)' : 'none' }}>
               <div className="spread">
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.a}</span>
-                {r.b && <b style={{ whiteSpace: 'nowrap', marginLeft: 8 }}>{r.b}</b>}
+                {/*
+                  `minWidth: 0` è la riga che fa funzionare i puntini di sospensione.
+                  Senza, un elemento flex non si stringe sotto la larghezza del suo contenuto
+                  (`min-width: auto` è il default): `text-overflow: ellipsis` non scatta mai, il testo
+                  lungo allarga la riga, la riga sborda dalla card e **spinge l'importo fuori dall'area
+                  visibile**. È il difetto segnalato da Simone l'11/8 come «l'impaginamento sborda, e mi
+                  serve l'importo degli acquisti»: erano la stessa cosa — l'importo c'era, ma era finito
+                  oltre il bordo.
+                */}
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.a}>{r.a}</span>
+                {r.b && <b style={{ whiteSpace: 'nowrap', marginLeft: 8, flex: 'none' }}>{r.b}</b>}
               </div>
-              {r.sub && <div className="muted" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.sub}</div>}
+              {r.sub && <div className="muted" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.sub}>{r.sub}</div>}
             </div>
           ))}
         </div>
@@ -310,7 +319,9 @@ export function CalendarModule({ module: m }: { module: DashboardModule }) {
           persistKey="metabole_cal_view"
           renderItem={(r) => (
             <div className="spread" style={{ fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--line)' }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {/* Stesso `minWidth: 0` della riga dei moduli: senza, il titolo lungo di un promemoria
+                  spinge la pastiglia del nome fuori dalla card invece di troncarsi. */}
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.title}>
                 <b style={{ fontWeight: 600 }}>{new Date(r.dueAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</b> · {r.title}
               </span>
               {r.linkedName && <span className="chip" style={{ fontSize: 10, marginLeft: 8, whiteSpace: 'nowrap' }}>{r.linkedName}</span>}

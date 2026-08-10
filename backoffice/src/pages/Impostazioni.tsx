@@ -3,7 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Toggle } from '../components/ui';
 import { ThemeSelect } from '../theme';
-import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
+import { DASHBOARD_BLOCCHI, DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
 import { MenuOrderCard } from '../components/MenuOrderCard';
 
 /** Riduce un'immagine a un quadrato 256×256 (cover, ritaglio centrato) e la ritorna come data URL JPEG. */
@@ -151,6 +151,32 @@ export function Impostazioni() {
 
   // --- Moduli dashboard ---
   const availableModules = DASHBOARD_MODULES.filter((m) => can(m.pageKey));
+
+  /**
+   * I BLOCCHI FISSI della propria home (portafoglio, avvisi, tabella clienti…).
+   *
+   * Si salvano al contrario dei moduli: `dashboardBlocksOff` elenca quelli SPENTI. I moduli sono un
+   * elenco di inclusioni e ci stanno bene perché nascono spenti; questi nascono accesi per tutti, e
+   * un elenco di inclusioni avrebbe fatto sparire il portafoglio a chiunque avesse già personalizzato
+   * la dashboard prima di oggi — la sua lista salvata non può contenere id che ieri non esistevano.
+   */
+  const [blocchiOff, setBlocchiOff] = useState<string[]>([]);
+  /** Quali blocchi esistono nella MIA home: a una nutrizionista non si elencano quelli della coach. */
+  const homeMia: 'coach' | 'nutritionist' | null =
+    user?.role === 'coach' || user?.role === 'coach_coordinator' ? 'coach'
+      : user?.role === 'nutritionist' || user?.role === 'head_nutritionist' ? 'nutritionist'
+        : null;
+  const blocchiMiei = homeMia ? DASHBOARD_BLOCCHI.filter((b) => b.home.includes(homeMia)) : [];
+
+  async function toggleBlocco(id: string) {
+    const next = blocchiOff.includes(id) ? blocchiOff.filter((x) => x !== id) : [...blocchiOff, id];
+    setBlocchiOff(next);
+    setModMsg(null);
+    try {
+      await api('/me/preferences', { method: 'PUT', body: JSON.stringify({ dashboardBlocksOff: next }) });
+      setModMsg('Preferenze dashboard salvate.');
+    } catch { setModMsg('Salvataggio non riuscito.'); }
+  }
   const [modules, setModules] = useState<string[] | null>(null);
   const [modMsg, setModMsg] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -184,9 +210,10 @@ export function Impostazioni() {
   useEffect(() => {
     (async () => {
       try {
-        const prefs = await api<{ dashboardModules: string[] | null; showEarnings?: boolean }>('/me/preferences');
+        const prefs = await api<{ dashboardModules: string[] | null; showEarnings?: boolean; dashboardBlocksOff?: string[] | null }>('/me/preferences');
         setModules(prefs.dashboardModules ?? DEFAULT_MODULE_IDS);
         setShowEarnings(!!prefs.showEarnings);
+        setBlocchiOff(prefs.dashboardBlocksOff ?? []);
       } catch { setModules(DEFAULT_MODULE_IDS); }
     })();
   }, []);
@@ -364,7 +391,7 @@ export function Impostazioni() {
           <input type="checkbox" checked={showEarnings} onChange={(e) => saveEarnings(e.target.checked)} />
           <span>Mostra i riquadri <b>Guadagni mese</b> e <b>Guadagni totale</b> nella mia dashboard</span>
         </label>
-        <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>Di default sono nascosti. Il portafoglio (maturato, saldo, richiedi pagamento) resta comunque sempre visibile.</p>
+        <p className="hint" style={{ marginTop: 8, marginBottom: 0 }}>Di default sono nascosti. Il portafoglio si accende e si spegne qui sotto, fra i blocchi della tua home.</p>
       </div>
 
       {/* Moduli dashboard */}
@@ -411,6 +438,35 @@ export function Impostazioni() {
           </>
         )}
       </div>
+
+      {/* Blocchi della propria home (richiesta dell'11/8: «anche portafoglio ecc») */}
+      {blocchiMiei.length > 0 && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Blocchi della tua home</h2>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Le parti fisse della tua pagina iniziale. Sono tutte accese: spegni quelle che non guardi.
+            {modMsg && <b style={{ color: 'var(--ok-ink)' }}> · {modMsg}</b>}
+          </p>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {blocchiMiei.map((b) => {
+              const acceso = !blocchiOff.includes(b.id);
+              return (
+                <label
+                  key={b.id}
+                  className="row"
+                  style={{ gap: 12, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', cursor: 'pointer', opacity: acceso ? 1 : 0.55 }}
+                >
+                  <Toggle on={acceso} onChange={() => void toggleBlocco(b.id)} />
+                  <span style={{ flex: 1 }}>
+                    <b style={{ display: 'block', fontSize: 14 }}>{b.label}</b>
+                    <span className="muted" style={{ fontSize: 12 }}>{b.descrizione}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Ordine del menu */}
       <MenuOrderCard />

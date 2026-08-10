@@ -42,28 +42,82 @@ export class PipelineService {
     return coachTeamScope(this.prisma, actorUserId);
   }
 
-  /** Board completa: stati (colonne) + schede raggruppate. La coach vede SOLO i suoi lead. */
+  /**
+   * Board completa: stati (colonne) + schede raggruppate. La coach vede SOLO i suoi lead.
+   *
+   * ## Il difetto che questa funzione aveva (segnalato l'11/8: «perché non c'è più Patricia?»)
+   *
+   * Prima caricava **le 500 schede aggiornate più di recente su tutto il CRM** e poi le smistava
+   * nelle colonne. Con le liste storiche importate (decine di migliaia di lead) quelle 500 erano
+   * quasi tutte «Nuovo contatto»: nella schermata che Simone ha mandato, 485 su 500. Le clienti vere
+   * che non venivano toccate da qualche giorno **cadevano fuori dalla finestra** e sparivano dalla
+   * board — Patricia era in «Acquisito» con 349 € incassati, nel database, e la colonna non la
+   * mostrava.
+   *
+   * E il numero accanto al titolo della colonna era contato sulle schede caricate: non diceva «te ne
+   * mostro una di due», diceva «una». Un conteggio sbagliato è peggio di un elenco incompleto, perché
+   * toglie anche il sospetto.
+   *
+   * Adesso sono due cose separate:
+   * 1. i **conteggi** arrivano da un `groupBy` sul database — esatti, per ogni colonna, sempre;
+   * 2. le **schede** si caricano per colonna, con un tetto per colonna. Così una colonna piena di
+   *    lead freddi non affama le altre, e quando il tetto morde la colonna lo dichiara
+   *    (`mostrate` < `totale`) invece di far finta che il resto non esista.
+   */
   async board(actorUserId?: string) {
     const scopeId = await this.coachScope(actorUserId);
-    const [stages, records] = await Promise.all([
-      this.listStages(),
-      this.prisma.crmRecord.findMany({
-        where: (scopeId ? { assignedCoachId: { in: scopeId } } : {}) as never,
-        orderBy: { updatedAt: 'desc' },
-        include: {
-          owner: { select: { displayName: true } },
-          client: {
-            select: {
-              email: true,
-              clientProfile: {
-                select: { name: true, assignedCoach: { select: { displayName: true } } },
-              },
-            },
+    const dove = (scopeId ? { assignedCoachId: { in: scopeId } } : {}) as never;
+    const stages = await this.listStages();
+
+    // Conteggio vero per stato: una riga per colonna, indipendente da quante schede si disegnano.
+    const conteggi = (await this.prisma.crmRecord.groupBy({
+      by: ['stage'],
+      where: dove,
+      _count: { _all: true },
+    })) as unknown as { stage: string; _count: { _all: number } }[];
+    const totalePerStato = new Map(conteggi.map((c) => [c.stage, c._count._all]));
+
+    const INCLUDI = {
+      owner: { select: { displayName: true } },
+      client: {
+        select: {
+          email: true,
+          clientProfile: {
+            select: { name: true, assignedCoach: { select: { displayName: true } } },
           },
         },
-        take: 500,
-      }),
-    ]);
+      },
+    };
+
+    /**
+     * Schede per colonna. `PER_COLONNA` è il tetto di ciò che si disegna: sopra le 50 la colonna
+     * scorre dentro sé stessa (scelta di Simone: «se le righe in una colonna sono più di 50 rendile
+     * scorrevoli così la pagina non è troppo lunga»), quindi caricarne un po' più di 50 serve a
+     * riempire lo scorrimento senza spedire migliaia di schede a un browser.
+     */
+    const PER_COLONNA = 60;
+    const perStato = await Promise.all(
+      stages.map((st) =>
+        this.prisma.crmRecord.findMany({
+          where: { ...(dove as object), stage: st.key } as never,
+          orderBy: { updatedAt: 'desc' },
+          include: INCLUDI,
+          take: PER_COLONNA,
+        }),
+      ),
+    );
+    /**
+     * Le schede con uno stato che NON è più fra le colonne (uno stato personalizzato eliminato
+     * dall'admin): finivano fra gli «orfani» e continuano a farlo, ma vanno cercate a parte, perché
+     * le query di sopra chiedono uno stato alla volta.
+     */
+    const orfane = await this.prisma.crmRecord.findMany({
+      where: { ...(dove as object), stage: { notIn: stages.map((s) => s.key) } } as never,
+      orderBy: { updatedAt: 'desc' },
+      include: INCLUDI,
+      take: PER_COLONNA,
+    });
+    const records = [...perStato.flat(), ...orfane];
 
     const now = Date.now();
     type Rec = {
@@ -158,7 +212,23 @@ export class PipelineService {
     for (const c of cards) (byStage[c.stage] ?? orphans).push(c);
     for (const k of Object.keys(byStage)) byStage[k] = k === 'trial' || k === 'paid' ? sortByPlanEnd(byStage[k]) : sortCol(byStage[k]);
 
-    return { stages, cards: byStage, orphans: sortCol(orphans), total: cards.length, unknownStages: orphans.length > 0 && orphans.some((o) => !known.has(o.stage)) };
+    /**
+     * `totali` è il conteggio VERO per colonna, `cards` quello che si disegna. Sono due numeri
+     * diversi e vanno mandati entrambi: è la differenza fra «ce n'è una» e «te ne mostro una di due».
+     */
+    const totali: Record<string, number> = {};
+    for (const st of stages) totali[st.key] = totalePerStato.get(st.key) ?? 0;
+    const totaleGenerale = [...totalePerStato.values()].reduce((a, n) => a + n, 0);
+
+    return {
+      stages,
+      cards: byStage,
+      totali,
+      orphans: sortCol(orphans),
+      /** Quante schede esistono in tutto, non quante ne sono state caricate. */
+      total: totaleGenerale,
+      unknownStages: orphans.length > 0 && orphans.some((o) => !known.has(o.stage)),
+    };
   }
 
   // ---------- Gestione stati (admin) ----------

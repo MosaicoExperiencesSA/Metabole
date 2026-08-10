@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { ContatoreRighe, SelettoreRighe, stileScorrevole, useTabella, type Colonna } from '../components/tabella';
 import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
 import { WalletWidget } from '../components/WalletWidget';
+import { usePreferenzeHome } from '../lib/preferenzeHome';
 
 const euro0 = (c: number) => '€ ' + Math.round(c / 100).toLocaleString('it-IT');
 
@@ -62,6 +63,7 @@ export function CoachHome() {
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showEarnings, setShowEarnings] = useState(false);
+  const pref = usePreferenzeHome();
 
   async function load() {
     setLoading(true);
@@ -132,7 +134,8 @@ export function CoachHome() {
   ];
 
   // Come le manda il server: prima chi ha più avvisi aperti, che è da chi si comincia la giornata.
-  const t = useTabella(clients, COLONNE, { ordineIniziale: { chiave: 'avvisi', direzione: 'desc' } });
+  // `perPagina` viene dalle preferenze: la coach scegle quante righe vedere e la scelta resta.
+  const t = useTabella(clients, COLONNE, { ordineIniziale: { chiave: 'avvisi', direzione: 'desc' }, perPagina: pref.righe });
 
   if (loading) return <Spinner />;
 
@@ -144,11 +147,12 @@ export function CoachHome() {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
-      <WalletWidget />
+      {pref.attivo('b_portafoglio') && <WalletWidget />}
 
-      <DashboardShortcuts />
+      {pref.attivo('b_scorciatoie') && <DashboardShortcuts />}
 
       {/* KPI */}
+      {pref.attivo('b_kpi') && (
       <div className="card-row">
         <Kpi label="Le mie clienti" value={String(dash?.clientsCount ?? 0)} icon="ti-users" />
         <Kpi label="Avvisi aperti" value={String(dash?.openAlerts ?? 0)} icon="ti-alert-triangle" color={dash && dash.openAlerts > 0 ? 'var(--coral-dark)' : undefined} />
@@ -156,9 +160,10 @@ export function CoachHome() {
         {showEarnings && <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />}
         {showEarnings && <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />}
       </div>
+      )}
 
       {/* Lead da accettare */}
-      {assignments.length > 0 && (
+      {pref.attivo('b_lead_attesa') && assignments.length > 0 && (
         <div className="card" style={{ marginTop: 16, borderColor: 'var(--teal)' }}>
           <h2 style={{ marginTop: 0 }}>Lead da accettare ({assignments.length})</h2>
           {assignments.map((a) => (
@@ -181,6 +186,7 @@ export function CoachHome() {
 
       <div className="card-row" style={{ marginTop: 16, alignItems: 'flex-start' }}>
         {/* Avvisi */}
+        {pref.attivo('b_avvisi') && (
         <div className="card" style={{ margin: 0, flex: 1.3 }}>
           <div className="spread">
             <h2 style={{ margin: 0 }}>Avvisi</h2>
@@ -220,10 +226,11 @@ export function CoachHome() {
             })
           )}
         </div>
+        )}
 
         {/* Colonna destra: invito + piani in scadenza */}
         <div style={{ flex: 1, display: 'grid', gap: 16 }}>
-          {invite && (
+          {pref.attivo('b_invito') && invite && (
             <div className="card" style={{ margin: 0 }}>
               <h2 style={{ marginTop: 0 }}>Il mio link d'invito</h2>
               <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Condividilo con una nuova cliente: registrandosi da qui verrà assegnata a te.</p>
@@ -235,21 +242,32 @@ export function CoachHome() {
             </div>
           )}
 
-          {dash && dash.expiringPlans.length > 0 && (
+          {pref.attivo('b_scadenze') && dash && dash.expiringPlans.length > 0 && (
             <div className="card" style={{ margin: 0 }}>
-              <h2 style={{ marginTop: 0 }}>Piani in scadenza</h2>
-              {dash.expiringPlans.map((p) => (
-                <div key={p.clientId} className="spread" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                  <Link to={`/clienti/${p.clientId}`} className="link">{p.name ?? 'Cliente'}</Link>
-                  <span className="muted" style={{ fontSize: 12 }}>{p.endDate ?? '—'}</span>
-                </div>
-              ))}
+              <div className="spread">
+                <h2 style={{ margin: 0 }}>Piani in scadenza</h2>
+                <span className="muted" style={{ fontSize: 12 }}>{dash.expiringPlans.length}</span>
+              </div>
+              {/*
+                Scorrevole come la tabella clienti, e con la STESSA preferenza di righe: sono due
+                elenchi della stessa home, e due impostazioni separate per la stessa domanda («quante
+                righe voglio vedere») sarebbero due posti in cui cambiare la stessa cosa.
+              */}
+              <div style={{ maxHeight: Math.min(pref.righe, 12) * 33 + 8, overflowY: 'auto', marginTop: 8 }}>
+                {dash.expiringPlans.map((p) => (
+                  <div key={p.clientId} className="spread" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
+                    <Link to={`/clienti/${p.clientId}`} className="link">{p.name ?? 'Cliente'}</Link>
+                    <span className="muted" style={{ fontSize: 12 }}>{p.endDate ?? '—'}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Le mie clienti */}
+      {pref.attivo('b_clienti') && (
       <div className="card" style={{ marginTop: 16, padding: 0 }}>
         <div className="spread" style={{ padding: '16px 20px 4px' }}>
           <h2 style={{ margin: 0 }}>Le mie clienti</h2>
@@ -258,21 +276,26 @@ export function CoachHome() {
         {clients.length > 0 && (
           <div className="spread" style={{ padding: '6px 20px 10px', gap: 10, flexWrap: 'wrap' }}>
             <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="clienti" />
-            <input
-              className="input"
-              style={{ maxWidth: 240 }}
-              placeholder="Cerca in tutte le colonne…"
-              value={t.ricerca}
-              onChange={(e) => t.setRicerca(e.target.value)}
-            />
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <input
+                className="input"
+                style={{ maxWidth: 240 }}
+                placeholder="Cerca in tutte le colonne…"
+                value={t.ricerca}
+                onChange={(e) => t.setRicerca(e.target.value)}
+              />
+              <SelettoreRighe valore={pref.righe} onCambia={pref.salvaRighe} />
+            </div>
           </div>
         )}
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{clients.length === 0 ? 'Nessuna cliente assegnata.' : 'Nessuna cliente con questi filtri.'}</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          /* La tabella scorre dentro la card invece di allungare la pagina: con quarantadue clienti
+             la home diventava un rotolo, e tutto quello che sta sotto (i moduli) irraggiungibile. */
+          <div style={stileScorrevole(pref.righe)}>
             <table className="grid">
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, background: 'var(--card, #fff)', zIndex: 1 }}>
                 {t.intestazione()}
                 {t.rigaFiltri()}
               </thead>
@@ -299,6 +322,7 @@ export function CoachHome() {
         )}
         <Pager {...t.pager} />
       </div>
+      )}
       <DashboardModules />
     </>
   );

@@ -54,6 +54,16 @@ const PUBLIC_USER_SELECT = {
 
 const ACCOUNT_THEMES = ['light', 'dark', 'taupe', 'white'];
 
+/**
+ * Righe per pagina nelle tabelle della home (clienti, piani in scadenza).
+ *
+ * Richiesta di Simone dell'11/8: «rendila scorrevole con la possibilità di selezionare quante righe
+ * vedere: 10 - 25 - 50 - 100 (default 10) poi salva le preferenze». L'elenco è chiuso perché è quello
+ * del selettore: un numero arbitrario arrivato dall'API diventerebbe una pagina da diecimila righe.
+ */
+export const RIGHE_AMMESSE = [10, 25, 50, 100];
+export const RIGHE_DEFAULT = 10;
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -270,11 +280,22 @@ export class UsersService {
       menuOrder: arr(prefs.menuOrder),
       showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
       waterUnit: ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(prefs.waterUnit as string) ? (prefs.waterUnit as string) : 'glass',
+      /**
+       * I blocchi fissi della home SPENTI, non quelli accesi.
+       *
+       * Al contrario di `dashboardModules`, che è un elenco di cose da mostrare. La differenza non è
+       * stilistica: portafoglio, avvisi e tabella clienti oggi si vedono tutti, e metterli nell'elenco
+       * a opt-in vorrebbe dire che chi ha già personalizzato la dashboard domani mattina apre e non li
+       * trova più. Un elenco di esclusioni li lascia accesi finché non è la persona a togliersene uno.
+       */
+      dashboardBlocksOff: arr(prefs.dashboardBlocksOff) ?? [],
+      /** Righe per pagina nelle tabelle della home (clienti, piani in scadenza). */
+      righePerPagina: RIGHE_AMMESSE.includes(prefs.righePerPagina as number) ? (prefs.righePerPagina as number) : RIGHE_DEFAULT,
     };
   }
 
   /** Aggiorna scorciatoie / moduli / grafici della dashboard (solo i campi forniti). */
-  async updatePreferences(userId: string, input: { dashboardShortcuts?: string[]; dashboardModules?: string[]; dashboardCharts?: string[]; menuOrder?: string[]; showEarnings?: boolean; waterUnit?: string }) {
+  async updatePreferences(userId: string, input: { dashboardShortcuts?: string[]; dashboardModules?: string[]; dashboardCharts?: string[]; menuOrder?: string[]; showEarnings?: boolean; waterUnit?: string; dashboardBlocksOff?: string[]; righePerPagina?: number }) {
     const u = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { prefs: true } });
     if (!u) throw new NotFoundException('Utente non trovato');
     const clean = (keys: string[], max = 40) => Array.from(new Set(keys.filter((k) => typeof k === 'string'))).slice(0, max);
@@ -285,6 +306,10 @@ export class UsersService {
     if (input.menuOrder !== undefined) prefs.menuOrder = clean(input.menuOrder, 80);
     if (input.showEarnings !== undefined) prefs.showEarnings = !!input.showEarnings;
     if (input.waterUnit !== undefined && ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(input.waterUnit)) prefs.waterUnit = input.waterUnit;
+    if (input.dashboardBlocksOff !== undefined) prefs.dashboardBlocksOff = clean(input.dashboardBlocksOff);
+    // Solo i quattro valori del selettore: un numero arbitrario dall'API diventerebbe una pagina da
+    // diecimila righe, che è un modo di far sembrare lento il backoffice senza toccare il server.
+    if (input.righePerPagina !== undefined && RIGHE_AMMESSE.includes(input.righePerPagina)) prefs.righePerPagina = input.righePerPagina;
     await this.prisma.user.update({ where: { id: userId }, data: { prefs: prefs as never } });
     return {
       dashboardShortcuts: (prefs.dashboardShortcuts as string[]) ?? null,
@@ -293,6 +318,8 @@ export class UsersService {
       menuOrder: (prefs.menuOrder as string[]) ?? null,
       showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
       waterUnit: ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(prefs.waterUnit as string) ? (prefs.waterUnit as string) : 'glass',
+      dashboardBlocksOff: (prefs.dashboardBlocksOff as string[]) ?? [],
+      righePerPagina: RIGHE_AMMESSE.includes(prefs.righePerPagina as number) ? (prefs.righePerPagina as number) : RIGHE_DEFAULT,
     };
   }
 

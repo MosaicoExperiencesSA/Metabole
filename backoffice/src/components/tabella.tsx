@@ -38,6 +38,7 @@
  * era: si passa `ricerca` a `useTabella` e cerca in tutte le colonne che hanno un `valore`.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { RIGHE_OPZIONI } from '../lib/preferenzeHome';
 import { usePagination } from './ui';
 
 export interface Colonna<T> {
@@ -329,3 +330,37 @@ export function ContatoreRighe({
     </div>
   );
 }
+
+/**
+ * QUANTE RIGHE VEDERE — 10 / 25 / 50 / 100.
+ *
+ * Richiesta di Simone dell'11/8 sulla tabella «Le mie clienti» in home: «rendila scorrevole con la
+ * possibilità di selezionare quante righe vedere… (default 10) poi salva le preferenze». La scelta si
+ * salva nel profilo, quindi il selettore non è locale alla pagina: chi lo cambia lo cambia per sé,
+ * una volta.
+ */
+export function SelettoreRighe({ valore, onCambia }: { valore: number; onCambia: (n: number) => void }) {
+  return (
+    <select
+      className="select sm"
+      style={{ width: 'auto' }}
+      value={valore}
+      onChange={(e) => onCambia(Number(e.target.value))}
+      title="Quante righe vedere per pagina: la scelta resta salvata"
+    >
+      {RIGHE_OPZIONI.map((n) => <option key={n} value={n}>{n} righe</option>)}
+    </select>
+  );
+}
+
+/**
+ * Il contenitore scorrevole delle tabelle di home. L'altezza è calcolata sulle righe da mostrare, non
+ * fissa: con 100 righe selezionate una card alta 400px sarebbe una finestrella, con 10 righe una card
+ * alta 900px sarebbe mezza schermata vuota. `56px` è l'altezza reale di una riga di `table.grid` con
+ * due testi sovrapposti; l'intestazione resta ferma in cima (`position: sticky`).
+ */
+export const stileScorrevole = (righe: number): React.CSSProperties => ({
+  maxHeight: Math.min(righe, 12) * 56 + 96,
+  overflowY: 'auto',
+  overflowX: 'auto',
+});

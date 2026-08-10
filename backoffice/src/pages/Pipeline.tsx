@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
@@ -32,7 +32,15 @@ interface Board {
   cards: Record<string, Card[]>;
   orphans: Card[];
   total: number;
+  /** Conteggio VERO per stato (dal database), diverso da quante schede sono state caricate. */
+  totali?: Record<string, number>;
 }
+
+/**
+ * Oltre quante schede una colonna comincia a scorrere dentro sé stessa invece di allungare la pagina.
+ * Numero scelto da Simone l'11/8: «se le righe in una colonna sono più di 50 rendile scorrevoli».
+ */
+const SOGLIA_SCORRIMENTO = 50;
 
 function euro(cents: number | null): string | null {
   if (cents == null) return null;
@@ -146,6 +154,19 @@ export function Pipeline() {
         {board.stages.map((s) => {
           const cards = board.cards[s.key] ?? [];
           const isOver = overStage === s.key;
+          /**
+           * Il conteggio della colonna viene dal DATABASE, non da `cards.length`.
+           * Prima erano la stessa cosa, e con le liste importate la colonna «Acquisito» diceva «1»
+           * mentre nel database ce n'erano due: non un elenco incompleto — un numero sbagliato.
+           */
+          const totale = board.totali?.[s.key] ?? cards.length;
+          const troncata = totale > cards.length;
+          /**
+           * Sopra le 50 schede la colonna scorre dentro sé stessa (scelta di Simone dell'11/8): con
+           * 485 lead in «Nuovo contatto» la pagina diventava un rotolo di dieci metri e le altre
+           * colonne finivano fuori schermo.
+           */
+          const scorre = cards.length > SOGLIA_SCORRIMENTO;
           return (
             <div
               key={s.key}
@@ -167,8 +188,9 @@ export function Pipeline() {
                   <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color ?? '#7c8c88' }} />
                   {s.label}
                 </span>
-                <span className="chip gray">{cards.length}</span>
+                <span className="chip gray" title={troncata ? `${cards.length} mostrate di ${totale}` : undefined}>{totale}</span>
               </div>
+              <div style={scorre ? { maxHeight: '68vh', overflowY: 'auto', paddingRight: 2 } : undefined}>
               {cards.map((c) => (
                 <div
                   key={c.id}
@@ -239,7 +261,14 @@ export function Pipeline() {
                   </div>
                 </div>
               ))}
+              </div>
               {cards.length === 0 && <div className="muted" style={{ fontSize: 12, textAlign: 'center', padding: 14 }}>—</div>}
+              {/* Il tetto si dichiara: una colonna che ne mostra 60 su 485 non deve sembrare completa. */}
+              {troncata && (
+                <div className="muted" style={{ fontSize: 11, textAlign: 'center', padding: '6px 4px' }}>
+                  Mostrate le {cards.length} più recenti di {totale}. Le altre si trovano dai <Link to="/crm/gestione" className="link">lead</Link>, con i filtri.
+                </div>
+              )}
             </div>
           );
         })}

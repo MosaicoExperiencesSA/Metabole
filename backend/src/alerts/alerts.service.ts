@@ -20,7 +20,29 @@ interface DesiredAlert {
   dueDate?: Date | null;
 }
 
-const ACTIVE_STATUSES = ['open', 'handled', 'escalated'];
+/**
+ * DUE DOMANDE DIVERSE, DUE ELENCHI DIVERSI.
+ *
+ * Segnalazione delle coach dell'11/8: «se clicco su segna come gestito, quando faccio refresh gli
+ * avvisi ricompaiono». La causa era una costante sola (`ACTIVE_STATUSES = open|handled|escalated`)
+ * usata per rispondere a due domande che non hanno la stessa risposta:
+ *
+ * 1. «Devo ricreare questo avviso?» — NO se esiste già in uno stato non chiuso, gestito compreso.
+ *    Senza `handled` in questo elenco, `sync` ricreerebbe l'avviso a ogni ricalcolo finché la
+ *    condizione dura: la coach lo chiude e ne trova subito un altro identico. Questo elenco era
+ *    giusto ed è quello che resta in `sync`.
+ * 2. «Cosa deve ancora fare la coach?» — solo gli avvisi `open`. Qui `handled` non c'entra: «segna
+ *    come gestito» vuol dire *l'ho sistemato, non mostrarmelo più*. Con `handled` dentro, la riga
+ *    spariva solo perché la pagina la togliliava da sé, e al primo refresh il server la rimandava
+ *    indietro — indistinguibile da un pulsante che non salva.
+ *
+ * `escalated` esce dalla coda della coach per lo stesso motivo: «inoltra al nutrizionista» significa
+ * che quell'avviso ha cambiato scrivania. Resta visibile a chi ha il perimetro completo (i ruoli
+ * manager), che è chi lo deve raccogliere.
+ */
+const STATI_NON_CHIUSI = ['open', 'handled', 'escalated'];
+const STATI_DA_FARE_COACH = ['open'];
+const STATI_DA_FARE_MANAGER = ['open', 'escalated'];
 
 interface MeasRow {
   date: Date;
@@ -314,7 +336,7 @@ export class AlertsService {
     desired: DesiredAlert[],
   ): Promise<{ desired: number; resolved: number }> {
     const active = await this.prisma.alert.findMany({
-      where: { clientId, status: { in: ACTIVE_STATUSES } },
+      where: { clientId, status: { in: STATI_NON_CHIUSI } },
       select: { id: true, type: true },
     });
     const activeByType = new Map((active as ActiveAlert[]).map((a) => [a.type, a.id] as const));
@@ -378,7 +400,9 @@ export class AlertsService {
       }
     }
 
-    const where: Record<string, unknown> = { status: { in: ACTIVE_STATUSES } };
+    const where: Record<string, unknown> = {
+      status: { in: scopeAll ? STATI_DA_FARE_MANAGER : STATI_DA_FARE_COACH },
+    };
     if (!scopeAll) where.coachId = { in: coachScope ?? [] };
     if (opts.group) where.group = opts.group;
     if (opts.priority) where.priority = opts.priority;

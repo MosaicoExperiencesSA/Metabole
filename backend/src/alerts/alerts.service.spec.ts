@@ -149,3 +149,60 @@ describe('AlertsService.updateStatus', () => {
     await expect(svc.updateStatus('a1', coachUser, 'handled')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+/**
+ * «SEGNA COME GESTITO» DEVE RESTARE GESTITO (segnalazione delle coach, 11/8).
+ *
+ * «Se clicco su segna come gestito, quando faccio refresh gli avvisi ricompaiono.» La riga sparisce
+ * perché la pagina la toglie da sé; poi il server la rimandava indietro, perché la coda della coach e
+ * il controllo «devo ricreare questo avviso?» leggevano la STESSA lista di stati — e in quella lista
+ * `handled` ci sta di diritto, ma solo per la seconda domanda.
+ *
+ * Questi test tengono separate le due domande. Sono scritti sul `where` della query e non sul
+ * risultato: è lì che stava il difetto, e un mock che restituisce tre righe non lo avrebbe mostrato.
+ */
+describe('AlertsService.listForCoach — cosa resta da fare', () => {
+  const coach = { sub: 'u-coach', role: 'coach' } as AuthUser;
+  const admin = { sub: 'u-admin', role: 'admin' } as AuthUser;
+
+  const statiChiesti = (prisma: PrismaMock): string[] => {
+    // La prima `findMany` su alert dentro `listForCoach` è quella della coda (le altre sono di sync).
+    const call = prisma.alert.findMany.mock.calls.at(-1);
+    return ((call?.[0] as { where?: { status?: { in?: string[] } } })?.where?.status?.in ?? []) as string[];
+  };
+
+  it('alla coach si chiedono SOLO gli avvisi aperti: gestito vuol dire chiuso', async () => {
+    const prisma = basePrisma();
+    prisma.clientProfile.findMany.mockResolvedValue([]); // nessun ricalcolo da fare
+    const svc = makeService(prisma);
+    await svc.listForCoach(coach);
+
+    expect(statiChiesti(prisma)).toEqual(['open']);
+    expect(statiChiesti(prisma)).not.toContain('handled');
+  });
+
+  it('a chi ha il perimetro completo si chiedono anche gli inoltrati: è chi li raccoglie', async () => {
+    const prisma = basePrisma();
+    const svc = makeService(prisma);
+    await svc.listForCoach(admin);
+
+    expect(statiChiesti(prisma)).toEqual(['open', 'escalated']);
+  });
+
+  /**
+   * L'altra metà: `sync` deve continuare a considerare `handled` come «già esistente», altrimenti
+   * l'avviso chiuso rinasce al ricalcolo successivo finché la condizione dura — che è il difetto
+   * opposto, e più fastidioso, perché la coach lo chiude e se lo ritrova subito.
+   */
+  it('il ricalcolo NON ricrea un avviso già gestito', async () => {
+    const prisma = basePrisma();
+    prisma.alert.findMany.mockResolvedValue([{ id: 'a1', type: 'measures_missing' }]);
+    const svc = makeService(prisma, { blocking: true, cycleDate: dayIso(0) });
+    await svc.recompute('cli-1');
+
+    const where = prisma.alert.findMany.mock.calls[0][0] as { where: { status: { in: string[] } } };
+    expect(where.where.status.in).toContain('handled');
+    // Esiste già (in qualunque stato non chiuso): non se ne crea un altro dello stesso tipo.
+    expect(createdTypes(prisma)).not.toContain('measures_missing');
+  });
+});

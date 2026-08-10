@@ -2,7 +2,7 @@ import { Body, Controller, Get, Patch, Post, Put } from '@nestjs/common';
 import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
-import { UsersService } from './users.service';
+import { RIGHE_AMMESSE, UsersService } from './users.service';
 
 class UpdatePrefsDto {
   @IsOptional()
@@ -28,6 +28,21 @@ class UpdatePrefsDto {
   @IsString({ each: true })
   @ArrayMaxSize(80)
   menuOrder?: string[];
+
+  /**
+   * I blocchi fissi della home SPENTI (portafoglio, avvisi, tabella clienti…): un elenco di
+   * esclusioni, non di inclusioni. Vedi il commento in `getPreferences`.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(40)
+  dashboardBlocksOff?: string[];
+
+  /** Righe per pagina nelle tabelle della home: 10, 25, 50 o 100. */
+  @IsOptional()
+  @IsIn(RIGHE_AMMESSE)
+  righePerPagina?: number;
 
   // Mostra i KPI "Guadagni" in dashboard (default off: attivabili dall'utente).
   @IsOptional()
@@ -151,6 +166,6 @@ export class MeController {
 
   @Put('preferences')
   setPreferences(@CurrentUser() user: AuthUser, @Body() dto: UpdatePrefsDto) {
-    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts, menuOrder: dto.menuOrder, showEarnings: dto.showEarnings, waterUnit: dto.waterUnit });
+    return this.users.updatePreferences(user.sub, { dashboardShortcuts: dto.dashboardShortcuts, dashboardModules: dto.dashboardModules, dashboardCharts: dto.dashboardCharts, menuOrder: dto.menuOrder, showEarnings: dto.showEarnings, waterUnit: dto.waterUnit, dashboardBlocksOff: dto.dashboardBlocksOff, righePerPagina: dto.righePerPagina });
   }
 }

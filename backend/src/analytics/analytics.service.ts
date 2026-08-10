@@ -65,8 +65,21 @@ export class AnalyticsService {
       scope: scopeAll ? 'all' : 'own',
       clientsCount: ids.length,
       kgLostThisMonth: 0, cmWaistLostThisMonth: 0,
-      top5ByLoss: [] as { name: string; lossKg: number }[],
-      bottom5ByLoss: [] as { name: string; lossKg: number }[],
+      /**
+       * CLASSIFICHE PER PERDITA, PERIODO PER PERIODO (richiesta di Simone dell'11/8: «questi due dati
+       * devono essere selezionabili… mi mostri il mese corrente, poi da una casellina a discesa posso
+       * selezionare quale mese vedere oppure tutto»).
+       *
+       * Tutti i periodi arrivano in un colpo solo, calcolati sulle misure che sono già in memoria: la
+       * tendina cambia vista senza una chiamata al server, che per una classifica di cinque righe
+       * sarebbe un giro di rete per niente.
+       */
+      classificaPerdita: {
+        /** In ordine: «tutto» e poi i mesi dal più recente. */
+        periodi: [] as { chiave: string; etichetta: string }[],
+        /** Da chiave di periodo a classifica. */
+        perPeriodo: {} as Record<string, { top: { name: string; lossKg: number }[]; bottom: { name: string; lossKg: number }[] }>,
+      },
       topCoachByRevenue: null as { name: string; amountCents: number } | null,
       topSpender: null as { name: string; amountCents: number } | null,
       longestTenured: null as { name: string; since: Date } | null,
@@ -116,7 +129,42 @@ export class AnalyticsService {
       }
       if (arr.length >= 1) lossByClient.push({ id: cid, name: nameOf.get(cid) ?? 'Cliente', lossKg: arr[0].weightKg - arr[arr.length - 1].weightKg });
     }
-    const sortedLoss = [...lossByClient].sort((a, b) => b.lossKg - a.lossKg);
+    /**
+     * La classifica di un periodo: prima misura contro ultima, DENTRO il periodo.
+     *
+     * ⚠️ Servono **almeno due misure** nel periodo. Con una sola la differenza è zero, e la classifica
+     * «ultimi per perdita» si riempiva di righe a 0,0 kg che non dicono «non ha perso»: dicono «si è
+     * pesata una volta sola». Sono due cose diverse e mescolate rendevano l'elenco inutile — era la
+     * schermata che Simone ha mandato, con tre zeri su cinque.
+     */
+    const classificaFra = (da: Date | null, a: Date | null) => {
+      const perdite: { name: string; lossKg: number }[] = [];
+      for (const [cid, arr] of byClient) {
+        const dentro = arr.filter((m) => (!da || m.date >= da) && (!a || m.date < a));
+        if (dentro.length < 2) continue;
+        perdite.push({
+          name: nameOf.get(cid) ?? 'Cliente',
+          lossKg: round1(dentro[0].weightKg - dentro[dentro.length - 1].weightKg),
+        });
+      }
+      const ordinate = perdite.sort((x, y) => y.lossKg - x.lossKg);
+      return { top: ordinate.slice(0, 5), bottom: ordinate.slice(-5).reverse() };
+    };
+
+    // «Tutto» più gli ultimi dodici mesi: oltre l'anno una classifica mensile non la guarda nessuno,
+    // e i mesi vuoti compaiono comunque — meglio una classifica vuota che un mese che manca dalla
+    // tendina e sembra un buco nei dati.
+    const periodi: { chiave: string; etichetta: string }[] = [{ chiave: 'tutto', etichetta: 'Tutto il percorso' }];
+    const perPeriodo: Record<string, { top: { name: string; lossKg: number }[]; bottom: { name: string; lossKg: number }[] }> = {
+      tutto: classificaFra(null, null),
+    };
+    for (let i = 0; i < 12; i++) {
+      const inizio = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const fine = new Date(inizio.getFullYear(), inizio.getMonth() + 1, 1);
+      const chiave = `${inizio.getFullYear()}-${String(inizio.getMonth() + 1).padStart(2, '0')}`;
+      periodi.push({ chiave, etichetta: `${MONTH_LABELS[inizio.getMonth()]} ${inizio.getFullYear()}` });
+      perPeriodo[chiave] = classificaFra(inizio, fine);
+    }
 
     const spendByClient = new Map<string, number>();
     const revenueByCoach = new Map<string, number>();
@@ -173,8 +221,7 @@ export class AnalyticsService {
       monthly,
       kgLostThisMonth: round1(kgMonth),
       cmWaistLostThisMonth: round1(cmMonth),
-      top5ByLoss: sortedLoss.slice(0, 5).map((x) => ({ name: x.name, lossKg: round1(x.lossKg) })),
-      bottom5ByLoss: sortedLoss.slice(-5).reverse().map((x) => ({ name: x.name, lossKg: round1(x.lossKg) })),
+      classificaPerdita: { periodi, perPeriodo },
       topCoachByRevenue: topCoach ? { name: topCoach[0], amountCents: topCoach[1] } : null,
       topSpender: topSpender ? { name: nameOf.get(topSpender[0]) ?? 'Cliente', amountCents: topSpender[1] } : null,
       longestTenured: longest ? { name: nameOf.get(longest.id) ?? 'Cliente', since: longest.createdAt } : null,

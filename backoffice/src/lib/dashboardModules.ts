@@ -67,3 +67,44 @@ export const CHART_METRICS: ChartMetric[] = [
   { key: 'cumulativeRevenueCents', label: 'Fatturato cumulato', unit: 'euro', color: 'var(--gold)' },
 ];
 export const DEFAULT_CHART_KEYS = ['kgLost', 'revenueCents', 'newClients'];
+
+/**
+ * I BLOCCHI FISSI DELLA HOME — quelli che non sono riquadri-anteprima ma parti scritte nella pagina.
+ *
+ * Richiesta di Simone dell'11/8: «tutti i moduli della dashboard, anche portafoglio ecc, devono
+ * essere attivabili e disattivabili da impostazioni moduli dashboard, così ogni persona si
+ * personalizza la dashboard». I riquadri sopra (`DASHBOARD_MODULES`) erano già gestibili; il
+ * portafoglio, gli avvisi, la tabella clienti e gli altri no, perché non sono moduli: sono blocchi
+ * disegnati dentro `CoachHome` e `NutritionistHome`.
+ *
+ * ## Perché una preferenza «spenti» e non «accesi»
+ *
+ * I moduli funzionano a inclusione: se l'id non è nella lista salvata, il riquadro non c'è. Questi no,
+ * e non possono: oggi si vedono tutti, e chi ha già personalizzato la dashboard ha una lista salvata
+ * che — ovviamente — non contiene id che ieri non esistevano. Aggiungerli lì vorrebbe dire che domani
+ * mattina le coach aprono e non trovano più il portafoglio né le loro clienti. Quindi
+ * `dashboardBlocksOff`: un elenco di esclusioni, vuoto per tutti, e ognuno ci mette dentro quello che
+ * non vuole vedere.
+ */
+export interface DashboardBlocco {
+  id: string;
+  label: string;
+  /** Cosa mostra, per la pagina Impostazioni. */
+  descrizione: string;
+  /** Su quali home compare: serve a non elencare a una nutrizionista blocchi che non ha. */
+  home: ('coach' | 'nutritionist')[];
+}
+
+export const DASHBOARD_BLOCCHI: DashboardBlocco[] = [
+  { id: 'b_portafoglio', label: 'Il mio portafoglio', descrizione: 'Maturato, saldo disponibile e richiesta di pagamento.', home: ['coach', 'nutritionist'] },
+  { id: 'b_scorciatoie', label: 'Scorciatoie', descrizione: 'I pulsanti rapidi in cima alla home.', home: ['coach', 'nutritionist'] },
+  { id: 'b_kpi', label: 'Numeri in cima', descrizione: 'I riquadri con i conteggi: clienti, avvisi, scadenze, documenti.', home: ['coach', 'nutritionist'] },
+  { id: 'b_lead_attesa', label: 'Lead da accettare', descrizione: 'I lead assegnati a te in attesa di risposta. Compare solo quando ce n\'è almeno uno.', home: ['coach'] },
+  { id: 'b_avvisi', label: 'Avvisi', descrizione: 'Le situazioni da guardare oggi, segnalate dal motore.', home: ['coach'] },
+  { id: 'b_invito', label: 'Il mio link d\'invito', descrizione: 'Il tuo ref code e il link di registrazione da condividere.', home: ['coach'] },
+  { id: 'b_scadenze', label: 'Piani in scadenza', descrizione: 'Chi arriva a fine percorso nei prossimi giorni.', home: ['coach'] },
+  { id: 'b_clienti', label: 'Le mie clienti', descrizione: 'La tabella con piano, ultima misura e avvisi.', home: ['coach'] },
+  { id: 'b_da_validare', label: 'Da validare', descrizione: 'Decisioni del motore, diete e protocolli in attesa della tua approvazione.', home: ['nutritionist'] },
+  { id: 'b_pazienti', label: 'Pazienti', descrizione: 'I pazienti che richiedono attenzione, con escalation e documenti aperti.', home: ['nutritionist'] },
+  { id: 'b_regole_motore', label: 'Regole del motore', descrizione: 'Il collegamento alle regole del motore (solo capo nutrizioniste).', home: ['nutritionist'] },
+];

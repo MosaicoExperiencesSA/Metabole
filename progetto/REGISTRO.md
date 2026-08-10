@@ -7,6 +7,54 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🖥️ **Dashboard: ognuno si tiene i blocchi che guarda** — «tutti i moduli della
+  dashboard, anche portafoglio ecc, devono essere attivabili e disattivabili da impostazioni moduli
+  dashboard». I riquadri-anteprima si gestivano già; le parti fisse delle home di coach e nutrizionista
+  (portafoglio, scorciatoie, numeri in cima, avvisi, link d'invito, piani in scadenza, tabella clienti,
+  «Da validare», «Pazienti», regole del motore) erano scritte nella pagina. Ora sono in Impostazioni,
+  in un elenco con l'interruttore.
+  La preferenza è **a esclusione** (`dashboardBlocksOff`), non a inclusione come i moduli: questi
+  blocchi oggi si vedono tutti, e chi ha già personalizzato la dashboard ha una lista salvata che non
+  può contenere id nati oggi — con l'altra scelta le coach avrebbero aperto e non trovato più il
+  portafoglio né le loro clienti. Decaduta anche la frase «il portafoglio resta comunque sempre
+  visibile» in Impostazioni.
+- `[Sviluppo]` 📜 **Tabelle della home scorrevoli, con quante righe vuoi** — «Le mie clienti» con
+  quarantadue clienti allungava la home fino a rendere irraggiungibile tutto quello che sta sotto.
+  Selettore 10 / 25 / 50 / 100 (default 10) salvato nel profilo, tabella che scorre dentro la card con
+  l'intestazione ferma in cima, e «Piani in scadenza» scorrevole con la **stessa** preferenza: sono due
+  elenchi della stessa pagina, e due impostazioni per la stessa domanda sarebbero due posti in cui
+  cambiare la stessa cosa.
+- `[Sviluppo]` 🔢 **Pipeline: la board mostrava un pezzo e il conteggio mentiva** — «perché non c'è più
+  Patricia?». Caricava le **500 schede aggiornate più di recente su tutto il CRM** e poi le smistava
+  nelle colonne: con le liste storiche importate erano 485 su 500 in «Nuovo contatto», e le clienti
+  vere non toccate da qualche giorno cadevano fuori dalla finestra. Patricia era in «Acquisito» con
+  349 € incassati, nel database, e la colonna non la mostrava — dicendo «1».
+  Ora i **conteggi** vengono da un `groupBy` (esatti, per colonna, sempre) e le **schede** si caricano
+  una colonna per volta con un tetto per colonna, così una colonna piena di lead freddi non affama le
+  altre. Quando il tetto morde, la colonna lo dichiara invece di sembrare completa. E oltre le 50
+  schede la colonna **scorre dentro sé stessa** (scelta di Simone), invece di allungare la pagina.
+- `[Sviluppo]` ✅ **«Segna come gestito» adesso resta gestito** — segnalazione delle coach: «se clicco
+  su segna come gestito, quando faccio refresh gli avvisi ricompaiono». Una costante sola
+  (`open|handled|escalated`) rispondeva a due domande diverse: «devo ricreare questo avviso?» — dove
+  `handled` ci sta di diritto, altrimenti l'avviso chiuso rinasce a ogni ricalcolo finché la condizione
+  dura — e «cosa resta da fare alla coach?», dove non c'entra niente. La riga spariva perché la pagina
+  la togliliava da sé, poi il server la rimandava indietro: indistinguibile da un pulsante che non
+  salva. Ora la coda della coach chiede solo gli `open`; gli inoltrati restano a chi ha il perimetro
+  completo, che è chi li raccoglie.
+- `[Sviluppo]` 📊 **Classifiche per perdita: si scegle il mese** — «mi mostri il mese corrente, poi da
+  una casellina a discesa posso selezionare quale mese vedere oppure tutto». Prima erano sempre
+  sull'**intero percorso** e includevano chi ha una sola misura, cioè righe a 0,0 kg che non dicono
+  «non ha perso» ma «si è pesata una volta»: ora servono almeno due misure nel periodo, ed è scritto
+  sotto il titolo. Tutti i periodi (tutto + ultimi dodici mesi) arrivano in un colpo solo: la tendina
+  non chiama la rete.
+- `[Sviluppo]` 🧾 **Widget della dashboard: il testo non sborda più e l'importo si vede** — erano lo
+  stesso difetto. La riga del widget aveva `text-overflow: ellipsis` ma stava in un contenitore flex
+  senza `min-width: 0`, e un elemento flex non si stringe sotto la larghezza del suo contenuto: i
+  puntini non scattavano mai, la descrizione lunga allargava la riga e **spingeva l'importo fuori
+  dall'area visibile**. Nel riquadro Acquisti, inoltre, il nome della cliente è passato in alto e il
+  prodotto sotto: cinque righe con la stessa descrizione troncata non distinguevano un acquisto
+  dall'altro.
+
 - `[Sviluppo]` 🛒 **Gli Acquisti si aprono alle coach, ma solo sulla loro rete** — richiesta di
   Simone: «la tabella acquisti voglio renderla visibile alle coach, ma devono vedere solo le clienti
   nella loro rete». Erano due cose diverse e mancavano entrambe.

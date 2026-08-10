@@ -15,8 +15,11 @@ interface Charts {
   scope: 'all' | 'own';
   clientsCount: number;
   monthly: MonthPoint[];
-  top5ByLoss: NamedLoss[];
-  bottom5ByLoss: NamedLoss[];
+  /** Le classifiche per perdita, un elenco per periodo: «tutto» e gli ultimi dodici mesi. */
+  classificaPerdita?: {
+    periodi: { chiave: string; etichetta: string }[];
+    perPeriodo: Record<string, { top: NamedLoss[]; bottom: NamedLoss[] }>;
+  };
   topCoachByRevenue: NamedAmount | null;
   topSpender: NamedAmount | null;
   longestTenured: { name: string; since: string } | null;
@@ -35,6 +38,43 @@ function Stat({ label, value, sub, icon, color }: { label: string; value: string
         <div className="muted" style={{ fontSize: 12 }}>{label}{sub ? ` · ${sub}` : ''}</div>
       </div>
     </div>
+  );
+}
+
+/**
+ * LE DUE CLASSIFICHE, CON IL PERIODO SCEGLIBILE (richiesta di Simone dell'11/8: «mi mostri il mese
+ * corrente, poi da una casellina a discesa posso selezionare quale mese vedere oppure tutto»).
+ *
+ * I periodi arrivano tutti insieme dal server, calcolati sulle misure che lui ha già in memoria:
+ * cambiare mese non chiama la rete. Una tendina sola per le due classifiche, perché sono la stessa
+ * domanda letta dai due capi — con due tendine si finisce a confrontare agosto con luglio senza
+ * accorgersene.
+ */
+function ClassifichePerdita({ classifica }: { classifica?: Charts['classificaPerdita'] }) {
+  // Il mese corrente, che è la chiave con cui il server manda i periodi: `AAAA-MM`.
+  const meseCorrente = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+  const [periodo, setPeriodo] = useState(meseCorrente);
+  if (!classifica) return null;
+  const scelto = classifica.perPeriodo[periodo] ?? classifica.perPeriodo[meseCorrente] ?? { top: [], bottom: [] };
+  const etichetta = classifica.periodi.find((p) => p.chiave === periodo)?.etichetta ?? '';
+
+  return (
+    <>
+      <div className="spread" style={{ margin: '4px 0 10px', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span className="muted" style={{ fontSize: 13 }}>
+          Chi ha perso più peso {periodo === 'tutto' ? 'da quando ha iniziato' : `in ${etichetta.toLowerCase()}`}.
+          Contano solo le clienti con <b>almeno due misure</b> nel periodo: con una sola la differenza
+          sarebbe zero e direbbe «si è pesata una volta», non «non ha perso».
+        </span>
+        <select className="select" style={{ width: 'auto' }} value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+          {classifica.periodi.map((p) => <option key={p.chiave} value={p.chiave}>{p.etichetta}</option>)}
+        </select>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14 }}>
+        <BarList title="Migliori 5 per perdita" items={scelto.top} unit="kg" />
+        <BarList title="Ultimi 5 per perdita" items={scelto.bottom} unit="kg" />
+      </div>
+    </>
   );
 }
 
@@ -152,10 +192,7 @@ export function Grafici() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14 }}>
-        <BarList title="Migliori 5 per perdita" items={data.top5ByLoss} unit="kg" />
-        <BarList title="Ultimi 5 per perdita" items={data.bottom5ByLoss} unit="kg" />
-      </div>
+      <ClassifichePerdita classifica={data.classificaPerdita} />
     </>
   );
 }

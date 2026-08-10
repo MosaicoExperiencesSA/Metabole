@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
 import { WalletWidget } from '../components/WalletWidget';
+import { usePreferenzeHome } from '../lib/preferenzeHome';
 
 const euro0 = (c: number) => '€ ' + Math.round(c / 100).toLocaleString('it-IT');
 
@@ -51,6 +52,7 @@ export function NutritionistHome() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showEarnings, setShowEarnings] = useState(false);
+  const pref = usePreferenzeHome();
 
   async function load() {
     setLoading(true);
@@ -99,11 +101,13 @@ export function NutritionistHome() {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
-      <WalletWidget />
+      {pref.attivo('b_portafoglio') && <WalletWidget />}
 
-      <DashboardShortcuts />
+      {pref.attivo('b_scorciatoie') && <DashboardShortcuts />}
 
       {/* KPI clinici */}
+      {pref.attivo('b_kpi') && (
+      <>
       <div className="card-row">
         <Kpi label="Pazienti" value={String(dash?.patientsCount ?? 0)} icon="ti-users" />
         <Kpi label="Documenti da rivedere" value={String(dash?.pendingDocuments ?? 0)} icon="ti-file-description" color={dash && dash.pendingDocuments > 0 ? 'var(--coral-dark)' : undefined} />
@@ -116,9 +120,12 @@ export function NutritionistHome() {
         {showEarnings && <Kpi label="Guadagni mese" value={euro0(dash?.earningsMonthCents ?? 0)} icon="ti-coin" />}
         {showEarnings && <Kpi label="Guadagni totale" value={euro0(dash?.earningsTotalCents ?? 0)} icon="ti-wallet" />}
       </div>
+      </>
+      )}
 
       <div className="card-row" style={{ marginTop: 16, alignItems: 'flex-start' }}>
         {/* Coda di validazione */}
+        {pref.attivo('b_da_validare') && (
         <div className="card" style={{ margin: 0, flex: 1.3 }}>
           <h2 style={{ marginTop: 0 }}>Da validare</h2>
 
@@ -168,8 +175,10 @@ export function NutritionistHome() {
             </>
           )}
         </div>
+        )}
 
         {/* Pazienti che richiedono attenzione */}
+        {pref.attivo('b_pazienti') && (
         <div className="card" style={{ margin: 0, flex: 1 }}>
           <div className="spread">
             <h2 style={{ margin: 0 }}>Pazienti</h2>
@@ -195,10 +204,11 @@ export function NutritionistHome() {
             ))
           )}
         </div>
+        )}
       </div>
 
       {/* Modulo Regole del motore — solo il capo nutrizionista */}
-      {can('engine_rules', 'manage') && (
+      {pref.attivo('b_regole_motore') && can('engine_rules', 'manage') && (
         <div className="card" style={{ marginTop: 16 }}>
           <div className="spread" style={{ alignItems: 'flex-start' }}>
             <div>

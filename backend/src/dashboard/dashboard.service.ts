@@ -175,10 +175,19 @@ export class DashboardService {
           where: { status: 'approved' as never }, orderBy: { approvedAt: 'desc' }, take: 5,
           select: { amountCents: true, description: true, approvedAt: true, client: { select: { email: true, clientProfile: { select: { name: true } } } } },
         })) as { amountCents: number; description: string; approvedAt: Date | null; client: { email: string; clientProfile: { name: string | null } | null } | null }[];
+        /**
+         * Il NOME in alto e il prodotto sotto, non il contrario.
+         *
+         * Segnalazione di Simone dell'11/8. Le descrizioni degli abbonamenti sono lunghe e quasi
+         * uguali fra loro («Abbonamento Prova Gratuita — attivazione interna, senza incasso (listino
+         * 349,00 €)»): messe come riga principale il riquadro diventava cinque volte la stessa frase
+         * troncata, e la cosa che distingue una riga dall'altra — chi ha comprato — stava in piccolo
+         * sotto. Invertite, il riquadro si legge: cinque nomi, cinque importi.
+         */
         out.purchases = rows.map((r) => ({
-          a: r.description,
+          a: r.client?.clientProfile?.name ?? r.client?.email ?? r.description,
           b: euro(r.amountCents),
-          sub: r.client?.clientProfile?.name ?? r.client?.email ?? undefined,
+          sub: r.description,
         }));
       } catch { /* skip */ }
     }
