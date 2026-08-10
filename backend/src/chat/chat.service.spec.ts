@@ -14,6 +14,9 @@ const client: AuthUser = { sub: 'client-1', email: 'c@m.eu', role: 'client' };
 const coach: AuthUser = { sub: 'coach-user', email: 'co@m.eu', role: 'coach' };
 const nutri: AuthUser = { sub: 'nutri-user', email: 'n@m.eu', role: 'nutritionist' };
 const admin: AuthUser = { sub: 'admin-user', email: 'a@m.eu', role: 'admin' };
+/** La rete sopra la coach: coordinatrice e responsabile (11/8, «i permessi di lettura risalgono»). */
+const coordinatrice: AuthUser = { sub: 'coord-user', email: 'coord@m.eu', role: 'coach_coordinator' };
+const responsabile: AuthUser = { sub: 'resp-user', email: 'resp@m.eu', role: 'coach_coordinator' };
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -58,9 +61,24 @@ describe('ChatService', () => {
       staff: {
         findUnique: jest.fn().mockImplementation(({ where }: any) =>
           Promise.resolve(
-            where.userId === 'coach-user' ? { id: 'staff-c' } : where.userId === 'nutri-user' ? { id: 'staff-n' } : null,
+            where.userId === 'coach-user' ? { id: 'staff-c' }
+              : where.userId === 'nutri-user' ? { id: 'staff-n' }
+              : where.userId === 'coord-user' ? { id: 'staff-coord' }
+              : where.userId === 'resp-user' ? { id: 'staff-resp' }
+              : null,
           ),
         ),
+        /**
+         * LA RETE, a tre livelli come quella vera: la coach `staff-c` risponde alla coordinatrice
+         * `staff-coord`, che risponde alla responsabile `staff-resp`. Serve a `reteSottoDiMe`, e non è
+         * un finto qualunque: è il motivo per cui i test qui sotto provano davvero la risalita invece
+         * di limitarsi a non esplodere (11/8).
+         */
+        findMany: jest.fn().mockImplementation(({ where }: any) => {
+          const chiesti: string[] = (where?.OR ?? []).flatMap((o: any) => o.managerId?.in ?? o.headNutritionistId?.in ?? []);
+          const figli: Record<string, string[]> = { 'staff-resp': ['staff-coord'], 'staff-coord': ['staff-c'] };
+          return Promise.resolve(chiesti.flatMap((id) => (figli[id] ?? []).map((x) => ({ id: x }))));
+        }),
       },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
     };
@@ -427,6 +445,46 @@ describe('ChatService', () => {
     });
 
     /**
+     * LA LETTURA RISALE LA RETE (11/8). «Perché la responsabile delle coach non vede le chat? I
+     * permessi di lettura devono risalire la rete, quindi coach, coordinatrice, responsabile.»
+     *
+     * Prima il controllo pretendeva che l'attore fosse **la coach assegnata**, cosa che una
+     * coordinatrice non è mai: su ogni cliente della sua rete leggeva «il tuo ruolo non può leggere
+     * le conversazioni di questa cliente». Il ruolo era nell'elenco, la condizione era sbagliata.
+     */
+    it('la COORDINATRICE legge il thread di una cliente della coach sotto di lei', async () => {
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
+      await expect(service.listMessages(coordinatrice, 't-ai')).resolves.toBeDefined();
+    });
+
+    it('e la RESPONSABILE anche: la rete si risale per intero, non un livello solo', async () => {
+      // `staff-resp` → `staff-coord` → `staff-c`: due salti. Col vecchio codice (un livello) la
+      // responsabile era cieca proprio sulle clienti che il suo ruolo esiste per seguire.
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
+      await expect(service.listMessages(responsabile, 't-ai')).resolves.toBeDefined();
+    });
+
+    it('la coordinatrice legge anche il thread con la COACH della sua rete', async () => {
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-coach', clientId: 'client-1', counterpart: 'coach' });
+      await expect(service.listMessages(coordinatrice, 't-coach')).resolves.toBeDefined();
+    });
+
+    it('ma NON legge una cliente fuori dalla sua rete: risalire non vuol dire vedere tutto', async () => {
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' });
+      prisma.clientProfile.findUnique.mockResolvedValue({ assignedCoachId: 'staff-ESTRANEO', assignedNutritionistId: null });
+      await expect(service.listMessages(coordinatrice, 't-ai')).rejects.toThrow(ForbiddenException);
+    });
+
+    /**
+     * E QUI IL LIMITE: risale la **lettura**, non la scrittura. Una coordinatrice che scrive nel
+     * thread «Coach» farebbe comparire alla cliente un messaggio che sembra della sua coach.
+     */
+    it('la coordinatrice NON scrive nel thread coach di una cliente che non è sua', async () => {
+      prisma.chatThread.findUnique.mockResolvedValue({ id: 't-coach', clientId: 'client-1', counterpart: 'coach' });
+      await expect(service.postMessage(coordinatrice, 't-coach', 'ciao')).rejects.toThrow(ForbiddenException);
+    });
+
+    /**
      * Leggere sì, scrivere no: in quel thread la voce è quella di Gaia, e una risposta dello
      * staff travestita da assistente ingannerebbe la cliente. Per parlarle c'è il thread proprio.
      */
@@ -640,6 +698,7 @@ describe('ChatService — quando Gaia inventa un dato nutrizionale', () => {
         findUnique: jest.fn().mockImplementation(({ where }: any) =>
           Promise.resolve(where.userId === 'coach-user' ? { id: 'staff-c' } : { id: 'staff-n' }),
         ),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       user: { findUnique: jest.fn().mockResolvedValue({ locale: 'it' }) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
@@ -752,7 +811,7 @@ describe('ChatService — la domanda nutrizionale con la banca dati', () => {
           assignedNutritionist: { userId: 'nutri-user', displayName: 'Dr.ssa Bini' },
         }),
       },
-      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-n' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-n' }), findMany: jest.fn().mockResolvedValue([]) },
       user: { findUnique: jest.fn().mockResolvedValue({ locale: 'it' }) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
     };

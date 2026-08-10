@@ -51,6 +51,10 @@ export const BACKOFFICE_PAGES = [
   // quelli da confermare. È di chi risponde di cosa mangiano le clienti, quindi sta con la
   // nutrizionista e non con l'amministrazione.
   'nutrient_facts',
+  // La tabella della copertura (11/8). Chiave PROPRIA e non agganciata a «Creazione e validazione»:
+  // quella genera il catalogo, questa dice soltanto dove siamo — e sono due decisioni diverse, perché
+  // guardare lo stato serve anche a chi non deve generare niente.
+  'catalog_coverage',
   'crm_lead_new',       // Inserimento lead (da crm_leads)
   'crm_import',         // Import liste (da crm_leads)
   'crm_pipeline',       // Pipeline (da crm_leads)
@@ -162,6 +166,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     client_conversations: { view: true, manage: true },
     // I valori nutrizionali: li vede e li corregge. È il senso della pagina.
     nutrient_facts: { view: true, manage: true },
+    catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
   },
   head_nutritionist: {
@@ -182,6 +187,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     chat: { view: true, manage: true },
     client_conversations: { view: true, manage: true },
     nutrient_facts: { view: true, manage: true },
+    catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
     assignments: { view: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista

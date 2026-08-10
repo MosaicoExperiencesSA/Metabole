@@ -7,6 +7,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🕸️ **I permessi di lettura risalgono la rete** — «perché la responsabile delle coach non
+  vede le chat? I permessi di lettura devono risalire la rete, quindi coach, coordinatrice,
+  responsabile», e poi «anche in chat va risalita la rete come autorizzazioni di lettura».
+  Due difetti sovrapposti. In scheda cliente il controllo pretendeva che l'attore fosse **la coach
+  assegnata** — cosa che una coordinatrice non è mai — quindi su ogni cliente della sua rete leggeva
+  «il tuo ruolo non può leggere le conversazioni di questa cliente»: il ruolo era nell'elenco, la
+  condizione era quella sbagliata. E più a monte, `coachTeamScope` scendeva di **un solo livello**
+  (`managerId = lei`), mentre la rete è a tre: quindi la responsabile vedeva le sue coordinatrici e non
+  le clienti delle coach sotto di loro — era cieca esattamente sulle persone che il suo ruolo esiste
+  per seguire.
+  Ora la rete si percorre tutta (`common/rete-staff.ts`), per quanti livelli ha e su **entrambi** gli
+  archi del dominio: `managerId` (catena delle coach) e `headNutritionistId` (catena delle
+  nutrizioniste). Chi sta sopra copre chi sta sotto, a qualunque distanza — e questo vale per la
+  visibilità delle clienti in tutte le pagine, non solo per le chat.
+  **Solo in lettura**, che è la parola che Simone ha usato due volte: scrivere resta di chi segue la
+  cliente, perché una coordinatrice che scrive nel thread «Coach» farebbe comparire alla cliente un
+  messaggio che sembra della sua coach — e per parlare al posto di qualcun altro c'è l'impersonazione,
+  dichiarata e tracciata. Risalire non vuol dire vedere tutto: una cliente fuori dalla propria rete
+  resta chiusa.
+  Si scende a **strati** (una query per livello, non una per persona) e i cicli nei dati non mandano in
+  loop: nessun vincolo del database impedisce che A risponda a B e B ad A, e senza protezione la
+  funzione girerebbe per sempre. 20 test nuovi, ciclo e tetto di profondità compresi.
+- `[Sviluppo]` 🔔 **Una cliente scrive alla coach: notifica in dashboard e push** — «se una cliente
+  scrive in chat alla coach mandiamo la notifica nella dashboard e via push». Il push c'era già: era la
+  **notifica a non nascere**. Il dedup era «una al giorno per tipo», e il tipo è uno solo per tutte le
+  clienti: quindi la prima che scriveva generava la notifica e tutte le altre, quel giorno, no. Per una
+  coach con quaranta clienti è una notifica su quaranta — la chat sembrava silenziosa mentre si
+  riempiva.
+  Ora il dedup guarda anche **quale cliente** (`dedupeSuPayload`), quindi è per cliente e non per tipo,
+  con la stessa anti-raffica di tre minuti della direzione opposta: tre messaggi di fila restano una
+  notifica, tre clienti diverse sono tre notifiche. E il **nome è nel titolo** («Giulia ti ha
+  scritto»): senza, la coach deve aprire la scheda per sapere chi. Il testo non riporta il messaggio,
+  perché nell'anteprima di un push non ci va niente che possa essere sanitario.
+- `[Sviluppo]` 🔑 **«Copertura catalogo» ha il suo permesso** — chiesto da Simone: era agganciata alla
+  chiave di «Creazione e validazione». Adesso è `catalog_coverage`, una riga a sé in pagina Permessi:
+  quella pagina **genera** il catalogo, questa dice soltanto dove siamo, e guardare lo stato serve
+  anche a chi non deve generare niente.
+
 - `[Sviluppo]` 🕐 **Data e ora dei messaggi in chat (app)** — «in app non c'è data e ora delle chat».
   Il dato (`sentAt`) arrivava dal server da sempre e non si vedeva da nessuna parte: una conversazione
   lunga era un muro di bolle senza tempo, e non si capiva se una risposta della coach fosse di dieci

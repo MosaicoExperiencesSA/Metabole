@@ -84,7 +84,7 @@ export const NAV: NavSection[] = [
       { key: 'creation_validation', label: 'Creazione e validazione', to: '/creazione-validazione', icon: 'ti-wand' },
       // Subito sotto «Creazione e validazione» perché è la sua verifica: quella genera, questa dice
       // se è arrivato a destinazione (11/8, «così a colpo d'occhio capiamo dove siamo»).
-      { key: 'creation_validation', label: 'Copertura catalogo', to: '/copertura-catalogo', icon: 'ti-table-options' },
+      { key: 'catalog_coverage', label: 'Copertura catalogo', to: '/copertura-catalogo', icon: 'ti-table-options' },
       { key: 'diet_workspace', label: 'Gestione dieta', to: '/gestione-dieta', icon: 'ti-clipboard-list' },
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
       { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },

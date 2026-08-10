@@ -34,6 +34,7 @@ export const PAGE_LABEL: Record<string, string> = {
   chat: 'Chat',
   client_conversations: 'Conversazioni della cliente',
   nutrient_facts: 'Valori nutrizionali',
+  catalog_coverage: 'Copertura catalogo',
   health_documents: 'Documenti sanitari',
   crm_leads: 'Gestione lead',
   lead_acceptance: 'Lead da accettare',

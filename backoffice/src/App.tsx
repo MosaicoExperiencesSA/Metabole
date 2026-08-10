@@ -122,7 +122,7 @@ export default function App() {
       <Route path="/creazione-validazione" element={<Protected title="Creazione e validazione" pageKey="creation_validation"><CreazioneValidazione /></Protected>} />
       <Route path="/gestione-dieta" element={<Protected title="Gestione dieta" pageKey="diet_workspace"><GestioneDieta /></Protected>} />
       <Route path="/valori-nutrizionali" element={<Protected title="Valori nutrizionali" pageKey="nutrient_facts"><ValoriNutrizionali /></Protected>} />
-      <Route path="/copertura-catalogo" element={<Protected title="Copertura catalogo" pageKey="creation_validation"><CoperturaCatalogo /></Protected>} />
+      <Route path="/copertura-catalogo" element={<Protected title="Copertura catalogo" pageKey="catalog_coverage"><CoperturaCatalogo /></Protected>} />
       <Route path="/protocolli" element={<Protected title="Protocolli motore" pageKey="engine_protocols"><Protocolli /></Protected>} />
       <Route path="/regole-motore" element={<Protected title="Regole motore" pageKey="engine_rules"><RegoleMotore /></Protected>} />
       <Route path="/parametri" element={<Protected title="Parametri" pageKey="engine_config"><Parametri /></Protected>} />

@@ -22,6 +22,7 @@ import {
 } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { copreQuestoStaff } from '../common/rete-staff';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { classifyMessage } from './ai-filter';
@@ -160,8 +161,25 @@ export class ChatService {
     const eLaSuaCoach = profile?.assignedCoachId === staff.id;
     const eLaSuaNutrizionista = profile?.assignedNutritionistId === staff.id;
 
-    if ((user.role === 'coach' || user.role === 'coach_coordinator') && thread.counterpart === 'coach' && eLaSuaCoach) return;
-    if (user.role === 'nutritionist' && thread.counterpart === 'nutritionist' && eLaSuaNutrizionista) return;
+    /**
+     * LA LETTURA RISALE LA RETE (11/8). «Perché la responsabile delle coach non vede le chat? I
+     * permessi di lettura devono risalire la rete, quindi coach, coordinatrice, responsabile.»
+     *
+     * Prima qui si chiedeva che l'attore fosse **la coach assegnata** — cosa che una coordinatrice
+     * non è mai — quindi su ogni cliente della sua rete leggeva «il tuo ruolo non può leggere le
+     * conversazioni di questa cliente». Il ruolo era nell'elenco, la condizione era quella sbagliata.
+     *
+     * Ora vale anche per chi sta **sopra** la coach assegnata, a qualunque distanza. Solo in
+     * lettura: scrivere resta di chi segue la cliente — una coordinatrice che scrive nel thread
+     * «Coach» farebbe comparire alla cliente un messaggio che sembra della sua coach.
+     */
+    const copreLaCoach =
+      mode === 'read' && (await copreQuestoStaff(this.prisma, staff.id, profile?.assignedCoachId ?? null));
+    const copreLaNutrizionista =
+      mode === 'read' && (await copreQuestoStaff(this.prisma, staff.id, profile?.assignedNutritionistId ?? null));
+
+    if ((user.role === 'coach' || user.role === 'coach_coordinator') && thread.counterpart === 'coach' && (eLaSuaCoach || copreLaCoach)) return;
+    if (user.role === 'nutritionist' && thread.counterpart === 'nutritionist' && (eLaSuaNutrizionista || copreLaNutrizionista)) return;
     if (user.role === 'head_nutritionist' && thread.counterpart === 'nutritionist') return;
 
     // Il thread con Gaia: le due persone che seguono la cliente, il capo nutrizionista che risponde
@@ -170,8 +188,10 @@ export class ChatService {
     // In particolare la manager delle coach (`sales`) NON entra qui: vede lead, contatti e metriche,
     // non il clinico.
     if (thread.counterpart === 'ai' && mode === 'read') {
-      if ((user.role === 'coach' || user.role === 'coach_coordinator') && eLaSuaCoach) return;
-      if (user.role === 'nutritionist' && eLaSuaNutrizionista) return;
+      // Anche qui la rete si risale: chi risponde di quella coach legge quello che la cliente ha
+      // scritto a Gaia, perché è lì che dice cosa non le piace e cosa non digerisce.
+      if ((user.role === 'coach' || user.role === 'coach_coordinator') && (eLaSuaCoach || copreLaCoach)) return;
+      if (user.role === 'nutritionist' && (eLaSuaNutrizionista || copreLaNutrizionista)) return;
       if (user.role === 'head_nutritionist') return;
     }
     throw new ForbiddenException('Non hai accesso a questo thread');
@@ -394,7 +414,7 @@ export class ChatService {
           },
         });
       }
-      await this.notifyCounterpartStaff(clientId, toNutritionist ? 'nutritionist' : 'coach', 'chat_sensitive_alert', 'chat_sensitive_alert');
+      await this.notifyCounterpartStaff(clientId, toNutritionist ? 'nutritionist' : 'coach', 'chat_sensitive_alert');
       await this.audit.log({
         action: 'chat.sensitive_escalation',
         actorId: clientId,
@@ -731,7 +751,6 @@ export class ChatService {
     clientId: string,
     counterpart: Counterpart,
     type = `chat_message_${counterpart}`,
-    messageKey = 'chat_message_staff',
   ) {
     if (counterpart === 'ai') return;
     const profile = await this.prisma.clientProfile.findUnique({
@@ -744,11 +763,32 @@ export class ChatService {
     const staffUserId =
       counterpart === 'coach' ? profile?.assignedCoach?.userId : profile?.assignedNutritionist?.userId;
     if (!staffUserId) return;
+    /**
+     * UNA NOTIFICA PER OGNI CLIENTE CHE SCRIVE (11/8: «se una cliente scrive in chat alla coach
+     * mandiamo la notifica nella dashboard e via push»).
+     *
+     * Il difetto era nel dedup: `notifyOncePerDay` senza finestra vuol dire **una al giorno per
+     * tipo**, e il tipo qui è uno solo per tutte le clienti. Quindi la prima che scriveva generava la
+     * notifica e tutte le altre, quel giorno, no. Per una coach con quaranta clienti è una notifica su
+     * quaranta: la chat sembrava silenziosa mentre si riempiva.
+     *
+     * Ora il dedup guarda anche il `clientId`, quindi è per **cliente**, con la stessa anti-raffica di
+     * tre minuti che usa la direzione opposta (staff → cliente): se scrive tre messaggi di fila resta
+     * una notifica, se scrivono tre clienti diverse ne arrivano tre.
+     *
+     * Il nome nel titolo non è cortesia: senza, la coach deve aprire la scheda per sapere chi le ha
+     * scritto. Il testo NON riporta il messaggio — nell'anteprima di una notifica push non ci va
+     * niente che possa essere sanitario.
+     */
+    const nome = (profile as { name?: string | null } | null)?.name?.trim() || 'Una tua cliente';
     await this.notifications.notifyOncePerDay({
       userId: staffUserId,
       type,
-      messageKey,
-      payload: { clientId },
+      title: `${nome} ti ha scritto`,
+      body: 'Apri la chat per leggere il messaggio.',
+      payload: { clientId, kind: 'chat_message_staff' },
+      dedupeWindowMs: 3 * 60_000,
+      dedupeSuPayload: { clientId },
     });
   }
 }

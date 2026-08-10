@@ -27,6 +27,17 @@ interface NotifyInput {
   /** Se impostato, il dedup usa una FINESTRA MOBILE di N ms invece di "una volta al giorno"
    *  (es. chat: una notifica per risposta, ma non a raffica se arrivano più messaggi). */
   dedupeWindowMs?: number;
+  /**
+   * Campi del `payload` da includere nel confronto del dedup (11/8).
+   *
+   * Senza questo, il dedup guarda solo **destinatario + tipo**: per una coach con quaranta clienti
+   * voleva dire che la prima che scriveva generava la notifica e le altre trentanove no. La coda
+   * della chat si riempiva in silenzio, che è esattamente il difetto che stiamo togliendo altrove.
+   *
+   * Con `{ clientId }` il dedup diventa per **cliente**: una notifica per ogni cliente che scrive,
+   * con l'anti-raffica che vale su quella cliente e non su tutte.
+   */
+  dedupeSuPayload?: Record<string, string>;
 }
 
 export interface NotificationPrefs {
@@ -81,19 +92,27 @@ export class NotificationsService {
    */
   async notifyOncePerDay(input: NotifyInput): Promise<boolean> {
     const adesso = new Date();
+    /**
+     * I filtri sul payload (es. la cliente di cui si parla): rendono il dedup «per cliente» invece
+     * che «per tipo». Vedi `dedupeSuPayload`.
+     */
+    const perPayload = Object.entries(input.dedupeSuPayload ?? {}).map(([chiave, valore]) => ({
+      payload: { path: [chiave], equals: valore },
+    })) as never[];
     if (input.dedupeWindowMs) {
       const recente = await this.prisma.notification.findFirst({
         where: {
           userId: input.userId,
           type: input.type,
           scheduledFor: { gte: new Date(adesso.getTime() - input.dedupeWindowMs) },
+          ...(perPayload.length ? { AND: perPayload } : {}),
         },
         select: { id: true },
       });
       if (recente) return false;
     } else {
       const ultima = (await this.prisma.notification.findFirst({
-        where: { userId: input.userId, type: input.type },
+        where: { userId: input.userId, type: input.type, ...(perPayload.length ? { AND: perPayload } : {}) },
         orderBy: { scheduledFor: 'desc' },
         select: { scheduledFor: true },
       })) as { scheduledFor: Date } | null;

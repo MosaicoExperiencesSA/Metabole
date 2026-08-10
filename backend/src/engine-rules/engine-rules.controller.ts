@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { IsBoolean, IsDefined, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { EngineRulesService } from './engine-rules.service';
 
@@ -114,6 +115,7 @@ export class EngineRulesController {
    * «Così a colpo d'occhio capiamo dove siamo» (11/8).
    */
   @Get('copertura')
+  @RequirePage('catalog_coverage')
   copertura() {
     return this.service.coperturaVarianti();
   }
