@@ -7,6 +7,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔔 **Cambi ed equivalenze nuove: adesso la nutrizionista lo sa** — «quando si creano
+  sostituzioni nuove o equivalenze nuove mandiamo una notifica al nutrizionista». Erano due code che
+  si riempivano **in silenzio**. Ogni cambio concordato in chat nasce «da verificare» — è giusto, la
+  grammatura di un piatto è materia clinica — ma nessuno lo diceva a nessuno: si scopriva aprendo la
+  scheda della cliente di propria iniziativa. Un cambio concordato con Gaia e mai verificato non è in
+  attesa: è già nel piatto, approvato da nessuno. Stessa cosa per i gruppi di equivalenza, che il
+  motore usa **solo se approvati**: un gruppo in bozza è lavoro fatto che non serve a niente finché
+  il capo non lo guarda.
+  Ora l'avviso parte da entrambi i punti, cambio di ingrediente e cambio di piatto, e dice chi e cosa
+  («Giulia ha cambiato «carote» con «biete» a pranzo») — un avviso che dice solo «c'è un cambio»
+  costringe ad aprire per sapere. Se alla cliente non è assegnata nessuna nutrizionista l'avviso va
+  al **capo**, non nel vuoto: è la lezione di luglio, quando tre segnalazioni gravi sono rimaste
+  ferme venti giorni perché non c'era un destinatario. La funzione sta in
+  `common/avvisa-nutrizionista.ts`, accanto a quella delle coach. Sui gruppi generati dall'AI alla
+  nascita di una dieta parte **un** avviso col totale e non otto uguali: otto notifiche in tre
+  secondi non sono otto informazioni, sono una notifica e sette motivi per spegnerle. E non si
+  avvisa mai chi ha appena creato la cosa. 17 test nuovi — uno di questi è nato scoprendo che il
+  finto Prisma della suite delle sostituzioni non aveva il metodo che l'avviso usa, quindi l'avviso
+  falliva in silenzio e il test passava: è esattamente il modo in cui un difetto sopravvive a una
+  suite verde.
+- `[Ricerca]` 📚 **Banca dati nutrizionale: la ricerca con le fonti** — in
+  `progetto/ricerche/valori-nutrizionali-fonti.md` gli indici glicemici di ~50 alimenti dalle
+  International Tables (Atkinson/Brand-Miller 2008 e 2021, Università di Sydney, Linus Pauling
+  Institute) e i valori nutrizionali dal **CREA — Banca Dati di Composizione degli Alimenti**, ognuno
+  con fonte, URL e **affidabilità dichiarata**. Serve a seminare la tabella che Gaia consulterà prima
+  di affermare un numero (decisione di Simone dell'11/8: non vietarle di dire i dati, ma obbligarla a
+  fondarli). La parte più utile della ricerca sono le incertezze: l'IG delle patate va da 73 a 111
+  secondo la fonte, quello dell'anguria da 50 a 76, e la cottura conta più della varietà (pasta 46 al
+  dente → 58 se cotta venti minuti). Per questo la tabella dovrà portarsi dietro il **range**, non un
+  numero secco. E sul caso di partenza: basmati e integrale sono **vicini** (57-67 contro 65, con
+  voci a 50), quindi la risposta giusta non era nemmeno il contrario di quella di Gaia.
+
 - `[Sviluppo]` ⛔ **Gaia ha detto una cosa falsa a una cliente, con sicurezza** — «il riso basmati ha
   un indice glicemico più basso dell'integrale, perché dice di no?». Su una conversazione del 1°
   agosto Gaia aveva risposto: «il basmati è più raffinato e ha un indice glicemico più alto

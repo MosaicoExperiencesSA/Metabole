@@ -115,6 +115,10 @@ async function creaServizio(tocca?: (prisma: any) => void) {
       staff: {
         findMany: jest.fn().mockResolvedValue([{ id: 'staff-n', userId: 'u-n' }]),
         findFirst: jest.fn().mockResolvedValue(null),
+        // Serve all'avviso alla nutrizionista del cambio da verificare (11/8). Senza questa riga il
+        // finto non ha il metodo, l'avviso falliva in silenzio e il test passava lo stesso: è
+        // esattamente il modo in cui un difetto sopravvive a una suite verde.
+        findUnique: jest.fn().mockResolvedValue({ userId: 'u-n' }),
       },
       notification: { create: jest.fn().mockResolvedValue({}) },
       // La base personale CERTIFICATA: è l'unico posto da cui il cambio di piatto pesca (8/8).
@@ -293,6 +297,41 @@ describe('SostituzioneChatService', () => {
     const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
     await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'sì');
     expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+  });
+
+  /**
+   * L'AVVISO ALLA NUTRIZIONISTA (richiesta di Simone dell'11/8).
+   *
+   * Il cambio nasce «da verificare» e prima nessuno lo diceva a nessuno: la coda della verifica si
+   * riempiva in silenzio e la si scopriva solo aprendo la scheda della cliente. Un cambio concordato
+   * con Gaia e mai verificato non è in attesa: è già nel piatto, approvato da nessuno.
+   */
+  it('un cambio applicato AVVISA la nutrizionista della cliente', async () => {
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'sì');
+    const avviso = prisma.notification.create.mock.calls.find(
+      (c: any) => c[0].data.type === 'menu_cambio_da_verificare',
+    );
+    expect(avviso).toBeDefined();
+    expect(avviso[0].data.userId).toBe('u-n');
+    expect(avviso[0].data.payload.clientId).toBe('client-1');
+    // Il testo dice CHI e COSA: un avviso che dice solo «c'è un cambio» costringe ad aprire per sapere.
+    expect(avviso[0].data.payload.body).toContain('Giulia');
+    expect(avviso[0].data.payload.body).toContain('carote');
+  });
+
+  it('se alla cliente non è assegnata nessuna nutrizionista, l\'avviso va al CAPO', async () => {
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      allergies: [], intolerances: [], dislikedFoods: [],
+      assignedCoachId: 'staff-c', assignedNutritionistId: null, name: 'Giulia',
+    });
+    prisma.user.findMany = jest.fn().mockResolvedValue([{ id: 'u-capo' }]);
+    const { dopoMotivo } = await fino_alla_conferma('le carote', '1');
+    await service.avanza('client-1', dopoMotivo.stato as StatoSostituzione, 'sì');
+    const avviso = prisma.notification.create.mock.calls.find(
+      (c: any) => c[0].data.type === 'menu_cambio_da_verificare',
+    );
+    expect(avviso[0].data.userId).toBe('u-capo');
   });
 
   it('«non mi piace» aggiunge l\'alimento ai cibi non graditi e vale da oggi in avanti', async () => {

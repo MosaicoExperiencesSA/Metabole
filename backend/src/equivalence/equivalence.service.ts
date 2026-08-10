@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateEquivalenceGroupDto,
@@ -16,6 +18,7 @@ export class EquivalenceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Membri salvati come { items, note? } sul campo Json `members`. */
@@ -52,6 +55,31 @@ export class EquivalenceService {
       },
     });
     await this.audit.log({ action: 'equivalence.create', actorId: userId, entityType: 'equivalence_group', entityId: created.id });
+    /**
+     * L'AVVISO AL CAPO NUTRIZIONISTA (richiesta di Simone dell'11/8: «quando si creano sostituzioni
+     * nuove o equivalenze nuove mandiamo una notifica al nutrizionista»).
+     *
+     * Un gruppo nuovo nasce in bozza e il motore **non lo usa** finché non è approvato: quindi
+     * finché nessuno lo guarda, il lavoro di chi l'ha scritto non serve a niente e nessuno lo sa.
+     * L'avviso non va a chi l'ha appena creato: dire a qualcuno quello che ha fatto lui trenta
+     * secondi prima è il modo più rapido per insegnargli a ignorare le notifiche.
+     */
+    const items = ((created.members as unknown as { items?: string[] } | null)?.items ?? []).length;
+    await avvisaCapiNutrizionisti(
+      this.prisma,
+      this.notifications,
+      {
+        type: 'equivalence_group_new',
+        title: created.status === 'approved' ? 'Nuovo gruppo di equivalenza' : 'Gruppo di equivalenza da approvare',
+        body:
+          `«${created.name}» (${items} aliment${items === 1 ? 'o' : 'i'})` +
+          (created.status === 'approved'
+            ? ' è stato creato già approvato: il motore lo userà dal prossimo menu.'
+            : ' è in bozza: il motore non lo usa finché non lo approvi.'),
+        payload: { kind: 'equivalence_group_new', groupId: created.id, status: created.status },
+      },
+      userId,
+    );
     return created;
   }
 

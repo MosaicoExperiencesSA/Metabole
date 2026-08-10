@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista';
 import { toDateOnly } from '../common/date-only';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
@@ -956,11 +957,46 @@ export class SostituzioneChatService {
       };
     }
 
+    await this.avvisaDellaVerifica(
+      clientId,
+      `ha cambiato «${proposta.da}» con «${proposta.a}» (${etichettaSlot(proposta.slot)}: ${proposta.piatto})`,
+      { da: proposta.da, a: proposta.a, slot: proposta.slot, motivo: motivo.key, giorni: giorniToccati },
+    );
+
     return {
       testo: testoFatto(proposta, motivo, await this.nomeDi(clientId)),
       esito: 'applicata',
       applicata: { giorni: giorniToccati, da: proposta.da, a: proposta.a, motivo: motivo.key, pasti: pastiToccati },
     };
+  }
+
+  /**
+   * L'AVVISO ALLA NUTRIZIONISTA di un cambio nuovo da verificare (richiesta di Simone dell'11/8:
+   * «quando si creano sostituzioni nuove o equivalenze nuove mandiamo una notifica al nutrizionista»).
+   *
+   * Ogni cambio nasce `da_verificare`, e fino a oggi quella coda si riempiva **in silenzio**: si
+   * scopriva aprendo la scheda della cliente di propria iniziativa. Un cambio concordato con Gaia e
+   * mai verificato non è in attesa: è già nel piatto, approvato da nessuno.
+   *
+   * Non fa mai fallire il cambio: il menu di domani è già scritto quando si arriva qui, e un avviso
+   * che non parte non deve annullare il lavoro. Se alla cliente non è assegnata una nutrizionista
+   * l'avviso va al capo — vedi `common/avvisa-nutrizionista.ts`.
+   */
+  private async avvisaDellaVerifica(
+    clientId: string,
+    cosa: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const nome = (await this.nomeDi(clientId)) ?? 'Una cliente';
+    // `null` come notificatore: qui `NotificationsService` non è raggiungibile (anello di moduli
+    // Notifications → Menu → Notifications), quindi la notifica si scrive in tabella. Vedi il
+    // commento in testa a `avvisa-nutrizionista.ts`.
+    await avvisaNutrizionistaDellaCliente(this.prisma, null, clientId, {
+      type: 'menu_cambio_da_verificare',
+      title: 'Cambio in chat da verificare',
+      body: `${nome} ${cosa}. Da verificare nella sua scheda.`,
+      payload: { kind: 'menu_cambio_da_verificare', ...payload },
+    });
   }
 
   private async aggiungiAiNonGraditi(clientId: string, alimento: string): Promise<void> {
@@ -1309,6 +1345,14 @@ export class SostituzioneChatService {
         preferenza: stato.preferenzaPiatto ?? null,
       },
     });
+    // Anche il cambio di PIATTO nasce «da verificare», quindi merita lo stesso avviso del cambio di
+    // ingrediente: è un piatto intero diverso da quello che il motore aveva composto.
+    await this.avvisaDellaVerifica(
+      clientId,
+      `ha cambiato il piatto di ${etichettaSlot(prima.slot)}: «${prima.name}» → «${scelta.nome}»`,
+      { slot: prima.slot, daNome: prima.name, aNome: scelta.nome, tipo: 'piatto' },
+    );
+
     return {
       testo: testoCambioPiattoFatto(etichettaSlot(prima.slot), scelta, await this.nomeDi(clientId)),
       esito: 'applicata',

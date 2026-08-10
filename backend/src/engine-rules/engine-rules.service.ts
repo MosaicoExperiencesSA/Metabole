@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AiService } from '../ai/ai.service';
+import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
 import { suggestAllergens } from '../catalog/allergens';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -949,6 +950,22 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
         data: { name: String(g.name).slice(0, 120), productId: dietId, members: { items } as never, status: 'draft', version: 1 } as never,
       });
       grpCount++;
+    }
+    /**
+     * UN avviso, non uno per gruppo (11/8). Qui i gruppi nascono a gruppetti di 5-8 tutti insieme,
+     * generati dall'AI alla nascita di una dieta: otto notifiche identiche in tre secondi non sono
+     * otto informazioni, sono una notifica e sette motivi per spegnerle. E sono i gruppi che più di
+     * tutti hanno bisogno di essere guardati, perché nessuno li ha scritti a mano.
+     */
+    if (grpCount > 0) {
+      await avvisaCapiNutrizionisti(this.prisma, null, {
+        type: 'equivalence_group_new',
+        title: 'Gruppi di equivalenza da approvare',
+        body:
+          `Per la dieta «${label}» sono stati generati ${grpCount} gruppi di equivalenza in bozza. ` +
+          'Li ha proposti il generatore, non una persona: il motore non li usa finché non li approvi.',
+        payload: { kind: 'equivalence_group_new', dietId, quanti: grpCount, origine: 'ai' },
+      });
     }
     return grpCount;
   }
