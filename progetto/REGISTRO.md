@@ -7,6 +7,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-12
 
+- `[Sviluppo]` 🛒 **Nel primo acquisto ricompare la scelta abbonamento / pagamento unico** —
+  `PlanFlow`, la coda dell'onboarding, è **la strada da cui passa ogni nuova cliente**, e dichiarava il
+  piano senza il campo `billing`: quindi non lo passava al carrello, e al Checkout la scelta fra
+  abbonamento e mese singolo non compariva **mai**. Per il carrello quel piano era `one_time` qualunque
+  cosa dicesse il Negozio. Le altre due strade — il Negozio e il pulsante del report di fine percorso —
+  lo passavano da tempo: restava fuori la principale.
+  La regola sta ora in `lib/pianoCarrello.ts`, fuori dal componente, e la parte delicata è il valore di
+  partenza: su un piano `both` si parte da **un mese solo**. In quella schermata non esiste nessun posto
+  in cui la cliente abbia scelto fra le due forme — quello è il Negozio — e mettere in carrello un
+  addebito ricorrente per un'opzione che nessuno le ha mostrato è il modo più rapido di trovarsi una
+  richiesta di rimborso e di meritarsela. Su `recurring` invece `abbonamento` è vero perché non c'è
+  niente da scegliere, e un `billing` assente o sconosciuto vale `one_time`: davanti a un dato che non
+  capiamo si sceglie la forma che non le addebita niente a sua insaputa.
+  Fuori dal componente per una ragione sola: così si verifica. Dentro `goCheckout` era una riga in mezzo
+  a una navigazione, cioè esattamente il tipo di riga in cui questo difetto è vissuto per mesi.
+  **Serve un'OTA** perché arrivi alle clienti.
+  Nota: l'app **ha** vitest (ora 27 test, 4 file) — un'altra cosa che avevo scritto sbagliata in
+  `DA_FARE.md`. Il problema non è il runner: è che la logica sta dentro i componenti.
+
 - `[Sviluppo]` 📈 **Il funnel adesso vede i rinnovi automatici** — `plan_renewed` esisteva solo sul
   percorso manuale/bonifico, dove per capire se un pagamento è un rinnovo bisogna andare a cercare se
   prima c'era un abbonamento pagato. Dentro `invoice.paid` quella domanda non si pone: con

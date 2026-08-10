@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { pianoPerCarrello, type PlanBilling } from '../lib/pianoCarrello';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -12,7 +13,20 @@ import type { OnboardingResult } from '../onboarding/types';
  * e si prosegue al checkout unico (dove si sceglie metodo, sconto e si paga).
  */
 
-interface Plan { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoActive?: boolean; period: string; features: string[]; }
+/**
+ * `billing` dice COME si vende il piano, e lo decide il Negozio in backoffice: `one_time` (un mese
+ * solo), `recurring` (solo abbonamento), `both` (la cliente scegli).
+ *
+ * Mancava da questa interfaccia, ed è il difetto che ne è seguito (12/8): non essendo dichiarato non
+ * veniva passato al carrello, e al Checkout la scelta fra abbonamento e pagamento unico **non
+ * compariva mai**. Le altre due strade d'acquisto — il Negozio e il pulsante del report di fine
+ * percorso — lo passano da tempo. Restava fuori proprio quella principale: il primo acquisto, subito
+ * dopo il questionario, dove passa ogni nuova cliente.
+ */
+interface Plan {
+  id: string; name: string; priceCents: number; listPriceCents?: number | null;
+  promoActive?: boolean; period: string; features: string[]; billing?: PlanBilling;
+}
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
 const PERIOD: Record<string, string> = { '3m': '3 mesi', '6m': '6 mesi', '12m': '12 mesi' };
 
@@ -33,7 +47,10 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
 
   function goCheckout() {
     const chosen = plans.find((p) => p.id === planId);
-    if (chosen) cart.setPlan({ id: chosen.id, name: chosen.name, priceCents: chosen.priceCents, period: chosen.period });
+    // La regola (e il perché su «entrambi» si parte da un mese solo) sta in `lib/pianoCarrello.ts`,
+    // separata da qui perché così si può verificare: dentro questa navigazione era una riga in mezzo
+    // ad altre, ed è lì che il difetto è vissuto per mesi senza che nessuno lo vedesse.
+    if (chosen) cart.setPlan(pianoPerCarrello(chosen));
     onDone(); // completa l'onboarding → entra nell'app
     navigate('/checkout');
   }

@@ -122,11 +122,14 @@ L'evento si scrive dentro `invoice.paid`, dopo la creazione del pagamento (quind
 idempotenza). La dashboard marketing legge già `plan_renewed` come «Rinnovi»: dal prossimo rinnovo vero
 il numero comparirà da sé.
 
-### 2.6 Nel primo acquisto non compare mai la scelta abbonamento / pagamento unico
-`app/src/pages/PlanFlow.tsx` dichiara `interface Plan` senza `billing` e non lo passa a `cart.setPlan`:
-al Checkout la scelta non appare. È lo stesso difetto già corretto sul pulsante del report, ma sulla
-strada d'acquisto principale. Prima di correggere serve sapere quali piani `3m/6m/12m` hanno davvero un
-`billing` diverso da `one_time`.
+### ~~2.6 Nel primo acquisto non compare mai la scelta abbonamento / pagamento unico~~ — FATTA il 12/8
+`PlanFlow` passa `billing` al carrello attraverso `lib/pianoCarrello.ts`, con i test. Su un piano
+`both` si parte da **un mese solo** e la cliente passa all'abbonamento dal Checkout: in quella
+schermata nessuno le ha mostrato le due forme, e mettere in carrello un addebito ricorrente per
+un'opzione mai vista è il modo più rapido di meritarsi un rimborso.
+**Serve un'OTA** perché arrivi alle clienti (§9). E resta da guardare in Negozio quali piani `3m/6m/12m`
+hanno `billing` diverso da `one_time`: se sono tutti `one_time` la scelta non comparirà comunque —
+correttamente — e quella è una decisione di prodotto, non un difetto. **[dati]**
 
 ### 2.7 Prezzi a DB da confermare
 Il seed porta ancora 297/497/797 mentre il listino deciso è €99 / €249, e il report cliente cita
@@ -261,7 +264,10 @@ Business dedicato**. Il passo 1 (link invece della password) è fatto.
 
 - **`ValidationPipe` senza `exceptionFactory`**: ogni DTO nuovo nasce con messaggi d'errore in inglese.
   Le parti esposte sono coperte, il resto (chat, documenti, buoni sconto, eventi) no.
-- **L'app non ha un test runner.** È il motivo per cui un difetto banale è arrivato a una cliente.
+- **L'app ha vitest ma quasi nessun test**: quattro file, tutti in `src/lib/`. Non è «manca il test
+  runner» come avevo scritto l'11/8 — è che la logica sta dentro i componenti, dove non si può
+  verificare. La strada che funziona l'ha mostrata `pianoCarrello.ts`: si tira fuori la regola, e da
+  quel momento è coperta.
 - **Nessun error tracker esterno** (né backend né app): un crash della schermata si scopre solo se la
   cliente scrive alla coach. `ErrorBoundary` logga in locale e basta.
 - **Il filtro TAG del catalogo ricette lavora in memoria**: su un elenco troncato, ordinare per kcal
