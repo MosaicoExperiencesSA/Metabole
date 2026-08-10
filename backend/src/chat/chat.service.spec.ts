@@ -589,3 +589,105 @@ describe('ChatService', () => {
   });
 
 });
+
+/**
+ * LA GUARDIA IN USCITA, DENTRO IL GIRO VERO (basmati, 11/8).
+ *
+ * `guardia-risposta-ai.spec.ts` prova la funzione; qui si prova che **serve a qualcosa**: la
+ * risposta del modello non arriva alla cliente, la domanda parte verso la NUTRIZIONISTA (non la
+ * coach, che è dove finiscono le domande generiche) e la frase scartata resta scritta nel `meta`,
+ * altrimenti non sapremmo mai quante volte è scattata né perché.
+ */
+describe('ChatService — quando Gaia inventa un dato nutrizionale', () => {
+  const FRASE_DEL_BASMATI =
+    "Il riso basmati è più raffinato e ha un indice glicemico più alto rispetto all'integrale, quindi sazia meno.";
+
+  const monta = async (rispostaAi: string) => {
+    const prisma: any = {
+      chatThread: {
+        upsert: jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: 'th-' + create.counterpart, ...create })),
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn().mockResolvedValue({ id: 't-ai', clientId: 'client-1', counterpart: 'ai' }),
+        update: jest.fn(),
+      },
+      message: {
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'm1', ...data })),
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          assignedCoachId: 'staff-c',
+          assignedNutritionistId: 'staff-n',
+          assignedCoach: { userId: 'coach-user', displayName: 'Marta' },
+          assignedNutritionist: { userId: 'nutri-user', displayName: 'Dr.ssa Bini' },
+        }),
+      },
+      staff: {
+        findUnique: jest.fn().mockImplementation(({ where }: any) =>
+          Promise.resolve(where.userId === 'coach-user' ? { id: 'staff-c' } : { id: 'staff-n' }),
+        ),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ locale: 'it' }) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+    };
+    const notifications = { notifyOncePerDay: jest.fn().mockResolvedValue(true), notify: jest.fn().mockResolvedValue(undefined) };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationsService, useValue: notifications },
+        { provide: AuditService, useValue: { log: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: AiService,
+          useValue: {
+            assistantEnabled: jest.fn().mockResolvedValue(true),
+            assistantReply: jest.fn().mockResolvedValue(rispostaAi),
+          },
+        },
+        {
+          provide: SostituzioneChatService,
+          useValue: {
+            apri: jest.fn(), apriDaTesto: jest.fn(), avanza: jest.fn(),
+            sostituzioniDiChat: jest.fn().mockResolvedValue([]), correggiCambioInChat: jest.fn(),
+          },
+        },
+        { provide: DataInizioChatService, useValue: { apriDaTesto: jest.fn(), avanza: jest.fn() } },
+      ],
+    }).compile();
+    return { service: moduleRef.get(ChatService), prisma, notifications };
+  };
+
+  it('la frase inventata NON arriva alla cliente', async () => {
+    const { service } = await monta(FRASE_DEL_BASMATI);
+    const r: any = await service.postMessage(client, 't-ai', 'mi dai una carica per oggi?');
+    expect(r.aiReply.body).not.toContain('indice glicemico');
+    expect(r.aiReply.body).toContain('nutrizionista');
+  });
+
+  it('la domanda va alla NUTRIZIONISTA, non alla coach', async () => {
+    const { service, prisma, notifications } = await monta(FRASE_DEL_BASMATI);
+    const r: any = await service.postMessage(client, 't-ai', 'mi dai una carica per oggi?');
+    expect(r.aiReply.meta.routedTo).toBe('nutritionist');
+    const inoltrato = prisma.message.create.mock.calls.find((c: any) => c[0].data.meta?.forwardedFrom === 'ai');
+    expect(inoltrato[0].data.threadId).toBe('th-nutritionist');
+    expect(notifications.notifyOncePerDay).toHaveBeenCalledWith(expect.objectContaining({ userId: 'nutri-user' }));
+  });
+
+  it('resta la traccia di cosa è stato scartato e perché', async () => {
+    const { service } = await monta(FRASE_DEL_BASMATI);
+    const r: any = await service.postMessage(client, 't-ai', 'mi dai una carica per oggi?');
+    expect(r.aiReply.meta.composer).toBe('guardia');
+    expect(r.aiReply.meta.aiScartata.testo).toContain('basmati');
+    expect(r.aiReply.meta.aiScartata.motivo).toBeTruthy();
+  });
+
+  it('una risposta pulita passa come sempre: la guardia non spegne Gaia', async () => {
+    const { service, prisma } = await monta('Trovi il menu di domani nella sezione Menu, si apre la sera prima.');
+    const r: any = await service.postMessage(client, 't-ai', 'mi dai una carica per oggi?');
+    expect(r.aiReply.body).toContain('sezione Menu');
+    expect(r.aiReply.meta.composer).toBe('ai');
+    expect(r.aiReply.meta.routedTo).toBeUndefined();
+    expect(prisma.message.create.mock.calls.find((c: any) => c[0].data.meta?.forwardedFrom === 'ai')).toBeUndefined();
+  });
+});

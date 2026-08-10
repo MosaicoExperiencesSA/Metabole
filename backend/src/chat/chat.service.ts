@@ -24,6 +24,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { classifyMessage } from './ai-filter';
+import { RISPOSTA_FERMATA, verificaRispostaGaia } from './guardia-risposta-ai';
 
 type Counterpart = 'ai' | 'coach' | 'nutritionist';
 
@@ -429,14 +430,43 @@ export class ChatService {
     // dati li avesse — il danno non è di stile. Vedi `senzaAi` in `ai-filter.ts`.
     const senzaAi = result.kind === 'route_coach' && result.senzaAi === true;
     if (result.kind === 'route_coach' && result.reason) meta.reason = result.reason;
+    /**
+     * Vero quando la risposta del modello è stata FERMATA dalla guardia in uscita: la domanda va
+     * alla nutrizionista qualunque cosa avesse deciso il filtro in entrata. Vedi
+     * `guardia-risposta-ai.ts` — è nato dal basmati, l'11/8.
+     */
+    let fermataDallaGuardia = false;
     if (!senzaAi && (result.kind === 'faq' || result.kind === 'route_coach') && (await this.ai.assistantEnabled())) {
       const u = await this.prisma.user.findUnique({ where: { id: clientId }, select: { locale: true } });
       const aiText = await this.ai.assistantReply(body, u?.locale === 'en' ? 'en' : 'it');
-      if (aiText) { replyText = aiText; aiAnswered = true; meta.composer = 'ai'; }
+      if (aiText) {
+        const guardia = verificaRispostaGaia(aiText);
+        if (guardia.ok) {
+          replyText = aiText;
+          aiAnswered = true;
+          meta.composer = 'ai';
+        } else {
+          // La risposta NON si manda. Resta però scritta nel `meta`: senza, il difetto sarebbe
+          // invisibile — nessuno saprebbe mai quante volte la guardia ha fermato qualcosa, né cosa.
+          replyText = RISPOSTA_FERMATA;
+          fermataDallaGuardia = true;
+          meta.composer = 'guardia';
+          meta.aiScartata = { motivo: guardia.motivo, testo: aiText.slice(0, 500) };
+        }
+      }
     }
 
-    if (!aiAnswered && (result.kind === 'route_coach' || result.kind === 'route_nutritionist')) {
-      const target: Counterpart = result.kind === 'route_coach' ? 'coach' : 'nutritionist';
+    if (
+      !aiAnswered &&
+      (fermataDallaGuardia || result.kind === 'route_coach' || result.kind === 'route_nutritionist')
+    ) {
+      // Fermata dalla guardia = era una domanda di merito sull'alimentazione: va alla nutrizionista,
+      // non alla coach, anche se il filtro in entrata l'aveva letta come generica.
+      const target: Counterpart = fermataDallaGuardia
+        ? 'nutritionist'
+        : result.kind === 'route_coach'
+          ? 'coach'
+          : 'nutritionist';
       meta.routedTo = target;
       // Inoltra il messaggio nel thread giusto, così lo staff lo trova nel suo contesto.
       const targetThread = await this.prisma.chatThread.upsert({

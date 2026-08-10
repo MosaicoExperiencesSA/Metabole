@@ -7,6 +7,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` ⛔ **Gaia ha detto una cosa falsa a una cliente, con sicurezza** — «il riso basmati ha
+  un indice glicemico più basso dell'integrale, perché dice di no?». Su una conversazione del 1°
+  agosto Gaia aveva risposto: «il basmati è più raffinato e ha un indice glicemico più alto
+  rispetto all'integrale, quindi sazia meno e fa aumentare più rapidamente la glicemia». È
+  **invertito**: il basmati è un chicco lungo ricco di amilosio, IG 50-58; il riso integrale comune
+  sta a 65-70. E non ha sbagliato una sfumatura: ha citato un dato come se lo avesse davanti, e poi
+  ci ha costruito sopra una motivazione («sazia meno») — che è il modo in cui un errore diventa
+  convincente.
+  Il filtro che avevamo guardava **solo il messaggio della cliente**: se lei scriveva «glicemia» la
+  domanda andava alla nutrizionista, ma se la parola la scriveva **Gaia** non c'era nessun
+  controllo. Ora ci sono due cose. Nel prompt: divieto esplicito di affermare dati nutrizionali —
+  indice glicemico, calorie, proteine, fibre, confronti fra alimenti, effetti sull'organismo — e
+  l'istruzione che se una cliente chiede se un alimento può stare al posto di un altro quella
+  decisione è della nutrizionista (le tabelle di equivalenza sono sue), non un'opinione da dare.
+  E soprattutto, fuori dal modello: `chat/guardia-risposta-ai.ts` legge la risposta **prima** di
+  mandarla e se contiene un'affermazione nutrizionale o clinica non la manda — la cliente legge che
+  su questo non si tira a indovinare, e la domanda parte verso la **nutrizionista** (non verso la
+  coach, dove finiscono le domande generiche). Un prompt è una richiesta; questo è un cancello.
+  La frase scartata resta scritta nel `meta` del messaggio: senza, non sapremmo mai quante volte
+  scatta né su cosa. Tarata bassa di proposito — un falso positivo costa una risposta girata alla
+  nutrizionista, un falso negativo costa una cliente che mangia secondo un dato inventato. 14 test
+  nuovi, il primo è la frase esatta del basmati.
+
 - `[Sviluppo]` 🔑 **Le conversazioni della cliente si accendono dai Permessi** — «la visibilità e la
   scrittura di questa parte devo poterla abilitare dai permessi». La card Conversazioni nella scheda
   cliente stava dietro a `chat`, cioè lo **stesso** interruttore della pagina Chat dell'azienda:

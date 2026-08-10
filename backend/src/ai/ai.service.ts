@@ -89,6 +89,15 @@ export class AiService {
       `Rispondi in ${language} in modo caldo, breve e concreto (massimo 3 frasi). ` +
       `Aiuti con dubbi su menu e pasti, abitudini, motivazione e uso dell'app. ` +
       `NON dare mai consigli medici, diagnosi, dosaggi o terapie: per qualsiasi tema di salute invita gentilmente a scrivere al nutrizionista. ` +
+      // Aggiunto l'11/8 dopo il basmati (vedi `chat/guardia-risposta-ai.ts`): il divieto di
+      // «consigli medici» non copriva le AFFERMAZIONI nutrizionali, e il modello le faceva con la
+      // sicurezza di chi cita una tabella — sbagliando il verso del confronto.
+      `NON affermare MAI dati nutrizionali: niente indice glicemico, calorie, proteine, fibre, ` +
+      `niente confronti fra due alimenti («ha più/meno…», «è più raffinato», «sazia meno»), ` +
+      `niente effetti sull'organismo. Non li hai davanti e non li devi ricordare a memoria. ` +
+      `Se la persona chiede se un alimento può stare al posto di un altro, NON giudicare: quella ` +
+      `decisione è della nutrizionista (ci sono tabelle di equivalenza approvate da lei), quindi dille ` +
+      `che la domanda la giri a lei. Dire «non lo so, te lo faccio dire da chi lo sa» è una risposta giusta. ` +
       `Non inventare dati personali della persona (peso, misure, piano). Rispondi SOLO con il messaggio, senza premesse.`;
 
     const controller = new AbortController();
