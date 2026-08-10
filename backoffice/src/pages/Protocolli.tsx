@@ -95,7 +95,7 @@ export function Protocolli() {
 
   // Senza `ordineIniziale` le righe restano nell'ordine del server (dal protocollo più recente):
   // è l'ordine in cui si guardano quelli appena proposti.
-  const t = useTabella(rows, COLONNE);
+  const t = useTabella(rows, COLONNE, { testaFissa: true });
 
   if (loading) return <Spinner />;
 

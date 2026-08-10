@@ -58,7 +58,7 @@ export function ModelliEmail() {
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
 
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'nome', direzione: 'asc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'nome', direzione: 'asc' } });
 
   if (loading) return <Spinner />;
 

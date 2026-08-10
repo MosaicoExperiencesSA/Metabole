@@ -7,6 +7,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📐 **Tutte le tabelle impaginate come quella dei Permessi** — «devono scorrere
+  liberamente nella finestra e risultare sempre perfettamente leggibili». Il difetto si vedeva in
+  Ricette: l'ultima colonna, i pulsanti «Modifica», finiva **fuori dal bordo** della card, sopra il
+  fondo della pagina. Non era la colonna sbagliata — era la card che non scorreva in orizzontale e
+  quindi non aveva dove metterla.
+  Sistemato in un posto solo, con `:has(> table.grid)` nel CSS: ogni card che contiene una tabella ora
+  scorre in entrambe le direzioni con un'altezza massima che lascia in vista i filtri sopra e il
+  paginatore sotto. Vale per tutte e trentaquattro le pagine senza toccarne nessuna, e per quelle che
+  verranno. La larghezza minima è l'altra metà di «leggibile»: senza, su una finestra stretta le
+  colonne si schiacciano e i nomi vanno a capo tre volte — con lei la tabella preferisce **scorrere**
+  invece di comprimersi. Le tabelle dentro i modali e dentro le schede sono escluse da entrambe le
+  regole: forzare 900px in una finestra larga 760 vorrebbe dire una barra di scorrimento su una
+  tabella di tre colonne.
+  In più, l'intestazione incollata in alto (titoli **e** riga dei filtri) è passata da 4 pagine a
+  **tutte**: 22 pagine con una riga a testa, perché la misurazione dello scostamento la fa già
+  l'helper.
+- `[Sviluppo]` 🟢🟡 **Copertura catalogo: il colore dice se è validato** — «se i pranzi e le cene me li
+  metti gialli da validare, verdi da validati, così abbiamo anche questo dato». Ogni cella porta due
+  informazioni tenute separate: il **colore** è lo stato della validazione (verde = i piatti sono
+  attivi e il motore li usa · giallo = ci sono ma sono in bozza, quindi da fuori la settimana sembra
+  vuota · rosso = riferimenti morti o nessun piatto), il **numero** è la quantità, scritto come
+  frazione (`60/84`) quando i piatti non bastano per le settimane presenti. Ogni colore ha anche un
+  simbolo (✓ ⏳ ✕): un'informazione affidata al solo colore si perde per chi non lo distingue, e in uno
+  screenshot su WhatsApp si perde per tutti.
+- `[Sviluppo]` 👻 **`compatta:menu` contava i piatti fantasma** — trovato preparando la risposta a «e se
+  facciamo girare il comando che porta a riempimento le settimane?». Il comando leggeva i piatti dalle
+  giornate e **si fidava**: un `recipeId` di una ricetta cancellata nel frattempo veniva contato come
+  piatto buono e rimesso in fila. Quindi il comando che deve mettere in ordine il catalogo era cieco
+  esattamente sul difetto peggiore che il catalogo può avere, e dichiarava «settimana piena» una
+  settimana con un buco dentro. Ora verifica che ogni ricetta esista, li conta in una colonna a parte
+  («rotti esclusi») e li lascia fuori — quindi compattare **ripulisce** quei buchi, perché le giornate
+  si riscrivono solo coi piatti veri. Nuova colonna «in bozza»: quanti dei piatti veri il motore non
+  usa ancora, che non è un problema di compattazione ma di validazione.
+
 - `[Sviluppo]` 🔍 **Pagina «Copertura catalogo»: dove siamo, a colpo d'occhio** — «crea una tabella con
   tutti i tipi, con le colonne n pranzi, n cene, n merende, n spuntini», nata dalla segnalazione «dice
   settimana creata e validata, poi ci torno sopra ed è vuota». Prima di correggere serviva

@@ -101,7 +101,7 @@ export function Clienti() {
   ];
 
   // L'elenco arriva dal server dalla più recente: è l'ordine con cui la pagina si apre da sempre.
-  const t = useTabella(preFiltrate, COLONNE, { ordineIniziale: { chiave: 'creato', direzione: 'desc' } });
+  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'creato', direzione: 'desc' } });
   const filtriAttivi = t.filtriAttivi || fGlutine !== '';
   function azzeraTutto() {
     t.azzera();

@@ -86,7 +86,7 @@ export function Segnalazioni() {
     { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status },
   ];
 
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
 
   if (loading) return <Spinner />;
 

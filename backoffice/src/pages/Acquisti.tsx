@@ -196,7 +196,7 @@ export function Acquisti() {
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
 
-  const t = useTabella(preFiltrate, COLONNE, { perPagina: 50, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, perPagina: 50, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
   const filtriSopra = fImporto !== '' || fDal !== '' || fAl !== '';
   function azzeraTutto() {
     t.azzera();

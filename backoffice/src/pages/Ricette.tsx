@@ -190,7 +190,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
   ];
 
   // Il server manda le ricette in ordine alfabetico, ed è l'ordine con cui la pagina si apre.
-  const t = useTabella(filtrate, COLONNE, { ordineIniziale: { chiave: 'name', direzione: 'asc' } });
+  const t = useTabella(filtrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'name', direzione: 'asc' } });
   const filtriAttivi = JSON.stringify(f) !== JSON.stringify(emptyFilters(scopeRegime ?? ''));
 
   const filterCell = (node: React.ReactNode) => <th style={{ padding: '6px 8px', fontWeight: 400 }}>{node}</th>;

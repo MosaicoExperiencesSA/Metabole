@@ -94,7 +94,7 @@ export function Prelievi() {
   ];
 
   // Una coda si smaltisce dalla richiesta più vecchia: è l'ordine del server dentro ogni tab.
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'richiesto', direzione: 'asc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'richiesto', direzione: 'asc' } });
 
   return (
     <>

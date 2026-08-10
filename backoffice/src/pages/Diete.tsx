@@ -126,7 +126,7 @@ export function Diete() {
 
   // Senza `ordineIniziale` le righe restano nell'ordine del server, che le manda dall'ultima
   // modificata: è l'ordine con cui questa pagina si è sempre aperta.
-  const t = useTabella(rows, COLONNE);
+  const t = useTabella(rows, COLONNE, { testaFissa: true });
 
   if (loading) return <Spinner />;
 

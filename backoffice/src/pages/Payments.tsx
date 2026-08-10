@@ -191,7 +191,7 @@ export function Payments() {
   ];
 
   // Il server manda i più recenti in cima: lo stesso ordine resta quello di partenza.
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
 
   if (loading) return <Spinner />;
 

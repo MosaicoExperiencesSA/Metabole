@@ -68,7 +68,7 @@ export function Testimonianze() {
   ];
 
   // L'ordine di apertura è quello del sito: il campo «Ordine» decide come compaiono online.
-  const tab = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'ordine' } });
+  const tab = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'ordine' } });
 
   if (loading) return <Spinner />;
 

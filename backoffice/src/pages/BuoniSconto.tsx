@@ -98,7 +98,7 @@ export function BuoniSconto() {
 
   // Il server ordina per data di creazione, che qui non è una colonna: l'elenco si legge per
   // codice, ed è quello che si cerca quando una cliente ne detta uno al telefono.
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'codice' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'codice' } });
 
   if (loading) return <Spinner />;
 

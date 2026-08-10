@@ -94,7 +94,7 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
    * sullo stesso dato: con la spunta attiva la tendina della colonna offriva una voce sola, e chi
    * la usava non capiva perché non cambiasse niente. «Azzera filtri» apre a tutte le ricette.
    */
-  const t = useTabella(rows, COLONNE, {
+  const t = useTabella(rows, COLONNE, { testaFissa: true,
     ordineIniziale: { chiave: 'ricetta' },
     filtriIniziali: { stato: 'Da rivedere' },
   });

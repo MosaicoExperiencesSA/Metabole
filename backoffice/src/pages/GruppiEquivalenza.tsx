@@ -71,7 +71,7 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
 
   // Nessun ordine iniziale: il server manda le bozze e gli approvati raggruppati per stato e poi
   // per nome, ed è l'ordine con cui si rivedono i gruppi.
-  const t = useTabella(rows, COLONNE);
+  const t = useTabella(rows, COLONNE, { testaFissa: true });
 
   if (loading) return <Spinner />;
 

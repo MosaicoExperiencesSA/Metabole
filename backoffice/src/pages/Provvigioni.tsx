@@ -76,7 +76,7 @@ export function Provvigioni() {
   ];
 
   // Il server manda le più recenti in cima: lo stesso ordine resta quello di partenza.
-  const t = useTabella(preFiltrate, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
   const filtriSopra = min !== '' || max !== '';
   function azzeraTutto() { t.azzera(); setMin(''); setMax(''); }
 

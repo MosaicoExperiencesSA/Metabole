@@ -359,6 +359,48 @@ table.grid tr:hover td {
   background: #fbfaf6;
 }
 
+/* ---------- UNA SOLA IMPAGINAZIONE PER TUTTE LE TABELLE (11/8) ----------
+
+   Richiesta di Simone: «le tabelle devono essere tutte impaginate come quella dei permessi, che
+   scorre liberamente nella finestra e risulta sempre perfettamente leggibile».
+
+   Il difetto che si vedeva in Ricette: la card che contiene la tabella non scorreva in orizzontale,
+   quindi quando la tabella era più larga della card l'ultima colonna — i pulsanti «Modifica» —
+   finiva FUORI dal bordo arrotondato, sopra il fondo della pagina. Non era la colonna sbagliata: era
+   la card che non aveva dove metterla.
+
+   `:has(> table.grid)` prende ogni card che contiene direttamente una tabella, quindi la regola vale
+   per tutte e trentaquattro le pagine senza toccarne nessuna — e per quelle che verranno.
+
+   `min-width` è l'altra metà di «perfettamente leggibile»: senza, su una finestra strettá le colonne
+   si schiacciano e i nomi vanno a capo tre volte (nello screenshot: «Branzino al forno con riso
+   integrale e verdure grigliate» su tre righe). Con una larghezza minima la tabella preferisce
+   **scorrere** invece di comprimersi, che è esattamente il comportamento della pagina Permessi.
+
+   L'intestazione incollata in alto e la riga dei filtri sotto di lei le mette l'helper
+   (`components/tabella.tsx`, opzione `testaFissa`): lo scostamento della seconda riga dipende
+   dall'altezza vera della prima, che il CSS non può misurare. */
+.card:has(> table.grid) {
+  padding: 0;
+  overflow: auto;
+  /* Quanto basta per lasciare in vista i filtri sopra e il paginatore sotto. */
+  max-height: calc(100vh - 240px);
+}
+.card:has(> table.grid) > table.grid {
+  min-width: 900px;
+}
+/* Le tabelle dentro una finestra o una scheda (modali, scheda cliente) non hanno né l'altezza né la
+   larghezza della pagina intera a disposizione: lì il limite lo mette chi le usa. Forzare 900px in un
+   modale largo 760 vorrebbe dire una barra di scorrimento orizzontale su una tabella di tre colonne. */
+.modal .card:has(> table.grid),
+.card .card:has(> table.grid) {
+  max-height: none;
+}
+.modal .card:has(> table.grid) > table.grid,
+.card .card:has(> table.grid) > table.grid {
+  min-width: 0;
+}
+
 .chip {
   display: inline-block;
   padding: 3px 10px;

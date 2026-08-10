@@ -28,6 +28,19 @@
  * diversi**, mentre gli 84 di prima contenevano quaranta ripetizioni. Per la cliente il ciclo
  * ricomincia prima, ma dentro il ciclo non si ripete niente — che è la promessa.
  *
+ * ## I piatti fantasma (aggiunto l'11/8)
+ *
+ * I pasti di una giornata stanno in un campo JSON, quindi **niente impedisce di cancellare una
+ * ricetta ancora nominata da una giornata**. Prima questo script si fidava di quei riferimenti e li
+ * rimetteva in fila come piatti buoni: contava sette pranzi dove ce n'erano sei, e dichiarava «piena»
+ * una settimana con un buco. Ora verifica che ogni ricetta esista, li conta in una colonna a parte
+ * («rotti esclusi») e li lascia fuori — quindi compattare **ripulisce** anche quei buchi, perché le
+ * giornate si riscrivono solo con i piatti veri.
+ *
+ * La colonna «in bozza» dice quanti dei piatti veri non sono ancora attivi: sono nel ciclo ma il
+ * motore non li usa finché non si valida. Un pasto con sette piatti tutti in bozza da fuori si vede
+ * vuoto, e non è un problema di compattazione: è la validazione che manca.
+ *
  * USO (shell di Render, dentro la cartella del backend):
  *   npm run compatta:menu                              → tutto il catalogo, mostra e basta
  *   npm run compatta:menu -- "Basso indice glicemico"  → una sola famiglia
@@ -68,6 +81,25 @@ async function main(): Promise<void> {
   const tabella: Record<string, unknown>[] = [];
   const lavori: { dietId: string; slots: string[]; perSlot: Map<string, string[]>; giorni: number }[] = [];
 
+  /**
+   * LE RICETTE CHE ESISTONO DAVVERO, e quali sono attive (11/8).
+   *
+   * Prima questo script contava i piatti leggendoli dalle giornate e **fidandosi**: un `recipeId`
+   * che nel frattempo era stato cancellato veniva contato come un piatto buono e rimesso in fila
+   * nelle giornate nuove. Quindi il comando che deve mettere in ordine il catalogo era cieco
+   * proprio sul difetto peggiore che il catalogo può avere — e dichiarava «settimana piena» una
+   * settimana con un buco dentro.
+   *
+   * I pasti stanno in un campo JSON (`diet_day_template.meals`): nessun vincolo del database
+   * impedisce di cancellare una ricetta ancora nominata da una giornata. Quindi la verifica va
+   * fatta qui, a mano, ed è una query sola.
+   */
+  const esistenti = new Map<string, boolean>();
+  for (const r of (await prisma.recipe.findMany({ select: { id: true, active: true } })) as { id: string; active: boolean }[]) {
+    esistenti.set(r.id, r.active);
+  }
+  let rottiTotali = 0;
+
   for (const d of diete) {
     const slots = d.fasting ? SLOT_FASTING : d.mealsPerDay === 5 ? SLOT_5 : SLOT_3;
     const templates = (await prisma.dietDayTemplate.findMany({
@@ -80,14 +112,22 @@ async function main(): Promise<void> {
     // Piatti distinti per pasto, nell'ordine in cui compaiono oggi: così le ricette corrette a
     // mano (che stanno nelle prime settimane) restano nelle prime settimane.
     const perSlot = new Map<string, string[]>();
+    /** Riferimenti a ricette che non esistono più: si contano e si buttano, non si rimettono in fila. */
+    const rotti = new Set<string>();
+    let inBozza = 0;
     for (const t of templates) {
       for (const m of (Array.isArray(t.meals) ? (t.meals as { slot?: string; recipeId?: string }[]) : [])) {
         if (!m.slot || !m.recipeId) continue;
+        if (!esistenti.has(m.recipeId)) { rotti.add(m.recipeId); continue; }
         const lista = perSlot.get(m.slot) ?? [];
-        if (!lista.includes(m.recipeId)) lista.push(m.recipeId);
+        if (!lista.includes(m.recipeId)) {
+          lista.push(m.recipeId);
+          if (esistenti.get(m.recipeId) === false) inBozza += 1;
+        }
         perSlot.set(m.slot, lista);
       }
     }
+    rottiTotali += rotti.size;
 
     const conteggi = slots.map((sl) => (perSlot.get(sl) ?? []).length);
     const minimo = conteggi.length ? Math.min(...conteggi) : 0;
@@ -104,6 +144,10 @@ async function main(): Promise<void> {
       avanzano: slots
         .map((sl) => Math.max(0, (perSlot.get(sl) ?? []).length - giorniNuovi))
         .reduce((a, b) => a + b, 0),
+      // Due colonne nuove (11/8): i piatti fantasma esclusi dal conteggio, e quanti dei piatti veri
+      // sono ancora in bozza — cioè quanti il motore NON usa finché non si valida.
+      'rotti esclusi': rotti.size || '',
+      'in bozza': inBozza || '',
       esito: giorniNuovi === 0
         ? '⚠ nemmeno una settimana piena'
         : giorniNuovi === giorniOra ? 'già in ordine ✓' : 'da compattare',
@@ -115,6 +159,14 @@ async function main(): Promise<void> {
   }
 
   console.table(tabella);
+  if (rottiTotali > 0) {
+    console.log(
+      `\n⚠️  ${rottiTotali} riferimenti a ricette CANCELLATE trovati nelle giornate ed esclusi dal ` +
+      'conteggio.\n' +
+      '   Sono i pasti che dal backoffice si vedono vuoti pur avendo la giornata: compattando\n' +
+      '   spariscono, perché le giornate si riscrivono solo con i piatti che esistono.',
+    );
+  }
   console.log(
     '\nCome si legge:\n' +
     '· «giorni dopo» = settimane PIENE ricavabili dai piatti che ci sono già (7 diversi per\n' +

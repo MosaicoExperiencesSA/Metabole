@@ -106,19 +106,74 @@ export function CoperturaCatalogo() {
 
   const righe = dati?.righe ?? [];
 
-  /** La cella di un pasto: piatti, attivi fra parentesi, e la ✕ se ci sono riferimenti rotti. */
+  /**
+   * LA CELLA DI UN PASTO — il colore dice se è validato, il numero dice quanti piatti.
+   *
+   * Richiesta di Simone dell'11/8: «se i pranzi e le cene me li metti gialli da validare, verdi da
+   * validati, così abbiamo anche questo dato». Due informazioni diverse su una cella sola, e vale la
+   * pena tenerle separate:
+   *  - il **colore** è lo stato della validazione: verde = tutti i piatti sono attivi, cioè il motore
+   *    li usa; giallo = ci sono ma sono in bozza, quindi da fuori quella settimana sembra vuota;
+   *    rosso = c'è qualcosa di rotto (riferimenti morti, o nessun piatto);
+   *  - il **numero** è la quantità: quando i piatti sono meno del necessario si scrive come frazione
+   *    (`60/84`), che dice il buco senza aver bisogno di un secondo colore.
+   *
+   * Ogni colore ha anche un **simbolo** (✓ ⏳ ✕): un'informazione affidata al solo colore si perde per
+   * chi non lo distingue, e in uno screenshot mandato su WhatsApp si perde per tutti.
+   */
   const cella = (c: ConteggioPasto | null, atteso: number) => {
     if (!c) return <span className="muted" title="Questa struttura non prevede questo pasto">—</span>;
+
+    const verde = { colore: '#0a7d55', fondo: 'rgba(10,125,85,0.10)' };
+    const giallo = { colore: '#8a5a00', fondo: 'rgba(255,193,7,0.18)' };
+    const rosso = { colore: '#b3261e', fondo: 'rgba(179,38,30,0.10)' };
+
     const manca = atteso > 0 && c.piatti < atteso;
+    const quantita = manca ? `${c.piatti}/${atteso}` : `${c.piatti}`;
+
+    let stile = verde;
+    let simbolo = '✓';
+    let spiega = `${c.piatti} piatti diversi, tutti attivi: il motore li usa.`;
+
+    if (c.rotti > 0) {
+      stile = rosso;
+      simbolo = `✕${c.rotti}`;
+      spiega = `${c.rotti} ricette nominate dalle giornate non esistono più: questi pasti si vedono vuoti.`;
+    } else if (c.piatti === 0) {
+      stile = rosso;
+      simbolo = '✕';
+      spiega = 'Nessun piatto: questo pasto non è mai stato generato.';
+    } else if (c.attivi === 0) {
+      stile = giallo;
+      simbolo = '⏳';
+      spiega = `${c.piatti} piatti generati ma NESSUNO attivo: da validare. Finché sono in bozza il motore non li usa, e da fuori la settimana sembra vuota.`;
+    } else if (c.attivi < c.piatti) {
+      stile = giallo;
+      simbolo = `⏳ ${c.attivi}/${c.piatti}`;
+      spiega = `${c.attivi} piatti attivi su ${c.piatti}: la validazione è passata a metà.`;
+    }
+    if (manca && c.rotti === 0 && c.piatti > 0) {
+      spiega += ` Servirebbero ${atteso} piatti diversi per ${Math.round(atteso / 7)} settimane senza ripetizioni.`;
+    }
+
     return (
-      <span style={{ whiteSpace: 'nowrap' }}>
-        <b style={manca ? { color: 'var(--amber, #b06a00)' } : undefined}>{c.piatti}</b>
-        <span className="muted" style={{ fontSize: 12 }}> ({c.attivi})</span>
-        {c.rotti > 0 && (
-          <span style={{ color: 'var(--red, #b3261e)', fontWeight: 800 }} title={`${c.rotti} ricette nominate dalle giornate non esistono più`}>
-            {' '}✕{c.rotti}
-          </span>
-        )}
+      <span
+        title={spiega}
+        style={{
+          whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          background: stile.fondo,
+          color: stile.colore,
+          borderRadius: 6,
+          padding: '2px 7px',
+          fontWeight: 800,
+          fontSize: 13,
+        }}
+      >
+        {quantita}
+        <span style={{ fontWeight: 700, fontSize: 12 }}>{simbolo}</span>
       </span>
     );
   };
@@ -168,17 +223,26 @@ export function CoperturaCatalogo() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
-          Ogni pasto ha <b>due numeri</b>: i piatti diversi che le giornate nominano, e fra parentesi
-          quanti sono <b>attivi</b>, cioè quanti il motore usa davvero. Un piatto generato nasce in
-          bozza e diventa attivo con la validazione — quindi <code>84 (0)</code> vuol dire «generata ma
-          non validata»: i piatti ci sono e da fuori sembra vuota.
-          {' '}
-          Una <b style={{ color: 'var(--red, #b3261e)' }}>✕ rossa</b> è più grave: le giornate nominano
-          ricette che <b>non esistono più</b>, quindi quei pasti si vedono vuoti davvero. I pasti stanno
-          in un campo JSON senza vincoli, e questa colonna è l'unico posto dove quel buco si vede.
-          {' '}
-          «Atteso/pasto» è 7 × le settimane presenti.
+          Su ogni pasto il <b>colore dice se è validato</b> e il numero dice quanti piatti diversi ci
+          sono. Quando i piatti sono meno del necessario il numero diventa una frazione
+          (<code>60/84</code>): «atteso» è 7 × le settimane presenti, cioè quanti piatti servono per non
+          ripetere niente dentro il ciclo.
         </p>
+        <div className="row" style={{ gap: 14, flexWrap: 'wrap', marginTop: 12, fontSize: 13 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ background: 'rgba(10,125,85,0.10)', color: '#0a7d55', borderRadius: 6, padding: '2px 7px', fontWeight: 800 }}>84 ✓</span>
+            validato: il motore usa questi piatti
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ background: 'rgba(255,193,7,0.18)', color: '#8a5a00', borderRadius: 6, padding: '2px 7px', fontWeight: 800 }}>84 ⏳</span>
+            da validare: i piatti ci sono ma sono in bozza, e da fuori la settimana <b>sembra vuota</b>
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ background: 'rgba(179,38,30,0.10)', color: '#b3261e', borderRadius: 6, padding: '2px 7px', fontWeight: 800 }}>84 ✕3</span>
+            rotto: le giornate nominano ricette che <b>non esistono più</b>, quei pasti sono vuoti davvero
+          </span>
+          <span className="muted">— = questa struttura non prevede quel pasto (es. la colazione nel digiuno 16:8)</span>
+        </div>
       </div>
 
       {r && (

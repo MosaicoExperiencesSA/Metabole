@@ -248,7 +248,7 @@ export function Contabilita() {
 
   // Nessun ordine iniziale: il server manda prima i ricorrenti e poi per data, e non è un ordine
   // che si possa dire con una colonna sola. Il primo clic su un'intestazione lo sostituisce.
-  const t = useTabella(costs, COLONNE);
+  const t = useTabella(costs, COLONNE, { testaFissa: true });
 
   if (loading && !report) return <Spinner />;
 

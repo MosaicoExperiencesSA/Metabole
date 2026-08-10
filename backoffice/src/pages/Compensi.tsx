@@ -57,7 +57,7 @@ export function Compensi() {
   ];
 
   // Il server manda chi prende più in cima: lo stesso ordine resta quello di partenza.
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'totale', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'totale', direzione: 'desc' } });
 
   // I totali seguono i filtri: sono la somma di quello che si sta guardando, non di tutto.
   const totals = t.tutte.reduce(

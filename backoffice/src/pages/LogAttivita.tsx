@@ -123,7 +123,7 @@ export function LogAttivita() {
   ];
 
   // Il log si guarda dal più recente: è l'ordine del server, e resta quello di default.
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
 
   if (loading && rows.length === 0) return <Spinner />;
 

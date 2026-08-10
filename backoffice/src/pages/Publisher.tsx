@@ -100,7 +100,7 @@ export function Publisher() {
 
   // Senza ordine iniziale restano nell'ordine del server (ultimi modificati in cima): la coda si
   // lavora dall'ultimo toccato, e la data di modifica non è una colonna di questa tabella.
-  const t = useTabella(rows, COLONNE);
+  const t = useTabella(rows, COLONNE, { testaFissa: true });
 
   if (loading) return <Spinner />;
 

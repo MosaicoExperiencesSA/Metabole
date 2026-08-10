@@ -56,7 +56,7 @@ export function Agenda() {
   ];
 
   // L'agenda si legge dalla prima visita in poi: è l'ordine del server (`datetime asc`).
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'quando', direzione: 'asc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'asc' } });
 
   if (loading) return <Spinner />;
 

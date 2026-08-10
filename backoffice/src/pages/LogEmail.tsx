@@ -81,7 +81,7 @@ export function LogEmail() {
     { chiave: 'stato', titolo: 'Stato', valore: (r) => STATUS[r.status]?.label ?? r.status, filtro: 'scelta', etichettaTutti: 'Tutti gli stati', ordineScelte: ['Fallita', 'Non inviata', 'Inviata'] },
   ];
 
-  const t = useTabella(rows, COLONNE, { ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
 
   if (loading) return <Spinner />;
 

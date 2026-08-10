@@ -205,7 +205,7 @@ export function LeadDaAccettare() {
     { chiave: 'azioni', titolo: '' },
   ];
 
-  const t = useTabella(righe, COLONNE, { ordineIniziale: { chiave: 'quando', direzione: 'asc' } });
+  const t = useTabella(righe, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'asc' } });
 
   // La selezione multipla vale solo sulle righe in attesa e visibili: selezionare «tutti» e
   // ritrovarsi ad assegnare anche righe filtrate via sarebbe una sorpresa spiacevole.

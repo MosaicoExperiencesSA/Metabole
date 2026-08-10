@@ -217,8 +217,8 @@ export function GestioneNegozio() {
 
   // Due tabelle, due stati indipendenti: filtrare i piani non deve toccare i prodotti. Niente
   // paginazione perché sono poche righe (`perPagina` alto = nessuna pagina da sfogliare).
-  const tPiani = useTabella(plans, COLONNE_PIANI, { perPagina: 500, ordineIniziale: { chiave: 'nome' } });
-  const tProdotti = useTabella(products, COLONNE_PRODOTTI, { perPagina: 500, ordineIniziale: { chiave: 'nome' } });
+  const tPiani = useTabella(plans, COLONNE_PIANI, { testaFissa: true, perPagina: 500, ordineIniziale: { chiave: 'nome' } });
+  const tProdotti = useTabella(products, COLONNE_PRODOTTI, { testaFissa: true, perPagina: 500, ordineIniziale: { chiave: 'nome' } });
 
   if (loading) return <Spinner />;
 
