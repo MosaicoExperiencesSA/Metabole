@@ -183,31 +183,78 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
   /**
    * Conteggi del funnel per evento × segmento e per evento × canale (finestra in
    * giorni). Persone uniche per evento, non occorrenze.
+   *
+   * ## Il difetto che c'era qui (trovato l'11/8 cercando i troncamenti silenziosi)
+   *
+   * I conteggi si facevano **in memoria** su `take: 50_000` eventi. Gli eventi del funnel sono uno per
+   * ogni prova attivata, misura inserita, offerta mandata, rinnovo: cinquantamila si raggiungono, e nel
+   * momento in cui si raggiungono il funnel comincia a **sottostimare senza dirlo**. Un pannello che
+   * dice «1.200 prove» quando sono 3.000 è peggio di un pannello che non c'è: sul primo si prendono
+   * decisioni.
+   *
+   * E si rompeva dalla parte sbagliata: `findMany` senza `orderBy` non garantisce quali 50.000
+   * arrivano, quindi i numeri potevano anche **cambiare** fra due aperture della stessa pagina.
+   *
+   * Ora conta il database, con tre `GROUP BY` e `COUNT(DISTINCT)`: nessun limite, niente da tenere in
+   * memoria, e i numeri sono esatti per costruzione. Il conteggio è di **persone**, non di eventi —
+   * come prima, ma stavolta su tutte le righe.
    */
   async funnelOverview(days = 30) {
     const from = new Date(Date.now() - Math.min(365, Math.max(1, days)) * 86_400_000);
-    const rows = (await this.prisma.analyticsEvent.findMany({
-      where: { phase: 'funnel', receivedAt: { gte: from }, name: { in: MarketingService.FUNNEL_EVENTS } },
-      select: { name: true, userId: true, data: true },
-      take: 50_000,
-    })) as { name: string; userId: string | null; data: unknown }[];
-    const events = MarketingService.FUNNEL_EVENTS.map((name) => {
-      const mine = rows.filter((r) => r.name === name);
-      const users = new Set(mine.map((r) => r.userId ?? 'anon'));
-      const bySegment: Record<string, number> = {};
-      const byChannel: Record<string, number> = {};
-      const seenSeg = new Set<string>();
-      const seenCh = new Set<string>();
-      for (const r of mine) {
-        const d = (r.data ?? {}) as { segment?: string; channel?: string };
-        const uid = r.userId ?? 'anon';
-        const seg = d.segment ?? 'sconosciuto';
-        const ch = d.channel ?? 'sconosciuto';
-        if (!seenSeg.has(`${uid}:${seg}`)) { seenSeg.add(`${uid}:${seg}`); bySegment[seg] = (bySegment[seg] ?? 0) + 1; }
-        if (!seenCh.has(`${uid}:${ch}`)) { seenCh.add(`${uid}:${ch}`); byChannel[ch] = (byChannel[ch] ?? 0) + 1; }
-      }
-      return { name, total: users.size, bySegment, byChannel };
-    });
+    /**
+     * `::text[]` esplicito sul parametro: Prisma passa un array JavaScript come array di Postgres, e
+     * il cast lo rende evidente a chi legge — ma soprattutto, se un domani la serializzazione
+     * cambiasse, la query **fallirebbe** invece di rispondere «nessun evento». Su un pannello di
+     * numeri, un errore si vede; uno zero no.
+     */
+    const nomi = MarketingService.FUNNEL_EVENTS;
+
+    /**
+     * `COALESCE(user_id, 'anon:' || id)`: gli eventi senza utente sono pre-login, e contarli tutti
+     * come **una** persona (com'era prima con la chiave fissa `'anon'`) schiacciava a 1 tutti gli
+     * anonimi di un anello. Ogni riga anonima è una persona diversa, o almeno una sessione diversa:
+     * dire 1 dove sono centinaia è lo stesso errore del troncamento, in piccolo.
+     */
+    const [totali, perSegmento, perCanale] = (await Promise.all([
+      this.prisma.$queryRaw`
+        SELECT name, COUNT(DISTINCT COALESCE(user_id, 'anon:' || id))::int AS persone
+        FROM analytics_event
+        WHERE phase = 'funnel' AND received_at >= ${from} AND name = ANY(${nomi}::text[])
+        GROUP BY name
+      `,
+      this.prisma.$queryRaw`
+        SELECT name, COALESCE(data->>'segment', 'sconosciuto') AS chiave,
+               COUNT(DISTINCT COALESCE(user_id, 'anon:' || id))::int AS persone
+        FROM analytics_event
+        WHERE phase = 'funnel' AND received_at >= ${from} AND name = ANY(${nomi}::text[])
+        GROUP BY name, chiave
+      `,
+      this.prisma.$queryRaw`
+        SELECT name, COALESCE(data->>'channel', 'sconosciuto') AS chiave,
+               COUNT(DISTINCT COALESCE(user_id, 'anon:' || id))::int AS persone
+        FROM analytics_event
+        WHERE phase = 'funnel' AND received_at >= ${from} AND name = ANY(${nomi}::text[])
+        GROUP BY name, chiave
+      `,
+    ])) as [
+      { name: string; persone: number }[],
+      { name: string; chiave: string; persone: number }[],
+      { name: string; chiave: string; persone: number }[],
+    ];
+
+    const totalePerNome = new Map(totali.map((r) => [r.name, Number(r.persone)]));
+    const raggruppa = (righe: { name: string; chiave: string; persone: number }[], nome: string) => {
+      const out: Record<string, number> = {};
+      for (const r of righe) if (r.name === nome) out[r.chiave] = Number(r.persone);
+      return out;
+    };
+
+    const events = MarketingService.FUNNEL_EVENTS.map((name) => ({
+      name,
+      total: totalePerNome.get(name) ?? 0,
+      bySegment: raggruppa(perSegmento, name),
+      byChannel: raggruppa(perCanale, name),
+    }));
     // Consensi: fotografia dello stato dei contatti CRM (per il pannello).
     const [consentYes, consentNo, consentNull] = await Promise.all([
       this.prisma.crmRecord.count({ where: { marketingConsent: true } as never }),

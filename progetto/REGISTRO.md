@@ -7,6 +7,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🎂 **Gli auguri di compleanno che a qualcuno non arrivavano MAI** — il più antipatico
+  dei troncamenti trovati, perché invisibile per costruzione. La query prendeva **500 clienti a caso**
+  (`take: 500`, senza nemmeno un `orderBy`) e *poi* guardava in JavaScript chi fosse nato oggi. Con più
+  di 500 clienti con la data di nascita in archivio, chi restava fuori da quei 500 non riceveva gli
+  auguri mai: non «un anno sì e uno no», mai — e sempre le stesse persone. Nessun errore, nessun log,
+  niente di rotto: il codice fa quello che dice, manda gli auguri a tutti quelli che ha guardato. E
+  nessuno si accorge di un'email che non arriva, mentre chi la riceve non sa che ad altri non è
+  arrivata.
+  Ora il giorno lo filtra il **database** (`EXTRACT(MONTH/DAY FROM birth_date)`), quindi il limite di
+  500 si applica a chi compie gli anni davvero e non a un campione casuale di clienti. E se una volta
+  scattasse, lo **scrive nei log**: reintrodurre un troncamento muto proprio qui sarebbe ridicolo.
+  In più, chi è nato il **29 febbraio** con la regola letterale riceveva gli auguri una volta ogni
+  quattro anni: negli anni non bisestili ora arrivano il 1° marzo, come fanno i registri civili. La
+  regola dell'anno bisestile è quella completa, secoli compresi. 11 test nuovi, e le due query provate
+  su PostgreSQL 16 vero con dati finti.
+- `[Sviluppo]` 📉 **Il funnel del lancio sottostimava senza dirlo** — i conteggi si facevano **in
+  memoria** su `take: 50_000` eventi. Gli eventi del funnel sono uno per ogni prova attivata, misura
+  inserita, offerta mandata, rinnovo: cinquantamila si raggiungono, e da quel momento il pannello
+  comincia a dire numeri più piccoli del vero. Un pannello che dice «1.200 prove» quando sono 3.000 è
+  peggio di un pannello che non c'è, perché su quello si prendono decisioni. E si rompeva dalla parte
+  peggiore: senza `orderBy` non era garantito **quali** 50.000 righe arrivassero, quindi gli stessi
+  numeri potevano cambiare fra due aperture della stessa pagina.
+  Ora conta il database: tre `GROUP BY` con `COUNT(DISTINCT)`, nessun limite, niente in memoria, numeri
+  esatti per costruzione. Corretto anche un difetto più piccolo che stava lì dentro: gli eventi senza
+  utente (pre-login) venivano contati tutti come **una** persona, quindi un anello con trecento
+  anonimi ne mostrava uno. 4 test nuovi, query provate su PostgreSQL vero.
+
 - `[Sviluppo]` 📊 **Banca dati nutrizionale: Gaia non ricorda più, cita** — la risposta alla decisione
   di Simone sul caso basmati: «può affermarlo ma deve prima verificare sulle banche dati e dare dati
   corretti; magari poi li memorizza e arricchisce il suo sapere».

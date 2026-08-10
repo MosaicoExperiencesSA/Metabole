@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
+import { compleanniDiOggi, parametriCompleanno } from './compleanni';
 import { randomUUID } from 'crypto';
 import { DiscountsService } from '../commerce/discounts.service';
 import { deriveSegment, prefsToken } from '../common/funnel-segment';
@@ -858,25 +859,51 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // 5) ev_compleanno — clienti che compiono gli anni oggi (dedup per anno)
+    /**
+     * 5) ev_compleanno — chi compie gli anni oggi (dedup per anno).
+     *
+     * ## Il difetto che c'era qui (trovato l'11/8 cercando i troncamenti silenziosi)
+     *
+     * La query prendeva **500 clienti a caso** — `take: BATCH` senza `orderBy` — e poi filtrava mese e
+     * giorno **in JavaScript**. Con più di 500 clienti con la data di nascita, chi stava fuori da quei
+     * 500 non riceveva gli auguri **mai**: non un anno, mai. E senza nessun errore da nessuna parte,
+     * perché formalmente il codice funziona: manda gli auguri a tutti quelli che ha guardato.
+     *
+     * Il difetto è invisibile per costruzione. Nessuno si accorge di un'email che non arriva, e chi la
+     * riceve non sa che altre non sono partite. È lo stesso schema del troncamento della pipeline e di
+     * quello dei Progressi: un limite messo per prudenza che diventa una perdita di dati.
+     *
+     * Ora il filtro sul giorno lo fa il **database**, quindi il limite si applica a chi compie gli
+     * anni davvero e non a un campione casuale di clienti. `BATCH` resta come freno sul numero di
+     * email per giro — ma se una volta scattasse, lo **scrive nei log** invece di tacere: 500
+     * compleanni nello stesso giorno non è un problema che si risolve in silenzio.
+     *
+     * ## Il 29 febbraio
+     *
+     * Chi è nato il 29 febbraio, con la regola letterale, riceve gli auguri una volta ogni quattro
+     * anni. Negli anni non bisestili gli auguri arrivano il **1° marzo**: è la convenzione che usano
+     * i registri civili, e comunque è meglio del silenzio.
+     */
     if (on('ev_compleanno')) {
-      const today = new Date();
-      const tM = today.getUTCMonth();
-      const tD = today.getUTCDate();
-      const year = today.getUTCFullYear();
-      const users = await this.prisma.user.findMany({
-        where: { role: 'client', deletedAt: null, birthDate: { not: null } },
-        select: { id: true, email: true, firstName: true, birthDate: true },
-        take: LifecycleService.BATCH,
-      });
-      for (const u of users) {
-        const b = u.birthDate as Date | null;
-        if (!b || b.getUTCMonth() !== tM || b.getUTCDate() !== tD) continue;
+      const oggi = new Date();
+      const { anno } = parametriCompleanno(oggi);
+      const limite = LifecycleService.BATCH;
+      const festeggiati = await compleanniDiOggi(this.prisma, oggi, limite);
+
+      if (festeggiati.length > limite) {
+        // Niente troncamenti muti: se il freno scatta, si sa. È il difetto che stiamo togliendo.
+        this.logger.warn(
+          `Compleanni oggi: più di ${limite}. Ne servo ${limite} in questo giro e gli altri restano ` +
+            'fuori: alza BATCH o dividi l\'invio.',
+        );
+      }
+
+      for (const u of festeggiati.slice(0, limite)) {
         const r = await this.sendLifecycle({
           userId: u.id,
           email: u.email,
           key: 'ev_compleanno',
-          dedupeKey: `ev_compleanno:${year}`,
+          dedupeKey: `ev_compleanno:${anno}`,
           vars: { nome: u.firstName ?? '', link: `${app}/` },
         });
         bump('ev_compleanno', r);
