@@ -1,3 +1,16 @@
+> # ⛔ DOCUMENTO CHIUSO — 12 agosto 2026
+>
+> **Non usare questo file per decidere cosa fare.** Il punto della situazione, verificato sul ramo
+> pubblicato, è in **[`PUNTO_DELLA_SITUAZIONE.md`](PUNTO_DELLA_SITUAZIONE.md)**.
+>
+> Contiene l'allarme falso su «Vacanze in Serenità» — dice che una cliente la sta ricevendo, ma quel piano è concluso dal 22/07 — ed è la fonte da cui quell'errore è arrivato fino alla lista dell'11/8. Le soglie provvigioni 10/15 delle nutrizioniste, che qui erano l'unica traccia, sono state salvate nel nuovo documento.
+>
+> Resta qui perché è una fotografia di quel giorno e il `REGISTRO.md` ci si appoggia. Quello che valeva
+> per il futuro — le regole ferree, le trappole, i controlli già fatti — è stato travasato nel nuovo
+> documento: da qui non serve ripescare niente.
+
+---
+
 # Da riprendere — 9 agosto 2026
 
 Fotografia di fine giornata dell'8 agosto. Tre elenchi: **cosa aspetta te**, **cosa aspetta me**

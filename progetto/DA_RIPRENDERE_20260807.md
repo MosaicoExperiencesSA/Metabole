@@ -1,3 +1,16 @@
+> # ⛔ DOCUMENTO CHIUSO — 12 agosto 2026
+>
+> **Non usare questo file per decidere cosa fare.** Il punto della situazione, verificato sul ramo
+> pubblicato, è in **[`PUNTO_DELLA_SITUAZIONE.md`](PUNTO_DELLA_SITUAZIONE.md)**.
+>
+> Dei sette punti di questa revisione **cinque sono chiusi** (abbonamento orfano, provvigione del rinnovo che sparisce, Monitoraggio che erogava i menu del Mantenimento, pulsante del report, password chiesta due volte). Chi legge questa lista ricomincerebbe da lavori già fatti.
+>
+> Resta qui perché è una fotografia di quel giorno e il `REGISTRO.md` ci si appoggia. Quello che valeva
+> per il futuro — le regole ferree, le trappole, i controlli già fatti — è stato travasato nel nuovo
+> documento: da qui non serve ripescare niente.
+
+---
+
 # Da riprendere — revisione del lavoro del 7/8
 
 Revisione ostile di tutto il codice scritto oggi (16 push, 69 file, ~2800 righe), fatta a fine

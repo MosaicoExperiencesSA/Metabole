@@ -1,3 +1,16 @@
+> # ⛔ DOCUMENTO CHIUSO — 12 agosto 2026
+>
+> **Non usare questo file per decidere cosa fare.** Il punto della situazione, verificato sul ramo
+> pubblicato, è in **[`PUNTO_DELLA_SITUAZIONE.md`](PUNTO_DELLA_SITUAZIONE.md)**.
+>
+> I «20 file da pushare» sono in produzione da giorni, `OTA_VERSION` qui indicata è di tre versioni fa, e le voci ancora vive sono state travasate nel nuovo documento (protocollo delle 12 settimane, destinazione delle 142 ricette, terza strada per le varianti senza clienti).
+>
+> Resta qui perché è una fotografia di quel giorno e il `REGISTRO.md` ci si appoggia. Quello che valeva
+> per il futuro — le regole ferree, le trappole, i controlli già fatti — è stato travasato nel nuovo
+> documento: da qui non serve ripescare niente.
+
+---
+
 # Da riprendere — 8 agosto 2026
 
 Fotografia di fine giornata. Tre elenchi: **cosa aspetta te** (comandi e scelte), **cosa aspetta

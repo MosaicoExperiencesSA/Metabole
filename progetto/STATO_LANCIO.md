@@ -1,3 +1,16 @@
+> # ⛔ DOCUMENTO CHIUSO — 12 agosto 2026
+>
+> **Non usare questo file per decidere cosa fare.** Il punto della situazione, verificato sul ramo
+> pubblicato, è in **[`PUNTO_DELLA_SITUAZIONE.md`](PUNTO_DELLA_SITUAZIONE.md)**.
+>
+> I tre gate del lancio sono chiusi da luglio. Le quattro voci di contenuto che nessuno stava più tenendo — foto e CV del team, revisione madrelingua RU/ZH/AR, prime testimonianze, modelli email — sono nel §8.3 del nuovo documento.
+>
+> Resta qui perché è una fotografia di quel giorno e il `REGISTRO.md` ci si appoggia. Quello che valeva
+> per il futuro — le regole ferree, le trappole, i controlli già fatti — è stato travasato nel nuovo
+> documento: da qui non serve ripescare niente.
+
+---
+
 # Metabole — STATO LANCIO
 
 Pagina unica, sempre aggiornata: **"cosa manca per aprire"**. Guarda qui.

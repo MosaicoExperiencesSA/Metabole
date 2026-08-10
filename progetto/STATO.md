@@ -1,3 +1,16 @@
+> # ⛔ DOCUMENTO CHIUSO — 12 agosto 2026
+>
+> **Non usare questo file per decidere cosa fare.** Il punto della situazione, verificato sul ramo
+> pubblicato, è in **[`PUNTO_DELLA_SITUAZIONE.md`](PUNTO_DELLA_SITUAZIONE.md)**.
+>
+> Ultimo aggiornamento reale: 6 agosto. In due punti dice il falso (gli OTA «spenti dal 6/8», quando dal 9/8 sono state pubblicate 2.1.3 e 2.1.4; Marketing e Giudice «da costruire», quando esistono). Le **regole ferree** e le trappole che vivevano solo qui sono nel §13 del nuovo documento.
+>
+> Resta qui perché è una fotografia di quel giorno e il `REGISTRO.md` ci si appoggia. Quello che valeva
+> per il futuro — le regole ferree, le trappole, i controlli già fatti — è stato travasato nel nuovo
+> documento: da qui non serve ripescare niente.
+
+---
+
 # Metabole — Stato del progetto
 
 Ultimo aggiornamento: 2026-08-06 · Aggiornare la voce quando qualcosa cambia (e loggare in `REGISTRO.md`).

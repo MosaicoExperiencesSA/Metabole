@@ -1,3 +1,16 @@
+> # ⛔ DOCUMENTO CHIUSO — 12 agosto 2026
+>
+> **Non usare questo file per decidere cosa fare.** Il punto della situazione, verificato sul ramo
+> pubblicato, è in **[`PUNTO_DELLA_SITUAZIONE.md`](PUNTO_DELLA_SITUAZIONE.md)**.
+>
+> Sostituito per non avere **due** liste di cose aperte: era il difetto che questo file era nato per curare. Tutte le sue voci, corrette delle sette false, sono nel nuovo documento.
+>
+> Resta qui perché è una fotografia di quel giorno e il `REGISTRO.md` ci si appoggia. Quello che valeva
+> per il futuro — le regole ferree, le trappole, i controlli già fatti — è stato travasato nel nuovo
+> documento: da qui non serve ripescare niente.
+
+---
+
 # Da fare — la lista unica
 
 Tutto quello che è ancora aperto, verificato nel codice l'11/8. Quando una voce viene fatta si sposta

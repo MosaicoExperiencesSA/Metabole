@@ -7,6 +7,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-12
 
+- `[Sviluppo]` 🧭 **Un solo documento dice come siamo: `progetto/PUNTO_DELLA_SITUAZIONE.md`** — c'erano
+  sei liste di cose aperte (`DA_FARE.md`, tre `DA_RIPRENDERE_*`, `STATO.md`, `STATO_LANCIO.md`) e si
+  contraddicevano: `DA_RIPRENDERE_20260809` dice che una cliente sta ricevendo una dieta senza pranzi né
+  cene, e quel piano è concluso dal 22 luglio — è la fonte da cui l'allarme falso è arrivato fino alla
+  lista dell'11/8. Sei liste sono zero liste: nessuno sa quale sia quella vera.
+  Il nuovo documento tiene lo stato, gli aperti, chi si aspetta cosa, e — parte che sarebbe morta con
+  `STATO.md` — **le regole che non si scoprono leggendo il codice**: l'isolamento dei menu per prodotto,
+  la sequenza dei piani, il webhook Stripe fissato a un'API, il thread di Gaia che lo staff legge e non
+  scrive, e i controlli già fatti da non rifare.
+  **La sequenza dei piani** che Simone ha ridetto oggi (Apprendimento 8 giorni → Dimagrimento → a
+  obiettivo raggiunto Mantenimento → dopo un mese Mantenimento o Monitoraggio) è ora scritta come
+  invariante da verificare a ogni modifica del Negozio. Verificata nel codice: protetta in **due** punti
+  — `listPlansForClient` nasconde, `assertPlanPurchasable` **rifiuta l'acquisto**, ed è chiamata da
+  entrambe le strade d'acquisto (nascondere una voce non è una regola, l'acquisto è una POST con un
+  `planId` dentro). Emerso uno scostamento da decidere: il Monitoraggio compare dal **primo giorno** di
+  mantenimento e non alla sua fine, perché il codice chiede di *aver avuto* il mantenimento.
+  Ogni voce controllabile è stata **riletta dal ramo pubblicato** (`origin/main`, `f905a61`) e non da una
+  copia locale, con l'elenco di cosa è stato verificato e come in appendice: tredici voci risultano
+  davvero aperte. I sei documenti vecchi restano come fotografie, con in testa un rimando qui, e
+  `ISTRUZIONI_PER_AI.md` punta al nuovo come prima lettura di ogni sessione.
+
 - `[Sviluppo]` 🛒 **Nel primo acquisto ricompare la scelta abbonamento / pagamento unico** —
   `PlanFlow`, la coda dell'onboarding, è **la strada da cui passa ogni nuova cliente**, e dichiarava il
   piano senza il campo `billing`: quindi non lo passava al carrello, e al Checkout la scelta fra

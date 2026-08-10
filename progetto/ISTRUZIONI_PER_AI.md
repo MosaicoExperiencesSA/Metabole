@@ -6,9 +6,16 @@ diario condiviso in `progetto/`.
 
 ## 1. All'inizio di ogni sessione: leggi il contesto
 Prima di fare qualsiasi cosa, leggi in quest'ordine:
-1. `progetto/README.md` — regole d'uso + indice di tutte le specifiche.
-2. `progetto/STATO.md` — stato attuale del progetto per area e piano a 10 fasi.
+1. **`progetto/PUNTO_DELLA_SITUAZIONE.md`** — dove siamo, cosa è aperto, cosa aspetta una persona, e le
+   regole che non si scoprono leggendo il codice. **È l'unica lista delle cose aperte**: se una cosa non
+   è qui, non è in nessuna lista. Sostituisce `STATO.md`, `STATO_LANCIO.md`, `DA_FARE.md` e i
+   `DA_RIPRENDERE_*`, che sono chiusi e portano in testa il rimando.
+2. `progetto/README.md` — regole d'uso + indice di tutte le specifiche.
 3. `progetto/REGISTRO.md` — cosa è stato fatto di recente (le voci più in alto sono le più nuove).
+
+⚠️ **Un fatto sul codice non si scrive senza averlo riletto sul ramo pubblicato.** Il 12/8 sette voci di
+una lista erano false perché lette da un clone vecchio di quattro giorni: dire «questo manca» quando c'è
+brucia la fiducia in tutta la lista, e costa più del non averla scritta.
 4. I documenti di specifica pertinenti alla tua parte (linkati nel README): per il Prodotto soprattutto
    i prototipi HTML, `Metabole_Motore_Personalizzazione.md`, `Metabole_Agente_AI_Dieta.md`,
    `Metabole_Tracciamento_Dati.md`, `Metabole_Reparto_Marketing_e_Standard_CRM.pdf`.
@@ -43,13 +50,6 @@ Ogni volta che consegni una modifica (codice, prototipo, specifica, voce, analis
   commit+push (GitHub Pages si rigenera da solo). Vedi `Metabole_Guida_Pubblicazione.pdf`.
 - Le decisioni/specifiche non si duplicano in `progetto/`: restano nei loro documenti, il diario le
   collega.
-
-## 4-bis. Procedure che si sbagliano se non le leggi prima
-- **Pubblicare un aggiornamento OTA**: `progetto/guide/COME_SI_FA_UNA_OTA.md`. Leggilo **per
-  intero** prima di lanciare qualsiasi comando. In breve: si lancia **sul Mac**, dalla radice
-  `~/Progetti/Metabole` (mai su Render, mai dalla home, mai in sandbox), serve
-  `app/google-services.json` (esiste solo sul Mac, senza spegne le push in silenzio), e **un
-  numero di versione non si riusa mai** — Capgo confronta la stringa, non il contenuto.
 
 ## 5. In una riga
 Leggi `progetto/STATO.md` + `progetto/REGISTRO.md` per capire dove siamo, fai il tuo lavoro, e prima di
