@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AiService } from '../ai/ai.service';
 import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
@@ -452,7 +452,15 @@ export class EngineRulesService {
       .filter((p) => p.ricette.length === 0 && (gia.get(p.slot) ?? []).length === 0)
       .map((p) => p.slot);
     if (vuoti.length === slots.length) {
-      throw new BadRequestException(`Generazione non riuscita: ${this.ai.lastError ?? 'assistente AI non disponibile'}.`);
+      const motivo = this.ai.lastError ?? 'assistente AI non disponibile';
+      /**
+       * 503 quando l'AI è fuori uso per un motivo DEFINITIVO (credito esaurito, chiave non valida,
+       * modello inesistente), 400 negli altri casi. La differenza non è formale: il backoffice, che
+       * gira su diciotto varianti, sul 503 si ferma subito invece di ripetere diciassette volte una
+       * richiesta che non può riuscire — e chi guarda smette di aspettare una barra inutile (12/8).
+       */
+      if (this.ai.lastErrorFatale) throw new ServiceUnavailableException(`Generazione non riuscita: ${motivo}.`);
+      throw new BadRequestException(`Generazione non riuscita: ${motivo}.`);
     }
 
     // La dieta si crea solo alla prima settimana; dalla seconda si aggiunge a quella che c'è.
@@ -1046,6 +1054,10 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
       const ricette = Array.isArray(gen?.recipes) ? (gen!.recipes as Record<string, unknown>[]) : [];
       const buone = ricette.filter((r) => r && typeof r.name === 'string' && r.name.trim());
       if (buone.length > 0) return buone.slice(0, p.quante);
+      // Credito esaurito, chiave non valida, modello inesistente: riprovare non cambia niente.
+      // Il 12/8 il credito è finito a metà generazione e questo ciclo, moltiplicato per cinque pasti
+      // e diciotto varianti, ha sparato 270 chiamate destinate tutte allo stesso 400.
+      if (this.ai.lastErrorFatale) break;
     }
     return [];
   }

@@ -67,6 +67,19 @@ export function CreazioneValidazione() {
   // generando ricette…» mentre il nutrizionista sta archiviando una variante: si aspetta
   // per niente, o peggio crede sia partita una generazione. Qui serve uno stato suo.
   const [generando, setGenerando] = useState(false);
+  /**
+   * L'ESITO DELLA GENERAZIONE, MOSTRATO DOVE STA IL PULSANTE.
+   *
+   * Difetto trovato il 12/8, e la segnalazione è stata «ho cliccato ma non ha generato nulla»: i due
+   * riquadri di esito (`notice` ed `error`) stanno in cima alla pagina, il pulsante Genera trecento
+   * righe più sotto. Chi lancia una lavorazione da quattro minuti vede la barra partire, vede la barra
+   * finire, e la risposta gli arriva **fuori dallo schermo** — quindi legge «non è successo niente» su
+   * un'operazione che invece ha detto una cosa precisa.
+   *
+   * Un esito serve dove è stata presa la decisione. Questo stato è solo della generazione, così sotto
+   * il pulsante non compaiono i messaggi di «dieta salvata» o «variante archiviata».
+   */
+  const [esitoGen, setEsitoGen] = useState<{ tipo: 'ok' | 'err'; testo: string } | null>(null);
 
   /**
    * SETTIMANA da generare. Prima qui c'era «giorni da generare» con default 28, e sembrava
@@ -407,7 +420,7 @@ export function CreazioneValidazione() {
       ? [...activeFamily.variants].sort((a, b) => pesoStruttura(a) - pesoStruttura(b))
       : ((presets ?? []).filter((p) => p.id === activePresetId));
     if (targets.length === 0) { setError('Scegli o salva una dieta prima di generare.'); return; }
-    setBusy(true); setGenerando(true); setError(null); setNotice(null);
+    setBusy(true); setGenerando(true); setError(null); setNotice(null); setEsitoGen(null);
     const variantTag = (t: Preset) => `${regLabelOf((t.regime as string) || 'omnivore')} · ${objLabel((t.objective as string) || 'dimagrimento')} · ${mealLabel((t.meals as string) || '5')}`;
     try {
       let firstDietId: string | null = null;
@@ -463,6 +476,15 @@ export function CreazioneValidazione() {
         } catch (e) {
           // Una variante che salta non porta giù le altre: si annota e si va avanti.
           falliti.push(`${variantTag(t)} (${e instanceof Error ? e.message : 'errore'})`);
+          // 503 = l'AI è fuori uso per un motivo definitivo (credito esaurito, chiave non valida).
+          // Qui NON si va avanti: ripetere su diciassette varianti la stessa richiesta impossibile
+          // è tempo perso e una barra che avanza mentendo. Il 12/8 è finito il credito a metà
+          // generazione, e il primo errore già conteneva tutta la risposta.
+          if (e instanceof ApiError && e.status === 503) {
+            setEsitoGen({ tipo: 'err', testo: `${e.message} Le altre varianti non sono state provate: prima va risolto questo.` });
+            setError(e.message);
+            break;
+          }
         }
         if (targets.length > 1) setProgress({ done: idx, total: targets.length, label: `Fatte ${idx} di ${targets.length}` });
       }
@@ -480,14 +502,30 @@ export function CreazioneValidazione() {
         + (recuperate.length ? ` ↩️ Erano rimaste indietro e hanno recuperato un passo: ${recuperate.join(' · ')}. Ripremi «Genera» per portarle alla ${week}.` : '')
         + (incompleti.length ? ` ⚠️ L'AI non ha prodotto ricette per: ${incompleti.join(' · ')} — rigenera questa settimana.` : '')
         + (falliti.length ? ` ❌ Non riuscite: ${falliti.join(' · ')}. Le altre sono state fatte.` : '');
+      // «fatta su 0 variante/i» si legge come un successo e non lo è: se niente è stato toccato va
+      // detto in chiaro, altrimenti si guarda il database convinti che qualcosa sia cambiato.
+      const nienteFatto = generated === 0 && completate === 0;
       setNotice((targets.length > 1
-        ? `Settimana ${week} fatta su ${generated} variante/i${kept ? `, ${kept} l'avevano già` : ''}. Quando hai le settimane che vuoi, valida e pubblica al passo 3.`
+        ? (nienteFatto && !falliti.length
+          ? `Nessuna variante è stata toccata: la settimana ${week} c'era già su tutte e ${targets.length} e non mancava nessun piatto.`
+          : `Settimana ${week} fatta su ${generated} variante/i${kept ? `, ${kept} l'avevano già` : ''}. Quando hai le settimane che vuoi, valida e pubblica al passo 3.`)
         : completate > 0
           ? `Settimana ${week} completata: le ricette che c'erano restano, sono stati aggiunti i piatti mancanti per arrivare a 7 per pasto.`
           : generated > 0
             ? `Settimana ${week} generata: 7 giornate con ricette nuove per ogni pasto. Genera la settimana successiva, oppure valida qui sotto.`
             : `La settimana ${week} è rimasta com'era.`) + coda);
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).'); }
+      setEsitoGen({ tipo: falliti.length ? 'err' : 'ok', testo: (targets.length > 1
+        ? (nienteFatto && !falliti.length
+          ? `Nessuna variante è stata toccata: la settimana ${week} c'era già su tutte e ${targets.length} e non mancava nessun piatto.`
+          : `Settimana ${week} fatta su ${generated} variante/i${kept ? `, ${kept} l'avevano già` : ''}.`)
+        : (generated > 0
+          ? (completate > 0 ? `Settimana ${week} completata.` : `Settimana ${week} generata.`)
+          : `La settimana ${week} è rimasta com'era.`)) + coda });
+    } catch (e) {
+      const testo = e instanceof ApiError ? e.message : 'Generazione non riuscita (verifica AI_API_KEY su Render).';
+      setError(testo);
+      setEsitoGen({ tipo: 'err', testo });
+    }
     finally { setBusy(false); setGenerando(false); setProgress(null); }
   }
 
@@ -984,6 +1022,20 @@ export function CreazioneValidazione() {
             cioè spariva appena in pagina c'era una bozza già caricata — che è esattamente il
             caso di chi genera la seconda variante e resta a guardare un pulsante fermo. */}
         {generando && progress && <ProgressBar done={progress.done} total={progress.total} label={progress.label} />}
+        {/* L'ESITO, QUI. In cima alla pagina c'è già, ma da qui non si vede: chi ha appena premuto
+            resta a guardare la barra che spariesce e conclude «non è successo niente» (12/8). */}
+        {!generando && esitoGen && (
+          <div
+            style={{
+              marginTop: 10, padding: '10px 12px', borderRadius: 10, fontSize: 12.5, lineHeight: 1.55,
+              background: esitoGen.tipo === 'err' ? '#FDECEC' : '#EAF6F1',
+              border: `1px solid ${esitoGen.tipo === 'err' ? '#F3C9C9' : '#BFE3D6'}`,
+              color: esitoGen.tipo === 'err' ? '#8A2B2B' : '#0E5C4A',
+            }}
+          >
+            {esitoGen.testo}
+          </div>
+        )}
         {generando && !progress && (
           <p className="muted" style={{ fontSize: 12, marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--line)', borderTopColor: 'var(--teal)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flex: 'none' }} />

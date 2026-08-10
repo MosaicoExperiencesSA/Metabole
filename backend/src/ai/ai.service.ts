@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { classificaErroreAi } from './errori-ai';
 import { ConfigService } from '@nestjs/config';
 import { ConfigParamsService } from '../config-params/config-params.service';
 
@@ -61,6 +62,19 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   /** Motivo dell'ultimo fallimento di generateJson (per messaggi d'errore veritieri). */
   lastError: string | null = null;
+  /**
+   * Vero se l'ultimo fallimento è **definitivo**: riprovare è inutile finché non intervieni tu.
+   *
+   * Serve al generatore di catalogo (12/8). Il credito Anthropic è finito nel mezzo di una
+   * generazione, e ogni chiamata tornava 400: la funzione che genera un pasto riprova tre volte, il
+   * giro passa cinque pasti, il backoffice passa diciotto varianti — **270 chiamate inutili** per un
+   * errore che si sapeva già alla prima. E dall'altra parte una persona che guarda una barra avanzare
+   * senza che possa succedere niente.
+   *
+   * Credito esaurito, chiave non valida e modello inesistente sono di questo tipo. Un 429 o un
+   * timeout no: quelli passano da soli.
+   */
+  lastErrorFatale = false;
 
   constructor(
     private readonly config: ConfigService,
@@ -170,8 +184,13 @@ export class AiService {
    */
   async generateJson<T = unknown>(system: string, userPrompt: string, maxTokens = 4000): Promise<T | null> {
     this.lastError = null;
+    this.lastErrorFatale = false;
     const key = this.config.get<string>('AI_API_KEY');
-    if (!key) { this.lastError = 'AI_API_KEY non configurata sul server.'; return null; }
+    if (!key) {
+      this.lastError = 'AI_API_KEY non configurata sul server.';
+      this.lastErrorFatale = true;
+      return null;
+    }
     const model = this.config.get<string>('AI_MODEL') ?? 'claude-haiku-4-5';
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 90_000);
@@ -184,12 +203,11 @@ export class AiService {
       });
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        const hint =
-          res.status === 401 ? 'chiave AI non valida' :
-          res.status === 404 ? `modello non trovato (${model})` :
-          res.status === 429 ? 'limite di richieste AI raggiunto, riprova tra poco' :
-          `l'AI ha risposto ${res.status}`;
-        this.lastError = `${hint}${body ? ` — ${body.slice(0, 160)}` : ''}`;
+        // Che dire alla persona, e se ha senso riprovare: due domande diverse, una sola funzione che
+        // le risponde (`errori-ai.ts`, con il caso vero del 12/8 fissato nei test).
+        const { messaggio, fatale } = classificaErroreAi(res.status, body, model);
+        this.lastError = messaggio;
+        this.lastErrorFatale = fatale;
         this.logger.warn(`AI generateJson: risposta ${res.status} ${body.slice(0, 200)}`);
         return null;
       }

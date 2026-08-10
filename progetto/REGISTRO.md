@@ -5,6 +5,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-12
+
+- `[Sviluppo]` 🔌 **Il credito AI esaurito ora si capisce, e non fa sparare 270 chiamate a vuoto** —
+  «ho cliccato ma non ha generato nulla», sulla settimana 10 della senza glutine. Il messaggio c'era,
+  ma in cima alla pagina: era il credito Anthropic finito a metà generazione (per questo si era fermata
+  alla 9, e non per il numero a due cifre come sembrava ieri). Tre difetti separati, uno dentro l'altro.
+  **Cosa leggeva chi ha premuto:** `l'AI ha risposto 400 — {"type":"error","error":{"type":
+  "invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please
+  go to Plans & Billing to u` — JSON, in inglese, troncato a metà parola. Chi lo legge non ha modo di
+  capire che deve ricaricare un credito: quel testo non è scritto per lui. Ora `ai/errori-ai.ts`
+  risponde a due domande separate — **cosa dire** in italiano con la strada per uscirne, e **se ha senso
+  riprovare** — e il caso vero è congelato nei test. Il credito si riconosce dal **corpo** e non dallo
+  stato, perché Anthropic risponde 400 e non 402.
+  **Le chiamate a vuoto:** la funzione che genera un pasto riprova tre volte, il giro passa cinque
+  pasti, il backoffice passa diciotto varianti — col credito finito sono 270 chiamate destinate tutte
+  allo stesso rifiuto, e una barra che avanza per minuti facendo credere che stia succedendo qualcosa.
+  Ora sugli errori definitivi (credito, chiave, modello) il ciclo si interrompe, il servizio risponde
+  **503** invece di 400, e il backoffice si ferma alla prima variante dicendo che le altre non le ha
+  provate.
+  **E l'esito si vede dove si è premuto:** i riquadri di `notice`/`error` stanno a inizio pagina, il
+  pulsante Genera trecento righe più sotto. Ora l'esito compare anche **sotto il pulsante** — e quando
+  niente è stato toccato lo dice in chiaro («nessuna variante è stata toccata: la settimana c'era già su
+  tutte e diciotto»), perché «fatta su 0 variante/i» si legge come un successo e non lo è.
+
 ## 2026-08-11
 
 - `[Sviluppo]` 📏 **Senza una misura DI QUESTO PIANO il menu non parte — e adesso la chiediamo** — una
