@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 👁️ **«Entra come» diventa un permesso, e sotto impersonazione si può solo
+  GUARDARE.** Prima metà della §16.4, con le tre decisioni prese da Simone l'11/8. (1) **Chi può**:
+  `POST /admin/impersonate` era `@Roles('admin')` fisso — una decisione di prodotto scritta nel
+  codice, che la matrice dei permessi *non nominava nemmeno*; ora c'è la chiave `impersonate` con la
+  guardia che la legge, di default solo admin perché entrare in un account vuol dire vedere dati
+  sanitari. E il pulsante nel backoffice era mostrato **senza alcun controllo** in tre schermate: chi
+  non era admin lo scopriva premendolo, e riceveva un 403 al posto di un pulsante che non c'è.
+  (2) ⭐ **Cosa può fare: solo leggere.** Il token portava `impersonatedBy` ma *nessuna rotta lo
+  guardava*: chi entrava nei panni di una cliente poteva agire al posto suo, e l'audit di quelle
+  azioni diceva che le aveva fatte lei. Per una persona che ci mette dentro peso, misure e documenti
+  sanitari è la differenza fra «qualcuno ha guardato» e «qualcuno ha deciso al posto mio senza che io
+  lo sappia». `SolaLetturaImpersonazioneGuard`, globale e ultima della catena, lascia passare solo
+  `GET`/`HEAD`/`OPTIONS`; unica scrittura ammessa il **logout**, perché senza «Torna admin» darebbe
+  errore proprio mentre si prova a fare la cosa giusta; `POST /auth/switch` **no**, che da una
+  sessione impersonata sarebbe una scala. Il rifiuto dice *perché*: davanti a un 403 muto, chi sta
+  aiutando una cliente al telefono pensa a un guasto. (3) **Trenta minuti**: `IMPERSONATION_TTL` era
+  già il default, qui è stato scritto nel codice perché è una decisione e non un ripiego — scaduti,
+  si ricade fuori e per rientrare si preme di nuovo, così ogni ingresso lascia una riga nell'audit
+  invece di una sessione aperta a tempo indeterminato. Alla cliente non si scrive niente: resta
+  nell'audit interno. Aggiunto anche il pulsante **nella tabella Clienti**, dove mancava — cioè
+  nell'unico elenco da cui una coach parte davvero quando una cliente la chiama.
+  Verifiche: i **quattro job della CI riprodotti in sandbox** col client Prisma vero (vedi la voce
+  sul `--no-engine`): build backend verde, **110 suite / 1705 test**, 7 nuovi sulla guardia, build
+  backoffice verde.
+  ⚠️ **Resta la seconda metà** — l'unificazione vera delle due tabelle — e leggendo sono usciti due
+  vincoli: «ha speso > 0» **esiste già** ed è il filtro *Tipo = Cliente* di Gestione lead
+  (`stage = paid`, scritto dal pagamento), quindi non serve inventare un conteggio nuovo; ma il
+  **perimetro non è lo stesso** — l'elenco Clienti restringe per coach **e per nutrizionista**, la
+  lista lead **solo per coach**: fonderle senza toccare quello allargherebbe a una nutrizionista la
+  vista su *tutte* le clienti.
+
 - `[Sviluppo]` 🔴 **CI rossa su `0d7e72f`: il file consegnato era costruito su un main vecchio e ha
   annullato una correzione già pushata — e adesso la CI si riproduce in sandbox, davvero.**
   Due cause, e la seconda è più importante della prima.

@@ -219,7 +219,8 @@ export function Layout({ title, children }: { title: string; children: ReactNode
           <div className="imp-bar">
             <span>
               <i className="ti ti-eye" /> Stai vedendo l'app come <b>{impersonating.email}</b> (
-              {ROLE_LABEL[impersonating.role]})
+              {ROLE_LABEL[impersonating.role]}) — <b>in sola lettura</b>: niente di quello che fai
+              qui viene salvato. La sessione scade da sola dopo 30 minuti.
             </span>
             <button onClick={stopImpersonation}>Torna admin</button>
           </div>

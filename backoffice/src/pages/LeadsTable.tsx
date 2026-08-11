@@ -70,6 +70,12 @@ export function LeadsTable() {
   const { impersonate, can } = useAuth();
   const canAssignCoach = can('assign_coach', 'manage');
   const canAssignNutri = can('assign_nutritionist', 'manage');
+  /**
+   * «Entra come» dalla TABELLA DEI PERMESSI (richiesta di Simone dell'11/8). Prima il pulsante si
+   * vedeva sempre, e chi non era admin scopriva di non poterlo usare solo premendolo: un 403 al
+   * posto di un pulsante che non c'è.
+   */
+  const puoEntrare = can('impersonate', 'manage');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
@@ -577,8 +583,8 @@ export function LeadsTable() {
                     <td>{euro(l.valueCents ?? l.historicalPaidCents)}</td>
                     <td className="muted">{new Date(l.createdAt).toLocaleDateString('it-IT')}</td>
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {l.clientId ? (
-                        <button className="btn ghost sm" onClick={() => doImpersonate(l)} title="Entra nell'app come questa cliente">
+                      {l.clientId && puoEntrare ? (
+                        <button className="btn ghost sm" onClick={() => doImpersonate(l)} title="Guarda l'app con i suoi occhi, in sola lettura: per 30 minuti, e resta scritto nell'audit">
                           <i className="ti ti-eye" /> Entra come
                         </button>
                       ) : (

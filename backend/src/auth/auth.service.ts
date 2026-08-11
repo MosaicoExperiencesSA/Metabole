@@ -487,9 +487,17 @@ export class AuthService {
   // ---------- Impersonazione (la "master password" sicura) ----------
 
   /**
-   * L'admin ottiene un access token a vita breve per operare come un altro
-   * utente (assistenza). Regole: mai su altri admin, mai su se stessi,
-   * solo utenti attivi. Nessun refresh token. Tutto tracciato in audit.
+   * «Entra come»: un access token a vita breve per VEDERE l'app con gli occhi di un'altra
+   * utente (assistenza). Regole: mai su altri admin, mai su se stessi, solo utenti attivi.
+   * Nessun refresh token. Tutto tracciato in audit.
+   *
+   * ⚠️ Tre cose decise da Simone l'11/8, che qui vanno lette insieme:
+   * - **chi può** lo dice la tabella dei permessi (`impersonate`), vedi `AdminImpersonateController`;
+   * - **cosa può fare**: solo leggere — lo impone `SolaLetturaImpersonazioneGuard`, non questo
+   *   metodo: il token dice soltanto «sto impersonando», il divieto vive nella guardia globale;
+   * - **per quanto**: 30 minuti (`IMPERSONATION_TTL`), poi si ricade fuori e per rientrare si
+   *   preme di nuovo il pulsante — così ogni ingresso lascia una riga nell'audit, invece di una
+   *   sessione aperta a tempo indeterminato.
    */
   async impersonate(adminId: string, targetUserId: string, ip?: string) {
     if (adminId === targetUserId) {
@@ -519,14 +527,15 @@ export class AuthService {
       actorId: adminId,
       entityType: 'user',
       entityId: target.id,
-      metadata: { targetRole: target.role, ttl },
+      metadata: { targetRole: target.role, ttl, solaLettura: true },
       ipAddress: ip,
     });
     return {
       accessToken,
       expiresIn: ttl,
+      solaLettura: true,
       impersonating: { id: target.id, email: target.email, role: target.role },
-      note: 'Token di sola sessione: nessun refresh token. Ogni azione resta tracciata.',
+      note: 'Sessione di SOLA LETTURA, senza refresh token, che scade da sola: si vede tutto, non si modifica niente. L\'apertura è scritta nell\'audit.',
     };
   }
 

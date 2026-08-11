@@ -89,6 +89,11 @@ export const BACKOFFICE_PAGES = [
   // avrà una colazione o no (richiesta di Simone del 10/8).
   'change_fasting_window',
   'set_client_password', // Imposta una password scelta per la cliente dalla scheda (flag dedicato)
+  // «Entra come»: apre l'app con gli occhi di una cliente, in SOLA LETTURA (richiesta di Simone
+  // dell'11/8: «il pulsante è visibile gestito dalla tabella permessi»). Prima era `@Roles('admin')`
+  // fisso: la matrice non c'entrava niente e il pulsante nel backoffice si vedeva senza alcun
+  // controllo. La guardia che legge questa chiave è su `POST /admin/impersonate`.
+  'impersonate',
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -277,6 +282,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     change_fasting_window: { view: true, manage: true },
     change_plan_start: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
     set_client_password: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
+    // Solo admin di default. Entrare nell'account di una cliente vuol dire vedere i suoi dati
+    // sanitari: si concede a mano, a chi serve, dalla tabella dei permessi.
+    impersonate: { view: true, manage: true },
   },
 };
 

@@ -26,6 +26,7 @@ import { PrivacyModule } from './privacy/privacy.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PageGuard } from './common/guards/page.guard';
+import { SolaLetturaImpersonazioneGuard } from './common/guards/sola-lettura-impersonazione.guard';
 import { ConfigParamsModule } from './config-params/config-params.module';
 import { EngineRulesModule } from './engine-rules/engine-rules.module';
 import { MarketingModule } from './marketing/marketing.module';
@@ -123,6 +124,9 @@ import { AppUpdatesModule } from './app-updates/app-updates.module';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PageGuard },
+    // Ultima: prima si stabilisce CHI sei e cosa ti è concesso, poi — se stai guardando l'app
+    // con gli occhi di una cliente — che puoi solo guardare.
+    { provide: APP_GUARD, useClass: SolaLetturaImpersonazioneGuard },
   ],
 })
 export class AppModule {}

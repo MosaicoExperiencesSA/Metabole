@@ -30,6 +30,8 @@ function rolePayload(selectedKey: string, roles: RoleInfo[]): { role: Role; cust
 export function Users() {
   const { user: me, can, impersonate } = useAuth();
   const canManage = can('users', 'manage');
+  /** «Entra come» ha un permesso PROPRIO: gestire le utenze e guardare dentro un account sono due decisioni diverse. */
+  const puoEntrare = can('impersonate', 'manage');
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -339,8 +341,8 @@ export function Users() {
                           )
                         ) : (
                           <>
-                            {canManage && u.role !== 'admin' && u.status === 'active' && (
-                              <button className="btn ghost sm" onClick={() => doImpersonate(u)} title="Entra nell'app come questo utente">
+                            {puoEntrare && u.role !== 'admin' && u.status === 'active' && (
+                              <button className="btn ghost sm" onClick={() => doImpersonate(u)} title="Guarda l'app con i suoi occhi, in sola lettura: per 30 minuti, e resta scritto nell'audit">
                                 <i className="ti ti-eye" /> Entra come
                               </button>
                             )}

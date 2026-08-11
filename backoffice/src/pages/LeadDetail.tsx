@@ -518,9 +518,11 @@ export function LeadDetail() {
                 <Link to={`/clienti/${lead.clientId}`} className="btn ghost" style={{ background: 'rgba(255,255,255,.9)' }}>
                   <i className="ti ti-user" /> Scheda cliente
                 </Link>
-                <button className="btn ghost" onClick={doImpersonate} title="Entra nell'app come questa cliente" style={{ background: 'rgba(255,255,255,.9)' }}>
-                  <i className="ti ti-eye" /> Entra come
-                </button>
+                {can('impersonate', 'manage') && (
+                  <button className="btn ghost" onClick={doImpersonate} title="Guarda l'app con i suoi occhi, in sola lettura: per 30 minuti, e resta scritto nell'audit" style={{ background: 'rgba(255,255,255,.9)' }}>
+                    <i className="ti ti-eye" /> Entra come
+                  </button>
+                )}
               </>
             )}
             {isAdmin && !editing && !lead.clientId && (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
@@ -41,6 +42,13 @@ const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
  */
 export function Clienti() {
   const navigate = useNavigate();
+  const { can, impersonate } = useAuth();
+  /**
+   * «Entra come» anche da qui (richiesta di Simone dell'11/8). C'era in Gestione lead, nella scheda
+   * lead e in Utenti — cioè ovunque tranne che nell'elenco da cui una coach parte davvero quando una
+   * cliente la chiama. Il permesso è quello nuovo `impersonate`, non il ruolo scritto nel codice.
+   */
+  const puoEntrare = can('impersonate', 'manage');
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [totale, setTotale] = useState(0);
   const [limite, setLimite] = useState(0);
@@ -70,6 +78,15 @@ export function Clienti() {
 
   /** Nome da mostrare: anagrafica se c'è, altrimenti il nome del profilo. */
   const name = (r: ClientRow) => [r.firstName, r.lastName].filter(Boolean).join(' ') || (r.nickname ?? '');
+
+  async function entraCome(r: ClientRow) {
+    setError(null);
+    try {
+      await impersonate(r.id, r.email);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non sono riuscito a entrare in questo account.');
+    }
+  }
 
   /**
    * Il glutine resta un filtro sopra la tabella e non un filtro di colonna: incrocia la
@@ -190,7 +207,20 @@ export function Clienti() {
                   <td>{r.coach ?? <span className="muted" title="Nessuna coach assegnata">—</span>}</td>
                   <td><span className={`chip ${r.status === 'active' ? '' : 'amber'}`}>{r.status === 'active' ? 'Attivo' : 'Sospeso'}</span></td>
                   <td className="muted">{date(r.createdAt)}</td>
-                  <td style={{ textAlign: 'right' }}><i className="ti ti-chevron-right muted" /></td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {puoEntrare && r.status === 'active' && (
+                      <button
+                        className="btn ghost sm"
+                        style={{ marginRight: 8 }}
+                        // La riga apre la scheda: senza questo, «Entra come» aprirebbe ANCHE la scheda.
+                        onClick={(e) => { e.stopPropagation(); entraCome(r); }}
+                        title="Guarda l'app con i suoi occhi, in sola lettura: per 30 minuti, e resta scritto nell'audit"
+                      >
+                        <i className="ti ti-eye" /> Entra come
+                      </button>
+                    )}
+                    <i className="ti ti-chevron-right muted" />
+                  </td>
                 </tr>
               ))}
             </tbody>
