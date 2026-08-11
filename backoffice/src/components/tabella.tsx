@@ -37,7 +37,7 @@
  * Il filtro libero in cima alla pagina (quello che cerca in tutte le colonne insieme) resta dove
  * era: si passa `ricerca` a `useTabella` e cerca in tutte le colonne che hanno un `valore`.
  */
-import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { RIGHE_OPZIONI } from '../lib/preferenzeHome';
 import { oggiIso, scaricaExcel, type Cella } from '../lib/excel';
 import { usePagination } from './ui';
@@ -146,18 +146,32 @@ function confronta(a: string | number | null | undefined, b: string | number | n
  * di carattere, quindi si misura e si rimisura quando le colonne cambiano larghezza.
  */
 export function useTestaFissa(attiva: boolean | undefined, dipendenza: unknown) {
-  const rifTesta = useRef<HTMLTableRowElement | null>(null);
+  /**
+   * ⚠️ **`ref` DI CALLBACK, non `useRef`** — ed è tutto il difetto dell'11/8.
+   *
+   * Con `useRef` l'effetto girava una volta sola, al primo render: e al primo render la tabella
+   * NON C'È ancora, perché ogni pagina mostra lo spinner mentre carica. `rifTesta.current` era
+   * `null`, l'effetto usciva subito, e non tornava mai più — le dipendenze (`colonne.length`) non
+   * cambiano quando i dati arrivano. Risultato: `altezzaTesta` restava **0**, la riga dei filtri si
+   * incollava a `top: 0` cioè **sotto la riga dei titoli**, che è opaca e sta più in alto nello
+   * `z-index`: spariva. E il `ResizeObserver` non veniva nemmeno agganciato.
+   *
+   * Da fuori sembrava «i filtri scorrono via», e lo faceva in **tutte** le tabelle, perché tutte
+   * caricano prima e disegnano dopo. Con la callback la misura parte quando la riga entra davvero
+   * nel DOM.
+   */
+  const [testa, setTesta] = useState<HTMLTableRowElement | null>(null);
+  const rifTesta = useCallback((nodo: HTMLTableRowElement | null) => setTesta(nodo), []);
   const [altezzaTesta, setAltezzaTesta] = useState(0);
   useLayoutEffect(() => {
-    const tr = rifTesta.current;
-    if (!tr || !attiva) return;
-    const misura = () => setAltezzaTesta(tr.offsetHeight);
+    if (!testa || !attiva) return;
+    const misura = () => setAltezzaTesta(testa.offsetHeight);
     misura();
     if (typeof ResizeObserver === 'undefined') return;
     const osservatore = new ResizeObserver(misura);
-    osservatore.observe(tr);
+    osservatore.observe(testa);
     return () => osservatore.disconnect();
-  }, [attiva, dipendenza]);
+  }, [attiva, dipendenza, testa]);
 
   /** Lo stile «incollata in alto» di una delle due righe di testa. */
   const stileFissa = useCallback(

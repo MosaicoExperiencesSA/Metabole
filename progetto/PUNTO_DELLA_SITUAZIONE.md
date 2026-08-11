@@ -937,7 +937,15 @@ non al ruolo scritto nel codice.
   perché — dati sanitari accessibili solo a cliente e suo nutrizionista è una regola di progetto;
 - la cliente lo vede? (una riga nel suo diario, o niente).
 
-### 16.5 I filtri delle tabelle devono restare fermi — APERTA (l'11/8 l'avevo data per chiusa a torto)
+### ~~16.5 I filtri delle tabelle devono restare fermi~~ — ✅ CHIUSA l'11/8, difetto trovato nel browser
+
+**Causa:** `useTestaFissa` misurava l'altezza dei titoli con `useRef` + `useLayoutEffect` a
+dipendenze fisse. Al primo render la tabella non c'è (spinner), la ref era `null`, l'effetto usciva
+e non tornava più: l'altezza restava **0** e la riga dei filtri si incollava *sotto* i titoli
+opachi, sparendo. Corretto con una **ref di callback**. Vale per tutte le tabelle insieme.
+Storia sotto, perché la lezione conta più della correzione.
+
+#### (storia) 16.5 — perché ci sono volute tre segnalazioni
 
 «I filtri nelle tabelle devono restare fermi come le etichette, non scorrere verso l'alto. Correggile
 **tutte**.» Ribadita l'11/8: «i filtri delle tabelle non devono scorrere, sono **fissi in alto sotto

@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📌 **I filtri delle tabelle non restavano fermi: una `ref` di callback al posto di una
+  `useRef`.** §16.5, segnalata **tre volte** e in **tutte** le tabelle. Il meccanismo
+  (`useTestaFissa`, `position: sticky`) c'era già ed era giusto: sbagliava **la misura**. Guardato
+  nel browser, sulla pagina Clienti in produzione: la riga dei titoli restava (`top: 0`), quella dei
+  filtri aveva `top: 0px` invece dei **35px** dell'altezza dei titoli — cioè si incollava *sotto* i
+  titoli, che sono opachi e stanno più in alto nello `z-index`, e spariva. Controprova fatta lì:
+  forzando `top: 35px` la riga resta in vista.
+  ⭐ **Perché la misura era 0.** `useTestaFissa` usava `useRef` + `useLayoutEffect` con dipendenze
+  `[attiva, colonne.length]`. **Al primo render la tabella non c'è ancora**: ogni pagina mostra prima
+  lo spinner. `rifTesta.current` era `null`, l'effetto usciva subito — e non tornava mai più, perché
+  quelle dipendenze non cambiano quando i dati arrivano. Il `ResizeObserver` non veniva nemmeno
+  agganciato. Ora `rifTesta` è una **ref di callback**: la misura parte quando la riga entra davvero
+  nel DOM. Una riga, e vale per tutte e 30 le tabelle, perché passano tutte da qui.
+  Due lezioni: **un difetto che si vede in TUTTE le schermate non sta nelle schermate**, e il posto
+  dove si trovava era il **browser**, non il codice — nel codice quella funzione si legge giusta, e
+  l'avevo letta due volte dichiarandola a posto.
+
 - `[Sviluppo]` 👁️ **«Entra come» diventa un permesso, e sotto impersonazione si può solo
   GUARDARE.** Prima metà della §16.4, con le tre decisioni prese da Simone l'11/8. (1) **Chi può**:
   `POST /admin/impersonate` era `@Roles('admin')` fisso — una decisione di prodotto scritta nel
