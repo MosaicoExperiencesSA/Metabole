@@ -44,6 +44,8 @@ interface Detail {
   /** Tutti i piani del cliente (recenti prima): serve per aprire i menu di un piano finito. */
   subscriptions?: { id: string; status: string; startDate: string | null; endDate: string | null; planName: string | null }[];
   hasActivePlan?: boolean;
+  /** Piano fermato dal nutrizionista: da quando, perché e da chi. Null quando il piano è normale. */
+  pianoFermato: { dal: string; motivo: string | null; daId: string | null; da: string | null } | null;
   payments: { id: string; amountCents: number; description: string; method: string; status: string; createdAt: string; approvedAt: string | null }[];
   crm: { stage: string; stageLabel?: string | null; valueCents: number | null } | null;
   notes: { id: string; body: string; createdAt: string; author: string | null }[];
@@ -334,6 +336,7 @@ export function ClientDetail() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [riattivando, setRiattivando] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -579,6 +582,34 @@ export function ClientDetail() {
    * menu») e questo pulsante non la salta: toglie il muro e lascia la richiesta visibile. Prima
    * toglieva anche la richiesta, cioè l'unica istruzione che la cliente aveva.
    */
+  /**
+   * Riattiva un piano fermato dal nutrizionista (§15.2 punto 4).
+   *
+   * Il permesso NON si controlla qui: lo decide il backend guardando **chi** ha messo la pausa
+   * (chi l'ha messa, il capo, l'admin). Nascondere il pulsante agli altri non basterebbe — e
+   * mostrarlo a chi non può premerlo è meglio di farlo sparire senza spiegazione: il messaggio
+   * d'errore dice a chi rivolgersi.
+   */
+  async function riattivaPiano() {
+    if (!d) return;
+    if (!confirm(
+      'Riattivare il piano di questa cliente?\n\n' +
+      'I giorni nuovi ripartono al primo controllo utile, con i cancelli di sempre (misure, ' +
+      'finestra del piano, fine percorso): riattivare toglie solo la pausa, non salta nessun altro controllo.',
+    )) return;
+    setNotice(null); setError(null);
+    setRiattivando(true);
+    try {
+      await api(`/nutritionist/clients/${d.user.id}/plan-hold/release`, { method: 'POST', body: JSON.stringify({}) });
+      setNotice('Piano riattivato: i giorni nuovi riprendono al primo controllo utile.');
+      await loadDetail();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Riattivazione non riuscita.');
+    } finally {
+      setRiattivando(false);
+    }
+  }
+
   async function sbloccaMisure() {
     if (!d) return;
     if (!confirm(
@@ -1403,6 +1434,37 @@ export function ClientDetail() {
               <span className="chip" style={{ background: '#F3E7E1', color: '#8A4B2A', border: '1px solid #E0A98A' }}>
                 Nessun piano attivo
               </span>
+            )}
+            {/*
+              PIANO FERMATO DAL NUTRIZIONISTA (§15.2 punto 4). Sta qui, accanto allo stato del
+              piano, perché è la prima cosa da vedere quando ci si chiede perché una cliente non
+              riceve i menu — e perché questo è l'unico posto da cui si riattiva. Un blocco che si
+              mette da una schermata e si toglie solo da un'API è un blocco che resta.
+            */}
+            {d.pianoFermato && (
+              <span
+                className="chip"
+                style={{ background: '#FDECEA', color: '#B4232A', border: '1px solid #F0B3AE' }}
+                title={
+                  `Fermato il ${new Date(d.pianoFermato.dal).toLocaleDateString('it-IT')}` +
+                  (d.pianoFermato.da ? ` da ${d.pianoFermato.da}` : '') +
+                  (d.pianoFermato.motivo ? ` — ${d.pianoFermato.motivo}` : '') +
+                  '. I giorni già ricevuti restano alla cliente; non partono quelli nuovi.'
+                }
+              >
+                <i className="ti ti-player-pause" /> Piano in pausa
+                {d.pianoFermato.da ? ` · ${d.pianoFermato.da}` : ''}
+              </span>
+            )}
+            {d.pianoFermato && (
+              <button
+                className="btn ghost sm"
+                disabled={riattivando}
+                title="Riattiva i giorni nuovi. Può farlo chi ha messo la pausa, il capo nutrizionista o un amministratore."
+                onClick={() => void riattivaPiano()}
+              >
+                <i className="ti ti-player-play" /> Riattiva il piano
+              </button>
             )}
             {/* Un pulsante per OGNI piano, non solo per quello corrente: premendolo si aprono i
                 menu erogati in quel periodo. È l'unico posto da cui si vede lo storico dei menu

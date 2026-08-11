@@ -1,8 +1,17 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { AuditService } from '../audit/audit.service';
 import { EngineService } from '../engine/engine.service';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
-import { ETICHETTA_CAUSA, isCausa } from '../engine/causa-decisione';
+import {
+  AZIONI,
+  AzioneDecisione,
+  DESCRIZIONE_AZIONE,
+  ETICHETTA_CAUSA,
+  azioneAmmessa,
+  azioniPerCausa,
+  isCausa,
+} from '../engine/causa-decisione';
 import { filtroClienteConPianoAttivo } from '../common/piano-attivo';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -48,6 +57,7 @@ export class NutritionistService {
     private readonly prisma: PrismaService,
     private readonly engine: EngineService,
     private readonly personalBase: PersonalBaseService,
+    private readonly audit: AuditService,
   ) {}
 
   private isSupervisor(user: AuthUser): boolean {
@@ -455,6 +465,213 @@ export class NutritionistService {
    * può revisionare solo le decisioni dei propri pazienti (il capo/admin qualsiasi).
    * Delega poi la scrittura all'EngineService (idempotenza + audit già lì).
    */
+  // ---------- «Correggi»: le azioni ammesse per la causa, e le due che il backend esegue ----------
+
+  /**
+   * Cosa si può fare su questa riga della coda. È quello che riempie la finestra di «Correggi»
+   * (§15.2 punto 2): non un modulo generico, ma le azioni che hanno senso **per quella causa**.
+   *
+   * Restituisce anche `cosaFa` di ognuna, perché un pulsante che cambia il piano di una persona
+   * deve dire cosa cambia **prima** di essere premuto — e la frase deve essere una sola, scritta
+   * dove sta la regola, non riscritta da ogni schermata che la mostra.
+   */
+  async azioniDecisione(user: AuthUser, decisionId: string) {
+    const decision = await this.decisionePermessa(user, decisionId);
+    const causa = isCausa(decision.reasonKey) ? decision.reasonKey : null;
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: decision.clientId },
+      select: { planHeldAt: true, rapidLossBaselineAt: true },
+    })) as { planHeldAt: Date | null; rapidLossBaselineAt: Date | null } | null;
+
+    return {
+      decisionId: decision.id,
+      clientId: decision.clientId,
+      causa,
+      causaEtichetta: causa ? ETICHETTA_CAUSA[causa] : null,
+      flagReason: decision.flagReason,
+      // Lo stato attuale: offrire «Blocca il piano» a un piano già bloccato è il modo più rapido
+      // di far dubitare che il pulsante di prima abbia funzionato.
+      pianoGiaFermo: !!profilo?.planHeldAt,
+      calcoloGiaAzzeratoIl: profilo?.rapidLossBaselineAt ?? null,
+      azioni: azioniPerCausa(causa).map((a) => ({
+        azione: a,
+        etichetta: DESCRIZIONE_AZIONE[a].etichetta,
+        cosaFa: DESCRIZIONE_AZIONE[a].cosaFa,
+        /** `false` = è un rimando (chat, scheda): lo esegue il frontend, non passa da qui. */
+        eseguitaDalServer: a === AZIONI.AUTORIZZA_PROSEGUIRE || a === AZIONI.BLOCCA_PIANO,
+      })),
+    };
+  }
+
+  /**
+   * Esegue una delle due azioni che toccano il piano, e chiude la riga in coda.
+   *
+   * L'azione viene **verificata contro la causa** (`azioneAmmessa`): la tabella delle azioni non è
+   * un suggerimento per l'interfaccia, è la regola. Un client che chiedesse «blocca il piano» su una
+   * riga di screening otterrebbe un rifiuto, perché altrimenti la tabella descriverebbe solo quello
+   * che i pulsanti mostrano, e le regole che vivono solo nei pulsanti si aggirano con una POST.
+   */
+  async eseguiAzione(user: AuthUser, decisionId: string, azione: string, note?: string) {
+    const decision = await this.decisionePermessa(user, decisionId);
+    const causa = isCausa(decision.reasonKey) ? decision.reasonKey : null;
+    if (!azioneAmmessa(causa, azione)) {
+      throw new BadRequestException(
+        `Azione «${azione}» non prevista per questa causa${causa ? ` (${ETICHETTA_CAUSA[causa]})` : ''}.`,
+      );
+    }
+    /**
+     * UNA DECISIONE SI LAVORA UNA VOLTA SOLA.
+     *
+     * Senza questo controllo la seconda pressione dello stesso pulsante — un doppio clic, una
+     * schermata rimasta aperta in un'altra scheda — rifà l'azione: il baseline slitta in avanti di
+     * altri quattro giorni di silenzio, e soprattutto `planHeldById` **cambia proprietario**, cioè
+     * chi aveva fermato il piano perde il diritto di riattivarlo. Meglio un errore chiaro.
+     */
+    if (decision.reviewedAt) {
+      throw new BadRequestException('Questa decisione è già stata lavorata: ricarica la coda.');
+    }
+
+    const staffId = await this.staffId(user.sub);
+    // Il blocco registra CHI l'ha messo, quindi lì la scheda staff serve davvero. Per
+    // l'autorizzazione no: un admin che non ha una scheda staff può comunque autorizzare, e
+    // pretenderla qui sarebbe un 403 senza motivo su un'operazione che non usa quell'id.
+    if (azione === AZIONI.BLOCCA_PIANO && !staffId) {
+      throw new ForbiddenException('Per fermare un piano serve una scheda staff associata.');
+    }
+
+    // Il profilo deve esistere: `update` su un profilo assente lancia un errore Prisma grezzo, che
+    // per chi preme il pulsante è una schermata rotta senza spiegazione.
+    const profiloEsiste = await this.prisma.clientProfile.findUnique({
+      where: { userId: decision.clientId },
+      select: { userId: true },
+    });
+    if (!profiloEsiste) {
+      throw new BadRequestException('Questa cliente non ha ancora un profilo: non c’è un piano su cui agire.');
+    }
+
+    const adesso = new Date();
+    if (azione === AZIONI.AUTORIZZA_PROSEGUIRE) {
+      await this.prisma.clientProfile.update({
+        where: { userId: decision.clientId },
+        // Si scrive SOLO il baseline: nessun altro campo, e soprattutto nessuna cancellazione di
+        // misure. I progressi della cliente restano interi — vedi `signals/allarme-calo.ts`.
+        data: { rapidLossBaselineAt: adesso },
+      });
+    } else if (azione === AZIONI.BLOCCA_PIANO) {
+      await this.prisma.clientProfile.update({
+        where: { userId: decision.clientId },
+        data: {
+          planHeldAt: adesso,
+          planHeldReason: note?.trim() || null,
+          planHeldById: staffId,
+        },
+      });
+    }
+
+    await this.audit.log({
+      action: `nutritionist.decision.${azione}`,
+      actorId: user.sub,
+      entityType: 'engine_decision',
+      entityId: decisionId,
+      metadata: { clientId: decision.clientId, causa, note },
+    });
+
+    /**
+     * La riga esce dalla coda: l'azione **è** la revisione. Senza, il nutrizionista farebbe la cosa
+     * e dovrebbe anche ricordarsi di segnarla come vista — e le code in cui servono due gesti per
+     * una decisione sola restano piene di righe già lavorate.
+     *
+     * L'errore **non si ingoia**: se la chiusura fallisce, l'azione sul piano è già stata fatta e
+     * la riga è ancora lì. Chi ha premuto deve saperlo, o la ripremerà.
+     */
+    let codaChiusa = true;
+    try {
+      await this.engine.reviewDecision(user.sub, decisionId, 'corrected', note);
+    } catch {
+      codaChiusa = false;
+    }
+
+    return {
+      ok: true,
+      azione,
+      eseguitaIl: adesso.toISOString(),
+      codaChiusa,
+      ...(codaChiusa
+        ? {}
+        : { avviso: 'Azione eseguita sul piano, ma la riga non è uscita dalla coda: ricarica e chiudila a mano.' }),
+    };
+  }
+
+  /**
+   * Riattiva un piano **fermato dal nutrizionista** (`planHeldAt`). Solo chi l'ha fermato, il capo
+   * o l'admin — decisione di Simone dell'11/8.
+   *
+   * ⚠️ Da non confondere con `sbloccaPiano` qui sopra, che è un'altra cosa e si chiama così da
+   * prima: quello risolve il «piano bloccato» dagli **allergeni**, rilanciando `buildPersonalBase`
+   * — lì non c'è nessun campo da spegnere, il blocco viene ricalcolato a ogni composizione del
+   * menu. Qui invece c'è un campo vero, messo da una persona, e riattivare vuol dire toglierlo.
+   * Due meccanismi diversi con lo stesso nome sarebbero la ricetta per spegnere quello sbagliato.
+   *
+   * Non la coach: il blocco nasce da una decisione clinica, e chi non l'ha presa non può disfarla
+   * senza parlare con chi l'ha presa. È la stessa lezione del pulsante «Sblocca app» diventato
+   * «Riapri l'app»: un pulsante che promette più di quello che può fare viene usato aspettandosi
+   * l'altra cosa.
+   */
+  async riattivaPianoFermato(user: AuthUser, clientId: string, note?: string) {
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { planHeldAt: true, planHeldById: true },
+    })) as { planHeldAt: Date | null; planHeldById: string | null } | null;
+    if (!profilo) throw new NotFoundException('Profilo non trovato');
+    if (!profilo.planHeldAt) throw new BadRequestException('Il piano di questa cliente non è fermo.');
+
+    if (!this.isSupervisor(user)) {
+      const staffId = await this.staffId(user.sub);
+      if (!staffId || profilo.planHeldById !== staffId) {
+        throw new ForbiddenException(
+          'Il piano è stato fermato da un altro professionista: può riattivarlo lui, il capo nutrizionista o un amministratore.',
+        );
+      }
+    }
+
+    await this.prisma.clientProfile.update({
+      where: { userId: clientId },
+      data: { planHeldAt: null, planHeldReason: null, planHeldById: null },
+    });
+    await this.audit.log({
+      action: 'nutritionist.plan_hold.release',
+      actorId: user.sub,
+      entityType: 'client_profile',
+      entityId: clientId,
+      metadata: { note },
+    });
+    // I giorni ripartono al primo giro di erogazione utile, con i cancelli di sempre (misure,
+    // finestra, fine piano): sbloccare non salta nessun controllo, rimuove solo questo.
+    return { ok: true };
+  }
+
+  /** La decisione, se questo utente può toccarla. Stessa regola di `reviewDecision`, in un posto solo. */
+  private async decisionePermessa(user: AuthUser, decisionId: string) {
+    const decision = (await this.prisma.engineDecision.findUnique({
+      where: { id: decisionId },
+      select: { id: true, clientId: true, reasonKey: true, flagReason: true, reviewedAt: true },
+    })) as {
+      id: string; clientId: string; reasonKey: string | null; flagReason: string | null; reviewedAt: Date | null;
+    } | null;
+    if (!decision) throw new NotFoundException('Decisione non trovata');
+    if (!this.isSupervisor(user)) {
+      const staffId = await this.staffId(user.sub);
+      const profile = (await this.prisma.clientProfile.findUnique({
+        where: { userId: decision.clientId },
+        select: { assignedNutritionistId: true },
+      })) as { assignedNutritionistId: string | null } | null;
+      if (!staffId || profile?.assignedNutritionistId !== staffId) {
+        throw new ForbiddenException('Paziente non assegnato: operazione non consentita');
+      }
+    }
+    return decision;
+  }
+
   async reviewDecision(user: AuthUser, decisionId: string, outcome: 'confirmed' | 'corrected', note?: string) {
     const decision = (await this.prisma.engineDecision.findUnique({
       where: { id: decisionId },

@@ -20,6 +20,49 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🎛️ **I due pulsanti della coda ora fanno qualcosa — Consegna B (§15.2 punti 2, 3, 4)** —
+  la domanda di Nocanty era «cosa fanno questi due pulsanti?» e la risposta onesta era «niente»:
+  scrivevano un esito che nessun altro pezzo di codice leggeva.
+  **«Correggi» apre le azioni della causa**, non un modulo generico: calo rapido → autorizza a
+  proseguire · scrivi in chat · apri la scheda · blocca il piano; energia bassa → senza
+  l'autorizzazione (non c'è nessun punto di partenza da spostare: il segnale viene dai check-in);
+  screening → solo i due rimandi. La tabella sta in `engine/causa-decisione.ts` ed è **la regola**,
+  non un suggerimento per l'interfaccia: il backend rifiuta un'azione non prevista per quella causa,
+  perché una regola che vive solo nei pulsanti si aggira con una POST. «Apri la scheda» e «Scrivi in
+  chat» restano rimandi: i cambi dieta non si reimplementano lì, e una seconda strada con controlli
+  diversi è il modo in cui nascono i buchi nei permessi.
+  **«Autorizza a proseguire» azzera il punto di partenza del calcolo** (`rapidLossBaselineAt`): da
+  quel momento l'allarme guarda **solo le pesate successive**, con il pavimento deciso — 4 giorni e
+  3 pesate nuove — perché due pesate ravvicinate ricostruiscono una pendenza ripidissima e l'allarme
+  risuonerebbe il giorno dopo l'ok. I due numeri sono **parametri** (`rapid_loss_resume_min_days`,
+  `rapid_loss_resume_min_measures`, categoria sicurezza): sono clinici, li cambia Nocanty senza
+  deploy. Si azzera l'allarme e **non i progressi**: grafico, chili persi, proiezione e tendenza
+  continuano a leggere tutta la storia — c'è un test che lo pretende.
+  ⚠️ **Il difetto che stavo per consegnare, e che la revisione ha fermato**: il modulo
+  `signals/allarme-calo.ts` era scritto, testato con otto test verdi e **non chiamato da nessuno**.
+  Il campo veniva scritto dal nutrizionista e mai usato: avrebbe premuto il pulsante e la stessa
+  riga sarebbe tornata in coda la notte dopo. Ora è agganciato in **due** punti — `progress.service`
+  (l'allarme che riempie la coda) e `signals.service.checkRapidLossGuardrail` (la segnalazione
+  clinica, che nasce a ogni pesata salvata: senza, la segnalazione sarebbe ricomparsa lo stesso
+  giorno dell'autorizzazione) — con quattro test che guardano **se l'allarme suona**, non se il
+  campo viene scritto. Una suite verde certifica la regola, non che sia attaccata.
+  **«Blocca il piano» esiste davvero** (`planHeldAt` / `planHeldReason` / `planHeldById`): ferma i
+  giorni **nuovi**, e quelli già ricevuti — incluso oggi — restano alla cliente. È il controllo che
+  al «piano bloccato» di prima mancava: `dietBlock` è letto da `getMenu` e `menuStatus`, cioè decide
+  cosa la cliente *legge*, e non è mai stato letto dall'erogazione. In app c'è uno stato nuovo con
+  parole oneste — «la nutrizionista ha messo in pausa i nuovi giorni e ti contatterà; i giorni che
+  hai già ricevuto restano disponibili» — invece della frase sulle esclusioni alimentari, che
+  davanti a un calo troppo rapido è falsa due volte.
+  Lo **sblocco** è di chi l'ha messo, del capo o dell'admin (decisione di Simone). Il pulsante sta
+  nella scheda cliente, accanto allo stato del piano: un blocco che si mette da una schermata e si
+  toglie solo da un'API è un blocco che resta — anche questo trovato in revisione.
+  Tre effetti collaterali chiusi mentre c'ero: la stessa decisione **non si può lavorare due volte**
+  (il doppio clic spostava il baseline e cambiava il proprietario del blocco, cioè toglieva a chi
+  l'aveva messo il diritto di riattivarlo); l'errore di chiusura della riga **non si ingoia più**;
+  e «Rigenera menu» su un piano fermo non cancella più niente — cancellava i giorni futuri senza
+  poterli rierogare, cioè toglieva alla cliente proprio quelli che il blocco le lascia.
+  103 suite, 1567 test verdi; `tsc` invariato; backoffice e app compilano.
+
 - `[Sviluppo]` 🩺 **«Cristina è onnivora, perché le diamo una dieta vegana a 3 pasti?»** — la scheda
   diceva il falso, e la cosa peggiore è che non rompeva niente. Il profilo di Cristina dice
   `Flessibile · flexible · **omnivore** · 5 pasti`, e di menu non ne ha ricevuto **nessuno**: zero

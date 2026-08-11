@@ -68,6 +68,11 @@ export const ENGINE_RULES: EngineRule[] = [
   { code: 'no_progress_escalation', label: 'Segnala "Nessun progresso"', description: 'Se attivo, quando la cliente è in stallo (oltre i "Giorni di stallo") apre in automatico una segnalazione "Nessun progresso" al nutrizionista (coach informata). Di norma OFF.', category: 'sicurezza', kind: 'boolean', default: false },
   { code: 'low_adherence_days', label: 'Giorni per "Scarsa aderenza"', description: 'Giorni consecutivi senza check-in oltre i quali aprire una segnalazione "Scarsa aderenza" alla coach. 0 = spenta.', category: 'sicurezza', kind: 'number', default: 0, min: 0, max: 60, step: 1, unit: 'giorni' },
   { code: 'max_weight_change_alert_kg_week', label: 'Calo rapido (kg/settimana)', description: 'Ritmo di calo settimanale oltre il quale scatta l’allerta clinica al nutrizionista.', category: 'sicurezza', kind: 'number', default: 1.5, min: 0.5, max: 5, step: 0.1, unit: 'kg/sett' },
+  // Il pavimento dopo «Autorizza a proseguire» (§15.2 punto 3). Sono numeri clinici e stanno qui
+  // perché li deve poter cambiare il nutrizionista: una soglia che per cambiare richiede un deploy
+  // non la cambia mai nessuno, e resta il numero che abbiamo indovinato noi.
+  { code: 'rapid_loss_resume_min_days', label: 'Calo rapido: giorni prima che l’allarme torni', description: 'Dopo «Autorizza a proseguire», quanti giorni devono passare prima che l’allarme calo rapido possa suonare di nuovo. Vale insieme al numero di pesate: due pesate ravvicinate ricostruiscono una pendenza enorme, e senza questo pavimento l’allarme risuonerebbe il giorno dopo l’ok.', category: 'sicurezza', kind: 'number', default: 4, min: 0, max: 30, step: 1, unit: 'giorni' },
+  { code: 'rapid_loss_resume_min_measures', label: 'Calo rapido: pesate prima che l’allarme torni', description: 'Dopo «Autorizza a proseguire», quante pesate NUOVE servono prima che l’allarme possa suonare di nuovo. Le pesate precedenti all’autorizzazione non contano più per l’allarme; i progressi della cliente — grafico, chili persi, proiezione — restano invece interi.', category: 'sicurezza', kind: 'number', default: 3, min: 1, max: 10, step: 1, unit: 'pesate' },
 ];
 
 export const ENGINE_RULE_BY_CODE = new Map(ENGINE_RULES.map((r) => [r.code, r]));

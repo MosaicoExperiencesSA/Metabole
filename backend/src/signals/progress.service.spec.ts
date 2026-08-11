@@ -55,7 +55,14 @@ describe('ProgressService', () => {
     const config = {
       getNumber: jest.fn((key: string) =>
         Promise.resolve(
-          ({ moving_average_window: 3, stall_days_before_coach_alert: 6, max_weight_change_alert_kg_week: 1.5 } as Record<string, number>)[key],
+          ({
+            moving_average_window: 3,
+            stall_days_before_coach_alert: 6,
+            max_weight_change_alert_kg_week: 1.5,
+            // Il pavimento del ri-armo dopo «Autorizza a proseguire» (§15.2 punto 3).
+            rapid_loss_resume_min_days: 4,
+            rapid_loss_resume_min_measures: 3,
+          } as Record<string, number>)[key],
         ),
       ),
     };
@@ -198,5 +205,102 @@ describe('ProgressService — la finestra tiene le misure RECENTI', () => {
     await crea([...fermi, ...calo]);
     const r: any = await service.getProgress('u1');
     expect(r.trend.direction).toBe('down');
+  });
+});
+
+/**
+ * IL COLLEGAMENTO, non solo la regola (§15.2 punto 3).
+ *
+ * Il modulo `allarme-calo.ts` è nato con otto test verdi **e non era chiamato da nessuno**: il
+ * campo `rapidLossBaselineAt` veniva scritto dal nutrizionista, letto qui, e mai usato per
+ * calcolare niente. Una suite verde certificava la regola, non il fatto che fosse attaccata.
+ * Questi test guardano l'unica cosa che conta per la cliente: se l'allarme suona o no.
+ */
+describe('ProgressService — «Autorizza a proseguire» spegne l’allarme, non i progressi', () => {
+  let service: ProgressService;
+  let prisma: any;
+
+  /** Calo ripidissimo: ~2,8 kg/settimana, cioè ben oltre la soglia di 1,5. */
+  const caloRapido = Array.from({ length: 10 }, (_, i) => ({
+    date: new Date(Date.UTC(2026, 7, 1 + i)),
+    weightKg: Math.round((80 - i * 0.4) * 100) / 100,
+    waistCm: null,
+    hipsCm: null,
+  }));
+
+  const monta = async (baseline: Date | null, adesso: Date) => {
+    jest.useFakeTimers().setSystemTime(adesso);
+    prisma = {
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          startWeightKg: 80, startWaistCm: null, startHipsCm: null, rapidLossBaselineAt: baseline,
+        }),
+      },
+      objective: { findFirst: jest.fn().mockResolvedValue(null) },
+      measurement: {
+        findMany: jest.fn().mockImplementation(({ orderBy, take }: any) => {
+          const ord = orderBy?.date === 'desc' ? [...caloRapido].reverse() : [...caloRapido];
+          return Promise.resolve(typeof take === 'number' ? ord.slice(0, take) : ord);
+        }),
+        count: jest.fn().mockResolvedValue(caloRapido.length),
+        findFirst: jest.fn().mockResolvedValue(caloRapido[0]),
+      },
+    };
+    const config = {
+      getNumber: jest.fn((key: string, def?: number) =>
+        Promise.resolve(
+          ({
+            moving_average_window: 3,
+            stall_days_before_coach_alert: 6,
+            max_weight_change_alert_kg_week: 1.5,
+            rapid_loss_resume_min_days: 4,
+            rapid_loss_resume_min_measures: 3,
+          } as Record<string, number>)[key] ?? def,
+        ),
+      ),
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        ProgressService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ConfigParamsService, useValue: config },
+      ],
+    }).compile();
+    service = moduleRef.get(ProgressService);
+  };
+
+  afterEach(() => jest.useRealTimers());
+
+  it('senza autorizzazione: l’allarme suona (è il caso di sempre)', async () => {
+    await monta(null, new Date(Date.UTC(2026, 7, 10)));
+    const r = (await service.getProgress('u1')) as any;
+    expect(r.alerts.rapidLoss).toBe(true);
+    expect(r.alerts.rapidLossInPausa).toBeNull();
+  });
+
+  it('appena autorizzata: l’allarme TACE, e dice perché', async () => {
+    // Il giorno dopo l'ok. Senza il pavimento, le due pesate successive basterebbero a
+    // ricostruire la stessa pendenza e la riga tornerebbe in coda subito.
+    await monta(new Date(Date.UTC(2026, 7, 9)), new Date(Date.UTC(2026, 7, 10)));
+    const r = (await service.getProgress('u1')) as any;
+    expect(r.alerts.rapidLoss).toBe(false);
+    expect(r.alerts.rapidLossInPausa).toContain('autorizzazione');
+  });
+
+  it('i PROGRESSI restano interi: chili persi e tendenza leggono tutta la storia', async () => {
+    await monta(new Date(Date.UTC(2026, 7, 9)), new Date(Date.UTC(2026, 7, 10)));
+    const r = (await service.getProgress('u1')) as any;
+    // 80 → ~76,4 di media mobile: i chili persi non si azzerano perché il nutrizionista ha
+    // autorizzato. Azzerare anche questi vorrebbe dire cancellarle dallo schermo il percorso.
+    expect(r.progress.lostKg).toBeGreaterThan(2);
+    expect(r.trend.weeklyRateKg).toBeGreaterThan(1.5);
+    expect(r.series.length).toBeGreaterThan(5);
+  });
+
+  it('passati i giorni e con pesate nuove a sufficienza, l’allarme può tornare', async () => {
+    // Autorizzata il 1° agosto: al 10 ci sono 9 giorni e 9 pesate nuove, e il calo continua.
+    await monta(new Date(Date.UTC(2026, 7, 1)), new Date(Date.UTC(2026, 7, 10)));
+    const r = (await service.getProgress('u1')) as any;
+    expect(r.alerts.rapidLoss).toBe(true);
   });
 });

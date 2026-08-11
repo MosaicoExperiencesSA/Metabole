@@ -10,6 +10,7 @@ import {
   stallDays,
   weeklyLossRate,
 } from './stats';
+import { MIN_GIORNI_DEFAULT, MIN_PESATE_DEFAULT, spiegaAllarmeSpento, statoAllarmeCalo } from './allarme-calo';
 
 /**
  * Quante misure si leggono per calcolare la tendenza. Non è «tutte»: la media mobile, la pendenza
@@ -60,7 +61,13 @@ export class ProgressService {
     const [profile, objective, recenti, misureTotali, primaMisura] = await Promise.all([
       this.prisma.clientProfile.findUnique({
         where: { userId: clientId },
-        select: { startWeightKg: true, startWaistCm: true, startHipsCm: true },
+        // `rapidLossBaselineAt`: se il nutrizionista ha autorizzato a proseguire, l'**allarme**
+        // calo rapido si calcola solo sulle pesate successive. Tutto il resto di questa funzione —
+        // media mobile, chili persi, proiezione, serie del grafico — continua a leggere l'intera
+        // storia, ed è la parte che non va toccata: azzerare i progressi di chi sta perdendo peso
+        // troppo in fretta significherebbe cancellarle dallo schermo l'unica cosa che dà senso al
+        // percorso, per una decisione clinica che non la riguarda.
+        select: { startWeightKg: true, startWaistCm: true, startHipsCm: true, rapidLossBaselineAt: true },
       }),
       this.prisma.objective.findFirst({
         where: { clientId },
@@ -85,10 +92,14 @@ export class ProgressService {
     const measurements = [...recenti].reverse();
     if (!profile) throw new NotFoundException('Profilo non trovato: completa il questionario.');
 
-    const [window, stallThreshold, rapidThreshold] = await Promise.all([
+    const [window, stallThreshold, rapidThreshold, minGiorniRiarmo, minPesateRiarmo] = await Promise.all([
       this.configParams.getNumber('moving_average_window', 3),
       this.configParams.getNumber('stall_days_before_coach_alert', 6),
       this.configParams.getNumber('max_weight_change_alert_kg_week', 1.5),
+      // Il pavimento del ri-armo dopo «Autorizza a proseguire»: numeri clinici, quindi dai
+      // Parametri e non costanti nel codice. Vedi `allarme-calo.ts`.
+      this.configParams.getNumber('rapid_loss_resume_min_days', MIN_GIORNI_DEFAULT),
+      this.configParams.getNumber('rapid_loss_resume_min_measures', MIN_PESATE_DEFAULT),
     ]);
 
     if (measurements.length === 0) {
@@ -116,6 +127,26 @@ export class ProgressService {
     const recentMA = maSeries.slice(-recentSpan);
     const rate = slopePerDay(recentMA);
     const weeklyRate = weeklyLossRate(rate);
+
+    /**
+     * IL RITMO PER L'ALLARME, che è un'altra cosa dal ritmo dei progressi.
+     *
+     * Se il nutrizionista ha autorizzato a proseguire, l'allarme guarda **solo le pesate
+     * successive** e resta spento finché non ce ne sono abbastanza (4 giorni e 3 pesate, dai
+     * Parametri): senza quel pavimento due pesate ravvicinate ricostruiscono una pendenza
+     * ripidissima e l'allarme risuona il giorno dopo l'ok.
+     */
+    const allarme = statoAllarmeCalo(
+      maSeries,
+      (profile as { rapidLossBaselineAt?: Date | null }).rapidLossBaselineAt ?? null,
+      today,
+      minGiorniRiarmo,
+      minPesateRiarmo,
+    );
+    const rapidLossArmato = allarme.armato;
+    const rateAllarme = rapidLossArmato
+      ? weeklyLossRate(slopePerDay(allarme.pesate.slice(-recentSpan)))
+      : null;
 
     const target = objective?.targetWeightKg ?? null;
     const start = profile.startWeightKg ?? primaMisura?.weightKg ?? weights[0];
@@ -151,7 +182,22 @@ export class ProgressService {
       alerts: {
         stallDays: stall,
         stalled: stall >= stallThreshold,
-        rapidLoss: weeklyRate !== null && weeklyRate > rapidThreshold,
+        /**
+         * L'ALLARME si calcola sul tratto **dopo l'autorizzazione**, il resto no.
+         *
+         * `weeklyRateKg` qui sopra, `lostKg`, la proiezione e la serie del grafico continuano a
+         * leggere tutta la storia: sono i progressi della cliente e non c'entrano niente con una
+         * decisione clinica presa su di lei. Quello che «Autorizza a proseguire» sposta è **solo
+         * questo booleano**, che è ciò che fa suonare il guardrail e riempie la coda.
+         *
+         * Senza questa riga il campo `rapidLossBaselineAt` sarebbe stato scritto e mai usato: il
+         * nutrizionista avrebbe premuto un pulsante e la stessa riga sarebbe tornata in coda la
+         * notte dopo. È il difetto che una suite verde non trova, perché la regola può essere
+         * giusta e collegata a niente.
+         */
+        rapidLoss: rapidLossArmato && rateAllarme !== null && rateAllarme > rapidThreshold,
+        /** Perché non sta suonando, quando è in pausa: «non suona» e «va tutto bene» si somigliano troppo. */
+        rapidLossInPausa: spiegaAllarmeSpento(allarme),
       },
       series: maSeries.slice(-30), // per il grafico (media mobile)
     };

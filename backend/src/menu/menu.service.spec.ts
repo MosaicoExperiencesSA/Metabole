@@ -53,6 +53,9 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn().mockResolvedValue([]),
         upsert: jest.fn().mockResolvedValue({}),
+        // Serve ai test di rigenerazione: `regenerateFromToday` cancella prima di rierogare, e il
+        // punto del test col piano fermo è proprio che questa NON venga chiamata.
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
       // Gate misure: misura del ciclo presente → non blocca l'erogazione.
@@ -153,6 +156,38 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     await service.deliverIfEligible('u1');
     const call = prisma.menuDay.upsert.mock.calls[0][0];
     expect(call.create.level).toBe(1);
+  });
+
+  /**
+   * IL BLOCCO CHE FERMA DAVVERO (§15.2 punto 4).
+   *
+   * Il difetto che questa funzione corregge era proprio un blocco che non bloccava: `dietBlock`
+   * era letto da `getMenu` e da `menuStatus` — cioè decideva cosa la cliente *legge* — e mai
+   * dall'erogazione. Un test che non guarda `menuDay.upsert` ripeterebbe lo stesso errore.
+   */
+  it('piano fermato dal nutrizionista: NESSUN giorno nuovo viene scritto', async () => {
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      planStartDate: D(daysFromToday(-1)),
+      regime: 'omnivore',
+      mealsPerDay: 5,
+      planHeldAt: new Date(),
+    });
+    expect(await service.deliverIfEligible('u1')).toEqual([]);
+    expect(prisma.menuDay.upsert).not.toHaveBeenCalled();
+  });
+
+  it('piano fermato: «Rigenera menu» non cancella niente', async () => {
+    // Cancellerebbe i giorni futuri e non potrebbe rierogarli (l'erogazione è ferma): la cliente
+    // resterebbe senza i giorni che il blocco le lascia di proposito.
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      planStartDate: D(daysFromToday(-1)),
+      regime: 'omnivore',
+      mealsPerDay: 5,
+      planHeldAt: new Date(),
+    });
+    const res = await service.regenerateFromToday('u1');
+    expect(res).toEqual({ removed: 0, delivered: [] });
+    expect(prisma.menuDay.deleteMany).not.toHaveBeenCalled();
   });
 
   it('una decisione con una CAUSA non viene applicata, anche se non è flaggata', async () => {

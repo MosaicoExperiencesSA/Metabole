@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Modal, Spinner } from '../components/ui';
 import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
 import { WalletWidget } from '../components/WalletWidget';
 import { usePreferenzeHome } from '../lib/preferenzeHome';
@@ -33,8 +33,27 @@ interface Decision {
   patientName: string | null;
   date: string;
   flagReason: string | null;
+  /** La causa (`calo_rapido_energia`, `energia_bassa_cronica`, …) e la sua etichetta breve. */
+  causa: string | null;
+  causaEtichetta: string | null;
   rule: { id: string; name: string } | null;
   action: unknown;
+}
+
+/**
+ * Cosa si può fare su una riga della coda: arriva dal backend, perché **quali azioni siano
+ * ammesse dipende dalla causa** ed è una regola clinica, non una scelta di interfaccia. Se la
+ * tabella vivesse qui, una POST fatta a mano la scavalcherebbe.
+ */
+interface AzioniDecisione {
+  decisionId: string;
+  clientId: string;
+  causa: string | null;
+  causaEtichetta: string | null;
+  flagReason: string | null;
+  pianoGiaFermo: boolean;
+  calcoloGiaAzzeratoIl: string | null;
+  azioni: { azione: string; etichetta: string; cosaFa: string; eseguitaDalServer: boolean }[];
 }
 interface Queue {
   engineDecisions: Decision[];
@@ -104,6 +123,51 @@ export function NutritionistHome() {
     }
   }
 
+  /**
+   * «CORREGGI» apre le azioni della causa, non un modulo generico (§15.2 punto 2).
+   *
+   * La domanda di Nocanty era «cosa fanno questi due pulsanti?», e la risposta onesta era
+   * «niente»: scrivevano l'esito e nessun altro pezzo di codice leggeva quel campo. Ora
+   * «Correggi» chiede al backend cosa si può fare **per quella causa** e lo mostra con scritto
+   * cosa succede: un pulsante che cambia il piano di una persona deve dirlo prima di essere
+   * premuto, non dopo.
+   */
+  const [azioni, setAzioni] = useState<AzioniDecisione | null>(null);
+  const [azioneInCorso, setAzioneInCorso] = useState(false);
+  const [notaAzione, setNotaAzione] = useState('');
+
+  async function apriAzioni(id: string) {
+    setError(null);
+    try {
+      setAzioni(await api<AzioniDecisione>(`/nutritionist/decisions/${id}/azioni`));
+      setNotaAzione('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riesco a leggere le azioni disponibili.');
+    }
+  }
+
+  async function eseguiAzione(azione: string) {
+    if (!azioni) return;
+    setAzioneInCorso(true);
+    try {
+      await api(`/nutritionist/decisions/${azioni.decisionId}/azione`, {
+        method: 'POST',
+        body: JSON.stringify({ azione, note: notaAzione.trim() || undefined }),
+      });
+      setNotice(
+        azione === 'blocca_piano'
+          ? 'Piano messo in pausa: i giorni nuovi non partono, quelli già ricevuti restano alla cliente.'
+          : 'Autorizzazione registrata: il calcolo del calo riparte da adesso.',
+      );
+      setAzioni(null);
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
+    } finally {
+      setAzioneInCorso(false);
+    }
+  }
+
   if (loading) return <Spinner />;
 
   const hello = (user?.firstName && user.firstName.trim()) || 'Dottoressa';
@@ -153,12 +217,15 @@ export function NutritionistHome() {
                     {d.patientName ? <Link to={`/clienti/${d.clientId}`} className="link">{d.patientName}</Link> : 'Paziente'}
                   </b>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {d.date}{d.rule?.name && ` · ${d.rule.name}`}{d.flagReason && ` · ${d.flagReason}`}
+                    {d.date}
+                    {d.causaEtichetta && ` · ${d.causaEtichetta}`}
+                    {d.rule?.name && ` · ${d.rule.name}`}
+                    {d.flagReason && ` · ${d.flagReason}`}
                   </div>
                 </div>
                 <div className="row" style={{ gap: 6 }}>
                   <button className="btn sm" onClick={() => reviewDecision(d.id, 'confirm')}>Conferma</button>
-                  <button className="btn ghost sm" onClick={() => reviewDecision(d.id, 'correct')}>Correggi</button>
+                  <button className="btn ghost sm" onClick={() => void apriAzioni(d.id)}>Correggi…</button>
                 </div>
               </div>
             ))
@@ -238,6 +305,84 @@ export function NutritionistHome() {
         </div>
       )}
       <DashboardModules />
+
+      {/*
+        LA FINESTRA DI «CORREGGI». Le azioni arrivano dal backend perché dipendono dalla causa.
+        «Apri la scheda» e «Scrivi in chat» sono rimandi: portano dove quelle cose vivono già, coi
+        loro permessi. Non si reimplementano qui — una seconda strada per cambiare la dieta, con
+        controlli diversi, è il modo in cui nascono i buchi.
+      */}
+      {azioni && (
+        <Modal title={azioni.causaEtichetta ?? 'Cosa vuoi fare'} onClose={() => setAzioni(null)}>
+          {azioni.flagReason && (
+            <p style={{ fontSize: 13.5, lineHeight: 1.55, marginTop: 0, color: 'var(--ink)' }}>{azioni.flagReason}</p>
+          )}
+          {azioni.pianoGiaFermo && (
+            <Banner kind="info">
+              Il piano di questa cliente è <b>già fermo</b>: i giorni nuovi non partono. Si riattiva dalla
+              sua scheda.
+            </Banner>
+          )}
+          {azioni.calcoloGiaAzzeratoIl && (
+            <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
+              Il calcolo del calo è già stato azzerato il{' '}
+              {new Date(azioni.calcoloGiaAzzeratoIl).toLocaleDateString('it-IT')}.
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+            {azioni.azioni.map((a) => (
+              <div key={a.azione} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 11 }}>
+                <div className="spread" style={{ gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <b style={{ fontSize: 14 }}>{a.etichetta}</b>
+                    <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.5, marginTop: 3 }}>{a.cosaFa}</div>
+                  </div>
+                  {a.eseguitaDalServer ? (
+                    <button
+                      className={a.azione === 'blocca_piano' ? 'btn ghost sm' : 'btn sm'}
+                      disabled={azioneInCorso || (a.azione === 'blocca_piano' && azioni.pianoGiaFermo)}
+                      onClick={() => void eseguiAzione(a.azione)}
+                    >
+                      {a.azione === 'blocca_piano' && azioni.pianoGiaFermo ? 'Già fermo' : 'Fai questo'}
+                    </button>
+                  ) : (
+                    <Link
+                      className="btn ghost sm"
+                      to={a.azione === 'apri_scheda' ? `/clienti/${azioni.clientId}` : `/chat?cliente=${azioni.clientId}`}
+                      onClick={() => setAzioni(null)}
+                    >
+                      Vai
+                    </Link>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/*
+            La nota è facoltativa ma sta SOPRA i pulsanti: se fosse dopo, si scriverebbe dopo aver
+            già premuto. Finisce nell'audit e, per il blocco, è il motivo che resta scritto sul
+            piano — cioè quello che leggerà chi troverà quel piano fermo fra tre giorni.
+          */}
+          <label style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
+            Nota (facoltativa, resta nello storico)
+            <textarea
+              className="input"
+              rows={2}
+              value={notaAzione}
+              maxLength={1000}
+              onChange={(e) => setNotaAzione(e.target.value)}
+              placeholder="Es. la sento domani in televisita"
+              style={{ marginTop: 4 }}
+            />
+          </label>
+
+          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+            <button className="btn ghost" onClick={() => setAzioni(null)}>Chiudi</button>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

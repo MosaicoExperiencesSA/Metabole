@@ -163,6 +163,9 @@ export class ClientsService {
         include: {
           assignedCoach: { select: { displayName: true } },
           assignedNutritionist: { select: { displayName: true } },
+          // Chi ha fermato il piano: nella scheda serve il NOME, non l'id — «fermato da
+          // staff-4f2a…» non dice a nessuno con chi deve parlare per riattivarlo.
+          planHeldBy: { select: { displayName: true } },
         },
       }),
       this.prisma.objective.findFirst({ where: { clientId: userId }, orderBy: { createdAt: 'desc' } }),
@@ -417,6 +420,21 @@ export class ClientsService {
         planName: s.plan?.name ?? null,
       })),
       hasActivePlan,
+      /**
+       * PIANO FERMATO DAL NUTRIZIONISTA (§15.2 punto 4). Va nel dettaglio perché la scheda è il
+       * posto dove si scopre **perché** questa cliente non riceve menu, ed è l'unico da cui si può
+       * riattivare. Un blocco che si mette da una schermata e si toglie solo da un'API è un blocco
+       * che resta.
+       */
+      pianoFermato: (profile as { planHeldAt?: Date | null } | null)?.planHeldAt
+        ? {
+            dal: (profile as { planHeldAt?: Date | null }).planHeldAt,
+            motivo: (profile as { planHeldReason?: string | null }).planHeldReason ?? null,
+            daId: (profile as { planHeldById?: string | null }).planHeldById ?? null,
+            da:
+              (profile as { planHeldBy?: { displayName: string | null } | null }).planHeldBy?.displayName ?? null,
+          }
+        : null,
       payments,
       crm: crm ? { ...(crm as Record<string, unknown>), stageLabel } : null,
       notes: (notes as { id: string; body: string; createdAt: Date; author: { displayName: string } | null }[]).map((n) => ({

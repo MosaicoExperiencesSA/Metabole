@@ -91,6 +91,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Variazione peso massima (kg/settimana) prima dell\'alert al nutrizionista',
   },
   {
+    key: 'rapid_loss_resume_min_days',
+    value: '4',
+    type: 'number',
+    description: 'Dopo «Autorizza a proseguire»: giorni minimi prima che l\'allarme calo rapido possa tornare',
+  },
+  {
+    key: 'rapid_loss_resume_min_measures',
+    value: '3',
+    type: 'number',
+    description: 'Dopo «Autorizza a proseguire»: pesate NUOVE minime prima che l\'allarme possa tornare',
+  },
+  {
     key: 'escalation_reopen_days',
     value: '14',
     type: 'number',

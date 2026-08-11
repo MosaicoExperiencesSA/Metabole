@@ -298,6 +298,8 @@ model Staff {
 
   clientsAsCoach        ClientProfile[] @relation("AssignedCoach")
   clientsAsNutritionist ClientProfile[] @relation("AssignedNutritionist")
+  // Chi ha bloccato il piano di una cliente: serve a sapere di chi è lo sblocco (§15.2 punto 4).
+  clientsPlanHeld       ClientProfile[] @relation("PlanHeldBy")
   escalations           Escalation[]    @relation("EscalationAssignee")
   authoredDiets         Diet[]          @relation("DietAuthor")
   approvedDiets         Diet[]          @relation("DietApprover")
@@ -404,6 +406,22 @@ model ClientProfile {
   assignedCoach          Staff?     @relation("AssignedCoach", fields: [assignedCoachId], references: [id], onDelete: SetNull)
   assignedNutritionistId String?    @map("assigned_nutritionist_id")
   assignedNutritionist   Staff?     @relation("AssignedNutritionist", fields: [assignedNutritionistId], references: [id], onDelete: SetNull)
+  // --- Le due leve del nutrizionista sulla coda «Da validare» (decisioni dell'11/8, §15.2) ---
+  //
+  // `rapidLossBaselineAt` — «Autorizza a proseguire»: da lì il calcolo del ritmo di calo riparte e
+  // contano SOLO le pesate successive. Si azzera l'ALLARME, non i progressi: grafico, chili persi e
+  // proiezione continuano a leggere tutta la storia. La regola sta in `signals/allarme-calo.ts`, col
+  // pavimento di 4 giorni e 3 pesate che evita che l'allarme risuoni il giorno dopo l'ok.
+  rapidLossBaselineAt    DateTime?  @map("rapid_loss_baseline_at")
+  // `planHeld*` — «Blocca il piano»: ferma i giorni NUOVI; quelli già ricevuti, incluso oggi,
+  // restano suoi. È un campo vero e non la segnalazione «Piano bloccato» che si usava prima: quella
+  // nasce dagli allergeni, dice alla cliente una cosa falsa («stiamo sistemando il menu per le tue
+  // esclusioni») e soprattutto NON ferma l'erogazione — la leggono `getMenu` e `menuStatus`, mai
+  // `deliverIfEligible`. `planHeldById` dice CHI l'ha messo: lo sblocco è suo, del capo o dell'admin.
+  planHeldAt             DateTime?  @map("plan_held_at")
+  planHeldReason         String?    @map("plan_held_reason")
+  planHeldById           String?    @map("plan_held_by_id")
+  planHeldBy             Staff?     @relation("PlanHeldBy", fields: [planHeldById], references: [id], onDelete: SetNull)
   consents               Json?      // versioni dei consensi accettati
   notificationPrefs      Json?      @map("notification_prefs") // opt-out per tipo + email opzionale
   referralCode           String?    @unique @map("referral_code") // codice "porta un'amica" della cliente

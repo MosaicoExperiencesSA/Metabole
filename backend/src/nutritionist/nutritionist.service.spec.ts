@@ -11,11 +11,15 @@ const makeEngine = (over: Partial<EngineService> = {}) => ({ reviewDecision: jes
 /** Base personalizzata finta: serve allo SBLOCCO del piano, non ai test di questo file. */
 const makePersonalBase = (over: Record<string, unknown> = {}) =>
   ({ buildPersonalBase: jest.fn().mockResolvedValue({ status: 'ready', message: 'ok' }), ...over }) as never;
+/** Audit finto: le azioni sul piano ci scrivono sempre, e senza il servizio non parte niente. */
+const makeAudit = (over: Record<string, unknown> = {}) =>
+  ({ log: jest.fn().mockResolvedValue(undefined), ...over }) as never;
 const make = (
   prisma: Record<string, unknown>,
   engine: EngineService = makeEngine(),
   personalBase = makePersonalBase(),
-) => new NutritionistService(prisma as unknown as PrismaService, engine, personalBase);
+  audit = makeAudit(),
+) => new NutritionistService(prisma as unknown as PrismaService, engine, personalBase, audit);
 
 describe('NutritionistService.patients', () => {
   it('elenca i pazienti con riepilogo e ordina per attenzione', async () => {
@@ -225,5 +229,111 @@ describe('NutritionistService.reviewDecision (scoping per-paziente)', () => {
   it('decisione inesistente → 404', async () => {
     const prisma = { engineDecision: { findUnique: jest.fn().mockResolvedValue(null) } };
     await expect(make(prisma).reviewDecision(user, 'x', 'confirmed')).rejects.toThrow('non trovata');
+  });
+});
+
+/**
+ * «CORREGGI»: le azioni ammesse per la causa, e le due che toccano il piano (§15.2 punti 2-4).
+ *
+ * La tabella causa → azioni non è un suggerimento per l'interfaccia: è la regola. Questi test
+ * esistono perché una regola che vive solo nei pulsanti si aggira con una POST.
+ */
+describe('NutritionistService — azioni sulla decisione', () => {
+  const prismaCon = (over: Record<string, unknown> = {}) => ({
+    staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
+    engineDecision: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'dec1', clientId: 'p1', reasonKey: 'calo_rapido_energia', flagReason: 'Calo troppo rapido…',
+      }),
+    },
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue({ assignedNutritionistId: 'nut-1', planHeldAt: null, rapidLossBaselineAt: null }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    ...over,
+  });
+
+  it('calo rapido: offre «autorizza a proseguire», e dice cosa fa PRIMA che sia premuto', async () => {
+    const res = await make(prismaCon()).azioniDecisione(user, 'dec1');
+    const azioni = res.azioni.map((a) => a.azione);
+    expect(azioni).toContain('autorizza_proseguire');
+    expect(azioni).toContain('blocca_piano');
+    const autorizza = res.azioni.find((a) => a.azione === 'autorizza_proseguire');
+    expect(autorizza?.cosaFa).toContain('non cambiano'); // i progressi restano interi
+    expect(autorizza?.eseguitaDalServer).toBe(true);
+    // «Apri la scheda» e «Scrivi in chat» sono rimandi: non li esegue il backend.
+    expect(res.azioni.find((a) => a.azione === 'apri_scheda')?.eseguitaDalServer).toBe(false);
+  });
+
+  it('screening: NON offre «autorizza a proseguire» né «blocca il piano»', async () => {
+    const prisma = prismaCon({
+      engineDecision: { findUnique: jest.fn().mockResolvedValue({ id: 'dec1', clientId: 'p1', reasonKey: 'screening', flagReason: 'x' }) },
+    });
+    const res = await make(prisma).azioniDecisione(user, 'dec1');
+    expect(res.azioni.map((a) => a.azione)).toEqual(['apri_scheda', 'scrivi_in_chat']);
+  });
+
+  it('un’azione non prevista per quella causa viene RIFIUTATA, non solo nascosta', async () => {
+    const prisma = prismaCon({
+      engineDecision: { findUnique: jest.fn().mockResolvedValue({ id: 'dec1', clientId: 'p1', reasonKey: 'screening', flagReason: 'x' }) },
+    });
+    await expect(make(prisma).eseguiAzione(user, 'dec1', 'blocca_piano')).rejects.toThrow('non prevista');
+  });
+
+  it('«autorizza a proseguire» scrive SOLO il baseline: nessuna misura toccata', async () => {
+    const prisma = prismaCon();
+    await make(prisma).eseguiAzione(user, 'dec1', 'autorizza_proseguire');
+    const data = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
+    expect(Object.keys(data)).toEqual(['rapidLossBaselineAt']);
+    expect(data.rapidLossBaselineAt).toBeInstanceOf(Date);
+  });
+
+  it('«blocca il piano» registra CHI l’ha messo: da lì dipende chi può riattivarlo', async () => {
+    const prisma = prismaCon();
+    await make(prisma).eseguiAzione(user, 'dec1', 'blocca_piano', 'la sento domani');
+    const data = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
+    expect(data.planHeldAt).toBeInstanceOf(Date);
+    expect(data.planHeldById).toBe('nut-1');
+    expect(data.planHeldReason).toBe('la sento domani');
+  });
+
+  it('l’azione chiude anche la riga in coda: un gesto solo, non due', async () => {
+    const engine = makeEngine();
+    await make(prismaCon(), engine).eseguiAzione(user, 'dec1', 'blocca_piano');
+    expect(engine.reviewDecision).toHaveBeenCalled();
+  });
+
+  it('riattivare: chi NON ha messo il blocco non può toglierlo', async () => {
+    const prisma = {
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({ planHeldAt: new Date(), planHeldById: 'nut-ALTRA' }),
+        update: jest.fn(),
+      },
+    };
+    await expect(make(prisma).riattivaPianoFermato(user, 'p1')).rejects.toThrow('può riattivarlo lui');
+    expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('riattivare: il capo può sempre, e ripulisce tutti e tre i campi', async () => {
+    const prisma = {
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'capo-1' }) },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({ planHeldAt: new Date(), planHeldById: 'nut-ALTRA' }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    await make(prisma).riattivaPianoFermato(head, 'p1');
+    expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data).toEqual({
+      planHeldAt: null, planHeldReason: null, planHeldById: null,
+    });
+  });
+
+  it('riattivare un piano che non è fermo → errore chiaro, non un finto ok', async () => {
+    const prisma = {
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ planHeldAt: null, planHeldById: null }), update: jest.fn() },
+    };
+    await expect(make(prisma).riattivaPianoFermato(user, 'p1')).rejects.toThrow('non è fermo');
   });
 });

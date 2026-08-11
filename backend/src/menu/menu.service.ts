@@ -130,7 +130,7 @@ export class MenuService {
     const today = toDateOnly();
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { planStartDate: true, screeningFlag: true },
+      select: { planStartDate: true, screeningFlag: true, planHeldAt: true },
     });
     const planStartDate = profile?.planStartDate ? profile.planStartDate.toISOString().slice(0, 10) : null;
 
@@ -213,6 +213,18 @@ export class MenuService {
       }
     }
 
+    /**
+     * 6-bis) PIANO FERMATO DAL NUTRIZIONISTA. Sta **prima** di `blocked` di proposito: se sono
+     * accesi tutti e due, quello che descrive la situazione vera è questo — una persona ha deciso
+     * di fermare i giorni nuovi — mentre l'altro parla di esclusioni alimentari.
+     *
+     * E soprattutto ha un testo **onesto**. Il vecchio `blocked` dice alla cliente «la nutrizionista
+     * sta sistemando il tuo menu per rispettare le tue esclusioni», che quando il piano è fermo per
+     * un calo troppo rapido è semplicemente falso: le fa credere a un problema di ingredienti e la
+     * lascia ad aspettare un menu che non arriverà finché non la si sente.
+     */
+    if (profile?.planHeldAt) return { state: 'plan_held', availableFrom: null, planStartDate };
+
     // 7) Piano in sistemazione col nutrizionista (esclusioni non sostituibili).
     const block = await this.dietBlock(clientId);
     if (block.active) return { state: 'blocked', availableFrom: null, planStartDate };
@@ -281,6 +293,21 @@ export class MenuService {
     // Periodo senza dieta attivo: erogazione sospesa (il monitoraggio continua).
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return [];
+
+    /**
+     * PIANO FERMATO DAL NUTRIZIONISTA (§15.2 punto 4, decisione dell'11/8).
+     *
+     * Questo è il controllo che al «piano bloccato» di prima **mancava**: `dietBlock` — quello che
+     * nasce dagli allergeni — è letto da `getMenu` e da `menuStatus`, cioè decide solo cosa la
+     * cliente *legge*, e non è mai stato letto qui. Risultato: il piano risultava bloccato sullo
+     * schermo e i giorni continuavano ad arrivare.
+     *
+     * Si fermano solo i giorni **nuovi**: quelli già erogati, incluso oggi, restano suoi e non si
+     * toccano. Toglierle di mano un menu che ha già in mano — magari dopo aver fatto la spesa — è
+     * un danno che nessuna ragione clinica giustifica: il blocco serve a non mandarle *altro*
+     * finché una persona non ha guardato.
+     */
+    if ((profile as { planHeldAt?: Date | null }).planHeldAt) return [];
 
     const today = toDateOnly();
     const start = toDateOnly(profile.planStartDate.toISOString());
@@ -1602,6 +1629,8 @@ export class MenuService {
    * si eroga solo la differenza, il conteggio dei giorni già ricevuti non cambia.
    */
   async redeliverFutureDays(clientId: string): Promise<{ removed: number; delivered: string[] }> {
+    // Come `regenerateFromToday`: col piano fermo si cancellerebbe senza poter rierogare.
+    if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [] };
     const today = toDateOnly();
     const del = await this.prisma.menuDay.deleteMany({ where: { clientId, date: { gt: today } } });
     const delivered = await this.deliverIfEligible(clientId);
@@ -1616,10 +1645,24 @@ export class MenuService {
    * (quindi può restituire 0 giorni se la cliente non è idonea: es. misure mancanti).
    */
   async regenerateFromToday(clientId: string): Promise<{ removed: number; delivered: string[] }> {
+    // Piano fermato dal nutrizionista: NON si cancella niente. `deliverIfEligible` non rieroga
+    // finché il blocco è attivo, quindi una rigenerazione qui toglierebbe alla cliente i giorni
+    // che il blocco le lascia di proposito — «i giorni già ricevuti, incluso oggi, restano suoi» —
+    // e le lascerebbe lo schermo vuoto. Chi vuole davvero rigenerare, prima riattiva il piano.
+    if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [] };
     const today = toDateOnly();
     const del = await this.prisma.menuDay.deleteMany({ where: { clientId, date: { gte: today } } });
     const delivered = await this.deliverIfEligible(clientId);
     return { removed: del.count, delivered };
+  }
+
+  /** Vero se il piano è fermato dal nutrizionista (`planHeldAt`). Vedi §15.2 punto 4. */
+  private async pianoFermato(clientId: string): Promise<boolean> {
+    const p = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { planHeldAt: true },
+    })) as { planHeldAt: Date | null } | null;
+    return !!p?.planHeldAt;
   }
 
   /**
@@ -1627,6 +1670,8 @@ export class MenuService {
    * dalla nuova data impostata (il piano ricomincia da lì).
    */
   async restartFromPlanStart(clientId: string): Promise<{ removed: number; delivered: string[] }> {
+    // Come sopra, e qui il danno sarebbe massimo: cancella TUTTI i menu.
+    if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [] };
     const del = await this.prisma.menuDay.deleteMany({ where: { clientId } });
     const delivered = await this.deliverIfEligible(clientId);
     return { removed: del.count, delivered };

@@ -2,7 +2,7 @@
 // (spiega PERCHÉ e QUANDO arriva) invece di lasciarla pensare che l'app sia rotta.
 // Lo stato è calcolato dal backend (GET /me/menu → `status`).
 export interface MenuStatus {
-  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'awaiting_cycle_measure' | 'paused' | 'blocked' | 'preparing' | 'expired' | 'monitoring';
+  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'awaiting_cycle_measure' | 'paused' | 'blocked' | 'plan_held' | 'preparing' | 'expired' | 'monitoring';
   availableFrom: string | null; // yyyy-mm-dd in cui il menu diventa visibile
   planStartDate: string | null;
 }
@@ -101,6 +101,26 @@ export function menuStatusView(
         icon: 'ti-heart-handshake',
         title: 'Stiamo personalizzando il tuo piano',
         text: 'La nutrizionista sta sistemando il tuo menu per rispettare le tue esclusioni.',
+      };
+    /**
+     * IL PIANO FERMATO DAL NUTRIZIONISTA — e perché ha parole sue e non quelle di `blocked`.
+     *
+     * Prima l'unico modo di fermare un piano era la segnalazione «Piano bloccato», che dice alla
+     * cliente che stiamo sistemando le sue **esclusioni alimentari**. Quando il piano è fermo per
+     * un calo troppo rapido quella frase è falsa due volte: le indica un problema che non ha, e le
+     * fa aspettare un menu che non arriverà finché nessuno la sente.
+     *
+     * Qui si dice la verità in una riga — una persona ha messo in pausa i giorni nuovi, e ti
+     * cercherà — senza spaventarla con la ragione clinica, che è una cosa da dire parlando e non
+     * da leggere in un banner. E si dice l'unica cosa che le serve subito: **i giorni che hai già
+     * restano tuoi**, perché la prima paura davanti a un piano fermo è di aver perso quello che ha
+     * pagato.
+     */
+    case 'plan_held':
+      return {
+        icon: 'ti-player-pause',
+        title: 'Il tuo piano è in pausa',
+        text: 'La nutrizionista ha messo in pausa i nuovi giorni e ti contatterà a breve. I giorni che hai già ricevuto restano disponibili: continua a seguirli come sempre.',
       };
     case 'preparing':
       return {

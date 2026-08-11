@@ -13,6 +13,7 @@ import {
   CreateWaterDto,
 } from './dto/signals.dto';
 import { slopePerDay, weeklyLossRate } from './stats';
+import { MIN_GIORNI_DEFAULT, MIN_PESATE_DEFAULT, statoAllarmeCalo } from './allarme-calo';
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 import { toDateOnly } from '../common/date-only';
@@ -211,7 +212,11 @@ export class SignalsService {
    * assegnato (una sola aperta per volta).
    */
   private async checkRapidLossGuardrail(clientId: string): Promise<boolean> {
-    const threshold = await this.configParams.getNumber('max_weight_change_alert_kg_week', 1.5);
+    const [threshold, minGiorniRiarmo, minPesateRiarmo] = await Promise.all([
+      this.configParams.getNumber('max_weight_change_alert_kg_week', 1.5),
+      this.configParams.getNumber('rapid_loss_resume_min_days', MIN_GIORNI_DEFAULT),
+      this.configParams.getNumber('rapid_loss_resume_min_measures', MIN_PESATE_DEFAULT),
+    ]);
     const twoWeeksAgo = new Date(Date.now() - 14 * 86_400_000);
     const recent = await this.prisma.measurement.findMany({
       where: { clientId, date: { gte: twoWeeksAgo } },
@@ -220,9 +225,30 @@ export class SignalsService {
     });
     if (recent.length < 3) return false;
 
-    const rate = weeklyLossRate(
-      slopePerDay(recent.map((m: { date: Date; weightKg: number }) => ({ date: m.date, value: m.weightKg }))),
+    /**
+     * «AUTORIZZA A PROSEGUIRE» VALE ANCHE QUI, e questo è il punto in cui contava di più.
+     *
+     * Questa segnalazione nasce a **ogni pesata salvata**, non una volta a notte: se il baseline
+     * non venisse letto qui, il nutrizionista autorizzerebbe la cliente a proseguire e si
+     * ritroverebbe una segnalazione clinica nuova alla sua prima pesata successiva — cioè lo stesso
+     * giorno. La tregua di `riapertura.ts` qui sotto **non basta**: quella impedisce a una
+     * segnalazione *già chiusa* di riaprirsi, mentre qui la questione è che l'allarme non deve
+     * proprio calcolarsi finché non ci sono pesate nuove a sufficienza.
+     */
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { rapidLossBaselineAt: true },
+    })) as { rapidLossBaselineAt: Date | null } | null;
+    const allarme = statoAllarmeCalo(
+      recent.map((m: { date: Date; weightKg: number }) => ({ date: m.date, value: m.weightKg })),
+      profilo?.rapidLossBaselineAt ?? null,
+      new Date(),
+      minGiorniRiarmo,
+      minPesateRiarmo,
     );
+    if (!allarme.armato) return false;
+
+    const rate = weeklyLossRate(slopePerDay(allarme.pesate));
     if (rate === null || rate <= threshold) return false;
 
     /**
