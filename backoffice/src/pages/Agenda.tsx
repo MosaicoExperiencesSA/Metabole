@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface VisitRow {
   id: string;
@@ -52,11 +52,11 @@ export function Agenda() {
     { chiave: 'cliente', titolo: 'Cliente', valore: (r) => (r.client ? name(r.client) : null), filtro: 'testo' },
     { chiave: 'nutrizionista', titolo: 'Nutrizionista', valore: (r) => r.nutritionist?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'tipo', titolo: 'Tipo', valore: (r) => r.type, filtro: 'scelta', etichettaTutti: 'Tutti', etichetta: (v) => TYPE[v] ?? v },
-    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status, esporta: (r) => STATUS[r.status]?.label ?? r.status },
   ];
 
   // L'agenda si legge dalla prima visita in poi: è l'ordine del server (`datetime asc`).
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'asc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'asc' }, nomeExcel: 'Agenda'});
 
   if (loading) return <Spinner />;
 
@@ -65,7 +65,10 @@ export function Agenda() {
       <p className="muted" style={{ marginTop: 0 }}>Visite col nutrizionista (le note cliniche restano nella scheda).</p>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="visite" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="visite" />
+          <BottoneExcel tabella={t} />
+        </div>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <input
             className="input"

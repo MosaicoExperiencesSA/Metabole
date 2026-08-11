@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface ClientRow {
   id: string;
@@ -101,7 +101,7 @@ export function Clienti() {
   ];
 
   // L'elenco arriva dal server dalla più recente: è l'ordine con cui la pagina si apre da sempre.
-  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'creato', direzione: 'desc' } });
+  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'creato', direzione: 'desc' }, nomeExcel: 'Clienti'});
   const filtriAttivi = t.filtriAttivi || fGlutine !== '';
   function azzeraTutto() {
     t.azzera();
@@ -120,12 +120,15 @@ export function Clienti() {
           pagina. Con i filtri attivi il «di quante» è quello caricato — è l'insieme su cui i filtri
           lavorano davvero — e la differenza fra i due la dichiara l'avviso del tetto qui sotto.
         */}
-        <ContatoreRighe
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe
           conteggio={{ mostrate: t.conteggio.mostrate, totali: filtriAttivi ? rows.length : totale || rows.length }}
           filtriAttivi={filtriAttivi}
           azzera={azzeraTutto}
           nome="clienti"
         />
+          <BottoneExcel tabella={t} avviso={limite > 0 && totale > rows.length ? `Questa pagina ha caricato ${rows.length} clienti su ${totale}: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle. Per cercare fra tutte usa la board dei lead. Scarico lo stesso?` : undefined} />
+        </div>
         <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
           <input
             className="input"

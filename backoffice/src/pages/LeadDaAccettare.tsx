@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner, Toggle } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 /** Un lead in attesa di accettazione (endpoint operativo: è su questi che si accetta/rifiuta). */
 interface Pending {
@@ -205,7 +205,7 @@ export function LeadDaAccettare() {
     { chiave: 'azioni', titolo: '' },
   ];
 
-  const t = useTabella(righe, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'asc' } });
+  const t = useTabella(righe, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'asc' }, nomeExcel: 'Lead da accettare'});
 
   // La selezione multipla vale solo sulle righe in attesa e visibili: selezionare «tutti» e
   // ritrovarsi ad assegnare anche righe filtrate via sarebbe una sorpresa spiacevole.
@@ -291,7 +291,10 @@ export function LeadDaAccettare() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="assegnazioni" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="assegnazioni" />
+          <BottoneExcel tabella={t} />
+        </div>
         <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             className="input"

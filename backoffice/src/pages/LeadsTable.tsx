@@ -5,6 +5,10 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
 import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
 import { useOrdinamentoServer } from '../components/tabella';
+import { oggiIso, scaricaExcel } from '../lib/excel';
+
+/** Oltre questo numero di righe il browser si ferma e il file diventa ingestibile. */
+const TETTO_EXPORT = 5000;
 
 interface Stage {
   key: string;
@@ -71,6 +75,7 @@ export function LeadsTable() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [nutritionists, setNutritionists] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
+  const [esportando, setEsportando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [allLists, setAllLists] = useState<CrmList[]>([]);
@@ -200,27 +205,38 @@ export function LeadsTable() {
     } catch { /* stage/liste non bloccano la tabella */ }
   }
 
+  /**
+   * I FILTRI CORRENTI, in un posto solo.
+   *
+   * Li usano la ricerca (una pagina per volta) e l'esportazione in Excel (tutte le pagine). Scritti
+   * due volte, prima o poi divergono — e un file che dice di avere i filtri applicati ma ne ha uno
+   * in meno è peggio di un file senza filtri: quello lo si controlla, questo lo si crede.
+   */
+  function paramsCorrenti(p: number, dimensione: number): string {
+    const params = new URLSearchParams();
+    params.set('page', String(p));
+    params.set('pageSize', String(dimensione));
+    const qv = filter.trim() || fEmail.trim() || fName.trim();
+    if (qv) params.set('q', qv);
+    if (fStage) params.set('stage', fStage);
+    if (listFilter) params.set('listId', listFilter);
+    if (fCoach) params.set('coachId', fCoach);
+    if (fNutri) params.set('nutriId', fNutri);
+    if (fTipo) params.set('tipo', fTipo);
+    const mn = parseEuro(fValMin); if (mn != null) params.set('valueMin', String(mn));
+    const mx = parseEuro(fValMax); if (mx != null) params.set('valueMax', String(mx));
+    if (fDateFrom) params.set('dateFrom', fDateFrom);
+    if (fDateTo) params.set('dateTo', fDateTo);
+    if (sortKey) { params.set('sortKey', sortKey); params.set('sortDir', sortDir); }
+    return params.toString();
+  }
+
   // Carica UNA pagina dal server, coi filtri/ordinamento applicati lato DB.
   async function fetchLeads(p: number) {
     const seq = ++searchSeq.current;
     setSearching(true);
     try {
-      const params = new URLSearchParams();
-      params.set('page', String(p));
-      params.set('pageSize', '100');
-      const qv = filter.trim() || fEmail.trim() || fName.trim();
-      if (qv) params.set('q', qv);
-      if (fStage) params.set('stage', fStage);
-      if (listFilter) params.set('listId', listFilter);
-      if (fCoach) params.set('coachId', fCoach);
-      if (fNutri) params.set('nutriId', fNutri);
-      if (fTipo) params.set('tipo', fTipo);
-      const mn = parseEuro(fValMin); if (mn != null) params.set('valueMin', String(mn));
-      const mx = parseEuro(fValMax); if (mx != null) params.set('valueMax', String(mx));
-      if (fDateFrom) params.set('dateFrom', fDateFrom);
-      if (fDateTo) params.set('dateTo', fDateTo);
-      if (sortKey) { params.set('sortKey', sortKey); params.set('sortDir', sortDir); }
-      const r = await api<{ rows: Lead[]; total: number }>(`/crm/leads?${params.toString()}`);
+      const r = await api<{ rows: Lead[]; total: number }>(`/crm/leads?${paramsCorrenti(p, 100)}`);
       if (seq === searchSeq.current) { setLeads(r.rows ?? []); setTotal(r.total ?? 0); }
     } catch (err) {
       if (seq === searchSeq.current) setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -274,6 +290,67 @@ export function LeadsTable() {
 
   if (loading) return <Spinner />;
 
+
+  /**
+   * ESPORTA IN EXCEL — qui è diverso da tutte le altre tabelle.
+   *
+   * Le altre hanno tutte le righe in mano e `<BottoneExcel>` scrive quelle. Qui no: i lead sono
+   * decine di migliaia, filtro, ordinamento e pagine li fa il database, e in memoria c'è **una
+   * pagina**. Esportare quella sarebbe cento righe su ottomila, senza dirlo.
+   *
+   * Quindi si richiede al server, con gli stessi filtri, pagina dopo pagina. Con un tetto: oltre
+   * `TETTO_EXPORT` righe il browser si ferma e il file diventa ingestibile — e quando il tetto morde
+   * lo si dice PRIMA, perché su un foglio di calcolo non c'è nessun banner che avvisa dopo.
+   */
+  async function esportaExcel() {
+    setEsportando(true);
+    setError(null);
+    try {
+      /**
+       * ⚠️ Il conteggio si RILEGGE, non si prende da `total`.
+       *
+       * `total` viene dall'ultima ricerca, che parte 300 ms dopo l'ultimo tasto. Azzerando i filtri e
+       * cliccando subito «Esporta», `total` è ancora quello di prima: il ciclo si fermerebbe alla
+       * terza riga e il file direbbe «3 contatti» avendone davanti quarantamila. Il numero giusto
+       * arriva con la prima pagina — che va chiesta comunque.
+       */
+      const prima = await api<{ rows: Lead[]; total: number }>(`/crm/leads?${paramsCorrenti(0, 500)}`);
+      const trovati = prima.total ?? 0;
+      const quante = Math.min(trovati, TETTO_EXPORT);
+      // eslint-disable-next-line no-alert
+      if (trovati > TETTO_EXPORT && !confirm(`I filtri trovano ${trovati.toLocaleString('it-IT')} contatti. Il file ne conterrà i primi ${TETTO_EXPORT.toLocaleString('it-IT')}, nell'ordine che vedi adesso.\n\nPer averli tutti, restringi con un filtro. Scarico lo stesso?`)) { setEsportando(false); return; }
+
+      const tutte: Lead[] = [...(prima.rows ?? [])];
+      for (let p = 1; tutte.length < quante; p++) {
+        const r = await api<{ rows: Lead[]; total: number }>(`/crm/leads?${paramsCorrenti(p, 500)}`);
+        const righe = r.rows ?? [];
+        if (righe.length === 0) break;
+        tutte.push(...righe);
+      }
+      scaricaExcel(`Gestione lead-${oggiIso()}`, {
+        nome: 'Gestione lead',
+        intestazioni: ['Nome', 'Cognome', 'Email', 'Stato', 'Coach', 'Nutrizionista', 'Tipo', 'Valore €', 'Creato'],
+        // Le stesse nove colonne della tabella, nello stesso ordine. `createdAt` è una stringa ISO e
+        // diventa una cella data vera; il valore esce in euro e non in centesimi, così si somma.
+        righe: tutte.slice(0, quante).map((l) => [
+          nomeDi(l),
+          l.lastName || '',
+          l.client?.email ?? l.email ?? l.phone ?? '',
+          stageOf(l.stage)?.label ?? l.stage,
+          l.assignedCoach?.displayName ?? l.client?.clientProfile?.assignedCoach?.displayName ?? '',
+          l.client?.clientProfile?.assignedNutritionist?.displayName ?? '',
+          classify(l).label,
+          (l.valueCents ?? l.historicalPaidCents ?? 0) / 100,
+          l.createdAt,
+        ]),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Esportazione non riuscita.');
+    } finally {
+      setEsportando(false);
+    }
+  }
+
   return (
     <>
       <div className="spread" style={{ marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
@@ -294,6 +371,10 @@ export function LeadsTable() {
           {(filter || listFilter || fName || fEmail || fStage || fCoach || fNutri || fTipo || fValMin || fValMax || fDateFrom || fDateTo) && (
             <button className="btn ghost" onClick={clearFilters} title="Rimuovi tutti i filtri"><i className="ti ti-filter-off" /> Azzera filtri</button>
           )}
+          <button className="btn ghost" onClick={esportaExcel} disabled={esportando || searching || total === 0}
+            title={total === 0 ? 'Nessun contatto da esportare con questi filtri' : `Scarica in Excel i ${Math.min(total, TETTO_EXPORT).toLocaleString('it-IT')} contatti che rispettano i filtri — tutte le pagine, non solo questa`}>
+            <i className="ti ti-file-type-xls" /> {esportando ? 'Preparo…' : 'Esporta in Excel'}
+          </button>
         </div>
         <div className="row" style={{ gap: 8 }}>
           {can('accounting', 'manage') && (

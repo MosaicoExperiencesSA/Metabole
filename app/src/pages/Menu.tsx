@@ -70,7 +70,6 @@ function Recipe({ recipeId, date, tag, onBack }: { recipeId: string; date?: stri
       <div className="recipe-tags">
         <span className="meal-tag" style={{ background: '#F2EFE8', color: '#5F6E6B' }}>{recipe.kcal} kcal</span>
         {tag && <span className="meal-tag" style={{ background: '#DCEBE3', color: '#0E7C66' }}>{tag}</span>}
-        {(recipe.tags ?? []).map((t) => <span key={t} className="meal-tag" style={{ background: '#F2EFE8', color: '#5F6E6B' }}>{t}</span>)}
       </div>
 
       {recipe.ingredients && recipe.ingredients.length > 0 && (

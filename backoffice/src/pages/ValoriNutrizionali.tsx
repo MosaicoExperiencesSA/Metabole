@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, stileScorrevole, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, stileScorrevole, type Colonna } from '../components/tabella';
 
 /**
  * VALORI NUTRIZIONALI — la tabella da cui Gaia prende i numeri, e l'unico posto dove si correggono.
@@ -174,7 +174,9 @@ export function ValoriNutrizionali() {
       filtro: 'scelta', etichettaTutti: 'Tutte', ordineScelte: ['Solida', 'Media', 'Debole'],
     },
     { chiave: 'kcal', titolo: 'kcal/100 g', valore: (v) => v.kcal },
-    { chiave: 'macro', titolo: 'P / C / G / F', nonOrdinabile: true },
+    // ⚠️ `esporta` senza `valore`: la colonna resta non ordinabile a schermo (è quattro numeri in
+    // uno), ma nel file ci DEVE essere — è il motivo per cui questa tabella si esporta.
+    { chiave: 'macro', titolo: 'P / C / G / F', nonOrdinabile: true, esporta: (v) => `${numero(v.protein)} / ${numero(v.carbs)} / ${numero(v.fat)} / ${numero(v.fiber)}` },
     {
       chiave: 'stato', titolo: 'Confermato',
       valore: (v) => (v.verifiedAt ? `Sì — ${v.verifiedBy?.displayName ?? 'staff'}` : 'Da confermare'),
@@ -183,7 +185,7 @@ export function ValoriNutrizionali() {
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' }, nonOrdinabile: true },
   ];
 
-  const t = useTabella(valori, COLONNE, { ordineIniziale: { chiave: 'name' }, testaFissa: true });
+  const t = useTabella(valori, COLONNE, { ordineIniziale: { chiave: 'name' }, testaFissa: true, nomeExcel: 'Valori nutrizionali'});
   const daConfermare = valori.filter((v) => !v.verifiedAt).length;
 
   if (loading) return <Spinner />;
@@ -255,7 +257,10 @@ export function ValoriNutrizionali() {
             onChange={(e) => t.setRicerca(e.target.value)}
           />
         </div>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="alimenti" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="alimenti" />
+          <BottoneExcel tabella={t} />
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0, ...stileScorrevole(t.conteggio.mostrate) }}>

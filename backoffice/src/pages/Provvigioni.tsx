@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Commission {
   id: string;
@@ -71,12 +71,12 @@ export function Provvigioni() {
     { chiave: 'prodotto', titolo: 'Prodotto', valore: (r) => r.product, filtro: 'testo' },
     { chiave: 'ricevente', titolo: 'Ricevente', valore: (r) => r.recipient, filtro: 'scelta', etichettaTutti: 'Tutti' },
     // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
-    { chiave: 'importo', titolo: 'Importo', valore: (r) => r.amountCents, stile: { textAlign: 'right' } },
+    { chiave: 'importo', titolo: 'Importo', valore: (r) => r.amountCents, stile: { textAlign: 'right' }, esporta: (r) => (r.amountCents ?? 0) / 100 },
     { chiave: 'azioni', titolo: '' },
   ];
 
   // Il server manda le più recenti in cima: lo stesso ordine resta quello di partenza.
-  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' }, nomeExcel: 'Provvigioni'});
   const filtriSopra = min !== '' || max !== '';
   function azzeraTutto() { t.azzera(); setMin(''); setMax(''); }
 
@@ -97,12 +97,15 @@ export function Provvigioni() {
       )}
 
       <div className="spread" style={{ marginBottom: 10, gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <ContatoreRighe
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe
           conteggio={{ mostrate: t.conteggio.mostrate, totali: rows.length }}
           filtriAttivi={t.filtriAttivi || filtriSopra}
           azzera={azzeraTutto}
           nome="provvigioni"
         />
+          <BottoneExcel tabella={t} />
+        </div>
         <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <input className="input" style={{ maxWidth: 220 }} placeholder="Cerca in tutte le colonne…" value={t.ricerca} onChange={(e) => t.setRicerca(e.target.value)} />
           <Field label="Importo min (€)"><input className="input sm" type="number" step="0.01" style={{ width: 110 }} value={min} onChange={(e) => setMin(e.target.value)} /></Field>

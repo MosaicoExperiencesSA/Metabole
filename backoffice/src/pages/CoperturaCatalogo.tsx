@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
 
 /**
@@ -254,8 +254,7 @@ export function CoperturaCatalogo() {
   const t = useTabella(righe, COLONNE, {
     perPagina: 200,
     ordineIniziale: { chiave: 'name' },
-    testaFissa: true,
-  });
+    testaFissa: true, nomeExcel: 'Copertura catalogo'});
 
   // Al primo caricamento la pagina è vuota e il posto giusto per lo spinner è tutto lo spazio.
   // Ai caricamenti successivi (cambio settimana) no: sparirebbe il selettore appena usato, e si
@@ -357,7 +356,10 @@ export function CoperturaCatalogo() {
           value={t.ricerca}
           onChange={(e) => t.setRicerca(e.target.value)}
         />
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="varianti" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="varianti" />
+          <BottoneExcel tabella={t} />
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>

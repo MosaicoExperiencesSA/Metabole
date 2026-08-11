@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 type Status = 'pending' | 'receipt_uploaded' | 'approved' | 'rejected' | 'cancelled';
 
@@ -181,7 +181,7 @@ export function Payments() {
     { chiave: 'cliente', titolo: 'Cliente', valore: (p) => `${clientName(p)} ${p.client?.email ?? ''}`.trim(), filtro: 'testo' },
     { chiave: 'descrizione', titolo: 'Descrizione', valore: (p) => p.description, filtro: 'testo' },
     // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
-    { chiave: 'importo', titolo: 'Importo', valore: (p) => p.amountCents },
+    { chiave: 'importo', titolo: 'Importo', valore: (p) => p.amountCents, esporta: (p) => (p.amountCents ?? 0) / 100 },
     { chiave: 'metodo', titolo: 'Metodo', valore: (p) => p.method, filtro: 'scelta', etichetta: methodLabel, etichettaTutti: 'Tutti' },
     // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
     { chiave: 'data', titolo: 'Data', valore: (p) => p.createdAt },
@@ -191,7 +191,7 @@ export function Payments() {
   ];
 
   // Il server manda i più recenti in cima: lo stesso ordine resta quello di partenza.
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' }, nomeExcel: 'Pagamenti'});
 
   if (loading) return <Spinner />;
 
@@ -228,7 +228,10 @@ export function Payments() {
       </div>
 
       <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="pagamenti" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="pagamenti" />
+          <BottoneExcel tabella={t} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

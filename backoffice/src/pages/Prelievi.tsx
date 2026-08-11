@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Withdrawal {
   id: string; staffName: string; staffEmail: string | null;
@@ -82,7 +82,7 @@ export function Prelievi() {
     { chiave: 'staff', titolo: 'Staff', valore: (w) => `${w.staffName} ${w.staffEmail ?? ''}`.trim(), filtro: 'testo' },
     { chiave: 'iban', titolo: 'IBAN', valore: (w) => w.iban, filtro: 'testo' },
     // I centesimi, non «100,00 €»: come testo «100,00 €» finirebbe prima di «20,00 €».
-    { chiave: 'importo', titolo: 'Importo', valore: (w) => w.amountCents, stile: { textAlign: 'right' } },
+    { chiave: 'importo', titolo: 'Importo', valore: (w) => w.amountCents, stile: { textAlign: 'right' }, esporta: (w) => (w.amountCents ?? 0) / 100 },
     // Il filtro serve nel tab «Tutte»: negli altri i tab hanno già scelto lo stato.
     // Il filtro serve nel tab «Tutte»; ordine del ciclo di vita, non alfabetico.
     { chiave: 'stato', titolo: 'Stato', valore: (w) => STATO_LABEL[w.status] ?? w.status, filtro: 'scelta', etichettaTutti: 'Tutti', ordineScelte: ['In attesa', 'Pagato', 'Rifiutato'] },
@@ -94,7 +94,7 @@ export function Prelievi() {
   ];
 
   // Una coda si smaltisce dalla richiesta più vecchia: è l'ordine del server dentro ogni tab.
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'richiesto', direzione: 'asc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'richiesto', direzione: 'asc' }, nomeExcel: `Prelievi — ${TABS.find((x) => x.key === tab)?.label ?? tab}`});
 
   return (
     <>
@@ -116,7 +116,10 @@ export function Prelievi() {
       )}
 
       <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="richieste" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="richieste" />
+          <BottoneExcel tabella={t} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

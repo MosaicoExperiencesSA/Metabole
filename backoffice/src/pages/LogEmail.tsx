@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface LogRow {
   id: string;
@@ -81,14 +81,17 @@ export function LogEmail() {
     { chiave: 'stato', titolo: 'Stato', valore: (r) => STATUS[r.status]?.label ?? r.status, filtro: 'scelta', etichettaTutti: 'Tutti gli stati', ordineScelte: ['Fallita', 'Non inviata', 'Inviata'] },
   ];
 
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'desc' }, nomeExcel: 'Log email'});
 
   if (loading) return <Spinner />;
 
   return (
     <>
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="email caricate" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="email caricate" />
+          <BottoneExcel tabella={t} avviso={rows.length >= TETTO ? `Questa pagina ha caricato solo le ${TETTO} email più recenti: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle. Scarico lo stesso?` : undefined} />
+        </div>
         <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <p className="muted" style={{ margin: 0 }}>Clicca una riga per l'anteprima.</p>
           <input

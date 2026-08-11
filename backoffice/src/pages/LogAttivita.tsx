@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { noteModifica, righeModifica } from '../lib/logModifiche';
 
 interface AuditRow {
@@ -123,14 +123,17 @@ export function LogAttivita() {
   ];
 
   // Il log si guarda dal più recente: è l'ordine del server, e resta quello di default.
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'quando', direzione: 'desc' }, nomeExcel: 'Log attività'});
 
   if (loading && rows.length === 0) return <Spinner />;
 
   return (
     <>
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="azioni caricate" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="azioni caricate" />
+          <BottoneExcel tabella={t} avviso={totale > rows.length ? `Questa pagina ha caricato ${rows.length} azioni su ${totale}: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle. Carica più righe dal menu qui sopra per andare più indietro. Scarico lo stesso?` : undefined} />
+        </div>
         <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
           <input
             className="input"

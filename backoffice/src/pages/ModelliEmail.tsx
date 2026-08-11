@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Template {
   key: string;
@@ -58,7 +58,7 @@ export function ModelliEmail() {
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
 
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'nome', direzione: 'asc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'nome', direzione: 'asc' }, nomeExcel: 'Modelli email'});
 
   if (loading) return <Spinner />;
 
@@ -72,7 +72,10 @@ export function ModelliEmail() {
       </div>
 
       <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="modelli" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="modelli" />
+          <BottoneExcel tabella={t} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

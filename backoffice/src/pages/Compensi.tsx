@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface CompRow {
   staffId: string;
@@ -51,13 +51,13 @@ export function Compensi() {
     { chiave: 'persona', titolo: 'Persona', valore: (r) => r.displayName, filtro: 'testo' },
     { chiave: 'ruolo', titolo: 'Ruolo', valore: (r) => r.role, filtro: 'scelta', etichetta: (v) => ROLE[v] ?? v, etichettaTutti: 'Tutti' },
     // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
-    { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (r) => r.commissionCents, stile: { textAlign: 'right' } },
-    { chiave: 'compensi', titolo: 'Compensi visite', valore: (r) => r.compensationCents, stile: { textAlign: 'right' } },
-    { chiave: 'totale', titolo: 'Totale', valore: (r) => r.totalCents, stile: { textAlign: 'right' } },
+    { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (r) => r.commissionCents, stile: { textAlign: 'right' }, esporta: (r) => (r.commissionCents ?? 0) / 100 },
+    { chiave: 'compensi', titolo: 'Compensi visite', valore: (r) => r.compensationCents, stile: { textAlign: 'right' }, esporta: (r) => (r.compensationCents ?? 0) / 100 },
+    { chiave: 'totale', titolo: 'Totale', valore: (r) => r.totalCents, stile: { textAlign: 'right' }, esporta: (r) => (r.totalCents ?? 0) / 100 },
   ];
 
   // Il server manda chi prende più in cima: lo stesso ordine resta quello di partenza.
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'totale', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'totale', direzione: 'desc' }, nomeExcel: 'Compensi'});
 
   // I totali seguono i filtri: sono la somma di quello che si sta guardando, non di tutto.
   const totals = t.tutte.reduce(
@@ -78,7 +78,10 @@ export function Compensi() {
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="persone" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="persone" />
+          <BottoneExcel tabella={t} />
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}

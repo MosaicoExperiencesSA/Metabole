@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface EscalationRow {
   id: string;
@@ -18,6 +18,9 @@ interface EscalationRow {
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
 const SOURCE: Record<string, string> = { screening: 'Screening sanitario', coach: 'Coach', engine: 'Motore' };
 // Allineato a backend/src/escalations/escalation-routing.ts (R12).
+/** Le stesse tre voci della tendina nella cella: nel file va l'etichetta, non `open`. */
+const STATO_ETICHETTA: Record<string, string> = { open: 'Aperta', in_progress: 'In corso', resolved: 'Risolta' };
+
 const CATEGORY_LABEL: Record<string, string> = {
   diet_blocked: 'Piano bloccato',
   no_progress: 'Nessun progresso',
@@ -83,10 +86,10 @@ export function Segnalazioni() {
     { chiave: 'origine', titolo: 'Origine', valore: (r) => r.source, filtro: 'scelta', etichettaTutti: 'Tutte', etichetta: (v) => SOURCE[v] ?? v },
     { chiave: 'incarico', titolo: 'Presa in carico', valore: (r) => r.assignedTo?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'data', titolo: 'Data', valore: (r) => r.createdAt },
-    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status, esporta: (r) => STATO_ETICHETTA[r.status] ?? r.status },
   ];
 
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'data', direzione: 'desc' }, nomeExcel: 'Segnalazioni'});
 
   if (loading) return <Spinner />;
 
@@ -95,7 +98,10 @@ export function Segnalazioni() {
       <p className="muted" style={{ marginTop: 0 }}>Segnalazioni da screening, coach o motore. Presa in carico dal nutrizionista.</p>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="segnalazioni" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="segnalazioni" />
+          <BottoneExcel tabella={t} />
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
             className="input"

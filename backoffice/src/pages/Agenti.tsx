@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 /**
  * Registro Agenti AI (mirror del prototipo Metabole_Dashboard_Agenti.html):
@@ -270,12 +270,12 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
     // Il verdetto è già una parola italiana (approva/rivedi/blocca): nella tendina va così com'è.
     { chiave: 'giudice', titolo: 'Giudice', valore: (r) => r.verdict, filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'token', titolo: 'Token', valore: (r) => r.inputTokens + r.outputTokens },
-    { chiave: 'costo', titolo: 'Costo', valore: (r) => r.costCents },
+    { chiave: 'costo', titolo: 'Costo', valore: (r) => r.costCents, esporta: (r) => (r.costCents ?? 0) / 100 },
   ];
 
   // Lo storico si legge dalla più recente, che è l'ordine del server. Niente `Pager`: il server
   // manda al massimo 50 righe e stanno in una schermata che scorre.
-  const t = useTabella(rows ?? [], COLONNE, { perPagina: 500, ordineIniziale: { chiave: 'quando', direzione: 'desc' }, testaFissa: true });
+  const t = useTabella(rows ?? [], COLONNE, { perPagina: 500, ordineIniziale: { chiave: 'quando', direzione: 'desc' }, testaFissa: true, nomeExcel: `Esecuzioni — ${agent.name}`});
 
   return (
     <Modal title={`Esecuzioni — ${agent.name}`} onClose={onClose}>
@@ -284,7 +284,10 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
       ) : (
         <>
           <div className="spread" style={{ marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
-            <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="esecuzioni" />
+            <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="esecuzioni" />
+          <BottoneExcel tabella={t} avviso={rows.length >= TETTO_RUNS ? `Questa pagina ha caricato solo le ${TETTO_RUNS} esecuzioni più recenti: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle. Scarico lo stesso?` : undefined} />
+        </div>
             <input
               className="input"
               style={{ maxWidth: 220 }}

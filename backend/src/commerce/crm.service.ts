@@ -464,7 +464,18 @@ export class CrmService {
       value: { valueCents: dir },
       coach: { assignedCoach: { displayName: dir } },
     };
-    const orderBy = (filter.sortKey && sortMap[filter.sortKey] ? sortMap[filter.sortKey] : { updatedAt: 'desc' }) as never;
+    /**
+     * ⚠️ `id` COME SECONDO CRITERIO, sempre.
+     *
+     * Nessuno dei campi ordinabili è univoco: i lead importati da un CSV in un colpo condividono
+     * `updatedAt` al millisecondo, e decine hanno lo stesso stato o lo stesso valore. Con un
+     * ordinamento non univoco Postgres non garantisce lo stesso ordine fra due query, e chi legge a
+     * pagine — l'elenco, e dall'11/8 anche l'esportazione in Excel, che ne chiede dieci di fila —
+     * riceve righe **ripetute** in una pagina e altre che non compaiono in nessuna. A schermo si
+     * nota poco; in un file che dichiara di essere completo, no.
+     */
+    const primario = (filter.sortKey && sortMap[filter.sortKey] ? sortMap[filter.sortKey] : { updatedAt: 'desc' }) as Record<string, unknown>;
+    const orderBy = [primario, { id: 'asc' }] as never;
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.crmRecord.findMany({

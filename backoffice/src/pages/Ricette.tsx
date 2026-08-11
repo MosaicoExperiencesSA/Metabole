@@ -15,7 +15,6 @@ interface Recipe {
   kcal: number;
   ingredients: Ingredient[];
   cookingMethods?: CookingMethod[] | null;
-  tags: string[];
   difficulty?: string;
   seasons?: string[];
   active: boolean;
@@ -76,7 +75,6 @@ const METHODS = Object.keys(METHOD);
 const DIFFICULTIES = Object.keys(DIFFICULTY);
 const SEASONS: [string, string][] = [['spring', 'Primavera'], ['summer', 'Estate'], ['autumn', 'Autunno'], ['winter', 'Inverno']];
 const SEASON_LABEL: Record<string, string> = Object.fromEntries(SEASONS);
-const ITALIAN_TAG = 'cucina italiana';
 
 /** Stagioni in chiaro. Vuoto = il piatto va bene tutto l'anno (vedi modale). */
 const seasonsText = (s?: string[]): string =>
@@ -88,31 +86,25 @@ interface Form {
   regime: string;
   mealSlot: string;
   kcal: string;
-  tags: string;
   difficulty: string;
   seasons: string[];
-  italian: boolean;
   ingredients: Ingredient[];
   methods: FormMethod[];
   active: boolean;
 }
 
 const emptyForm = (regime = 'omnivore'): Form => ({
-  name: '', regime, mealSlot: 'lunch', kcal: '', tags: '', difficulty: 'media', seasons: [], italian: false,
+  name: '', regime, mealSlot: 'lunch', kcal: '', difficulty: 'media', seasons: [],
   ingredients: [{ name: '', qty: null, unit: '' }],
   methods: [{ type: 'veloce', stepsText: '' }],
   active: true,
 });
 
 function toForm(r: Recipe): Form {
-  const tags = r.tags ?? [];
   return {
     name: r.name, regime: r.regime, mealSlot: r.mealSlot, kcal: String(r.kcal),
-    // Il tag "cucina italiana" è gestito con la checkbox dedicata: lo tolgo dal campo Tag libero.
-    tags: tags.filter((t) => t.toLowerCase().trim() !== ITALIAN_TAG).join(', '),
     difficulty: r.difficulty ?? 'media',
     seasons: r.seasons ?? [],
-    italian: tags.some((t) => t.toLowerCase().trim() === ITALIAN_TAG),
     ingredients: r.ingredients?.length ? r.ingredients : [{ name: '', qty: null, unit: '' }],
     methods: (r.cookingMethods ?? []).length
       ? (r.cookingMethods ?? []).map((m) => ({ type: m.type, stepsText: (m.steps ?? []).join('\n') }))
@@ -571,9 +563,17 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
     const cookingMethods = f.methods
       .map((m) => ({ type: m.type, steps: m.stepsText.split('\n').map((s) => s.trim()).filter(Boolean) }))
       .filter((m) => m.steps.length > 0);
-    const tags = f.tags.split(',').map((t) => t.trim()).filter(Boolean).filter((t) => t.toLowerCase() !== ITALIAN_TAG);
-    if (f.italian) tags.push(ITALIAN_TAG);
-    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, tags, difficulty: f.difficulty, seasons: f.seasons, active: f.active };
+    /**
+     * ⚠️ `tags` NON è nel corpo, ed è deliberato.
+     *
+     * `updateRecipe` scrive i tag solo se arrivano (`if (dto.tags !== undefined)`), quindi non
+     * mandarli vuol dire **non toccarli**. Prima il campo di testo libero conteneva anche i tag con
+     * prefisso, e ogni salvataggio riscriveva l'array intero: bastava cancellare `dieta:Pescetariana`
+     * senza accorgersene e il generatore non ritrovava più quella ricetta fra le orfane — così
+     * ricomprava dall'AI un piatto che esisteva già, senza nessun errore. Ora da qui non si possono
+     * più rompere.
+     */
+    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, difficulty: f.difficulty, seasons: f.seasons, active: f.active };
 
     setBusy(true);
     try {
@@ -621,12 +621,6 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
               );
             })}
           </div>
-        </label>
-        <label style={{ gridColumn: '1 / -1' }}><span className="muted" style={{ fontSize: 12 }}>Tag (separati da virgola)</span>
-          <input className="input" value={f.tags} onChange={(e) => setF({ ...f, tags: e.target.value })} placeholder="Da portare, Leggera" /></label>
-        <label className="row" style={{ gridColumn: '1 / -1', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <input type="checkbox" checked={f.italian} onChange={(e) => setF({ ...f, italian: e.target.checked })} />
-          <span style={{ fontSize: 13 }}>Cucina italiana <span className="muted" style={{ fontSize: 11 }}>(piatto della tradizione, adatto alle clienti che vogliono ricette semplici)</span></span>
         </label>
       </div>
 

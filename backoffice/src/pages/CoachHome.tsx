@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, SelettoreRighe, stileScorrevole, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, SelettoreRighe, stileScorrevole, useTabella, type Colonna } from '../components/tabella';
 import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
 import { WalletWidget } from '../components/WalletWidget';
 import { usePreferenzeHome } from '../lib/preferenzeHome';
@@ -135,7 +135,7 @@ export function CoachHome() {
 
   // Come le manda il server: prima chi ha più avvisi aperti, che è da chi si comincia la giornata.
   // `perPagina` viene dalle preferenze: la coach scegle quante righe vedere e la scelta resta.
-  const t = useTabella(clients, COLONNE, { ordineIniziale: { chiave: 'avvisi', direzione: 'desc' }, perPagina: pref.righe, testaFissa: true });
+  const t = useTabella(clients, COLONNE, { ordineIniziale: { chiave: 'avvisi', direzione: 'desc' }, perPagina: pref.righe, testaFissa: true, nomeExcel: 'Le mie clienti'});
 
   if (loading) return <Spinner />;
 
@@ -275,7 +275,10 @@ export function CoachHome() {
         </div>
         {clients.length > 0 && (
           <div className="spread" style={{ padding: '6px 20px 10px', gap: 10, flexWrap: 'wrap' }}>
-            <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="clienti" />
+            <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="clienti" />
+          <BottoneExcel tabella={t} />
+        </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               <input
                 className="input"

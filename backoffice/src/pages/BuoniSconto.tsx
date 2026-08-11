@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Discount {
   id: string;
@@ -88,8 +88,12 @@ export function BuoniSconto() {
         const numero = target ? Math.min(...Object.values(d.planTargets!)) : d.value;
         return `${tipo}${String(numero).padStart(9, '0')}`;
       },
+      // A schermo si legge «10%» o «€ 15,00»: `valore` è solo la chiave che mette in fila
+      // percentuali, sconti fissi e prezzi target. Nel file va quello che si legge.
+      esporta: (d) => valueLabel(d),
     },
-    { chiave: 'utilizzi', titolo: 'Utilizzi', valore: (d) => d.usedCount },
+    // «3 / 10» e non «3»: senza il tetto, il numero degli utilizzi non dice se il buono è finito.
+    { chiave: 'utilizzi', titolo: 'Utilizzi', valore: (d) => d.usedCount, esporta: (d) => `${d.usedCount} / ${d.maxTotalUses ?? '∞'}` },
     { chiave: 'maxCliente', titolo: 'Max per cliente', valore: (d) => d.maxPerClient },
     { chiave: 'scadenza', titolo: 'Scadenza', valore: (d) => d.expiresAt },
     { chiave: 'stato', titolo: 'Stato', valore: (d) => (d.active ? 'Attivo' : 'Disattivo'), filtro: 'scelta', etichettaTutti: 'Tutti' },
@@ -98,7 +102,7 @@ export function BuoniSconto() {
 
   // Il server ordina per data di creazione, che qui non è una colonna: l'elenco si legge per
   // codice, ed è quello che si cerca quando una cliente ne detta uno al telefono.
-  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'codice' } });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'codice' }, nomeExcel: 'Buoni sconto'});
 
   if (loading) return <Spinner />;
 
@@ -112,7 +116,10 @@ export function BuoniSconto() {
       </div>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="buoni" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="buoni" />
+          <BottoneExcel tabella={t} avviso={rows.length >= TETTO ? `Questa pagina ha caricato solo i ${TETTO} buoni più recenti: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelli. Scarico lo stesso?` : undefined} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

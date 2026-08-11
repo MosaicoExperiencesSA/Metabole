@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Testimonial {
   id: string;
@@ -68,7 +68,7 @@ export function Testimonianze() {
   ];
 
   // L'ordine di apertura è quello del sito: il campo «Ordine» decide come compaiono online.
-  const tab = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'ordine' } });
+  const tab = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'ordine' }, nomeExcel: 'Testimonianze'});
 
   if (loading) return <Spinner />;
 
@@ -84,7 +84,10 @@ export function Testimonianze() {
       </div>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={tab.conteggio} filtriAttivi={tab.filtriAttivi} azzera={tab.azzera} nome="testimonianze" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={tab.conteggio} filtriAttivi={tab.filtriAttivi} azzera={tab.azzera} nome="testimonianze" />
+          <BottoneExcel tabella={tab} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

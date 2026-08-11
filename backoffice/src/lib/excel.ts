@@ -27,6 +27,54 @@
 /** Un valore di cella: i numeri restano numeri, tutto il resto diventa testo. */
 export type Cella = string | number | null | undefined;
 
+/**
+ * LE DATE ESCONO COME DATE, non come testo.
+ *
+ * Metà delle tabelle del backoffice hanno una colonna «Data» il cui valore è una stringa ISO
+ * (`2026-08-11T09:30:00.000Z`). Scritta così com'è, in Excel è **testo**: non si ordina per data, non
+ * si filtra per mese, e la si legge come la sputa il database. Qui si riconosce e diventa una cella
+ * data vera, con il formato italiano.
+ *
+ * I componenti sono quelli **locali**, non UTC: a schermo la riga dice «11/08/2026 11:30» perché il
+ * browser è a Zurigo, e un file che dicesse «09:30» sembrerebbe un altro dato.
+ */
+const SOLO_DATA = /^(\d{4})-(\d{2})-(\d{2})$/;
+const CON_ORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
+const EPOCA = Date.UTC(1899, 11, 30);
+
+/** Il numero con cui Excel rappresenta una data: giorni dal 30/12/1899. */
+function serialeData(v: string): { seriale: number; conOra: boolean } | null {
+  /**
+   * ⚠️ UNA DATA SENZA ORA NON PASSA DA `new Date(stringa)`.
+   *
+   * `new Date('2026-08-11')` è mezzanotte **UTC**: letto con i componenti locali diventa
+   * 11/08/2026 **02:00** a Roma, e 10/08/2026 a New York. Il formato `DD/MM/YYYY` nasconde la
+   * frazione, quindi la cella *sembra* giusta — ma non è **uguale** alla data 11/08/2026:
+   * `=A2=DATE(2026;8;11)` dà FALSO, le tabelle pivot non raggruppano e i `CERCA.VERT` su una
+   * chiave data non trovano niente. Cioè proprio le cose per cui si scrive una data invece di un
+   * testo. I componenti si leggono dalla stringa, e il seriale viene intero.
+   */
+  const solo = SOLO_DATA.exec(v);
+  if (solo) {
+    const anno = Number(solo[1]);
+    const mese = Number(solo[2]);
+    const giorno = Number(solo[3]);
+    const ms = Date.UTC(anno, mese - 1, giorno);
+    const d = new Date(ms);
+    // `2026-02-30` ha la forma giusta e `new Date` non dà `NaN`: lo fa scivolare al 2 marzo. Una
+    // data sbagliata che diventa una data plausibile è peggio di un testo lasciato tale.
+    if (d.getUTCFullYear() !== anno || d.getUTCMonth() !== mese - 1 || d.getUTCDate() !== giorno) return null;
+    return { seriale: (ms - EPOCA) / 86400000, conOra: false };
+  }
+  if (!CON_ORA.test(v)) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  // Con l'ora invece i componenti LOCALI sono giusti: a schermo la riga dice l'ora di Zurigo, e un
+  // file che dicesse l'ora UTC sembrerebbe un altro dato.
+  const locale = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+  return { seriale: (locale - EPOCA) / 86400000, conOra: true };
+}
+
 export interface FoglioExcel {
   /** Nome della scheda in basso nel foglio Excel (max 31 caratteri, senza `[]:*?/\`). */
   nome: string;
@@ -66,11 +114,15 @@ const nomeFoglio = (s: string): string => {
   return pulito || 'Foglio1';
 };
 
-function cella(rif: string, v: Cella, stile: 0 | 1): string {
+function cella(rif: string, v: Cella, stile: number): string {
   if (v === null || v === undefined || v === '') return '';
   // `Number.isFinite` e non `typeof v === 'number'`: NaN e Infinity scritti in un `<v>` producono
   // un file corrotto, e arrivano facilmente da una divisione fatta a monte.
   if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${rif}" s="${stile}"><v>${v}</v></c>`;
+  if (typeof v === 'string') {
+    const data = serialeData(v);
+    if (data) return `<c r="${rif}" s="${data.conOra ? STILE_DATA_ORA : STILE_DATA}"><v>${data.seriale}</v></c>`;
+  }
   return `<c r="${rif}" s="${stile}" t="inlineStr"><is><t xml:space="preserve">${esc(String(v))}</t></is></c>`;
 }
 
@@ -86,7 +138,10 @@ function foglioXml(f: FoglioExcel): string {
     let max = (f.intestazioni[c] ?? '').length;
     for (const r of f.righe) {
       const v = r[c];
-      const l = v === null || v === undefined ? 0 : String(v).length;
+      // Una data ISO è lunga 24 caratteri ma in colonna se ne vedono 16: misurare la stringa grezza
+      // darebbe una colonna larga il doppio del necessario.
+      const testo = v === null || v === undefined ? '' : String(v);
+      const l = typeof v === 'string' && serialeData(v) ? 16 : testo.length;
       if (l > max) max = l;
     }
     larghezze.push(`<col min="${c + 1}" max="${c + 1}" width="${Math.min(60, Math.max(10, max + 2))}" customWidth="1"/>`);
@@ -116,9 +171,12 @@ const RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 const WORKBOOK_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
 
-/** Due soli stili: 0 normale, 1 grassetto (la riga dei titoli). */
+const STILE_DATA = 2;
+const STILE_DATA_ORA = 3;
+
+/** Quattro stili: 0 normale, 1 grassetto (i titoli), 2 data, 3 data e ora. */
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/></font><font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="DD/MM/YYYY"/><numFmt numFmtId="165" formatCode="DD/MM/YYYY\ HH:MM"/></numFmts><fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/></font><font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
 
 /* ------------------------------------------------------------------ ZIP */
 

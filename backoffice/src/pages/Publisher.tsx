@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface SocialPost {
   id: string;
@@ -100,7 +100,7 @@ export function Publisher() {
 
   // Senza ordine iniziale restano nell'ordine del server (ultimi modificati in cima): la coda si
   // lavora dall'ultimo toccato, e la data di modifica non è una colonna di questa tabella.
-  const t = useTabella(rows, COLONNE, { testaFissa: true });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, nomeExcel: 'Pubblicazioni'});
 
   if (loading) return <Spinner />;
 
@@ -121,7 +121,10 @@ export function Publisher() {
       </div>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="post" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="post" />
+          <BottoneExcel tabella={t} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

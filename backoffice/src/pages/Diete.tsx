@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
 
 const SLOT_LABEL: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
@@ -114,19 +114,19 @@ export function Diete() {
     { chiave: 'style', titolo: 'Stile', valore: (r) => styleLabel(r.style), filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'objective', titolo: 'Obiettivo', valore: (r) => OBIETTIVO_LABEL[r.objective ?? 'dimagrimento'] ?? r.objective, filtro: 'scelta', etichettaTutti: 'Tutti' },
     // Numero, non «5 · digiuno»: e il mezzo punto mette il digiuno dopo, a parità di pasti.
-    { chiave: 'meals', titolo: 'Pasti', valore: (r) => r.mealsPerDay + (r.fasting ? 0.5 : 0) },
+    { chiave: 'meals', titolo: 'Pasti', valore: (r) => r.mealsPerDay + (r.fasting ? 0.5 : 0), esporta: (r) => `${r.mealsPerDay}${r.fasting ? ' · digiuno' : ''}` },
     { chiave: 'days', titolo: 'Giorni', valore: (r) => r._count?.dayTemplates ?? 0 },
     { chiave: 'author', titolo: 'Autore', valore: (r) => r.author?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
     // Il numero della lavorazione, non l'etichetta: in alfabetico «Approvata» starebbe davanti a
     // «Bozza». Nessun filtro qui: lo stato lo filtra il server, con la tendina sopra la tabella.
-    { chiave: 'status', titolo: 'Stato', valore: (r) => STATUS_ORDER[r.status] ?? 99 },
+    { chiave: 'status', titolo: 'Stato', valore: (r) => STATUS_ORDER[r.status] ?? 99, esporta: (r) => STATUS[r.status]?.label ?? r.status },
     // La colonna delle azioni esiste solo per chi la vede: sta nella stessa condizione della cella.
     ...(showActions ? [{ chiave: 'azioni', titolo: 'Azioni' } as Colonna<DietRow>] : []),
   ];
 
   // Senza `ordineIniziale` le righe restano nell'ordine del server, che le manda dall'ultima
   // modificata: è l'ordine con cui questa pagina si è sempre aperta.
-  const t = useTabella(rows, COLONNE, { testaFissa: true });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, nomeExcel: 'Catalogo diete'});
 
   if (loading) return <Spinner />;
 
@@ -151,7 +151,10 @@ export function Diete() {
       {error && <Banner kind="err">{error}</Banner>}
 
       <div className="row" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="diete" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="diete" />
+          <BottoneExcel tabella={t} />
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0 }}>

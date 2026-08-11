@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { MiniTrend } from '../components/MiniTrend';
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -242,13 +242,13 @@ export function Contabilita() {
     // La data ISO grezza: si ordina bene alfabeticamente, la formattata in italiano no.
     { chiave: 'periodo', titolo: 'Periodo', valore: (c) => c.date },
     // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
-    { chiave: 'importo', titolo: 'Importo', valore: (c) => c.amountCents, stile: { textAlign: 'right' } },
+    { chiave: 'importo', titolo: 'Importo', valore: (c) => c.amountCents, stile: { textAlign: 'right' }, esporta: (c) => (c.amountCents ?? 0) / 100 },
     { chiave: 'azioni', titolo: '' },
   ];
 
   // Nessun ordine iniziale: il server manda prima i ricorrenti e poi per data, e non è un ordine
   // che si possa dire con una colonna sola. Il primo clic su un'intestazione lo sostituisce.
-  const t = useTabella(costs, COLONNE, { testaFissa: true });
+  const t = useTabella(costs, COLONNE, { testaFissa: true, nomeExcel: 'Contabilità'});
 
   if (loading && !report) return <Spinner />;
 
@@ -355,7 +355,10 @@ export function Contabilita() {
           <h2 style={{ margin: 0 }}>Costi registrati</h2>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* I costi arrivano tutti, senza il filtro del mese: quello vale sul report qui sopra. */}
-            <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="voci" />
+            <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="voci" />
+          <BottoneExcel tabella={t} />
+        </div>
             <input
               className="input"
               style={{ maxWidth: 220 }}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, RoleChip, Spinner, StatusChip } from '../components/ui';
-import { useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, useTabella, type Colonna } from '../components/tabella';
 import { ROLE_LABEL, STAFF_ROLES, type Role } from '../lib/labels';
 import { fetchRoles, type RoleInfo } from '../lib/roles';
 
@@ -198,7 +198,7 @@ export function Users() {
   // `testaFissa`: l'elenco scorre dentro la card, quindi titoli E riga dei filtri restano incollati
   // in alto. Prima lo faceva lo `stile` di ogni colonna, che però non arrivava ai filtri: per
   // cambiare un filtro si doveva tornare in cima (segnalato l'11/8).
-  const t = useTabella(users, COLONNE, { testaFissa: true });
+  const t = useTabella(users, COLONNE, { testaFissa: true, nomeExcel: 'Utenti staff' });
 
   return (
     <>
@@ -228,6 +228,7 @@ export function Users() {
               <i className="ti ti-x" /> Pulisci
             </button>
           )}
+          <BottoneExcel tabella={t} />
         </div>
         {canManage && (
           <button className="btn" onClick={() => setShowCreate(true)}>

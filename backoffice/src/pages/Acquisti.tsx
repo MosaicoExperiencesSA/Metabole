@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Purchase {
   id: string;
@@ -203,7 +203,7 @@ export function Acquisti() {
     { chiave: 'cliente', titolo: 'Cliente', valore: (p) => `${clientName(p)} ${p.client?.email ?? ''}`.trim(), filtro: 'testo' },
     { chiave: 'prodotto', titolo: 'Prodotto', valore: (p) => p.description, filtro: 'testo' },
     // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
-    { chiave: 'importo', titolo: 'Importo', valore: (p) => p.amountCents },
+    { chiave: 'importo', titolo: 'Importo', valore: (p) => p.amountCents, esporta: (p) => (p.amountCents ?? 0) / 100 },
     { chiave: 'metodo', titolo: 'Metodo', valore: (p) => p.method, filtro: 'scelta', etichetta: methodLabel, etichettaTutti: 'Tutti' },
     // Uno stornato ha `status = approved` e la data di rimborso: «Stornato» deve restare una voce a
     // sé nella tendina, come nel filtro scritto a mano che c'era prima.
@@ -221,7 +221,7 @@ export function Acquisti() {
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
 
-  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, perPagina: 50, ordineIniziale: { chiave: 'data', direzione: 'desc' } });
+  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, perPagina: 50, ordineIniziale: { chiave: 'data', direzione: 'desc' }, nomeExcel: 'Acquisti'});
   /**
    * «Mostra anche gli acquisti a 0»: spento di default (richiesta dell'11/8).
    *
@@ -250,14 +250,17 @@ export function Acquisti() {
     <>
       <div className="spread" style={{ marginBottom: 16, gap: 10, flexWrap: 'wrap' }}>
         {/* «di quanti»: il totale è quello caricato dal server, non quello già scremato qui sopra. */}
-        <ContatoreRighe
-          // `totali` è la tabella INTERA: «32 acquisti di 120» dice sia quanti si vedono sia quanti
-          // ce ne sono, quindi si capisce quanto stanno togliendo il flag e i filtri.
-          conteggio={{ mostrate: t.conteggio.mostrate, totali: rows.length }}
-          filtriAttivi={t.filtriAttivi || filtriSopra}
-          azzera={azzeraTutto}
-          nome="acquisti"
-        />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe
+            // `totali` è la tabella INTERA: «32 acquisti di 120» dice sia quanti si vedono sia quanti
+            // ce ne sono, quindi si capisce quanto stanno togliendo il flag e i filtri.
+            conteggio={{ mostrate: t.conteggio.mostrate, totali: rows.length }}
+            filtriAttivi={t.filtriAttivi || filtriSopra}
+            azzera={azzeraTutto}
+            nome="acquisti"
+          />
+          <BottoneExcel tabella={t} avviso={rows.length >= TETTO_SERVER ? `Questa pagina ha caricato solo gli ultimi ${TETTO_SERVER} acquisti: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelli. Per averli tutti, restringi con un filtro. Scarico lo stesso?` : undefined} />
+        </div>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input className="input" style={{ maxWidth: 240 }} placeholder="Cerca in tutte le colonne…" value={t.ricerca} onChange={(e) => t.setRicerca(e.target.value)} />
           <input className="input sm" style={{ width: 120 }} placeholder="Importo es. 297" title="Importo (anche parziale)" value={fImporto} onChange={(e) => setFImporto(e.target.value)} />

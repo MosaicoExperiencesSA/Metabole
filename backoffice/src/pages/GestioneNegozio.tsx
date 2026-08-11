@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Commissions {
   commissionCoachCents: number;
@@ -200,7 +200,7 @@ export function GestioneNegozio() {
   const COLONNE_PIANI: Colonna<Plan>[] = [
     { chiave: 'nome', titolo: 'Nome', valore: (p) => p.name, filtro: 'testo' },
     // Centesimi, non «€ 12,00»: come testo «€ 100,00» starebbe prima di «€ 20,00».
-    { chiave: 'prezzo', titolo: 'Prezzo', valore: (p) => p.priceCents },
+    { chiave: 'prezzo', titolo: 'Prezzo', valore: (p) => p.priceCents, esporta: (p) => (p.priceCents ?? 0) / 100 },
     { chiave: 'periodo', titolo: 'Periodo', valore: (p) => p.period, filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'billing', titolo: 'Come si vende', valore: (p) => BILLING_LABEL[p.billing ?? 'one_time'] ?? p.billing, filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (p) => commSummary(p, true), filtro: 'testo' },
@@ -209,7 +209,7 @@ export function GestioneNegozio() {
   ];
   const COLONNE_PRODOTTI: Colonna<Product>[] = [
     { chiave: 'nome', titolo: 'Nome', valore: (p) => p.name, filtro: 'testo' },
-    { chiave: 'prezzo', titolo: 'Prezzo', valore: (p) => p.priceCents },
+    { chiave: 'prezzo', titolo: 'Prezzo', valore: (p) => p.priceCents, esporta: (p) => (p.priceCents ?? 0) / 100 },
     { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (p) => commSummary(p, true), filtro: 'testo' },
     { chiave: 'stato', titolo: 'Stato', valore: (p) => (p.active ? 'Attivo' : 'Nascosto'), filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'azioni', titolo: '' },
@@ -217,8 +217,8 @@ export function GestioneNegozio() {
 
   // Due tabelle, due stati indipendenti: filtrare i piani non deve toccare i prodotti. Niente
   // paginazione perché sono poche righe (`perPagina` alto = nessuna pagina da sfogliare).
-  const tPiani = useTabella(plans, COLONNE_PIANI, { testaFissa: true, perPagina: 500, ordineIniziale: { chiave: 'nome' } });
-  const tProdotti = useTabella(products, COLONNE_PRODOTTI, { testaFissa: true, perPagina: 500, ordineIniziale: { chiave: 'nome' } });
+  const tPiani = useTabella(plans, COLONNE_PIANI, { testaFissa: true, perPagina: 500, ordineIniziale: { chiave: 'nome' }, nomeExcel: 'Negozio — piani' });
+  const tProdotti = useTabella(products, COLONNE_PRODOTTI, { testaFissa: true, perPagina: 500, ordineIniziale: { chiave: 'nome' }, nomeExcel: 'Negozio — prodotti' });
 
   if (loading) return <Spinner />;
 
@@ -231,7 +231,10 @@ export function GestioneNegozio() {
       <div className="spread" style={{ marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
         <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0 }}>Piani</h2>
+          <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <ContatoreRighe conteggio={tPiani.conteggio} filtriAttivi={tPiani.filtriAttivi} azzera={tPiani.azzera} nome="piani" />
+          <BottoneExcel tabella={tPiani} />
+        </div>
         </div>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <input
@@ -360,6 +363,7 @@ export function GestioneNegozio() {
         <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0 }}>Integratori / prodotti</h2>
           <ContatoreRighe conteggio={tProdotti.conteggio} filtriAttivi={tProdotti.filtriAttivi} azzera={tProdotti.azzera} nome="prodotti" />
+          <BottoneExcel tabella={tProdotti} />
         </div>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <input

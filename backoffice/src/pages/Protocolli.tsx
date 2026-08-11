@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface Condition { field: string; op: string; value?: unknown }
 interface ActionDef { menu?: string; tone?: string; timing?: string; levelDelta?: number; flagForReview?: boolean; note?: string }
@@ -89,13 +89,13 @@ export function Protocolli() {
     { chiave: 'applica', titolo: 'Si applica a', valore: (r) => r.appliesTo, filtro: 'testo' },
     { chiave: 'autore', titolo: 'Autore', valore: (r) => r.author?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
     { chiave: 'validatore', titolo: 'Validato da', valore: (r) => r.validatedBy?.displayName, filtro: 'scelta', etichettaTutti: 'Tutti' },
-    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status },
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => r.status, esporta: (r) => STATUS[r.status]?.label ?? r.status },
     ...(isNutri ? [{ chiave: 'azioni', titolo: 'Azioni' } as Colonna<ProtocolRow>] : []),
   ];
 
   // Senza `ordineIniziale` le righe restano nell'ordine del server (dal protocollo più recente):
   // è l'ordine in cui si guardano quelli appena proposti.
-  const t = useTabella(rows, COLONNE, { testaFissa: true });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, nomeExcel: 'Protocolli'});
 
   if (loading) return <Spinner />;
 
@@ -122,7 +122,10 @@ export function Protocolli() {
       </div>
 
       <div style={{ marginBottom: 10 }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="protocolli" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="protocolli" />
+          <BottoneExcel tabella={t} />
+        </div>
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface MailStatus {
   configured: boolean;
@@ -221,7 +221,7 @@ export function Posta() {
     ...(folder === 'inbox' ? [{ chiave: 'cestino', titolo: '', stile: { width: 50 } } as Colonna<InboxItem>] : []),
   ];
 
-  const t = useTabella(inbox, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' }, testaFissa: true });
+  const t = useTabella(inbox, COLONNE, { ordineIniziale: { chiave: 'data', direzione: 'desc' }, testaFissa: true, nomeExcel: `Posta — ${folder === 'inbox' ? 'ricevuta' : 'inviata'}`});
 
   if (loading) return <Spinner />;
 
@@ -275,7 +275,10 @@ export function Posta() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="spread" style={{ marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="messaggi caricati" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="messaggi caricati" />
+          <BottoneExcel tabella={t} avviso={inbox.length >= QUANTI ? `Questa cartella ha caricato solo gli ultimi ${QUANTI} messaggi: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelli. Scarico lo stesso?` : undefined} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

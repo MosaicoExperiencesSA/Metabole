@@ -20,6 +20,56 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📤 **«Esporta in Excel» su TUTTE le trenta tabelle del backoffice — e le date escono
+  come date.** Richiesta di Simone: «il pulsante esporta in excel con i filtri va applicato a tutte
+  le tabelle». Ventinove passano da `useTabella` e prendono il pulsante con una riga; la trentesima,
+  **Gestione lead**, ha un'esportazione sua perché filtra e pagina sul database: in memoria c'è una
+  pagina sola, e scriverla sarebbe cento righe su ottomila senza dirlo. Lì il file si costruisce
+  richiedendo al server le stesse pagine con gli stessi filtri, fino a un tetto di 5.000 righe che
+  viene **detto prima** di scaricare.
+  ⭐ **Le date adesso sono date.** Metà delle tabelle hanno una colonna il cui valore è una stringa
+  ISO: scritta com'è, in Excel è testo — non si ordina per data, non si filtra per mese, non si
+  raggruppa in una tabella pivot. Ora `excel.ts` la riconosce e scrive una cella data vera, col
+  formato italiano. Due trappole trovate provandolo: `new Date('2026-08-11')` è mezzanotte **UTC**,
+  quindi letta coi componenti locali diventava «11/08/2026 02:00» a Roma e **il 10 agosto** a New
+  York — la cella *sembrava* giusta ma non era **uguale** alla data, e i confronti fallivano; e
+  `2026-02-30` ha la forma di una data, `new Date` non protesta e la fa scivolare al 2 marzo, cioè
+  un dato sbagliato che diventa un dato plausibile. Le date senza ora si leggono ora dai numeri
+  della stringa, e i giorni fuori mese restano testo.
+  Undici colonne di **importi** escono in euro e non in centesimi (`1990` sarebbe stato il prezzo di
+  un piano da €19,90 — e si sarebbe sommato così).
+  **Quello che ha fermato la revisione**, su ventinove inserzioni che compilavano tutte: (1) il
+  pulsante non passava l'**avviso di troncamento** su sette tabelle che hanno un tetto lato server —
+  `Acquisti` ne carica **200**, e il file si sarebbe chiamato «Acquisti» contenendone 200 su 3.000,
+  esattamente il difetto per cui l'avviso era stato scritto la prima volta; (2) sei colonne
+  esportavano la **chiave di ordinamento** invece dell'etichetta: uno sconto del 10% usciva
+  `1000000010`, quattro colonne «Stato» uscivano `open`/`pending`/`scheduled`/`0`, e una dieta a
+  cinque pasti col digiuno usciva `5.5`; (3) in `Valori nutrizionali` la colonna **P / C / G / F**
+  spariva dal file — l'unica colonna di dato del backoffice senza `valore`, cioè proprio il motivo
+  per cui qualcuno esporta quella tabella; (4) in Gestione lead il conteggio veniva da uno stato
+  vecchio di 300 ms, e azzerando i filtri e cliccando subito si otteneva un file di tre righe su
+  quarantamila.
+  🔑 E una correzione che vale oltre l'esportazione: `crm.service` ordinava i lead per `updatedAt`
+  **senza un secondo criterio univoco**. Su lead importati in blocco, che condividono il millisecondo,
+  Postgres non garantisce lo stesso ordine fra due query: chi legge a pagine riceve righe ripetute e
+  altre che non compaiono in nessuna. A schermo si notava poco, in un file che dichiara di essere
+  completo no. Ora c'è `id` come secondo criterio, sempre.
+- `[Sviluppo]` 🏷️ **I tag delle ricette spariscono dall'interfaccia, e la cliente non legge più
+  `gen:flexible` sotto il suo piatto.** Deciso da Simone dopo la nota `NOTA_Tag_Ricette.md`: «se
+  cucina italiana non è utilizzato togliamolo, come anche i tag». Riverificato sul main di oggi:
+  `cucina italiana` **non lo legge nessuno** — la preferenza «ricette semplici» della cliente filtra
+  su `difficulty === 'semplice'`, non sul tag — e i tag si vedevano in due posti soli, il campo
+  libero nella scheda ricetta e le pastiglie in app.
+  Via tutti e due, più la spunta «Cucina italiana», che prometteva un effetto che non esisteva.
+  ⭐ **E il salvataggio della scheda non manda più `tags`.** `updateRecipe` li scrive solo se
+  arrivano, quindi non mandarli vuol dire non toccarli: il tag `dieta:<nome>` — l'unico ancora vivo,
+  quello con cui il generatore ritrova le ricette orfane invece di ricomprarle dall'AI — da qui non
+  si può più rompere. Prima bastava cancellarlo distrattamente dal campo di testo.
+  I tag non escono nemmeno più da `GET /recipes/:id`, che è l'unica rotta del catalogo aperta anche
+  alle clienti: toglierli in app non sarebbe bastato, perché il prossimo pezzo di interfaccia che
+  stampa quello che riceve li avrebbe rimessi a schermo. Si tolgono dove nascono.
+  Restano nel database, e devono restarci: `dieta:` serve al generatore.
+
 - `[Sviluppo]` 🔴 **Il build del backend era rosso: dentro una transazione il client non è
   `PrismaService`.** La CI delle 20:25 si è fermata su `nest build` con **14 errori** in
   `catalog/catalog.service.ts`, tutti figli di una sola annotazione ripetuta due volte:
