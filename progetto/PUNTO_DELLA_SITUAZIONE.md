@@ -449,6 +449,16 @@ Tutti esistono e in dry-run non scrivono niente.
 | `npm run diag:cliente -- giusy.vita01@gmail.com` | Verifica mai fatta: dopo il filtro allergeni più severo, che non sia diventato «piano bloccato». |
 | `npm run diag:famiglie` | 20 clienti con famiglia di dieta ambigua. |
 
+**Da lanciare PRIMA del deploy che toglie l'esenzione vacanza** (caso Gioia, 11/8): sapere quante
+clienti hanno la modalità viaggio accesa adesso, perché al prossimo ciclo si vedranno chiedere la
+pesata. Non è un danno — è la regola nuova — ma è un cambio di comportamento che conviene conoscere
+prima che arrivi ai telefoni, e alcune di quelle clienti potrebbero avere un «in vacanza» acceso da
+settimane che nessuno ha spento.
+
+```
+node -e 'const {PrismaClient}=require("@prisma/client");const p=new PrismaClient();p.$queryRawUnsafe("select c.travel_state, count(*)::int as clienti, min(c.travel_start)::text as piu_vecchia from client_profile c where c.travel_state in ($1,$2) group by c.travel_state","in_vacanza","in_partenza").then(r=>console.table(r)).finally(()=>p.$disconnect())'
+```
+
 Da fare a mano: **creare il prodotto «Ritorno in Equilibrio» in Negozio** (non esiste in produzione,
 quindi metà del prodotto estate non è in vendita) — e **generargli le giornate**, perché la variante
 `onnivora · mantenimento · 3 pasti` ne ha **zero**: sono due lavori, e farne uno solo mette in vendita un

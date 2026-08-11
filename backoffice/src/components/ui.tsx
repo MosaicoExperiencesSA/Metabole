@@ -103,10 +103,20 @@ export function usePagination<T>(items: T[], pageSize = 100) {
   return { page, setPage, totalPages, total, pageItems, pageSize, from: total ? start + 1 : 0, to: Math.min(start + pageSize, total) };
 }
 
-export function Pager({ page, totalPages, total, from, to, onPage }: { page: number; totalPages: number; total: number; from: number; to: number; onPage: (p: number) => void }) {
+export function Pager({ page, totalPages, total, from, to, onPage, sopra }: {
+  page: number; totalPages: number; total: number; from: number; to: number; onPage: (p: number) => void;
+  /**
+   * `true` quando il selettore sta SOPRA la tabella (dall'11/8 le tabelle lunghe lo hanno da
+   * entrambe le parti). Sposta il filo di separazione dall'alto al basso: sopra, un bordo
+   * superiore si sovrapporrebbe a quello della card e il blocco sembrerebbe staccato dalla tabella
+   * che comanda.
+   */
+  sopra?: boolean;
+}) {
   if (totalPages <= 1) return null;
+  const filo = sopra ? { borderBottom: '1px solid var(--line,#eee)' } : { borderTop: '1px solid var(--line,#eee)' };
   return (
-    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', gap: 8, borderTop: '1px solid var(--line,#eee)' }}>
+    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', gap: 8, ...filo }}>
       <span className="muted" style={{ fontSize: 13 }}>{from}–{to} di {total}</span>
       <div className="row" style={{ gap: 6, alignItems: 'center' }}>
         <button className="btn ghost sm" onClick={() => onPage(1)} disabled={page <= 1} title="Prima pagina">«</button>

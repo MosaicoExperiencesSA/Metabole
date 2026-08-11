@@ -104,6 +104,12 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
+
+        {/* Selettore di pagina anche sopra: stessa richiesta dell'11/8 sul catalogo ricette —
+
+            su una tabella lunga cambiare pagina non deve costare due scorrimenti interi. */}
+
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessun gruppo di equivalenza. Creane uno con "Nuovo gruppo".' : 'Nessun gruppo con questi filtri.'}</div>
         ) : (

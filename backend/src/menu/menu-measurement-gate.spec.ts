@@ -380,8 +380,16 @@ describe('MenuService — sblocco misure: la richiesta arriva sul telefono', () 
  * giorno in cui qualcuno lo porta a 60, il gate e l'agente non sono più d'accordo su chi è in vacanza —
  * e non lo dice nessun errore.
  */
-describe('MenuService — il gate misure rispetta travel_max_days', () => {
-  /** In vacanza da 40 giorni, senza data di fine: è il caso che i due numeri decidono in modo opposto. */
+describe('MenuService — la vacanza NON esenta più dalle misure (11/8)', () => {
+  /**
+   * Questo blocco verificava il contrario: che in modalità viaggio il gate non bloccasse. Era la
+   * regola «Vacanze in Serenità», e su Gioia ha prodotto otto giornate di fila con una sola pesata
+   * — erogate puntualmente, senza errori, perché il codice faceva quello per cui era scritto.
+   *
+   * Decisione di Simone dell'11/8: **o ricevi menu e le misure valgono come per tutte, oppure sei
+   * in pausa e non ricevi menu ma entri nel protocollo di monitoraggio.** Niente terza strada in
+   * cui i menu arrivano e nessuno chiede il peso: il fabbisogno si calcola sul peso attuale.
+   */
   const inVacanzaDa40Giorni = {
     planStartDate: D(dayIso(-60)),
     regime: 'omnivore',
@@ -391,23 +399,32 @@ describe('MenuService — il gate misure rispetta travel_max_days', () => {
     travelStart: D(dayIso(-40)),
     travelEnd: null,
   };
-  const prismaSenzaMisure = () => ({
-    clientProfile: { findUnique: jest.fn().mockResolvedValue(inVacanzaDa40Giorni) },
+  const prismaSenzaMisure = (profilo: Record<string, unknown> = inVacanzaDa40Giorni) => ({
+    clientProfile: { findUnique: jest.fn().mockResolvedValue(profilo) },
     subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
     menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
     measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
   });
 
-  it('col tetto a 30 la vacanza è SCADUTA: il gate torna a chiedere le misure', async () => {
+  it('in vacanza da 40 giorni: il gate CHIEDE le misure', async () => {
     const res = await makeService(prismaSenzaMisure(), { travel_max_days: 30 }).measurementGate('c1');
     expect(res.blocking).toBe(true);
   });
 
-  it('col tetto a 60 è ancora in vacanza: il gate non blocca', async () => {
-    // Se il parametro non venisse passato, questo test tornerebbe `true` come quello sopra — ed è
-    // esattamente il difetto che stiamo chiudendo.
+  it('e le chiede anche col tetto della vacanza alzato: non dipende più da quel numero', async () => {
+    // Prima questo caso tornava `false` — la vacanza «ancora valida» spegneva la regola più severa
+    // che abbiamo. Ora `travel_max_days` conta solo per l'agente dieta, che sceglie CHE COSA
+    // servire a chi è al mare: una domanda diversa, che non c'entra col peso.
     const res = await makeService(prismaSenzaMisure(), { travel_max_days: 60 }).measurementGate('c1');
-    expect(res.blocking).toBe(false);
+    expect(res.blocking).toBe(true);
+  });
+
+  it('in vacanza appena partita: nessuna scorciatoia nemmeno il primo giorno', async () => {
+    const res = await makeService(
+      prismaSenzaMisure({ ...inVacanzaDa40Giorni, travelStart: D(dayIso(-1)) }),
+      { travel_max_days: 30 },
+    ).measurementGate('c1');
+    expect(res.blocking).toBe(true);
   });
 });

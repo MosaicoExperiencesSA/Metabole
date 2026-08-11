@@ -804,15 +804,25 @@ export class MenuService {
     } | null;
     if (!profile?.planStartDate) return false;
     if (profile.screeningFlag) return false; // percorso supervisionato: dipende dalla visita
-    // In vacanza il popup misure non blocca — ma lo stato SCADE (vedi `stato-viaggio.ts`).
-    // Prima si leggeva il campo grezzo: un «in vacanza» che nessuno azzerava al rientro
-    // spegneva per sempre, in silenzio, la regola più severa che abbiamo.
-    //
-    // `travel_max_days` va passato (13/8): senza, qui valeva il default 30 del helper mentre
-    // l'agente dieta leggeva il parametro. Due numeri per la stessa scadenza — e il giorno che
-    // qualcuno lo portasse a 60 dai Parametri, il gate misure e l'agente si contraddirebbero su
-    // quale cliente è ancora in vacanza, senza che nessun errore lo dica.
-    if (statoViaggioAttivo(profile, new Date(), await this.giorniMassimiViaggio()) === 'in_vacanza') return false;
+    /**
+     * LA VACANZA NON ESENTA PIÙ DALLE MISURE (decisione di Simone, 11/8).
+     *
+     * Qui c'era `if (statoViaggioAttivo(...) === 'in_vacanza') return false`: chi era in modalità
+     * viaggio non si vedeva chiedere niente **e continuava a ricevere i menu**. Su Gioia ha
+     * prodotto otto giornate consecutive con una sola pesata: le ultime quattro tarate su un peso
+     * di quattro giorni prima, e il fabbisogno si calcola sul peso attuale.
+     *
+     * La regola nuova, in una riga: **o ricevi menu, e allora le misure valgono come per tutte;
+     * oppure sei in pausa, e allora non ricevi menu ma entri nel protocollo di monitoraggio** —
+     * che esiste già (`pause.service.surveillanceTick`: peso di riferimento, promemoria, avviso
+     * alla coach se risale). Non c'è una terza strada in cui arrivano i menu e nessuno chiede il
+     * peso.
+     *
+     * Vale anche per la dieta «Vacanze in Serenità»: è una dieta come le altre, con i suoi menu,
+     * quindi le misure si chiedono con la stessa logica. La modalità viaggio continua a fare
+     * l'altra cosa per cui serve — `DietAgentService` la usa per scegliere menu che la cliente
+     * mangerà davvero invece di menu che la farebbero calare — e quella non c'entra col peso.
+     */
     const activeSub = await this.prisma.subscription.findFirst({ where: { clientId, status: 'active' }, select: { id: true } });
     if (!activeSub) return false;
     const pause = await this.events.activePausePeriod(clientId);
@@ -890,14 +900,23 @@ export class MenuService {
     last: { date: Date },
     daysPerDelivery: number,
   ): Promise<boolean> {
-    // Piani estate: in vacanza il popup misure NON blocca l'erogazione (finché la vacanza dura).
-    const prof = await this.prisma.clientProfile.findUnique({
-      where: { userId: clientId },
-      select: { travelState: true, travelStart: true, travelEnd: true },
-    });
-    // `travel_max_days` dai Parametri, come sopra: la scadenza della vacanza è un numero solo.
-    const scadenzaViaggio = await this.giorniMassimiViaggio();
-    if (statoViaggioAttivo(prof as { travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null, new Date(), scadenzaViaggio) === 'in_vacanza') return false;
+    /**
+     * QUI C'ERA L'ESENZIONE DELLA VACANZA, ed è la ragione del caso Gioia (11/8).
+     *
+     * `if (statoViaggioAttivo(...) === 'in_vacanza') return false`: in modalità viaggio il ciclo
+     * successivo partiva **senza chiedere niente**. Sul suo piano ha prodotto otto giornate di fila
+     * con una sola pesata, erogate puntualmente ogni due giorni — nessun errore da nessuna parte,
+     * il codice faceva quello per cui era stato scritto. Il difetto era la regola.
+     *
+     * La regola nuova (Simone, 11/8): **o ricevi menu e le misure valgono come per tutte, oppure
+     * sei in pausa e allora non ricevi menu ma entri nel protocollo di monitoraggio**. Niente terza
+     * strada in cui i menu arrivano e nessuno chiede il peso — che è poi la domanda da cui è
+     * partito tutto: «come tariamo le kcal se non abbiamo il peso?». Il fabbisogno si calcola sul
+     * peso attuale, quindi una settimana di menu su una pesata vecchia è una settimana tarata male.
+     *
+     * L'erogazione durante una **pausa** è già ferma poco sopra (`activePausePeriod`), e il peso
+     * durante la pausa lo chiede `pause.service.surveillanceTick`. Le due strade coprono tutto.
+     */
     const today = toDateOnly();
     const cycleEnd = toDateOnly(last.date.toISOString());
     if (today.getTime() < cycleEnd.getTime()) return false; // non ancora al 2° giorno

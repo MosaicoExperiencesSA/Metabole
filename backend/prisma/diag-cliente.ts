@@ -128,10 +128,28 @@ async function main(): Promise<void> {
   })) as { date: Date } | null;
   const paramGiorni = (await prisma.configParam.findUnique({ where: { key: 'menu_days_delivered' } })) as { value: string } | null;
   const giorniPerCiclo = Number(paramGiorni?.value ?? 2) || 2;
-  const sbloccoFino = (await prisma.clientProfile.findUnique({
+  /**
+   * Lo stato del profilo che cambia le regole: sblocco misure, modalità viaggio, piano fermato.
+   *
+   * ⚠️ L'11/8 questo diag ha fatto perdere un'ora su Gioia proprio perché **non stampava la
+   * modalità viaggio**: fino a quel giorno «in vacanza» spegneva il gate delle misure, quindi la
+   * cliente riceveva otto giornate con una sola pesata e qui non compariva niente di anomalo.
+   * Una diagnostica che non nomina lo stato che ha disattivato una regola manda a cercare il
+   * difetto altrove — che è peggio del non averla.
+   */
+  const statoProfilo = (await prisma.clientProfile.findUnique({
     where: { userId: user.id },
-    select: { measuresUnlockedUntil: true },
-  })) as { measuresUnlockedUntil: Date | null } | null;
+    select: {
+      measuresUnlockedUntil: true,
+      travelState: true, travelStart: true, travelEnd: true,
+      planHeldAt: true, planHeldReason: true,
+    },
+  })) as {
+    measuresUnlockedUntil: Date | null;
+    travelState: string | null; travelStart: Date | null; travelEnd: Date | null;
+    planHeldAt: Date | null; planHeldReason: string | null;
+  } | null;
+  const sbloccoFino = statoProfilo;
   let mancaPesataCiclo = false;
   let inizioCiclo: Date | null = null;
   if (ultimo && oggi.getTime() >= ultimo.date.getTime()) {
@@ -146,6 +164,23 @@ async function main(): Promise<void> {
       inizioCiclo ? (mancaPesataCiclo ? 'MANCA ⚠' : 'presente ✓') : 'non pertinente'
     }`,
   );
+  if (statoProfilo?.travelState === 'in_vacanza' || statoProfilo?.travelState === 'in_partenza') {
+    const fine = statoProfilo.travelEnd
+      ? `fino al ${giorno(statoProfilo.travelEnd)}`
+      : statoProfilo.travelStart
+        ? `dal ${giorno(statoProfilo.travelStart)}, senza data di fine`
+        : 'senza date';
+    console.log(`Modalità viaggio: ${statoProfilo.travelState} (${fine}).`);
+    console.log('  → NON esenta dalle misure (dall\'11/8): i menu arrivano solo con la pesata del ciclo,');
+    console.log('    come per tutte. Cambia solo QUALI piatti sceglie l\'agente dieta.');
+  }
+  if (statoProfilo?.planHeldAt) {
+    console.log(
+      `⏸  PIANO FERMATO dal nutrizionista il ${giorno(statoProfilo.planHeldAt)}` +
+        `${statoProfilo.planHeldReason ? ` — «${statoProfilo.planHeldReason}»` : ''}.`,
+    );
+    console.log('  → I giorni NUOVI non partono; quelli già ricevuti restano. Si riattiva dalla scheda cliente.');
+  }
   if (sbloccoFino?.measuresUnlockedUntil) {
     const attivoSblocco = sbloccoFino.measuresUnlockedUntil.getTime() > Date.now();
     console.log(

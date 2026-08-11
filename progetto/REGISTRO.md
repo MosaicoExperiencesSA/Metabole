@@ -20,6 +20,48 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📄 **Il selettore di pagina anche sopra le tabelle di Gestione dieta** — chiesto da
+  Simone: con cento righe per pagina, cambiare pagina costava scorrere fino in fondo e poi risalire
+  per rileggere le intestazioni. Due scorrimenti interi per ogni pagina, sulla schermata dove il
+  nutrizionista passa le ore quando rivede un catalogo.
+  Messo su tutt'e tre le tabelle di quella schermata — ricette, allergeni, gruppi di equivalenza —
+  perché per chi ci lavora sono la stessa pagina con tre linguette, e sistemarne una sola avrebbe
+  spostato il fastidio invece di toglierlo. È lo stesso `<Pager>` collegato allo stesso stato:
+  restano d'accordo da soli e spariscono entrambi quando la pagina è una sola.
+  Al componente è stata aggiunta una `sopra` che sposta il filo di separazione da sopra a sotto:
+  senza, il bordo superiore si sovrapponeva a quello della card e il blocco sembrava staccato dalla
+  tabella che comanda.
+
+- `[Sviluppo]` ⚖️ **«Gioia ha ricevuto otto giorni di menu con una pesata sola»** — e non c'era nessun
+  difetto: c'era una **regola sbagliata**, che è peggio, perché non lascia tracce.
+  La ricostruzione, dall'audit delle erogazioni: puntuali ogni due giorni, sempre due giornate —
+  il 7/8 (8-9), il 9/8 (10-11), l'11/8 alle 07:26 (12-13) — con l'ultima pesata del **7 agosto**. Il
+  cancello della pesata del ciclo *è* stato interrogato ogni volta e ha lasciato passare, perché la
+  prima riga di quella funzione era `if (in vacanza) return false`: la **modalità viaggio esentava
+  dalle misure**. Regola «Vacanze in Serenità», scritta apposta. Il risultato è che le ultime quattro
+  giornate erano tarate su un peso di quattro giorni prima — e il fabbisogno si calcola sul peso
+  attuale, quindi erano tarate male.
+  Prima di arrivarci ho fatto due ipotesi sbagliate — che i menu fossero stati erogati prima del gate
+  del 10/8, e che `menu_days_delivered` valesse 4 — e le ha smentite entrambe un comando sui dati.
+  Vale la pena scriverlo: su una cliente vera l'ipotesi plausibile non basta, e le due volte che ho
+  detto «torna tutto» erano le due volte in cui non tornava niente.
+  **La regola nuova, decisa da Simone: o ricevi menu e le misure valgono come per tutte, oppure sei
+  in pausa — non ricevi menu ed entri nel protocollo di monitoraggio** (che esiste già: peso di
+  riferimento, promemoria, avviso alla coach se risale). Niente terza strada in cui i menu arrivano e
+  nessuno chiede il peso. Vale anche per la dieta «Vacanze in Serenità», che è una dieta come le
+  altre. La modalità viaggio continua a fare l'altra cosa per cui serve — l'agente dieta sceglie
+  piatti che al mare la cliente mangerà davvero — e quella col peso non c'entra.
+  Tolta l'esenzione dai **due** punti in cui viveva (il popup e l'erogazione). Il blocco di test che
+  verificava il comportamento vecchio è stato riscritto per pretendere quello nuovo: restava verde
+  certificando la regola che stiamo togliendo.
+  **E il `diag:cliente` ora stampa la modalità viaggio e il piano fermato.** È lo strumento che
+  esiste per rispondere a «perché riceve/non riceve il menu», e su Gioia taceva proprio sullo stato
+  che aveva disattivato la regola: ci abbiamo girato attorno un'ora. Una diagnostica che non nomina
+  la causa manda a cercarla altrove, che è peggio del non averla.
+  ⚠️ **Da guardare prima del deploy**: le clienti con la modalità viaggio accesa **adesso** si
+  vedranno chiedere la pesata al prossimo ciclo. Non è un danno, ma è un cambio di comportamento che
+  è meglio sapere in anticipo — il comando per contarle sta in `PUNTO_DELLA_SITUAZIONE` §11.
+
 - `[Sviluppo]` 🎛️ **I due pulsanti della coda ora fanno qualcosa — Consegna B (§15.2 punti 2, 3, 4)** —
   la domanda di Nocanty era «cosa fanno questi due pulsanti?» e la risposta onesta era «niente»:
   scrivevano un esito che nessun altro pezzo di codice leggeva.

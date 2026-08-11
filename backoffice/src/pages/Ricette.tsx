@@ -278,6 +278,15 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        {/*
+          Il selettore di pagina anche SOPRA la tabella (richiesta di Simone, 11/8).
+          Con cento righe per pagina, per cambiare pagina bisognava scorrere fino in fondo e poi
+          risalire per rileggere le intestazioni: due scorrimenti interi per ogni pagina, e questa
+          è la schermata su cui il nutrizionista passa le ore quando rivede un catalogo.
+          È lo stesso `<Pager>` collegato allo stesso stato, quindi i due restano d'accordo da soli,
+          e spariscono entrambi quando la pagina è una sola.
+        */}
+        <Pager {...t.pager} sopra />
         {rows.length === 0 ? (
           <div className="empty">
             {dietScope
