@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
+import { giornateComplete } from '../catalog/giornate-complete';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
@@ -35,6 +36,25 @@ import { EsitoSpezia, classificaSpezia } from './spezie';
  * ci sono sempre, quanto lungo sia il piano. Per lo storico completo servono `from`/`to`.
  */
 const MENU_WINDOW_DAYS = 30;
+
+/**
+ * La dieta come la usa l'EROGAZIONE: i campi che servono a scegliere le giornate e a servirle.
+ *
+ * Dichiarata a mano e non dedotta da Prisma perché nel sandbox il client è uno stub: senza, la
+ * variabile arriva come `unknown` e il compilatore smette di controllare i campi proprio nella
+ * funzione che li usa tutti. `levels` resta `unknown` perché qui si passa a chi lo interpreta
+ * (il target calorico), non si legge.
+ */
+interface DietaPerErogazione {
+  id: string;
+  name?: string | null;
+  regime?: string | null;
+  style?: string | null;
+  mealsPerDay?: number | null;
+  fasting?: boolean | null;
+  objective?: string | null;
+  levels?: unknown;
+}
 
 /** Override numerico per dieta: usa il valore per-dieta se numerico, altrimenti il globale. */
 function pickNumOverride(overrides: Map<string, number | boolean>, code: string, global: number): number {
@@ -361,7 +381,9 @@ export class MenuService {
       firstNewDate = nextDate.getTime() > today.getTime() ? nextDate : today;
     }
 
-    const diet = await this.pickDiet(profile);
+    // `let`: se le giornate di questa variante sono monche si scende sulla gemella completa
+    // della stessa famiglia (§15.4), e da lì in poi la dieta servita è quella.
+    let diet = await this.pickDiet(profile);
     if (!diet) return [];
 
     // La dieta scelta dalla cliente va APPLICATA (voce #5: «intanto me la devi applicare»).
@@ -423,6 +445,23 @@ export class MenuService {
     }
     if (templates.length === 0) return [];
 
+    /**
+     * SI SERVONO SOLO LE GIORNATE COMPLETE (§15.4, decisione dell'11/8).
+     *
+     * Fin qui l'erogazione si fermava solo alle giornate **zero**: una giornata con la sola
+     * colazione veniva servita e salvata così com'è, senza log e senza avviso. Chi apriva l'app
+     * all'ora di pranzo non trovava niente, e da nessuna parte risultava un problema.
+     *
+     * Il gate del catalogo controlla la completezza **una volta sola**, quando qualcuno rende la
+     * dieta visibile. Ma il generatore scrive le giornate direttamente e rompe solo se *tutti* gli
+     * slot sono vuoti, e due script pubblicano scavalcando il gate: una dieta può diventare
+     * incompleta dopo essere stata dichiarata a posto. Per questo il controllo va rifatto qui, dove
+     * la giornata arriva davvero nel piatto di qualcuno.
+     */
+    const esitoCompletezza = await this.soloGiornateComplete(clientId, diet, templates, level);
+    if (!esitoCompletezza) return []; // niente da servire: la segnalazione è già stata aperta
+    ({ diet, templates, level } = esitoCompletezza);
+
     // Stato dell'agente (Metabole_Agente_AI_Dieta): modula la selezione (conforto →
     // gradimento, plateau → efficacia, pre-evento → proteine). Sicurezza e bilanciamento
     // restano prioritari.
@@ -432,7 +471,7 @@ export class MenuService {
     // applicati ai parametri del motore, con il globale come fallback.
     const overrides = await this.dietRuleOverrides(diet.id);
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
-    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective, overrides);
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides);
     const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getBool('menu_daycombo_enabled', false),
@@ -1675,6 +1714,99 @@ export class MenuService {
     return { removed: del.count, delivered };
   }
 
+  /**
+   * TIENE SOLO LE GIORNATE COMPLETE, e se non ce ne sono cerca la gemella (§15.4, 11/8).
+   *
+   * Le tre decisioni di Simone, nell'ordine in cui si applicano:
+   *
+   * 1. **qualche giornata completa c'è** → si servono quelle e le monche si saltano. Il ciclo può
+   *    accorciarsi, ma un giorno in meno è meglio di un giorno con la sola colazione;
+   * 2. **nessuna giornata completa in questa variante** → si scende sulla **gemella completa della
+   *    stessa famiglia**: rispetta la dieta scelta ma non i pasti al giorno richiesti, quindi la
+   *    cosa **va tracciata** come il già esistente `diet_style_fallback`, non fatta in silenzio.
+   *    Stesso principio del caso Cristina: il ripiego è voluto, il silenzio no;
+   * 3. **nemmeno le gemelle** → **non si eroga** e si apre una segnalazione. Meglio «menu in
+   *    preparazione» che una giornata monca: la cliente aspetta invece di trovarsi davanti un
+   *    pranzo che non c'è, e qualcuno riceve la notizia che il catalogo ha un buco.
+   *
+   * Restituisce `null` quando non c'è niente da servire: chi chiama esce senza erogare.
+   */
+  private async soloGiornateComplete(
+    clientId: string,
+    diet: { id: string; name?: string | null; regime?: string | null; mealsPerDay?: number | null; fasting?: boolean | null; style?: string | null },
+    templates: { meals?: unknown }[],
+    level: number,
+  ): Promise<{ diet: typeof diet; templates: typeof templates; level: number } | null> {
+    const { complete, monche } = giornateComplete(templates, diet);
+    if (complete.length > 0) {
+      if (monche > 0) {
+        // Si va avanti con quelle buone, ma resta scritto: è il numero che dice al nutrizionista
+        // quante giornate deve completare, e senza questa riga non lo saprebbe nessuno.
+        this.logger.warn(
+          `Dieta ${diet.id}: ${monche} giornate su ${templates.length} sono incomplete e non verranno servite.`,
+        );
+      }
+      return { diet, templates: complete, level };
+    }
+
+    // 2) La gemella: stessa famiglia e stesso regime, un'altra struttura di pasti.
+    const gemelle = (await this.prisma.diet.findMany({
+      where: {
+        status: 'approved',
+        regime: diet.regime ?? undefined,
+        name: diet.name ?? undefined,
+        NOT: { id: diet.id },
+      },
+      select: { id: true, name: true, regime: true, mealsPerDay: true, fasting: true, style: true },
+    })) as { id: string; name: string; regime: string; mealsPerDay: number | null; fasting: boolean | null; style: string | null }[];
+
+    for (const gemella of gemelle) {
+      const suoi = (await this.prisma.dietDayTemplate.findMany({
+        where: { dietId: gemella.id, level: 1 },
+        orderBy: { dayIndex: 'asc' },
+      })) as { meals?: unknown }[];
+      const esito = giornateComplete(suoi, gemella);
+      if (esito.complete.length === 0) continue;
+
+      await this.prisma.analyticsEvent
+        .create({
+          data: {
+            eventId: randomUUID(),
+            // Stessa famiglia di nome dell'evento che esiste già per lo stile: chi guarda i ripieghi
+            // li trova insieme, invece di dover sapere che ce n'è un secondo tipo con un altro nome.
+            name: 'diet_meals_fallback',
+            userId: clientId,
+            phase: 'app',
+            data: {
+              richiesta: { dietId: diet.id, mealsPerDay: diet.mealsPerDay ?? null },
+              servita: { dietId: gemella.id, mealsPerDay: gemella.mealsPerDay ?? null },
+              motivo: 'nessuna giornata completa nella variante richiesta',
+            } as never,
+          } as never,
+        })
+        .catch(() => undefined);
+      this.logger.warn(
+        `Dieta ${diet.id} senza giornate complete: servita la gemella ${gemella.id} ` +
+          `(${gemella.mealsPerDay ?? '—'} pasti invece di ${diet.mealsPerDay ?? '—'}).`,
+      );
+      return { diet: gemella, templates: esito.complete, level: 1 };
+    }
+
+    // 3) Nemmeno le gemelle: non si eroga, e la cosa arriva a una persona.
+    await apriSegnalazione(this.prisma as never, {
+      clientId,
+      category: 'other',
+      reason:
+        `Nessuna giornata completa per «${diet.name ?? diet.id}»` +
+        `${diet.mealsPerDay ? ` · ${diet.mealsPerDay} pasti` : ''}: menu NON erogato. ` +
+        'Nessuna variante della famiglia ha giornate complete: vanno completate a catalogo.',
+      source: 'engine',
+      dedupe: true,
+    }).catch(() => undefined);
+    this.logger.error(`Nessuna giornata completa per la dieta ${diet.id} né per le sue gemelle: erogazione ferma.`);
+    return null;
+  }
+
   /** Vero se il piano è fermato dal nutrizionista (`planHeldAt`). Vedi §15.2 punto 4. */
   private async pianoFermato(clientId: string): Promise<boolean> {
     const p = (await this.prisma.clientProfile.findUnique({
@@ -1800,9 +1932,16 @@ export class MenuService {
    * copie della stessa logica prima o poi divergono — il menu del giorno e la base
    * personalizzata sicura si costruirebbero su due diete diverse, in silenzio.
    */
-  private async pickDiet(profile: DietMatchProfile) {
-    return pickDietFor(
-      (where) => this.prisma.diet.findFirst({ where: where as never, orderBy: { approvedAt: 'desc' } }),
+  /**
+   * Il tipo di ritorno è **esplicito** e non inferito: nel sandbox il client Prisma è uno stub, e
+   * senza questa dichiarazione `diet` arriva qui come `unknown` — cioè il compilatore non può più
+   * dire niente sui campi che il resto della funzione usa. Sono i campi che servono davvero
+   * all'erogazione: struttura dei pasti, famiglia, regime e livelli calorici.
+   */
+  private async pickDiet(profile: DietMatchProfile): Promise<DietaPerErogazione | null> {
+    return pickDietFor<DietaPerErogazione>(
+      (where) =>
+        this.prisma.diet.findFirst({ where: where as never, orderBy: { approvedAt: 'desc' } }) as Promise<DietaPerErogazione | null>,
       profile,
     );
   }

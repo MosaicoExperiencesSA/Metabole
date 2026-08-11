@@ -9,6 +9,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
+import { giornateComplete } from './giornate-complete';
 import {
   CreateDietDto,
   CreateRecipeDto,
@@ -326,19 +327,11 @@ export class CatalogService {
       select: { mealsPerDay: true, fasting: true },
     })) as { mealsPerDay: number; fasting: boolean | null } | null;
     if (diet) {
-      const attesi = diet.fasting
-        ? ['lunch', 'afternoon_snack', 'dinner']
-        : diet.mealsPerDay === 5
-          ? ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']
-          : ['breakfast', 'lunch', 'dinner'];
-      const monche = templates.filter((t: { meals?: unknown }) => {
-        const suoi = new Set(
-          (Array.isArray(t.meals) ? (t.meals as Array<{ slot?: string; recipeId?: string }>) : [])
-            .filter((m) => m.slot && m.recipeId)
-            .map((m) => m.slot as string),
-        );
-        return !attesi.every((s) => suoi.has(s));
-      }).length;
+      // La regola sta in `giornate-complete.ts` (11/8), perché la usa anche l'EROGAZIONE — che
+      // finora non se l'era mai chiesta. Qui si controlla una volta sola, quando qualcuno rende la
+      // dieta visibile; ma una dieta può diventare incompleta DOPO, per mano del generatore o di
+      // uno script, e un controllo che si fa una volta sola non se ne accorge per costruzione.
+      const { monche } = giornateComplete(templates as { meals?: unknown }[], diet);
       if (monche > 0) {
         throw new BadRequestException(
           `Prodotto non attivabile: ${monche} giornate su ${templates.length} non hanno tutti i pasti previsti. ` +

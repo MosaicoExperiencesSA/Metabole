@@ -20,6 +20,57 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🍽️ **Le giornate incomplete non arrivano più nel piatto (§15.4)** — il gate del
+  catalogo controlla che una dieta abbia tutti i pasti **una volta sola**, quando qualcuno la rende
+  visibile; l'erogazione non se l'è mai chiesto e si fermava solo alle giornate **zero**. Quindi una
+  giornata con la sola colazione veniva servita e salvata così com'è, senza log e senza avviso: chi
+  apriva l'app all'ora di pranzo non trovava niente, e da nessuna parte risultava un problema. Non è
+  un caso di scuola — il generatore scrive le giornate direttamente e rompe solo se *tutti* gli slot
+  sono vuoti, e due script pubblicano scavalcando il gate: una dieta può diventare incompleta **dopo**
+  essere stata dichiarata a posto, e un controllo che si fa una volta sola non se ne accorge.
+  Le tre decisioni di Simone, ora nel codice: **si servono le giornate complete** e le monche si
+  saltano (un giorno in meno è meglio di un giorno con la sola colazione); se **nessuna** è completa
+  si scende sulla **gemella completa della stessa famiglia**, tracciando `diet_meals_fallback` come
+  già si fa per lo stile — il ripiego è voluto, il silenzio no; se **nemmeno le gemelle** reggono
+  **non si eroga** e si apre una segnalazione, perché «menu in preparazione» è meglio di un pranzo
+  che non c'è.
+  La regola sta in `catalog/giornate-complete.ts`, usata sia dal gate sia dall'erogazione: era
+  scritta a mano dentro il gate, e una regola che vive in un posto solo non può essere applicata in
+  due. Sette test sul modulo, tre sull'erogazione.
+  ⚠️ **I test del menu montavano giornate finte con un solo pasto** — e con lo slot scritto in
+  italiano (`colazione`, `pranzo`, `cena`), che non corrisponde a nessuno slot reale. Restavano
+  verdi perché nessuno guardava i pasti: sono stati allineati alla realtà, ed è la ragione per cui
+  il difetto è vissuto tanto. Un test che semplifica il dato semplifica anche quello che può trovare.
+  104 suite, 1578 test verdi. **`tsc` ora è a 32 e non più a 42**: tipizzando la dieta
+  nell'erogazione sono caduti dieci errori che erano artefatti dello stub. Il nuovo riferimento è
+  **32**.
+
+- `[Sviluppo]` 💬 **Coach e nutrizionista rispondono dalla scheda cliente** — chiesto da Simone. La
+  sezione Conversazioni era di sola lettura: si leggeva il problema con davanti misure, menu e
+  segnalazioni, e per rispondere bisognava cambiare pagina. Ora in fondo alla conversazione c'è il
+  campo, con invio da Ctrl/⌘+Invio (a capo con Invio: qui si scrivono spiegazioni lunghe, e un invio
+  a metà frase parte così com'è).
+  **Sul thread di Gaia il campo non compare**, e al suo posto c'è la ragione: una risposta dello
+  staff dentro la conversazione con l'assistente arriverebbe alla cliente come se l'avesse scritta
+  Gaia. Il backend la rifiutava già — là dentro lo staff ha accesso in sola lettura — ma un campo che
+  si può scrivere e non si può inviare è una promessa rotta.
+  Chi può scrivere continua a deciderlo il backend: è **chi segue la cliente**, non chi ne risponde
+  in gerarchia (una coordinatrice che scrive nel thread «Coach» farebbe comparire alla cliente un
+  messaggio che sembra della sua coach). Se rifiuta, si legge il suo motivo invece di un campo che
+  sparisce senza spiegazione.
+
+- `[Sviluppo]` 🎨 **Tema indaco: barra dei menu più chiara, e testi delle notifiche leggibili** —
+  due segnalazioni di lettura, tutte e due sulla stessa causa: un colore usato fuori dal suo posto.
+  La **barra dei menu** prendeva `--deep`, che nel tema indaco è quasi nero. Ora esiste `--sidebar`,
+  che di default vale `--deep` — quindi gli altri temi non cambiano di un pixel — e nell'indaco vale
+  `#4b4878`: più chiara, ancora abbastanza scura da tenere il testo leggibile. Anche le etichette dei
+  gruppi hanno il loro colore per tema: quel verdino fisso, su un fondo schiarito, spariva.
+  I **testi delle notifiche** usavano `.muted`, il grigio delle didascalie. Ma in una notifica la
+  frase sotto il titolo **è** il contenuto: è la riga che si deve leggere, non un'etichetta accanto a
+  un dato. Ora usano `.notif-testo` — colore pieno, appena attenuato per restare sotto il titolo in
+  grassetto — nel campanello e nella pagina Notifiche del backoffice, e negli stessi due punti
+  dell'app (cliente e staff).
+
 - `[Sviluppo]` 📄 **Il selettore di pagina anche sopra le tabelle di Gestione dieta** — chiesto da
   Simone: con cento righe per pagina, cambiare pagina costava scorrere fino in fondo e poi risalire
   per rileggere le intestazioni. Due scorrimenti interi per ogni pagina, sulla schermata dove il

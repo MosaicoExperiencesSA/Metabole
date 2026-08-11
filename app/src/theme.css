@@ -87,6 +87,13 @@ h2 { font-size: 17px; margin: 0 0 10px; }
 p { line-height: 1.5; }
 .muted { color: var(--muted); }
 
+/*
+  Il TESTO di una notifica non è un'etichetta secondaria (11/8): usava `.muted`, il grigio delle
+  didascalie, ed è la frase che la cliente deve leggere. Colore pieno, appena attenuato per restare
+  sotto il titolo in grassetto.
+*/
+.notif-testo { color: var(--ink); opacity: 0.86; }
+
 .card {
   background: var(--card);
   border: 1px solid var(--line);

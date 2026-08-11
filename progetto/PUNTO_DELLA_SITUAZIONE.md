@@ -51,8 +51,8 @@ Il prodotto è **in produzione con clienti vere** (~45), su tre superfici: backe
 app e backoffice su Vercel, app nativa iOS/Android con aggiornamenti OTA self-hosted. Ultima OTA
 pubblicata: **2.1.6** (11/8), verificata sul manifest — vedi §5.1.
 
-Stato tecnico all'ultimo commit: **1537 test backend verdi** (101 suite), **27 test app**, type-check al
-suo valore di riferimento (42 errori, tutti dovuti allo stub di Prisma in sandbox), backoffice e app che
+Stato tecnico all'ultimo commit: **1578 test backend verdi** (104 suite), **27 test app**, type-check al
+suo valore di riferimento (**32** errori dall'11/8 — erano 42, dieci sono caduti tipizzando la dieta nell'erogazione: sono tutti artefatti dello stub di Prisma in sandbox), backoffice e app che
 compilano. Le migrazioni girano da sole a ogni deploy (`preDeployCommand`), il seed dopo di esse.
 
 Nelle ultime quattro giornate di lavoro (9→10 agosto) sono state chiuse più di novanta voci: il grosso
@@ -128,7 +128,12 @@ tenute d'accordo a mano, ed è scritto in entrambi i file.
 
 ## 3. Le prime cose (nessuna sta danneggiando qualcuno *adesso*)
 
-### 3.1 Varianti visibili con giornate incomplete
+### ~~3.1 Varianti visibili con giornate incomplete~~ — CHIUSA nel codice l'11/8 (vedi §15.4)
+> L'erogazione ora serve **solo le giornate complete**, scende sulla gemella quando la variante non ne
+> ha nessuna, e se nemmeno le gemelle reggono non eroga e apre una segnalazione. Restano da
+> **completare le giornate a catalogo** — quello è lavoro del nutrizionista, e il codice adesso lo
+> dice invece di servire una giornata monca.
+
 `Vacanze in Serenità · onnivora · dimagrimento · 3 pasti`: 28 giornate, **zero pranzi e zero cene**.
 Nessuna cliente attiva la riceve — l'unica che l'ha avuta ha il piano concluso dal 22/07 — quindi la
 trappola è armata per la prossima che la sceglie. Si chiude generandole la settimana 1, che è comunque

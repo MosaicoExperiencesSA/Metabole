@@ -76,7 +76,7 @@ export function Notifiche() {
               <span style={{ flex: 'none', width: 9, height: 9, borderRadius: '50%', marginTop: 6, background: n.readAt ? 'var(--line, #ddd)' : '#12a386' }} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontWeight: n.readAt ? 500 : 700, fontSize: 14 }}>{n.payload?.title || n.type}</div>
-                {n.payload?.body && <div className="muted" style={{ fontSize: 13, lineHeight: 1.5 }}>{n.payload.body}</div>}
+                {n.payload?.body && <div className="notif-testo" style={{ fontSize: 13, lineHeight: 1.5 }}>{n.payload.body}</div>}
                 <div className="muted" style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{dateTime(n.createdAt)}</div>
               </div>
             </div>

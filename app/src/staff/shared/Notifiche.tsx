@@ -63,7 +63,7 @@ export default function Notifiche({ tabs, schedaCliente }: { tabs: TabItem[]; sc
                   <div className="sf-row-name" style={{ fontWeight: n.readAt ? 600 : 800 }}>
                     {n.payload?.title || n.type}
                   </div>
-                  {n.payload?.body && <div className="sf-row-sub">{n.payload.body}</div>}
+                  {n.payload?.body && <div className="sf-row-sub notif-testo">{n.payload.body}</div>}
                   <div className="sf-row-sub" style={{ opacity: 0.7 }}>
                     {relDays(n.createdAt)}
                   </div>

@@ -2143,6 +2143,9 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
   const [corr, setCorr] = useState<{ to: string; toQty: string; nota: string }>({ to: '', toQty: '', nota: '' });
   const [salvo, setSalvo] = useState(false);
   const [esitoVerifica, setEsitoVerifica] = useState<string | null>(null);
+  /** La risposta che si sta scrivendo alla cliente, dal thread aperto (11/8). */
+  const [risposta, setRisposta] = useState('');
+  const [invio, setInvio] = useState(false);
 
   /**
    * `client_conversations` e non `chat`, ed è il senso della richiesta di Simone dell'11/8 («la
@@ -2235,11 +2238,42 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
     // chi l'ha appena sistemata.
   }, [clientId, puoLeggere, caricaCambi]);
 
+  /**
+   * Risponde alla cliente dal thread aperto. Il messaggio è identico a quello scritto dalla pagina
+   * Chat — stesso endpoint, stessa notifica: cambia solo che qui hai sotto gli occhi misure, menu e
+   * segnalazioni mentre scrivi.
+   */
+  async function inviaRisposta() {
+    const testo = risposta.trim();
+    if (!sel || !testo) return;
+    setInvio(true);
+    setErr(null);
+    try {
+      await api(`/threads/${sel}/messages`, { method: 'POST', body: JSON.stringify({ body: testo }) });
+      setRisposta('');
+      // Si ricarica invece di aggiungere la bolla a mano: così quello che si legge è quello che è
+      // stato salvato davvero, e non una copia ottimistica che potrebbe non combaciare.
+      const ms = await api<MsgRow[]>(`/threads/${sel}/messages`);
+      setMessaggi(ms);
+    } catch (e) {
+      setErr(
+        e instanceof ApiError && e.status === 403
+          ? 'In questa conversazione puoi leggere ma non scrivere: risponde chi segue la cliente.'
+          : e instanceof Error ? e.message : 'Messaggio non inviato.',
+      );
+    } finally {
+      setInvio(false);
+    }
+  }
+
   useEffect(() => {
     if (!sel) { setMessaggi([]); return; }
     let vivo = true;
     setCaricaMsg(true);
     setErr(null);
+    // Cambiando conversazione la bozza non si porta dietro: il testo scritto per la coach non deve
+    // ritrovarsi nel campo della nutrizionista.
+    setRisposta('');
     api<MsgRow[]>(`/threads/${sel}/messages`)
       .then((ms) => { if (vivo) setMessaggi(ms); })
       .catch((e) => { if (vivo) setErr(e instanceof ApiError ? e.message : 'Conversazione non leggibile.'); })
@@ -2497,6 +2531,67 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
               })}
             </div>
           )}
+
+          {/*
+            RISPONDERE DA QUI (richiesta di Simone, 11/8).
+
+            Prima la sezione era di sola lettura e per rispondere bisognava cambiare pagina: si
+            leggeva il problema nella scheda — con davanti misure, menu e segnalazioni — e si
+            rispondeva altrove, senza più niente sotto gli occhi.
+
+            Il campo NON compare sul thread di Gaia, e non è una scelta estetica: una risposta dello
+            staff dentro la conversazione con l'assistente arriverebbe alla cliente come se l'avesse
+            scritta Gaia. Il backend la rifiuta comunque (là dentro lo staff ha accesso in sola
+            lettura), ma un campo che si può scrivere e non si può inviare è una promessa rotta:
+            meglio non mostrarlo e dire perché.
+
+            Chi può scrivere lo decide il backend — è chi segue la cliente, non chi ne risponde in
+            gerarchia. Qui si mostra il campo a chi in linea di principio potrebbe, e se il backend
+            rifiuta si legge il suo motivo invece di un campo che sparisce senza spiegazione.
+          */}
+          {(() => {
+            const thread = threads.find((t) => t.id === sel);
+            if (!thread) return null;
+            if (thread.counterpart === 'ai') {
+              return (
+                <p className="hint" style={{ marginTop: 10, marginBottom: 0 }}>
+                  <i className="ti ti-info-circle" /> Questa è la conversazione con Gaia: si legge e non
+                  si scrive. Una risposta qui arriverebbe alla cliente come se l'avesse scritta lei.
+                  Per parlarle usa la conversazione con la coach o con la nutrizionista.
+                </p>
+              );
+            }
+            const mioRuolo =
+              (thread.counterpart === 'coach' && (me?.role === 'coach' || me?.role === 'coach_coordinator')) ||
+              (thread.counterpart === 'nutritionist' && (me?.role === 'nutritionist' || me?.role === 'head_nutritionist'));
+            if (!mioRuolo) return null;
+            return (
+              <div style={{ marginTop: 10 }}>
+                <textarea
+                  className="input"
+                  rows={2}
+                  value={risposta}
+                  maxLength={2000}
+                  disabled={invio}
+                  placeholder={`Rispondi come ${thread.counterpartName}…`}
+                  onChange={(e) => setRisposta(e.target.value)}
+                  /* Invio con Ctrl/⌘+Invio: a capo con Invio, perché qui si scrivono spiegazioni
+                     lunghe e un invio accidentale a metà frase la manda alla cliente com'è. */
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void inviaRisposta();
+                  }}
+                />
+                <div className="spread" style={{ marginTop: 6, alignItems: 'center' }}>
+                  <span className="muted" style={{ fontSize: 11.5 }}>
+                    Le arriva una notifica. Ctrl/⌘+Invio per inviare.
+                  </span>
+                  <button className="btn sm" disabled={invio || !risposta.trim()} onClick={() => void inviaRisposta()}>
+                    <i className="ti ti-send" /> {invio ? 'Invio…' : 'Invia'}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

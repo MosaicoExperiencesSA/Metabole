@@ -58,6 +58,14 @@
 /* Minimal · indaco (accento indaco su bianco) */
 :root[data-theme="white"] {
   --teal: #5b57c9; --teal-dark: #423fa0; --deep: #2a2740;
+  /*
+    La barra dei menu schiarita (Simone, 11/8). `--deep` resta com'era perché lo usano titoli e
+    icone sul bianco, dove serve scuro: qui cambia SOLO la barra.
+    #4b4878 è ancora abbastanza scuro da tenere il testo chiaro leggibile (contrasto ~7:1 sul
+    #cfe3db delle voci), e le etichette dei gruppi salgono di conseguenza: sul fondo di prima
+    stavano bene, su questo sparivano.
+  */
+  --sidebar: #4b4878; --sidebar-sep: #b9b5e0;
   --bg: #ffffff; --card: #ffffff; --ink: #1c1a24; --muted: #85808f;
   --line: #eceaf2; --chip: #eae9f7; --chip-ink: #423fa0;
   --ok: #e7f0ff; --ok-ink: #3a58a0; --danger-bg: #fbeef0;
@@ -100,10 +108,16 @@ a {
   padding: 6px 9px; cursor: pointer; color: var(--ink); font-size: 18px; line-height: 1;
 }
 .nav-toggle:hover { background: var(--chip); }
+/*
+  `--sidebar` e non `--deep` (11/8, richiesta di Simone sul tema indaco): la barra dei menu può
+  avere un colore suo senza trascinarsi dietro titoli e icone, che usano `--deep` in tutta
+  l'applicazione. Dove non è dichiarata vale `--deep`, quindi gli altri temi non cambiano di un
+  pixel.
+*/
 .sidebar {
   width: 250px;
   flex: none;
-  background: var(--deep);
+  background: var(--sidebar, var(--deep));
   color: #eaf3ef;
   padding: 22px 16px;
   display: flex;
@@ -175,7 +189,8 @@ a {
   font-size: 10px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #6f9488;
+  /* Anche questo per tema: su una barra schiarita il verdino fisso perdeva contrasto. */
+  color: var(--sidebar-sep, #6f9488);
   padding: 14px 12px 4px;
 }
 .sidebar-foot {
@@ -495,6 +510,18 @@ table.grid tr:hover td {
 }
 .muted {
   color: var(--muted);
+}
+
+/*
+  IL TESTO DI UNA NOTIFICA NON È UN'ETICHETTA SECONDARIA (11/8, segnalato dallo staff: «i titoli si
+  leggono bene, i testi no»). Usava `.muted`, che è il grigio pensato per le didascalie: giusto per
+  un'etichetta accanto a un dato, sbagliato per la frase che È il contenuto della notifica — lì
+  quello che si deve leggere è proprio quella riga.
+  Colore pieno con un filo di trasparenza: resta sotto il titolo, che è in grassetto, senza sbiadire.
+*/
+.notif-testo {
+  color: var(--ink);
+  opacity: 0.86;
 }
 
 /* ---------- Barra "salva" permessi ---------- */

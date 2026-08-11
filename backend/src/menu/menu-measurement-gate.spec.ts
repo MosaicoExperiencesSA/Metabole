@@ -123,7 +123,7 @@ describe('MenuService — gate misure', () => {
     dailyCheckin: { findUnique: jest.fn() },
     engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
     diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
-    dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ dayIndex: 1, level: 1, meals: [{ slot: 'breakfast', recipeId: 'r1' }] }]) },
+    dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ dayIndex: 1, level: 1, meals: [{ slot: 'breakfast', recipeId: 'r1' }, { slot: 'morning_snack', recipeId: 's1' }, { slot: 'lunch', recipeId: 'l1' }, { slot: 'afternoon_snack', recipeId: 'm1' }, { slot: 'dinner', recipeId: 'd1' }] }]) },
     escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
     menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
     recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
@@ -160,8 +160,10 @@ describe('MenuService — gate misure', () => {
       },
       dietDayTemplate: {
         findMany: jest.fn().mockResolvedValue([
-          { dayIndex: 1, level: 1, meals: [{ slot: 'lunch', recipeId: 'r1' }] },
-          { dayIndex: 2, level: 1, meals: [{ slot: 'lunch', recipeId: 'r2' }] },
+          // Giornate COMPLETE a 5 pasti: dall'11/8 quelle monche non si erogano (§15.4), e un
+          // template col solo pranzo farebbe misurare il nulla a test che parlano d'altro.
+          { dayIndex: 1, level: 1, meals: [{ slot: 'breakfast', recipeId: 'b1' }, { slot: 'morning_snack', recipeId: 's1' }, { slot: 'lunch', recipeId: 'r1' }, { slot: 'afternoon_snack', recipeId: 'm1' }, { slot: 'dinner', recipeId: 'd1' }] },
+          { dayIndex: 2, level: 1, meals: [{ slot: 'breakfast', recipeId: 'b1' }, { slot: 'morning_snack', recipeId: 's1' }, { slot: 'lunch', recipeId: 'r2' }, { slot: 'afternoon_snack', recipeId: 'm1' }, { slot: 'dinner', recipeId: 'd1' }] },
         ]),
       },
       recipe: {
@@ -174,9 +176,11 @@ describe('MenuService — gate misure', () => {
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert },
     });
     await makeService(prisma).deliverIfEligible('c1');
-    // il giorno che parte dal template con r1 deve erogare r2 (più gradita, stesse kcal)
-    const firstDayMeals = upsert.mock.calls[0][0].create.meals;
-    expect(firstDayMeals[0].recipeId).toBe('r2');
+    // Il giorno che parte dal template con r1 deve erogare r2 (più gradita, stesse kcal).
+    // Si cerca lo SLOT e non `meals[0]`: da quando le giornate di prova sono complete, la prima
+    // posizione è la colazione — e un test che si appoggia all'ordine misura l'ordine, non la scelta.
+    const firstDayMeals = upsert.mock.calls[0][0].create.meals as { slot: string; recipeId: string }[];
+    expect(firstDayMeals.find((m) => m.slot === 'lunch')?.recipeId).toBe('r2');
   });
 
   it('sostituzione: intolleranza sostituibile → eroga con nota di sostituzione', async () => {

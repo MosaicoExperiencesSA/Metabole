@@ -200,7 +200,7 @@ export default function AppHeader({
                         {title2}
                         {!n.readAt && <span className="livedot" style={{ background: '#E8543C' }} />}
                       </div>
-                      {body && <div className="muted" style={{ fontSize: 11.5, lineHeight: 1.4, marginTop: 2 }}>{body}</div>}
+                      {body && <div className="notif-testo" style={{ fontSize: 12, lineHeight: 1.45, marginTop: 2 }}>{body}</div>}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
                         <div className="muted" style={{ fontSize: 10 }}>{relTime(n.scheduledFor)}</div>
                         {hasRoute && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--teal)' }}>Apri <i className="ti ti-chevron-right" style={{ fontSize: 11, verticalAlign: '-1px' }} /></span>}

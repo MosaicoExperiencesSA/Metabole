@@ -160,7 +160,7 @@ export function NotificationBell() {
                   <span style={{ flex: 'none', width: 8, height: 8, borderRadius: '50%', marginTop: 6, background: n.readAt ? 'transparent' : '#12a386' }} />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: n.readAt ? 500 : 700, fontSize: 13 }}>{n.payload?.title || n.type}</div>
-                    {n.payload?.body && <div className="muted" style={{ fontSize: 12, lineHeight: 1.4 }}>{n.payload.body}</div>}
+                    {n.payload?.body && <div className="notif-testo" style={{ fontSize: 12, lineHeight: 1.45 }}>{n.payload.body}</div>}
                     <div className="muted" style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{relTime(n.createdAt)}</div>
                   </div>
                 </div>

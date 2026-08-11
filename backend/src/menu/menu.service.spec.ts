@@ -29,11 +29,22 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
   let service: MenuService;
   let prisma: any;
 
+  /**
+   * Una giornata **completa** per una dieta a 5 pasti.
+   *
+   * Prima era `meals: [{ slot: 'lunch' }]`: una giornata con il solo pranzo. Dall'11/8 l'erogazione
+   * serve solo le giornate che hanno tutti i pasti previsti (§15.4), quindi un template così non
+   * verrebbe erogato — ed è giusto: era la finzione che teneva verdi i test mentre in produzione
+   * una giornata con la sola colazione arrivava davvero nel piatto di qualcuno.
+   */
+  const SLOT_5 = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
   const template = (dayIndex: number) => ({
     dayIndex,
     level: 1,
-    meals: [{ slot: 'lunch', recipeId: 'r1' }],
+    meals: SLOT_5.map((slot, i) => ({ slot, recipeId: `r${i + 1}` })),
   });
+  /** Una giornata MONCA, per i test che verificano che venga scartata. */
+  const templateMonco = (dayIndex: number) => ({ dayIndex, level: 1, meals: [{ slot: 'lunch', recipeId: 'r1' }] });
 
   beforeEach(async () => {
     prisma = {
@@ -62,7 +73,11 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
-      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
+      diet: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'diet1', name: 'Mediterranea', regime: 'omnivore', mealsPerDay: 5 }),
+        // Le gemelle della stessa famiglia: servono al ripiego di §15.4 (giornate incomplete).
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       dietDayTemplate: {
         findMany: jest.fn().mockResolvedValue([template(1), template(2)]),
       },
@@ -366,7 +381,11 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
   const tmpl = (dayIndex: number, b: string, l: string, d: string) => ({
     dayIndex,
     level: 1,
-    meals: [{ slot: 'colazione', recipeId: b }, { slot: 'pranzo', recipeId: l }, { slot: 'cena', recipeId: d }],
+    // Slot VERI del sistema. Erano scritti in italiano ('colazione', 'pranzo', 'cena'): nomi che
+    // non corrispondono a nessuno slot reale, e che dall'11/8 renderebbero la giornata incompleta
+    // agli occhi del controllo di §15.4 — cioè non erogabile. Non aveva conseguenze finché nessuno
+    // guardava i pasti; ora le ha.
+    meals: [{ slot: 'breakfast', recipeId: b }, { slot: 'lunch', recipeId: l }, { slot: 'dinner', recipeId: d }],
   });
 
   function build(daycombo: boolean) {
@@ -419,7 +438,7 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
     const poolIds = recipes.map((r) => r.id);
     for (const call of prisma.menuDay.upsert.mock.calls) {
       const meals = call[0].create.meals as { slot: string; recipeId: string; kcal: number }[];
-      expect(meals.map((m) => m.slot)).toEqual(['colazione', 'pranzo', 'cena']);
+      expect(meals.map((m) => m.slot)).toEqual(['breakfast', 'lunch', 'dinner']);
       meals.forEach((m) => expect(poolIds).toContain(m.recipeId));
       const kcal = meals.reduce((a, m) => a + m.kcal, 0);
       expect(kcal).toBeGreaterThanOrEqual(1400 * 0.85);
@@ -442,7 +461,23 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
     { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
     { id: 'l2', name: 'Pranzo B', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
   ];
-  const tmpl = (dayIndex: number, l: string) => ({ dayIndex, level: 1, meals: [{ slot: 'lunch', recipeId: l }] });
+  /**
+   * Giornata completa per una dieta a 5 pasti, con il PRANZO variabile: è quello su cui questi
+   * test asseriscono. Gli altri quattro pasti ci sono perché dall'11/8 l'erogazione serve solo le
+   * giornate complete (§15.4): un template col solo pranzo non verrebbe erogato affatto, e il test
+   * misurerebbe il nulla.
+   */
+  const tmpl = (dayIndex: number, l: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [
+      { slot: 'breakfast', recipeId: 'b1' },
+      { slot: 'morning_snack', recipeId: 's1' },
+      { slot: 'lunch', recipeId: l },
+      { slot: 'afternoon_snack', recipeId: 'm1' },
+      { slot: 'dinner', recipeId: 'd1' },
+    ],
+  });
 
   function build(penalty: number, recentLunch: string[]) {
     const prisma: any = {
@@ -501,7 +536,23 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
     { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
     { id: 'l2', name: 'Pranzo B', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
   ];
-  const tmpl = (dayIndex: number, l: string) => ({ dayIndex, level: 1, meals: [{ slot: 'lunch', recipeId: l }] });
+  /**
+   * Giornata completa per una dieta a 5 pasti, con il PRANZO variabile: è quello su cui questi
+   * test asseriscono. Gli altri quattro pasti ci sono perché dall'11/8 l'erogazione serve solo le
+   * giornate complete (§15.4): un template col solo pranzo non verrebbe erogato affatto, e il test
+   * misurerebbe il nulla.
+   */
+  const tmpl = (dayIndex: number, l: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [
+      { slot: 'breakfast', recipeId: 'b1' },
+      { slot: 'morning_snack', recipeId: 's1' },
+      { slot: 'lunch', recipeId: l },
+      { slot: 'afternoon_snack', recipeId: 'm1' },
+      { slot: 'dinner', recipeId: 'd1' },
+    ],
+  });
 
   function build(objective: string) {
     const prisma: any = {
@@ -559,7 +610,23 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
     { id: 'r1', name: 'Orata al forno', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 }, ingredients: [{ name: 'Orata', qty: 150, unit: 'g' }] },
     { id: 'r2', name: 'Branzino in crosta', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 }, ingredients: [{ name: 'Branzino', qty: 150, unit: 'g' }] },
   ];
-  const tmpl = (dayIndex: number, l: string) => ({ dayIndex, level: 1, meals: [{ slot: 'lunch', recipeId: l }] });
+  /**
+   * Giornata completa per una dieta a 5 pasti, con il PRANZO variabile: è quello su cui questi
+   * test asseriscono. Gli altri quattro pasti ci sono perché dall'11/8 l'erogazione serve solo le
+   * giornate complete (§15.4): un template col solo pranzo non verrebbe erogato affatto, e il test
+   * misurerebbe il nulla.
+   */
+  const tmpl = (dayIndex: number, l: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [
+      { slot: 'breakfast', recipeId: 'b1' },
+      { slot: 'morning_snack', recipeId: 's1' },
+      { slot: 'lunch', recipeId: l },
+      { slot: 'afternoon_snack', recipeId: 'm1' },
+      { slot: 'dinner', recipeId: 'd1' },
+    ],
+  });
 
   // ruleEnabled: valore di ProductRule.enabled (null = regola non impostata → default off).
   function build(ruleEnabled: boolean | null, groups: { id: string; members: { items: string[] } }[]) {
@@ -623,7 +690,23 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
     { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
     { id: 'l2', name: 'Pranzo B', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
   ];
-  const tmpl = (dayIndex: number, l: string) => ({ dayIndex, level: 1, meals: [{ slot: 'lunch', recipeId: l }] });
+  /**
+   * Giornata completa per una dieta a 5 pasti, con il PRANZO variabile: è quello su cui questi
+   * test asseriscono. Gli altri quattro pasti ci sono perché dall'11/8 l'erogazione serve solo le
+   * giornate complete (§15.4): un template col solo pranzo non verrebbe erogato affatto, e il test
+   * misurerebbe il nulla.
+   */
+  const tmpl = (dayIndex: number, l: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [
+      { slot: 'breakfast', recipeId: 'b1' },
+      { slot: 'morning_snack', recipeId: 's1' },
+      { slot: 'lunch', recipeId: l },
+      { slot: 'afternoon_snack', recipeId: 'm1' },
+      { slot: 'dinner', recipeId: 'd1' },
+    ],
+  });
 
   // Global penalità = 0 (spenta). L'override per dieta la porta a `penaltyOverride`.
   function build(penaltyOverride: number | null, recentLunch: string[]) {
@@ -690,7 +773,12 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
   ];
   // Il pool della dieta contiene entrambe le colazioni, ma c1 ha efficacia appresa alta e
   // vince lo scoring TUTTI i giorni: senza guard la colazione resta identica (il reclamo).
-  const tmpl = (dayIndex: number, c: string) => ({ dayIndex, level: 1, meals: [{ slot: 'colazione', recipeId: c }] });
+  /** Giornata completa a 3 pasti, con la COLAZIONE variabile: è quella su cui questi test asseriscono. */
+  const tmpl = (dayIndex: number, c: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [{ slot: 'breakfast', recipeId: c }, { slot: 'lunch', recipeId: 'l-fisso' }, { slot: 'dinner', recipeId: 'd-fisso' }],
+  });
 
   function build(gapDays: number, recentBreakfast: string[]) {
     const prisma: any = {
@@ -700,7 +788,7 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue(recentBreakfast.map((r) => ({ meals: [{ slot: 'colazione', recipeId: r }] }))),
+        findMany: jest.fn().mockResolvedValue(recentBreakfast.map((r) => ({ meals: [{ slot: 'breakfast', recipeId: r }] }))),
         upsert: jest.fn().mockResolvedValue({}),
       },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -727,7 +815,7 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
   }
 
   const breakfastsOf = (prisma: any) =>
-    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'colazione')?.recipeId);
+    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'breakfast')?.recipeId);
 
   it('nessun piatto due giorni di fila nello stesso pasto quando il pool offre un\'alternativa', async () => {
     const { service, prisma } = build(2, []);
@@ -763,8 +851,13 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
     { id: 'c1', name: 'Frittata leggera spinaci e formaggio', kcal: 400, macros },
     { id: 'c2', name: 'Avocado toast integrale con uovo poché', kcal: 400, macros },
   ];
-  const simple = (id: string, name: string) => ({ id, name, kcal: 400, macros, mealSlot: 'colazione', ingredients: [], difficulty: 'semplice' });
-  const tmpl = (dayIndex: number, c: string) => ({ dayIndex, level: 1, meals: [{ slot: 'colazione', recipeId: c }] });
+  const simple = (id: string, name: string) => ({ id, name, kcal: 400, macros, mealSlot: 'breakfast', ingredients: [], difficulty: 'semplice' });
+  /** Giornata completa a 3 pasti, con la COLAZIONE variabile: è quella su cui si asserisce. */
+  const tmpl = (dayIndex: number, c: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [{ slot: 'breakfast', recipeId: c }, { slot: 'lunch', recipeId: 'l-fisso' }, { slot: 'dinner', recipeId: 'd-fisso' }],
+  });
 
   function build(simplePool: ReturnType<typeof simple>[]) {
     const all = [...dietRecipes, ...simplePool];
@@ -812,7 +905,7 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
   }
 
   const breakfastsOf = (prisma: any) =>
-    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'colazione')?.recipeId);
+    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'breakfast')?.recipeId);
 
   it('una sola ricetta semplice in banda: non la ripete due giorni, tiene il piatto del piano', async () => {
     const { service, prisma } = build([simple('s1', 'Salmone affumicato e cream cheese')]);
@@ -846,7 +939,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
   const today = new Date().toISOString().slice(0, 10);
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   const macros = { protein_g: 25, carbs_g: 35, fat_g: 14 };
-  const R = (id: string, name: string, kcal: number) => ({ id, name, kcal, macros, mealSlot: 'colazione', ingredients: [], active: true, difficulty: 'media' });
+  const R = (id: string, name: string, kcal: number) => ({ id, name, kcal, macros, mealSlot: 'breakfast', ingredients: [], active: true, difficulty: 'media' });
   // Pool della dieta: i due piatti del piano contengono "avena" (non gradita) e vanno cambiati;
   // a2/a3 sono le uniche alternative del pool, identiche in kcal fra loro e LONTANE dai piatti
   // del piano — così restano fuori dalla banda del compositore e a toccarle è solo lo swap.
@@ -859,7 +952,12 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
   // Catalogo per regime: carne, e con kcal IDENTICHE al piatto da sostituire. Se lo swap
   // interrogasse il catalogo (o lo interrogasse per primo) vincerebbe questa.
   const catalogRecipes = [R('x1', 'Bresaola, grana e rucola', 400)];
-  const tmpl = (dayIndex: number, c: string) => ({ dayIndex, level: 1, meals: [{ slot: 'colazione', recipeId: c }] });
+  /** Giornata completa a 3 pasti, con la COLAZIONE variabile: è quella su cui si asserisce. */
+  const tmpl = (dayIndex: number, c: string) => ({
+    dayIndex,
+    level: 1,
+    meals: [{ slot: 'breakfast', recipeId: c }, { slot: 'lunch', recipeId: 'l-fisso' }, { slot: 'dinner', recipeId: 'd-fisso' }],
+  });
 
   function build(gapDays: number) {
     const byId = new Map(dietRecipes.concat(catalogRecipes).map((r) => [r.id, r]));
@@ -913,7 +1011,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
   }
 
   const breakfastsOf = (prisma: any) =>
-    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'colazione')?.recipeId);
+    prisma.menuDay.upsert.mock.calls.map((c: any) => (c[0].create.meals as { slot: string; recipeId: string }[]).find((m) => m.slot === 'breakfast')?.recipeId);
 
   it('il sostituto viene dal pool della dieta, non dal catalogo per regime', async () => {
     const { service, prisma } = build(2);
@@ -952,9 +1050,9 @@ describe('MenuService — portata della sostituzione (solo oggi / questi giorni 
   const macros = { protein_g: 20, carbs_g: 30, fat_g: 12 };
   const ing = (...names: string[]) => names.map((name) => ({ name, qty_g: 50 }));
   // Il piatto del piano ha l'avena NEL NOME: è il caso che fa scattare il cambio di piatto.
-  const planDish = { id: 'p1', name: 'Porridge di avena e frutti di bosco', kcal: 400, macros, mealSlot: 'colazione', ingredients: ing('avena', 'mirtilli'), active: true, difficulty: 'media' };
-  const altDish = { id: 'alt1', name: 'Yogurt greco con mirtilli', kcal: 400, macros, mealSlot: 'colazione', ingredients: ing('yogurt greco', 'mirtilli'), active: true, difficulty: 'facile' };
-  const meal = () => [{ slot: 'colazione', recipeId: 'p1', name: planDish.name, kcal: 400, ...macros }];
+  const planDish = { id: 'p1', name: 'Porridge di avena e frutti di bosco', kcal: 400, macros, mealSlot: 'breakfast', ingredients: ing('avena', 'mirtilli'), active: true, difficulty: 'media' };
+  const altDish = { id: 'alt1', name: 'Yogurt greco con mirtilli', kcal: 400, macros, mealSlot: 'breakfast', ingredients: ing('yogurt greco', 'mirtilli'), active: true, difficulty: 'facile' };
+  const meal = () => [{ slot: 'breakfast', recipeId: 'p1', name: planDish.name, kcal: 400, ...macros }];
 
   function build() {
     const byId = new Map([planDish, altDish].map((r) => [r.id, r]));
@@ -1079,5 +1177,121 @@ describe('MenuService — portata della sostituzione (solo oggi / questi giorni 
 
     const sempre = await service.substituteDisliked('u1', 'avena', 'forever');
     expect(sempre.message).toContain('non comparirà più');
+  });
+});
+
+/**
+ * §15.4 — LE GIORNATE INCOMPLETE. Le tre decisioni di Simone, una per test.
+ *
+ * Il difetto che chiudono: l'erogazione si fermava solo alle giornate ZERO, quindi una giornata
+ * con la sola colazione veniva servita e salvata così com'è, senza log né avviso.
+ */
+describe('MenuService — giornate incomplete (§15.4)', () => {
+  const D2 = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  const oggi = new Date().toISOString().slice(0, 10);
+  const completa = (dayIndex: number, pranzo = 'r1') => ({
+    dayIndex, level: 1,
+    meals: [
+      { slot: 'breakfast', recipeId: 'b1' }, { slot: 'morning_snack', recipeId: 's1' },
+      { slot: 'lunch', recipeId: pranzo }, { slot: 'afternoon_snack', recipeId: 'm1' },
+      { slot: 'dinner', recipeId: 'd1' },
+    ],
+  });
+  const monca = (dayIndex: number) => ({ dayIndex, level: 1, meals: [{ slot: 'breakfast', recipeId: 'b1' }] });
+
+  const monta = async (over: Record<string, unknown>) => {
+    const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: D2(oggi), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5,
+          intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
+        }),
+      },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub1', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ status: 'active', endDate: null }]) },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}), deleteMany: jest.fn() },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
+      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+      recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+      menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
+      dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'e1' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+      analyticsEvent: { create: jest.fn().mockResolvedValue({}) },
+      ...over,
+    };
+    const config = {
+      getNumber: jest.fn((key: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[key] ?? def)),
+      getBool: jest.fn((_k: string, d?: boolean) => Promise.resolve(d ?? false)),
+    };
+    const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
+    const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
+    const { DayComboService } = require('./day-combo.service');
+    // Costruzione diretta, come gli altri blocchi di questo file: monta solo quello che serve.
+    const service = new MenuService(
+      prisma as PrismaService,
+      config as unknown as ConfigParamsService,
+      { log: jest.fn() } as unknown as AuditService,
+      events as any,
+      dietAgent as any,
+      new DayComboService(),
+      kcalNeedStub(),
+      pushStub(),
+    );
+    return { service, prisma };
+  };
+
+  it('qualche giornata completa c’è: si servono quelle e le monche si saltano', async () => {
+    const { service, prisma } = await monta({
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'd1', name: 'Mediterranea', regime: 'omnivore', mealsPerDay: 5 }), findMany: jest.fn().mockResolvedValue([]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([completa(1), monca(2), completa(3)]) },
+    });
+    const creati = await service.deliverIfEligible('u1');
+    expect(creati.length).toBeGreaterThan(0);
+    // Nessuna giornata scritta con la sola colazione: è il difetto che si chiude.
+    for (const call of (prisma.menuDay.upsert as jest.Mock).mock.calls) {
+      const slots = (call[0].create.meals as { slot: string }[]).map((m) => m.slot);
+      expect(slots).toContain('lunch');
+      expect(slots).toContain('dinner');
+    }
+  });
+
+  it('nessuna completa: scende sulla GEMELLA e lo traccia (non in silenzio)', async () => {
+    const gemella = { id: 'd2', name: 'Mediterranea', regime: 'omnivore', mealsPerDay: 3, fasting: false, style: 'mediterranean' };
+    const templateDi = jest.fn(({ where }: any) =>
+      Promise.resolve(where.dietId === 'd2'
+        ? [{ dayIndex: 1, level: 1, meals: [{ slot: 'breakfast', recipeId: 'b1' }, { slot: 'lunch', recipeId: 'l1' }, { slot: 'dinner', recipeId: 'dd1' }] }]
+        : [monca(1), monca(2)]),
+    );
+    const { service, prisma } = await monta({
+      diet: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'd1', name: 'Mediterranea', regime: 'omnivore', mealsPerDay: 5 }),
+        findMany: jest.fn().mockResolvedValue([gemella]),
+      },
+      dietDayTemplate: { findMany: templateDi },
+    });
+    const creati = await service.deliverIfEligible('u1');
+    expect(creati.length).toBeGreaterThan(0);
+    // Il ripiego è voluto, il silenzio no: resta un evento, come per lo scostamento di stile.
+    expect(prisma.analyticsEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ name: 'diet_meals_fallback' }) }),
+    );
+  });
+
+  it('nemmeno le gemelle: NON eroga e apre una segnalazione', async () => {
+    const { service, prisma } = await monta({
+      diet: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'd1', name: 'Vacanze in Serenità', regime: 'omnivore', mealsPerDay: 3 }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([monca(1), monca(2)]) },
+    });
+    // Meglio «menu in preparazione» che una giornata con la sola colazione.
+    expect(await service.deliverIfEligible('u1')).toEqual([]);
+    expect(prisma.menuDay.upsert).not.toHaveBeenCalled();
+    expect(prisma.escalation.create).toHaveBeenCalled();
   });
 });
