@@ -19,9 +19,14 @@ import { LoginDto } from '../auth/dto/login.dto';
  *
  * `class-validator` mette un messaggio in inglese **di default**: un DTO nuovo nasce sbagliato
  * senza che nessuno faccia niente di male, e il difetto si scopre solo quando ci sbatte contro
- * una persona vera. La `ValidationPipe` non ha un `exceptionFactory` che possa rimediare a
- * valle, quindi l'unica difesa è il singolo `message` — e le difese che dipendono dal
- * ricordarsene decadono.
+ * una persona vera.
+ *
+ * Dal 13/8 esiste anche una rete a valle — l'`exceptionFactory` della `ValidationPipe`, in
+ * `common/messaggi-validazione.ts` — che traduce gli schemi di class-validator e **lascia intatto**
+ * qualunque messaggio scritto a mano. Non rende inutile questo test, per una ragione precisa: quella
+ * rete sa dire «la circonferenza fianchi non può essere minore di 40», non sa dire *cosa fare*. Su una
+ * schermata che vede una cliente serve la seconda, e la scrive solo una persona. La rete serve perché
+ * il caso peggiore sia «italiano un po' tecnico» invece di «inglese incomprensibile».
  *
  * Questo test legge i **metadati** dei decoratori e fallisce se un vincolo è senza `message`.
  *

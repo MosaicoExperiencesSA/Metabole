@@ -367,9 +367,11 @@ Validazione delle due rifiniture R12 (efficacia in mantenimento; guardrail `clin
 
 ## 10. Debito nostro, dichiarato
 
-- **`ValidationPipe` senza `exceptionFactory`**: ogni DTO nuovo nasce con i messaggi d'errore in inglese
-  di class-validator. Le parti esposte sono coperte a mano una per una; chat, documenti, buoni sconto ed
-  eventi no. Si sistema in un punto solo e vale per tutto il futuro.
+- ~~**`ValidationPipe` senza `exceptionFactory`**~~ **FATTO il 13/8**: la rete c'è
+  (`common/messaggi-validazione.ts`), traduce gli schemi di class-validator e lascia intatto qualunque
+  messaggio scritto a mano. Resta vera la regola del `message` sul decoratore per i DTO che una cliente
+  compila: la rete sa dire «la circonferenza fianchi non può essere minore di 40», non sa dire *cosa
+  fare*.
 - **Nessun error tracker esterno** (né backend né app): un crash di schermata si scopre solo se la
   cliente scrive alla coach.
 - **26 inneschi email su 50 spenti** (`implemented: false`): tutta la catena nurture e gli eventi

@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { fabbricaErroreValidazione } from './common/messaggi-validazione';
 
 async function bootstrap(): Promise<void> {
   // bodyParser disattivato e ri-registrato con limiti espliciti (upload contabili/documenti
@@ -52,6 +53,19 @@ async function bootstrap(): Promise<void> {
       whitelist: true, // scarta i campi non dichiarati nei DTO
       forbidNonWhitelisted: true,
       transform: true,
+      /**
+       * I messaggi di validazione arrivano in ITALIANO anche quando nessuno li ha scritti a mano.
+       *
+       * `class-validator` genera i suoi in inglese, quindi un DTO nuovo nasce sbagliato senza che
+       * nessuno faccia niente di male: il 7/8 una cliente si è vista rispondere «hipsCm must not be
+       * less than 40» sotto un pulsante che sembrava rotto. La difesa migliore resta il `message`
+       * scritto sul decoratore — è l'unica che può dire *cosa fare* — e `messaggi-clienti.spec.ts`
+       * la pretende sui DTO che una cliente compila. Ma quella lista si allunga a mano.
+       *
+       * Questa è la rete sotto: traduce **solo** gli schemi di class-validator e lascia intatto
+       * qualunque messaggio scritto da noi. Vedi `common/messaggi-validazione.ts`.
+       */
+      exceptionFactory: fabbricaErroreValidazione,
     }),
   );
   app.enableShutdownHooks();

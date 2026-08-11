@@ -7,6 +7,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🇮🇹 **I messaggi di validazione arrivano in italiano anche quando nessuno li ha scritti** —
+  `class-validator` genera i suoi in inglese, quindi un DTO nuovo nasceva sbagliato senza che nessuno
+  facesse niente di male: il 7/8 una cliente si è vista rispondere «hipsCm must not be less than 40»
+  sotto un pulsante che sembrava rotto — non nella sua lingua, senza dirle cosa fare, col nome di una
+  colonna del database dentro. La difesa esistente (un `message` scritto a mano su ogni decoratore, con
+  un test che lo pretende) copriva solo i DTO in una lista che si allunga a mano: chat, documenti, buoni
+  sconto ed eventi erano scoperti, e il commento di quel test lo diceva già.
+  Ora c'è la rete a valle: `exceptionFactory` sulla `ValidationPipe` (`common/messaggi-validazione.ts`).
+  Traduce **solo** gli schemi di class-validator — «should not be empty», «must not be less than 40»,
+  «must be shorter than or equal to 600 characters», la whitelist, gli array — e **lascia intatto**
+  qualunque messaggio scritto da noi: nel dubbio non traduce, perché riscrivere una frase pensata da una
+  persona è un danno nuovo, non una correzione. C'è un test dedicato a questo.
+  Due scelte che vale la pena ricordare. Il **nome del campo** resta il suo per tutto ciò che non è in un
+  dizionario corto dei campi che una persona compila davvero: tradurre tutto il modello dati richiederebbe
+  un dizionario che nessuno terrebbe aggiornato, quindi il caso peggiore diventa «italiano un po' tecnico»
+  invece di «inglese incomprensibile» — e per questo la regola del `message` scritto a mano **non**
+  decade. E la **forma della risposta** resta quella di Nest (`message` come elenco di stringhe), perché
+  l'app e il backoffice la leggono così: cambiarla avrebbe rotto ogni schermata che mostra un errore di
+  validazione. Gli errori annidati vengono percorsi, altrimenti un oggetto sbagliato dentro il corpo
+  produceva un 400 con l'elenco vuoto — un rifiuto che non dice niente.
+  100 suite, 1519 test verdi. Aggiornato anche il commento di `messaggi-clienti.spec.ts`, che dichiarava
+  l'assenza di questa rete.
+
 - `[Sviluppo]` 🔒 **Il Monitoraggio si vede solo a mantenimento SCADUTO e non rinnovato** — la decisione
   di ieri, ora nel codice. Prima la condizione era «ha già fatto (o sta facendo) il mantenimento»:
   bastava un abbonamento `active`, quindi il monitoraggio compariva dal **primo giorno** e a una cliente
