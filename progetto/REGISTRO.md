@@ -20,6 +20,58 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔴 **CI rossa su `0d7e72f`: il file consegnato era costruito su un main vecchio e ha
+  annullato una correzione già pushata — e adesso la CI si riproduce in sandbox, davvero.**
+  Due cause, e la seconda è più importante della prima.
+  **La causa immediata**: `catalog.service.ts` ha due transazioni interattive, e tutte e due
+  annotavano il client come `PrismaService`. Dentro una `$transaction` il client è un
+  `Prisma.TransactionClient` — senza `$transaction`, `$connect` e gli hook di Nest — quindi
+  l'overload non combacia, TypeScript ripiega su quello ad array e il risultato diventa `any[]`:
+  **quattordici errori da una riga sola**. La correzione (`c890db1`) ne aveva già sistemata una; la
+  consegna successiva l'ha riportata indietro insieme all'altra.
+  **La causa vera**: il file l'ho costruito su un `origin/main` **precedente** a quella correzione.
+  La regola c'era già scritta — «prima di modificare un file confronta con quello del Mac» — e vale
+  doppio a fine giornata, quando Simone committa mentre noi lavoriamo. Un file consegnato per intero
+  non porta solo le sue modifiche: **riporta indietro tutto quello che non sa**.
+  ⭐ **E la scoperta che rende inutile ripetere l'errore**: in sandbox il client Prisma **si può
+  generare**. `binaries.prisma.sh` è bloccato, ma quel 403 riguarda i **motori**, non i tipi:
+  `PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 PRISMA_SCHEMA_ENGINE_BINARY=/bin/true npx prisma generate
+  --no-engine` produce il client vero. I motori servono per parlare col database, non per compilare.
+  Da lì girano **gli stessi quattro job della CI** — backend build + test, backoffice build, app
+  build + test — e si sa se sarà verde **prima** di consegnare, invece di scoprirlo dal pallino
+  rosso su GitHub. Finora si usava uno stub con tutto `any`, che compilava anche il codice sbagliato:
+  era quello a nascondere entrambe le CI rosse di oggi.
+  Verificato adesso, tutti e quattro: build backend verde, 109 suite / 1698 test, backoffice verde,
+  app verde con 27 test.
+- `[Prodotto]` 📌 **DA FARE — quello che resta aperto all'11/8/2026, in un posto solo.**
+  Messo qui su richiesta di Simone: la coda vive in `PUNTO_DELLA_SITUAZIONE.md` §16, questa è la
+  fotografia di fine giornata.
+  **Decise da Simone, manca solo scriverle** — §16.8 tetto di guadagno del nutrizionista (solo campo
+  di profilo, niente blocco) · §16.9 tabella delle sostituzioni di Gaia, contestuale, con «promuovi
+  a regola».
+  **Aperte, nell'ordine di priorità che aveva dato lui** — §16.2 Gaia deve poter correggere i piatti
+  di *tutti* i menu emessi · §16.3 nuovo lead → notifica alla manager delle coach + tabella «Lead da
+  assegnare» · §16.4 tabella Clienti uguale a Gestione lead ma solo chi ha speso · §16.6 «Piatto
+  Freddo» fra i metodi di cottura · §16.7 slot per le visite creati dal nutrizionista.
+  **Chiusa oggi**: §16.5 (i filtri delle tabelle restano fermi) — controllate tutte le tabelle del
+  backoffice, le uniche due che disegnano i filtri a mano sono il catalogo ricette e `LeadsTable`, e
+  adesso chiedono lo stile all'helper tutte e due.
+  **Aspettano una persona, non del codice** — §15.3 il ritmo di calo di sicurezza è un numero da
+  decidere con Nocanty · la **quota coach** sulle provvigioni del rinnovo, che blocca il monitoraggio
+  a pagamento (numeri in `Decisione_Provvigioni_Rinnovo.md`) · le 12 varianti della
+  **Keto-Mediterranea** da generare e validare con la nutrizionista.
+  **In coda da prima** — §15.6 due pesate in aumento → i menu che hanno funzionato · revoca consenso
+  e cancellazione a 30 giorni · le 14 richieste dei clienti del 5/8 · la sequenza dei menu diversa
+  per ogni cliente (dettata l'11/8) · `install-ios.mjs` che rifaccia i quattro passaggi persi a ogni
+  rigenerazione di `ios/`.
+  **Sui tag, dopo la pulizia di oggi** — restano tre code corte: `npm run fix:tag-settimane` non è
+  ancora stato lanciato sui dati esistenti (i `sett:` a database sono ancora quelli vecchi, anche se
+  non li legge più nessuno); `diag-dieta.ts` racconta a schermo la **vecchia** semantica di `sett:N`;
+  e **rinominare una dieta non aggiorna il tag `dieta:<nome>`**, quindi il generatore smette di
+  ritrovarne le ricette orfane e le ricompra dall'AI.
+  **A lista finita**: la **OTA 2.1.8** — e con quella arrivano sui telefoni anche le pastiglie dei
+  tag tolte dalla scheda ricetta dell'app.
+
 - `[Sviluppo]` 📤 **«Esporta in Excel» su TUTTE le trenta tabelle del backoffice — e le date escono
   come date.** Richiesta di Simone: «il pulsante esporta in excel con i filtri va applicato a tutte
   le tabelle». Ventinove passano da `useTabella` e prendono il pulsante con una riga; la trentesima,
