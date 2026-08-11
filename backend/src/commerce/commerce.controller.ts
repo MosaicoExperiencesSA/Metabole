@@ -41,6 +41,20 @@ import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 import { AuditService } from '../audit/audit.service';
 
+/**
+ * La data di inizio di «Conosciamoci». **Obbligatoria**: l'ha chiesto Simone («non si va avanti
+ * senza»), ed è anche la condizione tecnica perché i menu partano — senza `planStartDate`
+ * `deliverIfEligible` non eroga niente.
+ *
+ * `@IsString()` e non `@IsDateString()`: la validazione vera — passato, limite a 12 mesi,
+ * normalizzazione a giorno — sta in `validaDataInizio`, che è pura e provata. Due validazioni sulla
+ * stessa cosa, in due posti, sono il modo classico per farne divergere una.
+ */
+class BenvenutoDto {
+  @IsString()
+  dataInizio!: string;
+}
+
 class SubscribeDto {
   @IsUUID()
   planId!: string;
@@ -362,6 +376,18 @@ export class MyCommerceController {
   @Post('subscribe')
   subscribe(@CurrentUser() user: AuthUser, @Body() dto: SubscribeDto) {
     return this.commerce.subscribe(user.sub, dto.planId, user.email, dto.method ?? 'bank_transfer', dto.abbonamento ?? false);
+  }
+
+  /**
+   * FINE QUESTIONARIO → «Conosciamoci» parte, con la data scelta dalla cliente (§16.1, 11/8).
+   *
+   * Un endpoint che riceve **una cosa sola**: la data. Il `planId` non arriva dall'app di proposito —
+   * lo sa il backend. Se il client potesse dire *quale* piano attivare a €0, avremmo riaperto dalla
+   * finestra la porta appena chiusa in `assertPlanPurchasable`.
+   */
+  @Post('benvenuto')
+  benvenuto(@CurrentUser() user: AuthUser, @Body() dto: BenvenutoDto) {
+    return this.commerce.attivaBenvenuto(user.sub, dto.dataInizio);
   }
 
   /**

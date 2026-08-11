@@ -782,7 +782,19 @@ ritenzione, e questa regola non dovrebbe essere l'eccezione; e se la cliente vad
 Tutto quello che sta qui **è già stato deciso da Simone in conversazione**. Non va richiesto di nuovo:
 va scritto. Le voci sono in ordine di priorità dichiarata da lui.
 
-### 16.1 «Conosciamoci» si attiva da solo a fine questionario — ⚠️ LA PIÙ GROSSA
+### 16.1 «Conosciamoci» si attiva da solo a fine questionario — ✅ SCRITTA l'11/8, da pushare
+
+> **Fatta.** `attivaBenvenuto` + pagina `Benvenuto.tsx` al posto di `PlanFlow`, il piano della prova
+> fuori dalla vetrina e non acquistabile, e i tre pezzi della prova (`trial_started`, CRM, avviso alla
+> coach) spostati al **primo menu** in `provaAttivata`. 1639 test verdi, nessuna migrazione.
+> ✅ Il piano a €0 è **uno solo** — «Conosciamoci», `period '8d'` — verificato in produzione l'11/8:
+> niente `trial_plan_id` da impostare, e nessun fallback di durata (la prova dura 8 giorni esatti).
+> ⚠️ Resta la **OTA 2.1.8**, che porta la parte app sui telefoni — decisione dell'11/8: si fa a lista
+> finita, non subito.
+> Aperto: `PlanFlow.tsx` non è più montato da nessuno, da decidere se togliere.
+>
+> Quello che segue è l'analisi con cui è stata scritta: si tiene perché spiega il *perché* di ogni
+> scelta, e perché le otto conseguenze elencate sotto sono diventate i casi del test.
 
 **Quello che ha chiesto.** «C'è una complicazione inutile: a tutti i clienti, una volta che completano
 il questionario, in automatico attiviamo "conosciamoci" senza passare dallo shop e senza generare un
@@ -929,20 +941,28 @@ cliente che acquista la visita possa scegliere il suo slot.» È la voce più gr
 (disponibilità ricorrenti, prenotazione, collisioni, fuso orario, disdette): va parlata prima di
 scriverla.
 
-### 16.8 Tetto di guadagno del nutrizionista — ⛔ ferma su una domanda
+### 16.8 Tetto di guadagno del nutrizionista — ✅ DECISA l'11/8: solo campo di profilo
 
 Simone ha chiesto il campo **nel profilo del nutrizionista**. In una conversazione precedente aveva
 però detto che la regola «è di tutti i nutrizionisti», da cui era nata la conclusione «parametro
-globale». **Domanda aperta:** solo campo di profilo, o un default globale sovrascrivibile sul singolo?
-Se il tetto è uguale per tutti, metterlo su ogni profilo vuol dire cambiarlo 40 volte il giorno che
-cambia. Decisioni già prese sul resto: l'eccedenza si perde; lo storno si sottrae anche se rientra nei
+globale». **Risposta di Simone (11/8): SOLO il campo sul profilo del nutrizionista.** Niente default globale in
+`config_param`, niente cascata: il tetto si imposta persona per persona, dove sta il nutrizionista.
+L'obiezione («se la regola è uguale per tutti lo cambi 40 volte») è stata posta e scartata.
+⚠️ Da tenere presente scrivendolo: un nutrizionista **senza** tetto valorizzato = **nessun tetto**. Il
+calcolo delle provvigioni non deve trattare `null` o `0` come «tetto a zero», o gli si azzera il
+compenso in silenzio. Decisioni già prese sul resto: l'eccedenza si perde; lo storno si sottrae anche se rientra nei
 3.000; la regola vale per tutti i nutrizionisti.
 
-### 16.9 La tabella delle sostituzioni di Gaia — ⛔ ferma su una scelta
+### 16.9 La tabella delle sostituzioni di Gaia — ✅ DECISA l'11/8: tabella nuova + «promuovi a regola»
 
 «Se non salviamo la sua risposta lei non impara.» Serve **una tabella unica trasversale alle clienti**,
 con validazione/correzione da parte del nutrizionista **e inserimento manuale di righe**. La scelta
 aperta è fra una **tabella nuova contestuale** (riga = questa cliente, questo piatto, questo
 ingrediente → sostituito con, più lo stato) e l'**alimentazione dei gruppi di equivalenza esistenti**.
-La proposta sul tavolo: la prima, con un pulsante «promuovi a regola» sulla riga validata, così il
-nutrizionista decide caso per caso se vale per tutte.
+**Risposta di Simone (11/8): la prima** — tabella nuova contestuale (riga = cliente + piatto +
+ingrediente → sostituito con + stato + chi e quando), con validazione, correzione e inserimento manuale
+del nutrizionista, e un pulsante **«promuovi a regola»** sulla riga validata che la porta nei gruppi di
+equivalenza, caso per caso. Il contesto è l'informazione che i gruppi di equivalenza non sanno tenere, e
+una scelta fatta per una cliente non deve cambiare il motore per tutte.
+⚠️ Il confronto sui nomi di alimento va fatto **per parola, con la radice**: mai per sottostringa
+(«pepe»⊂«peperoni»). Serve una migrazione versionata.

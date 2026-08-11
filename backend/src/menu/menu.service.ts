@@ -9,6 +9,7 @@ import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { PushService } from '../notifications/push.service';
+import { provaAttivata } from '../commerce/prova-attivata';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
@@ -690,6 +691,30 @@ export class MenuService {
       entityType: 'menu_day',
       metadata: { days: created, dietId: diet.id },
     });
+
+    /**
+     * IL PRIMO MENU IN ASSOLUTO: è QUI che la prova comincia davvero (§16.1, 11/8).
+     *
+     * `!last` è esattamente «questa cliente non aveva nemmeno un giorno erogato», e non serve una
+     * query in più per saperlo: la variabile è già stata calcolata sopra per decidere da che data
+     * partire.
+     *
+     * Da questo momento — non dall'attivazione — scattano `trial_started`, il CRM a «Prova» e
+     * l'avviso alla coach. Con «Conosciamoci» che si attiva a fine questionario e la data scelta
+     * dalla cliente, l'attivazione può stare settimane prima: dire «Prova» a chi non ha ancora
+     * visto un piatto riempie la board della manager di gente che non ha cominciato, e manda alla
+     * coach l'avviso settimane prima del momento in cui una telefonata serve.
+     *
+     * `provaAttivata` è idempotente (guarda l'evento `trial_started`) — necessario, perché questa
+     * funzione gira a ogni apertura dell'app — e non deve mai far fallire l'erogazione: il menu è
+     * il lavoro vero, il funnel è la cronaca.
+     */
+    if (!last && created.length > 0) {
+      await provaAttivata(this.prisma, this.push, {
+        clientId,
+        subscriptionId: (activeSubscription as { id?: string }).id ?? null,
+      }).catch(() => undefined);
+    }
     return created;
   }
 

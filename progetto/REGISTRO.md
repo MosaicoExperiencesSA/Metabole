@@ -20,6 +20,63 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🎬 **«Conosciamoci» si attiva da sola a fine questionario, e la prova comincia col primo
+  menu** — §16.1. Finito il questionario la cliente non incontra più il negozio: Gaia le dà il
+  benvenuto («dedicami 8 giorni per conoscerti»), le chiede **la data in cui vuole iniziare** — campo
+  obbligatorio, che prima non esisteva — e da lì entra nell'app. `attivaBenvenuto`: piano gratuito →
+  Subscription **`active`** con date già scritte → `planStartDate` → referral → monitoraggio → audit.
+  **Niente `Payment`, niente `Order`** («ora mi intasa la tabella acquisti e basta»).
+  Le tre cose fatte con cura, perché l'analisi diceva esattamente dove si rompe: la Subscription nasce
+  `active` e non `pending` (una `pending` senza pagamento è **irrecuperabile** e blocca ogni acquisto
+  futuro: una cliente che non può più comprare niente, per sempre); la rete di sicurezza sulla durata
+  (un `period` scritto male cadrebbe sul fallback a 3 mesi di accesso gratuito → default 8 giorni); la
+  **data lontana è permessa**, quindi nessun cap a 60 giorni, con un limite a 12 mesi che non è contro
+  la cliente ma contro il refuso dell'anno.
+  ⭐ **E «Prova» arriva col primo menu, non con l'attivazione** (correzione di merito chiesta da
+  Simone): con la data scelta da lei fra i due momenti passano settimane, e una board piena di «Prova»
+  su chi non ha ancora visto un piatto è rumore che la manager delle coach impara a ignorare. I tre
+  pezzi si sono spostati **insieme** — `trial_started`, CRM, avviso alla coach — in `provaAttivata`,
+  chiamato da `deliverIfEligible` al primo `menuDay` in assoluto, idempotente perché quella funzione
+  gira a ogni apertura dell'app.
+  ⚠️ **Il buco che lo spostamento apriva**: `trial_converted` scatta solo se `trial_started` esiste, e
+  chi compra **prima** del primo menu non l'avrebbe mai avuto — cioè la conversione di chi si
+  entusiasma subito non sarebbe stata contata mai. Ora il primo acquisto vero, se trova la prova ma non
+  l'evento, lo scrive **a ritroso** marcato `recuperato`, e poi conta la conversione.
+  Il piano «Auto Apprendimento Gaia» esce dalla vetrina (cliente **e** pubblica) e l'acquisto viene
+  rifiutato anche a chi arriva con l'id in mano (`assertPlanPurchasable`): nascondere non basta, l'elenco
+  è un suggerimento e l'acquisto è una POST con dentro un `planId`. Resta nel database, perché serve il
+  suo id per attivarlo.
+  **Due estrazioni non per eleganza**: `MenuService` non può dipendere né da `CommerceService` né da
+  `NotificationsService` (`NotificationsModule` importa `MenuModule`: la freccia opposta chiude un
+  cerchio, e un `forwardRef` messo lì per farlo tacere è un rinvio). Quindi `funnelEvent` e il corpo di
+  `notify` sono diventati funzioni libere che ricevono `prisma`, e i servizi le chiamano — una regola
+  sola: due copie divergono, e quella che smette di avvisare non lo dice a nessuno.
+  106 suite / **1639 test verdi** (28 nuovi, scritti sulle otto conseguenze dell'analisi); app a **zero
+  errori** di type-check e 27 test verdi; type-check backend confrontato col baseline: **zero errori
+  introdotti** ⚠️ da riconfermare col `npm run typecheck` vero sul Mac, perché in sandbox
+  `prisma generate` resta appeso sul download dei binari. Nessuna migrazione.
+  ✅ **Verificato in produzione l'11/8** (Shell di Render): a €0 esiste **un solo piano**,
+  «Conosciamoci», `period '8d'`, attivo e non nascosto. Quindi il fallback trova il piano da sé e
+  **`trial_plan_id` non va impostato**; e siccome `'8d'` è un periodo valido, la rete di sicurezza sulla
+  durata non entra in gioco: la prova dura esattamente gli 8 giorni che Gaia promette nella pagina di
+  benvenuto. Nota: `hidden` resta `false` e va bene — la prova sparisce dalla vetrina per codice
+  (`isTrialPlan` in `listPlansForClient` e `listPublicPlans`), non per un flag che qualcuno può
+  ribaltare dal Negozio senza sapere cosa comporta.
+  Come si rifà, se un giorno serve: che il piano a €0 sia **uno solo**. Il modo più rapido è
+  **Backoffice → Negozio**, che elenca tutti i piani col prezzo (anche i nascosti). Dalla Shell di
+  Render, nella forma della §11 — `node -e`, **non** `ts-node`, che è in devDependencies e su Render
+  non c'è:
+  ```
+  node -e 'const {PrismaClient}=require("@prisma/client");const p=new PrismaClient();p.plan.findMany({where:{priceCents:0},select:{id:true,name:true,period:true,active:true,hidden:true}}).then(r=>console.table(r)).finally(()=>p.$disconnect())'
+  ```
+  Se sono più di uno il codice **si ferma con un errore parlante** e si indica quale è la prova col
+  parametro **`trial_plan_id`**, che vive in `config_param` → **Backoffice → Parametri**, non su Render.
+  ⚠️ Nota di metodo: il primo comando scritto in questa voce usava `ts-node`, che su Render non è
+  installato (è in `devDependencies`). Un comando che non parte è tempo perso in piedi davanti a una
+  shell di produzione: la §11 aveva già la forma giusta, andava riusata invece di inventarne una. ⚠️ La parte app arriva sui telefoni solo con la **OTA 2.1.8**, a lista
+  finita: fino a lì il backend è pronto e le clienti vedono ancora il vecchio flusso.
+  `PlanFlow.tsx` non è più montato da nessuno: lasciato in piedi, da decidere se togliere.
+
 - `[Sviluppo]` 📦 **OTA 2.1.7 — la correzione del caso Giusy arriva sui telefoni** — la 2.1.6 portava il
   banner della pesata di ciclo, non il modulo che ricompare dopo lo sblocco: quello sta in
   `MeasuresGate.tsx`, cioè nell'app, e senza bundle non esiste per nessuno. Nel 2.1.7 entrano i quattro

@@ -23,8 +23,10 @@ import { ReferralService } from '../referral/referral.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
-import { deriveSegment } from '../common/funnel-segment';
 import { coachTeamScope } from '../common/coach-team';
+import { emettiEventoFunnel } from './funnel-event';
+import { assicuraProvaIniziata } from './prova-attivata';
+import { isTrialPlan, messaggioData, validaDataInizio } from './piano-prova';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 
@@ -264,8 +266,10 @@ export class CommerceService {
     // del percorso (percorso → mantenimento → monitoraggio), non un piano d'ingresso. Senza
     // questo filtro comparirebbe sulla landing accanto ai percorsi, a €19, come se si potesse
     // partire da li'.
-    return (plans as unknown as { period?: string }[]).filter(
-      (p) => !isMaintenancePlan(p.period) && !isMonitoringPlan(p.period),
+    // Fuori anche la PROVA (11/8): non si compra più da nessuna parte, si attiva a fine
+    // questionario. Lasciarla in vetrina pubblica sarebbe un pulsante che porta a un rifiuto.
+    return (plans as unknown as { period?: string; priceCents?: number }[]).filter(
+      (p) => !isMaintenancePlan(p.period) && !isMonitoringPlan(p.period) && !isTrialPlan(p),
     );
   }
 
@@ -394,10 +398,194 @@ export class CommerceService {
       this.hasReachedObjective(clientId),
       this.statoMonitoraggio(clientId),
     ]);
-    return (plans as unknown as { id: string; period?: string; repurchasable?: boolean }[])
+    return (plans as unknown as { id: string; period?: string; priceCents?: number; repurchasable?: boolean }[])
       .filter((p) => !isMaintenancePlan(p.period) || reached) // mantenimento solo a obiettivo raggiunto
       .filter((p) => !isMonitoringPlan(p.period) || monitoraggio.disponibile) // solo a mantenimento scaduto e non rinnovato
+      // LA PROVA NON SI COMPRA PIÙ (11/8): si attiva da sola a fine questionario, e il negozio la
+      // cliente lo incontra alla fine degli 8 giorni, quando la scelta ha senso. Il piano resta nel
+      // database perché serve il suo id per attivarlo: sparisce solo dalla vetrina.
+      .filter((p) => !isTrialPlan(p))
       .filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
+  }
+
+  /**
+   * ATTIVAZIONE DI «CONOSCIAMOCI» A FINE QUESTIONARIO — §16.1, decisione di Simone dell'11/8.
+   *
+   * «C'è una complicazione inutile: a tutti i clienti, una volta che completano il questionario, in
+   * automatico attiviamo Conosciamoci senza passare dallo shop e senza generare un acquisto.»
+   *
+   * Quindi: **niente `Payment`, niente `Order`**. Il pagamento a €0 esisteva per un motivo solo —
+   * far girare `finalizeApproval` — e in cambio intasava la tabella Acquisti con righe che non
+   * documentano nessun acquisto. La traccia dell'attivazione è l'audit più la Subscription.
+   *
+   * ## Le tre cose che questa funzione deve fare bene, e perché
+   *
+   * 1. **La Subscription nasce `active`, non `pending`.** Una `pending` senza `Payment` è una
+   *    trappola senza uscita: l'unica strada che la porta a `cancelled` parte dal pagamento, e
+   *    finché è lì blocca **ogni acquisto futuro**. Sarebbe una cliente che non può comprare più
+   *    niente, per sempre, senza che nessuno capisca perché.
+   * 2. **La rete di sicurezza sulla durata.** Se il `period` del piano è scritto male,
+   *    `subscriptionEnd` cade sul fallback lungo (3 mesi) e regaliamo tre mesi di accesso. Sul
+   *    gratuito il default prudente è 8 giorni, come in `finalizeApproval`.
+   * 3. **`planStartDate`**, che è il buco che questa modifica chiude: nel percorso gratuito restava
+   *    `null` — la schermata che chiede la data esiste solo dopo Stripe — e il menu restava in
+   *    `preparing` finché la cliente non incontrava per caso la card in Home.
+   *
+   * NON fa `provaAttivata` (funnel, CRM, avviso alla coach): quello scatta al **primo menu**, che
+   * con una data scelta da lei può essere fra settimane. Vedi `prova-attivata.ts`.
+   */
+  async attivaBenvenuto(
+    clientId: string,
+    dataInizio: unknown,
+  ): Promise<{ attivata: boolean; giaAttiva?: boolean; subscriptionId: string; planStartDate: string }> {
+    const esito = validaDataInizio(dataInizio);
+    if (!esito.ok) throw new BadRequestException(messaggioData(esito.motivo));
+    const inizio = esito.data;
+
+    /**
+     * IDEMPOTENZA. Il questionario si può rifare, e questa chiamata arriva dall'app: due tocchi sul
+     * pulsante non devono produrre due abbonamenti. Due condizioni, non una:
+     *  - un abbonamento **attivo qualunque** (ha già un percorso in corso: non le si mette una prova
+     *    sopra);
+     *  - o una Subscription **sul piano della prova**, in qualunque stato (l'ha già fatta: `active`,
+     *    `expired` o anche `pending` di un vecchio giro).
+     * In entrambi i casi si aggiorna la data se serve e si esce senza creare niente.
+     */
+    const piano = await this.pianoDellaProva();
+    const [attivoQualunque, provaEsistente] = await Promise.all([
+      this.prisma.subscription.findFirst({
+        where: { clientId, status: 'active' } as never,
+        select: { id: true },
+      }) as Promise<{ id: string } | null>,
+      this.prisma.subscription.findFirst({
+        where: { clientId, planId: piano.id } as never,
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      }) as Promise<{ id: string } | null>,
+    ]);
+    const gia = attivoQualunque ?? provaEsistente;
+    if (gia) {
+      await this.audit
+        .log({
+          action: 'commerce.benvenuto.gia_attiva',
+          actorId: clientId,
+          entityType: 'subscription',
+          entityId: gia.id,
+          metadata: { dataRichiesta: inizio.toISOString() },
+        })
+        .catch(() => undefined);
+      const prof = (await this.prisma.clientProfile.findUnique({
+        where: { userId: clientId },
+        select: { planStartDate: true },
+      })) as { planStartDate: Date | null } | null;
+      return {
+        attivata: false,
+        giaAttiva: true,
+        subscriptionId: gia.id,
+        planStartDate: (prof?.planStartDate ?? inizio).toISOString(),
+      };
+    }
+
+    // Rete di sicurezza sulla durata: identica a `finalizeApproval`, e per la stessa ragione.
+    const rawPeriod = piano.period ?? '';
+    const period = isKnownPeriod(rawPeriod) ? rawPeriod : FREE_PLAN_FALLBACK_PERIOD;
+    if (period !== rawPeriod) {
+      await this.audit.log({
+        action: 'commerce.free_plan_period_fallback',
+        actorId: clientId,
+        entityType: 'plan',
+        entityId: piano.id,
+        metadata: { rawPeriod, appliedPeriod: period, reason: 'attivazione benvenuto senza durata valida' },
+      });
+    }
+
+    const sub = await this.prisma.subscription.create({
+      data: {
+        clientId,
+        planId: piano.id,
+        status: 'active' as never,
+        startDate: inizio,
+        endDate: subscriptionEnd(inizio, period),
+      },
+    });
+
+    // La data di inizio: è il campo che oggi manca del tutto nel percorso gratuito. Senza,
+    // `deliverIfEligible` non parte nemmeno.
+    await this.prisma.clientProfile.updateMany({
+      where: { userId: clientId },
+      data: { planStartDate: inizio },
+    });
+
+    // «Porta un'amica» e monitoraggio: le stesse due chiamate dell'attivazione a pagamento. Non
+    // devono mai far fallire l'attivazione.
+    await this.referral.onConvert(clientId).catch(() => undefined);
+    await this.referral.riscuotiSospese(clientId).catch(() => undefined);
+    await this.monitoring
+      .onPlanActivated(clientId, {
+        id: piano.id,
+        name: piano.name,
+        priceCents: piano.priceCents,
+        period,
+      })
+      .catch(() => undefined);
+
+    /**
+     * L'audit al posto del `Payment`. Era l'ottava conseguenza dell'analisi: togliendo il pagamento
+     * sparirebbe `commerce.payment.approve`, cioè l'unica riga che diceva «questa prova è stata
+     * attivata, in questo momento». Qui c'è, con dentro la data scelta e la durata applicata.
+     */
+    await this.audit.log({
+      action: 'commerce.benvenuto.attivata',
+      actorId: clientId,
+      entityType: 'subscription',
+      entityId: sub.id,
+      metadata: { planId: piano.id, planStartDate: inizio.toISOString(), period },
+    });
+
+    return { attivata: true, subscriptionId: sub.id, planStartDate: inizio.toISOString() };
+  }
+
+  /**
+   * Il piano della prova, quello che «Conosciamoci» attiva.
+   *
+   * Prima si guarda il parametro `trial_plan_id` (le soglie e le scelte di configurazione stanno in
+   * `config_param`, per regola di progetto: mai un id scritto nel codice). Se non è impostato si
+   * cade sull'unico piano attivo a €0 — che oggi è la situazione vera.
+   *
+   * Se i piani a €0 sono più di uno, **si ferma con un errore parlante** invece di indovinarne uno:
+   * attivare il piano sbagliato vorrebbe dire una durata sbagliata, quindi una scadenza sbagliata,
+   * quindi menu che finiscono quando non devono — e nessuno lo collegherebbe a questa riga.
+   */
+  private async pianoDellaProva(): Promise<{ id: string; name: string; priceCents: number; period: string | null }> {
+    const idConfigurato = (await this.configParams.getString('trial_plan_id', '')).trim();
+    if (idConfigurato) {
+      const p = (await this.prisma.plan.findUnique({
+        where: { id: idConfigurato },
+        select: { id: true, name: true, priceCents: true, period: true },
+      })) as { id: string; name: string; priceCents: number; period: string | null } | null;
+      if (!p) {
+        throw new BadRequestException(
+          `Il parametro trial_plan_id punta a un piano che non esiste (${idConfigurato}): correggilo nei Parametri.`,
+        );
+      }
+      return p;
+    }
+    const gratuiti = (await this.prisma.plan.findMany({
+      where: { active: true, priceCents: 0 } as never,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, priceCents: true, period: true },
+    })) as { id: string; name: string; priceCents: number; period: string | null }[];
+    if (gratuiti.length === 0) {
+      throw new BadRequestException(
+        'Non trovo il piano della prova (nessun piano attivo a €0). Impostalo nei Parametri con la chiave trial_plan_id.',
+      );
+    }
+    if (gratuiti.length > 1) {
+      throw new BadRequestException(
+        `Ci sono ${gratuiti.length} piani attivi a €0 (${gratuiti.map((g) => g.name).join(', ')}): indica quale è la prova nei Parametri, con la chiave trial_plan_id.`,
+      );
+    }
+    return gratuiti[0];
   }
 
   /**
@@ -412,7 +600,20 @@ export class CommerceService {
    * che sa com'e' messa la cliente e puo' avere motivi legittimi per attivarlo lo stesso (peso
    * misurato in studio e non ancora inserito, per esempio). La scelta e' voluta.
    */
-  private async assertPlanPurchasable(clientId: string, plan: { period?: string | null }) {
+  private async assertPlanPurchasable(clientId: string, plan: { period?: string | null; priceCents?: number | null }) {
+    /**
+     * LA PROVA NON SI COMPRA (11/8). Si attiva da sola a fine questionario (`attivaBenvenuto`), e
+     * chi arriva qui con l'id del piano in mano viene fermato: la cliente non deve poter creare una
+     * seconda prova, né rifarla dal negozio dopo averla consumata.
+     *
+     * Come per il mantenimento, questo controllo NON vale per l'acquisto manuale da backoffice
+     * (`createManualPurchase`): l'operatrice può avere motivi legittimi per attivarla a mano.
+     */
+    if (isTrialPlan(plan)) {
+      throw new BadRequestException(
+        'Il periodo di prova si attiva da solo appena finisci il questionario: non serve acquistarlo. Se non lo vedi partire, scrivi alla tua coach.',
+      );
+    }
     if (isMonitoringPlan(plan.period)) {
       // Stesso ragionamento del mantenimento: nascondere non basta, l'acquisto è una POST con
       // dentro un `planId`. E la condizione deve essere la STESSA della vetrina, altrimenti la
@@ -542,7 +743,7 @@ export class CommerceService {
           : 'Questo prodotto si paga con carta: è un abbonamento con addebito automatico.',
       );
     }
-    await this.assertPlanPurchasable(clientId, plan as { period?: string | null });
+    await this.assertPlanPurchasable(clientId, plan as { period?: string | null; priceCents?: number });
 
     // Gating dell'acquisto al consenso dati sanitari (spec sez. 11).
     const profile = await this.prisma.clientProfile.findUnique({
@@ -1632,28 +1833,18 @@ export class CommerceService {
    * Evento di funnel del lancio (trial_started, trial_expired, …) su analytics_event.
    * Handoff punto 6: ogni evento porta anche SEGMENTO di provenienza (ex cliente /
    * lead caldo / lead freddo) e CANALE, letti dalla scheda CRM del cliente.
+   *
+   * Dall'11/8 il corpo vive in `funnel-event.ts`: `trial_started` si è spostato al primo menu
+   * erogato, e chi eroga i menu (`MenuService`) non può dipendere da questo servizio. Qui resta il
+   * metodo, perché lo chiamano venti punti, ma la logica è una sola — così non può divergere.
    */
   private async funnelEvent(userId: string, name: string, data?: Record<string, unknown>): Promise<void> {
-    let segment: string | null = null;
-    let channel: string | null = null;
-    try {
-      const rec = (await this.prisma.crmRecord.findUnique({
-        where: { clientId: userId },
-        select: { segment: true, channel: true, previousStatus: true, historicalPaidCents: true, stage: true } as never,
-      })) as { segment: string | null; channel: string | null; previousStatus: string | null; historicalPaidCents: number | null; stage: string } | null;
-      if (rec) {
-        segment = deriveSegment(rec);
-        channel = rec.channel ?? null;
-      }
-    } catch { /* l'arricchimento non deve mai bloccare l'evento */ }
-    await this.prisma.analyticsEvent
-      .create({ data: { eventId: randomUUID(), name, userId, phase: 'funnel', data: { ...(data ?? {}), ...(segment ? { segment } : {}), ...(channel ? { channel } : {}) } as never } as never })
-      .catch(() => undefined); // il tracciamento non deve mai rompere il flusso
+    await emettiEventoFunnel(this.prisma, userId, name, data);
   }
 
   /** Il piano è la PROVA GRATUITA? (prezzo 0: senza carta per definizione). */
   private isTrialPlanPrice(priceCents: number | null | undefined): boolean {
-    return (priceCents ?? -1) === 0;
+    return isTrialPlan({ priceCents });
   }
 
   /**
@@ -1861,18 +2052,29 @@ export class CommerceService {
     if (!options?.skipCommissions) {
       await this.provvigioniSenzaPerdere(payment.id, payment.clientId, payment.amountCents);
     }
-    // Funnel del lancio: attivazione prova → trial_started; pagamento vero dopo
-    // una prova → trial_converted (idempotente: solo se non già emesso).
+    // Funnel del lancio: pagamento vero dopo una prova → trial_converted (idempotente: solo se non
+    // già emesso).
+    //
+    // ⚠️ `trial_started` NON si emette più qui (11/8). Si emette al PRIMO MENU erogato, dove la
+    // prova comincia davvero: la spiegazione sta in `prova-attivata.ts`, insieme al CRM e all'avviso
+    // alla coach, che si sono spostati con lui. Tenerne uno indietro vorrebbe dire tre risposte
+    // diverse alla domanda «quando è iniziata la prova?».
     //
     // Le attivazioni interne (`skipIncome`) restano **fuori dal funnel**: non sono una prova né
     // una conversione, e contarle come tali sposta i tassi del lancio senza che nessuno capisca
     // perché. Vedi la nota su `skipIncome`.
     if (payment.subscriptionId && !options?.skipIncome) {
-      if (payment.amountCents === 0) {
-        await this.funnelEvent(payment.clientId, 'trial_started', { subscriptionId: payment.subscriptionId });
-      } else {
+      if (payment.amountCents > 0) {
+        /**
+         * `assicuraProvaIniziata` e non più la sola lettura dell'evento: spostando `trial_started`
+         * al primo menu si è aperto un buco: chi compra PRIMA di aver ricevuto il primo menu non ha
+         * l'evento, e la sua conversione non verrebbe contata mai — cioè proprio la cliente che si
+         * entusiasma subito, quella che il tasso di conversione dovrebbe premiare. Se la prova c'è
+         * stata (una Subscription su un piano a €0) l'evento si scrive a ritroso, marcato
+         * `recuperato`, e la conversione può essere registrata.
+         */
         const [hadTrial, alreadyConverted] = await Promise.all([
-          this.prisma.analyticsEvent.findFirst({ where: { userId: payment.clientId, name: 'trial_started' } as never, select: { id: true } }),
+          assicuraProvaIniziata(this.prisma, payment.clientId),
           this.prisma.analyticsEvent.findFirst({ where: { userId: payment.clientId, name: 'trial_converted' } as never, select: { id: true } }),
         ]);
         if (hadTrial && !alreadyConverted) {
@@ -1901,32 +2103,21 @@ export class CommerceService {
         }
       }
     }
-    // CRM: prodotto GRATUITO (totale 0) → stato "Prova" (trial); pagamento vero →
-    // "Acquisito" (key 'paid'). Chi è già Acquisito non retrocede a Prova per un omaggio.
-    //
-    // Sulle attivazioni interne il CRM **non si tocca**: registrando 0 la cliente sarebbe
-    // retrocessa a «Prova» e alla coach sarebbe arrivato «ha attivato la settimana di prova» —
-    // una notifica falsa su una cliente che magari è al terzo percorso. Lo stato lo mette
-    // l'operatrice, che sa perché ha attivato quel piano.
-    if (options?.skipIncome) {
-      // niente: né avanzamento né notifica.
-    } else if (payment.amountCents > 0) {
+    /**
+     * CRM: pagamento vero → «Acquisito» (`paid`).
+     *
+     * ⚠️ Il ramo dell'importo a ZERO non fa più niente qui (11/8). Portava la scheda a «Prova» e
+     * avvisava la coach **nel momento dell'attivazione**; con «Conosciamoci» che si attiva a fine
+     * questionario e la data di inizio scelta dalla cliente, fra i due momenti possono passare
+     * settimane. Una board piena di «Prova» su gente che non ha ancora visto un piatto non è un
+     * dato: è rumore che la manager delle coach deve imparare a ignorare. Ora quei due pezzi
+     * scattano al primo menu, insieme a `trial_started` (`prova-attivata.ts`).
+     *
+     * Sulle attivazioni interne (`skipIncome`) il CRM non si è mai toccato, e continua a non
+     * toccarsi: lo stato lo mette l'operatrice, che sa perché ha attivato quel piano.
+     */
+    if (!options?.skipIncome && payment.amountCents > 0) {
       await this.crm.autoAdvance(payment.clientId, 'paid', byUserId, payment.amountCents);
-    } else {
-      const rec = await this.prisma.crmRecord
-        .findUnique({ where: { clientId: payment.clientId }, select: { stage: true } })
-        .catch(() => null);
-      if ((rec as { stage?: string } | null)?.stage !== 'paid') {
-        await this.crm.autoAdvance(payment.clientId, 'trial', byUserId);
-      }
-      // La coach deve saperlo il giorno stesso: è la finestra in cui una telefonata cambia
-      // l'esito della prova.
-      await this.notifyCoachOfClient(
-        payment.clientId,
-        'client_trial_started',
-        'Prova attivata',
-        (nome) => `${nome} ha attivato la settimana di prova.`,
-      ).catch(() => undefined);
     }
 
     // Riscatto del buono sconto (se applicato): incrementa gli utilizzi.

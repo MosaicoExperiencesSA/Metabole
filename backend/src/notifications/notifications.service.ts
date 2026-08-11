@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { eUnicoPasto, pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
 import { giornoLocale, toDateOnly } from '../common/date-only';
 import { MessageComposerService, MessageTone } from './message-composer.service';
+import { notificaUtente, staffDisabledTypes } from './notifica-utente';
 import { PushService } from './push.service';
 import { Role } from '../common/roles';
 import { STAFF_NOTIFICATION_TYPES, staffTypesForRole } from './staff-notifications';
@@ -51,12 +52,7 @@ const EMAILABLE_TYPES = new Set(['visit_reminder', 'payment_approved', 'payment_
 /** Chiavi di tutti i tipi noti dello staff (per validare l'opt-out). */
 const STAFF_TYPE_KEYS = new Set(STAFF_NOTIFICATION_TYPES.map((t) => t.key));
 
-/** Legge i tipi disattivati dello staff da User.prefs.notificationsDisabled. */
-function staffDisabledTypes(prefs: unknown): string[] {
-  const p = (prefs as Record<string, unknown> | null) ?? {};
-  const raw = p['notificationsDisabled'];
-  return Array.isArray(raw) ? (raw as unknown[]).filter((x): x is string => typeof x === 'string') : [];
-}
+// `staffDisabledTypes` sta in `notifica-utente.ts` (una definizione sola: la legge anche l'helper).
 
 /**
  * Notifiche personalizzate (spec sez. 9): contenuto, tono e orario decisi dai
@@ -171,23 +167,17 @@ export class NotificationsService {
     return true;
   }
 
-  /** Notifica diretta (eventi, es. assegnazione lead): niente dedup giornaliero. */
+  /**
+   * Notifica diretta (eventi, es. assegnazione lead): niente dedup giornaliero.
+   *
+   * Il corpo vive in `notifica-utente.ts` dall'11/8, e questo metodo lo chiama: serviva anche a
+   * `MenuService`, che non può dipendere da questo servizio (`NotificationsModule` importa
+   * `MenuModule`, quindi la freccia opposta chiuderebbe un cerchio). Delegare invece di copiare è la
+   * differenza fra una regola e due regole che un giorno divergono — e quando divergono, quella che
+   * smette di avvisare non lo dice a nessuno.
+   */
   async notify(input: { userId: string; type: string; title: string; body: string; payload?: Record<string, unknown> }): Promise<void> {
-    const recipient = await this.prisma.user.findUnique({ where: { id: input.userId }, select: { id: true, prefs: true } });
-    if (!recipient) return;
-    // Opt-out per tipo dello staff (tabella nel profilo). Le clienti non usano questo path.
-    if (staffDisabledTypes(recipient.prefs).includes(input.type)) return;
-    await this.prisma.notification.create({
-      data: {
-        userId: input.userId,
-        type: input.type,
-        payload: { title: input.title, body: input.body, ...(input.payload ?? {}) } as never,
-        channel: 'inapp',
-        scheduledFor: new Date(),
-        sentAt: new Date(),
-      },
-    });
-    await this.push.sendToUser(input.userId, input.title, input.body, { type: input.type });
+    await notificaUtente(this.prisma, this.push, input);
   }
 
   /** La campanella mostra solo ciò che non è stato archiviato. */

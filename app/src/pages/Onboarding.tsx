@@ -8,7 +8,7 @@ import BrandPicker from '../components/BrandPicker';
 import { applyBrand } from '../lib/brand';
 import FieldInput from '../onboarding/Field';
 import { DIET_INFO, DIET_INFO_FONTI } from '../onboarding/dietInfo';
-import PlanFlow from './PlanFlow';
+import Benvenuto from './Benvenuto';
 import type { Field, OnboardingResult, Page, Questions } from '../onboarding/types';
 
 type Answers = Record<string, unknown>;
@@ -514,8 +514,14 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     );
   }
 
-  // Percorso pronto → coda commerciale (piano, pagamento demo, data, conferme).
-  if (result) return <PlanFlow result={result} onDone={onDone} />;
+  /**
+   * Percorso pronto → BENVENUTO DI GAIA + data di inizio, e da lì dentro l'app (§16.1, 11/8).
+   *
+   * Qui c'era `PlanFlow`: «Scegli il piano», carrello, checkout a €0. La coda commerciale subito
+   * dopo il questionario è la «complicazione inutile» che Simone ha chiesto di togliere — la
+   * cliente incontra il negozio alla fine degli 8 giorni, quando ha qualcosa su cui decidere.
+   */
+  if (result) return <Benvenuto result={result} onDone={onDone} />;
 
   // Schermo 25 — "Sto cucendo il tuo percorso" (transizione mentre il motore calcola).
   if (submitting) {
