@@ -804,6 +804,24 @@ acquisto.» Il processo che vuole:
   arriva con l'id in mano (`assertPlanPurchasable`). Chi l'ha già fatto non cambia niente;
 - la **data è obbligatoria**: non si va avanti senza. È il campo che oggi manca del tutto.
 
+**Le tre risposte in più, dopo l'analisi (11/8):**
+
+- **il `Payment` da 0 € si toglie e basta.** «Preferisco: ora mi intasa la tabella acquisti e basta.»
+  Quindi niente riga fantasma in Acquisti, e la traccia dell'attivazione resta l'audit più la
+  Subscription. Nota: `purchasedIds` conta già le Subscription `active`/`expired`
+  (`commerce.service.ts:291-298`), quindi il piano resta correttamente «già fatto» senza il pagamento;
+- la pagina di benvenuto va bene così com'è descritta;
+- ⭐ **il CRM passa a «Prova» quando alla cliente viene generato il suo PRIMO MENU IN ASSOLUTO**, non
+  all'attivazione. È una correzione di merito, non di forma: con la data di inizio scelta da lei, fra
+  l'attivazione e il primo menu possono passare settimane, e «Prova» su una che non ha ancora
+  cominciato dice il falso — la manager delle coach vedrebbe una colonna piena di gente che non ha
+  visto un piatto. Da attaccare all'erogazione (`deliverIfEligible`, primo `menuDay` in assoluto per
+  quella cliente), **idempotente** e con la stessa regola di oggi: chi è già `paid` non retrocede.
+  ⚠️ Conseguenza da non perdere: anche `trial_started` e l'avviso alla coach vanno spostati lì
+  insieme al passaggio di stato, altrimenti i tre pezzi raccontano tre momenti diversi. E `trial_started`
+  deve comunque esistere **prima** del primo acquisto vero, o `trial_converted` non scatta mai
+  (`commerce.service.ts:1874-1879`).
+
 #### Com'è fatto oggi (verificato nel codice, 11/8)
 
 Il questionario (`onboarding.service.ts:232` e `:265`) scrive `onboardingCompletedAt`, il consenso

@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🚑 **«Riapri l'app» chiedeva le misure e faceva sparire il modulo per inserirle (caso
+  Giusy, seconda puntata)** — segnalazione di Simone: «clicca riapri app, le arriva la notifica di
+  inserire le misure ma non le fa inserire e si riblocca».
+  Il backend faceva già la cosa giusta: dopo lo sblocco `measurementGate` risponde `required: true,
+  blocking: false, level: 'promemoria'` — «cade il muro, resta la richiesta». Ma `MeasuresGate.tsx`
+  guardava **solo `blocking`**, quindi con il muro caduto spariva anche l'unico posto dove scrivere le
+  misure. Lei riceveva la notifica, apriva l'app, non trovava niente, e alla scadenza della finestra
+  si ritrovava bloccata come prima. **Una richiesta senza il modo di soddisfarla è un rimprovero, non
+  una richiesta.** Ora il modulo compare anche in promemoria — **richiudibile**, con scritto perché
+  («la coach ti ha riaperto l'app, ma il prossimo menu parte solo con la pesata») — e si ritrova dal
+  banner del Menu.
+  E la finestra passa da **48 ore a 4**, come chiesto: 48 ore erano il peggio dei due mondi — troppo
+  poche perché la cosa si risolvesse da sé, troppe perché qualcuno se ne accorgesse. La finestra serve
+  a fare **una** cosa; se scade a vuoto, il muro che torna è l'informazione che serve alla coach.
+  ⚠️ **La correzione è nell'APP: serve una OTA per arrivare sui telefoni.** Le 4 ore, che sono
+  backend, valgono dal deploy.
+
 - `[Sviluppo]` 🗑️ **Chi scrive un messaggio lo può cancellare** — richiesta di Simone: una ✕ rossa
   nell'angolo della propria bolla, con conferma prima di cancellare. **Solo l'autore**: non il capo,
   non l'admin. Il senso è rimediare a quello che si è scritto per sbaglio, non moderare quello che ha

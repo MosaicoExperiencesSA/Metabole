@@ -42,13 +42,30 @@ export default function MeasuresGate() {
   const [locked, setLocked] = useState(false);
   // Aperto dalla cliente (dal banner) e non dal gate: si può chiudere, e il titolo non la sgrida.
   const [volontario, setVolontario] = useState(false);
+  /**
+   * PROMEMORIA: la coach ha riaperto l'app. Si CHIEDE, non si impone.
+   *
+   * ⚠️ Il caso Giusy, seconda puntata (11/8). Il backend faceva già la cosa giusta — dopo «Riapri
+   * l'app» risponde `required: true, blocking: false, level: 'promemoria'`, cioè «cade il muro,
+   * resta la richiesta» — ma qui si guardava **solo** `blocking`. Risultato: riaperta l'app, il
+   * modulo per inserire le misure SPARIVA. Lei riceveva la notifica «inserisci le misure», apriva,
+   * non trovava nessun posto dove scriverle, e alla scadenza della finestra si ritrovava bloccata
+   * come prima. Una richiesta senza il modo di soddisfarla è un rimprovero, non una richiesta.
+   */
+  const [promemoria, setPromemoria] = useState(false);
 
   async function check() {
     try {
       const gate = await api<Gate>('/me/measurement-gate');
-      setShow(!!gate.blocking);
+      // `required && !blocking` = la finestra della coach è aperta: si mostra lo stesso modulo, ma
+      // richiudibile. È l'unica strada che la cliente ha per inserire le misure in quella finestra.
+      const daChiedere = !gate.blocking && !!gate.required;
+      setPromemoria(daChiedere);
+      setShow(!!gate.blocking || daChiedere);
       setLocked(gate.level === 'locked');
-      if (gate.blocking) track('measures_gate_shown', { cycleDate: gate.cycleDate, level: gate.level ?? 'popup' });
+      if (gate.blocking || daChiedere) {
+        track('measures_gate_shown', { cycleDate: gate.cycleDate, level: gate.level ?? 'popup' });
+      }
     } catch {
       /* in caso di errore non blocchiamo l'app */
     }
@@ -109,20 +126,25 @@ export default function MeasuresGate() {
           </span>
           <div style={{ flex: 1 }}>
             <b style={{ fontSize: 16 }}>
-              {locked ? 'App in pausa' : volontario ? 'La tua pesata' : 'È il momento delle misure'}
+              {locked ? 'App in pausa' : promemoria ? 'Serve la tua pesata' : volontario ? 'La tua pesata' : 'È il momento delle misure'}
             </b>
             <div className="muted" style={{ fontSize: 11 }}>
               {locked
                 ? 'Contatta la tua coach per sbloccare la app — oppure inserisci qui le misure e riparte subito.'
-                : 'Servono per sbloccare il prossimo menu. Meglio al mattino, a digiuno.'}
+                : promemoria
+                  /* Dopo il «Riapri l'app» il muro non c'è più, ma il menu resta fermo finché la
+                     pesata non arriva: dirglielo è l'unico modo perché quella finestra serva a
+                     qualcosa. Puoi chiudere questo riquadro, e lo ritrovi dal banner del Menu. */
+                  ? 'La tua coach ti ha riaperto l’app. Il prossimo menu però parte solo con la pesata: inseriscila qui, ci vuole un attimo.'
+                  : 'Servono per sbloccare il prossimo menu. Meglio al mattino, a digiuno.'}
             </div>
           </div>
-          {volontario && !locked && (
+          {(volontario || promemoria) && !locked && (
             <button
               className="btn ghost"
               aria-label="Chiudi"
               style={{ flex: 'none', padding: '4px 9px' }}
-              onClick={() => { setShow(false); setVolontario(false); }}
+              onClick={() => { setShow(false); setVolontario(false); setPromemoria(false); }}
             >
               <i className="ti ti-x" />
             </button>

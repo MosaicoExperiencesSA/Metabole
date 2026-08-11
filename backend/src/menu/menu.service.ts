@@ -798,9 +798,19 @@ export class MenuService {
    * Sblocco concesso dalla coach (voce #6e): riapre l'app per un numero di ore configurabile.
    * È una finestra e non un interruttore: uno sblocco senza scadenza equivarrebbe a spegnere la
    * regola per sempre, e nessuno si ricorderebbe di riaccenderla.
+   *
+   * ⚠️ **QUATTRO ore, non più quarantotto** (Simone, 11/8: «se diamo il riapri devi dare un timer di
+   * 4 ore per poterle reinserire, e ovviamente vanno chieste»). Quarantotto ore erano il peggio dei
+   * due mondi: troppo poche perché la cosa si risolvesse da sé, troppe perché qualcuno se ne
+   * accorgesse. La finestra serve a fare **una** cosa — pesarsi — e quattro ore bastano; se scadono
+   * senza che sia successo, il muro che torna è l'informazione che serve alla coach.
+   *
+   * L'altra metà della richiesta («vanno chieste») stava già qui — `measurementGate` risponde
+   * `required: true, blocking: false` — ma l'app guardava solo `blocking` e faceva **sparire il
+   * modulo**: vedi il commento in testa a `app/src/components/MeasuresGate.tsx`.
    */
   async unlockMeasures(clientId: string, staffUserId: string): Promise<{ until: string }> {
-    const ore = await this.configParams.getNumber('measures_unlock_hours', 48);
+    const ore = await this.configParams.getNumber('measures_unlock_hours', 4);
     const until = new Date(Date.now() + ore * 3_600_000);
     await this.prisma.clientProfile.update({
       where: { userId: clientId },
