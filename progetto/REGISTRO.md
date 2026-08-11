@@ -3,16 +3,95 @@
 Log cronologico. **Si aggiunge in cima**, non si cancella. Formato: `data · [Team] · area — cosa`.
 Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
+> ⚠️ **Date riallineate l'11/8/2026.** Le sezioni erano avanti di uno o due giorni: il lavoro
+> fatto la sera tardi veniva scritto sotto la data del giorno dopo, e lo scarto si è accumulato
+> fino a due giorni. Le date sono state riportate a quelle vere dei commit su `origin/main`
+> (`git log`), e tre sezioni si sono fuse con quelle sotto: l'ex «13» è l'11, l'ex «12» e l'ex «11»
+> sono il 10, l'ex «10» è il 9. Da lì all'indietro (8/8 e prima) le date risultano già corrette.
+> **Dentro ai testi delle voci del 9 e del 10 può essere rimasto qualche riferimento avanti di un
+> giorno**: si controlla su `git log --date=format:'%F %H:%M'`, che è la sola fonte che non
+> dipende da cosa credeva il calendario di chi scriveva.
+>
+> Il costo di non accorgersene: l'11/8, credendo che fosse il 13, ho letto «l'ultima decisione del
+> motore è dell'11» come «il cron è fermo da due notti» e ho aperto un allarme su una cosa che
+> stava funzionando. **La data si verifica, non si assume** — vale per me come per il resto.
+
 ---
 
-## 2026-08-13
+## 2026-08-11
+
+- `[Sviluppo]` 🗓️ **Le date di questo registro erano avanti di due giorni** — e non è una pignoleria:
+  è la ragione per cui oggi ho aperto un allarme falso. Credendo che fosse il 13, ho letto la tabella
+  delle decisioni del motore — l'ultima è dell'11 — come «il cron è fermo da due notti», e ci ho
+  costruito sopra una diagnosi completa, con l'elenco di tutto ciò che sarebbe stato fermo con lui:
+  notifiche quotidiane, task della coach, monitoraggio, report, scadenze delle prove. Il cron aveva
+  girato quella notte. **Quell'11 non era un buco: era oggi.** Un dato giusto letto con una data
+  sbagliata produce un allarme falso esattamente come un clone vecchio di quattro giorni — stessa
+  famiglia delle sette voci false, stesso costo: dopo due o tre nessuno crede più alla lista.
+  Da dove veniva lo scarto: il lavoro fatto la sera tardi veniva scritto sotto la data del giorno
+  dopo, e la cosa si è accumulata. Riallineato su `git log`, l'unica fonte che non dipende da cosa
+  credeva il calendario di chi scriveva: l'ex «13» è l'**11** (i commit di stamattina, dalle 06:28
+  alle 07:51), l'ex «12» e l'ex «11» sono **entrambe il 10** (notte e pomeriggio), l'ex «10» è il
+  **9**. Tre sezioni si sono fuse con quelle sotto. Dall'8/8 all'indietro le date risultano già
+  corrette e non sono state toccate.
+  Corretti anche i riferimenti dentro ai testi dove erano ancorabili a un commit; per quelli rimasti
+  c'è la nota in testa a questo file e a `PUNTO_DELLA_SITUAZIONE.md`, così la prossima sessione non
+  ci ricasca. La migrazione consegnata oggi è stata rinominata alla data vera
+  (`20260811070000_causa_decisione_motore`), con la cartella vecchia spostata in `_to_delete/`.
+  ⚠️ Il nome finisce **prima** di tre migrazioni già applicate, che portano anch'esse date avanti:
+  `prisma migrate deploy` la applica lo stesso — guarda quali mancano, non l'ordine — ma un
+  `migrate dev` in locale può segnalare l'ordine incoerente.
+
+- `[Sviluppo]` 🗂️ **La coda del nutrizionista: una riga per causa, e solo per chi ha un piano** —
+  i punti 5 e 6 delle sei decisioni di `PUNTO_DELLA_SITUAZIONE` §15.2. Non toccano ancora cosa
+  fanno «Conferma» e «Correggi»: rendono la coda una lista di cui ci si può fidare, che è la
+  condizione perché quei due pulsanti valga la pena costruirli.
+  **La causa diventa una colonna** (`EngineDecision.reasonKey`): prima viveva solo dentro il testo
+  della segnalazione — `[calo_rapido_energia] frase` — e si interrogava con un `contains`, cioè un
+  confronto che si rompe riscrivendo la frase. Serviva per poter chiedere al database «di questa
+  cliente, per QUESTA causa, esiste già una riga che nessuno ha guardato?».
+  La riga del giorno **si scrive comunque**: serve al messaggio quotidiano, che legge la decisione
+  di oggi per darle il tono attenuato, e serve allo storico — sapere che una causa è durata undici
+  giorni è un dato clinico, non rumore. Quello che non si ripete è la **chiamata a guardarla**:
+  finché la riga aperta non è stata revisionata, le successive nascono senza il flag. Appena il
+  nutrizionista la guarda, la notte dopo ricompare — il «il controllo resta armato» di Nocanty.
+  La parte che non si vede, ed era il rischio vero: quelle righe non flaggate sarebbero diventate,
+  per `menu.service`, **decisioni ordinarie da applicare** — cioè un guardrail che dice «fermati,
+  deve guardarci una persona» avrebbe finito per cambiare il piano da solo. Il menu ora legge con
+  `flaggedForReview: false` **e** `reasonKey: null`.
+  La migrazione fa il **backfill delle sole righe ancora aperte** (otto all'11/8, una per cliente,
+  contate su Render). Senza, la funzione nuova nascerebbe rotta il giorno del deploy: quelle righe
+  hanno la causa a NULL, il controllo non le troverebbe, e la prima notte nascerebbe un doppione
+  permanente per ognuna — esattamente il rumore che la modifica toglie. Sullo storico già
+  revisionato non si tocca niente: una causa indovinata su dati vecchi sarebbe un dato inventato
+  dentro una cartella clinica.
+  **Il motore gira solo su chi ha un piano alimentare attivo.** `runBatch` prendeva tutte le
+  clienti col questionario completato senza guardare l'abbonamento: nello screenshot della coda
+  c'era Rosaria, piano concluso il 22/07. Filtrare il batch non basta — le righe già scritte
+  restano a database — quindi il filtro è anche sulla coda e sul contatore, e **non si cancella
+  niente**: quelle righe sono lo storico della cliente, e se torna tornano ad avere senso. Il
+  filtro sta in `common/piano-attivo.ts` accanto alla funzione che risponde alla stessa domanda per
+  le diagnostiche, ma è un **filtro da innestare nella query** e non una risposta da leggere: con
+  la seconda strada i `count()` resterebbero sbagliati, cioè il numero fra parentesi direbbe una
+  cosa e l'elenco un'altra.
+  Il **monitoraggio è escluso** (abbonamento attivo, ma non è un piano alimentare: chi lo ha non
+  riceve menu), e nel codice sta scritto anche **cosa questo spegne**: il guardrail «energia bassa
+  cronica» esiste solo dentro il motore, quindi per chi è in monitoraggio o fra due piani non nasce
+  più — il calo rapido invece resta coperto da `signals.service`, che non passa di qui. Se si
+  decide che va visto comunque, il posto dove metterlo è lì, non riaprendo questo filtro.
+  Due cose che combaciavano male da prima: il numero **«Da validare» sul telefono** contava anche
+  le decisioni già revisionate (diceva 9, la coda che apriva ne aveva 2), e la coda era ordinata
+  **dalla più recente** — che ora vorrebbe dire che più a lungo un problema resta aperto più
+  affonda, fino a uscire dalle prime cento. Ora dalla più vecchia.
+  101 suite, 1537 test verdi; `tsc` invariato sul baseline del sandbox. Resta aperto, e scritto nel
+  codice: per il capo/admin il badge conta i suoi pazienti mentre la coda è globale.
 
 - `[Sviluppo]` ⚖️ **«L'hai sbloccata ieri e non ha generato il menù»** — il caso Giusy, ed erano **tre
   difetti che presi uno per uno si giustificavano, e insieme lasciavano una cliente senza menu, senza
   istruzioni e con una frase che le diceva di aspettare**.
   Sulle misure ci sono due controlli, e non si parlavano. `cycleNeedsMeasure` decide l'**erogazione**:
   senza una pesata dentro il ciclo corrente i giorni nuovi non partono, ed è giusto — è la regola
-  dell'11/8, «ci serve sempre una misura per erogare il menu». `measurementGate` decide il **popup** che
+  del 10/8, «ci serve sempre una misura per erogare il menu». `measurementGate` decide il **popup** che
   glielo chiede. Lo sblocco della coach scrive `measuresUnlockedUntil`, e quel campo era letto **solo dal
   secondo**: sbloccare toglieva la richiesta e lasciava il blocco. Cioè si aiutava la cliente spegnendole
   l'unica istruzione che aveva.
@@ -123,7 +202,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   c'era). Non sono lo stesso codice perché `CommerceService` dipende già da `MonitoringService`: vanno
   tenute d'accordo a mano, ed è scritto in entrambi i file.
 
-## 2026-08-12
+## 2026-08-10
 
 - `[Sviluppo]` 📱 **OTA 2.1.5 pubblicata** — il manifest risponde `2.1.5` col bundle giusto, verificato
   dall'esterno. Porta alle clienti tre cose che erano in produzione e invisibili: **data e ora nei
@@ -148,7 +227,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   sei liste di cose aperte (`DA_FARE.md`, tre `DA_RIPRENDERE_*`, `STATO.md`, `STATO_LANCIO.md`) e si
   contraddicevano: `DA_RIPRENDERE_20260809` dice che una cliente sta ricevendo una dieta senza pranzi né
   cene, e quel piano è concluso dal 22 luglio — è la fonte da cui l'allarme falso è arrivato fino alla
-  lista dell'11/8. Sei liste sono zero liste: nessuno sa quale sia quella vera.
+  lista del 10/8. Sei liste sono zero liste: nessuno sa quale sia quella vera.
   Il nuovo documento tiene lo stato, gli aperti, chi si aspetta cosa, e — parte che sarebbe morta con
   `STATO.md` — **le regole che non si scoprono leggendo il codice**: l'isolamento dei menu per prodotto,
   la sequenza dei piani, il webhook Stripe fissato a un'API, il thread di Gaia che lo staff legge e non
@@ -215,7 +294,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   Migrazione riprovata su PostgreSQL 16 con la prova dell'invariante: la seconda fattura identica viene
   rifiutata, due riferimenti di checkout uguali passano.
 
-- `[Sviluppo]` ✅ **Correzione a una mia diagnosi dell'11/8: le provvigioni di rinnovo ERANO nel
+- `[Sviluppo]` ✅ **Correzione a una mia diagnosi del 10/8: le provvigioni di rinnovo ERANO nel
   codice** — avevo scritto in `DA_FARE.md` che la decisione del 6/8 non era implementata perché
   `billingReason` è selezionato e mai usato. Falso, e l'ho scoperto andando a scriverla:
   `generateCommissions` calcola sempre la catena su `profile.assignedCoachId`, cioè sulla coach
@@ -247,7 +326,6 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   niente è stato toccato lo dice in chiaro («nessuna variante è stata toccata: la settimana c'era già su
   tutte e diciotto»), perché «fatta su 0 variante/i» si legge come un successo e non lo è.
 
-## 2026-08-11
 
 - `[Sviluppo]` 📏 **Senza una misura DI QUESTO PIANO il menu non parte — e adesso la chiediamo** — una
   cliente: «non mi sono state richieste le misure, ma i menu li ho ricevuti». Aveva ragione su tutt'e
@@ -594,7 +672,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   e si ferma — su una tabella di contabilità è il minimo. Una `updateMany` per testo e non una per
   riga (i testi diversi sono una decina, i pagamenti migliaia), ed è ripetibile: girato due volte, la
   seconda non trova niente. `DA=… A=… SCRIVI=1 npm run rinomina:prodotto`.
-- `[Sviluppo]` 📌 **La riga dei filtri resta in alto anche lei** — segnalato l'11/8 su Utenti: i
+- `[Sviluppo]` 📌 **La riga dei filtri resta in alto anche lei** — segnalato il 10/8 su Utenti: i
   titoli restavano incollati scorrendo, la riga dei filtri no, quindi per cambiare un filtro si
   doveva tornare in cima. Il motivo: la testa fissa la mettevano le *pagine*, scrivendo
   `position: sticky` nello stile di ogni colonna, e quello stile alla riga dei filtri — disegnata
@@ -636,7 +714,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   International Tables (Atkinson/Brand-Miller 2008 e 2021, Università di Sydney, Linus Pauling
   Institute) e i valori nutrizionali dal **CREA — Banca Dati di Composizione degli Alimenti**, ognuno
   con fonte, URL e **affidabilità dichiarata**. Serve a seminare la tabella che Gaia consulterà prima
-  di affermare un numero (decisione di Simone dell'11/8: non vietarle di dire i dati, ma obbligarla a
+  di affermare un numero (decisione di Simone del 10/8: non vietarle di dire i dati, ma obbligarla a
   fondarli). La parte più utile della ricerca sono le incertezze: l'IG delle patate va da 73 a 111
   secondo la fonte, quello dell'anguria da 50 a 76, e la cottura conta più della varietà (pasta 46 al
   dente → 58 se cotta venti minuti). Per questo la tabella dovrà portarsi dietro il **range**, non un
@@ -935,7 +1013,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
-## 2026-08-10
+## 2026-08-09
 
 - `[Sviluppo]` 🥗 **Si vede QUALE dieta è collegata a una cliente** — chiesto da Simone davanti alla
   scheda: «di Mediterranea ne ho tre tipi, devo vedere tutta la descrizione così scelgo nel modo
@@ -1156,7 +1234,6 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
     spiegazione «se avevi già un piano in corso, questo parte quando finisce quello». Niente
     calendario finto (decisione di Simone: «non le chiedo la data, glielo dico»).
 
-## 2026-08-09
 
 - `[Sviluppo]` 🔎 **In elenco clienti si vede chi è senza glutine** — Simone, dopo il primo giro:
   «lo script ha corretto due clienti ma io le vedo in Mediterranea, come faccio a distinguere?».

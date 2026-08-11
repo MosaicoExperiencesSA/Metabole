@@ -144,6 +144,106 @@ describe('EngineService', () => {
     expect(prisma.escalation.create).toHaveBeenCalled();
   });
 
+  // --- Una riga per cliente per causa (13/8) ---
+  //
+  // Il motore gira ogni notte: senza questi controlli la stessa segnalazione ricompare in coda
+  // ogni giorno finché il problema dura, e la riga che conta finisce sepolta sotto le sue copie.
+
+  /**
+   * Il mock unico di `findFirst` serve due domande diverse (la decisione di oggi, e la causa già
+   * aperta): le si distingue dal `where`. `causeAperte` elenca QUALI cause risultano aperte, non
+   * un sì/no — con un booleano il test della causa diversa passerebbe anche contro
+   * un'implementazione che deduplica per cliente ignorando la causa, cioè il bug da intercettare.
+   */
+  const findFirstCon = (...causeAperte: string[]) =>
+    prisma.engineDecision.findFirst.mockImplementation(({ where }: any) =>
+      Promise.resolve(where?.reasonKey && causeAperte.includes(where.reasonKey) ? { id: 'dec-aperta' } : null),
+    );
+
+  it('la stessa causa non torna in coda finché nessuno ha guardato quella aperta', async () => {
+    findFirstCon('calo_rapido_energia');
+    collector.collect.mockResolvedValue({
+      signals: signals({ rapidLoss: true, energyAvg: 2 }),
+      screeningFlag: false,
+    });
+    const { decision } = await service.runForClient('u1');
+
+    expect(decision.flaggedForReview).toBe(false); // niente seconda chiamata a guardarla
+    expect(decision.reasonKey).toBe('calo_rapido_energia');
+    // …ma la riga esiste, con la sua frase: serve al tono del messaggio di oggi e allo storico.
+    expect(decision.flagReason).toContain('Calo troppo rapido');
+    expect(prisma.engineDecision.create).toHaveBeenCalled();
+  });
+
+  it('una causa DIVERSA entra in coda anche se ce n’è già un’altra aperta', async () => {
+    // La cliente ha già una riga aperta per il calo rapido: quella per l'energia bassa è un'altra
+    // cosa da guardare, e deve arrivare lo stesso. Se il dedup fosse per cliente, qui fallirebbe.
+    findFirstCon('calo_rapido_energia');
+    collector.collect.mockResolvedValue({
+      signals: signals({ lowEnergyChronic: true }),
+      screeningFlag: false,
+    });
+    const { decision } = await service.runForClient('u1');
+    expect(decision.flaggedForReview).toBe(true);
+    expect(decision.reasonKey).toBe('energia_bassa_cronica');
+  });
+
+  it('la causa si considera «aperta» solo se flaggata e NON ancora revisionata', async () => {
+    findFirstCon();
+    collector.collect.mockResolvedValue({
+      signals: signals({ rapidLoss: true, energyAvg: 2 }),
+      screeningFlag: false,
+    });
+    await service.runForClient('u1');
+    // Senza `reviewedAt: null` una riga già guardata zittirebbe il motore per sempre: la causa
+    // non tornerebbe mai in coda, che è il modo silenzioso di spegnere un guardrail.
+    expect(prisma.engineDecision.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: 'u1',
+          reasonKey: 'calo_rapido_energia',
+          flaggedForReview: true,
+          reviewedAt: null,
+        }),
+      }),
+    );
+  });
+
+  it('decisione ordinaria: nessuna causa, quindi il menu la può applicare', async () => {
+    collector.collect.mockResolvedValue({
+      signals: signals({ adherenceLast7: 1, moodAvg: 4.5, progressPercent: 80 }),
+      screeningFlag: false,
+    });
+    const { decision } = await service.runForClient('u1');
+    // `menu.service` legge le decisioni con `flaggedForReview: false` E `reasonKey: null`: una
+    // causa valorizzata qui la escluderebbe dall'erogazione.
+    expect(decision.reasonKey).toBeNull();
+    expect(decision.flagReason).toBeNull();
+  });
+
+  it('runBatch gira solo su chi ha un piano alimentare attivo', async () => {
+    await service.runBatch();
+    const where = prisma.clientProfile.findMany.mock.calls[0][0].where;
+    // Il filtro si AGGIUNGE ai due che c'erano: lo spread di un oggetto è il modo più facile di
+    // far sparire una condizione senza accorgersene.
+    expect(where.onboardingCompletedAt).toEqual({ not: null });
+    expect(where.user).toEqual(expect.objectContaining({ status: 'active', deletedAt: null }));
+    expect(where.user.subscriptions.some).toEqual(
+      expect.objectContaining({
+        status: 'active',
+        // Il monitoraggio è un abbonamento attivo ma non è un piano alimentare: chi lo ha non
+        // riceve menu, quindi non c'è niente su cui il motore possa decidere. Il confronto è
+        // insensibile alle maiuscole perché il Negozio salva `period` come è stato scritto.
+        plan: { period: { not: 'monitoring', mode: 'insensitive' } },
+      }),
+    );
+    // Un piano scaduto ieri è concluso; uno che finisce oggi vale ancora oggi.
+    expect(where.user.subscriptions.some.OR).toEqual([
+      { endDate: null },
+      { endDate: { gte: expect.any(Date) } },
+    ]);
+  });
+
   it('revisione: confirm imposta esito e revisore, doppia revisione rifiutata', async () => {
     prisma.engineDecision.findUnique.mockResolvedValue({ id: 'dec1', reviewedAt: null });
     const reviewed = await service.reviewDecision('nutri-user', 'dec1', 'confirmed', 'ok');

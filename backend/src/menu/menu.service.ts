@@ -362,8 +362,19 @@ export class MenuService {
     }
 
     // Il motore (M5) può aver deciso una variazione di livello per questa cliente.
+    //
+    // `reasonKey: null` oltre al flag (13/8): da quando la coda tiene una riga sola per causa, le
+    // decisioni successive di una causa già aperta nascono **senza** il flag — servono al tono del
+    // messaggio quotidiano e allo storico, non a essere applicate. Senza questo secondo controllo
+    // diventerebbero, qui, decisioni ordinarie da eseguire: cioè il contrario esatto di un
+    // guardrail, che esiste per fermare l'automatismo finché non ci passa una persona.
     const decision = await this.prisma.engineDecision.findFirst({
-      where: { clientId, flaggedForReview: false, date: { gte: new Date(today.getTime() - 2 * 86_400_000) } },
+      where: {
+        clientId,
+        flaggedForReview: false,
+        reasonKey: null,
+        date: { gte: new Date(today.getTime() - 2 * 86_400_000) },
+      },
       orderBy: { createdAt: 'desc' },
     });
     const levelDelta = (decision?.action as { levelDelta?: number } | null)?.levelDelta ?? 0;

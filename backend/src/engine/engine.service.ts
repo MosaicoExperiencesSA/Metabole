@@ -8,6 +8,8 @@ import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
+import { filtroClienteConPianoAttivo } from '../common/piano-attivo';
+import { CAUSE, CausaDecisione } from './causa-decisione';
 import {
   DEFAULT_ACTION,
   EngineRule,
@@ -47,6 +49,7 @@ export class EngineService {
     let action: RuleAction;
     let ruleId: string | null = null;
     let explanation: string;
+    let causa: CausaDecisione | null = null;
 
     if (guardrail) {
       action = {
@@ -57,13 +60,42 @@ export class EngineService {
         note: guardrail.reason,
       };
       explanation = `Guardrail: ${guardrail.reason}`;
+      causa = guardrail.reasonKey;
     } else {
       const rules = await this.loadApprovedRules();
       const result = evaluateRules(signals, rules);
       action = result.action;
       ruleId = result.rule?.id ?? null;
       explanation = result.explanation;
+      if (action.flagForReview) causa = CAUSE.REGOLA;
     }
+
+    /**
+     * UNA RIGA PER CLIENTE PER CAUSA, non una al giorno (decisione di Simone, 13/8).
+     *
+     * Il motore gira ogni notte e finché il problema dura riscrive la stessa identica
+     * segnalazione: con cinque clienti supervisionate sono ~150 righe al mese, nella stessa coda
+     * dove sta l'unica riga che conta davvero. Il rumore non è un fastidio estetico — è il
+     * meccanismo per cui chi legge una coda impara a svuotarla senza leggerla, comprese le righe
+     * nuove. (La stessa lezione dell'11/8 sulle segnalazioni che si riaprivano da sole.)
+     *
+     * La riga del giorno **si scrive comunque**: serve al messaggio quotidiano, che legge la
+     * decisione di oggi per darle il tono attenuato (`notifications.service`), e serve allo
+     * storico — sapere che una causa è durata undici giorni è un dato clinico, non rumore.
+     * Quello che non si ripete è la **chiamata a guardarla**: finché la riga aperta non è stata
+     * revisionata, le successive nascono senza il flag.
+     *
+     * Appena il nutrizionista la guarda, la causa torna disponibile: la notte dopo, se il
+     * problema persiste, la riga ricompare. È il «il controllo resta armato» di Nocanty.
+     */
+    const chiedeRevisione = Boolean(action.flagForReview);
+    const causaGiaInCoda =
+      chiedeRevisione && causa
+        ? !!(await this.prisma.engineDecision.findFirst({
+            where: { clientId, reasonKey: causa, flaggedForReview: true, reviewedAt: null },
+            select: { id: true },
+          }))
+        : false;
 
     const decision = await this.prisma.engineDecision.create({
       data: {
@@ -72,8 +104,11 @@ export class EngineService {
         inputs: { signals, screeningFlag } as never,
         ruleId,
         action: { ...action, explanation } as never,
-        flaggedForReview: Boolean(action.flagForReview),
-        flagReason: action.flagForReview ? (action.note ?? explanation) : null,
+        flaggedForReview: chiedeRevisione && !causaGiaInCoda,
+        // La frase resta anche sulle ripetizioni: chi apre lo storico della cliente deve poter
+        // leggere perché quel giorno il motore si è fermato, non solo il primo giorno.
+        flagReason: chiedeRevisione ? (action.note ?? explanation) : null,
+        reasonKey: causa,
       },
     });
 
@@ -109,10 +144,26 @@ export class EngineService {
     return { decision, alreadyRun: false };
   }
 
-  /** Esegue il motore per tutte le clienti attive con onboarding completato. */
+  /**
+   * Esegue il motore per tutte le clienti **con un piano alimentare attivo** e onboarding
+   * completato.
+   *
+   * Il filtro sul piano è la regola di Simone del 13/8: «ovviamente tutto questo vale solo per
+   * chi ha un piano attivo». Fino a ieri qui bastava avere il questionario completato e
+   * l'account non cancellato, quindi il motore decideva ogni notte anche per chi il piano l'ha
+   * finito a luglio — e quelle decisioni finivano nella coda del nutrizionista con nome e
+   * cognome. Nello screenshot che ha aperto la discussione c'era Rosaria, piano concluso il
+   * 22/07: una riga che chiede di intervenire su un percorso che non esiste più.
+   *
+   * Vale anche per chi è in `pending` o `expired`: una decisione presa su una cliente senza
+   * erogazione non può essere applicata da nessuno.
+   */
   async runBatch() {
     const clients = await this.prisma.clientProfile.findMany({
-      where: { onboardingCompletedAt: { not: null }, user: { status: 'active', deletedAt: null } },
+      where: {
+        onboardingCompletedAt: { not: null },
+        user: { status: 'active', deletedAt: null, ...filtroClienteConPianoAttivo() },
+      },
       select: { userId: true },
     });
     const results = { total: clients.length, run: 0, flagged: 0, skipped: 0 };
@@ -134,10 +185,10 @@ export class EngineService {
   private checkGuardrails(
     signals: EngineSignals,
     screeningFlag: boolean,
-  ): { reasonKey: string; reason: string; escalate: boolean; menu?: RuleAction['menu'] } | null {
+  ): { reasonKey: CausaDecisione; reason: string; escalate: boolean; menu?: RuleAction['menu'] } | null {
     if (screeningFlag) {
       return {
-        reasonKey: 'screening',
+        reasonKey: CAUSE.SCREENING,
         reason:
           'Percorso supervisionato (screening sanitario): il motore non decide in autonomia, ogni variazione passa dal nutrizionista.',
         escalate: false, // l'escalation di screening esiste già dall'onboarding
@@ -145,7 +196,7 @@ export class EngineService {
     }
     if (signals.rapidLoss && (signals.energyAvg === null || signals.energyAvg <= 3)) {
       return {
-        reasonKey: 'calo_rapido_energia',
+        reasonKey: CAUSE.CALO_RAPIDO_ENERGIA,
         reason:
           'Calo troppo rapido con energia non alta: alzare le calorie e rallentare — decisione al nutrizionista.',
         escalate: true,
@@ -154,7 +205,7 @@ export class EngineService {
     }
     if (signals.lowEnergyChronic) {
       return {
-        reasonKey: 'energia_bassa_cronica',
+        reasonKey: CAUSE.ENERGIA_BASSA_CRONICA,
         reason: 'Energia bassa cronica negli ultimi check-in: serve una verifica del nutrizionista.',
         escalate: true,
       };

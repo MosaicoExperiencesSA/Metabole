@@ -2,6 +2,8 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { EngineService } from '../engine/engine.service';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
+import { ETICHETTA_CAUSA, isCausa } from '../engine/causa-decisione';
+import { filtroClienteConPianoAttivo } from '../common/piano-attivo';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY = 86_400_000;
@@ -33,6 +35,7 @@ interface DecisionRow {
   date: Date;
   flagReason: string | null;
   action: unknown;
+  reasonKey: string | null;
   rule: { id: string; name: string } | null;
 }
 
@@ -264,7 +267,25 @@ export class NutritionistService {
       await Promise.all([
         ids.length ? this.prisma.document.count({ where: { clientId: { in: ids }, status: 'pending' as never } }) : Promise.resolve(0),
         ids.length ? this.prisma.escalation.count({ where: { clientId: { in: ids }, status: { in: OPEN_ESC as never } } }) : Promise.resolve(0),
-        ids.length ? this.prisma.engineDecision.count({ where: { clientId: { in: ids }, flaggedForReview: true } }) : Promise.resolve(0),
+        // «Da validare» sul telefono della nutrizionista. Contava `flaggedForReview: true` e
+        // basta: includeva le decisioni già revisionate e quelle dei clienti col piano concluso,
+        // quindi il pulsante diceva 9 e la coda che apriva ne aveva 2. Un contatore che non
+        // combacia con la lista che apre insegna a non fidarsi di nessuno dei due.
+        // ⚠️ Resta una differenza nota per il capo/admin: qui si contano solo i pazienti
+        // ASSEGNATI (`ids`), mentre `validationQueue` per un supervisore è globale. Un capo senza
+        // pazienti suoi vede 0 e apre una coda piena. Non si chiude qui — va deciso se il badge
+        // del capo debba essere globale, ed è una domanda di prodotto, non un difetto di questa
+        // query.
+        ids.length
+          ? this.prisma.engineDecision.count({
+              where: {
+                clientId: { in: ids },
+                flaggedForReview: true,
+                reviewedAt: null,
+                client: filtroClienteConPianoAttivo(),
+              },
+            })
+          : Promise.resolve(0),
         this.prisma.visit.count({ where: { nutritionistId: staffId, status: 'scheduled' as never, datetime: { gte: now } } }),
         this.prisma.ledgerEntry.aggregate({
           _sum: { amountCents: true },
@@ -333,13 +354,31 @@ export class NutritionistService {
      * verità, e non c'era modo di accorgersene. Nella stessa classe la dashboard usava già `count()`
      * per gli stessi dati, quindi le due schermate potevano dire numeri diversi.
      */
-    const filtroDecisioni = { flaggedForReview: true, reviewedAt: null, ...clientFilter };
+    /**
+     * `client: filtroClienteConPianoAttivo()` — la coda nomina solo chi ha un piano da cambiare.
+     *
+     * Filtrare `runBatch` non basta: le righe già scritte restano a database, e il giorno del
+     * deploy la coda conterrebbe ancora le decisioni prese su percorsi conclusi. Sta qui e non
+     * in una passata di pulizia perché le righe vecchie **non vanno cancellate**: sono lo storico
+     * di quella cliente, e domani, se torna, tornano ad avere senso.
+     */
+    const filtroDecisioni = {
+      flaggedForReview: true,
+      reviewedAt: null,
+      client: filtroClienteConPianoAttivo(),
+      ...clientFilter,
+    };
     const [decisions, totaleDecisioni] = (await Promise.all([
       this.prisma.engineDecision.findMany({
         where: filtroDecisioni,
-        orderBy: { date: 'desc' },
+        // `asc`, dalla più VECCHIA (13/8). Prima era `desc`, e aveva senso quando ogni notte
+        // arrivava una riga nuova: si guardava l'ultima. Ora la riga che sopravvive per una causa
+        // è la prima, quindi con `desc` più a lungo un problema resta aperto più affonda — e oltre
+        // le cento righe sparisce dall'elenco pur restando nel conteggio. In una coda di cause
+        // aperte, la più vecchia è quella che aspetta da più giorni.
+        orderBy: { date: 'asc' },
         take: TETTO_CODA,
-        select: { id: true, clientId: true, date: true, flagReason: true, action: true, rule: { select: { id: true, name: true } } },
+        select: { id: true, clientId: true, date: true, flagReason: true, action: true, reasonKey: true, rule: { select: { id: true, name: true } } },
       }),
       this.prisma.engineDecision.count({ where: filtroDecisioni }),
     ])) as [DecisionRow[], number];
@@ -360,6 +399,11 @@ export class NutritionistService {
       patientName: nameOf.get(d.clientId) ?? null,
       date: d.date.toISOString().slice(0, 10),
       flagReason: d.flagReason,
+      // La causa esce dall'API da subito, anche se nessuna schermata la mostra ancora: è quella
+      // che decide quali azioni ha senso offrire (§15.2 punto 2), e il pezzo che la userà si
+      // costruisce sopra a questa. Null sulle righe scritte prima del 13/8.
+      causa: isCausa(d.reasonKey) ? d.reasonKey : null,
+      causaEtichetta: isCausa(d.reasonKey) ? ETICHETTA_CAUSA[d.reasonKey] : null,
       rule: d.rule ? { id: d.rule.id, name: d.rule.name } : null,
       action: d.action,
     }));

@@ -1,6 +1,6 @@
 # Metabole — punto della situazione
 
-**Scritto il 12 agosto 2026.** Questo documento è **uno**: dove sta il prodotto, cosa è aperto, cosa
+**Scritto nella notte fra il 10 e l'11 agosto 2026.** Questo documento è **uno**: dove sta il prodotto, cosa è aperto, cosa
 aspetta una persona, e le regole che non si scoprono leggendo il codice. Sostituisce
 `DA_FARE.md`, i tre `DA_RIPRENDERE_2026080*.md`, `STATO.md` e `STATO_LANCIO.md`, che da oggi portano in
 testa un rimando qui.
@@ -9,7 +9,7 @@ testa un rimando qui.
 non si riscrive. Questo documento risponde a un'altra domanda — «come siamo adesso» — e i due non si
 sovrappongono.
 
-> **Se stai riprendendo il lavoro, parti da §15.** Raccoglie le decisioni prese in conversazione il 13/8
+> **Se stai riprendendo il lavoro, parti da §15.** Raccoglie le decisioni prese in conversazione l'11/8
 > — la coda del nutrizionista, l'azzeramento del calcolo del calo, il blocco del piano, le varianti con
 > giornate incomplete, la soglia del calo di sicurezza — che non stanno in nessun altro file. Sono
 > decisioni **già date da Simone**: non vanno richieste di nuovo.
@@ -17,11 +17,19 @@ sovrappongono.
 > `progetto/COMMIT.txt`, da usare con `git commit -F progetto/COMMIT.txt`) e una voce nel `REGISTRO.md`,
 > **senza che Simone debba chiederle**.
 
+> ⚠️ **Date riallineate l'11/8/2026.** Questo documento e il `REGISTRO` erano avanti di uno o due
+> giorni: il lavoro fatto la sera tardi veniva scritto sotto la data del giorno dopo, e lo scarto si
+> è accumulato. Le date sono state riportate a quelle vere dei commit su `origin/main` (`git log`):
+> quello che qui era «il 13/8» è l'11, «il 12/8» è il 10. **Prima di scrivere una data, guardala.**
+> L'11/8, credendo che fosse il 13, ho letto «l'ultima decisione del motore è dell'11» come «il cron
+> è fermo da due notti» e ho aperto un allarme su una cosa che stava funzionando: l'assunzione era
+> nella data, non nei dati.
+
 ---
 
 ## Come è stato verificato, e perché la cosa va detta
 
-La lista dell'11 agosto conteneva **sette voci false**. Tutte per la stessa ragione: le avevo lette da
+La lista del 10 agosto conteneva **sette voci false**. Tutte per la stessa ragione: le avevo lette da
 un clone del repository vecchio di quattro giorni, dandolo per attuale. Erano la cancellazione account
 (era una prova di Simone, già sbloccata), Rosaria senza pranzo e cena (piano concluso il 22/07), le
 provvigioni di rinnovo (già implementate per costruzione), «l'app non ha un test runner» (ha vitest),
@@ -29,7 +37,7 @@ il promemoria misure (c'è, cron ogni due ore), `app/package.json` non allineato
 documenti «persi» che invece esistono.
 
 Un allarme falso costa più del silenzio: dopo due o tre non si crede più alla lista. Le voci di questo
-documento sono verificate **sul ramo pubblicato** (`origin/main`, commit `f905a61` del 12/8) e non su una
+documento sono verificate **sul ramo pubblicato** (`origin/main`, commit `f905a61` del 10/8) e non su una
 copia locale: per ognuna delle voci controllabili nel codice ho riletto il file **da GitHub** e cercato la
 riga. L'elenco di cosa è stato controllato e come sta in appendice (§14). Le voci marcate **[dati]** non
 sono verificabili da nessun repository: dipendono dal database di produzione, e chi le chiude deve
@@ -47,7 +55,7 @@ Stato tecnico all'ultimo commit: **1496 test backend verdi** (99 suite), **27 te
 suo valore di riferimento (42 errori, tutti dovuti allo stub di Prisma in sandbox), backoffice e app che
 compilano. Le migrazioni girano da sole a ogni deploy (`preDeployCommand`), il seed dopo di esse.
 
-Nelle ultime quattro giornate di lavoro (9→12 agosto) sono state chiuse più di novanta voci: il grosso
+Nelle ultime quattro giornate di lavoro (9→10 agosto) sono state chiuse più di novanta voci: il grosso
 sta in `REGISTRO.md`. I filoni che hanno cambiato il prodotto: la banca dati nutrizionale che tiene Gaia
 ancorata a numeri con una fonte, il cambio piatto in chat con le regole di sicurezza, il senza glutine
 in produzione, la revoca del consenso e la cancellazione a 30 giorni, i permessi che risalgono la rete
@@ -81,13 +89,13 @@ entrambi:
 L'acquisto manuale da backoffice è **volutamente** esente: lì c'è un'operatrice che sa com'è messa la
 cliente (peso misurato in studio e non ancora inserito, per esempio).
 
-### Lo scostamento trovato, e la decisione presa (12/8)
+### Lo scostamento trovato, e la decisione presa (10/8)
 
 Il codice chiedeva di *aver avuto* il mantenimento, contando anche gli abbonamenti `active`: quindi il
 Monitoraggio compariva dal **primo giorno** di mantenimento, e una cliente che pagava €49 oggi vedeva
 già l'opzione da €19.
 
-**Deciso da Simone e IMPLEMENTATO il 13/8:** il Monitoraggio si mostra **solo dal giorno dopo che il
+**Deciso da Simone e IMPLEMENTATO l'11/8:** il Monitoraggio si mostra **solo dal giorno dopo che il
 mantenimento è scaduto e non è stato rinnovato.** Finché il mantenimento è in corso — o è stato
 rinnovato — il Monitoraggio non esiste per lei.
 
@@ -155,7 +163,7 @@ Il momento è adesso: finché nessun rinnovo automatico è passato si correggono
 revisioni di compensi già erogati.
 
 ### 4.1 Decisioni che aspettano te
-- ~~**Il Monitoraggio dopo quanto?**~~ **Deciso il 12/8, fatto il 13/8**: solo dal giorno dopo che il
+- ~~**Il Monitoraggio dopo quanto?**~~ **Deciso il 10/8, fatto l'11/8**: solo dal giorno dopo che il
   mantenimento è scaduto e non è stato rinnovato. Vedi §2.
 - **Provvigioni di rinnovo, due letture della decisione del 6/8.** Lo schema dice «solo se la coach è
   ancora quella assegnata» (che suona come *altrimenti non paga nessuno*), il servizio dice «paga chi
@@ -193,7 +201,7 @@ Codice e Stripe risultano a posto e l'idempotenza ora è garantita dal database,
 
 ## 5. App e rilascio
 
-### 5.1 La OTA 2.1.5 è PUBBLICATA — sera del 12/8
+### 5.1 La OTA 2.1.5 è PUBBLICATA — sera del 10/8
 Il manifest risponde `version: "2.1.5"` con l'URL del bundle giusto (verificato leggendo
 `/api/v1/app-updates/latest.json` dall'esterno). I telefoni la scaricano al primo avvio utile e la
 attivano al passaggio successivo in background: le clienti vedono **data e ora nei messaggi in chat**, il
@@ -234,7 +242,7 @@ spegnerebbe le notifiche in silenzio).
 
 ## 6. Il catalogo: le 12 settimane
 
-**Stato**: Basso indice glicemico a 12 settimane · Mediterranea senza glutine **a 12** (fatta il 12/8) ·
+**Stato**: Basso indice glicemico a 12 settimane · Mediterranea senza glutine **a 12** (fatta il 10/8) ·
 DASH a 4 · le altre 16 famiglie a **zero settimane piene** (28 giornate costruite con 5 piatti per pasto,
 cioè ogni piatto torna cinque o sei volte al mese). Niente da compattare, 1 riferimento rotto residuo che
 si pulisce rigenerando.
@@ -375,14 +383,14 @@ Validazione delle due rifiniture R12 (efficacia in mantenimento; guardrail `clin
 
 ## 10. Debito nostro, dichiarato
 
-> Le voci piccole di questa sezione sono state chiuse il 13/8 (commenti superati, parametro morto, due
+> Le voci piccole di questa sezione sono state chiuse l'11/8 (commenti superati, parametro morto, due
 > chiavi permessi che non controllavano niente, `Placeholder.tsx`, `travel_max_days`, i messaggi di
 > validazione). Quelle rimaste **richiedono una tua decisione prima del codice**: un error tracker
 > esterno è un servizio da scegliere e pagare, i documenti sanitari su un bucket UE sono una migrazione
 > di dati sensibili, gli aggiornamenti major vanno in una finestra dedicata.
 
 
-- ~~**`ValidationPipe` senza `exceptionFactory`**~~ **FATTO il 13/8**: la rete c'è
+- ~~**`ValidationPipe` senza `exceptionFactory`**~~ **FATTO l'11/8**: la rete c'è
   (`common/messaggi-validazione.ts`), traduce gli schemi di class-validator e lascia intatto qualunque
   messaggio scritto a mano. Resta vera la regola del `message` sul decoratore per i DTO che una cliente
   compila: la rete sa dire «la circonferenza fianchi non può essere minore di 40», non sa dire *cosa
@@ -487,7 +495,7 @@ che oggi si chiude.
 
 ## 14. Appendice — cosa è stato verificato su GitHub, e come
 
-Verifica del 12/8 su `origin/main` (commit `f905a61`), rileggendo i file dal ramo pubblicato e non da una
+Verifica del 10/8 su `origin/main` (commit `f905a61`), rileggendo i file dal ramo pubblicato e non da una
 copia locale. Le voci qui sotto risultano **davvero ancora aperte**.
 
 | Voce | Come è stata verificata | Esito |
@@ -512,7 +520,7 @@ una persona (§8).
 
 ---
 
-## 15. Le decisioni del 13/8 e il lavoro aperto che ne nasce
+## 15. Le decisioni dell'11/8 e il lavoro aperto che ne nasce
 
 Questa sezione esiste perché quel giorno le decisioni sono arrivate **in conversazione**, una alla volta,
 mentre Simone parlava col nutrizionista e guardava le clienti vere. Non stavano in nessun file, e una
@@ -638,3 +646,71 @@ il 9/8 ha pubblicato `lovcarbciccio`).
   scartato «erogare la giornata monca».)
 - Se il generatore o uno script rende incompleta una dieta già visibile → **la nasconde e avvisa**
   (`clientVisible` torna a false da sé).
+
+### 15.5 La correzione calorica la fa il nutrizionista, in percentuale — e sostituisce il livello 2
+
+Decisione di Simone dell'11/8, presa dopo la verifica su Render che ha chiuso la voce 15.2 punto 1.
+
+**Il fatto che ha cambiato la domanda:** in produzione ci sono **315 diete e 10.584 giornate, tutte a
+livello 1**. Il motore ha una sola leva (`levelDelta`) e la usa così: `livello = 1 + levelDelta`, quindi
+solo un livello 2 porterebbe da qualche parte e un `-1` viene schiacciato sull'1. Il livello 2 non esiste
+per nessuna dieta, e crearlo vorrebbe dire un secondo catalogo di giornate per ogni prodotto — lavoro
+della nutrizionista, non una riga di codice. Aggiungiamo che il commento in `rules-evaluator.ts:47` dice
+«-1 alleggerisce/alza kcal, +1 stringe», che è **invertito rispetto al codice**: chi creasse il livello 2
+seguendo il commento farebbe togliere calorie a chi ne perde troppe.
+
+**La decisione:** non si passa dai livelli. Il nutrizionista mette una **«Correzione apporto calorico»
+nella scheda della cliente, in percentuale, sia in più che in meno**, e il sistema adegua i menu di
+conseguenza. È una decisione clinica, e sta dove vivono le altre decisioni cliniche.
+
+Cosa c'è già, verificato:
+
+- **Il fabbisogno per-cliente esiste ed è già quello che comanda i menu.** `menu/kcal-need.service.ts`:
+  BMR con Mifflin-St Jeor (sesso, età, altezza, peso attuale) × fattore di attività, meno un deficit
+  ricavato dal ritmo dell'obiettivo, con **pavimento di sicurezza** (`min_daily_kcal`, 1200). In
+  mantenimento il target è il fabbisogno.
+- **L'interruttore che lo attiva**: il parametro `menu_kcal_need_enabled` (default acceso, per-dieta) —
+  «se attivo, le calorie del menu vengono dal fabbisogno; se spento, si usano le kcal del livello». Se in
+  produzione fosse spento, la correzione non avrebbe effetto: **da verificare prima di scrivere il
+  codice.**
+- Il target così ottenuto è quello che la selezione ricette insegue, dentro la tolleranza
+  `menu_kcal_balance_tolerance_pct` (15%).
+
+Quindi manca **solo** il pezzo per-cliente: un campo sul profilo (`ClientProfile`, tipo
+`kcalAdjustPct`) applicato dentro `kcal-need.service` **dopo** il deficit e **prima** del pavimento di
+sicurezza — perché una correzione in meno non deve poter scavalcare il minimo clinico, mentre una in più
+non ha bisogno di protezioni. Da decidere quando si costruisce: il tetto ammesso (es. ±20%), chi lo può
+scrivere (nutrizionista assegnato e capo, come per gli altri campi clinici), e se la modifica va scritta
+in audit — sì, per lo stesso motivo per cui ci va un cambio di dieta.
+
+Conseguenza sulla coda: **«Conferma» del 15.2 punto 1 non applica più un livello, applica una
+correzione percentuale.** L'entità la decide Nocanty, e diventa un parametro invece che un numero nel
+codice.
+
+### 15.6 Due pesate in aumento durante il dimagrimento → i menu che hanno funzionato
+
+Decisione di Simone dell'11/8.
+
+**La regola:** se durante il dimagrimento arrivano **due pesate con il peso in aumento**, alla cliente
+vanno mandati menu che la aiutino a calare — scegliendo quelli che nella **sua storia** hanno dato il
+risultato migliore.
+
+Cosa c'è già, verificato:
+
+- **La memoria di cosa ha funzionato per quella cliente esiste**: è l'«efficacia appresa» del punteggio
+  di selezione delle ricette, pesata da `menu_select_w_eff` (peso 1 di default, 0,1 in mantenimento).
+  Non va costruita da zero.
+- **Esiste già uno stato che fa esattamente questa cosa**, ma parte da un altro segnale: `plateau` in
+  `diet-agent.service.ts` — «nessun calo negli ultimi N cicli → spinge sull'efficacia». Si accende però
+  guardando i `CycleFeedback` (`esitoPeso` = `stabile` o `preso`) degli ultimi `agent_plateau_cycles`
+  cicli **seguiti**, cioè un feedback che la cliente deve aver dato. La regola di Simone parte invece
+  dalle **pesate**, che arrivano comunque.
+- Gli stati dell'agente hanno una precedenza esplicita, e va rispettata: `vacanza` vince su tutto
+  («spingere l'efficacia addosso a chi è al mare produce menu ignorati, non chili persi»), e `conforto`
+  esiste per non far mollare chi ha l'umore basso. Un aumento di peso non deve scavalcare quelle due:
+  la regola va inserita nella scala, non sopra.
+
+Da decidere quando si costruisce: se estendere lo stato `plateau` o farne uno nuovo (`risalita`);
+**due pesate consecutive in aumento** contate sul dato grezzo o sulla media mobile — tutto il resto del
+sistema ragiona sulla media mobile per non far scattare niente per una bilancia sbagliata o un giorno di
+ritenzione, e questa regola non dovrebbe essere l'eccezione; e se la cliente vada avvisata o no.

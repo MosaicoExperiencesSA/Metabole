@@ -1283,6 +1283,13 @@ model EngineDecision {
   action           Json // {menu, tone, timing, level, note}
   flaggedForReview Boolean   @default(false) @map("flagged_for_review")
   flagReason       String?   @map("flag_reason")
+  // LA CAUSA, come dato e non come testo. Prima viveva solo dentro la frase della segnalazione
+  // (`[calo_rapido_energia] Calo troppo rapido…`) e si interrogava con un `contains`: bastava
+  // riscrivere la frase per rompere il confronto, e non c'era modo di chiedere al database «di
+  // questa cliente, per QUESTA causa, esiste già una riga che nessuno ha guardato?».
+  // È quella domanda che tiene la coda a una riga per cliente per causa invece di una al giorno.
+  // Null sulle decisioni ordinarie: si valorizza solo quando la decisione chiede una revisione.
+  reasonKey        String?   @map("reason_key")
   reviewedById     String?   @map("reviewed_by_id")
   reviewedAt       DateTime? @map("reviewed_at")
   reviewOutcome    String?   @map("review_outcome") // confirmed | corrected
@@ -1291,6 +1298,8 @@ model EngineDecision {
 
   @@index([clientId, date])
   @@index([flaggedForReview, reviewedAt])
+  // La domanda «causa già aperta per questa cliente?», che il motore fa a ogni giro di ogni notte.
+  @@index([clientId, reasonKey, reviewedAt])
   @@map("engine_decision")
 }
 

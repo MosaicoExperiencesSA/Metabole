@@ -70,6 +70,31 @@ describe('NutritionistService.dashboard', () => {
     expect(res.earningsTotalCents).toBe(9000);
   });
 
+  it('il numero «Da validare» conta le stesse righe che la coda mostra', async () => {
+    const decisionCount = jest.fn().mockResolvedValue(2);
+    const prisma = {
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
+      clientProfile: { findMany: jest.fn().mockResolvedValue([{ userId: 'p1', name: 'Anna' }]) },
+      document: { count: jest.fn().mockResolvedValue(0) },
+      escalation: { count: jest.fn().mockResolvedValue(0) },
+      engineDecision: { count: decisionCount },
+      visit: { count: jest.fn().mockResolvedValue(0) },
+      ledgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 0 } }) },
+    };
+    await make(prisma).dashboard(user);
+
+    // Contava `flaggedForReview: true` e basta: includeva le decisioni già revisionate e quelle
+    // dei percorsi conclusi. Il pulsante sul telefono diceva 9, la coda che apriva ne aveva 2 —
+    // e un contatore che non combacia con la lista che apre insegna a non fidarsi di entrambi.
+    expect(decisionCount.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        flaggedForReview: true,
+        reviewedAt: null,
+        client: expect.objectContaining({ subscriptions: expect.anything() }),
+      }),
+    );
+  });
+
   it('nessuno staff → isNutritionist false', async () => {
     const prisma = { staff: { findUnique: jest.fn().mockResolvedValue(null) } };
     expect(await make(prisma).dashboard(user)).toEqual({ isNutritionist: false });
@@ -103,6 +128,31 @@ describe('NutritionistService.validationQueue', () => {
     // `counts` = quante ce ne sono nel database; `mostrati` = quante righe sono arrivate.
     expect(res.counts).toEqual({ engineDecisions: 240, dietsInReview: 0, protocolsPending: 1 });
     expect(res.mostrati).toEqual({ engineDecisions: 1, dietsInReview: 0, protocolsPending: 1 });
+  });
+
+  it('la coda nomina solo chi ha un piano alimentare attivo', async () => {
+    const engineDecisionFindMany = jest.fn().mockResolvedValue([]);
+    const conteggio = jest.fn().mockResolvedValue(0);
+    const prisma = {
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
+      clientProfile: { findMany: jest.fn().mockResolvedValue([{ userId: 'p1', name: 'Anna' }]) },
+      engineDecision: { findMany: engineDecisionFindMany, count: conteggio },
+      diet: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      protocol: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+    };
+    await make(prisma).validationQueue(user);
+
+    // Filtrare solo `runBatch` non basta: le righe scritte prima restano a database, ed è così
+    // che Rosaria — piano concluso il 22/07 — compariva nella coda del 13/8.
+    const atteso = expect.objectContaining({
+      subscriptions: expect.objectContaining({
+        some: expect.objectContaining({ status: 'active' }),
+      }),
+    });
+    expect(engineDecisionFindMany.mock.calls[0][0].where.client).toEqual(atteso);
+    // E il CONTEGGIO usa lo stesso filtro dell'elenco: due filtri diversi qui vorrebbero dire
+    // «(9)» nel titolo e due righe sotto.
+    expect(conteggio.mock.calls[0][0].where.client).toEqual(atteso);
   });
 
   it('nutrizionista senza pazienti → nessuna query globale sulle decisioni', async () => {

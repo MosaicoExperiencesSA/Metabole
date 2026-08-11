@@ -53,6 +53,57 @@ const giorno = (d: Date | null | undefined) =>
 const soloData = (d = new Date()) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 
 /**
+ * LA STESSA DOMANDA, ma come filtro da innestare in una query — non come risposta da leggere.
+ *
+ * `pianiDiClienti` serve a **raccontare** uno stato: prende un elenco di clienti e dice com'è
+ * messo ognuno. Qui serve il contrario: restringere una query perché chi non ha un piano attivo
+ * **non compaia affatto**. Con la prima strada bisognerebbe caricare tutte le righe e scartarle
+ * in memoria, e i conteggi (`count()`) resterebbero comunque sbagliati — cioè il numero fra
+ * parentesi nella coda direbbe una cosa e l'elenco un'altra.
+ *
+ * Si innesta ovunque ci sia una relazione verso `User`:
+ *   `where: { client: filtroClienteConPianoAttivo() }`                 (EngineDecision → client)
+ *   `where: { user: { ...altro, ...filtroClienteConPianoAttivo() } }`  (ClientProfile → user)
+ *
+ * **Il monitoraggio è escluso, ed è una scelta.** Un abbonamento `period: 'monitoring'` è attivo
+ * e pagato, ma non è un piano alimentare: `deliverIfEligible` non eroga menu a chi è in
+ * monitoraggio, quindi una decisione del motore su quella cliente proporrebbe di cambiare un
+ * piano che non esiste.
+ *
+ * ⚠️ **Quello che questo filtro spegne, e va detto invece di lasciarlo scoprire.** I due
+ * guardrail del motore non sono coperti allo stesso modo fuori di qui:
+ *  - **calo rapido** → resta coperto: `signals.service.checkRapidLossGuardrail` apre la
+ *    segnalazione clinica al salvataggio di ogni misura, per tutte, e non passa da qui;
+ *  - **energia bassa cronica** → **non è coperto da nessun'altra parte**: `lowEnergyChronic`
+ *    esiste solo dentro il motore, quindi da ora una cliente in monitoraggio, o fra due piani,
+ *    che dichiara energia bassa per tre check-in di fila non genera più nessuna segnalazione.
+ *    I check-in continuano ad arrivare (il promemoria è incondizionato), quindi il dato c'è e
+ *    nessuno lo guarda.
+ * È una conseguenza della regola «il motore vale solo per chi ha un piano attivo», non un
+ * effetto collaterale nascosto: se si decide che l'energia bassa va vista comunque, il posto
+ * dove metterla è `signals.service`, accanto al calo rapido — non riaprendo questo filtro.
+ *
+ * ⚠️ Deve restare d'accordo con `pianiDiClienti`: stesso confronto per **giorno** (un piano che
+ * finisce oggi è ancora attivo oggi) e stesso significato di `active`.
+ */
+export function filtroClienteConPianoAttivo(adesso = new Date()) {
+  const oggi = soloData(adesso);
+  return {
+    subscriptions: {
+      some: {
+        status: 'active' as const,
+        // `mode: 'insensitive'`: il Negozio salva `period` verbatim e il suo controllo di formato
+        // accetta le maiuscole, quindi un piano creato come «Monitoring» passerebbe un `not`
+        // normale — che su Postgres distingue le maiuscole — e la cliente rientrerebbe nel motore
+        // per una lettera. `commerce.service` normalizza per lo stesso motivo.
+        plan: { period: { not: 'monitoring', mode: 'insensitive' as const } },
+        OR: [{ endDate: null }, { endDate: { gte: oggi } }],
+      },
+    },
+  };
+}
+
+/**
  * Lo stato del piano per un gruppo di clienti, in **una** query.
  *
  * Batch e non una chiamata per cliente: queste funzioni le usano gli script che scorrono elenchi, e

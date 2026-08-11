@@ -155,6 +155,21 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     expect(call.create.level).toBe(1);
   });
 
+  it('una decisione con una CAUSA non viene applicata, anche se non è flaggata', async () => {
+    // Dal 13/8 le decisioni di una causa già in coda nascono senza flag — servono al tono del
+    // messaggio quotidiano, non a essere eseguite. Se il menu le pescasse, un guardrail che dice
+    // «fermati, deve guardarci il nutrizionista» finirebbe per cambiare il piano da solo: il
+    // contrario esatto di quello per cui esiste. Qui si verifica il `where`, perché è lì che vive
+    // la protezione (il mock risponderebbe di sì a qualunque domanda).
+    prisma.engineDecision.findFirst.mockResolvedValue(null);
+    await service.deliverIfEligible('u1');
+    expect(prisma.engineDecision.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ flaggedForReview: false, reasonKey: null }),
+      }),
+    );
+  });
+
   it('niente menu senza plan_start_date', async () => {
     prisma.clientProfile.findUnique.mockResolvedValue({ planStartDate: null });
     expect(await service.deliverIfEligible('u1')).toEqual([]);
