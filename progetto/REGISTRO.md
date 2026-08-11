@@ -20,6 +20,52 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🥛 **Chi è intollerante al lattosio riceve il delattosato, e i formaggi stagionati non si
+  toccano** — richiesta di Simone. `SUBSTITUTION_MAP` mandava `latte → bevanda vegetale`: sbagliato due
+  volte, perché la bevanda vegetale **non è latte** (proteine, calcio e sapore diversi, e la giornata è
+  bilanciata su quello che c'era prima) e perché non serve — il latte delattosato ha lo **stesso profilo
+  nutrizionale**, l'idrolisi scinde il lattosio in glucosio e galattosio senza toccare altro. E
+  `parmigiano → parmigiano ben stagionato` sostituiva una cosa con se stessa.
+  Ora `menu/lattosio.ts`, applicato in `evaluateMeals`: latte, yogurt, mozzarella, ricotta, panna,
+  stracchino… → versione **senza lattosio**; i **formaggi stagionati non si sostituiscono affatto**
+  (circolare del Ministero della Salute dell'1/2/2016: 25 DOP con lattosio **sotto lo 0,001%**, cioè
+  milligrammi per 100 g — l'EFSA non fissa una soglia unica di tolleranza, la letteratura indica ~12 g
+  per dose come generalmente tollerati, quindi millesimi di grammo sono al riparo con qualunque
+  margine); il burro resta all'olio evo (il burro delattosato non si trova al supermercato); e ciò che è
+  già «senza lattosio» non viene sostituito due volte.
+  ⚠️ **L'allergia vince sempre, ed è la parte che conta.** L'intolleranza è un deficit di lattasi;
+  l'allergia alle proteine del latte è una reazione immunitaria a caseina e lattoglobuline, che nel
+  delattosato **ci sono tutte**: l'idrolisi toglie lo zucchero, non l'allergene. Dare un «latte senza
+  lattosio» a un'allergica al latte è mandarle in tavola ciò che le fa male con un'etichetta che la
+  rassicura. **Giusy, la cliente da cui nasce la richiesta, ha entrambi i dati**: per lei la regola non
+  scatta e resta la strada di prima. I termini di allergia sono volutamente larghi (latte, latticini,
+  caseina, siero di latte, APLV…): un falso positivo costa una sostituzione più prudente, un falso
+  negativo una reazione allergica, e l'asimmetria decide da sé come scriverli.
+  Confronto **per parola** come vuole la regola del progetto: «latteria» non è «latte».
+  107 suite / **1667 test verdi** (28 nuovi in `menu/lattosio.spec.ts`); type-check confrontato col
+  baseline: zero errori introdotti (⚠️ il verde a zero di `npm run typecheck` va confermato sul Mac).
+  Nessuna migrazione, niente da toccare su Render: vale dal deploy, sui menu generati da lì in avanti.
+  📌 **Nota**: la richiesta parlava di «gruppo di equivalenza». La tabella `EquivalenceGroup` esiste ma
+  il motore la usa in **un punto solo** (il piatto gemello del secondo giorno) e **non** la legge per le
+  sostituzioni, che passano tutte da `SUBSTITUTION_MAP`. La regola è stata scritta dove viene davvero
+  applicata: riempire quella tabella avrebbe prodotto una configurazione che nessuno legge. Il gruppo
+  visibile e modificabile dal backoffice, se serve, è un secondo lavoro.
+
+- `[Prodotto]` 📋 **DA FARE, dettato da Simone l'11/8: la sequenza dei menu deve essere diversa per ogni
+  cliente** — «il numero di settimane serve a noi per creare il pool di menu e ricette, ma non vanno
+  erogati nella stessa sequenza: rendila random (colazione con colazione, pranzo con pranzo), escludendo
+  nell'erogazione successiva quel menu, così ogni cliente ha una sua sequenza. E una volta terminati i
+  menu, crei nuove combinazioni basandoti sui gusti e sui risultati ottenuti dalla cliente.»
+  Oggi la sequenza è **identica per tutte**: `templates[daysSinceStart % templates.length]`
+  (`menu.service.ts` ~554). Varia solo il contenuto dei piatti. ⚠️ E il giro è corto: la dieta di Giusy
+  ha **14 giornate tipo**, quindi su 12 settimane la sequenza si ripete **sei volte**.
+  Da non sbagliare quando si scrive: il «random» deve essere **riproducibile** (seme per cliente, mai
+  `Math.random()` — `deliverIfEligible` gira a ogni apertura dell'app e la stessa data deve dare la
+  stessa giornata); guardare `ClientMenuPool`, che esiste già; rendere coerenti le altre due rotazioni
+  (`list[dayIndex % list.length]` a ~1470 e il guard `menu_variety_min_gap_days`), o si combattono fra
+  loro; e sicurezza, bilanciamento kcal e giornate complete restano prioritari sulla varietà. Il terzo
+  punto — combinazioni nuove su gusti e risultati — è un lavoro a sé, da parlare prima di scriverlo.
+
 - `[Sviluppo]` 📊 **«Esporta in Excel» sulla pagina Gestione dieta: esce quello che si vede, filtri
   compresi.** Richiesta di Simone: «nella pagina gestione dieta mi fai un esporta in excel dove mi
   esporti la tabella coi filtri applicati al momento del click». Il pulsante c'è in tutte e tre le

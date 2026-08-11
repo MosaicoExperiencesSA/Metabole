@@ -17,6 +17,7 @@ import { slotSaltati } from './finestre-digiuno';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
+import { decisioneLattosio, usaDelattosati } from './lattosio';
 import { mancaMisuraDiPartenza } from './misura-di-partenza';
 import { MealSnapshot, Substitution } from './pasto-giornata';
 import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
@@ -1932,11 +1933,18 @@ export class MenuService {
   ): Promise<{ violations: string[]; subsByRecipe: Record<string, Substitution[]> }> {
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { intolerances: true, dislikedFoods: true },
+      // `allergies` serve alla regola del lattosio: il delattosato NON va a chi è allergica alle
+      // proteine del latte (l'idrolisi toglie lo zucchero, l'allergene resta). Vedi `lattosio.ts`.
+      select: { intolerances: true, dislikedFoods: true, allergies: true },
     });
     const intolerances = ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
     const dislikes = [...new Set([...((profile?.dislikedFoods ?? []) as string[]), ...extraDisliked].map((s) => s.toLowerCase().trim()).filter(Boolean))];
     if (!intolerances.length && !dislikes.length) return { violations: [], subsByRecipe: {} };
+    // Intollerante al lattosio E non allergica al latte: si usano i delattosati (`lattosio.ts`).
+    const delattosati = usaDelattosati({
+      intolerances,
+      allergies: (profile?.allergies ?? []) as string[],
+    });
 
     // Termini esclusi con la loro "causa" e se sono di sicurezza (bloccanti).
     const excluded: { keyword: string; reason: string; blocking: boolean }[] = [];
@@ -1966,6 +1974,26 @@ export class MenuService {
         const low = ing.toLowerCase();
         for (const ex of excluded) {
           if (!low.includes(ex.keyword)) continue;
+          /**
+           * REGOLA DEL LATTOSIO (11/8), prima della mappa generica.
+           *
+           * Per un'intollerante al lattosio **senza** allergia al latte: i formaggi stagionati non si
+           * toccano (lattosio in milligrammi: sotto qualunque soglia di sintomo), tutto il resto passa
+           * alla versione **delattosata** invece che alla bevanda vegetale — stesso alimento, stesso
+           * profilo nutrizionale, piatto che resta quello che era.
+           *
+           * Il `continue` sul caso «tieni» è la parte che conta: senza, l'ingrediente ricadrebbe nella
+           * mappa generica e il parmigiano diventerebbe «parmigiano ben stagionato» — una sostituzione
+           * che sostituisce una cosa con se stessa, e che alla cliente somiglia a un errore.
+           */
+          if (ex.reason !== 'non gradito' && delattosati) {
+            const scelta = decisioneLattosio(ing);
+            if (scelta?.azione === 'tieni') continue;
+            if (scelta?.azione === 'sostituisci') {
+              subs.push({ from: ing, to: scelta.con, reason: ex.reason });
+              break;
+            }
+          }
           const repl = SUBSTITUTION_MAP[ex.keyword] ?? SUBSTITUTION_MAP[low];
           if (repl) {
             subs.push({ from: ing, to: repl, reason: ex.reason });
