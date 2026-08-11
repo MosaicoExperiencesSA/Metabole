@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,6 +25,14 @@ import {
   UpdateDietProductDto,
   UpdateRecipeDto,
 } from './dto/catalog.dto';
+
+/**
+ * Il client DENTRO una transazione: `Prisma.TransactionClient`, non `PrismaService`.
+ * `PrismaService` estende `PrismaClient` e ha in più `$transaction`, `$connect`, gli hook di Nest:
+ * annotare così il parametro fa fallire la scelta dell'overload, TypeScript ripiega su quello ad
+ * array e il risultato diventa `any[]` — ogni campo letto dopo è un errore.
+ */
+type PrismaTx = Prisma.TransactionClient;
 
 /**
  * Catalogo diete e ricette (spec sez. 4/5/6):
@@ -802,7 +811,7 @@ export class CatalogService {
      * leggono lo stesso `meals` e il secondo salvataggio cancella il pasto del primo — senza errore,
      * senza log, con l'audit di tutti e due che dice «fatto».
      */
-    const esito = await this.prisma.$transaction(async (tx: PrismaService) => {
+    const esito = await this.prisma.$transaction(async (tx: PrismaTx) => {
       const esistenti = (await tx.dietDayTemplate.findMany({
         where: { dietId, level: CatalogService.LIVELLO, dayIndex: { in: giorniSettimana } },
         select: { id: true, dayIndex: true, meals: true },
@@ -885,7 +894,7 @@ export class CatalogService {
     const { diet } = await this.ricettaEDieta(recipeId, dietId);
     const attesi = pastiAttesi(diet);
 
-    const esito = await this.prisma.$transaction(async (tx: PrismaService) => {
+    const esito = await this.prisma.$transaction(async (tx: PrismaTx) => {
       const giornate = (await tx.dietDayTemplate.findMany({
         where: { dietId, level: CatalogService.LIVELLO },
         select: { id: true, dayIndex: true, meals: true },

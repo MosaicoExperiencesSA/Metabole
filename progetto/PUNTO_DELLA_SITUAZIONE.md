@@ -915,17 +915,39 @@ vede: nome, cognome, mail e coach.»
 Nota: il ruolo è `sales` (manager delle coach). L'ordine dal più vecchio non è un dettaglio — è una
 coda di lavoro, e il più vecchio è quello che sta aspettando da più tempo.
 
-### 16.4 La tabella Clienti uguale a Gestione lead, ma solo chi ha speso
+### 16.4 La tabella Clienti uguale a Gestione lead, ma solo chi ha speso — + «Entra come»
 
 «Deve essere uguale alla Gestione lead, ma contenere **solo gli utenti che hanno effettuato un acquisto
 di valore maggiore di 0**.» Quindi non «ha un abbonamento», ma **ha pagato davvero**: con l'attivazione
 automatica del §16.1 questo diventa anche il modo naturale di distinguere una prova da una cliente.
 
-### 16.5 I filtri delle tabelle devono restare fermi
+**Aggiunto l'11/8:** «uniformare le tabelle Clienti e Gestione lead, devono essere uguali a Gestione
+lead». Non «somigliarsi»: **una sola tabella**, stesse colonne, stessi filtri, stesso comportamento,
+con il filtro sulla spesa > 0 a distinguerle. Due copie che si somigliano tornano a divergere alla
+prima correzione fatta su una sola delle due.
+
+**E il pulsante «Entra come»,** nella tabella Clienti: apre **la web app del cliente** (non l'app
+nativa) vista con i suoi occhi. Il pulsante è **visibile o no in base alla tabella dei permessi** —
+non al ruolo scritto nel codice.
+
+⚠️ Da decidere prima di scriverlo, perché tocca i dati sanitari e il GDPR:
+- entrare come cliente è **sola lettura** o si può anche agire al posto suo? Se si può agire, ogni
+  scrittura fatta così va marcata come tale, o l'audit dice che l'ha fatta la cliente;
+- la sessione «entrata come» va **a scadenza** e va **scritta nell'audit** all'apertura, con chi e
+  perché — dati sanitari accessibili solo a cliente e suo nutrizionista è una regola di progetto;
+- la cliente lo vede? (una riga nel suo diario, o niente).
+
+### 16.5 I filtri delle tabelle devono restare fermi — APERTA (l'11/8 l'avevo data per chiusa a torto)
 
 «I filtri nelle tabelle devono restare fermi come le etichette, non scorrere verso l'alto. Correggile
-**tutte**.» La riga dei filtri sta sotto l'intestazione ma scorre via con il corpo: va resa `sticky`
-insieme all'intestazione, in **tutte** le tabelle del backoffice — non solo in Gestione lead.
+**tutte**.» Ribadita l'11/8: «i filtri delle tabelle non devono scorrere, sono **fissi in alto sotto
+il titolo della colonna**, in **tutte** le tabelle».
+
+⚠️ **L'11/8 l'ho dichiarata chiusa, e non lo era.** Quel giorno ho unificato *da dove* le tabelle
+prendono i filtri (catalogo ricette e `LeadsTable` li disegnavano a mano, ora li chiedono all'helper):
+è un'altra cosa. La richiesta è sul **comportamento allo scorrimento** — la riga dei filtri sta sotto
+l'intestazione ma scorre via con il corpo, e va resa `sticky` insieme all'intestazione. Uniformare la
+sorgente serviva a poterlo correggere in un punto solo; la correzione va ancora fatta.
 
 ### 16.6 «Piatto Freddo» fra i metodi di cottura
 

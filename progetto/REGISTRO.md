@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔴 **Il build del backend era rosso: dentro una transazione il client non è
+  `PrismaService`.** La CI delle 20:25 si è fermata su `nest build` con **14 errori** in
+  `catalog/catalog.service.ts`, tutti figli di una sola annotazione ripetuta due volte:
+  `this.prisma.$transaction(async (tx: PrismaService) => …)`. `$transaction` ha due overload — uno
+  prende un **array** di promise, l'altro una **callback** che riceve `Prisma.TransactionClient`,
+  cioè il client *senza* `$transaction`, `$connect`, `$on`. `PrismaService` quei metodi ce li ha (più
+  gli hook di Nest), quindi non è assegnabile al parametro della callback: l'overload giusto viene
+  scartato, TypeScript ripiega su quello ad array e l'esito diventa `any[]`. Da lì ogni campo letto
+  (`esito.messa`, `esito.sostituito`, `esito.settimanaNuova`, `esito.tolta`, `esito.complete`) è un
+  errore a sé — 1 causa, 14 sintomi. Correzione: `type PrismaTx = Prisma.TransactionClient` in testa
+  al file, **come già fanno `commerce.service.ts` e `finance.service.ts`**, e le due callback
+  annotate con quello. Nessun cambio di comportamento: dentro si usano solo `tx.dietDayTemplate` e
+  `tx.recipe`.
+  ⭐ **Perché il verde della consegna precedente non l'aveva visto, e cosa si fa d'ora in poi.** Il
+  type-check in sandbox gira su uno **stub** di `@prisma/client` che tipa `$transaction` in modo
+  largo: l'errore lì non *poteva* comparire, e il confronto col baseline diceva «zero introdotti»
+  perché non c'era né prima né dopo. La verifica vera si può fare **sul Mac**, dove il client Prisma
+  è generato per davvero: `node node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` in
+  `backend/` ha riprodotto **gli stessi 14 errori della CI**, e dopo la correzione li ha visti
+  sparire senza introdurne nessuno. ⚠️ Sul Mac restano **77 righe di errori solo locali**
+  (`planHeldAt`, `reasonKey`, `kcalOverride`, `deletionRequest`, `nutrientFact`…): sono campi e
+  modelli che stanno in `prisma/schema.prisma` ma **non** nel client generato, fermo a uno schema
+  vecchio. In CI non compaiono perché lì il client si rigenera — infatti la CI si è fermata a «Found
+  14 error(s)», non a 91. Quindi il metodo è: **si confronta col baseline, non si guarda il totale**.
+
 - `[Sviluppo]` 🔗 **Dal dettaglio della ricetta la si collega alle diete e alle settimane — e la
   revisione ha fermato tre modi di rompere i menu delle clienti.** Richiesta di Simone: «dentro il
   dettaglio in modifica inseriscimi la dieta (posso collegarne più di una) e la settimana (posso
