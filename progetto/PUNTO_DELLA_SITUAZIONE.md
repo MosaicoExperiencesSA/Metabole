@@ -9,7 +9,11 @@ testa un rimando qui.
 non si riscrive. Questo documento risponde a un'altra domanda — «come siamo adesso» — e i due non si
 sovrappongono.
 
-> **Se stai riprendendo il lavoro, parti da §15.** Raccoglie le decisioni prese in conversazione l'11/8
+> **Se stai riprendendo il lavoro, parti da §16**: è la coda aperta dell'11/8, con le decisioni già
+> date da Simone e il codice ancora da scrivere. La più grossa è la **§16.1**, l'attivazione automatica
+> di «Conosciamoci» a fine questionario — analisi dei punti di rottura già fatta, non va rifatta.
+>
+> **Poi §15.** Raccoglie le decisioni prese in conversazione l'11/8
 > — la coda del nutrizionista, l'azzeramento del calcolo del calo, il blocco del piano, le varianti con
 > giornate incomplete, la soglia del calo di sicurezza — che non stanno in nessun altro file. Sono
 > decisioni **già date da Simone**: non vanno richieste di nuovo.
@@ -770,3 +774,157 @@ Da decidere quando si costruisce: se estendere lo stato `plateau` o farne uno nu
 **due pesate consecutive in aumento** contate sul dato grezzo o sulla media mobile — tutto il resto del
 sistema ragiona sulla media mobile per non far scattare niente per una bilancia sbagliata o un giorno di
 ritenzione, e questa regola non dovrebbe essere l'eccezione; e se la cliente vada avvisata o no.
+
+---
+
+## 16. La coda aperta dell'11/8 — decisioni già prese, codice da scrivere
+
+Tutto quello che sta qui **è già stato deciso da Simone in conversazione**. Non va richiesto di nuovo:
+va scritto. Le voci sono in ordine di priorità dichiarata da lui.
+
+### 16.1 «Conosciamoci» si attiva da solo a fine questionario — ⚠️ LA PIÙ GROSSA
+
+**Quello che ha chiesto.** «C'è una complicazione inutile: a tutti i clienti, una volta che completano
+il questionario, in automatico attiviamo "conosciamoci" senza passare dallo shop e senza generare un
+acquisto.» Il processo che vuole:
+
+1. finisce il questionario;
+2. compare una pagina dove **Gaia dà il benvenuto**: «Benvenuto/a, dedicami 8 giorni per conoscerti, in
+   questo periodo ci conosceremo a vicenda, al termine potrai scegliere liberamente come proseguire»;
+3. **«Inseriscimi la data in cui vuoi iniziare»**, con l'aiuto: *se non la sai inseriscine una molto
+   lontana, potrai sempre cambiarla dalla tua dashboard*;
+4. da lì si prende la **data di inizio piano**, e parte il processo standard.
+
+**Le tre risposte date da Simone (11/8):**
+
+- dopo la data la cliente **entra dritta nell'app**. Niente negozio, niente scelta del piano: il
+  negozio lo incontra alla fine degli 8 giorni, quando la scelta ha senso;
+- il prodotto **«Auto Apprendimento Gaia» sparisce dal negozio**. Resta come `Plan` nel database —
+  serve l'id per attivarlo — ma non compare in vetrina e l'acquisto va **rifiutato** anche a chi
+  arriva con l'id in mano (`assertPlanPurchasable`). Chi l'ha già fatto non cambia niente;
+- la **data è obbligatoria**: non si va avanti senza. È il campo che oggi manca del tutto.
+
+#### Com'è fatto oggi (verificato nel codice, 11/8)
+
+Il questionario (`onboarding.service.ts:232` e `:265`) scrive `onboardingCompletedAt`, il consenso
+sanitario, obiettivo e prima misura, e sposta il CRM a `questionnaire_done` (`:378`). **Non attiva
+niente di commerciale.** Poi l'app mostra «Sto cucendo il tuo percorso» (15 secondi forzati,
+`app/src/pages/Onboarding.tsx:463`), l'eventuale nota sulle spezie, e `PlanFlow` con **«Scegli il
+piano»**. Il gratuito la cliente lo «compra» a €0 dal carrello: `POST /me/checkout` →
+`commerce.service.ts:794` (ramo `totalCents === 0`) → `Payment` a 0 `approved` metodo `manual` +
+`Subscription` `pending` → `active` via `finalizeApproval`.
+
+⚠️ **Nessun Order:** l'Order si crea solo se ci sono prodotti (`commerce.service.ts:780`). Quindi
+«senza generare un acquisto» significa **togliere il Payment a 0**, che oggi esiste per un motivo
+solo: far girare `finalizeApproval`.
+
+⚠️ **E c'è un buco che questa modifica CHIUDE.** Nel percorso gratuito `planStartDate` resta **null**:
+la schermata che chiede la data esiste solo dopo Stripe (`PaymentResult.tsx:104`), quindi chi non paga
+con carta non la vede mai. Il menu resta in `preparing` (`menu.service.ts:209`) finché la cliente non
+incontra per caso la card «Quando vuoi iniziare?» in Home (`StartDatePrompt.tsx`). La pagina di
+benvenuto non è solo una semplificazione: è il posto che oggi manca.
+
+#### Cosa si romperebbe a saltare il pagamento — verificato punto per punto
+
+**NON si rompe:** le provvigioni (il gratuito è già escluso due volte: `skipCommissions: true` a
+`commerce.service.ts:818` e la guardia `finance.service.ts:47`); la sequenza dei piani
+(`purchasedIds` conta già le Subscription `active`/`expired`, `commerce.service.ts:291-298`);
+l'erogazione dei menu (`menu.service.ts:310` legge solo la Subscription); tutti i cron di scadenza e
+purge, che filtrano su `plan.priceCents = 0`; la contabilità.
+
+**SI ROMPE, in ordine di gravità:**
+
+1. **La trappola.** Una Subscription `pending` senza Payment è **irrecuperabile**: l'unico percorso
+   che la porta a `cancelled` parte dal pagamento (`commerce.service.ts:2029`), e il `pending` blocca
+   ogni acquisto futuro (`:709-712`). **Deve nascere `active`, con `startDate`/`endDate` già scritte.**
+2. **`trial_started` → `trial_converted`** (`commerce.service.ts:1870-1879`): il primo acquisto vero
+   controlla di aver visto `trial_started` prima di segnare la conversione. Senza, **il tasso di
+   conversione della prova va a zero per sempre**.
+3. **Il CRM non avanza a «Prova»** (`:1913-1921`): la board resta ferma su `questionnaire_done`.
+4. **La coach non viene avvisata** (`:1924-1929`, `client_trial_started`) — e il commento nel codice
+   dice che è la finestra in cui una telefonata cambia l'esito della prova.
+5. **La rete di sicurezza sul periodo** (`:1813-1814`): senza, un `period` scritto male fa cadere
+   `subscriptionEnd` sul fallback a **3 mesi** di accesso gratuito.
+6. **Il referral** `onConvert` / `riscuotiSospese` (`:1831`, `:1836`) non scatta.
+7. **`planStartDate`**: senza, `deliverIfEligible` non parte (`menu.service.ts:306`).
+8. Sparisce l'audit `commerce.payment.approve`: serve un audit equivalente dell'attivazione.
+
+#### Come va fatta
+
+**Non duplicando `finalizeApproval`.** Dentro quella funzione convivono la parte contabile e cinque
+cose che contabili non sono, ed è proprio questo che rende rischiosa la separazione. Si estrae un
+`provaAttivata(clientId, subscriptionId, byUserId)` con **funnel `trial_started` + CRM `trial` +
+avviso alla coach**, chiamato **da entrambe** le strade, e un `attivaBenvenuto(clientId, dataInizio)`
+che fa: piano gratuito → Subscription **`active`** con `start = data scelta` ed `end` calcolato con la
+rete di sicurezza sul periodo → `planStartDate` → referral → `monitoring.onPlanActivated` →
+`provaAttivata` → audit. **Niente Payment, niente Order.**
+
+Punti da non dimenticare:
+- **idempotenza**: se la cliente ha già una Subscription per quel piano, o una qualunque attiva, non
+  si riattiva. Il questionario si può rifare;
+- **la data lontana va permessa** (l'ha detto lui). Il cap dei 60 giorni di `finalizeApproval:1777`
+  **non** si applica qui. Serve però un limite alto — 12 mesi — contro il refuso;
+- una Subscription `active` che parte fra tre mesi non rompe niente di verificato, ma va provata:
+  `expireTrialsAndPurge` guarda `endDate < now`, i task coach G0/G1 guardano `startDate`.
+
+### 16.2 Gaia deve poter correggere i piatti di TUTTI i menu emessi
+
+«Anche il menu di domani o dopodomani se lo vedo.» Se oggi il cambio vale solo sulla giornata di oggi,
+una cliente che apre il menu di domani e chiede una sostituzione sta chiedendo una cosa che non le
+possiamo dare. Da verificare nel codice quale sia davvero la portata attuale
+(`menu/sostituzione-chat.service.ts`, `menu/cambio-piatto.ts`, `scope: 'today'`).
+
+### 16.3 Nuovo lead → notifica alla manager delle coach + tabella «Lead da assegnare»
+
+«La cliente si è registrata e ha attivato conosciamoci: alla manager delle coach deve arrivare
+notifica **e push** che dice *hai un nuovo lead da assegnare*. **Tutte le volte** che si registra un
+nuovo lead va avvisata. Se clicca sulla notifica le si apre una tabella (da creare) chiamata **Lead da
+assegnare**, con tutti i lead **non assegnati**, in ordine **dal più vecchio al più recente**, e li
+vede: nome, cognome, mail e coach.»
+
+Nota: il ruolo è `sales` (manager delle coach). L'ordine dal più vecchio non è un dettaglio — è una
+coda di lavoro, e il più vecchio è quello che sta aspettando da più tempo.
+
+### 16.4 La tabella Clienti uguale a Gestione lead, ma solo chi ha speso
+
+«Deve essere uguale alla Gestione lead, ma contenere **solo gli utenti che hanno effettuato un acquisto
+di valore maggiore di 0**.» Quindi non «ha un abbonamento», ma **ha pagato davvero**: con l'attivazione
+automatica del §16.1 questo diventa anche il modo naturale di distinguere una prova da una cliente.
+
+### 16.5 I filtri delle tabelle devono restare fermi
+
+«I filtri nelle tabelle devono restare fermi come le etichette, non scorrere verso l'alto. Correggile
+**tutte**.» La riga dei filtri sta sotto l'intestazione ma scorre via con il corpo: va resa `sticky`
+insieme all'intestazione, in **tutte** le tabelle del backoffice — non solo in Gestione lead.
+
+### 16.6 «Piatto Freddo» fra i metodi di cottura
+
+La lista dei metodi vive in **quattro** punti: `backoffice/src/pages/Ricette.tsx:34` (`METHOD`),
+`app/src/lib/meals.ts:20`, `backend/src/cycle/cycle.service.ts:13`, e il prompt con cui l'AI genera le
+ricette (`engine-rules.service.ts:1048`). Aggiungerla in tre su quattro fa comparire `piatto_freddo`
+grezzo al posto dell'etichetta: va estratta in un modulo solo, come le finestre del digiuno.
+
+### 16.7 Slot per le visite creati dal nutrizionista
+
+«Il nutrizionista ha necessità di un'interfaccia dove creare gli slot per le visite, in modo che il
+cliente che acquista la visita possa scegliere il suo slot.» È la voce più grossa dopo la 16.1
+(disponibilità ricorrenti, prenotazione, collisioni, fuso orario, disdette): va parlata prima di
+scriverla.
+
+### 16.8 Tetto di guadagno del nutrizionista — ⛔ ferma su una domanda
+
+Simone ha chiesto il campo **nel profilo del nutrizionista**. In una conversazione precedente aveva
+però detto che la regola «è di tutti i nutrizionisti», da cui era nata la conclusione «parametro
+globale». **Domanda aperta:** solo campo di profilo, o un default globale sovrascrivibile sul singolo?
+Se il tetto è uguale per tutti, metterlo su ogni profilo vuol dire cambiarlo 40 volte il giorno che
+cambia. Decisioni già prese sul resto: l'eccedenza si perde; lo storno si sottrae anche se rientra nei
+3.000; la regola vale per tutti i nutrizionisti.
+
+### 16.9 La tabella delle sostituzioni di Gaia — ⛔ ferma su una scelta
+
+«Se non salviamo la sua risposta lei non impara.» Serve **una tabella unica trasversale alle clienti**,
+con validazione/correzione da parte del nutrizionista **e inserimento manuale di righe**. La scelta
+aperta è fra una **tabella nuova contestuale** (riga = questa cliente, questo piatto, questo
+ingrediente → sostituito con, più lo stato) e l'**alimentazione dei gruppi di equivalenza esistenti**.
+La proposta sul tavolo: la prima, con un pulsante «promuovi a regola» sulla riga validata, così il
+nutrizionista decide caso per caso se vale per tutte.
