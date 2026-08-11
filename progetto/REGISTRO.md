@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📦 **OTA 2.1.7 — la correzione del caso Giusy arriva sui telefoni** — la 2.1.6 portava il
+  banner della pesata di ciclo, non il modulo che ricompare dopo lo sblocco: quello sta in
+  `MeasuresGate.tsx`, cioè nell'app, e senza bundle non esiste per nessuno. Nel 2.1.7 entrano i quattro
+  file app toccati dopo il bundle precedente: `MeasuresGate.tsx`, `MenuStatusBanner.tsx`,
+  `AppHeader.tsx`, `staff/shared/Notifiche.tsx`.
+  Verifiche fatte **sullo zip prima di pubblicare**: `index.html` alla radice; `push-tokens` × 2 e
+  listener `registration` × 2 (le push non spente dal build); la stringa `2.1.7` compilata dentro il JS;
+  `Serve la tua pesata` e `ti ha riaperto` — cioè **la funzione per cui l'OTA esiste**, che è il solo
+  controllo che un `dist/` vecchio ricostruito non passerebbe; `awaiting_cycle_measure` ancora presente,
+  per non aver perso la 2.1.6 per strada.
+  ⚠️ Nota di metodo: i comandi di verifica erano stati incollati in blocco **con i commenti `#` sulla
+  stessa riga**, e la shell li ha presi come argomenti (`wc: #: open: No such file`). I tre `0 total`
+  che ne sono usciti sembravano «stringa assente» ed erano errori di sintassi: un controllo che
+  fallisce per il motivo sbagliato è peggio di nessun controllo. Rifatti uno per uno sullo zip vero.
+  **Bruciate fino alla 2.1.7 compresa: la prossima OTA parte da 2.1.8.**
+
 - `[Sviluppo]` 🚑 **«Riapri l'app» chiedeva le misure e faceva sparire il modulo per inserirle (caso
   Giusy, seconda puntata)** — segnalazione di Simone: «clicca riapri app, le arriva la notifica di
   inserire le misure ma non le fa inserire e si riblocca».
