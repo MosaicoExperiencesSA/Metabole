@@ -110,9 +110,49 @@ async function main(): Promise<void> {
     prisma.menuDay.findFirst({ where: { clientId: user.id }, orderBy: { date: 'desc' }, select: { date: true } }) as Promise<{ date: Date } | null>,
   ]);
   const misure = await prisma.measurement.count({ where: { clientId: user.id } });
+  /**
+   * LA PESATA DEL CICLO — il caso che questo script non sapeva riconoscere (13/8).
+   *
+   * Su Giusy la domanda era esattamente «perché non riceve il menu?», e qui sotto sarebbe uscito
+   * «idonea, ma le giornate non sono ancora state erogate»: vero e inutile. La causa era il cancello
+   * `cycleNeedsMeasure`, che trattiene i giorni nuovi finché non arriva una pesata **dentro il ciclo
+   * corrente** — e che nessuno dei due strumenti (né l'app né questo script) nominava.
+   *
+   * Il ciclo corrente parte `giorniPerCiclo - 1` giorni prima dell'ultima giornata erogata: una
+   * pesata precedente a quella data non conta, anche se è di ieri rispetto a oggi.
+   */
+  const ultimaPesata = (await prisma.measurement.findFirst({
+    where: { clientId: user.id },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  })) as { date: Date } | null;
+  const paramGiorni = (await prisma.configParam.findUnique({ where: { key: 'menu_days_delivered' } })) as { value: string } | null;
+  const giorniPerCiclo = Number(paramGiorni?.value ?? 2) || 2;
+  const sbloccoFino = (await prisma.clientProfile.findUnique({
+    where: { userId: user.id },
+    select: { measuresUnlockedUntil: true },
+  })) as { measuresUnlockedUntil: Date | null } | null;
+  let mancaPesataCiclo = false;
+  let inizioCiclo: Date | null = null;
+  if (ultimo && oggi.getTime() >= ultimo.date.getTime()) {
+    inizioCiclo = new Date(ultimo.date.getTime() - (giorniPerCiclo - 1) * 86_400_000);
+    mancaPesataCiclo = !ultimaPesata || ultimaPesata.date.getTime() < inizioCiclo.getTime();
+  }
   console.log('\n=== MENU E MISURE ===');
   console.log(`Giornate erogate: ${totMenu} · visibili oggi: ${visibili} · ultima: ${giorno(ultimo?.date)}`);
-  console.log(`Misure registrate: ${misure}`);
+  console.log(`Misure registrate: ${misure} · ultima pesata: ${giorno(ultimaPesata?.date)}`);
+  console.log(
+    `Ciclo corrente: ${inizioCiclo ? `dal ${giorno(inizioCiclo)}` : '—'} · pesata del ciclo: ${
+      inizioCiclo ? (mancaPesataCiclo ? 'MANCA ⚠' : 'presente ✓') : 'non pertinente'
+    }`,
+  );
+  if (sbloccoFino?.measuresUnlockedUntil) {
+    const attivoSblocco = sbloccoFino.measuresUnlockedUntil.getTime() > Date.now();
+    console.log(
+      `Sblocco della coach: ${attivoSblocco ? 'ATTIVO' : 'scaduto'} fino al ${sbloccoFino.measuresUnlockedUntil.toISOString().slice(0, 16).replace('T', ' ')}` +
+      (attivoSblocco ? '  (riapre l\'app, NON eroga il menu: la pesata serve comunque)' : ''),
+    );
+  }
 
   // --- Il verdetto, nello stesso ordine di menuStatus() ---
   const attivo = subs.some((s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= oggi.getTime()));
@@ -142,6 +182,17 @@ async function main(): Promise<void> {
       '  Il motore non riesce a comporre un piano sicuro con le sue esclusioni: o mancano\n' +
       '  ricette compatibili, o un\'esclusione non ha sostituto sicuro.\n' +
       '  Si sblocca CHIUDENDO la segnalazione, dopo aver sistemato il catalogo o le esclusioni.',
+    );
+  } else if (mancaPesataCiclo) {
+    console.log(
+      'STATO: "Serve la tua pesata" — CANCELLO DELLE MISURE DEL CICLO.\n' +
+      `  L'ultima giornata erogata è del ${giorno(ultimo?.date)}, quindi il ciclo corrente parte dal\n` +
+      `  ${giorno(inizioCiclo)}. L'ultima pesata registrata è del ${giorno(ultimaPesata?.date)}: è PRIMA di quella data,\n` +
+      '  quindi i giorni nuovi restano trattenuti. Non è un guasto: è la regola «nessun menu senza\n' +
+      '  misura» (decisione Simone dell\'11/8).\n' +
+      '  Si sblocca SOLO con una pesata nuova, inserita da lei dall\'app. Lo sblocco della coach\n' +
+      '  riapre l\'app e toglie il popup, ma NON eroga il menu: se l\'hai sbloccata e non è arrivato\n' +
+      '  niente, è questo.',
     );
   } else {
     console.log('STATO: "Menu in preparazione" — idonea, ma le giornate non sono ancora state erogate.');

@@ -2,20 +2,29 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { track } from '../lib/track';
 import { parseMisura } from '../lib/misure';
+import { EVENTO_APRI_MISURE } from './MenuStatusBanner';
 
 /**
- * Popup BLOCCANTE delle misure (Tracciamento_Dati §5).
- * Al 2° giorno di ogni ciclo le misure sono obbligatorie: finché non arrivano,
- * il menu successivo resta "held". Il popup ricompare a ogni apertura e non è
- * chiudibile finché la misura del ciclo non è salvata.
+ * Popup delle misure (Tracciamento_Dati §5).
+ * Al 2° giorno di ogni ciclo le misure sono obbligatorie: finché non arrivano, il menu successivo
+ * resta "held". Quando è bloccante ricompare a ogni apertura e non si chiude finché la misura del
+ * ciclo non è salvata.
+ *
+ * Si apre anche **su richiesta**, dal pulsante del banner nella schermata Menu (evento
+ * `metabole:apri-misure`), e in quel caso si chiude: è una cortesia, non un muro. Serve alla cliente
+ * a cui la coach ha riaperto l'app — nessun popup, ma il menu resta in attesa della pesata: senza
+ * una strada per inserirla, il banner sarebbe un rimprovero senza rimedio (caso Giusy, 13/8).
  */
 
 interface Gate {
   required: boolean;
   blocking: boolean;
   cycleDate: string | null;
-  /** 'popup' = richiudibile · 'locked' = app ferma, serve la coach (voce #6 del 5/8). */
-  level?: 'none' | 'popup' | 'locked';
+  /**
+   * 'popup' = richiudibile · 'locked' = app ferma, serve la coach (voce #6 del 5/8) ·
+   * 'promemoria' = la coach ha riaperto l'app: si chiede, non si blocca.
+   */
+  level?: 'none' | 'popup' | 'locked' | 'promemoria';
   lockedMessage?: string | null;
 }
 
@@ -31,6 +40,8 @@ export default function MeasuresGate() {
   // Dal giorno dopo la richiesta il gate diventa un blocco vero: niente scorciatoie, e l'unica
   // via d'uscita è inserire le misure o farsi riaprire l'app dalla coach.
   const [locked, setLocked] = useState(false);
+  // Aperto dalla cliente (dal banner) e non dal gate: si può chiudere, e il titolo non la sgrida.
+  const [volontario, setVolontario] = useState(false);
 
   async function check() {
     try {
@@ -45,6 +56,18 @@ export default function MeasuresGate() {
 
   useEffect(() => {
     void check();
+  }, []);
+
+  // Apertura su richiesta dal banner «Serve la tua pesata».
+  useEffect(() => {
+    const apri = () => {
+      setVolontario(true);
+      setLocked(false);
+      setShow(true);
+      track('measures_gate_shown', { cycleDate: null, level: 'volontario' });
+    };
+    window.addEventListener(EVENTO_APRI_MISURE, apri);
+    return () => window.removeEventListener(EVENTO_APRI_MISURE, apri);
   }, []);
 
   async function save() {
@@ -84,14 +107,26 @@ export default function MeasuresGate() {
           <span className="event-ic" style={{ background: '#12A386', color: '#fff' }}>
             <i className="ti ti-ruler-2" />
           </span>
-          <div>
-            <b style={{ fontSize: 16 }}>{locked ? 'App in pausa' : 'È il momento delle misure'}</b>
+          <div style={{ flex: 1 }}>
+            <b style={{ fontSize: 16 }}>
+              {locked ? 'App in pausa' : volontario ? 'La tua pesata' : 'È il momento delle misure'}
+            </b>
             <div className="muted" style={{ fontSize: 11 }}>
               {locked
                 ? 'Contatta la tua coach per sbloccare la app — oppure inserisci qui le misure e riparte subito.'
                 : 'Servono per sbloccare il prossimo menu. Meglio al mattino, a digiuno.'}
             </div>
           </div>
+          {volontario && !locked && (
+            <button
+              className="btn ghost"
+              aria-label="Chiudi"
+              style={{ flex: 'none', padding: '4px 9px' }}
+              onClick={() => { setShow(false); setVolontario(false); }}
+            >
+              <i className="ti ti-x" />
+            </button>
+          )}
         </div>
 
         <label className="muted" style={{ fontSize: 12 }}>Peso (kg)</label>

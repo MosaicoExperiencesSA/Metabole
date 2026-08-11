@@ -110,8 +110,22 @@ export class AiService {
     if (!key) return null;
     const model = this.config.get<string>('AI_MODEL') ?? 'claude-haiku-4-5';
     const language = locale === 'en' ? 'English' : 'italiano';
+    /**
+     * IL NOME E IL GENERE, che qui non c'erano (13/8).
+     *
+     * Il prompt diceva «Sei l'assistente di Metabole»: senza nome e senza genere. Il modello
+     * ripiegava sul maschile e usciva «sono felicissimo di festeggiare i tuoi progressi», firmato
+     * **Gaia**. Segnalato da Simone su un messaggio dell'8/8.
+     *
+     * Non è una sfumatura di stile: le clienti la chiamano per nome, la vedono con la sua faccia, e
+     * una che parla di sé al maschile smette di essere una persona e diventa un programma. Basta
+     * dire chi è: il modello concorda da sé, in tutta la conversazione, senza che serva un
+     * controllo sull'output.
+     */
     const system =
-      `Sei l'assistente di Metabole, un'app di dimagrimento sano e sostenibile (NON un dispositivo medico). ` +
+      `Ti chiami Gaia e sei l'assistente di Metabole, un'app di dimagrimento sano e sostenibile ` +
+      `(NON un dispositivo medico). Sei una DONNA: parla sempre di te al femminile — «sono felice», ` +
+      `«sono contenta», «sono qui», «te lo dico io» — e mai al maschile, in nessuna frase. ` +
       `Rispondi in ${language} in modo caldo, breve e concreto (massimo 3 frasi). ` +
       `Aiuti con dubbi su menu e pasti, abitudini, motivazione e uso dell'app. ` +
       `NON dare mai consigli medici, diagnosi, dosaggi o terapie: per qualsiasi tema di salute invita gentilmente a scrivere al nutrizionista. ` +

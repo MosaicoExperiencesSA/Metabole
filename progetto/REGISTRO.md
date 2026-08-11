@@ -7,6 +7,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` ⚖️ **«L'hai sbloccata ieri e non ha generato il menù»** — il caso Giusy, ed erano **tre
+  difetti che presi uno per uno si giustificavano, e insieme lasciavano una cliente senza menu, senza
+  istruzioni e con una frase che le diceva di aspettare**.
+  Sulle misure ci sono due controlli, e non si parlavano. `cycleNeedsMeasure` decide l'**erogazione**:
+  senza una pesata dentro il ciclo corrente i giorni nuovi non partono, ed è giusto — è la regola
+  dell'11/8, «ci serve sempre una misura per erogare il menu». `measurementGate` decide il **popup** che
+  glielo chiede. Lo sblocco della coach scrive `measuresUnlockedUntil`, e quel campo era letto **solo dal
+  secondo**: sbloccare toglieva la richiesta e lasciava il blocco. Cioè si aiutava la cliente spegnendole
+  l'unica istruzione che aveva.
+  Terzo pezzo: `menuStatus` non aveva uno stato per quel cancello — controllava solo la misura **di
+  partenza** — quindi cadeva su «Menu in preparazione, arriverà a breve». Falso: non arriva niente finché
+  non si pesa. Ora c'è `awaiting_cycle_measure`, che dice cosa serve e **ha un pulsante** che apre il
+  modulo della pesata da lì; senza quel pulsante il banner sarebbe un rimprovero senza rimedio, perché
+  alla cliente riaperta il popup non compare più.
+  Lo sblocco resta com'era nella sostanza — la pesata serve comunque — ma ora lo dice: `required: true`,
+  `blocking: false`, livello `promemoria`. Cade il muro, resta la domanda. E nel backoffice il pulsante si
+  chiama **«Riapri l'app»**, non più «Sblocca app», con scritto che non fa arrivare il menu: il nome
+  vecchio prometteva l'altra cosa, ed è il motivo per cui è stato usato aspettandosi un menu.
+  Lo stesso buco c'era in `diag:cliente`, cioè nello strumento che serve esattamente a rispondere alla
+  domanda «perché non riceve il menu?»: su Giusy avrebbe stampato «idonea, ma le giornate non sono ancora
+  state erogate» — vero e inutile. Ora stampa il ciclo corrente, l'ultima pesata, se manca, e se c'è uno
+  sblocco attivo con accanto che non eroga.
+
+- `[Sviluppo]` 💚 **Gaia parla di sé al femminile** — segnalato da Simone su un messaggio dell'8/8: «sono
+  felicissimo di festeggiare i tuoi progressi», firmato Gaia. Il prompt diceva «Sei l'assistente di
+  Metabole»: **senza nome e senza genere**, quindi il modello ripiegava sul maschile. Non è una sfumatura
+  di stile — le clienti la chiamano per nome e vedono la sua faccia: una che parla di sé al maschile
+  smette di essere una persona e diventa un programma. Ora il prompt dice chi è, e il modello concorda da
+  sé per tutta la conversazione, senza bisogno di un controllo sull'uscita. Verificato che nel backend non
+  esistano altre frasi fisse al maschile pronunciate da lei.
+
 - `[Sviluppo]` 🧽 **Le piccole cose che mentivano** — cinque voci in una passata, tutte dello stesso
   genere: codice o interfacce che raccontavano una cosa diversa da quella che fanno. Nessuna rompeva
   niente, tutte facevano perdere tempo o prendere decisioni sbagliate.

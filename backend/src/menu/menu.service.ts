@@ -217,6 +217,30 @@ export class MenuService {
     const block = await this.dietBlock(clientId);
     if (block.active) return { state: 'blocked', availableFrom: null, planStartDate };
 
+    /**
+     * 7-bis) LA PESATA DEL CICLO — lo stato che mancava, e la bugia che ne usciva.
+     *
+     * Fin qui esisteva un solo controllo sulle misure in questa funzione: quello sulla misura di
+     * PARTENZA (punto 6). Il cancello che trattiene i giorni nuovi a metà percorso è un altro —
+     * `cycleNeedsMeasure`, dentro `deliverIfEligible` — e nessuno lo raccontava. Chi ci finiva
+     * dentro cadeva nel punto 8 e leggeva **«Menu in preparazione — arriverà a breve»**: una frase
+     * falsa, perché non arriva niente finché non si pesa. E siccome è falsa, la cliente aspetta,
+     * poi scrive alla coach per un guasto che non c'è.
+     *
+     * Trovato il 13/8 su Giusy, che dopo lo sblocco è rimasta ferma su quel messaggio per un giorno
+     * intero. Vale la pena notare che lo stesso buco c'era anche in `diag:cliente`, cioè nello
+     * strumento che serve proprio a rispondere alla domanda «perché non riceve il menu?».
+     */
+    const giorniPerCiclo = await this.configParams.getNumber('menu_days_delivered', 2);
+    const ultimoGiorno = (await this.prisma.menuDay.findFirst({
+      where: { clientId },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    })) as { date: Date } | null;
+    if (ultimoGiorno && (await this.cycleNeedsMeasure(clientId, ultimoGiorno, giorniPerCiclo))) {
+      return { state: 'awaiting_cycle_measure', availableFrom: null, planStartDate };
+    }
+
     // 8) Idoneo ora ma nessun giorno ancora: si sta preparando, comparirà a breve.
     return { state: 'preparing', availableFrom: null, planStartDate };
   }
@@ -585,8 +609,11 @@ export class MenuService {
     required: boolean;
     blocking: boolean;
     cycleDate: string | null;
-    /** 'none' · 'popup' (primo giorno, richiudibile) · 'locked' (dal giorno dopo: serve la coach). */
-    level: 'none' | 'popup' | 'locked';
+    /**
+     * 'none' · 'popup' (primo giorno, richiudibile) · 'locked' (dal giorno dopo: serve la coach) ·
+     * 'promemoria' (la coach ha riaperto l'app: si chiede, non si blocca).
+     */
+    level: 'none' | 'popup' | 'locked' | 'promemoria';
     /** Da quando la richiesta è aperta: serve a capire se siamo passati al giorno dopo. */
     since: string | null;
     lockedMessage: string | null;
@@ -600,10 +627,22 @@ export class MenuService {
     if (prof?.isStoreReviewer) {
       return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
     }
-    // Sblocco concesso dalla coach dalla chat: finestra di grazia, non un interruttore per sempre.
-    if (prof?.measuresUnlockedUntil && prof.measuresUnlockedUntil.getTime() > Date.now()) {
-      return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
-    }
+    /**
+     * SBLOCCO DELLA COACH: toglie il MURO, non la RICHIESTA.
+     *
+     * Il caso vero (13/8, Giusy). Simone le riapre l'app perché le misure non arrivavano, e la
+     * mattina dopo: «nonostante l'hai sbloccata ieri non ha generato il menù». Guardando il codice
+     * era inevitabile: questo ramo restituiva `required: false`, quindi **spariva il popup** — la
+     * sola cosa che le chiedeva di pesarsi — mentre `cycleNeedsMeasure`, che decide l'erogazione,
+     * non guarda `measuresUnlockedUntil` e continuava a trattenere i menu. La cliente si ritrovava
+     * senza istruzioni e senza menu, con scritto «arriverà a breve».
+     *
+     * Nella sostanza lo sblocco resta com'era: la pesata serve comunque, perché senza misura non si
+     * eroga (decisione Simone dell'11/8, «ci serve sempre una misura per erogare il menu»). Ma da
+     * qui in poi lo DICE, invece di tacere: `required: true`, `blocking: false`, livello
+     * `promemoria`. Cade il muro, resta la richiesta.
+     */
+    const sbloccata = !!prof?.measuresUnlockedUntil && prof.measuresUnlockedUntil.getTime() > Date.now();
     // MONITORAGGIO: il peso **si chiede, non si impone** (decisione Simone 9/8). Gaia lo domanda
     // ogni tanto con una notifica; nessun popup bloccante e nessun blocco dell'app.
     // Senza questo controllo il monitoraggio era la trappola perfetta: nessun menu in arrivo —
@@ -631,9 +670,9 @@ export class MenuService {
       const needsInitial = await this.needsInitialMeasures(clientId);
       return {
         required: needsInitial,
-        blocking: needsInitial,
+        blocking: needsInitial && !sbloccata,
         cycleDate: null,
-        level: needsInitial ? 'popup' : 'none',
+        level: needsInitial ? (sbloccata ? 'promemoria' : 'popup') : 'none',
         since: null,
         lockedMessage: null,
       };
@@ -646,12 +685,14 @@ export class MenuService {
     const dovutaDa = new Date(last.date.getTime() + daysPerDelivery * 86_400_000);
     const oreDaAllora = (Date.now() - dovutaDa.getTime()) / 3_600_000;
     const oreDiGrazia = await this.configParams.getNumber('measures_lock_after_hours', 24);
-    const locked = oreDaAllora >= oreDiGrazia;
+    const locked = oreDaAllora >= oreDiGrazia && !sbloccata;
     return {
       required: true,
-      blocking: true,
+      // Sbloccata: si chiede, non si impone. Il menu però non arriva finché la pesata non c'è, e
+      // questo lo racconta il banner della schermata Menu (`awaiting_cycle_measure`).
+      blocking: !sbloccata,
       cycleDate: last.date.toISOString().slice(0, 10),
-      level: locked ? 'locked' : 'popup',
+      level: sbloccata ? 'promemoria' : locked ? 'locked' : 'popup',
       since: dovutaDa.toISOString(),
       lockedMessage: locked
         ? 'Contatta la tua coach per sbloccare la app.'

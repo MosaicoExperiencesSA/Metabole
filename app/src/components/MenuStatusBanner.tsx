@@ -2,10 +2,19 @@
 // (spiega PERCHÉ e QUANDO arriva) invece di lasciarla pensare che l'app sia rotta.
 // Lo stato è calcolato dal backend (GET /me/menu → `status`).
 export interface MenuStatus {
-  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'paused' | 'blocked' | 'preparing' | 'expired' | 'monitoring';
+  state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'awaiting_cycle_measure' | 'paused' | 'blocked' | 'preparing' | 'expired' | 'monitoring';
   availableFrom: string | null; // yyyy-mm-dd in cui il menu diventa visibile
   planStartDate: string | null;
 }
+
+/**
+ * L'evento che apre il modulo delle misure da qualunque punto dell'app.
+ *
+ * Serve perché un banner che dice «serve la tua pesata» deve anche darle il posto dove inserirla,
+ * nello stesso gesto. `MeasuresGate` è montato una volta sola in `App.tsx` e ascolta questo evento:
+ * più semplice di uno stato condiviso, e non duplica il modulo di inserimento in due schermate.
+ */
+export const EVENTO_APRI_MISURE = 'metabole:apri-misure';
 
 function itDate(iso: string | null): string {
   if (!iso) return '';
@@ -13,8 +22,15 @@ function itDate(iso: string | null): string {
   return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
 }
 
-/** Messaggio + icona per ogni stato (available → nessun banner). */
-export function menuStatusView(s: MenuStatus): { icon: string; title: string; text: string } | null {
+/**
+ * Messaggio + icona per ogni stato (available → nessun banner).
+ *
+ * `azione`, quando c'è, è il pulsante che risolve la cosa da lì: senza, un banner che chiede una
+ * pesata lascia la cliente a cercare dove si inserisce.
+ */
+export function menuStatusView(
+  s: MenuStatus,
+): { icon: string; title: string; text: string; azione?: { etichetta: string } } | null {
   switch (s.state) {
     case 'expired':
       return {
@@ -58,7 +74,21 @@ export function menuStatusView(s: MenuStatus): { icon: string; title: string; te
       return {
         icon: 'ti-ruler-2',
         title: 'Inserisci le misure iniziali',
-        text: 'Per generare il tuo menu servono le tue misure di partenza: inseriscile dal popup misure.',
+        text: 'Per generare il tuo menu servono le tue misure di partenza.',
+        azione: { etichetta: 'Inserisci le misure' },
+      };
+    /**
+     * LA PESATA DEL CICLO. Questo stato non esisteva: chi era trattenuto dal cancello delle misure
+     * a metà percorso leggeva «Menu in preparazione — arriverà a breve», che è falso. Il menu non
+     * arriva finché la pesata non c'è, e per una cliente a cui la coach ha appena riaperto l'app
+     * (quindi senza popup) era l'unica informazione disponibile — sbagliata.
+     */
+    case 'awaiting_cycle_measure':
+      return {
+        icon: 'ti-scale',
+        title: 'Serve la tua pesata',
+        text: 'I prossimi giorni si sbloccano con la pesata di questo ciclo: inseriscila e arrivano subito. Meglio al mattino, a digiuno.',
+        azione: { etichetta: 'Inserisci la pesata' },
       };
     case 'paused':
       return {
@@ -107,6 +137,15 @@ export default function MenuStatusBanner({ status }: { status: MenuStatus }) {
       <div>
         <b style={{ fontSize: 14, color: '#173A33' }}>{v.title}</b>
         <div style={{ fontSize: 13, color: '#42615A', marginTop: 2 }}>{v.text}</div>
+        {v.azione && (
+          <button
+            className="btn"
+            style={{ marginTop: 10, padding: '7px 13px', fontSize: 13 }}
+            onClick={() => window.dispatchEvent(new Event(EVENTO_APRI_MISURE))}
+          >
+            <i className="ti ti-scale" /> {v.azione.etichetta}
+          </button>
+        )}
       </div>
     </div>
   );

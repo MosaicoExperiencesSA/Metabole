@@ -559,18 +559,33 @@ export function ClientDetail() {
   }
 
   /**
-   * Sblocca l'app quando le misure mancano (voce #6e del 5/8). Lo fa la coach dopo aver sentito
-   * la cliente: è il pezzo che rende accettabile un blocco, perché c'è sempre chi può riaprire.
+   * Riapre l'app quando le misure mancano (voce #6e del 5/8). Lo fa la coach dopo aver sentito la
+   * cliente: è il pezzo che rende accettabile un blocco, perché c'è sempre chi può riaprire.
+   *
+   * ⚠️ RIAPRE L'APP, NON EROGA IL MENU — e il nome vecchio («Sblocca app») prometteva l'altra cosa.
+   * Il 13/8 Simone l'ha usato su una cliente ferma senza menu, e la mattina dopo il menu non c'era
+   * ancora: «nonostante l'hai sbloccata ieri non ha generato il menù». Senza una pesata nel ciclo
+   * corrente i giorni nuovi non partono (regola dell'11/8, «ci serve sempre una misura per erogare il
+   * menu») e questo pulsante non la salta: toglie il muro e lascia la richiesta visibile. Prima
+   * toglieva anche la richiesta, cioè l'unica istruzione che la cliente aveva.
    */
   async function sbloccaMisure() {
     if (!d) return;
-    if (!confirm('Riaprire l\'app a questa cliente?\nÈ una finestra di grazia a tempo: se le misure continuano a non arrivare, il blocco torna.')) return;
+    if (!confirm(
+      'Riaprire l\'app a questa cliente?\n\n' +
+      'ATTENZIONE: riapre l\'app, NON fa arrivare il menu. Per i giorni nuovi serve comunque una sua ' +
+      'pesata: dopo la riapertura l\'app continua a chiederla, senza bloccarla.\n\n' +
+      'È una finestra a tempo: se le misure continuano a non arrivare, il blocco torna.',
+    )) return;
     setNotice(null); setError(null);
     try {
       const r = await api<{ until: string }>(`/staff/clients/${d.user.id}/measures-unlock`, { method: 'POST' });
-      setNotice(`App sbloccata fino al ${new Date(r.until).toLocaleString('it-IT')}.`);
+      setNotice(
+        `App riaperta fino al ${new Date(r.until).toLocaleString('it-IT')}. ` +
+        'Il menu arriva appena lei registra la pesata: ricordaglielo in chat.',
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sblocco non riuscito.');
+      setError(err instanceof Error ? err.message : 'Riapertura non riuscita.');
     }
   }
 
@@ -880,10 +895,10 @@ export function ClientDetail() {
               <button
                 className="btn ghost"
                 onClick={sbloccaMisure}
-                title="Riapre l'app se è bloccata per le misure mancanti"
+                title="Riapre l'app se è bloccata per le misure mancanti. NON fa arrivare il menu: per i giorni nuovi serve comunque la sua pesata."
                 style={{ background: 'rgba(255,255,255,.9)' }}
               >
-                <i className="ti ti-lock-open" /> Sblocca app
+                <i className="ti ti-lock-open" /> Riapri l'app
               </button>
             )}
             {isAdmin && !editing && (
