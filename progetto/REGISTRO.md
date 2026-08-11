@@ -20,6 +20,53 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🏷️ **Nel catalogo ricette via la colonna Tag, dentro «Dieta» e «Settimana n.» — e si
+  leggono dalle giornate, non dalle etichette.** Richiesta di Simone: «in questa tabella togli la
+  colonna TAG inserisci la colonna dieta e la colonna settimana n.». Non è un cambio di vestito: i
+  due dati che si guardavano nella colonna Tag (`dieta:<nome>`, `sett:N`) **rispondono a un'altra
+  domanda**. Il generatore scrive `dieta:` alla **nascita** della ricetta, e quando un'altra famiglia
+  riusa quel piatto — cosa che fa apposta, perché sono piatti già pagati e spesso già corretti a mano
+  — il tag non cambia. Dice dov'è *nata*, non dov'è *usata*. `sett:N` aveva lo stesso difetto ed è già
+  costato una diagnosi sbagliata («le mette tutte nella prima settimana» su una dieta distribuita su
+  due). Adesso la domanda si fa a chi conosce la risposta: le **giornate**, a ogni richiesta.
+  Nuovo `backend/src/catalog/utilizzo-ricette.ts`: una query che apre l'array dei pasti
+  (`CROSS JOIN LATERAL jsonb_array_elements`, lo schema già usato in `copertura-catalogo.ts`) e
+  torna, per ogni ricetta **mostrata**, le diete che la usano e in che settimane. La colonna
+  «Settimana n.» prima esisteva solo dentro una dieta; ora c'è sempre, e le varianti sorelle (3 pasti
+  / 5 pasti / digiuno) contano per **una** dieta sola, perché hanno lo stesso nome.
+  ⭐ La cosa che vale più delle colonne: **«Dieta = nessuna» è il filtro delle ricette orfane** —
+  piatti generati, pagati e riletti che nessuna giornata usa, cioè lavoro che nessuna cliente vedrà
+  mai. Prima non c'era modo di chiederlo.
+  **Due difetti trovati dalla revisione, che non rompevano niente.** Il primo: `archiveDiet` mette la
+  dieta a `rejected` ma **non cancella le sue giornate**, quindi una ricetta usata solo da una dieta
+  ritirata sarebbe risultata «in uso» — la colonna avrebbe mancato proprio la classe di ricette che
+  l'archiviazione produce. Ora le diete archiviate non contano (le bozze sì: una dieta in
+  costruzione la ricetta la usa davvero). Il secondo: con «Dieta = Keto» + «Settimana = 1» si sarebbe
+  elencata una ricetta che sta nella settimana 1 della Mediterranea e nella 3 della Keto — due verità
+  separate lette come una frase sola, falsa. Ora col filtro Dieta attivo la settimana si guarda
+  **dentro quella dieta**, e ogni pastiglia di dieta porta le sue settimane nel titolo.
+  **La cache che avevamo deciso non c'è.** L'idea era tenere le giornate in memoria un minuto; la
+  revisione ha fatto notare che `render.yaml` ha `numInstances: 2`, quindi due cache indipendenti non
+  ritardano: **oscillano**, e la stessa ricetta mostra «Mediterranea» e poi «nessuna» a tasti
+  alterni. Chiedere solo le righe che escono (al massimo mille) invece di scandire il catalogo intero
+  è più fresco **e** più veloce: la query provata su un Postgres vero con 315 diete e 26.463 giornate
+  sta in ~80 ms. E se quella lettura fallisce le due colonne valgono «—», non «nessuna»: un elenco
+  vuoto qui è un'affermazione precisa su lavoro pagato, e non va fatta per un errore di rete.
+  Verifiche: type-check backend col baseline invariato, 107 suite / 1648 test verdi (9 nuovi),
+  `npm run build` del backoffice verde, e la query SQL provata su Postgres 16 con i casi limite —
+  varianti sorelle, diete archiviate, confini di settimana 7→1 e 8→2, giornate con `meals` guasto.
+- `[Sviluppo]` 📄 **`progetto/NOTA_Tag_Ricette.md` — a cosa servono i tag delle ricette.** Nessun
+  documento del progetto li definiva: la specifica backend cita `tags[]` con un esempio e basta, e la
+  semantica dei prefissi viveva in una riga di codice. Letto tutto, il quadro è questo: **nessun tag
+  influenza la composizione dei menu** (il motore non legge mai `Recipe.tags`), `gen:*` ha un solo
+  lettore in uno script di pulizia, `sett:N` nessuno, i tag liberi della nutrizionista nessuno.
+  L'unico vivo è `dieta:<nome>`, che serve a ritrovare le ricette orfane per riusarle invece di
+  ricomprarle dall'AI. Tre cose meritano una decisione: **`cucina italiana` non fa niente** (le
+  «ricette semplici» filtrano su `difficulty`, non sul tag, quindi la spunta promette un effetto che
+  non ha); il campo Tag della scheda è **testo libero senza validazione** e un salvataggio distratto
+  può cancellare `dieta:` — nessun errore, e il generatore ricompra un piatto che esiste già; e i tag
+  interni **si vedono in app**, quindi la cliente legge `gen:flexible` fra i chip del suo piatto.
+
 - `[Sviluppo]` 🥛 **Chi è intollerante al lattosio riceve il delattosato, e i formaggi stagionati non si
   toccano** — richiesta di Simone. `SUBSTITUTION_MAP` mandava `latte → bevanda vegetale`: sbagliato due
   volte, perché la bevanda vegetale **non è latte** (proteine, calcio e sapore diversi, e la giornata è

@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
 import { giornateComplete } from './giornate-complete';
+import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
 import {
   CreateDietDto,
   CreateRecipeDto,
@@ -681,9 +682,11 @@ export class CatalogService {
    * corrispondono ai filtri, anche quando `items` è tagliato dal tetto. Così la pagina può dire
    * "50 su 1.240" invece di far credere che il catalogo sia grande quanto quello che si vede.
    *
-   * ⚠️ Un filtro resta fuori dal database ed è il **tag**: è una ricerca per sottostringa su un
-   * array Postgres, che Prisma non sa esprimere. Lo applica la pagina sulle righe ricevute, e
-   * quando il risultato è troncato lo dice a chiare lettere.
+   * ⚠️ Due filtri restano fuori dal database: **dieta** e **settimana**. Non sono colonne di
+   * `Recipe` — si calcolano dalle giornate — quindi li applica la pagina sulle righe ricevute, e
+   * quando il risultato è troncato lo dice a chiare lettere. (Fino all'11/8 il filtro fuori dal
+   * database era quello sui **tag**, che aveva lo stesso limite e in più cercava dentro etichette
+   * che dicono dov'è *nata* la ricetta, non dov'è usata.)
    */
   async listRecipes(filter: {
     regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean; dietId?: string;
@@ -732,14 +735,36 @@ export class CatalogService {
       this.prisma.recipe.count({ where: where as never }),
     ]);
     /**
-     * `settimane` sulla riga: in quali settimane del ciclo quella ricetta è davvero usata. Presente
-     * solo quando si guarda UNA dieta, perché fuori da una dieta la domanda non ha senso — la stessa
-     * ricetta serve più famiglie, in settimane diverse.
+     * `utilizzo` e `settimane` sulla riga: dove quella ricetta è davvero usata, letto dalle giornate
+     * (vedi `utilizzo-ricette.ts` per il perché non dai tag `dieta:`/`sett:`).
+     *
+     * Si chiede **solo per le righe che escono** — al massimo mille — invece di scandire il catalogo
+     * intero: così la risposta è fresca a ogni ricerca e non serve tenerla in una cache, che su due
+     * istanze non ritarderebbe ma oscillerebbe.
+     *
+     * Dentro una dieta `settimane` resta quello DI QUELLA dieta (`settimanePerRicetta`), perché lì la
+     * domanda è «dov'è nel ciclo che sto guardando»; fuori è l'unione, perché la stessa ricetta serve
+     * più famiglie e restringerla a una sarebbe una mezza verità.
+     *
+     * ⚠️ Se la lettura delle giornate fallisce, le due colonne valgono `null` — «non lo so» — e NON
+     * un elenco vuoto: un elenco vuoto qui significa «ricetta orfana», cioè un'affermazione precisa
+     * e falsa su lavoro pagato. Il resto dell'elenco ricette continua a funzionare.
      */
-    const conSettimane = settimane
-      ? (items as { id: string }[]).map((r) => ({ ...r, settimane: settimane.get(r.id) ?? [] }))
-      : items;
-    return { items: conSettimane, total, troncato: total > items.length };
+    let usi: Map<string, UsoInDieta[]> | null = null;
+    try {
+      usi = await utilizzoDelleRicette(this.prisma, (items as { id: string }[]).map((r) => r.id));
+    } catch {
+      usi = null;
+    }
+    const conUtilizzo = (items as { id: string }[]).map((r) => {
+      const u = usi?.get(r.id) ?? (usi ? [] : null);
+      return {
+        ...r,
+        utilizzo: u,
+        settimane: settimane ? (settimane.get(r.id) ?? []) : (u ? settimaneDiTutte(u) : null),
+      };
+    });
+    return { items: conUtilizzo, total, troncato: total > items.length };
   }
 
   /** Modifica ricetta (nutrizionista). Aggiorna solo i campi inviati. */

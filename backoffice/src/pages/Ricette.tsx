@@ -20,15 +20,30 @@ interface Recipe {
   seasons?: string[];
   active: boolean;
   /**
-   * In quali settimane del ciclo è usata questa ricetta. Arriva solo quando si guarda UNA dieta,
-   * perché fuori da una dieta la domanda non ha senso: la stessa ricetta serve più famiglie.
+   * In quali settimane del ciclo è usata questa ricetta.
    *
    * Si legge dalle GIORNATE, non dal tag: il tag `sett:N` diceva in quale generazione la ricetta era
-   * nata, e dall'11/8 lo allineiamo alle giornate proprio perché quella differenza aveva fatto
-   * sembrare «tutte nella prima settimana» un catalogo distribuito su due.
+   * nata, e quella differenza aveva fatto sembrare «tutte nella prima settimana» un catalogo
+   * distribuito su due. Dentro una dieta sono le settimane DI QUELLA dieta; fuori, l'unione su tutto
+   * il catalogo — la stessa ricetta serve più famiglie, in settimane diverse.
    */
-  settimane?: number[];
+  settimane?: number[] | null;
+  /**
+   * Le diete che usano questa ricetta e, per ognuna, in che settimane del suo ciclo. Sempre letto
+   * dalle giornate.
+   *
+   * NON è il tag `dieta:<nome>`: quello dice per quale famiglia la ricetta è stata *generata* e non
+   * cambia mai più, nemmeno quando un'altra dieta la riusa — cosa che il generatore fa apposta, per
+   * non ricomprare piatti già pagati.
+   *
+   * `[]` = **orfana**: nessuna giornata la usa. `null` = il server non è riuscito a leggere le
+   * giornate: non lo sappiamo, ed è una cosa diversa da «nessuna».
+   */
+  utilizzo?: { dieta: string; settimane: number[] }[] | null;
 }
+
+/** I nomi delle diete che usano la ricetta. `null` (server muto) si legge come elenco vuoto qui. */
+const dieteDi = (r: { utilizzo?: { dieta: string }[] | null }): string[] => (r.utilizzo ?? []).map((u) => u.dieta);
 
 const SLOT: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 const METHOD: Record<string, string> = { veloce: 'Veloce', forno: 'Al forno', meal_prep: 'Meal prep' };
@@ -92,8 +107,9 @@ function toForm(r: Recipe): Form {
  * si filtrava qui, e con le sole ricette vegetariane già oltre quel tetto significava cercare
  * dentro una fetta arbitraria del catalogo — senza dirlo. L'ordinamento resta sulle righe
  * ricevute, e ha senso perché ormai sono il risultato dei filtri, non una fetta a caso.
- * Unico filtro rimasto in memoria: il TAG (sottostringa dentro un array Postgres, che Prisma
- * non sa esprimere).
+ * Restano in memoria i filtri DIETA e SETTIMANA: non sono colonne di `Recipe`, il server li calcola
+ * dalle giornate (`catalog/utilizzo-ricette.ts`). Hanno preso il posto del filtro TAG, che aveva lo
+ * stesso limite e in più cercava dentro etichette che dicono dov'è *nata* la ricetta, non dov'è usata.
  *
  * Per questo la riga dei filtri qui è scritta a mano e non è quella di `useTabella`: i filtri di
  * colonna dell'helper lavorano sulle righe caricate, e qui devono arrivare al database. Dall'helper
@@ -102,10 +118,11 @@ function toForm(r: Recipe): Form {
 const LIMITE_SERVER = 1000;
 
 const emptyFilters = (regime = '') => ({
-  name: '', regime, slot: '', kcalMin: '', kcalMax: '', difficulty: '', season: '', tag: '', stato: '',
-  // Settimana del ciclo (11/8): ha senso solo dentro una dieta, e si filtra sulle righe ricevute
-  // perché il dato arriva dalle giornate e non è una colonna del database.
-  settimana: '',
+  name: '', regime, slot: '', kcalMin: '', kcalMax: '', difficulty: '', season: '', stato: '',
+  // Dieta e settimana si filtrano sulle righe ricevute: tutti e due i dati arrivano dalle giornate,
+  // non sono colonne del database, e Prisma non li sa interrogare. Come prima faceva il filtro Tag —
+  // che aveva lo stesso limite e in più cercava dentro un'etichetta che diceva un'altra cosa.
+  dieta: '', settimana: '',
 });
 
 export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegime?: string; scopeDietId?: string; scopeDietName?: string } = {}) {
@@ -175,30 +192,61 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     }
   }
 
-  // Tutti gli altri filtri li ha già applicati il database. Qui resta il solo TAG: è una ricerca
-  // per sottostringa dentro un array Postgres, che Prisma non sa esprimere. Sulle righe ricevute
-  // va bene — e se il risultato è troncato la pagina lo dice, invece di lasciarlo credere.
+  // Tutti gli altri filtri li ha già applicati il database. Qui restano DIETA e SETTIMANA, che il
+  // database non sa interrogare: non sono colonne di `Recipe`, si calcolano dalle giornate. Sulle
+  // righe ricevute va bene — e se il risultato è troncato la pagina lo dice, invece di lasciarlo
+  // credere.
   const filtrate = useMemo(() => {
-    const tag = f.tag.trim().toLowerCase();
+    const dieta = f.dieta.trim();
     const settimana = f.settimana.trim();
     let out = rows;
-    if (tag) out = out.filter((r) => (r.tags ?? []).join(', ').toLowerCase().includes(tag));
+    if (dieta) {
+      // «nessuna» = le orfane: nessuna giornata le usa. È la domanda che conta davvero su questa
+      // colonna, perché sono piatti pagati, scritti e riletti che nessuna cliente vedrà mai.
+      // ⚠️ `utilizzo === null` (il server non è riuscito a leggere le giornate) NON è «nessuna»:
+      // quelle righe restano fuori da entrambe le risposte, invece di essere dichiarate orfane.
+      out = dieta === 'nessuna'
+        ? out.filter((r) => r.utilizzo != null && r.utilizzo.length === 0)
+        : out.filter((r) => dieteDi(r).includes(dieta));
+    }
     if (settimana) {
-      const n = Number(settimana);
+      // Con anche il filtro Dieta attivo, la settimana si guarda DENTRO quella dieta. Senza, «Dieta
+      // = Keto» + «Settimana = 1» elencherebbe una ricetta che sta nella settimana 1 della
+      // Mediterranea e nella 3 della Keto: due verità separate lette come una frase sola, falsa.
+      const settimaneDa = (r: Recipe): number[] | null =>
+        dieta && dieta !== 'nessuna'
+          ? (r.utilizzo ?? []).find((u) => u.dieta === dieta)?.settimane ?? []
+          : r.settimane ?? null;
       out = settimana === 'nessuna'
         // Le orfane: generate e fuori dal ciclo. Vederle è il modo di sapere quanto lavoro pagato
         // sta lì senza servire a nessuna cliente.
-        ? out.filter((r) => (r.settimane ?? []).length === 0)
-        : out.filter((r) => (r.settimane ?? []).includes(n));
+        ? out.filter((r) => { const w = settimaneDa(r); return w != null && w.length === 0; })
+        : out.filter((r) => (settimaneDa(r) ?? []).includes(Number(settimana)));
     }
     return out;
-  }, [rows, f.tag, f.settimana]);
+  }, [rows, f.dieta, f.settimana]);
 
-  /** Le settimane che esistono davvero in questa dieta: la tendina non offre scelte vuote. */
-  const settimanePresenti = useMemo(
-    () => [...new Set(rows.flatMap((r) => r.settimane ?? []))].sort((a, b) => a - b),
-    [rows],
-  );
+  /**
+   * Le settimane e le diete che esistono davvero fra queste righe: le tendine non offrono scelte
+   * che non selezionano niente.
+   *
+   * ⚠️ Il valore **scelto** ci sta dentro comunque. Le righe arrivano dal server e cambiano a ogni
+   * ricerca: filtrando per «Vegana» e poi scrivendo un nome che non compare in nessuna ricetta
+   * vegana, «Vegana» sparirebbe dalle opzioni — e un `<select>` il cui valore non è fra le opzioni
+   * si disegna **vuoto**. Si leggerebbe «Tutte» mentre il filtro sta ancora togliendo tutto.
+   */
+  const settimanePresenti = useMemo(() => {
+    const viste = new Set(rows.flatMap((r) => r.settimane ?? []));
+    const scelta = Number(f.settimana);
+    if (f.settimana && f.settimana !== 'nessuna' && Number.isFinite(scelta)) viste.add(scelta);
+    return [...viste].sort((a, b) => a - b);
+  }, [rows, f.settimana]);
+
+  const dietePresenti = useMemo(() => {
+    const viste = new Set(rows.flatMap(dieteDi));
+    if (f.dieta && f.dieta !== 'nessuna') viste.add(f.dieta);
+    return [...viste].sort((a, b) => a.localeCompare(b, 'it'));
+  }, [rows, f.dieta]);
 
   const COLONNE: Colonna<Recipe>[] = [
     { chiave: 'name', titolo: 'Nome', valore: (r) => r.name },
@@ -210,22 +258,32 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     // Il posto nella scala (semplice → media → elaborata): in alfabetico «Elaborata» sarebbe la prima.
     { chiave: 'difficulty', titolo: 'Difficoltà', valore: (r) => DIFFICULTIES.indexOf(r.difficulty ?? 'media'), esporta: (r) => DIFFICULTY[r.difficulty ?? 'media'] ?? 'Media' },
     { chiave: 'seasons', titolo: 'Stagioni', valore: (r) => seasonsText(r.seasons) },
-    { chiave: 'tags', titolo: 'Tag', valore: (r) => (r.tags ?? []).join(', ') },
-    // La settimana del ciclo: solo dentro una dieta (fuori non è definita). Si ordina sulla PRIMA
-    // settimana in cui compare, che è quella che conta per capire dov'è finita; nel file ci vanno
-    // tutte, perché lì la domanda è «in quante settimane gira questo piatto».
-    ...(dietScope ? [{
+    // DIETA — quali diete usano davvero questa ricetta, letto dalle giornate dal server.
+    // Ha preso il posto della colonna Tag (richiesta di Simone, 11/8). Il tag `dieta:<nome>` che si
+    // leggeva lì diceva un'altra cosa: per quale famiglia la ricetta era stata *generata*, un dato
+    // che non cambia mai più nemmeno quando un'altra dieta la riusa. Qui i nomi sono più d'uno
+    // quando il piatto è condiviso — che è il fatto da vedere, non un caso da nascondere.
+    {
+      chiave: 'dieta',
+      titolo: 'Dieta',
+      valore: (r) => dieteDi(r).join(', '),
+      esporta: (r) => (r.utilizzo == null ? 'non letto' : r.utilizzo.length ? dieteDi(r).join(', ') : 'nessuna'),
+    },
+    // SETTIMANA — si ordina sulla PRIMA settimana in cui compare, che è quella che conta per capire
+    // dov'è finita. Nel file ci vanno tutte, perché lì la domanda è «in quante settimane gira».
+    {
       chiave: 'settimana',
-      titolo: 'Settimana',
-      valore: (r: Recipe) => (r.settimane ?? [])[0] ?? null,
+      titolo: 'Settimana n.',
+      valore: (r) => (r.settimane ?? [])[0] ?? null,
       // Una sola settimana esce come NUMERO, non come «2»: scritta come testo, Excel ci mette il
       // triangolino verde e ordina la colonna in alfabetico («1», «10», «2»). Ed è il caso più
       // frequente: quasi tutte le ricette girano in una settimana sola.
-      esporta: (r: Recipe) => {
-        const s = r.settimane ?? [];
-        return s.length === 0 ? 'fuori dal ciclo' : s.length === 1 ? s[0] : s.join(', ');
+      esporta: (r) => {
+        const w = r.settimane;
+        if (w == null) return 'non letto';
+        return w.length === 0 ? 'fuori dal ciclo' : w.length === 1 ? w[0] : w.join(', ');
       },
-    } as Colonna<Recipe>] : []),
+    },
     // Le attive prima: come etichetta «Archiviata» starebbe davanti ad «Attiva».
     { chiave: 'active', titolo: 'Stato', valore: (r) => (r.active ? 0 : 1), esporta: (r) => (r.active ? 'Attiva' : 'Archiviata') },
     // La colonna dei pulsanti c'è solo per chi può modificare: come la cella, sotto.
@@ -314,8 +372,9 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
           I filtri girano sul catalogo intero e trovano <b>{totale}</b> ricette: qui ne vedi le prime{' '}
           {LIMITE_SERVER} in ordine alfabetico. Restringi con un filtro per arrivare a quella che cerchi
           — nessuna ricetta è nascosta, è solo un elenco lungo.
-          {f.tag.trim() && <> ⚠️ Il filtro <b>Tag</b> però lavora solo su queste {LIMITE_SERVER}: per usarlo
-          con sicurezza restringi prima con un altro filtro.</>}
+          {(f.dieta.trim() || f.settimana.trim()) && <> ⚠️ I filtri <b>Dieta</b> e <b>Settimana n.</b> però
+          lavorano solo su queste {LIMITE_SERVER}: per usarli con sicurezza restringi prima con un
+          altro filtro.</>}
         </Banner>
       )}
 
@@ -376,9 +435,13 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
                   </select>,
                 )}
                 {filterCell(
-                  <input className="input" style={inp} placeholder="Cerca…" value={f.tag} onChange={(e) => setF({ ...f, tag: e.target.value })} />,
+                  <select className="select" style={sel} value={f.dieta} onChange={(e) => setF({ ...f, dieta: e.target.value })} title="Quali diete usano questa ricetta">
+                    <option value="">Tutte</option>
+                    {dietePresenti.map((d) => <option key={d} value={d}>{d}</option>)}
+                    <option value="nessuna">— nessuna (orfane) —</option>
+                  </select>,
                 )}
-                {dietScope && filterCell(
+                {filterCell(
                   <select className="select" style={sel} value={f.settimana} onChange={(e) => setF({ ...f, settimana: e.target.value })} title="In quale settimana del ciclo è usata">
                     <option value="">Tutte</option>
                     {settimanePresenti.map((n) => <option key={n} value={String(n)}>Settimana {n}</option>)}
@@ -397,7 +460,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
             </thead>
             <tbody>
               {t.conteggio.mostrate === 0 ? (
-                <tr><td colSpan={(canEdit ? 9 : 8) + (dietScope ? 1 : 0)}><div className="empty" style={{ padding: '18px 0' }}>Nessuna ricetta con questi filtri.</div></td></tr>
+                <tr><td colSpan={COLONNE.length}><div className="empty" style={{ padding: '18px 0' }}>Nessuna ricetta con questi filtri.</div></td></tr>
               ) : t.pagina.map((r) => (
                 <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la ricetta">
                   <td>{r.name}</td>
@@ -410,14 +473,24 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
                       ? <span style={{ opacity: 0.6 }}>Tutto l'anno</span>
                       : (r.seasons ?? []).map((s) => <span key={s} className="chip gray" style={{ marginRight: 4 }}>{SEASON_LABEL[s] ?? s}</span>)}
                   </td>
-                  <td className="muted">{(r.tags ?? []).join(', ') || '—'}</td>
-                  {dietScope && (
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      {(r.settimane ?? []).length === 0
+                  <td className="muted">
+                    {r.utilizzo == null
+                      ? <span className="muted" title="Non è stato possibile leggere le giornate: non vuol dire che non sia usata">—</span>
+                      : r.utilizzo.length === 0
+                        ? <span className="chip gray" title="Nessuna giornata la usa: è una ricetta orfana">nessuna</span>
+                        // Su ogni dieta, in che settimane sta: così «Dieta» e «Settimana n.» non si
+                        // leggono come una frase sola quando le diete sono più d'una.
+                        : r.utilizzo.map((u) => (
+                          <span key={u.dieta} className="chip gray" style={{ marginRight: 4 }} title={`Settimana ${u.settimane.join(', ')}`}>{u.dieta}</span>
+                        ))}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {r.settimane == null
+                      ? <span className="muted" title="Non è stato possibile leggere le giornate">—</span>
+                      : r.settimane.length === 0
                         ? <span className="chip gray" title="Nessuna giornata la usa: è fuori dal ciclo">fuori dal ciclo</span>
-                        : (r.settimane ?? []).map((n) => <span key={n} className="chip" style={{ marginRight: 4 }}>{n}</span>)}
-                    </td>
-                  )}
+                        : r.settimane.map((n) => <span key={n} className="chip" style={{ marginRight: 4 }}>{n}</span>)}
+                  </td>
                   <td><span className={`chip ${r.active ? '' : 'gray'}`}>{r.active ? 'Attiva' : 'Archiviata'}</span></td>
                   {canEdit && (
                     <td>
