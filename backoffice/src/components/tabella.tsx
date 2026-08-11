@@ -39,6 +39,7 @@
  */
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { RIGHE_OPZIONI } from '../lib/preferenzeHome';
+import { oggiIso, scaricaExcel, type Cella } from '../lib/excel';
 import { usePagination } from './ui';
 
 export interface Colonna<T> {
@@ -68,6 +69,18 @@ export interface Colonna<T> {
    * leggibile (es. `active` → «Attivo»). Il confronto resta sul valore grezzo.
    */
   etichetta?: (v: string) => string;
+  /**
+   * Come si scrive la cella nel file Excel, quando `valore` **non** è quello che si legge a schermo.
+   *
+   * Succede in metà delle tabelle: per ordinare bene, `valore` restituisce spesso una chiave e non
+   * un'etichetta — il posto del pasto nella giornata (`0`) invece di «Colazione», `0`/`1` invece di
+   * «Attiva»/«Archiviata». Esportare la chiave darebbe un foglio di numeri senza senso, quindi dove
+   * le due cose divergono la colonna dichiara qui la sua versione leggibile.
+   *
+   * Le colonne senza né `valore` né `esporta` (i pulsanti) restano fuori dal file: in un foglio di
+   * calcolo una colonna «Azioni» vuota è solo una colonna in più da cancellare a mano.
+   */
+  esporta?: (r: T) => Cella;
   /** Disattiva l'ordinamento anche se la colonna ha un `valore` (colonne calcolate lente). */
   nonOrdinabile?: boolean;
   /** Passato al `<th>`: utile per le colonne numeriche allineate a destra. */
@@ -103,6 +116,11 @@ interface Opzioni {
    * o al primo cambio di carattere.
    */
   testaFissa?: boolean;
+  /**
+   * Come si chiama il file quando si esporta in Excel — senza data e senza estensione, le mette
+   * `scaricaExcel`. È anche il nome della scheda dentro il foglio. Default: «Tabella».
+   */
+  nomeExcel?: string;
 }
 
 /** Confronto di due valori di colonna: vuoti in fondo, numeri come numeri. */
@@ -319,6 +337,45 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
 
   const filtriAttivi = ricerca.trim() !== '' || Object.values(filtri).some((v) => v !== '');
   function azzera() { setFiltri({}); setRicerca(''); }
+
+  /**
+   * ESPORTA IN EXCEL QUELLO CHE SI VEDE, non quello che c'è.
+   *
+   * Simone, l'11/8: «un esporta in excel dove mi esporti la tabella coi filtri applicati al momento
+   * del click». Quindi si parte da `ordinate` — le righe filtrate **e** nell'ordine scelto — e non
+   * dalle righe grezze: chi ha appena filtrato «solo le ricette da rivedere, ordinate per kcal» si
+   * aspetta di ritrovare quella lista, non il catalogo intero.
+   *
+   * E si parte da `ordinate`, non da `pg.pageItems`: la paginazione è un fatto dello schermo, non
+   * del filtro. Esportare le sole cento righe della pagina aperta sarebbe un taglio invisibile —
+   * il file uscirebbe con le prime cento e nessuno saprebbe che le altre mancano.
+   *
+   * Le colonne sono le stesse della tabella e nello stesso ordine: quelle nascoste da una
+   * condizione (la colonna «Settimana» che c'è solo dentro una dieta) non sono in `colonne` e
+   * quindi non finiscono nel file, che è esattamente il comportamento giusto.
+   */
+  function scaricaFoglio(nomeFile?: string) {
+    const esportabili = colonne.filter((c) => c.esporta || c.valore);
+    const nome = nomeFile ?? opzioni.nomeExcel ?? 'Tabella';
+    scaricaExcel(`${nome}-${oggiIso()}`, {
+      // Stesso nome per il file e per la scheda: se chi chiama passa un nome diverso, deve valere
+      // in tutti e due i posti, altrimenti si apre «Ricette estive.xlsx» con dentro «Tabella».
+      nome,
+      intestazioni: esportabili.map((c) => c.titolo || c.chiave),
+      righe: ordinate.map((r) =>
+        esportabili.map((c) => {
+          if (c.esporta) return c.esporta(r);
+          const v = c.valore!(r);
+          // `etichetta` è la traduzione che la tendina del filtro usa già («approved» → «Approvato»):
+          // se c'è, vale anche qui, così non va scritta due volte e non possono divergere. Come la
+          // tendina, si applica a `String(v)` e non solo alle stringhe: una colonna con `valore`
+          // numerico ed `etichetta` mostrerebbe «Colazione» nel filtro e scriverebbe `0` nel file.
+          return c.etichetta && v !== null && v !== undefined && v !== '' ? c.etichetta(String(v)) : v;
+        }),
+      ),
+    });
+  }
+
   const impostaFiltro = (chiave: string, valore: string) => setFiltri((f) => ({ ...f, [chiave]: valore }));
 
   /** La riga dei titoli: cliccabili dove la colonna è ordinabile. */
@@ -399,6 +456,8 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
     setRicerca,
     filtri,
     impostaFiltro,
+    /** Scarica in Excel le righe filtrate e ordinate (tutte le pagine). Vedi `<BottoneExcel>`. */
+    scaricaExcel: scaricaFoglio,
     /** Da passare a `<Pager {...pager} />`. */
     pager: { page: pg.page, totalPages: pg.totalPages, total: pg.total, from: pg.from, to: pg.to, onPage: pg.setPage },
     conteggio: { mostrate: ordinate.length, totali: righe.length },
@@ -446,6 +505,51 @@ export function ContatoreRighe({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * «ESPORTA IN EXCEL» — lo stesso pulsante per tutte le tabelle.
+ *
+ * Sta accanto al contatore delle righe, perché è quel numero che dice cosa esce dal file: se il
+ * contatore segna «32 ricette di 340», il file avrà 32 righe. Il pulsante si spegne quando i filtri
+ * non lasciano passare niente: un foglio con la sola intestazione non è un'esportazione riuscita,
+ * è un modo di scoprirlo dopo averlo aperto.
+ */
+export function BottoneExcel({
+  tabella,
+  nome,
+  avviso,
+}: {
+  /** Il risultato di `useTabella`. */
+  tabella: { scaricaExcel: (nomeFile?: string) => void; conteggio: { mostrate: number } };
+  /** Nome del file, senza data né estensione. Default: quello passato a `useTabella`. */
+  nome?: string;
+  /**
+   * Da far confermare prima di scaricare. Serve dove la tabella non ha in mano tutto il dato —
+   * il catalogo ricette ne riceve al massimo mille dal server — perché un file che contiene mille
+   * righe su tremila, senza dirlo, si legge come se le tremila non esistessero.
+   */
+  avviso?: string;
+}) {
+  const righe = tabella.conteggio.mostrate;
+  const spiegazione = righe === 0
+    ? 'Nessuna riga da esportare con questi filtri'
+    : `Scarica in Excel le ${righe} righe che vedi adesso, con i filtri e l'ordinamento di questo momento`;
+  // Il `title` sta sullo `<span>` e non sul `<button>`: Chrome non mostra il tooltip sugli elementi
+  // di modulo disabilitati, quindi proprio nel caso in cui la spiegazione serve — pulsante spento —
+  // sul pulsante non si vedrebbe. Il motivo per cui un comando è spento è la metà del comando.
+  return (
+    <span title={spiegazione} style={{ display: 'inline-flex' }}>
+      <button
+        className="btn ghost sm"
+        disabled={righe === 0}
+        // eslint-disable-next-line no-alert
+        onClick={() => { if (avviso && !confirm(avviso)) return; tabella.scaricaExcel(nome); }}
+      >
+        <i className="ti ti-file-type-xls" /> Esporta in Excel
+      </button>
+    </span>
   );
 }
 

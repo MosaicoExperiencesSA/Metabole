@@ -20,6 +20,48 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📊 **«Esporta in Excel» sulla pagina Gestione dieta: esce quello che si vede, filtri
+  compresi.** Richiesta di Simone: «nella pagina gestione dieta mi fai un esporta in excel dove mi
+  esporti la tabella coi filtri applicati al momento del click». Il pulsante c'è in tutte e tre le
+  schede — Catalogo ricette, Allergeni, Gruppi di equivalenza — accanto al contatore delle righe,
+  che è il numero che finirà nel file.
+  **Le righe esportate sono quelle filtrate e ordinate, di tutte le pagine, non solo di quella
+  aperta**: la paginazione è un fatto dello schermo, non del filtro, e un file con le prime cento
+  righe di trecento sarebbe un taglio che nessuno può vedere una volta aperto il foglio.
+  ⚠️ Per lo stesso motivo, dove la tabella **non ha in mano tutto il dato** l'esportazione lo chiede
+  prima di partire: il catalogo ricette ne riceve al massimo 1000 dal server, e se i filtri ne
+  trovano di più il pulsante avvisa che il file conterrà quelle mille. Un banner nella pagina non
+  segue il file sulla scrivania di nessuno.
+  **Come è fatto** — `backoffice/src/lib/excel.ts`, nuovo: un .xlsx vero (zip + XML) scritto a mano,
+  **senza aggiungere dipendenze**. Il backoffice ne ha tre in tutto, e SheetJS avrebbe voluto dire un
+  `npm install` e un `package-lock.json` rigenerato prima di ogni commit — un passaggio che da GitHub
+  Desktop non c'è. Niente CSV: in Excel italiano si apre a colonna unica e i numeri diventano testo.
+  Il foglio esce con l'intestazione in grassetto e bloccata, il filtro automatico e le larghezze sul
+  contenuto; le kcal sono celle numeriche, quindi si sommano.
+  **Dove vive** — dentro `useTabella`, non nelle pagine: l'helper conosce già colonne, filtri e
+  ordinamento, quindi l'esportazione è coerente con la tabella per costruzione e le altre trentaquattro
+  tabelle del backoffice la ottengono con una riga (`<BottoneExcel tabella={t} />`).
+  Una trappola trovata scrivendola: `valore` in metà delle colonne restituisce una **chiave di
+  ordinamento** e non l'etichetta — il posto del pasto nella giornata (`0`) invece di «Colazione»,
+  `0`/`1` invece di «Attiva»/«Archiviata». Esportare `valore` avrebbe dato un foglio di numeri
+  plausibili e sbagliati, senza che niente si rompesse: da qui il campo `esporta` sulla colonna, che
+  si dichiara solo dove le due cose divergono.
+  Provato per davvero: `tsc -b` e `npm run build` verdi, e i file generati riaperti con un lettore
+  xlsx indipendente — tre casi (nessun filtro, filtro su una colonna, ordinamento invertito) per
+  controllare che nel foglio finissero le righe giuste, nell'ordine giusto, con le etichette al posto
+  delle chiavi e senza la colonna dei pulsanti.
+  **E una revisione severa prima di consegnare**, che su codice verde ha trovato cinque cose che
+  nessun test avrebbe visto: l'avviso sul troncamento **dichiarava il numero sbagliato** (diceva
+  «il file ne conterrà 1000» mentre in Allergeni, che si apre già filtrata su «Da rivedere», ne
+  escono un centinaio — un avviso che sbaglia il numero fa più danno del silenzio, perché lo si
+  crede); la **nota di sicurezza** dei gruppi di equivalenza («controllare le etichette per
+  allergeni») si vedeva a schermo e spariva dal file, cioè proprio il campo con implicazioni
+  sanitarie; la settimana usciva come **testo** anche quando era un numero solo, e Excel la ordinava
+  in alfabetico («1», «10», «2»); `etichetta` veniva applicata solo ai valori stringa, quindi la
+  prossima colonna numerica con una traduzione avrebbe scritto `0` dove la tendina mostra
+  «Colazione»; e il `title` che spiega perché il pulsante è spento stava **sul pulsante disabilitato**,
+  dove Chrome non lo mostra — il motivo per cui un comando è spento è la metà del comando.
+
 - `[Sviluppo]` 🎬 **«Conosciamoci» si attiva da sola a fine questionario, e la prova comincia col primo
   menu** — §16.1. Finito il questionario la cliente non incontra più il negozio: Gaia le dà il
   benvenuto («dedicami 8 giorni per conoscerti»), le chiede **la data in cui vuole iniziare** — campo

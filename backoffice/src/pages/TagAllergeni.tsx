@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 // I 14 allergeni UE (allineati al backend src/catalog/allergens.ts).
 const EU_ALLERGENS: { code: string; label: string }[] = [
@@ -97,7 +97,16 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   const t = useTabella(rows, COLONNE, { testaFissa: true,
     ordineIniziale: { chiave: 'ricetta' },
     filtriIniziali: { stato: 'Da rivedere' },
+    nomeExcel: 'Allergeni ricette',
   });
+
+  // Come nel catalogo ricette: se il server ha mandato solo le prime righe, il file lo dice prima
+  // di scaricarsi, invece di sembrare l'elenco completo una volta aperto. Il numero da dire è
+  // quello che esce davvero: questa scheda si apre già filtrata su «Da rivedere», quindi le righe
+  // esportate sono quasi sempre molte meno di quelle ricevute.
+  const avvisoExport = troncato
+    ? `Il catalogo ha ${totale} ricette e questa pagina ne ha ricevute solo le prime ${rows.length}.\n\nIl file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle ${rows.length} — non fra tutte e ${totale}.\n\nScarico lo stesso?`
+    : undefined;
 
   if (loading) return <Spinner />;
 
@@ -110,7 +119,10 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
       </div>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="ricette" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="ricette" />
+          <BottoneExcel tabella={t} avviso={avvisoExport} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

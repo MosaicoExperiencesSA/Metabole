@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
-import { ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface EqGroup {
   id: string;
@@ -62,7 +62,11 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
   }
 
   const COLONNE: Colonna<EqGroup>[] = [
-    { chiave: 'gruppo', titolo: 'Gruppo', valore: (g) => g.name, filtro: 'testo' },
+    // Nel file va anche la nota di sicurezza, che a schermo sta sotto il nome (es. «controllare le
+    // etichette per allergeni»): è l'unico campo di questa tabella non ricostruibile dal foglio, ed
+    // è quello con implicazioni sanitarie. Chi rivede i sostituti su Excel deve vedere l'avvertenza
+    // che vedrebbe qui.
+    { chiave: 'gruppo', titolo: 'Gruppo', valore: (g) => g.name, filtro: 'testo', esporta: (g) => (g.members?.note ? `${g.name} — ${g.members.note}` : g.name) },
     { chiave: 'alimenti', titolo: 'Alimenti intercambiabili', valore: (g) => itemsOf(g).join(', '), filtro: 'testo' },
     { chiave: 'ambito', titolo: 'Ambito', valore: (g) => (g.productId ? 'Prodotto' : 'Globale'), filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 90 } },
     { chiave: 'stato', titolo: 'Stato', valore: (g) => g.status, filtro: 'scelta', etichettaTutti: 'Tutti', etichetta: (v) => (v === 'approved' ? 'Approvato' : 'Bozza'), stile: { width: 100 } },
@@ -71,7 +75,7 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
 
   // Nessun ordine iniziale: il server manda le bozze e gli approvati raggruppati per stato e poi
   // per nome, ed è l'ordine con cui si rivedono i gruppi.
-  const t = useTabella(rows, COLONNE, { testaFissa: true });
+  const t = useTabella(rows, COLONNE, { testaFissa: true, nomeExcel: 'Gruppi di equivalenza' });
 
   if (loading) return <Spinner />;
 
@@ -90,7 +94,10 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
       </div>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="gruppi" />
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="gruppi" />
+          <BottoneExcel tabella={t} />
+        </div>
         <input
           className="input"
           style={{ maxWidth: 260 }}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
-import { useTabella, type Colonna } from '../components/tabella';
+import { BottoneExcel, useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
 
 interface Ingredient { name: string; qty?: number | null; unit?: string | null }
@@ -204,25 +204,59 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     { chiave: 'name', titolo: 'Nome', valore: (r) => r.name },
     { chiave: 'regime', titolo: 'Regime', valore: (r) => regimeLabel(r.regime) },
     // Il posto nella giornata, non l'etichetta: in alfabetico verrebbe «Cena, Colazione, Merenda»,
-    // corretto e inutile.
-    { chiave: 'mealSlot', titolo: 'Pasto', valore: (r) => SLOTS.indexOf(r.mealSlot) },
+    // corretto e inutile. Nel file Excel va invece l'etichetta: `esporta` esiste per questo.
+    { chiave: 'mealSlot', titolo: 'Pasto', valore: (r) => SLOTS.indexOf(r.mealSlot), esporta: (r) => SLOT[r.mealSlot] ?? r.mealSlot },
     { chiave: 'kcal', titolo: 'Kcal', valore: (r) => r.kcal },
     // Il posto nella scala (semplice → media → elaborata): in alfabetico «Elaborata» sarebbe la prima.
-    { chiave: 'difficulty', titolo: 'Difficoltà', valore: (r) => DIFFICULTIES.indexOf(r.difficulty ?? 'media') },
+    { chiave: 'difficulty', titolo: 'Difficoltà', valore: (r) => DIFFICULTIES.indexOf(r.difficulty ?? 'media'), esporta: (r) => DIFFICULTY[r.difficulty ?? 'media'] ?? 'Media' },
     { chiave: 'seasons', titolo: 'Stagioni', valore: (r) => seasonsText(r.seasons) },
     { chiave: 'tags', titolo: 'Tag', valore: (r) => (r.tags ?? []).join(', ') },
     // La settimana del ciclo: solo dentro una dieta (fuori non è definita). Si ordina sulla PRIMA
-    // settimana in cui compare, che è quella che conta per capire dov'è finita.
-    ...(dietScope ? [{ chiave: 'settimana', titolo: 'Settimana', valore: (r: Recipe) => (r.settimane ?? [])[0] ?? null } as Colonna<Recipe>] : []),
+    // settimana in cui compare, che è quella che conta per capire dov'è finita; nel file ci vanno
+    // tutte, perché lì la domanda è «in quante settimane gira questo piatto».
+    ...(dietScope ? [{
+      chiave: 'settimana',
+      titolo: 'Settimana',
+      valore: (r: Recipe) => (r.settimane ?? [])[0] ?? null,
+      // Una sola settimana esce come NUMERO, non come «2»: scritta come testo, Excel ci mette il
+      // triangolino verde e ordina la colonna in alfabetico («1», «10», «2»). Ed è il caso più
+      // frequente: quasi tutte le ricette girano in una settimana sola.
+      esporta: (r: Recipe) => {
+        const s = r.settimane ?? [];
+        return s.length === 0 ? 'fuori dal ciclo' : s.length === 1 ? s[0] : s.join(', ');
+      },
+    } as Colonna<Recipe>] : []),
     // Le attive prima: come etichetta «Archiviata» starebbe davanti ad «Attiva».
-    { chiave: 'active', titolo: 'Stato', valore: (r) => (r.active ? 0 : 1) },
+    { chiave: 'active', titolo: 'Stato', valore: (r) => (r.active ? 0 : 1), esporta: (r) => (r.active ? 'Attiva' : 'Archiviata') },
     // La colonna dei pulsanti c'è solo per chi può modificare: come la cella, sotto.
     ...(canEdit ? [{ chiave: 'azioni', titolo: '' } as Colonna<Recipe>] : []),
   ];
 
+  // Nome del file esportato: dice da dove vengono le righe, perché un «ricette.xlsx» sulla
+  // scrivania fra un mese non ricorda se era il catalogo di una dieta o quello di tutto il regime.
+  const nomeExcel = dietScope && scopeDietName
+    ? `Ricette ${scopeDietName}`
+    : scopeRegime ? `Ricette ${regimeLabel(scopeRegime)}` : 'Ricette';
+
   // Il server manda le ricette in ordine alfabetico, ed è l'ordine con cui la pagina si apre.
-  const t = useTabella(filtrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'name', direzione: 'asc' } });
+  const t = useTabella(filtrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'name', direzione: 'asc' }, nomeExcel });
   const filtriAttivi = JSON.stringify(f) !== JSON.stringify(emptyFilters(scopeRegime ?? ''));
+
+  /**
+   * Se il server ha tagliato a mille righe, l'esportazione lo chiede prima di partire.
+   *
+   * Il file uscirebbe con una parte del catalogo e nessuno, guardandolo, potrebbe accorgersene: un
+   * foglio di calcolo non ha un banner che avvisa. È lo stesso difetto che i filtri lato server
+   * hanno risolto a giugno — una ricetta che c'è ma non compare fa concludere che non esista.
+   *
+   * ⚠️ Il numero da dire è quello che **esce davvero** (`t.conteggio.mostrate`), non il tetto del
+   * server: i filtri Tag e Settimana lavorano in memoria e restringono ancora, quindi «il file ne
+   * conterrà 1000» sarebbe falso ogni volta che uno dei due è attivo. Un avviso che sbaglia il
+   * numero fa più danno del silenzio, perché lo si crede.
+   */
+  const avvisoExport = troncato
+    ? `Questa pagina ha ricevuto dal server solo le prime ${LIMITE_SERVER} ricette delle ${totale} che rispondono ai filtri.\n\nIl file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle ${LIMITE_SERVER} — non fra tutte e ${totale}.\n\nPer essere sicuro di averle tutte, restringi prima con un filtro. Scarico lo stesso?`
+    : undefined;
 
   const filterCell = (node: React.ReactNode) => <th style={{ padding: '6px 8px', fontWeight: 400 }}>{node}</th>;
   const sel = { padding: '4px 6px', fontSize: 12, width: '100%' } as const;
@@ -246,15 +280,23 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       )}
 
       <div className="spread" style={{ marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-        <span className="muted" style={{ fontSize: 13 }}>
-          {/* `totale` è il conteggio VERO sul database, non quante righe abbiamo in mano. */}
-          {filtriAttivi ? <><b>{t.conteggio.mostrate}</b> ricette trovate </> : <><b>{totale}</b> ricette </>}
+        {/* Contatore e comandi in un `.row`, come nelle altre due schede di Gestione dieta: prima il
+            pulsante «Azzera filtri» stava dentro lo `<span>` del testo e si allineava alla baseline
+            di un carattere da 13px, andando a capo come se fosse una parola della frase. */}
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {/* `totale` è il conteggio VERO sul database, non quante righe abbiamo in mano: quando
+                il server tronca, questo numero è più grande di quello che esce dall'esportazione, e
+                infatti in quel caso il pulsante lo dice prima di scaricare (`avvisoExport`). */}
+            {filtriAttivi ? <><b>{t.conteggio.mostrate}</b> ricette trovate</> : <><b>{totale}</b> ricette</>}
+          </span>
           {filtriAttivi && (
-            <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => { setF(emptyFilters(scopeRegime ?? '')); t.azzera(); }}>
+            <button className="btn ghost sm" onClick={() => { setF(emptyFilters(scopeRegime ?? '')); t.azzera(); }}>
               <i className="ti ti-filter-off" /> Azzera filtri
             </button>
           )}
-        </span>
+          <BottoneExcel tabella={t} avviso={avvisoExport} />
+        </div>
         {canEdit && <button className="btn" onClick={() => setEditing('new')}><i className="ti ti-plus" /> Nuova ricetta</button>}
       </div>
 
