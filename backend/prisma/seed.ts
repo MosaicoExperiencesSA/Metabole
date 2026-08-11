@@ -303,7 +303,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     key: 'monitoring_offer_days',
     value: '7',
     type: 'number',
-    description: "Monitoraggio: giorni di validità dell'offerta menu di rientro; se non paga entro questo tempo il profilo si congela",
+    // ⚠️ NON HA PIÙ EFFETTO. Serviva ai «menu di rientro» a pagamento e al congelamento di chi non
+    // comprava: entrambi rimossi il 7/8 (i menu di rientro ora sono inclusi). Il parametro resta a
+    // catalogo perché cancellarlo dal seed non toglie la riga già scritta in produzione, e una chiave
+    // che sparisce dal codice ma resta a database è più difficile da capire di una dichiarata inerte.
+    // Da togliere insieme alla riga, quando si farà una pulizia dei parametri morti.
+    description: 'NON PIÙ IN USO — restava dai menu di rientro a pagamento, rimossi il 7/8. Cambiarlo non ha alcun effetto.',
   },
   {
     key: 'monitoring_rientro_days',

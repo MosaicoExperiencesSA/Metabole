@@ -166,15 +166,19 @@ export class MonitoringService {
   // ---------- Cron giornaliero ----------
 
   /**
-   * Giro giornaliero sui monitoraggi attivi: scadenza del mese, proposta di
-   * rientro al superamento della soglia, congelamento se l'offerta resta
-   * ignorata, richiesta misure se la cliente non si pesa da qualche giorno.
+   * Giro giornaliero sui monitoraggi attivi: scadenza del mese, proposta di rientro al superamento
+   * della soglia, richiesta misure se la cliente non si pesa da qualche giorno.
+   *
+   * Il **congelamento** non c'è più (rimosso il 7/8 insieme ai menu di rientro a pagamento): chi è in
+   * monitoraggio non viene più congelato per non aver comprato niente. Con lui è sparito l'unico uso di
+   * `monitoring_offer_days`, che però continuava a essere letto qui — un parametro visibile nei
+   * Parametri, modificabile, e senza alcun effetto. Peggio di un parametro assente, perché chi lo
+   * cambia crede di aver cambiato qualcosa.
    */
   async dailyTick(): Promise<{ expired: number; offered: number; frozen: number; asked: number }> {
     const now = new Date();
-    const [regainKg, offerDays, askDays] = await Promise.all([
+    const [regainKg, askDays] = await Promise.all([
       this.configParams.getNumber('monitoring_regain_kg', 3),
-      this.configParams.getNumber('monitoring_offer_days', 7),
       this.configParams.getNumber('monitoring_measure_ask_days', 3),
     ]);
     const periods = (await this.prisma.monitoringPeriod.findMany({ where: { status: 'active' } })) as Period[];

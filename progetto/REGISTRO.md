@@ -7,6 +7,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🧽 **Le piccole cose che mentivano** — cinque voci in una passata, tutte dello stesso
+  genere: codice o interfacce che raccontavano una cosa diversa da quella che fanno. Nessuna rompeva
+  niente, tutte facevano perdere tempo o prendere decisioni sbagliate.
+  **Due chiavi dei permessi che non controllavano niente** — `engine_reviews` e `assignments`: dichiarate,
+  con i loro valori di default e la loro etichetta, e **senza nessuna guardia** che le leggesse. La
+  seconda era la più insidiosa: l'assegnazione di una cliente passa da `POST /admin/assignments`, che è
+  `@Roles('admin')` e ignora la matrice — concedere «assignments» a una coordinatrice non le dava niente,
+  e nessun errore lo diceva. Una chiave nella matrice è una **promessa**, e chi la accende crede di aver
+  abilitato qualcosa: togliere è più onesto che lasciare un interruttore finto. Se un domani si vuole che
+  siano le coordinatrici ad assegnare, la chiave si riaggiunge **e** si aggancia a quell'endpoint — è una
+  decisione di prodotto, e sta scritta in testa al file.
+  **`monitoring_offer_days`**: letto a ogni giro del cron e usato da nessuno. Serviva ai menu di rientro a
+  pagamento e al congelamento di chi non comprava, entrambi rimossi il 7/8. Ora la lettura è via e la
+  descrizione nei Parametri dice «NON PIÙ IN USO»: la riga resta a catalogo perché cancellarla dal seed
+  non toglie quella già scritta in produzione, e una chiave che sparisce dal codice ma resta a database è
+  più difficile da capire di una dichiarata inerte.
+  **Tre commenti superati**: `rules-evaluator.ts` diceva che eventi e pause «arriveranno col calendario,
+  per ora sempre neutro» — li calcola `signals-collector` da mesi; `agents.service.ts` diceva che il
+  runtime degli agenti «arriverà in una fase successiva» — sta nella cartella accanto
+  (`agent-orchestrator`, `agent-runner`); `chat/ai-filter.ts` diceva che l'AI generativa «arriverà in
+  M10», e leggendolo si concludeva che in chat non ci fosse un modello — c'è, con la banca dati
+  nutrizionale a fare da ancora e la guardia sull'uscita.
+
 - `[Sviluppo]` 🏖️ **La scadenza della vacanza è un numero solo** — `statoViaggioAttivo` accetta un tetto
   di giorni per un «in vacanza» senza data di fine, e il gate misure lo chiamava **senza passarlo**:
   valeva il default del helper (30) mentre `DietAgentService` leggeva `travel_max_days` dai Parametri.

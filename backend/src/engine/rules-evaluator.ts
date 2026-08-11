@@ -25,7 +25,8 @@ export interface EngineSignals {
   // Vita (dal profilo)
   cookingTime: string | null; // very_little | some | love_cooking
   busyLifestyle: boolean; // lavoro a turni/viaggi o pranzo fuori/al volo
-  // Agenda (eventi/pause — arriverà col calendario; per ora sempre neutro)
+  // Agenda: eventi e pause li calcola `signals-collector.service.ts` dal calendario. Il commento
+  // qui diceva «arriverà col calendario, per ora sempre neutro» ed era vecchio: sono segnali veri.
   upcomingEvent: boolean;
   pausePeriodActive: boolean;
   // Gusto

@@ -4,6 +4,21 @@ import { Role } from '../common/roles';
  * Sezioni del backoffice. La matrice ruolo × pagina vive nella tabella
  * role_page_permission (default dal seed, modificabile dall'admin a runtime).
  */
+/**
+ * ⚠️ Una chiave qui dentro è una **promessa**: compare nella matrice dei permessi come interruttore, e
+ * chi la accende crede di aver abilitato qualcosa. Perciò una chiave si aggiunge **insieme** alla
+ * guardia che la legge (`@RequirePage`), non prima.
+ *
+ * Il 13/8 sono state togliete `engine_reviews` e `assignments`: dichiarate, con i loro valori di
+ * default e la loro etichetta nel backoffice, e **senza nessuna guardia** che le leggesse. `assignments`
+ * era la più insidiosa — l'assegnazione di una cliente passa da `POST /admin/assignments`, che è
+ * `@Roles('admin')` e ignora la matrice: concedere «assignments» a una coordinatrice non le dava niente,
+ * e nessun errore lo diceva. Se un domani si vuole che siano le coordinatrici ad assegnare, la chiave si
+ * riaggiunge **e** si aggancia a quell'endpoint: è una decisione di prodotto, non una riga di elenco.
+ *
+ * Le righe già scritte in `role_page_permission` per quelle due chiavi restano a database e non fanno
+ * niente: la guardia cerca per `pageKey`, e nessuno chiede più quei due.
+ */
 export const BACKOFFICE_PAGES = [
   'dashboard',
   'notifications',
@@ -12,7 +27,6 @@ export const BACKOFFICE_PAGES = [
   'diets_catalog',
   'recipes',
   'engine_protocols',
-  'engine_reviews',
   'escalations',
   'visits_agenda',
   'chat',
@@ -28,7 +42,6 @@ export const BACKOFFICE_PAGES = [
   'commissions',
   'compensation',
   'users',
-  'assignments',
   'assign_coach',
   'assign_nutritionist',
   'engine_config',
@@ -158,7 +171,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
-    engine_reviews: { view: true, manage: true },
     escalations: { view: true, manage: true },
     visits_agenda: { view: true, manage: true },
     chat: { view: true, manage: true },
@@ -181,7 +193,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
-    engine_reviews: { view: true, manage: true },
     escalations: { view: true, manage: true },
     visits_agenda: { view: true, manage: true },
     chat: { view: true, manage: true },
@@ -189,7 +200,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     nutrient_facts: { view: true, manage: true },
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
-    assignments: { view: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista
     engine_config: { view: true },
     engine_rules: { view: true, manage: true }, // regole del motore: le gestisce SOLO il capo nutrizionista
@@ -237,7 +247,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     diets_catalog: { view: true, manage: true },
     recipes: { view: true, manage: true },
     engine_protocols: { view: true },
-    engine_reviews: { view: true },
     escalations: { view: true, manage: true },
     visits_agenda: { view: true },
     chat: { view: true },
@@ -252,7 +261,6 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     commissions: { view: true, manage: true },
     compensation: { view: true, manage: true },
     users: { view: true, manage: true },
-    assignments: { view: true, manage: true },
     assign_coach: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true },
     engine_config: { view: true, manage: true },

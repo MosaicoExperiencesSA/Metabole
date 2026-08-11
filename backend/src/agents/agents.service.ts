@@ -24,9 +24,13 @@ export interface AgentInput {
 }
 
 /**
- * Registro degli Agenti AI (Metabole_Agenti_AI_Spec_Sviluppo.md): la sezione
- * backoffice "Agenti" fa CRUD qui. Il runtime (orchestratore/esecuzioni) arriverà
- * in una fase successiva: AgentRun/AgentLog sono già pronti per i costi e l'audit.
+ * Registro degli Agenti AI (Metabole_Agenti_AI_Spec_Sviluppo.md): la sezione backoffice «Agenti» fa
+ * CRUD qui.
+ *
+ * Il runtime **esiste**: `agent-orchestrator.service.ts` e `agent-runner.service.ts`, con `AgentRun` e
+ * `AgentLog` per costi e audit. Qui c'era scritto che «arriverà in una fase successiva» — vero quando è
+ * stato scritto, falso da un pezzo, e un commento così fa cercare altrove una cosa che è nella cartella
+ * accanto.
  */
 @Injectable()
 export class AgentsService {

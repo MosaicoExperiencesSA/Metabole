@@ -367,6 +367,13 @@ Validazione delle due rifiniture R12 (efficacia in mantenimento; guardrail `clin
 
 ## 10. Debito nostro, dichiarato
 
+> Le voci piccole di questa sezione sono state chiuse il 13/8 (commenti superati, parametro morto, due
+> chiavi permessi che non controllavano niente, `Placeholder.tsx`, `travel_max_days`, i messaggi di
+> validazione). Quelle rimaste **richiedono una tua decisione prima del codice**: un error tracker
+> esterno è un servizio da scegliere e pagare, i documenti sanitari su un bucket UE sono una migrazione
+> di dati sensibili, gli aggiornamenti major vanno in una finestra dedicata.
+
+
 - ~~**`ValidationPipe` senza `exceptionFactory`**~~ **FATTO il 13/8**: la rete c'è
   (`common/messaggi-validazione.ts`), traduce gli schemi di class-validator e lascia intatto qualunque
   messaggio scritto a mano. Resta vera la regola del `message` sul decoratore per i DTO che una cliente
@@ -383,13 +390,7 @@ Validazione delle due rifiniture R12 (efficacia in mantenimento; guardrail `clin
 - **Il filtro TAG del catalogo ricette lavora in memoria**: su un elenco troncato, ordinare per kcal
   mostra il minimo delle righe scaricate, non del catalogo.
 - **Documenti sanitari sul database** invece che su un bucket UE.
-- **`monitoring_offer_days` letto e inutile**: verificato che il nome compare **una volta sola** in tutto
-  il servizio, cioè viene letto e mai usato — e la descrizione nel seed parla di un congelamento rimosso
-  il 7/8.
-- **Chiavi permessi dichiarate e senza uso**: `engine_reviews`, `assignments`.
 - **Fase 0 dell'onboarding, metà mancante**: `login → role/home_route` (i quattro percorsi).
-- **Commenti superati** che fanno sembrare spente cose che funzionano (`rules-evaluator.ts`,
-  `agents.service.ts`, `chat/ai-filter.ts`).
 - **Aggiornamenti major** (React 19, Vite, Prisma 7, Capacitor 8): in una finestra dedicata.
 
 ---

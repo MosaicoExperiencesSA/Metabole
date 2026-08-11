@@ -1,9 +1,14 @@
 /**
- * Assistente AI di primo filtro — DETERMINISTICO (spec sez. 5: "L'assistente AI
- * fa da primo filtro: FAQ → instrada a coach/nutrizionista; temi sensibili →
- * escalation"). L'AI generativa arriverà in M10 solo come layer di supporto.
+ * Assistente AI di primo filtro — DETERMINISTICO (spec sez. 5: «L'assistente AI fa da primo filtro:
+ * FAQ → instrada a coach/nutrizionista; temi sensibili → escalation»).
  *
- * Puro e testabile: testo → classificazione.
+ * Puro e testabile: testo → classificazione. Nessuna chiamata di rete, quindi decide sempre allo stesso
+ * modo — ed è il motivo per cui i temi sensibili passano da qui e non dal modello.
+ *
+ * L'AI generativa **c'è** (`ai.service.assistantReply`, con la banca dati nutrizionale a fare da
+ * ancora e `guardia-risposta-ai.ts` a controllare l'uscita): questo filtro non è più «in attesa di
+ * M10», è il primo dei due strati. Il commento precedente diceva che sarebbe arrivata, e leggendolo si
+ * concludeva che in chat non ci fosse un modello.
  */
 
 export type FilterResult =
