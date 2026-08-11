@@ -109,13 +109,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAdminSession(null);
   }
 
+  /**
+   * «Entra come».
+   *
+   * ⚠️ **Per una CLIENTE si apre l'APP, non il backoffice.** Fino all'11/8 il pulsante scambiava la
+   * sessione qui dentro: ma una cliente nel backoffice non ha nessuna pagina, e chi lo premeva
+   * finiva su «Accesso non consentito» — cioè il pulsante non ha mai funzionato per l'unico caso
+   * per cui serviva. Ora la web app si apre in una scheda NUOVA, con il token nel frammento
+   * dell'indirizzo (che non viaggia al server e non finisce nel `Referer`), e **la sessione del
+   * backoffice non viene toccata**: chi sta aiutando una cliente al telefono si tiene la sua
+   * scheda aperta di fianco.
+   *
+   * Per uno STAFF (coach, nutrizionista) il backoffice È la sua interfaccia, quindi lì lo scambio
+   * di sessione resta quello di prima.
+   */
   async function impersonate(userId: string, email: string) {
     // Chiama l'endpoint con il token ADMIN corrente, poi mette da parte l'intera
     // sessione admin (access + refresh) e assume il token di impersonazione.
-    const res = await api<{ accessToken: string; user?: { role: Role } }>(
+    const res = await api<{ accessToken: string; impersonating?: { role: Role }; user?: { role: Role } }>(
       '/admin/impersonate',
       { method: 'POST', body: JSON.stringify({ userId }) },
     );
+
+    if (res.impersonating?.role === 'client') {
+      const appUrl = ((import.meta.env.VITE_APP_URL as string | undefined) ?? 'https://app.metabole.eu').replace(/\/+$/, '');
+      const scheda = window.open(`${appUrl}/#t=${encodeURIComponent(res.accessToken)}`, '_blank', 'noopener');
+      if (!scheda) {
+        throw new Error(
+          'Il browser ha bloccato la finestra: consenti i popup per il backoffice e riprova. L\'app della cliente si apre in una scheda nuova.',
+        );
+      }
+      return;
+    }
+
     setAdminSession({ access: getAccessToken(), refresh: getRefreshToken() });
     // Durante l'impersonazione niente refresh token in memoria: così un eventuale
     // 401 non rinnova per errore la sessione admin (che va preservata intatta).

@@ -41,9 +41,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   invece di una sessione aperta a tempo indeterminato. Alla cliente non si scrive niente: resta
   nell'audit interno. Aggiunto anche il pulsante **nella tabella Clienti**, dove mancava — cioè
   nell'unico elenco da cui una coach parte davvero quando una cliente la chiama.
+  ⭐ **E il pulsante apre l'APP, non il backoffice.** Collaudato subito dopo il deploy: «Entra come»
+  su una cliente portava a **«Accesso non consentito»**. Non è una regressione — *non ha mai
+  funzionato* per l'unico caso per cui serve: scambiava la sessione **dentro** il backoffice, e una
+  cliente nel backoffice non ha nessuna pagina. Funzionava solo impersonando uno staff, che il
+  backoffice ce l'ha. Ora per una cliente si apre la **web app in una scheda nuova**, con il token
+  nel **frammento** dell'indirizzo (`/#t=…`, che non viaggia al server e non finisce nel `Referer`,
+  e viene cancellato dalla barra appena letto), e la sessione del backoffice **non viene toccata**:
+  chi sta aiutando al telefono si tiene la sua scheda di fianco. Due cose che l'app ha dovuto
+  imparare: una **barra in cima sempre visibile** («stai guardando l'account di X, sola lettura, si
+  chiude da sola dopo 30 minuti»), perché una scheda lasciata aperta assomiglia a qualsiasi altra;
+  e la **modalità ospite** nel client API — sotto «Entra come» il 401 **non rinnova**. Senza, alla
+  scadenza dei 30 minuti l'app avrebbe rinnovato col refresh token in `localStorage`, che è di
+  *un'altra persona*: si sarebbe cambiata identità in silenzio. La scadenza dev'essere una porta che
+  si chiude.
   Verifiche: i **quattro job della CI riprodotti in sandbox** col client Prisma vero (vedi la voce
   sul `--no-engine`): build backend verde, **110 suite / 1705 test**, 7 nuovi sulla guardia, build
-  backoffice verde.
+  backoffice verde, build app verde e 27 test dell'app. ⚠️ Tocca l'app: per il web basta il deploy di `app.metabole.eu`; sul nativo entra con la OTA 2.1.8, a lista finita.
   ⚠️ **Resta la seconda metà** — l'unificazione vera delle due tabelle — e leggendo sono usciti due
   vincoli: «ha speso > 0» **esiste già** ed è il filtro *Tipo = Cliente* di Gestione lead
   (`stage = paid`, scritto dal pagamento), quindi non serve inventare un conteggio nuovo; ma il

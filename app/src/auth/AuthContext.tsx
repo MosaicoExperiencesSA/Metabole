@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
-import { api, apiPublic, getRefreshToken, setAccessToken, setRefreshToken } from '../api/client';
+import { api, apiPublic, getRefreshToken, setAccessToken, setOspite, setRefreshToken } from '../api/client';
 import { track, currentRefcod } from '../lib/track';
 
 const WIDGET_TOKEN_KEY = 'metabole_widget_token';
@@ -54,8 +54,33 @@ interface AuthResponse {
   refreshToken: string;
 }
 
+/**
+ * «ENTRA COME»: il backoffice apre QUESTA app in una scheda nuova, con il token
+ * di impersonazione nel **frammento** dell'indirizzo (`/entra#t=…`).
+ *
+ * Nel frammento e non nella query per due motivi: il frammento non viaggia verso il server e non
+ * finisce nell'header `Referer` quando la pagina carica un'immagine o un font di terzi. E si
+ * cancella dalla barra degli indirizzi appena letto, così non resta nella cronologia di chi guarda.
+ *
+ * Prima il pulsante scambiava la sessione DENTRO il backoffice: ma una cliente nel backoffice non
+ * ha nessuna pagina, e chi premeva «Entra come» finiva su «Accesso non consentito». Il posto dove
+ * si guarda l'app di una cliente è l'app.
+ */
+function tokenDalFrammento(): string | null {
+  if (typeof window === 'undefined') return null;
+  const frammento = window.location.hash.replace(/^#/, '');
+  if (!frammento) return null;
+  const t = new URLSearchParams(frammento).get('t');
+  if (!t) return null;
+  // Via dalla barra degli indirizzi, subito: non deve restare nella cronologia.
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  return t;
+}
+
 interface AuthValue {
   user: User | null;
+  /** Sessione «Entra come»: si guarda l'account di un'altra persona, in sola lettura. */
+  ospite: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterPayload) => Promise<void>;
@@ -69,9 +94,29 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ospite, setOspiteState] = useState(false);
 
   useEffect(() => {
     (async () => {
+      // Il token di «Entra come» vince su qualsiasi sessione salvata su questo browser, e non la
+      // tocca: il refresh token di chi ha fatto login resta dov'è, e alla scadenza dei 30 minuti
+      // NON viene usato (vedi `setOspite` in api/client).
+      const tokenOspite = tokenDalFrammento();
+      if (tokenOspite) {
+        setOspite(true);
+        setOspiteState(true);
+        setAccessToken(tokenOspite);
+        try {
+          setUser(await api<User>('/me'));
+        } catch {
+          setAccessToken(null);
+          setOspite(false);
+          setOspiteState(false);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
       if (!getRefreshToken()) {
         setLoading(false);
         return;
@@ -155,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshMe, switchAccount }}>
+    <AuthContext.Provider value={{ user, ospite, loading, login, register, logout, refreshMe, switchAccount }}>
       {children}
     </AuthContext.Provider>
   );

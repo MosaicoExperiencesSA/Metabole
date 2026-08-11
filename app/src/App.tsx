@@ -42,14 +42,38 @@ function Centered() {
   );
 }
 
+/**
+ * La barra di «Entra come», in cima a tutto.
+ *
+ * Chi sta guardando l'account di un'altra persona deve vederlo in ogni momento, non solo quando è
+ * entrato: una scheda del browser lasciata aperta assomiglia a qualsiasi altra, e da lì a credere
+ * di stare guardando i propri dati è un attimo. Dice anche che è a termine, così la scadenza non
+ * sembra un guasto.
+ */
+function BarraOspite({ email }: { email: string | null | undefined }) {
+  return (
+    <div
+      style={{
+        background: '#C96E45', color: '#fff', padding: '8px 14px', fontSize: 12.5, lineHeight: 1.45,
+        textAlign: 'center', position: 'sticky', top: 0, zIndex: 60,
+      }}
+    >
+      Stai guardando l'account di <b>{email ?? 'questa cliente'}</b> — <b>sola lettura</b>, e la
+      sessione si chiude da sola dopo 30 minuti.
+    </div>
+  );
+}
+
 /** Guscio autenticato: schermata + tab bar in basso. */
 function Shell() {
   const location = useLocation();
+  const { user, ospite } = useAuth();
   useEffect(() => {
     track('screen_view', { path: location.pathname }, { phase: 'app', screen: location.pathname });
   }, [location.pathname]);
   return (
     <div className="app-frame">
+      {ospite && <BarraOspite email={user?.email} />}
       <div className="screen">
         <Routes>
           <Route path="/" element={<Home />} />

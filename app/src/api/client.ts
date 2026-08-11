@@ -11,6 +11,22 @@ const REFRESH_KEY = 'metabole_app_refresh';
 
 let accessToken: string | null = null;
 
+/**
+ * SESSIONE «ENTRA COME»: token in memoria, e **nessun refresh**.
+ *
+ * Senza questo interruttore, alla scadenza dei 30 minuti il client rinnoverebbe con il refresh
+ * token che sta in `localStorage` — che è di un'ALTRA persona, quella che ha fatto login su questo
+ * browser. Chi guardava l'account di una cliente si ritroverebbe dentro il proprio, o viceversa,
+ * senza che niente lo dica. Qui la scadenza deve essere una porta che si chiude.
+ */
+let ospite = false;
+export function setOspite(v: boolean) {
+  ospite = v;
+}
+export function isOspite(): boolean {
+  return ospite;
+}
+
 export function setAccessToken(token: string | null) {
   accessToken = token;
 }
@@ -56,6 +72,11 @@ async function rawRequest(path: string, options: RequestInit, withAuth: boolean)
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
+  // «Entra come»: la sessione è a termine per definizione. Non si rinnova, si scade.
+  if (ospite) {
+    setAccessToken(null);
+    return false;
+  }
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
     const refreshToken = getRefreshToken();

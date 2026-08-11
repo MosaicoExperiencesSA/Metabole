@@ -943,11 +943,103 @@ non al ruolo scritto nel codice.
 **tutte**.» Ribadita l'11/8: «i filtri delle tabelle non devono scorrere, sono **fissi in alto sotto
 il titolo della colonna**, in **tutte** le tabelle».
 
+🔴 **Segnalata TRE volte l'11/8** («i filtri non devono scorrere, sono fissi in alto sotto il titolo
+della colonna, in tutte le tabelle»). E qui c'è una cosa che cambia la natura del lavoro: **il
+meccanismo nel codice C'È** — `useTestaFissa` in `backoffice/src/components/tabella.tsx:148` mette
+`position: sticky` sui titoli (`top: 0`) e sui filtri (`top: altezza dei titoli`, misurata con un
+`ResizeObserver`), ed è attivo con `testaFissa: true` in **29 pagine su 29** più `LeadsTable` e il
+catalogo ricette, che lo applicano a mano. Quindi non è una funzione da scrivere: **è un difetto da
+riprodurre nel browser**. I due sospetti, in ordine: (1) il contenitore che scorre — la regola
+`.card:has(> table.grid)` in `theme.css:398` dà `overflow:auto` e `max-height` **solo** se la
+tabella è figlia DIRETTA della card, e dove qualcuno ha messo un `div` in mezzo lo sticky non ha un
+box a cui incollarsi; (2) un antenato con `overflow: hidden`, che disattiva lo sticky senza dire
+niente. **E le vede scorrere in TUTTE** — Gestione lead, Clienti, e le altre (precisato l'11/8): non è una
+schermata sfuggita, è che il meccanismo non funziona **da nessuna parte**. Il che restringe molto:
+la causa è condivisa, e sta nel contenitore, non nelle pagine. Il sospetto più forte diventa il
+secondo: **`position: sticky` si aggancia al più vicino antenato che scorre**, e un antenato con
+`overflow` diverso da `visible` — anche solo `overflow-x: auto` messo per le tabelle larghe — lo
+rende inerte mentre a scorrere è la pagina. Nessun errore, nessun avviso: semplicemente non si
+incolla.
+
+Prossimo passo: **aprirla nel browser** e leggere gli stili calcolati della riga dei filtri e di
+tutti i suoi antenati fino a `body` — è una cosa di dieci minuti che nessuna quantità di lettura del
+codice sostituisce.
+
 ⚠️ **L'11/8 l'ho dichiarata chiusa, e non lo era.** Quel giorno ho unificato *da dove* le tabelle
 prendono i filtri (catalogo ricette e `LeadsTable` li disegnavano a mano, ora li chiedono all'helper):
 è un'altra cosa. La richiesta è sul **comportamento allo scorrimento** — la riga dei filtri sta sotto
 l'intestazione ma scorre via con il corpo, e va resa `sticky` insieme all'intestazione. Uniformare la
 sorgente serviva a poterlo correggere in un punto solo; la correzione va ancora fatta.
+
+### 16.10 Lo STILE sparisce dall'interfaccia: nel questionario si chiede la DIETA — deciso l'11/8
+
+«Nel questionario chiediamo quale dieta vuole fare e togliamo lo stile; dal backoffice e dall'app
+togliamo lo stile. **Per ora nascondiamo e basta.**»
+
+**Da dove nasce.** Nel profilo dell'app di `sim1one.salogni@gmail.com` si legge «Tipo di
+alimentazione: **Mediterranea**» e sotto «La tua dieta: **Pescetariana**». Non è un errore di
+scrittura: `style` **non identifica una dieta**. `Mediterranea`, `Mediterranea ipocalorica` e
+`Pescetariana` hanno tutte `style: 'mediterranean'` (`engine-rules.presets.ts:96, 140, 168`), e
+`Vegana`, `Vegetariana`, `Flexitariana` e `Flessibile` sono tutte `flexible`. È lo stesso difetto
+che nel §11 ha lo script `diag:famiglie` — 20 clienti — e il commento di
+`prisma/diag-famiglie-ambigue.ts` lo dice già: «clienti che hanno chiesto *mediterranea* stanno
+ricevendo **Pescetariana**, cioè menu senza carne. Nessuna di loro l'ha chiesto».
+
+**La verifica di cosa fa oggi lo stile (fatta l'11/8), in tre righe.**
+
+- ✅ **Il questionario già chiede la dieta**, non lo stile: le card sono una per famiglia
+  (`onboarding.service.ts:45-70`) e scrivono `dietFamily` **insieme** a `dietStyle`
+  (`app/src/pages/Onboarding.tsx:117`). Lo stile è un effetto collaterale del click.
+- ⚠️ **Ma la famiglia da sola non esiste**: in `pick-diet.ts:56` il filtro famiglia è **sempre**
+  combinato con lo stile, ed è voluto e testato (`pick-diet.spec.ts:74-80`). Con uno stile
+  incoerente i primi due tentativi non trovano niente e si **scende al tentativo per stile**: cioè
+  proprio il caso «chiesta Mediterranea, servita Pescetariana».
+- 🔴 **Il backoffice non ha nessun campo «Dieta»**: il form della scheda cliente espone regime,
+  **stile**, obiettivo, percorso e finestra del digiuno, ma non `dietFamily`. Il backend la accetta
+  già (DTO, permesso `change_diet_type`, audit): manca solo la tendina. **Nascondere la select
+  «Stile» senza aggiungere quella «Dieta» lascerebbe il nutrizionista senza nessuna leva per
+  spostare una cliente da una dieta all'altra.**
+
+✅ **Deciso l'11/8:** nel form della scheda cliente **la select «Stile» si sostituisce con «Dieta»**
+(scrive `dietFamily`). Non si nasconde e basta: si scambia, così il nutrizionista mantiene la leva
+per spostare una cliente — e per la prima volta la leva è sul dato giusto. Serve l'endpoint gemello
+di `catalog.service.ts:1191` che restituisca i **nomi** delle diete approvate invece degli stili.
+
+**Si può nascondere SUBITO** (sola lettura, non decide niente): app `Profilo.tsx:132` — la riga
+«Tipo di alimentazione», che è quella che genera l'equivoco, mentre «La tua dieta» dice già il nome
+giusto; backoffice `ClientDetail.tsx:1276` («Stile alimentare»), `NutritionistHome.tsx:239`,
+la colonna e il filtro «Stile» in `Diete.tsx:114, 174`, il chip in `RegoleMotore.tsx:253`.
+
+**NON si tocca**: `Diet.style` e `RulePreset.style` nei form del catalogo e delle regole — lì lo
+stile è metà dell'identità della famiglia, e una dieta creata senza `pickDietFor` non la trova più.
+E **non si toccano i «?»** del questionario e del profilo: le 10 schede con le fonti
+(`app/src/onboarding/dietInfo.ts`) sono **indicizzate per stile**. Il giorno che lo stile sparisce
+davvero servirà una mappa `famiglia → scheda`, o la cliente perde le spiegazioni — che sono la parte
+che rende credibile il questionario.
+
+**I cinque bloccanti per TOGLIERLO davvero** (non solo nasconderlo): `dietStyle` è obbligatorio nel
+DTO del questionario (`submit-answers.dto.ts:107`, senza → 400) e `required: true` nelle domande
+(`onboarding.questions.ts:49`, governa il pulsante «Avanti»); `pick-diet.ts:56` va deciso cosa fa
+senza stile; la ricerca della variante celiaca filtra su `style` (`senza-glutine.ts:194`); la tendina
+del backoffice **è** la lista degli stili delle diete approvate (`catalog.service.ts:1191`), quindi
+serve l'endpoint gemello che restituisca i nomi; e `dietFamily` è **null** per tutte le clienti
+registrate prima del 7/8 — `prisma/fix-diet-family.ts` esiste apposta, ma va verificato che sia
+girato su tutte.
+
+### 16.11 Rifiniture della tabella Clienti — chieste l'11/8
+
+- **Via il filtro «Glutine»** sopra la tabella (`backoffice/src/pages/Clienti.tsx`, lo stato
+  `fGlutine` e la tendina): non serve. ⚠️ Da decidere se togliere anche la **pastiglia «senza
+  glutine»** dentro la cella del nome, che è un'altra cosa — segnala le clienti che l'hanno
+  dichiarato ma non hanno ancora la dieta dedicata, ed è l'elenco che serve dopo aver generato la
+  variante.
+- **Colonna «Stato» = lo stadio della PIPELINE**, uguale a quello di Gestione lead (chiarito da
+  Simone l'11/8): non `Attivo`/`Sospeso`, che è lo stato dell'account. Quindi la colonna «Stato»
+  attuale va sostituita, non affiancata.
+- **Le pastiglie di stato si vedono poco**, in **tutte e due** le tabelle: «bello il bordo colorato,
+  ma si vede poco, rendiamolo più evidente». Da rifare sul contrasto — riempimento invece del solo
+  bordo, o colore più saturo — e va fatto sulla classe condivisa (`.chip` in `theme.css`), non su una
+  tabella sola, o le due tornano a divergere.
 
 ### 16.6 «Piatto Freddo» fra i metodi di cottura
 
