@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -27,6 +27,48 @@ class AzioneDecisioneDto {
   @IsString()
   @MaxLength(1000, { message: 'La nota non può superare i 1000 caratteri.' })
   note?: string;
+}
+
+/**
+ * I due valori del §15.5. I limiti qui NON sono le soglie cliniche — quelle stanno in
+ * `correzione-kcal.ts` e il nutrizionista le può scavalcare di proposito. Questi sono i limiti oltre
+ * i quali il numero **non vuol dire niente**: un deficit di 4000 kcal o una correzione del −300%
+ * sono uno zero di troppo, non una prescrizione.
+ */
+class ValoriKcalDto {
+  @IsOptional()
+  @IsInt({ message: 'Il deficit va scritto in kcal intere.' })
+  @Min(0, { message: 'Il deficit non può essere negativo: per dare di più si usa la correzione percentuale.' })
+  @Max(2000, { message: 'Un deficit oltre le 2000 kcal/giorno non è una prescrizione, è un errore di battitura.' })
+  deficitKcal?: number | null;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'La correzione va scritta in percentuale.' })
+  @Min(-50, { message: 'Oltre il −50% non è una correzione: se serve tagliare così, si scrive il deficit.' })
+  @Max(50, { message: 'Oltre il +50% non è una correzione: se serve dare così tanto, si rivede l’obiettivo.' })
+  correzionePct?: number | null;
+}
+
+class SimulaKcalDto extends ValoriKcalDto {}
+
+class ImpostaKcalDto extends ValoriKcalDto {
+  /**
+   * Obbligatorio, e non per burocrazia: un target calorico cambiato senza il suo perché è un numero
+   * che nessuno può contestare, e in clinica quelli restano sbagliati più a lungo degli altri.
+   */
+  @IsString({ message: 'Scrivi il motivo della modifica.' })
+  @MinLength(3, { message: 'Il motivo va scritto per esteso: fra tre mesi lo leggerà qualcuno che non c’era.' })
+  @MaxLength(1000, { message: 'Il motivo non può superare i 1000 caratteri.' })
+  motivo!: string;
+
+  /**
+   * Conferma esplicita per scendere sotto la soglia minima di sicurezza. Il primo invio senza
+   * questo flag viene rifiutato **con dentro il numero** a cui si arriverebbe: si può andare sotto,
+   * ma non per sbaglio.
+   */
+  @IsOptional()
+  @IsBoolean()
+  confermaSottoSoglia?: boolean;
 }
 
 /** Nota facoltativa allo sblocco del piano. */
@@ -115,5 +157,31 @@ export class NutritionistController {
   @Post('clients/:clientId/plan-hold/release')
   riattivaPianoFermato(@Param('clientId') clientId: string, @Body() dto: SbloccoDto, @CurrentUser() user: AuthUser) {
     return this.nutritionist.riattivaPianoFermato(user, clientId, dto.note);
+  }
+
+  // ---------- §15.5 — Le calorie scritte a mano ----------
+
+  /** Il quadro calorico della cliente: com'è composto il numero di oggi, e chi l'ha cambiato quando. */
+  @Get('clients/:clientId/kcal')
+  kcal(@Param('clientId') clientId: string, @CurrentUser() user: AuthUser) {
+    return this.nutritionist.kcalCliente(user, clientId);
+  }
+
+  /**
+   * Cosa succederebbe con questi numeri, SENZA salvarli. È un `POST` benché non scriva niente: i
+   * valori stanno nel corpo, e mandare i parametri clinici di una paziente in querystring vuol dire
+   * scriverli nei log del proxy.
+   */
+  @HttpCode(200)
+  @Post('clients/:clientId/kcal/simula')
+  simulaKcal(@Param('clientId') clientId: string, @Body() dto: SimulaKcalDto, @CurrentUser() user: AuthUser) {
+    return this.nutritionist.simulaKcal(user, clientId, dto.deficitKcal, dto.correzionePct);
+  }
+
+  /** Scrive le calorie a mano. Il motivo è obbligatorio: senza, lo storico non serve a niente. */
+  @HttpCode(200)
+  @Post('clients/:clientId/kcal')
+  impostaKcal(@Param('clientId') clientId: string, @Body() dto: ImpostaKcalDto, @CurrentUser() user: AuthUser) {
+    return this.nutritionist.impostaKcal(user, clientId, dto);
   }
 }

@@ -14,12 +14,24 @@ const makePersonalBase = (over: Record<string, unknown> = {}) =>
 /** Audit finto: le azioni sul piano ci scrivono sempre, e senza il servizio non parte niente. */
 const makeAudit = (over: Record<string, unknown> = {}) =>
   ({ log: jest.fn().mockResolvedValue(undefined), ...over }) as never;
+/**
+ * Fabbisogno finto (§15.5). Il default restituisce sempre `null`: i test che non parlano di calorie
+ * non devono sapere che esiste: quello che conta, per loro, è che il costruttore sia completo.
+ * Chi ha bisogno di numeri veri passa il suo.
+ */
+const makeKcalNeed = (over: Record<string, unknown> = {}) =>
+  ({ estimate: jest.fn().mockResolvedValue(null), computeTargetKcal: jest.fn().mockResolvedValue(null), ...over }) as never;
+/** Menu finto: serve alla rigenerazione dei giorni futuri dopo un cambio di calorie. */
+const makeMenu = (over: Record<string, unknown> = {}) =>
+  ({ redeliverFutureDays: jest.fn().mockResolvedValue({ removed: 0, delivered: [], ripristinati: 0 }), ...over }) as never;
 const make = (
   prisma: Record<string, unknown>,
   engine: EngineService = makeEngine(),
   personalBase = makePersonalBase(),
   audit = makeAudit(),
-) => new NutritionistService(prisma as unknown as PrismaService, engine, personalBase, audit);
+  kcalNeed = makeKcalNeed(),
+  menu = makeMenu(),
+) => new NutritionistService(prisma as unknown as PrismaService, engine, personalBase, audit, kcalNeed, menu);
 
 describe('NutritionistService.patients', () => {
   it('elenca i pazienti con riepilogo e ordina per attenzione', async () => {
@@ -335,5 +347,165 @@ describe('NutritionistService — azioni sulla decisione', () => {
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planHeldAt: null, planHeldById: null }), update: jest.fn() },
     };
     await expect(make(prisma).riattivaPianoFermato(user, 'p1')).rejects.toThrow('non è fermo');
+  });
+});
+
+/**
+ * §15.5 — LE CALORIE SCRITTE A MANO.
+ *
+ * I test guardano tre cose e non i numeri: **cosa viene salvato**, **cosa viene rifiutato** e **chi
+ * viene avvisato**. I numeri (l'ordine fra deficit, percentuale e soglie) hanno il loro file, che è
+ * `menu/correzione-kcal.spec.ts`: là si prova la regola, qui si prova che intorno alla regola
+ * succedano le cose giuste.
+ */
+describe('NutritionistService — le calorie scritte a mano (§15.5)', () => {
+  /** Una stima finta che risponde in base ai valori simulati, come farebbe quella vera. */
+  const stimaChe = (target: number, sottoSoglia = false) => ({
+    bmr: 1300, activityFactor: 1.4, activitySource: 'activity', tdee: 1900,
+    target, deficit: 285, floored: false, objective: 'dimagrimento', weightKg: 70,
+    fonteDeficit: 'calcolato', deficitCalcolato: 285, correzionePct: 0,
+    sottoSoglia, tettoApplicato: false, spiegazione: `${target} kcal/giorno`,
+  });
+
+  const prismaBase = (profilo: Record<string, unknown> = {}) => ({
+    staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue({
+        assignedNutritionistId: 'nut-1', kcalDeficitOverride: null, kcalAdjustPct: null, name: 'Anna', ...profilo,
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    kcalOverride: { create: jest.fn().mockResolvedValue({ id: 'k1' }), findMany: jest.fn().mockResolvedValue([]) },
+    escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }), findFirst: jest.fn().mockResolvedValue(null) },
+    user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-capo' }]) },
+    notification: { create: jest.fn().mockResolvedValue({}) },
+  });
+
+  it('salva i due valori, e nello storico finisce anche il PRIMA e il DOPO in kcal', async () => {
+    const prisma = prismaBase();
+    const kcal = makeKcalNeed({
+      estimate: jest.fn((_c: string, sim?: { deficitImposto?: number | null }) =>
+        Promise.resolve(sim ? stimaChe(1450) : stimaChe(1620))),
+    });
+    const res = await make(prisma, undefined, undefined, undefined, kcal)
+      .impostaKcal(user, 'p1', { deficitKcal: 450, correzionePct: -5, motivo: 'ferma da tre settimane a 1600' });
+
+    expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data)
+      .toEqual({ kcalDeficitOverride: 450, kcalAdjustPct: -5 });
+    const riga = (prisma.kcalOverride.create as jest.Mock).mock.calls[0][0].data;
+    // I valori dicono cosa è stato scritto, il target dice cosa è arrivato nel piatto: servono
+    // entrambi, perché in mezzo c'è il fabbisogno, che cambia da solo quando cambia il peso.
+    expect(riga).toMatchObject({
+      deficitKcal: 450, adjustPct: -5, prevDeficitKcal: null, prevAdjustPct: null,
+      targetPrima: 1620, targetDopo: 1450, sottoSoglia: false, motivo: 'ferma da tre settimane a 1600',
+      byStaffId: 'nut-1',
+    });
+    expect(res.targetDopo).toBe(1450);
+  });
+
+  it('sotto la soglia SENZA conferma: rifiutato col numero, e non salva niente', async () => {
+    const prisma = prismaBase();
+    const kcal = makeKcalNeed({
+      estimate: jest.fn((_c: string, sim?: unknown) => Promise.resolve(sim ? stimaChe(1000, true) : stimaChe(1620))),
+    });
+    const s = make(prisma, undefined, undefined, undefined, kcal);
+    await expect(s.impostaKcal(user, 'p1', { deficitKcal: 900, motivo: 'caso particolare' }))
+      .rejects.toThrow('1000 kcal/giorno');
+    // Rifiutare e salvare a metà sarebbe il peggiore dei due mondi.
+    expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+    expect(prisma.kcalOverride.create).not.toHaveBeenCalled();
+  });
+
+  it('sotto la soglia CON conferma: salva, lo marca, apre la segnalazione e avvisa i capi', async () => {
+    const prisma = prismaBase();
+    const kcal = makeKcalNeed({
+      estimate: jest.fn((_c: string, sim?: unknown) => Promise.resolve(sim ? stimaChe(1000, true) : stimaChe(1620))),
+    });
+    const res = await make(prisma, undefined, undefined, undefined, kcal)
+      .impostaKcal(user, 'p1', { deficitKcal: 900, motivo: 'caso particolare', confermaSottoSoglia: true });
+
+    expect(res.sottoSoglia).toBe(true);
+    expect((prisma.kcalOverride.create as jest.Mock).mock.calls[0][0].data.sottoSoglia).toBe(true);
+    // Simone: il capo nutrizionista lo deve SAPERE, non lo deve cercare.
+    expect(prisma.escalation.create).toHaveBeenCalled();
+    expect(prisma.notification.create).toHaveBeenCalled();
+  });
+
+  it('azzerare le correzioni è una modifica come le altre: torna al calcolo E resta scritto', async () => {
+    const prisma = prismaBase({ kcalDeficitOverride: 450, kcalAdjustPct: -5 });
+    const kcal = makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stimaChe(1620)) });
+    await make(prisma, undefined, undefined, undefined, kcal)
+      .impostaKcal(user, 'p1', { deficitKcal: null, correzionePct: null, motivo: 'ha ripreso a calare, torno al calcolo' });
+
+    expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data)
+      .toEqual({ kcalDeficitOverride: null, kcalAdjustPct: null });
+    // «Chi gliele ha tolte» è una domanda che si fa quanto «chi gliele ha messe».
+    expect((prisma.kcalOverride.create as jest.Mock).mock.calls[0][0].data)
+      .toMatchObject({ deficitKcal: null, adjustPct: null, prevDeficitKcal: 450, prevAdjustPct: -5 });
+  });
+
+  it('zero e null sono la stessa cosa: scrivere 0 dove c’era già null non è una modifica', async () => {
+    const prisma = prismaBase();
+    const s = make(prisma, undefined, undefined, undefined, makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stimaChe(1620)) }));
+    await expect(s.impostaKcal(user, 'p1', { deficitKcal: 0, correzionePct: 0, motivo: 'niente' }))
+      .rejects.toThrow('già questi');
+  });
+
+  it('paziente di un’altra nutrizionista: non si tocca', async () => {
+    const prisma = prismaBase({ assignedNutritionistId: 'nut-ALTRA' });
+    const s = make(prisma, undefined, undefined, undefined, makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stimaChe(1620)) }));
+    await expect(s.impostaKcal(user, 'p1', { deficitKcal: 400, motivo: 'x' })).rejects.toThrow('non assegnato');
+    expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('il capo può scrivere anche sui pazienti che non sono suoi', async () => {
+    const prisma = prismaBase({ assignedNutritionistId: 'nut-ALTRA' });
+    const kcal = makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stimaChe(1620)) });
+    await expect(make(prisma, undefined, undefined, undefined, kcal)
+      .impostaKcal(head, 'p1', { deficitKcal: 400, motivo: 'rivisto insieme in studio' })).resolves.toMatchObject({ ok: true });
+  });
+
+  it('dopo il salvataggio i giorni futuri si rigenerano: erano sulle calorie vecchie', async () => {
+    const prisma = prismaBase();
+    const kcal = makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stimaChe(1620)) });
+    const menu = makeMenu({ redeliverFutureDays: jest.fn().mockResolvedValue({ removed: 2, delivered: ['a', 'b'], ripristinati: 0 }) });
+    const res = await make(prisma, undefined, undefined, undefined, kcal, menu)
+      .impostaKcal(user, 'p1', { deficitKcal: 400, motivo: 'x' });
+    expect((menu as unknown as { redeliverFutureDays: jest.Mock }).redeliverFutureDays).toHaveBeenCalledWith('p1');
+    expect(res.menu).toMatchObject({ removed: 2, ripristinati: 0 });
+  });
+
+  it('se la rigenerazione non produce niente lo si dice, invece di far credere che sia fatta', async () => {
+    const prisma = prismaBase();
+    const kcal = makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stimaChe(1620)) });
+    const menu = makeMenu({ redeliverFutureDays: jest.fn().mockResolvedValue({ removed: 0, delivered: [], ripristinati: 2 }) });
+    const res = await make(prisma, undefined, undefined, undefined, kcal, menu)
+      .impostaKcal(user, 'p1', { deficitKcal: 400, motivo: 'x' });
+    // La modifica è salvata, ma nel piatto non è ancora arrivata: sono due fatti diversi.
+    expect(res.ok).toBe(true);
+    expect(res.menu.ripristinati).toBe(2);
+  });
+
+  it('il quadro calorico esce insieme allo storico: il valore da solo non spiega niente', async () => {
+    const prisma = prismaBase({ kcalDeficitOverride: 450, kcalAdjustPct: null });
+    prisma.kcalOverride.findMany = jest.fn().mockResolvedValue([{ id: 'k1', motivo: 'ferma da tre settimane' }]);
+    const kcal = makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stimaChe(1450)) });
+    const res = await make(prisma, undefined, undefined, undefined, kcal).kcalCliente(user, 'p1');
+    expect(res.valori).toEqual({ deficitKcal: 450, correzionePct: null });
+    expect(res.storico).toHaveLength(1);
+    expect((prisma.kcalOverride.findMany as jest.Mock).mock.calls[0][0].orderBy).toEqual({ createdAt: 'desc' });
+  });
+
+  it('la simulazione non salva niente: serve a vedere prima, non a scoprire dopo', async () => {
+    const prisma = prismaBase();
+    const kcal = makeKcalNeed({
+      estimate: jest.fn((_c: string, sim?: unknown) => Promise.resolve(sim ? stimaChe(1000, true) : stimaChe(1620))),
+    });
+    const res = await make(prisma, undefined, undefined, undefined, kcal).simulaKcal(user, 'p1', 900, null);
+    expect(res.prima?.target).toBe(1620);
+    expect(res.dopo?.target).toBe(1000);
+    expect(res.dopo?.sottoSoglia).toBe(true);
+    expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+    expect(prisma.kcalOverride.create).not.toHaveBeenCalled();
   });
 });

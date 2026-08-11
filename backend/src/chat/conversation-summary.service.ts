@@ -35,7 +35,7 @@ export class ConversationSummaryService {
     const end = new Date(start.getTime() + DAY);
 
     const messages = (await this.prisma.message.findMany({
-      where: { sentAt: { gte: start, lt: end } },
+      where: { sentAt: { gte: start, lt: end }, deletedAt: null },
       select: { threadId: true },
     })) as { threadId: string }[];
     const threadIds = [...new Set(messages.map((m) => m.threadId))];
@@ -61,7 +61,8 @@ export class ConversationSummaryService {
     if (!thread) return false;
 
     const msgs = (await this.prisma.message.findMany({
-      where: { threadId, sentAt: { gte: dayStart, lt: dayEnd } },
+      // Un messaggio cancellato non entra nel riassunto: sarebbe rimetterlo in circolo da un'altra porta.
+      where: { threadId, sentAt: { gte: dayStart, lt: dayEnd }, deletedAt: null },
       orderBy: { sentAt: 'asc' },
       select: { senderRole: true, body: true },
     })) as MsgRow[];

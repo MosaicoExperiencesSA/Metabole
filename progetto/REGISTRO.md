@@ -20,6 +20,56 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🗑️ **Chi scrive un messaggio lo può cancellare** — richiesta di Simone: una ✕ rossa
+  nell'angolo della propria bolla, con conferma prima di cancellare. **Solo l'autore**: non il capo,
+  non l'admin. Il senso è rimediare a quello che si è scritto per sbaglio, non moderare quello che ha
+  scritto un altro — un capo che cancella il messaggio di una collega dentro la conversazione con una
+  paziente è una funzione diversa, con conseguenze diverse.
+  La cancellazione è **morbida** (`deletedAt` + `deletedById`) e non un `DELETE`: la conversazione fra
+  una cliente e chi la segue è materia sanitaria, e un consiglio dato e poi tolto resta un consiglio
+  dato. Sparisce da **tutte** le letture — cliente, staff, contatore dei messaggi del thread e
+  riassunti quotidiani, che altrimenti l'avrebbero rimesso in circolo da un'altra porta — e resta in
+  tabella per chi un domani debba ricostruire i fatti. La conferma mostra il testo del messaggio: la
+  ✕ è piccola e le bolle si somigliano. Cinque test.
+
+- `[Sviluppo]` 🔥 **§15.5 — le calorie le può scrivere il nutrizionista, e resta scritto chi e perché** —
+  il fabbisogno stimato è una **stima**: la formula non sa della tiroide, dell'attività dichiarata e
+  non fatta, o del fatto che a 1600 kcal si è fermata per tre settimane. Chi lo sa è chi la segue, e
+  fino a oggi non aveva un posto dove dirlo.
+  **Due leve, scelte da Simone.** Il **deficit imposto** in kcal/giorno, che sostituisce quello dedotto
+  dal ritmo dell'obiettivo ed è la leva clinica vera (resta agganciato al fabbisogno: se lei cala, il
+  TDEE scende e le calorie scendono con lui, da sole); e la **correzione percentuale** sul totale, il
+  ritocco fine per quando il ragionamento è giusto ma il risultato, sulla persona vera, è alto o basso.
+  L'ordine è tutto e sta in `menu/correzione-kcal.ts`: `TDEE − deficit → ×(1+correzione) → soglia`.
+  Prima del deficit, la percentuale si moltiplicherebbe con esso senza che nessuno se ne accorga; dopo
+  la soglia, potrebbe scendere sotto il minimo con il pavimento che ha già dato l'ok. 17 test.
+  **I tetti valgono sul deficit dedotto, non su quello prescritto.** Se il motore ricava dal ritmo
+  dell'obiettivo un deficit di 1400 kcal/giorno, quello è un obiettivo irreale scritto in onboarding e
+  va tagliato; se lo scrive un clinico, l'ha scritto un clinico.
+  **Sulla soglia minima Simone ha deciso: la si può scavalcare, ma non per sbaglio e non in silenzio.**
+  Il primo tentativo che finisce sotto viene **rifiutato, con dentro il numero** a cui si arriverebbe;
+  serve un secondo invio con la conferma esplicita. Quando succede: riga nello storico marcata,
+  segnalazione aperta (senza dedupe — ogni discesa è una decisione nuova con un motivo nuovo) e
+  notifica ai capi nutrizionisti, perché lo devono **sapere**, non lo devono cercare.
+  **Lo storico** (`kcal_override`) tiene i valori nuovi e i precedenti **e** il target in kcal prima e
+  dopo: i valori dicono cosa è stato scritto, il target dice cosa è arrivato nel piatto, e non sono la
+  stessa cosa perché in mezzo c'è il fabbisogno, che cambia da solo quando cambia il peso. Il **motivo
+  è obbligatorio**: un target calorico cambiato senza il suo perché è un numero che nessuno può
+  contestare, e in clinica quelli restano sbagliati più a lungo. Anche **azzerare** finisce nello
+  storico — «chi gliele ha tolte» è una domanda che si fa quanto «chi gliele ha messe».
+  Nella scheda cliente: il numero scomposto, l'**anteprima mentre si digita** (sapere di aver messo
+  una cliente a 1000 kcal *dopo* averlo fatto non serve a niente) e lo storico con nome, data e motivo.
+  ⚠️ **Verificato su Render prima di scrivere una riga**: `menu_kcal_need_enabled` non ha righe né in
+  `config_param` né in `product_rule`, quindi vale il default del codice — **acceso**. Senza questa
+  verifica avremmo costruito un campo inerte.
+  🔧 **Trovato di striscio, e riparato: `redeliverFutureDays` poteva lasciare una cliente senza menu.**
+  Cancellava i giorni futuri e poi rierogava, ma `deliverIfEligible` ha i suoi cancelli (misure
+  mancanti, fine piano) e quando uno è chiuso restituisce zero. Risultato: giorni futuri persi e
+  nessuno nuovo, per una modifica fatta da altri con tutt'altra intenzione. Ora si tiene una copia e,
+  se la rierogazione non produce niente, **si rimettono com'erano** — un menu vecchio è meglio di
+  nessun menu — e chi ha fatto la modifica lo legge, invece di credere che sia arrivata nel piatto.
+  105 suite, **1611 test verdi**, type-check a zero.
+
 - `[Sviluppo]` 🚨 **Build di produzione rotto, e la ragione per cui i test non potevano vederlo** —
   il commit `298c58f` ha fatto fallire il build su Render con un solo errore, in
   `menu.service.ts:463`: `soloGiornateComplete` dichiarava le giornate come `{ meals?: unknown }[]`

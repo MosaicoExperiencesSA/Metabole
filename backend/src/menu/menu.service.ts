@@ -1702,14 +1702,48 @@ export class MenuService {
    * Cambio TIPO di dieta (regime/stile): i giorni già consumati restano com'erano,
    * i giorni FUTURI già erogati vengono cancellati e rierogati con la nuova dieta —
    * si eroga solo la differenza, il conteggio dei giorni già ricevuti non cambia.
+   *
+   * ⚠️ **CANCELLA PRIMA E RIEROGA DOPO, e le due cose possono non pareggiare.** `deliverIfEligible`
+   * ha i suoi cancelli — misure mancanti, finestra, fine piano — e quando uno di questi è chiuso
+   * restituisce zero giorni. Fin qui il risultato era che la cliente perdeva i giorni futuri e non
+   * ne riceveva di nuovi: apriva l'app e non trovava niente, per una modifica fatta da altri con
+   * tutt'altra intenzione (11/8).
+   *
+   * Ora si tiene una copia delle righe cancellate e, **se la rierogazione non produce niente, si
+   * rimettono com'erano**. Un menu vecchio è meglio di nessun menu: il vecchio è sbagliato di
+   * qualche caloria, il nulla è sbagliato e basta. `ripristinati` dice a chi chiama che la modifica
+   * non è arrivata nel piatto, così può dirlo a chi l'ha fatta invece di lasciarglielo credere.
    */
-  async redeliverFutureDays(clientId: string): Promise<{ removed: number; delivered: string[] }> {
+  async redeliverFutureDays(clientId: string): Promise<{ removed: number; delivered: string[]; ripristinati: number }> {
     // Come `regenerateFromToday`: col piano fermo si cancellerebbe senza poter rierogare.
-    if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [] };
+    if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [], ripristinati: 0 };
     const today = toDateOnly();
-    const del = await this.prisma.menuDay.deleteMany({ where: { clientId, date: { gt: today } } });
+    const where = { clientId, date: { gt: today } };
+    const copia = (await this.prisma.menuDay.findMany({ where })) as {
+      id: string; clientId: string; date: Date; dietId: string; level: number;
+      meals: unknown; status: string; visibleFrom: Date; sourceRuleId: string | null;
+    }[];
+    const del = await this.prisma.menuDay.deleteMany({ where });
     const delivered = await this.deliverIfEligible(clientId);
-    return { removed: del.count, delivered };
+    if (delivered.length === 0 && copia.length > 0) {
+      // `createMany` e non `create` in ciclo: se qualcosa va storto qui la cliente resta senza
+      // giorni, quindi meno andate al database ci sono, meno finestre ci sono per restare a metà.
+      await this.prisma.menuDay
+        .createMany({
+          data: copia.map((d) => ({
+            id: d.id, clientId: d.clientId, date: d.date, dietId: d.dietId, level: d.level,
+            meals: d.meals as never, status: d.status, visibleFrom: d.visibleFrom, sourceRuleId: d.sourceRuleId,
+          })) as never,
+          skipDuplicates: true,
+        })
+        .catch(() => undefined);
+      this.logger.warn(
+        `Rierogazione a vuoto per ${clientId}: ${copia.length} giorni futuri rimessi com'erano ` +
+          '(la cliente non è idonea a ricevere menu adesso).',
+      );
+      return { removed: 0, delivered: [], ripristinati: copia.length };
+    }
+    return { removed: del.count, delivered, ripristinati: 0 };
   }
 
   /**

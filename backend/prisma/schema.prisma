@@ -256,6 +256,7 @@ model User {
   visits          Visit[]
   documents       Document[]
   clinicalNotes   ClinicalNote[]
+  kcalOverrides   KcalOverride[]
   chatThreads     ChatThread[]
   subscriptions   Subscription[]
   payments        Payment[]
@@ -308,6 +309,8 @@ model Staff {
   visits                Visit[]         @relation("VisitNutritionist")
   reviewedDocuments     Document[]      @relation("DocumentReviewer")
   clinicalNotes         ClinicalNote[]  @relation("NoteAuthor")
+  // Le correzioni caloriche che ha firmato: vedi `model KcalOverride` (§15.5, 11/8).
+  kcalOverrides         KcalOverride[]  @relation("KcalOverrideAuthor")
   approvedPayments      Payment[]       @relation("PaymentApprover")
   ownedLeads            CrmRecord[]     @relation("LeadOwner")
   // I valori nutrizionali che ha confermato: vedi `model NutrientFact` (11/8).
@@ -422,6 +425,16 @@ model ClientProfile {
   planHeldReason         String?    @map("plan_held_reason")
   planHeldById           String?    @map("plan_held_by_id")
   planHeldBy             Staff?     @relation("PlanHeldBy", fields: [planHeldById], references: [id], onDelete: SetNull)
+  // --- Le calorie scritte a mano dal nutrizionista (§15.5, decisione dell'11/8) ---
+  //
+  // Il fabbisogno stimato è una STIMA: la formula non sa della tiroide, dell'attività dichiarata e
+  // non fatta, o del fatto che a 1600 kcal si è fermata per tre settimane. Chi lo sa è chi la segue.
+  // `kcalDeficitOverride` sostituisce il deficit dedotto dal ritmo dell'obiettivo (kcal/giorno),
+  // `kcalAdjustPct` è il ritocco fine sul totale (−10 = «togli il 10%»). L'ordine in cui entrano nel
+  // calcolo, e quali soglie valgono ancora, stanno in `menu/correzione-kcal.ts`.
+  // Ogni cambiamento passa da `kcal_override`: qui c'è il valore di ADESSO, là il perché.
+  kcalDeficitOverride    Int?       @map("kcal_deficit_override")
+  kcalAdjustPct          Float?     @map("kcal_adjust_pct")
   consents               Json?      // versioni dei consensi accettati
   notificationPrefs      Json?      @map("notification_prefs") // opt-out per tipo + email opzionale
   referralCode           String?    @unique @map("referral_code") // codice "porta un'amica" della cliente
@@ -976,6 +989,17 @@ model Message {
   body         String
   meta         Json?
   sentAt       DateTime   @default(now()) @map("sent_at")
+  /**
+   * CANCELLATO DA CHI L'HA SCRITTO (11/8). Richiesta di Simone: «chi scrive il messaggio deve
+   * poterlo cancellare».
+   *
+   * È una cancellazione MORBIDA e non un `delete`: la conversazione fra una cliente e chi la segue
+   * è materia sanitaria, e quello che è stato detto è stato detto — un consiglio dato e poi tolto
+   * resta un consiglio dato. Sparisce da tutte le letture (cliente e staff) e nessuno lo vede più;
+   * resta nel database per chi un domani debba ricostruire cosa è successo davvero.
+   */
+  deletedAt    DateTime?  @map("deleted_at")
+  deletedById  String?    @map("deleted_by_id")
 
   @@index([threadId, sentAt])
   @@map("message")
@@ -1040,6 +1064,47 @@ model ClinicalNote {
 
   @@index([clientId, date])
   @@map("clinical_note")
+}
+
+/**
+ * LO STORICO DELLE CALORIE SCRITTE A MANO (§15.5, 11/8).
+ *
+ * Richiesta di Simone: «il nutrizionista deve poter modificare il deficit calorico del cliente e
+ * dobbiamo salvare lo storico di quei dati». Lo storico non è un contorno: un target calorico
+ * cambiato senza il suo perché è un numero che nessuno può contestare, e le cose che nessuno può
+ * contestare, in clinica, sono quelle che restano sbagliate più a lungo. Fra tre mesi, davanti a una
+ * cliente ferma, la domanda è «chi le ha messo −22%, quando, e cosa aveva visto».
+ *
+ * Si salvano i valori NUOVI e quelli PRECEDENTI, ma anche il target in kcal prima e dopo: i valori
+ * dicono cosa è stato scritto, il target dice cosa è arrivato nel piatto — e non sono la stessa cosa,
+ * perché in mezzo c'è il fabbisogno, che cambia da solo quando cambia il peso.
+ *
+ * `sottoSoglia` marca le righe in cui il nutrizionista ha scavalcato di proposito la soglia minima di
+ * sicurezza. Simone ha deciso che lo può fare — è il clinico — ma che deve restare scritto e che il
+ * capo nutrizionista lo deve sapere: quelle righe aprono anche una segnalazione.
+ */
+model KcalOverride {
+  id              String   @id @default(uuid())
+  clientId        String   @map("client_id")
+  client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // I valori impostati con questa modifica. `null` = «torna al calcolo automatico».
+  deficitKcal     Int?     @map("deficit_kcal")
+  adjustPct       Float?   @map("adjust_pct")
+  // Com'erano prima: serve a leggere la riga senza dover ricostruire la catena a ritroso.
+  prevDeficitKcal Int?     @map("prev_deficit_kcal")
+  prevAdjustPct   Float?   @map("prev_adjust_pct")
+  // Le kcal/giorno davvero servite, prima e dopo. `null` se in quel momento il fabbisogno non era
+  // calcolabile (mancano sesso, età, altezza o peso): è un'informazione, non un errore.
+  targetPrima     Int?     @map("target_prima")
+  targetDopo      Int?     @map("target_dopo")
+  sottoSoglia     Boolean  @default(false) @map("sotto_soglia")
+  motivo          String
+  byStaffId       String?  @map("by_staff_id")
+  byStaff         Staff?   @relation("KcalOverrideAuthor", fields: [byStaffId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([clientId, createdAt])
+  @@map("kcal_override")
 }
 
 // --- Calendario e notifiche (milestone 6) ---

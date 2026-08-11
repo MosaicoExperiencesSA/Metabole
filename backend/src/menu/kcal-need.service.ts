@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { calcolaTargetKcal, spiegaTargetKcal } from './correzione-kcal';
 
 /**
  * Fabbisogno calorico giornaliero della cliente (kcal/giorno), stimato dal profilo.
@@ -12,6 +13,12 @@ import { PrismaService } from '../prisma/prisma.service';
  *
  * Le costanti di sicurezza (soglie, tetti) sono configurabili via config_param. I fattori di
  * attività sono costanti standard (indicati sotto) e all'occorrenza spostabili in config.
+ *
+ * ⚠️ **Il tratto finale non sta più qui.** Dal §15.5 (11/8) il nutrizionista può scrivere a mano il
+ * deficit e una correzione percentuale sul totale, e l'ordine in cui queste entrano — e quali soglie
+ * valgono ancora quando ci sono — è una regola clinica che vive in `correzione-kcal.ts`, provata per
+ * tabella. Qui si raccolgono i dati (fabbisogno, deficit dedotto, soglie, valori scritti a mano) e
+ * si passano di là. Questo servizio parla al database; quel modulo decide.
  */
 
 // Fattori di attività (PAL) per la domanda dedicata sull'attività fisica.
@@ -36,11 +43,24 @@ export interface KcalEstimate {
   activityFactor: number;
   activitySource: 'activity' | 'work' | 'default';
   tdee: number; // fabbisogno di mantenimento
-  target: number; // kcal/giorno consigliate (dopo eventuale deficit + soglie)
+  target: number; // kcal/giorno consigliate (dopo deficit, correzioni e soglie)
   deficit: number; // kcal sottratte (0 in mantenimento)
   floored: boolean; // true se ha agito la soglia minima di sicurezza
   objective: string;
   weightKg: number;
+  // --- §15.5: cosa ha scritto il nutrizionista, e cosa ne è uscito ---
+  /** Da dove viene il deficit: scritto a mano, dedotto dal motore, o nessuno. */
+  fonteDeficit: 'imposto' | 'calcolato' | 'nessuno';
+  /** Il deficit che il motore avrebbe usato da solo: serve a mostrare il «prima» accanto al «dopo». */
+  deficitCalcolato: number;
+  /** La correzione percentuale sul totale, 0 se non impostata. */
+  correzionePct: number;
+  /** Il target sta SOTTO la soglia minima, per scelta esplicita del nutrizionista. */
+  sottoSoglia: boolean;
+  /** Il tetto ha tagliato il deficit dedotto (succede solo su quello dedotto). */
+  tettoApplicato: boolean;
+  /** La frase che spiega il numero, già pronta per la scheda e per lo storico. */
+  spiegazione: string;
 }
 
 @Injectable()
@@ -56,8 +76,17 @@ export class KcalNeedService {
     return est ? est.target : null;
   }
 
-  /** Stima completa (per backoffice/diagnostica). Null se mancano sesso/età/altezza/peso. */
-  async estimate(clientId: string): Promise<KcalEstimate | null> {
+  /**
+   * Stima completa (per backoffice/diagnostica). Null se mancano sesso/età/altezza/peso.
+   *
+   * `simulazione` serve al backoffice PRIMA di salvare: «se scrivo 450 di deficit, che numero le
+   * arriva nel piatto?». Senza, l'unico modo di saperlo sarebbe salvare e guardare — cioè scoprire
+   * di aver messo una cliente a 980 kcal dopo averla messa a 980 kcal.
+   */
+  async estimate(
+    clientId: string,
+    simulazione?: { deficitImposto?: number | null; correzionePct?: number | null },
+  ): Promise<KcalEstimate | null> {
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile) return null;
     const sex = profile.sex as 'female' | 'male' | null;
@@ -103,36 +132,42 @@ export class KcalNeedService {
     const tdee = bmr * activityFactor;
     const objective = profile.objective ?? 'dimagrimento';
 
-    // Deficit solo in dimagrimento.
-    let deficit = 0;
+    // Deficit dedotto, SENZA tetti: i tetti li mette `calcolaTargetKcal`, perché è lì che si sa se
+    // il deficit è dedotto o prescritto — e su quello prescritto non vanno messi.
+    let deficitCalcolato = 0;
     if (objective !== 'mantenimento') {
       const rateDeficit = await this.deficitFromObjectiveRate(clientId, weightKg, kcalPerKg);
       // Se non ho un ritmo valido dall'obiettivo, uso un deficit di default (percentuale del TDEE).
-      deficit = rateDeficit != null ? rateDeficit : tdee * defaultDeficitPct;
-      // Tetto: non oltre X% del TDEE, e non oltre un tetto assoluto in kcal.
-      deficit = Math.min(deficit, tdee * deficitMaxPct, deficitMaxKcal);
-      deficit = Math.max(0, deficit);
+      deficitCalcolato = Math.max(0, rateDeficit != null ? rateDeficit : tdee * defaultDeficitPct);
     }
 
-    let target = tdee - deficit;
-    // Soglia minima di sicurezza per sesso.
-    const floor = sex === 'male' ? floorM : floorF;
-    let floored = false;
-    if (target < floor) {
-      target = floor;
-      floored = true;
-    }
+    const p = profile as { kcalDeficitOverride?: number | null; kcalAdjustPct?: number | null };
+    const esito = calcolaTargetKcal({
+      tdee,
+      deficitCalcolato,
+      deficitImposto: simulazione ? simulazione.deficitImposto ?? null : p.kcalDeficitOverride ?? null,
+      correzionePct: simulazione ? simulazione.correzionePct ?? null : p.kcalAdjustPct ?? null,
+      soglia: sex === 'male' ? floorM : floorF,
+      tettoDeficitPct: deficitMaxPct,
+      tettoDeficitKcal: deficitMaxKcal,
+    });
 
     return {
       bmr: Math.round(bmr),
       activityFactor,
       activitySource,
       tdee: Math.round(tdee),
-      target: Math.round(target / 10) * 10, // arrotondato a 10 kcal
-      deficit: Math.round(deficit),
-      floored,
+      target: esito.target,
+      deficit: esito.deficit,
+      floored: esito.sogliaApplicata,
       objective,
       weightKg,
+      fonteDeficit: esito.fonteDeficit,
+      deficitCalcolato: Math.round(deficitCalcolato),
+      correzionePct: esito.correzionePct,
+      sottoSoglia: esito.sottoSoglia,
+      tettoApplicato: esito.tettoApplicato,
+      spiegazione: spiegaTargetKcal(esito, tdee),
     };
   }
 

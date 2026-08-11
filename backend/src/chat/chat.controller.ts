@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import {
   IsIn,
   IsInt,
@@ -222,5 +222,18 @@ export class ThreadsController {
     @Body() dto: SendMessageDto,
   ) {
     return this.chat.postMessage(user, id, dto.body);
+  }
+
+  /**
+   * Cancella un proprio messaggio. Chi lo può fare è deciso nel servizio, ed è **solo l'autore**:
+   * qui non c'è nessun `@Roles`, perché la regola non dipende dal ruolo ma da chi ha scritto.
+   */
+  @Delete(':id/messages/:messageId')
+  elimina(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.chat.eliminaMessaggio(user, id, messageId);
   }
 }

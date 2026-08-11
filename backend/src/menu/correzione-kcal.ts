@@ -1,0 +1,177 @@
+/**
+ * LE CALORIE SCRITTE A MANO DAL NUTRIZIONISTA — dove si inseriscono nel calcolo, e in che ordine.
+ *
+ * Fin qui il target calorico della giornata usciva tutto da una formula: Mifflin per il metabolismo
+ * basale, per il fattore di attività, meno un deficit dedotto dal ritmo dell'obiettivo (o il 15% di
+ * default), con tetti e un pavimento di sicurezza. Nessun posto in cui il nutrizionista potesse
+ * dire «per questa cliente no».
+ *
+ * Ma il fabbisogno stimato è una **stima**: la formula non sa che quella cliente ha una tiroide che
+ * ha fatto storia, che dichiara un'attività che non fa, o che a 1600 kcal si è fermata per tre
+ * settimane. Chi lo sa è chi la segue. Da qui le due leve, decise da Simone l'11/8:
+ *
+ * 1. **il deficit imposto** (kcal/giorno) — sostituisce quello dedotto dal ritmo dell'obiettivo.
+ *    È la leva clinica vera: il deficit è la cosa che si prescrive. Resta agganciato al fabbisogno,
+ *    quindi se la cliente cala di peso il TDEE scende e le calorie scendono con lui, da sole;
+ * 2. **la correzione percentuale** sul totale — un ritocco fine, dopo il deficit. Serve quando il
+ *    ragionamento è giusto ma il risultato, sulla persona vera, è un po' alto o un po' basso.
+ *
+ * ## L'ORDINE, che è tutto
+ *
+ *     TDEE  −  deficit (imposto ▸ altrimenti calcolato, con i tetti)  =  target
+ *     target  ×  (1 + correzione%)                                    =  target corretto
+ *     e infine il pavimento di sicurezza
+ *
+ * La correzione va **dopo** il deficit e **prima** del pavimento. Se andasse prima del deficit
+ * sarebbe una seconda percentuale sul fabbisogno e i due numeri si moltiplicherebbero fra loro
+ * senza che nessuno se ne accorga; se andasse dopo il pavimento potrebbe scendere sotto la soglia
+ * di sicurezza per strada e nessuno lo saprebbe, perché il pavimento avrebbe già dato il suo ok.
+ *
+ * ## I TETTI E IL PAVIMENTO, e chi li può scavalcare
+ *
+ * I tetti (max 30% del fabbisogno, max 1000 kcal) esistono per proteggere dal calcolo, non dal
+ * nutrizionista: si applicano al deficit **calcolato**, non a quello scritto a mano. Se il motore
+ * deduce dal ritmo dell'obiettivo un deficit di 1400 kcal/giorno, quello è un obiettivo irreale
+ * scritto in fase di onboarding, e va tagliato. Se lo scrive un clinico, l'ha scritto un clinico.
+ *
+ * Il pavimento funziona allo stesso modo, e qui la decisione di Simone è esplicita: **il
+ * nutrizionista lo può scavalcare, ma resta scritto**. Quindi:
+ * - senza nessun valore a mano → il pavimento **alza** il target e basta (`sogliaApplicata`);
+ * - con un valore a mano → il risultato **passa com'è** e si accende `sottoSoglia`, che chi chiama
+ *   usa per registrare il motivo nello storico e aprire la segnalazione al capo nutrizionista.
+ *
+ * `sottoSoglia` non è un errore: è una cosa da dire a qualcuno. La differenza fra le due è tutta
+ * qui, ed è la ragione per cui questo modulo restituisce un esito descritto invece di un numero.
+ *
+ * Modulo **puro**: nessun accesso al database, così la regola si prova per tabella.
+ */
+
+/**
+ * Sotto questo valore non è una scelta clinica, è un errore di battitura (un `50` al posto di un
+ * `500`, uno zero di troppo nella correzione). Non è la soglia di sicurezza — quella è
+ * `kcal_need_floor_*` e il nutrizionista la può scavalcare di proposito. Questo è il limite oltre
+ * il quale il numero **non vuol dire niente**, e nessuno lo scavalca perché nessuno lo intende.
+ */
+export const LIMITE_ASSOLUTO_KCAL = 500;
+
+export interface IngressoCalcoloKcal {
+  /** Fabbisogno di mantenimento (Mifflin × fattore di attività). */
+  tdee: number;
+  /** Il deficit dedotto dal motore: dal ritmo dell'obiettivo, o la percentuale di default. */
+  deficitCalcolato: number;
+  /** Scritto dal nutrizionista, kcal/giorno. `null` = si usa quello calcolato. */
+  deficitImposto?: number | null;
+  /** Scritta dal nutrizionista: −10 significa «togli il 10%». `null` o 0 = nessuna correzione. */
+  correzionePct?: number | null;
+  /** Pavimento di sicurezza per sesso (`kcal_need_floor_female` / `_male`). */
+  soglia: number;
+  /** Tetto del deficit **calcolato**, in frazione del fabbisogno (0.3 = 30%). */
+  tettoDeficitPct: number;
+  /** Tetto del deficit **calcolato**, in kcal/giorno assolute. */
+  tettoDeficitKcal: number;
+}
+
+export interface EsitoCalcoloKcal {
+  /** Le kcal/giorno da dare al generatore, arrotondate a 10. */
+  target: number;
+  /** Il deficit davvero applicato. */
+  deficit: number;
+  /** Da dove viene: scritto a mano, dedotto dal motore, o nessuno (mantenimento). */
+  fonteDeficit: 'imposto' | 'calcolato' | 'nessuno';
+  /** La correzione applicata, 0 se non impostata. */
+  correzionePct: number;
+  /** Il tetto ha tagliato il deficit calcolato. */
+  tettoApplicato: boolean;
+  /** Il pavimento ha ALZATO il target (succede solo senza valori a mano). */
+  sogliaApplicata: boolean;
+  /** C'è un valore a mano e il risultato sta SOTTO il pavimento: va detto a qualcuno. */
+  sottoSoglia: boolean;
+  /** Il limite anti-refuso ha alzato il target: qualcuno ha scritto un numero che non sta in piedi. */
+  limiteAssolutoApplicato: boolean;
+}
+
+/** Vero se per questa cliente c'è almeno un valore scritto a mano dal nutrizionista. */
+export function haCorrezioniAMano(deficitImposto?: number | null, correzionePct?: number | null): boolean {
+  return (deficitImposto != null && deficitImposto > 0) || (correzionePct != null && correzionePct !== 0);
+}
+
+/**
+ * Il target calorico del giorno, con le correzioni del nutrizionista al loro posto.
+ *
+ * `deficitCalcolato` arriva **senza tetti**: i tetti li mette questa funzione, perché è qui che si
+ * sa se il deficit è dedotto o prescritto — e sul prescritto non vanno messi.
+ */
+export function calcolaTargetKcal(input: IngressoCalcoloKcal): EsitoCalcoloKcal {
+  const correzionePct = input.correzionePct ?? 0;
+  const imposto = input.deficitImposto != null && input.deficitImposto > 0 ? input.deficitImposto : null;
+  const aMano = haCorrezioniAMano(input.deficitImposto, input.correzionePct);
+
+  let deficit: number;
+  let fonteDeficit: EsitoCalcoloKcal['fonteDeficit'];
+  let tettoApplicato = false;
+
+  if (imposto != null) {
+    // Prescritto da un clinico: nessun tetto. Se è alto, è alto perché l'ha deciso lui.
+    deficit = imposto;
+    fonteDeficit = 'imposto';
+  } else if (input.deficitCalcolato > 0) {
+    const tagliato = Math.min(input.deficitCalcolato, input.tdee * input.tettoDeficitPct, input.tettoDeficitKcal);
+    tettoApplicato = tagliato < input.deficitCalcolato;
+    deficit = Math.max(0, tagliato);
+    fonteDeficit = 'calcolato';
+  } else {
+    deficit = 0;
+    fonteDeficit = 'nessuno';
+  }
+
+  // 1) il deficit, 2) la correzione sul totale.
+  let target = input.tdee - deficit;
+  if (correzionePct !== 0) target = target * (1 + correzionePct / 100);
+
+  // 3) il pavimento: alza da solo se non c'è niente scritto a mano, altrimenti si limita a dirlo.
+  let sogliaApplicata = false;
+  let sottoSoglia = false;
+  if (target < input.soglia) {
+    if (aMano) sottoSoglia = true;
+    else {
+      target = input.soglia;
+      sogliaApplicata = true;
+    }
+  }
+
+  // 4) il limite anti-refuso, che vale per tutti e sempre.
+  let limiteAssolutoApplicato = false;
+  if (target < LIMITE_ASSOLUTO_KCAL) {
+    target = LIMITE_ASSOLUTO_KCAL;
+    limiteAssolutoApplicato = true;
+  }
+
+  return {
+    target: Math.round(target / 10) * 10,
+    deficit: Math.round(deficit),
+    fonteDeficit,
+    correzionePct,
+    tettoApplicato,
+    sogliaApplicata,
+    sottoSoglia,
+    limiteAssolutoApplicato,
+  };
+}
+
+/**
+ * La frase che spiega il numero, per la scheda cliente e per lo storico.
+ *
+ * Un target calorico senza il suo perché è un numero che nessuno può contestare — e le cose che
+ * nessuno può contestare, in clinica, sono quelle che restano sbagliate più a lungo.
+ */
+export function spiegaTargetKcal(e: EsitoCalcoloKcal, tdee: number): string {
+  const parti: string[] = [`fabbisogno ${Math.round(tdee)} kcal`];
+  if (e.fonteDeficit === 'imposto') parti.push(`deficit imposto dal nutrizionista ${e.deficit} kcal`);
+  else if (e.fonteDeficit === 'calcolato') parti.push(`deficit calcolato ${e.deficit} kcal${e.tettoApplicato ? ' (tagliato dal tetto di sicurezza)' : ''}`);
+  else parti.push('nessun deficit (mantenimento)');
+  if (e.correzionePct !== 0) parti.push(`correzione del nutrizionista ${e.correzionePct > 0 ? '+' : ''}${e.correzionePct}%`);
+  if (e.sogliaApplicata) parti.push('alzato alla soglia minima di sicurezza');
+  if (e.sottoSoglia) parti.push('⚠️ SOTTO la soglia minima di sicurezza, per scelta del nutrizionista');
+  if (e.limiteAssolutoApplicato) parti.push(`⚠️ alzato al limite assoluto di ${LIMITE_ASSOLUTO_KCAL} kcal: il valore scritto non sta in piedi`);
+  return `${e.target} kcal/giorno — ${parti.join(', ')}.`;
+}

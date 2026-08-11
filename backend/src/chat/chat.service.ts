@@ -216,8 +216,10 @@ export class ChatService {
         })
         .catch(() => undefined);
     }
+    // `deletedAt: null` — i messaggi cancellati dal loro autore spariscono da TUTTE le letture,
+    // cliente e staff. Restano in tabella (vedi `model Message`): non si vedono, non si perdono.
     return this.prisma.message.findMany({
-      where: { threadId },
+      where: { threadId, deletedAt: null },
       orderBy: { sentAt: 'asc' },
       take: 200,
     });
@@ -232,7 +234,8 @@ export class ChatService {
     const threads = await this.prisma.chatThread.findMany({
       where: { clientId },
       orderBy: { counterpart: 'asc' },
-      include: { _count: { select: { messages: true } } },
+      // Il contatore conta quello che si vede: un thread con 23 messaggi di cui 3 cancellati ne ha 20.
+      include: { _count: { select: { messages: { where: { deletedAt: null } } } } },
     });
     const nomi: Record<string, string> = {
       ai: 'Gaia (assistente)',
@@ -382,6 +385,53 @@ export class ChatService {
       });
     }
     return { message };
+  }
+
+  /**
+   * CANCELLA UN MESSAGGIO — solo il suo autore.
+   *
+   * Richiesta di Simone (11/8): «chi scrive il messaggio deve poterlo cancellare».
+   *
+   * **Solo l'autore, e nessun'altra regola.** Non il capo, non l'admin: il senso della cosa è
+   * rimediare a quello che si è scritto per sbaglio, non moderare quello che ha scritto un altro.
+   * Un capo che cancella il messaggio di una collega dentro la conversazione con una paziente è una
+   * funzione diversa, con conseguenze diverse, e non è questa.
+   *
+   * **Morbida e non definitiva** (vedi `model Message`): sparisce da tutte le letture, resta in
+   * tabella. In una conversazione clinica quello che è stato detto è stato detto, e la cliente può
+   * averlo già letto: se un domani si deve ricostruire cosa le è stato consigliato, la riga serve.
+   */
+  async eliminaMessaggio(user: AuthUser, threadId: string, messageId: string) {
+    const thread = await this.getThread(threadId);
+    // Lo stesso cancello della lettura: non si cancella dentro un thread a cui non si ha accesso.
+    await this.assertThreadAccess(user, thread, 'read');
+
+    const msg = (await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, threadId: true, senderUserId: true, deletedAt: true },
+    })) as { id: string; threadId: string; senderUserId: string | null; deletedAt: Date | null } | null;
+    if (!msg || msg.threadId !== threadId) throw new NotFoundException('Messaggio non trovato');
+    // Già cancellato: si risponde ok invece che con un errore. Chi ha cliccato due volte voleva la
+    // stessa cosa tutte e due le volte, e un errore qui sembrerebbe che la prima non sia riuscita.
+    if (msg.deletedAt) return { ok: true, giaCancellato: true };
+    if (!msg.senderUserId || msg.senderUserId !== user.sub) {
+      throw new ForbiddenException('Si può cancellare solo un messaggio scritto da sé.');
+    }
+
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date(), deletedById: user.sub } as never,
+    });
+    await this.audit
+      .log({
+        action: 'chat.message_deleted',
+        actorId: user.sub,
+        entityType: 'message',
+        entityId: messageId,
+        metadata: { threadId, clientId: thread.clientId, counterpart: thread.counterpart },
+      })
+      .catch(() => undefined);
+    return { ok: true, giaCancellato: false };
   }
 
   /** Filtro AI: FAQ → risposta; sensibile → escalation; altro → inoltro a coach/nutrizionista. */

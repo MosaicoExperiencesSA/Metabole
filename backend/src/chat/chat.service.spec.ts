@@ -885,3 +885,92 @@ describe('ChatService — la domanda nutrizionale con la banca dati', () => {
     expect(valori.schedaPerRisposta).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * «Chi scrive il messaggio deve poterlo cancellare» (Simone, 11/8).
+ *
+ * Il test guarda DUE cose: chi può (solo l'autore) e cosa resta (la riga, che non viene distrutta).
+ * La seconda è la parte che si perde per prima quando qualcuno, un domani, "semplificherà" questa
+ * funzione in un `delete`.
+ */
+describe('ChatService.eliminaMessaggio', () => {
+  const montaConMessaggio = async (msg: Record<string, unknown>) => {
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const prisma: any = {
+      chatThread: { findUnique: jest.fn().mockResolvedValue({ id: 'th-1', clientId: 'client-1', counterpart: 'nutritionist' }) },
+      message: { findUnique: jest.fn().mockResolvedValue(msg), update: jest.fn().mockResolvedValue({}) },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          assignedCoachId: 'staff-c', assignedNutritionistId: 'staff-n',
+          assignedCoach: { userId: 'coach-user', displayName: 'Marta' },
+          assignedNutritionist: { userId: 'nutri-user', displayName: 'Dr.ssa Bini' },
+        }),
+      },
+      // La nutrizionista dei test È quella assegnata: senza questo la scheda staff manca e
+      // `assertThreadAccess` ferma tutto prima ancora di arrivare alla regola che si vuole provare.
+      staff: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-n', userId: 'nutri-user' }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const mod = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AiService, useValue: { chat: jest.fn() } },
+        { provide: AuditService, useValue: audit },
+        { provide: NotificationsService, useValue: { notifyOncePerDay: jest.fn(), notify: jest.fn() } },
+        { provide: SostituzioneChatService, useValue: {} },
+        { provide: DataInizioChatService, useValue: {} },
+        { provide: ValoriNutrizionaliService, useValue: {} },
+      ],
+    }).compile();
+    return { service: mod.get(ChatService), prisma, audit };
+  };
+
+  it('l’autore cancella il suo: nessun DELETE, solo deletedAt e chi è stato', async () => {
+    const { service, prisma, audit } = await montaConMessaggio({
+      id: 'm1', threadId: 'th-1', senderUserId: 'nutri-user', deletedAt: null,
+    });
+    const res = await service.eliminaMessaggio(nutri, 'th-1', 'm1');
+    expect(res).toEqual({ ok: true, giaCancellato: false });
+    // Morbida: la conversazione clinica non si distrugge, si nasconde.
+    expect(prisma.message.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'm1' }, data: expect.objectContaining({ deletedById: 'nutri-user' }) }),
+    );
+    expect((prisma.message.update as jest.Mock).mock.calls[0][0].data.deletedAt).toBeInstanceOf(Date);
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'chat.message_deleted' }));
+  });
+
+  it('il messaggio di un ALTRO non si tocca — nemmeno dall’admin', async () => {
+    const { service, prisma } = await montaConMessaggio({
+      id: 'm1', threadId: 'th-1', senderUserId: 'nutri-user', deletedAt: null,
+    });
+    // Moderare quello che ha scritto una collega è un'altra funzione, con altre conseguenze.
+    await expect(service.eliminaMessaggio(admin, 'th-1', 'm1')).rejects.toThrow(ForbiddenException);
+    expect(prisma.message.update).not.toHaveBeenCalled();
+  });
+
+  it('cancellare due volte non è un errore: chi ha cliccato due volte voleva la stessa cosa', async () => {
+    const { service, prisma } = await montaConMessaggio({
+      id: 'm1', threadId: 'th-1', senderUserId: 'nutri-user', deletedAt: new Date(),
+    });
+    expect(await service.eliminaMessaggio(nutri, 'th-1', 'm1')).toEqual({ ok: true, giaCancellato: true });
+    expect(prisma.message.update).not.toHaveBeenCalled();
+  });
+
+  it('un messaggio di un altro thread non si cancella passando dall’id sbagliato', async () => {
+    const { service } = await montaConMessaggio({
+      id: 'm1', threadId: 'th-ALTRO', senderUserId: 'nutri-user', deletedAt: null,
+    });
+    await expect(service.eliminaMessaggio(nutri, 'th-1', 'm1')).rejects.toThrow('non trovato');
+  });
+
+  it('le letture NON mostrano i cancellati: sparisce per tutti, non solo per chi l’ha scritto', async () => {
+    const { service, prisma } = await montaConMessaggio({ id: 'm1', threadId: 'th-1', senderUserId: 'x', deletedAt: null });
+    prisma.message.findMany = jest.fn().mockResolvedValue([]);
+    await service.listMessages(nutri, 'th-1');
+    expect((prisma.message.findMany as jest.Mock).mock.calls[0][0].where).toMatchObject({ deletedAt: null });
+  });
+});

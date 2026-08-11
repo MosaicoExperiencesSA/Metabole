@@ -13,6 +13,10 @@ import {
   isCausa,
 } from '../engine/causa-decisione';
 import { filtroClienteConPianoAttivo } from '../common/piano-attivo';
+import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
+import { apriSegnalazione } from '../escalations/apri-segnalazione';
+import { KcalNeedService } from '../menu/kcal-need.service';
+import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY = 86_400_000;
@@ -58,6 +62,10 @@ export class NutritionistService {
     private readonly engine: EngineService,
     private readonly personalBase: PersonalBaseService,
     private readonly audit: AuditService,
+    // §15.5: il fabbisogno lo calcola chi lo calcola per il menu. Rifarlo qui vorrebbe dire avere
+    // due formule che devono restare uguali per sempre — cioè, prima o poi, due numeri diversi.
+    private readonly kcalNeed: KcalNeedService,
+    private readonly menu: MenuService,
   ) {}
 
   private isSupervisor(user: AuthUser): boolean {
@@ -648,6 +656,210 @@ export class NutritionistService {
     // I giorni ripartono al primo giro di erogazione utile, con i cancelli di sempre (misure,
     // finestra, fine piano): sbloccare non salta nessun controllo, rimuove solo questo.
     return { ok: true };
+  }
+
+  // ---------- §15.5 — Le calorie scritte a mano dal nutrizionista ----------
+
+  /**
+   * Il paziente, se questo utente lo può toccare. Stessa regola di `decisionePermessa`, ma partendo
+   * dalla cliente invece che dalla decisione: il capo e l'admin vedono tutti, la nutrizionista solo
+   * i suoi. Estratta perché da qui in avanti le operazioni sulla cliente sono più d'una, e una
+   * regola di accesso copiata due volte è una regola che prima o poi diverge.
+   */
+  private async clientePermesso(user: AuthUser, clientId: string): Promise<void> {
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { assignedNutritionistId: true },
+    })) as { assignedNutritionistId: string | null } | null;
+    if (!profilo) throw new NotFoundException('Profilo non trovato');
+    if (this.isSupervisor(user)) return;
+    const staffId = await this.staffId(user.sub);
+    if (!staffId || profilo.assignedNutritionistId !== staffId) {
+      throw new ForbiddenException('Paziente non assegnato: operazione non consentita');
+    }
+  }
+
+  /**
+   * Il quadro calorico di una cliente: com'è composto il numero di oggi, cosa c'è scritto a mano, e
+   * tutte le volte che è stato cambiato.
+   *
+   * Lo storico esce insieme al valore corrente di proposito. Il valore da solo dice «−22%» e non
+   * dice niente: la domanda vera, davanti a una cliente ferma da un mese, è **chi** l'ha messo,
+   * **quando** e **cosa aveva visto**.
+   */
+  async kcalCliente(user: AuthUser, clientId: string) {
+    await this.clientePermesso(user, clientId);
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { kcalDeficitOverride: true, kcalAdjustPct: true },
+    })) as { kcalDeficitOverride: number | null; kcalAdjustPct: number | null } | null;
+
+    // `null` quando mancano sesso, età, altezza o peso: senza quei quattro dati il fabbisogno non si
+    // calcola, e mostrare uno zero al posto di un «non lo so» sarebbe peggio che non mostrarlo.
+    const stima = await this.kcalNeed.estimate(clientId);
+    const storico = (await this.prisma.kcalOverride.findMany({
+      where: { clientId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { byStaff: { select: { displayName: true } } },
+    })) as unknown[];
+
+    return {
+      valori: {
+        deficitKcal: profilo?.kcalDeficitOverride ?? null,
+        correzionePct: profilo?.kcalAdjustPct ?? null,
+      },
+      stima,
+      storico,
+    };
+  }
+
+  /**
+   * Cosa succederebbe se scrivessi questi numeri — SENZA salvarli.
+   *
+   * Serve alla scheda mentre il nutrizionista digita. Senza, l'unico modo di sapere che «deficit
+   * 900» porta la cliente a 1000 kcal sarebbe salvare e guardare: cioè scoprire di averla messa a
+   * 1000 kcal dopo averla messa a 1000 kcal.
+   */
+  async simulaKcal(user: AuthUser, clientId: string, deficitKcal?: number | null, correzionePct?: number | null) {
+    await this.clientePermesso(user, clientId);
+    const prima = await this.kcalNeed.estimate(clientId);
+    const dopo = await this.kcalNeed.estimate(clientId, {
+      deficitImposto: deficitKcal ?? null,
+      correzionePct: correzionePct ?? null,
+    });
+    return { prima, dopo };
+  }
+
+  /**
+   * SCRIVE le calorie a mano, con il motivo, e ne tiene traccia.
+   *
+   * Le decisioni di Simone dell'11/8, tutte e tre nel codice:
+   *
+   * 1. **due leve**: il deficit imposto (kcal/giorno) e la correzione percentuale sul totale.
+   *    Azzerarle entrambe = si torna al calcolo automatico, ed è una modifica come le altre: va nello
+   *    storico anche il ritorno indietro, perché «chi gliele ha tolte» è una domanda che si fa;
+   * 2. **il motivo è obbligatorio.** Un target calorico cambiato senza il suo perché è un numero che
+   *    nessuno può contestare, e in clinica le cose che nessuno può contestare restano sbagliate più
+   *    a lungo;
+   * 3. **la soglia minima di sicurezza si può scavalcare, ma non per sbaglio.** Il primo tentativo
+   *    che finisce sotto la soglia viene RIFIUTATO, con dentro il numero a cui si arriverebbe; serve
+   *    un secondo invio con `confermaSottoSoglia`. Chi va sotto lo fa sapendo dove va. Quando
+   *    succede resta scritto nello storico, si apre una segnalazione e i capi nutrizionisti ricevono
+   *    la notizia — perché Simone ha detto che lo devono sapere, non che lo possono cercare.
+   */
+  async impostaKcal(
+    user: AuthUser,
+    clientId: string,
+    input: { deficitKcal?: number | null; correzionePct?: number | null; motivo: string; confermaSottoSoglia?: boolean },
+  ) {
+    await this.clientePermesso(user, clientId);
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { kcalDeficitOverride: true, kcalAdjustPct: true, name: true },
+    })) as { kcalDeficitOverride: number | null; kcalAdjustPct: number | null; name: string | null } | null;
+    if (!profilo) throw new NotFoundException('Profilo non trovato');
+
+    // 0 e null vogliono dire la stessa cosa — «non impostato» — e tenerli entrambi sarebbe un modo
+    // per farli divergere: si normalizza qui, una volta, invece che in ogni lettura.
+    const deficitKcal = input.deficitKcal != null && input.deficitKcal > 0 ? Math.round(input.deficitKcal) : null;
+    const correzionePct = input.correzionePct != null && input.correzionePct !== 0 ? input.correzionePct : null;
+
+    if (deficitKcal === profilo.kcalDeficitOverride && correzionePct === profilo.kcalAdjustPct) {
+      throw new BadRequestException('I valori sono già questi: non c’è niente da cambiare.');
+    }
+
+    const prima = await this.kcalNeed.estimate(clientId);
+    const dopo = await this.kcalNeed.estimate(clientId, { deficitImposto: deficitKcal, correzionePct });
+
+    if (dopo?.sottoSoglia && !input.confermaSottoSoglia) {
+      throw new BadRequestException(
+        `Con questi valori il menu scenderebbe a ${dopo.target} kcal/giorno, sotto la soglia minima di ` +
+          'sicurezza. Puoi farlo — il clinico sei tu — ma la conferma va data in modo esplicito: ' +
+          'resterà scritto nello storico e i capi nutrizionisti ne saranno informati.',
+      );
+    }
+
+    await this.prisma.clientProfile.update({
+      where: { userId: clientId },
+      data: { kcalDeficitOverride: deficitKcal, kcalAdjustPct: correzionePct } as never,
+    });
+
+    const staffId = await this.staffId(user.sub);
+    await this.prisma.kcalOverride.create({
+      data: {
+        clientId,
+        deficitKcal,
+        adjustPct: correzionePct,
+        prevDeficitKcal: profilo.kcalDeficitOverride,
+        prevAdjustPct: profilo.kcalAdjustPct,
+        targetPrima: prima?.target ?? null,
+        targetDopo: dopo?.target ?? null,
+        sottoSoglia: !!dopo?.sottoSoglia,
+        motivo: input.motivo,
+        byStaffId: staffId,
+      } as never,
+    });
+
+    await this.audit.log({
+      action: 'nutritionist.kcal.set',
+      actorId: user.sub,
+      entityType: 'client_profile',
+      entityId: clientId,
+      metadata: {
+        deficitKcal,
+        correzionePct,
+        motivo: input.motivo,
+        targetPrima: prima?.target ?? null,
+        targetDopo: dopo?.target ?? null,
+        sottoSoglia: !!dopo?.sottoSoglia,
+      },
+    });
+
+    if (dopo?.sottoSoglia) {
+      const chi = profilo.name ?? clientId;
+      await apriSegnalazione(this.prisma as never, {
+        clientId,
+        category: 'other',
+        reason:
+          `Calorie sotto la soglia di sicurezza: ${dopo.target} kcal/giorno, impostate a mano dal ` +
+          `nutrizionista. Motivo: «${input.motivo}».`,
+        source: 'engine',
+        // NIENTE dedupe: ogni discesa sotto la soglia è una decisione nuova, con un motivo nuovo.
+        // Accorparla alla precedente vorrebbe dire perdere proprio la riga che serve.
+        dedupe: false,
+      }).catch(() => undefined);
+      await avvisaCapiNutrizionisti(
+        this.prisma,
+        null,
+        {
+          type: 'kcal_sotto_soglia',
+          title: 'Calorie sotto la soglia di sicurezza',
+          body: `${chi}: ${dopo.target} kcal/giorno. Motivo: «${input.motivo}».`,
+          payload: { clientId, target: dopo.target },
+        },
+        // Se a scriverle è stato un capo, non gli si notifica quello che ha appena fatto lui.
+        user.sub,
+      );
+    }
+
+    // I giorni futuri già consegnati sono ancora sulle calorie vecchie: si rigenerano. Senza
+    // rischiare di lasciarla a mani vuote, però — se la rierogazione non produce niente (misure
+    // mancanti, fine piano) `redeliverFutureDays` rimette i giorni com'erano e lo dice in
+    // `ripristinati`, così chi ha fatto la modifica sa che nel piatto non è ancora arrivata.
+    const menu = await this.menu
+      .redeliverFutureDays(clientId)
+      .catch(() => ({ removed: 0, delivered: [] as string[], ripristinati: 0 }));
+
+    return {
+      ok: true,
+      valori: { deficitKcal, correzionePct },
+      targetPrima: prima?.target ?? null,
+      targetDopo: dopo?.target ?? null,
+      sottoSoglia: !!dopo?.sottoSoglia,
+      spiegazione: dopo?.spiegazione ?? null,
+      menu,
+    };
   }
 
   /** La decisione, se questo utente può toccarla. Stessa regola di `reviewDecision`, in un posto solo. */

@@ -51,7 +51,7 @@ Il prodotto è **in produzione con clienti vere** (~45), su tre superfici: backe
 app e backoffice su Vercel, app nativa iOS/Android con aggiornamenti OTA self-hosted. Ultima OTA
 pubblicata: **2.1.6** (11/8), verificata sul manifest — vedi §5.1.
 
-Stato tecnico all'ultimo commit: **1578 test backend verdi** (104 suite), **27 test app**, type-check a
+Stato tecnico all'ultimo commit: **1611 test backend verdi** (105 suite), **27 test app**, type-check a
 **ZERO errori**, backoffice e app che compilano. Le migrazioni girano da sole a ogni deploy
 (`preDeployCommand`), il seed dopo di esse.
 
@@ -688,7 +688,22 @@ il 9/8 ha pubblicato `lovcarbciccio`).
 - Se il generatore o uno script rende incompleta una dieta già visibile → **la nasconde e avvisa**
   (`clientVisible` torna a false da sé).
 
-### 15.5 La correzione calorica la fa il nutrizionista, in percentuale — e sostituisce il livello 2
+### 15.5 La correzione calorica la fa il nutrizionista — ✅ FATTA l'11/8
+
+> **✅ IMPLEMENTATA**, e più larga di com'era scritta qui sotto. Simone ha chiesto anche il **deficit**
+> modificabile e lo **storico** delle modifiche, e ha scelto **due leve invece di una**: il deficit
+> imposto in kcal/giorno *e* la correzione percentuale sul totale. Sulle soglie di sicurezza ha
+> deciso che **il nutrizionista le può scavalcare, ma resta scritto** (storico + segnalazione +
+> avviso ai capi).
+>
+> Dove sta: la regola in `menu/correzione-kcal.ts` (17 test), i campi su `ClientProfile`
+> (`kcalDeficitOverride`, `kcalAdjustPct`), lo storico nella tabella `kcal_override`, le API in
+> `nutritionist.controller` (`GET|POST /nutritionist/clients/:id/kcal`, `POST .../kcal/simula`), e
+> la scheda cliente in backoffice con anteprima mentre si digita.
+>
+> ⚠️ **Verificato su Render prima di scrivere il codice** (era la condizione posta qui sotto):
+> `menu_kcal_need_enabled` non ha righe né in `config_param` né in `product_rule`, quindi vale il
+> default del codice, che è **acceso**. Il campo non è inerte.
 
 Decisione di Simone dell'11/8, presa dopo la verifica su Render che ha chiuso la voce 15.2 punto 1.
 

@@ -273,39 +273,225 @@ function EditCard({ form, setForm, lockDietType, lockFasting }: { form: Record<s
 interface KcalNeed {
   bmr: number; tdee: number; target: number; deficit: number; floored: boolean;
   activityFactor: number; activitySource: 'activity' | 'work' | 'default'; objective: string; weightKg: number;
+  fonteDeficit?: 'imposto' | 'calcolato' | 'nessuno';
+  deficitCalcolato?: number; correzionePct?: number; sottoSoglia?: boolean; spiegazione?: string;
 }
-function KcalNeedCard({ clientId }: { clientId: string }) {
-  const [data, setData] = useState<KcalNeed | null | 'none'>(null);
-  useEffect(() => {
-    if (!clientId) return;
-    api<KcalNeed | null>(`/admin/clients/${clientId}/kcal-need`)
-      .then((r) => setData(r ?? 'none'))
-      .catch(() => setData('none'));
-  }, [clientId]);
+/** Una riga dello storico: chi ha cambiato le calorie, quando, da quanto a quanto e perché. */
+interface KcalStorico {
+  id: string;
+  deficitKcal: number | null; adjustPct: number | null;
+  prevDeficitKcal: number | null; prevAdjustPct: number | null;
+  targetPrima: number | null; targetDopo: number | null;
+  sottoSoglia: boolean; motivo: string; createdAt: string;
+  byStaff?: { displayName: string } | null;
+}
+interface KcalQuadro {
+  valori: { deficitKcal: number | null; correzionePct: number | null };
+  stima: KcalNeed | null;
+  storico: KcalStorico[];
+}
 
-  const SRC: Record<string, string> = { activity: 'attività dichiarata', work: 'tipo di lavoro', default: 'stima predefinita' };
+const SRC_ATTIVITA: Record<string, string> = { activity: 'attività dichiarata', work: 'tipo di lavoro', default: 'stima predefinita' };
+const soloNumero = (s: string): number | null => {
+  const t = s.trim().replace(',', '.');
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+
+function KcalNeedCard({ clientId }: { clientId: string }) {
+  const { user: me } = useAuth();
+  // Le calorie le scrive chi risponde della parte clinica. La coach vede e non tocca.
+  const puoScrivere = me?.role === 'nutritionist' || me?.role === 'head_nutritionist' || me?.role === 'admin';
+
+  const [quadro, setQuadro] = useState<KcalQuadro | null | 'none'>(null);
+  const [apri, setApri] = useState(false);
+  const [deficit, setDeficit] = useState('');
+  const [pct, setPct] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [anteprima, setAnteprima] = useState<KcalNeed | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  // Si accende solo dopo un rifiuto per «sotto soglia»: la conferma non si può dare in anticipo.
+  const [chiedeConferma, setChiedeConferma] = useState(false);
+
+  const carica = useCallback(() => {
+    if (!clientId) return;
+    const rotta = puoScrivere ? `/nutritionist/clients/${clientId}/kcal` : `/admin/clients/${clientId}/kcal-need`;
+    api<KcalQuadro | KcalNeed | null>(rotta)
+      .then((r) => {
+        if (!r) return setQuadro('none');
+        const q = 'stima' in r ? (r as KcalQuadro) : { valori: { deficitKcal: null, correzionePct: null }, stima: r as KcalNeed, storico: [] };
+        setQuadro(q);
+        setDeficit(q.valori.deficitKcal != null ? String(q.valori.deficitKcal) : '');
+        setPct(q.valori.correzionePct != null ? String(q.valori.correzionePct) : '');
+      })
+      .catch(() => setQuadro('none'));
+  }, [clientId, puoScrivere]);
+  useEffect(carica, [carica]);
+
+  // Anteprima mentre digita: sapere DOPO di aver messo una cliente a 1000 kcal non serve a niente.
+  useEffect(() => {
+    if (!apri || !puoScrivere || !clientId) return;
+    const t = setTimeout(() => {
+      api<{ dopo: KcalNeed | null }>(`/nutritionist/clients/${clientId}/kcal/simula`, {
+        method: 'POST',
+        body: JSON.stringify({ deficitKcal: soloNumero(deficit), correzionePct: soloNumero(pct) }),
+      })
+        .then((r) => setAnteprima(r.dopo))
+        .catch(() => setAnteprima(null));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [apri, puoScrivere, clientId, deficit, pct]);
+
+  const salva = async () => {
+    setErr(null); setMsg(null); setSalvando(true);
+    try {
+      const r = await api<{ targetPrima: number | null; targetDopo: number | null; sottoSoglia: boolean; menu: { ripristinati: number; delivered: string[] } }>(
+        `/nutritionist/clients/${clientId}/kcal`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            deficitKcal: soloNumero(deficit),
+            correzionePct: soloNumero(pct),
+            motivo: motivo.trim(),
+            confermaSottoSoglia: chiedeConferma || undefined,
+          }),
+        },
+      );
+      setMsg(
+        `Salvato: da ${r.targetPrima ?? '—'} a ${r.targetDopo ?? '—'} kcal/giorno.` +
+          (r.menu.ripristinati > 0
+            ? ` ⚠️ I menu futuri NON sono stati rigenerati (la cliente non è idonea adesso): restano quelli di prima, con le calorie vecchie.`
+            : r.menu.delivered.length > 0
+              ? ` I ${r.menu.delivered.length} giorni futuri sono stati rigenerati.`
+              : ''),
+      );
+      setMotivo(''); setChiedeConferma(false); setApri(false);
+      carica();
+    } catch (e) {
+      const testo = (e as Error).message ?? 'Errore';
+      setErr(testo);
+      // Il backend rifiuta il primo tentativo sotto soglia e dice a quanto si arriverebbe: da lì
+      // in poi il pulsante cambia nome, così la conferma è una scelta e non una ripetizione.
+      if (/soglia minima di sicurezza/i.test(testo)) setChiedeConferma(true);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const data = quadro && quadro !== 'none' ? quadro.stima : null;
+  const valori = quadro && quadro !== 'none' ? quadro.valori : { deficitKcal: null, correzionePct: null };
+  const aMano = valori.deficitKcal != null || valori.correzionePct != null;
+
   return (
     <div className="card">
-      <h2 style={{ marginTop: 0 }}>Fabbisogno calorico</h2>
-      {data === null ? (
-        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Carico…</p>
-      ) : data === 'none' ? (
-        <p className="muted" style={{ margin: 0, fontSize: 13 }}>Dati insufficienti per la stima (servono sesso, età, altezza e peso).</p>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>Fabbisogno calorico</h2>
+        {puoScrivere && quadro !== 'none' && (
+          <button className="btn ghost sm" onClick={() => setApri((v) => !v)}>
+            <i className={`ti ti-${apri ? 'x' : 'adjustments'}`} /> {apri ? 'Chiudi' : 'Modifica calorie'}
+          </button>
+        )}
+      </div>
+      {quadro === null ? (
+        <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>Carico…</p>
+      ) : quadro === 'none' || !data ? (
+        <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>Dati insufficienti per la stima (servono sesso, età, altezza e peso).</p>
       ) : (
         <>
-          <div className="row" style={{ gap: 20, flexWrap: 'wrap' }}>
-            <div><div className="muted" style={{ fontSize: 12 }}>Target menu</div><b style={{ fontSize: 22 }}>{data.target} kcal</b></div>
+          <div className="row" style={{ gap: 20, flexWrap: 'wrap', marginTop: 10 }}>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>Target menu</div>
+              <b style={{ fontSize: 22, color: data.sottoSoglia ? '#b3261e' : undefined }}>{data.target} kcal</b>
+            </div>
             <div><div className="muted" style={{ fontSize: 12 }}>Mantenimento (TDEE)</div><b style={{ fontSize: 16 }}>{data.tdee} kcal</b></div>
             <div><div className="muted" style={{ fontSize: 12 }}>Metabolismo basale</div><b style={{ fontSize: 16 }}>{data.bmr} kcal</b></div>
-            <div><div className="muted" style={{ fontSize: 12 }}>Deficit</div><b style={{ fontSize: 16 }}>{data.deficit > 0 ? `−${data.deficit} kcal` : '—'}</b></div>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>Deficit {data.fonteDeficit === 'imposto' && <b style={{ color: '#4b4878' }}>(imposto)</b>}</div>
+              <b style={{ fontSize: 16 }}>{data.deficit > 0 ? `−${data.deficit} kcal` : '—'}</b>
+            </div>
+            {!!valori.correzionePct && (
+              <div>
+                <div className="muted" style={{ fontSize: 12 }}>Correzione</div>
+                <b style={{ fontSize: 16, color: '#4b4878' }}>{valori.correzionePct > 0 ? '+' : ''}{valori.correzionePct}%</b>
+              </div>
+            )}
           </div>
+
+          {data.sottoSoglia && (
+            <p style={{ margin: '10px 0 0', fontSize: 12.5, color: '#b3261e' }}>
+              <i className="ti ti-alert-triangle" /> Questo target è <b>sotto la soglia minima di sicurezza</b>, per scelta esplicita del nutrizionista.
+            </p>
+          )}
           <p className="muted" style={{ margin: '10px 0 0', fontSize: 11.5 }}>
-            Obiettivo: <b>{data.objective}</b> · attività ×{data.activityFactor} ({SRC[data.activitySource]}) · peso {data.weightKg} kg
+            Obiettivo: <b>{data.objective}</b> · attività ×{data.activityFactor} ({SRC_ATTIVITA[data.activitySource]}) · peso {data.weightKg} kg
             {data.floored && <> · <span style={{ color: '#9a6a00' }}>soglia minima di sicurezza applicata</span></>}
+            {data.fonteDeficit === 'imposto' && data.deficitCalcolato != null && <> · il calcolo automatico avrebbe dato −{data.deficitCalcolato} kcal</>}
           </p>
-          <p className="muted" style={{ margin: '6px 0 0', fontSize: 11 }}>
-            Stima automatica (Mifflin-St Jeor). Se il "menu a necessità" è attivo, i menu puntano al <b>Target</b>.
-          </p>
+          {!aMano && (
+            <p className="muted" style={{ margin: '6px 0 0', fontSize: 11 }}>
+              Stima automatica (Mifflin-St Jeor). Se il "menu a necessità" è attivo, i menu puntano al <b>Target</b>.
+            </p>
+          )}
+
+          {apri && puoScrivere && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+              <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <label style={{ fontSize: 12 }}>
+                  <div className="muted">Deficit imposto (kcal/giorno)</div>
+                  <input value={deficit} onChange={(e) => setDeficit(e.target.value)} placeholder="vuoto = calcolo automatico" style={{ width: 180 }} />
+                </label>
+                <label style={{ fontSize: 12 }}>
+                  <div className="muted">Correzione sul totale (%)</div>
+                  <input value={pct} onChange={(e) => setPct(e.target.value)} placeholder="es. −10" style={{ width: 140 }} />
+                </label>
+                {anteprima && (
+                  <div style={{ fontSize: 12 }}>
+                    <div className="muted">Con questi valori</div>
+                    <b style={{ fontSize: 18, color: anteprima.sottoSoglia ? '#b3261e' : '#2e7d32' }}>{anteprima.target} kcal</b>
+                  </div>
+                )}
+              </div>
+              <label style={{ fontSize: 12, display: 'block', marginTop: 10 }}>
+                <div className="muted">Motivo (obbligatorio — fra tre mesi lo leggerà qualcuno che non c’era)</div>
+                <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} style={{ width: '100%' }}
+                  placeholder="es. ferma da tre settimane a 1600 kcal, riduco il deficit" />
+              </label>
+              {err && <p style={{ margin: '8px 0 0', fontSize: 12.5, color: '#b3261e' }}>{err}</p>}
+              <div className="row" style={{ gap: 8, marginTop: 10 }}>
+                <button className="btn sm" disabled={salvando || motivo.trim().length < 3} onClick={salva}>
+                  {chiedeConferma ? 'Confermo: salva sotto la soglia' : 'Salva'}
+                </button>
+                {aMano && (
+                  <button className="btn ghost sm" disabled={salvando} onClick={() => { setDeficit(''); setPct(''); }}>
+                    Torna al calcolo automatico
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {msg && <p style={{ margin: '10px 0 0', fontSize: 12.5, color: '#2e7d32' }}>{msg}</p>}
+
+          {quadro.storico.length > 0 && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Storico delle modifiche</div>
+              {quadro.storico.map((r) => (
+                <div key={r.id} style={{ fontSize: 12, padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
+                  <div>
+                    <b>{r.targetPrima ?? '—'} → {r.targetDopo ?? '—'} kcal</b>
+                    {r.sottoSoglia && <span style={{ color: '#b3261e' }}> · sotto soglia</span>}
+                    <span className="muted"> · {new Date(r.createdAt).toLocaleString('it-IT')} · {r.byStaff?.displayName ?? 'non più in organico'}</span>
+                  </div>
+                  <div className="muted" style={{ fontSize: 11.5 }}>
+                    deficit {r.prevDeficitKcal ?? 'auto'} → {r.deficitKcal ?? 'auto'} · correzione {r.prevAdjustPct ?? 0}% → {r.adjustPct ?? 0}%
+                  </div>
+                  <div className="notif-testo" style={{ fontSize: 12 }}>«{r.motivo}»</div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -2048,6 +2234,8 @@ interface ThreadRow {
 interface MsgRow {
   id: string;
   senderRole: string;
+  /** Chi l'ha scritto davvero: serve a sapere se la ✕ per cancellarlo va mostrata (11/8). */
+  senderUserId?: string | null;
   body: string;
   sentAt: string;
   meta?: { sost?: { passo?: string }; esitoSostituzione?: string } | null;
@@ -2146,6 +2334,15 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
   /** La risposta che si sta scrivendo alla cliente, dal thread aperto (11/8). */
   const [risposta, setRisposta] = useState('');
   const [invio, setInvio] = useState(false);
+  /**
+   * Il messaggio in attesa di conferma per la cancellazione, e quello in corso.
+   *
+   * La conferma è una richiesta esplicita di Simone, e ha una ragione: la cliente può aver già
+   * letto quel messaggio, quindi cancellarlo non lo fa sparire dalla sua testa — è un gesto che
+   * vale la pena fare apposta e non per un dito scivolato sulla ✕.
+   */
+  const [daCancellare, setDaCancellare] = useState<MsgRow | null>(null);
+  const [cancello, setCancello] = useState<string | null>(null);
 
   /**
    * `client_conversations` e non `chat`, ed è il senso della richiesta di Simone dell'11/8 («la
@@ -2263,6 +2460,32 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
       );
     } finally {
       setInvio(false);
+    }
+  }
+
+  /**
+   * Cancella un proprio messaggio, dopo la conferma. Il backend accetta solo l'autore, quindi anche
+   * se la ✕ comparisse dove non deve non succederebbe niente: la regola sta di là, questa è la
+   * porta. Si ricarica l'elenco invece di togliere la bolla a mano — quello che si legge dev'essere
+   * quello che è stato salvato davvero.
+   */
+  async function cancellaMessaggio(m: MsgRow) {
+    if (!sel) return;
+    setCancello(m.id);
+    setErr(null);
+    try {
+      await api(`/threads/${sel}/messages/${m.id}`, { method: 'DELETE' });
+      const ms = await api<MsgRow[]>(`/threads/${sel}/messages`);
+      setMessaggi(ms);
+      setDaCancellare(null);
+    } catch (e) {
+      setErr(
+        e instanceof ApiError && e.status === 403
+          ? 'Si può cancellare solo un messaggio scritto da sé.'
+          : e instanceof Error ? e.message : 'Messaggio non cancellato.',
+      );
+    } finally {
+      setCancello(null);
     }
   }
 
@@ -2507,10 +2730,18 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
             <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
               {messaggi.map((m) => {
                 const dellaCliente = m.senderRole === 'client';
+                /*
+                  LA ✕ ROSSA (richiesta di Simone, 11/8): «chi scrive il messaggio deve poterlo
+                  cancellare». Compare SOLO sui propri messaggi — non sul capo, non sull'admin: il
+                  senso è rimediare a quello che si è scritto per sbaglio, non moderare quello che
+                  ha scritto un altro. Il backend applica la stessa regola, questa è la sua faccia.
+                */
+                const mio = !!m.senderUserId && m.senderUserId === me?.id;
                 return (
                   <div
                     key={m.id}
                     style={{
+                      position: 'relative',
                       alignSelf: dellaCliente ? 'flex-start' : 'flex-end',
                       maxWidth: '78%',
                       padding: '8px 11px',
@@ -2521,6 +2752,23 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                       whiteSpace: 'pre-wrap',
                     }}
                   >
+                    {mio && (
+                      <button
+                        type="button"
+                        title="Cancella questo messaggio"
+                        aria-label="Cancella questo messaggio"
+                        disabled={cancello === m.id}
+                        onClick={() => setDaCancellare(m)}
+                        style={{
+                          position: 'absolute', top: -6, right: -6, width: 18, height: 18,
+                          borderRadius: '50%', border: '1px solid #E4B4B6', background: '#fff',
+                          color: '#B4232A', fontSize: 11, lineHeight: '15px', padding: 0,
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <i className="ti ti-x" />
+                      </button>
+                    )}
                     {m.body}
                     <div className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
                       {m.senderRole === 'ai' ? 'Gaia' : dellaCliente ? 'cliente' : m.senderRole} · {oraBreve(m.sentAt)}
@@ -2593,6 +2841,40 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
             );
           })()}
         </>
+      )}
+
+      {/*
+        LA CONFERMA (richiesta di Simone, 11/8). Non è una formalità: la cliente può aver già letto
+        quel messaggio, quindi cancellarlo non lo toglie dalla sua testa. È un gesto da fare apposta,
+        e la finestra mostra il testo perché si veda QUALE messaggio sta per sparire — la ✕ è
+        piccola e le bolle si somigliano.
+      */}
+      {daCancellare && (
+        <Modal title="Cancellare questo messaggio?" onClose={() => setDaCancellare(null)}>
+          <p style={{ marginTop: 0, fontSize: 13 }}>
+            Sparisce dalla conversazione, per te e per la cliente. Se l'aveva già letto, però, quello
+            che ha letto resta: se serve, scrivile anche una rettifica.
+          </p>
+          <div style={{
+            background: '#F2EFE8', borderRadius: 10, padding: '9px 12px', fontSize: 13,
+            whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto',
+          }}>
+            {daCancellare.body}
+          </div>
+          <div className="row" style={{ gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+            <button className="btn ghost sm" disabled={!!cancello} onClick={() => setDaCancellare(null)}>
+              Lascia com'è
+            </button>
+            <button
+              className="btn sm"
+              style={{ background: '#B4232A', borderColor: '#B4232A' }}
+              disabled={!!cancello}
+              onClick={() => void cancellaMessaggio(daCancellare)}
+            >
+              {cancello ? 'Cancello…' : 'Sì, cancella'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
