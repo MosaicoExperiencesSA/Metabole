@@ -11,6 +11,8 @@ import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.serv
 import { campiCambiati } from '../common/diff-campi';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
+import { pickDietFor } from '../catalog/pick-diet';
+import { scostamentoDieta } from './scostamento-dieta';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
 
@@ -272,19 +274,69 @@ export class ClientsService {
      *    celiaca ha «senza glutine» sul profilo e il pane nel menu di domani.
      */
     const dietFamilyAssegnata = (profile as { dietFamily?: string | null } | null)?.dietFamily ?? null;
-    const [dietaAssegnata, giornoRecente] = await Promise.all([
-      dietFamilyAssegnata
+    /**
+     * ⚠️ LA RIGA CHE MENTIVA (corretta l'11/8, dal caso Cristina Urbani).
+     *
+     * Qui c'era `findFirst({ where: { name: dietFamily } })`: la dieta cercata **per nome e
+     * basta**. Ma una famiglia ha fino a diciotto varianti che condividono il nome e si
+     * distinguono per regime, stile, obiettivo e pasti al giorno — è il senso stesso delle
+     * varianti. Quindi quella query pescava **la prima che capitava** e ne mostrava regime e
+     * pasti come se fossero quelli della cliente: nella scheda di una cliente **onnivora, 5
+     * pasti** compariva «Flessibile *vegan* · *3 pasti*», e chi la leggeva andava a cercare un
+     * errore di assegnazione che non esisteva.
+     *
+     * È esattamente la trappola scritta in testa a `pick-diet.ts` — «la famiglia da sola potrebbe
+     * agganciare l'omonima di un altro stile» — evitata nel motore e non qui. Una schermata che
+     * mostra il dato sbagliato è peggio di una che non lo mostra: fa prendere decisioni cliniche
+     * su una cliente guardando la dieta di un'altra.
+     *
+     * Ora si chiedono DUE cose diverse, e la differenza fra le due è l'informazione utile:
+     *  - la **variante esatta** che il profilo descrive (nome + stile + regime + pasti);
+     *  - la dieta che il motore **servirebbe davvero**, con la stessa `pickDietFor` che usa
+     *    l'erogazione: se la variante esatta non esiste, il motore ripiega, e la scheda deve
+     *    dirlo invece di far finta che la dieta ripiegata sia quella scelta.
+     */
+    const profiloMatch = {
+      regime: (profile as { regime?: string | null } | null)?.regime ?? null,
+      dietStyle: (profile as { dietStyle?: string | null } | null)?.dietStyle ?? null,
+      dietFamily: dietFamilyAssegnata,
+      mealsPerDay: (profile as { mealsPerDay?: number | null } | null)?.mealsPerDay ?? null,
+      objective: (profile as { objective?: string | null } | null)?.objective ?? null,
+      pathType: (profile as { pathType?: string | null } | null)?.pathType ?? null,
+    };
+    const SELECT_DIETA = {
+      id: true, name: true, clientName: true, clientDescription: true,
+      style: true, status: true, regime: true, mealsPerDay: true,
+    };
+    type DietaScheda = {
+      id: string; name: string; clientName: string | null; clientDescription: string | null;
+      style: string | null; status: string; regime: string | null; mealsPerDay: number | null;
+    };
+    const [varianteEsatta, dietaServita, giornoRecente] = await Promise.all([
+      dietFamilyAssegnata && profiloMatch.regime && profiloMatch.mealsPerDay
         ? (this.prisma.diet.findFirst({
-            where: { name: dietFamilyAssegnata },
+            where: {
+              name: dietFamilyAssegnata,
+              regime: profiloMatch.regime,
+              mealsPerDay: profiloMatch.mealsPerDay,
+              ...(profiloMatch.dietStyle ? { style: profiloMatch.dietStyle } : {}),
+            },
             // Approvata per prima: se esiste anche una bozza con lo stesso nome, è quella approvata
             // a raccontare la dieta vera. ('approved' < 'draft' in ordine alfabetico.)
             orderBy: { status: 'asc' },
-            select: { id: true, name: true, clientName: true, clientDescription: true, style: true, status: true, regime: true, mealsPerDay: true },
-          }) as Promise<{
-            id: string; name: string; clientName: string | null; clientDescription: string | null;
-            style: string | null; status: string; regime: string | null; mealsPerDay: number | null;
-          } | null>)
+            select: SELECT_DIETA,
+          }) as Promise<DietaScheda | null>)
         : Promise.resolve(null),
+      // La dieta che l'erogazione sceglierebbe adesso: stessa funzione, stessa scala di ripieghi.
+      pickDietFor<DietaScheda>(
+        (where) =>
+          this.prisma.diet.findFirst({
+            where: where as never,
+            orderBy: { approvedAt: 'desc' },
+            select: SELECT_DIETA,
+          }) as Promise<DietaScheda | null>,
+        profiloMatch,
+      ),
       this.prisma.menuDay.findFirst({
         where: { clientId: userId },
         orderBy: { date: 'desc' },
@@ -292,20 +344,44 @@ export class ClientsService {
       }) as Promise<{ date: Date; diet: { name: string; clientName: string | null; status: string } | null } | null>,
     ]);
     const nomeInCorso = giornoRecente?.diet ? giornoRecente.diet.clientName || giornoRecente.diet.name : null;
-    const nomeAssegnata = dietaAssegnata ? dietaAssegnata.clientName || dietaAssegnata.name : dietFamilyAssegnata;
+    /**
+     * Che cosa si mostra come «Dieta assegnata», e perché in quest'ordine.
+     *
+     * Si mostra **la dieta che la cliente riceve davvero** (`dietaServita`), non quella che il
+     * profilo descrive: è l'unica che spiega i piatti che ha nel piatto. Se la variante esatta del
+     * profilo esiste, le due coincidono e non c'è niente da dire; se non esiste, `scostamento`
+     * dice **cosa è stato chiesto e cosa viene servito**, che è la riga che mancava.
+     */
+    const dietaMostrata = varianteEsatta ?? dietaServita;
+    const nomeAssegnata = dietaMostrata ? dietaMostrata.clientName || dietaMostrata.name : dietFamilyAssegnata;
+    // La regola sta in `scostamento-dieta.ts`, fuori di qui: così si verifica per tabella invece
+    // che montando l'intera scheda cliente, e la frase che il nutrizionista legge è **una sola**
+    // ovunque compaia.
+    const scostamento = scostamentoDieta(
+      {
+        famiglia: dietFamilyAssegnata,
+        regime: profiloMatch.regime,
+        style: profiloMatch.dietStyle,
+        mealsPerDay: profiloMatch.mealsPerDay,
+      },
+      dietaServita
+        ? { regime: dietaServita.regime, style: dietaServita.style, mealsPerDay: dietaServita.mealsPerDay }
+        : null,
+      !!varianteEsatta,
+    );
 
     return {
       user,
       profile: safeProfile, // dati clinici presenti solo per lo staff clinico
-      dietaAssegnata: dietaAssegnata
+      dietaAssegnata: dietaMostrata
         ? {
-            id: dietaAssegnata.id,
+            id: dietaMostrata.id,
             nome: nomeAssegnata,
-            descrizione: dietaAssegnata.clientDescription,
-            style: dietaAssegnata.style,
-            status: dietaAssegnata.status,
-            regime: dietaAssegnata.regime,
-            mealsPerDay: dietaAssegnata.mealsPerDay,
+            descrizione: dietaMostrata.clientDescription,
+            style: dietaMostrata.style,
+            status: dietaMostrata.status,
+            regime: dietaMostrata.regime,
+            mealsPerDay: dietaMostrata.mealsPerDay,
           }
         : dietFamilyAssegnata
           ? // Il nome è scritto sul profilo ma in catalogo non c'è nessuna dieta con quel nome:
@@ -313,6 +389,7 @@ export class ClientsService {
             // motore cercherà quel nome e non lo troverà.
             { id: null, nome: dietFamilyAssegnata, descrizione: null, style: null, status: 'non_in_catalogo', regime: null, mealsPerDay: null }
           : null,
+      scostamentoDieta: scostamento,
       dietaMenuInCorso: nomeInCorso,
       menuAncoraSullaDietaPrecedente: !!nomeInCorso && !!nomeAssegnata && nomeInCorso !== nomeAssegnata,
       objective,

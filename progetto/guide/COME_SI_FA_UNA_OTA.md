@@ -132,15 +132,31 @@ grep -o '"2\.1\.3"' /tmp/ota-check/assets/index-*.js | head -3
 Se non compare, il bundle è stato costruito prima dell'allineamento di `app/package.json`: rifai
 lo script con un numero nuovo.
 
+### E poi cerca la FUNZIONE, non solo il numero
+
+Il numero dimostra che il bundle è nuovo. Non dimostra che dentro ci sia la cosa per cui lo stai
+pubblicando: un `dist/` vecchio ricostruito ha il numero giusto e il contenuto sbagliato, e passa
+tutti gli altri controlli. Quindi prendi una stringa che **esiste solo nel codice nuovo** — il nome
+di uno stato, una chiave, un testo — e cercala:
+
+```bash
+unzip -p backend/ota-bundles/metabole-2.1.6.zip 'assets/index-*.js' | grep -o 'awaiting_cycle_measure' | head -2
+```
+
+Aggiunto l'11/8 sulla 2.1.6, dove la stringa era il nuovo stato del banner della pesata.
+
 ---
 
-## Stato al 9 agosto 2026
+## Stato all'11 agosto 2026
 
-- `app/package.json` = **2.1.2**
-- `backend/ota-bundles/metabole-2.1.2.zip` presente e **verificato** (il JS compilato dichiara
-  2.1.2)
-- `OTA_VERSION` su Render = **2.1.2**
-- 2.1.0 e 2.1.1 sono **bruciate**: la prossima OTA parte da **2.1.3**
+- `app/package.json` = **2.1.6**
+- `backend/ota-bundles/metabole-2.1.6.zip` presente e **verificato**
+- `OTA_VERSION` su Render = **2.1.6**, letto dal manifest e non dai registri
+- Tutte le versioni fino alla **2.1.6 compresa sono bruciate**: la prossima OTA parte da **2.1.7**
+
+⚠️ Questo paragrafo invecchia a ogni pubblicazione, e un numero vecchio qui fa riusare una versione
+già bruciata — l'errore che costa più caro. **Aggiornalo nello stesso commit del bundle**, e in ogni
+caso fidati del manifest, non di questa riga.
 
 ---
 

@@ -20,6 +20,68 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🩺 **«Cristina è onnivora, perché le diamo una dieta vegana a 3 pasti?»** — la scheda
+  diceva il falso, e la cosa peggiore è che non rompeva niente. Il profilo di Cristina dice
+  `Flessibile · flexible · **omnivore** · 5 pasti`, e di menu non ne ha ricevuto **nessuno**: zero
+  giornate erogate, nessun abbonamento, nessuna data di inizio. Quella riga non descriveva niente
+  che le stesse succedendo.
+  La causa: la scheda cercava la dieta con `findFirst({ where: { name: dietFamily } })` — **per nome
+  e basta**. Una famiglia ha fino a diciotto varianti che condividono il nome e si distinguono per
+  regime, stile, obiettivo e pasti: quella query pescava la prima che capitava e ne mostrava regime
+  e pasti come se fossero della cliente. È la trappola scritta in testa a `pick-diet.ts` — «la
+  famiglia da sola potrebbe agganciare l'omonima di un altro stile» — evitata nel motore e mai
+  portata qui. Nessun errore, nessun test rosso, una schermata che risponde: solo che dice il falso,
+  e manda a cercare un errore di assegnazione che non esiste.
+  Ora la riga cerca la variante **esatta** (nome + stile + regime + pasti) e, se non c'è, mostra la
+  dieta che il motore **servirebbe davvero**, chiedendola alla stessa `pickDietFor` dell'erogazione.
+  Sotto compare cosa manca a catalogo: «non c'è la variante … omnivore · 5 pasti: viene servita …
+  Si chiude generando quella variante, **non cambiando il profilo della cliente**» — la chiusa è
+  voluta, perché adattare il profilo a ciò che esiste fa sparire il sintomo e lascia il buco.
+  Il **regime** ha un messaggio a parte, in rosso: `pickDietFor` non lo lascia mai cadere, quindi un
+  regime diverso non è un ripiego ma un dato incoerente, ed è l'unico caso in cui una cliente
+  potrebbe trovarsi nel piatto qualcosa che non mangia.
+  La regola sta in `clients/scostamento-dieta.ts`, fuori dalla schermata, con sette test: dentro il
+  componente sarebbe una riga in mezzo a una `<Row>`, cioè esattamente il posto in cui questo
+  difetto è vissuto finora. 103 suite, 1552 test verdi; `tsc` invariato, backoffice compila.
+  ⚠️ Resta aperto il **lavoro di catalogo**: se la variante `Flessibile · omnivore · 5 pasti` non
+  esiste, il ripiego continua — ora però si vede. `npm run diag:dieta -- "Flessibile"` lo dice.
+
+- `[Sviluppo]` ✅ **La 2.1.6 è sui telefoni — verificato sul manifest, non sul registro** —
+  `/api/v1/app-updates/latest.json` risponde `{"version":"2.1.6", "url":".../metabole-2.1.6.zip"}`,
+  letto dal browser. È l'unica prova che esista: lo stato dell'OTA vive in una variabile d'ambiente
+  su Render, cioè fuori dal repo e fuori da ogni registro — il 6/8 un passaggio dato per fatto non era
+  mai stato completato, e nessun documento poteva dirlo. Quindi il banner della pesata **è** sul
+  telefono di Giusy, e da lì il suo menu riparte con una pesata.
+  Allineati anche i documenti che invecchiano da soli: §1 diceva ancora «ultima OTA 2.1.4» e 1496
+  test, la guida `COME_SI_FA_UNA_OTA.md` dichiarava «stato al 9 agosto: package.json 2.1.2, la
+  prossima parte da 2.1.3». Quel paragrafo è il più pericoloso della guida — un numero vecchio lì fa
+  **riusare una versione bruciata**, che è l'errore che non si può rimediare — quindi ora dice di
+  aggiornarlo nello stesso commit del bundle e di fidarsi comunque del manifest. Aggiunto alla guida
+  anche il **terzo controllo**: cercare nello zip una stringa della funzione, non solo il numero.
+
+- `[Prodotto]` 🍽️ **Il catalogo delle 12 settimane passa al nutrizionista** — decisione di Simone:
+  la generazione delle settimane non è più lavoro in coda allo sviluppo. Il nutrizionista le crea,
+  comunica quando ha finito, e **noi verifichiamo** (Copertura catalogo col selettore della settimana:
+  ogni pasto previsto verde con 7). Il protocollo di §6 resta scritto, ma cambia destinatario: da
+  «cosa devo fare io» a «istruzioni per chi genera, e cosa guardare quando arriva il fatto».
+  Cambia anche la domanda sulle ~270 varianti senza clienti: non è più «chi trova 13-14 ore» ma fino a
+  dove vale la pena arrivare — e si decide quando sappiamo a che punto è arrivato lui.
+
+- `[Sviluppo]` 🧹 **Quattro comandi lanciati in produzione, quattro volte «niente da fare»** — e la
+  lista si accorcia di cinque voci. `fix:consenso-sanitario`: 35 questionari completati, **0** bloccate
+  senza consenso (la riparazione dell'8/8 ha tenuto). `pulisci:spezie`: 47 profili esaminati, **nessuna
+  spezia** fra i cibi esclusi. `fix:stato-questionario`: **0** schede da spostare, tutte e 35 sono già
+  più avanti nella pipeline. `fix:segnalazioni`: **nessuna orfana**, tutte hanno un destinatario — il
+  che chiude anche §3.4, le due segnalazioni di Giusy di luglio.
+  Vale la pena dire cosa insegna un giro che non cambia niente. Tre di queste quattro voci erano in
+  lista perché il lavoro era stato **fatto** l'8/8 e non **riguardato dopo**: una cosa fatta e non
+  verificata resta in lista esattamente come una non fatta, e chi legge non ha modo di distinguerle.
+  Il costo di guardare era di quattro comandi in dry-run; il costo di non guardare era portarsi dietro
+  cinque voci che sembravano lavoro. Tutti e quattro gli script hanno lo stesso disegno — nudi non
+  scrivono niente, servono `CONFERMA=1` — ed è questo che rende il controllo gratuito.
+  Chiuse in §11 e §3.4 con il numero che hanno stampato, non con «fatto»: il numero è la prova, e fra
+  un mese distingue «l'ho lanciato» da «l'ho lanciato e non c'era niente».
+
 - `[Sviluppo]` 📱 **OTA 2.1.6 — il banner della pesata arriva sui telefoni** — quello che stamattina è
   entrato in produzione lato backend era invisibile alle clienti: il pezzo che parla è nell'app, e
   l'app si aggiorna solo con un bundle. Porta le due schermate del caso Giusy: il banner

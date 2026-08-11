@@ -49,9 +49,9 @@ guardare lì.
 
 Il prodotto è **in produzione con clienti vere** (~45), su tre superfici: backend NestJS su Render, web
 app e backoffice su Vercel, app nativa iOS/Android con aggiornamenti OTA self-hosted. Ultima OTA
-pubblicata: **2.1.4**; la **2.1.5** è costruita, verificata e in attesa dell'ultimo passo (§5.1).
+pubblicata: **2.1.6** (11/8), verificata sul manifest — vedi §5.1.
 
-Stato tecnico all'ultimo commit: **1496 test backend verdi** (99 suite), **27 test app**, type-check al
+Stato tecnico all'ultimo commit: **1537 test backend verdi** (101 suite), **27 test app**, type-check al
 suo valore di riferimento (42 errori, tutti dovuti allo stub di Prisma in sandbox), backoffice e app che
 compilano. Le migrazioni girano da sole a ogni deploy (`preDeployCommand`), il seed dopo di esse.
 
@@ -146,10 +146,11 @@ L'assegnazione è del 10/8, ma i menu già erogati restano finché non si preme 
 scheda. Se sono a piano concluso non c'è niente da rigenerare. Si trovano dalla pastiglia «senza
 glutine» in Elenco clienti. **[dati]**
 
-### 3.4 Segnalazioni cliniche di luglio senza destinatario
-Aperte prima della correzione del routing: Giusy ne ha due, del 17 e del 22 luglio, una è «calo rapido
-2,87 kg/settimana». `npm run fix:segnalazioni` (a vuoto, poi con conferma). Chi non è assegnabile viene
-elencato e non toccato: quello è organico, non software. **[dati]**
+### ~~3.4 Segnalazioni cliniche di luglio senza destinatario~~ — CHIUSA l'11/8
+`npm run fix:segnalazioni` lanciato in produzione: **nessuna segnalazione orfana, tutte hanno un
+destinatario**. Le due di Giusy — del 17 e del 22 luglio, una è «calo rapido 2,87 kg/settimana» —
+erano già state adottate dalla passata dell'8/8. La voce restava aperta perché nessuno aveva
+riguardato **dopo**: una cosa fatta e non verificata resta in lista esattamente come una non fatta.
 
 ### 3.5 Il gruppo di equivalenza del collaudo panna è globale
 Creato per il collaudo del 9/8 e mai ripulito: vale per **tutte** le clienti.
@@ -207,17 +208,21 @@ Codice e Stripe risultano a posto e l'idempotenza ora è garantita dal database,
 
 ## 5. App e rilascio
 
-### 5.1 La OTA 2.1.5 è PUBBLICATA — sera del 10/8
-Il manifest risponde `version: "2.1.5"` con l'URL del bundle giusto (verificato leggendo
-`/api/v1/app-updates/latest.json` dall'esterno). I telefoni la scaricano al primo avvio utile e la
-attivano al passaggio successivo in background: le clienti vedono **data e ora nei messaggi in chat**, il
-pulsante **«Sposta la data di inizio»** nel profilo e la **scelta abbonamento / mese singolo** nel primo
-acquisto (il pulsante al Checkout c'era già nella 2.1.4: mancava il dato che lo fa comparire) senza dover
-fare niente.
-Verifiche fatte sullo zip **prima** di pubblicare, per memoria del metodo: `index.html` alla radice, le
-tre cose nuove presenti, **una sola** stringa di versione (`2.1.5`), push intatte (`/me/push-tokens` e
-listener `registration` presenti, **assente** il ramo del build senza `google-services.json` — quello che
-spegnerebbe le notifiche in silenzio).
+### 5.1 La OTA 2.1.6 è PUBBLICATA — 11/8
+Il manifest risponde `{"version":"2.1.6", "url":".../bundles/metabole-2.1.6.zip"}`, letto dal browser
+sul backend vero. Porta alle clienti il **banner della pesata del ciclo**
+(`awaiting_cycle_measure`) **col pulsante che apre il modulo della pesata** — è quello che serve a
+Giusy — e lo sblocco della coach che diventa promemoria invece di muro.
+Verifiche fatte sullo zip **prima** di pubblicare: `index.html` alla radice, `push-tokens` × 2 e
+listener `registration` presenti (le push non spente dal build), la stringa `2.1.6` compilata dentro
+il JS, e — controllo nuovo — **una stringa della funzione che l'OTA deve portare**
+(`awaiting_cycle_measure`). Il solo numero dimostra che il bundle è nuovo, non che contenga la cosa
+per cui lo stai pubblicando: un `dist/` vecchio ricostruito passerebbe tutti gli altri controlli.
+**Bruciate fino alla 2.1.6 compresa: la prossima OTA parte da 2.1.7.**
+
+La **2.1.5** (10/8) aveva portato data e ora nei messaggi in chat, il pulsante «Sposta la data di
+inizio» nel profilo e la scelta abbonamento / mese singolo nel primo acquisto (il pulsante al Checkout
+c'era già nella 2.1.4: mancava il dato che lo fa comparire).
 
 ### 5.2 Le trappole che si ripetono
 - **`OTA_VERSION` va svuotata su Render PRIMA di ogni pubblicazione sugli store**, altrimenti
@@ -248,6 +253,12 @@ spegnerebbe le notifiche in silenzio).
 
 ## 6. Il catalogo: le 12 settimane
 
+> **Chi lo fa, deciso l'11/8: il catalogo lo crea il NUTRIZIONISTA.** Quando ha finito ce lo comunica
+> e noi **verifichiamo** — non è più lavoro in coda allo sviluppo. La verifica è la parte che resta
+> nostra, ed è la ragione per cui il protocollo qui sotto va lasciato scritto: su Copertura catalogo,
+> col selettore della settimana, ogni pasto previsto deve essere verde con 7. Le voci sotto restano
+> come **istruzioni per chi genera** e come promemoria di cosa guardare quando arriva il «fatto».
+
 **Stato**: Basso indice glicemico a 12 settimane · Mediterranea senza glutine **a 12** (fatta il 10/8) ·
 DASH a 4 · le altre 16 famiglie a **zero settimane piene** (28 giornate costruite con 5 piatti per pasto,
 cioè ogni piatto torna cinque o sei volte al mese). Niente da compattare, 1 riferimento rotto residuo che
@@ -267,9 +278,11 @@ delle 12 settimane della senza glutine è il campione per stimare il resto.
 5. alla fine «Valida e pubblica tutte le varianti», e controllo su **Copertura catalogo** col selettore
    della settimana: verdi con 7 su ogni pasto previsto.
 
-**Decisione tua ancora aperta**: cosa fare delle ~270 varianti senza nessuna cliente. Tre strade —
-completarle a mano (le 13-14 ore), togliere quelle combinazioni dal questionario, oppure **uno script che
-le macina in background** (costo AI, e nessuno le rivede prima che una cliente le riceva).
+**Le ~270 varianti senza nessuna cliente**: con la generazione in mano al nutrizionista la domanda
+cambia — non è più «chi trova 13-14 ore», è **fino a dove vale la pena arrivare**. Restano sul tavolo
+togliere dal questionario le combinazioni che non sceglie nessuno, e lo script che le macina in
+background (costo AI, e nessuno le rivede prima che una cliente le riceva). Da riprendere quando il
+nutrizionista dice a che punto è arrivato: prima non ci sono i numeri per deciderlo.
 
 **Aperto e senza soluzione**: «alcune cene come colazioni». L'impianto degli slot è corretto, quindi i
 piatti nello slot sbagliato arrivano dal modello. Serve una passata di revisione, da costruire su casi
@@ -423,13 +436,13 @@ Tutti esistono e in dry-run non scrivono niente.
 
 | Comando | Cosa succede se non si lancia |
 |---|---|
-| `npm run accendi:automazioni` | Sollecito questionario 24h, auguri di compleanno e avviso fine prova **non partono**: il master delle mail automatiche è spento. È a **opt-out**: leggere il riepilogo prima. |
-| `npm run fix:consenso-sanitario` | Clienti bloccate al carrello per il consenso perso. Chi non ha la prova viene elencato e non toccato: quei casi restano a mano. |
-| `npm run fix:segnalazioni` | Vedi §3.4. |
+| ~~`npm run accendi:automazioni`~~ | **NON SI LANCIA PIÙ.** L'11/8 Simone ha acceso a mano dal backoffice quello che serviva. Lo script lavora a **opt-out**: mette esplicitamente a spento tutto ciò che non è nella sua lista, quindi lanciarlo ora **spegnerebbe** gli inneschi accesi a mano — è già successo l'8/8, quando invece di accenderne tre ne ha spenti venti, promemoria di rinnovo compresi. Per guardare lo stato senza toccare niente: `SOLO_LEGGI=1 npm run accendi:automazioni`. |
+| ~~`npm run fix:consenso-sanitario`~~ | **LANCIATO l'11/8: niente da fare.** 35 questionari completati, **0** bloccate senza consenso. La riparazione dell'8/8 ha tenuto. |
+| ~~`npm run fix:segnalazioni`~~ | **LANCIATO l'11/8: nessuna segnalazione orfana**, tutte hanno un destinatario. Chiude anche §3.4. |
 | `npm run dedupe:diets` | 18 varianti «senza glutine» approvate = 9 duplicate. Non fa danni al motore, rende inservibile una tendina — e blocca l'aggiunta in scheda della scelta della dieta. |
 | `npm run fix:tag-settimane` | Allinea i tag `sett:N` sui dati esistenti (dry-run senza `CONFERMA=1`). |
-| `npm run pulisci:spezie` | Chi ha curry o cumino fra i cibi esclusi continua a vedersi svuotare il ricettario. Chi ha escluso «le spezie» in generale va chiamato dalla coach. |
-| `npm run fix:stato-questionario` | Clienti che l'hanno già compilato risultano in sospeso. |
+| ~~`npm run pulisci:spezie`~~ | **LANCIATO l'11/8: 47 profili esaminati, nessuna spezia fra i cibi esclusi.** Resta valido il caso «ha escluso le spezie in generale»: quello lo vede solo una coach parlandoci. |
+| ~~`npm run fix:stato-questionario`~~ | **LANCIATO l'11/8 (anche con `CONFERMA=1`): 0 schede spostate.** Tutte e 35 sono già più avanti nella pipeline. |
 | `npm run sistema:nomi` | Gli 86k lead importati hanno nome e cognome dentro un unico campo. Dice quali righe rileggere (`CERTEZZA=dubbi`). |
 | `npm run fix:assegnazioni` | Assegnazioni incoerenti rimaste dal 6/8. |
 | `npm run diag:ricorrente` | Non sappiamo se il primo rinnovo automatico funzionerà (§4.2). |

@@ -25,6 +25,16 @@ interface Detail {
   /** La dieta su cui sono costruite le giornate GIÀ EROGATE: può non essere quella assegnata. */
   dietaMenuInCorso: string | null;
   menuAncoraSullaDietaPrecedente: boolean;
+  /**
+   * Quando la variante esatta del profilo non esiste a catalogo e il motore ripiega: cosa è stato
+   * chiesto, cosa viene servito, e la frase da mostrare. Null quando le due coincidono.
+   */
+  scostamentoDieta: {
+    motivo: 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo';
+    chiesto: { famiglia: string | null; regime: string | null; style: string | null; mealsPerDay: number | null };
+    servito: { regime: string | null; style: string | null; mealsPerDay: number | null };
+    testo: string;
+  } | null;
   objective: any | null;
   measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; replacedSnapshot?: { weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm?: number | null; replacedAt?: string } | null }[];
   checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
@@ -1088,6 +1098,32 @@ export function ClientDetail() {
                       <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
                         Questa dieta non ha una descrizione per le clienti: senza, in app la cliente vede
                         solo il nome. Si scrive dal catalogo diete.
+                      </div>
+                    )}
+                    {/*
+                      LO SCOSTAMENTO FRA CHIESTO E SERVITO (11/8, dal caso Cristina).
+
+                      Qui si leggeva «Flessibile vegan · 3 pasti» nella scheda di una cliente
+                      **onnivora che ne ha chiesti 5**, e tre righe più sotto «Pasti / percorso: 5
+                      pasti»: due righe della stessa schermata che si contraddicevano, senza che
+                      nessuna delle due dicesse perché. Il regime era di un'altra variante omonima
+                      (la scheda cercava la dieta per solo nome), i pasti erano un ripiego vero e
+                      taciuto.
+
+                      Ora la riga sopra mostra la dieta che riceverà davvero, e questa dice cosa
+                      manca a catalogo. La frase arriva dal backend, una sola, perché due schermate
+                      che la ricompongono raccontano due versioni dello stesso fatto.
+                    */}
+                    {d.scostamentoDieta && (
+                      <div
+                        style={{
+                          fontSize: 12.5, lineHeight: 1.5, marginTop: 6, padding: '7px 10px', borderRadius: 8,
+                          background: d.scostamentoDieta.motivo === 'regime' ? '#FDECEA' : '#FFF6E5',
+                          color: d.scostamentoDieta.motivo === 'regime' ? '#B4232A' : '#7A4E00',
+                        }}
+                      >
+                        <i className={`ti ${d.scostamentoDieta.motivo === 'regime' ? 'ti-alert-triangle' : 'ti-info-circle'}`} />{' '}
+                        {d.scostamentoDieta.testo}
                       </div>
                     )}
                   </>
