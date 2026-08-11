@@ -5,6 +5,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-13
+
+- `[Sviluppo]` 🔒 **Il Monitoraggio si vede solo a mantenimento SCADUTO e non rinnovato** — la decisione
+  di ieri, ora nel codice. Prima la condizione era «ha già fatto (o sta facendo) il mantenimento»:
+  bastava un abbonamento `active`, quindi il monitoraggio compariva dal **primo giorno** e a una cliente
+  che aveva appena pagato €49 offrivamo l'opzione da €19 **dentro il mese che aveva appena comprato**.
+  Ci vendevamo contro noi stessi.
+  `statoMonitoraggio` fa due domande e le mette insieme: esiste un mantenimento con la **fine già
+  passata**, e **non** ce n'è uno ancora in corso. Il confronto è per **giorno** — un mantenimento che
+  finisce oggi resta in corso fino a domani, altrimenti il monitoraggio comparirebbe a mezzanotte e un
+  minuto dell'ultimo giorno pagato. La condizione è la stessa nella vetrina **e** all'acquisto: il
+  difetto storico di quest'area è stato proteggere solo la vetrina, e un `planId` in mano basta a saltarla.
+  I tre casi al bordo, ognuno con un test: **disdetto con la fine nel futuro** → non si mostra, il mese
+  pagato è suo (per questo «in corso» accetta anche `cancelled`, non solo `active`); **rinnovato** → non
+  si mostra, il rinnovo sposta la fine in avanti sulla stessa riga; **più mantenimenti** → basta che uno
+  sia concluso e nessuno in corso. E due messaggi invece di uno: «finché è in corso continui con quello,
+  senza pagare due volte» per chi lo sta usando, «viene dopo il Mantenimento» per chi non l'ha mai fatto —
+  dirle la frase sbagliata la manda a chiedere alla coach una cosa che non serve.
+  Il finto Prisma dei test è stato riscritto per distinguere le **tre** domande diverse che
+  `subscription.findFirst` riceve: con un mock che diceva sì a tutte, la regola sarebbe sembrata
+  funzionare qualunque cosa facesse il codice. 1504 test verdi.
+  Nota lasciata in `monitoring.service.myStatus`: la stessa domanda vive anche lì e il risultato è già
+  corretto, ma per un'altra strada (un mantenimento in corso è un abbonamento attivo, e quel controllo
+  c'era). Non sono lo stesso codice perché `CommerceService` dipende già da `MonitoringService`: vanno
+  tenute d'accordo a mano, ed è scritto in entrambi i file.
+
 ## 2026-08-12
 
 - `[Sviluppo]` 📱 **OTA 2.1.5 pubblicata** — il manifest risponde `2.1.5` col bundle giusto, verificato

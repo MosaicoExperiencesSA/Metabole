@@ -55,7 +55,7 @@ Deciso da Simone, e va **verificato a ogni modifica del Negozio o del carrello**
 Apprendimento (8 giorni gratuiti)
    → Dimagrimento
       → [obiettivo raggiunto] Mantenimento
-         → [dopo un mese] Mantenimento di nuovo, oppure Monitoraggio
+         → [a mantenimento SCADUTO e non rinnovato] Mantenimento di nuovo, oppure Monitoraggio
 ```
 
 **Come è protetta oggi (verificato nel codice).** La regola è scritta in **due** punti, e servono
@@ -79,25 +79,34 @@ Il codice chiedeva di *aver avuto* il mantenimento, contando anche gli abbonamen
 Monitoraggio compariva dal **primo giorno** di mantenimento, e una cliente che pagava €49 oggi vedeva
 già l'opzione da €19.
 
-**Deciso da Simone:** il Monitoraggio si mostra **solo dal giorno dopo che il mantenimento è scaduto e
-non è stato rinnovato.** Finché il mantenimento è in corso — o è stato rinnovato — il Monitoraggio non
-esiste per lei.
+**Deciso da Simone e IMPLEMENTATO il 13/8:** il Monitoraggio si mostra **solo dal giorno dopo che il
+mantenimento è scaduto e non è stato rinnovato.** Finché il mantenimento è in corso — o è stato
+rinnovato — il Monitoraggio non esiste per lei.
 
-Da fare (non ancora implementato), in `commerce.service.ts`:
+Come è fatto: `statoMonitoraggio` in `commerce.service.ts` fa due domande e le mette insieme — esiste un
+mantenimento con la **fine già passata**, e **non** ce n'è uno ancora in corso. Il confronto è per
+**giorno**: un mantenimento che finisce oggi resta in corso fino a domani, altrimenti il monitoraggio
+comparirebbe a mezzanotte e un minuto dell'ultimo giorno pagato. La stessa condizione vale nella vetrina
+**e** all'acquisto, perché il difetto storico di quest'area è stato proteggere solo la vetrina.
 
-- `hasHadMaintenance` diventa qualcosa come `mantenimentoConclusoENonRinnovato`: serve un abbonamento di
-  mantenimento con **fine passata** (`endDate < oggi`) **e nessun** mantenimento attivo in questo momento.
-  Oggi la condizione accetta `status in ('active','expired')`, che è esattamente ciò che va tolto;
-- la stessa condizione vale nei **due** punti di §2 — l'elenco e `assertPlanPurchasable` — o la porta
-  resta aperta da una parte;
-- casi al bordo da rispettare: mantenimento **disdetto** ma con fine ancora nel futuro → non si mostra
-  ancora (il periodo pagato è suo); mantenimento **rinnovato** → non si mostra; più mantenimenti nella
-  storia → conta l'ultimo.
-- il messaggio di rifiuto va riscritto: oggi dice «il Monitoraggio viene dopo il Mantenimento», che con
-  la regola nuova non basta più a spiegare un «non ancora».
+I tre casi al bordo, ognuno con un test:
+- **disdetto ma con la fine nel futuro** → non si mostra: il mese pagato è suo. Per questo il controllo
+  di «in corso» accetta anche `cancelled`, non solo `active`;
+- **rinnovato** → non si mostra: il rinnovo sposta la fine in avanti sulla stessa riga;
+- **più mantenimenti nella storia** → basta che uno sia concluso e che nessuno sia in corso.
+
+E due messaggi distinti invece di uno: «finché è in corso continui con quello, senza pagare due volte»
+per chi lo sta usando, «viene dopo il Mantenimento» per chi non l'ha mai fatto. Dirle la frase sbagliata
+la manda a chiedere alla coach una cosa che non serve.
 
 Nota di prodotto, perché la regola non è neutra: così il Monitoraggio è una **scelta di rientro** e non
 un'alternativa più economica offerta mentre sta pagando il mantenimento.
+
+Una cosa da sapere per il futuro: la stessa domanda esiste **anche** in `monitoring.service.myStatus`
+(la card in app). Lì il risultato è già corretto, ma per un'altra strada — un mantenimento in corso è un
+abbonamento attivo, e quel controllo c'era già. Non sono lo stesso codice perché `CommerceService`
+dipende già da `MonitoringService` e chiamarlo al contrario chiuderebbe un ciclo fra i moduli: vanno
+tenute d'accordo a mano, ed è scritto in entrambi i file.
 
 ---
 
@@ -138,9 +147,8 @@ Il momento è adesso: finché nessun rinnovo automatico è passato si correggono
 revisioni di compensi già erogati.
 
 ### 4.1 Decisioni che aspettano te
-- ~~**Il Monitoraggio dopo quanto?**~~ **Deciso il 12/8**: solo dal giorno dopo che il mantenimento è
-  scaduto e non è stato rinnovato. La specifica e i casi al bordo sono in §2; **il codice è da
-  scrivere** — è la prima cosa in coda.
+- ~~**Il Monitoraggio dopo quanto?**~~ **Deciso il 12/8, fatto il 13/8**: solo dal giorno dopo che il
+  mantenimento è scaduto e non è stato rinnovato. Vedi §2.
 - **Provvigioni di rinnovo, due letture della decisione del 6/8.** Lo schema dice «solo se la coach è
   ancora quella assegnata» (che suona come *altrimenti non paga nessuno*), il servizio dice «paga chi
   c'è adesso». **Il codice fa la seconda**, per costruzione: la catena si calcola sempre su

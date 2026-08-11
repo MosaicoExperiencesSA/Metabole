@@ -86,13 +86,22 @@ export class MonitoringService {
       where: { clientId, status: { in: ['active', 'pending'] } as never },
       select: { id: true },
     });
-    // Idoneo al monitoraggio SOLO dopo un piano di MANTENIMENTO concluso (progressione:
-    // percorso → mantenimento → monitoraggio). Prima bastava un qualsiasi abbonamento pregresso,
-    // così il monitoraggio compariva subito a fine prova/piano: non è più così.
-    // Solo abbonamenti GODUTI (`active` o `expired`): un mantenimento `pending` è un ordine non
-    // ancora pagato e sbloccava il monitoraggio a chi aveva solo premuto "acquista". Stessa
-    // condizione di `commerce.service.hasHadMaintenance`, che decide se mostrare il monitoraggio
-    // a pagamento: le due devono restare uguali, altrimenti la cliente vede l'uno e non l'altro.
+    /**
+     * Idoneo al monitoraggio SOLO dopo un piano di MANTENIMENTO concluso (progressione: percorso →
+     * mantenimento → monitoraggio). Prima bastava un qualsiasi abbonamento pregresso, così il
+     * monitoraggio compariva subito a fine prova/piano: non è più così. Fuori i `pending`, che sono
+     * ordini non pagati e sbloccavano il monitoraggio a chi aveva solo premuto «acquista».
+     *
+     * ⚠️ Questa condizione **da sola** direbbe sì anche a mantenimento in corso, e dal 12/8 la regola
+     * è «solo a mantenimento scaduto e non rinnovato» (vedi `commerce.service.statoMonitoraggio`).
+     * Qui il risultato è già quello giusto, ma per un'altra strada: `activeSub` qui sopra esclude chi
+     * ha un abbonamento attivo o in attesa, quindi un mantenimento in corso blocca da lì.
+     *
+     * Le due condizioni non sono lo stesso codice — `CommerceService` dipende già da questo servizio,
+     * e chiamarlo al contrario chiuderebbe un ciclo fra i moduli. Restano quindi due, e vanno tenute
+     * d'accordo a mano: se un domani si toccasse `activeSub`, questa riga smetterebbe di rispettare
+     * la regola **senza che nessun test lo dica**, perché il difetto vivrebbe nella combinazione.
+     */
     const hadMaintenance = await this.prisma.subscription.findFirst({
       where: { clientId, status: { in: ['active', 'expired'] } as never, plan: { period: 'maintenance' } } as never,
       select: { id: true },

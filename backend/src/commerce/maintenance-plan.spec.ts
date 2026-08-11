@@ -121,15 +121,32 @@ const PIANO_MANT = { id: 'pm', name: 'Mantenimento Metabole', priceCents: 2900, 
  * ultima misura 68 o 80). `consent` serve perche' `subscribe` controlla anche quello: lo teniamo
  * acceso, cosi' se un test fallisce sappiamo che e' per il mantenimento e non per il consenso.
  */
-function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[]; hadMaintenance?: boolean }) {
+type StatoMantenimento = 'mai' | 'in_corso' | 'scaduto' | 'disdetto_fine_futura' | 'rinnovato';
+
+function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[]; mantenimento?: StatoMantenimento }) {
   const plans = opts.plans ?? [PIANO_3M, PIANO_MANT];
-  // `subscription.findFirst` serve a due domande diverse: «c'è un ordine in sospeso?» (nessun
-  // filtro sul piano) e «ha già fatto il mantenimento?» (filtro `plan.period`). Distinguerle dal
-  // `where` evita che un mock unico risponda sì a entrambe.
-  const subFindFirst = jest.fn(async (args?: { where?: { plan?: { period?: string } } }) => {
-    const period = args?.where?.plan?.period;
-    if (period === 'maintenance') return opts.hadMaintenance ? { id: 'sub-mant' } : null;
-    return null;
+  const mant: StatoMantenimento = opts.mantenimento ?? 'mai';
+  /**
+   * `subscription.findFirst` risponde a TRE domande diverse, e il finto le distingue dal `where`:
+   *
+   *  1. «c'è un ordine in sospeso?» → nessun filtro sul piano;
+   *  2. «esiste un mantenimento già CONCLUSO?» → `endDate: { lt: ... }`;
+   *  3. «ce n'è uno ANCORA IN CORSO?» → `status: 'active'` + `OR` sulla fine.
+   *
+   * Distinguerle conta: con un mock unico che dice sì a tutte, la regola «scaduto e non rinnovato»
+   * sembrerebbe funzionare qualunque cosa facesse il codice.
+   */
+  const subFindFirst = jest.fn(async (args?: { where?: Record<string, unknown> }) => {
+    const w = (args?.where ?? {}) as { plan?: { period?: string }; status?: string; endDate?: unknown };
+    if (w.plan?.period !== 'maintenance') return null;
+    const chiedeInCorso = !!w.status;
+    if (chiedeInCorso) {
+      // In corso: la fine non è passata. Comprende il DISDETTO con fine nel futuro — il mese pagato
+      // è suo — e il rinnovato, che sposta la fine in avanti.
+      return ['in_corso', 'rinnovato', 'disdetto_fine_futura'].includes(mant) ? { id: 'sub-mant-attivo' } : null;
+    }
+    // Concluso: esiste un mantenimento con la fine già passata.
+    return mant === 'scaduto' ? { id: 'sub-mant-scaduto' } : null;
   });
   return {
     plan: {
@@ -264,26 +281,91 @@ describe('Il Monitoraggio a pagamento: vetrina e acquisto', () => {
   const conMonitoraggio = { plans: [PIANO_3M, PIANO_MANT, PIANO_MON] };
 
   it('la vetrina PUBBLICA non lo mostra: non è un piano d\'ingresso', async () => {
-    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: true, ...conMonitoraggio }));
+    const svc = makeService(fakePrisma({ reached: true, mantenimento: 'scaduto', ...conMonitoraggio }));
     expect((await svc.listPublicPlans()).map((p) => (p as { id: string }).id)).not.toContain('pmon');
   });
 
   it('la cliente che NON ha mai fatto il mantenimento non lo vede', async () => {
-    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: false, ...conMonitoraggio }));
+    const svc = makeService(fakePrisma({ reached: true, mantenimento: 'mai', ...conMonitoraggio }));
     const ids = (await svc.listPlansForClient('c1')).map((p) => p.id);
     expect(ids).toContain('p3');
     expect(ids).not.toContain('pmon');
   });
 
-  it('la cliente che il mantenimento l\'ha fatto lo vede', async () => {
-    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: true, ...conMonitoraggio }));
+  it('la cliente col mantenimento SCADUTO e non rinnovato lo vede', async () => {
+    const svc = makeService(fakePrisma({ reached: true, mantenimento: 'scaduto', ...conMonitoraggio }));
     expect((await svc.listPlansForClient('c1')).map((p) => p.id)).toContain('pmon');
   });
 
   it('checkout lo rifiuta a chi non ha fatto il mantenimento, anche conoscendo il planId', async () => {
-    const svc = makeService(fakePrisma({ reached: true, hadMaintenance: false, ...conMonitoraggio }));
+    const svc = makeService(fakePrisma({ reached: true, mantenimento: 'mai', ...conMonitoraggio }));
     await expect(
       svc.checkout('c1', 'giusy@example.com', { planId: 'pmon', method: 'card' }),
     ).rejects.toThrow(/Monitoraggio viene dopo il Mantenimento/i);
+  });
+});
+
+/**
+ * IL MONITORAGGIO SOLO A MANTENIMENTO SCADUTO E NON RINNOVATO (decisione Simone, 12/8).
+ *
+ * Prima la condizione era «ha già fatto (o sta facendo) il mantenimento»: il monitoraggio compariva
+ * dal **primo giorno**, e a una cliente che aveva appena pagato €49 offrivamo l'opzione da €19 dentro
+ * il mese che aveva appena comprato. La regola nuova lo rende una **scelta di rientro**.
+ */
+describe('Il Monitoraggio: solo a mantenimento scaduto e non rinnovato', () => {
+  const conMonitoraggio = { plans: [PIANO_3M, PIANO_MANT, PIANO_MON] };
+  const vetrina = async (mantenimento: StatoMantenimento) =>
+    (await makeService(fakePrisma({ reached: true, mantenimento, ...conMonitoraggio })).listPlansForClient('c1'))
+      .map((p) => p.id);
+
+  it('mantenimento IN CORSO → non si vede: non ci vendiamo contro noi stessi dentro il mese pagato', async () => {
+    expect(await vetrina('in_corso')).not.toContain('pmon');
+  });
+
+  it('mantenimento RINNOVATO → non si vede: il rinnovo sposta la fine in avanti', async () => {
+    expect(await vetrina('rinnovato')).not.toContain('pmon');
+  });
+
+  it('mantenimento DISDETTO ma con la fine nel futuro → non si vede ancora: il mese pagato è suo', async () => {
+    expect(await vetrina('disdetto_fine_futura')).not.toContain('pmon');
+  });
+
+  it('mantenimento SCADUTO e non rinnovato → si vede', async () => {
+    expect(await vetrina('scaduto')).toContain('pmon');
+  });
+
+  it('il mantenimento resta comprabile in tutti questi casi: la regola riguarda solo il monitoraggio', async () => {
+    for (const m of ['in_corso', 'rinnovato', 'disdetto_fine_futura', 'scaduto'] as StatoMantenimento[]) {
+      expect(await vetrina(m)).toContain('pm');
+    }
+  });
+
+  it('l\'ACQUISTO è rifiutato mentre il mantenimento è in corso, con la frase giusta', async () => {
+    const svc = makeService(fakePrisma({ reached: true, mantenimento: 'in_corso', ...conMonitoraggio }));
+    // «non ancora» e «non ti riguarda» sono due messaggi diversi: dirle quello sbagliato la manda a
+    // chiedere alla coach una cosa che non serve.
+    await expect(
+      svc.checkout('c1', 'giusy@example.com', { planId: 'pmon', method: 'card' }),
+    ).rejects.toThrow(/finché è in corso/i);
+  });
+
+  it('a mantenimento scaduto l\'acquisto passa', async () => {
+    const prisma = fakePrisma({ reached: true, mantenimento: 'scaduto', ...conMonitoraggio });
+    const svc = makeService(prisma);
+    await expect(
+      svc.checkout('c1', 'giusy@example.com', { planId: 'pmon', method: 'bank_transfer' }),
+    ).resolves.toBeDefined();
+    expect(prisma.subscription.create).toHaveBeenCalled();
+  });
+
+  it('vetrina e acquisto usano la STESSA condizione: nessuna porta aperta da una parte', async () => {
+    // Il difetto storico di questa area è stato proteggere solo la vetrina.
+    for (const m of ['mai', 'in_corso', 'rinnovato', 'disdetto_fine_futura'] as StatoMantenimento[]) {
+      const svc = makeService(fakePrisma({ reached: true, mantenimento: m, ...conMonitoraggio }));
+      expect((await svc.listPlansForClient('c1')).map((p) => p.id)).not.toContain('pmon');
+      await expect(
+        svc.checkout('c1', 'giusy@example.com', { planId: 'pmon', method: 'card' }),
+      ).rejects.toThrow();
+    }
   });
 });

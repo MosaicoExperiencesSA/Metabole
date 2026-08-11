@@ -322,33 +322,81 @@ export class CommerceService {
   }
 
   /**
-   * Ha già fatto (o sta facendo) il MANTENIMENTO? È la condizione per vedere il monitoraggio a
-   * pagamento, che viene dopo.
+   * IL MONITORAGGIO SI VEDE SOLO A MANTENIMENTO **SCADUTO E NON RINNOVATO** (decisione Simone, 12/8).
    *
-   * Contano solo gli abbonamenti `active` o `expired`, cioè goduti: un mantenimento `pending` è
-   * un ordine non ancora pagato, e sbloccherebbe il monitoraggio a chi ha solo premuto "acquista".
+   * Prima la condizione era «ha già fatto (o sta facendo) il mantenimento», contando gli abbonamenti
+   * `active` o `expired`. Effetto: il monitoraggio compariva dal **primo giorno** di mantenimento, e
+   * una cliente che aveva appena pagato €49 si vedeva offrire l'opzione da €19 — cioè le vendevamo
+   * contro noi stessi, dentro il mese che aveva appena comprato.
+   *
+   * La regola nuova rende il monitoraggio una **scelta di rientro**: si presenta quando il
+   * mantenimento è finito e lei non l'ha rinnovato, non mentre lo sta usando.
+   *
+   * Tre casi al bordo, e li rispetta la coppia di condizioni qui sotto:
+   *  - **disdetto ma con la fine nel futuro** → il periodo pagato è suo: `endDate` non è passata,
+   *    quindi «concluso» è falso e il monitoraggio non compare ancora;
+   *  - **rinnovato** → il rinnovo sposta `endDate` in avanti sulla stessa riga e lo stato resta
+   *    `active`: «in corso» diventa vero e blocca;
+   *  - **più mantenimenti nella storia** → basta che uno sia concluso e che nessuno sia in corso.
+   *
+   * Torna anche il MOTIVO, perché «non ancora» e «non ti riguarda» sono due messaggi diversi per la
+   * cliente, e dirle quello sbagliato la manda a chiedere alla coach una cosa che non serve.
    */
-  private async hasHadMaintenance(clientId: string): Promise<boolean> {
-    const sub = await this.prisma.subscription.findFirst({
-      where: { clientId, status: { in: ['active', 'expired'] } as never, plan: { period: MAINTENANCE_PERIOD } } as never,
-      select: { id: true },
-    });
-    return !!sub;
+  private async statoMonitoraggio(
+    clientId: string,
+    adesso = new Date(),
+  ): Promise<{ disponibile: boolean; motivo: 'ok' | 'mai_fatto' | 'ancora_in_corso' }> {
+    // Confronto per GIORNO: `endDate` è una data, e un mantenimento che finisce oggi va considerato
+    // ancora in corso fino a domani. Usare l'istante farebbe comparire il monitoraggio a mezzanotte
+    // e un minuto dell'ultimo giorno pagato.
+    const oggi = new Date(Date.UTC(adesso.getUTCFullYear(), adesso.getUTCMonth(), adesso.getUTCDate()));
+    const [concluso, inCorso] = await Promise.all([
+      // Un mantenimento la cui fine è già PASSATA: "il giorno dopo che è scaduto" è esattamente
+      // `endDate < inizio di oggi`.
+      this.prisma.subscription.findFirst({
+        where: { clientId, plan: { period: MAINTENANCE_PERIOD }, endDate: { lt: oggi } } as never,
+        select: { id: true },
+      }),
+      /**
+       * Un mantenimento ANCORA in corso: la fine non è passata (o non c'è).
+       *
+       * `active` **e** `cancelled`, e la seconda non è una svista: una cliente che disdice il
+       * rinnovo sta comunque usando il mese che ha pagato, e per lei il mantenimento è in corso.
+       * Contarla come «non ce l'ha» le farebbe comparire il monitoraggio dentro un periodo già
+       * pagato — e le diremmo anche la frase sbagliata, quella di chi non ha mai fatto il
+       * mantenimento. Fuori `pending`, che è un ordine non pagato e non dà diritto a niente.
+       *
+       * Il rinnovo lo copre da sé: sposta `endDate` in avanti sulla stessa riga, restando `active`.
+       */
+      this.prisma.subscription.findFirst({
+        where: {
+          clientId,
+          status: { in: ['active', 'cancelled'] },
+          plan: { period: MAINTENANCE_PERIOD },
+          OR: [{ endDate: null }, { endDate: { gte: oggi } }],
+        } as never,
+        select: { id: true },
+      }),
+    ]);
+    if (inCorso) return { disponibile: false, motivo: 'ancora_in_corso' };
+    if (!concluso) return { disponibile: false, motivo: 'mai_fatto' };
+    return { disponibile: true, motivo: 'ok' };
   }
 
   /** Piani visibili al CLIENTE: attivi, meno quelli non riacquistabili che ha già preso.
    * Il MANTENIMENTO (period 'maintenance') compare SOLO a obiettivo raggiunto; il MONITORAGGIO
-   * (period 'monitoring') solo a chi il mantenimento l'ha già fatto. */
+   * (period 'monitoring') solo dal giorno dopo che il mantenimento è scaduto e non è stato
+   * rinnovato (vedi `statoMonitoraggio`). */
   async listPlansForClient(clientId: string) {
-    const [plans, bought, reached, hadMaintenance] = await Promise.all([
+    const [plans, bought, reached, monitoraggio] = await Promise.all([
       this.listPlans(),
       this.purchasedIds(clientId),
       this.hasReachedObjective(clientId),
-      this.hasHadMaintenance(clientId),
+      this.statoMonitoraggio(clientId),
     ]);
     return (plans as unknown as { id: string; period?: string; repurchasable?: boolean }[])
       .filter((p) => !isMaintenancePlan(p.period) || reached) // mantenimento solo a obiettivo raggiunto
-      .filter((p) => !isMonitoringPlan(p.period) || hadMaintenance) // monitoraggio solo dopo il mantenimento
+      .filter((p) => !isMonitoringPlan(p.period) || monitoraggio.disponibile) // solo a mantenimento scaduto e non rinnovato
       .filter((p) => p.repurchasable !== false || !bought.plans.has(p.id));
   }
 
@@ -367,11 +415,14 @@ export class CommerceService {
   private async assertPlanPurchasable(clientId: string, plan: { period?: string | null }) {
     if (isMonitoringPlan(plan.period)) {
       // Stesso ragionamento del mantenimento: nascondere non basta, l'acquisto è una POST con
-      // dentro un `planId`. Il monitoraggio è l'ultimo gradino, e senza mantenimento alle spalle
-      // non ha senso — non c'è un peso raggiunto da sorvegliare.
-      if (await this.hasHadMaintenance(clientId)) return;
+      // dentro un `planId`. E la condizione deve essere la STESSA della vetrina, altrimenti la
+      // porta resta aperta da una parte.
+      const m = await this.statoMonitoraggio(clientId);
+      if (m.disponibile) return;
       throw new BadRequestException(
-        'Il Monitoraggio viene dopo il Mantenimento: serve un peso raggiunto da tenere. Parlane con la tua coach se pensi sia un errore.',
+        m.motivo === 'ancora_in_corso'
+          ? 'Il Monitoraggio si attiva quando il Mantenimento è finito: finché è in corso continui con quello, senza pagare due volte. Parlane con la tua coach se pensi sia un errore.'
+          : 'Il Monitoraggio viene dopo il Mantenimento: serve un peso raggiunto da tenere. Parlane con la tua coach se pensi sia un errore.',
       );
     }
     if (!isMaintenancePlan(plan.period)) return;
