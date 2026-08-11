@@ -17,7 +17,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ArrayMaxSize, IsArray } from 'class-validator';
 import { CatalogService } from './catalog.service';
 import { SetRecipeAllergensDto } from './dto/allergens.dto';
-import { CreateDietDto, CreateRecipeDto, UpdateRecipeDto, RejectDietDto, SetDayTemplatesDto, UpdateDietDto, UpdateDietProductDto, SetProductRulesDto, RuleProposalDto, RenameDietDto } from './dto/catalog.dto';
+import { CreateDietDto, CreateRecipeDto, UpdateRecipeDto, RejectDietDto, SetDayTemplatesDto, UpdateDietDto, UpdateDietProductDto, SetProductRulesDto, RuleProposalDto, RenameDietDto, CollegaRicettaDto } from './dto/catalog.dto';
 
 /** Diete: il nutrizionista propone, il capo approva. */
 @Controller('diets')
@@ -259,6 +259,43 @@ export class RecipesController {
   @Delete(':id')
   delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.catalog.deleteRecipe(user.sub, id);
+  }
+
+  // ---------- Dove è usata la ricetta (scheda ricetta, 11/8) ----------
+
+  /** Le giornate in cui questa ricetta è usata: dieta, settimana, giorno. */
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes')
+  @Get(':id/uso')
+  usi(@Param('id') id: string) {
+    return this.catalog.usiDellaRicetta(id);
+  }
+
+  /**
+   * Le giornate di una dieta viste da uno slot solo: chi c'è adesso in quella cena, giorno per
+   * giorno. Serve a scegliere DOVE mettere il piatto sapendo cosa si sostituisce.
+   */
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes')
+  @Get('diete/:dietId/giornate')
+  giornateDiDieta(@Param('dietId') dietId: string, @Query('slot') slot: string) {
+    return this.catalog.giornateDiDietaPerSlot(dietId, slot);
+  }
+
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes')
+  @HttpCode(200)
+  @Post(':id/uso')
+  collega(@Param('id') id: string, @Body() dto: CollegaRicettaDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.collegaRicetta(user.sub, id, dto.dietId, dto.dayIndex);
+  }
+
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes')
+  @HttpCode(200)
+  @Delete(':id/uso')
+  scollega(@Param('id') id: string, @Body() dto: CollegaRicettaDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.scollegaRicetta(user.sub, id, dto.dietId, dto.dayIndex);
   }
 
   /** Pre-tag allergeni assistito (suggerimenti dagli ingredienti + stato attuale). */

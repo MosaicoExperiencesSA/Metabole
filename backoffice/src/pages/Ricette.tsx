@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
@@ -44,6 +44,29 @@ interface Recipe {
 
 /** I nomi delle diete che usano la ricetta. `null` (server muto) si legge come elenco vuoto qui. */
 const dieteDi = (r: { utilizzo?: { dieta: string }[] | null }): string[] => (r.utilizzo ?? []).map((u) => u.dieta);
+
+/** Una riga di «Dove è usata»: una dieta e una settimana. Il giorno è il dettaglio dentro. */
+interface Uso { dietId: string; dieta: string; ritirata: boolean; bozza: boolean; dayIndex: number; settimana: number; giorno: number }
+interface DietaCollegabile { id: string; name: string; regime: string; status?: string; mealsPerDay?: number; fasting?: boolean; objective?: string | null }
+interface GiornateSlot {
+  slotPrevisto: boolean;
+  pastiPrevisti: number;
+  stato: string;
+  settimane: number;
+  giornateComplete: number;
+  suggerimento: { settimana: number; dayIndex: number; giorno: number; nuova: boolean };
+  giornate: { dayIndex: number; settimana: number; giorno: number; occupatoDa: { id: string; name: string } | null; completa: boolean }[];
+}
+interface EsitoCollega {
+  giaCosi: boolean; sostituito: string | null; settimana: number; giorno: number;
+  settimanaNuova: boolean; giornateVuoteCreate: number; giornataCompleta: boolean; pastiMancanti: number;
+}
+
+/** Il posto del giorno dentro la sua settimana: 1..7. Stessa regola del backend. */
+const i7 = (dayIndex: number): number => ((dayIndex - 1) % 7) + 1;
+
+/** Etichette obiettivo, per distinguere le varianti nella tendina delle diete collegabili. */
+const OBIETTIVO: Record<string, string> = { dimagrimento: 'Dimagrimento', mantenimento: 'Mantenimento' };
 
 const SLOT: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
 const METHOD: Record<string, string> = { veloce: 'Veloce', forno: 'Al forno', meal_prep: 'Meal prep' };
@@ -637,6 +660,9 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
         <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setF((s) => ({ ...s, methods: [...s.methods, { type: 'veloce', stepsText: '' }] }))}><i className="ti ti-plus" /> Metodo</button>
       </div>
 
+      {/* Solo su una ricetta che esiste già: una ricetta nuova non ha ancora un id da collegare. */}
+      {recipe && <DoveUsata recipe={recipe} slotNelModulo={f.mealSlot} />}
+
       <div className="row" style={{ alignItems: 'center', gap: 8, marginTop: 14 }}>
         <Toggle on={f.active} onChange={(v) => setF({ ...f, active: v })} />
         <span style={{ fontSize: 13 }}>{f.active ? 'Attiva (disponibile nei menu)' : 'Archiviata'}</span>
@@ -647,5 +673,278 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
         <button className="btn" onClick={save} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva'}</button>
       </div>
     </Modal>
+  );
+}
+
+
+/**
+ * DOVE È USATA QUESTA RICETTA — e come collegarla altrove.
+ *
+ * Richiesta di Simone dell'11/8: dal dettaglio della ricetta poterla collegare a una dieta e a una
+ * settimana, a più d'una, anche a una settimana che ancora non c'è.
+ *
+ * ## Si ragiona per RIGHE
+ *
+ * Una riga è **una dieta e una settimana** — «Low carb · Settimana 1», «Mediterranea · Settimana 4»
+ * — perché è così che si guarda un catalogo: dove gira questo piatto. Il giorno c'è, e si vede, ma
+ * è il dettaglio dentro la riga: sotto sta scritto «giorno 3».
+ *
+ * ## Non è come il resto della scheda
+ *
+ * Gli altri campi si salvano con «Salva». Questi collegamenti **valgono subito**, perché toccano le
+ * giornate di una dieta e non la ricetta: tenerli in sospeso vorrebbe dire poter chiudere la scheda
+ * con dei collegamenti a metà. Ogni riga aggiunta o tolta è un'operazione conclusa, e lo dice.
+ */
+function DoveUsata({ recipe, slotNelModulo }: { recipe: Recipe; slotNelModulo: string }) {
+  const [usi, setUsi] = useState<Uso[] | null>(null);
+  const [diete, setDiete] = useState<DietaCollegabile[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [avviso, setAvviso] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [apri, setApri] = useState(false);
+
+  const [dietId, setDietId] = useState('');
+  const [giornate, setGiornate] = useState<GiornateSlot | null>(null);
+  const [dayIndex, setDayIndex] = useState(0);
+  /** Contatore delle richieste: la risposta di una dieta abbandonata non deve sovrascrivere l'altra. */
+  const richiesta = useRef(0);
+
+  async function caricaUsi() {
+    try { setUsi(await api<Uso[]>(`/recipes/${recipe.id}/uso`)); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : 'Non riesco a leggere dove è usata.'); }
+  }
+
+  async function caricaGiornate(id: string) {
+    const mia = ++richiesta.current;
+    try {
+      const g = await api<GiornateSlot>(`/recipes/diete/${id}/giornate?slot=${encodeURIComponent(recipe.mealSlot)}`);
+      // Cambiando dieta due volte in fretta, la risposta lenta della prima arriverebbe per ultima e
+      // farebbe scegliere un giorno guardando le giornate di un'altra dieta.
+      if (mia !== richiesta.current) return;
+      setGiornate(g);
+      setDayIndex(g.suggerimento.dayIndex);
+    } catch (e) {
+      if (mia === richiesta.current) setErr(e instanceof ApiError ? e.message : 'Non riesco a leggere le giornate.');
+    }
+  }
+
+  useEffect(() => {
+    void caricaUsi();
+    // Solo le diete dello STESSO regime e non ritirate: una ricetta onnivora dentro una dieta vegana
+    // è l'errore che il generatore si vieta da sé, e qui lo farebbe una persona a mano. Il backend
+    // rifiuta comunque; la tendina evita di far scegliere qualcosa che verrà respinto.
+    api<DietaCollegabile[]>('/diets')
+      .then((d) => setDiete(d.filter((x) => x.regime === recipe.regime && x.status !== 'rejected')))
+      .catch(() => setDiete([]));
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [recipe.id]);
+
+  useEffect(() => {
+    setGiornate(null); setDayIndex(0);
+    if (dietId) void caricaGiornate(dietId);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [dietId, recipe.mealSlot]);
+
+  const settimanaScelta = dayIndex ? Math.max(1, Math.ceil(dayIndex / 7)) : 0;
+
+  const giorniDellaSettimana = useMemo(() => {
+    if (!settimanaScelta) return [];
+    const primo = (settimanaScelta - 1) * 7 + 1;
+    return Array.from({ length: 7 }, (_, i) => primo + i).map((di) => {
+      const g = giornate?.giornate.find((x) => x.dayIndex === di);
+      return { dayIndex: di, giorno: i7(di), occupatoDa: g?.occupatoDa ?? null, esiste: !!g };
+    });
+  }, [settimanaScelta, giornate]);
+
+  /** Le settimane offerte: quelle che ci sono, più la prossima — il modo di allungare il ciclo. */
+  const settimaneOfferte = useMemo(() => {
+    const n = giornate?.settimane ?? 0;
+    // Il ciclo si ferma a 12 settimane (84 giornate): oltre, il backend rifiuta. Meglio non offrirla.
+    const prossima = n < 12 ? [n + 1] : [];
+    return [...Array.from({ length: n }, (_, i) => i + 1), ...prossima];
+  }, [giornate]);
+
+  /** Cambiando settimana si va sul primo giorno LIBERO, non sul giorno 1 che spesso è occupato. */
+  function scegliSettimana(n: number) {
+    const primo = (n - 1) * 7 + 1;
+    const giorni = Array.from({ length: 7 }, (_, i) => primo + i);
+    const libero = giorni.find((di) => {
+      const g = giornate?.giornate.find((x) => x.dayIndex === di);
+      return !g || !g.occupatoDa;
+    });
+    setDayIndex(libero ?? primo);
+  }
+
+  async function collega() {
+    if (!dietId || !dayIndex) return;
+    setBusy(true); setErr(null); setAvviso(null);
+    try {
+      const r = await api<EsitoCollega>(`/recipes/${recipe.id}/uso`, { method: 'POST', body: JSON.stringify({ dietId, dayIndex }) });
+      const parti = [r.giaCosi ? 'Era già collegata a questa giornata.' : `Collegata alla settimana ${r.settimana}, giorno ${r.giorno}.`];
+      // Le tre cose che NON si vedono guardando la riga nuova, e che vanno dette adesso.
+      if (r.sostituito) parti.push(`Ha preso il posto di «${r.sostituito}».`);
+      if (r.settimanaNuova) parti.push(`La settimana ${r.settimana} è nuova: le altre ${r.giornateVuoteCreate} giornate sono vuote.`);
+      if (!r.giornataCompleta) {
+        parti.push(`⚠️ A quella giornata mancano ancora ${r.pastiMancanti} pasti, e finché è così il motore la salta: il piatto è scritto ma non arriva a nessuna cliente.`);
+      }
+      setAvviso(parti.join(' '));
+      await caricaUsi();
+      await caricaGiornate(dietId);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Collegamento non riuscito.');
+    } finally { setBusy(false); }
+  }
+
+  async function scollega(u: Uso) {
+    // Il prezzo vero va detto prima, e non è «il pasto resta vuoto»: una giornata monca il motore la
+    // scarta, quindi il ciclo servito alle clienti si accorcia di una giornata.
+    if (!confirm(
+      `Togliere «${recipe.name}» da ${u.dieta}, settimana ${u.settimana}, giorno ${u.giorno}?\n\n`
+      + 'Quella giornata resta senza questo pasto, e una giornata incompleta il motore NON la serve: '
+      + 'il ciclo di questa dieta si accorcia di una giornata per tutte le clienti che la seguono, '
+      + 'finché non la ricompleti.',
+    )) return;
+    setBusy(true); setErr(null); setAvviso(null);
+    try {
+      const r = await api<{ tolta: boolean; giornateComplete?: number }>(
+        `/recipes/${recipe.id}/uso`, { method: 'DELETE', body: JSON.stringify({ dietId: u.dietId, dayIndex: u.dayIndex }) },
+      );
+      setAvviso(r.tolta
+        ? `Tolta da ${u.dieta}, settimana ${u.settimana}. Quella dieta ora eroga ${r.giornateComplete} giornate complete.`
+        : 'In quella giornata questa ricetta non c\'era più.');
+      await caricaUsi();
+      if (dietId === u.dietId) await caricaGiornate(dietId);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Non riesco a toglierla.');
+    } finally { setBusy(false); }
+  }
+
+  const occupante = giorniDellaSettimana.find((g) => g.dayIndex === dayIndex)?.occupatoDa ?? null;
+  // Il collegamento scrive nello slot SALVATO. Se nel modulo il pasto è stato cambiato e non ancora
+  // salvato, collegare adesso metterebbe il piatto nello slot vecchio: meglio fermarsi e dirlo.
+  const slotCambiato = slotNelModulo !== recipe.mealSlot;
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+      <b style={{ fontSize: 13 }}>Dove è usata</b>
+      <p className="muted" style={{ fontSize: 11, margin: '2px 0 8px' }}>
+        Una riga per dieta e settimana, letta dalle giornate. Vale <b>subito</b>: non aspetta «Salva».
+      </p>
+
+      {err && <Banner kind="err">{err}</Banner>}
+      {avviso && <Banner kind="ok">{avviso}</Banner>}
+      {slotCambiato && (
+        <Banner kind="info">
+          Hai cambiato il pasto da <b>{SLOT[recipe.mealSlot] ?? recipe.mealSlot}</b> a <b>{SLOT[slotNelModulo] ?? slotNelModulo}</b> e non hai ancora salvato.
+          Salva prima di collegare: i collegamenti scrivono nel pasto salvato, non in quello scelto qui sopra.
+        </Banner>
+      )}
+
+      {usi === null ? <Spinner /> : usi.length === 0 ? (
+        <div className="muted" style={{ fontSize: 12, padding: '6px 0' }}>
+          Nessuna giornata la usa: è una ricetta <b>orfana</b>. È stata generata e pagata, e nessuna cliente la vedrà.
+        </div>
+      ) : (
+        <table className="grid" style={{ marginTop: 4 }}>
+          <tbody>
+            {usi.map((u) => (
+              <tr key={`${u.dietId}-${u.dayIndex}`}>
+                <td>
+                  <b>{u.dieta}</b>{' '}
+                  {u.ritirata && <span className="chip gray" title="Dieta rifiutata o ritirata: le sue giornate restano scritte, ma non viene erogata">non erogata</span>}
+                  {u.bozza && <span className="chip gray" title="Dieta in bozza o in revisione: non ancora pubblicata">bozza</span>}
+                  <div className="muted" style={{ fontSize: 11 }}>giorno {u.giorno} della settimana</div>
+                </td>
+                <td style={{ whiteSpace: 'nowrap' }}><span className="chip">Settimana {u.settimana}</span></td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className="btn ghost sm" disabled={busy} onClick={() => scollega(u)} title="Togli da questa giornata">
+                    <i className="ti ti-unlink" /> Togli
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {!apri ? (
+        <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setApri(true)} disabled={slotCambiato}>
+          <i className="ti ti-plus" /> Collega a una dieta
+        </button>
+      ) : (
+        <div className="card" style={{ marginTop: 8, padding: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 8 }}>
+            <label><span className="muted" style={{ fontSize: 12 }}>Dieta</span>
+              <select className="select" value={dietId} onChange={(e) => setDietId(e.target.value)}>
+                <option value="">— scegli —</option>
+                {/* L'etichetta deve DISTINGUERE le varianti: nome e regime sono uguali in tutta la
+                    famiglia, e due voci identiche che si comportano in modo diverso (il digiuno non
+                    ha colazione) fanno scegliere quella sbagliata. */}
+                {[...diete]
+                  .sort((a, b) => a.name.localeCompare(b.name, 'it') || (a.mealsPerDay ?? 0) - (b.mealsPerDay ?? 0))
+                  .map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                      {d.objective ? ` · ${OBIETTIVO[d.objective] ?? d.objective}` : ''}
+                      {d.fasting ? ' · Digiuno' : d.mealsPerDay ? ` · ${d.mealsPerDay} pasti` : ''}
+                      {d.status !== 'approved' ? ' · bozza' : ''}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label><span className="muted" style={{ fontSize: 12 }}>Settimana</span>
+              <select className="select" value={settimanaScelta || ''} disabled={!giornate}
+                onChange={(e) => scegliSettimana(Number(e.target.value))}>
+                {settimaneOfferte.map((n) => (
+                  <option key={n} value={n}>Settimana {n}{n > (giornate?.settimane ?? 0) ? ' — nuova' : ''}</option>
+                ))}
+              </select>
+            </label>
+            <label><span className="muted" style={{ fontSize: 12 }}>Giorno</span>
+              <select className="select" value={dayIndex || ''} disabled={!giornate}
+                onChange={(e) => setDayIndex(Number(e.target.value))}>
+                {giorniDellaSettimana.map((g) => (
+                  <option key={g.dayIndex} value={g.dayIndex}>
+                    Giorno {g.giorno}{g.occupatoDa ? ` — occupato da ${g.occupatoDa.name}` : g.esiste ? ' — libero' : ' — da creare'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {giornate && !giornate.slotPrevisto && (
+            <Banner kind="err">
+              Questa dieta non prevede questo pasto: le sue giornate ne hanno {giornate.pastiPrevisti}. La ricetta non ci può stare.
+            </Banner>
+          )}
+          {giornate?.suggerimento && dayIndex === giornate.suggerimento.dayIndex && giornate.slotPrevisto && (
+            <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+              <i className="ti ti-bulb" style={{ marginRight: 4 }} />
+              {giornate.suggerimento.nuova
+                ? `In questa dieta il pasto è pieno in tutte le ${giornate.settimane} settimane: ti propongo la settimana ${giornate.suggerimento.settimana}, nuova.`
+                : `Ti propongo la prima settimana con un buco in questo pasto: la ${giornate.suggerimento.settimana}, giorno ${giornate.suggerimento.giorno}.`}
+            </div>
+          )}
+          {giornate && settimanaScelta > giornate.settimane && (
+            <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>
+              La settimana {settimanaScelta} non esiste ancora: nascerà con 7 giornate, sei delle quali vuote.
+              Finché non le riempi, il motore le salta — e salta anche quella con questo piatto.
+            </div>
+          )}
+          {occupante && (
+            <div style={{ fontSize: 11, marginTop: 6, color: 'var(--danger)' }}>
+              ⚠️ In quel giorno c'è già <b>{occupante.name}</b>: collegando questa ricetta prende il suo posto.
+            </div>
+          )}
+
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+            <button className="btn ghost sm" onClick={() => { setApri(false); setDietId(''); }} disabled={busy}>Annulla</button>
+            <button className="btn sm" onClick={collega} disabled={busy || !dietId || !dayIndex || !giornate?.slotPrevisto}>
+              <i className="ti ti-link" /> {busy ? 'Collego…' : 'Collega'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

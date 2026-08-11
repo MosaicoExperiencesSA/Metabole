@@ -20,6 +20,48 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔗 **Dal dettaglio della ricetta la si collega alle diete e alle settimane — e la
+  revisione ha fermato tre modi di rompere i menu delle clienti.** Richiesta di Simone: «dentro il
+  dettaglio in modifica inseriscimi la dieta (posso collegarne più di una) e la settimana (posso
+  collegarne più di una o addirittura aggiungerne una nuova)», e poi «ragiona per righe: Low carb
+  Settimana 1, Mediterranea Settimana 4, Keto Settimana 8».
+  Nel modale c'è **«Dove è usata»**: una riga per dieta e settimana, il giorno come dettaglio sotto,
+  «Togli» su ogni riga e un modulo per collegare. Le righe si leggono dalle giornate e **valgono
+  subito**, senza «Salva»: toccano le giornate di una dieta, non la ricetta, e tenerle in sospeso
+  vorrebbe dire poter chiudere la scheda con dei collegamenti a metà. Scelta la dieta, il server
+  propone **la prima settimana con un buco in quel pasto** — che è il posto dove il piatto entra
+  senza cacciarne un altro — e se il ciclo è pieno propone una settimana nuova.
+  Tre decisioni prese da Simone: il **giorno lo sceglie lui** (l'automatico nasconde quale giornata
+  è stata toccata e cosa c'era prima); collegare **non rimanda la dieta in bozza** anche se è
+  approvata (declassarla vorrebbe dire toglierla alle clienti che la seguono per una correzione di
+  catalogo); si può **creare una settimana nuova**, con l'avviso che le altre sei giornate sono
+  vuote.
+  ⭐ **Quello che ha fermato la revisione, su codice verde.** (1) La funzione che scrive il pasto lo
+  rimetteva **in fondo** all'array — cosa che viene naturale scrivendo `filter` seguito da un
+  `push` — e l'ordine dell'array è l'ordine con cui l'app disegna i pasti: collegare una colazione
+  alla prima giornata del ciclo avrebbe mostrato «pranzo, cena, colazione» a **tutte** le clienti di
+  quella dieta. Nessun test lo vedeva, perché a insiemi la giornata era giusta. (2) Siccome la dieta
+  non torna in bozza, `assertActivatable` **non ci ripassa più**: il cancello R8 sugli allergeni
+  sarebbe stato scavalcato in modo permanente, e una ricetta con gli allergeni solo *suggeriti*
+  sarebbe finita nel piatto di una cliente. Ora il controllo si fa qui. (3) «Togli» lascia la
+  giornata monca, e una giornata monca il motore **la scarta**: il ciclo servito si accorcia di una
+  giornata per tutte, e sull'ultima giornata completa la dieta resterebbe senza niente da erogare.
+  Ora l'ultima è rifiutata, e il messaggio dice il prezzo vero invece di «il pasto resta vuoto».
+  Altre correzioni della stessa revisione: lettura e scrittura nella **stessa transazione** (fuori,
+  due nutrizionisti sulla stessa giornata si cancellavano il pasto a vicenda, senza errore e con
+  l'audit di tutti e due che diceva «fatto»); il **livello** filtrato a 1 (un `findFirst` su
+  `{dietId, dayIndex}` poteva scrivere in un ciclo che nessuno eroga); la settimana si crea intera
+  **solo se non esiste**, perché riempire i buchi di una settimana parziale allungava di nascosto il
+  ciclo di una dieta viva; l'elenco «Dove è usata» passa a una query SQL invece di leggere tutte le
+  giornate del catalogo a ogni apertura di scheda; le voci della tendina distinguono le varianti
+  (due diete con lo stesso nome e regime ma una col digiuno erano due righe identiche che si
+  comportano in modo opposto — il digiuno non ha colazione).
+  E una cosa che va detta e prima non si diceva: se dopo il collegamento la giornata è ancora
+  monca, l'esito lo scrive — **il piatto è salvato ma non arriva a nessuna cliente**. «Collegata» da
+  sola si legge come «in produzione».
+  Verifiche: type-check col baseline invariato, 109 suite / 1698 test verdi (22 nuovi su
+  `collega-ricetta`), build del backoffice verde.
+
 - `[Sviluppo]` 🔧 **Le colonne Dieta e Settimana mostravano «—»: il 7 della settimana era un
   parametro, e un parametro cambia il tipo.** Segnalazione di Simone a poche ore dalla consegna.
   Nella query, `${GIORNI_SETTIMANA}` finiva come **parametro** e non come costante scritta: Prisma

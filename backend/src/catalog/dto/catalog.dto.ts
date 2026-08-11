@@ -140,6 +140,23 @@ export class DayTemplateDto {
   meals!: TemplateMealDto[];
 }
 
+/**
+ * Collegare/scollegare una ricetta a una giornata del catalogo.
+ *
+ * `dayIndex` arriva fino a **84** (dodici settimane), non a 28 come in `DayTemplateDto`: quel tetto
+ * è di quando il ciclo era di quattro settimane, e i dati veri hanno già ricette in settimana 12.
+ * Un limite più basso della realtà non protegge niente: rifiuta il lavoro vero.
+ */
+export class CollegaRicettaDto {
+  @IsString()
+  dietId!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(84)
+  dayIndex!: number;
+}
+
 export class SetDayTemplatesDto {
   @IsArray()
   @ValidateNested({ each: true })

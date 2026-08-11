@@ -10,8 +10,12 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
-import { giornateComplete } from './giornate-complete';
+import { giornateComplete, pastiAttesi } from './giornate-complete';
 import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
+import {
+  GIORNI_PER_SETTIMANA, conRicettaNelloSlot, giorniDi, giornoNellaSettimana, pastiDi, senzaRicetta,
+  settimanaDi,
+} from './collega-ricetta';
 import {
   CreateDietDto,
   CreateRecipeDto,
@@ -623,6 +627,299 @@ export class CatalogService {
       metadata: { from: diet.status },
     });
     return updated;
+  }
+
+  // ---------- Collegare una ricetta alle giornate ----------
+
+  /**
+   * ⚠️ QUESTE OPERAZIONI LAVORANO SUL LIVELLO 1.
+   *
+   * `DietDayTemplate` ha un `level` e il motore sa leggere livelli diversi, ma nei dati esiste solo
+   * il livello 1 e tutto ciò che scrive giornate (generatore e «Componi giorni») scrive lì. Senza
+   * questo filtro, `findFirst` su `{dietId, dayIndex}` può pescare la riga di un altro livello: si
+   * scriverebbe il piatto in un ciclo che nessuno eroga, e l'elenco «Dove è usata» lo mostrerebbe
+   * come se fosse servito. Meglio un perimetro dichiarato che una scelta a caso del database.
+   */
+  private static readonly LIVELLO = 1;
+
+  /**
+   * DOVE È USATA QUESTA RICETTA, per la scheda della ricetta.
+   *
+   * In SQL, non leggendo tutte le giornate in memoria: la domanda riguarda **una** ricetta, e
+   * `diet_day_template` sono decine di migliaia di righe con dentro un JSON. Filtrare in JavaScript
+   * vorrebbe dire trasferirle tutte a ogni apertura di una scheda.
+   */
+  async usiDellaRicetta(recipeId: string) {
+    const righe = (await this.prisma.$queryRaw`
+      SELECT t.diet_id AS "dietId", d.name AS dieta, d.status::text AS stato, t.day_index AS "dayIndex"
+      FROM diet_day_template t
+      JOIN diet d ON d.id = t.diet_id
+      CROSS JOIN LATERAL jsonb_array_elements(
+        CASE WHEN jsonb_typeof(t.meals) = 'array' THEN t.meals ELSE '[]'::jsonb END
+      ) AS m
+      WHERE t.level = ${CatalogService.LIVELLO}
+        AND (m->>'recipeId') = ${recipeId}
+      GROUP BY 1, 2, 3, 4
+      ORDER BY 2, 4
+    `) as { dietId: string; dieta: string; stato: string; dayIndex: number }[];
+
+    return righe.map((r) => ({
+      dietId: r.dietId,
+      dieta: r.dieta,
+      // Una dieta ritirata tiene le sue giornate scritte: la ricetta sembra usata e non lo è più.
+      ritirata: r.stato === 'rejected',
+      bozza: r.stato === 'draft' || r.stato === 'in_review',
+      dayIndex: Number(r.dayIndex),
+      settimana: settimanaDi(Number(r.dayIndex)),
+      giorno: giornoNellaSettimana(Number(r.dayIndex)),
+    }));
+  }
+
+  /**
+   * Le giornate di una dieta viste **da uno slot solo**: chi c'è adesso in quella cena, giorno per
+   * giorno. È quello che serve per scegliere dove mettere il piatto senza scoprire dopo di averne
+   * cancellato un altro.
+   */
+  async giornateDiDietaPerSlot(dietId: string, slot: string) {
+    const [giorni, diet] = await Promise.all([
+      this.prisma.dietDayTemplate.findMany({
+        where: { dietId, level: CatalogService.LIVELLO },
+        select: { dayIndex: true, meals: true },
+        orderBy: { dayIndex: 'asc' },
+      }) as Promise<{ dayIndex: number; meals: unknown }[]>,
+      this.prisma.diet.findUnique({ where: { id: dietId }, select: { mealsPerDay: true, fasting: true, status: true } }),
+    ]);
+    if (!diet) throw new NotFoundException('Dieta non trovata');
+
+    const occupanti = [...new Set(giorni.flatMap((g) => pastiDi(g.meals).filter((m) => m.slot === slot).map((m) => m.recipeId)))];
+    const nomi = new Map(
+      ((await this.prisma.recipe.findMany({ where: { id: { in: occupanti } }, select: { id: true, name: true } })) as { id: string; name: string }[])
+        .map((r) => [r.id, r.name]),
+    );
+
+    const attesi = pastiAttesi(diet);
+    const giornate = giorni.map((g) => {
+      const pasti = pastiDi(g.meals);
+      const occupante = pasti.find((m) => m.slot === slot) ?? null;
+      return {
+        dayIndex: g.dayIndex,
+        settimana: settimanaDi(g.dayIndex),
+        giorno: giornoNellaSettimana(g.dayIndex),
+        occupatoDa: occupante ? { id: occupante.recipeId, name: nomi.get(occupante.recipeId) ?? '(ricetta cancellata)' } : null,
+        /** Giornata già monca di suo: il motore la scarta comunque, prima e dopo. */
+        completa: attesi.every((a) => pasti.some((m) => m.slot === a)),
+      };
+    });
+
+    /**
+     * DOVE PROPORRE DI METTERLA: la prima settimana INCOMPLETA per questo pasto.
+     *
+     * Richiesta di Simone dell'11/8: «se collego la ricetta a una nuova dieta proponimi tu la prima
+     * settimana incompleta». «Incompleta» qui vuol dire una cosa precisa e utile: la prima settimana
+     * che ha ancora un giorno **libero in questo pasto**. È il posto dove il piatto entra senza
+     * cacciarne un altro — e sono i buchi del ciclo la cosa che si vuole chiudere.
+     *
+     * Se non c'è nessun buco, il ciclo per questo pasto è pieno: allora si propone una settimana
+     * **nuova**, che è l'altro modo di far entrare il piatto. Resta un suggerimento: il giorno lo
+     * conferma chi collega, perché è lui a sapere se vuole sostituire.
+     */
+    const libera = giornate.find((g) => !g.occupatoDa) ?? null;
+    const ultimaSettimana = giornate.reduce((m, g) => Math.max(m, g.settimana), 0);
+    const suggerimento = libera
+      ? { settimana: libera.settimana, dayIndex: libera.dayIndex, giorno: libera.giorno, nuova: false }
+      : { settimana: ultimaSettimana + 1, dayIndex: ultimaSettimana * GIORNI_PER_SETTIMANA + 1, giorno: 1, nuova: true };
+
+    return {
+      // Se lo slot non è previsto dalla dieta, il posto dove mettere il piatto non esiste: meglio
+      // dirlo qui che lasciar scegliere un giorno e rifiutare al salvataggio.
+      slotPrevisto: attesi.includes(slot),
+      pastiPrevisti: attesi.length,
+      stato: diet.status as string,
+      settimane: ultimaSettimana,
+      /** Quante giornate il motore eroga davvero oggi: le monche le scarta. */
+      giornateComplete: giornate.filter((g) => g.completa).length,
+      suggerimento,
+      giornate,
+    };
+  }
+
+  /** I controlli comuni a collega/scollega, in un posto solo. */
+  private async ricettaEDieta(recipeId: string, dietId: string) {
+    const [recipe, diet] = await Promise.all([
+      this.prisma.recipe.findUnique({ where: { id: recipeId } }) as Promise<{ id: string; name: string; regime: string; mealSlot: string; active: boolean; allergensReviewed: boolean } | null>,
+      this.prisma.diet.findUnique({ where: { id: dietId } }) as Promise<{ id: string; name: string; regime: string; mealsPerDay: number | null; fasting: boolean | null; status: string } | null>,
+    ]);
+    if (!recipe) throw new NotFoundException('Ricetta non trovata');
+    if (!diet) throw new NotFoundException('Dieta non trovata');
+    return { recipe, diet };
+  }
+
+  /**
+   * COLLEGA la ricetta a una giornata di una dieta.
+   *
+   * ⚠️ **Non rimanda la dieta in bozza.** `setDayTemplates` lo fa, ed è giusto lì: quella riscrive
+   * il ciclo intero. Qui si cambia un piatto in una giornata, e declassare la dieta vorrebbe dire
+   * toglierla alle clienti che la stanno seguendo per una correzione di catalogo. Decisione di
+   * Simone dell'11/8.
+   *
+   * ⚠️ **Proprio perché non torna in bozza, i cancelli si controllano QUI.** `assertActivatable` gira
+   * solo quando una dieta viene pubblicata o resa visibile: su una dieta già approvata non passerà
+   * mai più. Quindi il regime e gli allergeni confermati (R8) vanno verificati adesso, o questa
+   * strada diventa il modo di far entrare nel piatto di una cliente una ricetta che il cancello
+   * avrebbe fermato.
+   *
+   * ⚠️ **La settimana si crea solo se non esiste per niente.** Riempire i buchi di una settimana
+   * parziale allungherebbe il ciclo di una dieta viva senza che nessuno l'abbia chiesto: un ciclo di
+   * 10 giornate diventerebbe di 14, con quattro giornate vuote.
+   */
+  async collegaRicetta(userId: string, recipeId: string, dietId: string, dayIndex: number) {
+    await this.staffOf(userId);
+    const { recipe, diet } = await this.ricettaEDieta(recipeId, dietId);
+
+    if (!recipe.active) throw new BadRequestException('La ricetta è archiviata: riattivala prima di collegarla.');
+    if (recipe.regime !== diet.regime) {
+      throw new BadRequestException(
+        `La ricetta è ${recipe.regime} e la dieta «${diet.name}» è ${diet.regime}. Un piatto di un altro regime dentro una dieta è un errore che nessuno vede finché non arriva nel piatto di una cliente.`,
+      );
+    }
+    if (!recipe.allergensReviewed) {
+      throw new BadRequestException(
+        'Gli allergeni di questa ricetta non sono ancora confermati (R8). Confermali in «Allergeni ricette»: da qui la dieta non ripassa dal controllo di pubblicazione, quindi il piatto entrerebbe nei menu con gli allergeni solo suggeriti.',
+      );
+    }
+    const attesi = pastiAttesi(diet);
+    if (!attesi.includes(recipe.mealSlot)) {
+      throw new BadRequestException(
+        `La dieta «${diet.name}» non prevede questo pasto: le sue giornate hanno ${attesi.length} pasti (${attesi.join(', ')}).`,
+      );
+    }
+
+    const settimana = settimanaDi(dayIndex);
+    const giorniSettimana = giorniDi(settimana);
+
+    /**
+     * Lettura e scrittura nella STESSA transazione. Fuori, due nutrizionisti sulla stessa giornata
+     * leggono lo stesso `meals` e il secondo salvataggio cancella il pasto del primo — senza errore,
+     * senza log, con l'audit di tutti e due che dice «fatto».
+     */
+    const esito = await this.prisma.$transaction(async (tx: PrismaService) => {
+      const esistenti = (await tx.dietDayTemplate.findMany({
+        where: { dietId, level: CatalogService.LIVELLO, dayIndex: { in: giorniSettimana } },
+        select: { id: true, dayIndex: true, meals: true },
+        orderBy: { dayIndex: 'asc' },
+      })) as { id: string; dayIndex: number; meals: unknown }[];
+
+      // La settimana si crea INTERA solo se non esiste nessuna delle sue giornate. Se ne esiste
+      // anche una sola, il ciclo arriva fin lì di proposito e non lo si allunga di nascosto.
+      const settimanaNuova = esistenti.length === 0;
+      const giorno = esistenti.find((e) => e.dayIndex === dayIndex) ?? null;
+      if (!settimanaNuova && !giorno) {
+        throw new BadRequestException(
+          `La dieta «${diet.name}» non ha il giorno ${giornoNellaSettimana(dayIndex)} della settimana ${settimana}: il suo ciclo si ferma prima. Scegli un giorno che esiste, oppure una settimana nuova.`,
+        );
+      }
+
+      const messa = conRicettaNelloSlot(giorno?.meals, recipe.mealSlot, recipeId);
+      const sostituito = messa.sostituito
+        ? ((await tx.recipe.findUnique({ where: { id: messa.sostituito }, select: { name: true } })) as { name: string } | null)?.name ?? null
+        : null;
+
+      if (settimanaNuova) {
+        await tx.dietDayTemplate.createMany({
+          data: giorniSettimana.map((g) => ({
+            dietId, level: CatalogService.LIVELLO, dayIndex: g,
+            meals: (g === dayIndex ? messa.meals : []) as never,
+          })),
+        });
+      } else {
+        await tx.dietDayTemplate.update({
+          where: { id: (giorno as { id: string }).id }, data: { meals: messa.meals as never },
+        });
+      }
+      return { messa, sostituito, settimanaNuova };
+    });
+
+    await this.audit.log({
+      action: 'catalog.recipe.collegata',
+      actorId: userId,
+      entityType: 'recipe',
+      entityId: recipeId,
+      metadata: {
+        dietId, dieta: diet.name, dayIndex, settimana,
+        sostituito: esito.sostituito,
+        settimanaNuova: esito.settimanaNuova,
+        giornateVuoteCreate: esito.settimanaNuova ? GIORNI_PER_SETTIMANA - 1 : 0,
+      },
+    });
+
+    return {
+      ok: true,
+      settimana,
+      giorno: giornoNellaSettimana(dayIndex),
+      giaCosi: esito.messa.giaCosi,
+      sostituito: esito.sostituito,
+      settimanaNuova: esito.settimanaNuova,
+      /** Le giornate nate VUOTE: sono da riempire, e finché lo sono il motore le salta. */
+      giornateVuoteCreate: esito.settimanaNuova ? GIORNI_PER_SETTIMANA - 1 : 0,
+      /**
+       * Se la giornata è ancora monca, il piatto è scritto ma NON arriva a nessuna cliente: il
+       * motore serve solo le giornate con tutti i pasti. Va detto, o «collegata» si legge come
+       * «in produzione».
+       */
+      giornataCompleta: attesi.every((a) => esito.messa.meals.some((m: { slot: string }) => m.slot === a)),
+      pastiMancanti: attesi.filter((a) => !esito.messa.meals.some((m: { slot: string }) => m.slot === a)).length,
+    };
+  }
+
+  /**
+   * TOGLIE la ricetta da una giornata.
+   *
+   * ⚠️ La giornata resta, **monca**: e una giornata monca il motore la scarta. Quindi togliere un
+   * piatto da una dieta viva accorcia il ciclo servito alle clienti — la rotazione gira su
+   * `giornateComplete`, non sulle giornate scritte. Qui si restituisce quanto resta, perché chi
+   * toglie possa vederlo; e si rifiuta di togliere l'**ultima** giornata completa, che lascerebbe la
+   * dieta senza niente da erogare.
+   */
+  async scollegaRicetta(userId: string, recipeId: string, dietId: string, dayIndex: number) {
+    await this.staffOf(userId);
+    const { diet } = await this.ricettaEDieta(recipeId, dietId);
+    const attesi = pastiAttesi(diet);
+
+    const esito = await this.prisma.$transaction(async (tx: PrismaService) => {
+      const giornate = (await tx.dietDayTemplate.findMany({
+        where: { dietId, level: CatalogService.LIVELLO },
+        select: { id: true, dayIndex: true, meals: true },
+      })) as { id: string; dayIndex: number; meals: unknown }[];
+      const giorno = giornate.find((g) => g.dayIndex === dayIndex) ?? null;
+      if (!giorno) throw new NotFoundException('Questa giornata non esiste in questa dieta.');
+
+      const senza = senzaRicetta(giorno.meals, recipeId);
+      if (!senza.tolta) return { tolta: false, complete: 0 };
+
+      const completa = (meals: { slot: string }[]) => attesi.every((a) => meals.some((m: { slot: string }) => m.slot === a));
+      const primaComplete = giornate.filter((g) => completa(pastiDi(g.meals))).length;
+      const dopoComplete = primaComplete - (completa(pastiDi(giorno.meals)) && !completa(senza.meals) ? 1 : 0);
+
+      if (dopoComplete === 0 && primaComplete > 0) {
+        throw new BadRequestException(
+          `Questa è l'ultima giornata completa di «${diet.name}»: togliendo il piatto la dieta resterebbe senza niente da erogare, e le clienti che la seguono non riceverebbero il menu. Completa un'altra giornata prima.`,
+        );
+      }
+
+      await tx.dietDayTemplate.update({ where: { id: giorno.id }, data: { meals: senza.meals as never } });
+      return { tolta: true, complete: dopoComplete };
+    });
+
+    if (!esito.tolta) return { ok: true, tolta: false };
+
+    await this.audit.log({
+      action: 'catalog.recipe.scollegata',
+      actorId: userId,
+      entityType: 'recipe',
+      entityId: recipeId,
+      metadata: { dietId, dieta: diet.name, dayIndex, settimana: settimanaDi(dayIndex), giornateComplete: esito.complete },
+    });
+    return { ok: true, tolta: true, giornateComplete: esito.complete };
   }
 
   // ---------- Ricette ----------
