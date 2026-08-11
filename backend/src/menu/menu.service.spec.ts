@@ -1279,6 +1279,12 @@ describe('MenuService — giornate incomplete (§15.4)', () => {
     expect(prisma.analyticsEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ name: 'diet_meals_fallback' }) }),
     );
+    // La gemella deve arrivare con i LIVELLI CALORICI: il target del giorno esce da
+    // `levelTargetKcal(diet.levels, level)`, quindi una gemella senza `levels` servirebbe le
+    // giornate giuste con le calorie a ZERO. Si controlla la forma della SELECT e non l'effetto
+    // perché è lì che il campo si perde, e si perde in silenzio.
+    const selectGemelle = (prisma.diet.findMany as jest.Mock).mock.calls[0][0].select;
+    expect(selectGemelle).toMatchObject({ levels: true, objective: true, mealsPerDay: true });
   });
 
   it('nemmeno le gemelle: NON eroga e apre una segnalazione', async () => {

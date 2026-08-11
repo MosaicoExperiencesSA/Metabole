@@ -61,11 +61,16 @@ backoffice React su Vercel.
 
 **Limiti dell'ambiente**
 
-- In sandbox `backend/node_modules` non c'è: **typecheck e jest si lanciano sul Mac**
-  (`cd ~/Progetti/Metabole/backend && npx tsc --noEmit && npm test`). Il backoffice invece si
-  builda in sandbox. Suite attuale: **837 test verdi**.
-- Sul Mac `npx prisma generate` **fallisce** (403 sui binari): per le colonne nuove si usa
-  `as never` sui `data` e sui `select` — è un pattern già diffuso nel repo, non un ripiego.
+- **Type-check: `cd backend && npm run typecheck`, e il verde è ZERO errori.** Non più «42» o
+  «32»: quei numeri erano rumore dello stub di Prisma, e in mezzo al rumore l'11/8 è passato un
+  errore vero che ha fatto fallire il build su Render.
+- `npx prisma generate` **fallisce** con 403 sui binari (sia sul Mac sia in sandbox), ed è la
+  ragione per cui `@prisma/client` restava uno stub. `npm run typecheck` gira intorno al 403 —
+  `--no-engine` + un mirror finto in locale: per i **tipi** il motore non serve. Dettagli in testa a
+  `backend/scripts/typecheck-reale.mjs`, incluso cosa lascia in `node_modules` (due file finti da
+  1 KB, innocui finché in locale non si eseguono query o migrazioni; `npm ci` rimette a posto).
+- Per le colonne nuove resta il pattern `as never` sui `data` e sui `select` **finché non si è
+  rigenerato il client**: dopo `npm run typecheck` i tipi sono aggiornati e non serve più.
 
 **Le OTA**: guida dedicata, `progetto/guide/COME_SI_FA_UNA_OTA.md`. Leggerla **prima** di
 lanciare qualunque cosa. Stato: `app/package.json` = 2.1.2, bundle 2.1.2 pubblicato e verificato,

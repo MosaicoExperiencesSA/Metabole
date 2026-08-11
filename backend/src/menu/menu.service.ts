@@ -56,6 +56,23 @@ interface DietaPerErogazione {
   levels?: unknown;
 }
 
+/**
+ * Una giornata del catalogo, per l'erogazione.
+ *
+ * Dichiarata a mano per la stessa ragione di `DietaPerErogazione`, ma qui c'è un motivo in più:
+ * `soloGiornateComplete` può restituire le giornate di **un'altra dieta** (la gemella), quindi la
+ * variabile deve avere un tipo che vale per entrambe. Lasciandola inferire da Prisma, il tipo
+ * diventava quello esatto della prima query e il riassegno non compilava — in sandbox non si vedeva
+ * perché il client è uno stub, in produzione ha fatto fallire il build (11/8).
+ */
+interface TemplateGiornata {
+  id?: string;
+  dayIndex?: number;
+  dietId?: string;
+  level?: number;
+  meals?: unknown;
+}
+
 /** Override numerico per dieta: usa il valore per-dieta se numerico, altrimenti il globale. */
 function pickNumOverride(overrides: Map<string, number | boolean>, code: string, global: number): number {
   const v = overrides.get(code);
@@ -430,7 +447,7 @@ export class MenuService {
     const desiredLevel = Math.max(1, 1 + levelDelta);
     const sourceRuleId = decision?.ruleId ?? null;
 
-    let templates = await this.prisma.dietDayTemplate.findMany({
+    let templates: TemplateGiornata[] = await this.prisma.dietDayTemplate.findMany({
       where: { dietId: diet.id, level: desiredLevel },
       orderBy: { dayIndex: 'asc' },
     });
@@ -1733,10 +1750,10 @@ export class MenuService {
    */
   private async soloGiornateComplete(
     clientId: string,
-    diet: { id: string; name?: string | null; regime?: string | null; mealsPerDay?: number | null; fasting?: boolean | null; style?: string | null },
-    templates: { meals?: unknown }[],
+    diet: DietaPerErogazione,
+    templates: TemplateGiornata[],
     level: number,
-  ): Promise<{ diet: typeof diet; templates: typeof templates; level: number } | null> {
+  ): Promise<{ diet: DietaPerErogazione; templates: TemplateGiornata[]; level: number } | null> {
     const { complete, monche } = giornateComplete(templates, diet);
     if (complete.length > 0) {
       if (monche > 0) {
@@ -1757,14 +1774,17 @@ export class MenuService {
         name: diet.name ?? undefined,
         NOT: { id: diet.id },
       },
-      select: { id: true, name: true, regime: true, mealsPerDay: true, fasting: true, style: true },
-    })) as { id: string; name: string; regime: string; mealsPerDay: number | null; fasting: boolean | null; style: string | null }[];
+      // `levels` e `objective` NON sono decorativi: il target calorico del giorno esce da
+      // `levelTargetKcal(diet.levels, level)`. Senza, la gemella arriverebbe con `levels` vuoto e il
+      // target sarebbe ZERO — cioè il ripiego servirebbe le giornate giuste con le calorie sbagliate.
+      select: { id: true, name: true, regime: true, mealsPerDay: true, fasting: true, style: true, levels: true, objective: true },
+    })) as DietaPerErogazione[];
 
     for (const gemella of gemelle) {
       const suoi = (await this.prisma.dietDayTemplate.findMany({
         where: { dietId: gemella.id, level: 1 },
         orderBy: { dayIndex: 'asc' },
-      })) as { meals?: unknown }[];
+      })) as TemplateGiornata[];
       const esito = giornateComplete(suoi, gemella);
       if (esito.complete.length === 0) continue;
 

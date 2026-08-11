@@ -51,9 +51,16 @@ Il prodotto è **in produzione con clienti vere** (~45), su tre superfici: backe
 app e backoffice su Vercel, app nativa iOS/Android con aggiornamenti OTA self-hosted. Ultima OTA
 pubblicata: **2.1.6** (11/8), verificata sul manifest — vedi §5.1.
 
-Stato tecnico all'ultimo commit: **1578 test backend verdi** (104 suite), **27 test app**, type-check al
-suo valore di riferimento (**32** errori dall'11/8 — erano 42, dieci sono caduti tipizzando la dieta nell'erogazione: sono tutti artefatti dello stub di Prisma in sandbox), backoffice e app che
-compilano. Le migrazioni girano da sole a ogni deploy (`preDeployCommand`), il seed dopo di esse.
+Stato tecnico all'ultimo commit: **1578 test backend verdi** (104 suite), **27 test app**, type-check a
+**ZERO errori**, backoffice e app che compilano. Le migrazioni girano da sole a ogni deploy
+(`preDeployCommand`), il seed dopo di esse.
+
+⚠️ **La regola «42 errori = verde», poi «32 = verde», NON VALE PIÙ: il verde è ZERO.** Quei numeri
+erano rumore dello stub di Prisma in sandbox, e un numero di rumore non distingue il rumore da un
+errore vero: l'11/8 un errore vero è passato in mezzo, ha superato 1578 test verdi ed è esploso nel
+build di produzione. Da ora il type-check si lancia con **`npm run typecheck`** dentro `backend/`,
+che genera i **tipi veri di Prisma** e fa lo stesso controllo di Render. Come funziona (e cosa lascia
+in `node_modules`) sta scritto in testa a `backend/scripts/typecheck-reale.mjs`.
 
 Nelle ultime quattro giornate di lavoro (9→10 agosto) sono state chiuse più di novanta voci: il grosso
 sta in `REGISTRO.md`. I filoni che hanno cambiato il prodotto: la banca dati nutrizionale che tiene Gaia

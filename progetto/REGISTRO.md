@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🚨 **Build di produzione rotto, e la ragione per cui i test non potevano vederlo** —
+  il commit `298c58f` ha fatto fallire il build su Render con un solo errore, in
+  `menu.service.ts:463`: `soloGiornateComplete` dichiarava le giornate come `{ meals?: unknown }[]`
+  e il risultato veniva riassegnato a `templates`, che Prisma tipizza `{ id, dayIndex, dietId,
+  level, meals }[]`. **Corretto** con due tipi dichiarati a mano — `TemplateGiornata` accanto a
+  `DietaPerErogazione` — perché quella variabile deve valere sia per le giornate della dieta
+  richiesta sia per quelle della **gemella**, che sono di un'altra dieta.
+  Nello stesso punto un secondo difetto, che il compilatore non poteva vedere: la query delle
+  gemelle **non selezionava `levels`**, e il target calorico del giorno esce da
+  `levelTargetKcal(diet.levels, level)`. Il ripiego avrebbe servito le giornate giuste **con le
+  calorie a zero**. Ora `levels` e `objective` sono nella `select`, con un test che controlla la
+  forma della query: è lì che il campo si perde, e si perde in silenzio.
+  ⚠️ **LA REGOLA «42 ERRORI = VERDE», POI «32 = VERDE», È MORTA: IL VERDE È ZERO.** Quei numeri
+  erano rumore dello stub di Prisma in sandbox, dove `npx prisma generate` prende un 403 sui
+  binari — e un numero di rumore non distingue il rumore da un errore vero. Questo errore vero è
+  passato in mezzo, ha superato **1578 test verdi** e si è visto solo in produzione: i test non
+  potevano prenderlo perché montano un Prisma finto, e i tipi finti non hanno tipi.
+  Da oggi `cd backend && npm run typecheck`: `prisma generate --no-engine` (per i **tipi** il motore
+  di query non serve, serve lo schema) più un mirror finto in locale che risponde al 403 con un .gz
+  di byte a caso — la CLI è contenta e genera i tipi **veri**. Verificato che riproduce l'errore di
+  Render carattere per carattere, e che con la correzione dà **zero**. Come funziona, e i due file
+  finti da 1 KB che lascia in `node_modules`, stanno scritti in testa a
+  `backend/scripts/typecheck-reale.mjs`. 104 suite, **1578 test verdi**, type-check a zero.
+
 - `[Sviluppo]` 🍽️ **Le giornate incomplete non arrivano più nel piatto (§15.4)** — il gate del
   catalogo controlla che una dieta abbia tutti i pasti **una volta sola**, quando qualcuno la rende
   visibile; l'erogazione non se l'è mai chiesto e si fermava solo alle giornate **zero**. Quindi una
