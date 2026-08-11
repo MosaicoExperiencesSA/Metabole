@@ -9,6 +9,14 @@ testa un rimando qui.
 non si riscrive. Questo documento risponde a un'altra domanda — «come siamo adesso» — e i due non si
 sovrappongono.
 
+> **Se stai riprendendo il lavoro, parti da §15.** Raccoglie le decisioni prese in conversazione il 13/8
+> — la coda del nutrizionista, l'azzeramento del calcolo del calo, il blocco del piano, le varianti con
+> giornate incomplete, la soglia del calo di sicurezza — che non stanno in nessun altro file. Sono
+> decisioni **già date da Simone**: non vanno richieste di nuovo.
+> Vale anche una convenzione nuova: **ogni consegna** esce con summary e description (scritte in
+> `progetto/COMMIT.txt`, da usare con `git commit -F progetto/COMMIT.txt`) e una voce nel `REGISTRO.md`,
+> **senza che Simone debba chiederle**.
+
 ---
 
 ## Come è stato verificato, e perché la cosa va detta
@@ -501,3 +509,132 @@ copia locale. Le voci qui sotto risultano **davvero ancora aperte**.
 Non verificabili da GitHub e lasciate marcate **[dati]**: tutto quello che dipende dal database di
 produzione (§3 per intero, le percentuali in Negozio, i prezzi, i comandi di §11) e le voci che aspettano
 una persona (§8).
+
+---
+
+## 15. Le decisioni del 13/8 e il lavoro aperto che ne nasce
+
+Questa sezione esiste perché quel giorno le decisioni sono arrivate **in conversazione**, una alla volta,
+mentre Simone parlava col nutrizionista e guardava le clienti vere. Non stavano in nessun file, e una
+sessione nuova non avrebbe modo di sapere che sono state prese. Sono decisioni **già date**: non vanno
+richieste di nuovo.
+
+### 15.1 Fatto e consegnato lo stesso giorno
+
+- **Caso Giusy** (pesata del ciclo). I due controlli sulle misure non si parlavano: lo sblocco della coach
+  toglieva il popup e lasciava il blocco dell'erogazione, e `menuStatus` cadeva su «Menu in preparazione»,
+  che è falso. Nuovo stato `awaiting_cycle_measure` con pulsante che apre il modulo pesata; lo sblocco ora
+  è `required: true, blocking: false` (livello `promemoria`); `diag:cliente` riconosce il caso; il pulsante
+  in backoffice si chiama **«Riapri l'app»** e avvisa che non fa arrivare il menu.
+  ⚠️ **Il banner nuovo è nell'app: alle clienti arriva solo con una OTA (2.1.6).** Il resto parte col deploy.
+- **Gaia al femminile.** Il prompt non aveva né nome né genere → il modello ripiegava sul maschile («sono
+  felicissimo», firmato Gaia). Ora dice chi è. Verificato che non esistano altre frasi fisse al maschile.
+- **Convenzione nuova: `progetto/COMMIT.txt`.** Il messaggio del commit (summary + description) viene
+  scritto lì a ogni consegna, e si usa con `git commit -F progetto/COMMIT.txt`. È in `.gitignore`: non è
+  storia del progetto — quella sta in `REGISTRO.md` — e copiarlo dalla chat perdeva accenti e andate a capo.
+  **Va riscritto a ogni consegna, senza che Simone lo chieda.**
+
+### 15.2 «Cosa fanno questi due pulsanti?» — la coda del nutrizionista
+
+La domanda di Nocanty sulla card «Da validare · Decisioni del motore». La risposta verificata: **«Conferma»
+e «Correggi» fanno la stessa cosa** — scrivono `reviewOutcome` (`confirmed` / `corrected`), `reviewedAt`,
+`reviewedById` e una riga di audit — e **nessun altro pezzo di codice legge quel campo**. In particolare
+`reviewDecision` non azzera `flaggedForReview`, e il menu legge le decisioni con `flaggedForReview: false`
+(`menu.service.ts:342`): **una decisione confermata non viene applicata, mai, nemmeno entro le 48 ore.**
+Sono un registro di «ho letto». Intanto la cliente riceve già il messaggio quotidiano con il **tono
+attenuato** deciso da quella riga (`notifications.service.ts:319` legge la decisione del giorno *senza* il
+filtro del flag): il tono parte, il contenuto nutrizionale aspetta un via libera che non può arrivare.
+
+**Le decisioni prese, da implementare:**
+
+1. **«Conferma» applica la proposta al piano.** Il livello della dieta cambia dal prossimo giorno erogato.
+   Il significato che le ha dato Nocanty: «la cliente va avanti, ma il controllo resta armato, quindi domani
+   la riga può ricomparire o sparire». Quindi Conferma **non** silenzia la causa: la ri-arma per il giorno
+   dopo. Resta da stabilire con lui o con Nocanty **di quanto** si alzano le calorie: l'unica leva letta dal
+   motore è `levelDelta` (il `menu: 'increase_calories'` che i guardrail scrivono **non è letto da nessuno**).
+2. **«Correggi» apre una finestra con le azioni ammesse per quella causa**, non un modulo generico:
+   | Causa | Azioni |
+   |---|---|
+   | Calo troppo rapido | Autorizza a proseguire · Blocca il piano · Scrivi in chat · Apri la scheda |
+   | Energia bassa cronica | Scrivi in chat · Apri la scheda · Blocca il piano |
+   | Percorso supervisionato | Apri la scheda · Scrivi in chat |
+   «Apri la scheda» **non** reimplementa i cambi dieta: porta dove vivono già, coi loro permessi
+   (`change_diet_type`, «Rigenera menu»). Una seconda strada per modificare la dieta con controlli diversi è
+   il modo in cui nascono i buchi nei permessi.
+3. **«Autorizza a proseguire» azzera il punto di partenza del calcolo del calo.** Parole di Simone: «dal
+   momento in cui dà il suo ok il calcolo deve ripartire da quel momento». Quindi non è una sospensione a
+   tempo: il ritmo si calcola **solo sulle pesate successive all'autorizzazione**. Pavimento esplicito
+   deciso: **4 giorni e almeno 3 pesate nuove** prima che l'allarme possa tornare — altrimenti due pesate
+   ravvicinate producono una pendenza enorme e l'allarme risuona il giorno dopo l'ok.
+   ⚠️ **Si azzera il calcolo dell'ALLARME, non i progressi della cliente**: grafico, kg persi e proiezione
+   continuano a leggere tutta la storia. Campo previsto: `ClientProfile.rapidLossBaselineAt`.
+4. **«Blocca il piano» va costruito: oggi la leva non esiste.** Il «piano bloccato» attuale nasce solo dagli
+   allergeni, dice alla cliente «la nutrizionista sta sistemando il menu per rispettare le tue esclusioni»
+   (che sarebbe una bugia) e **non ferma l'erogazione**: `dietBlock` è letto da `getMenu` e `menuStatus`, non
+   da `deliverIfEligible`. Serve un campo vero (`planHeldAt` / `planHeldReason` / `planHeldById`) con il suo
+   cartello onesto. **La cliente tiene i giorni già ricevuti, incluso oggi**: si fermano solo i nuovi.
+5. **Una riga per cliente per causa, non una al giorno.** Il motore gira ogni notte e ricrea la riga: con
+   cinque clienti supervisionate sono ~150 righe al mese di rumore, nella stessa coda dove sta l'unica riga
+   che conta. Serve persistere la causa — `EngineDecision.reasonKey`, **oggi non è in nessuna colonna**: vive
+   solo dentro il testo della segnalazione (`[reasonKey] frase`) e si interroga con un `LIKE` — e non creare
+   una riga nuova finché quella aperta non è stata guardata.
+6. **Il motore gira solo su chi ha un piano attivo.** Regola di Simone: «ovviamente tutto questo vale solo
+   per chi ha un piano attivo». Oggi `runBatch` (`engine.service.ts:113`) prende **tutte** le clienti con
+   questionario completato, senza guardare l'abbonamento: nello screenshot della coda c'era **Rosaria**, che
+   ha il piano concluso dal 22/07. La coda va filtrata anche sulle righe già scritte. Riusare
+   `common/piano-attivo.ts`, che esiste per questo.
+
+Il modulo puro `engine/causa-decisione.ts` (causa → azioni ammesse → «cosa si aspetta il software») era
+stato scritto nel contenitore ma **non consegnato**: la tabella qui sopra è la sua sostanza, va riscritto.
+
+### 15.3 Il ritmo di calo di sicurezza — un numero da decidere con Nocanty
+
+Tre parametri diversi, e vale la pena non confonderli:
+
+| Parametro | Valore | A cosa serve |
+|---|---|---|
+| `sustainable_rate_max_kg_week` | 0,7 kg/sett | Solo in registrazione: oltre, l'obiettivo è «non sostenibile» |
+| `ambitious_rate_max_kg_week` | 1,0 kg/sett | Registrazione: fascia «ambizioso» |
+| `max_weight_change_alert_kg_week` | **1,5 kg/sett** | **Soglia clinica**: oltre, `rapidLoss` → segnalazione e guardrail |
+| `min_daily_kcal` | 1200 | Pavimento calorico |
+
+Il ritmo **non** è ultima pesata meno precedente: è la pendenza della media mobile (finestra 3) sul tratto
+recente, convertita in settimana (`progress.service.ts:113`). Una bilancia sbagliata non fa scattare niente.
+
+Due meccanismi distinti, e la differenza confonde: la **segnalazione clinica** si apre sul ritmo da solo
+(`signals.service.ts:214`); la **riga «Da validare»** richiede ritmo oltre soglia **e** energia ≤ 3, o
+energia mai dichiarata (`engine.service.ts:146`). Con calo rapido ed energia alta il nutrizionista non vede
+niente in coda.
+
+**Il buco segnalato e non ancora chiuso:** fra **0,7** (dichiarato non sostenibile) e **1,5** (allarme) non
+succede nulla. Una cliente che perde 1,3 kg/settimana per un mese è fuori dal sostenibile e nessuno lo vede.
+Se Nocanty decide di abbassare, **1,0** è il numero coerente col resto, e **si cambia dai Parametri senza
+toccare il codice** (Regole motore → categoria «sicurezza» → «Calo rapido (kg/settimana)», da 0,5 a 5).
+Per riferimento: la segnalazione di Giusy di luglio era a **2,87 kg/settimana**.
+
+### 15.4 Varianti con giornate incomplete — decisioni prese, lavoro non iniziato
+
+Il buco è più largo di quanto dicesse §3.1: non è una variante, è il meccanismo. Il controllo di
+completezza (`catalog.service.ts:315`) scatta **solo** quando si mette `clientVisible: true`, e non torna
+più. L'erogazione non lo consulta mai: `pick-diet.ts:51` filtra su `{status:'approved', regime, mealsPerDay}`
+e **non guarda nemmeno `clientVisible`**; `menu.service.ts:362` si ferma solo a giornate **zero**, quindi una
+giornata con la sola colazione viene servita e salvata così com'è, senza log né avviso.
+
+Tre conseguenze verificate: il **generatore può guastare una dieta già pubblicata** (scrive le giornate
+direttamente, `engine-rules.service.ts:522`, e rompe solo se *tutti* gli slot sono vuoti); **nascondere una
+variante non la mette al sicuro** (nell'app le card sono per famiglia, e `pickDietFor` può agganciare proprio
+la variante nascosta perché incompleta); **due script scavalcano il gate** — `prisma/approve-diets.ts:62`
+mette `clientVisible: true` su tutte le diete, e `prisma/pubblica-tutto.ts:147` reimplementa il gate
+**vecchio** col commento che dice «stesso gate di `assertActivatable`», che non è più vero (è lo script che
+il 9/8 ha pubblicato `lovcarbciccio`).
+
+**Decisioni prese da Simone:**
+
+- Se la variante non ha nessuna giornata completa → **scendere sulla variante gemella completa** della stessa
+  famiglia. Rispetta la dieta ma non i pasti al giorno richiesti, quindi la cosa **va tracciata** come il già
+  esistente `diet_style_fallback` (`menu.service.ts:323`), non fatta in silenzio.
+- Se **nemmeno le gemelle** hanno una giornata completa → **non erogare + segnalazione a noi**. Meglio
+  «menu in preparazione» che una giornata con la sola colazione. (Assunzione dichiarata: Simone aveva
+  scartato «erogare la giornata monca».)
+- Se il generatore o uno script rende incompleta una dieta già visibile → **la nasconde e avvisa**
+  (`clientVisible` torna a false da sé).

@@ -33,6 +33,12 @@ npm-debug.log*
 _to_delete/
 _git_lock_stale/
 
+# Messaggio del commit pronto da usare: `git commit -F progetto/COMMIT.txt`.
+# Lo riscrive Claude a ogni consegna, così summary e description non si copiano dalla chat
+# (dove si perdono le andate a capo e i caratteri accentati). Non è storia del progetto —
+# quella sta in progetto/REGISTRO.md — quindi non va nel repo.
+progetto/COMMIT.txt
+
 # Report della diagnostica (possono citare stringhe sensibili): mai committare
 report-diagnostica/
 
