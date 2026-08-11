@@ -33,7 +33,10 @@
  * `engine-rules/copertura-catalogo.ts`.
  */
 
-const GIORNI_SETTIMANA = 7;
+import { Prisma } from '@prisma/client';
+
+/** Giorni per settimana. Nella query il 7 è scritto a mano: vedi il commento accanto al `SELECT`. */
+export const GIORNI_SETTIMANA = 7;
 
 /** Una dieta che usa la ricetta, e in quali settimane del suo ciclo. */
 export interface UsoInDieta {
@@ -65,33 +68,47 @@ export async function utilizzoDelleRicette(
   if (recipeIds.length === 0) return out;
 
   /**
-   * `((day_index - 1) / 7) + 1`: divisione fra interi, quindi i giorni 1-7 danno 1, gli 8-14 danno 2.
-   * È la stessa regola di `menu/tag-settimane.ts`, scritta nella lingua di chi fa il conto.
+   * ⚠️ IL `7` È SCRITTO NELLA QUERY, NON INTERPOLATO.
+   *
+   * Scritto come `${GIORNI_SETTIMANA}` diventava un **parametro**, e Prisma manda i numeri
+   * JavaScript come `double precision`: la divisione fra interi — quella che fa dare 1 ai giorni
+   * 1-7 e 2 agli 8-14 — diventava una divisione con la virgola, e il giorno 3 finiva nella
+   * settimana 1,2857. Un parametro al posto di una costante cambia il **tipo**, e col tipo cambia
+   * il significato dell'operatore.
    *
    * `jsonb_typeof(...) = 'array'`: senza, una giornata con `meals` guasto (null, o un oggetto)
    * farebbe fallire `jsonb_array_elements` e con lei l'intero elenco ricette. Il caso non dovrebbe
    * esistere, e proprio per questo non deve poter buttare giù una pagina.
+   *
+   * `IN (${'${Prisma.join(...)}'})` e non `= ANY($1::text[])`: è la forma documentata da Prisma per
+   * un elenco di valori, e manda ogni id come parametro suo invece di affidarsi a come il driver
+   * decide di serializzare un array.
    */
   const righe = (await prisma.$queryRaw`
     SELECT (m->>'recipeId') AS "recipeId",
            d.name AS dieta,
-           ARRAY_AGG(DISTINCT (((t.day_index - 1) / ${GIORNI_SETTIMANA}) + 1)
-                     ORDER BY (((t.day_index - 1) / ${GIORNI_SETTIMANA}) + 1)) AS settimane
+           ARRAY_AGG(DISTINCT (((t.day_index - 1) / 7) + 1)
+                     ORDER BY (((t.day_index - 1) / 7) + 1)) AS settimane
     FROM diet_day_template t
     JOIN diet d ON d.id = t.diet_id
     CROSS JOIN LATERAL jsonb_array_elements(
       CASE WHEN jsonb_typeof(t.meals) = 'array' THEN t.meals ELSE '[]'::jsonb END
     ) AS m
     WHERE d.status::text <> 'rejected'
-      AND (m->>'recipeId') = ANY(${recipeIds}::text[])
+      AND (m->>'recipeId') IN (${Prisma.join(recipeIds)})
     GROUP BY 1, 2
     ORDER BY 2
-  `) as { recipeId: string | null; dieta: string; settimane: number[] }[];
+  `) as { recipeId: string | null; dieta: string; settimane: unknown }[];
 
   for (const r of righe) {
     if (!r.recipeId) continue;
     const usi = out.get(r.recipeId) ?? [];
-    usi.push({ dieta: r.dieta, settimane: (r.settimane ?? []).map(Number) });
+    // `Math.round` come rete: se un giorno la settimana tornasse con la virgola (è già successo,
+    // vedi sopra), meglio una settimana intera sbagliata di poco che «1.2857» in colonna.
+    const settimane = (Array.isArray(r.settimane) ? r.settimane : [])
+      .map((n) => Math.round(Number(n)))
+      .filter((n) => Number.isFinite(n));
+    usi.push({ dieta: r.dieta, settimane });
     out.set(r.recipeId, usi);
   }
   return out;

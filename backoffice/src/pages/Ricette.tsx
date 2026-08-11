@@ -316,7 +316,10 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     ? `Questa pagina ha ricevuto dal server solo le prime ${LIMITE_SERVER} ricette delle ${totale} che rispondono ai filtri.\n\nIl file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle ${LIMITE_SERVER} — non fra tutte e ${totale}.\n\nPer essere sicuro di averle tutte, restringi prima con un filtro. Scarico lo stesso?`
     : undefined;
 
-  const filterCell = (node: React.ReactNode) => <th style={{ padding: '6px 8px', fontWeight: 400 }}>{node}</th>;
+  // `t.stileFiltri` incolla la riga dei filtri sotto i titoli quando la tabella scorre. Questa riga
+  // è scritta a mano (i filtri vanno al database, non all'helper), quindi lo stile va chiesto:
+  // senza, i titoli restavano in alto e i filtri no, e per cambiarne uno si tornava in cima.
+  const filterCell = (node: React.ReactNode) => <th style={{ padding: '6px 8px', fontWeight: 400, ...t.stileFiltri }}>{node}</th>;
   const sel = { padding: '4px 6px', fontSize: 12, width: '100%' } as const;
   const inp = { padding: '4px 6px', fontSize: 12, width: '100%' } as const;
 
@@ -455,7 +458,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
                     <option value="archived">Archiviata</option>
                   </select>,
                 )}
-                {canEdit && <th></th>}
+                {canEdit && <th style={t.stileFiltri}></th>}
               </tr>
             </thead>
             <tbody>

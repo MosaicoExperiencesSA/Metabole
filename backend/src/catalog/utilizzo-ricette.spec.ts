@@ -40,8 +40,8 @@ describe('utilizzoDelleRicette — cosa chiede al database', () => {
     const { prisma, chiamate } = prismaFinto([]);
     await utilizzoDelleRicette(prisma, ["r-1", "r'2"]);
     expect(chiamate).toHaveLength(1);
-    expect(chiamate[0].valori).toContainEqual(["r-1", "r'2"]);
-    // L'apostrofo nell'id non deve comparire nel testo della query.
+    // `Prisma.join` costruisce un `Prisma.Sql`: gli id restano parametri, non testo della query.
+    expect(JSON.stringify(chiamate[0].valori)).toContain("r'2");
     expect(chiamate[0].sql).not.toContain("r'2");
   });
 
@@ -53,6 +53,9 @@ describe('utilizzoDelleRicette — cosa chiede al database', () => {
     // l'intero elenco ricette.
     expect(chiamate[0].sql).toContain("d.status::text <> 'rejected'");
     expect(chiamate[0].sql).toContain("jsonb_typeof(t.meals) = 'array'");
+    // ⚠️ Il 7 deve stare SCRITTO nella query: come parametro Prisma lo manda come numero con la
+    // virgola, la divisione fra interi diventa decimale e il giorno 3 finisce nella settimana 1,2857.
+    expect(chiamate[0].sql).toContain('(((t.day_index - 1) / 7) + 1)');
   });
 });
 
@@ -90,9 +93,16 @@ describe('utilizzoDelleRicette — come rimonta la risposta', () => {
     expect(u.has('buona')).toBe(true);
   });
 
-  it('le settimane restano numeri anche se il driver le porta come stringhe', async () => {
-    const { prisma } = prismaFinto([{ recipeId: 'r', dieta: 'Mediterranea', settimane: ['1', '3'] }]);
-    const u = await utilizzoDelleRicette(prisma, ['r']);
+  it('le settimane restano numeri INTERI comunque il driver le porti', async () => {
+    const { prisma } = prismaFinto([
+      { recipeId: 'r', dieta: 'Mediterranea', settimane: ['1', '3'] },
+      // Il caso vero visto in produzione: divisione decimale invece che fra interi.
+      { recipeId: 'decimale', dieta: 'Keto', settimane: [1.2857142857142858, 2.0] },
+      { recipeId: 'guasto', dieta: 'Keto', settimane: 'non un array' },
+    ]);
+    const u = await utilizzoDelleRicette(prisma, ['r', 'decimale', 'guasto']);
+    expect(u.get('decimale')?.[0].settimane).toEqual([1, 2]);
+    expect(u.get('guasto')?.[0].settimane).toEqual([]);
     // La colonna Excel scrive le settimane come celle numeriche: una stringa qui darebbe il
     // «numero memorizzato come testo» e l'ordinamento alfabetico (1, 10, 2).
     expect(u.get('r')?.[0].settimane).toEqual([1, 3]);

@@ -458,6 +458,16 @@ export function useTabella<T>(righe: T[], colonne: Colonna<T>[], opzioni: Opzion
     impostaFiltro,
     /** Scarica in Excel le righe filtrate e ordinate (tutte le pagine). Vedi `<BottoneExcel>`. */
     scaricaExcel: scaricaFoglio,
+    /**
+     * Lo stile «incollata sotto i titoli» per una riga di filtri scritta A MANO dalla pagina.
+     *
+     * `rigaFiltri()` ce l'ha già. Ma alcune tabelle la riga dei filtri se la disegnano da sé, perché
+     * i loro filtri vanno al database e non all'helper — il catalogo ricette è una di queste — e
+     * finivano per avere i titoli incollati in alto e i filtri no: scorri l'elenco, i titoli restano,
+     * e per cambiare un filtro devi risalire fino in cima. È lo stesso difetto già corretto in
+     * Utenti, ricomparso da un'altra porta perché lo stile era chiuso dentro l'helper.
+     */
+    stileFiltri: stileFissa('filtri'),
     /** Da passare a `<Pager {...pager} />`. */
     pager: { page: pg.page, totalPages: pg.totalPages, total: pg.total, from: pg.from, to: pg.to, onPage: pg.setPage },
     conteggio: { mostrate: ordinate.length, totali: righe.length },

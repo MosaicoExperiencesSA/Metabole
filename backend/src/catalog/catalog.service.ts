@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
@@ -34,6 +35,8 @@ export class CatalogService {
     private readonly config: ConfigParamsService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  private readonly logger = new Logger(CatalogService.name);
 
   /** Scheda Staff dell'utente corrente (richiesta per operare sul catalogo). */
   async staffOf(userId: string) {
@@ -753,7 +756,12 @@ export class CatalogService {
     let usi: Map<string, UsoInDieta[]> | null = null;
     try {
       usi = await utilizzoDelleRicette(this.prisma, (items as { id: string }[]).map((r) => r.id));
-    } catch {
+    } catch (e) {
+      // ⚠️ L'errore si SCRIVE. La prima versione lo ingoiava, e il risultato è stato mezz'ora a
+      // indovinare perché le colonne mostrassero «—»: un errore inghiottito trasforma un guasto
+      // preciso in un mistero. La pagina continua a funzionare, ma nei log di Render c'è scritto
+      // cosa è successo.
+      this.logger.error(`Lettura utilizzo ricette non riuscita: ${e instanceof Error ? e.message : String(e)}`);
       usi = null;
     }
     const conUtilizzo = (items as { id: string }[]).map((r) => {

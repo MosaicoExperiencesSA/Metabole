@@ -20,6 +20,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔧 **Le colonne Dieta e Settimana mostravano «—»: il 7 della settimana era un
+  parametro, e un parametro cambia il tipo.** Segnalazione di Simone a poche ore dalla consegna.
+  Nella query, `${GIORNI_SETTIMANA}` finiva come **parametro** e non come costante scritta: Prisma
+  manda i numeri JavaScript come `double precision`, quindi `(day_index - 1) / 7` smetteva di essere
+  una **divisione fra interi** e diventava una divisione con la virgola — il giorno 3 nella settimana
+  1,2857. La lezione vale oltre il caso: *un parametro al posto di una costante cambia il tipo, e col
+  tipo cambia il significato dell'operatore*. Il `7` ora è scritto nella query, con un
+  `Math.round` come rete di sicurezza sui valori che tornano.
+  Nella stessa passata: l'elenco degli id passa da `= ANY($1::text[])` a `IN (Prisma.join(...))`, la
+  forma documentata per un elenco di valori, che manda ogni id come parametro suo invece di affidarsi
+  a come il driver decide di serializzare un array.
+  ⭐ **E soprattutto: l'errore adesso si scrive nei log.** La prima versione lo ingoiava con un
+  `catch` muto perché «la pagina deve continuare a funzionare» — giusto — ma senza dire niente a
+  nessuno. Risultato: mezz'ora a indovinare perché le colonne mostrassero «—», con tre spiegazioni
+  possibili e nessun modo di distinguerle. **Un errore inghiottito trasforma un guasto preciso in un
+  mistero**: la degradazione elegante è per l'utente, non per chi ripara. Le due cose stanno
+  insieme — la pagina regge *e* nei log di Render c'è scritto cosa è successo.
+  Il messaggio in colonna resta a tre stati distinti, ed è quello che ha permesso di restringere il
+  campo subito: «—» = non lo so, pastiglia grigia «nessuna» = ricetta orfana, pastiglie coi nomi =
+  usata. Se «—» e «nessuna» fossero stati la stessa cosa, il difetto sarebbe sembrato un catalogo
+  fatto tutto di ricette orfane.
+- `[Sviluppo]` 📌 **Nel catalogo ricette i campi di ricerca delle colonne restano incollati sotto i
+  titoli.** Segnalazione di Simone: «devono restare fissati ai titoli, non devono scorrere». È lo
+  stesso difetto già corretto in Utenti, ricomparso da un'altra porta: `useTabella` incolla i titoli
+  **e** la riga dei filtri, ma solo quando la riga dei filtri la disegna lui. Il catalogo ricette se
+  la scrive a mano — i suoi filtri vanno al database, non all'helper — e quindi riceveva lo stile sui
+  titoli e non sui filtri. Scorrendo mille ricette i titoli restavano su e i filtri sparivano: per
+  cambiarne uno si tornava in cima, ed è la schermata su cui il nutrizionista passa le ore.
+  La correzione non è nella pagina ma nell'helper, che ora **espone** lo stile (`t.stileFiltri`)
+  invece di tenerlo chiuso dentro: `LeadsTable` — l'altra tabella con la riga dei filtri scritta a
+  mano — quello stile lo chiedeva già alla sua versione lato server, e infatti era a posto.
+  Controllate tutte le tabelle del backoffice: sono le uniche due che disegnano i filtri da sé, e
+  adesso lo chiedono tutte e due.
+
 - `[Sviluppo]` 🏷️ **Nel catalogo ricette via la colonna Tag, dentro «Dieta» e «Settimana n.» — e si
   leggono dalle giornate, non dalle etichette.** Richiesta di Simone: «in questa tabella togli la
   colonna TAG inserisci la colonna dieta e la colonna settimana n.». Non è un cambio di vestito: i
