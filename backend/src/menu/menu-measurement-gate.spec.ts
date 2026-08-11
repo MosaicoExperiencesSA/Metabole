@@ -17,10 +17,10 @@ const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 /** Ultima push inviata dal servizio costruito da `makeService`, per i test dello sblocco. */
 let pushInviate: { userId: string; title: string; body: string; data?: Record<string, string> }[] = [];
 
-function makeService(prisma: unknown) {
+function makeService(prisma: unknown, parametri: Record<string, number> = {}) {
   const config = {
     getNumber: jest.fn((k: string, def?: number) =>
-      Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[k] ?? def),
+      Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, ...parametri } as Record<string, number>)[k] ?? def),
     ),
     getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
   };
@@ -368,5 +368,46 @@ describe('MenuService — sblocco misure: la richiesta arriva sul telefono', () 
       jest.fn().mockRejectedValue(new Error('FCM non configurato'));
     await expect(service.unlockMeasures('cliente-1', 'coach-1')).resolves.toHaveProperty('until');
     expect(prisma.clientProfile.update).toHaveBeenCalled();
+  });
+});
+
+/**
+ * LA SCADENZA DELLA VACANZA È UN NUMERO SOLO (13/8).
+ *
+ * `statoViaggioAttivo` accetta un tetto di giorni per un «in vacanza» senza data di fine. Il gate
+ * misure lo chiamava **senza passarlo**, quindi qui valeva il default del helper (30) mentre
+ * `DietAgentService` leggeva `travel_max_days` dai Parametri. Due numeri per la stessa scadenza: il
+ * giorno in cui qualcuno lo porta a 60, il gate e l'agente non sono più d'accordo su chi è in vacanza —
+ * e non lo dice nessun errore.
+ */
+describe('MenuService — il gate misure rispetta travel_max_days', () => {
+  /** In vacanza da 40 giorni, senza data di fine: è il caso che i due numeri decidono in modo opposto. */
+  const inVacanzaDa40Giorni = {
+    planStartDate: D(dayIso(-60)),
+    regime: 'omnivore',
+    dietStyle: 'mediterranean',
+    mealsPerDay: 5,
+    travelState: 'in_vacanza',
+    travelStart: D(dayIso(-40)),
+    travelEnd: null,
+  };
+  const prismaSenzaMisure = () => ({
+    clientProfile: { findUnique: jest.fn().mockResolvedValue(inVacanzaDa40Giorni) },
+    subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+    menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+    measurement: { findFirst: jest.fn().mockResolvedValue(null) },
+    notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+  });
+
+  it('col tetto a 30 la vacanza è SCADUTA: il gate torna a chiedere le misure', async () => {
+    const res = await makeService(prismaSenzaMisure(), { travel_max_days: 30 }).measurementGate('c1');
+    expect(res.blocking).toBe(true);
+  });
+
+  it('col tetto a 60 è ancora in vacanza: il gate non blocca', async () => {
+    // Se il parametro non venisse passato, questo test tornerebbe `true` come quello sopra — ed è
+    // esattamente il difetto che stiamo chiudendo.
+    const res = await makeService(prismaSenzaMisure(), { travel_max_days: 60 }).measurementGate('c1');
+    expect(res.blocking).toBe(false);
   });
 });

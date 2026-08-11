@@ -728,7 +728,12 @@ export class MenuService {
     // In vacanza il popup misure non blocca — ma lo stato SCADE (vedi `stato-viaggio.ts`).
     // Prima si leggeva il campo grezzo: un «in vacanza» che nessuno azzerava al rientro
     // spegneva per sempre, in silenzio, la regola più severa che abbiamo.
-    if (statoViaggioAttivo(profile) === 'in_vacanza') return false;
+    //
+    // `travel_max_days` va passato (13/8): senza, qui valeva il default 30 del helper mentre
+    // l'agente dieta leggeva il parametro. Due numeri per la stessa scadenza — e il giorno che
+    // qualcuno lo portasse a 60 dai Parametri, il gate misure e l'agente si contraddirebbero su
+    // quale cliente è ancora in vacanza, senza che nessun errore lo dica.
+    if (statoViaggioAttivo(profile, new Date(), await this.giorniMassimiViaggio()) === 'in_vacanza') return false;
     const activeSub = await this.prisma.subscription.findFirst({ where: { clientId, status: 'active' }, select: { id: true } });
     if (!activeSub) return false;
     const pause = await this.events.activePausePeriod(clientId);
@@ -740,6 +745,16 @@ export class MenuService {
     if (today.getTime() < visibleFrom.getTime()) return false; // troppo presto
     // La misura di partenza di QUESTO piano, non una qualsiasi mai fatta: `misura-di-partenza.ts`.
     return mancaMisuraDiPartenza(this.prisma, clientId, profile.planStartDate, visibleDaysBefore);
+  }
+
+  /**
+   * Per quanti giorni vale un «in vacanza» senza data di fine, dai Parametri.
+   *
+   * Esiste per non lasciare il default del helper (30) come secondo valore nascosto: la scadenza
+   * della vacanza è una sola, e la legge anche `DietAgentService` da questa stessa chiave.
+   */
+  private giorniMassimiViaggio(): Promise<number> {
+    return this.configParams.getNumber('travel_max_days', 30);
   }
 
   /**
@@ -801,7 +816,9 @@ export class MenuService {
       where: { userId: clientId },
       select: { travelState: true, travelStart: true, travelEnd: true },
     });
-    if (statoViaggioAttivo(prof as { travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null) === 'in_vacanza') return false;
+    // `travel_max_days` dai Parametri, come sopra: la scadenza della vacanza è un numero solo.
+    const scadenzaViaggio = await this.giorniMassimiViaggio();
+    if (statoViaggioAttivo(prof as { travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null, new Date(), scadenzaViaggio) === 'in_vacanza') return false;
     const today = toDateOnly();
     const cycleEnd = toDateOnly(last.date.toISOString());
     if (today.getTime() < cycleEnd.getTime()) return false; // non ancora al 2° giorno

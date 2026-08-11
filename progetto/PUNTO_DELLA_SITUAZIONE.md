@@ -383,15 +383,11 @@ Validazione delle due rifiniture R12 (efficacia in mantenimento; guardrail `clin
 - **Il filtro TAG del catalogo ricette lavora in memoria**: su un elenco troncato, ordinare per kcal
   mostra il minimo delle righe scaricate, non del catalogo.
 - **Documenti sanitari sul database** invece che su un bucket UE.
-- **`statoViaggioAttivo` chiamato senza `travel_max_days`** (default 30) mentre l'agente dieta legge il
-  parametro: se qualcuno lo porta a 60, gate misure e agente si contraddicono.
 - **`monitoring_offer_days` letto e inutile**: verificato che il nome compare **una volta sola** in tutto
   il servizio, cioè viene letto e mai usato — e la descrizione nel seed parla di un congelamento rimosso
   il 7/8.
 - **Chiavi permessi dichiarate e senza uso**: `engine_reviews`, `assignments`.
 - **Fase 0 dell'onboarding, metà mancante**: `login → role/home_route` (i quattro percorsi).
-- **`app/src/pages/Placeholder.tsx`**: nessuna rotta lo importa. Da togliere prima che qualcuno lo
-  agganci e una cliente veda «in costruzione» in un'app a pagamento.
 - **Commenti superati** che fanno sembrare spente cose che funzionano (`rules-evaluator.ts`,
   `agents.service.ts`, `chat/ai-filter.ts`).
 - **Aggiornamenti major** (React 19, Vite, Prisma 7, Capacitor 8): in una finestra dedicata.

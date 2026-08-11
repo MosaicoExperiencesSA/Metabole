@@ -7,6 +7,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🏖️ **La scadenza della vacanza è un numero solo** — `statoViaggioAttivo` accetta un tetto
+  di giorni per un «in vacanza» senza data di fine, e il gate misure lo chiamava **senza passarlo**:
+  valeva il default del helper (30) mentre `DietAgentService` leggeva `travel_max_days` dai Parametri.
+  Due numeri per la stessa scadenza. Il giorno in cui qualcuno lo porta a 60 dai Parametri, il gate e
+  l'agente non sono più d'accordo su chi è in vacanza — il primo torna a chiedere le misure, il secondo
+  la considera ancora via — e non lo dice nessun errore. Ora il parametro si passa in entrambi i punti,
+  con un test che lo dimostra: la stessa cliente, in vacanza da 40 giorni senza data di fine, blocca col
+  tetto a 30 e non blocca col tetto a 60. Senza il passaggio del parametro quel test resterebbe rosso.
+
+- `[Sviluppo]` 🧹 **Via `Placeholder.tsx` dall'app** — schermata «Questa sezione è in costruzione. Torna
+  presto!» che nessuna rotta importava. Un file così non fa danni finché nessuno lo aggancia: il rischio
+  è che qualcuno lo trovi e lo usi «per intanto», e una cliente che paga si trovi davanti un cartello di
+  lavori in corso. Verificato che nessun file lo nomini, app ricostruita e 27 test verdi. Spostato in
+  `_to_delete/` sul Mac: il ponte non può cancellare, quindi la cartella la elimini tu.
+
 - `[Sviluppo]` 🇮🇹 **I messaggi di validazione arrivano in italiano anche quando nessuno li ha scritti** —
   `class-validator` genera i suoi in inglese, quindi un DTO nuovo nasceva sbagliato senza che nessuno
   facesse niente di male: il 7/8 una cliente si è vista rispondere «hipsCm must not be less than 40»
