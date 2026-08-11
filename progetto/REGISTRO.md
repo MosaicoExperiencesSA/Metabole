@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 📱 **OTA 2.1.6 — il banner della pesata arriva sui telefoni** — quello che stamattina è
+  entrato in produzione lato backend era invisibile alle clienti: il pezzo che parla è nell'app, e
+  l'app si aggiorna solo con un bundle. Porta le due schermate del caso Giusy: il banner
+  `awaiting_cycle_measure`, che dice cosa serve e **ha il pulsante** che apre il modulo della pesata
+  (senza, alla cliente riaperta il popup non compare più e il banner sarebbe un rimprovero senza
+  rimedio), e lo sblocco della coach che diventa promemoria invece di muro. Dentro c'è anche la
+  rimozione di `Placeholder.tsx`.
+  Verifiche sullo zip **prima** di committarlo: `index.html` alla radice, **due** occorrenze di
+  `push-tokens` e il listener `registration` presenti — cioè le push non sono state spente dal build,
+  che è l'incidente del 6/8 — e la versione `2.1.6` compilata dentro il JS.
+  Un controllo nuovo rispetto alle volte scorse: **si cerca nel bundle una stringa della funzione che
+  la OTA deve portare** (`awaiting_cycle_measure`). Fino alla 2.1.5 si verificava solo che il numero
+  fosse quello giusto, il che dimostra che il bundle è nuovo ma non che **contenga la cosa per cui lo
+  stai pubblicando**: un `dist/` vecchio ricostruito passerebbe tutti gli altri controlli.
+  ⚠️ Al commit manca l'ultimo passo, che vive fuori dal repo: **`OTA_VERSION = 2.1.6` su Render**.
+  Finché non è impostata, il bundle è servito ma nessun telefono sa di doverlo prendere — e l'unica
+  prova che sia andata è leggere `/api/v1/app-updates/latest.json`, non questo registro.
+
+- `[Sviluppo]` 💶 **Provvigioni e prezzi: due voci chiuse da Simone, e un residuo trovato mentre le
+  chiudevo** — le **percentuali** sono verificate sulle vendite reali, i compensi che escono sono
+  quelli giusti; i **prezzi** sono quelli del Negozio e da lì si aggiornano ovunque da soli.
+  Verificato nel codice prima di chiudere la voce: il report legge sempre `plan.priceCents` dal
+  database, con la promo gestita da `listPriceCents` + `promoEndsAt` — nessun prezzo scritto a mano
+  sul percorso del report, quindi **si può mandare a una cliente vera**.
+  Il residuo: il testo del task che arriva alla coach quando scade il codice personale ha i prezzi
+  **dentro la frase** («1 mese €99 · 3 mesi €249», `coach-tasks.service.ts:206`). Quello non segue il
+  Negozio: il giorno che il prezzo cambia, la coach legge il vecchio e lo ripete alla cliente. Aperto
+  in §4.1, si chiude leggendo il piano come fa il report.
+  Resta aperta solo la parte che **nessuna vendita può ancora aver verificato**: chi prende la
+  provvigione **al rinnovo** se la coach nel frattempo è cambiata. Non si vede nei compensi già
+  erogati perché il primo rinnovo automatico non è mai passato, e il codice paga «chi c'è adesso».
+
 - `[Sviluppo]` 🗓️ **Le date di questo registro erano avanti di due giorni** — e non è una pignoleria:
   è la ragione per cui oggi ho aperto un allarme falso. Credendo che fosse il 13, ho letto la tabella
   delle decisioni del motore — l'ultima è dell'11 — come «il cron è fermo da due notti», e ci ho

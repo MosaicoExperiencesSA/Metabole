@@ -165,22 +165,28 @@ revisioni di compensi già erogati.
 ### 4.1 Decisioni che aspettano te
 - ~~**Il Monitoraggio dopo quanto?**~~ **Deciso il 10/8, fatto l'11/8**: solo dal giorno dopo che il
   mantenimento è scaduto e non è stato rinnovato. Vedi §2.
-- **Provvigioni di rinnovo, due letture della decisione del 6/8.** Lo schema dice «solo se la coach è
-  ancora quella assegnata» (che suona come *altrimenti non paga nessuno*), il servizio dice «paga chi
-  c'è adesso». **Il codice fa la seconda**, per costruzione: la catena si calcola sempre su
-  `profile.assignedCoachId`. Se intendevi la prima, cambia chi prende i soldi.
+- ~~**Percentuali del «Percorso Metabole 3 mesi»**~~ **CHIUSA l'11/8 da Simone**: verificate sulle
+  vendite reali, i compensi che escono sono quelli giusti. Niente ricalcolo da lanciare.
+- ~~**Prezzi a DB da confermare**~~ **CHIUSA l'11/8 da Simone**: i prezzi veri sono quelli del
+  **Negozio**, e da lì si aggiornano ovunque da soli. Verificato nel codice: il report legge sempre
+  `plan.priceCents` dal database, con la promo gestita da `listPriceCents` + `promoEndsAt`
+  (`plan-report.service.ts:118`) — non c'è nessun prezzo scritto a mano nel percorso del report, e il
+  seed non sovrascrive quello che è già a database. **Il report si può mandare a una cliente vera.**
+  ⚠️ **Un residuo, piccolo e vero**: il testo del task che arriva alla coach quando scade il codice
+  personale ha i prezzi scritti dentro la frase — «(1 mese €99 · 3 mesi €249)»,
+  `coach-tasks.service.ts:206`. Quello **non** segue il Negozio: il giorno che cambi un prezzo, la
+  coach legge il vecchio e lo ripete alla cliente. Da leggere dal piano, come fa il report.
+- **Provvigioni di rinnovo: resta aperta solo la parte che nessuna vendita può ancora aver
+  verificato.** Le percentuali sono confermate (sopra), ma «chi prende i soldi **al rinnovo** se la
+  coach nel frattempo è cambiata» non si vede nei compensi già erogati, perché **nessun rinnovo
+  automatico è ancora passato** (§4.2). Lo schema dice «solo se la coach è ancora quella assegnata»
+  (che suona come *altrimenti non paga nessuno*), il servizio dice «paga chi c'è adesso», e **il
+  codice fa la seconda**, per costruzione: la catena si calcola sempre su `profile.assignedCoachId`.
+  Se intendevi la prima, si cambia prima che parta il primo rinnovo — dopo diventa una revisione di
+  compensi già erogati.
   Collegato e già deciso da te il 7/8: al rinnovo di una cliente **senza coach** la provvigione viene
   accantonata e pagata a chi verrà assegnato — su un rinnovo significa far incassare a una coach futura
   una rendita costruita da un'altra.
-- **Percentuali del «Percorso Metabole 3 mesi»**, da compilare in Negozio. Sono **cumulative**:
-  coach 25 / coordinatrice 35 / manager 45; nutrizionista **10** / capo nutrizionista **15**. Col secondo
-  valore sbagliato (25/10/10) il livello sopra calcola una differenza negativa e la catena si ferma alla
-  coach. Poi il ricalcolo dei pagamenti già fatti: `CONFERMA=1 npm run ricalcola:provvigioni --
-  2026-07-01`, che aggiunge il mancante e non toglie niente — oppure riga per riga da Acquisti → ↻. **[dati]**
-- **Prezzi a DB da confermare.** Il seed porta ancora 297/497/797 mentre il listino deciso è €99 / €249,
-  e il report cliente cita €249/€299. Il seed non sovrascrive, quindi i prezzi veri sono quelli messi a
-  mano in Negozio: va guardato lì. **Finché non è confermato, non mandare il report a una cliente
-  vera.** **[dati]**
 
 ### 4.2 Il primo addebito ricorrente vero non è mai passato
 Codice e Stripe risultano a posto e l'idempotenza ora è garantita dal database, ma nessun rinnovo reale
