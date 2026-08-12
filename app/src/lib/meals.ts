@@ -13,12 +13,35 @@ export function slotInfo(slot: string): SlotInfo {
   return SLOT[slot] ?? { label: slot, icon: 'ti-tools-kitchen-2', bg: '#F2EFE8', color: '#5F6E6B' };
 }
 
-/** Etichette dei metodi di cottura (Recipe.cookingMethods[].type). */
+/**
+ * Etichette dei metodi di cottura (`Recipe.cookingMethods[].type`).
+ *
+ * ⚠️ L'elenco che DECIDE sta nel backend (`common/metodi-cottura.ts`): l'app non sceglie, mostra.
+ * Qui c'erano tre voci mentre il motore ne usava cinque, quindi «in padella» e «al vapore» — che
+ * nei menu ci sono davvero — arrivavano alla cliente come `padella` e `vapore`, in minuscolo e con
+ * l'aria di un errore.
+ */
 export const METHOD_LABEL: Record<string, string> = {
   veloce: 'Veloce',
   forno: 'Al forno',
+  padella: 'In padella',
+  vapore: 'Al vapore',
   meal_prep: 'Meal prep',
+  piatto_freddo: 'Piatto freddo',
 };
+
+/**
+ * L'etichetta da mostrare, con un ripiego LEGGIBILE per i codici che questa versione dell'app non
+ * conosce: `piatto_freddo` → «Piatto freddo». Serve perché l'app si aggiorna dopo il backend — e
+ * fra i due deploy la cliente non deve leggere un identificatore.
+ */
+export function etichettaMetodo(type: string | null | undefined): string {
+  if (!type) return '';
+  const nota = METHOD_LABEL[type];
+  if (nota) return nota;
+  const parole = type.replace(/_/g, ' ').trim();
+  return parole.charAt(0).toUpperCase() + parole.slice(1);
+}
 
 /**
  * Una sostituzione annotata su un pasto. I primi tre campi ci sono da sempre; i grammi e

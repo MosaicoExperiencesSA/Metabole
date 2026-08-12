@@ -32,12 +32,10 @@ export const THEMES: ThemeDef[] = [
    * (#edf2d9): resta quel verde, ma fa il mestiere che gli tocca, cioè reggere il testo. Il testo è
    * un verde quasi nero e non nero puro — 6,8:1 sul mela, 14:1 sulle card.
    *
-   * **Rivisto l'11/8 su indicazione di Simone**: il verde mela è passato sulla BARRA LATERALE (con
-   * testo scuro sopra: il chiaro su quel verde sta a 2,1:1) e il fondo centrale è lo stesso verde
-   * desaturato di un altro 75% — che è il colore qui sotto. La pastiglia del selettore mostra i
-   * colori veri della pagina: il mela si vede aprendo il tema, non nell'anteprima.
+   * ⏪ Il 12/8 è stato provato con il mela sulla barra e il fondo desaturato, e **rimesso com'era**
+   * su indicazione di Simone: il fondo torna mela pieno.
    */
-  { id: 'acceso', label: 'Acceso · mela e indaco', bg: '#687244', surface: '#edf2d9', accent: '#5b57c9', text: '#16250a' },
+  { id: 'acceso', label: 'Acceso · mela e indaco', bg: '#8db600', surface: '#edf2d9', accent: '#5b57c9', text: '#16250a' },
 ];
 const IDS = THEMES.map((t) => t.id);
 const DEFAULT = 'light';

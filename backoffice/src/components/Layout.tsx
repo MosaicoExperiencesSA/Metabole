@@ -6,7 +6,7 @@ import { UserMenu } from './UserMenu';
 import { NotificationBell } from './NotificationBell';
 import { OverdueGate } from './RecallGuard';
 import { api } from '../api/client';
-import { readMenuOrderCache, writeMenuOrderCache, gruppiEffettivi } from '../lib/menuOrder';
+import { readMenuOrderCache, writeMenuOrderCache, gruppiEffettivi, EVENTO_MENU_CAMBIATO } from '../lib/menuOrder';
 
 interface NavItem {
   key: string; // pageKey dei permessi
@@ -127,6 +127,26 @@ export function Layout({ title, children }: { title: string; children: ReactNode
     api<{ menuOrder: string[] | null }>('/me/preferences')
       .then((p) => { const o = p.menuOrder && p.menuOrder.length ? p.menuOrder : null; setMenuOrder(o); writeMenuOrderCache(o); })
       .catch(() => { /* uso la cache locale */ });
+  }, []);
+  /**
+   * ⚠️ La barra si RIDISEGNA quando le Impostazioni cambiano il menu.
+   *
+   * Senza, leggeva le preferenze solo al montaggio: si spostava una voce o si toglieva la
+   * fisarmonica a un gruppo, la card si aggiornava e la barra restava com'era fino al ricaricamento
+   * della pagina — e sembrava che l'interruttore non facesse niente.
+   *
+   * `storage` in più dell'evento nostro: quello arriva dalle ALTRE schede aperte sullo stesso
+   * backoffice, che altrimenti resterebbero indietro fino al prossimo caricamento.
+   */
+  useEffect(() => {
+    const daEvento = (e: Event) => setMenuOrder(((e as CustomEvent).detail as string[] | null) ?? readMenuOrderCache());
+    const daAltraScheda = () => setMenuOrder(readMenuOrderCache());
+    window.addEventListener(EVENTO_MENU_CAMBIATO, daEvento);
+    window.addEventListener('storage', daAltraScheda);
+    return () => {
+      window.removeEventListener(EVENTO_MENU_CAMBIATO, daEvento);
+      window.removeEventListener('storage', daAltraScheda);
+    };
   }, []);
   const [navOpen, setNavOpen] = useState<boolean>(() => {
     try { return localStorage.getItem('metabole_bo_nav') !== 'closed'; } catch { return true; }

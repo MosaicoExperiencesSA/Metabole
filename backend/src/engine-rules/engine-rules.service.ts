@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { CODICI_METODI } from '../common/metodi-cottura';
 import { AuditService } from '../audit/audit.service';
 import { AiService } from '../ai/ai.service';
 import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
@@ -1045,7 +1046,7 @@ export class EngineRulesService {
 `Genera ${p.quante} ricette per il pasto "${nomeSlot}" della dieta "${p.label}" (stile ${p.style}, regime ${p.regime}, obiettivo ${p.objective}).
 Ognuna ~${p.kcalPasto} kcal (è la quota di questo pasto su una giornata di ~${p.kcalGiorno} kcal, tolleranza ±${p.kcalTol}%); proteine ${p.protMin}-${p.protMax}% delle kcal sulla giornata. Regime: ${p.regimeRule}.${p.fasting ? ' Digiuno intermittente 16:8: pasti solo nella finestra 12:00-20:00.' : ''}${p.clinicalNotes ? ` Regole cliniche da rispettare: ${p.clinicalNotes}` : ''}
 Le ${p.quante} ricette devono essere DIVERSE fra loro per ingrediente principale e metodo di cottura: servono a coprire ${p.quante} giorni consecutivi senza che la cliente mangi due volte la stessa cosa.${evita.length ? `\nNON riproporre questi piatti, sono già in catalogo: ${evita.join('; ')}.` : ''}
-Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"veloce|forno|meal_prep","steps":["passo 1","passo 2"]}]}]}`;
+Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"${CODICI_METODI.join('|')}","steps":["passo 1","passo 2"]}]}]}`;
 
     // Su output grandi l'AI a volte restituisce JSON malformato (in punti diversi ogni volta):
     // fino a 3 tentativi, poi si rinuncia a QUESTO pasto senza far cadere gli altri.

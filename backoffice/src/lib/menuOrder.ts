@@ -16,12 +16,32 @@ export function readMenuOrderCache(): string[] | null {
   }
 }
 
+/** L'evento che dice «il menu è cambiato»: lo ascolta la barra laterale. */
+export const EVENTO_MENU_CAMBIATO = 'metabole:menu-cambiato';
+
+/**
+ * Salva l'ordine in cache **e lo annuncia**.
+ *
+ * ⚠️ L'annuncio è la riga che fa funzionare le Impostazioni. La barra laterale legge le preferenze
+ * **una volta sola**, quando si monta: cambiando i gruppi da Impostazioni la card si aggiornava e la
+ * barra no, e restava indietro fino al ricaricamento della pagina. Sembrava che l'interruttore «a
+ * fisarmonica» non facesse niente (segnalato da Simone il 12/8) — invece era salvato, e solo il menu
+ * non lo sapeva.
+ *
+ * Un evento e non un pulsante «Salva»: il salvataggio c'era già ed era immediato, mancava che
+ * qualcuno lo dicesse. Un pulsante avrebbe nascosto il difetto dietro un gesto in più.
+ */
 export function writeMenuOrderCache(order: string[] | null): void {
   try {
     if (order && order.length) localStorage.setItem(LS_MENU_ORDER, JSON.stringify(order));
     else localStorage.removeItem(LS_MENU_ORDER);
   } catch {
     /* no-op */
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(EVENTO_MENU_CAMBIATO, { detail: order ?? null }));
+  } catch {
+    /* fuori dal browser (test, SSR): non c'è nessuno da avvisare */
   }
 }
 

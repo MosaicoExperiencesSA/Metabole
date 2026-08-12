@@ -11,6 +11,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
+import { METODI_COTTURA } from '../common/metodi-cottura';
 import { giornateComplete, pastiAttesi } from './giornate-complete';
 import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
 import {
@@ -1243,7 +1244,9 @@ export class CatalogService {
 
   async taxonomy() {
     const [regimes, styles, families] = await Promise.all([this.regimes(), this.styles(), this.famiglie()]);
-    return { regimes, styles, families };
+    // I metodi di cottura vengono da `common/metodi-cottura.ts`: il backoffice li CHIEDE invece di
+    // riscriverli, così un metodo aggiunto lì compare nella tendina senza toccare il frontend.
+    return { regimes, styles, families, cookingMethods: METODI_COTTURA };
   }
 
   /** Salva la lista dei regimi (solo admin). Normalizza i codici (minuscolo, underscore). */

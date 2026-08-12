@@ -5,23 +5,30 @@ import { NAV } from './Layout';
 import { gruppiEffettivi, serializzaGruppi, writeMenuOrderCache, type GruppoMenu } from '../lib/menuOrder';
 
 /**
- * ORDINE DEL MENU — voci, gruppi e titoli.
+ * ORDINE DEL MENU — voci, gruppi, titoli e fisarmoniche.
  *
- * Richiesta di Simone dell'11/8: «l'utente deve poter cambiare, aggiungere o eliminare anche i
- * titoli dei gruppi, e spostare le pastiglie da un gruppo all'altro. Il default è quello attuale,
- * e in alto vicino al titolo mettiamo la freccetta tonda del reimposta».
+ * Richieste di Simone dell'11-12/8: rinominare/aggiungere/eliminare i gruppi, spostare le voci da un
+ * gruppo all'altro, un flag «a fisarmonica / solo titolo» per gruppo, il «Reimposta» accanto al
+ * titolo — e **un pulsante Salva che al salvataggio ricarica la pagina**.
  *
- * ## Le due scelte di interfaccia
+ * ## Perché c'è un «Salva», visto che prima non c'era
  *
- * **Frecce, non trascinamento.** Il trascinamento è più bello e più fragile: su una lista lunga,
- * dentro un contenitore che scorre, è la cosa che non funziona mai — e questa pagina si apre anche
- * dal telefono. Le frecce le usa già chi ha personalizzato il menu finora, e qui fanno una cosa in
- * più: **quando la voce è la prima o l'ultima del suo gruppo, la freccia la porta nel gruppo
- * accanto**. Così «spostare le pastiglie da un gruppo all'altro» non ha bisogno di un comando suo,
- * e l'icona cambia (`corner-left-up`) per dirlo prima che uno ci provi.
+ * All'inizio ogni modifica valeva subito. Sembrava più diretto, e invece era il difetto: la barra
+ * laterale legge le preferenze **una volta sola**, quando si monta. Si toglieva la fisarmonica a un
+ * gruppo, la card si aggiornava, il menu no — e restava indietro fino al ricaricamento. Da fuori si
+ * legge «l'interruttore non funziona», ed è quello che è successo.
  *
- * **Nessun «Salva».** Ogni modifica vale subito, come già faceva il riordino: un pulsante di
- * salvataggio qui vorrebbe dire poter chiudere la pagina con un menu a metà.
+ * Il salvataggio esplicito risolve due cose insieme: dice **quando** il lavoro è finito (riordinare
+ * un menu sono dieci gesti, non uno: salvarne dieci versioni intermedie sul profilo non serve a
+ * nessuno) e dà il momento giusto per **ricaricare**, che è il modo onesto di garantire che quello
+ * che si vede sia quello che è salvato — barra, gruppi e fisarmoniche comprese.
+ *
+ * ## Frecce, non trascinamento
+ *
+ * Il trascinamento è più bello e più fragile: lista lunga, contenitore che scorre, e questa pagina
+ * si apre anche dal telefono. Le frecce fanno una cosa in più: **quando la voce è la prima o
+ * l'ultima del suo gruppo, la portano nel gruppo accanto** — e l'icona cambia per dirlo prima che
+ * uno ci provi.
  */
 export function MenuOrderCard() {
   const { can } = useAuth();
@@ -31,8 +38,16 @@ export function MenuOrderCard() {
     .filter((g) => g.items.length > 0);
 
   const [ordine, setOrdine] = useState<string[] | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
   const [caricato, setCaricato] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  /**
+   * La BOZZA, cioè il lavoro non ancora salvato, nella STESSA forma in cui si salva (la lista di
+   * righe con i marcatori dei gruppi). Tenerla già serializzata evita di avere due rappresentazioni
+   * dello stesso menu che possono divergere fra loro.
+   * `undefined` = niente da salvare · `null` = «rimetti come di fabbrica» in attesa.
+   */
+  const [bozza, setBozza] = useState<string[] | null | undefined>(undefined);
 
   useEffect(() => {
     api<{ menuOrder: string[] | null }>('/me/preferences')
@@ -41,21 +56,24 @@ export function MenuOrderCard() {
       .finally(() => setCaricato(true));
   }, []);
 
-  const vista = gruppiEffettivi(sezioni, ordine);
+  const vista = gruppiEffettivi(sezioni, bozza === undefined ? ordine : bozza);
+  const daSalvare = bozza !== undefined;
+
+  /** Mette il lavoro in bozza: si serializza subito, come verrà salvato. */
+  const aggiorna = (g: GruppoMenu[]) => setBozza(serializzaGruppi(conNascoste(g)));
 
   /**
    * ⚠️ Le rotte che questa persona NON vede non devono sparire dalle sue preferenze.
    *
    * La card lavora sulle voci visibili. Se salvassimo solo quelle, il giorno che le arriva un
    * permesso in più la pagina tornerebbe in un posto qualsiasi — e la sua personalizzazione di
-   * quella voce sarebbe stata cancellata senza che nessuno l'abbia chiesto. Quindi le rotte già
-   * salvate che qui non compaiono si riattaccano in fondo.
+   * quella voce sarebbe stata cancellata senza che nessuno l'abbia chiesto.
    */
   function conNascoste(nuovi: GruppoMenu[]): GruppoMenu[] {
     const visibili = new Set(sezioni.flatMap((s) => s.items.map((i) => i.to)));
-    // ⚠️ `#gruppo` senza i due punti: i marcatori sono tre (`#gruppo:`, `#gruppoc:`, `#gruppot:`) e
-    // filtrarne uno solo avrebbe fatto passare gli altri due per rotte — che sarebbero poi state
-    // riattaccate in fondo come «voci orfane», moltiplicando i titoli a ogni salvataggio.
+    // `#gruppo` senza i due punti: i marcatori sono tre (`#gruppo:`, `#gruppoc:`, `#gruppot:`) e
+    // filtrarne uno solo farebbe passare gli altri due per rotte, riattaccandoli come «voci
+    // orfane» e moltiplicando i titoli a ogni salvataggio.
     const salvate = (ordine ?? []).filter((r) => !r.startsWith('#gruppo'));
     const nominate = new Set(nuovi.flatMap((g) => g.voci));
     const orfane = salvate.filter((r) => !visibili.has(r) && !nominate.has(r));
@@ -65,23 +83,31 @@ export function MenuOrderCard() {
     return out;
   }
 
-  async function salva(gruppi: GruppoMenu[] | null) {
-    const piatto = gruppi ? serializzaGruppi(conNascoste(gruppi)) : null;
-    setOrdine(piatto);
-    writeMenuOrderCache(piatto);
+  /**
+   * Salva e **ricarica**. Il ricaricamento è voluto (Simone, 12/8): è l'unico modo onesto di dire
+   * «quello che vedi adesso è quello che è salvato», barra laterale compresa. Se la scrittura sul
+   * profilo non riesce, NON si ricarica: si dice cosa è successo e il lavoro resta a schermo.
+   */
+  async function salva() {
+    setSalvando(true);
+    setErrore(null);
+    const piatto = bozza ?? null;
     try {
       await api('/me/preferences', { method: 'PUT', body: JSON.stringify({ menuOrder: piatto ?? [] }) });
-      setMsg(gruppi ? 'Salvato.' : 'Rimesso come di fabbrica.');
-    } catch {
-      setMsg('Salvato solo su questo dispositivo.');
+      writeMenuOrderCache(piatto);
+      window.location.reload();
+    } catch (e) {
+      setSalvando(false);
+      setErrore(
+        e instanceof Error && e.message
+          ? `Non sono riuscito a salvare: ${e.message}. Il tuo lavoro è ancora qui, riprova.`
+          : 'Non sono riuscito a salvare. Il tuo lavoro è ancora qui, riprova.',
+      );
     }
   }
 
-  /** La vista corrente come struttura modificabile. */
+  /** La vista corrente come struttura modificabile: si salva sempre il valore RISOLTO. */
   const comeGruppi = (): GruppoMenu[] =>
-    // Si salva sempre il valore RISOLTO, non «eredita»: dal momento in cui uno tocca questa
-    // schermata, com'è il suo menu lo decide lui e non cambia più sotto i piedi se un domani noi
-    // rendiamo pieghevole un gruppo di fabbrica.
     vista.map((g) => ({ titolo: g.group, comprimibile: g.comprimibile, voci: g.items.map((i) => i.to) }));
 
   /** Su/giù dentro il gruppo — e, quando è al bordo, nel gruppo accanto. */
@@ -90,41 +116,41 @@ export function MenuOrderCard() {
     const dentro = vi + dir;
     if (dentro >= 0 && dentro < g[gi].voci.length) {
       [g[gi].voci[vi], g[gi].voci[dentro]] = [g[gi].voci[dentro], g[gi].voci[vi]];
-      return void salva(g);
+      return aggiorna(g);
     }
     const vicino = gi + dir;
     if (vicino < 0 || vicino >= g.length) return; // la prima del primo gruppo, l'ultima dell'ultimo
     const [voce] = g[gi].voci.splice(vi, 1);
-    // Entra dal lato da cui arriva: salendo si appoggia in fondo al gruppo sopra, scendendo in
-    // cima a quello sotto. Il contrario la farebbe «saltare» oltre mezzo gruppo.
+    // Entra dal lato da cui arriva: salendo si appoggia in fondo al gruppo sopra, scendendo in cima
+    // a quello sotto. Il contrario la farebbe «saltare» oltre mezzo gruppo.
     if (dir === -1) g[vicino].voci.push(voce);
     else g[vicino].voci.unshift(voce);
-    void salva(g);
+    aggiorna(g);
   }
 
   function rinomina(gi: number, titolo: string) {
     const g = comeGruppi();
     g[gi].titolo = titolo;
-    void salva(g);
+    aggiorna(g);
   }
 
-  /** A fisarmonica o solo titolo (richiesta di Simone dell'11/8: «CRM è comprimibile, il flag»). */
+  /** A fisarmonica o solo titolo. */
   function cambiaComprimibile(gi: number, comprimibile: boolean) {
     const g = comeGruppi();
     g[gi].comprimibile = comprimibile;
-    void salva(g);
+    aggiorna(g);
   }
 
   function aggiungiGruppo() {
     const g = comeGruppi();
-    g.push({ titolo: 'Nuovo gruppo', voci: [] });
-    void salva(g);
+    g.push({ titolo: 'Nuovo gruppo', comprimibile: false, voci: [] });
+    aggiorna(g);
   }
 
   /**
-   * Elimina il gruppo, NON le voci: passano al gruppo sopra (o sotto, se è il primo). Un comando
-   * che toglie un titolo e si porta via cinque voci del menu è un comando che si preme una volta
-   * sola, e sempre per sbaglio.
+   * Elimina il gruppo, NON le voci: passano al gruppo sopra (o sotto, se è il primo). Un comando che
+   * toglie un titolo e si porta via cinque voci del menu è un comando che si preme una volta sola, e
+   * sempre per sbaglio.
    */
   function eliminaGruppo(gi: number) {
     const g = comeGruppi();
@@ -132,7 +158,7 @@ export function MenuOrderCard() {
     const dove = gi === 0 ? 1 : gi - 1;
     g[dove].voci = gi === 0 ? [...g[gi].voci, ...g[dove].voci] : [...g[dove].voci, ...g[gi].voci];
     g.splice(gi, 1);
-    void salva(g);
+    aggiorna(g);
   }
 
   function spostaGruppo(gi: number, dir: -1 | 1) {
@@ -140,35 +166,52 @@ export function MenuOrderCard() {
     const j = gi + dir;
     if (j < 0 || j >= g.length) return;
     [g[gi], g[j]] = [g[j], g[gi]];
-    void salva(g);
+    aggiorna(g);
   }
 
   return (
     <div className="card">
-      <div className="spread" style={{ alignItems: 'center', gap: 10 }}>
+      <div className="spread" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>Ordine del menu</h2>
-        {/* La «freccetta tonda» chiesta da Simone: accanto al titolo, dove la si cerca. */}
-        <button
-          className="btn ghost sm"
-          onClick={() => void salva(null)}
-          disabled={!caricato || !ordine}
-          title={ordine ? 'Rimetti gruppi, titoli e ordine come sono di fabbrica' : 'Il menu è già quello di fabbrica'}
-        >
-          <i className="ti ti-rotate-clockwise" /> Reimposta
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          {daSalvare && (
+            <button className="btn ghost sm" onClick={() => { setBozza(undefined); setErrore(null); }} disabled={salvando}>
+              Annulla
+            </button>
+          )}
+          {/* La «freccetta tonda»: prepara il ritorno alla configurazione di fabbrica, poi si salva. */}
+          <button
+            className="btn ghost sm"
+            onClick={() => setBozza(null)}
+            disabled={!caricato || salvando || (!ordine && bozza === undefined)}
+            title="Rimetti gruppi, titoli e ordine come sono di fabbrica"
+          >
+            <i className="ti ti-rotate-clockwise" /> Reimposta
+          </button>
+          <button className="btn sm" onClick={() => void salva()} disabled={!daSalvare || salvando}>
+            <i className="ti ti-device-floppy" /> {salvando ? 'Salvo…' : 'Salva'}
+          </button>
+        </div>
       </div>
       <p className="hint" style={{ marginTop: 6 }}>
         Rinomina i gruppi, spostali, aggiungine o togline, e scegli quali si aprono e chiudono a
-        fisarmonica e quali restano solo un titolo. Le frecce muovono una voce dentro il
-        gruppo — e quando è la prima o l'ultima, la portano nel gruppo accanto. Tutto si salva sul
-        tuo profilo appena lo tocchi.
-        {msg && <b style={{ color: 'var(--ok-ink)' }}> · {msg}</b>}
+        fisarmonica. Le frecce muovono una voce dentro il gruppo — e quando è la prima o l'ultima, la
+        portano nel gruppo accanto. <b>Le modifiche valgono quando premi Salva</b>: la pagina si
+        ricarica, così il menu qui a fianco mostra esattamente quello che hai salvato.
       </p>
+      {errore && <div className="banner err" style={{ marginBottom: 10 }}>{errore}</div>}
+      {daSalvare && !errore && (
+        <div className="banner info" style={{ marginBottom: 10 }}>
+          {bozza === null
+            ? 'Pronto a rimettere il menu com\'è di fabbrica: premi Salva per confermare.'
+            : 'Hai modifiche non salvate: premi Salva per applicarle al menu.'}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gap: 14 }}>
         {vista.map((g, gi) => (
           <div key={`${gi}-${g.group}`}>
-            <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 6 }}>
+            <div className="row" style={{ gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
               <input
                 className="input"
                 style={{ maxWidth: 240, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700 }}
@@ -177,10 +220,7 @@ export function MenuOrderCard() {
                 maxLength={24}
                 onChange={(e) => rinomina(gi, e.target.value)}
               />
-              {/*
-                Un interruttore e non due pulsanti: lo stato si legge senza premerlo, ed è
-                l'informazione che serve guardando la lista dei gruppi.
-              */}
+              {/* Un interruttore e non due pulsanti: lo stato si legge senza premerlo. */}
               <label
                 className="row"
                 style={{ gap: 5, alignItems: 'center', fontSize: 12, whiteSpace: 'nowrap', cursor: 'pointer' }}
@@ -235,7 +275,7 @@ export function MenuOrderCard() {
         ))}
       </div>
 
-      <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={aggiungiGruppo}>
+      <button className="btn ghost sm" style={{ marginTop: 12 }} onClick={aggiungiGruppo} disabled={salvando}>
         <i className="ti ti-plus" /> Aggiungi un gruppo
       </button>
     </div>

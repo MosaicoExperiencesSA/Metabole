@@ -1097,7 +1097,14 @@ girato su tutte.
   bordo, o colore più saturo — e va fatto sulla classe condivisa (`.chip` in `theme.css`), non su una
   tabella sola, o le due tornano a divergere.
 
-### 16.6 «Piatto Freddo» fra i metodi di cottura
+### ~~16.6 «Piatto Freddo» fra i metodi di cottura~~ — ✅ FATTA il 12/8
+
+L'elenco vive in `backend/src/common/metodi-cottura.ts` e da lì arriva a tutti: il backoffice lo
+chiede a `/catalog/taxonomy`, il prompt dell'AI costruisce l'enum dai codici, l'app mostra le
+etichette con un ripiego leggibile per quelle che non conosce. Aggiunti anche `padella` e `vapore`,
+che il motore usava già e la tendina non offriva.
+
+#### (storia) com'era
 
 La lista dei metodi vive in **quattro** punti: `backoffice/src/pages/Ricette.tsx:34` (`METHOD`),
 `app/src/lib/meals.ts:20`, `backend/src/cycle/cycle.service.ts:13`, e il prompt con cui l'AI genera le

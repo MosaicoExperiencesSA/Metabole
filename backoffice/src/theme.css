@@ -83,19 +83,17 @@
 :root[data-theme="acceso"] {
   --teal: #5b57c9; --teal-dark: #423fa0; --deep: #2c3a00;
   /*
-    IL VERDE MELA STA SULLA BARRA (Simone, 11/8: «sposta il verde più chiaro sulla barra laterale»).
-    Sopra ci va testo SCURO: il chiaro starebbe a 2,1:1, questo a 6,8:1. È il motivo per cui il
-    colore del testo della barra è diventato una variabile, poche righe più su.
+    ⏪ RIMESSO COM'ERA (Simone, 12/8: «la combinazione acceso mela riportala come prima»).
+    Il verde mela era passato sulla barra e il fondo era stato desaturato: guardato sul vivo non
+    convinceva. Torna il fondo mela pieno, con la barra nello stesso verde portato molto giù —
+    il mela non regge il testo chiaro (2,1:1), quindi la barra scura resta l'unico modo di averlo
+    come fondo.
+    ⚠️ Le variabili `--sidebar-ink` / `--sidebar-hover` restano nel CSS generico: non le usa più
+    nessuno, ma i loro default sono ESATTAMENTE i colori fissi di prima, quindi non cambiano niente
+    e il giorno che serve una barra chiara ci sono già.
   */
-  --sidebar: #8db600; --sidebar-ink: #16250a; --sidebar-ink-forte: #0b1305;
-  --sidebar-hover: rgba(0, 0, 0, 0.09); --sidebar-sep: #33450f;
-  /*
-    E il fondo centrale è lo STESSO verde desaturato di un altro 75% (#687244): serve a far
-    risaltare le card, non a farsi guardare. Il testo diretto sul fondo — che è raro, quasi tutto
-    sta dentro una card — resta a 3,1:1: se qualche etichetta lì sopra fatica, questo è il numero
-    da alzare.
-  */
-  --bg: #687244; --card: #edf2d9; --ink: #16250a; --muted: #5d6b3f;
+  --sidebar: #2c3a00; --sidebar-sep: #b6c98a;
+  --bg: #8db600; --card: #edf2d9; --ink: #16250a; --muted: #5d6b3f;
   --line: #d3dfb0; --chip: #eae9f7; --chip-ink: #423fa0;
   --ok: #e2eecd; --ok-ink: #47630f; --danger-bg: #f7e2de;
   color-scheme: light;

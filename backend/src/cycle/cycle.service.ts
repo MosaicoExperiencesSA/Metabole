@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { etichettaMetodo } from '../common/metodi-cottura';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -7,13 +8,7 @@ export const CYCLE_STATES = ['normale', 'conforto', 'rientro', 'pre_evento', 'po
 export type CycleState = (typeof CYCLE_STATES)[number];
 
 // Metodi di cottura (R5/R6): a parità di kcal, due preparazioni diverse nel ciclo.
-const COOKING_LABEL: Record<string, string> = {
-  veloce: 'Veloce',
-  forno: 'Al forno',
-  meal_prep: 'Meal prep',
-  padella: 'In padella',
-  vapore: 'Al vapore',
-};
+// L'elenco NON sta più qui: vedi `common/metodi-cottura.ts`, che è l'unico posto che decide.
 
 export interface MealSnapshot {
   slot: string;
@@ -92,8 +87,8 @@ export class CycleService {
       state,
       cooking: {
         g1: cooking.g1, g2: cooking.g2,
-        g1Label: COOKING_LABEL[cooking.g1] ?? cooking.g1,
-        g2Label: COOKING_LABEL[cooking.g2] ?? cooking.g2,
+        g1Label: etichettaMetodo(cooking.g1),
+        g2Label: etichettaMetodo(cooking.g2),
       },
       gradimento, // max stelle del ciclo (default 5)
       lastOutcome: lastOutcome ? { esitoPeso: lastOutcome.esitoPeso, esitoCm: lastOutcome.esitoCm, followed: lastOutcome.followed } : null,

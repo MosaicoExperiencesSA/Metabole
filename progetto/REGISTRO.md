@@ -20,6 +20,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🍳 **«Piatto freddo» fra i metodi di cottura — e l'elenco smette di vivere in quattro
+  posti. Più il «Salva» nelle impostazioni del menu, e «Acceso» rimesso com'era.**
+  **(1) §16.6.** Aggiungere la voce era una riga; il lavoro è il motivo per cui non lo era. L'elenco
+  stava in **quattro punti già diversi**: tendina del backoffice 3 voci, app 3, motore 5, prompt
+  dell'AI 3 scritte a mano dentro la stringa. Quindi «in padella» e «al vapore» **esistevano già nei
+  menu** e nella tendina non c'erano — chi apriva quelle ricette vedeva un valore che non poteva
+  reinserire — e la cliente leggeva `padella` in minuscolo, con l'aria di un errore. Ora
+  `common/metodi-cottura.ts` **decide** (lo usano il ciclo e il prompt, che costruisce l'enum dai
+  codici), il backoffice li **chiede** a `/catalog/taxonomy`, e l'app — che non sceglie, mostra —
+  tiene le etichette con un **ripiego leggibile** per i codici che non conosce, perché si aggiorna
+  dopo il backend. Due danni silenziosi evitati: il metodo già salvato che non è più in elenco resta
+  selezionabile (senza, aprire e salvare una ricetta vecchia le cambierebbe la preparazione di
+  nascosto) e il ripiego del backoffice vale solo finché la risposta non arriva. Sei test: niente
+  codici doppi, ogni voce con un'etichetta scritta per una persona, e un codice sconosciuto che **non
+  torna mai grezzo**.
+  **(2) «I flag non funzionano».** Il flag funzionava e veniva salvato: era la **barra** a non
+  saperlo — legge le preferenze una volta sola, quando si monta, quindi la card si aggiornava e il
+  menu restava indietro fino al ricaricamento. Ora c'è **Salva** (più Annulla) e il salvataggio
+  **ricarica la pagina**, come chiesto da Simone: dice *quando* il lavoro è finito — riordinare un
+  menu sono dieci gesti, non uno — e dà il momento giusto per ricaricare, che è il modo onesto di
+  garantire che quello che si vede sia quello che è salvato. ⚠️ Se la scrittura non riesce **non si
+  ricarica**: un ricaricamento dopo un errore butterebbe via dieci minuti di riordino senza dire
+  perché. In più la barra ora ascolta il cambiamento anche dalle **altre schede** aperte.
+  **(3) «Acceso»** rimesso com'era (fondo mela pieno, barra verde scuro): la prova con il mela sulla
+  barra e il fondo desaturato, guardata sul vivo, non convinceva. Le variabili `--sidebar-ink` /
+  `--sidebar-hover` restano nel CSS generico — non le usa più nessuno, ma i default sono esattamente
+  i colori fissi di prima, quindi non cambiano niente e il giorno che serve una barra chiara ci sono.
+  Verifiche: **115 suite / 1741 test**, build backoffice e app verdi.
+
 - `[Sviluppo]` 🔔 **Nuovo lead → la manager delle coach lo sa, e ha la sua coda «Lead da
   assegnare».** §16.3. L'avviso (in-app + push) parte quando nasce un lead **senza coach**: dal form
   del sito e dalla registrazione di una cliente. **Non** dall'import di liste — mille righe importate

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
-import { slotInfo, testoSostituzione, METHOD_LABEL, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
+import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 
 /**
@@ -95,7 +95,7 @@ function Recipe({ recipeId, date, tag, onBack }: { recipeId: string; date?: stri
           {methods.length > 1 && (
             <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
               {methods.map((m, i) => (
-                <button key={i} className={`pill${method === i ? ' on' : ''}`} onClick={() => setMethod(i)}>{METHOD_LABEL[m.type] ?? m.type}</button>
+                <button key={i} className={`pill${method === i ? ' on' : ''}`} onClick={() => setMethod(i)}>{etichettaMetodo(m.type)}</button>
               ))}
             </div>
           )}

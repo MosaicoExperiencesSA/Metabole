@@ -68,10 +68,14 @@ const i7 = (dayIndex: number): number => ((dayIndex - 1) % 7) + 1;
 const OBIETTIVO: Record<string, string> = { dimagrimento: 'Dimagrimento', mantenimento: 'Mantenimento' };
 
 const SLOT: Record<string, string> = { breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena' };
-const METHOD: Record<string, string> = { veloce: 'Veloce', forno: 'Al forno', meal_prep: 'Meal prep' };
+/**
+ * ⚠️ I metodi di cottura NON si scrivono più qui: arrivano da `/catalog/taxonomy`, che li prende da
+ * `backend/src/common/metodi-cottura.ts`. Questa lista era ferma a tre voci mentre il motore ne
+ * usava cinque — «in padella» e «al vapore» finivano nei menu e nella tendina non c'erano, quindi
+ * chi apriva quella ricetta vedeva un valore che non poteva reinserire.
+ */
 const DIFFICULTY: Record<string, string> = { semplice: 'Semplice', media: 'Media', elaborata: 'Elaborata' };
 const SLOTS = Object.keys(SLOT);
-const METHODS = Object.keys(METHOD);
 const DIFFICULTIES = Object.keys(DIFFICULTY);
 const SEASONS: [string, string][] = [['spring', 'Primavera'], ['summer', 'Estate'], ['autumn', 'Autunno'], ['winter', 'Inverno']];
 const SEASON_LABEL: Record<string, string> = Object.fromEntries(SEASONS);
@@ -539,7 +543,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
 }
 
 function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Recipe | null; defaultRegime?: string; onClose: () => void; onSaved: () => void }) {
-  const { regimes } = useTaxonomy();
+  const { regimes, cookingMethods } = useTaxonomy();
   const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm(defaultRegime));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -645,7 +649,12 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
         {f.methods.map((m, i) => (
           <div key={i} className="card" style={{ margin: '8px 0 0', padding: 10 }}>
             <div className="row" style={{ gap: 6, marginBottom: 6 }}>
-              <select className="select" style={{ width: 150 }} value={m.type} onChange={(e) => setMet(i, { type: e.target.value })}>{METHODS.map((t) => <option key={t} value={t}>{METHOD[t]}</option>)}</select>
+              <select className="select" style={{ width: 150 }} value={m.type} onChange={(e) => setMet(i, { type: e.target.value })}>
+                {cookingMethods.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+                {/* Il metodo già salvato che non è più in elenco resta selezionabile: senza, aprire
+                    e salvare una ricetta vecchia le cambierebbe la preparazione di nascosto. */}
+                {m.type && !cookingMethods.some((t) => t.code === m.type) && <option value={m.type}>{m.type.replace(/_/g, ' ')}</option>}
+              </select>
               <button className="btn ghost sm" title="Rimuovi metodo" onClick={() => setF((s) => ({ ...s, methods: s.methods.filter((_, j) => j !== i) }))}><i className="ti ti-x" /></button>
             </div>
             <textarea className="input" rows={3} placeholder={'Lessa il farro.\nSalta il pollo.\nAggiungi le verdure.'} value={m.stepsText} onChange={(e) => setMet(i, { stepsText: e.target.value })} style={{ resize: 'vertical' }} />
