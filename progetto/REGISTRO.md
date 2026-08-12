@@ -62,6 +62,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   riscrittura — in `deliverIfEligible` non c'è nessuna `$transaction` e la linea di taglio è la riga
   675. Modello da imitare: `simulaKcal`, col suo test «la simulazione non salva niente».
 
+- `[Sviluppo]` 🧬 **Handoff allergie/intolleranze all'agente della OTA — e tre difetti trovati
+  leggendo il codice.** `progetto/HANDOFF_Allergie_Intolleranze.md`, da fare **prima** della
+  pubblicazione.
+  ⚠️ **Il primo difetto vale da solo il documento.** Il questionario salva l'allergene come
+  **`frutta_a_guscio`** (underscore, `onboarding.questions.ts:63`), mentre `INTOLERANCE_MAP` conosce
+  **`'frutta a guscio'`** con gli spazi e `ALIAS` non ha la variante: `expandExclusion` ricade sulla
+  stringa letterale, che non compare in nessun nome di piatto. Sulla **strada testuale**
+  (`exclusions.ts`, usata dal pool «ricette semplici» a `menu.service.ts:624` e dai sostituti che
+  Gaia propone a `sostituzione-chat.service.ts:791,955`) **quell'allergia non esclude niente**. La
+  **strada codificata** (`personal-base`, tag allergene sulle ricette) la copre — ma solo se i tag
+  sono revisati: sono **due verità diverse sullo stesso pool**. È lo stesso difetto che l'8/8 ha
+  fatto proporre il burro a una cliente allergica al latte, ed era già scritto nel commento in testa
+  a `INTOLERANCE_MAP`: *una chiave che la mappa non riconosce si comporta come un'esclusione che non
+  c'è, e non produce nessun errore*.
+  Gli altri due: **`sedano`, `senape`, `solfiti`, `lupini`** non hanno nessuna espansione; e
+  **`'altro'`/`'other'`** finiscono in banca dati come se fossero alimenti, perché il sentinella lo
+  toglie **solo il client React** (`Onboarding.tsx:449`) — chi ha scelto «Altro» fra le intolleranze
+  ha un'intolleranza che **non sappiamo**.
+  **⚠️ Il piano di stamattina è stato corretto su un punto**: la ri-domanda **non** va a tutte le
+  clienti già iscritte. Il questionario le due domande **le fa già** (allergie e intolleranze sono
+  campi distinti da sempre), quindi si contattano **tre popolazioni sole** — chi ha `'other'` fra le
+  intolleranze, chi ha allergie a testo libero mai codificate (`personal-base` le segnala già), e chi
+  ha tutto vuoto e quindi non sappiamo se è «non ne ho» o «ho saltato la pagina». Per le altre basta
+  valorizzare la data di dichiarazione: hanno risposto, non si disturbano.
+  Il resto: colonna `allergiesOther` (oggi fusa dentro `allergies` in **due rami**, `:321` e `:357`),
+  campo libero `intolerancesOther`, `allergieDichiarateIl` + opzione «nessuna» per rendere i **tre
+  stati** distinguibili, e la riga «Allergie» in sola lettura dove oggi non c'è — la cliente **non
+  può vedere le proprie allergie in nessuna schermata dell'app**, e il backoffice non le mostra
+  affatto. ⛔ **La visita obbligatoria resta fuori da questa OTA**: dipende dalla decisione aperta su
+  cosa succede al piano di chi è già in percorso, e un blocco introdotto al buio sospenderebbe piani
+  attivi a clienti paganti.
+
 - `[Sviluppo]` 💧🚶 **Un obiettivo solo per l'acqua, uno su misura per i passi — e il prezzo mostrato
   è quello che si paga.** Prime quattro delle sette decisioni prese da Simone il 12/8, una domanda
   alla volta (scritte in `progetto/Decisioni_Simone_20260812.md` **prima** di toccare il codice).

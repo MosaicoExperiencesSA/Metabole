@@ -86,11 +86,18 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
 
 ## Cantiere a parte — Allergie / intolleranze
 
-- [ ] Scindere `allergies` da `allergiesOther` (`onboarding.service.ts:321,357`)
-- [ ] Riallineare le chiavi inglesi delle intolleranze (`ALIAS` in `exclusions.ts:56-78`)
-- [ ] **Visita medica obbligatoria** in caso di allergia (l'unica parte davvero nuova)
-- [ ] Ri-domanda alle clienti già iscritte: notifica → chat con Gaia → due domande
-- [ ] Stato **«non specificato»** (≠ «nessuna allergia») con freno forte finché non risponde
+📄 Istruzioni operative: **`progetto/HANDOFF_Allergie_Intolleranze.md`** (consegnate all'agente della
+OTA il 12/8). Va prima della pubblicazione.
+
+- [ ] ⚠️ **`frutta_a_guscio` non si espande** (underscore contro spazi in `ALIAS`/`INTOLERANCE_MAP`)
+- [ ] ⚠️ `sedano`, `senape`, `solfiti`, `lupini` senza nessuna espansione
+- [ ] ⚠️ `'altro'` e `'other'` salvati come se fossero alimenti (filtro solo lato client)
+- [ ] Colonna `allergiesOther` + campo libero `intolerancesOther`
+- [ ] `allergieDichiarateIl` + opzione «nessuna» → i tre stati distinguibili
+- [ ] Riga «Allergie» in sola lettura: profilo app, scheda backoffice, log modifiche
+- [ ] Ri-domanda **solo alle tre popolazioni che servono** (non a tutte): flusso Gaia + notifica +
+      script in dry-run
+- [ ] ⛔ **Visita medica obbligatoria**: fuori da questa OTA, dipende dalla decisione aperta n.3
 
 ---
 
