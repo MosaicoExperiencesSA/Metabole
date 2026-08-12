@@ -9,6 +9,12 @@ interface Thread {
   id: string;
   counterpart: string | null;
   lastMessageAt: string | null;
+  /**
+   * §Chat (Simone, 12/8): «un pallino rosso in piccolo se il cliente ha scritto dall'ultima visita
+   * nella pagina». Lo decide il server confrontando l'ultimo messaggio DELLA CLIENTE con l'ultima
+   * volta che questa persona ha aperto la conversazione — non si può calcolare da qui.
+   */
+  daLeggere?: boolean;
   client: { id: string; email: string; clientProfile: { name: string | null } | null } | null;
 }
 interface Msg {
@@ -21,6 +27,18 @@ interface Msg {
 export function CoachChatList({ tabs }: { tabs: TabItem[] }) {
   const nav = useNavigate();
   const state = useApi<Thread[]>('/staff/threads');
+
+  // Tornando indietro da una conversazione il suo pallino è appena stato spento sul server: senza
+  // questo, resterebbe acceso finché non si cambia pagina, e sembrerebbe che non funzioni.
+  useEffect(() => {
+    const alRitorno = () => { if (document.visibilityState === 'visible') state.reload(); };
+    window.addEventListener('focus', alRitorno);
+    document.addEventListener('visibilitychange', alRitorno);
+    return () => {
+      window.removeEventListener('focus', alRitorno);
+      document.removeEventListener('visibilitychange', alRitorno);
+    };
+  }, []);
   return (
     <StaffShell title="Chat" tabs={tabs}>
       <Async state={state} empty={<Empty icon="ti-message-off" text="Nessuna conversazione." />}>
@@ -36,11 +54,22 @@ export function CoachChatList({ tabs }: { tabs: TabItem[] }) {
                 >
                   <Avatar name={name} />
                   <div className="sf-row-main">
-                    <div className="sf-row-name">{name}</div>
+                    <div className="sf-row-name" style={{ fontWeight: t.daLeggere ? 800 : undefined }}>
+                      {name}
+                    </div>
                     <div className="sf-row-sub">
                       {t.lastMessageAt ? `Ultimo messaggio ${relDays(t.lastMessageAt)}` : 'Nessun messaggio'}
                     </div>
                   </div>
+                  {/* Il pallino sta PRIMA della freccia: è l'ultima cosa che si legge scorrendo, ed
+                      è quella che dice se aprire. Piccolo, come ha chiesto Simone. */}
+                  {t.daLeggere && (
+                    <span
+                      aria-label="Ha scritto"
+                      title="Ha scritto dall'ultima volta che hai aperto"
+                      style={{ width: 9, height: 9, borderRadius: '50%', background: '#D93025', flex: 'none' }}
+                    />
+                  )}
                   <i className="ti ti-chevron-right chev" />
                 </div>
               );

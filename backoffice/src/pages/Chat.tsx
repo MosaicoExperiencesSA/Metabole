@@ -6,6 +6,8 @@ interface Thread {
   id: string;
   counterpart: string;
   lastMessageAt: string | null;
+  /** §Chat (12/8): la cliente ha scritto dopo l'ultima volta che questa persona ha aperto. */
+  daLeggere?: boolean;
   client: { id: string; email: string; clientProfile: { name: string | null } | null } | null;
 }
 interface Msg {
@@ -41,6 +43,9 @@ export function Chat() {
     setError(null);
     try {
       setMsgs(await api<Msg[]>(`/threads/${t.id}/messages`));
+      // Aprirla È averla letta: il server lo registra da sé, qui si spegne il pallino subito
+      // invece di lasciarlo acceso fino al prossimo caricamento della pagina.
+      setThreads((prec) => prec?.map((x) => (x.id === t.id ? { ...x, daLeggere: false } : x)) ?? prec);
     } catch {
       setMsgs([]);
     }
@@ -82,7 +87,19 @@ export function Chat() {
               cursor: 'pointer',
             }}
           >
-            <b>{nameOf(t)}</b>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <b style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {nameOf(t)}
+              </b>
+              {/* Il pallino sparisce appena si apre la conversazione: il server registra la
+                  lettura, e `open()` toglie il pallino qui senza aspettare il giro dopo. */}
+              {t.daLeggere && (
+                <span
+                  title="Ha scritto dall'ultima volta che hai aperto"
+                  style={{ width: 8, height: 8, borderRadius: '50%', background: '#D93025', flex: 'none' }}
+                />
+              )}
+            </div>
             <div className="muted" style={{ fontSize: 12 }}>
               {t.lastMessageAt ? new Date(t.lastMessageAt).toLocaleString('it-IT') : 'nuova conversazione'}
             </div>

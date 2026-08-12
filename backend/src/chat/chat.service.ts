@@ -102,14 +102,81 @@ export class ChatService {
     } else {
       throw new ForbiddenException('Ruolo senza accesso alla chat staff');
     }
-    return this.prisma.chatThread.findMany({
+    const thread = (await this.prisma.chatThread.findMany({
       where: where as never,
-      orderBy: { lastMessageAt: 'desc' },
+      /**
+       * ⚠️ `nulls: 'last'`, e non è pignoleria. In Postgres `ORDER BY x DESC` mette i **null per
+       * primi**: le conversazioni mai iniziate finivano in cima, sopra a chi aveva appena scritto.
+       * «Porta sempre in alto le ultime chat arrivate» (Simone, 12/8) è questa riga.
+       */
+      orderBy: { lastMessageAt: { sort: 'desc', nulls: 'last' } },
       include: {
         client: { select: { id: true, email: true, clientProfile: { select: { name: true } } } },
       },
       take: 100,
-    });
+    })) as { id: string; lastMessageAt: Date | null }[];
+
+    const daLeggere = await this.daLeggerePerThread(user.sub, thread.map((t) => t.id));
+    return thread.map((t) => ({ ...t, daLeggere: daLeggere.has(t.id) }));
+  }
+
+  /**
+   * IL PALLINO ROSSO — in quali conversazioni la cliente ha scritto dopo l'ultima volta che questa
+   * persona le ha aperte.
+   *
+   * Richiesta di Simone (12/8). ⚠️ Conta **solo quello che ha scritto la cliente**: la propria
+   * risposta non è una cosa da leggere, e senza questo filtro il pallino si riaccenderebbe da sé
+   * ogni volta che si risponde.
+   *
+   * ⚠️ Nessuna riga in `chat_read` = **mai letta**, quindi il pallino c'è. È il verso giusto in cui
+   * sbagliare: un pallino di troppo costa un tocco, un pallino mancante è un messaggio che nessuno
+   * legge più.
+   */
+  private async daLeggerePerThread(userId: string, threadIds: string[]): Promise<Set<string>> {
+    const fuori = new Set<string>();
+    if (!threadIds.length) return fuori;
+    try {
+      const [letture, ultimi] = await Promise.all([
+        this.prisma.chatRead.findMany({
+          where: { userId, threadId: { in: threadIds } },
+          select: { threadId: true, readAt: true },
+        }) as Promise<{ threadId: string; readAt: Date }[]>,
+        this.prisma.message.groupBy({
+          by: ['threadId'],
+          where: { threadId: { in: threadIds }, senderRole: 'client', deletedAt: null },
+          _max: { sentAt: true },
+        }) as unknown as Promise<{ threadId: string; _max: { sentAt: Date | null } }[]>,
+      ]);
+      const lettoIl = new Map(letture.map((l) => [l.threadId, l.readAt.getTime()]));
+      for (const u of ultimi) {
+        const quando = u._max.sentAt?.getTime();
+        if (!quando) continue;
+        if (quando > (lettoIl.get(u.threadId) ?? 0)) fuori.add(u.threadId);
+      }
+      return fuori;
+    } catch {
+      // Il pallino è un di più: se questo conto non riesce, l'elenco delle chat si apre lo stesso.
+      return fuori;
+    }
+  }
+
+  /**
+   * Segna «letto fino a adesso». Chiamata quando lo staff apre una conversazione.
+   *
+   * ⚠️ Non lancia mai: leggere i messaggi è la cosa necessaria, ricordarsi che sono stati letti è
+   * la cosa utile.
+   */
+  private async segnaLetto(userId: string, threadId: string): Promise<void> {
+    try {
+      const adesso = new Date();
+      await this.prisma.chatRead.upsert({
+        where: { userId_threadId: { userId, threadId } },
+        create: { userId, threadId, readAt: adesso },
+        update: { readAt: adesso },
+      });
+    } catch {
+      /* il pallino resterà acceso una volta di troppo: è il verso giusto in cui sbagliare */
+    }
   }
 
   // ---------- Accesso ----------
@@ -217,6 +284,16 @@ export class ChatService {
         })
         .catch(() => undefined);
     }
+    /**
+     * ⚠️ APRIRE LA CONVERSAZIONE È AVERLA LETTA — è il momento in cui il pallino rosso si spegne
+     * (Simone, 12/8: «se il cliente ha scritto dall'ultima visita nella pagina»).
+     *
+     * Si segna qui e non con una chiamata a parte dal telefono, perché una chiamata in più è una
+     * chiamata che si può dimenticare di fare: chiunque apra una conversazione, da qualunque
+     * schermata, l'ha aperta. La cliente no: il suo pallino è un'altra cosa e questa tabella non
+     * la riguarda.
+     */
+    if (user.role !== 'client') await this.segnaLetto(user.sub, threadId);
     // `deletedAt: null` — i messaggi cancellati dal loro autore spariscono da TUTTE le letture,
     // cliente e staff. Restano in tabella (vedi `model Message`): non si vedono, non si perdono.
     return this.prisma.message.findMany({
@@ -838,6 +915,18 @@ export class ChatService {
       counterpart === 'coach' ? profile?.assignedCoach?.userId : profile?.assignedNutritionist?.userId;
     if (!staffUserId) return;
     /**
+     * ⚠️ Il thread si cerca **qui** e non lo passa chi chiama: metà delle chiamate arrivano da
+     * un'escalation, dove la conversazione di partenza è quella con Gaia e quella di destinazione è
+     * un'altra. Portare la nutrizionista nel thread da cui è partito il messaggio la porterebbe
+     * dentro la chat con Gaia, dove per giunta non può rispondere.
+     * Se non c'è ancora, `threadId` resta fuori e il tocco ricade sulla scheda della cliente.
+     */
+    const thread = (await this.prisma.chatThread.findUnique({
+      where: { clientId_counterpart: { clientId, counterpart: counterpart as never } },
+      select: { id: true },
+    })) as { id: string } | null;
+    const threadId = thread?.id;
+    /**
      * UNA NOTIFICA PER OGNI CLIENTE CHE SCRIVE (11/8: «se una cliente scrive in chat alla coach
      * mandiamo la notifica nella dashboard e via push»).
      *
@@ -860,7 +949,13 @@ export class ChatService {
       type,
       title: `${nome} ti ha scritto`,
       body: 'Apri la chat per leggere il messaggio.',
-      payload: { clientId, kind: 'chat_message_staff' },
+      /**
+       * ⚠️ `threadId` serve al tocco sulla notifica. Richiesta di Simone (12/8): «la notifica di un
+       * messaggio in chat, se ci clicca il nutrizionista o la coach, deve portarli nella chat della
+       * persona». Prima portava alla SCHEDA della cliente: da lì la chat è un altro tocco, e chi
+       * apre una notifica di chat vuole leggere il messaggio, non consultare una cartella.
+       */
+      payload: { clientId, ...(threadId ? { threadId } : {}), kind: 'chat_message_staff' },
       dedupeWindowMs: 3 * 60_000,
       dedupeSuPayload: { clientId },
     });

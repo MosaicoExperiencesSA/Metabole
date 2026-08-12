@@ -25,6 +25,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 💬 **La chat dello staff: la notifica porta dentro, il pallino dice chi aspetta, le
+  ultime stanno in alto.** Tre richieste di Simone (12/8), una per ciascun modo in cui si perdeva un
+  messaggio.
+  **La notifica porta NELLA CHAT.** Prima il tocco su «Patrizia ti ha scritto» apriva la *scheda*
+  della cliente: da lì la chat è un altro tocco, e chi apre una notifica di chat vuole leggere il
+  messaggio, non consultare una cartella. Ora nel payload c'è il `threadId`.
+  **⚠️ Il thread lo cerca chi manda la notifica, non chi la genera.** Metà delle chiamate arrivano da
+  un'escalation, dove la conversazione di *partenza* è quella con Gaia e quella di *destinazione* è
+  un'altra: portare la nutrizionista nel thread da cui è partito il messaggio la porterebbe dentro la
+  chat con Gaia, dove per giunta non può rispondere. Se il thread non c'è ancora, il tocco ricade
+  sulla scheda come prima.
+  **Il pallino rosso** su chi ha scritto dall'ultima volta che si è aperta la conversazione. Serviva
+  sapere quand'è stata «l'ultima volta», ed era l'unica cosa che non stava da nessuna parte: nuova
+  tabella `chat_read` (migrazione `20260812210000_chat_letto`).
+  **⚠️ È per PERSONA e non per conversazione**: il capo nutrizionista vede i thread di tutti, e un
+  «letto» scritto sul thread vorrebbe dire che la sua occhiata spegne il pallino della collega a cui
+  quella paziente è assegnata.
+  **⚠️ Conta solo quello che ha scritto la CLIENTE.** Senza quel filtro, rispondere aggiornerebbe
+  l'ultimo messaggio del thread e il pallino tornerebbe da sé un istante dopo averlo spento.
+  **⚠️ Nessuna riga = mai letta = pallino acceso**, e nessun backfill a `now()`: un pallino di troppo
+  costa un tocco, un pallino mancante è un messaggio che nessuno legge più.
+  **Le ultime chat in alto — era una parola.** L'ordinamento per `lastMessageAt desc` c'era già, ma
+  **in Postgres `ORDER BY x DESC` mette i null PER PRIMI**: le conversazioni mai iniziate stavano in
+  cima, sopra a chi aveva appena scritto. `nulls: 'last'`, e il test che lo sorveglia perché è
+  esattamente il tipo di riga che qualcuno «semplifica» tornando indietro.
+  Aprire la conversazione la segna letta lato server (non con una chiamata a parte dal telefono: una
+  chiamata in più è una chiamata che ci si può dimenticare di fare). La cliente no — il suo pallino è
+  un'altra cosa. 2010 test verdi.
+
 - `[Sviluppo]` 🍽️ **Gaia impara le sostituzioni anche dalle chat del nutrizionista.** «Gaia dovrebbe
   leggere anche le chat del nutrizionista ed apprendere anche da lì le sostituzioni» (Simone, 12/8).
   Prima una sostituzione concessa per iscritto dalla nutrizionista restava dentro la conversazione —

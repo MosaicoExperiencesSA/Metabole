@@ -12,7 +12,13 @@ interface Notif {
    * sempre — ma qui veniva buttato via: si leggeva «Marta ha attivato la prova» e poi bisognava
    * andare a cercarla a mano nell'elenco clienti. Ora il tocco apre la scheda.
    */
-  payload?: { title?: string; body?: string; clientId?: string } | null;
+  /**
+   * ⚠️ `threadId` (12/8): «la notifica di un messaggio in chat, se ci clicca il nutrizionista o la
+   * coach, deve venir portata nella chat della persona». Prima si finiva sulla SCHEDA della
+   * cliente: da lì la chat è un altro tocco, e chi apre una notifica di chat vuole leggere il
+   * messaggio, non consultare una cartella.
+   */
+  payload?: { title?: string; body?: string; clientId?: string; threadId?: string; kind?: string } | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -34,6 +40,16 @@ export default function Notifiche({ tabs, schedaCliente }: { tabs: TabItem[]; sc
     state.reload();
   }
 
+  /**
+   * Dove porta il tocco. La chat vince sulla scheda quando la notizia È un messaggio: il
+   * `threadId` c'è solo su quelle, quindi non serve indovinare dal tipo.
+   */
+  const dove = (n: Notif): string | null => {
+    if (n.payload?.threadId) return `/chat/${n.payload.threadId}`;
+    const cid = n.payload?.clientId;
+    return cid && schedaCliente ? `${schedaCliente}/${cid}` : null;
+  };
+
   return (
     <StaffShell title="Notifiche" tabs={tabs}>
       <Async state={state} empty={<Empty icon="ti-bell-off" text="Nessuna notifica." />}>
@@ -45,10 +61,10 @@ export default function Notifiche({ tabs, schedaCliente }: { tabs: TabItem[]; sc
                 className="sf-row"
                 onClick={() => {
                   if (!n.readAt) void markRead(n.id);
-                  const cid = n.payload?.clientId;
-                  if (cid && schedaCliente) nav(`${schedaCliente}/${cid}`);
+                  const meta = dove(n);
+                  if (meta) nav(meta);
                 }}
-                style={{ alignItems: 'flex-start', cursor: n.payload?.clientId && schedaCliente ? 'pointer' : undefined }}
+                style={{ alignItems: 'flex-start', cursor: dove(n) ? 'pointer' : undefined }}
               >
                 <span
                   className="sf-alert-ic"
@@ -57,7 +73,7 @@ export default function Notifiche({ tabs, schedaCliente }: { tabs: TabItem[]; sc
                     color: n.readAt ? '#8A938F' : '#0E7C66',
                   }}
                 >
-                  <i className="ti ti-bell" />
+                  <i className={`ti ti-${n.payload?.threadId ? 'message-2' : 'bell'}`} />
                 </span>
                 <div className="sf-row-main">
                   <div className="sf-row-name" style={{ fontWeight: n.readAt ? 600 : 800 }}>
@@ -68,9 +84,7 @@ export default function Notifiche({ tabs, schedaCliente }: { tabs: TabItem[]; sc
                     {relDays(n.createdAt)}
                   </div>
                 </div>
-                {n.payload?.clientId && schedaCliente && (
-                  <i className="ti ti-chevron-right chev" style={{ flex: 'none' }} />
-                )}
+                {dove(n) && <i className="ti ti-chevron-right chev" style={{ flex: 'none' }} />}
                 {!n.readAt && (
                   <span
                     style={{

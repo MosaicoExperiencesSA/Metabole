@@ -258,6 +258,7 @@ model User {
   clinicalNotes   ClinicalNote[]
   kcalOverrides   KcalOverride[]
   chatThreads     ChatThread[]
+  chatLetture     ChatRead[]
   subscriptions   Subscription[]
   payments        Payment[]
   orders          Order[]
@@ -998,9 +999,34 @@ model ChatThread {
   updatedAt     DateTime        @updatedAt @map("updated_at")
 
   messages Message[]
+  letture  ChatRead[]
 
   @@unique([clientId, counterpart])
   @@map("chat_thread")
+}
+
+/**
+ * FIN DOVE HA LETTO — una riga per (persona, conversazione).
+ *
+ * Richiesta di Simone (12/8): «nella pagina chat metti un pallino rosso in piccolo se il cliente ha
+ * scritto dall'ultima visita nella pagina». Il pallino ha bisogno di sapere quand'è stata l'ultima
+ * visita, e questa è l'unica cosa che non stava da nessuna parte.
+ *
+ * ⚠️ È per **persona** e non per conversazione: il capo nutrizionista vede i thread di tutti, e un
+ * `letto` scritto sul thread vorrebbe dire che la sua occhiata spegne il pallino della collega a
+ * cui quella paziente è assegnata.
+ */
+model ChatRead {
+  id       String     @id @default(uuid())
+  userId   String     @map("user_id")
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threadId String     @map("thread_id")
+  thread   ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  readAt   DateTime   @map("read_at")
+
+  @@unique([userId, threadId])
+  @@index([userId])
+  @@map("chat_read")
 }
 
 // senderRole: client | coach | nutritionist | head_nutritionist | ai
