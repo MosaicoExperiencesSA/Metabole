@@ -387,8 +387,13 @@ Validazione delle due rifiniture R12 (efficacia in mantenimento; guardrail `clin
    Metà esiste già: `DayComboService` compone la giornata prendendo un piatto per pasto dal pool della
    cliente, dentro la banda calorica, massimizzando efficacia + gradimento; e lo stato `conforto` (umore
    basso recente) alza già il peso del gradimento. Manca davvero:
-   - **il gradimento collettivo**: una cliente senza voti vede ogni piatto come cinque stelle, quindi i
-     voti delle altre non servono a niente. Vale molto e costa poco;
+   - **il gradimento collettivo**: `RecipeRating` è per cliente, quindi i voti delle altre non servono
+     a niente. Vale molto e costa poco.
+     ⚠️ Aggiornato il 12/8: un piatto mai votato vale **zero** stelle, non più cinque. Col vecchio
+     default il gradimento era una costante per chi non aveva votato — e lo stato `conforto` («umore
+     basso → menu più amati») moltiplicava per 1.8 un numero uguale per tutti, cioè **non faceva
+     niente**; per chi aveva qualche voto faceva il contrario di quello che dice, preferendo i piatti
+     mai provati a quelli valutati bene;
    - **l'efficacia collettiva**: `MenuWeight` è per cliente, quindi ognuna riparte da zero;
    - **la memoria della combinazione**: il punteggio è la somma dei piatti, «questo pranzo con quella
      cena» non è un'entità che il sistema impara — ed è esattamente la richiesta;
@@ -1053,10 +1058,14 @@ sorgente serviva a poterlo correggere in un punto solo; la correzione va ancora 
 coerente; la riga «Stile alimentare» è diventata «Dieta»; in app è sparita la riga «Tipo di
 alimentazione»; via lo stile da «Diete in revisione».
 
-⚪ **Resta:** il **questionario** chiede ancora `dietStyle` come campo obbligatorio (è già la card
-della dieta a scriverlo, ma il DTO lo pretende), i cinque bloccanti qui sotto, e la decisione se
-togliere lo stile anche dalle pagine del **catalogo** (elenco Diete, Regole motore) — che è una
-decisione sul catalogo, non sulla scheda cliente.
+✅ **Fatto anche il questionario (12/8):** `dietStyle` non è più obbligatorio. La cliente sceglie il
+prodotto e lo stile si legge dal catalogo (`stileDellaFamiglia`, solo fra le diete approvate). ⚠️ Non
+si smette di scriverlo — `pickDietFor` lo usa come co-filtro della famiglia — si smette di chiederlo.
+Le app già installate, che mandano solo lo stile, continuano a funzionare.
+
+⚪ **Resta:** i cinque bloccanti qui sotto, e la decisione se togliere lo stile anche dalle pagine del
+**catalogo** (elenco Diete, Regole motore) — che è una decisione sul catalogo, non sulla scheda
+cliente.
 
 #### (per il seguito) analisi completa
 

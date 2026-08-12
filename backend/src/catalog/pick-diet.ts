@@ -83,3 +83,27 @@ export async function pickDietFor<T>(trova: TrovaDieta<T>, profile: DietMatchPro
   }
   return null;
 }
+
+/**
+ * LO STILE DI UNA FAMIGLIA — perché la cliente sceglie la dieta, non lo stile.
+ *
+ * §16.10 (Simone, 11/8): «lo STILE sparisce dall'interfaccia». Nel questionario la cliente sceglie
+ * un **prodotto** («Mediterranea senza glutine»), e lo stile è una proprietà di quel prodotto: non
+ * una seconda domanda, e nemmeno un campo che l'app debba sapere.
+ *
+ * ⚠️ Serve perché lo stile **non si può semplicemente togliere**: `pickDietFor` lo usa come
+ * co-filtro della famiglia («la famiglia va SEMPRE insieme allo stile», vedi sopra), e una famiglia
+ * senza stile può agganciare l'omonima di un altro stile. Quindi non si smette di scriverlo: lo si
+ * smette di **chiedere**, e lo si legge dal catalogo.
+ *
+ * ⚠️ Si guarda solo fra le diete **approvate**: una bozza non è un prodotto acquistabile, e
+ * prenderne lo stile vorrebbe dire assegnare una cliente a qualcosa che nel Negozio non esiste.
+ */
+export async function stileDellaFamiglia<T extends { style: string }>(
+  trova: TrovaDieta<T>,
+  family: string | null | undefined,
+): Promise<string | null> {
+  if (!family) return null;
+  const dieta = await trova({ status: 'approved', name: family });
+  return dieta?.style ?? null;
+}

@@ -6,7 +6,18 @@ import { MailboxService } from '../mailbox/mailbox.service';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const FINANCE_ROLES = ['admin', 'sales'];
-type Row = { a: string; b?: string; sub?: string };
+type Row = {
+  a: string;
+  b?: string;
+  sub?: string;
+  /**
+   * §Chat (12/8): pallino rosso — qualcuno ha scritto dopo l'ultima volta che questa persona ha
+   * aperto quella conversazione. Solo dove una risposta è attesa: vedi sotto.
+   */
+  daLeggere?: boolean;
+  /** Etichetta della controparte («Gaia», «coach», «nutrizionista»): serve a non confondersi. */
+  chi?: string;
+};
 
 /**
  * Mini-anteprime per i moduli della dashboard: gli ultimi dati di ciascuna
@@ -16,6 +27,38 @@ type Row = { a: string; b?: string; sub?: string };
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService, private readonly mailbox: MailboxService) {}
+
+  /**
+   * In quali conversazioni qualcuno ha scritto dopo l'ultima apertura di questa persona.
+   *
+   * Stessa regola dell'elenco chat (`chat.service.daLeggerePerThread`): conta solo quello che ha
+   * scritto la CLIENTE — la propria risposta non è una cosa da leggere — e nessuna riga in
+   * `chat_read` vuol dire «mai aperta», quindi pallino. Il conto è un di più: se fallisce,
+   * l'anteprima si mostra lo stesso senza pallini.
+   */
+  private async threadDaLeggere(userId: string, threadIds: string[]): Promise<Set<string>> {
+    const fuori = new Set<string>();
+    if (!threadIds.length) return fuori;
+    try {
+      const [letture, ultimi] = await Promise.all([
+        this.prisma.chatRead.findMany({
+          where: { userId, threadId: { in: threadIds } },
+          select: { threadId: true, readAt: true },
+        }) as Promise<{ threadId: string; readAt: Date }[]>,
+        this.prisma.message.groupBy({
+          by: ['threadId'],
+          where: { threadId: { in: threadIds }, senderRole: 'client', deletedAt: null },
+          _max: { sentAt: true },
+        }) as unknown as Promise<{ threadId: string; _max: { sentAt: Date | null } }[]>,
+      ]);
+      const lettoIl = new Map(letture.map((l) => [l.threadId, l.readAt.getTime()]));
+      for (const u of ultimi) {
+        const quando = u._max.sentAt?.getTime();
+        if (quando && quando > (lettoIl.get(u.threadId) ?? 0)) fuori.add(u.threadId);
+      }
+    } catch { /* il pallino è un di più */ }
+    return fuori;
+  }
 
   async previews(user: AuthUser): Promise<Record<string, Row[]>> {
     const out: Record<string, Row[]> = {};
@@ -119,19 +162,38 @@ export class DashboardService {
       const rows = (await this.prisma.chatThread.findMany({
         where: threadWhere as never, orderBy: { lastMessageAt: 'desc' }, take: 5,
         select: {
-          counterpart: true, lastMessageAt: true,
+          id: true, counterpart: true, lastMessageAt: true,
           client: { select: { email: true, clientProfile: { select: { name: true } } } },
           messages: { orderBy: { sentAt: 'desc' }, take: 1, select: { body: true } },
         },
       })) as {
-        counterpart: string; lastMessageAt: Date | null;
+        id: string; counterpart: string; lastMessageAt: Date | null;
         client: { email: string; clientProfile: { name: string | null } | null };
         messages: { body: string }[];
       }[];
+
+      /**
+       * ⚠️ IL PALLINO SOLO DOVE UNA RISPOSTA È ATTESA.
+       *
+       * Per il capo nutrizionista questo elenco **non filtra la controparte**, quindi ci finiscono
+       * dentro anche i thread di **Gaia** mescolati a quelli veri. Sembrano messaggi per lui e non
+       * lo sono: in quel thread lo staff legge ma non può scrivere, e un messaggio a Gaia non
+       * genera nessun avviso (di proposito: sarebbero decine al giorno per cliente).
+       *
+       * Un pallino rosso su una conversazione a cui nessuno deve rispondere è un allarme che
+       * insegna a ignorare gli allarmi. Perciò: pallino solo su coach e nutrizionista, ed
+       * `chi` scritto accanto, così un thread di Gaia si riconosce senza aprirlo.
+       */
+      const daRispondere = rows.filter((r) => r.counterpart !== 'ai').map((r) => r.id);
+      const nonLette = await this.threadDaLeggere(user.sub, daRispondere);
+      const ETICHETTA: Record<string, string> = { ai: 'Gaia', coach: 'coach', nutritionist: 'nutrizionista' };
+
       out.chat = rows.map((r) => ({
         a: r.client.clientProfile?.name ?? r.client.email,
         b: r.lastMessageAt ? dmy(r.lastMessageAt) : undefined,
         sub: r.messages[0]?.body?.slice(0, 80),
+        chi: ETICHETTA[r.counterpart] ?? r.counterpart,
+        daLeggere: nonLette.has(r.id),
       }));
     } catch { /* skip */ }
 

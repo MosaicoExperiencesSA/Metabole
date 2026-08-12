@@ -103,13 +103,22 @@ export class SubmitAnswersDto {
   @IsString({ message: 'Scegli il tuo regime alimentare.' }) @MaxLength(40, { message: 'Regime non valido.' })
   regime!: string;
 
-  @IsString({ message: 'Scegli il percorso che preferisci.' }) @MaxLength(40, { message: 'Percorso non valido.' })
-  dietStyle!: string;
+  /**
+   * ⚠️ NON PIÙ OBBLIGATORIO (§16.10, 12/8). Lo stile è una **proprietà del prodotto**, non una
+   * domanda: la cliente sceglie «Mediterranea senza glutine», e lo stile lo sa il catalogo. Il DTO
+   * lo pretendeva ancora, ed era l'ultimo punto in cui lo stile sopravviveva come cosa che l'app
+   * deve conoscere.
+   *
+   * Resta accettato, e non è retrocompatibilità di cortesia: le app **già installate** mandano solo
+   * questo campo e devono continuare a funzionare. Il controllo «almeno uno dei due» sta nel
+   * servizio, dove si può dire alla cliente cosa fare invece di elencarle un campo mancante.
+   */
+  @IsOptional() @IsString({ message: 'Scegli il percorso che preferisci.' }) @MaxLength(40, { message: 'Percorso non valido.' })
+  dietStyle?: string;
 
   /**
-   * FAMIGLIA scelta (`Diet.name`), che insieme a `dietStyle` identifica il PRODOTTO.
-   * Opzionale di proposito: le app già installate mandano solo `dietStyle` e devono continuare
-   * a funzionare — senza questo campo l'abbinamento resta quello di prima.
+   * FAMIGLIA scelta (`Diet.name`): è IL prodotto. Se arriva senza `dietStyle`, lo stile si legge
+   * dal catalogo (`stileDellaFamiglia`) — non si smette di scriverlo, si smette di chiederlo.
    */
   @IsOptional() @IsString({ message: 'Percorso non riconosciuto.' }) @MaxLength(120, { message: 'Percorso non riconosciuto.' })
   dietFamily?: string;

@@ -24,6 +24,7 @@ import { mancaMisuraDiPartenza } from './misura-di-partenza';
 import { MealSnapshot, Substitution } from './pasto-giornata';
 import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 import { EsitoSpezia, classificaSpezia } from './spezie';
+import { punteggioRicetta, type PesiPunteggio } from './punteggio';
 
 /**
  * Erogazione del menu (spec sez. 8):
@@ -1029,6 +1030,7 @@ export class MenuService {
    * kcal/quota proteica per ricetta e la funzione punteggio
    * `w_eff·efficacia(MenuWeight) + w_grad·gradimento(stelle)` modulata dallo stato
    * dell'agente. Usato sia dal selettore per-slot sia dalla composizione DayCombo.
+   * ⚠️ Un piatto mai votato vale **zero** stelle (12/8): vedi il riquadro sopra `score`.
    */
   /**
    * Override PER DIETA dalle ProductRule: mappa ruleCode → valore. Per le regole numeriche
@@ -1234,12 +1236,25 @@ export class MenuService {
       if (st.length > 0 && !st.includes(stagioneOggi)) fuoriStagione.add(r.id);
     }
 
+    /**
+     * La formula sta in `punteggio.ts` dal 12/8, fuori da questa closure: è la riga che decide cosa
+     * una persona si trova nel piatto domani mattina, e qui dentro non la guardava nessun test —
+     * infatti ci è rimasto per mesi un difetto che invertiva proprio il caso a cui serviva di più
+     * (un piatto mai votato valeva CINQUE stelle, vedi `STELLE_SE_MAI_VOTATA`).
+     */
+    const pesi: PesiPunteggio = { wEff, wGrad, proteinBonus, penaltyRepeat, penaltyStagione, usePreEvent };
     const score = (id: string) =>
-      wEff * (effOf.get(id) ?? 0) +
-      wGrad * ((starOf.get(id) ?? 5) / 5) +
-      (usePreEvent ? proteinBonus * (proteinOf.get(id) ?? 0) : 0) -
-      penaltyRepeat * (recentCount.get(id) ?? 0) - // R11: scoraggia la ripetizione (varietà)
-      (fuoriStagione.has(id) ? penaltyStagione : 0);
+      punteggioRicetta(
+        {
+          efficacia: effOf.get(id),
+          // `undefined` = mai votato, ed è diverso da «votato zero»: lo decide `punteggio.ts`.
+          stelle: starOf.get(id),
+          proteina: proteinOf.get(id),
+          volteDiRecente: recentCount.get(id),
+          fuoriStagione: fuoriStagione.has(id),
+        },
+        pesi,
+      );
 
     // Conta come "servita di recente" anche una ricetta appena scelta in QUESTO ciclo: senza
     // questo, i 2 giorni erogati insieme venivano composti con lo stesso identico punteggio e

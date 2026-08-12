@@ -58,6 +58,8 @@ describe('OnboardingService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'o1', status: 'proposed' }),
       },
       escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }) },
+      // §16.10: se il questionario manda solo la FAMIGLIA, lo stile si legge dal catalogo.
+      diet: { findFirst: jest.fn().mockResolvedValue({ style: 'flexible' }) },
       crmRecord: { findUnique: jest.fn().mockResolvedValue(null) },
       staff: {
         findMany: jest.fn().mockResolvedValue([
@@ -270,5 +272,97 @@ describe('OnboardingService', () => {
     const result = await service.submitAnswers('u1', dto);
     expect((result as any).objectiveValidation.pace).toBe('unreal');
     expect(prisma.objective.create).toHaveBeenCalled();
+  });
+});
+
+
+/**
+ * §16.10 — «lo STILE sparisce dall'interfaccia» (Simone, 11/8), ultima parte: il questionario non
+ * lo pretende più. La cliente sceglie un prodotto, e lo stile lo sa il catalogo.
+ */
+describe('OnboardingService — lo stile non si chiede più', () => {
+  let service: OnboardingService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      clientProfile: {
+        upsert: jest.fn().mockResolvedValue({ id: 'p1', screeningFlag: false }),
+        /**
+         * ⚠️ Due letture dello stesso profilo, e devono rispondere cose diverse: la PRIMA è
+         * «esiste già un questionario?» (no: è il primo invio, ed è l'unico in cui il tipo di dieta
+         * si scrive), la seconda è la rilettura per comporre la risposta, che il profilo ce l'ha.
+         */
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValue({
+            id: 'p1', userId: 'u1', screeningFlag: false, onboardingCompletedAt: new Date(),
+            dietStyle: 'flexible', mealsPerDay: 5, pathType: 'five', regime: 'omnivore',
+            assignedCoach: null, assignedNutritionist: null,
+          }),
+      },
+      objective: {
+        create: jest.fn().mockResolvedValue({ id: 'o1' }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'o1', status: 'proposed' }),
+      },
+      escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }) },
+      diet: { findFirst: jest.fn().mockResolvedValue({ style: 'flexible' }) },
+      crmRecord: { findUnique: jest.fn().mockResolvedValue(null) },
+      staff: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 's-a', displayName: 'A', _count: { clientsAsCoach: 5 } },
+        ]),
+      },
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OnboardingService,
+        { provide: PrismaService, useValue: prisma },
+        {
+          provide: ConfigParamsService,
+          useValue: {
+            getNumber: jest.fn((key: string) => Promise.resolve(key === 'sustainable_rate_max_kg_week' ? 0.7 : 1.0)),
+            getString: jest.fn().mockResolvedValue('warn'),
+          },
+        },
+        { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: PersonalBaseService, useValue: { buildPersonalBase: jest.fn().mockResolvedValue(undefined) } },
+        { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
+      ],
+    }).compile();
+    service = moduleRef.get(OnboardingService);
+  });
+
+  const senzaStile = (extra: Record<string, unknown> = {}) =>
+    ({ ...(baseAnswers() as unknown as Record<string, unknown>), dietStyle: undefined, ...extra }) as unknown as SubmitAnswersDto;
+
+  it('⚠️ con la sola FAMIGLIA lo stile si legge dal catalogo e si scrive lo stesso', async () => {
+    // Non si smette di scriverlo: `pickDietFor` lo usa come co-filtro della famiglia, e una
+    // famiglia senza stile può agganciare l'omonima di un altro stile. Si smette di CHIEDERLO.
+    await service.submitAnswers('u1', senzaStile({ dietFamily: 'Mediterranea senza glutine' }));
+    expect(prisma.diet.findFirst.mock.calls[0][0].where).toEqual({ status: 'approved', name: 'Mediterranea senza glutine' });
+    const scritto = prisma.clientProfile.upsert.mock.calls[0][0].create;
+    expect(scritto.dietStyle).toBe('flexible');
+    expect(scritto.dietFamily).toBe('Mediterranea senza glutine');
+  });
+
+  it('⚠️ le app GIÀ INSTALLATE mandano solo lo stile e continuano a funzionare', async () => {
+    await service.submitAnswers('u1', baseAnswers());
+    expect(prisma.clientProfile.upsert.mock.calls[0][0].create.dietStyle).toBe('mediterranean');
+    // Con lo stile in mano il catalogo non si interroga nemmeno.
+    expect(prisma.diet.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ senza NESSUNO dei due si dice cosa fare, non quale campo manca', async () => {
+    // «dietStyle must be a string» non aiuta nessuno: la cliente deve sapere che deve toccare una
+    // delle diete proposte.
+    await expect(service.submitAnswers('u1', senzaStile())).rejects.toThrow(/tocca una delle diete/);
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+
+  it('una famiglia che non esiste a catalogo non passa in silenzio', async () => {
+    prisma.diet.findFirst.mockResolvedValue(null);
+    await expect(service.submitAnswers('u1', senzaStile({ dietFamily: 'Non esiste' }))).rejects.toThrow(/tocca una delle diete/);
   });
 });

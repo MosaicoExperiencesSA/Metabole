@@ -1,4 +1,4 @@
-import { pickDietFor, type DietMatchProfile } from './pick-diet';
+import { pickDietFor, stileDellaFamiglia, type DietMatchProfile } from './pick-diet';
 
 /**
  * Segnalazione di Simone (6/8): «i percorsi che la cliente vede in registrazione non
@@ -107,5 +107,33 @@ describe('pickDietFor — la famiglia identifica il prodotto, lo stile no', () =
     const { trova } = trovatore(solo3);
     const d = await pickDietFor(trova, { ...BASE, dietFamily: 'Vegetariana' });
     expect(d?.id).toBe('vgt');
+  });
+});
+
+/**
+ * §16.10 — «lo STILE sparisce dall'interfaccia» (Simone). La cliente sceglie un prodotto; lo stile
+ * è una proprietà di quel prodotto, e lo sa il catalogo.
+ */
+describe('stileDellaFamiglia', () => {
+  it('la famiglia scelta porta con sé il suo stile', async () => {
+    const trova = jest.fn().mockResolvedValue({ style: 'flexible' });
+    expect(await stileDellaFamiglia(trova, 'Mediterranea senza glutine')).toBe('flexible');
+  });
+
+  it('⚠️ solo fra le diete APPROVATE', async () => {
+    // Una bozza non è un prodotto acquistabile: prenderne lo stile vorrebbe dire assegnare una
+    // cliente a qualcosa che nel Negozio non esiste.
+    const trova = jest.fn().mockResolvedValue({ style: 'flexible' });
+    await stileDellaFamiglia(trova, 'Mediterranea');
+    expect(trova.mock.calls[0][0]).toEqual({ status: 'approved', name: 'Mediterranea' });
+  });
+
+  it('famiglia sconosciuta o assente: null, e non si interroga nemmeno', async () => {
+    const trova = jest.fn().mockResolvedValue(null);
+    expect(await stileDellaFamiglia(trova, 'Non esiste')).toBeNull();
+    expect(await stileDellaFamiglia(trova, null)).toBeNull();
+    expect(await stileDellaFamiglia(trova, undefined)).toBeNull();
+    expect(await stileDellaFamiglia(trova, '')).toBeNull();
+    expect(trova).toHaveBeenCalledTimes(1);
   });
 });

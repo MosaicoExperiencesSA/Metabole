@@ -19,6 +19,10 @@ export type PreviewRow = {
   sub?: string;
   /** Incasso a zero (prova gratuita, attivazione interna): nascosto salvo diverso interruttore. */
   zero?: boolean;
+  /** §Chat (12/8): qualcuno ha scritto dopo l'ultima apertura. Solo dove una risposta è attesa. */
+  daLeggere?: boolean;
+  /** Con chi è la conversazione: «Gaia», «coach», «nutrizionista». */
+  chi?: string;
 };
 
 /**
@@ -117,8 +121,29 @@ export function Dashboard() {
         setChartKeys(DEFAULT_CHART_KEYS);
       }
     })();
-    api<Record<string, PreviewRow[]>>('/admin/dashboard/previews').then(setPreviews).catch(() => {});
+    /**
+     * ⚠️ SI AGGIORNA DA SOLO, ogni 60 secondi (Simone, 12/8).
+     *
+     * Il modulo Chat è la ragione: chi lavora in un'altra pagina della dashboard non deve
+     * ricaricare per accorgersi che una cliente ha scritto. Il giro si **salta a scheda nascosta** —
+     * nessuno lo sta leggendo, e sono cinque query per volta — e si ricarica appena si torna, che è
+     * il momento in cui il ritardo si vedrebbe davvero.
+     */
+    const caricaAnteprime = () => {
+      if (document.hidden) return;
+      api<Record<string, PreviewRow[]>>('/admin/dashboard/previews').then(setPreviews).catch(() => {});
+    };
+    caricaAnteprime();
+    const timer = setInterval(caricaAnteprime, 60_000);
+    const alRitorno = () => caricaAnteprime();
+    document.addEventListener('visibilitychange', alRitorno);
+    window.addEventListener('focus', alRitorno);
     if (can('charts')) api<{ monthly: MonthPoint[] }>('/admin/charts').then((d) => setMonthly(d.monthly ?? [])).catch(() => setMonthly([]));
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', alRitorno);
+      window.removeEventListener('focus', alRitorno);
+    };
   }, []);
 
   const chosen = selected ?? DEFAULT_IDS;
@@ -246,10 +271,28 @@ export function ModuleCard({ module: m, rows: righeGrezze }: { module: Dashboard
                   serve l'importo degli acquisti»: erano la stessa cosa — l'importo c'era, ma era finito
                   oltre il bordo.
                 */}
-                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.a}>{r.a}</span>
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: r.daLeggere ? 700 : undefined }} title={r.a}>
+                  {/* Il pallino sta PRIMA del nome: scorrendo l'elenco è la prima cosa che si vede,
+                      ed è quella che dice se aprire. */}
+                  {r.daLeggere && (
+                    <span
+                      title="Ha scritto dall'ultima volta che hai aperto"
+                      style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#D93025', marginRight: 6, verticalAlign: 'middle' }}
+                    />
+                  )}
+                  {r.a}
+                </span>
                 {r.b && <b style={{ whiteSpace: 'nowrap', marginLeft: 8, flex: 'none' }}>{r.b}</b>}
               </div>
-              {r.sub && <div className="muted" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.sub}>{r.sub}</div>}
+              {r.sub && (
+                <div className="muted" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.sub}>
+                  {/* ⚠️ CON CHI è la conversazione. Nel modulo del capo nutrizionista i thread di
+                      Gaia stanno mescolati a quelli veri: senza questa etichetta sembrano messaggi
+                      per lui, e non lo sono — in quel thread si legge e non si può rispondere. */}
+                  {r.chi && <span style={{ opacity: 0.75 }}>{r.chi} · </span>}
+                  {r.sub}
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -25,6 +25,55 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` ⭐ **Un piatto mai votato vale ZERO stelle, non cinque — e lo stato «conforto»
+  comincia a fare qualcosa.** Decisione di Simone (12/8), nata dalla sua domanda: «avevamo messo la
+  regola che se il paziente ha l'umore basso per tre giorni di fila dobbiamo dargli i menu da lui più
+  amati?».
+  La regola c'era ma **al contrario di come la ricordava**: il conforto scatta al **primo** check-in
+  con umore basso, e tre giorni (`agent_comfort_max_days`) è il **tetto** — oltre si passa a
+  `rientro`, per non lasciarla ferma nei menu amati. Quello si è deciso di tenerlo com'è.
+  **⚠️ Ma «menu più amati» non faceva quello che dice.** Il conforto moltiplica il peso del
+  gradimento (×1.8), e il gradimento era `(stelle ?? 5) / 5`:
+  · per una cliente **senza voti** — la maggioranza — ogni piatto valeva 1.0: una costante, e
+    moltiplicare una costante non cambia l'ordine di niente. **Lo stato conforto era inerte.**
+  · per una cliente **con qualche voto** faceva il contrario: un piatto mai votato (1.0) batteva uno
+    valutato **quattro stelle** (0.8), e il boost allargava quel vantaggio. Nel giorno in cui sta
+    peggio le arrivavano i piatti su cui non si era mai espressa.
+  Con zero, «gradimento» torna a significare gradimento.
+  **⚠️ Per chi non ha votato niente non cambia una virgola**: prima tutti 1.0, adesso tutti 0.0 — in
+  entrambi i casi una costante, e l'ordine lo decidono efficacia, ripetizione e stagione. Il cambio
+  morde solo dove ci sono voti, che è dove deve mordere.
+  **La formula è uscita dal servizio** (`menu/punteggio.ts`): è la riga che decide cosa una persona
+  si trova nel piatto domani mattina, e viveva dentro una closure di duecento righe che **nessun
+  test guardava** — infatti il difetto ci è rimasto per mesi. Ora ha 11 test, verificati rossi
+  rimettendo il 5. 2088 test verdi.
+
+- `[Sviluppo]` 🎯 **§16.10, seconda parte: il questionario non chiede più lo STILE.** Era l'ultimo
+  punto in cui lo stile sopravviveva come cosa che l'app deve sapere: il DTO lo pretendeva
+  obbligatorio. La cliente sceglie un **prodotto** («Mediterranea senza glutine»); lo stile è una
+  proprietà di quel prodotto e lo sa il catalogo (`stileDellaFamiglia`).
+  **⚠️ Non si smette di SCRIVERLO, si smette di chiederlo**: `pickDietFor` usa lo stile come
+  co-filtro della famiglia — «la famiglia va SEMPRE insieme allo stile» — e una famiglia senza stile
+  può agganciare l'omonima di un altro stile.
+  ⚠️ Si guarda solo fra le diete **approvate**: da una bozza si prenderebbe lo stile di un prodotto
+  che nel Negozio non esiste.
+  ⚠️ **Le app già installate** mandano solo `dietStyle` e continuano a funzionare senza toccare
+  niente. Il controllo «almeno uno dei due» sta nel servizio e non nel DTO, perché lì si può dire
+  alla cliente *cosa fare* («tocca una delle diete proposte») invece del nome di un campo.
+
+- `[Sviluppo]` 🔴 **Il modulo Chat della dashboard: pallino rosso, «con chi», e aggiornamento ogni
+  60 secondi.** Richiesta di Simone (12/8) su uno screenshot.
+  **⚠️ TROVATO nello screenshot: nel modulo del capo nutrizionista i thread di GAIA stanno mescolati
+  a quelli veri.** Per quel ruolo l'anteprima non filtra la controparte: cinque righe che sembrano
+  messaggi per lui, e in mezzo conversazioni con Gaia — dove lo staff legge e **non può rispondere**.
+  Ora ogni riga dice con chi è.
+  **⚠️ Il pallino solo dove una risposta è attesa** (coach e nutrizionista, mai Gaia): un allarme su
+  una conversazione a cui nessuno deve rispondere insegna a ignorare gli allarmi.
+  L'aggiornamento salta il giro a scheda nascosta — sono cinque query per volta — e ricarica appena
+  si torna. Vale sia per la dashboard generale sia per quella di coach e nutrizionista: è la stessa
+  schermata, e un modulo che si aggiorna solo di là sarebbe la differenza più difficile da spiegare.
+  2077 test verdi.
+
 - `[Sviluppo]` 💶 **I prezzi nel testo alla coach si leggono dal Negozio — e la regola dello sconto
   era scritta due volte, in due modi diversi.**
   Il task G6 («oggi le è arrivato il codice personale») aveva i prezzi **dentro la frase**: «(1 mese

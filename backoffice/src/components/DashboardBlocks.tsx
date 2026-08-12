@@ -96,8 +96,26 @@ export function DashboardModules() {
         setChartKeys(p.dashboardCharts?.length ? p.dashboardCharts : DEFAULT_CHART_KEYS);
       })
       .catch(() => { setModules(DEFAULT_MODULE_IDS); setChartKeys(DEFAULT_CHART_KEYS); });
-    api<Record<string, PreviewRow[]>>('/admin/dashboard/previews').then(setPreviews).catch(() => {});
+    /**
+     * ⚠️ Le anteprime si aggiornano da sole ogni 60 secondi, come nella dashboard generale: è la
+     * STESSA schermata vista da coach e nutrizionista, e un modulo che si aggiorna solo di là
+     * sarebbe la differenza più difficile da spiegare. Salta il giro a scheda nascosta.
+     */
+    const caricaAnteprime = () => {
+      if (document.hidden) return;
+      api<Record<string, PreviewRow[]>>('/admin/dashboard/previews').then(setPreviews).catch(() => {});
+    };
+    caricaAnteprime();
+    const timer = setInterval(caricaAnteprime, 60_000);
+    const alRitorno = () => caricaAnteprime();
+    document.addEventListener('visibilitychange', alRitorno);
+    window.addEventListener('focus', alRitorno);
     if (can('charts')) api<{ monthly: MonthPoint[] }>('/admin/charts').then((d) => setMonthly(d.monthly ?? [])).catch(() => setMonthly([]));
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', alRitorno);
+      window.removeEventListener('focus', alRitorno);
+    };
   }, []);
 
   const chosenModules = modules ?? DEFAULT_MODULE_IDS;
