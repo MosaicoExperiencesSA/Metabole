@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api/client';
 import { track } from './lib/track';
-import { initPush } from './lib/push';
+import { alToccoDellaNotifica, initPush } from './lib/push';
+import { rottaClienteDaNotifica, rottaDaNotifica } from './lib/rottaNotifica';
+import { COACH_ROLES, NUTRI_ROLES } from './staff/tabs';
 import { useAuth } from './auth/AuthContext';
 import { CartProvider } from './cart/CartContext';
 import StaffApp from './staff/StaffApp';
@@ -158,10 +160,32 @@ function AuthedApp() {
 
 export default function App() {
   const { user, loading } = useAuth();
+  const nav = useNavigate();
 
   useEffect(() => {
     if (user) initPush(); // registra le push dopo il login (no-op su web)
   }, [user]);
+
+  /**
+   * ⚠️ DOVE PORTA IL TOCCO SULLA PUSH — e perché si decide QUI e non nel server.
+   *
+   * La stessa notizia ha rotte diverse a seconda di chi la riceve: la scheda di una cliente è
+   * `/clienti/:id` per la coach e `/pazienti/:id` per la nutrizionista, e la cliente non naviga
+   * affatto per conversazione (ha una chat sola, con le linguette). Il ruolo lo sappiamo qui, le
+   * rotte pure: il server manda i fatti (`dati-push.ts`) e l'indirizzo lo compone l'app.
+   */
+  useEffect(() => {
+    if (!user) return;
+    alToccoDellaNotifica((dati) => {
+      const ruolo = user.role;
+      const dove = COACH_ROLES.has(ruolo)
+        ? rottaDaNotifica(dati, '/clienti')
+        : NUTRI_ROLES.has(ruolo)
+          ? rottaDaNotifica(dati, '/pazienti')
+          : rottaClienteDaNotifica(dati);
+      if (dove) nav(dove);
+    });
+  }, [user, nav]);
 
   if (loading) return <Centered />;
 

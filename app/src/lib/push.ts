@@ -1,8 +1,35 @@
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { api } from '../api/client';
+import { datiDallaPush, type DatiNotifica } from './rottaNotifica';
 
 let started = false;
+
+/**
+ * ⚠️ IL TOCCO PUÒ ARRIVARE PRIMA DELLE ROTTE.
+ *
+ * Se l'app è chiusa, il sistema la avvia e consegna il tocco subito: in quel momento React può non
+ * aver ancora montato il router, e navigare vorrebbe dire parlare a qualcuno che non c'è. Il tocco
+ * si mette da parte e lo si consuma appena qualcuno è in grado di raccoglierlo — altrimenti aprire
+ * l'app da una notifica funzionerebbe solo se l'app era già aperta, cioè nel caso che serve meno.
+ */
+let toccoInSospeso: DatiNotifica | null = null;
+let vaiAllaNotifica: ((dati: DatiNotifica) => void) | null = null;
+
+/** Chi sa navigare si registra qui. Se c'era un tocco in attesa, lo riceve subito. */
+export function alToccoDellaNotifica(handler: (dati: DatiNotifica) => void): void {
+  vaiAllaNotifica = handler;
+  if (toccoInSospeso) {
+    const dati = toccoInSospeso;
+    toccoInSospeso = null;
+    handler(dati);
+  }
+}
+
+function consegna(dati: DatiNotifica): void {
+  if (vaiAllaNotifica) vaiAllaNotifica(dati);
+  else toccoInSospeso = dati;
+}
 
 /**
  * Registra il dispositivo per le notifiche push e manda il token al backend.
@@ -54,6 +81,21 @@ export async function initPush(): Promise<void> {
     await PushNotifications.addListener('registrationError', (err) => {
       const m = (err as { error?: string } | undefined)?.error ?? 'errore di registrazione senza dettagli';
       segnalaErrore(m, piattaforma);
+    });
+
+    /**
+     * IL TOCCO SULLA NOTIFICA (Simone, 12/8: «se clicco sulla notifica mi porti nella chat
+     * specifica»). Prima non c'era nessun ascoltatore: toccare la push apriva l'app sulla home, e
+     * il messaggio bisognava ritrovarlo a mano — che è il motivo per cui una notifica esiste.
+     *
+     * I dati arrivano dai `data` di Firebase, che il server riempie in `dati-push.ts`.
+     */
+    await PushNotifications.addListener('pushNotificationActionPerformed', (azione) => {
+      try {
+        consegna(datiDallaPush(azione?.notification?.data));
+      } catch {
+        /* un tocco che non si sa dove portare apre l'app e basta: come prima, non peggio */
+      }
     });
 
     await PushNotifications.register();

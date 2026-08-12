@@ -5,7 +5,12 @@ import { api } from '../api/client';
 interface Notif {
   id: string;
   type: string;
-  payload?: { title?: string; body?: string } | null;
+  /**
+   * §Chat (12/8): `threadId` e `clientId` sono la scorciatoia. Prima il clic sulla notifica
+   * segnava letto e **basta**: «Patrizia ti ha scritto» era un vicolo cieco, e la chat andava
+   * ritrovata a mano dal menu.
+   */
+  payload?: { title?: string; body?: string; threadId?: string; clientId?: string } | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -42,11 +47,38 @@ export function NotificationBell() {
     }
   }
 
+  /**
+   * ⚠️ SI AGGIORNA DA SOLA, ma non quando nessuno guarda.
+   *
+   * Trenta secondi e non sessanta: la campanella serve soprattutto ai messaggi in chat, e un
+   * minuto di ritardo su «una cliente ti ha scritto» è tanto per chi sta lavorando in un'altra
+   * pagina. Il ritardo non è gratis, quindi si prende dall'altra parte: a scheda nascosta il giro
+   * si salta — nessuno lo sta leggendo — e al ritorno si ricarica subito, che è il momento in cui
+   * quel ritardo si vedrebbe davvero.
+   */
   useEffect(() => {
-    void load();
-    const t = setInterval(() => void load(), 60_000);
-    return () => clearInterval(t);
+    const giro = () => { if (!document.hidden) void load(); };
+    giro();
+    const t = setInterval(giro, 30_000);
+    const alRitorno = () => { if (!document.hidden) void load(); };
+    document.addEventListener('visibilitychange', alRitorno);
+    window.addEventListener('focus', alRitorno);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', alRitorno);
+      window.removeEventListener('focus', alRitorno);
+    };
   }, []);
+
+  /**
+   * Dove porta il clic. La conversazione vince sulla scheda: chi apre l'avviso di un messaggio
+   * vuole leggerlo, non consultare una cartella.
+   */
+  function dove(n: Notif): string | null {
+    if (n.payload?.threadId) return `/chat?thread=${n.payload.threadId}`;
+    if (n.payload?.clientId) return `/clienti/${n.payload.clientId}`;
+    return null;
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -147,13 +179,17 @@ export function NotificationBell() {
               items.slice(0, 15).map((n) => (
                 <div
                   key={n.id}
-                  onClick={() => markRead(n)}
+                  onClick={() => {
+                    void markRead(n);
+                    const meta = dove(n);
+                    if (meta) { setOpen(false); navigate(meta); }
+                  }}
                   style={{
                     display: 'flex',
                     gap: 10,
                     padding: '10px 12px',
                     borderBottom: '1px solid var(--line, #f0f0f0)',
-                    cursor: n.readAt ? 'default' : 'pointer',
+                    cursor: dove(n) || !n.readAt ? 'pointer' : 'default',
                     background: n.readAt ? 'transparent' : 'rgba(18,163,134,.06)',
                   }}
                 >

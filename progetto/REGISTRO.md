@@ -25,6 +25,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🔔 **Il tocco sulla notifica porta dentro — dal telefono, dall'app e dal backoffice —
+  e «Correggi» smette di mentire anche sul telefono.** Quattro richieste di Simone (12/8) e tre
+  difetti veri trovati verificandole.
+  **La push ora sa dove portare.** Con la push viaggiava il solo `type`: il tocco apriva l'app sulla
+  home e il messaggio andava ritrovato a mano — cioè esattamente quello per cui una notifica esiste.
+  Ora viaggiano `threadId`/`clientId`/`visitId` (`notifications/dati-push.ts`) e l'app ha
+  l'ascoltatore `pushNotificationActionPerformed`, che prima **non c'era affatto**.
+  **⚠️ Il server manda i FATTI, non l'indirizzo.** La stessa notizia ha rotte diverse per chi la
+  riceve: la scheda è `/clienti/:id` per la coach e `/pazienti/:id` per la nutrizionista, e la
+  cliente non naviga affatto per conversazione (ha una chat sola, con le linguette). Se il server
+  componesse l'URL, conoscerebbe le rotte di tre interfacce e il giorno che una cambia l'unico segno
+  sarebbe un tocco che non porta da nessuna parte. `lib/rottaNotifica.ts` + 14 test.
+  **⚠️ FCM accetta solo stringhe**: un numero o un `null` dentro `data` fa fallire l'invio INTERO, e
+  il fallimento si vede solo nei log. Per questo si passa da `datiPush` invece di girare il payload.
+  **⚠️ Il tocco può arrivare PRIMA delle rotte**: ad app chiusa il sistema la avvia e consegna
+  subito, quando React non ha ancora montato il router. Il tocco si mette da parte e si consuma
+  appena qualcuno può raccoglierlo — senza, aprire dall'notifica funzionava solo ad app già aperta,
+  cioè nel caso che serve meno.
+  **⚠️ TROVATO: la push poteva far fallire l'invio del messaggio.** `sendToUser` legge i token dal
+  database **fuori** dal proprio try: un intoppo lì risaliva fino a `postMessage` — messaggio già
+  salvato, schermata in errore, e la cliente che lo riscrive. Ora l'invio della push è racchiuso:
+  l'avviso è un di più, il messaggio no.
+  **⚠️ TROVATO: nel backoffice il clic sulla notifica non portava da nessuna parte.** Segnava letta e
+  basta, sia nella campanella sia nella pagina Notifiche — quest'ultima navigava su `payload.url`,
+  che **nessuna notifica valorizza**: un rimando che non si è mai acceso.
+  **⚠️ TROVATO: `/chat?cliente=…` era già linkato e nessuno lo leggeva.** Lo usava la finestra delle
+  azioni del motore: si atterrava sull'elenco con nessuna conversazione aperta. Ora la pagina chat
+  del backoffice legge `?cliente=` e `?thread=`, e così fa l'elenco chat nell'app.
+  **La campanella si aggiorna da sola**: era già così, ogni 60 secondi. Portata a 30 — un minuto di
+  ritardo su «una cliente ti ha scritto» è tanto per chi sta lavorando in un'altra pagina — e il giro
+  si salta a scheda nascosta, con ricarica immediata al ritorno.
+  **§15.2 sul telefono.** La finestra con le azioni per causa esisteva **solo nel backoffice**: in
+  `NutriDiete.tsx` «Correggi» continuava a scrivere l'esito e basta, cioè il difetto che la domanda
+  di Nocanty aveva fatto emergere, rimasto in piedi proprio sulla schermata da cui lei guarda la
+  coda. 2019 test verdi.
+
 - `[Sviluppo]` 💬 **La chat dello staff: la notifica porta dentro, il pallino dice chi aspetta, le
   ultime stanno in alto.** Tre richieste di Simone (12/8), una per ciascun modo in cui si perdeva un
   messaggio.

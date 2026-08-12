@@ -10,6 +10,7 @@
  * `push`. Chi ha il servizio continua a usare il servizio (che ora delega qui); chi ha solo le due
  * dipendenze di base chiama direttamente questa. Il comportamento è uno, quindi non può divergere.
  */
+import { datiPush } from './dati-push';
 import type { PrismaService } from '../prisma/prisma.service';
 
 /** Il minimo che serve: così la funzione si usa da qualunque servizio (e si prova con un finto). */
@@ -61,7 +62,8 @@ export async function notificaUtente(
         sentAt: new Date(),
       },
     });
-    await push.sendToUser(input.userId, input.title, input.body, { type: input.type });
+    // ⚠️ `datiPush` e non `{ type }`: senza il resto, il tocco sulla push non sa dove portare.
+    await push.sendToUser(input.userId, input.title, input.body, datiPush(input.type, input.payload));
   } catch {
     /* una notifica che non parte non deve far fallire l'operazione che l'ha generata */
   }

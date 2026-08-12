@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import { relDays } from '../format';
 import { useApi } from '../hooks';
+import { rottaDaNotifica } from '../../lib/rottaNotifica';
 import { Async, Card, Empty, StaffShell, type TabItem } from '../ui';
 
 interface Notif {
@@ -41,14 +42,10 @@ export default function Notifiche({ tabs, schedaCliente }: { tabs: TabItem[]; sc
   }
 
   /**
-   * Dove porta il tocco. La chat vince sulla scheda quando la notizia È un messaggio: il
-   * `threadId` c'è solo su quelle, quindi non serve indovinare dal tipo.
+   * Dove porta il tocco. La regola sta in `rotta-notifica.ts` perché la usa anche il tocco sulla
+   * PUSH: se stesse qui, la push e l'elenco un giorno porterebbero in due posti diversi.
    */
-  const dove = (n: Notif): string | null => {
-    if (n.payload?.threadId) return `/chat/${n.payload.threadId}`;
-    const cid = n.payload?.clientId;
-    return cid && schedaCliente ? `${schedaCliente}/${cid}` : null;
-  };
+  const dove = (n: Notif): string | null => rottaDaNotifica(n.payload, schedaCliente);
 
   return (
     <StaffShell title="Notifiche" tabs={tabs}>

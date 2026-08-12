@@ -3,6 +3,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { MailService } from '../mail/mail.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { datiPush } from './dati-push';
 import { eUnicoPasto, pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
 import { giornoLocale, toDateOnly } from '../common/date-only';
 import { MessageComposerService, MessageTone } from './message-composer.service';
@@ -162,8 +163,25 @@ export class NotificationsService {
     if (prefs.emailEnabled && EMAILABLE_TYPES.has(input.type)) {
       await this.mail.sendNotificationEmail(recipient.email, recipient.locale, title, body);
     }
-    // Push sul telefono (no-op se non configurato). L'opt-out per tipo è già rispettato sopra.
-    await this.push.sendToUser(input.userId, title, body, { type: input.type });
+    /**
+     * Push sul telefono (no-op se non configurato). L'opt-out per tipo è già rispettato sopra.
+     *
+     * ⚠️ I dati del payload viaggiano con la push (`datiPush`), altrimenti il tocco apre l'app e si
+     * ferma lì: «Patrizia ti ha scritto» e poi tocca ritrovarla a mano. Passano solo le chiavi che
+     * servono a scegliere la schermata, e solo se sono stringhe — FCM rifiuta l'invio INTERO se
+     * dentro `data` finisce un numero o un null.
+     */
+    /**
+     * ⚠️ La push NON può far fallire chi ha chiamato. La riga in app è già scritta qui sopra, e
+     * `sendToUser` legge i token dal database **fuori** dal suo try: un intoppo lì risaliva fino a
+     * `postMessage`, cioè fino alla cliente che aveva appena premuto «invia» — messaggio salvato,
+     * schermata in errore, e lei che lo riscrive. L'avviso è un di più; il messaggio no.
+     */
+    try {
+      await this.push.sendToUser(input.userId, title, body, datiPush(input.type, input.payload));
+    } catch (e) {
+      this.logger.warn(`Push non partita (${input.type} → ${input.userId}): ${e instanceof Error ? e.message : e}`);
+    }
     return true;
   }
 

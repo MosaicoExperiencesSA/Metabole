@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
 
@@ -32,6 +33,29 @@ export function Chat() {
   useEffect(() => {
     api<Thread[]>('/staff/threads').then(setThreads).catch(() => setThreads([]));
   }, []);
+
+  /**
+   * ⚠️ `?cliente=<id>` e `?thread=<id>` aprono direttamente quella conversazione.
+   *
+   * I due indirizzi erano **già linkati** — dalla finestra delle azioni del motore
+   * (`/chat?cliente=…`) e ora dalla campanella — ma questa pagina non li leggeva: si atterrava
+   * sull'elenco con nessuna conversazione aperta, e la persona andava ritrovata a mano. Un rimando
+   * che non rimanda è peggio di nessun rimando, perché sembra un guasto.
+   */
+  const [query] = useSearchParams();
+  const cercato = query.get('thread');
+  const cercataCliente = query.get('cliente');
+  useEffect(() => {
+    if (!threads || sel) return;
+    const trovato = cercato
+      ? threads.find((t) => t.id === cercato)
+      : cercataCliente
+        ? threads.find((t) => t.client?.id === cercataCliente)
+        : null;
+    // Se quella conversazione non c'è (ancora), si resta sull'elenco: è la stessa persona, solo
+    // un clic più lontana, e un errore qui non aiuterebbe nessuno.
+    if (trovato) void open(trovato);
+  }, [threads, cercato, cercataCliente]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });

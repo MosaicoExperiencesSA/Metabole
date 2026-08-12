@@ -11,7 +11,7 @@ interface Notif {
    * notifica che dice «apri la tabella» e poi non la apre costringe a cercarla nel menu, e la
    * richiesta di Simone era esattamente «se clicca sulla notifica le si apre una tabella».
    */
-  payload?: { title?: string; body?: string; url?: string } | null;
+  payload?: { title?: string; body?: string; url?: string; threadId?: string; clientId?: string } | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -20,6 +20,21 @@ const dateTime = (s: string) =>
   new Date(s).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** Modulo Notifiche del backoffice: elenco completo delle notifiche dell'utente. */
+/**
+ * Dove porta il clic su una notifica.
+ *
+ * ⚠️ Prima l'unica strada era `payload.url`, che **nessuna notifica valorizza**: la pagina aveva
+ * un rimando che non si accendeva mai, e «Patrizia ti ha scritto» era un vicolo cieco. `url` resta
+ * per chi un giorno lo scrivesse; la conversazione e la scheda vengono da `threadId`/`clientId`,
+ * che il backend manda davvero.
+ */
+function dove(n: { payload?: { url?: string; threadId?: string; clientId?: string } | null }): string | null {
+  if (n.payload?.threadId) return `/chat?thread=${n.payload.threadId}`;
+  if (n.payload?.url) return n.payload.url;
+  if (n.payload?.clientId) return `/clienti/${n.payload.clientId}`;
+  return null;
+}
+
 export function Notifiche() {
   const navigate = useNavigate();
   const [items, setItems] = useState<Notif[] | null>(null);
@@ -75,14 +90,15 @@ export function Notifiche() {
                 markRead(n);
                 // Segnare come letta e poi andare: nell'ordine giusto, o si torna indietro e la
                 // notifica è ancora in grassetto.
-                if (n.payload?.url) navigate(n.payload.url);
+                const meta = dove(n);
+                if (meta) navigate(meta);
               }}
               style={{
                 display: 'flex',
                 gap: 12,
                 padding: '12px 4px',
                 borderBottom: '1px solid var(--line, #f0f0f0)',
-                cursor: n.readAt && !n.payload?.url ? 'default' : 'pointer',
+                cursor: dove(n) || !n.readAt ? 'pointer' : 'default',
               }}
             >
               <span style={{ flex: 'none', width: 9, height: 9, borderRadius: '50%', marginTop: 6, background: n.readAt ? 'var(--line, #ddd)' : '#12a386' }} />
@@ -91,7 +107,7 @@ export function Notifiche() {
                 {n.payload?.body && <div className="notif-testo" style={{ fontSize: 13, lineHeight: 1.5 }}>{n.payload.body}</div>}
                 <div className="muted" style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
                   {dateTime(n.createdAt)}
-                  {n.payload?.url && <span style={{ color: 'var(--teal-dark)', fontWeight: 600 }}> · apri <i className="ti ti-arrow-right" /></span>}
+                  {dove(n) && <span style={{ color: 'var(--teal-dark)', fontWeight: 600 }}> · apri <i className="ti ti-arrow-right" /></span>}
                 </div>
               </div>
             </div>

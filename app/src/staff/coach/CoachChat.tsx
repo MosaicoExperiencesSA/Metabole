@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import { fullName, hourOnly, relDays } from '../format';
 import { useApi } from '../hooks';
@@ -27,6 +27,26 @@ interface Msg {
 export function CoachChatList({ tabs }: { tabs: TabItem[] }) {
   const nav = useNavigate();
   const state = useApi<Thread[]>('/staff/threads');
+
+  /**
+   * `?cliente=<id>` apre direttamente la sua conversazione.
+   *
+   * Serve a chi arriva da un'altra schermata sapendo CON CHI vuole parlare ma non quale sia il
+   * thread — «Scrivi in chat» nella finestra delle azioni del motore, per esempio. Senza, si
+   * atterrava sull'elenco e bisognava ritrovare la persona a mano: il rimando smetteva di essere
+   * un rimando. Se quella conversazione non esiste ancora, si resta sull'elenco invece di dare un
+   * errore: è la stessa persona, solo un tocco più lontana.
+   */
+  const [query] = useSearchParams();
+  const cliente = query.get('cliente');
+  useEffect(() => {
+    if (!cliente || !state.data) return;
+    const suo = state.data.find((t) => t.client?.id === cliente);
+    if (suo) {
+      const nome = suo.client?.clientProfile?.name || fullName(suo.counterpart, null, suo.client?.email);
+      nav(`/chat/${suo.id}`, { replace: true, state: { name: nome } });
+    }
+  }, [cliente, state.data]);
 
   // Tornando indietro da una conversazione il suo pallino è appena stato spento sul server: senza
   // questo, resterebbe acceso finché non si cambia pagina, e sembrerebbe che non funzioni.
