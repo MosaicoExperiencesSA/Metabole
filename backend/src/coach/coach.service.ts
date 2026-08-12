@@ -3,6 +3,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
+import { vociCalendario, type VoceCalendario } from '../agenda/calendario';
 
 const DAY = 86_400_000;
 const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
@@ -276,23 +277,34 @@ export class CoachService {
 
     const startToday = new Date();
     startToday.setHours(0, 0, 0, 0);
-    const appts = (await this.prisma.appointment.findMany({
-      where: { clientId: { in: ids }, status: 'scheduled', datetime: { gte: startToday } },
-      orderBy: { datetime: 'asc' },
-    })) as ApptRow[];
+    /**
+     * ⚠️ §16.7, richiesta di Simone del 12/8: «anche la coach deve vedere nel suo calendario gli
+     * appuntamenti di tutte le sue clienti». Comprese le **visite** dal nutrizionista, che stanno
+     * in un'altra tabella: leggendo solo `Appointment`, il calendario della coach mostrava un
+     * martedì libero a una cliente che martedì era dalla nutrizionista — e la coach le fissava
+     * sopra la chiamata.
+     */
+    const voci = await vociCalendario(this.prisma, {
+      clientIds: ids,
+      dal: startToday,
+      nomiCliente: new Map(profiles.map((p) => [p.userId, p.name])),
+    });
 
-    const staffNameOf = await this.staffNames([...new Set(appts.map((a) => a.staffId))]);
     return {
-      appointments: appts.map((a) => ({
+      appointments: voci.map((a) => ({
         id: a.id,
+        fonte: a.fonte,
         clientId: a.clientId,
-        clientName: nameOf.get(a.clientId) ?? null,
+        clientName: a.clientName ?? nameOf.get(a.clientId) ?? null,
         staffRole: a.staffRole,
-        staffName: staffNameOf.get(a.staffId) ?? null,
+        staffName: a.staffName,
         type: a.type,
-        datetime: a.datetime.toISOString(),
+        datetime: a.datetime,
+        fine: a.fine,
         note: a.note,
-        editable: a.staffRole === 'coach' && a.staffId === staffId,
+        // Vede tutto, tocca solo il suo: la visita clinica la sposta chi la fa (o la cliente, dalla
+        // app, fino a 24 ore prima).
+        editable: a.fonte === 'appuntamento' && a.staffRole === 'coach' && a.staffId === staffId,
       })),
     };
   }
@@ -348,32 +360,37 @@ export class CoachService {
     return this.prisma.appointment.update({ where: { id }, data });
   }
 
-  /** Agenda del cliente: appuntamenti futuri (coach + nutrizionista) + scadenza piano. `next` = solo il prossimo. */
+  /**
+   * Agenda del cliente: appuntamenti futuri + scadenza piano. `next` = solo il prossimo.
+   *
+   * ⚠️ §16.7 — legge **entrambe** le tabelle. Prima leggeva solo `Appointment`, e da quando la
+   * cliente prenota la visita da sola quella visita finiva in `Visit`: la schermata che le dice
+   * «il tuo prossimo appuntamento» le avrebbe mostrato la chiamata della coach di giovedì
+   * ignorando la visita di martedì, cioè proprio quella che ha appena preso.
+   */
   async clientAgenda(clientId: string, nextOnly = false) {
     const now = new Date();
-    const appts = (await this.prisma.appointment.findMany({
-      where: { clientId, status: 'scheduled', datetime: { gte: now } },
-      orderBy: { datetime: 'asc' },
-      take: nextOnly ? 1 : 50,
-    })) as ApptRow[];
-    const staffNameOf = await this.staffNames([...new Set(appts.map((a) => a.staffId))]);
-    const enrich = (a: ApptRow) => ({
+    const voci = await vociCalendario(this.prisma, { clientIds: [clientId], dal: now, limite: 50 });
+    const enrich = (a: VoceCalendario) => ({
       id: a.id,
+      fonte: a.fonte,
       staffRole: a.staffRole,
-      staffName: staffNameOf.get(a.staffId) ?? null,
+      staffName: a.staffName,
       type: a.type,
-      datetime: a.datetime.toISOString(),
+      datetime: a.datetime,
+      fine: a.fine,
       note: a.note,
+      videoRoomId: a.videoRoomId ?? null,
     });
 
-    if (nextOnly) return { next: appts[0] ? enrich(appts[0]) : null };
+    if (nextOnly) return { next: voci[0] ? enrich(voci[0]) : null };
 
     const sub = (await this.prisma.subscription.findFirst({
       where: { clientId, status: 'active' },
       select: { endDate: true },
     })) as { endDate: Date | null } | null;
     return {
-      appointments: appts.map(enrich),
+      appointments: voci.map(enrich),
       planEndDate: sub?.endDate ? sub.endDate.toISOString().slice(0, 10) : null,
     };
   }

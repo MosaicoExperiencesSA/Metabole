@@ -122,6 +122,9 @@ p { line-height: 1.5; }
 .btn:disabled { opacity: 0.55; }
 .btn.ghost { background: #fff; color: var(--teal-dark); border: 1px solid var(--line); }
 .btn.coral { background: var(--coral); }
+/* §16.7 — i due pulsanti «Sposta» e «Disdici» stanno dentro la card dell'appuntamento: a piena
+   larghezza peserebbero più dell'appuntamento stesso. */
+.btn.sm { width: auto; padding: 7px 12px; font-size: 13px; }
 
 .input {
   width: 100%;

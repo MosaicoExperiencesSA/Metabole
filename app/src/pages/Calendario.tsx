@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import AppHeader from '../components/AppHeader';
+import PrenotaVisita from '../components/PrenotaVisita';
 import Sheet from '../components/Sheet';
 
 /**
@@ -11,7 +12,18 @@ import Sheet from '../components/Sheet';
  */
 
 interface EventItem { id: string; type: string; label: string | null; startDate: string; endDate: string; mode: string }
-interface Appt { id: string; staffRole: string; staffName: string | null; type: string; datetime: string; note: string | null }
+interface Appt {
+  id: string;
+  /** §16.7 — da quale delle due tabelle viene: solo le `visita` si spostano e si disdicono da qui. */
+  fonte?: 'visita' | 'appuntamento';
+  staffRole: string;
+  staffName: string | null;
+  type: string;
+  datetime: string;
+  note: string | null;
+}
+/** Da GET /me/visite: le 24 ore le decide il server, non questa schermata. */
+interface MiaVisita { id: string; modificabile: boolean; perche: string | null }
 interface Sub { status: string; endDate: string | null; plan?: { name: string; period: string; repurchasable?: boolean } | null }
 interface PauseReq { id: string; startDate: string; endDate: string; days: number; status: string }
 
@@ -85,6 +97,10 @@ export default function Calendario() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [book, setBook] = useState(false);
+  const [sposta, setSposta] = useState<string | null>(null);
+  const [visite, setVisite] = useState<MiaVisita[]>([]);
+  const [disdetta, setDisdetta] = useState<{ id: string; quando: string } | null>(null);
+  const [disdiciBusy, setDisdiciBusy] = useState(false);
   const [f, setF] = useState({ type: 'dinner', label: '', startDate: '', endDate: '', mode: 'single_event' });
 
   const [pauses, setPauses] = useState<PauseReq[]>([]);
@@ -147,9 +163,25 @@ export default function Calendario() {
       setLoading(false);
     }
   }
+  async function loadAppts() {
+    try {
+      const r = await api<{ appointments: Appt[]; planEndDate: string | null }>('/me/agenda');
+      setAppts(r.appointments ?? []);
+    } catch {
+      setAppts([]);
+    }
+    // Chi si può ancora spostare lo dice il server: la regola delle 24 ore sta in un posto solo, e
+    // riscriverla qui vorrebbe dire due regole che col tempo diventano diverse.
+    try {
+      setVisite(await api<MiaVisita[]>('/me/visite'));
+    } catch {
+      setVisite([]);
+    }
+  }
+
   useEffect(() => {
     load();
-    api<{ appointments: Appt[]; planEndDate: string | null }>('/me/agenda').then((r) => setAppts(r.appointments ?? [])).catch(() => setAppts([]));
+    loadAppts();
     api<Sub>('/me/subscription').then(setSub).catch(() => setSub(null));
     loadPauses();
   }, []);
@@ -204,19 +236,41 @@ export default function Calendario() {
       ) : (
         appts.map((a) => {
           const c = isCoach(a.staffRole);
+          // §16.7: solo la visita col nutrizionista si sposta e si disdice da qui, e solo finché il
+          // server dice di sì. Quando dice di no, dice anche perché: quella frase si mostra al posto
+          // dei pulsanti, così il pulsante che manca smette di sembrare un guasto.
+          const mia = a.fonte === 'visita' ? visite.find((v) => v.id === a.id) : undefined;
           return (
-            <div className="card" key={a.id} style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 11 }}>
-              <div style={{ width: 56, textAlign: 'center', flex: 'none' }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: c ? '#0E7C66' : '#3A6EA5' }}>{apptTime(a.datetime)}</div>
-                <div className="muted" style={{ fontSize: 10, textTransform: 'capitalize' }}>{apptDay(a.datetime)}</div>
+            <div className="card" key={a.id} style={{ padding: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                <div style={{ width: 56, textAlign: 'center', flex: 'none' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: c ? '#0E7C66' : '#3A6EA5' }}>{apptTime(a.datetime)}</div>
+                  <div className="muted" style={{ fontSize: 10, textTransform: 'capitalize' }}>{apptDay(a.datetime)}</div>
+                </div>
+                <div style={{ flex: 1, borderLeft: '1px solid #EEF1F0', paddingLeft: 11 }}>
+                  <b style={{ fontSize: 13 }}>{a.staffName ?? (c ? 'La tua coach' : 'Nutrizionista')}</b>
+                  <div className="muted" style={{ fontSize: 11 }}>{a.note || APPT_TYPE[a.type] || 'Appuntamento'}</div>
+                  <span className="meal-tag" style={{ background: c ? '#DCEBE3' : '#E7EEF6', color: c ? '#0E7C66' : '#3A6EA5', marginTop: 5, display: 'inline-block' }}>
+                    {c ? 'Con la coach' : 'Col nutrizionista'}
+                  </span>
+                </div>
               </div>
-              <div style={{ flex: 1, borderLeft: '1px solid #EEF1F0', paddingLeft: 11 }}>
-                <b style={{ fontSize: 13 }}>{a.staffName ?? (c ? 'La tua coach' : 'Nutrizionista')}</b>
-                <div className="muted" style={{ fontSize: 11 }}>{a.note || APPT_TYPE[a.type] || 'Appuntamento'}</div>
-                <span className="meal-tag" style={{ background: c ? '#DCEBE3' : '#E7EEF6', color: c ? '#0E7C66' : '#3A6EA5', marginTop: 5, display: 'inline-block' }}>
-                  {c ? 'Con la coach' : 'Col nutrizionista'}
-                </span>
-              </div>
+              {mia?.modificabile && (
+                <div className="row" style={{ gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                  <button className="btn ghost sm" onClick={() => setSposta(a.id)}>
+                    <i className="ti ti-calendar-repeat" /> Sposta
+                  </button>
+                  <button
+                    className="btn ghost sm"
+                    onClick={() => setDisdetta({ id: a.id, quando: `${apptDay(a.datetime)} alle ${apptTime(a.datetime)}` })}
+                  >
+                    <i className="ti ti-x" /> Disdici
+                  </button>
+                </div>
+              )}
+              {mia && !mia.modificabile && mia.perche && (
+                <div className="muted" style={{ fontSize: 11, marginTop: 8, lineHeight: 1.5 }}>{mia.perche}</div>
+              )}
             </div>
           );
         })
@@ -377,19 +431,49 @@ export default function Calendario() {
         <span style={{ fontSize: 12, color: '#0E7C66' }}>Nei giorni no-diet non ti do la dieta; se il peso sale, arriva un mini-piano.</span>
       </div>
 
-      {book && (
-        <Sheet onClose={() => setBook(false)}>
+      {/* §16.7 — prima qui c'era il cartello «la prenotazione diretta sta arrivando», e per fissare
+          una visita bisognava scrivere a qualcuno. Ora sceglie lei fra gli orari che la sua
+          nutrizionista ha aperto. */}
+      {book && <PrenotaVisita onClose={() => setBook(false)} onFatto={loadAppts} />}
+
+      {sposta && (
+        <PrenotaVisita spostaVisitId={sposta} onClose={() => setSposta(null)} onFatto={loadAppts} />
+      )}
+
+      {disdetta && (
+        <Sheet onClose={() => setDisdetta(null)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-            <span className="event-ic" style={{ background: '#EAF6F1', color: '#0E7C66' }}><i className="ti ti-calendar-plus" /></span>
-            <b style={{ fontSize: 15 }}>Prenota un appuntamento</b>
+            <span className="event-ic" style={{ background: '#FBE0DE', color: '#B3261E' }}><i className="ti ti-calendar-x" /></span>
+            <b style={{ fontSize: 15 }}>Disdici l'appuntamento</b>
           </div>
           <p className="muted" style={{ fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
-            La prenotazione diretta dall'app sta arrivando. Per ora chiedi a Gaia o alla tua coach: fissano
-            l'appuntamento e lo vedrai qui.
+            {disdetta.quando}. Quell'orario torna libero per un'altra persona, e <b>la visita resta tua</b>:
+            puoi riprenotarla quando vuoi.
           </p>
-          <button className="btn" style={{ marginTop: 6 }} onClick={() => { setBook(false); nav('/assistente'); }}>
-            <i className="ti ti-sparkles" /> Chiedi a Gaia
-          </button>
+          {err && <div className="card" style={{ background: '#FBE0DE', boxShadow: 'none', padding: 11 }}><span style={{ fontSize: 12, color: '#B3261E' }}>{err}</span></div>}
+          <div className="row" style={{ gap: 8, marginTop: 6 }}>
+            <button className="btn ghost" style={{ flex: 1 }} onClick={() => setDisdetta(null)}>Lascia com'è</button>
+            <button
+              className="btn"
+              style={{ flex: 1 }}
+              disabled={disdiciBusy}
+              onClick={async () => {
+                setDisdiciBusy(true);
+                setErr(null);
+                try {
+                  await api(`/me/visite/${disdetta.id}/disdici`, { method: 'POST' });
+                  setDisdetta(null);
+                  await loadAppts();
+                } catch (e) {
+                  setErr(e instanceof ApiError ? e.message : 'Non è riuscita.');
+                } finally {
+                  setDisdiciBusy(false);
+                }
+              }}
+            >
+              {disdiciBusy ? 'Un attimo…' : 'Disdici'}
+            </button>
+          </div>
         </Sheet>
       )}
     </div>

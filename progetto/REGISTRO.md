@@ -25,6 +25,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 📅 **§16.7, seconda metà: la cliente prenota la sua visita.** L'altra faccia della
+  settimana tipo: là il nutrizionista scrive la propria agenda, qui la cliente occupa il tempo di
+  un'altra persona. Sceglie l'orario dall'app fra quelli aperti dalla **sua** nutrizionista, sposta
+  e disdice fino a **24 ore prima**; mail di conferma, notifica al nutrizionista, promemoria a
+  **entrambi** poco prima. Al posto del cartello «la prenotazione diretta sta arrivando» c'è la
+  schermata vera.
+  **⚠️ Il diritto a prenotare nasce dall'acquisto, e nel dubbio si concede.** `Product.visitsGranted`
+  dice quante visite dà un prodotto; una quantità mancante o storta nell'ordine vale **1 e non 0**.
+  `Order.items` è un JSON scritto da un altro pezzo di codice: leggere «zero visite» da un ordine che
+  una visita l'ha pagata vorrebbe dire una cliente che ha pagato e non può prenotare, senza nessun
+  errore da nessuna parte. Sbagliando dall'altra parte, il nutrizionista se ne accorge: l'appuntamento
+  gli compare in agenda.
+  **⚠️ Le visite annullate non consumano il credito.** Conseguenza diretta di «se disdice, lo slot
+  torna libero» (Simone, 12/8): se tornasse libero lo slot ma non il diritto, la cliente avrebbe
+  pagato una visita e ne avrebbe zero — e la disdetta diventerebbe una trappola.
+  **⚠️ Spostare = disdire e riprenotare, e se non riesce il vecchio appuntamento TORNA.** Senza il
+  rollback, chi prova a spostare e trova l'orario appena preso resta senza appuntamento avendo solo
+  provato a cambiarlo. C'è il test che lo verifica: gli stati scritti sono `['cancelled','scheduled']`.
+  **⚠️ La prima visita è sempre in presenza anche da questa strada.** La regola stava in
+  `visits.service.create` dal principio; applicata su uno solo dei due ingressi non sarebbe una regola.
+  **⚠️ Il promemoria: dedup PER DESTINATARIO, finestra 25 minuti.** Prima l'avviso lo riceveva solo il
+  nutrizionista — cioè la persona che quell'appuntamento ce l'ha in agenda tutto il giorno. Simone
+  (12/8): «notifica push ad **entrambi** 20 minuti prima». La ricerca del duplicato non guardava a
+  *chi*: aggiungendo la cliente, la sua notifica avrebbe fatto sparire quella di lui in silenzio (test
+  verificato rosso prima di essere verde). E la finestra è 25 e non 20 perché il cron gira ogni 10:
+  con 20 esatti, un appuntamento a 21 minuti sarebbe stato avvisato alla passata dopo, a 11 minuti —
+  sistematicamente più tardi del promesso.
+  **⚠️ Un calendario solo per tre persone.** `Visit` (la visita clinica) e `Appointment` (la chiamata
+  della coach) sono due tabelle che non si parlavano: la coach vedeva un martedì libero per una
+  cliente che martedì era dalla nutrizionista, e l'app della cliente leggeva solo la seconda. Ora
+  `agenda/calendario.ts` le unisce in lettura — richiesta di Simone del 12/8: «anche la coach deve
+  vedere nel suo calendario gli appuntamenti di tutte le sue clienti». È un file di **funzioni** e non
+  un servizio: un `@Injectable` in `AgendaModule` chiuderebbe un anello fra Coach, HealthArea e
+  Agenda, ed è esattamente il difetto che ha fatto fallire il deploy stamattina. Allo stesso minuto la
+  **visita vince** sull'appuntamento (una riga sola, e quella con la stanza video), e le **note
+  cliniche non passano di lì**: non vengono nemmeno chieste al database.
+  Migrazione `20260812190000_prodotto_visite`. 1963 test verdi.
+
 - `[Sviluppo]` 📅 **§16.7, prima metà: la settimana tipo del nutrizionista.** «Il nutrizionista
   inserisce gli slot in una settimana tipo, esempio lunedì dalle 9 alle 10 poi dalle 10,05 alle
   11.10, col flag "si ripete"» (Simone, 12/8). Questa consegna costruisce **l'offerta**; la

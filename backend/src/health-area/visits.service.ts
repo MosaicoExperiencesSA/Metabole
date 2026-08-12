@@ -231,13 +231,26 @@ export class VisitsService {
   }
 
   /**
-   * Promemoria appuntamenti: chiamato dal cron ogni pochi minuti. Avvisa la
-   * nutrizionista degli appuntamenti che iniziano entro ~30 minuti, una sola
-   * volta per appuntamento (dedup sulla notifica gia' creata).
+   * PROMEMORIA POCO PRIMA DELL'APPUNTAMENTO — chiamato dal cron ogni ~10 minuti.
+   *
+   * §16.7, Simone (12/8): «notifica push ad **entrambi** 20 minuti prima». Prima ne riceveva uno
+   * solo il nutrizionista: la persona che l'appuntamento ce l'ha in agenda tutto il giorno, e che
+   * quindi è quella che se lo dimentica di meno. Chi rischia di perdere la visita è la cliente, che
+   * l'ha fissata due settimane fa dal telefono.
+   *
+   * ⚠️ **La finestra è 25 minuti, non 20.** Il cron gira ogni 10: con una finestra di 20 esatti, un
+   * appuntamento a 21 minuti non verrebbe preso adesso e alla passata dopo ne mancherebbero 11 — il
+   * promemoria arriverebbe sistematicamente in ritardo rispetto a quanto promesso. Con 25 l'avviso
+   * cade fra i 15 e i 25 minuti prima: mai dopo l'inizio, mai mezz'ora prima.
+   *
+   * ⚠️ **Il dedup è per destinatario.** Prima cercava «esiste una notifica con questo visitId?»
+   * senza guardare a chi: aggiungendo la cliente, la sua notifica avrebbe fatto saltare quella del
+   * nutrizionista (o viceversa, a seconda dell'ordine) e uno dei due non avrebbe ricevuto niente,
+   * senza nessun errore da nessuna parte.
    */
   async sendUpcomingReminders(): Promise<{ sent: number }> {
     const now = new Date();
-    const until = new Date(now.getTime() + 35 * 60 * 1000);
+    const until = new Date(now.getTime() + 25 * 60 * 1000);
     const visits = await this.prisma.visit.findMany({
       where: { status: 'scheduled', datetime: { gte: now, lte: until } },
       select: {
@@ -245,28 +258,54 @@ export class VisitsService {
         datetime: true,
         type: true,
         clientId: true,
-        nutritionist: { select: { userId: true } },
+        nutritionist: { select: { userId: true, displayName: true } },
       },
     });
     let sent = 0;
     for (const v of visits) {
-      const already = await this.prisma.notification.findFirst({
-        where: { type: 'appointment_reminder', payload: { path: ['visitId'], equals: v.id } },
-        select: { id: true },
-      });
-      if (already) continue;
+      const teleVisita = v.type === 'televisit';
       const clientName = await this.clientName(v.clientId);
-      await this.notifications
-        .notify({
-          userId: v.nutritionist.userId,
+      const destinatari: { userId: string | null; type: string; title: string; body: string }[] = [
+        {
+          userId: v.nutritionist?.userId ?? null,
           type: 'appointment_reminder',
           title: 'Promemoria appuntamento',
-          body: `Tra poco: ${v.type === 'televisit' ? 'televisita' : 'visita'} con ${clientName} · ${this.dateLabel(v.datetime)}`,
-          payload: { visitId: v.id, clientId: v.clientId },
-        })
-        .catch(() => undefined);
-      sent++;
+          body: `Tra poco: ${teleVisita ? 'televisita' : 'visita'} con ${clientName} · ${this.dateLabel(v.datetime)}`,
+        },
+        {
+          userId: v.clientId,
+          type: 'visit_imminent',
+          title: 'Fra poco la tua visita',
+          body:
+            `Alle ${this.oraLabel(v.datetime)} hai la ${teleVisita ? 'televisita' : 'visita'}` +
+            `${v.nutritionist?.displayName ? ` con ${v.nutritionist.displayName}` : ''}. ` +
+            `${teleVisita ? 'Il collegamento si apre dall\'app.' : 'Ci vediamo in studio.'} 💚`,
+        },
+      ];
+
+      for (const d of destinatari) {
+        if (!d.userId) continue;
+        const already = await this.prisma.notification.findFirst({
+          where: { userId: d.userId, type: d.type, payload: { path: ['visitId'], equals: v.id } },
+          select: { id: true },
+        });
+        if (already) continue;
+        await this.notifications
+          .notify({
+            userId: d.userId,
+            type: d.type,
+            title: d.title,
+            body: d.body,
+            payload: { visitId: v.id, clientId: v.clientId },
+          })
+          .catch(() => undefined);
+        sent++;
+      }
     }
     return { sent };
+  }
+
+  private oraLabel(d: Date): string {
+    return d.toLocaleString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
   }
 }

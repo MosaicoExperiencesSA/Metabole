@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AgendaController } from './agenda.controller';
 import { AgendaService } from './agenda.service';
+import { PrenotazioniController } from './prenotazioni.controller';
+import { PrenotazioniService } from './prenotazioni.service';
 
 /**
  * §16.7 — la settimana tipo del nutrizionista e i giorni in cui non riceve.
@@ -11,8 +13,8 @@ import { AgendaService } from './agenda.service';
  * fallire il deploy. `app.module.spec.ts` la sorveglia.
  */
 @Module({
-  controllers: [AgendaController],
-  providers: [AgendaService],
-  exports: [AgendaService],
+  controllers: [AgendaController, PrenotazioniController],
+  providers: [AgendaService, PrenotazioniService],
+  exports: [AgendaService, PrenotazioniService],
 })
 export class AgendaModule {}

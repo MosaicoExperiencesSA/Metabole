@@ -428,4 +428,36 @@ export class MailService {
     }, vars);
     return this.send({ to, subject, html, templateKey: 'client_assigned_nutritionist' });
   }
+
+  /**
+   * §16.7 — la conferma della visita alla cliente, e la conferma dell'annullamento.
+   *
+   * Un metodo solo per le due cose, e non è pigrizia: sono la stessa email con una frase diversa,
+   * e due metodi vorrebbero dire due modelli da tenere allineati in pagina «Modelli email». La
+   * differenza — quando è, con chi, e se resta o è stata tolta — è tutta nelle variabili.
+   *
+   * ⚠️ `{{quando}}` è già scritto per una persona («lunedì 15 settembre, 10:00», ora di Roma):
+   * mandare una data ISO dentro un'email è il modo di far leggere a una cliente un fuso orario.
+   */
+  async sendVisitaPrenotata(
+    to: string,
+    input: { quando: string; nutrizionista: string; disdetta?: boolean },
+    locale?: string | null,
+  ): Promise<boolean> {
+    const vars = { quando: input.quando, nutrizionista: input.nutrizionista };
+    if (input.disdetta) {
+      const html =
+        `<p>Ciao,</p><p>abbiamo annullato la tua visita di <b>${input.quando}</b>` +
+        `${input.nutrizionista ? ` con ${input.nutrizionista}` : ''}.</p>` +
+        '<p>Quell\'orario è tornato libero e la visita resta tua: puoi riprenotarla quando vuoi dall\'app. 💚</p>';
+      const t = await this.resolve('visita_disdetta', { subject: 'Metabole — visita annullata', html }, vars);
+      return this.send({ to, subject: t.subject, html: t.html, templateKey: 'visita_disdetta' });
+    }
+    const html =
+      `<p>Ciao,</p><p>la tua visita è fissata per <b>${input.quando}</b>` +
+      `${input.nutrizionista ? ` con ${input.nutrizionista}` : ''}.</p>` +
+      '<p>La trovi anche nell\'app, dove puoi spostarla o annullarla fino a 24 ore prima. A presto! 💚</p>';
+    const t = await this.resolve('visita_prenotata', { subject: 'Metabole — visita confermata', html }, vars);
+    return this.send({ to, subject: t.subject, html: t.html, templateKey: 'visita_prenotata' });
+  }
 }

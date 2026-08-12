@@ -31,7 +31,12 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
   { key: 'escalation_clinical', label: 'Segnalazione clinica', description: 'Dato clinico o farmacologico da valutare su una cliente assegnata.', roles: CARE },
   // --- Nutrizionista ---
   { key: 'appointment_created', label: 'Appuntamento fissato', description: 'Nuovo appuntamento/visita in agenda.', roles: NUTRIS },
-  { key: 'appointment_reminder', label: 'Promemoria appuntamento', description: 'Promemoria 30 minuti prima di ogni appuntamento.', roles: NUTRIS },
+  { key: 'appointment_reminder', label: 'Promemoria appuntamento', description: 'Promemoria 20 minuti prima di ogni appuntamento.', roles: NUTRIS },
+  // §16.7: la cliente prenota e disdice da sola, quindi l'agenda può cambiare senza che il
+  // nutrizionista tocchi niente. `appointment_created` esisteva già ed è quello che si usa per la
+  // prenotazione; l'annullamento mancava — ed è la notizia più urgente delle due, perché è un'ora
+  // che si è liberata.
+  { key: 'appointment_cancelled', label: 'Appuntamento annullato', description: 'Una cliente ha annullato la visita: quell\'ora è tornata libera.', roles: NUTRIS },
   { key: 'diet_approved', label: 'Dieta approvata', description: 'Il capo nutrizionista ha approvato una tua dieta.', roles: NUTRIS },
   { key: 'diet_review_requested', label: 'Dieta da approvare', description: 'Un nutrizionista ha inviato una dieta in revisione: va approvata.', roles: ['head_nutritionist'] },
   { key: 'client_assigned_nutritionist', label: 'Nuova cliente assegnata', description: 'Ti è stata assegnata una nuova cliente.', roles: NUTRIS },

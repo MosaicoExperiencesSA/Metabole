@@ -1,0 +1,12 @@
+-- §16.7 — «prenota solo chi ha acquistato una visita» (decisione di Simone del 12/8).
+--
+-- Perché serviva una colonna: nel negozio NIENTE distingueva una visita da un integratore. Né
+-- `plan` né `product` avevano un tipo, e l'acquisto non creava nessuna visita — il pulsante
+-- «Prenota un appuntamento» nell'app era un segnaposto che diceva «sta arrivando».
+--
+-- ⚠️ È un NUMERO e non un flag: «pacchetto 3 visite» è un prodotto solo. Con un booleano sarebbero
+-- tre righe nel carrello, o un secondo campo «quante» — cioè la stessa informazione in due posti.
+--
+-- Default 0: tutti i prodotti esistenti restano quello che sono, e nessuno acquista per sbaglio il
+-- diritto a occupare l'ora di un nutrizionista.
+ALTER TABLE "product" ADD COLUMN "visits_granted" INTEGER NOT NULL DEFAULT 0;

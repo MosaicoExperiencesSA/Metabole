@@ -1140,21 +1140,39 @@ La lista dei metodi vive in **quattro** punti: `backoffice/src/pages/Ricette.tsx
 ricette (`engine-rules.service.ts:1048`). Aggiungerla in tre su quattro fa comparire `piatto_freddo`
 grezzo al posto dell'etichetta: va estratta in un modulo solo, come le finestre del digiuno.
 
-### 16.7 Slot per le visite — 🟡 PRIMA META FATTA il 12/8 (la settimana tipo del nutrizionista)
+### ~~16.7 Slot per le visite~~ — ✅ FATTA il 12/8 (le due metà)
 
-✅ **Fatto:** settimana tipo con flag «si ripete», giornate straordinarie, giorni di chiusura,
-festività calcolate, niente sovrapposizioni alla creazione, anteprima degli orari liberi. Migrazione
-`20260812170000_agenda_visite_slot` (`visit_slot`, `staff_time_off`, `visit.ends_at`, `visit.slot_id`).
+✅ **Prima metà — l'offerta.** Settimana tipo con flag «si ripete», giornate straordinarie, giorni di
+chiusura, festività calcolate, niente sovrapposizioni alla creazione, anteprima degli orari liberi.
+Migrazione `20260812170000_agenda_visite_slot` (`visit_slot`, `staff_time_off`, `visit.ends_at`,
+`visit.slot_id`).
 ⚠️ Gli orari sono **minuti** e non date, per via del cambio dell'ora; l'istante si calcola al momento.
 ⚠️ Un giorno con appuntamenti **non si chiude**: le ferie vengono rifiutate con l'elenco di chi e quando.
 
-⚪ **Resta (seconda metà):** la prenotazione della cliente dall'app; il **diritto a prenotare** che
-nasce dall'acquisto della visita (oggi `Plan`/`Product` non sanno cosa sia una visita e l'acquisto
-non crea niente); spostamento e disdetta fino a **24 ore prima**; email di conferma, notifica al
-nutrizionista e **push a entrambi 20 minuti prima** (il cron ogni 10 minuti c'è già, il dedup
-attuale va discriminato per offset); e la **vista unificata** — `Visit` e `Appointment` sono due
-agende che non si parlano, l'app della cliente legge solo la seconda, e **la coach deve vedere gli
-appuntamenti di tutte le sue clienti** (Simone, 12/8).
+✅ **Seconda metà — la prenotazione.** La cliente sceglie l'orario dall'app (`me/visite`), sposta e
+disdice fino a **24 ore prima**; email di conferma, notifica al nutrizionista, **promemoria a
+entrambi ~20 minuti prima**; calendario unico per cliente, coach e nutrizionista. Migrazione
+`20260812190000_prodotto_visite` (`product.visits_granted`).
+
+⚠️ **Il diritto a prenotare nasce dall'acquisto**, e una quantità mancante o storta nell'ordine vale
+**1 visita e non 0**: `Order.items` è un JSON scritto altrove, e leggere «zero» da un ordine pagato
+vorrebbe dire una cliente che ha pagato e non può prenotare, senza nessun errore da nessuna parte.
+⚠️ **Le visite annullate non consumano il credito.** È la conseguenza diretta di «se disdice, lo slot
+torna libero»: se tornasse libero lo slot ma non il diritto, la disdetta sarebbe una trappola.
+⚠️ **Spostare = disdire e riprenotare**, e se la riprenotazione fallisce **il vecchio appuntamento
+torna**: senza il rollback, chi prova a spostare e non ci riesce resta senza appuntamento avendo
+solo provato a cambiarlo.
+⚠️ **La prima visita è sempre in presenza anche da questa strada.** La regola stava in
+`visits.service.create`; applicata su uno solo dei due ingressi non sarebbe una regola.
+⚠️ **Il dedup del promemoria è per destinatario.** Prima cercava «esiste una notifica con questo
+visitId?» senza guardare a chi: aggiungendo la cliente, la sua notifica avrebbe fatto sparire quella
+del nutrizionista in silenzio. La finestra è **25 minuti e non 20**, perché il cron gira ogni 10 e
+con 20 esatti il promemoria arriverebbe sistematicamente più tardi del promesso.
+⚠️ **`Visit` e `Appointment` restano due tabelle**, unite in lettura da `agenda/calendario.ts`
+(funzioni, non un servizio: farne un `@Injectable` chiuderebbe un anello fra Coach, HealthArea e
+Agenda, e il boot non parte). La visita **vince** sull'appuntamento allo stesso minuto — una riga
+sola, e quella con la stanza video. **Le note cliniche non passano di lì**: un calendario è la cosa
+più condivisa che ci sia.
 
 #### (decisioni prese il 12/8)
 

@@ -109,6 +109,16 @@ describe('CoachService — agenda/appuntamenti', () => {
         ]),
       },
       clientProfile: { findMany: jest.fn().mockResolvedValue([{ userId: 'c1', name: 'Anna' }]) },
+      // §16.7: il calendario della coach legge anche le VISITE, che stanno in un'altra tabella.
+      visit: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'vis1', clientId: 'c1', nutritionistId: 'nut-1', type: 'in_person',
+            datetime: new Date(Date.now() + 86_400_000), endsAt: null, videoRoomId: null,
+            nutritionist: { displayName: 'Nutri' },
+          },
+        ]),
+      },
       appointment: {
         findMany: jest.fn().mockResolvedValue([
           { id: 'ap1', clientId: 'c1', staffId: 'coach-1', staffRole: 'coach', type: 'call', datetime: new Date(), status: 'scheduled', note: null },
@@ -117,9 +127,14 @@ describe('CoachService — agenda/appuntamenti', () => {
       },
     };
     const res = (await makeService(prisma).coachAgenda(user)) as { appointments: { id: string; editable: boolean }[] };
-    expect(res.appointments).toHaveLength(2);
+    // ⚠️ Tre, non due: la visita col nutrizionista è la richiesta di Simone del 12/8. Senza, la
+    // coach vedrebbe libero un giorno in cui la cliente è già dalla nutrizionista.
+    expect(res.appointments).toHaveLength(3);
+    expect(res.appointments.find((a) => a.id === 'vis1')).toBeDefined();
     expect(res.appointments.find((a) => a.id === 'ap1')!.editable).toBe(true);
     expect(res.appointments.find((a) => a.id === 'ap2')!.editable).toBe(false);
+    // Le vede tutte, ma tocca solo le proprie: la visita clinica non la sposta lei.
+    expect(res.appointments.find((a) => a.id === 'vis1')!.editable).toBe(false);
   });
 
   it('createAppointment: coach per la propria cliente → crea', async () => {
@@ -181,12 +196,23 @@ describe('CoachService — agenda/appuntamenti', () => {
       // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza
       // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
       user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
-      appointment: { findMany: jest.fn().mockResolvedValue([{ id: 'ap1', clientId: 'c1', staffId: 's1', staffRole: 'coach', type: 'call', datetime: new Date(), status: 'scheduled', note: null }]) },
+      appointment: { findMany: jest.fn().mockResolvedValue([{ id: 'ap1', clientId: 'c1', staffId: 's1', staffRole: 'coach', type: 'call', datetime: new Date(Date.now() + 172_800_000), status: 'scheduled', note: null }]) },
+      // §16.7: la visita che si è prenotata da sola sta in `Visit`, e per lei «il prossimo
+      // appuntamento» è quello — non la chiamata di dopodomani.
+      visit: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'vis1', clientId: 'c1', nutritionistId: 'nut-1', type: 'in_person',
+            datetime: new Date(Date.now() + 86_400_000), endsAt: null, videoRoomId: null,
+            nutritionist: { displayName: 'Nutri' },
+          },
+        ]),
+      },
       staff: { findMany: jest.fn().mockResolvedValue([{ id: 's1', displayName: 'Coach' }]) },
       subscription: { findFirst: jest.fn() },
     };
     const res = (await makeService(prisma).clientAgenda('c1', true)) as { next: { id: string } | null };
-    expect(res.next!.id).toBe('ap1');
+    expect(res.next!.id).toBe('vis1');
     expect(prisma.subscription.findFirst).not.toHaveBeenCalled();
   });
 
@@ -196,6 +222,7 @@ describe('CoachService — agenda/appuntamenti', () => {
       // questo il finto Prisma non ha `user` e la chiamata esplode prima di ogni asserzione.
       user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
       appointment: { findMany: jest.fn().mockResolvedValue([]) },
+      visit: { findMany: jest.fn().mockResolvedValue([]) },
       staff: { findMany: jest.fn().mockResolvedValue([]) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ endDate: D('2026-09-01') }) },
     };

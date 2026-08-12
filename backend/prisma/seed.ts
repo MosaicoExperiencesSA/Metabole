@@ -627,6 +627,11 @@ const EMAIL_TEMPLATES = [
   // Ricevuta di RIMBORSO: mancava, esattamente come mancava quella delle credenziali.
   { key: 'refund_receipt', name: 'Ricevuta di rimborso', subject: 'Metabole — ricevuta di rimborso', bodyHtml: '<p>Abbiamo emesso il rimborso di <b>{{description}}</b>.</p><p>Importo: € {{amount}}<br/>Data: {{date}}</p><p>Trovi la ricevuta in allegato a questa email.</p>' },
   { key: 'monthly_report', name: 'Report mensile (al cliente)', subject: 'Metabole — il tuo report di {{period}}', bodyHtml: '<p>Ciao {{name}},</p><p>ecco il tuo report di <b>{{period}}</b>.</p><ul><li>Perso questo mese: <b>{{lostThisMonth}}</b></li><li>Perso dall\'inizio: <b>{{lostTotal}}</b></li><li>Peso attuale: {{currentWeight}}</li><li>Obiettivo: {{target}}</li><li>Check-in registrati: {{checkins}}</li></ul><p>{{trend}}</p><p>Trovi il report completo in allegato.</p>' },
+  // §16.7 — la conferma della visita, e quella dell'annullamento. `{{quando}}` arriva già scritto
+  // per una persona («lunedì 15 settembre, 10:00», ora di Roma): una data ISO dentro un'email è il
+  // modo di far leggere un fuso orario a una cliente.
+  { key: 'visita_prenotata', name: 'Visita confermata (alla cliente)', subject: 'Metabole — visita confermata', bodyHtml: '<p>Ciao,</p><p>la tua visita è fissata per <b>{{quando}}</b> con {{nutrizionista}}.</p><p>La trovi anche nell\'app, dove puoi spostarla o annullarla fino a 24 ore prima. A presto! 💚</p>' },
+  { key: 'visita_disdetta', name: 'Visita annullata (alla cliente)', subject: 'Metabole — visita annullata', bodyHtml: '<p>Ciao,</p><p>abbiamo annullato la tua visita di <b>{{quando}}</b> con {{nutrizionista}}.</p><p>Quell\'orario è tornato libero e la visita resta tua: puoi riprenotarla quando vuoi dall\'app. 💚</p>' },
 ];
 
 async function seedEmailTemplates(): Promise<void> {

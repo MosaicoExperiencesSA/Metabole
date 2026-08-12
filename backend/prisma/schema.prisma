@@ -655,6 +655,15 @@ model Product {
   active      Boolean  @default(true)
   // Se false: dopo l'acquisto il prodotto scompare dallo shop di QUEL cliente (non riacquistabile).
   repurchasable Boolean @default(true)
+  /**
+   * Quante VISITE dà l'acquisto di questo prodotto (§16.7). 0 = non è una visita — ed è il caso di
+   * tutti i prodotti esistenti, che restano integratori.
+   *
+   * È un numero e non un flag di proposito: «pacchetto 3 visite» è un prodotto solo, e con un
+   * booleano diventerebbe tre righe nel carrello o un secondo campo «quante». Il diritto a
+   * prenotare si calcola sommando questo sui pagamenti approvati e togliendo le visite già fissate.
+   */
+  visitsGranted Int @default(0) @map("visits_granted")
   // RETE PROVVIGIONALE A DIFFERENZA (decisione 17/07): percentuali per LIVELLO
   // sull'importo effettivamente pagato. Ognuno incassa la differenza col livello
   // sotto (es. coach 25 / coordinatrice 35 / manager 45 → 25+10+10 a rete completa;

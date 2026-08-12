@@ -48,3 +48,15 @@ export class CreaFerieDto {
   @MaxLength(120)
   motivo?: string | null;
 }
+
+/** La cliente sceglie un orario fra quelli che le abbiamo mostrato (§16.7). */
+export class PrenotaDto {
+  @IsString()
+  slotId!: string;
+
+  @IsISO8601({ strict: true }, { message: 'Data non valida (AAAA-MM-GG).' })
+  data!: string;
+}
+
+/** Spostare: è una prenotazione nuova, con lo stesso corpo. */
+export class SpostaDto extends PrenotaDto {}

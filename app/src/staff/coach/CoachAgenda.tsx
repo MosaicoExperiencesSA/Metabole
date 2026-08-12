@@ -7,6 +7,15 @@ interface Appointment {
   id: string;
   clientId: string;
   clientName: string | null;
+  /**
+   * §16.7 — da oggi in questa lista ci sono anche le VISITE dal nutrizionista, che stanno in
+   * un'altra tabella. Richiesta di Simone del 12/8: la coach deve vedere gli appuntamenti di tutte
+   * le sue clienti, non solo quelli che ha preso lei. Va detto quale è quale, o fissa la chiamata
+   * mezz'ora prima di una visita credendo la giornata libera.
+   */
+  fonte?: 'visita' | 'appuntamento';
+  staffRole?: string;
+  staffName?: string | null;
   type: 'call' | 'televisit' | 'in_person';
   datetime: string;
   note: string | null;
@@ -33,6 +42,7 @@ export default function CoachAgenda() {
             <Card className="pad0">
               {d.appointments.map((a) => {
                 const t = TYPE[a.type] ?? ['ti-calendar', 'Appuntamento'];
+                const visita = a.fonte === 'visita';
                 return (
                   <div key={a.id} className="sf-row" style={{ cursor: 'default' }}>
                     <Avatar name={a.clientName} />
@@ -40,6 +50,11 @@ export default function CoachAgenda() {
                       <div className="sf-row-name">{fullName(a.clientName)}</div>
                       <div className="sf-row-sub">
                         <i className={`ti ${t[0]}`} /> {t[1]} · {dateTime(a.datetime)}
+                      </div>
+                      <div className="sf-row-sub">
+                        {visita
+                          ? `Visita col nutrizionista${a.staffName ? ` · ${a.staffName}` : ''}`
+                          : a.staffName ?? 'Appuntamento'}
                       </div>
                       {a.note && <div className="sf-row-sub">{a.note}</div>}
                     </div>
