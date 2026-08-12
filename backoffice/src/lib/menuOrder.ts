@@ -62,19 +62,38 @@ export function orderNavItems<T extends { to: string; label: string }>(items: T[
  */
 export interface GruppoMenu {
   titolo: string;
+  /**
+   * `true` = a fisarmonica (si apre e si chiude), `false` = solo titolo.
+   * `undefined` = **eredita** da come è di fabbrica quel gruppo: è lo stato delle preferenze
+   * salvate prima che questo interruttore esistesse, e non va confuso con «solo titolo», o a chi
+   * aveva CRM aperto a fisarmonica sparirebbe il comportamento senza che l'abbia chiesto.
+   */
+  comprimibile?: boolean;
   /** Le rotte (`to`) delle voci, nell'ordine scelto. */
   voci: string[];
 }
 
-const MARCATORE = '#gruppo:';
+/**
+ * I tre marcatori. Sono tutti `#gruppo…:` perché il riconoscimento resti uno solo, e perché una
+ * rotta comincia sempre con `/`: non possono collidere con una voce del menu.
+ */
+const MARCATORE = '#gruppo:';        // eredita (com'era prima di questo interruttore)
+const MARCATORE_APRIBILE = '#gruppoc:'; // comprimibile
+const MARCATORE_TITOLO = '#gruppot:';   // solo titolo
+const MARCATORI: [string, boolean | undefined][] = [
+  [MARCATORE_APRIBILE, true],
+  [MARCATORE_TITOLO, false],
+  [MARCATORE, undefined],
+];
 
 /** I gruppi personalizzati, o `null` se l'utente non li ha mai toccati. */
 export function leggiGruppi(ordine: string[] | null | undefined): GruppoMenu[] | null {
   if (!ordine || !ordine.length) return null;
-  if (!ordine.some((r) => r.startsWith(MARCATORE))) return null;
+  if (!ordine.some((r) => r.startsWith('#gruppo'))) return null;
   const out: GruppoMenu[] = [];
   for (const riga of ordine) {
-    if (riga.startsWith(MARCATORE)) out.push({ titolo: riga.slice(MARCATORE.length), voci: [] });
+    const m = MARCATORI.find(([pref]) => riga.startsWith(pref));
+    if (m) out.push({ titolo: riga.slice(m[0].length), comprimibile: m[1], voci: [] });
     else if (out.length) out[out.length - 1].voci.push(riga);
     // Una rotta PRIMA del primo titolo verrebbe persa: le si dà un gruppo senza nome invece di
     // buttarla via — una voce che sparisce dal menu è peggio di un titolo vuoto.
@@ -84,7 +103,10 @@ export function leggiGruppi(ordine: string[] | null | undefined): GruppoMenu[] |
 }
 
 export function serializzaGruppi(gruppi: GruppoMenu[]): string[] {
-  return gruppi.flatMap((g) => [MARCATORE + g.titolo, ...g.voci]);
+  return gruppi.flatMap((g) => [
+    (g.comprimibile === true ? MARCATORE_APRIBILE : g.comprimibile === false ? MARCATORE_TITOLO : MARCATORE) + g.titolo,
+    ...g.voci,
+  ]);
 }
 
 /**
@@ -96,12 +118,14 @@ export function serializzaGruppi(gruppi: GruppoMenu[]): string[] {
  * menu non la vedrebbe mai, e non avrebbe modo di sapere che esiste.
  */
 export function gruppiEffettivi<T extends { to: string; label: string }>(
-  sezioni: { group: string; items: T[] }[],
+  sezioni: { group: string; items: T[]; collapsible?: boolean }[],
   ordine: string[] | null | undefined,
-): { group: string; items: T[] }[] {
+): { group: string; items: T[]; comprimibile: boolean }[] {
+  /** Com'è di fabbrica quel titolo: serve solo quando la preferenza non lo dice. */
+  const diFabbrica = (titolo: string) => !!sezioni.find((s) => s.group === titolo)?.collapsible;
   const gruppi = leggiGruppi(ordine);
   if (!gruppi) {
-    return sezioni.map((s) => ({ group: s.group, items: orderNavItems(s.items, ordine ?? null) }));
+    return sezioni.map((s) => ({ group: s.group, items: orderNavItems(s.items, ordine ?? null), comprimibile: !!s.collapsible }));
   }
   const perRotta = new Map<string, { item: T; gruppoOriginale: string }>();
   for (const s of sezioni) for (const it of s.items) perRotta.set(it.to, { item: it, gruppoOriginale: s.group });
@@ -115,7 +139,7 @@ export function gruppiEffettivi<T extends { to: string; label: string }>(
       usate.add(to);
       items.push(trovata.item);
     }
-    return { group: g.titolo, items };
+    return { group: g.titolo, items, comprimibile: g.comprimibile ?? diFabbrica(g.titolo) };
   });
 
   // Le voci mai nominate: tornano nel loro gruppo di origine, in fondo.
@@ -123,7 +147,7 @@ export function gruppiEffettivi<T extends { to: string; label: string }>(
     for (const it of s.items) {
       if (usate.has(it.to)) continue;
       let g = out.find((x) => x.group === s.group);
-      if (!g) { g = { group: s.group, items: [] }; out.push(g); }
+      if (!g) { g = { group: s.group, items: [], comprimibile: !!s.collapsible }; out.push(g); }
       g.items.push(it);
     }
   }

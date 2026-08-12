@@ -27,7 +27,7 @@ export function MenuOrderCard() {
   const { can } = useAuth();
   /** Le sezioni di fabbrica, con dentro solo le voci che questa persona può vedere. */
   const sezioni = NAV
-    .map((s) => ({ group: s.group, items: s.items.filter((it) => can(it.key)) }))
+    .map((s) => ({ group: s.group, collapsible: s.collapsible, items: s.items.filter((it) => can(it.key)) }))
     .filter((g) => g.items.length > 0);
 
   const [ordine, setOrdine] = useState<string[] | null>(null);
@@ -53,7 +53,10 @@ export function MenuOrderCard() {
    */
   function conNascoste(nuovi: GruppoMenu[]): GruppoMenu[] {
     const visibili = new Set(sezioni.flatMap((s) => s.items.map((i) => i.to)));
-    const salvate = (ordine ?? []).filter((r) => !r.startsWith('#gruppo:'));
+    // ⚠️ `#gruppo` senza i due punti: i marcatori sono tre (`#gruppo:`, `#gruppoc:`, `#gruppot:`) e
+    // filtrarne uno solo avrebbe fatto passare gli altri due per rotte — che sarebbero poi state
+    // riattaccate in fondo come «voci orfane», moltiplicando i titoli a ogni salvataggio.
+    const salvate = (ordine ?? []).filter((r) => !r.startsWith('#gruppo'));
     const nominate = new Set(nuovi.flatMap((g) => g.voci));
     const orfane = salvate.filter((r) => !visibili.has(r) && !nominate.has(r));
     if (!orfane.length || !nuovi.length) return nuovi;
@@ -75,7 +78,11 @@ export function MenuOrderCard() {
   }
 
   /** La vista corrente come struttura modificabile. */
-  const comeGruppi = (): GruppoMenu[] => vista.map((g) => ({ titolo: g.group, voci: g.items.map((i) => i.to) }));
+  const comeGruppi = (): GruppoMenu[] =>
+    // Si salva sempre il valore RISOLTO, non «eredita»: dal momento in cui uno tocca questa
+    // schermata, com'è il suo menu lo decide lui e non cambia più sotto i piedi se un domani noi
+    // rendiamo pieghevole un gruppo di fabbrica.
+    vista.map((g) => ({ titolo: g.group, comprimibile: g.comprimibile, voci: g.items.map((i) => i.to) }));
 
   /** Su/giù dentro il gruppo — e, quando è al bordo, nel gruppo accanto. */
   function spostaVoce(gi: number, vi: number, dir: -1 | 1) {
@@ -98,6 +105,13 @@ export function MenuOrderCard() {
   function rinomina(gi: number, titolo: string) {
     const g = comeGruppi();
     g[gi].titolo = titolo;
+    void salva(g);
+  }
+
+  /** A fisarmonica o solo titolo (richiesta di Simone dell'11/8: «CRM è comprimibile, il flag»). */
+  function cambiaComprimibile(gi: number, comprimibile: boolean) {
+    const g = comeGruppi();
+    g[gi].comprimibile = comprimibile;
     void salva(g);
   }
 
@@ -144,7 +158,8 @@ export function MenuOrderCard() {
         </button>
       </div>
       <p className="hint" style={{ marginTop: 6 }}>
-        Rinomina i gruppi, spostali, aggiungine o togline. Le frecce muovono una voce dentro il
+        Rinomina i gruppi, spostali, aggiungine o togline, e scegli quali si aprono e chiudono a
+        fisarmonica e quali restano solo un titolo. Le frecce muovono una voce dentro il
         gruppo — e quando è la prima o l'ultima, la portano nel gruppo accanto. Tutto si salva sul
         tuo profilo appena lo tocchi.
         {msg && <b style={{ color: 'var(--ok-ink)' }}> · {msg}</b>}
@@ -162,6 +177,20 @@ export function MenuOrderCard() {
                 maxLength={24}
                 onChange={(e) => rinomina(gi, e.target.value)}
               />
+              {/*
+                Un interruttore e non due pulsanti: lo stato si legge senza premerlo, ed è
+                l'informazione che serve guardando la lista dei gruppi.
+              */}
+              <label
+                className="row"
+                style={{ gap: 5, alignItems: 'center', fontSize: 12, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                title={g.comprimibile
+                  ? 'A fisarmonica: si apre e si chiude, e da chiuso le sue voci non occupano spazio'
+                  : 'Solo titolo: le voci restano sempre in vista'}
+              >
+                <input type="checkbox" checked={g.comprimibile} onChange={(e) => cambiaComprimibile(gi, e.target.checked)} />
+                <span className="muted">{g.comprimibile ? 'a fisarmonica' : 'solo titolo'}</span>
+              </label>
               <button className="btn ghost sm" disabled={gi === 0} onClick={() => spostaGruppo(gi, -1)} title="Sposta il gruppo su"><i className="ti ti-chevron-up" /></button>
               <button className="btn ghost sm" disabled={gi === vista.length - 1} onClick={() => spostaGruppo(gi, 1)} title="Sposta il gruppo giù"><i className="ti ti-chevron-down" /></button>
               <button

@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { coachTeamScope } from '../common/coach-team';
+import { avvisaNuovoLeadDaAssegnare } from '../common/avvisa-manager-coach';
 import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
 import { dichiaraSenzaGlutine } from '../menu/senza-glutine';
 import { MailService } from '../mail/mail.service';
@@ -229,6 +230,12 @@ export class CrmService {
       entityType: 'crm_record',
       entityId: record.id,
     });
+    // «Hai un nuovo lead da assegnare» (§16.3). Solo se NON ha già una coach: il form del sito non
+    // ne assegna nessuna, ma un lead riaperto potrebbe averla — e avvisare per un lead già assegnato
+    // insegna a ignorare l'avviso.
+    if (!(record as { assignedCoachId?: string | null }).assignedCoachId) {
+      await avvisaNuovoLeadDaAssegnare(this.prisma, this.notifications, { id: record.id, nome: input.nome, email: input.email }, console);
+    }
     return { ok: true, id: record.id };
   }
 
@@ -262,8 +269,9 @@ export class CrmService {
         });
         return;
       }
-      // Nessun precedente: nuovo lead collegato al cliente.
-      await this.prisma.crmRecord.create({
+      // Nessun precedente: nuovo lead collegato al cliente. È il caso della richiesta di Simone —
+      // «la cliente si è registrata» — e nasce senza coach, quindi si avvisa (§16.3).
+      const nuovo = await this.prisma.crmRecord.create({
         data: {
           clientId,
           email,
@@ -272,6 +280,7 @@ export class CrmService {
           stageDates: { lead_in: { at: new Date().toISOString(), byUserId: null } } as never,
         },
       });
+      await avvisaNuovoLeadDaAssegnare(this.prisma, this.notifications, { id: nuovo.id, nome: name, email }, console);
     } catch {
       /* il CRM non deve mai bloccare la registrazione */
     }

@@ -446,6 +446,27 @@ Validazione delle due rifiniture R12 (efficacia in mantenimento; guardrail `clin
 
 ---
 
+## 10bis. ⏰ PROMEMORIA — mercoledì 19 agosto 2026: spegnere la traccia su `dietFamily`
+
+`backend/src/prisma/traccia-diet-family.ts` è **diagnostica temporanea**, messa l'11/8 per scoprire
+chi riscriveva la dieta delle clienti. Ha fatto il suo lavoro — la risposta era che *nessuno* la
+riscriveva, perché `updateClient` non eseguiva mai le scritture — e da allora è rimasta accesa a fare
+da rete, per vedere se salta fuori qualcos'altro.
+
+**Il 19/8 va spenta**, in uno dei due modi:
+
+- **subito e senza deploy**: variabile `TRACCIA_DIET_FAMILY=0` su Render;
+- **per bene**: togliere il file, la chiamata in `prisma.service.ts` e il suo spec.
+
+⚠️ Prima di toglierla, guardare i log dell'ultima settimana cercando `[traccia]`: se compaiono
+scritture di `dietFamily` che **non** vengono da `ClientsService.updateClient` o dal questionario, è
+un difetto nuovo e la traccia va lasciata finché non è chiaro. Se non ce ne sono, si toglie e nel
+registro di quel giorno si scrive che non ne sono uscite altre — che è l'informazione che serve fra
+sei mesi.
+
+Perché una data e non «quando ci ricordiamo»: una diagnostica che resta accesa per sempre diventa
+rumore, e il rumore è il modo in cui un avviso vero passa inosservato.
+
 ## 11. Comandi che aspettano te su Render
 
 Tutti esistono e in dry-run non scrivono niente.
@@ -904,7 +925,15 @@ una cliente che apre il menu di domani e chiede una sostituzione sta chiedendo u
 possiamo dare. Da verificare nel codice quale sia davvero la portata attuale
 (`menu/sostituzione-chat.service.ts`, `menu/cambio-piatto.ts`, `scope: 'today'`).
 
-### 16.3 Nuovo lead → notifica alla manager delle coach + tabella «Lead da assegnare»
+### ~~16.3 Nuovo lead → notifica alla manager delle coach + tabella «Lead da assegnare»~~ — ✅ FATTA l'11/8
+
+Avviso a `sales` (con ripiego sugli admin se non ce n'è nessuno) alla nascita di un lead senza coach —
+form del sito e registrazione, **non** l'import; tabella `/crm/da-assegnare` = la stessa `LeadsTable`
+con coach «nessuna» e ordine dal più vecchio; e le notifiche con `payload.url` adesso si aprono.
+⚪ Resta una scelta: se metterla anche nel **menu** (oggi ci si arriva dalla notifica) — sotto quale
+gruppo e con quale permesso.
+
+#### (storia) la richiesta
 
 «La cliente si è registrata e ha attivato conosciamoci: alla manager delle coach deve arrivare
 notifica **e push** che dice *hai un nuovo lead da assegnare*. **Tutte le volte** che si registra un

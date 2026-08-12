@@ -89,8 +89,14 @@ function classify(l: Lead): { label: string; chip: string; title: string } {
  * a ogni nutrizionista la vista su tutte le clienti. È stato aggiunto lato server, insieme a questa
  * modifica — vedi il commento in `crm.service.ts`.
  */
-export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' } = {}) {
+export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_assegnare' } = {}) {
   const soloClienti = modo === 'clienti';
+  /**
+   * «LEAD DA ASSEGNARE» (§16.3): gli stessi contatti, filtrati sui **non assegnati** e ordinati
+   * **dal più vecchio**. L'ordine non è un dettaglio: è una coda di lavoro, e il più vecchio è
+   * quello che sta aspettando da più tempo — cioè quello che si sta raffreddando.
+   */
+  const daAssegnare = modo === 'da_assegnare';
   const nome = soloClienti ? 'clienti' : 'contatti';
   const { impersonate, can } = useAuth();
   const canAssignCoach = can('assign_coach', 'manage');
@@ -139,7 +145,11 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' } = {}
    * valore e di data che l'helper non sa disegnare. Vedi il commento nell'helper — punto 3 del
    * DA_FARE, chiuso l'11/8 per la parte che si poteva condividere davvero.
    */
-  const ord = useOrdinamentoServer({ testaFissa: true, allCambio: () => setPage(0) });
+  const ord = useOrdinamentoServer({
+    testaFissa: true,
+    allCambio: () => setPage(0),
+    ...(daAssegnare ? { chiaveIniziale: 'created', direzioneIniziale: 'asc' as const } : {}),
+  });
   const sortKey = ord.chiave;
   const sortDir = ord.direzione;
   function clearFilters() {
@@ -251,11 +261,13 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' } = {}
     if (qv) params.set('q', qv);
     if (fStage) params.set('stage', fStage);
     if (listFilter) params.set('listId', listFilter);
-    if (fCoach) params.set('coachId', fCoach);
+    if (fCoach && !daAssegnare) params.set('coachId', fCoach);
     if (fNutri) params.set('nutriId', fNutri);
     // In «Clienti» il tipo non è una scelta: è l'identità della pagina.
     if (soloClienti) params.set('tipo', 'client');
     else if (fTipo) params.set('tipo', fTipo);
+    // In «Lead da assegnare» il filtro sulla coach è inchiodato su «nessuna».
+    if (daAssegnare) params.set('coachId', 'none');
     const mn = parseEuro(fValMin); if (mn != null) params.set('valueMin', String(mn));
     const mx = parseEuro(fValMax); if (mx != null) params.set('valueMax', String(mx));
     if (fDateFrom) params.set('dateFrom', fDateFrom);
@@ -360,8 +372,8 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' } = {}
         if (righe.length === 0) break;
         tutte.push(...righe);
       }
-      scaricaExcel(`${soloClienti ? 'Clienti' : 'Gestione lead'}-${oggiIso()}`, {
-        nome: soloClienti ? 'Clienti' : 'Gestione lead',
+      scaricaExcel(`${soloClienti ? 'Clienti' : daAssegnare ? 'Lead da assegnare' : 'Gestione lead'}-${oggiIso()}`, {
+        nome: soloClienti ? 'Clienti' : daAssegnare ? 'Lead da assegnare' : 'Gestione lead',
         intestazioni: ['Nome', 'Cognome', 'Email', 'Stato', 'Coach', 'Nutrizionista', 'Tipo', 'Valore €', 'Creato'],
         // Le stesse nove colonne della tabella, nello stesso ordine. `createdAt` è una stringa ISO e
         // diventa una cella data vera; il valore esce in euro e non in centesimi, così si somma.
@@ -394,7 +406,7 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' } = {}
           >
             Totale: {total.toLocaleString('it-IT')}
           </span>
-          <input className="input" style={{ maxWidth: 260 }} placeholder={soloClienti ? 'Cerca fra tutte le clienti (nome, email, tel)…' : 'Cerca in tutto il DB (nome, email, tel)…'} value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input className="input" style={{ maxWidth: 260 }} placeholder={soloClienti ? 'Cerca fra tutte le clienti (nome, email, tel)…' : daAssegnare ? 'Cerca fra i non assegnati…' : 'Cerca in tutto il DB (nome, email, tel)…'} value={filter} onChange={(e) => setFilter(e.target.value)} />
           {searching && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>cerco nel database…</span>}
           <select className="select" style={{ maxWidth: 220 }} value={listFilter} onChange={(e) => setListFilter(e.target.value)} title="Filtra per lista">
             <option value="">Tutte le liste</option>
@@ -410,10 +422,10 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' } = {}
           </button>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          {!soloClienti && can('accounting', 'manage') && (
+          {!soloClienti && !daAssegnare && can('accounting', 'manage') && (
             <Link className="btn ghost" to="/crm/import"><i className="ti ti-database-import" /> Importa</Link>
           )}
-          {!soloClienti && (
+          {!soloClienti && !daAssegnare && (
             <Link className="btn" to="/crm/inserimento">
               <i className="ti ti-user-plus" /> Nuovo lead
             </Link>

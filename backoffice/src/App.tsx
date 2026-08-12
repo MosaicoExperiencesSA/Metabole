@@ -12,6 +12,7 @@ import { BuoniSconto } from './pages/BuoniSconto';
 import { Calendar } from './pages/Calendar';
 import { ClientDetail } from './pages/ClientDetail';
 import { Clienti } from './pages/Clienti';
+import { LeadDaAssegnare } from './pages/LeadDaAssegnare';
 import { Compensi } from './pages/Compensi';
 import { Diete } from './pages/Diete';
 import { GestioneDieta } from './pages/GestioneDieta';
@@ -94,6 +95,7 @@ export default function App() {
       <Route path="/clienti/:id" element={<Protected title="Scheda cliente" pageKey="clients"><ClientDetail /></Protected>} />
       <Route path="/crm" element={<Navigate to="/crm/gestione" replace />} />
       <Route path="/crm/gestione" element={<Protected title="Gestione lead" pageKey="crm_leads"><LeadsTable /></Protected>} />
+      <Route path="/crm/da-assegnare" element={<Protected title="Lead da assegnare" pageKey="crm_leads"><LeadDaAssegnare /></Protected>} />
       <Route path="/crm/lead/:id" element={<Protected title="Scheda lead" pageKey="crm_leads"><LeadDetail /></Protected>} />
       <Route path="/crm/inserimento" element={<Protected title="Inserimento lead" pageKey="crm_lead_new"><LeadForm /></Protected>} />
       <Route path="/crm/import" element={<Protected title="Import liste" pageKey="crm_import"><ImportaLead /></Protected>} />

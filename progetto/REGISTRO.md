@@ -20,6 +20,48 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔔 **Nuovo lead → la manager delle coach lo sa, e ha la sua coda «Lead da
+  assegnare».** §16.3. L'avviso (in-app + push) parte quando nasce un lead **senza coach**: dal form
+  del sito e dalla registrazione di una cliente. **Non** dall'import di liste — mille righe importate
+  non sono mille avvisi — e non dall'inserimento manuale dal backoffice, dove chi lo crea può
+  assegnarlo lì. ⚠️ Il ruolo è `sales`, e **se non c'è nessun `sales` attivo l'avviso non si butta
+  via: va agli admin.** È la lezione di luglio (tre segnalazioni cliniche senza destinatario, ferme
+  venti giorni): *un avviso senza destinatario non è un avviso*. Non fallisce mai — chi chiama sta
+  registrando una persona — ma il motivo si **scrive** nei log, perché «nessuno è stato avvisato» è
+  esattamente il silenzio che questa voce esiste per togliere. Otto test, e quelli che contano non
+  sono «la notifica parte»: sono «senza `sales` va agli admin», «senza nessuno dei due lo dice», «se
+  la notifica esplode la registrazione passa lo stesso».
+  **La coda**: `/crm/da-assegnare` non è una pagina nuova, è la stessa tabella di Gestione lead (la
+  stessa che ora è anche Clienti) con il filtro coach inchiodato su «nessuna» e l'ordine **dal più
+  vecchio** — ed è quello che la rende una *coda di lavoro* invece di un elenco: in cima c'è chi
+  aspetta da più tempo, cioè chi si sta raffreddando.
+  **E le notifiche adesso si aprono**: quelle con un `payload.url` portano alla pagina e lo dicono
+  («· apri →»). Una notifica che dice «apri la tabella» e poi non la apre costringe a cercarla nel
+  menu. Verifiche: **114 suite / 1735 test**, build backoffice verde.
+  📌 La voce non è nel menu: ci si arriva dalla notifica. Metterla è una riga, ma va deciso sotto
+  quale gruppo e con quale permesso — oggi la pagina sta dietro `crm_leads`.
+
+- `[Sviluppo]` 🎚️ **I gruppi del menu si aprono a fisarmonica a scelta, e «Acceso» rivisto sul
+  vivo.** (1) «CRM è un gruppo comprimibile, riusciamo a mettere a fianco ai titoli un flag che li
+  rende solo titoli o comprimibili?» — sì: un interruttore per gruppo, che dice lo stato **a parole**
+  («a fisarmonica» / «solo titolo») invece di farlo indovinare da un quadratino. Prima essere
+  pieghevole era scritto nel codice e ce l'aveva solo CRM. ⚠️ **Tre stati, non due**: il marcatore
+  diventa `#gruppoc:` o `#gruppot:`, e il vecchio `#gruppo:` resta valido e vuol dire **eredita** —
+  è lo stato di chi aveva già salvato prima che l'interruttore esistesse, e confonderlo con «solo
+  titolo» avrebbe fatto sparire la fisarmonica di CRM senza che l'avesse chiesto nessuno. Difetto
+  evitato per un pelo: il filtro delle voci nascoste cercava `#gruppo:` **con i due punti**, e con
+  tre marcatori avrebbe preso gli altri due per rotte, riattaccandoli come «orfane» e moltiplicando i
+  titoli a ogni salvataggio.
+  (2) **«Acceso»**: «sposta il verde più chiaro sulla barra laterale e lo sfondo centrale desatura
+  ulteriore 75%». Barra = verde mela `#8db600`, fondo = lo stesso verde desaturato di un altro 75%
+  (`#687244`), card e accento invariati. ⭐ La riga che rende leggibile il resto: sopra il mela il
+  testo **chiaro** sta a 2,1:1, quindi il colore del testo della barra — fisso nel CSS dal primo
+  giorno — diventa una **variabile** (`--sidebar-ink`), e «Acceso» ci mette un verde quasi nero
+  (6,8:1). Stessa cosa per il velo del passaggio del mouse (su una barra chiara uno schiarimento non
+  si vede) e per le etichette dei gruppi. I temi che non le impostano **non cambiano di una
+  virgola**: i default sono i colori fissi di prima. Il testo direttamente sul fondo resta a 3,1:1 —
+  è raro, quasi tutto sta in una card, ma è il numero da alzare se qualche etichetta lì sopra fatica.
+
 - `[Sviluppo]` 🔴🔴 **«Modifica scheda» non salvava NIENTE: le operazioni non venivano mai eseguite.**
   La dieta di una cliente spostata **cinque volte** da «Pescetariana» a «Mediterranea» e tornata
   indietro ogni volta. **Non tornava indietro: non era mai partita.**

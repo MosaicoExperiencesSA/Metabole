@@ -178,16 +178,18 @@ export function Layout({ title, children }: { title: string; children: ReactNode
         {/*
           I GRUPPI arrivano da `gruppiEffettivi`: di fabbrica sono quelli di `NAV`, ma chi se li è
           rinominati, riordinati o rifatti da capo (Impostazioni → Ordine del menu) vede i suoi.
-          `collapsible` e l'icona restano attaccati al TITOLO: un gruppo rinominato perde il
-          comportamento a fisarmonica, ed è la scelta giusta — quella pieghevole era una proprietà
-          di *quel* gruppo, non del posto in cui sta.
+          **Se un gruppo è a fisarmonica o solo un titolo lo decide chi guarda** (richiesta di
+          Simone dell'11/8): la preferenza vince, e solo quando non dice niente — cioè per le
+          preferenze salvate prima che l'interruttore esistesse — si eredita com'era di fabbrica.
+          L'icona resta attaccata al titolo di fabbrica: un gruppo rinominato la perde, ed è giusto,
+          era l'icona di *quel* gruppo.
         */}
-        {gruppiEffettivi(NAV.map((s) => ({ group: s.group, items: s.items.filter((it) => can(it.key)) })), menuOrder).map((gruppo) => {
+        {gruppiEffettivi(NAV.map((s) => ({ group: s.group, collapsible: s.collapsible, items: s.items.filter((it) => can(it.key)) })), menuOrder).map((gruppo) => {
           const section = NAV.find((s) => s.group === gruppo.group);
           const visible = gruppo.items;
           if (visible.length === 0) return null;
 
-          if (section?.collapsible) {
+          if (gruppo.comprimibile) {
             const hasActive = visible.some((it) => location.pathname.startsWith(it.to));
             const isOpen = collapsed[gruppo.group] ?? hasActive ?? true;
             return (

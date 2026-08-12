@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { Spinner } from '../components/ui';
@@ -5,7 +6,12 @@ import { Spinner } from '../components/ui';
 interface Notif {
   id: string;
   type: string;
-  payload?: { title?: string; body?: string } | null;
+  /**
+   * `url`: dove porta la notifica. Aggiunto l'11/8 con «hai un nuovo lead da assegnare» — una
+   * notifica che dice «apri la tabella» e poi non la apre costringe a cercarla nel menu, e la
+   * richiesta di Simone era esattamente «se clicca sulla notifica le si apre una tabella».
+   */
+  payload?: { title?: string; body?: string; url?: string } | null;
   readAt: string | null;
   createdAt: string;
 }
@@ -15,6 +21,7 @@ const dateTime = (s: string) =>
 
 /** Modulo Notifiche del backoffice: elenco completo delle notifiche dell'utente. */
 export function Notifiche() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<Notif[] | null>(null);
 
   async function load() {
@@ -64,20 +71,28 @@ export function Notifiche() {
           {items.map((n) => (
             <div
               key={n.id}
-              onClick={() => markRead(n)}
+              onClick={() => {
+                markRead(n);
+                // Segnare come letta e poi andare: nell'ordine giusto, o si torna indietro e la
+                // notifica è ancora in grassetto.
+                if (n.payload?.url) navigate(n.payload.url);
+              }}
               style={{
                 display: 'flex',
                 gap: 12,
                 padding: '12px 4px',
                 borderBottom: '1px solid var(--line, #f0f0f0)',
-                cursor: n.readAt ? 'default' : 'pointer',
+                cursor: n.readAt && !n.payload?.url ? 'default' : 'pointer',
               }}
             >
               <span style={{ flex: 'none', width: 9, height: 9, borderRadius: '50%', marginTop: 6, background: n.readAt ? 'var(--line, #ddd)' : '#12a386' }} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontWeight: n.readAt ? 500 : 700, fontSize: 14 }}>{n.payload?.title || n.type}</div>
                 {n.payload?.body && <div className="notif-testo" style={{ fontSize: 13, lineHeight: 1.5 }}>{n.payload.body}</div>}
-                <div className="muted" style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>{dateTime(n.createdAt)}</div>
+                <div className="muted" style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+                  {dateTime(n.createdAt)}
+                  {n.payload?.url && <span style={{ color: 'var(--teal-dark)', fontWeight: 600 }}> · apri <i className="ti ti-arrow-right" /></span>}
+                </div>
               </div>
             </div>
           ))}
