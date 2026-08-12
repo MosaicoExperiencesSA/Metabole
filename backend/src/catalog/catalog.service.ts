@@ -1210,9 +1210,40 @@ export class CatalogService {
     return out.sort((a, b) => a.label.localeCompare(b.label));
   }
 
+  /**
+   * Le DIETE assegnabili: nome + stile, dalle diete approvate.
+   *
+   * ⚠️ Perché serve, accanto a `styles()`. Lo **stile non identifica una dieta**: `Mediterranea`,
+   * `Mediterranea ipocalorica` e `Pescetariana` hanno tutte `style = 'mediterranean'`, e `Vegana`,
+   * `Vegetariana`, `Flexitariana` e `Flessibile` sono tutte `flexible`. La tendina «Stile» della
+   * scheda cliente mostrava l'etichetta della PRIMA dieta approvata con quel codice — così si
+   * sceglieva «Mediterranea» e si poteva ricevere «Pescetariana», cioè menu senza carne (§16.10).
+   *
+   * Qui l'unità è la dieta, che è la cosa che il nutrizionista ha in mente. Lo `style` viaggia
+   * insieme perché va scritto sul profilo nello stesso momento: `pickDietFor` cerca **famiglia +
+   * stile** insieme, e una famiglia con lo stile di un'altra non trova niente e ripiega — proprio
+   * sul difetto che questa tendina serve a chiudere.
+   */
+  async famiglie(): Promise<{ name: string; style: string | null; label: string }[]> {
+    const rows = (await this.prisma.diet.findMany({
+      where: { status: 'approved' },
+      select: { name: true, style: true, clientName: true },
+      orderBy: { createdAt: 'asc' },
+    })) as { name: string | null; style: string | null; clientName: string | null }[];
+    const viste = new Set<string>();
+    const out: { name: string; style: string | null; label: string }[] = [];
+    for (const r of rows) {
+      const name = r.name?.trim();
+      if (!name || viste.has(name)) continue;
+      viste.add(name);
+      out.push({ name, style: r.style ?? null, label: r.clientName?.trim() || name });
+    }
+    return out.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
   async taxonomy() {
-    const [regimes, styles] = await Promise.all([this.regimes(), this.styles()]);
-    return { regimes, styles };
+    const [regimes, styles, families] = await Promise.all([this.regimes(), this.styles(), this.famiglie()]);
+    return { regimes, styles, families };
   }
 
   /** Salva la lista dei regimi (solo admin). Normalizza i codici (minuscolo, underscore). */

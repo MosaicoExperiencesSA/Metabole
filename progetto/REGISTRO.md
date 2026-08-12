@@ -20,6 +20,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🥗 **Nella scheda cliente si sceglie la DIETA, non lo stile.** §16.10, prima parte.
+  Lo **stile non identifica una dieta**: `Mediterranea`, `Mediterranea ipocalorica` e `Pescetariana`
+  hanno tutte `style = 'mediterranean'`; `Vegana`, `Vegetariana`, `Flexitariana` e `Flessibile` sono
+  tutte `flexible`. E la tendina «Stile» mostrava come etichetta il **nome della prima dieta
+  approvata** con quel codice: si leggeva un nome di dieta e si sceglieva un codice che ne copre
+  tre. Trovato guardando il profilo di `sim1one.salogni@gmail.com`: «Tipo di alimentazione:
+  Mediterranea» e sotto «La tua dieta: Pescetariana» — le due righe si contraddicono e nessuna è
+  sbagliata da sola. È lo stesso difetto che `diag:famiglie` cerca su 20 clienti.
+  Ora la tendina è **«Dieta»**, e l'unità è la dieta approvata: nuovo `catalog.famiglie()`, esposto
+  da `/catalog/taxonomy`. ⚠️ **Scrive due campi**: `dietFamily` e, insieme, lo `dietStyle` di quella
+  dieta — non è una comodità, `pickDietFor` cerca famiglia **e** stile insieme, e una famiglia
+  lasciata con lo stile di un'altra non trova niente e **ripiega su una dieta vicina**, cioè ricrea
+  il difetto che la tendina chiude. La dieta che la cliente ha oggi resta in tendina anche se non è
+  più approvata, marcata «(non più in catalogo)»: se sparisse, salvare un altro campo qualsiasi la
+  cancellerebbe senza che nessuno l'abbia chiesto.
+  **Dove lo stile sparisce dalla vista:** la riga «Stile alimentare» della scheda diventa «Dieta»
+  (sotto c'è già «Dieta assegnata», quella che il motore eroga davvero: se le due non combaciano ora
+  si vede); in **app** via la riga «Tipo di alimentazione», che diceva lo stile scelto in
+  registrazione, non si aggiornava quando la nutrizionista spostava la cliente, e contraddiceva «La
+  tua dieta» due centimetri sotto; e via lo stile accanto al nome in «Diete in revisione».
+  **Non toccati, di proposito:** la colonna «Stile» nell'elenco Diete e il chip nelle Regole motore
+  — lì lo stile è metà dell'identità di una **famiglia del catalogo**, non un attributo della
+  cliente, e i form che lo scrivono devono restare (una dieta creata senza stile `pickDietFor` non
+  la trova più). E i «?» del questionario e del profilo: le 10 schede con le fonti sono indicizzate
+  **per stile**, e toglierlo davvero vorrà dire prima una mappa famiglia → scheda.
+  Verifiche: build backend verde, **110 suite / 1705 test**, build backoffice verde, build app verde
+  e 27 test. ⚠️ Tocca l'app: per il web basta il deploy, sul nativo entra con la OTA 2.1.8.
+
 - `[Sviluppo]` 🏷️ **Nella tabella Clienti «Stato» diventa lo stadio della pipeline, e le pastiglie si
   vedono.** §16.11, tre rifiniture chieste da Simone. (1) La colonna «Stato» diceva
   `Attivo`/`Sospeso`, cioè lo stato dell'**account** — se la persona riesce a entrare: non è la

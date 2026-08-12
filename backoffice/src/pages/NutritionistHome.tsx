@@ -236,7 +236,10 @@ export function NutritionistHome() {
               <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '14px 0 4px' }}>Diete in revisione ({conteggio(queue.counts.dietsInReview, queue.mostrati?.dietsInReview ?? queue.dietsInReview.length)})</h3>
               {queue.dietsInReview.map((d) => (
                 <div key={d.id} className="spread" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                  <span><b>{d.name}</b> <span className="muted" style={{ fontSize: 12 }}>({d.regime} · {d.style})</span></span>
+                  {/* Lo stile è stato tolto l'11/8: qui accanto al nome non aggiungeva niente
+                      («Pescetariana · mediterranean») e ripeteva un dato che non identifica la
+                      dieta. Il regime invece sì: dice se è onnivora, vegetariana o vegana. */}
+                  <span><b>{d.name}</b> <span className="muted" style={{ fontSize: 12 }}>({d.regime})</span></span>
                   <Link className="btn ghost sm" to="/diete">Apri</Link>
                 </div>
               ))}

@@ -212,7 +212,7 @@ const fldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column'
 
 /** Form di modifica della scheda (anagrafica + questionario). */
 function EditCard({ form, setForm, lockDietType, lockFasting }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean; lockFasting?: boolean }) {
-  const { regimes, styles } = useTaxonomy();
+  const { regimes, families } = useTaxonomy();
   const up = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const T = (k: string, label: string, type = 'text') => (
     <label style={fldStyle}><span>{label}</span><input className="input" type={type} value={form[k] ?? ''} onChange={(e) => up(k, e.target.value)} /></label>
@@ -248,7 +248,42 @@ function EditCard({ form, setForm, lockDietType, lockFasting }: { form: Record<s
         {T('heightCm', 'Altezza (cm)', 'number')}{T('startWeightKg', 'Peso (kg)', 'number')}
         {T('startWaistCm', 'Vita (cm)', 'number')}{T('startHipsCm', 'Fianchi (cm)', 'number')}
         {S('regime', 'Regime', regimes.map((r) => [r.code, r.label] as [string, string]))}
-        {S('dietStyle', 'Stile', styles.map((st) => [st.code, st.label] as [string, string]))}
+        {/*
+          «DIETA» AL POSTO DI «STILE» (decisione di Simone dell'11/8, §16.10).
+
+          Lo stile non identifica una dieta: `Mediterranea`, `Mediterranea ipocalorica` e
+          `Pescetariana` hanno tutte `style = mediterranean`. La vecchia tendina mostrava
+          l'etichetta della prima dieta approvata con quel codice — si sceglieva «Mediterranea» e la
+          cliente poteva ricevere «Pescetariana», cioè menu senza carne. Qui l'unità è la dieta, che
+          è quello che il nutrizionista ha in mente quando apre questa scheda.
+
+          ⚠️ Scrive DUE campi: `dietFamily` e, insieme, lo `dietStyle` di quella dieta. Non è una
+          comodità: `pickDietFor` cerca famiglia **e** stile insieme, e una famiglia lasciata con lo
+          stile di un'altra non trova niente e ripiega su una dieta vicina — cioè ricrea il difetto
+          che questa tendina serve a chiudere.
+        */}
+        <label style={fldStyle} title={lockDietType ? 'La dieta la cambia chi ha il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).' : undefined}>
+          <span>Dieta{lockDietType && <i className="ti ti-lock" style={{ marginLeft: 4, fontSize: 11 }} />}</span>
+          <select
+            className="select"
+            value={form.dietFamily ?? ''}
+            disabled={!!lockDietType}
+            onChange={(e) => {
+              const scelta = families.find((f) => f.name === e.target.value);
+              up('dietFamily', e.target.value);
+              up('dietStyle', scelta?.style ?? '');
+            }}
+          >
+            <option value="">—</option>
+            {families.map((f) => <option key={f.name} value={f.name}>{f.label}</option>)}
+            {/* La dieta che la cliente ha oggi può non essere più approvata: se sparisse dalla
+                tendina, salvare un altro campo qualsiasi la cancellerebbe senza che nessuno lo
+                chieda. */}
+            {form.dietFamily && !families.some((f) => f.name === form.dietFamily) && (
+              <option value={form.dietFamily}>{form.dietFamily} (non più in catalogo)</option>
+            )}
+          </select>
+        </label>
         {S('objective', 'Fase (obiettivo dieta)', [['dimagrimento', 'Dimagrimento'], ['mantenimento', 'Mantenimento']])}
         {S('pathType', 'Pasti / percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['intermittent_fasting', 'Digiuno intermittente']])}
         {/* I pasti del digiuno: si mostra SOLO se il percorso è quello, altrimenti è un campo che
@@ -499,7 +534,7 @@ function KcalNeedCard({ clientId }: { clientId: string }) {
 }
 
 export function ClientDetail() {
-  const { regimeLabel, styleLabel } = useTaxonomy();
+  const { regimeLabel, familyLabel } = useTaxonomy();
   const { id } = useParams();
   const navigate = useNavigate();
   const { can, user: me } = useAuth();
@@ -931,7 +966,7 @@ export function ClientDetail() {
       addressLine: u.addressLine ?? '', postalCode: u.postalCode ?? '', city: u.city ?? '', province: u.province ?? '', codiceFiscale: u.codiceFiscale ?? '',
       name: pr.name ?? '', age: pr.age ?? '', sex: pr.sex ?? '', heightCm: pr.heightCm ?? '',
       startWeightKg: pr.startWeightKg ?? '', startWaistCm: pr.startWaistCm ?? '', startHipsCm: pr.startHipsCm ?? '',
-      regime: pr.regime ?? '', dietStyle: pr.dietStyle ?? '', mealsPerDay: pr.mealsPerDay ? String(pr.mealsPerDay) : '',
+      regime: pr.regime ?? '', dietStyle: pr.dietStyle ?? '', dietFamily: pr.dietFamily ?? '', mealsPerDay: pr.mealsPerDay ? String(pr.mealsPerDay) : '',
       objective: pr.objective ?? 'dimagrimento',
       pathType: pr.pathType ?? '', coachStyle: pr.coachStyle ?? '', character: pr.character ?? '',
       intolerances: (pr.intolerances ?? []).join(', '), dislikedFoods: (pr.dislikedFoods ?? []).join(', '),
@@ -951,7 +986,7 @@ export function ClientDetail() {
       firstName: f.firstName, lastName: f.lastName, phone: f.phone,
       addressLine: f.addressLine, postalCode: f.postalCode, city: f.city, province: f.province, codiceFiscale: f.codiceFiscale || undefined,
       name: f.name,
-      sex: f.sex || undefined, regime: f.regime || undefined, dietStyle: f.dietStyle || undefined,
+      sex: f.sex || undefined, regime: f.regime || undefined, dietStyle: f.dietStyle || undefined, dietFamily: f.dietFamily || undefined,
       objective: f.objective || undefined,
       pathType: f.pathType || undefined, coachStyle: f.coachStyle || undefined, character: f.character || undefined,
       themeColor: f.themeColor || undefined,
@@ -1273,7 +1308,13 @@ export function ClientDetail() {
             <Row label="Vita" value={p.startWaistCm ? `${p.startWaistCm} cm` : '—'} />
             <Row label="Fianchi" value={p.startHipsCm ? `${p.startHipsCm} cm` : '—'} />
             <Row label="Regime" value={p.regime ? regimeLabel(p.regime) : '—'} />
-            <Row label="Stile alimentare" value={p.dietStyle ? styleLabel(p.dietStyle) : '—'} />
+            {/*
+              Qui c'era «Stile alimentare», che diceva «Mediterranea» anche a una cliente che sta
+              seguendo la Pescetariana: lo stesso codice `mediterranean` copre tre diete diverse.
+              Ora si legge la DIETA scelta — e sotto, «Dieta assegnata», quella che il motore le sta
+              davvero erogando: se le due non combaciano, si vede.
+            */}
+            <Row label="Dieta" value={p.dietFamily ? familyLabel(p.dietFamily) : '—'} />
             {/*
               QUALE DIETA È COLLEGATA (richiesta di Simone del 10/8, davanti a questa scheda: «di
               Mediterranea ne ho tre tipi, devo vedere tutta la descrizione così scelgo nel modo

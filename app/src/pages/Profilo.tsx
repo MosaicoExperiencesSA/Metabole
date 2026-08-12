@@ -81,7 +81,6 @@ function MyNutrition() {
     );
   }
 
-  const stile = n.dietStyle ? (DIET_INFO[n.dietStyle]?.titolo ?? n.dietStyle.replace(/_/g, ' ')) : null;
   // ⚠️ Qui prima finiva la stringa tecnica: la cliente leggeva «Digiuno intermittente (finestra
   // skip_breakfast)». Il nome dei pasti saltati ha una riga sua, qui sotto, con le parole vere.
   const pasti = n.fasting
@@ -129,7 +128,19 @@ function MyNutrition() {
   return (
     <div className="card">
       <div style={{ marginTop: -9 }}>
-        {riga('salad', 'Tipo di alimentazione', stile, 'non ancora impostato')}
+        {/*
+          ⚠️ QUI C'ERA «Tipo di alimentazione», ed è stata TOLTA l'11/8.
+
+          Diceva lo STILE scelto in registrazione, che non identifica una dieta: «Mediterranea»,
+          «Mediterranea ipocalorica» e «Pescetariana» hanno tutte lo stesso codice. Nel profilo di
+          una cliente che segue la Pescetariana si leggeva «Tipo di alimentazione: Mediterranea» e
+          sotto «La tua dieta: Pescetariana»: due righe che si contraddicono, e nessuna delle due
+          sbagliata da sola. E siccome lo stile non cambia quando la nutrizionista sposta la cliente
+          su un'altra dieta, restava anche indietro.
+
+          «La tua dieta» qui sotto dice il nome vero, e il «?» apre la scheda: sono le due cose che
+          servono davvero.
+        */}
         {riga('clock-hour-4', 'Pasti', pasti, 'non ancora impostati')}
         {/* QUALI pasti salta, a parole. Richiesta di Simone del 10/8: la cliente deve vedere cosa
             ha scelto. Restano modificabili da lei (il selettore è più in basso in questa pagina) e

@@ -979,7 +979,18 @@ prendono i filtri (catalogo ricette e `LeadsTable` li disegnavano a mano, ora li
 l'intestazione ma scorre via con il corpo, e va resa `sticky` insieme all'intestazione. Uniformare la
 sorgente serviva a poterlo correggere in un punto solo; la correzione va ancora fatta.
 
-### 16.10 Lo STILE sparisce dall'interfaccia: nel questionario si chiede la DIETA — deciso l'11/8
+### 16.10 Lo STILE sparisce dall'interfaccia — 🟡 PRIMA PARTE FATTA l'11/8 (scheda cliente + app)
+
+✅ **Fatto:** la tendina della scheda cliente è «Dieta» e scrive `dietFamily` + lo `dietStyle`
+coerente; la riga «Stile alimentare» è diventata «Dieta»; in app è sparita la riga «Tipo di
+alimentazione»; via lo stile da «Diete in revisione».
+
+⚪ **Resta:** il **questionario** chiede ancora `dietStyle` come campo obbligatorio (è già la card
+della dieta a scriverlo, ma il DTO lo pretende), i cinque bloccanti qui sotto, e la decisione se
+togliere lo stile anche dalle pagine del **catalogo** (elenco Diete, Regole motore) — che è una
+decisione sul catalogo, non sulla scheda cliente.
+
+#### (per il seguito) analisi completa
 
 «Nel questionario chiediamo quale dieta vuole fare e togliamo lo stile; dal backoffice e dall'app
 togliamo lo stile. **Per ora nascondiamo e basta.**»

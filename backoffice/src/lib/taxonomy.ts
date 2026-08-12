@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 
 export interface TaxItem { code: string; label: string }
-export interface Taxonomy { regimes: TaxItem[]; styles: TaxItem[] }
+/**
+ * Una DIETA assegnabile. `style` viaggia col nome perché vanno scritti insieme sul profilo:
+ * `pickDietFor` cerca famiglia **e** stile, e una famiglia con lo stile di un'altra non trova
+ * niente e ripiega su una dieta vicina (è il difetto §16.10).
+ */
+export interface TaxFamily { name: string; style: string | null; label: string }
+export interface Taxonomy { regimes: TaxItem[]; styles: TaxItem[]; families?: TaxFamily[] }
 
 // Fallback (usati finché la fetch non risponde e se l'API fallisce).
 const DEFAULT_REGIMES: TaxItem[] = [
@@ -25,7 +31,7 @@ let cache: Taxonomy | null = null;
  * Ritorna le liste per i menu a tendina e due helper per le etichette.
  */
 export function useTaxonomy() {
-  const [tax, setTax] = useState<Taxonomy>(cache ?? { regimes: DEFAULT_REGIMES, styles: DEFAULT_STYLES });
+  const [tax, setTax] = useState<Taxonomy>(cache ?? { regimes: DEFAULT_REGIMES, styles: DEFAULT_STYLES, families: [] });
 
   function load() {
     api<Taxonomy>('/catalog/taxonomy')
@@ -33,6 +39,9 @@ export function useTaxonomy() {
         const norm: Taxonomy = {
           regimes: t.regimes?.length ? t.regimes : DEFAULT_REGIMES,
           styles: t.styles?.length ? t.styles : DEFAULT_STYLES, // catalogo senza diete → tendina comunque usabile
+          // Nessun ripiego inventato: se il catalogo non risponde la tendina «Dieta» resta vuota e
+          // si vede. Un elenco di diete finto farebbe scegliere una dieta che non esiste.
+          families: t.families ?? [],
         };
         cache = norm;
         setTax(norm);
@@ -44,5 +53,7 @@ export function useTaxonomy() {
   const regimeLabel = (code: string) => tax.regimes.find((r) => r.code === code)?.label ?? code;
   const styleLabel = (code: string) => tax.styles.find((s) => s.code === code)?.label ?? STYLE_LABELS[code] ?? code;
 
-  return { regimes: tax.regimes, styles: tax.styles, regimeLabel, styleLabel, reload: load };
+  const families = tax.families ?? [];
+  const familyLabel = (name: string) => families.find((f) => f.name === name)?.label ?? name;
+  return { regimes: tax.regimes, styles: tax.styles, families, regimeLabel, styleLabel, familyLabel, reload: load };
 }
