@@ -129,6 +129,88 @@ describe('OnboardingService', () => {
     });
   });
 
+  /**
+   * IL QUESTIONARIO SI FA UNA VOLTA SOLA, E DOPO NON DECIDE PIÙ LA DIETA.
+   *
+   * Regola di Simone (11/8): «il cliente può fare il questionario solo una volta, al primo accesso.
+   * Da lì in poi il nutrizionista, la coach o admin possono cambiare la dieta. Il cliente non è
+   * autorizzato a cambiarla.»
+   *
+   * Prima il ramo `update` riscriveva il tipo di dieta a ogni invio: su
+   * `sim1one.salogni@gmail.com` la dieta era stata spostata da Pescetariana a Mediterranea DUE
+   * volte, da due persone diverse, e tutte e due le volte era tornata indietro da sola. Senza
+   * errore e senza audit — quindi senza nessuno che potesse accorgersene.
+   */
+  describe('il tipo di dieta lo decide il PRIMO questionario, poi solo lo staff', () => {
+    const ramo = (r: 'create' | 'update') => prisma.clientProfile.upsert.mock.calls[0][0][r] as Record<string, unknown>;
+
+    it('PRIMO invio (nessun profilo): il questionario scrive la dieta', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null);
+      await service.submitAnswers('u1', baseAnswers());
+      expect(ramo('create')).toMatchObject({ regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, pathType: 'five' });
+    });
+
+    it('profilo esistente ma questionario MAI completato: la dieta si scrive ancora', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({ onboardingCompletedAt: null, pathType: null });
+      await service.submitAnswers('u1', baseAnswers());
+      expect(ramo('update')).toMatchObject({ regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, pathType: 'five' });
+    });
+
+    it('REINVIO dopo il primo: il tipo di dieta NON viene toccato', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({
+        onboardingCompletedAt: new Date('2026-07-01'),
+        regime: 'omnivore', dietStyle: 'mediterranean', dietFamily: 'Mediterranea', mealsPerDay: 3, pathType: 'classic3',
+      });
+      // La cliente rimanda il questionario chiedendo di nuovo la Pescetariana a 5 pasti.
+      await service.submitAnswers('u1', { ...baseAnswers(), dietFamily: 'Pescetariana' } as never);
+      const upd = ramo('update');
+      for (const campo of ['regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'pathType']) {
+        expect(upd).not.toHaveProperty(campo);
+      }
+      // ...ma il resto del questionario si aggiorna: non è un rifiuto, è un congelamento mirato.
+      expect(upd).toMatchObject({ startWeightKg: 68, character: 'needs_push' });
+    });
+
+    it('il tentativo ignorato finisce nell\'AUDIT: sparire in silenzio è il difetto, non la scrittura', async () => {
+      const audit = { log: jest.fn() };
+      (service as unknown as { audit: typeof audit }).audit = audit;
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({
+        onboardingCompletedAt: new Date('2026-07-01'),
+        regime: 'omnivore', dietStyle: 'mediterranean', dietFamily: 'Mediterranea', mealsPerDay: 3, pathType: 'classic3',
+      });
+      await service.submitAnswers('u1', { ...baseAnswers(), dietFamily: 'Pescetariana' } as never);
+      const chiamata = audit.log.mock.calls.map((c) => c[0]).find((a) => a.action === 'onboarding.tipo_dieta_ignorato');
+      expect(chiamata).toBeTruthy();
+      expect(chiamata.metadata.campi).toEqual(expect.arrayContaining(['dietFamily', 'mealsPerDay', 'pathType']));
+      expect(chiamata.metadata.attuale.dietFamily).toBe('Mediterranea');
+      expect(chiamata.metadata.proposto.dietFamily).toBe('Pescetariana');
+    });
+
+    it('reinvio IDENTICO: niente da segnalare, nessuna riga di audit', async () => {
+      const audit = { log: jest.fn() };
+      (service as unknown as { audit: typeof audit }).audit = audit;
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({
+        onboardingCompletedAt: new Date('2026-07-01'),
+        regime: 'omnivore', dietStyle: 'mediterranean', dietFamily: null, mealsPerDay: 5, pathType: 'five',
+      });
+      await service.submitAnswers('u1', baseAnswers());
+      expect(audit.log.mock.calls.map((c) => c[0].action)).not.toContain('onboarding.tipo_dieta_ignorato');
+    });
+
+    it('la finestra del digiuno guarda il percorso IN VIGORE, non quello riproposto', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({
+        onboardingCompletedAt: new Date('2026-07-01'),
+        regime: 'omnivore', dietStyle: 'mediterranean', dietFamily: 'Mediterranea', mealsPerDay: 3,
+        // Lo staff l'ha messa a digiuno intermittente.
+        pathType: 'intermittent_fasting',
+      });
+      // Il reinvio dice «5 pasti»: se si guardasse il DTO, la finestra verrebbe azzerata e la
+      // cliente resterebbe a digiuno senza sapere quali pasti salta.
+      await service.submitAnswers('u1', { ...baseAnswers(), pathType: 'five', fastingWindow: 'skip_breakfast' } as never);
+      expect(ramo('update').fastingWindow).toBe('skip_breakfast');
+    });
+  });
+
   it('flusso felice: profilo, obiettivo, team, nessuna escalation', async () => {
     const result = await service.submitAnswers('u1', baseAnswers());
     expect(prisma.clientProfile.upsert).toHaveBeenCalled();

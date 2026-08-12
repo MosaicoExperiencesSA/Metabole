@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔒 **Il questionario non cambia più la dieta dopo il primo invio — e per questo la
+  correzione della nutrizionista tornava indietro da sola.** Trovato collaudando: su
+  `sim1one.salogni@gmail.com` la dieta era stata spostata da **Pescetariana a Mediterranea due
+  volte**, da due persone diverse, e tutte e due le volte era tornata indietro. Nell'audit della
+  scheda si vedevano i due `Pescetariana → Mediterranea` e **nessun ritorno**: il ritorno non
+  passava di lì.
+  ⭐ **La causa.** `submitAnswers` è un `upsert`, e il ramo `update` riscriveva **ogni volta e senza
+  condizioni** `regime`, `dietStyle`, `dietFamily`, `mealsPerDay` e `pathType` dalle risposte del
+  questionario. Un secondo invio bastava a cancellare la decisione della nutrizionista e rimettere
+  la dieta scelta in registrazione — senza errore e senza traccia, perché formalmente è un'azione
+  della cliente sul proprio questionario. È **la stessa lezione dell'8/8** del consenso sanitario
+  perso: [[feedback_upsert_due_rami]] — *un upsert sono due scritture, e il ramo `update` è quello
+  che nessuno rilegge*. Due volte in quattro giorni, nello stesso file.
+  **La regola, dettata da Simone:** «il cliente può fare il questionario **solo una volta**, al primo
+  accesso; da lì in poi il nutrizionista, la coach o admin possono cambiare la dieta — il cliente
+  non è autorizzato, se vuole cambiarla deve chiedere». Quindi con `onboardingCompletedAt` già
+  valorizzato il questionario **non tocca più** il tipo di dieta; tutto il resto (misure, obiettivo,
+  preferenze, allergie, consensi) continua ad aggiornarsi — è un congelamento mirato, non un
+  rifiuto: bloccare l'invio intero avrebbe rotto flussi che funzionano per punire un campo. E il
+  tentativo ignorato **si scrive nell'audit** (`onboarding.tipo_dieta_ignorato`, con proposto e
+  attuale): sparire in silenzio è il difetto, la scrittura è la cura.
+  ⚠️ **Un caso limite nato dalla correzione stessa**: la finestra del digiuno resta modificabile
+  dalla cliente, ma ora guarda il percorso **in vigore** e non quello riproposto — se il reinvio
+  dicesse «5 pasti» mentre lo staff l'ha messa a digiuno, `pathType` non cambia più e azzerare la
+  finestra avrebbe lasciato una cliente a digiuno **senza sapere quali pasti salta**.
+  Verifiche: build verde, **112 suite / 1724 test**, 6 nuovi (il primo invio che *deve* scrivere la
+  dieta, il reinvio che non deve, l'audit del tentativo, la finestra del digiuno).
+  📌 Nota permessi: «la coach può cambiare la dieta» è un **interruttore in Permessi**
+  (`change_diet_type`, oggi acceso di default solo per nutrizionista e admin), non una modifica di
+  codice.
+
 - `[Sviluppo]` 🧩 **Clienti e Gestione lead sono la stessa tabella — e la nutrizionista non vede di
   più.** §16.4, seconda metà. `Clienti.tsx` erano 200 righe che rifacevano *quasi* quello che fa
   `LeadsTable`: stessa idea di filtri, ordinamento e ricerca, scritti una seconda volta. Due copie
