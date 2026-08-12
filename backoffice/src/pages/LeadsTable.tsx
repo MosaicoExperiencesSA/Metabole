@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { stileStadio } from '../lib/stadio';
 import { AppointmentModal, isRecallStage } from '../components/RecallGuard';
 import { useOrdinamentoServer } from '../components/tabella';
 import { oggiIso, scaricaExcel } from '../lib/excel';
@@ -527,7 +528,7 @@ export function LeadsTable() {
                     <td>
                       <select
                         className="select"
-                        style={{ width: 180, padding: '6px 10px', borderColor: st?.color ?? undefined }}
+                        style={{ width: 180, padding: '6px 10px', ...stileStadio(st?.color) }}
                         value={l.stage}
                         onChange={(e) => changeStage(l, e.target.value)}
                       >

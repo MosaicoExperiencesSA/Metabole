@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+import { pastigliaStadio } from '../lib/stadio';
 
 interface ClientRow {
   id: string;
@@ -20,7 +21,12 @@ interface ClientRow {
   dietFamily?: string | null;
   /** Ha dichiarato il glutine: si mostra come pastiglia accanto al nome. */
   senzaGlutine?: boolean;
+  /** Stadio della pipeline (`CrmRecord.stage`). `null` = nessuna scheda CRM. */
+  stage?: string | null;
 }
+
+/** Gli stadi della pipeline, con l'etichetta e il colore decisi dal backoffice. */
+interface Stadio { key: string; label: string; color: string | null; order: number }
 
 const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
 
@@ -55,15 +61,20 @@ export function Clienti() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /** Filtro «senza glutine»: la domanda pratica è «chi devo guardare fra queste». */
-  const [fGlutine, setFGlutine] = useState('');
+  const [stadi, setStadi] = useState<Stadio[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
         // Endpoint con visibilità per ruolo: coach/nutrizionista ricevono SOLO i propri
         // clienti assegnati; manager coach, capo nutrizionista e admin tutti.
-        const res = await api<{ items: ClientRow[]; total: number; mostrati?: number; limite?: number }>('/admin/clients');
+        const [res, st] = await Promise.all([
+          api<{ items: ClientRow[]; total: number; mostrati?: number; limite?: number }>('/admin/clients'),
+          // Gli stadi vivono nel CRM e li disegna il backoffice: l'elenco Clienti li LEGGE, non li
+          // ridefinisce. Se la chiamata non riesce si mostra la chiave grezza invece di niente.
+          api<Stadio[]>('/crm/stages').catch(() => [] as Stadio[]),
+        ]);
+        setStadi(st);
         setRows(res.items);
         setTotale(res.total ?? res.items.length);
         setLimite(res.limite ?? 0);
@@ -89,20 +100,11 @@ export function Clienti() {
   }
 
   /**
-   * Il glutine resta un filtro sopra la tabella e non un filtro di colonna: incrocia la
-   * dichiarazione della cliente con la famiglia di dieta assegnata, e nessuna delle due è una
-   * colonna di questa tabella (la pastiglia sta dentro la cella del nome).
+   * Il filtro «Glutine» sopra la tabella è stato TOLTO l'11/8 («questo filtro non serve»). La
+   * **pastiglia** dentro la cella del nome resta: non è un filtro, è il segno che quella cliente ha
+   * dichiarato il glutine e non ha ancora la dieta dedicata — l'unico posto in cui si vede.
    */
-  const preFiltrate = useMemo(() => {
-    if (!fGlutine) return rows;
-    return rows.filter((r) => {
-      if (fGlutine === 'si' && !r.senzaGlutine) return false;
-      // «da sistemare» = l'ha dichiarato ma la dieta senza glutine non ce l'ha: sono quelle su cui
-      // c'è ancora qualcosa da fare, ed è l'elenco che serve dopo aver generato la variante.
-      if (fGlutine === 'da_sistemare' && (!r.senzaGlutine || r.dietFamily === 'Mediterranea senza glutine')) return false;
-      return true;
-    });
-  }, [rows, fGlutine]);
+  const stadioDi = (chiave: string | null | undefined) => stadi.find((s) => s.key === chiave) ?? null;
 
   const COLONNE: Colonna<ClientRow>[] = [
     { chiave: 'nome', titolo: 'Nome', valore: (r) => name(r), filtro: 'testo' },
@@ -110,20 +112,21 @@ export function Clienti() {
     // Le clienti senza coach vanno in fondo: lo fa l'helper per tutte le colonne. Prima qui c'era
     // un `?? 'zzz'`, che una coach col nome che inizia per z avrebbe scavalcato.
     { chiave: 'coach', titolo: 'Coach', valore: (r) => r.coach, filtro: 'scelta', etichettaTutti: 'Tutte' },
-    // L'etichetta che si legge nella cella, non `active`/`suspended`.
-    { chiave: 'stato', titolo: 'Stato', valore: (r) => (r.status === 'active' ? 'Attivo' : 'Sospeso'), filtro: 'scelta', etichettaTutti: 'Tutti' },
+    /**
+     * «Stato» è lo **stadio della pipeline**, lo stesso di Gestione lead (richiesta dell'11/8).
+     * Prima diceva `Attivo`/`Sospeso`, cioè lo stato dell'ACCOUNT: riguarda l'accesso, non il
+     * rapporto — ed è «Attivo» anche per chi ha smesso di pagare sei mesi fa. Il valore ordinato e
+     * filtrato è l'ETICHETTA, non la chiave: nella tendina si legge «Cliente», non `paid`.
+     */
+    { chiave: 'stato', titolo: 'Stato', valore: (r) => stadioDi(r.stage)?.label ?? r.stage ?? '—', filtro: 'scelta', etichettaTutti: 'Tutti' },
     // La data ISO grezza: si ordina bene alfabeticamente, quella scritta in italiano no.
     { chiave: 'creato', titolo: 'Iscritto il', valore: (r) => r.createdAt },
     { chiave: 'apri', titolo: '' },
   ];
 
   // L'elenco arriva dal server dalla più recente: è l'ordine con cui la pagina si apre da sempre.
-  const t = useTabella(preFiltrate, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'creato', direzione: 'desc' }, nomeExcel: 'Clienti'});
-  const filtriAttivi = t.filtriAttivi || fGlutine !== '';
-  function azzeraTutto() {
-    t.azzera();
-    setFGlutine('');
-  }
+  const t = useTabella(rows, COLONNE, { testaFissa: true, ordineIniziale: { chiave: 'creato', direzione: 'desc' }, nomeExcel: 'Clienti'});
+  const filtriAttivi = t.filtriAttivi;
 
   if (loading) return <Spinner />;
 
@@ -141,7 +144,7 @@ export function Clienti() {
           <ContatoreRighe
           conteggio={{ mostrate: t.conteggio.mostrate, totali: filtriAttivi ? rows.length : totale || rows.length }}
           filtriAttivi={filtriAttivi}
-          azzera={azzeraTutto}
+          azzera={t.azzera}
           nome="clienti"
         />
           <BottoneExcel tabella={t} avviso={limite > 0 && totale > rows.length ? `Questa pagina ha caricato ${rows.length} clienti su ${totale}: il file conterrà le ${t.conteggio.mostrate} righe che vedi, scelte fra quelle. Per cercare fra tutte usa la board dei lead. Scarico lo stesso?` : undefined} />
@@ -154,11 +157,6 @@ export function Clienti() {
             value={t.ricerca}
             onChange={(e) => t.setRicerca(e.target.value)}
           />
-          <select className="select" style={{ maxWidth: 230 }} value={fGlutine} onChange={(e) => setFGlutine(e.target.value)} title="Clienti che hanno dichiarato il glutine">
-            <option value="">Glutine: tutte</option>
-            <option value="si">Ha dichiarato il glutine</option>
-            <option value="da_sistemare">Glutine senza la dieta dedicata</option>
-          </select>
         </div>
       </div>
 
@@ -205,7 +203,16 @@ export function Clienti() {
                   </td>
                   <td>{r.email}</td>
                   <td>{r.coach ?? <span className="muted" title="Nessuna coach assegnata">—</span>}</td>
-                  <td><span className={`chip ${r.status === 'active' ? '' : 'amber'}`}>{r.status === 'active' ? 'Attivo' : 'Sospeso'}</span></td>
+                  <td>
+                    {(() => {
+                      const st = stadioDi(r.stage);
+                      return (
+                        <span style={pastigliaStadio(st?.color)} title={st ? `Stadio della pipeline: ${st.label}` : 'Nessuna scheda CRM per questa cliente'}>
+                          {st?.label ?? r.stage ?? '—'}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="muted">{date(r.createdAt)}</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {puoEntrare && r.status === 'active' && (

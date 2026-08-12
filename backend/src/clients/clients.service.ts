@@ -83,6 +83,14 @@ export class ClientsService {
           // e il nome del profilo — quello con cui la cliente vuole essere chiamata. Serve perché
           // su molte clienti `firstName`/`lastName` sono vuoti e in tabella comparivano dei «—»
           // pur avendo il nome nel profilo.
+          /**
+           * Lo stadio della PIPELINE, che è quello che l'elenco deve dire (richiesta di Simone
+           * dell'11/8: «lo stato in pipeline, come quello che c'è in gestione lead»). Prima la
+           * colonna «Stato» diceva `Attivo`/`Sospeso`, cioè lo stato dell'ACCOUNT: una cosa che
+           * riguarda l'accesso, non il rapporto con la cliente — e che è «Attivo» anche per chi ha
+           * smesso di pagare sei mesi fa.
+           */
+          crmRecord: { select: { stage: true } },
           clientProfile: {
             select: {
               name: true,
@@ -114,6 +122,7 @@ export class ClientsService {
       lastName: string | null;
       status: string;
       createdAt: Date;
+      crmRecord: { stage: string } | null;
       clientProfile: {
         name: string | null;
         assignedCoach: { displayName: string } | null;
@@ -130,6 +139,8 @@ export class ClientsService {
       status: u.status,
       createdAt: u.createdAt,
       nickname: u.clientProfile?.name ?? null,
+      /** `null` = non ha una scheda CRM: è diverso da «non ha ancora uno stadio». */
+      stage: u.crmRecord?.stage ?? null,
       coach: u.clientProfile?.assignedCoach?.displayName ?? null,
       dietFamily: u.clientProfile?.dietFamily ?? null,
       // Vero se l'ha dichiarato, indipendentemente dal fatto che la variante sia già assegnata:

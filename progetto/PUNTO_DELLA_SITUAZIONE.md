@@ -1034,7 +1034,7 @@ serve l'endpoint gemello che restituisca i nomi; e `dietFamily` è **null** per 
 registrate prima del 7/8 — `prisma/fix-diet-family.ts` esiste apposta, ma va verificato che sia
 girato su tutte.
 
-### 16.11 Rifiniture della tabella Clienti — chieste l'11/8
+### ~~16.11 Rifiniture della tabella Clienti~~ — ✅ FATTE l'11/8 (stadio pipeline, pastiglie, via il filtro glutine)
 
 - **Via il filtro «Glutine»** sopra la tabella (`backoffice/src/pages/Clienti.tsx`, lo stato
   `fGlutine` e la tendina): non serve. ⚠️ Da decidere se togliere anche la **pastiglia «senza

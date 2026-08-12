@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🏷️ **Nella tabella Clienti «Stato» diventa lo stadio della pipeline, e le pastiglie si
+  vedono.** §16.11, tre rifiniture chieste da Simone. (1) La colonna «Stato» diceva
+  `Attivo`/`Sospeso`, cioè lo stato dell'**account** — se la persona riesce a entrare: non è la
+  domanda di chi apre l'elenco clienti, ed è «Attivo» anche per chi ha smesso di pagare sei mesi fa.
+  Ora è lo **stesso stadio di Gestione lead**, letto da `CrmRecord.stage`. Due dettagli: l'elenco
+  **legge** gli stadi da `/crm/stages` e non se li ridefinisce (etichette e colori li decide il
+  backoffice, in un posto solo), e il valore ordinato e filtrato è l'**etichetta** — nella tendina si
+  legge «Cliente», non `paid`. `null` (nessuna scheda CRM) resta distinto da uno stadio mancante: si
+  mostra «—» con la spiegazione nel titolo, invece di farlo sembrare uno stato.
+  (2) **Le pastiglie si vedono**: «bello il bordo colorato, ma si vede poco» — era 1px sopra il
+  bianco, e in una tabella di venti righe scompare. Ora il colore dello stadio entra anche nello
+  **sfondo** (velato al 12%, così il testo resta leggibile), il bordo passa a 2px e il testo prende
+  il colore scurito. Sta in `backoffice/src/lib/stadio.ts`, **un posto solo** usato da entrambe le
+  tabelle: il colore arriva dal database (`Stage.color`) e quindi non può vivere in un foglio di
+  stile, e due copie sarebbero tornate a divergere alla prima correzione fatta su una tabella sola.
+  `color-mix` regge nome CSS, `#rgb` e `rgb()` — mescolare a mano avrebbe voluto dire riconoscere tre
+  formati e sbagliarne uno; dove non è supportato resta il bordo di prima.
+  (3) **Via il filtro «Glutine»**, come chiesto. La *pastiglia* nella cella del nome resta: non è un
+  filtro, è il segno che la cliente ha dichiarato il glutine e non ha ancora la dieta dedicata, e
+  quello è l'unico posto in cui si vede.
+  Verifiche: build backend verde, **110 suite / 1705 test**, build backoffice verde.
+
+- `[Sviluppo]` ✅ **`menu_penalty_repeat` in produzione vale 1: l'allarme di stasera era MIO, non del
+  sistema.** Nella ricognizione avevo scritto che la penalità di ripetizione era «quasi certamente
+  ancora a 0», perché il seed non sovrascrive il valore di una riga che esiste già
+  (`prisma/seed.ts:1279`, `update: { description }`). Il ragionamento è giusto, la conclusione no:
+  **letta dal backoffice, la riga vale `1`** (e `menu_repeat_window_days` 14, `menu_variety_min_gap_days`
+  2). O la riga non esisteva quando il seed è passato, o l'ha messa qualcuno a mano. ⚠️ Resta vero il
+  **meccanismo**: ogni parametro «cambiato nel seed» dopo il primo deploy non arriva in produzione da
+  solo — ma prima di dirlo di uno specifico parametro **si legge il valore**, che è a due clic.
+  E resta aperta la domanda vera: se la penalità è attiva, perché i menu si ripetevano.
+
 - `[Sviluppo]` 📌 **I filtri delle tabelle non restavano fermi: una `ref` di callback al posto di una
   `useRef`.** §16.5, segnalata **tre volte** e in **tutte** le tabelle. Il meccanismo
   (`useTestaFissa`, `position: sticky`) c'era già ed era giusto: sbagliava **la misura**. Guardato
