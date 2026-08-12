@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Pager, Spinner } from '../components/ui';
+import { SettimanaTipo } from '../components/SettimanaTipo';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 interface VisitRow {
@@ -62,6 +63,11 @@ export function Agenda() {
 
   return (
     <>
+      {/* §16.7 — gli orari che il nutrizionista offre, sopra gli appuntamenti che ne nascono: sono
+          la stessa cosa guardata a due giorni di distanza, e in due pagine diverse costringerebbero
+          ad aprirle tutte e due per capire una giornata. Non compare a chi non ha una scheda staff. */}
+      <SettimanaTipo />
+
       <p className="muted" style={{ marginTop: 0 }}>Visite col nutrizionista (le note cliniche restano nella scheda).</p>
 
       <div className="spread" style={{ marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>

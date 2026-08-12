@@ -1140,7 +1140,34 @@ La lista dei metodi vive in **quattro** punti: `backoffice/src/pages/Ricette.tsx
 ricette (`engine-rules.service.ts:1048`). Aggiungerla in tre su quattro fa comparire `piatto_freddo`
 grezzo al posto dell'etichetta: va estratta in un modulo solo, come le finestre del digiuno.
 
-### 16.7 Slot per le visite creati dal nutrizionista
+### 16.7 Slot per le visite — 🟡 PRIMA META FATTA il 12/8 (la settimana tipo del nutrizionista)
+
+✅ **Fatto:** settimana tipo con flag «si ripete», giornate straordinarie, giorni di chiusura,
+festività calcolate, niente sovrapposizioni alla creazione, anteprima degli orari liberi. Migrazione
+`20260812170000_agenda_visite_slot` (`visit_slot`, `staff_time_off`, `visit.ends_at`, `visit.slot_id`).
+⚠️ Gli orari sono **minuti** e non date, per via del cambio dell'ora; l'istante si calcola al momento.
+⚠️ Un giorno con appuntamenti **non si chiude**: le ferie vengono rifiutate con l'elenco di chi e quando.
+
+⚪ **Resta (seconda metà):** la prenotazione della cliente dall'app; il **diritto a prenotare** che
+nasce dall'acquisto della visita (oggi `Plan`/`Product` non sanno cosa sia una visita e l'acquisto
+non crea niente); spostamento e disdetta fino a **24 ore prima**; email di conferma, notifica al
+nutrizionista e **push a entrambi 20 minuti prima** (il cron ogni 10 minuti c'è già, il dedup
+attuale va discriminato per offset); e la **vista unificata** — `Visit` e `Appointment` sono due
+agende che non si parlano, l'app della cliente legge solo la seconda, e **la coach deve vedere gli
+appuntamenti di tutte le sue clienti** (Simone, 12/8).
+
+#### (decisioni prese il 12/8)
+
+- settimana tipo con «si ripete»; giorni di vacanza che chiudono gli slot; festivi chiusi da noi;
+- collisioni impossibili — nessuna sovrapposizione **alla creazione**;
+- mercato Italia: fuso di Roma per tutti;
+- prenotazione → mail di conferma, notifica al nutrizionista, push a entrambi 20 minuti prima; lo
+  slot prenotato sparisce per gli altri; la cliente può spostare o annullare dall'app;
+- **ferie su un giorno prenotato: non si chiude** finché non sposta lui gli appuntamenti;
+- **prenota solo chi ha acquistato una visita** non ancora usata;
+- **spostare o disdire fino a 24 ore prima**; disdetta → lo slot torna libero.
+
+#### (storia) la richiesta
 
 «Il nutrizionista ha necessità di un'interfaccia dove creare gli slot per le visite, in modo che il
 cliente che acquista la visita possa scegliere il suo slot.» È la voce più grossa dopo la 16.1

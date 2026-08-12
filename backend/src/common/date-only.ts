@@ -29,8 +29,15 @@ import { BadRequestException } from '@nestjs/common';
  * fusi a ovest di Greenwich.
  */
 
-/** Fuso di riferimento dell'azienda. Da Render, senza deploy, se un giorno servisse. */
-const FUSO = process.env.APP_TIMEZONE || 'Europe/Rome';
+/**
+ * Fuso di riferimento dell'azienda. Da Render, senza deploy, se un giorno servisse.
+ *
+ * ⚠️ **Esportato** (12/8, con gli slot delle visite): fuori di qui c'erano due punti con
+ * `'Europe/Rome'` scritto a mano — `visits.service.ts` e `signals.service.ts` — che quindi
+ * ignoravano `APP_TIMEZONE`. Con l'agenda delle visite il fuso decide a che ora una persona si
+ * presenta a una visita: due verità sul fuso sono un appuntamento mancato.
+ */
+export const FUSO = process.env.APP_TIMEZONE || 'Europe/Rome';
 
 /** `2026-08-08` — una data e basta, senza orario: si prende com'è. */
 const SOLO_DATA = /^\d{4}-\d{2}-\d{2}$/;

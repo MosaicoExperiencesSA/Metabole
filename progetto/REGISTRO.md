@@ -25,6 +25,50 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 📅 **§16.7, prima metà: la settimana tipo del nutrizionista.** «Il nutrizionista
+  inserisce gli slot in una settimana tipo, esempio lunedì dalle 9 alle 10 poi dalle 10,05 alle
+  11.10, col flag "si ripete"» (Simone, 12/8). Questa consegna costruisce **l'offerta**; la
+  prenotazione lato cliente è la seconda metà.
+  **⚠️ Gli orari sono MINUTI, non date.** Uno slot è «lunedì, dal minuto 540 al 600». Salvato come
+  data, quel «9:00» dopo il cambio dell'ora diventerebbe le 8 o le 10 per metà anno e nessuno se ne
+  accorgerebbe fino alla prima cliente che si presenta all'ora sbagliata. L'istante vero si calcola
+  al momento, con una funzione che sa dov'è il cambio d'ora — e che ha bisogno di **due passate**,
+  perché dentro la domenica del cambio l'offset dipende dall'ora: testato su entrambe le domeniche,
+  in tutte e due le direzioni.
+  **Le festività si calcolano, non si elencano** (`agenda/festivi.ts`): dieci fisse più Pasqua e il
+  lunedì dell'Angelo, verificate sulle date vere di sette anni. Una lista scritta a mano vuol dire
+  che un anno qualcuno si dimentica di aggiornarla e gli slot di Pasqua tornano prenotabili in
+  silenzio. ⚠️ Il patrono no (cambia da città a città, per quello ci sono le ferie) e **la domenica
+  non è festiva**: se uno mette uno slot di domenica è perché la domenica riceve.
+  **Tre regole, e sono tutte modi di non rovinare un appuntamento a qualcuno:**
+  1. **niente sovrapposizioni alla creazione** (Simone: «collisioni impossibili»). Uno slot che si
+     accavalla non nasce, e l'errore dice **con quale**. Sorvegliarle alla prenotazione vorrebbe
+     dire scoprirle quando due clienti hanno già premuto il pulsante. ⚠️ 9–10 e 10–11 **non** si
+     accavallano: trattare il minuto in comune come collisione impedirebbe la giornata più normale
+     che esista — quella dell'esempio di Simone. E un ricorrente del lunedì blocca anche uno slot
+     straordinario di *un* lunedì, in tutte e due le direzioni;
+  2. **un giorno con appuntamenti non si chiude** (decisione del 12/8): le ferie sopra una giornata
+     prenotata vengono rifiutate con l'elenco di **chi** e **quando**. Nessuna cliente perde una
+     visita a sua insaputa, e a spostarla è chi sa chi sono quelle pazienti. Il controllo arriva a
+     **sera** dell'ultimo giorno: fermarsi alla mezzanotte vorrebbe dire non vedere l'appuntamento
+     delle 18 e chiudere proprio il giorno che ne aveva uno;
+  3. **ritirare un orario non cancella gli appuntamenti presi**: se ci sono visite future lo slot si
+     **disattiva** invece di sparire.
+  Ferie e festività **non cancellano niente**: tolgono le occorrenze. La settimana tipo resta
+  scritta e torna da sé quando le ferie finiscono.
+  L'anteprima «prossimi orari liberi» del backoffice esce dalla **stessa funzione** che userà la
+  cliente per scegliere: averne una sola è quello che impedisce che l'anteprima mostri una cosa e la
+  prenotazione ne offra un'altra.
+  Migrazione `20260812170000_agenda_visite_slot`: `visit_slot` (con i CHECK sul database, non solo
+  nel codice — una riga sbagliata darebbe uno slot che non compare mai e nessun errore),
+  `staff_time_off`, e a `visit` mancavano `ends_at` (una visita era un istante **senza durata**:
+  «alle 10» e «alle 10:30» non si sapeva se si accavallassero) e `slot_id`.
+  ⚪ Resta per la seconda metà: la prenotazione della cliente, il diritto a prenotare che nasce
+  dall'acquisto, l'email di conferma, la push 20 minuti prima, e la **vista unificata** —
+  `Visit` e `Appointment` oggi sono due agende che non si parlano, l'app della cliente mostra solo
+  la seconda, e la coach deve vedere gli appuntamenti di tutte le sue clienti (Simone, 12/8).
+  Verifiche: **127 suite / 1916 test** (+3 suite, +63 test), backoffice e app build verdi.
+
 - `[Sviluppo]` 🤔 **Se cambia quasi ogni giorno, Gaia le propone di fermarsi un attimo. E l'avviso
   «menu sulla dieta vecchia» smette di gridare al lupo sui menu passati.**
   **(1) L'invito a riflettere.** Richiesta di Simone: «se la cliente insiste coi cambiamenti Gaia

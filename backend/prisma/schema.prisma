@@ -335,6 +335,9 @@ model Staff {
   // Le sostituzioni che ha scritto a mano e quelle che ha validato (§16.9).
   foodSwapsAuthored  FoodSwap[] @relation("FoodSwapAuthor")
   foodSwapsValidated FoodSwap[] @relation("FoodSwapValidator")
+  // La sua settimana tipo per le visite e i giorni in cui non riceve (§16.7).
+  visitSlots         VisitSlot[]    @relation("VisitSlotNutritionist")
+  timeOff            StaffTimeOff[] @relation("StaffTimeOff")
 
   @@map("staff")
 }
@@ -1033,12 +1036,88 @@ model Visit {
   status         VisitStatus @default(scheduled)
   notes          String? // RISERVATE: solo nutrizionista e capo
   videoRoomId    String?     @map("video_room_id")
+  /**
+   * Quando finisce (§16.7). Prima una visita era un istante senza durata: due visite «alle 10» e
+   * «alle 10:30» non si sapeva se si accavallassero, perché non si sapeva quanto durasse la prima.
+   * Nasce dallo slot che la cliente ha scelto; sulle visite vecchie resta `null`.
+   */
+  endsAt         DateTime?   @map("ends_at")
+  /** Lo slot della settimana tipo che questa visita occupa. `null` = fissata a mano, fuori griglia. */
+  slotId         String?     @map("slot_id")
+  slot           VisitSlot?  @relation("VisitFromSlot", fields: [slotId], references: [id], onDelete: SetNull)
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
 
   @@index([clientId, datetime])
   @@index([nutritionistId, datetime])
+  // «Questo slot in questo giorno è già preso?»: la domanda che fa la prenotazione, e quella che
+  // impedisce di chiudere per ferie un giorno che ha appuntamenti.
+  @@index([slotId, datetime])
   @@map("visit")
+}
+
+/**
+ * §16.7 — LA SETTIMANA TIPO DEL NUTRIZIONISTA.
+ *
+ * «Il nutrizionista inserisce gli slot in una settimana tipo, esempio lunedì dalle 9 alle 10 poi
+ * dalle 10,05 alle 11.10, col flag "si ripete"» (Simone, 12/8).
+ *
+ * ⚠️ Gli orari sono MINUTI dalla mezzanotte, ora di Roma — non date. È l'unico modo di scrivere
+ * «tutti i lunedì alle 9» senza legarlo a un istante: salvato come `DateTime`, quel «9:00» dopo il
+ * cambio dell'ora diventerebbe le 8 o le 10 per metà anno, e nessuno se ne accorgerebbe fino alla
+ * prima cliente che si presenta all'ora sbagliata. L'istante vero lo calcola
+ * `agenda/settimana-tipo.ts`, che sa dov'è il cambio d'ora.
+ *
+ * ⚠️ `weekday` e `date` sono alternativi: `repeats = true` → il giorno della settimana, `false` →
+ * la data. Il vincolo è nel database (CHECK) e non solo nel codice, perché una riga con tutti e due
+ * vuoti sarebbe uno slot che non compare mai e non dà nessun errore.
+ */
+model VisitSlot {
+  id             String    @id @default(uuid())
+  nutritionistId String    @map("nutritionist_id")
+  nutritionist   Staff     @relation("VisitSlotNutritionist", fields: [nutritionistId], references: [id], onDelete: Cascade)
+  /** 0 = domenica … 6 = sabato. Solo sugli slot che si ripetono. */
+  weekday        Int?
+  /** Solo sugli slot una tantum: una giornata straordinaria fuori dalla settimana tipo. */
+  date           DateTime? @db.Date
+  startMin       Int       @map("start_min")
+  endMin         Int       @map("end_min")
+  repeats        Boolean   @default(true)
+  /** in_person | televisit: che tipo di visita si può prenotare in questo slot. */
+  type           String    @default("in_person")
+  /** Ritirato senza cancellarlo: le visite già prenotate ci restano attaccate. */
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  visits Visit[] @relation("VisitFromSlot")
+
+  @@index([nutritionistId, weekday])
+  @@index([nutritionistId, date])
+  @@map("visit_slot")
+}
+
+/**
+ * §16.7 — I GIORNI IN CUI NON RICEVE. «Può inserire i giorni di vacanza e lì gli slot si chiudono
+ * in automatico» (Simone).
+ *
+ * Estremi INCLUSI: «dal 10 al 20» sono undici giorni chiusi, non nove. È la lettura che dà chiunque
+ * scriva quelle due date, e l'unica che non fa lavorare qualcuno il giorno in cui parte.
+ *
+ * ⚠️ Le ferie NON cancellano gli slot: tolgono le occorrenze di quei giorni. La settimana tipo resta
+ * scritta e torna da sé quando le ferie finiscono.
+ */
+model StaffTimeOff {
+  id        String   @id @default(uuid())
+  staffId   String   @map("staff_id")
+  staff     Staff    @relation("StaffTimeOff", fields: [staffId], references: [id], onDelete: Cascade)
+  dal       DateTime @db.Date
+  al        DateTime @db.Date
+  motivo    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([staffId, dal])
+  @@map("staff_time_off")
 }
 
 // Documenti sanitari: contenuto cifrato AES-256-GCM nel database (storage UE).
