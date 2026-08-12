@@ -52,7 +52,13 @@ const PUBLIC_USER_SELECT = {
   staff: { select: { id: true, displayName: true, managerId: true, refCode: true } },
 } as const;
 
-const ACCOUNT_THEMES = ['light', 'dark', 'taupe', 'white'];
+/**
+ * I temi che l'account può salvare. ⚠️ Va tenuto allineato a `THEMES` in `backoffice/src/theme.tsx`
+ * e ai blocchi `[data-theme=…]` in `theme.css`: un id qui senza il CSS dà una pagina senza colori,
+ * un id nel CSS senza questa riga dà «Tema non valido» al salvataggio — e in tutti e due i casi
+ * l'utente vede il tema applicarsi e poi tornare indietro al primo ricaricamento.
+ */
+const ACCOUNT_THEMES = ['light', 'dark', 'taupe', 'white', 'fucsia', 'slate'];
 
 /**
  * Righe per pagina nelle tabelle della home (clienti, piani in scadenza).

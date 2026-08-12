@@ -71,6 +71,28 @@
   --ok: #e7f0ff; --ok-ink: #3a58a0; --danger-bg: #fbeef0;
   color-scheme: light;
 }
+/* Cipria · fucsia (accento magenta scuro su cipria) */
+:root[data-theme="fucsia"] {
+  --teal: #b03a6e; --teal-dark: #8c2c56; --deep: #3a2430;
+  --bg: #f7f0f3; --card: #ffffff; --ink: #2b1f27; --muted: #837080;
+  --line: #ecdfe5; --chip: #f6e6ee; --chip-ink: #8c2c56;
+  --ok: #e6f0e2; --ok-ink: #4f6b3f; --danger-bg: #f8e2e6;
+  color-scheme: light;
+}
+/* Ardesia · rame (il secondo scuro, freddo dove «Notturno» è caldo) */
+:root[data-theme="slate"] {
+  /* ⚠️ Su fondo scuro `--teal-dark` è il colore del PASSAGGIO DEL MOUSE, e deve andare verso il
+     CHIARO, non verso lo scuro: lo stesso fa «Notturno». Scurirlo qui farebbe sparire il pulsante
+     proprio mentre ci si passa sopra. */
+  --teal: #d18a5b; --teal-dark: #e2a67c; --deep: #10151b;
+  --sidebar: #10151b; --sidebar-sep: #6d7b8b;
+  --bg: #1b2027; --card: #242c36; --ink: #e7ebf0; --muted: #9aa6b4;
+  --line: #333d4a; --chip: #2e3844; --chip-ink: #e0a87f;
+  --ok: #24352c; --ok-ink: #9ed3a8; --danger-bg: #3a2528;
+  /* Le ombre chiare sul buio non si vedono: come «Notturno», si alzano. */
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5); --shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.65);
+  color-scheme: dark;
+}
 
 * {
   box-sizing: border-box;

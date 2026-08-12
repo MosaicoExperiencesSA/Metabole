@@ -9,6 +9,20 @@ export const THEMES: ThemeDef[] = [
   { id: 'dark', label: 'Notturno · oro', bg: '#14110b', surface: '#1e1810', accent: '#cba14e', text: '#ece3d0' },
   { id: 'taupe', label: 'Tortora · terracotta', bg: '#e6ded2', surface: '#f5f0e8', accent: '#c2683c', text: '#33291f' },
   { id: 'white', label: 'Minimal · indaco', bg: '#ffffff', surface: '#ffffff', accent: '#5b57c9', text: '#1c1a24' },
+  /**
+   * Fucsia elegante, non acceso: il fucsia puro (#e91e63) su un fondo chiaro grida e stanca in una
+   * giornata di lavoro. Qui l'accento è ABBASSATO verso il magenta scuro (#b03a6e) — contrasto ~5:1
+   * sul bianco, quindi leggibile anche in piccolo — e il fondo è un cipria appena rosato che lo
+   * accompagna invece di combatterlo. Il testo è un prugna scurissimo, non nero: il nero puro
+   * accanto al rosa fa sembrare la pagina una stampa mal calibrata.
+   */
+  { id: 'fucsia', label: 'Cipria · fucsia', bg: '#f7f0f3', surface: '#ffffff', accent: '#b03a6e', text: '#2b1f27' },
+  /**
+   * Il secondo scuro, freddo: «Notturno · oro» è caldo (nero-bruno + oro), questo è ardesia + rame.
+   * Serviva un secondo tema scuro perché chi lavora di sera ne ha uno solo, e non a tutti sta bene
+   * il caldo. Il rame ha abbastanza saturazione da reggere sul grigio-blu senza illuminarlo.
+   */
+  { id: 'slate', label: 'Ardesia · rame', bg: '#1b2027', surface: '#242c36', accent: '#d18a5b', text: '#e7ebf0' },
 ];
 const IDS = THEMES.map((t) => t.id);
 const DEFAULT = 'light';

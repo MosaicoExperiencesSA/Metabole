@@ -6,7 +6,7 @@ import { UserMenu } from './UserMenu';
 import { NotificationBell } from './NotificationBell';
 import { OverdueGate } from './RecallGuard';
 import { api } from '../api/client';
-import { readMenuOrderCache, writeMenuOrderCache, orderNavItems } from '../lib/menuOrder';
+import { readMenuOrderCache, writeMenuOrderCache, gruppiEffettivi } from '../lib/menuOrder';
 
 interface NavItem {
   key: string; // pageKey dei permessi
@@ -175,22 +175,30 @@ export function Layout({ title, children }: { title: string; children: ReactNode
           </button>
         </div>
 
-        {NAV.map((section) => {
-          const visible = orderNavItems(section.items.filter((it) => can(it.key)), menuOrder);
+        {/*
+          I GRUPPI arrivano da `gruppiEffettivi`: di fabbrica sono quelli di `NAV`, ma chi se li è
+          rinominati, riordinati o rifatti da capo (Impostazioni → Ordine del menu) vede i suoi.
+          `collapsible` e l'icona restano attaccati al TITOLO: un gruppo rinominato perde il
+          comportamento a fisarmonica, ed è la scelta giusta — quella pieghevole era una proprietà
+          di *quel* gruppo, non del posto in cui sta.
+        */}
+        {gruppiEffettivi(NAV.map((s) => ({ group: s.group, items: s.items.filter((it) => can(it.key)) })), menuOrder).map((gruppo) => {
+          const section = NAV.find((s) => s.group === gruppo.group);
+          const visible = gruppo.items;
           if (visible.length === 0) return null;
 
-          if (section.collapsible) {
+          if (section?.collapsible) {
             const hasActive = visible.some((it) => location.pathname.startsWith(it.to));
-            const isOpen = collapsed[section.group] ?? hasActive ?? true;
+            const isOpen = collapsed[gruppo.group] ?? hasActive ?? true;
             return (
-              <div key={section.group}>
+              <div key={gruppo.group}>
                 <button
                   className="nav-item"
                   style={{ fontWeight: 700, marginTop: 8 }}
-                  onClick={() => setCollapsed((c) => ({ ...c, [section.group]: !(c[section.group] ?? hasActive) }))}
+                  onClick={() => setCollapsed((c) => ({ ...c, [gruppo.group]: !(c[gruppo.group] ?? hasActive) }))}
                 >
-                  {section.icon && <i className={`ti ${section.icon}`} />}
-                  {section.group}
+                  {section?.icon && <i className={`ti ${section.icon}`} />}
+                  {gruppo.group}
                   <i className={`ti ti-chevron-${isOpen ? 'down' : 'right'}`} style={{ marginLeft: 'auto', fontSize: 15 }} />
                 </button>
                 {isOpen && visible.map((it) => link(it, true))}
@@ -199,8 +207,8 @@ export function Layout({ title, children }: { title: string; children: ReactNode
           }
 
           return (
-            <div key={section.group}>
-              <div className="nav-sep">{section.group}</div>
+            <div key={gruppo.group}>
+              <div className="nav-sep">{gruppo.group}</div>
               {visible.map((it) => link(it))}
             </div>
           );

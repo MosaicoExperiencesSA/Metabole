@@ -172,7 +172,16 @@ export class DashboardService {
       // Acquisti recenti (approvati) — con nickname del cliente
       try {
         const rows = (await this.prisma.payment.findMany({
-          where: { status: 'approved' as never }, orderBy: { approvedAt: 'desc' }, take: 5,
+          /**
+           * ⚠️ Ne prende DODICI, non cinque, anche se il riquadro ne mostra cinque.
+           *
+           * Le righe a zero (Prova Gratuita, Conosciamoci, attivazioni interne) le nasconde il
+           * frontend, seguendo lo stesso interruttore della tabella Acquisti (richiesta di Simone
+           * dell'11/8: «il flag nascondi a 0 mettiamolo anche nel modulo in dashboard, di default 0
+           * nascosti»). Se qui ne arrivassero cinque e quattro fossero a zero, il riquadro degli
+           * acquisti mostrerebbe UNA riga — e sembrerebbe che non si venda niente.
+           */
+          where: { status: 'approved' as never }, orderBy: { approvedAt: 'desc' }, take: 12,
           select: { amountCents: true, description: true, approvedAt: true, client: { select: { email: true, clientProfile: { select: { name: true } } } } },
         })) as { amountCents: number; description: string; approvedAt: Date | null; client: { email: string; clientProfile: { name: string | null } | null } | null }[];
         /**
@@ -188,6 +197,8 @@ export class DashboardService {
           a: r.client?.clientProfile?.name ?? r.client?.email ?? r.description,
           b: euro(r.amountCents),
           sub: r.description,
+          /** Incasso zero: il frontend lo nasconde di default, come fa la tabella Acquisti. */
+          zero: r.amountCents === 0,
         }));
       } catch { /* skip */ }
     }

@@ -13,7 +13,31 @@ export interface MonthPoint {
   label: string; kgLost: number; cmWaistLost: number; avgLossKg: number;
   newClients: number; activeSubscriptions: number; revenueCents: number; cumulativeRevenueCents: number;
 }
-export type PreviewRow = { a: string; b?: string; sub?: string };
+export type PreviewRow = {
+  a: string;
+  b?: string;
+  sub?: string;
+  /** Incasso a zero (prova gratuita, attivazione interna): nascosto salvo diverso interruttore. */
+  zero?: boolean;
+};
+
+/**
+ * «NASCONDI GLI ACQUISTI A 0» — lo stesso interruttore della tabella Acquisti.
+ *
+ * Richiesta di Simone dell'11/8: «il flag nascondi a 0 che ho nella tabella Acquisti mettiamolo
+ * anche nel modulo in dashboard, di default 0 nascosti».
+ *
+ * È **la stessa preferenza**, non una seconda: la chiave in `localStorage` è quella che scrive già
+ * la pagina Acquisti (`acquisti.mostraZero`). Così l'interruttore si tocca in un posto e vale in
+ * tutti e due — due flag separati avrebbero voluto dire ricordarsi di spegnerli entrambi, e prima o
+ * poi vederli in disaccordo senza capire perché.
+ *
+ * Il default (chiave assente) è **nascosti**: fra cinque righe, quattro «Prova Gratuita a € 0»
+ * raccontano l'attività di ieri, non gli incassi.
+ */
+function mostraAcquistiAZero(): boolean {
+  try { return localStorage.getItem('acquisti.mostraZero') === '1'; } catch { return false; }
+}
 
 export interface Shortcut {
   id: string;
@@ -188,7 +212,9 @@ export function Dashboard() {
   );
 }
 
-export function ModuleCard({ module: m, rows }: { module: DashboardModule; rows: PreviewRow[] | null }) {
+export function ModuleCard({ module: m, rows: righeGrezze }: { module: DashboardModule; rows: PreviewRow[] | null }) {
+  // Il server ne manda più di cinque proprio perché qui se ne tolgono: vedi `dashboard.service`.
+  const rows = righeGrezze && !mostraAcquistiAZero() ? righeGrezze.filter((r) => !r.zero) : righeGrezze;
   return (
     <Link to={m.to} className="card" style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', margin: 0, minWidth: 0, overflow: 'hidden' }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
