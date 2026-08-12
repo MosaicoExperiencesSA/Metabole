@@ -2565,7 +2565,7 @@ model FoodSwap {
   unit     String?
   /** La chiave del motivo (gusto | scorta | intolleranza | …), non l'etichetta. */
   motivo   String?
-  /** chat | manuale */
+  /** chat | app | manuale | nutrizionista (letta da una frase sua in chat) */
   origine  String  @default("chat")
   /** da_verificare | verificata | corretta | annullata */
   stato    String  @default("da_verificare")

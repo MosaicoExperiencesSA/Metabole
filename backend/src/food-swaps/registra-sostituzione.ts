@@ -19,8 +19,13 @@ export interface SostituzioneDaRegistrare {
   /** La CHIAVE del motivo (gusto, scorta, …), non l'etichetta: le etichette cambiano. */
   motivo?: string | null;
   dietId?: string | null;
-  /** chat (concordata con Gaia) · app (pulsante «sostituisci» nel menu) · manuale (nutrizionista) */
-  origine?: 'chat' | 'app' | 'manuale';
+  /**
+   * chat (concordata con Gaia) · app (pulsante «sostituisci» nel menu) · manuale (scritta a mano
+   * dal nutrizionista) · nutrizionista (letta da una sua frase in chat — vedi
+   * `impara-dal-nutrizionista.ts`; è l'unica in cui a poter aver sbagliato è il programma e non
+   * la persona).
+   */
+  origine?: 'chat' | 'app' | 'manuale' | 'nutrizionista';
   stato?: string;
   nota?: string | null;
   creataDaId?: string | null;

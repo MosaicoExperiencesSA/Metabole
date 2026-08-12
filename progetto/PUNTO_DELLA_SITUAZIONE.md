@@ -1223,6 +1223,22 @@ stato, chi l'ha validata e quando. La riga **non è un'occorrenza**: la stessa r
 incrementa `volte`, ed è quel numero a dire quali sostituzioni meritano di diventare una regola.
 Ci finisce sia quello concordato in chat sia il pulsante «sostituisci» dell'app; l'inserimento
 manuale del nutrizionista nasce già confermato.
+
+**Impara anche dalle chat del nutrizionista** (Simone, 12/8): ogni suo messaggio viene riletto e le
+sostituzioni che contiene entrano con `origine: 'nutrizionista'` («Detta in chat»).
+⚠️ **Le due direzioni in italiano sono invertite** — «sostituisci il pollo con il tacchino» e «il
+tacchino al posto del pollo» dicono la stessa cosa coi pezzi al contrario. Capirla al rovescio
+produce una regola perfettamente formata e rovesciata, che nessuno legge come sbagliata finché non
+arriva nel piatto di qualcuno.
+⚠️ **Nel dubbio non si impara**, al contrario della regola delle prenotazioni: si scartano domande,
+negazioni, ipotesi, pronomi, pasti e giorni. Una sostituzione mancata è una riga scritta a mano; una
+inventata è cibo sbagliato proposto con l'autorevolezza di chi la segue.
+⚠️ **Nasce `da_verificare` anche se l'ha detto lei**: quello che va verificato non è la sua decisione
+ma la lettura che ne ha fatto il programma. La riga porta la **frase esatta** nella nota, così si
+conferma senza ritrovare il messaggio. Nessuna notifica a chi l'ha appena scritta.
+⚠️ **La stessa frase scritta dalla cliente non insegna niente**: solo `nutritionist` e
+`head_nutritionist`. Nessun piatto associato — una frase in chat non dice in quale ricetta vale, e
+un piatto a caso spezzerebbe il conteggio con la riga giusta.
 **«Promuovi a regola»**: se un gruppo **approvato** contiene già i due alimenti lo dice e non crea
 niente; se c'è una **bozza** che ne contiene uno ci aggiunge il mancante; altrimenti crea un gruppo
 **in bozza**. ⚠️ Un gruppo approvato non viene mai modificato da qui — allargarlo cambierebbe i menu

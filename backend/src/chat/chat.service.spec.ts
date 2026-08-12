@@ -44,12 +44,14 @@ describe('ChatService', () => {
         update: jest.fn(),
       },
       message: {
-        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'm1', ...data })),
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'm1', sentAt: new Date(), ...data })),
         findMany: jest.fn().mockResolvedValue([]),
         // Lo stato del dialogo di sostituzione vive nel meta dell'ultimo messaggio di Gaia:
         // null = nessun dialogo in corso.
         findFirst: jest.fn().mockResolvedValue(null),
       },
+      // §16.9 (12/8): Gaia impara le sostituzioni anche dalle frasi del nutrizionista in chat.
+      foodSwap: { upsert: jest.fn().mockResolvedValue({ id: 'fs-1', volte: 1 }) },
       clientProfile: {
         findUnique: jest.fn().mockResolvedValue({
           assignedCoachId: 'staff-c',
@@ -202,6 +204,29 @@ describe('ChatService', () => {
     expect(notifications.notifyOncePerDay).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'client-1', type: 'chat_reply_nutritionist' }),
     );
+    // Un messaggio normale non insegna niente: la tabella non si riempie di righe a caso.
+    expect(prisma.foodSwap.upsert).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ la sostituzione detta in chat dalla nutrizionista finisce in tabella (Simone, 12/8)', async () => {
+    // «Gaia dovrebbe leggere anche le chat del nutrizionista ed apprendere anche da lì le
+    // sostituzioni». Prima restava dentro la conversazione, e la settimana dopo Gaia rispondeva
+    // «devo chiedere alla tua nutrizionista» su una cosa già concessa per iscritto.
+    prisma.chatThread.findUnique.mockResolvedValue({ id: 't-n', clientId: 'client-1', counterpart: 'nutritionist' });
+    await service.postMessage(nutri, 't-n', 'Sostituisci il pollo con il tacchino, ti resta più leggero.');
+    expect(prisma.foodSwap.upsert).toHaveBeenCalled();
+    const scritta = prisma.foodSwap.upsert.mock.calls[0][0].create;
+    expect(scritta.fromFood).toMatch(/pollo/i);
+    expect(scritta.toFood).toMatch(/tacchino/i);
+    expect(scritta.clientId).toBe('client-1');
+    expect(scritta.origine).toBe('nutrizionista');
+  });
+
+  it('⚠️ la stessa frase scritta dalla CLIENTE non insegna niente', async () => {
+    // Sarebbe un modo di autorizzarsi da sola scrivendo nella chat giusta.
+    prisma.chatThread.findUnique.mockResolvedValue({ id: 't-n', clientId: 'client-1', counterpart: 'nutritionist' });
+    await service.postMessage(client, 't-n', 'Posso sostituire il pollo con il tacchino');
+    expect(prisma.foodSwap.upsert).not.toHaveBeenCalled();
   });
 
   // ---------- Il ponte col menu (PROGETTO_gaia-cambio-menu, punti 1 e 2) ----------

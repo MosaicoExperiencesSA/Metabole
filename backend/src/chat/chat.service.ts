@@ -25,6 +25,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { copreQuestoStaff } from '../common/rete-staff';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
+import { imparaDalNutrizionista } from '../food-swaps/impara-dal-nutrizionista';
 import { classifyMessage } from './ai-filter';
 import { RISPOSTA_FERMATA, verificaRispostaGaia } from './guardia-risposta-ai';
 import { domandaNutrizionale, terminiAlimentoCandidati } from './domanda-nutrizionale';
@@ -367,6 +368,27 @@ export class ChatService {
       const aiReply = await this.handleAiMessage(thread.clientId, threadId, body);
       return { message, aiReply };
     }
+
+    /**
+     * ⚠️ GAIA IMPARA ANCHE DA QUI. Richiesta di Simone (12/8): «Gaia dovrebbe leggere anche le chat
+     * del nutrizionista ed apprendere anche da lì le sostituzioni».
+     *
+     * Prima, una sostituzione concessa per iscritto dalla nutrizionista restava dentro la
+     * conversazione — che nessun altro pezzo del sistema legge — e la settimana dopo Gaia
+     * rispondeva «devo chiedere alla tua nutrizionista» su una cosa già concessa.
+     *
+     * La funzione decide da sé se il ruolo di chi scrive vale come istruzione clinica, e **non
+     * lancia mai**: il messaggio è la cosa necessaria, la memoria è la cosa utile. Si aspetta
+     * invece di lasciarla correre da sola — costa un paio di query e in cambio è osservabile: una
+     * scrittura sganciata dalla richiesta è una scrittura che nessun test può controllare.
+     */
+    await imparaDalNutrizionista(this.prisma, {
+      clientId: thread.clientId,
+      autoreRuolo: user.role,
+      autoreId: user.sub,
+      testo: body,
+      quando: message.sentAt,
+    });
 
     // Cliente → staff: notifica al destinatario. Staff → cliente: notifica (in-app + push)
     // la cliente a OGNI risposta, con anti-raffica di 3 minuti (più messaggi ravvicinati =

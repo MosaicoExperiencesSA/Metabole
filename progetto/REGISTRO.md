@@ -25,6 +25,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🍽️ **Gaia impara le sostituzioni anche dalle chat del nutrizionista.** «Gaia dovrebbe
+  leggere anche le chat del nutrizionista ed apprendere anche da lì le sostituzioni» (Simone, 12/8).
+  Prima una sostituzione concessa per iscritto dalla nutrizionista restava dentro la conversazione —
+  che nessun altro pezzo del sistema legge — e la settimana dopo Gaia rispondeva «devo chiedere alla
+  tua nutrizionista» su una cosa già concessa. Ora ogni suo messaggio viene riletto e le sostituzioni
+  che contiene finiscono nella tabella §16.9 con `origine: 'nutrizionista'`.
+  **⚠️ LE DUE DIREZIONI, CHE IN ITALIANO SONO INVERTITE.** «Sostituisci **il pollo** con **il
+  tacchino**» e «**il tacchino** al posto **del pollo**» dicono la stessa cosa coi pezzi al
+  contrario. Capirla al rovescio non produce un errore: produce una regola **perfettamente formata e
+  rovesciata**, che nessuno legge come sbagliata finché non arriva nel piatto di qualcuno. È il primo
+  test del file, verificato rosso prima di essere verde.
+  **⚠️ NEL DUBBIO NON SI IMPARA** — al contrario della regola delle prenotazioni, perché al contrario
+  è il costo dell'errore: una sostituzione mancata è una riga che il nutrizionista scrive a mano, una
+  sostituzione inventata è cibo sbagliato proposto con l'autorevolezza di chi la segue. Si scartano
+  domande («posso sostituire il pane?» è la cliente che chiede), negazioni, ipotesi, pronomi («al
+  posto di quello»), e i **pasti e i giorni** («al posto della cena», «al posto di domani»): chi li
+  scrive sta organizzando la giornata, non il piatto. Le alternative multiple si fermano alla prima
+  di proposito: perderne una costa un secondo, inventarla no.
+  **⚠️ NASCE `da_verificare` ANCHE SE L'HA DETTO LEI.** Sembra una contraddizione — la coda esiste
+  perché un umano guardi, e qui l'umano è chi ha scritto la frase. Ma quello che va verificato non è
+  la sua decisione: è la **lettura** che ne ha fatto il programma. Per questo la riga si porta dietro
+  la **frase esatta** nella nota: si conferma in un secondo, senza ritrovare il messaggio. E nessuna
+  notifica: avvisarla di quello che ha scritto tre secondi prima è il modo più rapido per insegnarle
+  a ignorare le notifiche.
+  **⚠️ La stessa frase scritta dalla CLIENTE non insegna niente**: sarebbe un modo di autorizzarsi da
+  sola scrivendo nella chat giusta. Solo `nutritionist` e `head_nutritionist`. Nella tabella l'origine
+  si legge «Detta in chat». 2000 test verdi.
+
 - `[Sviluppo]` 📅 **§16.7, seconda metà: la cliente prenota la sua visita.** L'altra faccia della
   settimana tipo: là il nutrizionista scrive la propria agenda, qui la cliente occupa il tempo di
   un'altra persona. Sceglie l'orario dall'app fra quelli aperti dalla **sua** nutrizionista, sposta

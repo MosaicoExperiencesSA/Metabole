@@ -61,6 +61,10 @@ const ORIGINE: Record<string, string> = {
   chat: 'Chat',
   app: 'App',
   manuale: 'A mano',
+  // §16.9 (12/8): letta da una frase che il nutrizionista ha scritto alla cliente in chat. Va
+  // distinta dalle altre perché la domanda che pone è diversa: non «va bene concederlo?», ma
+  // «ho capito bene quello che hai scritto?». La frase esatta è nella nota della riga.
+  nutrizionista: 'Detta in chat',
 };
 const MOTIVO: Record<string, string> = {
   gusto: 'Non le piace',
