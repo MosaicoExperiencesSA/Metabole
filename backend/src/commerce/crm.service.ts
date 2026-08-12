@@ -5,6 +5,8 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { coachTeamScope } from '../common/coach-team';
+import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
+import { dichiaraSenzaGlutine } from '../menu/senza-glutine';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { avanzaStatoSeIndietro } from './avanza-stato';
@@ -432,6 +434,21 @@ export class CrmService {
     // Scope per ruolo: se l'attore è una coach, la query è INCHIODATA ai suoi lead
     // (il filtro coach scelto in UI viene ignorato); manager/capo/admin filtrano liberi.
     const scopeId = await this.coachScope(actorUserId);
+    /**
+     * ⚠️ IL PERIMETRO DELLA NUTRIZIONISTA — aggiunto l'11/8, prima non c'era.
+     *
+     * Qui sopra c'è solo lo scope della coach, su `CrmRecord.assignedCoachId`. Finché questa lista
+     * era «Gestione lead» bastava: una nutrizionista non ci passava. Ma l'elenco Clienti diventa la
+     * stessa tabella (§16.4), e l'elenco Clienti **restringe anche per nutrizionista** — quindi
+     * senza questa riga unificare le due avrebbe **allargato** a ogni nutrizionista la vista su
+     * tutte le clienti dell'azienda, in silenzio e senza che nessun errore lo dicesse.
+     *
+     * Si filtra sulla CLIENTE collegata (`client.clientProfile`), non su un campo del CRM: la
+     * nutrizionista non è assegnata ai lead, è assegnata alle clienti. Conseguenza voluta: i
+     * contatti senza cliente collegata non li vede — non sono suoi.
+     */
+    const perimetro = await perimetroClienti(this.prisma, actorUserId);
+    if (perimetro?.field === 'assignedNutritionistId') AND.push(filtroPerimetroSuCliente(perimetro));
     if (scopeId) AND.push({ assignedCoachId: { in: scopeId } });
     else if (filter.coachId === 'none') AND.push({ assignedCoachId: null });
     else if (filter.coachId) AND.push({ assignedCoachId: filter.coachId });
@@ -495,6 +512,11 @@ export class CrmService {
                   assignedCoach: { select: { displayName: true } },
                   assignedNutritionistId: true,
                   assignedNutritionist: { select: { id: true, displayName: true } },
+                  // Le tre liste servono SOLO a calcolare `senzaGlutine` qui sotto: sono nella
+                  // stessa query, non costano un giro in più.
+                  allergies: true,
+                  intolerances: true,
+                  dislikedFoods: true,
                 },
               },
             },
@@ -508,12 +530,24 @@ export class CrmService {
     return { rows: rows.map((r: Record<string, unknown>) => this.withLists(r)), total, page, pageSize };
   }
 
-  /** Trasforma listMemberships → lists: [{id,name,color}] per il frontend. */
+  /**
+   * Trasforma listMemberships → lists: [{id,name,color}] per il frontend, e aggiunge `senzaGlutine`.
+   *
+   * Il glutine è dichiarato dalla cliente in tre campi diversi (allergie, intolleranze, cibi non
+   * graditi) e la regola per riconoscerlo sta in un posto solo, `menu/senza-glutine.ts` — «senza
+   * glutine» è un dato che se sbagli in lettura mandi il pane a una celiaca, quindi non si
+   * reimplementa in una tabella. Serve alla pastiglia accanto al nome nell'elenco Clienti, che era
+   * l'unico posto in cui si vedeva chi l'ha dichiarato e non ha ancora la dieta dedicata.
+   */
   private withLists(r: Record<string, unknown>) {
     const memberships = (r.listMemberships as { list: unknown }[] | undefined) ?? [];
     const { listMemberships, ...rest } = r;
     void listMemberships;
-    return { ...rest, lists: memberships.map((m) => m.list) };
+    const profilo = (r.client as { clientProfile?: { allergies?: string[]; intolerances?: string[]; dislikedFoods?: string[] } | null } | null)?.clientProfile ?? null;
+    const senzaGlutine = profilo
+      ? dichiaraSenzaGlutine([...(profilo.allergies ?? []), ...(profilo.intolerances ?? []), ...(profilo.dislikedFoods ?? [])])
+      : false;
+    return { ...rest, senzaGlutine, lists: memberships.map((m) => m.list) };
   }
 
   /** Scheda di un singolo lead: anagrafica, storico stati, promemoria collegati. */

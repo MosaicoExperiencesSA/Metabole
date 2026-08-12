@@ -34,6 +34,8 @@ interface Lead {
   assignmentStatus: string | null; // pending | accepted
   phone: string | null;
   lists: CrmList[];
+  /** Ha dichiarato il glutine (allergie + intolleranze + cibi non graditi, calcolato dal server). */
+  senzaGlutine?: boolean;
   client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionistId: string | null; assignedNutritionist: { id: string; displayName: string } | null } | null } | null;
 }
 interface Coach { id: string; displayName: string }
@@ -67,7 +69,29 @@ function classify(l: Lead): { label: string; chip: string; title: string } {
   return { label: 'Lead', chip: 'amber', title: 'Lead: nessun pagamento registrato' };
 }
 
-export function LeadsTable() {
+/**
+ * UNA SOLA TABELLA per «Gestione lead» e «Clienti» (§16.4, richiesta di Simone dell'11/8:
+ * «uniformare le tabelle Clienti e Gestione lead, devono essere uguali a Gestione lead»).
+ *
+ * Non due componenti che si somigliano: **lo stesso**, con un filtro diverso. Prima erano 200 righe
+ * contro 600, e ogni correzione fatta su una sola delle due le allontanava — l'ultima in ordine di
+ * tempo: i filtri fissi in cima, che una aveva e l'altra no.
+ *
+ * `modo = 'clienti'` cambia tre cose e nessun'altra:
+ * - il filtro **Tipo è inchiodato a «Cliente»** (`stage = paid`, cioè chi ha pagato davvero: è
+ *   esattamente il «solo gli utenti che hanno effettuato un acquisto di valore maggiore di 0»
+ *   chiesto da Simone, e non serviva inventare un conteggio nuovo — esisteva già);
+ * - spariscono le azioni che riguardano i lead e non le clienti (nuovo lead, importa liste);
+ * - le parole: «clienti» al posto di «contatti», e il file Excel si chiama Clienti.
+ *
+ * ⚠️ Il perimetro delle due liste NON era lo stesso: `crm.list` restringeva solo per coach, mentre
+ * l'elenco Clienti restringe anche per **nutrizionista**. Unificare senza toccarlo avrebbe allargato
+ * a ogni nutrizionista la vista su tutte le clienti. È stato aggiunto lato server, insieme a questa
+ * modifica — vedi il commento in `crm.service.ts`.
+ */
+export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' } = {}) {
+  const soloClienti = modo === 'clienti';
+  const nome = soloClienti ? 'clienti' : 'contatti';
   const { impersonate, can } = useAuth();
   const canAssignCoach = can('assign_coach', 'manage');
   const canAssignNutri = can('assign_nutritionist', 'manage');
@@ -229,7 +253,9 @@ export function LeadsTable() {
     if (listFilter) params.set('listId', listFilter);
     if (fCoach) params.set('coachId', fCoach);
     if (fNutri) params.set('nutriId', fNutri);
-    if (fTipo) params.set('tipo', fTipo);
+    // In «Clienti» il tipo non è una scelta: è l'identità della pagina.
+    if (soloClienti) params.set('tipo', 'client');
+    else if (fTipo) params.set('tipo', fTipo);
     const mn = parseEuro(fValMin); if (mn != null) params.set('valueMin', String(mn));
     const mx = parseEuro(fValMax); if (mx != null) params.set('valueMax', String(mx));
     if (fDateFrom) params.set('dateFrom', fDateFrom);
@@ -258,7 +284,7 @@ export function LeadsTable() {
 
   // Paginazione + filtri + ordinamento LATO SERVER: si carica solo la pagina corrente.
   // Cambiando un filtro si torna a pagina 0; cambiando pagina si mantiene il filtro.
-  const qkey = JSON.stringify([filter, fName, fEmail, fStage, fCoach, fNutri, fTipo, fValMin, fValMax, fDateFrom, fDateTo, listFilter, sortKey, sortDir]);
+  const qkey = JSON.stringify([modo, filter, fName, fEmail, fStage, fCoach, fNutri, fTipo, fValMin, fValMax, fDateFrom, fDateTo, listFilter, sortKey, sortDir]);
   useEffect(() => {
     const filtersChanged = prevQkey.current !== qkey;
     prevQkey.current = qkey;
@@ -334,8 +360,8 @@ export function LeadsTable() {
         if (righe.length === 0) break;
         tutte.push(...righe);
       }
-      scaricaExcel(`Gestione lead-${oggiIso()}`, {
-        nome: 'Gestione lead',
+      scaricaExcel(`${soloClienti ? 'Clienti' : 'Gestione lead'}-${oggiIso()}`, {
+        nome: soloClienti ? 'Clienti' : 'Gestione lead',
         intestazioni: ['Nome', 'Cognome', 'Email', 'Stato', 'Coach', 'Nutrizionista', 'Tipo', 'Valore €', 'Creato'],
         // Le stesse nove colonne della tabella, nello stesso ordine. `createdAt` è una stringa ISO e
         // diventa una cella data vera; il valore esce in euro e non in centesimi, così si somma.
@@ -364,11 +390,11 @@ export function LeadsTable() {
         <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
           <span
             style={{ alignSelf: 'center', fontSize: 14, fontWeight: 800, background: 'var(--chip)', color: 'var(--deep,#0a7d55)', borderRadius: 999, padding: '7px 14px', whiteSpace: 'nowrap' }}
-            title="Totale contatti che rispettano i filtri correnti (senza filtri: tutto il database)"
+            title={`Totale ${nome} che rispettano i filtri correnti (senza filtri: tutto il database)`}
           >
             Totale: {total.toLocaleString('it-IT')}
           </span>
-          <input className="input" style={{ maxWidth: 260 }} placeholder="Cerca in tutto il DB (nome, email, tel)…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input className="input" style={{ maxWidth: 260 }} placeholder={soloClienti ? 'Cerca fra tutte le clienti (nome, email, tel)…' : 'Cerca in tutto il DB (nome, email, tel)…'} value={filter} onChange={(e) => setFilter(e.target.value)} />
           {searching && <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>cerco nel database…</span>}
           <select className="select" style={{ maxWidth: 220 }} value={listFilter} onChange={(e) => setListFilter(e.target.value)} title="Filtra per lista">
             <option value="">Tutte le liste</option>
@@ -384,12 +410,14 @@ export function LeadsTable() {
           </button>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          {can('accounting', 'manage') && (
+          {!soloClienti && can('accounting', 'manage') && (
             <Link className="btn ghost" to="/crm/import"><i className="ti ti-database-import" /> Importa</Link>
           )}
-          <Link className="btn" to="/crm/inserimento">
-            <i className="ti ti-user-plus" /> Nuovo lead
-          </Link>
+          {!soloClienti && (
+            <Link className="btn" to="/crm/inserimento">
+              <i className="ti ti-user-plus" /> Nuovo lead
+            </Link>
+          )}
         </div>
       </div>
 
@@ -467,7 +495,7 @@ export function LeadsTable() {
                   </select>
                 </th>
                 <th style={{ padding: '4px 6px', ...ord.stileFiltri }}>
-                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={fTipo} onChange={(e) => setFTipo(e.target.value)} title="Tipo persona">
+                  <select className="select" style={{ width: '100%', padding: '4px 8px', fontWeight: 400 }} value={soloClienti ? 'client' : fTipo} disabled={soloClienti} onChange={(e) => setFTipo(e.target.value)} title={soloClienti ? 'Questa pagina mostra solo le clienti che hanno pagato' : 'Tipo persona'}>
                     <option value="">Tutti i tipi</option>
                     <option value="client">Cliente</option>
                     <option value="historical">Storico</option>
@@ -506,6 +534,21 @@ export function LeadsTable() {
                       </td>
                     )}
                     <td>
+                      {/*
+                        La pastiglia «senza glutine» esisteva solo nel vecchio elenco Clienti, ed era
+                        l'unico posto in cui si vedeva chi l'ha dichiarato **senza avere ancora la
+                        dieta dedicata**. Unificando le due tabelle sarebbe sparita: qui resta, e
+                        resta dov'era — dentro la cella del nome, non come colonna.
+                      */}
+                      {soloClienti && l.senzaGlutine && (
+                        <span
+                          className="chip"
+                          style={{ marginRight: 6, fontSize: 10.5, background: '#F3E7E1', color: '#8A4B2A', border: '1px solid #E0A98A' }}
+                          title="Ha dichiarato il glutine: controlla che la dieta assegnata sia la variante senza glutine."
+                        >
+                          senza glutine
+                        </span>
+                      )}
                       {l.clientId ? (
                         <Link to={`/clienti/${l.clientId}`} style={{ fontWeight: 700, textDecoration: 'none' }} title={displayName(l)}>
                           {nomeDi(l)}

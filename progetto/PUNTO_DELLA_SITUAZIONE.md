@@ -915,7 +915,15 @@ vede: nome, cognome, mail e coach.»
 Nota: il ruolo è `sales` (manager delle coach). L'ordine dal più vecchio non è un dettaglio — è una
 coda di lavoro, e il più vecchio è quello che sta aspettando da più tempo.
 
-### 16.4 La tabella Clienti uguale a Gestione lead, ma solo chi ha speso — + «Entra come»
+### ~~16.4 La tabella Clienti uguale a Gestione lead + «Entra come»~~ — ✅ CHIUSA l'11/8
+
+Due consegne: «Entra come» (permesso proprio, sola lettura, 30 minuti, e apre l'**app** della cliente
+invece del backoffice) e l'unificazione vera — `Clienti` è la stessa `LeadsTable` con
+`modo="clienti"`, cioè il filtro *Tipo = Cliente* (`stage = paid`). ⚠️ Nel farlo è stato aggiunto a
+`crm.list` il **perimetro della nutrizionista**, che quella lista non aveva: senza, unificare avrebbe
+allargato a ogni nutrizionista la vista su tutte le clienti. Cinque test lo sorvegliano.
+
+#### (storia) la richiesta originale
 
 «Deve essere uguale alla Gestione lead, ma contenere **solo gli utenti che hanno effettuato un acquisto
 di valore maggiore di 0**.» Quindi non «ha un abbonamento», ma **ha pagato davvero**: con l'attivazione

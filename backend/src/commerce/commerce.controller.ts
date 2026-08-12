@@ -735,9 +735,19 @@ export class StripeWebhookController {
   }
 }
 
-/** CRM (commerciale, coach, capo, admin). */
+/**
+ * CRM (commerciale, coach, capo, admin) — **e la nutrizionista**.
+ *
+ * ⚠️ `nutritionist` è stato aggiunto l'11/8 perché l'elenco **Clienti** è diventato questa stessa
+ * lista con il filtro «ha pagato» (§16.4): senza, la nutrizionista aprirebbe la sua pagina Clienti e
+ * prenderebbe un 403 su una pagina che ha sempre avuto.
+ *
+ * Non le apre niente di nuovo: `crm.list` applica il **perimetro della nutrizionista** (solo le
+ * clienti assegnate a lei, e nessun contatto senza cliente collegata), e la voce «Gestione lead» nel
+ * menu resta governata dal permesso di pagina `crm_leads`, che lei non ha.
+ */
 @Controller('crm/leads')
-@Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'admin')
+@Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'nutritionist', 'admin')
 export class CrmController {
   constructor(private readonly crm: CrmService) {}
 

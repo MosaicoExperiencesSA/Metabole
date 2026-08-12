@@ -59,6 +59,14 @@ export class PipelineController {
     return this.pipeline.board(user.sub);
   }
 
+  /**
+   * Gli stati della pipeline sono un'ANAGRAFICA: etichette e colori, nessun dato di nessuno. Li
+   * legge anche la nutrizionista, perché l'elenco Clienti mostra lo stadio e senza questa chiamata
+   * vedrebbe la chiave grezza (`paid`) al posto di «Cliente». Il ruolo è aperto **su questo metodo
+   * solo**: la board (`GET /crm/pipeline`) resta chiusa, perché quella mostra i lead e il suo
+   * perimetro è ancora quello della coach.
+   */
+  @Roles('coach', 'coach_coordinator', 'sales', 'head_nutritionist', 'nutritionist', 'admin')
   @Get('stages')
   stages() {
     return this.pipeline.listStages();

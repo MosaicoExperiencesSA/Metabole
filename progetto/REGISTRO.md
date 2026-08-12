@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🧩 **Clienti e Gestione lead sono la stessa tabella — e la nutrizionista non vede di
+  più.** §16.4, seconda metà. `Clienti.tsx` erano 200 righe che rifacevano *quasi* quello che fa
+  `LeadsTable`: stessa idea di filtri, ordinamento e ricerca, scritti una seconda volta. Due copie
+  non restano uguali — l'ultima divergenza sono stati i **filtri fissi in cima**, che una aveva e
+  l'altra no — e ogni richiesta andava applicata due volte o si dimenticava. Ora `Clienti` è **tre
+  righe**: la stessa tabella con `modo="clienti"`, che cambia tre cose e nessun'altra — il filtro
+  Tipo inchiodato a «Cliente» (`stage = paid`, cioè **chi ha pagato davvero**: è il «acquisto di
+  valore maggiore di 0» chiesto da Simone, e non serviva inventare un conteggio nuovo perché
+  esisteva già), via le azioni che riguardano i lead e non le clienti, e le parole. Guadagno non
+  richiesto ma il più grosso: **ricerca e filtri lavorano sul database** e non sulle 500 righe
+  caricate — l'avviso «mostro le 500 più recenti di N» non serve più, perché non è più vero.
+  🔴 **La cosa che poteva rompersi in silenzio.** Le due liste **non avevano lo stesso perimetro**:
+  `crm.list` restringeva solo per **coach** (`CrmRecord.assignedCoachId`), l'elenco Clienti anche per
+  **nutrizionista**. Unificarle senza accorgersene avrebbe dato a ogni nutrizionista la vista su
+  *tutte* le clienti dell'azienda — e **una lista più lunga non somiglia a un errore**: nessuno
+  l'avrebbe segnalata. Aggiunto il perimetro riusando `perimetroClienti`, la definizione unica già
+  usata da Clienti e Acquisti; si filtra sulla **cliente collegata** e non su un campo del CRM,
+  perché la nutrizionista è assegnata alle clienti, non ai lead (conseguenza voluta: i contatti senza
+  cliente non li vede). **Cinque test nuovi** guardano il `where` che finisce a Prisma: la
+  nutrizionista filtrata, quella **senza scheda staff che deve vedere zero e non tutto**, la coach
+  che resta com'era (se le arrivasse anche il filtro sulla cliente perderebbe i lead senza cliente
+  collegata, cioè quasi tutti i suoi), l'admin senza perimetro, e `tipo=client` = `stage=paid`.
+  Aperti due ruoli: `nutritionist` su `GET /crm/leads` e `GET /crm/stages` — senza, aprirebbe la sua
+  pagina Clienti e prenderebbe un 403. Non le apre niente: la lista applica il suo perimetro, gli
+  stati sono un'anagrafica, «Gestione lead» nel menu resta dietro al permesso `crm_leads` che non ha,
+  e la **board della pipeline NON è stata aperta** (quella mostra i lead, e il suo perimetro è ancora
+  solo quello della coach).
+  Non si perde la pastiglia **«senza glutine»** accanto al nome — l'unico posto in cui si vede chi
+  l'ha dichiarato *senza avere ancora la dieta dedicata*: la calcola il server con
+  `dichiaraSenzaGlutine`, la regola che sta in un posto solo, perché «senza glutine» letto male vuol
+  dire pane a una celiaca.
+  Verifiche: build backend verde, **111 suite / 1710 test**, build backoffice verde.
+
 - `[Sviluppo]` 🥗 **Nella scheda cliente si sceglie la DIETA, non lo stile.** §16.10, prima parte.
   Lo **stile non identifica una dieta**: `Mediterranea`, `Mediterranea ipocalorica` e `Pescetariana`
   hanno tutte `style = 'mediterranean'`; `Vegana`, `Vegetariana`, `Flexitariana` e `Flessibile` sono
