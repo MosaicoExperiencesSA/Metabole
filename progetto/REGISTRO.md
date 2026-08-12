@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🔴🔴 **«Modifica scheda» non salvava NIENTE: le operazioni non venivano mai eseguite.**
+  La dieta di una cliente spostata **cinque volte** da «Pescetariana» a «Mediterranea» e tornata
+  indietro ogni volta. **Non tornava indietro: non era mai partita.**
+  ⭐ **La causa, in una riga che non c'era.** `updateClient` costruiva le operazioni Prisma in un
+  array `ops` e **non lo eseguiva mai**. Le operazioni di Prisma sono **pigre**: costruirle non le
+  esegue. Quindi *ogni* salvataggio della scheda cliente non arrivava al database — non solo la
+  dieta: telefono, indirizzo, alias, regime, obiettivo, percorso, intolleranze.
+  ⭐ **Perché nessuno se n'era accorto**, ed è la parte che vale più della correzione: tutto il
+  *resto* della funzione funzionava e raccontava il contrario. L'audit scriveva «Dieta assegnata:
+  Pescetariana → Mediterranea» perché calcola il cambiamento dai valori **richiesti** e non da
+  quelli scritti; il cambio del tipo di dieta faceva **rigenerare i menu**, che è la cosa visibile;
+  la risposta tornava senza errori. Il log modifiche raccontava cinque modifiche mai avvenute. **È la
+  bugia peggiore che possa dire un sistema: non «non ha funzionato», ma «ho fatto».**
+  **Come è saltato fuori:** la traccia su `dietFamily` messa poche ore prima. Ha mostrato **una**
+  scrittura in ingresso e **nessuna riscrittura** — e lì la domanda ha smesso di essere «chi la
+  sovrascrive» ed è diventata «questa scrittura viene eseguita?». Cinque ore di ipotesi (il
+  questionario, il senza glutine, il motore, l'app) chiuse da una riga di log con dentro uno stack.
+  **I test**: cinque, e non verificano «il salvataggio funziona» — verificano che `$transaction`
+  venga **chiamata** con dentro le operazioni. È la differenza fra un test che descrive l'intenzione
+  e uno che avrebbe visto questo difetto: quelli che c'erano guardavano l'audit e i menu, cioè le due
+  cose che funzionavano. Controprova fatta: togliendo la correzione, quattro su cinque diventano
+  rossi. **114 suite / 1735 test.**
+  ⚠️ **Da fare dopo il deploy:** ricontrollare le modifiche di scheda degli ultimi giorni — tutto
+  quello che è stato salvato da lì non è mai stato scritto, **e il log dice di sì**.
+
 - `[Sviluppo]` 🪤 **La trappola che dice CHI riscrive la dieta della cliente.** La dieta di
   `sim1one.salogni@gmail.com` è stata spostata da «Pescetariana» a «Mediterranea» **cinque volte**, da
   tre persone diverse, e ogni volta è tornata indietro. Nell'audit ci sono i cinque cambi e **nessun

@@ -693,6 +693,26 @@ export class ClientsService {
       );
     }
     /**
+     * 🔴 QUESTA RIGA MANCAVA, E «MODIFICA SCHEDA» NON SALVAVA NIENTE.
+     *
+     * `ops` veniva riempito e **mai eseguito**. Le operazioni di Prisma sono pigre: costruirle non
+     * le esegue: senza `$transaction` (o un `await` su ciascuna) restano intenzioni. Quindi ogni
+     * salvataggio della scheda cliente — telefono, indirizzo, dieta, obiettivo, tutto — non
+     * arrivava al database.
+     *
+     * E non se ne accorgeva nessuno perché **tutto il resto della funzione funzionava**: l'audit
+     * scriveva «cambiato da X a Y» (lo calcola dai valori richiesti, non da quelli scritti), il
+     * cambio del tipo di dieta faceva rigenerare i menu, e la risposta tornava senza errori. Il log
+     * modifiche raccontava una modifica che non c'era, ed è la ragione per cui Simone ha spostato la
+     * dieta di una cliente da «Pescetariana» a «Mediterranea» cinque volte vedendola tornare
+     * indietro: non tornava indietro, non era mai partita.
+     *
+     * Trovato l'11/8 con la traccia su `dietFamily` (`prisma/traccia-diet-family.ts`), che ha
+     * mostrato UNA sola scrittura e nessuna riscrittura: a quel punto la domanda giusta non era più
+     * «chi la sovrascrive» ma «questa scrittura viene eseguita?».
+     */
+    if (ops.length) await this.prisma.$transaction(ops as never);
+    /**
      * COSA è cambiato, non solo CHE la scheda è stata salvata.
      *
      * Richiesta di Simone del 10/8: «nel log modifiche va specificato anche cosa ha modificato,
