@@ -29,6 +29,7 @@ import { assicuraProvaIniziata } from './prova-attivata';
 import { isTrialPlan, messaggioData, validaDataInizio } from './piano-prova';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
+import { prezzoEffettivo } from './prezzo-piano';
 
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
@@ -236,10 +237,10 @@ export class CommerceService {
    * si vende a `priceCents` col listino barrato; scaduta la promo si torna
    * AUTOMATICAMENTE al listino pieno, senza toccare il DB.
    */
+  // La regola sta in `common/prezzo-piano.ts` dal 12/8: era scritta qui e — leggermente diversa —
+  // anche in `plan-report.service`. Questo metodo resta come porta d'ingresso, il corpo no.
   private planPricing(plan: { priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null }): { effectivePriceCents: number; promoActive: boolean } {
-    const hasList = plan.listPriceCents != null && plan.listPriceCents > plan.priceCents;
-    const promoActive = Boolean(hasList && (!plan.promoEndsAt || plan.promoEndsAt.getTime() > Date.now()));
-    return { effectivePriceCents: hasList && !promoActive ? (plan.listPriceCents as number) : plan.priceCents, promoActive };
+    return prezzoEffettivo(plan);
   }
 
   async listPlans() {

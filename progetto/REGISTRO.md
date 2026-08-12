@@ -25,6 +25,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 💶 **I prezzi nel testo alla coach si leggono dal Negozio — e la regola dello sconto
+  era scritta due volte, in due modi diversi.**
+  Il task G6 («oggi le è arrivato il codice personale») aveva i prezzi **dentro la frase**: «(1 mese
+  €99 · 3 mesi €249)». Il giorno che si cambia un prezzo dal Negozio, la coach legge il vecchio e lo
+  ripete alla cliente — e nessuno se ne accorge, perché una frase non dà errore. ⚠️ **Era già
+  sbagliato**: a database il piano da 3 mesi costa €297.
+  Ora i prezzi si leggono dai piani attivi, col prezzo del **codice personale** se la cliente ce
+  l'ha: dirle 297 quando col suo codice paga 249 la manda a scoprire da sola che costava meno.
+  ⚠️ Se i piani non si trovano la **parentesi sparisce**, come già fa `prezzoPiano` dall'11/8: meglio
+  una parola in meno che una cifra sbagliata detta da una persona di cui si fida.
+  **⚠️ TROVATO cercando: la regola dello sconto era scritta due volte, e le due copie divergevano.**
+  `commerce.service.planPricing` e `plan-report.service.pricing`: con un `listPriceCents` **non
+  maggiore** di `priceCents` — un listino che non è una promo — il report mostrava il numero più
+  basso mentre il carrello chiedeva l'altro. Un report che prometteva alla cliente meno di quanto
+  avrebbe poi pagato. Ora la regola è una sola, ed è quella di chi incassa.
+  È lo stesso difetto dell'11/8 girato: non un prezzo scritto a mano, ma la stessa **regola** scritta
+  due volte. Non divergono il giorno che le scrivi: divergono il mese dopo, e non lo dice nessuno.
+  ⚠️ Nel farlo avevo creato un `common/prezzo-piano.ts` doppione di `commerce/prezzo-piano.ts`, che
+  esisteva già dall'11/8 con lo stesso `euro()`: cancellato, tutto sta nel file che c'era.
+  2065 test verdi.
+
 - `[Sviluppo]` 🧭 **«Se il nutrizionista non è assegnato, ripiega sul capo» — ovunque, non solo in
   chat.** Regola generale data da Simone (12/8) dopo il ripiego appena messo nelle chat.
   Cercando gli altri punti, la stessa riga usciva **tre volte**, identica e ognuna per conto suo:

@@ -189,10 +189,12 @@ revisioni di compensi già erogati.
   `plan.priceCents` dal database, con la promo gestita da `listPriceCents` + `promoEndsAt`
   (`plan-report.service.ts:118`) — non c'è nessun prezzo scritto a mano nel percorso del report, e il
   seed non sovrascrive quello che è già a database. **Il report si può mandare a una cliente vera.**
-  ⚠️ **Un residuo, piccolo e vero**: il testo del task che arriva alla coach quando scade il codice
-  personale ha i prezzi scritti dentro la frase — «(1 mese €99 · 3 mesi €249)»,
-  `coach-tasks.service.ts:206`. Quello **non** segue il Negozio: il giorno che cambi un prezzo, la
-  coach legge il vecchio e lo ripete alla cliente. Da leggere dal piano, come fa il report.
+  ~~⚠️ **Un residuo, piccolo e vero**: il testo del task che arriva alla coach quando scade il codice
+  personale ha i prezzi scritti dentro la frase.~~ **FATTO il 12/8**: i prezzi si leggono dal Negozio
+  (`frasePrezziPercorso`), col prezzo del **codice personale** se ce l'ha, e se i piani non si
+  trovano la parentesi sparisce invece di stampare un numero inventato. ⚠️ Quel testo era già
+  sbagliato: diceva «3 mesi €249» mentre a database il piano costa €297. Nello stesso giro è stata
+  unificata la regola dello sconto, che era scritta **due volte e in due modi diversi**.
 - **Provvigioni di rinnovo: resta aperta solo la parte che nessuna vendita può ancora aver
   verificato.** Le percentuali sono confermate (sopra), ma «chi prende i soldi **al rinnovo** se la
   coach nel frattempo è cambiata» non si vede nei compensi già erogati, perché **nessun rinnovo

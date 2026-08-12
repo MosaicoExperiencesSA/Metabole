@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope } from '../common/coach-team';
+import { frasePrezziPercorso, type PianoDaCitare } from '../commerce/prezzo-piano';
 
 /**
  * Task coach (handoff Prezzi/Prova, punto 5): "la coach deve vedere cosa fare e
@@ -153,10 +154,36 @@ export class CoachTasksService {
    *  G7 "domani finisce" · +7 dopo la scadenza ultima chiamata (se non convertita).
    * Ogni fine piano (anche non prova): consegna report + proponi rinnovo/mantenimento.
    */
+  /**
+   * I PREZZI DEL PERCORSO, LETTI DAL NEGOZIO — una volta per giro, non uno per task.
+   *
+   * ⚠️ Nel testo del task G6 i prezzi erano **scritti dentro la frase** («1 mese €99 · 3 mesi
+   * €249»). Il giorno che si cambia un prezzo dal Negozio, la coach legge il vecchio e lo ripete
+   * alla cliente — e nessuno se ne accorge, perché una frase non dà errore. Al momento di
+   * scriverlo, per giunta, il piano da 3 mesi a database costava €297: quel testo era già sbagliato.
+   *
+   * `frasePrezziPercorso` torna `null` se i piani non ci sono: allora la parentesi **sparisce**, e
+   * la frase resta vera. Meglio una parola in meno che una cifra sbagliata detta da una persona di
+   * cui la cliente si fida.
+   */
+  private async prezziPercorso(): Promise<string | null> {
+    try {
+      const piani = (await this.prisma.plan.findMany({
+        where: { active: true, period: { in: ['1m', '3m'] } } as never,
+        select: { id: true, period: true, priceCents: true, listPriceCents: true, promoEndsAt: true },
+      })) as PianoDaCitare[];
+      return frasePrezziPercorso(piani);
+    } catch {
+      // Un prezzo che non si riesce a leggere non deve impedire la creazione dei task.
+      return null;
+    }
+  }
+
   async generateDaily(): Promise<{ created: number }> {
     const now = new Date();
     const today = new Date(now); today.setHours(0, 0, 0, 0);
     let created = 0;
+    const prezzi = await this.prezziPercorso();
 
     // --- PROVE (attive o scadute da poco) ---
     const trials = (await this.prisma.subscription.findMany({
@@ -203,7 +230,7 @@ export class CoachTasksService {
       if (t.status === 'active' && dayN >= 6) {
         created += await this.ensureTask(t.clientId, 'trial_g6_code', t.id,
           'Codice founding inviato: sentila (G6)',
-          'Oggi le è arrivato il codice personale valido 48h (1 mese €99 · 3 mesi €249): un tuo messaggio vale più dell\'email.',
+          `Oggi le è arrivato il codice personale valido 48h${prezzi ? ` (${prezzi})` : ''}: un tuo messaggio vale più dell'email.`,
           this.day(start, 6));
       }
       // G7 — chiusura: "domani finisce, ti va di continuare?".

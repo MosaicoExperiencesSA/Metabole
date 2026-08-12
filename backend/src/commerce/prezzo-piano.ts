@@ -87,3 +87,79 @@ export async function prezzoPiano(
 export function aPrezzoAlMese(p: PrezzoPiano | null): string {
   return p ? ` a ${p.testo}/mese` : '';
 }
+
+/**
+ * ⚠️ LO SCONTO: `priceCents` è il prezzo IN PROMO, `listPriceCents` il listino barrato.
+ *
+ * Questa regola era scritta due volte — `commerce.service.planPricing` e
+ * `plan-report.service.pricing` — e le due copie **non erano uguali**: con un `listPriceCents` non
+ * maggiore di `priceCents` (un listino che non è una promo, per come sono fatti i dati) il report
+ * mostrava il numero più basso mentre il carrello chiedeva l'altro. Cioè un report che prometteva
+ * alla cliente meno di quanto avrebbe poi pagato.
+ *
+ * È lo stesso difetto di questo file, girato: non un prezzo scritto a mano, ma la stessa REGOLA
+ * scritta due volte. Non divergono il giorno che le scrivi, divergono il mese dopo — e quando
+ * divergono nessuno lo dice. Vince la versione di chi incassa.
+ */
+export interface PianoConPrezzo {
+  priceCents: number;
+  listPriceCents?: number | null;
+  promoEndsAt?: Date | null;
+}
+
+export function prezzoEffettivo(
+  piano: PianoConPrezzo,
+  adesso: Date = new Date(),
+): { effectivePriceCents: number; promoActive: boolean } {
+  const conListino = piano.listPriceCents != null && piano.listPriceCents > piano.priceCents;
+  const promoActive = Boolean(conListino && (!piano.promoEndsAt || piano.promoEndsAt.getTime() > adesso.getTime()));
+  return {
+    effectivePriceCents: conListino && !promoActive ? (piano.listPriceCents as number) : piano.priceCents,
+    promoActive,
+  };
+}
+
+/** Come si chiama un periodo quando lo si dice a voce. L'ordine è quello in cui si elencano. */
+const PERIODO: Record<string, string> = {
+  '1m': '1 mese',
+  '3m': '3 mesi',
+  '6m': '6 mesi',
+  '12m': '12 mesi',
+};
+
+export interface PianoDaCitare extends PianoConPrezzo {
+  id: string;
+  period: string;
+}
+
+/**
+ * La frase dei prezzi da mettere dentro un testo: «1 mese €99 · 3 mesi €249».
+ *
+ * Nasce dal task che arriva alla coach quando alla cliente scade il codice personale: lì i prezzi
+ * erano **scritti dentro la frase**. Il giorno che si cambia un prezzo dal Negozio, la coach legge
+ * il vecchio e lo ripete alla cliente — e nessuno se ne accorge, perché una frase non dà errore.
+ *
+ * ⚠️ Stessa regola del resto del file: **se non si sa, non si scrive**. Nessun piano trovato →
+ * `null`, e chi chiama toglie la parentesi. Un prezzo sbagliato detto da una persona di fiducia
+ * costa più di un prezzo mancante.
+ *
+ * @param targets Prezzi che i piani assumono col codice personale (`DiscountCode.planTargets`): se
+ *   c'è ed è più basso, è quello che la cliente pagherà davvero — e quindi quello da dirle.
+ */
+export function frasePrezziPercorso(
+  piani: PianoDaCitare[],
+  targets?: Record<string, number> | null,
+  adesso: Date = new Date(),
+): string | null {
+  const ordine = Object.keys(PERIODO);
+  const pezzi = piani
+    .filter((p) => PERIODO[p.period])
+    .sort((a, b) => ordine.indexOf(a.period) - ordine.indexOf(b.period))
+    .map((p) => {
+      const { effectivePriceCents } = prezzoEffettivo(p, adesso);
+      const target = targets?.[p.id];
+      const prezzo = target != null && target < effectivePriceCents ? target : effectivePriceCents;
+      return `${PERIODO[p.period]} ${euro(prezzo)}`;
+    });
+  return pezzi.length ? pezzi.join(' · ') : null;
+}

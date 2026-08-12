@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { prezzoEffettivo } from '../commerce/prezzo-piano';
 
 /**
  * Report di fine piano (handoff Prezzi/Prova, punto 4): generato in automatico a
@@ -115,10 +116,14 @@ export class PlanReportService {
   }
 
   /** Prezzo effettivo del piano: promo attiva finché listino presente e scadenza non passata. */
+  /**
+   * ⚠️ Questa copia della regola DIVERGEVA da quella del commerce: con un `listPriceCents` non
+   * maggiore di `priceCents` mostrava il numero più basso, mentre il carrello chiedeva l'altro —
+   * un report che prometteva alla cliente meno di quanto avrebbe poi pagato. Ora la regola è una
+   * sola (`common/prezzo-piano.ts`), ed è quella di chi incassa.
+   */
   private pricing(p: { priceCents: number; listPriceCents?: number | null; promoEndsAt?: Date | null }) {
-    const promoActive = p.listPriceCents != null && p.listPriceCents > p.priceCents
-      && (p.promoEndsAt == null || p.promoEndsAt.getTime() > Date.now());
-    return { effectivePriceCents: promoActive ? p.priceCents : (p.listPriceCents ?? p.priceCents), promoActive };
+    return prezzoEffettivo(p);
   }
 
   /** Mese calendario dopo `d` (31/1 + 1 mese → 28/2, non 3/3). */
