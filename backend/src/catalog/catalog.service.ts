@@ -663,8 +663,18 @@ export class CatalogService {
    * vorrebbe dire trasferirle tutte a ogni apertura di una scheda.
    */
   async usiDellaRicetta(recipeId: string) {
+    /**
+     * ⚠️ `meals_per_day` e `objective` vengono da qui e non da una seconda chiamata.
+     *
+     * Richiesta di Simone (12/8): nella riga piccola, accanto al giorno, devono comparire i pasti e
+     * se è dimagrimento o mantenimento. Servono a distinguere righe che altrimenti sono identiche:
+     * la stessa dieta esiste in più varianti — 3 e 5 pasti, dimagrimento e mantenimento — e con
+     * scritto solo il nome, «Digiuno intermittente (16:8)» ripetuto quattro volte non dice a quale
+     * delle quattro appartiene ogni riga. Erano già nel `JOIN`: costano zero.
+     */
     const righe = (await this.prisma.$queryRaw`
-      SELECT t.diet_id AS "dietId", d.name AS dieta, d.status::text AS stato, t.day_index AS "dayIndex"
+      SELECT t.diet_id AS "dietId", d.name AS dieta, d.status::text AS stato,
+             d.meals_per_day AS "pasti", d.objective AS "obiettivo", t.day_index AS "dayIndex"
       FROM diet_day_template t
       JOIN diet d ON d.id = t.diet_id
       CROSS JOIN LATERAL jsonb_array_elements(
@@ -672,9 +682,9 @@ export class CatalogService {
       ) AS m
       WHERE t.level = ${CatalogService.LIVELLO}
         AND (m->>'recipeId') = ${recipeId}
-      GROUP BY 1, 2, 3, 4
-      ORDER BY 2, 4
-    `) as { dietId: string; dieta: string; stato: string; dayIndex: number }[];
+      GROUP BY 1, 2, 3, 4, 5, 6
+      ORDER BY 2, 6
+    `) as { dietId: string; dieta: string; stato: string; pasti: number | null; obiettivo: string | null; dayIndex: number }[];
 
     return righe.map((r) => ({
       dietId: r.dietId,
@@ -682,6 +692,8 @@ export class CatalogService {
       // Una dieta ritirata tiene le sue giornate scritte: la ricetta sembra usata e non lo è più.
       ritirata: r.stato === 'rejected',
       bozza: r.stato === 'draft' || r.stato === 'in_review',
+      pasti: r.pasti === null ? null : Number(r.pasti),
+      obiettivo: r.obiettivo ?? null,
       dayIndex: Number(r.dayIndex),
       settimana: settimanaDi(Number(r.dayIndex)),
       giorno: giornoNellaSettimana(Number(r.dayIndex)),

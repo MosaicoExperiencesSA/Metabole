@@ -25,6 +25,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🔎 **«Dove è usata»: nella riga piccola anche i pasti e l'obiettivo.** Richiesta di
+  Simone (12/8) su uno screenshot: quattro righe «Digiuno intermittente (16:8)» identiche, e nessun
+  modo di sapere a quale variante appartenesse ciascuna. Ora la riga dice `gg 3 · 5 pasti · dim`.
+  Non è decorazione: la stessa dieta esiste in più varianti — 3 e 5 pasti, dimagrimento e
+  mantenimento — e col solo nome ripetuto quattro volte quell'elenco non risponde alla domanda per
+  cui lo si apre. Abbreviato come chiesto: `gg`, `dim`, `man`, che sta su una riga sola anche nella
+  colonna stretta.
+  I due campi erano **già nel `JOIN`** della query: costano zero.
+  ⚠️ Quello che non si sa non si scrive: un obiettivo mancante lascia il posto vuoto invece di
+  inventare «dim», che è il *default del database* e non un dato letto.
+  ⚠️ Nel `$queryRaw` le posizioni di `GROUP BY`/`ORDER BY` sono numeri: aggiungere due colonne in
+  mezzo sposta `day_index` dalla 4 alla 6, e dimenticarsene avrebbe riordinato l'elenco per un'altra
+  colonna senza nessun errore.
+
 - `[Sviluppo]` ⏰ **Gli alert della coach: «gestito» è un rinvio, non una chiusura.** Nato dalla
   domanda di Simone (12/8) — «la correzione sulla coda del nutrizionista mi viene un dubbio, quella
   della coach invece?».

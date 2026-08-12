@@ -45,7 +45,34 @@ interface Recipe {
 const dieteDi = (r: { utilizzo?: { dieta: string }[] | null }): string[] => (r.utilizzo ?? []).map((u) => u.dieta);
 
 /** Una riga di «Dove è usata»: una dieta e una settimana. Il giorno è il dettaglio dentro. */
-interface Uso { dietId: string; dieta: string; ritirata: boolean; bozza: boolean; dayIndex: number; settimana: number; giorno: number }
+interface Uso {
+  dietId: string; dieta: string; ritirata: boolean; bozza: boolean;
+  /**
+   * Pasti e obiettivo della dieta (12/8). Non sono decorazione: la stessa dieta esiste in più
+   * varianti — 3 e 5 pasti, dimagrimento e mantenimento — e col solo nome «Digiuno intermittente
+   * (16:8)» ripetuto quattro volte non si capisce a quale delle quattro appartenga ogni riga.
+   */
+  pasti?: number | null; obiettivo?: string | null;
+  dayIndex: number; settimana: number; giorno: number;
+}
+
+/**
+ * La riga piccola sotto il nome della dieta. Abbreviata come ha chiesto Simone (12/8): «gg», «man»
+ * e «dim» — sta su una riga sola anche nella colonna stretta, ed è quello che serve per
+ * distinguere le varianti a colpo d'occhio.
+ *
+ * ⚠️ Quello che non si sa non si scrive: un obiettivo mancante lascia il posto vuoto invece di
+ * inventare «dim», che è il default del database e non un dato letto.
+ */
+const OBIETTIVO_BREVE: Record<string, string> = { dimagrimento: 'dim', mantenimento: 'man' };
+const rigaUso = (u: Uso): string =>
+  [
+    `gg ${u.giorno}`,
+    u.pasti ? `${u.pasti} pasti` : null,
+    u.obiettivo ? OBIETTIVO_BREVE[u.obiettivo] ?? u.obiettivo : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 interface DietaCollegabile { id: string; name: string; regime: string; status?: string; mealsPerDay?: number; fasting?: boolean; objective?: string | null }
 interface GiornateSlot {
   slotPrevisto: boolean;
@@ -856,7 +883,7 @@ function DoveUsata({ recipe, slotNelModulo }: { recipe: Recipe; slotNelModulo: s
                   <b>{u.dieta}</b>{' '}
                   {u.ritirata && <span className="chip gray" title="Dieta rifiutata o ritirata: le sue giornate restano scritte, ma non viene erogata">non erogata</span>}
                   {u.bozza && <span className="chip gray" title="Dieta in bozza o in revisione: non ancora pubblicata">bozza</span>}
-                  <div className="muted" style={{ fontSize: 11 }}>giorno {u.giorno} della settimana</div>
+                  <div className="muted" style={{ fontSize: 11 }}>{rigaUso(u)}</div>
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}><span className="chip">Settimana {u.settimana}</span></td>
                 <td style={{ textAlign: 'right' }}>
