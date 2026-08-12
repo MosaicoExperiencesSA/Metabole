@@ -417,9 +417,10 @@ altre cinque schermate.
 sanitario, poi quelle che svuotano un pool, poi il resto. Una coda in ordine di arrivo fa arrivare
 per ultima la cosa più importante.
 
-⛔ **Da decidere**: l'approvazione in blocco («approva tutte quelle di Lucia di oggi»). È comodissima
-ed è anche il modo più rapido per svuotare di senso la coda. La mia proposta: **si può respingere in
-blocco, non approvare in blocco** — l'asimmetria è voluta, perché il costo di un errore è asimmetrico.
+⚠️ **L'approvazione in blocco non esiste** (deciso da Simone il 12/8). Un bottone «approva tutte
+quelle di Lucia di oggi» è comodissimo, ed è anche il modo più rapido per svuotare di senso la coda:
+in tre settimane diventa l'unico che si preme, e la validazione torna a essere una formalità. Ogni
+riga si guarda e si decide da sola.
 
 Anche il suo agente **chiede a lui come vuole chiamarlo**, al primo incontro.
 
@@ -500,8 +501,7 @@ girare.
    piano si sospende, o continua mentre la visita si prenota?
 4. ⛔ Il dizionario: la voce promossa a comune **sovrascrive** quella personale delle altre
    nutrizioniste o convivono?
-5. ⛔ **Approvazione in blocco** nella coda di Nocanty (§13.4): proposta di respingere in blocco sì,
-   approvare in blocco no.
+
 
 ---
 

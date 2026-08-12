@@ -25,6 +25,43 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🗣️ **«Vera», l'agente discorsivo della nutrizionista — specifica, non codice.**
+  Lucia ha chiesto al telefono «un sistema che apprende da me in maniera discorsiva». Ne è uscita
+  `Metabole_Specifica_Vera_Agente_Nutrizionista.md` (radice): una chat da cui la nutrizionista detta
+  regole, sostituzioni, ricette e varianti, e che le traduce in oggetti veri dei moduli. L'avanzamento
+  si legge in **`progetto/VERA_AVANZAMENTO.md`**, che si aggiorna a ogni push.
+  **L'impianto in una riga: la chat è un compilatore, non un giudice** — la frase si traduce *una
+  volta* in una regola strutturata, poi il motore la applica in modo deterministico. Sei azioni
+  chiuse ordinate per raggio del danno: le tre per-cliente scrivono dopo conferma, le tre a raggio
+  largo (ricetta modificata, ricetta nuova, regola su un tipo di dieta) vanno **in coda a Nocanty**.
+  Quando lei nomina una famiglia che il catalogo non conosce («formaggi molli»), Vera **non
+  indovina**: elenca i formaggi e le fa spuntare quali sono. Da lì nasce il **dizionario** — impara
+  la sua lingua, non la nutrizione.
+  **Le interfacce**: pagina dedicata con la chat sopra e il **registro sotto**, sulla stessa
+  schermata; ogni riga dice data, origine, azione, **su chi**, stato, e cliccandola si rivede **la
+  frase da cui è nata**. Il registro mostra **tutto** quello che cambia sulle sue clienti, non solo
+  le azioni dell'agente — e ⚠️ **non è una tabella nuova**: è il «log delle modifiche» della scheda
+  cliente allargato a tutte le sue clienti (`AuditLog` per `entityId`, dove `profile.update` registra
+  già **i valori cambiati** e non solo i nomi dei campi — la richiesta del 10/8, «altrimenti non
+  serve a nulla»), unito a `FoodSwap` e alle sostituzioni in `MenuDay.meals`. Lettura e fusione, non
+  scrittura. Il modulo in dashboard dice **«quello che aspetta me»** e non «quello che ho fatto».
+  **Nocanty ha la stessa interfaccia con un agente che fa il mestiere opposto**: non scrive niente,
+  gli sottopone le cose da approvare **una alla volta**, già istruite, **in ordine di rischio e non di
+  data**. ⚠️ **L'approvazione in blocco non esiste** (deciso da Simone): un bottone «approva tutte»
+  in tre settimane diventa l'unico che si preme, e la coda perde il suo senso.
+  **⚠️ Tre cose emerse dalla verifica sul codice, che valgono oltre questo progetto:**
+  1. **Vera esiste già in embrione**: `impara-dal-nutrizionista.ts` + `impara-dalla-chat.ts` (scritti
+     oggi) leggono già le frasi del nutrizionista in chat e ne ricavano righe `FoodSwap`.
+  2. **Allergie e intolleranze sono GIÀ distinte** (`ClientProfile.allergies` / `intolerances` /
+     `dislikedFoods`, gerarchia R8). Il cantiere non è la separazione: mancano solo la scissione di
+     `allergiesOther`, le chiavi inglesi delle intolleranze e **la visita obbligatoria**.
+  3. **Il dato «menu già visto» non esiste**: `MenuDay.status` c'è ma **non viene mai aggiornato** da
+     nessuna parte. Serve `viewedAt` valorizzato in `getMenu` — poche righe, un punto solo — perché
+     l'annullo con rigenerazione selettiva sia implementabile.
+  Il pezzo più grosso resta il **controllo del pool a vuoto**: non esiste, ma è estrazione e non
+  riscrittura — in `deliverIfEligible` non c'è nessuna `$transaction` e la linea di taglio è la riga
+  675. Modello da imitare: `simulaKcal`, col suo test «la simulazione non salva niente».
+
 - `[Sviluppo]` 💧🚶 **Un obiettivo solo per l'acqua, uno su misura per i passi — e il prezzo mostrato
   è quello che si paga.** Prime quattro delle sette decisioni prese da Simone il 12/8, una domanda
   alla volta (scritte in `progetto/Decisioni_Simone_20260812.md` **prima** di toccare il codice).
