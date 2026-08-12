@@ -25,6 +25,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🌾 **La variante senza glutine non si cerca più per «stile» — e il documento è stato
+  riallineato al codice.**
+  Chiudendo §16.10 è saltato fuori l'ultimo bloccante vero, ed è quello che pesa di più:
+  `assegnaSenzaGlutine` cercava la dieta con **`style: 'mediterranean'` scritto nel codice**. Se in
+  catalogo quella variante avesse avuto un altro stile — un nutrizionista la crea «flexible», o la
+  rinomina — la ricerca non l'avrebbe trovata, e alla cliente **celiaca** sarebbe arrivato «variante
+  mancante» invece della sua dieta. Per una stringa che non combacia. Ora si cerca **per nome** — che
+  è il prodotto — e lo stile si **legge dalla variante trovata**, poi si scrive sul profilo (serve:
+  `pickDietFor` usa nome e stile insieme). La costante resta solo come ultimo ripiego, per non
+  scrivere `null` su quel campo.
+  **⚠️ Il `required: true` del questionario NON si tocca, ed è una scelta**: quella pagina la disegna
+  `DietProductsBlock` e i `fields` non vengono renderizzati, quindi serve solo a tenere spento
+  «Avanti». Spostare l'obbligo su `dietFamily` romperebbe le **app già installate**, che quella
+  pagina la renderizzano dai `fields`: campo obbligatorio senza opzioni, pulsante spento, nessun modo
+  di capire perché.
+  **⚠️ E il documento era vecchio in tre punti.** §15.2 elencava sei decisioni «da implementare» che
+  erano già fatte, §15.4 diceva «lavoro non iniziato» su codice che gira, e §4.3 segnalava un difetto
+  del funnel non più vero. Il 12/8 ha portato a rispondere «cosa resta?» leggendo il documento invece
+  del codice — cioè a dire due cose sbagliate. Le voci sono state verificate una per una **nel
+  codice** e corrette. 2098 test verdi.
+
 - `[Sviluppo]` 🍞 **«I menu sono ancora quelli della dieta precedente»: adesso l'app lo dice — e la
   regola era sbagliata proprio dalla parte della cliente.**
   Il flag `menuAncoraSullaDietaPrecedente` il backend lo mandava **da sempre** e nel sorgente

@@ -212,8 +212,10 @@ Codice e Stripe risultano a posto e l'idempotenza ora è garantita dal database,
 è mai avvenuto. Serve un acquisto con carta vera e poi il rimborso. **[dati]**
 
 ### 4.3 Aperto, minore
-- **Il passaggio al Monitoraggio a pagamento è tracciato nel funnel come «dimagrimento»**
-  (`monitoring.service.ts`: `period === 'maintenance' ? 'mantenimento' : 'dimagrimento'`).
+- ~~**Il passaggio al Monitoraggio a pagamento è tracciato nel funnel come «dimagrimento»**.~~
+  **Non è più vero** (verificato il 12/8): il ramo `period === 'monitoring'` viene intercettato prima
+  e ha il suo evento `monitoraggio_abbonamento_started`. La ternaria resta imprecisa solo per gli
+  altri piani non-maintenance.
 - **Ordini «Menu di rientro (8 giorni)» eventualmente in sospeso**: il prodotto è ritirato e il ramo che
   erogava le giornate è stato rimosso; se resta un bonifico da €29 in attesa e qualcuno lo approva, la
   cliente si ritrova 8 giorni di abbonamento senza le giornate. Guardare in Acquisti. **[dati]**
@@ -628,7 +630,17 @@ Sono un registro di «ho letto». Intanto la cliente riceve già il messaggio qu
 attenuato** deciso da quella riga (`notifications.service.ts:319` legge la decisione del giorno *senza* il
 filtro del flag): il tono parte, il contenuto nutrizionale aspetta un via libera che non può arrivare.
 
-**Le decisioni prese, da implementare:**
+> ✅ **FATTE tutte e sei, il 12/8** (commit `8cd447e` + la finestra sul telefono la sera stessa).
+> `engine/causa-decisione.ts` (azioni per causa), `autorizza_proseguire` con
+> `ClientProfile.rapidLossBaselineAt`, `planHeldAt/Reason/ById` con `riattivaPianoFermato`, la
+> colonna `EngineDecision.reasonKey` con una riga per cliente per causa, e `runBatch` filtrato sul
+> piano attivo. ⚠️ Resta **solo il punto 1**: «Conferma» che applica davvero la proposta al piano —
+> bloccato sul numero di Nocanty (di quanto si alzano le calorie).
+> Questo elenco è rimasto scritto come «da implementare» per un giorno intero **dopo** che era
+> stato fatto, e il 12/8 ha portato a rispondere «cosa resta?» leggendo il documento invece del
+> codice. Le decisioni restano qui perché sono la spiegazione del perché il codice fa così.
+
+**Le decisioni prese, ora implementate:**
 
 1. **«Conferma» applica la proposta al piano.** Il livello della dieta cambia dal prossimo giorno erogato.
    Il significato che le ha dato Nocanty: «la cliente va avanti, ma il controllo resta armato, quindi domani
@@ -695,7 +707,11 @@ Se Nocanty decide di abbassare, **1,0** è il numero coerente col resto, e **si 
 toccare il codice** (Regole motore → categoria «sicurezza» → «Calo rapido (kg/settimana)», da 0,5 a 5).
 Per riferimento: la segnalazione di Giusy di luglio era a **2,87 kg/settimana**.
 
-### 15.4 Varianti con giornate incomplete — decisioni prese, lavoro non iniziato
+### ~~15.4 Varianti con giornate incomplete~~ — ✅ FATTA (verificata nel codice il 12/8)
+
+> Tutte e tre le decisioni vivono in `menu.service.soloGiornateComplete`, chiamata
+> dall'erogazione (`menu.service.ts:483`), con la regola pura in `catalog/giornate-complete.ts` e il
+> test sul ripiego (`diet_meals_fallback`). Il testo qui sotto resta come spiegazione del perché.
 
 Il buco è più largo di quanto dicesse §3.1: non è una variante, è il meccanismo. Il controllo di
 completezza (`catalog.service.ts:315`) scatta **solo** quando si mette `clientVisible: true`, e non torna
@@ -1068,6 +1084,23 @@ Le app già installate, che mandano solo lo stile, continuano a funzionare.
 ⚪ **Resta:** i cinque bloccanti qui sotto, e la decisione se togliere lo stile anche dalle pagine del
 **catalogo** (elenco Diete, Regole motore) — che è una decisione sul catalogo, non sulla scheda
 cliente.
+
+> ✅ **Verifica del 12/8 sui cinque bloccanti — tre chiusi, uno chiuso oggi, uno lasciato apposta.**
+> · Il DTO che pretendeva `dietStyle`: **chiuso** (12/8).
+> · `pickDietFor` senza stile: **già a posto** — la famiglia da sola funziona.
+> · L'endpoint coi **nomi** delle diete: **c'è** (`catalog.service.famiglie()`), e il backoffice ha
+>   la tendina «Dieta» nella scheda cliente.
+> · La variante **senza glutine** che filtrava su `style`: **chiusa il 12/8**. Cercava la dieta con
+>   `style: 'mediterranean'` scritto nel codice: se in catalogo avesse avuto un altro stile, alla
+>   cliente **celiaca** sarebbe arrivato «variante mancante» invece della sua dieta. Ora si cerca per
+>   nome e lo stile si legge da lei.
+> · ⚠️ Il `required: true` su `dietStyle` in `onboarding.questions.ts:49` **resta, ed è una scelta**:
+>   quella pagina è disegnata da `DietProductsBlock` (i `fields` non vengono renderizzati) e serve
+>   solo a tenere spento «Avanti» finché non ha scelto un prodotto — il clic sulla card scrive
+>   entrambi i campi. Toglierlo non cambia niente per l'app di oggi, e **spostare l'obbligo su
+>   `dietFamily` romperebbe le app già installate**, che quella pagina la renderizzano dai `fields` e
+>   si troverebbero un campo obbligatorio senza opzioni: pulsante «Avanti» spento e nessun modo di
+>   capire perché. Si toglie quando non ci sono più app vecchie in giro.
 
 #### (per il seguito) analisi completa
 

@@ -101,7 +101,8 @@ function fintoPrisma(tocca?: (p: any) => void) {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     diet: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'diet-sg', name: DIETA_SENZA_GLUTINE }),
+      // Lo `style` arriva dal CATALOGO: da qui in poi è quello che si scrive sul profilo.
+      findFirst: jest.fn().mockResolvedValue({ id: 'diet-sg', name: DIETA_SENZA_GLUTINE, style: 'mediterranean' }),
     },
     menuDay: { count: jest.fn().mockResolvedValue(0) },
     notification: { create: jest.fn().mockResolvedValue({}) },
@@ -206,5 +207,64 @@ describe('assegnaSenzaGlutine', () => {
   it('senza profilo non fa niente, invece di esplodere', async () => {
     const prisma = fintoPrisma((p) => p.clientProfile.findUnique.mockResolvedValue(null));
     expect((await assegnaSenzaGlutine(prisma, 'cli-1')).esito).toBe('non_serve');
+  });
+});
+
+
+/**
+ * §16.10 (12/8) — lo stile si LEGGE dal catalogo, non si impone.
+ *
+ * Il test che conta è il primo: prima la variante si cercava con `style: 'mediterranean'` scritto
+ * nel codice, e se in catalogo quella dieta avesse avuto un altro stile la ricerca non l'avrebbe
+ * trovata. Alla cliente **celiaca** sarebbe arrivato «variante mancante» invece della sua dieta,
+ * per una stringa che non combacia.
+ */
+describe('lo stile della variante senza glutine', () => {
+  const celiaca = {
+    name: 'Patrizia', regime: 'omnivore', dietStyle: 'mediterranean', dietFamily: 'Mediterranea',
+    mealsPerDay: 5, objective: 'dimagrimento', allergies: ['gluten'], intolerances: [], dislikedFoods: [],
+  };
+  const finto = (variante: unknown) => {
+    const p: any = {
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(celiaca), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      diet: { findFirst: jest.fn().mockResolvedValue(variante) },
+      menuDay: { count: jest.fn().mockResolvedValue(0) },
+      notification: { create: jest.fn().mockResolvedValue({}) },
+    };
+    return p;
+  };
+
+  it('⚠️ la variante si cerca per NOME: lo stile non è più un filtro', async () => {
+    const p = finto({ id: 'diet-sg', name: DIETA_SENZA_GLUTINE, style: 'flexible' });
+    const esito = await assegnaSenzaGlutine(p, 'c-1');
+    expect(esito.esito).toBe('assegnata');
+    // Nella ricerca non c'è nessuno `style`: se ci fosse, questa dieta «flexible» non si troverebbe
+    // e la celiaca resterebbe senza.
+    expect(p.diet.findFirst.mock.calls[0][0].where.style).toBeUndefined();
+    expect(p.diet.findFirst.mock.calls[0][0].where.name).toBe(DIETA_SENZA_GLUTINE);
+  });
+
+  it('⚠️ sul profilo si scrive lo stile CHE HA la variante trovata', async () => {
+    // `pickDietFor` usa nome e stile insieme: scriverne uno diverso da quello a catalogo vorrebbe
+    // dire una famiglia che non aggancia più la sua dieta.
+    const p = finto({ id: 'diet-sg', name: DIETA_SENZA_GLUTINE, style: 'flexible' });
+    await assegnaSenzaGlutine(p, 'c-1');
+    expect(p.clientProfile.updateMany.mock.calls[0][0].data).toEqual({
+      dietFamily: DIETA_SENZA_GLUTINE,
+      dietStyle: 'flexible',
+    });
+  });
+
+  it('una variante senza stile a catalogo ripiega sulla costante, non scrive null', async () => {
+    const p = finto({ id: 'diet-sg', name: DIETA_SENZA_GLUTINE, style: null });
+    await assegnaSenzaGlutine(p, 'c-1');
+    expect(p.clientProfile.updateMany.mock.calls[0][0].data.dietStyle).toBe('mediterranean');
+  });
+
+  it('se la variante non c\'è davvero, resta «variante_mancante»', async () => {
+    const p = finto(null);
+    const esito = await assegnaSenzaGlutine(p, 'c-1');
+    expect(esito.esito).toBe('variante_mancante');
+    expect(p.clientProfile.updateMany).not.toHaveBeenCalled();
   });
 });

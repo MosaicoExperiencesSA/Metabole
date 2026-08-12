@@ -32,7 +32,19 @@ import { apriSegnalazione, PrismaPerSegnalazione } from '../escalations/apri-seg
 /** Etichetta della famiglia di dieta: deve combaciare con `engine-rules.presets.ts`. */
 export const DIETA_SENZA_GLUTINE = 'Mediterranea senza glutine';
 
-/** Stile della variante (serve col nome: `pickDietFor` li usa insieme). */
+/**
+ * Stile della variante — **solo come ripiego**, se il catalogo non lo dice.
+ *
+ * ⚠️ §16.10 (12/8): prima era un filtro. La variante si cercava con `style: 'mediterranean'`
+ * scritto qui dentro, e se in catalogo quella dieta avesse avuto un altro stile — un nutrizionista
+ * la crea «flexible», o la rinomina — la ricerca non l'avrebbe trovata: alla cliente celiaca
+ * sarebbe arrivato `variante_mancante` invece della sua dieta, per una stringa che non combacia.
+ * Su una celiaca questo non è un dettaglio di catalogo.
+ *
+ * Ora la variante si cerca **per nome** — che è il prodotto — e lo stile si **legge da lei**. La
+ * costante resta come ultimo ripiego per non scrivere `null` su un campo che `pickDietFor` usa
+ * insieme al nome.
+ */
 export const STILE_SENZA_GLUTINE = 'mediterranean';
 
 /**
@@ -191,12 +203,12 @@ export async function assegnaSenzaGlutine(
   const variante = await prisma.diet.findFirst({
     where: {
       name: DIETA_SENZA_GLUTINE,
-      style: STILE_SENZA_GLUTINE,
       status: 'approved',
       ...(profilo.regime ? { regime: profilo.regime } : {}),
       ...(profilo.mealsPerDay ? { mealsPerDay: profilo.mealsPerDay, fasting: false } : {}),
     },
-    select: { id: true, name: true },
+    // ⚠️ Lo `style` si LEGGE, non si impone: vedi il commento su `STILE_SENZA_GLUTINE`.
+    select: { id: true, name: true, style: true },
   });
   if (!variante) {
     return { esito: 'variante_mancante', motivo: motivoSegnalazioneVarianteMancante(profilo.name) };
@@ -204,9 +216,12 @@ export async function assegnaSenzaGlutine(
 
   // Da qui in avanti si scrive. `updateMany` e non `update`: se il profilo non esistesse più non
   // deve esplodere una richiesta che per la cliente era «ho salvato il questionario».
+  // Lo stile è quello della variante trovata: `pickDietFor` lo usa insieme al nome, e scriverne uno
+  // diverso da quello a catalogo vorrebbe dire una famiglia che non aggancia più la sua dieta.
+  const stile = (variante as { style?: string | null }).style || STILE_SENZA_GLUTINE;
   await prisma.clientProfile.updateMany({
     where: { userId: clientId },
-    data: { dietFamily: DIETA_SENZA_GLUTINE, dietStyle: STILE_SENZA_GLUTINE },
+    data: { dietFamily: DIETA_SENZA_GLUTINE, dietStyle: stile },
   });
 
   // Le giornate già erogate da oggi in avanti sono costruite sulla dieta di prima: contarle è
