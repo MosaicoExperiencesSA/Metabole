@@ -79,19 +79,16 @@
   --ok: #e6f0e2; --ok-ink: #4f6b3f; --danger-bg: #f8e2e6;
   color-scheme: light;
 }
-/* Ardesia · rame (il secondo scuro, freddo dove «Notturno» è caldo) */
-:root[data-theme="slate"] {
-  /* ⚠️ Su fondo scuro `--teal-dark` è il colore del PASSAGGIO DEL MOUSE, e deve andare verso il
-     CHIARO, non verso lo scuro: lo stesso fa «Notturno». Scurirlo qui farebbe sparire il pulsante
-     proprio mentre ci si passa sopra. */
-  --teal: #d18a5b; --teal-dark: #e2a67c; --deep: #10151b;
-  --sidebar: #10151b; --sidebar-sep: #6d7b8b;
-  --bg: #1b2027; --card: #242c36; --ink: #e7ebf0; --muted: #9aa6b4;
-  --line: #333d4a; --chip: #2e3844; --chip-ink: #e0a87f;
-  --ok: #24352c; --ok-ink: #9ed3a8; --danger-bg: #3a2528;
-  /* Le ombre chiare sul buio non si vedono: come «Notturno», si alzano. */
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.5); --shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.65);
-  color-scheme: dark;
+/* Acceso · mela e indaco (verde mela primario, lo stesso desaturato come secondario, accento indaco) */
+:root[data-theme="acceso"] {
+  --teal: #5b57c9; --teal-dark: #423fa0; --deep: #2c3a00;
+  /* La barra scura nella stessa famiglia del verde: il mela pieno non regge il testo chiaro
+     (2,4:1), quindi la sidebar è lo stesso verde portato molto giù. */
+  --sidebar: #2c3a00; --sidebar-sep: #b6c98a;
+  --bg: #8db600; --card: #edf2d9; --ink: #16250a; --muted: #5d6b3f;
+  --line: #d3dfb0; --chip: #eae9f7; --chip-ink: #423fa0;
+  --ok: #e2eecd; --ok-ink: #47630f; --danger-bg: #f7e2de;
+  color-scheme: light;
 }
 
 * {

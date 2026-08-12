@@ -2,7 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { api } from './api/client';
 import { useAuth } from './auth/AuthContext';
 
-/** 4 temi commutabili del backoffice. L'id combacia con [data-theme] nel CSS e col backend. */
+/**
+ * I temi commutabili del backoffice. L'id combacia con `[data-theme]` nel CSS **e** con
+ * `ACCOUNT_THEMES` nel backend: sono tre posti, e se ne manca uno il tema si applica e poi torna
+ * indietro al primo ricaricamento (id non accettato dal salvataggio) oppure la pagina resta senza
+ * colori (id senza blocco CSS).
+ */
 export interface ThemeDef { id: string; label: string; bg: string; surface: string; accent: string; text: string; }
 export const THEMES: ThemeDef[] = [
   { id: 'light', label: 'Chiaro · verde', bg: '#faf8f3', surface: '#ffffff', accent: '#12a386', text: '#16302c' },
@@ -18,11 +23,16 @@ export const THEMES: ThemeDef[] = [
    */
   { id: 'fucsia', label: 'Cipria · fucsia', bg: '#f7f0f3', surface: '#ffffff', accent: '#b03a6e', text: '#2b1f27' },
   /**
-   * Il secondo scuro, freddo: «Notturno · oro» è caldo (nero-bruno + oro), questo è ardesia + rame.
-   * Serviva un secondo tema scuro perché chi lavora di sera ne ha uno solo, e non a tutti sta bene
-   * il caldo. Il rame ha abbastanza saturazione da reggere sul grigio-blu senza illuminarlo.
+   * «ACCESO», dettato da Simone: verde mela primario, lo stesso verde desaturato al 50% come
+   * secondario, e come accento **l'indaco della combinazione Minimal** (#5b57c9, lo stesso identico).
+   *
+   * ⚠️ Una libertà, una sola, e sui NUMERI: il verde desaturato al 50% *alla stessa luminosità*
+   * (#74882e) è un oliva che sta al buio quanto il verde mela — due fondi indistinguibili, e le card
+   * sparirebbero nella pagina. Quindi il secondario è lo stesso colore desaturato **e schiarito**
+   * (#edf2d9): resta quel verde, ma fa il mestiere che gli tocca, cioè reggere il testo. Il testo è
+   * un verde quasi nero e non nero puro — 6,8:1 sul mela, 14:1 sulle card.
    */
-  { id: 'slate', label: 'Ardesia · rame', bg: '#1b2027', surface: '#242c36', accent: '#d18a5b', text: '#e7ebf0' },
+  { id: 'acceso', label: 'Acceso · mela e indaco', bg: '#8db600', surface: '#edf2d9', accent: '#5b57c9', text: '#16250a' },
 ];
 const IDS = THEMES.map((t) => t.id);
 const DEFAULT = 'light';

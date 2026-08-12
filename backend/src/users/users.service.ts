@@ -58,7 +58,7 @@ const PUBLIC_USER_SELECT = {
  * un id nel CSS senza questa riga dà «Tema non valido» al salvataggio — e in tutti e due i casi
  * l'utente vede il tema applicarsi e poi tornare indietro al primo ricaricamento.
  */
-const ACCOUNT_THEMES = ['light', 'dark', 'taupe', 'white', 'fucsia', 'slate'];
+const ACCOUNT_THEMES = ['light', 'dark', 'taupe', 'white', 'fucsia', 'acceso'];
 
 /**
  * Righe per pagina nelle tabelle della home (clienti, piani in scadenza).

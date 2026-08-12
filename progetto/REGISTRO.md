@@ -20,6 +20,46 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` ➖ **Via «Ardesia · rame»: il tema che avevo proposto io non si tiene.** Era un secondo
+  scuro, freddo, per chi lavora di sera — un'aggiunta mia, non una richiesta. Simone ha scelto di non
+  tenerlo, e resta solo quello che ha dettato lui («Acceso»). Tolto dai **tre posti** in cui un tema
+  vive, così non resta un id a metà da nessuna parte. Restano sei temi.
+  ⚠️ È stato in produzione poche ore: chi l'avesse salvato tiene l'id `slate` sull'account finché non
+  ne sceglie un altro — l'interfaccia ripiega su «Chiaro» e nel selettore non risulta selezionato
+  niente. Nessun errore, nessun dato perso, si ripara scegliendo un tema: una migrazione per una
+  manciata di righe costerebbe più del problema, e cancellare d'ufficio la preferenza di qualcuno
+  sarebbe peggio del ripiego.
+
+- `[Sviluppo]` 🎨 **Gruppi del menu personalizzabili, tre temi nuovi, e gli acquisti a € 0 fuori dal
+  riquadro.** Tre richieste di Simone, tutte nelle personalizzazioni utente.
+  **(1) Il menu**: si rinominano i titoli dei gruppi, si spostano, si aggiungono e si eliminano, e le
+  voci passano da un gruppo all'altro; il «Reimposta» sta accanto al titolo della card. I gruppi
+  vivono **dentro la stessa lista** già salvata sul profilo (`menuOrder`), come righe che cominciano
+  con `#gruppo:` — una rotta comincia sempre con `/`, quindi non possono collidere, e chi ha un
+  ordine salvato senza marcatori continua a funzionare com'era: nessuna migrazione. ⚠️ Tre cose che
+  potevano far **sparire una voce dal menu**, tutte bloccate: una pagina nuova non nominata dai
+  gruppi salvati torna nel gruppo che aveva in origine (senza, chi si è personalizzato il menu non
+  l'avrebbe mai vista); le rotte che quel ruolo non vede si riattaccano invece di essere cancellate;
+  ed eliminare un gruppo **non elimina le voci**, che passano al gruppo accanto. Frecce e non
+  trascinamento — e quando la voce è la prima o l'ultima, la freccia la porta nel gruppo vicino.
+  **(2) Due temi nuovi.** *Cipria · fucsia*: il fucsia puro grida dopo mezz'ora, quindi l'accento è
+  abbassato a magenta scuro (~5:1 sul bianco) su un cipria appena rosato, testo prugna — il nero puro
+  accanto al rosa fa sembrare la pagina una stampa mal calibrata. *Acceso · mela e indaco*, dettato a voce da Simone: verde mela primario **come fondo**,
+  lo stesso verde desaturato al 50% come superficie, e l'accento è **lo stesso identico indaco** di
+  «Minimal». ⚠️ Unica libertà, e sui numeri: il desaturato *alla stessa luminosità* (`#74882e`) sta al
+  buio quanto il mela — due fondi indistinguibili, e le card sparirebbero — quindi è desaturato **e
+  schiarito**; e la barra laterale è il verde portato molto giù, perché il mela pieno non regge il
+  testo chiaro (2,4:1).
+  📌 **Un tema vive in TRE posti**: `THEMES`, il blocco `[data-theme=…]` nel CSS e `ACCOUNT_THEMES`
+  nel backend. Se ne manca uno, il tema si applica e torna indietro al primo ricaricamento, oppure la
+  pagina resta senza colori.
+  **(3) Acquisti a € 0** nascosti di default nel modulo della dashboard, con **la stessa** preferenza
+  della tabella Acquisti (`acquisti.mostraZero`): un interruttore solo, valido in due posti. Il
+  server manda **dodici** righe invece di cinque proprio perché è il frontend a toglierne — se ne
+  arrivassero cinque e quattro fossero a zero, il riquadro ne mostrerebbe una, e sembrerebbe che non
+  si venda niente.
+  Verifiche: build backoffice e backend verdi, **112 suite / 1724 test**.
+
 - `[Sviluppo]` 🔒 **Il questionario non cambia più la dieta dopo il primo invio — e per questo la
   correzione della nutrizionista tornava indietro da sola.** Trovato collaudando: su
   `sim1one.salogni@gmail.com` la dieta era stata spostata da **Pescetariana a Mediterranea due
