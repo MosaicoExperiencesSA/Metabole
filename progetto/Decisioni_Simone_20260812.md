@@ -158,6 +158,13 @@ Un solo modo di rispondere, quello che passa da `pickDietFor`.
 **descrizione** mostrati in app, che oggi possono venire da una variante a caso della famiglia. È il
 caso Cristina, spostato dal backoffice all'app.
 
+**✅ FATTO (12/8).** La ricerca vive in `catalog/dieta-mostrata.ts` e la usano tutte e due le
+schermate. Nel farlo è venuto fuori un pezzo in più: il Profilo non leggeva nemmeno `objective`, che
+entra in due dei sette ripieghi di `pick-diet.ts` — senza quel campo le due schermate sarebbero
+tornate a divergere sui ripieghi, in silenzio. 8 test su `dieta-mostrata.spec.ts` + 6 su
+`profile/dieta-assegnata.spec.ts` (descrizione, stile e nome: i tre campi che uscivano dalla riga
+sbagliata).
+
 ---
 
 ## 8. L'obiettivo passi diventa per cliente ✅ DECISO (domanda di Simone)

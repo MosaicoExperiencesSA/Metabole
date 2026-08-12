@@ -3,6 +3,7 @@ import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
+import { allergieDaCodificare } from '../common/allergie';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { PrismaService } from '../prisma/prisma.service';
@@ -146,6 +147,7 @@ export class PersonalBaseService {
         pathType: true,
         objective: true,
         allergies: true,
+        allergiesOther: true,
         assignedNutritionistId: true,
       },
     })) as unknown as {
@@ -156,6 +158,7 @@ export class PersonalBaseService {
       pathType: string | null;
       objective: string | null;
       allergies: string[];
+      allergiesOther: string[];
       assignedNutritionistId: string | null;
     } | null;
     if (!profile) throw new NotFoundException('Profilo non trovato: completa prima il questionario.');
@@ -163,10 +166,19 @@ export class PersonalBaseService {
     const minPerSlot = await this.configParams.getNumber('personal_base_min_recipes_per_slot', 3);
     const reasons: string[] = [];
 
-    // 1. Allergie: separa i 14 codici UE dal testo libero (che va codificato a mano).
+    /**
+     * 1. Allergie: quali vanno codificate a mano dal nutrizionista.
+     *
+     * ⚠️ La risposta viene da `allergiesOther` quando c'è — è un **fatto**, scritto al momento del
+     * questionario — e ricade sulla vecchia deduzione per differenza col catalogo UE solo per le
+     * clienti iscritte prima di quella colonna. La deduzione è un'**ipotesi**: basta che un codice
+     * UE cambi nome e un'allergia codificata diventa «da codificare», o viceversa, senza che nulla
+     * lo segnali. La regola sta in `common/allergie.ts`, che è anche il posto dove si vede che le
+     * due risposte possono non coincidere, e perché va bene così.
+     */
     const allergies = profile.allergies ?? [];
     const coded = allergies.filter((a) => EU_ALLERGEN_CODES.includes(a));
-    const uncoded = allergies.filter((a) => !EU_ALLERGEN_CODES.includes(a));
+    const uncoded = allergieDaCodificare(allergies, profile.allergiesOther, EU_ALLERGEN_CODES);
     if (uncoded.length) reasons.push(`allergie da codificare a mano: ${uncoded.join(', ')}`);
 
     // 2. Prodotto (dieta) del cliente.

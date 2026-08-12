@@ -456,6 +456,19 @@ function DataInizioPiano({ onSpostata }: { onSpostata: () => void }) {
 function ExcludedFoods() {
   const [foods, setFoods] = useState<string[] | null>(null);
   const [intol, setIntol] = useState<string[]>([]);
+  /**
+   * ALLERGIE — non comparivano da nessuna parte in app (punto D dell'handoff del 12/8).
+   *
+   * È il dato con la conseguenza più seria dei tre — un'allergia si evita sempre, tracce e derivati
+   * compresi — e la cliente non poteva rivedere quello che aveva dichiarato. Se ha spuntato la
+   * casella sbagliata al questionario, o se ne è dimenticata una, oggi non ha modo di accorgersene:
+   * lo scopre dal piatto.
+   *
+   * `null` = non le abbiamo mai chieste (o la pagina è stata saltata): è diverso da «nessuna», e la
+   * differenza si vede nel testo.
+   */
+  const [allergie, setAllergie] = useState<string[]>([]);
+  const [allergieChieste, setAllergieChieste] = useState<boolean>(true);
   const [add, setAdd] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -466,8 +479,13 @@ function ExcludedFoods() {
   const [avviso, setAvviso] = useState<{ titolo: string; testo: string } | null>(null);
 
   useEffect(() => {
-    api<{ dislikedFoods: string[] | null; intolerances: string[] | null }>('/me/client-profile')
-      .then((p) => { setFoods(p.dislikedFoods ?? []); setIntol(p.intolerances ?? []); })
+    api<{ dislikedFoods: string[] | null; intolerances: string[] | null; allergies: string[] | null; allergieDichiarateIl: string | null }>('/me/client-profile')
+      .then((p) => {
+        setFoods(p.dislikedFoods ?? []);
+        setIntol(p.intolerances ?? []);
+        setAllergie(p.allergies ?? []);
+        setAllergieChieste(!!p.allergieDichiarateIl || (p.allergies ?? []).length > 0);
+      })
       .catch(() => setFoods([]));
   }, []);
 
@@ -554,6 +572,19 @@ function ExcludedFoods() {
           <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22' }}>{avviso.testo}</div>
           <button className="btn ghost" style={{ marginTop: 9, padding: '6px 12px', fontSize: 12.5 }} onClick={() => setAvviso(null)}>Ho capito</button>
         </div>
+      )}
+      {allergie.length > 0 && (
+        <p className="muted" style={{ margin: '12px 0 0', fontSize: 11.5 }}>
+          <i className="ti ti-alert-triangle" style={{ fontSize: 12, verticalAlign: '-1px', color: '#C0392B' }} /> Allergie registrate: <b>{allergie.join(', ')}</b> — le evitiamo sempre, anche nelle tracce e nei derivati. Per correggerle scrivi alla tua nutrizionista.
+        </p>
+      )}
+      {allergie.length === 0 && !allergieChieste && (
+        // ⚠️ Non si scrive «Nessuna allergia»: non lo sappiamo. Per chi si è iscritta prima che la
+        // domanda avesse una risposta registrabile, «nessuna» sarebbe un'affermazione nostra su un
+        // dato sanitario che non abbiamo mai raccolto.
+        <p className="muted" style={{ margin: '12px 0 0', fontSize: 11.5 }}>
+          <i className="ti ti-alert-triangle" style={{ fontSize: 12, verticalAlign: '-1px', color: '#C98A2E' }} /> Non risultano allergie dichiarate. Se ne hai una, dillo alla tua nutrizionista: è la prima cosa che teniamo fuori dai menu.
+        </p>
       )}
       {intol.length > 0 && (
         <p className="muted" style={{ margin: '12px 0 0', fontSize: 11.5 }}>

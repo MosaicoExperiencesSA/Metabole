@@ -11,7 +11,7 @@ import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.serv
 import { campiCambiati } from '../common/diff-campi';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
-import { pickDietFor } from '../catalog/pick-diet';
+import { dietaMostrataPer } from '../catalog/dieta-mostrata';
 import { scostamentoDieta } from './scostamento-dieta';
 import { toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
@@ -310,6 +310,11 @@ export class ClientsService {
      *  - la dieta che il motore **servirebbe davvero**, con la stessa `pickDietFor` che usa
      *    l'erogazione: se la variante esatta non esiste, il motore ripiega, e la scheda deve
      *    dirlo invece di far finta che la dieta ripiegata sia quella scelta.
+     *
+     * ⚠️ La ricerca vive in `catalog/dieta-mostrata.ts`, non più qui: la stessa correzione serviva
+     * anche in `profile.service.nutrition`, dove la riga «solo il nome» era rimasta e la leggeva
+     * **la cliente** (decisione di Simone del 12/8). Due copie della stessa domanda tornerebbero a
+     * divergere.
      */
     const profiloMatch = {
       regime: (profile as { regime?: string | null } | null)?.regime ?? null,
@@ -319,39 +324,8 @@ export class ClientsService {
       objective: (profile as { objective?: string | null } | null)?.objective ?? null,
       pathType: (profile as { pathType?: string | null } | null)?.pathType ?? null,
     };
-    const SELECT_DIETA = {
-      id: true, name: true, clientName: true, clientDescription: true,
-      style: true, status: true, regime: true, mealsPerDay: true,
-    };
-    type DietaScheda = {
-      id: string; name: string; clientName: string | null; clientDescription: string | null;
-      style: string | null; status: string; regime: string | null; mealsPerDay: number | null;
-    };
-    const [varianteEsatta, dietaServita, giorniInArrivo] = await Promise.all([
-      dietFamilyAssegnata && profiloMatch.regime && profiloMatch.mealsPerDay
-        ? (this.prisma.diet.findFirst({
-            where: {
-              name: dietFamilyAssegnata,
-              regime: profiloMatch.regime,
-              mealsPerDay: profiloMatch.mealsPerDay,
-              ...(profiloMatch.dietStyle ? { style: profiloMatch.dietStyle } : {}),
-            },
-            // Approvata per prima: se esiste anche una bozza con lo stesso nome, è quella approvata
-            // a raccontare la dieta vera. ('approved' < 'draft' in ordine alfabetico.)
-            orderBy: { status: 'asc' },
-            select: SELECT_DIETA,
-          }) as Promise<DietaScheda | null>)
-        : Promise.resolve(null),
-      // La dieta che l'erogazione sceglierebbe adesso: stessa funzione, stessa scala di ripieghi.
-      pickDietFor<DietaScheda>(
-        (where) =>
-          this.prisma.diet.findFirst({
-            where: where as never,
-            orderBy: { approvedAt: 'desc' },
-            select: SELECT_DIETA,
-          }) as Promise<DietaScheda | null>,
-        profiloMatch,
-      ),
+    const [esitoDieta, giorniInArrivo] = await Promise.all([
+      dietaMostrataPer(this.prisma, profiloMatch),
       /**
        * ⚠️ Le giornate che la cliente deve ancora RICEVERE, non l'ultima che esiste.
        *
@@ -383,8 +357,7 @@ export class ClientsService {
      * profilo esiste, le due coincidono e non c'è niente da dire; se non esiste, `scostamento`
      * dice **cosa è stato chiesto e cosa viene servito**, che è la riga che mancava.
      */
-    const dietaMostrata = varianteEsatta ?? dietaServita;
-    const nomeAssegnata = dietaMostrata ? dietaMostrata.clientName || dietaMostrata.name : dietFamilyAssegnata;
+    const { varianteEsatta, dietaServita, dietaMostrata, nome: nomeAssegnata } = esitoDieta;
     // La prima delle prossime giornate che è costruita su una dieta DIVERSA da quella assegnata.
     // `null` = quello che riceverà è già la dieta giusta (o non riceverà più niente).
     const dietaVecchiaInArrivo = nomeAssegnata ? dieteInArrivo.find((n) => n !== nomeAssegnata) ?? null : null;

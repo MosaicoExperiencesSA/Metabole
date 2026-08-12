@@ -1,5 +1,54 @@
 # HANDOFF — Allergie e intolleranze: cosa cambiare, in che ordine
 
+> ## ✅ STATO AL 12/8/2026 — cosa è stato fatto e cosa no
+>
+> | | | |
+> |---|---|---|
+> | **A** | I tre difetti nell'espansione degli allergeni | ✅ **fatto** |
+> | **B** | `allergiesOther` | ✅ **fatto, ma diversamente da come dice il §2** — vedi sotto |
+> | **C** | «Nessuna allergia» ≠ «non risposto` | ✅ colonna e scrittura fatte; ⛔ **l'opzione «nessuna» nel questionario e il «freno forte» NO** |
+> | **D** | Le allergie nelle schede | ✅ backoffice e app (sola lettura) + etichette del registro |
+> | **E** | Ri-domanda alle clienti già iscritte | ⛔ non iniziata |
+> | **F** | Visita obbligatoria | ⛔ non iniziata, come dice il §8 |
+>
+> ### ⚠️ Dove mi sono discostato dal §2, e perché
+>
+> Il §2 dice: `allergies` i codici, `allergiesOther` il testo libero, separati al salvataggio.
+> **Non l'ho fatto.** Il testo libero resta ANCHE dentro `allergies`, e `allergiesOther` è un
+> **marcatore** di quali fra quelle voci sono testo libero.
+>
+> Il motivo l'ho verificato in codice: **sette punti** leggono `allergies` per escludere davvero
+> gli alimenti — `menu.service` (pool ricette semplici), `sostituzione-chat.service` (due punti,
+> i sostituti di Gaia), `personal-base`, `plan-report`, `crm.service`, `clients.service`. Spostare
+> il testo libero in un'altra colonna li disarma tutti insieme e in silenzio: sarebbe il difetto
+> `frutta_a_guscio` — un'allergia dichiarata che non esclude niente — rifatto in grande, e su
+> un dato dove la conseguenza è una reazione allergica.
+>
+> Una ridondanza scritta da **un punto solo** (`common/allergie.ts`) e verificata da un test costa
+> meno di sette letture da ricordarsi di aggiornare, con una che se dimenticata non dà errore.
+> Il beneficio del §2 — `personal-base` sa quali codificare senza dedurlo — si ottiene lo stesso:
+> `allergieDaCodificare()` usa il fatto quando c'è, e ricade sulla deduzione solo per chi è
+> iscritta da prima.
+>
+> ### Cosa resta aperto, e da chi dipende
+>
+> - ⛔ **I solfiti** (§1.2): ho messo solo la parola letterale, dichiarato nel codice e in un test.
+>   L'elenco (vino, aceto balsamico, frutta disidratata, salumi…) **lo deve dare Nocanty**: decide
+>   quali piatti si tolgono dal piatto di una cliente, e in eccesso si sbaglia facilmente.
+> - ⛔ **`intolerancesOther`** (§1.3): serve una colonna e un campo nel questionario. Finché non
+>   c'è, `'other'` fra le intolleranze **non si filtra** — è l'unica traccia di quello che non
+>   sappiamo, ed è la popolazione più urgente del §7.1.
+> - ⛔ **L'opzione «nessuna» nel questionario** (§3.1): è una modifica all'app, quindi va con la OTA.
+>   Finché non c'è, un array vuoto conta come «non risposto», non come «non ne ho».
+> - ⛔ **Il «freno forte»** (§3): non implementato, e non va implementato prima di averlo definito
+>   con la nutrizionista. Nessun comportamento parte da `allergieDichiarateIl`.
+> - ⛔ **Chi può scrivere le allergie** (§5): restano in sola lettura ovunque. La proposta
+>   «modificabili da nutritionist e head_nutritionist» aspetta la conferma di Simone.
+> - ⛔ **Prima di lanciare la campagna (§7): CONTARE.** Se la popolazione 3 fossero 280 clienti su
+>   315, non è una campagna, è un difetto del questionario da correggere prima.
+>
+> ---
+
 **Per l'agente che prepara la OTA.** Scritto il 12/8/2026 dopo verifica diretta su `main`.
 Tutti i riferimenti `file:riga` sono stati letti, non ricordati. Il verbatim è verbatim.
 

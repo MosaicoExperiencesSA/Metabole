@@ -569,7 +569,17 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
       recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
       // l2 = ricetta "che fa perdere di più" (efficacia appresa alta); l1 = più gradita.
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'l2', score: 5, samples: 5 }]) },
-      recipeRating: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'l1', stars: 5 }, { recipeId: 'l2', stars: 1 }]) },
+      /**
+       * ⚠️ 4★ contro 2★, non 5★ contro 1★ (cambiato il 12/8 con la nuova scala delle stelle).
+       *
+       * Con `(stelle − 1) / 4` una stella vale **zero** e cinque vale **uno**: su questa fixture
+       * `l2` faceva 1,0 (efficacia piena + gradimento zero) e `l1` faceva 1,0 (efficacia zero +
+       * gradimento pieno) — un **pareggio esatto**, e il test smetteva di misurare la regola che
+       * dichiara per misurare come si rompono i pareggi. Con 4★/2★ le due voci restano quelle di
+       * prima — `l2` efficace, `l1` più gradita — e ogni test torna a dipendere solo dal peso che
+       * sta verificando.
+       */
+      recipeRating: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'l1', stars: 4 }, { recipeId: 'l2', stars: 2 }]) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };

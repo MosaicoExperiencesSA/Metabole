@@ -110,6 +110,9 @@ export function filtroClienteConPianoAttivo(adesso = new Date()) {
  * cento clienti sarebbero cento round-trip verso Neon — cioè una diagnostica che nessuno lancia più
  * perché è lenta.
  */
+/** Mezzanotte di oggi: le pause si confrontano per giorno, come tutto il resto qui dentro. */
+const oggiPerPausa = (adesso: Date): Date => soloData(adesso);
+
 export async function pianiDiClienti(
   prisma: PrismaService,
   clientIds: string[],
@@ -123,13 +126,41 @@ export async function pianiDiClienti(
     where: { clientId: { in: ids } },
     select: {
       clientId: true, status: true, endDate: true,
-      plan: { select: { name: true } },
+      // ⚠️ `period` serve a `riceveMenu`: senza, il Monitoraggio risultava «attivo e riceve menu»
+      // mentre l'erogazione non gli manda niente. Vedi sotto.
+      plan: { select: { name: true, period: true } },
     },
     // Il più recente per ultimo non basta: si scorre tutto e si tiene il migliore (vedi sotto).
     orderBy: [{ startDate: 'desc' }],
   })) as {
-    clientId: string; status: string; endDate: Date | null; plan: { name: string | null } | null;
+    clientId: string; status: string; endDate: Date | null;
+    plan: { name: string | null; period: string | null } | null;
   }[];
+
+  /**
+   * ⚠️ CHI STA IN PAUSA O COL PIANO FERMATO NON RICEVE MENU — e finora questa funzione diceva di sì.
+   *
+   * Le due domande si leggono in blocco per tutte le clienti insieme: una per cliente sarebbe
+   * cento round-trip verso Neon, cioè una diagnostica che nessuno lancia più perché è lenta — che è
+   * lo stesso motivo per cui questa funzione esiste.
+   */
+  const [inPausa, fermati] = await Promise.all([
+    prisma.event
+      .findMany({
+        where: {
+          clientId: { in: ids },
+          mode: 'pause_period',
+          startDate: { lte: oggiPerPausa(adesso) },
+          endDate: { gte: oggiPerPausa(adesso) },
+        } as never,
+        select: { clientId: true },
+      })
+      .catch(() => [] as { clientId: string }[]) as Promise<{ clientId: string }[]>,
+    prisma.clientProfile
+      .findMany({ where: { userId: { in: ids }, planHeldAt: { not: null } } as never, select: { userId: true } })
+      .catch(() => [] as { userId: string }[]) as Promise<{ userId: string }[]>,
+  ]);
+  const nonRicevono = new Set([...inPausa.map((p) => p.clientId), ...fermati.map((p) => p.userId)]);
 
   const oggi = soloData(adesso);
   for (const s of righe ?? []) {
@@ -141,7 +172,22 @@ export async function pianiDiClienti(
       stato,
       nomePiano: s.plan?.name ?? null,
       fine: s.endDate ?? null,
-      riceveMenu: stato === 'attivo',
+      /**
+       * ⚠️ NON basta «l'abbonamento è attivo»: dev'essere la stessa risposta di `deliverIfEligible`,
+       * o le diagnostiche contano fra le «attive» persone a cui non arriverà mai un menu.
+       *
+       * È il caso Rosaria citato in testa a questo file: il falso allarme che questo file esiste
+       * per impedire, e che si era ripresentato qui dentro. Le esclusioni sono quelle vere
+       * dell'erogazione: **Monitoraggio** (non è un piano alimentare), **pausa vacanza** (o ricevi
+       * menu, o sei in pausa — non c'è una terza strada) e **piano fermato dal nutrizionista**.
+       *
+       * Il costo del falso allarme non è il tempo perso a controllarlo: è che dopo due o tre nessuno
+       * guarda più la lista — ed è la stessa lista dove un giorno comparirà quello vero.
+       */
+      riceveMenu:
+        stato === 'attivo' &&
+        (s.plan?.period ?? '').toLowerCase() !== 'monitoring' &&
+        !nonRicevono.has(s.clientId),
       etichetta: stato === 'attivo'
         ? `attivo${s.plan?.name ? ` · ${s.plan.name}` : ''}`
         : stato === 'scaduto_da_chiudere'

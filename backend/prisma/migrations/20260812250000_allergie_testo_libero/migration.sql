@@ -1,0 +1,37 @@
+-- ALLERGIE: la natura del dato, e la data in cui è stato chiesto (12/8).
+-- Punti B e C dell'handoff `progetto/HANDOFF_Allergie_Intolleranze.md`.
+--
+-- 1) `allergies_other` — QUALI delle allergie sono testo libero.
+--    Oggi il testo libero del questionario viene concatenato dentro `allergies` e la sua natura si
+--    perde. Viene poi ricostruita a posteriori per differenza col catalogo UE
+--    (`personal-base.service.ts`: «allergie da codificare a mano»): funziona, ma basta che un codice
+--    UE cambi nome e un'allergia codificata diventa «da codificare», o viceversa.
+--
+--    ⚠️ QUESTA COLONNA È UN MARCATORE, NON UNO SPOSTAMENTO. Il testo libero resta ANCHE dentro
+--    `allergies`, e non è una svista: sette punti del codice leggono `allergies` per escludere gli
+--    alimenti (menu, sostituti di Gaia, base personale, report, CRM). Toglierlo da lì per metterlo
+--    qui vorrebbe dire disarmare tutti e sette in un colpo solo — cioè rifare, in grande, il difetto
+--    che questo lavoro sta chiudendo (`frutta_a_guscio`: un'allergia dichiarata che non escludeva
+--    niente). Una ridondanza dichiarata, scritta da un punto solo e verificata da un test, costa meno
+--    di sette letture da ricordarsi di aggiornare.
+--
+-- 2) `allergie_dichiarate_il` — se la domanda è stata FATTA.
+--    Oggi `allergies = []` vuol dire due cose indistinguibili: «non ne ho» e «non me l'ha mai chiesto
+--    nessuno». Nessun campo di quella pagina è obbligatorio, quindi si passa oltre senza rispondere.
+--
+--    ⚠️ NESSUN COMPORTAMENTO BLOCCANTE parte da questa colonna, e non per prudenza generica: il
+--    «freno forte» va definito con la nutrizionista prima di scriverlo. Bloccare il piano di 315
+--    clienti perché un campo nuovo è vuoto sarebbe un guasto di massa introdotto da una migrazione.
+--
+-- Additiva: nessun dato riscritto, nessun backfill. Le colonne nascono vuote — e `allergies_other`
+-- resta vuota anche per chi è già iscritto, perché scindere all'indietro `allergies` per differenza
+-- col catalogo è proprio la deduzione automatica che questa colonna esiste per non fare più. Si
+-- ripopola dalla ri-domanda o dalla nutrizionista.
+
+-- ⚠️ `NOT NULL` come la colonna `allergies` che sta accanto, e non per simmetria: un array di
+-- Prisma non è mai nullo lato client, quindi una colonna nullable qui vorrebbe dire che il tipo e
+-- la banca dati raccontano due cose diverse — e la differenza si scoprirebbe leggendo una riga
+-- vecchia. Con `DEFAULT` + `NOT NULL` su PostgreSQL 11+ la colonna si aggiunge senza riscrivere la
+-- tabella. (Applicata e verificata su PG16 insieme a tutte le migrazioni precedenti.)
+ALTER TABLE "client_profile" ADD COLUMN "allergies_other" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "client_profile" ADD COLUMN "allergie_dichiarate_il" TIMESTAMP(3);

@@ -405,6 +405,16 @@ model ClientProfile {
   coachStyle             CoachStyle? @map("coach_style")
   character              Character?
   allergies              String[]   @default([]) // R8: blocco duro (incl. tracce/derivati), distinto da intolleranze/gusti
+  // QUALI di quelle allergie sono testo libero, cioè non un codice UE del questionario.
+  // ⚠️ È un MARCATORE, non uno spostamento: il testo libero sta ANCHE dentro `allergies`, perché
+  // sette punti del codice leggono quell'array per escludere gli alimenti. Spostarlo qui li
+  // disarmerebbe tutti insieme. Serve a sapere che vanno codificate a mano, senza dedurlo per
+  // differenza col catalogo UE (che cambia, e quando cambia la deduzione sbaglia in silenzio).
+  allergiesOther         String[]   @default([]) @map("allergies_other")
+  // Quando la domanda sulle allergie è stata FATTA e ha avuto una risposta. Senza, `allergies: []`
+  // vuol dire due cose indistinguibili: «non ne ho» e «non me l'ha mai chiesto nessuno».
+  // ⚠️ Nessun blocco parte da qui: il «freno forte» lo definisce la nutrizionista.
+  allergieDichiarateIl   DateTime?  @map("allergie_dichiarate_il")
   intolerances           String[]   @default([])
   dislikedFoods          String[]   @default([]) @map("disliked_foods")
   // Preferenza della cliente: menu con ricette SEMPLICI (cucina italiana) quando disponibili.

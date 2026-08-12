@@ -25,74 +25,95 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
-- `[Sviluppo]` 🗣️ **«Vera», l'agente discorsivo della nutrizionista — specifica, non codice.**
-  Lucia ha chiesto al telefono «un sistema che apprende da me in maniera discorsiva». Ne è uscita
-  `Metabole_Specifica_Vera_Agente_Nutrizionista.md` (radice): una chat da cui la nutrizionista detta
-  regole, sostituzioni, ricette e varianti, e che le traduce in oggetti veri dei moduli. L'avanzamento
-  si legge in **`progetto/VERA_AVANZAMENTO.md`**, che si aggiorna a ogni push.
-  **L'impianto in una riga: la chat è un compilatore, non un giudice** — la frase si traduce *una
-  volta* in una regola strutturata, poi il motore la applica in modo deterministico. Sei azioni
-  chiuse ordinate per raggio del danno: le tre per-cliente scrivono dopo conferma, le tre a raggio
-  largo (ricetta modificata, ricetta nuova, regola su un tipo di dieta) vanno **in coda a Nocanty**.
-  Quando lei nomina una famiglia che il catalogo non conosce («formaggi molli»), Vera **non
-  indovina**: elenca i formaggi e le fa spuntare quali sono. Da lì nasce il **dizionario** — impara
-  la sua lingua, non la nutrizione.
-  **Le interfacce**: pagina dedicata con la chat sopra e il **registro sotto**, sulla stessa
-  schermata; ogni riga dice data, origine, azione, **su chi**, stato, e cliccandola si rivede **la
-  frase da cui è nata**. Il registro mostra **tutto** quello che cambia sulle sue clienti, non solo
-  le azioni dell'agente — e ⚠️ **non è una tabella nuova**: è il «log delle modifiche» della scheda
-  cliente allargato a tutte le sue clienti (`AuditLog` per `entityId`, dove `profile.update` registra
-  già **i valori cambiati** e non solo i nomi dei campi — la richiesta del 10/8, «altrimenti non
-  serve a nulla»), unito a `FoodSwap` e alle sostituzioni in `MenuDay.meals`. Lettura e fusione, non
-  scrittura. Il modulo in dashboard dice **«quello che aspetta me»** e non «quello che ho fatto».
-  **Nocanty ha la stessa interfaccia con un agente che fa il mestiere opposto**: non scrive niente,
-  gli sottopone le cose da approvare **una alla volta**, già istruite, **in ordine di rischio e non di
-  data**. ⚠️ **L'approvazione in blocco non esiste** (deciso da Simone): un bottone «approva tutte»
-  in tre settimane diventa l'unico che si preme, e la coda perde il suo senso.
-  **⚠️ Tre cose emerse dalla verifica sul codice, che valgono oltre questo progetto:**
-  1. **Vera esiste già in embrione**: `impara-dal-nutrizionista.ts` + `impara-dalla-chat.ts` (scritti
-     oggi) leggono già le frasi del nutrizionista in chat e ne ricavano righe `FoodSwap`.
-  2. **Allergie e intolleranze sono GIÀ distinte** (`ClientProfile.allergies` / `intolerances` /
-     `dislikedFoods`, gerarchia R8). Il cantiere non è la separazione: mancano solo la scissione di
-     `allergiesOther`, le chiavi inglesi delle intolleranze e **la visita obbligatoria**.
-  3. **Il dato «menu già visto» non esiste**: `MenuDay.status` c'è ma **non viene mai aggiornato** da
-     nessuna parte. Serve `viewedAt` valorizzato in `getMenu` — poche righe, un punto solo — perché
-     l'annullo con rigenerazione selettiva sia implementabile.
-  Il pezzo più grosso resta il **controllo del pool a vuoto**: non esiste, ma è estrazione e non
-  riscrittura — in `deliverIfEligible` non c'è nessuna `$transaction` e la linea di taglio è la riga
-  675. Modello da imitare: `simulaKcal`, col suo test «la simulazione non salva niente».
+- `[Sviluppo]` 🩺 **Le allergie adesso si vedono — e si sa se sono state chieste.** Punti B, C e D
+  dell'handoff. Migrazione additiva `20260812250000_allergie_testo_libero`, applicata e verificata su
+  PG16 insieme a tutte le precedenti: due colonne, nessun dato riscritto, nessun backfill.
+  **`allergiesOther`** dice quali allergie sono **testo libero**, invece di dedurlo per differenza col
+  catalogo UE — deduzione che funziona finché un codice non cambia nome, e allora sbaglia in silenzio.
+  ⚠️ **Qui mi sono discostato dall'handoff, ed è una scelta.** Il §2 dice di *separare*: i codici in
+  `allergies`, il testo in `allergiesOther`. Verificato in codice: **sette punti** leggono `allergies`
+  per escludere davvero gli alimenti — generatore menu, sostituti di Gaia (due), base personale,
+  report, CRM, scheda cliente. Spostare il testo libero altrove li disarma **tutti insieme e in
+  silenzio**: è il difetto `frutta_a_guscio` rifatto in grande, su un dato la cui conseguenza è una
+  reazione allergica. Quindi `allergiesOther` è un **marcatore**, non uno spostamento — una
+  ridondanza scritta da un punto solo (`common/allergie.ts`) e verificata da un test, che costa meno
+  di sette letture da ricordarsi di aggiornare.
+  **`allergieDichiarateIl`** distingue «non ne ho» da «non me l'ha mai chiesto nessuno»: nessun campo
+  di quella pagina è obbligatorio, quindi ci si passa sopra senza rispondere. ⛔ **Nessun blocco parte
+  da quella colonna**: il «freno forte» lo definisce la nutrizionista — fermare 315 piani perché un
+  campo nuovo è vuoto sarebbe un guasto di massa introdotto da una migrazione.
+  **E si vedono.** Le allergie non comparivano in **nessuna** scheda: né backoffice, né profilo
+  dell'app, né dalla coach. Sono il dato con la conseguenza più grave dei tre (R8: blocco duro, non
+  sostituzione) e la cliente non poteva rivedere quello che aveva dichiarato — se ha spuntato la
+  casella sbagliata lo scopre dal piatto. Ora una riga in **sola lettura** nel backoffice e in app,
+  più le etichette nel registro modifiche (mancavano: una modifica alle allergie sarebbe comparsa col
+  nome tecnico del campo). ⚠️ Dove non lo sappiamo **non si scrive «Nessuna»**: dire «nessuna
+  allergia» a chi non se l'è mai sentito chiedere è un'affermazione nostra su un dato sanitario che
+  non abbiamo mai raccolto. 13 test nuovi, suite **2170** verde, app 50 verdi. Stato punto per punto
+  in testa a `progetto/HANDOFF_Allergie_Intolleranze.md`.
 
-- `[Sviluppo]` 🧬 **Handoff allergie/intolleranze all'agente della OTA — e tre difetti trovati
-  leggendo il codice.** `progetto/HANDOFF_Allergie_Intolleranze.md`, da fare **prima** della
-  pubblicazione.
-  ⚠️ **Il primo difetto vale da solo il documento.** Il questionario salva l'allergene come
-  **`frutta_a_guscio`** (underscore, `onboarding.questions.ts:63`), mentre `INTOLERANCE_MAP` conosce
-  **`'frutta a guscio'`** con gli spazi e `ALIAS` non ha la variante: `expandExclusion` ricade sulla
-  stringa letterale, che non compare in nessun nome di piatto. Sulla **strada testuale**
-  (`exclusions.ts`, usata dal pool «ricette semplici» a `menu.service.ts:624` e dai sostituti che
-  Gaia propone a `sostituzione-chat.service.ts:791,955`) **quell'allergia non esclude niente**. La
-  **strada codificata** (`personal-base`, tag allergene sulle ricette) la copre — ma solo se i tag
-  sono revisati: sono **due verità diverse sullo stesso pool**. È lo stesso difetto che l'8/8 ha
-  fatto proporre il burro a una cliente allergica al latte, ed era già scritto nel commento in testa
-  a `INTOLERANCE_MAP`: *una chiave che la mappa non riconosce si comporta come un'esclusione che non
-  c'è, e non produce nessun errore*.
-  Gli altri due: **`sedano`, `senape`, `solfiti`, `lupini`** non hanno nessuna espansione; e
-  **`'altro'`/`'other'`** finiscono in banca dati come se fossero alimenti, perché il sentinella lo
-  toglie **solo il client React** (`Onboarding.tsx:449`) — chi ha scelto «Altro» fra le intolleranze
-  ha un'intolleranza che **non sappiamo**.
-  **⚠️ Il piano di stamattina è stato corretto su un punto**: la ri-domanda **non** va a tutte le
-  clienti già iscritte. Il questionario le due domande **le fa già** (allergie e intolleranze sono
-  campi distinti da sempre), quindi si contattano **tre popolazioni sole** — chi ha `'other'` fra le
-  intolleranze, chi ha allergie a testo libero mai codificate (`personal-base` le segnala già), e chi
-  ha tutto vuoto e quindi non sappiamo se è «non ne ho» o «ho saltato la pagina». Per le altre basta
-  valorizzare la data di dichiarazione: hanno risposto, non si disturbano.
-  Il resto: colonna `allergiesOther` (oggi fusa dentro `allergies` in **due rami**, `:321` e `:357`),
-  campo libero `intolerancesOther`, `allergieDichiarateIl` + opzione «nessuna» per rendere i **tre
-  stati** distinguibili, e la riga «Allergie» in sola lettura dove oggi non c'è — la cliente **non
-  può vedere le proprie allergie in nessuna schermata dell'app**, e il backoffice non le mostra
-  affatto. ⛔ **La visita obbligatoria resta fuori da questa OTA**: dipende dalla decisione aperta su
-  cosa succede al piano di chi è già in percorso, e un blocco introdotto al buio sospenderebbe piani
-  attivi a clienti paganti.
+- `[Sviluppo]` 🥜 **Un'allergia dichiarata che non escludeva niente — e un test che lo certificava.**
+  Primo punto dell'handoff su allergie e intolleranze (`HANDOFF_Allergie_Intolleranze.md`), l'unico
+  che non poteva aspettare la OTA. Il questionario salva **`frutta_a_guscio`** con gli underscore; la
+  mappa delle esclusioni conosce `'frutta a guscio'` con gli spazi. `expandExclusion` restituiva
+  quindi la stringa grezza — che non compare in nessun nome di piatto e in nessun ingrediente — e
+  sulla **strada testuale** (i sostituti proposti da Gaia, il pool «ricette semplici») quell'allergia
+  **non escludeva niente**. È lo stesso difetto che l'8/8 ha fatto proporre il burro a Giusy,
+  allergica al latte: una chiave che la mappa non riconosce si comporta come un'esclusione che non
+  c'è, e non produce nessun errore.
+  ⚠️ **E c'era un test che lo registrava come regola**: `expect(mancanti).toEqual(['frutta_a_guscio',
+  …])`, col commento «non hanno derivati: la parola stessa basta». Per la frutta a guscio quel
+  commento era falso — i derivati la mappa ce li ha, sotto l'altra chiave. Un test che fotografa il
+  comportamento invece di affermare la regola non protegge: certifica. Ora l'elenco dev'essere vuoto.
+  Si normalizzano gli underscore **dentro** `expandExclusion`, non con un alias a mano, così il buco
+  non si riapre con la prossima opzione che nasce con l'underscore. ⚠️ Guardando la forma grezza
+  **prima** di normalizzare, o l'alias `latticini_` — che esiste davvero — avrebbe smesso di
+  funzionare. Aggiunti anche `sedano`, `senape` e `lupini`, opzioni del questionario senza nessuna
+  espansione. ⛔ I **solfiti** hanno solo la parola, dichiarato nel codice e in un test: non si
+  scrivono negli ingredienti (vino, aceto balsamico, frutta disidratata), e quell'elenco decide quali
+  piatti si tolgono dal piatto di una cliente — **lo deve dare Nocanty**, non chi scrive il codice.
+  **E «altro» non è un alimento**: era un flag d'interfaccia tolto **solo dal client React**, quindi
+  un'app vecchia o una chiamata diretta salvava «altro» come allergene. Ora si filtra lato server,
+  calcolato una volta per **entrambi i rami** dell'upsert, con un test per ciascuno. ⚠️ `'other'` fra
+  le **intolleranze** non si tocca: non ha un campo libero associato, quindi è l'unica traccia del
+  fatto che quella cliente ha un'intolleranza che non sappiamo — ed è la popolazione più urgente da
+  ricontattare. 11 test nuovi, suite 2157 verde.
+
+- `[Sviluppo]` ⭐🍽️ **Le stelle, «riceve i menu?» e la dieta assegnata — le ultime tre delle sette
+  decisioni del 12/8.**
+  **Un piatto mai votato vale ZERO, non cinque** (Simone: «i piatti non votati dalla paziente hanno 0
+  stelline, non 5 così cambia tutto»). La formula stava dentro una closure e nessun test la guardava:
+  un piatto mai provato entrava a **gradimento pieno**, quindi nello stato «conforto» — umore basso per
+  tre giorni → menu più amati — le arrivavano piatti che non aveva mai visto invece di quelli che ama.
+  Lo stato faceva il contrario di quello per cui esiste. Ora la formula sta in `menu/punteggio.ts` con
+  17 test. ⚠️ La scala è `(stelle − 1) / 4`: **una stella vale come «mai provato»**, non 0,2. Con
+  `stelle / 5` un piatto **bocciato** sarebbe rimasto sopra uno sconosciuto, e nel giorno peggiore le
+  sarebbe potuta tornare nel piatto proprio una cosa che aveva rifiutato. ⚠️ Ma non va sotto zero: con
+  un catalogo ancora poco votato, una penalità vera toglierebbe piatti dal pool di chi ha votato poco.
+  ⚠️ Conseguenza da sapere: **con i pesi di default 5★ pareggia esattamente un piatto efficacissimo
+  bocciato a 1★** — «lo adora» e «le fa perdere più peso» ora valgono uguale, e per spostare l'ago si
+  alza `menu_select_w_eff` dai Parametri. È una manopola, non più un caso. Un test dei menu è cambiato
+  per questo: la sua fixture era diventata un pareggio esatto e misurava i pareggi invece della regola
+  che dichiarava.
+  **«Riceve i menu?» — una regola sola, quella dell'erogazione.** La diagnostica dava per «attiva e
+  riceve menu» chi è in **Monitoraggio**, in **pausa vacanza** o col piano **fermato** dal
+  nutrizionista: a quelle persone `deliverIfEligible` non manda niente. Era il falso allarme del caso
+  Rosaria — un avviso su una dieta incompleta che a lei non sarebbe mai arrivata. Ora `piano-attivo.ts`
+  chiede le stesse tre esclusioni dell'erogazione (8 test nuovi). ⚠️ Se i due controlli in più
+  falliscono, l'elenco esce lo stesso: una diagnostica che non parte perché un accessorio è andato
+  storto non serve a nessuno.
+  **«Qual è la dieta assegnata?» — una ricerca sola, la stessa dello staff.** L'11/8, col caso Cristina
+  Urbani, la scheda del backoffice è stata corretta: cercava la dieta **per solo nome**, e una famiglia
+  ha fino a diciotto varianti che condividono il nome. ⚠️ La correzione era stata applicata **solo al
+  lato staff**: nel Profilo dell'app la riga sbagliata è rimasta, e lì la legge **la cliente**. Dalla
+  stessa query non usciva solo il nome: uscivano lo **stile** — che decide quale scheda «cos'è la tua
+  dieta» si apre — e la **descrizione** sotto il «?». Una cliente onnivora a 5 pasti poteva leggere la
+  descrizione, e aprire la scheda, della variante **vegana a 3 pasti** della stessa famiglia. Ora la
+  ricerca è una (`catalog/dieta-mostrata.ts`, 8 test) e la usano tutte e due le schermate: variante
+  esatta (nome + stile + regime + pasti), altrimenti la dieta che l'erogazione **servirebbe davvero** —
+  la sola che spiega i piatti che ha nel piatto. ⚠️ Il profilo ora legge anche `objective`, che entra in
+  due dei sette ripieghi di `pick-diet.ts`: senza, cliente e staff sarebbero tornati a cercare due cose
+  diverse. 2146 test verdi.
 
 - `[Sviluppo]` 💧🚶 **Un obiettivo solo per l'acqua, uno su misura per i passi — e il prezzo mostrato
   è quello che si paga.** Prime quattro delle sette decisioni prese da Simone il 12/8, una domanda

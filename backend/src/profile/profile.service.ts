@@ -13,6 +13,7 @@ import { campiCambiati } from '../common/diff-campi';
 import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 import { toDateOnly } from '../common/date-only';
+import { dietaMostrataPer, nomePerLaCliente } from '../catalog/dieta-mostrata';
 
 @Injectable()
 export class ProfileService {
@@ -259,11 +260,15 @@ export class ProfileService {
       where: { userId },
       select: {
         regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true, pathType: true, fastingWindow: true,
+        // ⚠️ `objective` serve alla ricerca della dieta (`pick-diet.ts` ci fa sopra due dei sette
+        // ripieghi): senza, la cliente e lo staff cercherebbero con due profili diversi — che è
+        // esattamente il difetto che questa riga chiude.
+        objective: true,
         assignedCoach: { select: { displayName: true } },
       },
     })) as {
       regime: string | null; dietStyle: string | null; dietFamily: string | null; mealsPerDay: number | null;
-      pathType: string | null; fastingWindow: string | null;
+      pathType: string | null; fastingWindow: string | null; objective: string | null;
       assignedCoach: { displayName: string | null } | null;
     } | null;
     if (!profile) throw new NotFoundException('Profilo non ancora creato: completa prima il questionario.');
@@ -290,19 +295,28 @@ export class ProfileService {
      * si poteva sapere se il cambio fosse andato a buon fine o si fosse perso per strada.
      *
      * `ClientProfile.dietFamily` è `Diet.name` (vedi `pick-diet.ts`), quindi si può cercare la
-     * variante e prenderne descrizione e stile. Approvata per prima: se ne esiste anche una bozza,
-     * è quella approvata a raccontare la dieta vera.
+     * variante e prenderne descrizione e stile.
+     *
+     * ⚠️ QUI C'ERA LA RIGA CHE MENTIVA (corretta il 12/8, decisione di Simone: «la cliente usa la
+     * stessa ricerca dello staff»). Si cercava `findFirst({ where: { name: dietFamily } })` — per
+     * **nome e basta** — ed è la stessa trappola trovata l'11/8 nella scheda del backoffice col
+     * caso Cristina Urbani, corretta lì e lasciata qui. Una famiglia ha fino a diciotto varianti
+     * che condividono il nome: quella query ne pescava una a caso, e da lì uscivano anche lo
+     * **stile** (che apre la scheda «cos'è la tua dieta») e la **descrizione** sotto il «?». Una
+     * cliente onnivora a 5 pasti poteva leggere la descrizione della variante vegana a 3 pasti.
+     *
+     * Ora è la stessa funzione dello staff, in `catalog/dieta-mostrata.ts`: variante esatta
+     * (nome + stile + regime + pasti, approvata per prima), altrimenti la dieta che l'erogazione
+     * servirebbe davvero — la sola che spiega i piatti che ha nel piatto.
      */
-    const assegnata = profile.dietFamily
-      ? (((await this.prisma.diet.findFirst({
-          where: { name: profile.dietFamily, status: 'approved' },
-          select: { name: true, clientName: true, clientDescription: true, style: true },
-        })) ??
-          (await this.prisma.diet.findFirst({
-            where: { name: profile.dietFamily },
-            select: { name: true, clientName: true, clientDescription: true, style: true },
-          }))) as { name: string; clientName: string | null; clientDescription: string | null; style: string | null } | null)
-      : null;
+    const { dietaMostrata: assegnata } = await dietaMostrataPer(this.prisma, {
+      regime: profile.regime,
+      dietStyle: profile.dietStyle,
+      dietFamily: profile.dietFamily,
+      mealsPerDay: profile.mealsPerDay,
+      objective: profile.objective,
+      pathType: profile.pathType,
+    });
 
     const nomeConsegnata = ultimo?.diet ? ultimo.diet.clientName || ultimo.diet.name : null;
 
@@ -318,7 +332,7 @@ export class ProfileService {
       take: 5,
       select: { diet: { select: { name: true, clientName: true } } },
     })) as { diet: { name: string; clientName: string | null } | null }[];
-    const nomeAssegnata = assegnata ? assegnata.clientName || assegnata.name : profile.dietFamily;
+    const nomeAssegnata = nomePerLaCliente(assegnata) ?? profile.dietFamily;
     // La prima delle prossime giornate costruita su una dieta DIVERSA da quella assegnata.
     // `null` = quello che riceverà è già la dieta giusta (o non riceverà più niente).
     const dietaVecchiaInArrivo = nomeAssegnata

@@ -5,7 +5,7 @@
  * quel default rendeva lo stato «conforto» — umore basso → menu più amati — o inutile o
  * controproducente. Nessun test lo guardava, perché la formula stava dentro una closure.
  */
-import { STELLE_SE_MAI_VOTATA, punteggioRicetta, type PesiPunteggio } from './punteggio';
+import { STELLE_SE_MAI_VOTATA, gradimentoDaStelle, punteggioRicetta, type PesiPunteggio } from './punteggio';
 
 /** Pesi tipici: solo efficacia e gradimento, nessuna penalità, per leggere il conto a occhio. */
 const PESI: PesiPunteggio = {
@@ -51,6 +51,59 @@ describe('⚠️ un piatto mai votato vale ZERO stelle', () => {
   it('le cinque stelle valgono il peso pieno del gradimento', () => {
     expect(punteggioRicetta({ stelle: 5 }, PESI)).toBe(1);
     expect(punteggioRicetta({ stelle: 5 }, CONFORTO)).toBeCloseTo(1.8, 5);
+  });
+
+  it('⚠️ UNA stella vale come «mai provato»: chi ha bocciato non scavalca chi non conosce', () => {
+    // Conseguenza non voluta del passaggio a zero: con `stelle/5` un piatto bocciato valeva 0,2 e
+    // stava SOPRA uno mai provato (0), e nel conforto il divario si allargava. Nel giorno peggiore
+    // le sarebbe potuta tornare nel piatto proprio una cosa che aveva rifiutato.
+    expect(punteggioRicetta({ stelle: 1 }, PESI)).toBe(punteggioRicetta({ stelle: null }, PESI));
+    expect(punteggioRicetta({ stelle: 1 }, CONFORTO)).toBe(punteggioRicetta({ stelle: null }, CONFORTO));
+  });
+
+  it('⚠️ con i pesi di default 5★ PAREGGIA un piatto efficacissimo bocciato a 1★', () => {
+    // Emerso il 12/8 da un test dei menu che ha smesso di passare. Non è un difetto: è il punto in
+    // cui la scala nuova mette la bilancia. Con `menu_select_w_eff = menu_select_w_grad = 1`
+    // (i default), «lo adora» e «le fa perdere peso più di ogni altro» valgono **esattamente
+    // uguale**, e a decidere resta l'ordine del template.
+    //
+    // Prima della scala nuova il piatto efficace vinceva sempre (1★ valeva 0,2 di vantaggio); ora
+    // per farlo vincere serve alzare `menu_select_w_eff`, o abbassare `menu_select_w_grad`, dai
+    // Parametri. È una decisione da nutrizionista, e adesso è una manopola invece di un caso.
+    const efficacissimoBocciato = punteggioRicetta({ efficacia: 1, stelle: 1 }, PESI);
+    const amatoInutile = punteggioRicetta({ efficacia: 0, stelle: 5 }, PESI);
+    expect(efficacissimoBocciato).toBe(amatoInutile);
+    // E nel giorno storto («conforto») il piatto amato passa avanti, che è quello che deve fare.
+    expect(punteggioRicetta({ efficacia: 0, stelle: 5 }, CONFORTO)).toBeGreaterThan(
+      punteggioRicetta({ efficacia: 1, stelle: 1 }, CONFORTO),
+    );
+  });
+
+  it('⚠️ ma non va SOTTO zero: una penalità vera stringerebbe troppo le scelte', () => {
+    // Con un catalogo ancora poco votato, spingere i bocciati sotto lo zero vorrebbe dire togliere
+    // piatti dal pool di chi ha votato poco e male.
+    expect(punteggioRicetta({ stelle: 1 }, PESI)).toBe(0);
+  });
+});
+
+describe('la scala delle stelle parte da zero', () => {
+  it('una stella è zero, cinque è uno', () => {
+    expect(gradimentoDaStelle(1)).toBe(0);
+    expect(gradimentoDaStelle(5)).toBe(1);
+  });
+
+  it('⚠️ tre stelle valgono METÀ, non 0,6', () => {
+    // Cambia il valore di tutte le stelle, non solo di una: «tre su cinque» su una scala che
+    // comincia a uno è esattamente metà. È voluto.
+    expect(gradimentoDaStelle(3)).toBe(0.5);
+    expect(gradimentoDaStelle(2)).toBe(0.25);
+    expect(gradimentoDaStelle(4)).toBe(0.75);
+  });
+
+  it('un voto fuori scala si taglia invece di produrre numeri assurdi', () => {
+    expect(gradimentoDaStelle(0)).toBe(0);
+    expect(gradimentoDaStelle(9)).toBe(1);
+    expect(gradimentoDaStelle(-3)).toBe(0);
   });
 });
 

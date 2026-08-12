@@ -43,6 +43,35 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
   soia: ['soia', 'tofu', 'edamame', 'tempeh', 'miso'],
   sesamo: ['sesamo', 'tahini'],
   arachidi: ['arachidi', 'burro di arachidi'],
+  /**
+   * ⚠️ I QUATTRO ALLERGENI UE CHE NON C'ERANO (aggiunti il 12/8).
+   *
+   * `sedano`, `senape`, `solfiti` e `lupini` sono opzioni del questionario
+   * (`onboarding.questions.ts`) e non comparivano né qui né fra gli alias: sulla strada testuale
+   * valevano solo come parola letterale.
+   *
+   * Per sedano e senape la parola letterale funziona quasi sempre — negli ingredienti si scrivono
+   * col loro nome — ma i **lupini** stanno già dentro la chiave `legumi`, quindi chi dichiarava
+   * l'allergia ai lupini non li escludeva se il piatto li elencava come «lupini» in un contesto
+   * diverso, e soprattutto non aveva nessuna espansione propria.
+   */
+  sedano: ['sedano', 'sedano rapa'],
+  senape: ['senape', 'mostarda'],
+  lupini: ['lupini', 'lupino', 'farina di lupino'],
+  /**
+   * ⛔ SOLFITI: qui c'è solo la parola, ed è voluto.
+   *
+   * I solfiti non si scrivono quasi mai negli ingredienti: stanno nel vino, nell'aceto balsamico,
+   * nella frutta secca disidratata, in certi salumi e conserve. Scrivere quell'elenco a mano vuol
+   * dire decidere quali piatti togliere dal piatto di una cliente — e in eccesso si sbaglia
+   * facilmente, togliendone troppi.
+   *
+   * ⚠️ **L'elenco lo deve dare la nutrizionista (Nocanty), non chi scrive il codice.** Finché non
+   * c'è, meglio una copertura dichiarata e incompleta che una inventata: la strada codificata (tag
+   * allergene sulla ricetta, `catalog/allergens.ts`) copre comunque i solfiti quando le ricette
+   * hanno i tag revisati.
+   */
+  solfiti: ['solfiti', 'solfito', 'anidride solforosa'],
 };
 
 /**
@@ -75,6 +104,11 @@ const ALIAS: Record<string, string> = {
   sesame: 'sesamo',
   'frutta con guscio': 'frutta a guscio',
   latticini_: 'latticini',
+  mustard: 'senape',
+  celery: 'sedano',
+  sulphites: 'solfiti',
+  sulfites: 'solfiti',
+  lupin: 'lupini',
 };
 
 /**
@@ -82,12 +116,35 @@ const ALIAS: Record<string, string> = {
  * se è una categoria nota (es. "frutta secca", "legumi") restituisce categoria + membri
  * (noci, mandorle, …), altrimenti solo il termine stesso. Usato per intolleranze E dislikedFoods.
  */
+/**
+ * ⚠️ GLI UNDERSCORE DEL QUESTIONARIO (12/8).
+ *
+ * Il questionario salva `frutta_a_guscio` — con gli underscore — e la mappa conosce
+ * `'frutta a guscio'` con gli spazi. `expandExclusion('frutta_a_guscio')` restituiva quindi
+ * `['frutta_a_guscio']`: una stringa che non compare in nessun nome di piatto e in nessun
+ * ingrediente. **Sulla strada testuale quell'allergia non escludeva niente.**
+ *
+ * È lo stesso difetto che l'8/8 ha fatto proporre il burro a una cliente allergica al latte, ed è
+ * la lezione già scritta sopra: una chiave che la mappa non riconosce si comporta come
+ * un'esclusione che non c'è, e non produce nessun errore.
+ *
+ * Si normalizza qui invece di aggiungere l'alias `frutta_a_guscio` a mano, così il difetto **non
+ * si ripresenta con la prossima opzione che nasce con l'underscore**: aggiungerne una al
+ * questionario non richiede di ricordarsi anche di questo file.
+ */
+function senzaUnderscore(t: string): string {
+  return t.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function expandExclusion(term: string): string[] {
   const grezzo = (term ?? '').toLowerCase().trim();
   if (!grezzo) return [];
   // Prima l'alias (`lactose` → `lattosio`), poi la mappa. Il termine originale resta sempre fra
   // le parole chiave: se la mappa non lo conosce, almeno la parola scritta dalla cliente vale.
-  const t = ALIAS[grezzo] ?? grezzo;
+  // ⚠️ `latticini_` è un alias vero con l'underscore in fondo: si guarda la forma grezza PRIMA di
+  // normalizzare, o quella chiave smetterebbe di funzionare.
+  const conSpazi = senzaUnderscore(grezzo);
+  const t = ALIAS[grezzo] ?? ALIAS[conSpazi] ?? (INTOLERANCE_MAP[conSpazi] ? conSpazi : grezzo);
   const members = INTOLERANCE_MAP[t];
   return members ? [...new Set([grezzo, t, ...members])] : [grezzo];
 }

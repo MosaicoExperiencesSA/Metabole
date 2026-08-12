@@ -132,6 +132,51 @@ describe('OnboardingService', () => {
   });
 
   /**
+   * ⚠️ «ALTRO» NON È UN ALIMENTO — e il filtro stava solo nel client (12/8).
+   *
+   * `'altro'` serve a far comparire il campo libero e veniva tolto **soltanto** da
+   * `app/src/pages/Onboarding.tsx`. Il server lo salvava: chi chiama l'endpoint direttamente, o
+   * usa un'app vecchia, si porta in banca dati un allergene che si chiama «altro», ed
+   * `expandExclusion('altro')` va a cercare quella parola nei nomi dei piatti.
+   *
+   * Il ramo `update` si verifica **separatamente** dal `create`, e non per pignoleria: l'8/8 il
+   * consenso sanitario era scritto solo nel `create` e sei clienti sono rimaste bloccate al
+   * carrello, senza errore da nessuna parte.
+   */
+  describe('«altro» non finisce in banca dati come allergene', () => {
+    const allergieDi = (ramo: 'create' | 'update') =>
+      prisma.clientProfile.upsert.mock.calls[0][0][ramo].allergies as string[];
+
+    it('ramo CREATE: il flag si toglie, il testo libero resta', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null);
+      await service.submitAnswers('u1', {
+        ...baseAnswers(), allergies: ['latte', 'altro'], allergiesOther: ['fragole'],
+      });
+      expect(allergieDi('create')).toEqual(['latte', 'fragole']);
+    });
+
+    it('ramo UPDATE: **anche qui** — è quello che nessuno rilegge', async () => {
+      await service.submitAnswers('u1', {
+        ...baseAnswers(), allergies: ['latte', 'altro'], allergiesOther: ['fragole'],
+      });
+      expect(allergieDi('update')).toEqual(['latte', 'fragole']);
+    });
+
+    it('e non si perde niente quando «altro» non c\'è', async () => {
+      await service.submitAnswers('u1', { ...baseAnswers(), allergies: ['latte', 'uova'] });
+      expect(allergieDi('update')).toEqual(['latte', 'uova']);
+    });
+
+    it('⚠️ ma «other» fra le INTOLLERANZE resta: è l\'unica traccia di quello che non sappiamo', async () => {
+      // Non ha un campo libero associato, quindi quella stringa dice «ha un'intolleranza che noi
+      // non conosciamo». Toglierla cancellerebbe la sola cosa che permette di ricontattarla — ed è
+      // la popolazione più urgente da ricontattare.
+      await service.submitAnswers('u1', { ...baseAnswers(), intolerances: ['other'] });
+      expect(prisma.clientProfile.upsert.mock.calls[0][0].update.intolerances).toEqual(['other']);
+    });
+  });
+
+  /**
    * IL QUESTIONARIO SI FA UNA VOLTA SOLA, E DOPO NON DECIDE PIÙ LA DIETA.
    *
    * Regola di Simone (11/8): «il cliente può fare il questionario solo una volta, al primo accesso.

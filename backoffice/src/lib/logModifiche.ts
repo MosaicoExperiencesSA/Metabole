@@ -45,6 +45,10 @@ export const CAMPO_LABEL: Record<string, string> = {
   regime: 'Regime', dietStyle: 'Stile alimentare', dietFamily: 'Dieta assegnata',
   mealsPerDay: 'Pasti al giorno', objective: 'Fase (obiettivo)', pathType: 'Percorso',
   coachStyle: 'Stile coach', character: 'Carattere', intolerances: 'Intolleranze',
+  // Le allergie non erano in questo elenco: una loro modifica sarebbe comparsa nel registro col
+  // nome tecnico del campo, cioè illeggibile — su un dato sanitario, proprio dove serve leggerlo.
+  allergies: 'Allergie', allergiesOther: 'Allergie da codificare',
+  allergieDichiarateIl: 'Allergie dichiarate il',
   dislikedFoods: 'Cibi non graditi', fastingWindow: 'Pasti che salta',
   activityLevel: 'Livello di attività', themeColor: 'Colore tema',
   planStartDate: 'Data inizio piano', startDate: 'Inizio', endDate: 'Fine',

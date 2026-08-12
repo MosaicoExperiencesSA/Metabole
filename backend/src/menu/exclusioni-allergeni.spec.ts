@@ -88,11 +88,65 @@ describe('allergeni: derivati e alias', () => {
     expect(scoperti).toEqual([]);
   });
 
-  it('la mappa conosce tutti i 14 allergeni UE, per nome o per alias', () => {
+  /**
+   * ⚠️ QUESTO TEST REGISTRAVA IL DIFETTO COME SE FOSSE LA REGOLA (corretto il 12/8).
+   *
+   * La riga diceva `expect(mancanti).toEqual(['frutta_a_guscio', 'lupini', 'sedano', 'senape',
+   * 'solfiti'])` con il commento «non hanno derivati: la parola stessa basta». Per quattro dei
+   * cinque era discutibile; per `frutta_a_guscio` era **falso** — la mappa ce l'ha, i derivati, ma
+   * sotto la chiave `'frutta a guscio'` con gli spazi. Il questionario salva l'underscore, quindi
+   * `expandExclusion('frutta_a_guscio')` tornava `['frutta_a_guscio']`: una stringa che non compare
+   * in nessun piatto e in nessun ingrediente. **Quell'allergia non escludeva niente**, sulla stessa
+   * strada che l'8/8 ha proposto il burro a Giusy.
+   *
+   * Un test che fotografa il comportamento invece di affermare la regola non protegge: certifica.
+   * Adesso l'elenco dev'essere **vuoto**, e chi aggiunge un'opzione al questionario lo scopre qui.
+   */
+  it('⚠️ TUTTI i 14 allergeni UE si espandono: nessuno vale solo come parola', () => {
     const mancanti = EU_ALLERGENS.map((a) => a.code).filter(
       (code) => expandExclusion(code).length === 1 && !INTOLERANCE_MAP[code],
     );
-    // `sedano`, `senape`, `solfiti` e `lupini` non hanno derivati: la parola stessa basta.
-    expect(mancanti.sort()).toEqual(['frutta_a_guscio', 'lupini', 'sedano', 'senape', 'solfiti']);
+    expect(mancanti.sort()).toEqual([]);
+  });
+
+  it('⚠️ IL CASO FRUTTA A GUSCIO: l\'underscore del questionario non è un\'allergia diversa', () => {
+    // `onboarding.questions.ts` salva `frutta_a_guscio`; la mappa conosce `'frutta a guscio'`.
+    const chiavi = exclusionKeys(['frutta_a_guscio']);
+    expect(scartato(chiavi, 'insalata di noci e pere')).toBe(true);
+    expect(scartato(chiavi, 'crema di mandorle')).toBe(true);
+    expect(scartato(chiavi, 'pesto con pinoli')).toBe(true);
+    // E non chiude tutto: il filtro deve restare un filtro.
+    expect(scartato(chiavi, 'petto di pollo')).toBe(false);
+  });
+
+  it('⚠️ vale per QUALSIASI underscore, non solo per questo caso', () => {
+    // Si normalizza nella funzione invece di aggiungere l'alias a mano, così la prossima opzione
+    // che nasce con l'underscore non riapre lo stesso buco in silenzio.
+    expect(expandExclusion('frutta_secca')).toContain('noci');
+    expect(expandExclusion('latte_e_derivati')).toContain('burro');
+  });
+
+  it('⚠️ ma l\'alias `latticini_` continua a funzionare: si guarda la forma grezza per prima', () => {
+    // Esiste davvero, con l'underscore in fondo. Normalizzare senza controllare prima la forma
+    // originale l'avrebbe rotto — una correzione che ne apre un'altra.
+    expect(expandExclusion('latticini_')).toContain('mozzarella');
+  });
+
+  it.each([
+    ['sedano', 'vellutata di sedano rapa'],
+    ['senape', 'salsa alla mostarda'],
+    ['lupini', 'farina di lupino'],
+  ])('il nuovo allergene «%s» protegge da «%s»', (allergene, alimento) => {
+    expect(scartato(exclusionKeys([allergene]), alimento)).toBe(true);
+  });
+
+  it('⛔ i SOLFITI hanno solo la parola, ed è dichiarato: l\'elenco lo deve dare la nutrizionista', () => {
+    // I solfiti non si scrivono negli ingredienti: stanno nel vino, nell'aceto balsamico, nella
+    // frutta disidratata. Quell'elenco decide quali piatti si tolgono dal piatto di una cliente, e
+    // in eccesso si sbaglia facilmente: lo scrive Nocanty, non chi scrive il codice. Nel frattempo
+    // copre la strada codificata (tag allergene sulla ricetta).
+    const chiavi = exclusionKeys(['solfiti']);
+    expect(scartato(chiavi, 'vino bianco')).toBe(false);
+    expect(scartato(chiavi, 'albicocche disidratate')).toBe(false);
   });
 });

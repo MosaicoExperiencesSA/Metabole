@@ -1434,6 +1434,34 @@ export function ClientDetail() {
             <Row label="Pranzo nei feriali" value={lab('weekdayLunch', p.lifestyle?.weekdayLunch)} />
             <Row label="Stile coach" value={lab('coachStyle', p.coachStyle)} />
             <Row label="Carattere" value={lab('character', p.character)} />
+            {/*
+              ALLERGIE — non comparivano in nessuna scheda, né qui né in app (punto D dell'handoff
+              del 12/8). Sono il dato con la conseguenza più grave dei tre — R8: blocco duro, non
+              sostituzione — e chi apriva questa scheda vedeva intolleranze e cibi non graditi e
+              non loro.
+
+              ⚠️ SOLA LETTURA, e resta così. Un solo punto in tutto il codice scrive le allergie
+              (l'upsert del questionario): non stanno nel DTO della PATCH cliente, non stanno in
+              `PROFILE_FIELDS`. È una protezione, non una dimenticanza — chi codifica un'allergia
+              scritta a mano deve essere una nutrizionista, e quel permesso va deciso, non dato
+              per scontato da una casella di testo.
+            */}
+            <Row
+              label="Allergie"
+              value={
+                p.allergies?.length
+                  ? p.allergies.join(', ')
+                  // ⚠️ «Nessuna» e «non risposto» sono due cose diverse, e per 315 clienti iscritte
+                  // prima del 12/8 non lo sappiamo. Scriverlo è meno peggio che dire «Nessuna» a
+                  // chi non se l'è mai sentito chiedere.
+                  : p.allergieDichiarateIl ? 'Nessuna' : 'Non dichiarate'
+              }
+            />
+            {!!p.allergiesOther?.length && (
+              // Il testo libero: sono quelle che nessuno ha ancora tradotto in codici UE, e finché
+              // restano così bloccano la base personale sicura.
+              <Row label="↳ da codificare a mano" value={p.allergiesOther.join(', ')} />
+            )}
             <Row label="Intolleranze" value={p.intolerances?.length ? p.intolerances.join(', ') : 'Nessuna'} />
             <Row label="Cibi non graditi" value={p.dislikedFoods?.length ? p.dislikedFoods.join(', ') : 'Nessuno'} />
             <Row label="Patologie" value={lab('yesno', p.onboardingAnswers?.health?.hasConditions)} />
