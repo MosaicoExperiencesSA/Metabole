@@ -25,6 +25,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🔴 **Il deploy falliva all'avvio: una riga di cablaggio, e il test che l'avrebbe
+  vista.** Due deploy di fila rossi su Render («Exited with status 1»): `FoodSwapsModule` (§16.9)
+  **non importava** `NotificationsModule`, e `FoodSwapsService` si fa iniettare
+  `NotificationsService` per avvisare i capi nutrizionisti quando si promuove una riga a regola.
+  La produzione non è mai andata giù — a deploy fallito Render tiene su l'istanza precedente — ma
+  due aggiornamenti non sono entrati.
+  **La cosa che conta non è la riga: è cosa NON l'ha vista.** Il type-check era verde, perché
+  TypeScript guarda i tipi e non il cablaggio dei moduli. 1794 test erano verdi, perché gli spec
+  costruiscono i servizi a mano passando i finti — che è giusto per la logica, e cieco per il
+  cablaggio. Nest risolve le dipendenze **all'avvio**: il primo posto in cui quell'errore poteva
+  comparire era il boot in produzione.
+  Quindi oltre alla riga c'è **`src/app.module.spec.ts`**: compila l'`AppModule` vero, con solo
+  `PrismaService` sostituito. Non verifica niente di funzionale — verifica che l'applicazione si
+  avvii. Rimettendo il difetto, il test cade con **lo stesso identico messaggio** che si legge nei
+  log di Render («Nest can't resolve dependencies of the FoodSwapsService … NotificationsService at
+  index [2]»): è la prova che serviva, e la ragione per cui questo test vale più dei quattro che
+  avrei scritto sul modulo.
+  Da qui in avanti vale per **tutti** i moduli: un `imports` dimenticato, un anello fra moduli, un
+  provider caduto da un `exports` cadono in CI invece che su Render.
+  Verifiche: 123 suite / 1842 test verdi.
+
 - `[Sviluppo]` 👂 **Gaia ascolta meglio — e quando non capisce lo dice, invece di rispondere a
   caso.** Più §16.2: il dialogo sa finalmente di quale GIORNO si sta parlando.
   **La conversazione da cui nasce** (girata da Simone): Gaia elenca i piatti, la cliente scrive
