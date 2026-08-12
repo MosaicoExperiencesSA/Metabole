@@ -46,6 +46,11 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
   { key: 'client_questionnaire_done', label: 'Questionario completato', description: 'Una tua cliente ha completato il questionario: è pronta per la chiamata.', roles: COACHES },
   { key: 'client_trial_started', label: 'Prova attivata', description: 'Una tua cliente ha attivato la settimana di prova.', roles: COACHES },
   { key: 'client_renewed', label: 'Rinnovo', description: 'Una tua cliente ha rinnovato il piano.', roles: COACHES },
+  // Richiesta di Simone (12/8). Parte insieme all'invito che Gaia fa alla cliente («parlane con la
+  // tua coach»): le due cose sono la stessa cosa vista dai due lati, e se la coach non lo sapesse
+  // quell'invito la manderebbe a bussare a una porta chiusa. `CARE` e non solo `COACHES` perché
+  // senza coach assegnata l'avviso ripiega sulla nutrizionista, che deve poterlo ricevere.
+  { key: 'cambi_frequenti', label: 'Cambia il menu quasi ogni giorno', description: 'Una tua cliente ha cambiato qualcosa nel menu in almeno 3 giorni su 7: forse il tipo di alimentazione non le sta bene.', roles: CARE },
   // --- Responsabile coach (assegnazioni lead) ---
   { key: 'lead_accepted', label: 'Lead accettato', description: 'Una coach ha accettato un lead che le hai assegnato.', roles: RESP },
   { key: 'lead_rejected', label: 'Lead rifiutato', description: 'Una coach ha rifiutato un lead: va riassegnato.', roles: RESP },

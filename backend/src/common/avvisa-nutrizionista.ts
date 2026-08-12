@@ -138,6 +138,34 @@ export async function avvisaNutrizionistaDellaCliente(
 }
 
 /**
+ * Avvisa **chi segue la cliente giorno per giorno**: la sua coach, e se non ce l'ha la
+ * nutrizionista.
+ *
+ * Nasce dall'invito a riflettere sui cambi troppo frequenti (12/8): il messaggio dice alla cliente
+ * «parlane con la tua coach», e una frase così ha senso solo se dall'altra parte qualcuno sa di
+ * cosa parlerà. Il ripiego sulla nutrizionista non è un dettaglio: senza coach assegnata l'avviso
+ * sparirebbe proprio per le clienti più scoperte.
+ */
+export async function avvisaCoachDellaCliente(
+  prisma: PrismaService,
+  notifications: Notificatore | null,
+  clientId: string,
+  avviso: AvvisoNutrizionista,
+): Promise<number> {
+  try {
+    const profilo = (await prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { assignedCoach: { select: { userId: true } } },
+    })) as { assignedCoach: { userId: string } | null } | null;
+    const coachUserId = profilo?.assignedCoach?.userId ?? null;
+    if (!coachUserId) return avvisaNutrizionistaDellaCliente(prisma, notifications, clientId, avviso);
+    return (await manda(prisma, notifications, coachUserId, avviso, { clientId })) ? 1 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Avvisa i capi nutrizionisti di una cosa che riguarda il CATALOGO e non una cliente (un gruppo di
  * equivalenza nuovo, per esempio). `esclusoUserId` evita l'avviso a chi l'ha appena fatto: dire a
  * qualcuno quello che ha fatto lui trenta secondi prima è il modo più rapido per insegnargli a

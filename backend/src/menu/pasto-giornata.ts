@@ -35,8 +35,15 @@ export interface Substitution {
    * stessa di `unit`, che è il caso normale.
    */
   unitA?: string;
-  /** Chi ha deciso il cambio. Assente = il motore, come è sempre stato. */
-  origine?: 'chat';
+  /**
+   * Chi ha deciso il cambio. **Assente = il motore**, come è sempre stato — ed è la distinzione che
+   * conta: le sostituzioni senza origine sono di sicurezza (allergeni, intolleranze, esclusioni) e
+   * non sono scelte della cliente.
+   *  - `chat`: concordata con Gaia;
+   *  - `app`: chiesta col pulsante «Sostituisci» dentro il menu (12/8). Prima non si marcava, e
+   *    quel cambio era indistinguibile da uno del motore.
+   */
+  origine?: 'chat' | 'app';
   /** Il motivo DICHIARATO dalla cliente (vedi `MOTIVI` in `sostituzione-chat.ts`). */
   motivo?: string;
   /**

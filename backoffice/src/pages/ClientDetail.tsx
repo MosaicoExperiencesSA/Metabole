@@ -1396,6 +1396,11 @@ export function ClientDetail() {
               IL CASO CHE VA DETTO. Fra il cambio di dieta e la rigenerazione dei menu le due cose
               divergono: sul profilo c'è «senza glutine» e nel menu di domani c'è ancora il pane.
               Con il glutine di mezzo non è una sfumatura.
+
+              ⚠️ Guarda solo le giornate DA RICEVERE (12/8, Simone: «se il menu è vecchio la
+              segnalazione non ha senso, serve se i futuri saranno sbagliati»). Prima confrontava
+              l'ultima giornata generata, anche di tre mesi prima: su un percorso finito l'avviso
+              gridava al lupo su un menu che nessuno riceverà più.
             */}
             {d.menuAncoraSullaDietaPrecedente && (
               <Row
@@ -1406,8 +1411,9 @@ export function ClientDetail() {
                       ancora sulla dieta precedente ({d.dietaMenuInCorso})
                     </span>
                     <div style={{ fontSize: 12.5, lineHeight: 1.55, marginTop: 3 }}>
-                      Le giornate già erogate sono costruite sulla dieta di prima. Finché non premi
-                      «Rigenera menu» qui sotto, la cliente riceve i piatti della dieta vecchia.
+                      Le giornate che deve ancora <b>ricevere</b> sono costruite sulla dieta di prima.
+                      Finché non premi «Rigenera menu» qui sotto, la cliente riceve i piatti della
+                      dieta vecchia.
                     </div>
                   </>
                 }

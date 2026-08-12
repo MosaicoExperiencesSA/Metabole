@@ -1,11 +1,19 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
-import { avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista';
+import { avvisaCoachDellaCliente, avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista';
 import { toDateOnly } from '../common/date-only';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { nonHoCapito, pastoNominato, proponeUnPastoIntero } from './ascolto';
 import { distanzaGiorni, etichettaGiorno, giornoDellaConversazione } from './giorno-conversazione';
+import {
+  FINESTRA_GIORNI,
+  PAUSA_FRA_INVITI_GIORNI,
+  SOGLIA_GIORNI_DEFAULT,
+  giorniConCambioDellaCliente,
+  testoAvvisoCoach,
+  testoInvitoARiflettere,
+} from './insistenza-cambi';
 // §16.9: una funzione, non un servizio iniettato. Il percorso del pasto non deve dipendere da un
 // modulo di backoffice — vedi il commento in `food-swaps.module.ts`.
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
@@ -1224,7 +1232,9 @@ export class SostituzioneChatService {
     );
 
     return {
-      testo: testoFatto(proposta, motivo, await this.nomeDi(clientId), quando),
+      // L'invito a riflettere va IN CODA alla conferma, mai al posto: il cambio glielo abbiamo
+      // fatto, e un invito che sostituisce la risposta è un ricatto gentile.
+      testo: testoFatto(proposta, motivo, await this.nomeDi(clientId), quando) + (await this.invitoARiflettere(clientId)),
       esito: 'applicata',
       applicata: { giorni: giorniToccati, da: proposta.da, a: proposta.a, motivo: motivo.key, pasti: pastiToccati },
     };
@@ -1242,6 +1252,65 @@ export class SostituzioneChatService {
    * che non parte non deve annullare il lavoro. Se alla cliente non è assegnata una nutrizionista
    * l'avviso va al capo — vedi `common/avvisa-nutrizionista.ts`.
    */
+  /**
+   * L'invito a riflettere, quando i cambi diventano quotidiani (§ richiesta di Simone del 12/8).
+   *
+   * Ritorna il testo da APPENDERE alla conferma, o stringa vuota. Non blocca niente e non lancia
+   * mai: il cambio è già scritto sul menu, e un invito che non parte non deve poter togliere alla
+   * cliente la risposta che aspettava.
+   *
+   * ⚠️ La finestra si ferma a OGGI, e non è pigrizia. Un cambio con motivo «non mi piace» scrive su
+   * trenta giornate future in un colpo solo: contando anche il futuro, UNA richiesta farebbe
+   * risultare trenta giorni diversi con un cambio, e l'invito partirebbe alla prima cliente che
+   * dice «questo non mi piace». Le giornate future si conteranno da sé quando saranno passate.
+   */
+  private async invitoARiflettere(clientId: string): Promise<string> {
+    try {
+      const oggi = toDateOnly();
+      const dal = new Date(oggi);
+      dal.setDate(dal.getDate() - (FINESTRA_GIORNI - 1));
+      const giornate = (await this.prisma.menuDay.findMany({
+        where: { clientId, date: { gte: dal, lte: oggi } },
+        select: { date: true, meals: true },
+      })) as { date: Date; meals: unknown }[];
+
+      const giorni = giorniConCambioDellaCliente(giornate);
+      const soglia = await this.configParams
+        .getNumber('cambi_soglia_giorni', SOGLIA_GIORNI_DEFAULT)
+        .catch(() => SOGLIA_GIORNI_DEFAULT);
+      if (giorni < (soglia || SOGLIA_GIORNI_DEFAULT)) return '';
+
+      /**
+       * Non più di uno ogni due settimane, e il marcatore è **l'avviso alla coach**: le due cose
+       * partono insieme di proposito, così la cliente sente «parlane con la tua coach» esattamente
+       * quando la coach lo sa. Un contatore separato sarebbe una terza verità da tenere allineata.
+       */
+      const dalloUltimo = new Date();
+      dalloUltimo.setDate(dalloUltimo.getDate() - PAUSA_FRA_INVITI_GIORNI);
+      const gia = await this.prisma.notification.findFirst({
+        where: {
+          type: 'cambi_frequenti',
+          scheduledFor: { gte: dalloUltimo },
+          payload: { path: ['clientId'], equals: clientId },
+        } as never,
+        select: { id: true },
+      });
+      if (gia) return '';
+
+      const nome = await this.nomeDi(clientId);
+      await avvisaCoachDellaCliente(this.prisma, null, clientId, {
+        type: 'cambi_frequenti',
+        title: 'Cambia il menu quasi ogni giorno',
+        body: testoAvvisoCoach(nome ?? 'Una cliente', giorni),
+        payload: { kind: 'cambi_frequenti', giorniConCambio: giorni },
+      });
+      return testoInvitoARiflettere(nome, giorni);
+    } catch (err) {
+      this.logger.warn(`Invito a riflettere non valutato per ${clientId}: ${err instanceof Error ? err.message : String(err)}`);
+      return '';
+    }
+  }
+
   private async avvisaDellaVerifica(
     clientId: string,
     cosa: string,
@@ -1677,7 +1746,9 @@ export class SostituzioneChatService {
     );
 
     return {
-      testo: testoCambioPiattoFatto(etichettaSlot(prima.slot), scelta, await this.nomeDi(clientId), quando),
+      testo:
+        testoCambioPiattoFatto(etichettaSlot(prima.slot), scelta, await this.nomeDi(clientId), quando) +
+        (await this.invitoARiflettere(clientId)),
       esito: 'applicata',
     };
   }

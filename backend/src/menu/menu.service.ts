@@ -1724,6 +1724,17 @@ export class MenuService {
         const subs = subsByRecipe[m.recipeId];
         if (subs && subs.length) {
           touched = true;
+          /**
+           * ⚠️ `origine: 'app'` sulla riga scritta nel menu, non solo nella tabella §16.9.
+           *
+           * Senza, una sostituzione chiesta dalla cliente col pulsante era indistinguibile da una
+           * decisa dal MOTORE per sicurezza (allergeni, esclusioni): nel JSON della giornata non
+           * hanno origine né l'una né l'altra. È l'informazione che serve a `insistenza-cambi.ts`
+           * per contare i giorni in cui ha chiesto lei un cambio — e contare al suo posto quelle
+           * di sicurezza vorrebbe dire invitare a riflettere una cliente allergica sulle
+           * sostituzioni che la tengono al sicuro.
+           */
+          for (const s of subs) s.origine = 'app';
           for (const s of subs) applied.push({ day: dayKey, from: s.from, to: s.to });
           // Anche quello che la cliente chiede dal PULSANTE del menu, non solo quello che concorda
           // con Gaia: è la stessa richiesta fatta con due dita invece che con una frase, e la

@@ -13,6 +13,7 @@ import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
 import { pickDietFor } from '../catalog/pick-diet';
 import { scostamentoDieta } from './scostamento-dieta';
+import { toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
 
@@ -326,7 +327,7 @@ export class ClientsService {
       id: string; name: string; clientName: string | null; clientDescription: string | null;
       style: string | null; status: string; regime: string | null; mealsPerDay: number | null;
     };
-    const [varianteEsatta, dietaServita, giornoRecente] = await Promise.all([
+    const [varianteEsatta, dietaServita, giorniInArrivo] = await Promise.all([
       dietFamilyAssegnata && profiloMatch.regime && profiloMatch.mealsPerDay
         ? (this.prisma.diet.findFirst({
             where: {
@@ -351,13 +352,29 @@ export class ClientsService {
           }) as Promise<DietaScheda | null>,
         profiloMatch,
       ),
-      this.prisma.menuDay.findFirst({
-        where: { clientId: userId },
-        orderBy: { date: 'desc' },
+      /**
+       * ⚠️ Le giornate che la cliente deve ancora RICEVERE, non l'ultima che esiste.
+       *
+       * Qui c'era `orderBy: { date: 'desc' }` senza filtro sulla data: prendeva l'ultimo giorno
+       * generato, anche se era di tre mesi fa. Su una cliente con un percorso finito, l'avviso
+       * «il menu è ancora sulla dieta precedente» compariva su un menu che nessuno riceverà mai
+       * più. Simone, 12/8: «se il menu è vecchio la segnalazione non ha senso, serve se i futuri
+       * saranno sbagliati».
+       *
+       * `distinct` sulla dieta perché una rigenerazione parziale può lasciare giornate su due
+       * diete diverse: basta che UNA delle prossime sia quella vecchia perché valga la pena dirlo.
+       */
+      this.prisma.menuDay.findMany({
+        where: { clientId: userId, date: { gte: toDateOnly() } },
+        orderBy: { date: 'asc' },
+        distinct: ['dietId'],
+        take: 5,
         select: { date: true, diet: { select: { name: true, clientName: true, status: true } } },
-      }) as Promise<{ date: Date; diet: { name: string; clientName: string | null; status: string } | null } | null>,
+      }) as Promise<{ date: Date; diet: { name: string; clientName: string | null; status: string } | null }[]>,
     ]);
-    const nomeInCorso = giornoRecente?.diet ? giornoRecente.diet.clientName || giornoRecente.diet.name : null;
+    const dieteInArrivo = (giorniInArrivo ?? [])
+      .map((g) => (g.diet ? g.diet.clientName || g.diet.name : null))
+      .filter((n): n is string => !!n);
     /**
      * Che cosa si mostra come «Dieta assegnata», e perché in quest'ordine.
      *
@@ -368,6 +385,9 @@ export class ClientsService {
      */
     const dietaMostrata = varianteEsatta ?? dietaServita;
     const nomeAssegnata = dietaMostrata ? dietaMostrata.clientName || dietaMostrata.name : dietFamilyAssegnata;
+    // La prima delle prossime giornate che è costruita su una dieta DIVERSA da quella assegnata.
+    // `null` = quello che riceverà è già la dieta giusta (o non riceverà più niente).
+    const dietaVecchiaInArrivo = nomeAssegnata ? dieteInArrivo.find((n) => n !== nomeAssegnata) ?? null : null;
     // La regola sta in `scostamento-dieta.ts`, fuori di qui: così si verifica per tabella invece
     // che montando l'intera scheda cliente, e la frase che il nutrizionista legge è **una sola**
     // ovunque compaia.
@@ -404,8 +424,10 @@ export class ClientsService {
             { id: null, nome: dietFamilyAssegnata, descrizione: null, style: null, status: 'non_in_catalogo', regime: null, mealsPerDay: null }
           : null,
       scostamentoDieta: scostamento,
-      dietaMenuInCorso: nomeInCorso,
-      menuAncoraSullaDietaPrecedente: !!nomeInCorso && !!nomeAssegnata && nomeInCorso !== nomeAssegnata,
+      dietaMenuInCorso: dietaVecchiaInArrivo,
+      // L'avviso esiste per una domanda sola: «i piatti che riceverà sono quelli della dieta
+      // giusta?». Senza giornate da ricevere non c'è nessuna domanda, e nessun avviso.
+      menuAncoraSullaDietaPrecedente: !!dietaVecchiaInArrivo,
       objective,
       measurements,
       checkins,

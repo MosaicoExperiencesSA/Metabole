@@ -25,6 +25,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🤔 **Se cambia quasi ogni giorno, Gaia le propone di fermarsi un attimo. E l'avviso
+  «menu sulla dieta vecchia» smette di gridare al lupo sui menu passati.**
+  **(1) L'invito a riflettere.** Richiesta di Simone: «se la cliente insiste coi cambiamenti Gaia
+  dovrebbe invitarla a riflettere… vuoi confrontarti con la tua coach per vedere se con un altro
+  tipo di alimentazione otterrai risultati migliori?».
+  Si contano i **giorni diversi** con almeno un cambio, non il numero di cambi: tre scambi in un
+  martedì sono un martedì storto, uno al giorno per tre giorni è un'altra cosa — ed è la frequenza
+  il segnale. Soglia **3 giorni su 7** (decisa da Simone; la mia proposta era 4, l'obiezione è agli
+  atti) e sta in `config_param` `cambi_soglia_giorni`, quindi si corregge senza un deploy.
+  Tre regole che tengono il messaggio utile: **non blocca niente** (il cambio si fa, l'invito va in
+  coda alla conferma — un invito al posto del cambio è un ricatto gentile); **non si ripete** (max
+  una volta ogni 14 giorni: ripetuto ogni giorno diventa rumore, e il rumore si smette di leggere
+  esattamente quando conta); **la coach lo sa** (parte insieme una notifica a lei, altrimenti
+  «parlane con la tua coach» la manda a bussare a una porta chiusa — con ripiego sulla
+  nutrizionista se coach non ce n'è).
+  ⚠️ **Una riga del testo l'ho cambiata, e vale la pena scrivere perché.** «Ricordati che ogni
+  cambio ti allontana dal tuo obiettivo» non è vero: i cambi che Gaia concede stanno dentro i
+  gruppi di equivalenza approvati, a pari grammatura — sono fatti apposta per NON allontanarla.
+  Dirle il contrario la fa sentire in colpa per aver usato una funzione che le abbiamo dato noi, e
+  il risultato prevedibile non è che smette di cambiare: è che smette di **dircelo**. Il testo ora
+  dice l'opposto («non ti allontanano dal tuo obiettivo») e tiene tutto il resto della richiesta —
+  l'invito a riflettere, la coach, l'ipotesi di un'alimentazione diversa. Scelto da Simone fra tre
+  versioni.
+  ⚠️ **La finestra si ferma a oggi**, e non è pigrizia: un cambio «non mi piace» scrive su trenta
+  giornate future in un colpo solo, e contando anche il futuro UNA richiesta farebbe risultare
+  trenta giorni con un cambio. L'invito partirebbe alla prima cliente che dice «questo non mi
+  piace».
+  ⚠️ **Non contano le sostituzioni del MOTORE** (allergeni, intolleranze, esclusioni): non le ha
+  chieste lei, e contarle vorrebbe dire invitare a riflettere una cliente allergica proprio sulle
+  sostituzioni che la tengono al sicuro. Per poterlo fare, le sostituzioni chieste **dal pulsante
+  dell'app** ora si marcano `origine: 'app'` anche dentro il menu: prima erano indistinguibili da
+  quelle del motore, che non hanno origine.
+  **(2) L'avviso «menu ancora sulla dieta precedente».** Simone, guardando la scheda di Patrizia:
+  «se il menu è vecchio la segnalazione non ha senso, serve se i futuri saranno sbagliati».
+  Confrontava **l'ultima giornata generata**, senza filtro sulla data: su una cliente col percorso
+  finito gridava al lupo su un menu che nessuno riceverà più. Ora guarda solo le giornate **da
+  ricevere** (`date >= oggi`), con `distinct` sulla dieta perché una rigenerazione parziale può
+  lasciarne due diverse: basta che UNA delle prossime sia la vecchia perché valga la pena dirlo.
+  Senza giornate future, nessun avviso — non c'è nessuna domanda a cui rispondere.
+  Verifiche: **124 suite / 1853 test** (+1 suite, +11 test), backoffice e app build verdi.
+
 - `[Sviluppo]` 🔴 **Il deploy falliva all'avvio: una riga di cablaggio, e il test che l'avrebbe
   vista.** Due deploy di fila rossi su Render («Exited with status 1»): `FoodSwapsModule` (§16.9)
   **non importava** `NotificationsModule`, e `FoodSwapsService` si fa iniettare
