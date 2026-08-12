@@ -12,6 +12,7 @@ import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.serv
 import { campiCambiati } from '../common/diff-campi';
 import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
+import { toDateOnly } from '../common/date-only';
 
 @Injectable()
 export class ProfileService {
@@ -304,7 +305,27 @@ export class ProfileService {
       : null;
 
     const nomeConsegnata = ultimo?.diet ? ultimo.diet.clientName || ultimo.diet.name : null;
+
+    /**
+     * Le diete delle giornate che deve ANCORA ricevere. `distinct` sulla dieta perché una
+     * rigenerazione parziale può lasciare giornate su due diete diverse: basta che UNA delle
+     * prossime sia quella vecchia perché valga la pena dirlo.
+     */
+    const giorniInArrivo = (await this.prisma.menuDay.findMany({
+      where: { clientId: userId, date: { gte: toDateOnly() } },
+      orderBy: { date: 'asc' },
+      distinct: ['dietId'],
+      take: 5,
+      select: { diet: { select: { name: true, clientName: true } } },
+    })) as { diet: { name: string; clientName: string | null } | null }[];
     const nomeAssegnata = assegnata ? assegnata.clientName || assegnata.name : profile.dietFamily;
+    // La prima delle prossime giornate costruita su una dieta DIVERSA da quella assegnata.
+    // `null` = quello che riceverà è già la dieta giusta (o non riceverà più niente).
+    const dietaVecchiaInArrivo = nomeAssegnata
+      ? giorniInArrivo
+          .map((g) => (g.diet ? g.diet.clientName || g.diet.name : null))
+          .find((n): n is string => !!n && n !== nomeAssegnata) ?? null
+      : null;
 
     return {
       regime: profile.regime,
@@ -325,16 +346,23 @@ export class ProfileService {
        */
       dietStyleAssegnato: assegnata?.style ?? ultimo?.diet?.style ?? profile.dietStyle,
       /**
-       * I menu di questi giorni sono ancora quelli della dieta PRECEDENTE: il cambio è stato
-       * deciso ma le giornate già erogate non sono state rigenerate.
+       * I menu che deve ancora ricevere sono ancora quelli della dieta PRECEDENTE: il cambio è
+       * stato deciso ma le giornate non sono state rigenerate.
        *
        * Va detto, e non nascosto: è la differenza fra «la tua dieta è cambiata e i menu arrivano
        * appena sono pronti» e una cliente celiaca che legge «senza glutine» in profilo e trova il
        * pane nel menu di domani. Con il glutine di mezzo è una cosa che deve sapere.
+       *
+       * ⚠️ GUARDA I GIORNI FUTURI, non l'ultimo consegnato. Questa riga confrontava la dieta
+       * dell'ULTIMA giornata erogata con quella assegnata: bastava un menu vecchio in archivio per
+       * accendere l'avviso su piatti che nessuno riceverà mai più. È la stessa correzione fatta il
+       * 12/8 sulla scheda cliente — «se il menu è vecchio la segnalazione non ha senso, serve se i
+       * futuri saranno sbagliati» (Simone) — che però era stata applicata solo al lato staff: la
+       * cliente continuava a vedere la versione rumorosa. Due regole per la stessa frase, e quella
+       * sbagliata era quella che leggeva lei.
        */
-      menuAncoraSullaDietaPrecedente:
-        !!nomeConsegnata && !!nomeAssegnata && nomeConsegnata !== nomeAssegnata,
-      dietNameMenuInCorso: nomeConsegnata,
+      menuAncoraSullaDietaPrecedente: !!dietaVecchiaInArrivo,
+      dietNameMenuInCorso: dietaVecchiaInArrivo,
       coachName: profile.assignedCoach?.displayName ?? null,
     };
   }

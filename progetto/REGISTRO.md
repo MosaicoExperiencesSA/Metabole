@@ -25,6 +25,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🍞 **«I menu sono ancora quelli della dieta precedente»: adesso l'app lo dice — e la
+  regola era sbagliata proprio dalla parte della cliente.**
+  Il flag `menuAncoraSullaDietaPrecedente` il backend lo mandava **da sempre** e nel sorgente
+  dell'app non compariva in nessun file. Il motivo per cui esiste sta scritto accanto alla riga: «è
+  la differenza fra "la tua dieta è cambiata e i menu arrivano appena sono pronti" e una cliente
+  celiaca che legge *senza glutine* in profilo e trova il pane nel menu di domani».
+  **⚠️ TROVATO collegandolo: due regole per la stessa frase, e quella sbagliata era la sua.** Il lato
+  staff era stato corretto stamattina («se il menu è vecchio la segnalazione non ha senso, serve se i
+  futuri saranno sbagliati», Simone) e guarda le **giornate future**; il lato cliente confrontava
+  ancora l'**ultima giornata erogata** con quella assegnata. Bastava un menu vecchio in archivio per
+  accendere l'avviso su piatti che nessuno riceverà mai più — la versione rumorosa era rimasta
+  esattamente dove la legge lei. Ora la regola è la stessa da tutte e due le parti.
+  ⚠️ Basta che **UNA** delle prossime giornate sia sulla dieta vecchia: una rigenerazione parziale ne
+  lascia su due diete, e in quel giorno mangerebbe i piatti sbagliati.
+  ⚠️ L'avviso dice **quale** dieta: «la dieta precedente» da sola non le fa capire cosa aspettarsi
+  nel piatto. E chiude con la cosa utile — se trova qualcosa che non va bene per lei, lo scrive alla
+  coach **prima di mangiarlo**. 2094 test verdi, il difetto verificato rosso.
+
 - `[Sviluppo]` ⭐ **Un piatto mai votato vale ZERO stelle, non cinque — e lo stato «conforto»
   comincia a fare qualcosa.** Decisione di Simone (12/8), nata dalla sua domanda: «avevamo messo la
   regola che se il paziente ha l'umore basso per tre giorni di fila dobbiamo dargli i menu da lui più

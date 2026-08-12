@@ -258,9 +258,11 @@ c'era già nella 2.1.4: mancava il dato che lo fa comparire).
   anche la tabella «sintomo → causa».
 
 ### 5.3 Lavori app non fatti
-- **`menuAncoraSullaDietaPrecedente`**: il backend lo manda in `/me/nutrition`, e nel sorgente dell'app
-  **non compare in nessun file** (verificato su `origin/main`, cercandolo in tutti i file di `app/src`). O l'app lo usa (mostrando alla cliente che i menu in corso sono della
-  dieta precedente), o il backend smette di mandarlo.
+- ~~**`menuAncoraSullaDietaPrecedente`**: il backend lo manda e l'app non lo usa.~~ **FATTO il 12/8**:
+  l'app lo mostra in «La mia alimentazione», accanto al nome della dieta, col nome della dieta su cui
+  sono costruite le giornate in arrivo. ⚠️ Nel collegarlo è emerso che le due versioni della stessa
+  frase usavano regole diverse: il lato staff guarda le giornate **future** (correzione del 12/8), il
+  lato cliente confrontava l'**ultima erogata** — la versione rumorosa era rimasta dove la legge lei.
 - Rifiniture rimaste: anteprima menu (schermata 30), widget «tutto pronto» (34), video 27-28, schermi 29
   e 33.
 - **La logica sta dentro i componenti**, ed è per questo che i test dell'app sono solo quattro file in

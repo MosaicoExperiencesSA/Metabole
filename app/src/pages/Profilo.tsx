@@ -48,6 +48,16 @@ interface Nutrition {
   dietDescription?: string | null;
   /** Lo stile della dieta assegnata: la chiave delle schede generali (`DIET_INFO`). */
   dietStyleAssegnato?: string | null;
+  /**
+   * ⚠️ I menu che deve ancora ricevere sono ancora quelli della dieta PRECEDENTE.
+   *
+   * Il backend lo manda da sempre e **l'app non lo usava**: la cliente leggeva «Mediterranea senza
+   * glutine» qui e trovava il pane nel menu di domani, senza che niente le dicesse perché. Con il
+   * glutine di mezzo non è un dettaglio di interfaccia.
+   */
+  menuAncoraSullaDietaPrecedente?: boolean;
+  /** Il nome della dieta su cui sono costruite quelle giornate. */
+  dietNameMenuInCorso?: string | null;
 }
 
 /**
@@ -161,6 +171,22 @@ function MyNutrition() {
         )}
         {n.regime && riga('leaf', 'Regime', REGIME_LABEL[n.regime] ?? n.regime, '')}
       </div>
+      {/*
+        Il cambio dieta è deciso ma le giornate in arrivo sono ancora quelle vecchie. Va detto QUI,
+        accanto al nome della dieta, perché è esattamente il punto in cui le due cose si
+        contraddicono — e va detto senza allarmare: non è un errore, sono menu che devono ancora
+        essere rifatti.
+      */}
+      {n.menuAncoraSullaDietaPrecedente && (
+        <div className="card" style={{ background: '#FDECC8', boxShadow: 'none', padding: 11, marginTop: 10 }}>
+          <span style={{ fontSize: 12.5, lineHeight: 1.55, color: '#8A5A00' }}>
+            <i className="ti ti-info-circle" style={{ verticalAlign: '-2px', marginRight: 5 }} />
+            I menu dei prossimi giorni sono ancora quelli{n.dietNameMenuInCorso ? ` della ${n.dietNameMenuInCorso}` : ' della dieta precedente'}:
+            il cambio è stato deciso e le giornate vengono rifatte. Se in questi giorni trovi qualcosa
+            che non va bene per te, scrivilo alla tua coach prima di mangiarlo.
+          </span>
+        </div>
+      )}
       {n.fasting && (
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: '10px 0 0' }}>
           I pasti che salti puoi cambiarli tu più sotto, in questa pagina. Se non è una preferenza ma
