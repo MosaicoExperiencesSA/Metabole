@@ -1296,6 +1296,13 @@ model Alert {
   title     String
   detail    String?
   status    String    @default("open") // open | handled | escalated | resolved
+  /**
+   * QUANDO è stato segnato «gestito» (12/8). Serve al rinvio: dopo `alert_gestito_giorni` un
+   * gestito la cui condizione vale ancora torna `open`. Prima non tornava mai, e una cliente che
+   * smetteva del tutto spariva da ogni lista — vedi `alerts/rinvio-gestito.ts`.
+   * Si azzera quando l'alert cambia stato: è la data di QUESTO gestito, non dell'ultimo.
+   */
+  handledAt DateTime? @map("handled_at")
   dueDate   DateTime? @map("due_date") @db.Date
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

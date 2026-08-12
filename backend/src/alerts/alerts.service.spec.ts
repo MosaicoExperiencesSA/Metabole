@@ -76,6 +76,51 @@ describe('AlertsService.recompute', () => {
     expect(res.resolved).toBe(0);
   });
 
+  describe('⚠️ «gestito» scade dopo sette giorni (Simone, 12/8)', () => {
+    const gestito = (giorniFa: number) => ({
+      id: 'a-vecchio',
+      type: 'missing_measurements',
+      status: 'handled',
+      handledAt: new Date(Date.now() - giorniFa * 86_400_000),
+    });
+
+    it('un gestito vecchio la cui condizione VALE ANCORA torna «open»', async () => {
+      // Senza, la coach non lo rivede mai più: sparisce dalla sua lista e da quella del manager.
+      const prisma = basePrisma();
+      prisma.alert.findMany.mockResolvedValue([gestito(9)]);
+      const svc = makeService(prisma, { blocking: true, cycleDate: dayIso(-1) });
+      await svc.recompute('c1');
+
+      const riaperture = prisma.alert.updateMany.mock.calls.filter((c) => c[0].data.status === 'open');
+      expect(riaperture).toHaveLength(1);
+      expect(riaperture[0][0].where.id.in).toEqual(['a-vecchio']);
+      // La data si azzera: è la data di QUESTO gestito, non dell'ultimo di sempre.
+      expect(riaperture[0][0].data.handledAt).toBeNull();
+      // E NON se ne crea uno nuovo: la riga è la stessa, con la sua storia.
+      expect(createdTypes(prisma)).not.toContain('missing_measurements');
+    });
+
+    it('un gestito recente resta gestito: ci sta ancora lavorando', async () => {
+      const prisma = basePrisma();
+      prisma.alert.findMany.mockResolvedValue([gestito(2)]);
+      const svc = makeService(prisma, { blocking: true, cycleDate: dayIso(-1) });
+      await svc.recompute('c1');
+      expect(prisma.alert.updateMany.mock.calls.filter((c) => c[0].data.status === 'open')).toHaveLength(0);
+    });
+
+    it('⚠️ se la condizione è passata non si riapre: si CHIUDE, come sempre', async () => {
+      // Il gate non blocca più → `missing_measurements` non è più desiderato. La via normale lo
+      // risolve; riaprirlo vorrebbe dire rimettere in lista un problema che non c'è più.
+      const prisma = basePrisma();
+      prisma.alert.findMany.mockResolvedValue([gestito(30)]);
+      const svc = makeService(prisma, { blocking: false, cycleDate: null });
+      await svc.recompute('c1');
+      const chiamate = prisma.alert.updateMany.mock.calls;
+      expect(chiamate.filter((c) => c[0].data.status === 'open')).toHaveLength(0);
+      expect(chiamate.filter((c) => c[0].data.status === 'resolved')).toHaveLength(1);
+    });
+  });
+
   it('rileva aumento di peso negli ultimi giorni', async () => {
     const prisma = basePrisma();
     prisma.measurement.findMany.mockResolvedValue([
@@ -138,7 +183,12 @@ describe('AlertsService.updateStatus', () => {
     prisma.staff.findUnique.mockResolvedValue({ id: 'coach-1' });
     const svc = makeService(prisma);
     await svc.updateStatus('a1', coachUser, 'handled');
-    expect(prisma.alert.update).toHaveBeenCalledWith({ where: { id: 'a1' }, data: { status: 'handled' } });
+    // ⚠️ `handledAt` insieme allo stato: è da lì che parte il rinvio di sette giorni (12/8).
+    // Senza la data, «gestito» tornerebbe a essere una chiusura definitiva mascherata.
+    const scritto = prisma.alert.update.mock.calls[0][0];
+    expect(scritto.where).toEqual({ id: 'a1' });
+    expect(scritto.data.status).toBe('handled');
+    expect(scritto.data.handledAt).toBeInstanceOf(Date);
   });
 
   it('una coach non proprietaria è bloccata', async () => {

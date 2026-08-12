@@ -5,6 +5,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
+import { PARAMETRO_SOGLIA, SOGLIA_GIORNI_DEFAULT, daRiaprire } from './rinvio-gestito';
 
 const DAY = 86_400_000;
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
@@ -335,12 +336,38 @@ export class AlertsService {
     coachId: string | null,
     desired: DesiredAlert[],
   ): Promise<{ desired: number; resolved: number }> {
-    const active = await this.prisma.alert.findMany({
+    const active = (await this.prisma.alert.findMany({
       where: { clientId, status: { in: STATI_NON_CHIUSI } },
-      select: { id: true, type: true },
-    });
-    const activeByType = new Map((active as ActiveAlert[]).map((a) => [a.type, a.id] as const));
+      select: { id: true, type: true, status: true, handledAt: true },
+    })) as (ActiveAlert & { status: string; handledAt: Date | null })[];
+    const activeByType = new Map(active.map((a) => [a.type, a.id] as const));
     const desiredTypes = new Set(desired.map((d) => d.type));
+
+    /**
+     * ⚠️ «GESTITO» SCADE — e non è un ritorno al difetto dell'11/8.
+     *
+     * Le coach avevano segnalato: «se clicco su segna come gestito, quando faccio refresh gli
+     * avvisi ricompaiono». Quello era un avviso che tornava **subito**, cioè un pulsante che non
+     * salvava. Questo torna **dopo una settimana, e solo se il problema c'è ancora**: è la
+     * differenza fra un pulsante rotto e un promemoria.
+     *
+     * Senza, `handled` era una chiusura definitiva mascherata: nessun codice riapriva un gestito, e
+     * una cliente che smetteva del tutto di fare check-in spariva da ogni lista per sempre. Vedi
+     * `rinvio-gestito.ts`.
+     */
+    const soglia = await this.configParams
+      .getNumber(PARAMETRO_SOGLIA, SOGLIA_GIORNI_DEFAULT)
+      .catch(() => SOGLIA_GIORNI_DEFAULT);
+    const daRiattivare = daRiaprire(active, desiredTypes, soglia);
+    if (daRiattivare.length) {
+      // Si RIAPRE la riga, non se ne crea una nuova: stesso id, stessa storia, e `createdAt`
+      // continua a dire da quando il problema è aperto — che è il dato che distingue una
+      // distrazione da un abbandono.
+      await this.prisma.alert.updateMany({
+        where: { id: { in: daRiattivare } },
+        data: { status: 'open', handledAt: null } as never,
+      });
+    }
 
     // Crea gli alert desiderati non ancora presenti.
     const toCreate = desired.filter((d) => !activeByType.has(d.type));
@@ -435,6 +462,14 @@ export class AlertsService {
         throw new ForbiddenException('Non puoi gestire questo alert');
       }
     }
-    return this.prisma.alert.update({ where: { id: alertId }, data: { status } });
+    /**
+     * `handledAt` è la data di QUESTO «gestito», non dell'ultimo di sempre: riaprendo o inoltrando
+     * si azzera. Senza, un alert gestito a gennaio, riaperto e rigestito a marzo, si porterebbe
+     * dietro gennaio e tornerebbe in lista il giorno dopo.
+     */
+    return this.prisma.alert.update({
+      where: { id: alertId },
+      data: { status, handledAt: status === 'handled' ? new Date() : null } as never,
+    });
   }
 }

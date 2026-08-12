@@ -25,6 +25,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` ⏰ **Gli alert della coach: «gestito» è un rinvio, non una chiusura.** Nato dalla
+  domanda di Simone (12/8) — «la correzione sulla coda del nutrizionista mi viene un dubbio, quella
+  della coach invece?».
+  I pulsanti della coach, al contrario di quelli del nutrizionista, instradavano davvero: `gestito`
+  toglie l'alert dalla sua lista, `inoltrato` lo passa al manager, e l'alert si chiude **da solo**
+  quando la condizione smette di valere. Il difetto stava altrove: `handled` conta fra gli stati non
+  chiusi — giusto, o il ricalcolo notturno ne creerebbe un doppione — ma **nessun codice riapriva mai
+  un gestito**. Una coach che segnava «gestito» su una cliente che non fa check-in, e quella
+  continuava a non farne, **non lo rivedeva mai più**: spariva dalla sua lista, da quella del
+  manager, e restava lì. Il rischio non era il rumore: era il silenzio su chi sta scivolando via.
+  **Sette giorni** (scelti da Simone, parametro `alert_gestito_giorni`): è il tempo perché un
+  intervento produca un effetto visibile — un check-in, una pesata, una risposta. Se in una settimana
+  non è successo niente, quel «gestito» non ha gestito niente.
+  **⚠️ Non è un ritorno al difetto dell'11/8.** Le coach avevano segnalato «se clicco su gestito, al
+  refresh gli avvisi ricompaiono»: quello era un avviso che tornava **subito**, cioè un pulsante che
+  non salvava. Questo torna dopo una settimana, e **solo se il problema c'è ancora**. È la differenza
+  fra un pulsante rotto e un promemoria.
+  **⚠️ Torna solo se la condizione vale ANCORA**: se la cliente ha ripreso, l'alert non è più fra i
+  desiderati e lo chiude la via normale. Riaprirlo insegnerebbe alla coach che quella lista si può
+  ignorare.
+  **⚠️ Si RIAPRE la riga, non se ne crea una nuova**: stesso id, `createdAt` intatto — è il dato che
+  distingue una distrazione da un abbandono — e `handledAt` azzerato, perché è la data di *questo*
+  gestito e non dell'ultimo di sempre.
+  **⚠️ «Inoltrato» non si tocca**: è sulla scrivania di qualcun altro, che ci sta lavorando adesso.
+  **⚠️ Il backfill è su `updated_at`, non su `now()`**: per un alert gestito l'ultima scrittura è
+  quasi sempre il momento in cui è stato segnato. Con `now()` si regalerebbe una settimana in più
+  proprio alle segnalazioni più vecchie. Conseguenza voluta: al primo ricalcolo l'arretrato torna in
+  lista tutto insieme — non è rumore, è quello che era rimasto nascosto.
+  Migrazione `20260812230000_alert_gestito_rinvio`. 2033 test verdi.
+
 - `[Sviluppo]` 🔔 **Il tocco sulla notifica porta dentro — dal telefono, dall'app e dal backoffice —
   e «Correggi» smette di mentire anche sul telefono.** Quattro richieste di Simone (12/8) e tre
   difetti veri trovati verificandole.
