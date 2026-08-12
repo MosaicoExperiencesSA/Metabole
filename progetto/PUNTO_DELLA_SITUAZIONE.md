@@ -1142,7 +1142,24 @@ calcolo delle provvigioni non deve trattare `null` o `0` come «tetto a zero», 
 compenso in silenzio. Decisioni già prese sul resto: l'eccedenza si perde; lo storno si sottrae anche se rientra nei
 3.000; la regola vale per tutti i nutrizionisti.
 
-### 16.9 La tabella delle sostituzioni di Gaia — ✅ DECISA l'11/8: tabella nuova + «promuovi a regola»
+### ~~16.9 La tabella delle sostituzioni di Gaia~~ — ✅ FATTA il 12/8
+
+Tabella `food_swap`: riga = questa cliente, questo piatto, questo alimento → questo sostituto, con
+stato, chi l'ha validata e quando. La riga **non è un'occorrenza**: la stessa richiesta ripetuta
+incrementa `volte`, ed è quel numero a dire quali sostituzioni meritano di diventare una regola.
+Ci finisce sia quello concordato in chat sia il pulsante «sostituisci» dell'app; l'inserimento
+manuale del nutrizionista nasce già confermato.
+**«Promuovi a regola»**: se un gruppo **approvato** contiene già i due alimenti lo dice e non crea
+niente; se c'è una **bozza** che ne contiene uno ci aggiunge il mancante; altrimenti crea un gruppo
+**in bozza**. ⚠️ Un gruppo approvato non viene mai modificato da qui — allargarlo cambierebbe i menu
+di tutte a partire dalla notte stessa.
+Il confronto per parola con la radice sta in `common/nomi-alimento.ts` (uscito da
+`menu/sostituzione-chat.ts`, ri-esportato). Pagina backoffice sotto i Gruppi di equivalenza, chiave
+permessi `food_swaps`. Migrazione `20260812150000_tabella_sostituzioni`, nessun backfill.
+⚠️ Resta fuori: il cambio di PIATTO fatto dal pulsante dell'app (non dalla chat) — lì il piatto lo
+sceglie il motore, e il nome della ricetta di partenza non è disponibile nel punto in cui si scrive.
+
+#### (storia) com'era
 
 «Se non salviamo la sua risposta lei non impara.» Serve **una tabella unica trasversale alle clienti**,
 con validazione/correzione da parte del nutrizionista **e inserimento manuale di righe**. La scelta

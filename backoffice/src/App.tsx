@@ -18,6 +18,7 @@ import { Diete } from './pages/Diete';
 import { GestioneDieta } from './pages/GestioneDieta';
 import { Testimonianze } from './pages/Testimonianze';
 import { GruppiEquivalenza } from './pages/GruppiEquivalenza';
+import { Sostituzioni } from './pages/Sostituzioni';
 import { Publisher } from './pages/Publisher';
 import { Agenti } from './pages/Agenti';
 import { AttivitaCoach } from './pages/AttivitaCoach';
@@ -121,6 +122,7 @@ export default function App() {
       <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="recipes"><Ricette /></Protected>} />
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="equivalence_groups"><GruppiEquivalenza /></Protected>} />
+      <Route path="/sostituzioni" element={<Protected title="Sostituzioni" pageKey="food_swaps"><Sostituzioni /></Protected>} />
       <Route path="/creazione-validazione" element={<Protected title="Creazione e validazione" pageKey="creation_validation"><CreazioneValidazione /></Protected>} />
       <Route path="/gestione-dieta" element={<Protected title="Gestione dieta" pageKey="diet_workspace"><GestioneDieta /></Protected>} />
       <Route path="/valori-nutrizionali" element={<Protected title="Valori nutrizionali" pageKey="nutrient_facts"><ValoriNutrizionali /></Protected>} />

@@ -271,6 +271,8 @@ model User {
   pauseRequests         PauseRequest[]
   coachTasks            CoachTask[]
   clientReports         ClientReport[]
+  // Le sostituzioni che ha concordato (§16.9).
+  foodSwaps             FoodSwap[] @relation("FoodSwapClient")
 
   @@map("user")
 }
@@ -330,6 +332,9 @@ model Staff {
   withdrawals           CommissionWithdrawal[] @relation("StaffWithdrawals")
 
   crmNotes CrmNote[] @relation("CrmNoteAuthor")
+  // Le sostituzioni che ha scritto a mano e quelle che ha validato (§16.9).
+  foodSwapsAuthored  FoodSwap[] @relation("FoodSwapAuthor")
+  foodSwapsValidated FoodSwap[] @relation("FoodSwapValidator")
 
   @@map("staff")
 }
@@ -1519,6 +1524,8 @@ model Recipe {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   ratings RecipeRating[]
+  // Le sostituzioni chieste dentro questo piatto (§16.9).
+  foodSwaps FoodSwap[] @relation("FoodSwapRecipe")
 
   @@index([regime, mealSlot, active])
   @@map("recipe")
@@ -1949,6 +1956,9 @@ model EquivalenceGroup {
   version   Int      @default(1)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Le righe della tabella delle sostituzioni che sono state promosse in questo gruppo (§16.9).
+  foodSwaps FoodSwap[] @relation("FoodSwapPromoted")
 
   @@index([productId])
   @@index([status])
@@ -2408,4 +2418,98 @@ model NutrientLookupMiss {
 
   @@index([status, times])
   @@map("nutrient_lookup_miss")
+}
+
+/**
+ * §16.9 — LA TABELLA DELLE SOSTITUZIONI. «Se non salviamo la sua risposta lei non impara.»
+ *
+ * Prima di questa tabella una sostituzione concordata in chat viveva SOLO dentro
+ * `MenuDay.meals` (l'array `substitutions[]`): senza id, individuata per `data|slot|from` in tre
+ * punti diversi del codice, e leggibile solo dentro una finestra di ±30/90 giorni. Quello che una
+ * cliente aveva chiesto tre mesi fa non esisteva più, e quello che avevano chiesto le altre non
+ * era una domanda che si potesse porre.
+ *
+ * Qui la riga è **contestuale**: questa cliente, questo piatto, questo alimento → questo
+ * sostituto. Il contesto è esattamente l'informazione che i gruppi di equivalenza non sanno
+ * tenere — un gruppo dice «queste cose si equivalgono», per tutte, sempre — ed è il motivo per cui
+ * §16.9 ha scelto una tabella nuova invece di riversare tutto lì dentro: una scelta fatta per una
+ * cliente non deve cambiare il motore per tutte. A portarcela è «promuovi a regola», un caso per
+ * volta, con un nutrizionista che decide.
+ *
+ * ⚠️ La riga NON è un'occorrenza: la stessa richiesta ripetuta incrementa `volte`. È il conteggio
+ * che rende la tabella utile invece che un log — «questa cliente toglie le carote da otto piatti
+ * diversi» e «quaranta clienti tolgono le carote» sono le due domande per cui esiste, e nessuna
+ * delle due si risponde su un elenco di eventi.
+ *
+ * Il menu resta la fonte di verità di COS'HA NEL PIATTO OGGI: questa tabella è la memoria, non lo
+ * stato. Cancellarla non cambierebbe una sola giornata di menu.
+ */
+model FoodSwap {
+  id       String @id @default(uuid())
+  /**
+   * `clientId|recipeId|chiaveAlimento(da)|chiaveAlimento(a)` — vedi `common/nomi-alimento.ts`.
+   * È qui e non calcolata al volo perché è ciò che rende l'inserimento un `upsert`: senza, due
+   * richieste identiche a distanza di un mese sono due righe, e il conteggio non esiste.
+   */
+  chiave   String @unique
+
+  clientId String @map("client_id")
+  client   User   @relation("FoodSwapClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Il piatto. `recipeId` può restare vuoto: le righe scritte a mano dal nutrizionista possono
+  // parlare di un alimento e basta, e una ricetta cancellata non deve portarsi via la memoria.
+  recipeId String? @map("recipe_id")
+  recipe   Recipe? @relation("FoodSwapRecipe", fields: [recipeId], references: [id], onDelete: SetNull)
+  /** Il nome del piatto com'era QUEL giorno: il catalogo cambia, la riga deve restare leggibile. */
+  dishName String? @map("dish_name")
+  mealSlot String? @map("meal_slot")
+
+  /** ingrediente | piatto */
+  tipo     String @default("ingrediente")
+  fromFood String @map("from_food")
+  toFood   String @map("to_food")
+  /** Le radici normalizzate: servono a cercare e a raggruppare senza leggere tutta la tabella. */
+  fromKey  String @map("from_key")
+  toKey    String @map("to_key")
+
+  fromQty  Float?  @map("from_qty")
+  toQty    Float?  @map("to_qty")
+  unit     String?
+  /** La chiave del motivo (gusto | scorta | intolleranza | …), non l'etichetta. */
+  motivo   String?
+  /** chat | manuale */
+  origine  String  @default("chat")
+  /** da_verificare | verificata | corretta | annullata */
+  stato    String  @default("da_verificare")
+  nota     String?
+  /** Il prodotto/dieta della giornata, se noto: serve a promuovere in un gruppo SCOPATO. */
+  dietId   String? @map("diet_id")
+
+  volte         Int      @default(1)
+  primaVoltaIl  DateTime @default(now()) @map("prima_volta_il")
+  ultimaVoltaIl DateTime @default(now()) @map("ultima_volta_il")
+
+  // Chi l'ha scritta a mano, e chi l'ha validata. `SetNull` in tutti e due i casi: se la
+  // nutrizionista lascia l'azienda la riga resta — è un dato sulle clienti, non su di lei.
+  creataDaId   String?   @map("creata_da_id")
+  creataDa     Staff?    @relation("FoodSwapAuthor", fields: [creataDaId], references: [id], onDelete: SetNull)
+  validataDaId String?   @map("validata_da_id")
+  validataDa   Staff?    @relation("FoodSwapValidator", fields: [validataDaId], references: [id], onDelete: SetNull)
+  validataIl   DateTime? @map("validata_il")
+
+  // «Promuovi a regola»: dove è finita, e quando. Il gruppo cancellato non cancella la riga.
+  promossaGruppoId String?           @map("promossa_gruppo_id")
+  promossaGruppo   EquivalenceGroup? @relation("FoodSwapPromoted", fields: [promossaGruppoId], references: [id], onDelete: SetNull)
+  promossaIl       DateTime?         @map("promossa_il")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // La coda «da verificare», che è la schermata con cui si apre la pagina.
+  @@index([stato, ultimaVoltaIl])
+  // Le righe di UNA cliente, per la sua scheda.
+  @@index([clientId, ultimaVoltaIl])
+  // «Chi chiede di togliere le carote»: la domanda che i gruppi di equivalenza non sanno fare.
+  @@index([fromKey])
+  @@map("food_swap")
 }

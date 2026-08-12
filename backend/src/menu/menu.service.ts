@@ -8,6 +8,8 @@ import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
+// §16.9: una funzione, non un servizio iniettato — vedi il commento in `food-swaps.module.ts`.
+import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { PushService } from '../notifications/push.service';
 import { provaAttivata } from '../commerce/prova-attivata';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1694,6 +1696,21 @@ export class MenuService {
       take: daysAffected,
     });
     const applied: { day: string; from: string; to: string }[] = [];
+    /**
+     * §16.9 — quello che finisce nella tabella delle sostituzioni.
+     *
+     * Si raccoglie qui e si scrive DOPO il ciclo: la stessa sostituzione compare in più giornate
+     * (`days` ne tocca tre) ed è UNA richiesta, non tre. Scrivendola dentro il ciclo il conteggio
+     * «volte» direbbe che la cliente l'ha chiesta tre volte in un secondo — e il numero che serve a
+     * decidere quali sostituzioni diventano una regola sarebbe il primo a mentire.
+     */
+    const daRegistrare = new Map<
+      string,
+      {
+        from: string; to: string; recipeId: string; dishName: string; mealSlot: string;
+        fromQty: number | null; toQty: number | null; unit: string | null; dietId: string | null;
+      }
+    >();
     for (const day of days) {
       const meals = ((day.meals as unknown as MealSnapshot[]) ?? []).map((m) => ({ ...m }));
       const dayKey = day.date.toISOString().slice(0, 10);
@@ -1708,6 +1725,22 @@ export class MenuService {
         if (subs && subs.length) {
           touched = true;
           for (const s of subs) applied.push({ day: dayKey, from: s.from, to: s.to });
+          // Anche quello che la cliente chiede dal PULSANTE del menu, non solo quello che concorda
+          // con Gaia: è la stessa richiesta fatta con due dita invece che con una frase, e la
+          // memoria non deve dipendere da quale schermata ha aperto.
+          for (const s of subs) {
+            daRegistrare.set(`${m.recipeId}|${s.from}|${s.to}`, {
+              from: s.from,
+              to: s.to,
+              recipeId: m.recipeId,
+              dishName: m.name,
+              mealSlot: m.slot,
+              fromQty: s.fromQty ?? null,
+              toQty: s.toQty ?? null,
+              unit: s.unit ?? null,
+              dietId: day.dietId ?? null,
+            });
+          }
           return { ...m, substitutions: [...(m.substitutions ?? []), ...subs] };
         }
         return m;
@@ -1716,6 +1749,20 @@ export class MenuService {
         await this.prisma.menuDay.update({ where: { id: day.id }, data: { meals: updated as never } });
       }
     }
+
+    // §16.9 — la memoria, una riga per richiesta e non una per giornata toccata. Il motivo si
+    // deduce dalla portata che la cliente ha scelto, che è l'unica cosa che ce lo dice: «per
+    // sempre» è un gusto, il resto è contingente.
+    for (const r of daRegistrare.values()) {
+      await registraSostituzione(this.prisma, {
+        clientId,
+        tipo: 'ingrediente',
+        origine: 'app',
+        motivo: forever ? 'gusto' : 'scorta',
+        ...r,
+      });
+    }
+
     // Il messaggio dice esattamente per quanto vale: una cliente che ha chiesto "solo oggi"
     // non deve leggere "nei prossimi menu" e restare col dubbio di aver escluso troppo.
     const uniquePairs = [...new Set(applied.map((s) => `«${s.from}» → «${s.to}»`))];

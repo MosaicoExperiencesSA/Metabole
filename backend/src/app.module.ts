@@ -51,6 +51,7 @@ import { NutritionistModule } from './nutritionist/nutritionist.module';
 import { ReferralModule } from './referral/referral.module';
 import { TestimonialsModule } from './testimonials/testimonials.module';
 import { EquivalenceModule } from './equivalence/equivalence.module';
+import { FoodSwapsModule } from './food-swaps/food-swaps.module';
 import { NutrientFactsModule } from './nutrient-facts/nutrient-facts.module';
 import { SocialModule } from './social/social.module';
 import { MailboxModule } from './mailbox/mailbox.module';
@@ -107,6 +108,7 @@ import { AppUpdatesModule } from './app-updates/app-updates.module';
     ReferralModule,
     TestimonialsModule,
     EquivalenceModule,
+    FoodSwapsModule,
     NutrientFactsModule,
     SocialModule,
     MailboxModule,

@@ -4,6 +4,9 @@ import { avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista'
 import { toDateOnly } from '../common/date-only';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
+// §16.9: una funzione, non un servizio iniettato. Il percorso del pasto non deve dipendere da un
+// modulo di backoffice — vedi il commento in `food-swaps.module.ts`.
+import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ordinaAlternative,
@@ -849,6 +852,11 @@ export class SostituzioneChatService {
     let pastiToccati = 0;
     let giorniToccati = 0;
     let giaPresenti = 0;
+    // La PRIMA sostituzione scritta davvero, per la tabella §16.9: porta il nome dell'ingrediente
+    // com'è nella RICETTA e la grammatura vera, che la proposta non sempre ha.
+    // Un oggetto e non un `let … | null`: viene valorizzato dentro una callback, e TypeScript non
+    // segue quel percorso — con una variabile la restringerebbe a `null` e leggerla darebbe `never`.
+    const scritta: { sost?: Substitution; dietId?: string | null } = {};
 
     for (const giorno of giorni) {
       const pasti = ((giorno.meals as unknown as MealSnapshot[]) ?? []).map((m) => ({ ...m }));
@@ -905,6 +913,10 @@ export class SostituzioneChatService {
         };
         toccato = true;
         pastiToccati += 1;
+        if (!scritta.sost) {
+          scritta.sost = sostituzione;
+          scritta.dietId = giorno.dietId ?? null;
+        }
         return { ...pasto, substitutions: [...esistenti, sostituzione] };
       });
 
@@ -956,6 +968,27 @@ export class SostituzioneChatService {
         esito: 'rifiutata',
       };
     }
+
+    // §16.9 — la memoria. Il cambio è già scritto sul menu: questa riga serve a farlo IMPARARE
+    // (quante volte, a quante clienti, su quali piatti), e non deve poter rompere niente — vedi il
+    // riquadro in `registra-sostituzione.ts`, che non lancia mai.
+    await registraSostituzione(this.prisma, {
+      clientId,
+      tipo: 'ingrediente',
+      // Il nome dell'ingrediente com'è nella RICETTA, non come l'ha scritto la cliente: «pollo»
+      // digitato in chat qui diventa «petto di pollo», che è la cosa che serve a un nutrizionista.
+      from: scritta.sost?.from ?? proposta.da,
+      to: proposta.a,
+      recipeId: proposta.recipeId,
+      dishName: proposta.piatto,
+      mealSlot: proposta.slot,
+      fromQty: scritta.sost?.fromQty ?? proposta.qtaDa ?? null,
+      toQty: scritta.sost?.toQty ?? proposta.qtaA ?? null,
+      unit: scritta.sost?.unit ?? proposta.unita ?? null,
+      motivo: motivo.key,
+      dietId: scritta.dietId ?? null,
+      origine: 'chat',
+    });
 
     await this.avvisaDellaVerifica(
       clientId,
@@ -1345,6 +1378,22 @@ export class SostituzioneChatService {
         preferenza: stato.preferenzaPiatto ?? null,
       },
     });
+    // §16.9 — anche il cambio di PIATTO entra in tabella: «questa cliente il minestrone non lo
+    // vuole e prende sempre l'insalata di farro» è esattamente il genere di cosa che oggi si
+    // perdeva dopo trenta giorni.
+    await registraSostituzione(this.prisma, {
+      clientId,
+      tipo: 'piatto',
+      from: prima.name,
+      to: scelta.nome,
+      recipeId: prima.recipeId,
+      dishName: prima.name,
+      mealSlot: prima.slot,
+      motivo: stato.preferenzaPiatto ?? null,
+      dietId: giorno.dietId ?? null,
+      origine: 'chat',
+    });
+
     // Anche il cambio di PIATTO nasce «da verificare», quindi merita lo stesso avviso del cambio di
     // ingrediente: è un piatto intero diverso da quello che il motore aveva composto.
     await this.avvisaDellaVerifica(

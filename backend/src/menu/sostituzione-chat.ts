@@ -216,12 +216,21 @@ export interface StatoSostituzione {
 /** Oltre questo, lo stato appeso a un messaggio vecchio non è più una conversazione in corso. */
 export const SCADENZA_FLUSSO_MS = 60 * 60 * 1000;
 
-const normalizza = (testo: string): string =>
-  (testo ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim();
+/**
+ * Il confronto fra nomi di alimento vive in `common/nomi-alimento.ts` da §16.9: da quando esiste
+ * la tabella delle sostituzioni non lo interroga più solo il dialogo in chat, ma anche
+ * «promuovi a regola» — e importare il file della chat da lì sarebbe stato il primo passo verso
+ * una seconda copia leggermente diversa. Si ri-esportano perché mezzo `menu/` li importa da qui.
+ */
+import {
+  combaciaAlimento,
+  condividonoAlimento,
+  normalizza,
+  paroleAlimento,
+  radice,
+} from '../common/nomi-alimento';
+
+export { combaciaAlimento, condividonoAlimento, normalizza, paroleAlimento, radice };
 
 /**
  * Intenzione di sostituire, riconosciuta dal testo libero. Volutamente NARROW: pretende un
@@ -310,68 +319,10 @@ export function terminiCandidati(testo: string): string[] {
   return [...new Set([...coppie, ...parole])];
 }
 
-/** Parole di servizio dentro il NOME di un alimento: da sole non lo identificano. */
-const PAROLE_NEUTRE = new Set(['di', 'del', 'della', 'dei', 'delle', 'con', 'alla', 'allo', 'ben', 'tipo']);
-
-/**
- * Radice grezza: toglie la vocale finale alle parole lunghe, così «carote» e «carota» coincidono
- * senza dover elencare i plurali. Le parole corte non si toccano — accorciare «pepe» a «pep» è
- * proprio il modo di farlo combaciare con «peperoni».
- */
-export function radice(parola: string): string {
-  const p = normalizza(parola);
-  return p.length >= 5 && /[aeio]$/.test(p) ? p.slice(0, -1) : p;
-}
-
-/** Le parole che portano significato dentro il nome di un alimento. */
-export function paroleAlimento(nome: string): string[] {
-  return normalizza(nome)
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((p) => p.length >= 3 && !PAROLE_NEUTRE.has(p));
-}
-
-/**
- * Vero se il termine scritto dalla cliente indica quell'ingrediente.
- *
- * Il confronto è PER PAROLA, non per sottostringa, e questa è la riga che conta di più in tutto
- * il file. Con `nome.includes(termine)` «pepe» combaciava con «peperoni»: il cancello delle
- * spezie non scattava (viene interrogato sul nome trovato, e «peperoni» non è una spezia) e la
- * cliente che voleva togliere il pepe si vedeva sostituire i peperoni — e, con «non mi piace»,
- * escludere i peperoni per sempre. È esattamente il caso che `spezie.ts` dichiara di temere:
- * «"pepe" è una spezia, "peperoni" sono una verdura». Stessa storia con «mela» e «melanzane».
- */
-export function combaciaAlimento(nomeIngrediente: string, termine: string): boolean {
-  const nome = normalizza(nomeIngrediente);
-  const t = normalizza(termine);
-  if (!nome || !t) return false;
-  if (radice(nome) === radice(t)) return true;
-  const paroleN = paroleAlimento(nomeIngrediente).map(radice);
-  const paroleT = paroleAlimento(termine).map(radice);
-  if (!paroleN.length || !paroleT.length) return false;
-  // Ogni parola del termine deve trovare una parola dell'ingrediente: «yogurt greco» prende
-  // «yogurt greco» e «yogurt», «pepe» non prende «peperoni».
-  return paroleT.every((pt) => paroleN.includes(pt));
-}
-
-/**
- * Vero se due nomi di alimento condividono una parola: serve a scartare i sostituti che sono una
- * VARIANTE dello stesso cibo.
- *
- * `SUBSTITUTION_MAP` nasce per rendere un piatto sicuro con un'intolleranza, non per accontentare
- * un gusto: «yogurt» → «yogurt senza lattosio» risolve il lattosio e non risolve niente a chi lo
- * yogurt non piace, o a chi non ce l'ha in casa. Senza questo controllo Gaia rispondeva «metti
- * 150 g di yogurt senza lattosio al posto di 150 g di yogurt greco», che è una presa in giro.
- * Lo stesso per pane, pasta, pizza, panna, mozzarella, ricotta, formaggio, parmigiano.
- *
- * Conseguenza voluta: su quei cibi la mappa non offre più niente e la richiesta passa alla
- * nutrizionista. È la risposta onesta — l'alternativa giusta è cambiare piatto, che è mestiere
- * del motore, o un gruppo di equivalenza che il nutrizionista deve ancora scrivere.
- */
-export function condividonoAlimento(a: string, b: string): boolean {
-  const radiciA = new Set(paroleAlimento(a).map(radice));
-  return paroleAlimento(b).map(radice).some((p) => radiciA.has(p));
-}
+// `radice`, `paroleAlimento`, `combaciaAlimento` e `condividonoAlimento` stanno ora in
+// `common/nomi-alimento.ts` (§16.9) e sono ri-esportate in testa a questo file: mezzo `menu/` le
+// importa da qui, e spostarle senza ri-esportarle avrebbe voluto dire toccare otto file per niente.
+// Il perché del confronto per parola — «pepe» ⊄ «peperoni» — è scritto lì, in testa.
 
 /**
  * Controllo di plausibilità sui grammi (protezione richiesta dal progetto): una sostituzione

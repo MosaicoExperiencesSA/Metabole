@@ -64,6 +64,12 @@ export const BACKOFFICE_PAGES = [
   // quelli da confermare. È di chi risponde di cosa mangiano le clienti, quindi sta con la
   // nutrizionista e non con l'amministrazione.
   'nutrient_facts',
+  // Le sostituzioni concordate con le clienti (§16.9, 12/8): la tabella trasversale, la coda di
+  // quelle che nessuno ha ancora guardato, e «promuovi a regola». Chiave PROPRIA e non ereditata da
+  // `client_conversations`: quella è «i cambi di UNA cliente dalla sua scheda», questa è «cosa
+  // chiedono tutte» — e chi promuove una riga a gruppo di equivalenza cambia il MOTORE, non una
+  // giornata di menu. `manage` = valida, corregge, scrive a mano, promuove.
+  'food_swaps',
   // La tabella della copertura (11/8). Chiave PROPRIA e non agganciata a «Creazione e validazione»:
   // quella genera il catalogo, questa dice soltanto dove siamo — e sono due decisioni diverse, perché
   // guardare lo stato serve anche a chi non deve generare niente.
@@ -138,6 +144,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // I valori nutrizionali in sola lettura: le serve per sapere su che dato Gaia ha risposto a una
     // sua cliente. Correggerli no: è materia clinica.
     nutrient_facts: { view: true },
+    // Le sostituzioni concordate: le LEGGE (sapere cosa chiedono le sue clienti è il suo lavoro),
+    // non le valida e non le promuove — una regola che entra nel motore è materia clinica.
+    food_swaps: { view: true },
     visits_agenda: { view: true },
     // Acquisti delle SUE clienti (11/8): il perimetro lo applica il servizio, non questa matrice —
     // qui c'è solo «può entrare nella pagina». Le azioni sui soldi restano admin.
@@ -183,6 +192,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     client_conversations: { view: true, manage: true },
     // I valori nutrizionali: li vede e li corregge. È il senso della pagina.
     nutrient_facts: { view: true, manage: true },
+    // Le sostituzioni concordate con le clienti: è la SUA tabella. Valida, corregge, scrive righe a
+    // mano e promuove a gruppo di equivalenza — che nasce comunque in bozza.
+    food_swaps: { view: true, manage: true },
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
   },
@@ -203,6 +215,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     chat: { view: true, manage: true },
     client_conversations: { view: true, manage: true },
     nutrient_facts: { view: true, manage: true },
+    food_swaps: { view: true, manage: true },
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista

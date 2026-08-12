@@ -63,6 +63,7 @@ export const PAGE_LABEL: Record<string, string> = {
   agents: 'Agenti AI',
   coach_tasks: 'Attività coach',
   equivalence_groups: 'Gruppi di equivalenza',
+  food_swaps: 'Sostituzioni',
   allergens: 'Allergeni ricette',
   email_templates: 'Modelli email',
   email_log: 'Log email',

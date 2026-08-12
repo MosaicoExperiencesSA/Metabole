@@ -90,6 +90,9 @@ export const NAV: NavSection[] = [
       { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
       { key: 'allergens', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
       { key: 'equivalence_groups', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
+      // Subito sotto i gruppi di equivalenza perché è da qui che ci si arriva: una riga confermata
+      // in questa tabella diventa un gruppo con «Promuovi a regola» (§16.9, 12/8).
+      { key: 'food_swaps', label: 'Sostituzioni', to: '/sostituzioni', icon: 'ti-replace' },
       // Accanto ai gruppi di equivalenza di proposito: sono le due tabelle che decidono cosa Gaia
       // può dire a una cliente su un alimento (11/8).
       { key: 'nutrient_facts', label: 'Valori nutrizionali', to: '/valori-nutrizionali', icon: 'ti-database-search' },

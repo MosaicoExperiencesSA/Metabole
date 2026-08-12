@@ -25,6 +25,55 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🔁 **La tabella delle sostituzioni: adesso Gaia impara.** §16.9. «Se non salviamo la
+  sua risposta lei non impara» — e infatti non la salvavamo. Un cambio concordato in chat viveva
+  **solo** dentro `menu_day.meals`, come elemento di un array JSON: **senza id** (lo si individuava
+  per `data|slot|from`, con la stessa chiave riscritta a mano in tre punti diversi) e leggibile solo
+  dentro una finestra di **±30/90 giorni**. Quello che una cliente aveva chiesto tre mesi fa non
+  esisteva più; quello che avevano chiesto le altre non era una domanda che si potesse porre.
+  Ora c'è `food_swap`: **riga = questa cliente, questo piatto, questo alimento → questo sostituto**,
+  con stato, chi l'ha validata e quando.
+  **La riga non è un'occorrenza**: la stessa richiesta ripetuta incrementa `volte`. È il conteggio a
+  rendere la tabella utile invece che un log — «questa cliente toglie le carote da otto piatti» e
+  «quaranta clienti tolgono le carote» sono le due domande per cui esiste, e nessuna delle due si
+  risponde su un elenco di eventi. A tenerlo in piedi è la `chiave`
+  (`cliente|piatto|radice(da)|radice(a)`), che rende l'inserimento un upsert: senza, «Carote» oggi e
+  «carota» il mese prossimo sarebbero due righe.
+  ⚠️ **Il piatto entra nella chiave di proposito.** «Togliere le carote dal minestrone» e «togliere
+  le carote dall'insalata» sono due richieste diverse, e il CONTESTO è esattamente l'informazione
+  che i gruppi di equivalenza non sanno tenere. È il motivo per cui §16.9 ha scelto una tabella
+  nuova invece di riversare tutto lì: una scelta fatta per una cliente non deve cambiare il motore
+  per tutte.
+  **«Promuovi a regola»** fa quel salto, un caso per volta e con una persona che decide. Tre
+  risposte possibili, in ordine di utilità: esiste già un gruppo **approvato** con dentro tutti e due
+  gli alimenti → lo dice e non crea niente (il motore lo sa già); c'è una **bozza** che ne contiene
+  uno → ci aggiunge il mancante, invece di lasciare in giro dieci gruppi da due voci; altrimenti ne
+  crea uno **in bozza**, con scritta dentro la provenienza.
+  ⚠️ **Un gruppo approvato non viene mai modificato da qui**, nemmeno per aggiungere una voce:
+  allargarne uno cambierebbe i menu di tutte le clienti a partire dalla notte stessa, per una
+  richiesta fatta da una e senza che nessuno l'abbia approvato.
+  **Le funzioni che confrontano i nomi di alimento** (`radice`, `combaciaAlimento`, …) sono uscite da
+  `menu/sostituzione-chat.ts` e stanno in `common/nomi-alimento.ts`: da oggi non le interroga più
+  solo il dialogo in chat, e importare il file della chat da un modulo di backoffice sarebbe stato
+  il primo passo verso una seconda copia leggermente diversa — la storia dei metodi di cottura.
+  Ri-esportate, quindi nessun import esistente cambia. La chiave usa una radice **un filo più
+  aggressiva** (toglie la `h` dura): senza, «pesca» e «pesche» erano due righe e il conteggio si
+  spaccava in due. Sta lì e non dentro `radice`, che decide se togliere un ingrediente dal piatto di
+  una persona: là il costo di un accorpamento sbagliato è un pasto, qui è una riga contata due volte.
+  **Ci finisce anche il pulsante «sostituisci» dell'app**, non solo la chat: è la stessa richiesta
+  fatta con due dita invece che con una frase. Una riga per richiesta, non una per giornata toccata
+  — `days` ne tocca tre, e contarle tre volte avrebbe fatto mentire proprio il numero che serve a
+  decidere cosa promuovere.
+  ⚠️ **La scrittura non lancia mai.** Viene dopo che il cambio è già sul menu della cliente: se
+  fallisce, lei deve comunque vedere la risposta di Gaia e trovare il piatto giusto domani mattina.
+  La memoria è utile, il pasto è necessario.
+  Pagina nuova nel backoffice (sotto i Gruppi di equivalenza, che è dove si va a finire), chiave
+  permessi `food_swaps` propria — `view` alla coach, `manage` a chi decide — inserimento manuale, e
+  la colonna «Volte» ordinata in cima. Migrazione `20260812150000_tabella_sostituzioni`, **nessun
+  backfill**: ricostruire all'indietro dai JSON vorrebbe dire inventare `volte` e `prima_volta_il`, e
+  una memoria che parte con numeri inventati è peggio di una che parte vuota.
+  Verifiche: **120 suite / 1794 test** (+3 suite, +31 test), backoffice e app build verdi.
+
 - `[Sviluppo]` 💶 **Il tetto di guadagno mensile del nutrizionista — sul suo profilo, e applicato
   dove passano tutti gli accrediti.** §16.8, decisa l'11/8: **solo il campo sulla persona**, niente
   parametro globale, niente cascata. Il campo è `Staff.earningsCapCents`, si scrive in euro dalla
