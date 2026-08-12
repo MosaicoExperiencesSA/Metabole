@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { toDateOnly } from '../common/date-only';
+import { destinatariStaffDellaCliente } from '../common/avvisa-nutrizionista';
 
 /**
  * Congelamento abbonamento per vacanza ("pausa").
@@ -490,19 +491,15 @@ export class PauseService {
       select: { assignedCoachId: true, assignedNutritionistId: true, name: true },
     });
     if (!profile) return;
-    const staffIds = [profile.assignedCoachId, profile.assignedNutritionistId].filter(
-      (v): v is string => !!v,
-    );
-    if (staffIds.length === 0) return;
-    const staff = await this.prisma.staff.findMany({
-      where: { id: { in: staffIds } },
-      select: { userId: true },
-    });
+    // ⚠️ Ripiego sui capi se non c'è nessuno assegnato: il peso che sale durante una pausa è un
+    // dato clinico, e una cliente scoperta è quella per cui conta di più (Simone, 12/8).
+    const destinatari = await destinatariStaffDellaCliente(this.prisma, clientId);
+    if (!destinatari.length) return;
     const chi = profile.name ?? 'Una cliente';
-    for (const s of staff) {
+    for (const userId of destinatari) {
       await this.notifications
         .notify({
-          userId: s.userId,
+          userId,
           type: 'pause_regain',
           title: 'Peso in salita durante una pausa',
           body: `${chi}: +${deltaKg} kg dall'inizio della pausa, che finisce il ${fine.toLocaleDateString('it-IT')}. Vale una parola adesso.`,
@@ -562,19 +559,19 @@ export class PauseService {
       select: { assignedCoachId: true, assignedNutritionistId: true, name: true },
     });
     if (!profile) return;
-    const staffIds = [profile.assignedCoachId, profile.assignedNutritionistId].filter(
-      (v): v is string => !!v,
-    );
-    if (staffIds.length === 0) return;
-    const staff = await this.prisma.staff.findMany({
-      where: { id: { in: staffIds } },
-      select: { userId: true },
-    });
+    /**
+     * ⚠️ È IL PEGGIORE DEI TRE PUNTI dove c'era `if (staffIds.length === 0) return;`. Qui una
+     * cliente chiede una pausa più lunga di venti giorni, la richiesta resta `pending` — e se non
+     * le è ancora stato assegnato nessuno, **nessuno viene avvisato**. Lei aspetta una risposta che
+     * non può arrivare, e nella coda di nessuno c'è una riga.
+     */
+    const destinatari = await destinatariStaffDellaCliente(this.prisma, clientId);
+    if (!destinatari.length) return;
     const who = profile.name ?? 'Una cliente';
-    for (const s of staff) {
+    for (const userId of destinatari) {
       await this.notifications
         .notify({
-          userId: s.userId,
+          userId,
           type: 'pause_request',
           title: 'Richiesta di pausa',
           body: `${who} chiede una pausa di ${days} giorni: va approvata o rifiutata.`,

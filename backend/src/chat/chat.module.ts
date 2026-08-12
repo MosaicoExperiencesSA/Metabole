@@ -7,6 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 // La banca dati nutrizionale (11/8): Gaia legge i valori da lì prima di dire un numero.
 import { NutrientFactsModule } from '../nutrient-facts/nutrient-facts.module';
 import {
+  DiagnosiAvvisoChatController,
   MyThreadsController,
   StaffClientChatController,
   StaffThreadsController,
@@ -22,6 +23,7 @@ import { ConversationSummaryService } from './conversation-summary.service';
     StaffThreadsController,
     StaffClientChatController,
     ThreadsController,
+    DiagnosiAvvisoChatController,
   ],
   providers: [ChatService, ConversationSummaryService],
   exports: [ChatService, ConversationSummaryService],

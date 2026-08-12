@@ -25,6 +25,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 🧭 **«Se il nutrizionista non è assegnato, ripiega sul capo» — ovunque, non solo in
+  chat.** Regola generale data da Simone (12/8) dopo il ripiego appena messo nelle chat.
+  Cercando gli altri punti, la stessa riga usciva **tre volte**, identica e ognuna per conto suo:
+  `if (staffIds.length === 0) return;` — nelle **segnalazioni**
+  (`escalation-routing.service.notifyAssignedStaff`), nell'avviso **«il peso sale durante la pausa»**
+  e nella **richiesta di pausa da approvare**. Tre copie vogliono dire tre posti da correggere e uno
+  che ci si dimentica: ora è una funzione sola, `destinatariStaffDellaCliente`.
+  **⚠️ Il peggiore dei tre era la richiesta di pausa**: una cliente chiede una pausa più lunga di
+  venti giorni, la richiesta resta `pending`, e se non le è stato ancora assegnato nessuno **nessuno
+  veniva avvisato**. Lei aspetta una risposta che non può arrivare, e nella coda di nessuno c'è una
+  riga.
+  **⚠️ Il silenzio colpiva proprio le clienti più scoperte**: una segnalazione su una persona senza
+  coach e senza nutrizionista è la più urgente che ci sia, ed era l'unica che non veniva detta a
+  nessuno.
+  **⚠️ Con qualcuno assegnato i capi NON si disturbano**: aggiungerli a ogni avviso li abituerebbe a
+  ignorarli, e il ripiego servirebbe a niente il giorno che serve.
+  **⚠️ Ripiego anche quando la scheda è assegnata ma non ha un'utenza dietro**: `assignedNutritionistId`
+  valorizzato non garantisce che ci sia un account a cui scrivere.
+  Le conversazioni restano l'eccezione dichiarata: lì il destinatario deve poter **aprire quel
+  thread**, e nel thread «Coach» nessun altro può scrivere. 2053 test verdi.
+
+- `[Sviluppo]` 📭 **Le notifiche dei messaggi al nutrizionista: il buco trovato, e lo strumento per
+  vedere dov'è.** Segnalazione di Simone (12/8): «al nutrizionista continuano a non arrivare le
+  notifiche dei messaggi».
+  **⚠️ TROVATO: un avviso senza destinatario spariva in silenzio.** In `notifyCounterpartStaff` c'era
+  un `return` muto: se alla cliente non è assegnata una nutrizionista, il messaggio veniva salvato e
+  **nessuno lo sapeva** — non lei, che non c'è, e non il capo, a cui nessuno lo diceva. La cliente
+  scriveva nel vuoto senza che niente, da nessuna parte, lo segnalasse. È la stessa lezione di
+  luglio: tre segnalazioni gravi rimaste senza destinatario per venti giorni. Ora l'avviso ripiega
+  sui **capi nutrizionisti**, che quel thread possono leggerlo e ci possono rispondere.
+  **⚠️ Per la coach non c'è ripiego, e non è una dimenticanza**: nessun altro ruolo può scrivere nel
+  thread «Coach» — un messaggio della nutrizionista comparirebbe alla cliente come se fosse della sua
+  coach. Lì resta il `logger.warn`, che almeno rende visibile il buco.
+  **Il titolo dice com'è andata**: al capo arriva «X ha scritto e non ha una nutrizionista
+  assegnata», non «una tua cliente ti ha scritto» — che sarebbe falso e lo manderebbe a cercarla fra
+  le proprie.
+  **La diagnosi, perché il resto non si vede leggendo il codice.** Il percorso è corretto e i test lo
+  coprono: quello che manca sta nei dati di quella cliente. `GET /admin/diagnosi-avviso-chat/:id`
+  risponde alla domanda che conta — **quale dei sei gradini è rotto per lei**: nutrizionista
+  assegnata? scheda collegata a un'utenza? conversazione aperta? ha scritto lì o a Gaia? l'avviso è
+  stato scritto? c'è un telefono registrato? Stessa filosofia della «push di prova».
+  **⚠️ Si dice il PRIMO gradino rotto, non l'ultimo**: «non ci sono telefoni registrati» detto a una
+  cliente senza nutrizionista assegnata manda a cercare nel posto sbagliato.
+  Non manda e non scrive niente: è una lettura, e c'è il test che lo verifica. 2046 test verdi.
+
 - `[Sviluppo]` 🔎 **«Dove è usata»: nella riga piccola anche i pasti e l'obiettivo.** Richiesta di
   Simone (12/8) su uno screenshot: quattro righe «Digiuno intermittente (16:8)» identiche, e nessun
   modo di sapere a quale variante appartenesse ciascuna. Ora la riga dice `gg 3 · 5 pasti · dim`.

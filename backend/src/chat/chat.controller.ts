@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   IsIn,
   IsInt,
@@ -248,5 +248,28 @@ export class ThreadsController {
     @Param('messageId') messageId: string,
   ) {
     return this.chat.eliminaMessaggio(user, id, messageId);
+  }
+}
+
+/**
+ * PERCHÉ NON È ARRIVATA LA NOTIFICA — strumento di diagnosi, per l'admin.
+ *
+ * Segnalazione di Simone (12/8): «al nutrizionista continuano a non arrivare le notifiche dei
+ * messaggi». Il percorso nel codice è corretto e i test lo coprono: quello che manca si vede solo
+ * nei dati di quella cliente. Questa rotta risponde alla domanda che conta — **quale dei sei
+ * gradini è rotto per lei** — invece di lasciare che si rifaccia la prova sperando di vederla
+ * fallire.
+ *
+ * Non manda niente e non scrive niente: è solo una lettura.
+ */
+@Controller('admin/diagnosi-avviso-chat')
+@Roles('admin', 'head_nutritionist')
+export class DiagnosiAvvisoChatController {
+  constructor(private readonly chat: ChatService) {}
+
+  @Get(':clientId')
+  diagnosi(@Param('clientId') clientId: string, @Query('chi') chi?: string) {
+    const controparte = chi === 'coach' ? 'coach' : 'nutritionist';
+    return this.chat.diagnosiAvviso(clientId, controparte);
   }
 }

@@ -2,6 +2,7 @@ import {
   avvisaCapiNutrizionisti,
   avvisaNutrizionistaDellaCliente,
   destinatariNutrizionista,
+  destinatariStaffDellaCliente,
 } from './avvisa-nutrizionista';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -113,5 +114,65 @@ describe('avvisaCapiNutrizionisti (gruppi di equivalenza)', () => {
     const { prisma, notification } = finto({ capi: ['capo-1'] });
     expect(await avvisaCapiNutrizionisti(prisma, null, gruppo, 'capo-1')).toBe(0);
     expect(notification.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * «Per qualsiasi cosa, se il nutrizionista non è assegnato va ripiegato sul nutrizionista capo»
+ * (Simone, 12/8). Prima questa riga era scritta tre volte, in tre modi, e in tre punti era
+ * `if (staffIds.length === 0) return;` — cioè silenzio proprio sulle clienti più scoperte.
+ */
+describe('destinatariStaffDellaCliente', () => {
+  const prismaFinto = (over: Record<string, unknown> = {}) => ({
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue({ assignedCoachId: 's-c', assignedNutritionistId: 's-n' }),
+    },
+    staff: { findMany: jest.fn().mockResolvedValue([{ userId: 'u-coach' }, { userId: 'u-nutri' }]) },
+    user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-capo' }]) },
+    ...over,
+  });
+
+  it('con coach e nutrizionista assegnate, l\'avviso va a tutte e due', async () => {
+    const p: any = prismaFinto();
+    expect(await destinatariStaffDellaCliente(p, 'c-1')).toEqual(['u-coach', 'u-nutri']);
+    expect(p.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ senza NESSUNO assegnato si ripiega sui capi, non sul vuoto', async () => {
+    const p: any = prismaFinto();
+    p.clientProfile.findUnique.mockResolvedValue({ assignedCoachId: null, assignedNutritionistId: null });
+    expect(await destinatariStaffDellaCliente(p, 'c-1')).toEqual(['u-capo']);
+  });
+
+  it('con la sola coach assegnata NON si disturbano i capi', async () => {
+    // Qualcuno c'è: aggiungere il capo a ogni avviso lo abituerebbe a ignorarli.
+    const p: any = prismaFinto();
+    p.clientProfile.findUnique.mockResolvedValue({ assignedCoachId: 's-c', assignedNutritionistId: null });
+    p.staff.findMany.mockResolvedValue([{ userId: 'u-coach' }]);
+    expect(await destinatariStaffDellaCliente(p, 'c-1')).toEqual(['u-coach']);
+  });
+
+  it('⚠️ schede assegnate ma senza utenza: si ripiega lo stesso', async () => {
+    // `assignedNutritionistId` valorizzato non garantisce che dietro ci sia un account.
+    const p: any = prismaFinto();
+    p.staff.findMany.mockResolvedValue([]);
+    expect(await destinatariStaffDellaCliente(p, 'c-1')).toEqual(['u-capo']);
+  });
+
+  it('la stessa persona in due ruoli conta una volta sola', async () => {
+    const p: any = prismaFinto();
+    p.staff.findMany.mockResolvedValue([{ userId: 'u-x' }, { userId: 'u-x' }]);
+    expect(await destinatariStaffDellaCliente(p, 'c-1')).toEqual(['u-x']);
+  });
+
+  it('senza profilo cliente non si avvisa nessuno', async () => {
+    const p: any = prismaFinto();
+    p.clientProfile.findUnique.mockResolvedValue(null);
+    expect(await destinatariStaffDellaCliente(p, 'c-1')).toEqual([]);
+  });
+
+  it('non lancia mai: chi chiama sta facendo il lavoro vero', async () => {
+    const p: any = { clientProfile: { findUnique: jest.fn().mockRejectedValue(new Error('db giù')) } };
+    await expect(destinatariStaffDellaCliente(p, 'c-1')).resolves.toEqual([]);
   });
 });

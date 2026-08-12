@@ -6,6 +6,7 @@ import { EscalationCategory, ESCALATION_ROUTING } from './escalation-routing';
 import { decidiRiapertura } from './riapertura';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ESCALATION_NOTIF } from '../notifications/staff-notifications';
+import { destinatariStaffDellaCliente } from '../common/avvisa-nutrizionista';
 
 interface OpenInput {
   clientId: string;
@@ -81,31 +82,32 @@ export class EscalationRoutingService {
 
     // Notifica staff: la segnalazione arriva SIA alla coach SIA alla nutrizionista
     // assegnate alla cliente (l'opt-out per tipo nel profilo è rispettato in notify()).
-    await this.notifyAssignedStaff(input.category, profile, input.reason).catch(() => undefined);
+    await this.notifyAssignedStaff(input.clientId, input.category, profile, input.reason).catch(() => undefined);
     return created;
   }
 
   /** Avvisa coach e nutrizionista assegnate della nuova segnalazione. */
   private async notifyAssignedStaff(
+    clientId: string,
     category: EscalationCategory,
     profile: { assignedCoachId: string | null; assignedNutritionistId: string | null; name: string | null } | null,
     reason: string,
   ): Promise<void> {
     if (!profile) return;
-    const staffIds = [profile.assignedCoachId, profile.assignedNutritionistId].filter(
-      (v): v is string => !!v,
-    );
-    if (staffIds.length === 0) return;
-    const staff = await this.prisma.staff.findMany({
-      where: { id: { in: staffIds } },
-      select: { userId: true },
-    });
+    /**
+     * ⚠️ Qui c'era `if (staffIds.length === 0) return;`: una segnalazione su una cliente **senza
+     * nessuno assegnato** — cioè la più scoperta di tutte — non veniva detta a nessuno.
+     * `destinatariStaffDellaCliente` ripiega sui capi nutrizionisti (regola di Simone del 12/8:
+     * «per qualsiasi cosa, se il nutrizionista non è assegnato va ripiegato sul capo»).
+     */
+    const destinatari = await destinatariStaffDellaCliente(this.prisma, clientId);
+    if (!destinatari.length) return;
     const info = ESCALATION_NOTIF[category];
     const who = profile.name ?? 'una cliente';
-    for (const s of staff) {
+    for (const userId of destinatari) {
       await this.notifications
         .notify({
-          userId: s.userId,
+          userId,
           type: info.type,
           title: info.title,
           body: `${info.title} · ${who}${reason ? `: ${reason}` : ''}`,

@@ -49,6 +49,8 @@ function creaServizio(tocca?: (prisma: any) => void) {
       ]),
       findMany: jest.fn().mockResolvedValue([]),
     },
+    // `capiNutrizionisti` cerca qui i destinatari di riserva.
+    user: { findMany: jest.fn().mockResolvedValue([]) },
     clientProfile: {
       findUnique: jest.fn().mockResolvedValue({
         name: 'Patrizia',
@@ -164,6 +166,46 @@ describe('⚠️ la notifica porta nella chat, non nella cartella', () => {
     expect(avviso.payload.threadId).toBe('th-nutri');
     // Il clientId resta: se il thread non ci fosse, il tocco ricade sulla scheda.
     expect(avviso.payload.clientId).toBe('c-1');
+  });
+
+  it('⚠️ SENZA nutrizionista assegnata l\'avviso va ai CAPI, non nel vuoto', async () => {
+    // Qui c'era un `return` muto: il messaggio veniva salvato e nessuno lo sapeva — non la
+    // nutrizionista, che non c'è, e non il capo, a cui nessuno lo diceva. È la stessa lezione di
+    // luglio: tre segnalazioni gravi rimaste senza destinatario per venti giorni.
+    const { service, prisma, notifications } = await servizio();
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      name: 'Patrizia', assignedNutritionistId: 'staff-n', assignedCoachId: 'staff-c',
+      assignedNutritionist: null, assignedCoach: null,
+    });
+    prisma.user.findMany.mockResolvedValue([{ id: 'u-capo1' }, { id: 'u-capo2' }]);
+    prisma.chatThread.update = jest.fn().mockResolvedValue({});
+    prisma.message.create = jest.fn().mockResolvedValue({ id: 'm1', sentAt: ORA });
+
+    await service.postMessage(cliente, 'th-nutri', 'ciao, ho un problema');
+
+    const destinatari = notifications.notifyOncePerDay.mock.calls.map((c: any) => c[0].userId);
+    expect(destinatari).toEqual(['u-capo1', 'u-capo2']);
+    // ⚠️ E il titolo dice com'è andata: «una tua cliente» al capo sarebbe falso, e lo manderebbe a
+    // cercarla fra le proprie.
+    expect(notifications.notifyOncePerDay.mock.calls[0][0].title).toContain('non ha una nutrizionista assegnata');
+  });
+
+  it('⚠️ senza COACH assegnata non si ripiega su nessuno, e va bene così', async () => {
+    // Nessun altro ruolo può scrivere nel thread «Coach»: un messaggio della nutrizionista
+    // comparirebbe alla cliente come se fosse della sua coach. Meglio il log che un avviso a chi
+    // non può nemmeno aprire la conversazione.
+    const { service, prisma, notifications } = await servizio();
+    prisma.chatThread.findUnique.mockResolvedValue({ id: 'th-coach', clientId: 'c-1', counterpart: 'coach' });
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      name: 'Patrizia', assignedCoachId: 'staff-c', assignedNutritionistId: 'staff-n',
+      assignedCoach: null, assignedNutritionist: null,
+    });
+    prisma.user.findMany.mockResolvedValue([{ id: 'u-capo1' }]);
+    prisma.chatThread.update = jest.fn().mockResolvedValue({});
+    prisma.message.create = jest.fn().mockResolvedValue({ id: 'm1', sentAt: ORA });
+
+    await service.postMessage(cliente, 'th-coach', 'ciao');
+    expect(notifications.notifyOncePerDay).not.toHaveBeenCalled();
   });
 
   it('⚠️ senza thread la notifica parte lo stesso, solo senza scorciatoia', async () => {

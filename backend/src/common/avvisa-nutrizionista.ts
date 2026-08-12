@@ -87,6 +87,59 @@ export async function capiNutrizionisti(prisma: PrismaService): Promise<string[]
   return capi.map((c) => c.id);
 }
 
+/**
+ * LE UTENZE DI CHI SEGUE UNA CLIENTE — coach e nutrizionista assegnate, **o i capi se non ce n'è
+ * nessuna**.
+ *
+ * Regola generale di Simone (12/8): «per qualsiasi cosa, se il nutrizionista non è assegnato va
+ * ripiegato sul nutrizionista capo».
+ *
+ * Nasce da tre punti che facevano tutti la stessa cosa, ognuno per conto suo:
+ *
+ *   `if (staffIds.length === 0) return;`
+ *
+ * — nelle segnalazioni, nell'avviso «il peso sale durante la pausa» e nella **richiesta di pausa da
+ * approvare**. Quest'ultimo è il peggiore dei tre: una cliente chiede una pausa più lunga di venti
+ * giorni, la richiesta resta `pending`, e se non le è ancora stata assegnata nessuno **nessuno viene
+ * avvisato**. Lei aspetta una risposta che non può arrivare, e nella coda di nessuno c'è una riga.
+ *
+ * Tre copie della stessa riga vogliono dire tre posti da correggere e uno che si dimentica. Qui è
+ * una sola.
+ *
+ * ⚠️ Il ripiego sono i **capi nutrizionisti** anche quando a mancare è la coach, e non è una svista:
+ * il capo nutrizionista è l'unico ruolo che può prendere in carico una cliente scoperta. Le
+ * conversazioni sono l'eccezione — lì il destinatario deve poter *aprire quel thread*, e la regola
+ * sta in `chat.service` per quel motivo.
+ */
+export async function destinatariStaffDellaCliente(
+  prisma: PrismaService,
+  clientId: string,
+): Promise<string[]> {
+  try {
+    const profilo = (await prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { assignedCoachId: true, assignedNutritionistId: true },
+    })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
+    if (!profilo) return [];
+
+    const staffIds = [profilo.assignedCoachId, profilo.assignedNutritionistId].filter(
+      (v): v is string => !!v,
+    );
+    if (staffIds.length) {
+      const staff = (await prisma.staff.findMany({
+        where: { id: { in: staffIds } },
+        select: { userId: true },
+      })) as { userId: string }[];
+      const utenze = [...new Set(staff.map((s) => s.userId))];
+      if (utenze.length) return utenze;
+    }
+    // Nessuno assegnato (o schede senza utenza): l'avviso non si butta via.
+    return capiNutrizionisti(prisma);
+  } catch {
+    return [];
+  }
+}
+
 /** Manda una notifica, col servizio se c'è, scrivendola in tabella se non c'è. */
 async function manda(
   prisma: PrismaService,

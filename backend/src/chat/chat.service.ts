@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AiService } from '../ai/ai.service';
@@ -25,6 +26,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { copreQuestoStaff } from '../common/rete-staff';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
+import { capiNutrizionisti } from '../common/avvisa-nutrizionista';
+import { diagnosiAvvisoChat } from './diagnosi-avviso-chat';
 import { imparaDalNutrizionista } from '../food-swaps/impara-dal-nutrizionista';
 import { classifyMessage } from './ai-filter';
 import { RISPOSTA_FERMATA, verificaRispostaGaia } from './guardia-risposta-ai';
@@ -39,6 +42,8 @@ type Counterpart = 'ai' | 'coach' | 'nutritionist';
  */
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
@@ -898,6 +903,14 @@ export class ChatService {
     return message;
   }
 
+  /**
+   * Perché non è arrivata la notifica del messaggio, per questa cliente. Vedi
+   * `diagnosi-avviso-chat.ts`: sei gradini, e si dice il PRIMO rotto.
+   */
+  diagnosiAvviso(clientId: string, controparte: 'coach' | 'nutritionist') {
+    return diagnosiAvvisoChat(this.prisma, clientId, controparte);
+  }
+
   private async notifyCounterpartStaff(
     clientId: string,
     counterpart: Counterpart,
@@ -911,9 +924,36 @@ export class ChatService {
         assignedNutritionist: { select: { userId: true } },
       },
     });
-    const staffUserId =
+    const assegnata =
       counterpart === 'coach' ? profile?.assignedCoach?.userId : profile?.assignedNutritionist?.userId;
-    if (!staffUserId) return;
+
+    /**
+     * ⚠️ UN AVVISO SENZA DESTINATARIO NON È UN AVVISO.
+     *
+     * Qui c'era un `return` muto: se alla cliente non è assegnata una nutrizionista, il messaggio
+     * veniva salvato e **nessuno lo sapeva** — non la nutrizionista, che non c'è, e non il capo, a
+     * cui nessuno lo diceva. La cliente scriveva nel vuoto senza che niente, da nessuna parte, lo
+     * segnalasse.
+     *
+     * È la stessa lezione di `escalations/apri-segnalazione.ts`: a luglio tre segnalazioni gravi
+     * sono rimaste senza destinatario perché nessuno era ancora assegnato, e sono passati venti
+     * giorni. Il ripiego è il capo nutrizionista, che **può leggere e rispondere** in quel thread
+     * (vedi `assertThreadAccess`): mandare l'avviso a chi non può nemmeno aprire la conversazione
+     * sarebbe solo un modo più elegante di perderlo.
+     *
+     * ⚠️ Per la COACH non c'è ripiego, e non è una dimenticanza: nessun altro ruolo può scrivere
+     * nel thread «Coach» — un messaggio della nutrizionista comparirebbe alla cliente come se fosse
+     * della sua coach. Lì resta il log, che almeno rende visibile il buco.
+     */
+    let destinatari: string[] = assegnata ? [assegnata] : [];
+    if (!destinatari.length) {
+      if (counterpart === 'nutritionist') destinatari = await capiNutrizionisti(this.prisma);
+      this.logger.warn(
+        `Messaggio in chat senza ${counterpart} assegnata (cliente=${clientId}): ` +
+          (destinatari.length ? `avviso ai capi nutrizionisti (${destinatari.length})` : 'nessun destinatario possibile'),
+      );
+    }
+    if (!destinatari.length) return;
     /**
      * ⚠️ Il thread si cerca **qui** e non lo passa chi chiama: metà delle chiamate arrivano da
      * un'escalation, dove la conversazione di partenza è quella con Gaia e quella di destinazione è
@@ -944,20 +984,25 @@ export class ChatService {
      * niente che possa essere sanitario.
      */
     const nome = (profile as { name?: string | null } | null)?.name?.trim() || 'Una tua cliente';
-    await this.notifications.notifyOncePerDay({
-      userId: staffUserId,
-      type,
-      title: `${nome} ti ha scritto`,
-      body: 'Apri la chat per leggere il messaggio.',
+    // Quando i destinatari sono i capi (nessuna assegnata), il titolo lo dice: «una tua cliente»
+    // sarebbe falso, e chi legge perderebbe tempo a cercarla fra le proprie.
+    const titolo = assegnata ? `${nome} ti ha scritto` : `${nome} ha scritto e non ha una nutrizionista assegnata`;
+    for (const userId of destinatari) {
+      await this.notifications.notifyOncePerDay({
+        userId,
+        type,
+        title: titolo,
+        body: 'Apri la chat per leggere il messaggio.',
       /**
        * ⚠️ `threadId` serve al tocco sulla notifica. Richiesta di Simone (12/8): «la notifica di un
        * messaggio in chat, se ci clicca il nutrizionista o la coach, deve portarli nella chat della
        * persona». Prima portava alla SCHEDA della cliente: da lì la chat è un altro tocco, e chi
        * apre una notifica di chat vuole leggere il messaggio, non consultare una cartella.
        */
-      payload: { clientId, ...(threadId ? { threadId } : {}), kind: 'chat_message_staff' },
-      dedupeWindowMs: 3 * 60_000,
-      dedupeSuPayload: { clientId },
-    });
+        payload: { clientId, ...(threadId ? { threadId } : {}), kind: 'chat_message_staff' },
+        dedupeWindowMs: 3 * 60_000,
+        dedupeSuPayload: { clientId },
+      });
+    }
   }
 }
