@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-11
 
+- `[Sviluppo]` 🪤 **La trappola che dice CHI riscrive la dieta della cliente.** La dieta di
+  `sim1one.salogni@gmail.com` è stata spostata da «Pescetariana» a «Mediterranea» **cinque volte**, da
+  tre persone diverse, e ogni volta è tornata indietro. Nell'audit ci sono i cinque cambi e **nessun
+  ritorno**: qualcuno riscrive `dietFamily` senza passare da `updateClient`. La correzione al
+  questionario (voce di stanotte) era necessaria ma **non era questa**: dopo il deploy il campo torna
+  indietro lo stesso.
+  Ho controllato a mano tutti i punti che scrivono su `ClientProfile` — onboarding, senza glutine,
+  profilo dell'app, scheda cliente — e nessuno spiega il fatto. ⭐ **A quel punto continuare a leggere
+  codice è un modo lento di indovinare**: meglio far dire al codice chi è stato. `traccia-diet-family`
+  intercetta ogni `update`/`upsert`/`updateMany` su `clientProfile` in cui compaia `dietFamily` e
+  scrive nei log valore, `where` e **stack di chi ha chiamato**. Guarda **entrambi** i rami
+  dell'upsert, perché il difetto dell'8/8 e quello dell'11/8 stavano tutti e due nel ramo che nessuno
+  rilegge.
+  Nota tecnica: `$use` non esiste più in Prisma 6 e `$extends` restituisce un client **nuovo**, che
+  non si incastra con l'iniezione di Nest (`PrismaService` *è* il client) — quindi si ombreggia il
+  delegato con una proprietà d'istanza e lo si avvolge in un `Proxy`. Sei test, fra cui i due che
+  contano: che **taccia** su tutto il resto, e che una traccia rotta **non faccia fallire** la
+  scrittura che sta osservando.
+  ⚠️ **È diagnostica temporanea**: si spegne con `TRACCIA_DIET_FAMILY=0` e va **tolta** quando il
+  colpevole è stato trovato. La voce di registro di quel giorno dovrà dire *chi era*, o fra un mese si
+  ricomincia da qui. Verifiche: **113 suite / 1730 test**.
+
 - `[Sviluppo]` ➖ **Via «Ardesia · rame»: il tema che avevo proposto io non si tiene.** Era un secondo
   scuro, freddo, per chi lavora di sera — un'aggiunta mia, non una richiesta. Simone ha scelto di non
   tenerlo, e resta solo quello che ha dettato lui («Acceso»). Tolto dai **tre posti** in cui un tema
