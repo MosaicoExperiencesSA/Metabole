@@ -18,6 +18,52 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-12
+
+> ⚠️ Le tre voci qui sotto sotto `2026-08-11` — «Piatto freddo», i gruppi a fisarmonica, «Modifica
+> scheda non salvava niente» — sono in realtà commit del **12/8** (`git log`: 06:58, 07:06, 11:01).
+> Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
+> contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
+
+- `[Sviluppo]` 💶 **Il tetto di guadagno mensile del nutrizionista — sul suo profilo, e applicato
+  dove passano tutti gli accrediti.** §16.8, decisa l'11/8: **solo il campo sulla persona**, niente
+  parametro globale, niente cascata. Il campo è `Staff.earningsCapCents`, si scrive in euro dalla
+  scheda utente del backoffice, e vale su **provvigioni + compensi di un mese**.
+  ⚠️ **`null` e `0` significano tutti e due «nessun tetto».** È la cosa che questa voce esisteva per
+  non sbagliare: un campo numerico svuotato in un form arriva come `0`, e «tetto zero» letto alla
+  lettera vuol dire che quella persona non prende più una provvigione — senza errori, senza avvisi,
+  per mesi. Un tetto vero a zero non lo imposta nessuno; il campo svuotato lo fa chiunque. Lo zero
+  viene per giunta salvato **come `null`**, così l'ambiguità non entra nemmeno nel database.
+  **Dove si applica**: in `creditStaff`, che è l'imbuto unico — catena a percentuali, importi fissi
+  legacy, ricalcolo, accantonati risolti all'assegnazione passano tutti di lì. Metterlo altrove
+  avrebbe lasciato una strada che lo scavalca senza che nessuno se ne accorgesse.
+  **Come si conta il maturato del mese**: sommando il **registro contabile**, non
+  `StaffCompensation.amountCents`. Quel contatore viene decrementato con un `Math.max(0, …)` quando
+  si storna un acquisto, quindi dopo uno storno più grande del residuo non è più il numero vero. Il
+  registro sì, perché lì lo storno è una **riga negativa** — e da questo viene gratis la decisione
+  «lo storno si sottrae anche se rientra nel tetto»: stornare **libera spazio** sotto il tetto, che è
+  quello che deve succedere. È anche lo stesso numero che la persona vede nel suo portafoglio, ed è
+  il motivo per cui `CATEGORIE_COMPENSO` ora sta in un posto solo (`common/tetto-compensi.ts`) invece
+  che in due: se le due liste divergono, il tetto taglia su una cifra che lei non vede da nessuna
+  parte, e non è spiegabile.
+  **L'eccedenza si perde** (decisione presa): non si accantona, non slitta. Ma non sparisce in
+  silenzio — riga di audit `provvigione.tetto_mensile`, `logger.warn`, la **nota sulla riga di
+  registro** («Tetto mensile € 3.000,00: quota ridotta da … a …») e il campo `tettoTagliatoCents`
+  dentro l'item del periodo. A tetto già saturo **non** si scrive una riga da zero euro: sarebbe
+  rumore in Contabilità, e l'informazione utile è nell'audit.
+  **Si vede in tre posti**, perché un tetto invisibile è una decurtazione a sorpresa: nella scheda
+  utente (il campo), in **Compensi** (colonna «Tetto mensile» + pastiglia «raggiunto» — solo quando
+  si guarda **un mese**: col filtro «Tutto» il totale è di più mesi e confrontarlo col tetto direbbe
+  una bugia), e nell'app staff in **Guadagni** («Tetto del mese · ne restano …»).
+  `ricalcolaProvvigioni` ora riporta **quanto ha aggiunto davvero**, non quanto avrebbe voluto:
+  `creditStaff` restituisce erogato/tagliato e il messaggio lo dice.
+  Migrazione `20260812130000_tetto_guadagno_staff`: la colonna (NULL per tutti, nessun backfill,
+  comportamento identico a oggi per chiunque) e un **indice `ledger_entry(staff_id, date)`** che non
+  c'era — la domanda «quanto ha maturato questa persona in questo mese» passa da «una volta quando
+  guardo il portafoglio» a «una volta per ogni pagamento approvato».
+  Verifiche: **117 suite / 1763 test** (+2 suite, +22 test), backend type-check verde con lo stesso
+  identico baseline di prima, backoffice e app build verdi, 27 test dell'app.
+
 ## 2026-08-11
 
 - `[Sviluppo]` 🍳 **«Piatto freddo» fra i metodi di cottura — e l'elenco smette di vivere in quattro

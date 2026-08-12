@@ -1,4 +1,4 @@
-import { IsEmail, IsIn, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsEmail, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { ROLES, Role } from '../../common/roles';
 
 export class UpdateUserDto {
@@ -31,4 +31,20 @@ export class UpdateUserDto {
   @IsOptional() @IsString() @MaxLength(80) title?: string | null;
   @IsOptional() @IsString() @MaxLength(200) addressLine?: string | null;
   @IsOptional() @IsString() @MaxLength(80) country?: string | null;
+
+  /**
+   * Tetto di guadagno MENSILE, in centesimi (§16.8). `null` lo toglie.
+   *
+   * `@Min(0)` e non `@Min(1)`: un campo svuotato arriva come `0` e deve poter essere salvato —
+   * viene poi letto come «nessun tetto» (`common/tetto-compensi.ts`), non come «tetto a zero».
+   * Rifiutarlo qui significherebbe un errore di validazione a chi sta semplicemente togliendo il
+   * tetto. Il massimo è un milione di euro: serve solo a intercettare l'euro scritto al posto del
+   * centesimo tre ordini di grandezza più in là.
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  earningsCapCents?: number | null;
 }

@@ -285,6 +285,10 @@ model Staff {
   bio                 String?
   refCode             String?  @unique @map("ref_code") // codice di riferimento della coach
   iban                String?  // IBAN salvato per i prelievi provvigioni
+  // Tetto di guadagno MENSILE, in centesimi (§16.8). Si imposta persona per persona.
+  // ⚠️ `null` E `0` significano ENTRAMBI «nessun tetto»: un tetto a zero azzererebbe il
+  // compenso in silenzio, e nessuno lo imposta di proposito. Vedi `common/tetto-compensi.ts`.
+  earningsCapCents    Int?     @map("earnings_cap_cents")
   headNutritionistId  String?  @map("head_nutritionist_id")
   headNutritionist    Staff?   @relation("NutritionistTeam", fields: [headNutritionistId], references: [id], onDelete: SetNull)
   teamMembers         Staff[]  @relation("NutritionistTeam")
@@ -944,6 +948,10 @@ model LedgerEntry {
 
   @@index([type, date])
   @@index([category, date])
+  // Quanto ha già maturato QUESTA persona in QUESTO mese: è la domanda che il tetto di guadagno
+  // (§16.8) fa a ogni provvigione, ed è la stessa che fa il portafoglio staff a ogni apertura.
+  // Senza indice è una scansione del registro contabile intero.
+  @@index([staffId, date])
   @@map("ledger_entry")
 }
 

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { CATEGORIE_COMPENSO, euroCents, inizioMese, quotaSottoTetto, tettoAttivoCents } from '../common/tetto-compensi';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -14,6 +15,8 @@ type PrismaTx = Prisma.TransactionClient;
  */
 @Injectable()
 export class FinanceService {
+  private readonly logger = new Logger(FinanceService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
@@ -36,38 +39,127 @@ export class FinanceService {
     });
   }
 
-  /** Provvigione/compenso: aggrega su staff_compensation e scrive l'uscita nel ledger. */
+  /**
+   * Provvigione/compenso: aggrega su staff_compensation e scrive l'uscita nel ledger.
+   *
+   * ⚠️ È l'IMBUTO UNICO di ogni accredito — catena a percentuali, importi fissi legacy, ricalcolo,
+   * accantonati risolti all'assegnazione passano tutti di qui. È il motivo per cui il **tetto di
+   * guadagno mensile** (§16.8) si applica in questo punto e non in quattro: aggiungerlo altrove
+   * significherebbe una strada che lo scavalca, e nessuno se ne accorgerebbe.
+   *
+   * Ritorna quanto è stato accreditato DAVVERO: il chiamante non può darlo per scontato.
+   */
   async creditStaff(input: {
     staffId: string;
     amountCents: number;
     kind: string; // sales_commission | visit_compensation
     ref: string;
     clientId?: string;
-  }) {
-    if (input.amountCents <= 0) return;
+  }): Promise<{ erogatoCents: number; tagliatoCents: number }> {
+    if (input.amountCents <= 0) return { erogatoCents: 0, tagliatoCents: 0 };
+
+    const tetto = await this.quotaConsentita(input.staffId, input.amountCents);
+    if (tetto.tagliatoCents > 0) {
+      // L'eccedenza si perde (decisione dell'11/8): non diventa un accantonamento, non slitta al
+      // mese dopo. Ma non sparisce in silenzio — resta scritta qui e nel log, perché «quel mese ho
+      // preso meno del dovuto» è una domanda che qualcuno farà.
+      this.logger.warn(
+        `[tetto] staff=${input.staffId} tetto=${euroCents(tetto.tettoCents ?? 0)} maturato=${euroCents(tetto.giaMaturatoCents)} ` +
+          `dovuto=${euroCents(input.amountCents)} erogato=${euroCents(tetto.erogabileCents)} perso=${euroCents(tetto.tagliatoCents)} ref=${input.ref}`,
+      );
+      await this.audit.log({
+        action: 'provvigione.tetto_mensile',
+        entityType: 'staff',
+        entityId: input.staffId,
+        metadata: {
+          ref: input.ref,
+          kind: input.kind,
+          tettoCents: tetto.tettoCents,
+          giaMaturatoCents: tetto.giaMaturatoCents,
+          dovutoCents: input.amountCents,
+          erogatoCents: tetto.erogabileCents,
+          tagliatoCents: tetto.tagliatoCents,
+        },
+      });
+    }
+    // Tetto già saturo: nessuna riga da zero euro nel registro contabile — sarebbe rumore in
+    // Contabilità e nel portafoglio, e l'informazione utile è già nell'audit qui sopra.
+    if (tetto.erogabileCents <= 0) return { erogatoCents: 0, tagliatoCents: tetto.tagliatoCents };
+
+    const erogato = tetto.erogabileCents;
+    const nota =
+      tetto.tagliatoCents > 0
+        ? `Tetto mensile ${euroCents(tetto.tettoCents ?? 0)}: quota ridotta da ${euroCents(input.amountCents)} a ${euroCents(erogato)}.`
+        : undefined;
+
     const period = this.period();
     const existing = await this.prisma.staffCompensation.findUnique({
       where: { staffId_period: { staffId: input.staffId, period } },
     });
     const items = [
       ...((existing?.items as unknown[]) ?? []),
-      { at: new Date().toISOString(), kind: input.kind, amountCents: input.amountCents, ref: input.ref },
+      {
+        at: new Date().toISOString(),
+        kind: input.kind,
+        amountCents: erogato,
+        ref: input.ref,
+        // Presente solo quando il tetto ha morso: chi rilegge la riga vede subito perché l'importo
+        // non corrisponde alla quota del piano.
+        ...(tetto.tagliatoCents > 0 ? { tettoTagliatoCents: tetto.tagliatoCents } : {}),
+      },
     ];
     await this.prisma.staffCompensation.upsert({
       where: { staffId_period: { staffId: input.staffId, period } },
-      create: { staffId: input.staffId, period, amountCents: input.amountCents, items: items as never },
-      update: { amountCents: { increment: input.amountCents }, items: items as never },
+      create: { staffId: input.staffId, period, amountCents: erogato, items: items as never },
+      update: { amountCents: { increment: erogato }, items: items as never },
     });
     await this.prisma.ledgerEntry.create({
       data: {
         type: 'expense',
-        amountCents: input.amountCents,
+        amountCents: erogato,
         category: input.kind,
         ref: input.ref,
         clientId: input.clientId,
         staffId: input.staffId,
+        ...(nota ? { note: nota } : {}),
       },
     });
+    return { erogatoCents: erogato, tagliatoCents: tetto.tagliatoCents };
+  }
+
+  /**
+   * Quanto di `dovutoCents` sta sotto il tetto mensile di questa persona (§16.8).
+   *
+   * Il maturato del mese si legge **sommando il registro contabile**, non `StaffCompensation`:
+   * quel contatore viene decrementato con un `Math.max(0, …)` quando si storna un acquisto, quindi
+   * uno storno più grande del residuo gli fa perdere l'informazione. Il registro invece tiene gli
+   * storni come righe negative, e la somma algebrica è il numero vero — lo stesso che la persona
+   * vede nel suo portafoglio.
+   */
+  private async quotaConsentita(
+    staffId: string,
+    dovutoCents: number,
+  ): Promise<{ erogabileCents: number; tagliatoCents: number; tettoCents: number | null; giaMaturatoCents: number }> {
+    const staff = (await this.prisma.staff.findUnique({
+      where: { id: staffId },
+      select: { earningsCapCents: true },
+    })) as { earningsCapCents: number | null } | null;
+    const tettoCents = tettoAttivoCents(staff?.earningsCapCents);
+    // Il caso normale: nessun tetto, nessuna query in più.
+    if (tettoCents === null) return { erogabileCents: dovutoCents, tagliatoCents: 0, tettoCents: null, giaMaturatoCents: 0 };
+
+    const somma = await this.prisma.ledgerEntry.aggregate({
+      _sum: { amountCents: true },
+      where: {
+        type: 'expense' as never,
+        category: { in: CATEGORIE_COMPENSO },
+        staffId,
+        date: { gte: inizioMese() },
+      },
+    });
+    const giaMaturatoCents = somma?._sum?.amountCents ?? 0;
+    const esito = quotaSottoTetto({ tettoCents, giaMaturatoCents, dovutoCents });
+    return { erogabileCents: esito.erogabileCents, tagliatoCents: esito.tagliatoCents, tettoCents, giaMaturatoCents };
   }
 
   /**
@@ -299,23 +391,32 @@ export class FinanceService {
 
     const aggiunte: { staff: string; ruolo: string; importoCents: number }[] = [];
     const eccessi: { staff: string; ruolo: string; dovutoCents: number; presoCents: number }[] = [];
+    let tagliatoDalTetto = 0;
     for (const [staffId, v] of atteso) {
       const preso = gia.get(staffId) ?? 0;
       const diff = v.cents - preso;
       if (diff > 0) {
-        await this.creditStaff({ staffId, amountCents: diff, kind: 'sales_commission', ref: pay.id, clientId: pay.clientId });
-        aggiunte.push({ staff: v.nome, ruolo: v.ruolo, importoCents: diff });
+        // ⚠️ Quello che si è aggiunto è quello che `creditStaff` dice di aver aggiunto, non `diff`:
+        // il tetto mensile (§16.8) può averne erogata solo una parte, o niente. Riportare `diff`
+        // vorrebbe dire dire all'admin «aggiunti 44,55 €» quando sul registro ce ne sono 10.
+        const esito = await this.creditStaff({ staffId, amountCents: diff, kind: 'sales_commission', ref: pay.id, clientId: pay.clientId });
+        if (esito.erogatoCents > 0) aggiunte.push({ staff: v.nome, ruolo: v.ruolo, importoCents: esito.erogatoCents });
+        tagliatoDalTetto += esito.tagliatoCents;
       } else if (diff < 0) {
         eccessi.push({ staff: v.nome, ruolo: v.ruolo, dovutoCents: v.cents, presoCents: preso });
       }
     }
 
     const totale = aggiunte.reduce((n, x) => n + x.importoCents, 0);
-    const messaggio = aggiunte.length
-      ? `Aggiunte ${aggiunte.length} quote mancanti per un totale di € ${(totale / 100).toFixed(2).replace('.', ',')}.`
-      : eccessi.length
-        ? 'Niente da aggiungere. Attenzione: qualcuno ha preso più del dovuto (vedi dettaglio) — non è stato tolto niente.'
-        : 'Già a posto: nessuna quota mancante.';
+    const codaTetto = tagliatoDalTetto > 0 ? ` ⚠️ Tetto mensile: ${euroCents(tagliatoDalTetto)} non erogati.` : '';
+    const messaggio =
+      (aggiunte.length
+        ? `Aggiunte ${aggiunte.length} quote mancanti per un totale di € ${(totale / 100).toFixed(2).replace('.', ',')}.`
+        : eccessi.length
+          ? 'Niente da aggiungere. Attenzione: qualcuno ha preso più del dovuto (vedi dettaglio) — non è stato tolto niente.'
+          : tagliatoDalTetto > 0
+            ? 'Niente da aggiungere: le quote mancanti erano tutte sopra il tetto mensile.'
+            : 'Già a posto: nessuna quota mancante.') + codaTetto;
     return { aggiunte, eccessi, totaleAggiuntoCents: totale, messaggio };
   }
 

@@ -38,6 +38,9 @@ interface Wallet {
   prelevatoCents: number;
   pendingRequestedCents: number;
   availableToRequestCents: number;
+  /** Tetto di guadagno del mese (§16.8) e quanto ne resta. `null` per chi non ne ha: quasi tutti. */
+  tettoMensileCents?: number | null;
+  tettoResiduoCents?: number | null;
   iban: string | null;
   windowOpen: boolean;
   canRequest: boolean;
@@ -150,6 +153,18 @@ export default function Guadagni({ tabs }: { tabs: TabItem[] }) {
                   <span className="k">Disponibile a richiesta</span>
                   <span className="v">{euro(w.availableToRequestCents)}</span>
                 </div>
+                {/* Il tetto compare solo a chi ce l'ha, ed è il motivo per cui questa riga esiste:
+                    senza, le provvigioni smettono di crescere a metà mese e non c'è modo di sapere
+                    perché. */}
+                {w.tettoMensileCents != null && w.tettoMensileCents > 0 && (
+                  <div className="sf-kv">
+                    <span className="k">Tetto del mese</span>
+                    <span className="v">
+                      {euro(w.tettoMensileCents)}
+                      {w.tettoResiduoCents != null && (w.tettoResiduoCents > 0 ? ` · ne restano ${euro(w.tettoResiduoCents)}` : ' · raggiunto')}
+                    </span>
+                  </div>
+                )}
               </Card>
 
               {w.pendingRequest ? (

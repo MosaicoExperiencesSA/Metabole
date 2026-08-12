@@ -1118,7 +1118,19 @@ cliente che acquista la visita possa scegliere il suo slot.» È la voce più gr
 (disponibilità ricorrenti, prenotazione, collisioni, fuso orario, disdette): va parlata prima di
 scriverla.
 
-### 16.8 Tetto di guadagno del nutrizionista — ✅ DECISA l'11/8: solo campo di profilo
+### ~~16.8 Tetto di guadagno del nutrizionista~~ — ✅ FATTA il 12/8
+
+Campo `Staff.earningsCapCents` sulla persona (si scrive in euro dalla scheda utente), applicato in
+`creditStaff` — l'imbuto unico di ogni accredito. Il maturato del mese si conta **sommando il
+registro contabile**, non il contatore del periodo: così uno storno (riga negativa) libera spazio
+sotto il tetto da sé, ed è lo stesso numero che la persona vede nel portafoglio.
+⚠️ **`null` e `0` valgono tutti e due «nessun tetto»**, e lo zero viene salvato come `null`.
+L'eccedenza si perde, ma lascia audit `provvigione.tetto_mensile`, `logger.warn` e la nota sulla
+riga di registro. Il tetto si vede nella scheda utente, in **Compensi** (colonna + «raggiunto», solo
+guardando un mese) e nell'app staff in **Guadagni**. Migrazione `20260812130000_tetto_guadagno_staff`
+(colonna + indice `ledger_entry(staff_id, date)`, che non c'era).
+
+#### (storia) com'era
 
 Simone ha chiesto il campo **nel profilo del nutrizionista**. In una conversazione precedente aveva
 però detto che la regola «è di tutti i nutrizionisti», da cui era nata la conclusione «parametro

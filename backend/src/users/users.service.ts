@@ -49,7 +49,7 @@ const PUBLIC_USER_SELECT = {
   deletedAt: true,
   createdAt: true,
   updatedAt: true,
-  staff: { select: { id: true, displayName: true, managerId: true, refCode: true } },
+  staff: { select: { id: true, displayName: true, managerId: true, refCode: true, earningsCapCents: true } },
 } as const;
 
 /**
@@ -601,6 +601,7 @@ export class UsersService {
       email?: string;
       firstName?: string | null; lastName?: string | null; displayName?: string;
       phone?: string | null; title?: string | null; addressLine?: string | null; country?: string | null;
+      earningsCapCents?: number | null; // tetto di guadagno mensile, scheda Staff (§16.8)
     },
     actorId: string,
   ) {
@@ -669,9 +670,20 @@ export class UsersService {
         .updateMany({ where: { clientId: id }, data: { email: emailChange } })
         .catch(() => undefined);
     }
-    // Nome mostrato (scheda Staff), se l'utente ha una scheda staff.
-    if (data.displayName !== undefined && user.staff) {
-      await this.prisma.staff.update({ where: { id: user.staff.id }, data: { displayName: data.displayName.trim() || user.email.split('@')[0] } });
+    // Campi che vivono sulla scheda Staff, non sull'utente — solo se una scheda staff esiste.
+    if (user.staff) {
+      const datiStaff: Record<string, unknown> = {};
+      if (data.displayName !== undefined) datiStaff.displayName = data.displayName.trim() || user.email.split('@')[0];
+      // Tetto di guadagno mensile (§16.8). Lo ZERO viene salvato come `null`, non come zero: sono
+      // la stessa cosa per il calcolo (`common/tetto-compensi.ts`), ma a database «campo vuoto» si
+      // legge da sé, mentre uno `0` scritto lì fa fermare chiunque lo rilegga a chiedersi se sia
+      // un tetto vero. Il posto in cui l'ambiguità va tolta è questo, il più presto possibile.
+      if (data.earningsCapCents !== undefined) {
+        datiStaff.earningsCapCents = data.earningsCapCents && data.earningsCapCents > 0 ? Math.floor(data.earningsCapCents) : null;
+      }
+      if (Object.keys(datiStaff).length) {
+        await this.prisma.staff.update({ where: { id: user.staff.id }, data: datiStaff as never });
+      }
     }
     if (data.status === 'suspended' || roleChange || emailChange) {
       // Cambi di ruolo, sospensione o email di login: revoca le sessioni attive.

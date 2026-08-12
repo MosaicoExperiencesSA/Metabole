@@ -2,11 +2,15 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { CATEGORIE_COMPENSO, inizioMese, tettoAttivoCents } from '../common/tetto-compensi';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
+// L'elenco sta in `common/tetto-compensi.ts`: il tetto di guadagno (§16.8) DEVE contare
+// esattamente quello che questo portafoglio mostra come guadagnato, o taglia su un numero che la
+// persona non vede da nessuna parte. Due liste che dicono la stessa cosa divergono sempre.
+const COMMISSION_CATEGORIES = CATEGORIE_COMPENSO;
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
 const WINDOW_FROM = 1; // giorno del mese in cui si apre la richiesta
@@ -33,8 +37,10 @@ export class PayoutsService {
     this.receiptKey = deriveKey(this.config.get<string>('FILE_ENCRYPTION_KEY') ?? 'dev-only-file-key');
   }
 
+  // Stesso confine di mese che usa il tetto di guadagno (§16.8): «in maturazione» e «quanto manca
+  // al tetto» devono parlare dello stesso mese, altrimenti il primo del mese uno dei due sbaglia.
   private monthStart(d = new Date()): Date {
-    return new Date(d.getFullYear(), d.getMonth(), 1);
+    return inizioMese(d);
   }
   private windowOpen(d = new Date()): boolean {
     const day = d.getDate();
@@ -65,7 +71,10 @@ export class PayoutsService {
 
   /** Portafoglio dell'utente staff corrente (null se non è staff). */
   async myWallet(userId: string) {
-    const staff = await this.prisma.staff.findUnique({ where: { userId }, select: { id: true, iban: true } });
+    const staff = (await this.prisma.staff.findUnique({
+      where: { userId },
+      select: { id: true, iban: true, earningsCapCents: true },
+    })) as { id: string; iban: string | null; earningsCapCents: number | null } | null;
     if (!staff) return { isStaff: false };
 
     const [inMaturazione, earnedBefore, paid, pending] = await Promise.all([
@@ -87,6 +96,11 @@ export class PayoutsService {
       take: 12,
     });
 
+    // Tetto di guadagno mensile (§16.8): `null` per chi non ce l'ha, che è quasi tutti. Serve a
+    // non lasciare che una persona veda le provvigioni smettere di crescere senza sapere perché —
+    // il tetto è una regola concordata con lei, non una sorpresa di fine mese.
+    const tettoMensileCents = tettoAttivoCents(staff.earningsCapCents);
+
     return {
       isStaff: true,
       inMaturazioneCents: inMaturazione,
@@ -94,6 +108,8 @@ export class PayoutsService {
       prelevatoCents: paid,
       pendingRequestedCents: pending,
       availableToRequestCents: available,
+      tettoMensileCents,
+      tettoResiduoCents: tettoMensileCents === null ? null : Math.max(0, tettoMensileCents - inMaturazione),
       iban: staff.iban,
       windowOpen: this.windowOpen(),
       canRequest: this.windowOpen() && available > 0 && !pendingRequest,

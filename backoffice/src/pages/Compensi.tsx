@@ -10,6 +10,10 @@ interface CompRow {
   commissionCents: number;
   compensationCents: number;
   totalCents: number;
+  /** Tetto mensile di questa persona (§16.8), null se non ne ha. */
+  capCents: number | null;
+  /** Vero/falso solo guardando UN mese; null col filtro su «Tutto», dove non vorrebbe dire niente. */
+  capReached: boolean | null;
 }
 
 const euro = (c: number) => '€ ' + (c / 100).toFixed(2).replace('.', ',');
@@ -54,6 +58,9 @@ export function Compensi() {
     { chiave: 'provvigioni', titolo: 'Provvigioni', valore: (r) => r.commissionCents, stile: { textAlign: 'right' }, esporta: (r) => (r.commissionCents ?? 0) / 100 },
     { chiave: 'compensi', titolo: 'Compensi visite', valore: (r) => r.compensationCents, stile: { textAlign: 'right' }, esporta: (r) => (r.compensationCents ?? 0) / 100 },
     { chiave: 'totale', titolo: 'Totale', valore: (r) => r.totalCents, stile: { textAlign: 'right' }, esporta: (r) => (r.totalCents ?? 0) / 100 },
+    // Chi non ha un tetto è quasi tutti: per loro la cella resta vuota invece di dire «€ 0,00»,
+    // che si leggerebbe come «non può guadagnare niente» — l'esatto contrario.
+    { chiave: 'tetto', titolo: 'Tetto mensile', valore: (r) => r.capCents, stile: { textAlign: 'right' }, esporta: (r) => (r.capCents == null ? null : r.capCents / 100) },
   ];
 
   // Il server manda chi prende più in cima: lo stesso ordine resta quello di partenza.
@@ -106,6 +113,14 @@ export function Compensi() {
                     <td style={{ textAlign: 'right' }} className="muted">{euro(r.commissionCents)}</td>
                     <td style={{ textAlign: 'right' }} className="muted">{euro(r.compensationCents)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(r.totalCents)}</td>
+                    <td style={{ textAlign: 'right' }} className="muted">
+                      {r.capCents == null ? '—' : (
+                        <>
+                          {euro(r.capCents)}
+                          {r.capReached && <span className="chip amber" style={{ fontSize: 11, marginLeft: 6 }}>raggiunto</span>}
+                        </>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 <tr>
@@ -113,6 +128,8 @@ export function Compensi() {
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.commission)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.compensation)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{euro(totals.total)}</td>
+                  {/* Niente somma dei tetti: sommare i massimali di persone diverse non è un numero. */}
+                  <td />
                 </tr>
               </tbody>
             </table>

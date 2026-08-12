@@ -20,8 +20,26 @@ interface UserData {
   country: string | null;
   createdAt: string;
   customRole?: { label: string } | null;
-  staff: { id: string; displayName: string; refCode: string | null } | null;
+  staff: { id: string; displayName: string; refCode: string | null; earningsCapCents: number | null } | null;
 }
+
+/**
+ * Il tetto si scrive in EURO, non in centesimi: il campo lo compila una persona, non un'API.
+ * Convenzione italiana — la virgola è il decimale, il punto separa le migliaia: «3.000» sono
+ * tremila euro, non tre euro. Ritorna `null` per campo vuoto o zero, che è «nessun tetto».
+ */
+function centesimiDaEuro(testo: string): number | null {
+  let s = testo.replace(/[^\d.,]/g, '').trim();
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/\.\d{3}(\D|$)/.test(s)) s = s.replace(/\./g, '');
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100);
+}
+
+const euroDaCentesimi = (c: number | null | undefined): string =>
+  c && c > 0 ? (c / 100).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '';
 
 /** Scheda di un utente/staff: anagrafica modificabile + reset password. */
 export function UserDetail() {
@@ -35,7 +53,7 @@ export function UserDetail() {
   const [saving, setSaving] = useState(false);
   const [pwd, setPwd] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ email: '', displayName: '', firstName: '', lastName: '', phone: '', title: '', addressLine: '', country: '' });
+  const [form, setForm] = useState({ email: '', displayName: '', firstName: '', lastName: '', phone: '', title: '', addressLine: '', country: '', tettoEuro: '' });
 
   async function load() {
     setLoading(true); setError(null);
@@ -48,6 +66,7 @@ export function UserDetail() {
         firstName: d.firstName ?? '', lastName: d.lastName ?? '',
         phone: d.phone ?? '', title: d.title ?? '',
         addressLine: d.addressLine ?? '', country: d.country ?? '',
+        tettoEuro: euroDaCentesimi(d.staff?.earningsCapCents),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -67,7 +86,12 @@ export function UserDetail() {
       // Email di login: la invio solo se davvero cambiata (correzione admin).
       const newEmail = form.email.trim().toLowerCase();
       if (newEmail && newEmail !== u.email.toLowerCase()) body.email = newEmail;
-      if (u.staff) body.displayName = form.displayName.trim();
+      if (u.staff) {
+        body.displayName = form.displayName.trim();
+        // `null` = nessun tetto. Va mandato SEMPRE quando la scheda staff c'è, anche vuoto:
+        // altrimenti svuotare il campo non toglierebbe mai il tetto già impostato.
+        body.earningsCapCents = centesimiDaEuro(form.tettoEuro);
+      }
       await api(`/admin/users/${u.id}`, { method: 'PATCH', body: JSON.stringify(body) });
       setNotice('Dati salvati.');
       void load();
@@ -150,6 +174,28 @@ export function UserDetail() {
             <input className="input" value={form.country} disabled={!canManage} onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))} placeholder="Italia" />
           </div>
         </div>
+
+        {/* Tetto di guadagno mensile (§16.8): si imposta persona per persona, ed è qui perché qui
+            sta la persona. Vale su provvigioni + compensi di UN mese. */}
+        {u.staff && (
+          <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
+            <div className="field" style={{ minWidth: 220, flex: 1 }}><label>Tetto guadagno mensile</label>
+              <input
+                className="input"
+                inputMode="decimal"
+                value={form.tettoEuro}
+                disabled={!canManage}
+                onChange={(e) => setForm((f) => ({ ...f, tettoEuro: e.target.value }))}
+                placeholder="Nessun tetto"
+              />
+              <span className="muted" style={{ fontSize: 11 }}>
+                In euro, es. <b>3.000</b>. Vuoto o zero = <b>nessun tetto</b>. Oltre il tetto la quota del mese non
+                viene erogata e non slitta al mese dopo; uno storno libera spazio sotto il tetto.
+              </span>
+            </div>
+            <div style={{ minWidth: 220, flex: 1 }} />
+          </div>
+        )}
 
         {u.staff?.refCode && <p className="muted" style={{ fontSize: 12.5 }}>Codice referral: <b>{u.staff.refCode}</b></p>}
 
