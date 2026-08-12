@@ -594,13 +594,15 @@ export class ChatService {
    * Apertura dal pulsante «Sostituisci un ingrediente» dell'app: Gaia scrive il primo
    * messaggio del dialogo, senza che la cliente debba spiegare da capo cosa vuole fare.
    */
-  async avviaSostituzione(clientId: string) {
+  async avviaSostituzione(clientId: string, data?: string | null) {
     const thread = await this.prisma.chatThread.upsert({
       where: { clientId_counterpart: { clientId, counterpart: 'ai' as never } },
       create: { clientId, counterpart: 'ai' as never },
       update: {},
     });
-    const esito = await this.sostituzione.apri(clientId);
+    // `?? null` e non `data` così com'è: «nessuna giornata» deve avere UNA sola forma, o due
+    // chiamate identiche sembrano diverse a chiunque le legga (test compresi).
+    const esito = await this.sostituzione.apri(clientId, data ?? null);
     const message = await this.scriviEsitoSostituzione(clientId, thread.id, null, esito);
     return { threadId: thread.id, message };
   }

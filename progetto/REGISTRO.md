@@ -25,6 +25,52 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 👂 **Gaia ascolta meglio — e quando non capisce lo dice, invece di rispondere a
+  caso.** Più §16.2: il dialogo sa finalmente di quale GIORNO si sta parlando.
+  **La conversazione da cui nasce** (girata da Simone): Gaia elenca i piatti, la cliente scrive
+  «Voglio cambiare il menu di oggi **a pranzo** con verdura cruda e tonno al naturale», e Gaia
+  risponde «**A cena** (Insalata Tiepida Tacchino e Quinoa) ci sono 50 g di **quinoa cruda**».
+  Tre difetti in una riga, e nessuno è «l'AI non ha capito» — quel dialogo è deterministico, quindi
+  sono tre righe di codice.
+  **(1) Gli aggettivi non sono alimenti.** «Cruda» combaciava benissimo con la quinoa della cena.
+  Solo che «cruda» non nomina un cibo: lo descrive. Ora un elenco di QUALIFICATORI (crudo, cotto,
+  fresco, naturale, integrale, magro, tiepido…) non identifica più niente **da solo**; in coppia
+  restano eccome, perché «verdura cruda» e «tonno naturale» sono nomi di ingredienti veri e le
+  coppie si provano per prime.
+  **(2) Il pasto nominato vincola la ricerca.** Aveva scritto «a pranzo». Adesso, se nomina un
+  pasto, si guarda solo quello — e se lì non c'è niente, la domanda che si ripete è quella mirata
+  su quel pasto, non l'elenco di tutta la giornata.
+  **(3) «Perdonami, non ho capito. La mia domanda è: …»** — richiesta di Simone, parola per parola.
+  La domanda si ripete **identica**: il dialogo si porta dietro `ultimaDomanda` invece di
+  ricostruirla, perché riformularla sembra gentile ed è il modo più rapido di confondere chi già
+  non aveva capito. Vale nei quattro passi in cui prima si tirava a indovinare.
+  **(4) «Sostituisco tutto il pasto con X, Y e Z» non è una sostituzione di ingrediente.** È la
+  frase della conversazione del 6/8, quella che l'AI generativa approvava con un «certo, è una
+  buona sostituzione!» **senza cambiare niente nel menu**. Ora si apre un **bivio** (chiesto da
+  Simone): *1) passo alla nutrizionista · 2) proponimi tu un'alternativa*. Due opzioni numerate e
+  non una domanda aperta, in un dialogo che ha appena dimostrato di fraintendere. Al «2» Gaia pesca
+  un altro piatto dal ricettario approvato per lei, a pari calorie — e, «ovviamente con altri
+  ingredienti», un'alternativa che si chiama quasi come quella rifiutata («…e Farro» al posto di
+  «…e Quinoa») finisce in **fondo** alla lista, non fuori: con un ricettario piccolo potrebbe essere
+  l'unica.
+  **§16.2 — «anche il menu di domani o dopodomani, se lo vedo».** La giornata era cablata su oggi in
+  sei punti. Adesso viaggia nella conversazione: la cliente può dirlo a parole («domani», «giovedì»,
+  «stasera») **oppure** arrivare dal pulsante «Sostituisci» che ho messo sulla giornata che sta
+  guardando nel menu, che porta la data con sé.
+  ⚠️ Il riconoscimento del giorno è **volutamente stretto** e NON riusa `leggiData` della data di
+  inizio piano: quel parser legge «il 15» come una data, e qui i numeri sono **grammi**. Solo
+  oggi/domani/dopodomani/stasera e i nomi dei giorni. E il nome del giorno di oggi significa
+  **oggi** — la regola opposta a quella del piano, dove «lunedì» detto di lunedì è fra sette giorni:
+  chi guarda il piatto che ha davanti non parla della settimana prossima.
+  ⚠️ Solo le giornate che la cliente **vede** (`visibleFrom <= oggi`, la stessa regola dell'app) e
+  mai il passato — un menu di ieri è già stato mangiato, e chiedendolo si sente dire quello, non un
+  ripiego silenzioso su oggi. `sempre` («non mi piace») parte comunque **da oggi** anche se si
+  parlava di giovedì: un cibo che non piace non piace nemmeno stasera.
+  **La rete di sicurezza di tutto §16.2**: con la giornata di oggi ogni frase resta identica a
+  prima, parola per parola — i valori predefiniti dei testi sono tutti «oggi». È il motivo per cui
+  le 674 asserzioni già esistenti su menu e chat sono passate senza toccarne una.
+  Verifiche: **122 suite / 1841 test** (+2 suite, +47 test), backoffice e app build verdi.
+
 - `[Sviluppo]` 🔁 **La tabella delle sostituzioni: adesso Gaia impara.** §16.9. «Se non salviamo la
   sua risposta lei non impara» — e infatti non la salvavamo. Un cambio concordato in chat viveva
   **solo** dentro `menu_day.meals`, come elemento di un array JSON: **senza id** (lo si individuava

@@ -159,7 +159,14 @@ export type PassoSostituzione =
    * dell'ingrediente — una domanda diversa da quella che serviva — o, peggio, si scegliva il pasto
    * per lei. Qui si chiede quale, con l'elenco di oggi.
    */
-  | 'scelta_pasto';
+  | 'scelta_pasto'
+  /**
+   * «Sostituisco tutto il pasto con X, Y e Z». Il bivio chiesto da Simone il 12/8: prima di
+   * arrendersi e passare alla nutrizionista, si chiede se è quello che vuole **oppure** se
+   * preferisce un'alternativa scelta da Gaia fra i piatti approvati per lei, a pari calorie.
+   * Prima questa richiesta finiva dentro la ricerca dell'ingrediente, e ne usciva un pasto a caso.
+   */
+  | 'pasto_intero';
 
 export interface PropostaSostituzione {
   /** Giornata su cui si scrive (YYYY-MM-DD): quella di oggi. */
@@ -211,6 +218,20 @@ export interface StatoSostituzione {
    * quel messaggio. Rileggerli dal database al giro dopo darebbe un ordine che nessuno ha visto.
    */
   pastiPerScelta?: { slot: string; piatto: string }[];
+  /**
+   * La giornata di cui si sta parlando, `YYYY-MM-DD` (§16.2). Assente = oggi, che è il caso di
+   * tutte le conversazioni aperte prima e il valore predefinito di tutte le altre.
+   */
+  data?: string;
+  /**
+   * L'ULTIMA domanda che Gaia ha fatto, parola per parola.
+   *
+   * Serve a una cosa sola, ed è la richiesta di Simone del 12/8: quando la risposta non si capisce,
+   * si dice «perdonami, non ho capito, la mia domanda è…» e si **ripete quella domanda**, identica.
+   * Ricostruirla darebbe un testo leggermente diverso, e chi non aveva capito la prima volta non
+   * saprebbe più se è la stessa domanda o una nuova.
+   */
+  ultimaDomanda?: string;
 }
 
 /** Oltre questo, lo stato appeso a un messaggio vecchio non è più una conversazione in corso. */
@@ -231,6 +252,10 @@ import {
 } from '../common/nomi-alimento';
 
 export { combaciaAlimento, condividonoAlimento, normalizza, paroleAlimento, radice };
+
+// Gli aggettivi che descrivono un cibo senza nominarlo: vedi il riquadro di `ascolto.ts`, che
+// racconta la conversazione in cui «cruda» è stata scambiata per un ingrediente.
+import { QUALIFICATORI } from './ascolto';
 
 /**
  * Intenzione di sostituire, riconosciuta dal testo libero. Volutamente NARROW: pretende un
@@ -315,8 +340,19 @@ export function terminiCandidati(testo: string): string[] {
     .filter((p) => p.length >= 3 && !STOPWORDS.has(p));
   const coppie: string[] = [];
   for (let i = 0; i < parole.length - 1; i += 1) coppie.push(`${parole[i]} ${parole[i + 1]}`);
+  /**
+   * ⚠️ Le singole perdono i QUALIFICATORI, le coppie no.
+   *
+   * «cruda» da sola non è un alimento: descrive un alimento. Lasciandola passare, la frase «voglio
+   * cambiare il menu di oggi a pranzo con verdura cruda e tonno al naturale» produceva il termine
+   * «cruda», che combacia con la «quinoa cruda» della CENA — e la cliente si sentiva rispondere di
+   * un pasto di cui non aveva parlato (12/8, conversazione girata da Simone).
+   * Le coppie restano intatte perché «verdura cruda» e «tonno naturale» sono nomi di ingredienti
+   * veri, e vengono provate per prime.
+   */
+  const singole = parole.filter((p) => !QUALIFICATORI.has(radice(p)));
   // Le coppie prima: più specifiche, quindi meno ambigue.
-  return [...new Set([...coppie, ...parole])];
+  return [...new Set([...coppie, ...singole])];
 }
 
 // `radice`, `paroleAlimento`, `combaciaAlimento` e `condividonoAlimento` stanno ora in
@@ -424,26 +460,32 @@ export function conNome(nome?: string | null): string {
   return n ? ` ${n}` : '';
 }
 
-export function testoChiediCibo(pasti: { slot: string; piatto: string }[], nome?: string | null): string {
+/**
+ * ⚠️ `quando` è l'etichetta del giorno di cui si sta parlando («oggi», «domani», «sabato 15
+ * agosto»): §16.2. Il valore predefinito è «oggi» in TUTTI i testi di questo file, e non per pigrizia
+ * — è quello che garantisce che una conversazione sulla giornata di oggi suoni esattamente come
+ * prima, parola per parola. Il giorno diverso cambia le frasi solo quando c'è davvero.
+ */
+export function testoChiediCibo(pasti: { slot: string; piatto: string }[], nome?: string | null, quando = 'oggi'): string {
   if (!pasti.length) {
     return apreFrase(
       nome,
-      'Per cambiare un alimento mi serve il menu di oggi, e adesso non lo vedo. Prova a riaprire la home: se resta vuoto scrivilo alla tua coach, ci pensiamo noi. 💚',
+      `Per cambiare un alimento mi serve il menu di ${quando}, e adesso non lo vedo. Prova a riaprire la home: se resta vuoto scrivilo alla tua coach, ci pensiamo noi. 💚`,
     );
   }
   const elenco = pasti.map((p) => `${etichettaSlot(p.slot)}: ${p.piatto}`).join(' · ');
   return (
     `Certo${conNome(nome)}, vediamo insieme. Quale alimento vuoi cambiare?\n\n` +
-    `Oggi hai — ${elenco}.\n\n` +
+    `${maiuscola(quando)} hai — ${elenco}.\n\n` +
     'Scrivimi solo il nome dell\'alimento (per esempio «le carote»).'
   );
 }
 
-export function testoCiboNonTrovato(cibo: string, ultimoTentativo: boolean): string {
+export function testoCiboNonTrovato(cibo: string, ultimoTentativo: boolean, quando = 'oggi'): string {
   if (ultimoTentativo) {
-    return `Continuo a non trovare «${cibo}» nel menu di oggi, e non voglio farti perdere tempo: ho girato la richiesta alla tua coach, che ti scrive nel vostro thread. 💚`;
+    return `Continuo a non trovare «${cibo}» nel menu di ${quando}, e non voglio farti perdere tempo: ho girato la richiesta alla tua coach, che ti scrive nel vostro thread. 💚`;
   }
-  return `Non trovo «${cibo}» tra gli ingredienti di oggi. Controlla come si scrive, oppure dimmi il piatto in cui l'hai visto.`;
+  return `Non trovo «${cibo}» tra gli ingredienti di ${quando}. Controlla come si scrive, oppure dimmi il piatto in cui l'hai visto.`;
 }
 
 export function testoChiediMotivo(p: PropostaSostituzione): string {
@@ -462,21 +504,32 @@ export function testoMotivoNonCapito(ultimoTentativo: boolean): string {
   return `Non ho capito il motivo. Rispondi con un numero: ${MOTIVI.map((m) => `${m.numero}) ${m.label}`).join(' · ')}.`;
 }
 
-const testoDurata = (durata: Durata): string =>
-  durata === 'oggi' ? 'solo per oggi: domani torna come prima' : "da oggi in avanti, e non te lo propongo più nei menu nuovi";
+/**
+ * Per quanto vale il cambio.
+ *
+ * ⚠️ `sempre` dice «da oggi in avanti» anche quando si sta parlando di dopodomani, e non è una
+ * svista: «questo cibo non mi piace» è una cosa che vale sul cibo, non su quella giornata — e
+ * lasciarglielo nel piatto stasera perché la frase è partita da giovedì sarebbe assurdo.
+ */
+const testoDurata = (durata: Durata, quando = 'oggi'): string => {
+  if (durata !== 'oggi') return 'da oggi in avanti, e non te lo propongo più nei menu nuovi';
+  return quando === 'oggi'
+    ? 'solo per oggi: domani torna come prima'
+    : `solo per ${quando}: gli altri giorni restano come prima`;
+};
 
-export function testoConferma(p: PropostaSostituzione, motivo: Motivo, nome?: string | null): string {
+export function testoConferma(p: PropostaSostituzione, motivo: Motivo, nome?: string | null, quando = 'oggi'): string {
   const daQta = quantita(p.qtaDa, p.unita);
   const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
   return (
     `Allora facciamo così${conNome(nome)}: ${nelloSlot(p.slot)} metti ` +
-    `${aQta}${p.a} al posto di ${daQta}${p.da} — ${testoDurata(motivo.durata)}.\n\n` +
+    `${aQta}${p.a} al posto di ${daQta}${p.da} — ${testoDurata(motivo.durata, quando)}.\n\n` +
     'Confermi? (sì / no)'
   );
 }
 
-export function testoAnnullato(nome?: string | null): string {
-  return `Va bene${conNome(nome)}, non cambio niente: il menu di oggi resta com'è. Se cambi idea sono qui. 💚`;
+export function testoAnnullato(nome?: string | null, quando = 'oggi'): string {
+  return `Va bene${conNome(nome)}, non cambio niente: il menu di ${quando} resta com'è. Se cambi idea sono qui. 💚`;
 }
 
 // ---------- Il «no» alla proposta: indagare, non fermarsi ----------
@@ -707,10 +760,10 @@ export function testoNienteAltroSostituto(da: string, rifiutati: string[], nome?
   );
 }
 
-export function testoFatto(p: PropostaSostituzione, motivo: Motivo, nome?: string | null): string {
+export function testoFatto(p: PropostaSostituzione, motivo: Motivo, nome?: string | null, quando = 'oggi'): string {
   const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
   let out =
-    `Fatto${conNome(nome)}: il menu di oggi è aggiornato. ${maiuscola(nelloSlot(p.slot))} ` +
+    `Fatto${conNome(nome)}: il menu di ${quando} è aggiornato. ${maiuscola(nelloSlot(p.slot))} ` +
     `trovi ${aQta}${p.a} al posto ${/^[aeiou]/i.test(p.da) ? "dell'" : 'di '}${p.da}.`;
   if (motivo.durata === 'sempre') out += ` E «${p.da}» non lo metterò più nei tuoi menu nuovi.`;
   if (p.grammaturaCorretta) out += ' Ho tenuto la stessa grammatura: la tua nutrizionista la ricontrolla.';

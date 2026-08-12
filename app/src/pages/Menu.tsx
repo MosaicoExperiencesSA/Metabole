@@ -204,6 +204,25 @@ export default function Menu() {
             )
           )}
 
+          {/*
+            «Sostituisci» dalla giornata che sta guardando (§16.2).
+            Prima l'unico ingresso era il pulsante della home, che non porta con sé nessun giorno:
+            chi apriva il menu di domani e chiedeva un cambio si sentiva elencare i piatti di oggi.
+            Il giorno viaggia nell'indirizzo e da lì arriva a Gaia. Non compare sui giorni PASSATI:
+            un menu di ieri è già stato mangiato, e correggerlo non vuol dire niente.
+          */}
+          {!isPastDay && (
+            <div style={{ marginBottom: 10 }}>
+              <a
+                className="chip"
+                href={`/assistente?who=ai&intent=sostituzione&giorno=${selDay.date.slice(0, 10)}`}
+                style={{ border: 'none', background: '#DCEBE3', color: '#0E7C66', padding: '7px 12px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <i className="ti ti-arrows-exchange" /> Sostituisci qualcosa in questo giorno
+              </a>
+            </div>
+          )}
+
           {meals.length > 1 && (
             <div className="pill-row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
               {meals.map((m, i) => (

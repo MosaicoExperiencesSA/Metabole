@@ -26,6 +26,19 @@ class SendMessageDto {
 }
 
 /**
+ * Da quale giornata la cliente ha premuto «Sostituisci» (§16.2).
+ *
+ * L'app sa benissimo quale giorno sta guardando — la schermata del menu ha le pillole dei giorni —
+ * e finora quell'informazione si perdeva nel passaggio alla chat: Gaia elencava i piatti di oggi a
+ * chi stava guardando domani. Facoltativo: senza, è oggi, come è sempre stato.
+ */
+class AvviaSostituzioneDto {
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'Data non valida (AAAA-MM-GG).' })
+  data?: string;
+}
+
+/**
  * La verifica di un cambio nato in chat. Il cambio non ha un id — vive dentro il JSON dei pasti di
  * quella giornata — quindi si individua per **giornata + pasto + alimento**.
  *
@@ -102,8 +115,8 @@ export class MyThreadsController {
    */
   @Post('sostituzione')
   @HttpCode(200)
-  avviaSostituzione(@CurrentUser() user: AuthUser) {
-    return this.chat.avviaSostituzione(user.sub);
+  avviaSostituzione(@CurrentUser() user: AuthUser, @Body() dto?: AvviaSostituzioneDto) {
+    return this.chat.avviaSostituzione(user.sub, dto?.data ?? null);
   }
 
   /** Conversazioni passate (riassunti giornalieri) con un interlocutore. */

@@ -918,12 +918,41 @@ Punti da non dimenticare:
 - una Subscription `active` che parte fra tre mesi non rompe niente di verificato, ma va provata:
   `expireTrialsAndPurge` guarda `endDate < now`, i task coach G0/G1 guardano `startDate`.
 
-### 16.2 Gaia deve poter correggere i piatti di TUTTI i menu emessi
+### ~~16.2 Gaia deve poter correggere i piatti di TUTTI i menu emessi~~ — ✅ FATTA il 12/8
 
-«Anche il menu di domani o dopodomani se lo vedo.» Se oggi il cambio vale solo sulla giornata di oggi,
-una cliente che apre il menu di domani e chiede una sostituzione sta chiedendo una cosa che non le
-possiamo dare. Da verificare nel codice quale sia davvero la portata attuale
-(`menu/sostituzione-chat.service.ts`, `menu/cambio-piatto.ts`, `scope: 'today'`).
+La giornata viaggia nella conversazione (`StatoSostituzione.data`) invece di essere cablata su oggi
+in sei punti. La cliente la indica a parole («domani», «giovedì», «stasera») oppure arriva dal
+pulsante **«Sostituisci qualcosa in questo giorno»**, che è sulla giornata che sta guardando nel menu.
+⚠️ Solo le giornate che **vede** (`visibleFrom <= oggi`, la stessa regola di `getMenu`) e mai il
+passato — e chiedendo il passato si sente dire proprio quello, non un ripiego silenzioso su oggi.
+⚠️ `sempre` («non mi piace») parte comunque **da oggi** anche se si parlava di giovedì: un cibo che
+non piace non piace nemmeno stasera.
+Il riconoscimento del giorno (`menu/giorno-conversazione.ts`) è volutamente stretto e **non** riusa
+`leggiData` della data di inizio piano: lì un numero è una data, qui è un grammo.
+Con la giornata di oggi tutte le frasi restano **identiche** a prima: è quello che ha permesso di
+farlo senza toccare una sola asserzione dei test esistenti.
+
+### ~~16.2bis Gaia ascoltava male, e quando non capiva rispondeva lo stesso~~ — ✅ FATTA il 12/8
+
+Difetto segnalato da Simone con la conversazione: «Voglio cambiare il menu di oggi **a pranzo** con
+verdura cruda e tonno al naturale» → «**A cena** … ci sono 50 g di **quinoa cruda**».
+Quattro correzioni, in `menu/ascolto.ts`:
+
+1. **gli aggettivi non sono alimenti** — «cruda», «naturale», «fresco», «integrale» non identificano
+   più niente da soli; in coppia («verdura cruda») restano;
+2. **il pasto nominato restringe** la ricerca, e se lì non si trova niente la domanda ripetuta è
+   quella mirata su quel pasto;
+3. **«Perdonami, non ho capito. La mia domanda è: …»** con la domanda ripetuta **identica**
+   (`StatoSostituzione.ultimaDomanda`), nei quattro passi in cui prima si indovinava;
+4. **«sostituisco tutto il pasto con X, Y e Z»** apre un bivio — *1) passo alla nutrizionista ·
+   2) proponimi tu un'alternativa* — invece di estrarre un ingrediente a caso. Al «2» Gaia pesca dal
+   ricettario approvato a pari calorie, e le alternative che si chiamano quasi come quella rifiutata
+   vanno in fondo.
+
+⚪ Da tenere d'occhio: il dialogo guidato **intercetta il messaggio prima dell'AI generativa**
+(`chat.service.handleAiMessage`, il «ponte col menu»). È voluto — l'AI approvava a parole senza
+cambiare il menu — ma vuol dire che ogni difetto di ascolto del dialogo toglie alla cliente anche la
+risposta che l'AI le avrebbe dato. L'unica uscita che esiste oggi vale per le FAQ al primo passo.
 
 ### ~~16.3 Nuovo lead → notifica alla manager delle coach + tabella «Lead da assegnare»~~ — ✅ FATTA l'11/8
 

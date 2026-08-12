@@ -213,9 +213,18 @@ describe('ChatService', () => {
 
     it('il pulsante dell\'app apre il dialogo con un messaggio di Gaia', async () => {
       const res: any = await service.avviaSostituzione('client-1');
-      expect(sostituzione.apri).toHaveBeenCalledWith('client-1');
+      // Senza giornata: è il pulsante della home, che non ne ha una. `null` e non `undefined`
+      // perché il controller normalizza — vedi `AvviaSostituzioneDto`.
+      expect(sostituzione.apri).toHaveBeenCalledWith('client-1', null);
       expect(res.message.senderRole).toBe('ai');
       expect(res.message.meta.sost.passo).toBe('cibo');
+    });
+
+    it('dalla schermata del MENU porta con sé la giornata che sta guardando (§16.2)', async () => {
+      // Prima quell'informazione si perdeva, e Gaia elencava i piatti di oggi a chi aveva
+      // davanti quelli di domani.
+      await service.avviaSostituzione('client-1', '2026-08-13');
+      expect(sostituzione.apri).toHaveBeenCalledWith('client-1', '2026-08-13');
     });
 
     it('«vorrei sostituire le carote» apre il dialogo dal testo', async () => {

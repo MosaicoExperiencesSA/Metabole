@@ -44,13 +44,16 @@ const STATO: Record<string, string> = {
   corretta: 'Corretta',
   annullata: 'Annullata',
 };
+// ⚠️ Le chiavi sono quelle di `SLOT_LABEL` nel backend: `morning_snack`, non `snack_morning`.
+// Sbagliarle non dà nessun errore — dà la chiave grezza a schermo, che è il modo in cui una
+// svista del genere sopravvive per mesi.
 const SLOT: Record<string, string> = {
   breakfast: 'Colazione',
+  morning_snack: 'Spuntino del mattino',
   lunch: 'Pranzo',
+  afternoon_snack: 'Spuntino del pomeriggio',
   dinner: 'Cena',
   snack: 'Spuntino',
-  snack_morning: 'Spuntino mattina',
-  snack_afternoon: 'Spuntino pomeriggio',
 };
 // Da dove nasce la riga. «App» è il pulsante «sostituisci» dentro il menu: è la stessa richiesta
 // della chat, fatta con due dita invece che con una frase.

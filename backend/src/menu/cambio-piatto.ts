@@ -36,6 +36,7 @@
 // `etichettaSlot` viene da `sostituzione-chat`: le etichette dei pasti sono UNA tabella sola.
 // Duplicarle qui vorrebbe dire che un giorno l'elenco delle alternative e la domanda su quale pasto
 // chiamerebbero lo stesso pasto con due nomi diversi, nella stessa conversazione.
+import { condividonoAlimento } from '../common/nomi-alimento';
 import { etichettaSlot } from './sostituzione-chat';
 
 /** Che tipo di alternativa ha chiesto. `null` = «diverso» e basta. */
@@ -145,6 +146,16 @@ export function ordinaAlternative(
     tolleranzaKcalPct?: number;
     /** Quante proporne. Due: una è un ordine, tre sono un catalogo. */
     quante?: number;
+    /**
+     * Il nome del piatto che sta rifiutando. Le alternative che gli somigliano nel nome vanno in
+     * FONDO, non fuori.
+     *
+     * «Ovviamente con altri ingredienti» (Simone, 12/8): proporre «Insalata Tiepida Tacchino e
+     * Farro» a chi non vuole «Insalata Tiepida Tacchino e Quinoa» è cambiare una parola, non il
+     * piatto. In fondo e non escluse perché con un ricettario piccolo potrebbero essere le uniche,
+     * e qualcosa di simile è pur sempre meglio di «non ho niente da proporti».
+     */
+    nomeAttuale?: string;
   },
 ): AlternativaProposta[] {
   const tolleranza = opzioni.tolleranzaKcalPct ?? 15;
@@ -180,7 +191,15 @@ export function ordinaAlternative(
   });
 
   const vicinanzaKcal = (c: AlternativaProposta) => Math.abs(c.scartoKcalPct);
+  // Somiglia nel nome a quello rifiutato? `condividonoAlimento` confronta per parola con la
+  // radice, quindi «Quinoa» e «Farro» restano due piatti diversi mentre «Insalata Tiepida
+  // Tacchino» li accomuna — che è esattamente la somiglianza che si vuole penalizzare.
+  const somiglia = (c: AlternativaProposta) =>
+    opzioni.nomeAttuale && condividonoAlimento(opzioni.nomeAttuale, c.nome) ? 1 : 0;
   const ordinati = [...proteici].sort((a, b) => {
+    const sa = somiglia(a);
+    const sb = somiglia(b);
+    if (sa !== sb) return sa - sb;
     if (opzioni.preferenza === 'proteico') {
       const pa = proteine(a) ?? -1;
       const pb = proteine(b) ?? -1;
@@ -203,6 +222,8 @@ export function ordinaAlternative(
 
 const kcalTxt = (n: number) => `${Math.round(n)} kcal`;
 
+const maiuscolaIniziale = (t: string): string => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+
 /**
  * La proposta. Dice **perché** quel piatto è la risposta alla sua richiesta (le proteine in più) e
  * mostra le calorie: è la stessa informazione che guarderebbe il nutrizionista, e vederla scritta
@@ -214,6 +235,7 @@ export function testoProponiAlternative(
   alternative: AlternativaProposta[],
   preferenza: PreferenzaPiatto,
   nome?: string | null,
+  quando = 'oggi',
 ): string {
   const perche =
     preferenza === 'proteico'
@@ -237,7 +259,7 @@ export function testoProponiAlternative(
   const apertura = nome ? `${nome}, ho` : 'Ho';
   return (
     `${apertura} cercato ${preferenza === 'proteico' ? 'una proteica' : "un'alternativa"} fra i piatti approvati per te ` +
-    `${perche}.\n\nAdesso a ${slotEtichetta.toLowerCase()} hai ${attuale.nome} (${kcalTxt(attuale.kcal)}). ` +
+    `${perche}.\n\n${quando === 'oggi' ? 'Adesso' : maiuscolaIniziale(quando)} a ${slotEtichetta.toLowerCase()} hai ${attuale.nome} (${kcalTxt(attuale.kcal)}). ` +
     `Al suo posto posso metterti:\n\n${righe}\n\n` +
     'Rispondi col numero, oppure «no» se nessuna ti va.'
   );
@@ -262,11 +284,13 @@ export function testoCambioPiattoFatto(
   slotEtichetta: string,
   scelta: { nome: string; kcal: number },
   nome?: string | null,
+  quando = 'oggi',
 ): string {
   const apertura = nome ? `Fatto ${nome}` : 'Fatto';
   return (
-    `${apertura}: a ${slotEtichetta.toLowerCase()} adesso trovi **${scelta.nome}** (${kcalTxt(scelta.kcal)}), ` +
-    'solo per oggi. La tua nutrizionista lo vede in scheda e lo ricontrolla. 💚'
+    `${apertura}: a ${slotEtichetta.toLowerCase()} ${quando === 'oggi' ? 'adesso' : `di ${quando}`} trovi ` +
+    `**${scelta.nome}** (${kcalTxt(scelta.kcal)}), solo per ${quando}. ` +
+    'La tua nutrizionista lo vede in scheda e lo ricontrolla. 💚'
   );
 }
 
@@ -288,6 +312,7 @@ export function testoChiediQualePasto(
   pasti: { slot: string; piatto: string }[],
   preferenza: PreferenzaPiatto,
   nome?: string | null,
+  quando = 'oggi',
 ): string {
   const cosa =
     preferenza === 'proteico'
@@ -300,7 +325,7 @@ export function testoChiediQualePasto(
   const righe = pasti.map((p, i) => `${i + 1}) ${etichettaSlot(p.slot)} — ${p.piatto}`).join('\n');
   const apertura = nome ? `${nome}, volentieri` : 'Volentieri';
   return (
-    `${apertura}: ${cosa} si può fare. Per quale pasto di oggi?\n\n${righe}\n\n` +
+    `${apertura}: ${cosa} si può fare. Per quale pasto di ${quando}?\n\n${righe}\n\n` +
     'Rispondi col numero o col nome del pasto.'
   );
 }

@@ -26,6 +26,8 @@ export default function Assistente() {
   const [params] = useSearchParams();
   const who = ['ai', 'coach', 'nutritionist'].includes(params.get('who') ?? '') ? (params.get('who') as string) : 'ai';
   const intent = params.get('intent');
+  // La giornata da cui arriva («?giorno=AAAA-MM-GG», dalla schermata del menu). Vuota = oggi.
+  const giorno = /^\d{4}-\d{2}-\d{2}$/.test(params.get('giorno') ?? '') ? params.get('giorno') : null;
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState('');
@@ -42,7 +44,12 @@ export default function Assistente() {
     setMessages([]);
     if (intent === 'sostituzione' && who === 'ai' && !intentoAvviato.current) {
       intentoAvviato.current = true;
-      api<{ threadId: string }>('/me/threads/sostituzione', { method: 'POST' })
+      // §16.2 — il giorno che la cliente stava guardando, se ci arriva dalla schermata del menu.
+      // Senza, Gaia le elenca i piatti di oggi mentre lei ha davanti quelli di domani.
+      api<{ threadId: string }>('/me/threads/sostituzione', {
+        method: 'POST',
+        body: JSON.stringify(giorno ? { data: giorno } : {}),
+      })
         .then((r) => setThread({ id: r.threadId, counterpart: 'ai', counterpartName: 'Gaia' }))
         .catch(() => {
           // L'apertura può fallire (menu di oggi assente, rete): la chat resta usabile a mano.
@@ -58,7 +65,7 @@ export default function Assistente() {
       .then((ts) => setThread(ts.find((x) => x.counterpart === who) ?? (who === 'ai' ? ts[0] ?? null : null)))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [who, intent]);
+  }, [who, intent, giorno]);
 
   // Primo caricamento + aggiornamento automatico (le risposte dello staff arrivano da sole).
   useEffect(() => {

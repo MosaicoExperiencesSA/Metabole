@@ -1211,3 +1211,160 @@ describe('SostituzioneChatService — la nutrizionista verifica', () => {
     expect(elenco[0].verificataIl).toBeTruthy();
   });
 });
+
+/**
+ * LA CONVERSAZIONE DEL 12/8, quella girata da Simone.
+ *
+ * Gaia elenca i piatti, la cliente scrive «Voglio cambiare il menu di oggi **a pranzo** con verdura
+ * cruda e tonno al naturale», e Gaia risponde parlando della **cena** perché ha trovato «cruda»
+ * dentro la «quinoa cruda». Tre difetti in una riga: l'aggettivo scambiato per un cibo, il pasto
+ * nominato ignorato, e la risposta data lo stesso invece di dire «non ho capito».
+ */
+describe('SostituzioneChatService — ascoltare meglio (12/8)', () => {
+  it('⚠️ non risponde più del pasto sbagliato: il pasto intero apre il BIVIO', async () => {
+    const { service } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    const risposta = await service.avanza(
+      'client-1',
+      apertura.stato!,
+      'Voglio cambiare il menu di oggi a pranzo con verdura cruda e tonno al naturale',
+    );
+
+    // Non parla di colazione né propone un sostituto: chiede quale delle due strade vuole.
+    expect(risposta.stato?.passo).toBe('pasto_intero');
+    expect(risposta.testo).toContain('tutto il pasto');
+    expect(risposta.testo).toContain('a pranzo'); // il pasto che aveva nominato LEI
+    expect(risposta.testo).toContain('1)');
+    expect(risposta.testo).toContain('2)');
+    expect(risposta.testo).not.toContain('Yogurt e avena');
+  });
+
+  it('«1» passa alla nutrizionista, con il testo che aveva scritto', async () => {
+    const { service, prisma } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    const bivio = await service.avanza('client-1', apertura.stato!, 'voglio cambiare il pranzo con insalata e tonno');
+    const esito = await service.avanza('client-1', bivio.stato!, '1');
+
+    expect(esito.inoltraA).toBe('nutritionist');
+    expect(prisma.escalation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reason: expect.stringContaining('insalata e tonno') }),
+      }),
+    );
+  });
+
+  it('«2» fa proporre a Gaia un\'alternativa dal ricettario, a pari calorie', async () => {
+    const { service } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    // Il bivio sulla COLAZIONE, che è lo slot per cui il finto catalogo ha delle alternative.
+    const bivio = await service.avanza('client-1', apertura.stato!, 'voglio cambiare la colazione con pane e marmellata');
+    expect(bivio.stato?.passo).toBe('pasto_intero');
+
+    const esito = await service.avanza('client-1', bivio.stato!, '2');
+    expect(esito.stato?.passo).toBe('scelta_piatto');
+    // Alternative vere, dal pool approvato per lei, non il piatto che aveva già.
+    expect(esito.testo).toMatch(/Uova strapazzate|Skyr/);
+    expect(esito.stato?.alternativePiatto?.some((a) => a.recipeId === 'r-colazione')).toBe(false);
+  });
+
+  it('a una risposta che non c\'entra dice «non ho capito» e RIPETE la domanda', async () => {
+    const { service } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    const domanda = apertura.testo;
+
+    const risposta = await service.avanza('client-1', apertura.stato!, 'boh vedi tu quello che ti sembra meglio');
+
+    expect(risposta.testo).toContain('non ho capito');
+    // Identica, non riscritta: chi non aveva capito rilegge, e un testo diverso lo confonde.
+    expect(risposta.testo).toContain(domanda);
+  });
+
+  it('e se aveva nominato un pasto, ripete la domanda MIRATA su quel pasto', async () => {
+    const { service } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    const risposta = await service.avanza('client-1', apertura.stato!, 'a pranzo qualcosa che non ricordo');
+
+    expect(risposta.testo).toContain('non ho capito');
+    expect(risposta.testo).toContain('Insalata di farro'); // il piatto del pranzo
+    expect(risposta.testo).toContain('farro, carote, olio evo'); // i suoi ingredienti
+    expect(risposta.testo).not.toContain('Yogurt e avena');
+  });
+
+  it('il pasto nominato restringe davvero: «a pranzo, le carote» non guarda la colazione', async () => {
+    const { service } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    const risposta = await service.avanza('client-1', apertura.stato!, 'a pranzo vorrei togliere le carote');
+    expect(risposta.stato?.proposta?.slot).toBe('lunch');
+    expect(risposta.stato?.proposta?.da).toBe('carote');
+  });
+});
+
+/**
+ * §16.2 — «anche il menu di domani o dopodomani, se lo vedo».
+ *
+ * Fino al 12/8 la giornata era cablata su oggi in sei punti del servizio: una cliente che apriva il
+ * menu di domani e chiedeva un cambio si sentiva elencare i piatti di oggi.
+ */
+describe('SostituzioneChatService — la giornata di cui si parla (§16.2)', () => {
+  const domaniIso = () => {
+    const d = new Date(`${oggiIso()}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  };
+
+  it('il pulsante dell\'app porta con sé il giorno, e Gaia lo dice', async () => {
+    const { service, prisma } = await creaServizio();
+    const apertura = await service.apri('client-1', domaniIso());
+
+    expect(apertura.stato?.data).toBe(domaniIso());
+    expect(apertura.testo).toContain('Domani hai');
+    const where = prisma.menuDay.findFirst.mock.calls[0][0].where;
+    expect(where.date.toISOString().slice(0, 10)).toBe(domaniIso());
+    // ⚠️ Solo le giornate che la cliente VEDE: è la condizione che Simone ha messo lui nella
+    // richiesta, «se lo vedo».
+    expect(where.visibleFrom.lte).toBeInstanceOf(Date);
+  });
+
+  it('«domani» detto a parole sposta la conversazione', async () => {
+    const { service, prisma } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    expect(apertura.stato?.data).toBe(oggiIso());
+
+    const dopo = await service.avanza('client-1', apertura.stato!, 'domani vorrei togliere le carote');
+    expect(dopo.stato?.data).toBe(domaniIso());
+    expect(dopo.stato?.proposta?.data).toBe(domaniIso());
+    const ultimo = prisma.menuDay.findFirst.mock.calls.at(-1)[0].where;
+    expect(ultimo.date.toISOString().slice(0, 10)).toBe(domaniIso());
+  });
+
+  it('la giornata NON si riazzera a metà conversazione', async () => {
+    // Un «sì» al passo della conferma non deve riportare tutto a oggi mentre si sta per scrivere.
+    const { service } = await creaServizio();
+    const apertura = await service.apri('client-1', domaniIso());
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'le carote');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    expect(dopoMotivo.stato?.data).toBe(domaniIso());
+    expect(dopoMotivo.testo).toContain('solo per domani');
+  });
+
+  it('il passato non si corregge: un menu di ieri è già stato mangiato', async () => {
+    const { service, prisma } = await creaServizio();
+    const ieri = new Date(`${oggiIso()}T00:00:00.000Z`);
+    ieri.setUTCDate(ieri.getUTCDate() - 1);
+
+    const apertura = await service.apri('client-1', ieri.toISOString().slice(0, 10));
+    expect(apertura.esito).toBe('rifiutata');
+    // Non si è nemmeno andati a chiedere al database.
+    expect(prisma.menuDay.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('per la giornata di OGGI le frasi restano identiche a prima', async () => {
+    // È la rete di sicurezza di tutta §16.2: il giorno predefinito non cambia una parola.
+    const { service } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    expect(apertura.testo).toContain('Oggi hai —');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'le carote');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    expect(dopoMotivo.testo).toContain('solo per oggi: domani torna come prima');
+  });
+});
