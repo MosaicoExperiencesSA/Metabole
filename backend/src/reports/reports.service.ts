@@ -4,6 +4,8 @@ import { MailService } from '../mail/mail.service';
 import { PdfService } from '../pdf/pdf.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope } from '../common/coach-team';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import { litriObiettivo } from '../common/obiettivo-acqua';
 
 export interface MonthlyReport {
   clientId: string;
@@ -46,6 +48,8 @@ export class ReportsService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly pdfTemplates: PdfService,
+    // Gli obiettivi di acqua e passi si leggono dai Parametri, come in app: erano scritti a mano qui.
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   /**
@@ -128,7 +132,11 @@ export class ReportsService {
     const waterSeries = waterRows.slice(-31).map((w) => round1(w.glasses * 0.25));
     const stepsSeries = stepRows.slice(-31).map((s) => s.steps);
     const waterAvgL = waterSeries.length ? round1(waterSeries.reduce((a, v) => a + v, 0) / waterSeries.length) : null;
-    const waterGoalL = currentWeightKg != null ? round1((currentWeightKg * 30) / 1000) : null;
+    // ⚠️ Stessa regola della home e del report di fine piano (12/8): `water_ml_per_kg` dai
+    // Parametri, con i limiti in bicchieri. Qui c'era un 30 scritto a mano.
+    const mlPerKg = await this.configParams.getNumber('water_ml_per_kg', 33).catch(() => 33);
+    const stepsGoal = await this.configParams.getNumber('steps_goal', 8000).catch(() => 8000);
+    const waterGoalL = currentWeightKg != null ? litriObiettivo(currentWeightKg, mlPerKg) : null;
     const stepsAvg = stepsSeries.length ? Math.round(stepsSeries.reduce((a, v) => a + v, 0) / stepsSeries.length) : null;
 
     return {
@@ -149,7 +157,7 @@ export class ReportsService {
       waterGoalL,
       waterSeries,
       stepsAvg,
-      stepsGoal: 8000,
+      stepsGoal,
       stepsSeries,
       cambiInChat,
     };

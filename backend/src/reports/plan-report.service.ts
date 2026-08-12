@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { prezzoEffettivo } from '../commerce/prezzo-piano';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import { litriObiettivo } from '../common/obiettivo-acqua';
 
 /**
  * Report di fine piano (handoff Prezzi/Prova, punto 4): generato in automatico a
@@ -92,9 +94,10 @@ export interface PlanReportData {
   /** Stima di arrivo all'obiettivo al ritmo attuale (es. "entro dicembre 2026"). */
   etaLabel?: string | null;
   /**
-   * Piano mantenimento per il box «una pausa», se esiste a catalogo. Il prezzo è quello del Negozio
-   * (`priceCents`) e l'app mostra quello: qui c'era scritto «a €29/mese», che era il prezzo di un
-   * tempo — un commento con un prezzo dentro invecchia come il codice, ma nessuno lo verifica.
+   * Piano mantenimento per il box «una pausa», se esiste a catalogo. Il prezzo è quello che il
+   * checkout addebiterà (`prezzoEffettivo`, 12/8): prima era `priceCents` grezzo, e a promo scaduta
+   * il report prometteva meno di quanto il carrello avrebbe chiesto. Qui una volta c'era scritto «a
+   * €29/mese» — un commento con un prezzo dentro invecchia come il codice, ma nessuno lo verifica.
    */
   maintenance?: { planId: string; planName: string; priceCents: number; billing: string } | null;
   /** Prezzo dei menu di rientro del Monitoraggio (per il box "gratis · 1 mese"). */
@@ -105,7 +108,12 @@ export interface PlanReportData {
 
 @Injectable()
 export class PlanReportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // ⚠️ `ConfigParamsService` (modulo @Global) per leggere gli stessi obiettivi della home: acqua e
+    // passi erano scritti a mano qui dentro, e dicevano numeri diversi da quelli in app.
+    private readonly configParams: ConfigParamsService,
+  ) {}
 
   // ---------- Generazione ----------
 
@@ -334,8 +342,15 @@ export class PlanReportService {
     const waterSeries = waterRows.slice(-31).map((w) => ({ date: w.date.toISOString().slice(0, 10), liters: round1(w.glasses * 0.25) }));
     const stepsSeries = stepRows.slice(-31).map((s) => ({ date: s.date.toISOString().slice(0, 10), steps: s.steps }));
     // Obiettivo acqua ~30 ml/kg sul peso attuale (stessa regola dei segnali).
-    const waterGoalL = b ? round1((b.weightKg * 30) / 1000) : null;
+    /**
+     * ⚠️ Stesso obiettivo della home, limiti compresi (12/8). Prima qui c'era `peso × 30 / 1000`:
+     * una cliente di 70 kg leggeva 2,25 L in home e 2,1 L qui, e chi beveva 2,2 litri trovava
+     * scritto «ci sei» nel report col cerchio incompleto nell'altra schermata.
+     */
+    const mlPerKg = await this.configParams.getNumber('water_ml_per_kg', 33).catch(() => 33);
+    const waterGoalL = b ? litriObiettivo(b.weightKg, mlPerKg) : null;
     const stepsAvg = stepRows.length ? Math.round(stepRows.reduce((acc, s) => acc + s.steps, 0) / stepRows.length) : null;
+    const stepsGoal = await this.configParams.getNumber('steps_goal', 8000).catch(() => 8000);
 
     // Stima "al ritmo attuale": kg/mese sull'arco del percorso → mese di arrivo all'obiettivo.
     // `monthsToGoal` (mesi stimati al traguardo) serve anche a scegliere il piano suggerito 1/3 mesi.
@@ -360,10 +375,18 @@ export class PlanReportService {
     // abbonamento e mese singolo e il mantenimento si vendeva SEMPRE come una tantum — cioè la
     // strada principale di conversione a fine percorso convertiva nel modo meno redditizio, e
     // in silenzio (dal Negozio la scelta c'era, quindi nessuno lo notava).
+    /**
+     * ⚠️ `listPriceCents` e `promoEndsAt` nel `select`, e il prezzo passa da `prezzoEffettivo`.
+     *
+     * Senza, questo box mostrava `priceCents` grezzo mentre il carrello — a promo scaduta —
+     * addebita il listino pieno: la cliente leggeva una cifra nel report e ne pagava un'altra al
+     * checkout. Nello stesso report il box dell'offerta lo faceva già giusto: due numeri con due
+     * regole diverse, a due centimetri l'uno dall'altro.
+     */
     const maintenancePlan = (await this.prisma.plan.findFirst({
       where: { active: true, period: 'maintenance' },
-      select: { id: true, name: true, priceCents: true, billing: true },
-    })) as { id: string; name: string; priceCents: number; billing: string | null } | null;
+      select: { id: true, name: true, priceCents: true, listPriceCents: true, promoEndsAt: true, billing: true },
+    })) as { id: string; name: string; priceCents: number; listPriceCents: number | null; promoEndsAt: Date | null; billing: string | null } | null;
 
     // Codice sconto personale ancora valido (inviato al giorno 6): compare nel report.
     const personal = (await this.prisma.discountCode.findFirst({
@@ -435,7 +458,10 @@ export class PlanReportService {
         : null,
       offer,
       journey,
-      habits: { waterAvgL, waterGoalL, stepsAvg, stepsGoal: 8000, waterSeries, stepsSeries },
+      // `steps_goal` dai Parametri, come la home: il numero era scritto a mano qui e in
+      // `reports.service`, e il giorno che qualcuno lo alza il report stamperebbe ancora il vecchio
+      // — dentro un PDF che la cliente conserva.
+      habits: { waterAvgL, waterGoalL, stepsAvg, stepsGoal, waterSeries, stepsSeries },
       milestones,
       etaLabel,
       // Mantenimento: solo a obiettivo RAGGIUNTO (e se il piano finito non era già il mantenimento).
@@ -443,7 +469,8 @@ export class PlanReportService {
         ? {
             planId: maintenancePlan.id,
             planName: maintenancePlan.name,
-            priceCents: maintenancePlan.priceCents,
+            // Quello che pagherà davvero, non quello che c'è scritto sulla riga.
+            priceCents: prezzoEffettivo(maintenancePlan).effectivePriceCents,
             billing: maintenancePlan.billing ?? 'one_time',
           }
         : null,

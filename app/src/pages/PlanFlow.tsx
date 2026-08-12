@@ -7,6 +7,7 @@ import { useCart } from '../cart/CartContext';
 import Gaia from '../components/Gaia';
 import { TypeText } from '../components/TypeText';
 import type { OnboardingResult } from '../onboarding/types';
+import { prezzoDaPagare } from '../lib/prezzoPiano';
 
 /**
  * Coda onboarding: percorso pronto → scegli il piano → il piano va nel CARRELLO
@@ -24,7 +25,7 @@ import type { OnboardingResult } from '../onboarding/types';
  * dopo il questionario, dove passa ogni nuova cliente.
  */
 interface Plan {
-  id: string; name: string; priceCents: number; listPriceCents?: number | null;
+  id: string; name: string; priceCents: number; effectivePriceCents?: number | null; listPriceCents?: number | null;
   promoActive?: boolean; period: string; features: string[]; billing?: PlanBilling;
 }
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
@@ -165,7 +166,7 @@ export default function PlanFlow({ result, onDone }: { result: OnboardingResult;
                       {p.promoActive && p.listPriceCents != null && (
                         <s style={{ color: '#8A938F', fontWeight: 500, fontSize: 13, marginRight: 6 }}>{euro(p.listPriceCents)}</s>
                       )}
-                      {euro(p.priceCents)}
+                      {euro(prezzoDaPagare(p))}
                     </div>
                     {sel && <i className="ti ti-circle-check" style={{ color: 'var(--teal)', fontSize: 20 }} />}
                   </div>

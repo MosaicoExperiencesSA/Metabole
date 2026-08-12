@@ -3,10 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useCart, type PlanBilling } from '../cart/CartContext';
 import AppHeader from '../components/AppHeader';
+import { prezzoDaPagare } from '../lib/prezzoPiano';
 
 /** Negozio — piani e integratori. Si aggiunge al carrello, poi checkout unico. */
 
-interface Plan { id: string; name: string; priceCents: number; listPriceCents?: number | null; promoActive?: boolean; period: string; billing?: PlanBilling; features: string[]; }
+/**
+ * ⚠️ `effectivePriceCents` è quello che il checkout addebiterà: `priceCents` è il prezzo di vendita
+ * in promo, e a promo scaduta i due sono diversi. Si legge sempre con `prezzoDaPagare`.
+ */
+interface Plan { id: string; name: string; priceCents: number; effectivePriceCents?: number | null; listPriceCents?: number | null; promoActive?: boolean; period: string; billing?: PlanBilling; features: string[]; }
 interface Product { id: string; name: string; priceCents: number; description: string | null; }
 
 const euro = (c: number) => `€ ${Math.round(c / 100)}`;
@@ -84,7 +89,7 @@ export default function Negozio() {
                   {p.promoActive && p.listPriceCents != null && (
                     <s style={{ color: '#8A938F', fontWeight: 500, fontSize: 13, marginRight: 6 }}>{euro(p.listPriceCents)}</s>
                   )}
-                  {euro(p.priceCents)}
+                  {euro(prezzoDaPagare(p))}
                 </div>
                 {inCart ? (
                   <span className="chip" style={{ marginTop: 5, background: '#DCF0D8', color: '#3B6D11' }}><i className="ti ti-check" /> Nel carrello</span>
@@ -92,7 +97,7 @@ export default function Negozio() {
                   <button
                     className="btn-recipe"
                     style={{ marginTop: 5 }}
-                    onClick={() => cart.setPlan({ id: p.id, name: p.name, priceCents: p.priceCents, period: p.period, billing, abbonamento: billing === 'both' ? scelta : billing === 'recurring' })}
+                    onClick={() => cart.setPlan({ id: p.id, name: p.name, priceCents: prezzoDaPagare(p), period: p.period, billing, abbonamento: billing === 'both' ? scelta : billing === 'recurring' })}
                   >
                     Aggiungi
                   </button>
@@ -106,18 +111,18 @@ export default function Negozio() {
                 <button
                   type="button"
                   className={`opt${scelta ? ' on' : ''}`}
-                  onClick={() => (inCart ? cart.setAbbonamento(true) : cart.setPlan({ id: p.id, name: p.name, priceCents: p.priceCents, period: p.period, billing, abbonamento: true }))}
+                  onClick={() => (inCart ? cart.setAbbonamento(true) : cart.setPlan({ id: p.id, name: p.name, priceCents: prezzoDaPagare(p), period: p.period, billing, abbonamento: true }))}
                 >
                   <span className="opt-ind">{scelta && <i className="ti ti-check" />}</span>
-                  <span><b>Abbonamento</b> · {euro(p.priceCents)} al mese, si rinnova da solo. Disdici quando vuoi.</span>
+                  <span><b>Abbonamento</b> · {euro(prezzoDaPagare(p))} al mese, si rinnova da solo. Disdici quando vuoi.</span>
                 </button>
                 <button
                   type="button"
                   className={`opt${!scelta ? ' on' : ''}`}
-                  onClick={() => (inCart ? cart.setAbbonamento(false) : cart.setPlan({ id: p.id, name: p.name, priceCents: p.priceCents, period: p.period, billing, abbonamento: false }))}
+                  onClick={() => (inCart ? cart.setAbbonamento(false) : cart.setPlan({ id: p.id, name: p.name, priceCents: prezzoDaPagare(p), period: p.period, billing, abbonamento: false }))}
                 >
                   <span className="opt-ind">{!scelta && <i className="ti ti-check" />}</span>
-                  <span><b>Un mese solo</b> · {euro(p.priceCents)} una volta, nessun rinnovo.</span>
+                  <span><b>Un mese solo</b> · {euro(prezzoDaPagare(p))} una volta, nessun rinnovo.</span>
                 </button>
               </div>
             )}
@@ -168,7 +173,7 @@ export default function Negozio() {
                 {p.description && <div className="muted" style={{ fontSize: 11 }}>{p.description}</div>}
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{euro(p.priceCents)}</div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{euro(prezzoDaPagare(p))}</div>
                 {qty > 0 ? (
                   <div className="row" style={{ gap: 6, marginTop: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
                     <button className="btn-recipe" style={{ padding: '2px 8px' }} onClick={() => cart.setQty(p.id, qty - 1)}>−</button>

@@ -99,7 +99,7 @@ const HELP: { icon: string; label: string; key: string; color: string; vaA?: str
   { icon: 'ti-arrows-exchange', label: 'Sostituisci', key: 'sost', color: '#6C5AB7', vaA: '/assistente?who=ai&intent=sostituzione' },
 ];
 
-function KpiTile({ icon, value, label, color, onClick, hint }: { icon: string; value: string; label: string; color: string; onClick?: () => void; hint?: string }) {
+function KpiTile({ icon, value, label, color, onClick, hint, onInfo }: { icon: string; value: string; label: string; color: string; onClick?: () => void; hint?: string; onInfo?: () => void }) {
   // Come nel prototipo: sfondo a gradiente colorato + icona a tinta piena con
   // ombra colorata (leggero effetto 3D).
   return (
@@ -136,7 +136,22 @@ function KpiTile({ icon, value, label, color, onClick, hint }: { icon: string; v
       >
         <i className={`ti ${icon}`} style={{ fontSize: 18, color: '#fff' }} />
       </div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#101826', lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#101826', lineHeight: 1 }}>
+        {value}
+        {/* Il «?» accanto al NUMERO, non all'etichetta: la domanda che viene è «perché proprio
+            questo numero?», e nasce guardando la cifra. */}
+        {onInfo && (
+          <button
+            type="button"
+            className="info-dot"
+            aria-label={`Come si calcola l'obiettivo: ${label}`}
+            onClick={(e) => { e.stopPropagation(); onInfo(); }}
+            style={{ marginLeft: 5, width: 15, height: 15, fontSize: 9, verticalAlign: '2px' }}
+          >
+            ?
+          </button>
+        )}
+      </div>
       <div className="muted" style={{ fontSize: 10, marginTop: 5 }}>{label}</div>
     </div>
   );
@@ -184,6 +199,8 @@ export default function Home() {
   const navigate = useNavigate();
   const [sheet, setSheet] = useState<null | 'spesa'>(null);
   const [help, setHelp] = useState<string | null>(null);
+  /** Il popup che spiega da dove esce l'obiettivo passi (richiesta di Simone, 12/8). */
+  const [infoPassi, setInfoPassi] = useState(false);
   const [today, setToday] = useState<Today | null>(null);
   const [meals, setMeals] = useState<ApiMeal[] | null>(null);
   const [nextAppt, setNextAppt] = useState<NextAppt | null>(null);
@@ -399,7 +416,14 @@ export default function Home() {
             la virgola di una divisione — «1,8» accanto a «bottiglie da 1,5 L» si leggeva come se
             fosse la misura della bottiglia. Il litraggio esatto resta nel suggerimento. */}
         <KpiTile icon={waterIcon(waterUnit)} value={today ? `${waterValue(today.water.glasses, waterUnit)}/${waterGoalValue(today.water.goal, waterUnit)}` : '—'} label="acqua" color="#2AA7C4" onClick={today ? addWater : undefined} hint={today ? `Tocca per aggiungere ${waterUnit === 'glass' ? 'un bicchiere (250 ml)' : `una ${WATER_UNITS[waterUnit].label.toLowerCase().replace(/^bottiglie/, 'bottiglia')}`} · obiettivo di oggi ${waterLiters(today.water.goal)}` : undefined} />
-        <KpiTile icon="ti-walk" value={deviceSteps != null ? deviceSteps.toLocaleString('it-IT') : today ? today.steps.steps.toLocaleString('it-IT') : '—'} label="passi" color="#3B6D11" />
+        <KpiTile
+          icon="ti-walk"
+          value={deviceSteps != null ? deviceSteps.toLocaleString('it-IT') : today ? today.steps.steps.toLocaleString('it-IT') : '—'}
+          label="passi"
+          color="#3B6D11"
+          hint={today ? `Obiettivo di oggi: ${today.steps.goal.toLocaleString('it-IT')} passi` : undefined}
+          onInfo={today ? () => setInfoPassi(true) : undefined}
+        />
       </div>
 
       {/* Porta un'amica: codice invito + condivisione nativa (voce #13). Sta subito sotto i
@@ -451,6 +475,43 @@ export default function Home() {
       {/* Popup "Com'è andata ieri?" — solo quando il check-in non è a schermo */}
       {(!today || !(today.checkinDue ?? (!today.checkinDone && !today.checkinSkipped)) || dismissed) && <MenuReviewPopup />}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
+
+      {/*
+        DA DOVE ESCE L'OBIETTIVO PASSI (richiesta di Simone, 12/8).
+        Serve perché quel numero **cambia da solo**: sale del 5% ogni due settimane. Un obiettivo che
+        si muove senza che nessuno lo spieghi si legge come un guasto — «ieri erano 8.000, oggi
+        8.400» — e la reazione non è camminare di più, è smettere di fidarsi del numero.
+      */}
+      {infoPassi && (
+        <Sheet onClose={() => setInfoPassi(false)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+            <span className="event-ic" style={{ background: '#3B6D11', color: '#fff', flex: 'none' }}>
+              <i className="ti ti-walk" />
+            </span>
+            <b style={{ fontSize: 15 }}>Il tuo obiettivo di passi</b>
+          </div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#2E3E3B' }}>
+            <p style={{ margin: '0 0 10px' }}>
+              I primi giorni l'obiettivo nasce da quello che ci hai raccontato tu: quanto ti muovi
+              nella giornata, il lavoro che fai, com'è fatta la tua settimana. Parte da lì apposta —
+              da un numero che puoi prendere davvero.
+            </p>
+            <p style={{ margin: '0 0 10px' }}>
+              Poi cresce con te, un poco per volta. Ogni due settimane si alza di un passo piccolo:
+              abbastanza da portarti avanti, abbastanza poco da non pesarti addosso. Non è una gara
+              con nessun altro, è la tua strada che si allunga mentre ti abitui.
+            </p>
+            <p style={{ margin: 0 }}>
+              Se in qualche giornata non ci arrivi non è un problema: conta molto di più quello che
+              fai la maggior parte dei giorni. E se ti sembra troppo, o troppo poco, dillo alla tua
+              coach — l'obiettivo si cambia.
+            </p>
+          </div>
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 11, marginTop: 14 }} onClick={() => setInfoPassi(false)}>
+            Ho capito
+          </button>
+        </Sheet>
+      )}
       {help && SHEETS[help] && (
         <Sheet onClose={() => setHelp(null)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>

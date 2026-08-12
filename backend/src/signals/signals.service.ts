@@ -17,6 +17,8 @@ import { MIN_GIORNI_DEFAULT, MIN_PESATE_DEFAULT, statoAllarmeCalo } from './alla
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 import { toDateOnly } from '../common/date-only';
+import { bicchieriObiettivo } from '../common/obiettivo-acqua';
+import { obiettivoPassi } from '../common/obiettivo-passi';
 import { MenuService } from '../menu/menu.service';
 
 const MILESTONE_DEFS: { type: string; label: string; lostKg?: number }[] = [
@@ -508,7 +510,7 @@ export class SignalsService {
     ]);
     const [waterGoal, stepsGoal] = await Promise.all([
       this.waterGoalFor(clientId),
-      this.configParams.getNumber('steps_goal', 8000),
+      this.stepsGoalFor(clientId),
     ]);
     // Il check-in si chiede SOLO a chi ha un percorso in corso (richiesta Simone 5/8, voce #1).
     // A piano scaduto o mai comprato, «Come ti senti oggi?» è una domanda senza seguito: nessuno
@@ -550,6 +552,32 @@ export class SignalsService {
    * (6–16 bicchieri = 1,5–4 L). Peso preso dall'ultima misura, poi dal peso iniziale
    * del profilo; se il peso non è noto si usa il globale `water_goal_glasses` (8 = 2 L).
    */
+  /**
+   * L'OBIETTIVO PASSI DI QUESTA CLIENTE — su misura, non uno per tutte (Simone, 12/8).
+   *
+   * Parte dalla sua fascia di attività (quella del questionario, la stessa che decide il fabbisogno
+   * calorico) e sale del 5% ogni due settimane di percorso, con un tetto. La regola sta in
+   * `common/obiettivo-passi.ts` col perché di ogni numero.
+   *
+   * ⚠️ Non lancia mai: se il profilo non si legge si torna al globale. Un obiettivo passi che fa
+   * fallire il salvataggio dei passi sarebbe il modo peggiore di personalizzarlo.
+   */
+  private async stepsGoalFor(clientId: string): Promise<number> {
+    const base = await this.configParams.getNumber('steps_goal', 8000).catch(() => 8000);
+    try {
+      const p = (await this.prisma.clientProfile.findUnique({
+        where: { userId: clientId },
+        select: { activityLevel: true, planStartDate: true },
+      })) as { activityLevel: string | null; planStartDate: Date | null } | null;
+      const giorniDiPercorso = p?.planStartDate
+        ? Math.floor((Date.now() - p.planStartDate.getTime()) / 86_400_000)
+        : 0;
+      return obiettivoPassi({ activityLevel: p?.activityLevel ?? null, giorniDiPercorso }, base);
+    } catch {
+      return base;
+    }
+  }
+
   private async waterGoalFor(clientId: string): Promise<number> {
     const [mlPerKg, fallback] = await Promise.all([
       this.configParams.getNumber('water_ml_per_kg', 33),
@@ -560,9 +588,10 @@ export class SignalsService {
       this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { startWeightKg: true } }),
     ]);
     const weight = lastMeasure?.weightKg ?? profile?.startWeightKg ?? null;
-    if (!weight || weight <= 0) return fallback;
-    const glasses = Math.round((weight * mlPerKg) / SignalsService.GLASS_ML);
-    return Math.min(SignalsService.WATER_GOAL_MAX, Math.max(SignalsService.WATER_GOAL_MIN, glasses));
+    // La regola sta in `common/obiettivo-acqua.ts` dal 12/8: la usa anche il report, che prima si
+    // calcolava i litri per conto suo con un 30 scritto a mano — due obiettivi diversi per la stessa
+    // persona, nella stessa app.
+    return bicchieriObiettivo(weight, mlPerKg) ?? fallback;
   }
 
   async upsertWater(clientId: string, dto: CreateWaterDto) {
@@ -577,7 +606,10 @@ export class SignalsService {
 
   async upsertSteps(clientId: string, dto: CreateStepsDto) {
     const date = toDateOnly(dto.date);
-    const goal = await this.configParams.getNumber('steps_goal', 8000);
+    // ⚠️ L'obiettivo si scrive sulla RIGA del giorno: il numero di oggi resta quello di oggi anche
+    // quando fra due settimane sale. Senza, guardando indietro sembrerebbe che abbia mancato
+    // obiettivi che allora non le erano mai stati chiesti.
+    const goal = await this.stepsGoalFor(clientId);
     return this.prisma.stepLog.upsert({
       where: { clientId_date: { clientId, date } },
       create: { clientId, date, steps: dto.steps, goal, source: dto.source ?? 'manual' },

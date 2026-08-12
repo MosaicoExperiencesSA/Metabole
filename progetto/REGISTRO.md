@@ -25,6 +25,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 > Lavoro notturno scritto sotto la data di ieri: lo stesso scarto del riquadro in testa, al
 > contrario. Non le sposto per non riscrivere righe già lette, ma sta scritto qui.
 
+- `[Sviluppo]` 💧🚶 **Un obiettivo solo per l'acqua, uno su misura per i passi — e il prezzo mostrato
+  è quello che si paga.** Prime quattro delle sette decisioni prese da Simone il 12/8, una domanda
+  alla volta (scritte in `progetto/Decisioni_Simone_20260812.md` **prima** di toccare il codice).
+  **Il prezzo.** Il carrello applicava la regola della promo, ma Negozio, primo acquisto, box
+  Mantenimento del report ed **email G6** leggevano il prezzo grezzo — e l'email la regola se l'era
+  perfino riscritta a mano, sbagliando proprio il ramo «promo scaduta». Con un listino valorizzato:
+  tre schermate e una email dicono €249, Stripe addebita €297. ⚠️ Oggi non si vede perché nessun piano
+  ha un listino: **si accende con un solo salvataggio da Gestione Negozio**, e chi lo farà non ha modo
+  di sapere che sta armando questo. Ora tutti leggono `effectivePriceCents`.
+  **L'acqua.** Home 33 ml/kg dai Parametri, report `peso × 30 / 1000` scritto a mano in due file: una
+  cliente di 70 kg leggeva **2,25 L** in una schermata e **2,1 L** nell'altra, e chi ne beveva 2,2
+  trovava «ci sei» nel report col cerchio incompleto in home. Ora la regola è una
+  (`common/obiettivo-acqua.ts`) e il report parte dagli **stessi bicchieri**, limiti compresi — a
+  130 kg il calcolo grezzo darebbe 4,29 L, la home 4,0. ⚠️ E i litri hanno **due decimali**: nove
+  bicchieri fanno 2,25 L, con un decimale solo tornavano 2,3 — cioè lo stesso scarto di prima, più
+  piccolo.
+  **I passi, su misura** (domanda di Simone). Partono dalla sua fascia di attività — quella del
+  questionario, la stessa che decide il fabbisogno calorico — e salgono del 5% ogni due settimane,
+  con un tetto. ⚠️ **A chi si muove meno si chiede MENO**: 10.000 passi il primo giorno a chi ne fa
+  3.000 non la fanno camminare, le fanno chiudere la schermata. ⚠️ L'obiettivo si scrive sulla **riga
+  del giorno**: quello di oggi resta quello di oggi anche quando fra due settimane sale, o guardando
+  indietro sembrerebbe aver mancato obiettivi che non le erano mai stati chiesti. ⚠️ La mediana
+  personale — il modo che funziona meglio — **non si può fare**: i passi si scrivono solo `manual`,
+  li digita a mano, e una mediana su tre giorni inseriti a caso è rumore con l'aria di un dato.
+  **E un «?» accanto al numero**, che apre la spiegazione: quel numero cambia da solo, e un obiettivo
+  che si muove senza una riga che lo spieghi si legge come un guasto — la reazione non è camminare di
+  più, è smettere di fidarsi del numero. 2118 test verdi.
+
 - `[Sviluppo]` 🌾 **La variante senza glutine non si cerca più per «stile» — e il documento è stato
   riallineato al codice.**
   Chiudendo §16.10 è saltato fuori l'ultimo bloccante vero, ed è quello che pesa di più:

@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { DiscountsService } from '../commerce/discounts.service';
 import { deriveSegment, prefsToken } from '../common/funnel-segment';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { prezzoEffettivo } from '../commerce/prezzo-piano';
 
 export type LifecycleKind = 'event' | 'scheduled';
 
@@ -509,11 +510,20 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
             : '48 ore';
           // Prezzo nell'email (Opzione B): pieno barrato → prezzo col codice (target).
           const offerTarget = offerPlan ? planTargets[offerPlan.id] : undefined;
-          const promoOn = offerPlan?.listPriceCents != null && offerPlan.listPriceCents > offerPlan.priceCents
-            && (offerPlan.promoEndsAt == null || offerPlan.promoEndsAt.getTime() > Date.now());
-          const shown = offerPlan ? (offerTarget ?? (promoOn ? offerPlan.priceCents : offerPlan.priceCents)) : null;
+          /**
+           * ⚠️ La regola della promo NON si riscrive qui: sta in `commerce/prezzo-piano.ts`.
+           *
+           * Questa era una terza copia scritta a mano, e sbagliava proprio il ramo che le altre
+           * copie azzeccano: a promo **scaduta** mostrava `priceCents` (il prezzo scontato) mentre
+           * il checkout addebita il listino pieno. Cioè un'email che prometteva €249 a chi ne
+           * avrebbe pagati €297 — e un'email non si può correggere dopo averla mandata.
+           */
+          const effettivo = offerPlan ? prezzoEffettivo(offerPlan).effectivePriceCents : null;
+          const promoOn = offerPlan ? prezzoEffettivo(offerPlan).promoActive : false;
+          const shown = offerTarget ?? effettivo;
+          // Il barrato: col codice si barra il prezzo pieno di listino/vendita, in promo il listino.
           const struck = offerPlan
-            ? (offerTarget != null ? offerPlan.priceCents : (promoOn ? offerPlan.listPriceCents : null))
+            ? (offerTarget != null ? effettivo : (promoOn ? offerPlan.listPriceCents : null))
             : null;
           const r = await this.sendLifecycle({
             userId: t.clientId,
