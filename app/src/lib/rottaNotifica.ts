@@ -23,7 +23,22 @@ export interface DatiNotifica {
   visitId?: string | null;
   /** `coach` | `nutritionist` | `ai`: serve alla CLIENTE, che non naviga per thread. */
   counterpart?: string | null;
+  /**
+   * Di che notizia si tratta. Serve quando la chat non basta aprirla: c'è una **conversazione da
+   * cominciare**, e chi la comincia è Gaia.
+   *
+   * Senza, la ri-domanda sulle allergie (§7 dell'handoff) porterebbe a `/assistente` e basta: una
+   * chat vuota, con dentro l'ultima cosa che si erano dette settimane fa, e una persona che non sa
+   * cosa deve scrivere. Il tocco sulla notifica **è** la risposta alla domanda «vuoi che ne
+   * parliamo?»: la domanda deve essere già lì.
+   */
+  kind?: string | null;
 }
+
+/** Le notizie che non aprono una schermata, ma un dialogo. `?intent=` lo fa cominciare. */
+const INTENTO_PER_NOTIZIA: Record<string, string> = {
+  allergie_conferma: 'allergie',
+};
 
 /**
  * @param schedaCliente Radice della scheda per QUESTO ruolo: `/clienti` per la coach,
@@ -55,6 +70,10 @@ export function rottaDaNotifica(dati: DatiNotifica | null | undefined, schedaCli
  */
 export function rottaClienteDaNotifica(dati: DatiNotifica | null | undefined): string | null {
   if (!dati) return null;
+  // Prima di tutto il resto: se questa notizia apre un dialogo, si va in chat CON l'intento. Dopo
+  // il ramo `counterpart === 'ai'` sarebbe troppo tardi — porterebbe alla stessa chat, muta.
+  const intento = dati.kind ? INTENTO_PER_NOTIZIA[dati.kind] : undefined;
+  if (intento) return `/assistente?intent=${intento}`;
   if (dati.counterpart === 'coach' || dati.counterpart === 'nutritionist') {
     return `/assistente?who=${dati.counterpart}`;
   }
@@ -73,5 +92,6 @@ export function datiDallaPush(payload: unknown): DatiNotifica {
     clientId: stringa(interno.clientId),
     visitId: stringa(interno.visitId),
     counterpart: stringa(interno.counterpart),
+    kind: stringa(interno.kind),
   };
 }

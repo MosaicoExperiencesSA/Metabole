@@ -8,7 +8,7 @@
 > | **B** | `allergiesOther` | ✅ **fatto, ma diversamente da come dice il §2** — vedi sotto |
 > | **C** | «Nessuna allergia» ≠ «non risposto` | ✅ colonna e scrittura fatte; ⛔ **l'opzione «nessuna» nel questionario e il «freno forte» NO** |
 > | **D** | Le allergie nelle schede | ✅ backoffice e app (sola lettura) + etichette del registro |
-> | **E** | Ri-domanda alle clienti già iscritte | ⛔ non iniziata |
+> | **E** | Ri-domanda alle clienti già iscritte | ✅ **fatta il 13/8** — vedi il §7 |
 > | **F** | Visita obbligatoria | ⛔ non iniziata, come dice il §8 |
 >
 > ### ⚠️ Dove mi sono discostato dal §2, e perché
@@ -302,6 +302,61 @@ spento «Avanti». Non è il caso di queste due schermate, ma verifica prima di 
 ---
 
 ## 7. E — La ri-domanda alle clienti già iscritte
+
+> ### ✅ CONSEGNATO IL 13/8 — e la domanda si fa per DUE strade, non una
+>
+> Nel pomeriggio del 13/8 la stessa domanda ha preso due strade, e **è giusto così** perché
+> rispondono a due bisogni diversi. Chi tocca questa roba deve sapere quale sta guardando:
+>
+> | | chi la vede | dove | cosa chiede |
+> |---|---|---|---|
+> | **Scheda in home** (`app/src/components/ChiediAllergie.tsx`) | chi non ha **mai** risposto | app, OTA del 13/8 | le allergie, con caselle e campo libero |
+> | **Dialogo con Gaia** (`backend/src/chat/allergie-chat*.ts`) | intolleranza ignota · allergie da codificare | chat, dalla notifica | quello che una casella non sa chiedere |
+>
+> La scheda in home prende la popolazione 3 (la più numerosa: 24 su 48). Le altre due restano al
+> dialogo, e non per gusto di simmetria: la scheda chiede le **allergie**, quindi l'«Altro» fra le
+> intolleranze lì non c'è; e **aggiunge senza sostituire**, di proposito, quindi il testo libero già
+> scritto da lì non si traduce e continua a bloccare la base personale.
+>
+> ⚠️ **La campagna in chat NON contatta la popolazione 3** (`POPOLAZIONI_IN_CAMPAGNA` in
+> `chat/campagna-allergie.ts`). La stessa domanda per due strade insegna a ignorare le notifiche. Se
+> la scheda in home un giorno coprisse anche le altre due, lì si toglie una riga — non si riscrive
+> un criterio.
+>
+> ⚠️ **E il dialogo non passa da `profile/dichiara-allergie.ts`**, che è la richiesta lasciata nel
+> COMMIT della scheda in home. Sono due operazioni diverse e forzarle in una funzione sola le
+> romperebbe entrambe: là è la **prima** dichiarazione (si aggiunge, mai si sostituisce, e si
+> risponde una volta sola); qui è la **traduzione** di una dichiarazione che esiste già, e
+> sostituire il testo libero col codice è precisamente il lavoro. Il pezzo condiviso c'è, ed è
+> quello giusto: `common/allergie.ts`.
+>
+> ### Le deviazioni da quello che c'è scritto qui sotto, e perché
+>
+> - **Si passa alla NUTRIZIONISTA, non alla coach** (§7.2 dice coach). Il §5 di questo stesso
+>   documento stabilisce che le allergie le scrivono solo nutrizionista e capo nutrizionista:
+>   girare alla coach una richiesta che non ha il permesso di soddisfare sposta il silenzio di una
+>   casella invece di toglierlo.
+> - **`meta.allergie` è la PRIMA delle tre chiavi** nell'ordine di precedenza, non la terza in
+>   fondo. La risposta a «hai qualche allergia?» è un elenco di alimenti, e un elenco di alimenti
+>   somiglia moltissimo a una richiesta di sostituzione: messa dopo, «il latte» avrebbe aperto il
+>   dialogo sbagliato e l'allergia non sarebbe mai stata registrata, senza nessun errore.
+> - **L'audit sta DENTRO la transazione**, non dopo. `AuditService.log` gli errori se li ingoia di
+>   proposito; qui no, perché l'operazione si può rifare senza danno (Gaia richiede) mentre un
+>   profilo sanitario cambiato senza traccia non si ricostruisce più.
+>
+> ### ⚠️ Il freno che non c'era scritto, e che è la cosa più importante del pezzo
+>
+> **Gaia non toglie niente.** Se la risposta di adesso lascerebbe scoperto qualcosa che prima veniva
+> escluso, il dialogo si ferma e passa alla nutrizionista. Il confronto è sulle parole chiave con cui
+> il motore esclude davvero (`exclusionKeys`), non sulle stringhe.
+>
+> ### Cosa resta da fare
+>
+> - ⛔ **Lanciare la campagna**: `npm run chiedi:allergie` (prova), poi `CONFERMA=1` dopo aver letto
+>   l'elenco riga per riga. Va fatto **dopo** il backend su Render e la OTA, non prima.
+> - ⛔ **Il giro vero in app** del collaudo del §9: notifica → chat → due risposte in testo libero →
+>   conferma → profilo scritto.
+
 
 ### 7.1 ⚠️ Non vanno contattate tutte
 

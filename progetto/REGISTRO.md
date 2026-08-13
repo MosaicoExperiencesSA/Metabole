@@ -20,6 +20,56 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🗣️ **Gaia richiede quello che di un'allergia non sappiamo (§7 dell'handoff).** La
+  scheda in home che esce stasera prende chi non ha **mai** risposto; restano fuori due cose che una
+  casella da spuntare non sa fare, e per quelle serve parlare: chi ha segnato «Altro» fra le
+  intolleranze e non ha mai potuto dire cosa (il campo non esisteva fino al 13/8), e chi ha
+  un'allergia scritta a mano che nessuno ha tradotto — la scheda in home **aggiunge e non
+  sostituisce**, quindi quel testo libero da lì non si tocca e continua a bloccare la base personale.
+  Dialogo a due passi sul modello di `data-inizio-chat`, stato nel `meta` dell'ultimo messaggio di
+  Gaia, nessuna tabella nuova.
+  ⚠️ **Le allergie sono la prima delle tre chiavi** nell'ordine di precedenza: la risposta a «hai
+  qualche allergia?» è un elenco di alimenti, e un elenco di alimenti somiglia moltissimo alla
+  richiesta di sostituirne uno. Messa dopo, «il latte» avrebbe aperto un dialogo di sostituzione e
+  l'allergia non sarebbe mai stata registrata, **senza nessun errore**.
+  ⚠️ **Gaia non toglie niente**: se la risposta lascerebbe scoperto qualcosa che prima veniva
+  escluso, si ferma e passa alla nutrizionista. Il confronto è sulle parole chiave con cui il motore
+  esclude davvero (`exclusionKeys`), non sulle stringhe — «latte» codificato copre «il latte
+  vaccino» scritto a mano, e un controllo sulle stringhe avrebbe mandato a una persona una coda di
+  casi in cui non c'era niente da decidere.
+  ⚠️ **E non salva quello che ha scritto**: propone, fa confermare, e quello che non riconosce va nel
+  testo libero. Il dizionario sono le `keywords` di `catalog/allergens.ts`, non una seconda lista;
+  le false amiche sono metà del lavoro («latte di mandorla» non è latte, «noce moscata» è una
+  spezia), e lo spazio in fondo a `'pan '` si conserva o «panna» diventa glutine.
+  ⚠️ **Due tentativi e poi la nutrizionista**, non la coach: il §5 dice che le allergie le scrivono
+  solo lei e il capo nutrizionista, e girare alla coach una richiesta che non può soddisfare sposta
+  il silenzio invece di toglierlo. Scrittura **dentro** la transazione dell'audit; se fallisce, la
+  cliente non legge «fatto».
+  Campagna `npm run chiedi:allergie`: prova di default, `CONFERMA=1` per mandare, popolazione da
+  `common/da-ricontattare.ts` (la stessa funzione della conta), due popolazioni su tre — la terza la
+  chiede la scheda in home. 60 test nuovi + 4 sull'app; type-check del backend senza errori nuovi.
+  ⚠️ **Non entra nella OTA di stasera**, ma le due modifiche all'app sono inerti finché la campagna
+  non gira: l'intento nasce solo da una notifica che ancora non esiste.
+
+- `[Sviluppo]` 🍷 **I solfiti adesso tolgono qualcosa.** Era una delle voci rosse: fino a oggi
+  «solfiti» era **solo la parola letterale**, e i solfiti negli ingredienti non si scrivono mai —
+  quell'allergia dichiarata non toglieva un solo piatto. Era voluto e dichiarato: l'elenco decide cosa
+  sparisce dal piatto di una persona, e lo doveva dare la nutrizionista. Il 13/8 Simone ha passato la
+  sua tabella (Reg. UE 1129/2011 e 1169/2011) e le parole vengono da lì, categoria per categoria:
+  frutta essiccata (2000 mg/kg), vino, aceto di vino e di mele, ortaggi sott'olio e in salamoia,
+  crostacei freschi e congelati, pesce essiccato e salato, patate disidratate, succhi concentrati,
+  senape.
+  ⚠️ **Due voci sono larghe e stanno su righe loro**: `aceto` toglie quasi ogni insalata condita,
+  `biscotti` la colazione dolce. Sono nella tabella quindi ci sono, ma se Lucia dice che è troppo si
+  cancellano quelle due righe e basta.
+  ⚠️ **E quello che NON entra conta quanto quello che entra**: «uva» no (l'uva fresca non ha solfiti,
+  l'uvetta sì), «patate» no, «pomodoro» no, «limone» no. Si toglie «purè di patate» e «pomodori
+  secchi», non la patata e il pomodoro: un divieto che porta via l'insalata di pomodoro non protegge
+  nessuno, fa smettere di fidarsi dell'elenco — e a quel punto qualcuno lo disattiva. C'è un blocco di
+  test dedicato a **quello che non si toglie**.
+  ⚠️ Un test vecchio si è rotto, ed è giusto: diceva «vino: non scartato», che era la verità dichiarata
+  finché l'elenco non c'era. Riscritto con la storia dentro. 5 test nuovi + 1 riscritto.
+
 - `[Sviluppo]` 🙋 **Chiediamo le allergie a chi non ce le ha mai dette, dentro l'app.** Decisione di
   Simone: «non fermiamo nessuno; stasera gira un aggiornamento e andiamo a chiedere a tutti quelli
   che hanno l'app installata». Metà delle clienti — **24 su 48** — ha saltato quella pagina del

@@ -140,13 +140,50 @@ describe('allergeni: derivati e alias', () => {
     expect(scartato(exclusionKeys([allergene]), alimento)).toBe(true);
   });
 
-  it('⛔ i SOLFITI hanno solo la parola, ed è dichiarato: l\'elenco lo deve dare la nutrizionista', () => {
-    // I solfiti non si scrivono negli ingredienti: stanno nel vino, nell'aceto balsamico, nella
-    // frutta disidratata. Quell'elenco decide quali piatti si tolgono dal piatto di una cliente, e
-    // in eccesso si sbaglia facilmente: lo scrive Nocanty, non chi scrive il codice. Nel frattempo
-    // copre la strada codificata (tag allergene sulla ricetta).
+  it('✅ i SOLFITI adesso tolgono qualcosa: l\'elenco è arrivato dalla nutrizionista (13/8)', () => {
+    // Fino al 13/8 questo test diceva l'OPPOSTO — «vino: non scartato» — ed era giusto così: senza
+    // l'elenco, «solfiti» non compare in nessun ingrediente e quell'allergia non toglieva niente.
+    // L'elenco è arrivato (tabella Reg. UE 1129/2011 passata da Simone), e con lui il divieto morde.
     const chiavi = exclusionKeys(['solfiti']);
-    expect(scartato(chiavi, 'vino bianco')).toBe(false);
-    expect(scartato(chiavi, 'albicocche disidratate')).toBe(false);
+    expect(scartato(chiavi, 'vino bianco')).toBe(true);
+    expect(scartato(chiavi, 'albicocche disidratate')).toBe(true);
+  });
+});
+
+/**
+ * I SOLFITI — l'elenco della nutrizionista (13/8).
+ *
+ * ⚠️ Il test che conta di più non è quello che verifica cosa si toglie: è quello che verifica cosa
+ * NON si toglie. Un divieto sui solfiti che porta via l'uva fresca, le patate e i pomodori non
+ * protegge nessuno — fa solo smettere di fidarsi dell'elenco, e a quel punto lo si disattiva.
+ */
+describe('solfiti: quello che si toglie', () => {
+  const parole = expandExclusion('solfiti');
+
+  it('la parola letterale resta: è quella che compare in etichetta', () => {
+    expect(parole).toEqual(expect.arrayContaining(['solfiti', 'anidride solforosa']));
+  });
+
+  it('prende il vino e la frutta essiccata, che sono le due categorie più cariche', () => {
+    expect(parole).toEqual(expect.arrayContaining(['vino', 'uvetta', 'albicocche secche', 'prugne secche']));
+  });
+
+  it('prende i gamberi e il baccalà: crostacei e pesce salato ne hanno per legge', () => {
+    expect(parole).toEqual(expect.arrayContaining(['gamberi', 'baccal', 'stoccafisso']));
+  });
+});
+
+describe('⚠️ solfiti: quello che NON si toglie', () => {
+  const parole = expandExclusion('solfiti');
+
+  it('l\'uva FRESCA resta: i solfiti stanno nell\'uvetta', () => {
+    expect(parole).not.toContain('uva');
+  });
+
+  it('le patate, i pomodori e il limone freschi restano', () => {
+    // Si toglie «purè di patate» e «pomodori secchi», non la patata e il pomodoro.
+    expect(parole).not.toContain('patate');
+    expect(parole).not.toContain('pomodoro');
+    expect(parole).not.toContain('limone');
   });
 });

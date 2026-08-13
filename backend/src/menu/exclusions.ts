@@ -59,19 +59,50 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
   senape: ['senape', 'mostarda'],
   lupini: ['lupini', 'lupino', 'farina di lupino'],
   /**
-   * ⛔ SOLFITI: qui c'è solo la parola, ed è voluto.
+   * ✅ SOLFITI — l'elenco arriva dalla nutrizionista (13/8), non da chi scrive il codice.
    *
-   * I solfiti non si scrivono quasi mai negli ingredienti: stanno nel vino, nell'aceto balsamico,
-   * nella frutta secca disidratata, in certi salumi e conserve. Scrivere quell'elenco a mano vuol
-   * dire decidere quali piatti togliere dal piatto di una cliente — e in eccesso si sbaglia
-   * facilmente, togliendone troppi.
+   * Fino a oggi qui c'era solo la parola letterale, ed era voluto: i solfiti non si scrivono negli
+   * ingredienti, quindi «solfiti» non compare in nessun piatto e quell'allergia non toglieva niente.
+   * Scrivere l'elenco a mano vuol dire decidere cosa sparisce dal piatto di una persona, e in
+   * eccesso si sbaglia facilissimo.
    *
-   * ⚠️ **L'elenco lo deve dare la nutrizionista (Nocanty), non chi scrive il codice.** Finché non
-   * c'è, meglio una copertura dichiarata e incompleta che una inventata: la strada codificata (tag
-   * allergene sulla ricetta, `catalog/allergens.ts`) copre comunque i solfiti quando le ricette
-   * hanno i tag revisati.
+   * Le parole qui sotto vengono dalla tabella che ha passato Simone il 13/8 — «I solfiti negli
+   * alimenti», Reg. UE 1129/2011 e 1169/2011 — categoria per categoria: frutta essiccata (2000
+   * mg/kg), vino (150-235), aceto di vino e di mele (170), ortaggi sott'olio e in salamoia
+   * (100-500), crostacei freschi e congelati (150-300), pesce essiccato e salato (200), patate
+   * disidratate (400), succhi concentrati (350), senape (250-500).
+   *
+   * ⚠️ **DUE VOCI SONO LARGHE, e vanno sapute.** `aceto` toglie quasi ogni insalata condita e buona
+   * parte dei sughi; `biscotti` — che la tabella dà a 50 mg/kg, il limite più basso di tutti — toglie
+   * l'intera colazione dolce. Sono nella tabella e quindi ci sono, ma se Lucia dice che sono
+   * eccessive **si tolgono queste due righe e basta**: sono scritte a parte apposta.
+   *
+   * ⚠️ Restano fuori i termini generici che prenderebbero anche l'alimento fresco: «uva» (l'uva
+   * fresca non ha solfiti, l'uvetta sì), «patate», «pomodoro», «limone». Un divieto che toglie
+   * l'insalata di pomodoro a chi è sensibile ai pomodori SECCHI non protegge nessuno: fa solo
+   * smettere di fidarsi dell'elenco.
    */
-  solfiti: ['solfiti', 'solfito', 'anidride solforosa'],
+  solfiti: [
+    'solfiti', 'solfito', 'anidride solforosa',
+    // Vini e derivati alcolici (150-400 mg/l a seconda del tipo).
+    'vino', 'spumante', 'prosecco', 'sidro', 'marsala',
+    // Frutta essiccata: la categoria col limite più alto di tutte (2000 mg/kg).
+    'uvetta', 'uva passa', 'uva sultanina', 'albicocche secche', 'albicocche disidratate',
+    'prugne secche', 'fichi secchi', 'datteri', 'frutta disidratata', 'frutta essiccata',
+    'banane essiccate', 'mele essiccate',
+    // Ortaggi e funghi conservati (100-500 mg/kg).
+    'pomodori secchi', 'pomodori essiccati', 'funghi secchi', 'sottaceti', 'giardiniera',
+    'peperoni sott', 'cipolline sott',
+    // Prodotti della pesca: crostacei freschi/congelati (150-300) e pesce essiccato o salato (200).
+    'gamberi', 'gamberetti', 'mazzancolle', 'scampi', 'baccal', 'stoccafisso',
+    // Patate trasformate (400 mg/kg) e succhi concentrati (350 mg/l).
+    'purè di patate', 'patate disidratate', 'succo di limone', 'succo di lime',
+    // Senape (250-500 mg/kg): c'è già la sua chiave, ma chi dichiara i solfiti non dichiara la senape.
+    'senape', 'mostarda',
+    // ⚠️ LE DUE LARGHE — vedi il commento qui sopra: si tolgono da qui se Lucia dice che è troppo.
+    'aceto',
+    'biscotti',
+  ],
 };
 
 /**

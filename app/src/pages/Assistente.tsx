@@ -15,6 +15,9 @@ import AppHeader from '../components/AppHeader';
  * il primo messaggio del dialogo (elenca i piatti di oggi e chiede quale alimento cambiare),
  * così la cliente trova la conversazione già cominciata invece di un campo di testo vuoto e
  * il dubbio su come si chiede. Vedi `progetto/PROGETTO_gaia-cambio-menu.md`.
+ *
+ * `?intent=allergie` arriva dal tocco sulla notifica «allergie_conferma» (§7 dell'handoff
+ * allergie): stessa idea, altra domanda — Gaia chiede quello che di quella cliente non sappiamo.
  */
 
 interface Thread { id: string; counterpart: string; counterpartName: string }
@@ -42,13 +45,23 @@ export default function Assistente() {
     setLoading(true);
     setThread(null);
     setMessages([]);
-    if (intent === 'sostituzione' && who === 'ai' && !intentoAvviato.current) {
+    /**
+     * I due dialoghi che Gaia può cominciare da sola. Restano due rami espliciti e non una tabella
+     * di rotte: sono due chiamate diverse — una porta il giorno del menu, l'altra non porta niente
+     * di proposito (il motivo lo rilegge il server dal profilo) — e generalizzarle nasconderebbe
+     * proprio la differenza che conta.
+     */
+    const rottaIntento =
+      intent === 'sostituzione' ? '/me/threads/sostituzione' : intent === 'allergie' ? '/me/threads/allergie' : null;
+    if (rottaIntento && who === 'ai' && !intentoAvviato.current) {
       intentoAvviato.current = true;
       // §16.2 — il giorno che la cliente stava guardando, se ci arriva dalla schermata del menu.
       // Senza, Gaia le elenca i piatti di oggi mentre lei ha davanti quelli di domani.
-      api<{ threadId: string }>('/me/threads/sostituzione', {
+      // ⚠️ Sulle allergie il corpo resta vuoto: il motivo lo decide il server rileggendo il
+      // profilo, perché fra la notifica e il tocco possono passare giorni.
+      api<{ threadId: string }>(rottaIntento, {
         method: 'POST',
-        body: JSON.stringify(giorno ? { data: giorno } : {}),
+        body: JSON.stringify(intent === 'sostituzione' && giorno ? { data: giorno } : {}),
       })
         .then((r) => setThread({ id: r.threadId, counterpart: 'ai', counterpartName: 'Gaia' }))
         .catch(() => {

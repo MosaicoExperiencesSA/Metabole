@@ -341,3 +341,26 @@ non cruda (~350). Se una ricetta dettata dice «80 g di spaghetti» intendendo i
 conto esce sbagliato di due volte e mezzo. Per questo la colonna `state` va importata e usata, e
 l'ambiguità va risolta **prima** di far dipendere le ricette da questi numeri — è il lavoro
 `vera-ricetta-crudo-cotto`, che era già in lista e adesso ha un motivo urgente.
+
+---
+
+## 11. I solfiti: l'elenco è arrivato ✅ DECISO
+
+**Simone (13/8), rispondendo alla voce rossa in pagina Lavori:** «ti ho passato il file».
+
+Il file è la tabella della nutrizionista — *I solfiti negli alimenti*, Reg. UE 1129/2011 e 1169/2011 —
+con le categorie e i limiti massimi. Da lì escono le parole, categoria per categoria: frutta essiccata
+(2000 mg/kg, il limite più alto di tutti), vino (150-235), aceto di vino e di mele (170), ortaggi
+sott'olio e in salamoia (100-500), crostacei freschi e congelati (150-300), pesce essiccato e salato
+(200), patate disidratate (400), succhi concentrati (350), senape (250-500).
+
+⚠️ **Due voci sono larghe, e la decisione di tenerle va saputa.** `aceto` toglie quasi ogni insalata
+condita e buona parte dei sughi; `biscotti` — che la tabella dà a 50 mg/kg, il limite più basso —
+toglie l'intera colazione dolce. Sono nella tabella, quindi ci sono; ma nel codice stanno **su due
+righe separate con il loro commento**, così se Lucia dice che è eccessivo si tolgono quelle due e
+basta, senza rimettere mano all'elenco.
+
+⚠️ **Cosa NON entra, ed è la parte più importante**: «uva» (l'uva fresca non ha solfiti, l'uvetta sì),
+«patate», «pomodoro», «limone». Un divieto sui solfiti che porta via l'insalata di pomodoro non
+protegge nessuno: fa smettere di fidarsi dell'elenco, e a quel punto qualcuno lo disattiva. Nel test
+c'è un blocco intero dedicato a **quello che non si toglie**.

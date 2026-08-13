@@ -93,3 +93,31 @@ describe('i dati che arrivano dalla push', () => {
     expect(rottaDaNotifica(dati, '/pazienti')).toBe('/chat/th-9');
   });
 });
+
+/**
+ * ⚠️ La notizia che apre un DIALOGO, non una schermata (§7 dell'handoff allergie).
+ *
+ * Senza `?intent=`, il tocco porterebbe in una chat muta: l'ultima cosa che si erano dette
+ * settimane fa, e una persona che non sa cosa deve scrivere. La domanda deve essere già lì.
+ */
+describe('le notifiche che cominciano una conversazione', () => {
+  it('la ri-domanda sulle allergie porta in chat CON l intento', () => {
+    expect(rottaClienteDaNotifica({ counterpart: 'ai', kind: 'allergie_conferma' })).toBe(
+      '/assistente?intent=allergie',
+    );
+  });
+
+  it('⚠️ e vince sul ramo generico «ai», che porterebbe alla stessa chat muta', () => {
+    expect(rottaClienteDaNotifica({ counterpart: 'ai', threadId: 'th-9', kind: 'allergie_conferma' })).toBe(
+      '/assistente?intent=allergie',
+    );
+  });
+
+  it('una notizia qualsiasi resta com era: nessun intento inventato', () => {
+    expect(rottaClienteDaNotifica({ counterpart: 'ai', kind: 'engine_daily' })).toBe('/assistente');
+  });
+
+  it('e il «kind» arriva anche dalla push, dove tutto è stringa', () => {
+    expect(datiDallaPush({ data: { kind: 'allergie_conferma', counterpart: 'ai' } }).kind).toBe('allergie_conferma');
+  });
+});

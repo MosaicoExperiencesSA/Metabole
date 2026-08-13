@@ -1,0 +1,84 @@
+Gaia richiede quello che di un'allergia non sappiamo — §7 dell'handoff
+
+La conta del 13/8 (`npm run conta:allergie`) ha detto 24 clienti su 48. La scheda in home che esce
+stasera ne prende una fetta: chi non ha MAI risposto. Restano fuori due cose che una casella da
+spuntare non sa fare, ed è per quelle che serve parlare:
+
+ 1. chi ha spuntato «Altro» fra le intolleranze e non ha mai potuto dire cosa (il campo non
+    esisteva fino al 13/8): la scheda in home chiede le ALLERGIE, quella domanda lì non c'è;
+ 2. chi ha un'allergia scritta a mano che nessuno ha tradotto in codice: la scheda in home
+    AGGIUNGE e non sostituisce, di proposito — da lì quel testo libero non si tocca, e resta a
+    bloccare la base personale sicura.
+
+IL DIALOGO, sul modello di `data-inizio-chat` e non di «Conosciamoci» (che non è una conversazione:
+è l'attivazione del piano di prova). Due passi — si chiede, si propone quello che si è capito, si fa
+confermare — con lo stato nel `meta` dell'ultimo messaggio di Gaia: nessuna tabella nuova.
+
+⚠️ LE ALLERGIE SONO LA PRIMA DELLE TRE CHIAVI nell'ordine di precedenza di `chat.service`, e non è
+una gerarchia di importanza: la risposta a «hai qualche allergia?» è un elenco di alimenti — «i
+latticini», «le noci» — e un elenco di alimenti somiglia moltissimo alla richiesta di sostituirne
+uno. Messa dopo, «il latte» avrebbe aperto un dialogo di sostituzione e l'allergia non sarebbe mai
+stata registrata, senza che niente segnalasse un errore.
+
+⚠️ IL FRENO: GAIA NON TOGLIE NIENTE. Se la risposta di adesso lascerebbe scoperto qualcosa che prima
+veniva escluso, il dialogo si ferma e passa alla nutrizionista. Aggiungere un'allergia toglie un
+piatto; toglierne una lo rimette nel piatto di chi aveva detto di non poterlo mangiare — le due cose
+non pesano uguale e non possono avere la stessa strada. Il confronto è sulle PAROLE CHIAVE con cui
+il motore esclude davvero (`exclusionKeys`), non sulle stringhe: chi ha «latte» codificato e «il
+latte vaccino» scritto a mano non perde niente se il testo libero sparisce, e un controllo fatto
+sulle stringhe avrebbe mandato alla nutrizionista una coda di casi in cui non c'era niente da
+decidere.
+
+⚠️ E NON SALVA QUELLO CHE HA SCRITTO. Si propone e si fa confermare — «ho capito frutta a guscio,
+giusto?» — e quello che non si riconosce va nel testo libero, dove lo codifica la nutrizionista:
+`impara-dalla-chat.ts`, nel dubbio non si impara. Il dizionario NON è una seconda lista: sono le
+`keywords` di `catalog/allergens.ts`, le stesse con cui si pre-taggano le ricette, più le poche
+forme che si dicono parlando e che una ricetta non scriverebbe mai («celiaca», «latticini»).
+Con le false amiche, che sono la metà del lavoro: «latte di mandorla» non è latte ed è mandorla,
+«noce moscata» è una spezia, «burro di arachidi» non è burro. E lo spazio in fondo a `'pan '` del
+catalogo si conserva, o «panna» diventerebbe glutine.
+
+⚠️ IN CHAT NON CI SONO PULSANTI: parser tollerante, e due tentativi poi passa a una persona. La
+persona è la NUTRIZIONISTA, non la coach come dice l'handoff: il §5 dello stesso handoff stabilisce
+che le allergie le scrivono solo nutrizionista e capo nutrizionista, e girare alla coach una
+richiesta che non ha il permesso di soddisfare sposta il silenzio di una casella invece di toglierlo.
+
+⚠️ «NO, LE NOCI» NON È «NON NE HO». Il «niente» si guarda solo quando non si è riconosciuto nessun
+alimento: leggerlo prima cancellerebbe l'allergia che sta dichiarando nella stessa riga.
+
+SCRITTURA IN TRANSAZIONE CON LA RIGA DI AUDIT, dentro la stessa: è un dato sanitario, e la traccia
+è la sola cosa che dice chi ha scritto quell'allergia e da dove. È una deviazione voluta da
+`AuditService.log`, che gli errori se li ingoia — vale qui perché l'operazione si può rifare senza
+danno (Gaia richiede), mentre un profilo sanitario cambiato senza traccia non si ricostruisce.
+Se la transazione fallisce la cliente NON legge «fatto»: passa alla nutrizionista, e l'errore va nei
+log invece di sparire in un catch muto.
+
+⚠️ E SI RILEGGE TUTTO AL MOMENTO DI SCRIVERE. Il flusso scade dopo un'ora: chi apre la notifica il
+giorno dopo lo trova RIAPERTO, non ripreso. Per questo il motivo si rilegge dal profilo a ogni
+apertura, e non arriva dalla notifica — fra l'invio e il tocco la nutrizionista può aver già
+sistemato tutto dalla scheda, e allora Gaia dice che è tutto a posto invece di rifare la domanda.
+
+LA CAMPAGNA (`npm run chiedi:allergie`) parte in prova e scrive solo con CONFERMA=1, sul modello di
+`assegna-senza-glutine.ts`. La popolazione la dà `common/da-ricontattare.ts` — LA STESSA funzione
+della conta, non una query nuova — e la campagna in chat ne prende due su tre: la terza la sta
+chiedendo la scheda in home, e la stessa domanda per due strade insegna solo a ignorare le notifiche.
+Il «gliel'ho già chiesto» è la notifica stessa, come in `sostituzione-chat.service.ts:1288`, ma per
+MOTIVO e non per tipo: se un domani la stessa cliente ricade nell'altra popolazione, quella è
+un'altra domanda e ha diritto alla sua.
+
+⚠️ PERCHÉ NON PASSA DA `profile/dichiara-allergie.ts` (la nota lasciata nel COMMIT di stasera). Sono
+due operazioni diverse, e forzarle in una funzione sola le romperebbe tutte e due: là è la PRIMA
+dichiarazione di chi non ha mai risposto — si aggiunge, mai si sostituisce, e si risponde una volta
+sola; qui è la TRADUZIONE di una dichiarazione che esiste già, e sostituire il testo libero col
+codice è precisamente il lavoro. Il pezzo condiviso c'è ed è quello giusto: `common/allergie.ts`,
+che entrambe usano e che è il posto dove vive l'idea di cosa sia una risposta.
+
+60 test nuovi (30 sul parser e sui testi, 21 sul servizio, 9 sulla campagna) più 4 sulla rotta della
+notifica nell'app. Type-check del backend col client Prisma vero: zero errori nuovi (restano i 2 di
+`approve-diets` e `dedupe-diets`, che c'erano già).
+
+⚠️ ORDINE DI RILASCIO: backend su Render PRIMA (l'app chiama `POST /me/threads/allergie`), poi la
+OTA, e lo script della campagna PER ULTIMO, in prova, con la conferma letta riga per riga.
+⚠️ Le due modifiche all'app (`rottaNotifica.ts`, `Assistente.tsx`) sono INERTI finché la campagna non
+gira: l'intento nasce solo da una notifica `allergie_conferma`, e quelle notifiche non esistono
+ancora. Se salgono con la OTA di stasera non cambiano niente per nessuno.
