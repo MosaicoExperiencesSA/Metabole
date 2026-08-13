@@ -89,3 +89,36 @@ export function daValutare(p: {
   if (p.idoneita) return false;
   return (p.allergies ?? []).length > 0 || !!p.screeningFlag;
 }
+
+/**
+ * LA STESSA DOMANDA, MA CHIESTA A POSTGRES — il filtro «solo da valutare» dell'elenco Clienti.
+ *
+ * `daValutare()` qui sopra guarda **una** cliente che abbiamo già in mano. Il filtro dell'elenco no:
+ * deve scegliere le righe **prima** di leggerle, perché l'elenco pagina a cento per volta, stampa un
+ * totale in cima ed esporta in Excel tutte le pagine. Filtrare dopo darebbe un totale che non
+ * corrisponde alle righe e un file che dichiara filtri che non ha applicato.
+ *
+ * ⚠️ **Quindi la regola finisce scritta due volte, ed è il rischio da tenere d'occhio.** Il modo in
+ * cui una coppia così muore è che una delle due cambi da sola: qualcuno aggiunge un motivo per
+ * essere valutate, lo scrive nella funzione, e l'elenco continua a non mostrarle — senza nessun
+ * errore, e con la nutrizionista convinta di vedere tutte le sue. Per questo le due stanno **una
+ * sotto l'altra** e `idoneita-filtro.spec.ts` le confronta **caso per caso**: se divergono, diventa
+ * rosso.
+ *
+ * Il frammento è pensato per stare sotto `client.clientProfile` di `CrmRecord`. Conseguenza voluta:
+ * un contatto **senza cliente collegata** non compare mai fra le da valutare — non ha un profilo, e
+ * non c'è niente da valutare.
+ *
+ * ⚠️ `idoneita: ''` è trattato come «nessuna decisione» esattamente come fa `daValutare` (`if
+ * (p.idoneita)`). Oggi in colonna ci finiscono solo `idonea` e `serve_visita` — l'endpoint non
+ * accetta altro — ma se le due leggessero la stringa vuota in modo diverso, la cliente sparirebbe
+ * dalla coda senza che nessuno l'abbia guardata.
+ */
+export function filtroDaValutare(): Record<string, unknown> {
+  return {
+    AND: [
+      { OR: [{ idoneita: null }, { idoneita: '' }] },
+      { OR: [{ allergies: { isEmpty: false } }, { screeningFlag: true }] },
+    ],
+  };
+}

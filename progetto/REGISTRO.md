@@ -20,6 +20,84 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🌍 **Tre test erano veri solo a Greenwich.** Rimessa in piedi la suite, tre casi di
+  `benvenuto-conosciamoci.spec.ts` (§16.1, 11/8) fallivano sul Mac di Simone con «Expected
+  2026-08-16, Received 2026-08-15» — **su codice che funziona**. L'helper del file faceva
+  `toISOString().slice(0, 10)` su date che il prodotto costruisce a **mezzanotte locale**
+  (`soloGiorno`): a Greenwich coincidono — ed è per questo che CI e Render sono sempre stati verdi —
+  ma a Roma (UTC+2) mezzanotte del 16 è le 22:00Z del 15, e il test leggeva il giorno prima.
+  ⚠️ **È il difetto peggiore che possa avere un test**: rosso solo sulla macchina di chi lavora,
+  verde dove si decide se rilasciare. Chi lo incontra ha due strade, e sono entrambe sbagliate:
+  smettere di fidarsi della suite, o «aggiustare» un prodotto che non ha niente che non va.
+  Ora l'helper è `giornoLocale` di `common/date-only.ts`, la stessa funzione con cui il prodotto dice
+  che giorno è: legge il fuso dell'**azienda**, non quello della macchina. Verificato con
+  `TZ=Europe/Rome`, 28 verdi. Il prodotto non è stato toccato.
+
+- `[Sviluppo]` 🧬 **Il type-check diceva verde e ventisei suite non compilavano: guardavano due copie
+  diverse dei tipi di Prisma.** Trovato lanciando i test dopo un type-check pulito. `npm run typecheck`
+  fa `prisma generate --no-engine`, che scrive in `node_modules/@prisma/client` — quello che legge
+  `tsc`. **Jest arriva invece a `node_modules/.prisma/client`**, rimasta a prima delle migrazioni del
+  13/8: 26 suite «failed to run» con `'idoneita' does not exist in type 'ClientProfileSelect'`, su un
+  campo che nello schema c'era da ore.
+  ⚠️ È il guasto peggiore da leggere: due strumenti si contraddicono sulla stessa riga e sembra che
+  uno dei due menta. Non mente nessuno — e la conclusione facile («il codice nuovo è rotto») porta
+  a rimettere le mani su codice che sta benissimo.
+  Nuovo `npm run prisma:tipi`: generate **completo**, aggiorna tutte e due le copie. Il mirror finto
+  dei binari (la trovata dell'11/8 contro il 403 di `binaries.prisma.sh`) è stato spostato in
+  `scripts/mirror-prisma.mjs` perché ora serve a due comandi: ⚠️ la stessa trovata scritta in due
+  file è quella che un giorno viene corretta in uno solo dei due.
+
+- `[Sviluppo]` 🗂️ **La pagina «Lavori»: cosa manca, cosa è fatto, e cosa tiene ferme le altre cose.**
+  Richiesta di Simone: «una pagina con modifiche e implementazioni, con l'elenco dei lavori da fare, e
+  una volta fatto mettiamo la spunta — così è tutto registrato ed evidente. Visibile solo ad admin».
+  Backoffice → **Lavori** (`/lavori`), tabella `lavoro`, migrazione additiva
+  `20260813180000_lavori`.
+  **Tre colori e una regola sola** (`tonoDi`): 🟢 fatto · 🟡 aspetta una persona o una decisione ·
+  🔴 blocca altro lavoro. ⚠️ **Il rosso non vuol dire «importante»**: vuol dire che dietro c'è una
+  fila ferma. Se diventasse un modo per dire «urgente», in un mese sarebbe tutto rosso e il colore
+  smetterebbe di dire qualcosa — per questo `blocca` è un campo suo e non si deduce dalla categoria.
+  I colori vengono dalle variabili del tema: il backoffice ha quattro temi, e un verde scritto a mano
+  su fondo scuro è illeggibile in uno di quelli.
+  ⚠️ **Il permesso è una chiave della matrice** (`dev_backlog`, default solo admin) **e non
+  `@Roles('admin')` scritto nel codice**: è il difetto già raccontato in testa a `permissions/pages.ts`
+  — `assignments` era un interruttore acceso nei permessi che non apriva niente, perché l'endpoint era
+  inchiodato all'admin, e nessun errore lo diceva. La chiave nasce insieme alla guardia che la legge, e
+  `@Roles` elenca tutto lo staff apposta: se elencasse tre ruoli scelti a mano, concederla a un quarto
+  darebbe 403 su un permesso acceso.
+  ⚠️ **Le fatte non spariscono** — restano in fondo con data e nome: una lista in cui il fatto sparisce
+  risponde a «cosa resta» e non a «cosa è stato fatto», che è la domanda vera quando qualcuno chiede a
+  che punto siamo. E **togliendo la spunta si azzerano chi e quando**: una voce riaperta che dice
+  ancora «fatta il 13/8» fa perdere fiducia in tutta la lista. Chiudere un lavoro è **spuntarlo**, non
+  cancellarlo: `Elimina` serve solo a chi ha scritto una voce per sbaglio.
+  **Caricamento iniziale** `npm run carica:lavori` (prova a vuoto, scrive con `CONFERMA=1`): 20 voci
+  aperte da `metabole-backlog.md`, `DA_RIPRENDERE` e le decisioni, più **481 voci storiche** estratte
+  dal REGISTRO (dall'11/7), già spuntate con la loro data. ⚠️ Rilanciarlo **non aggiorna niente**:
+  salta ciò che trova per `chiave` e lo dice — quella voce può essere stata spuntata o riscritta a
+  mano, ed è la lezione di `accendi-automazioni.ts`, che pensato per accenderne tre ne ha spente venti.
+  ⚠️ Lo storico è un **estratto**, non una copia: il REGISTRO resta la fonte del dettaglio, e sta
+  scritto nella pagina. Istruzioni per chiunque ci lavori — altre sessioni comprese — in
+  `progetto/ISTRUZIONI_Pagina_Lavori.md`. 11 test nuovi.
+
+- `[Sviluppo]` 🩺 **La coda del via libera clinico si filtra, invece di cercarla con l'occhio.**
+  La pastiglia «da valutare» consegnata stamattina diceva CHI, ma con centinaia di clienti in pagine
+  da cento le da valutare si trovavano scorrendo l'elenco — e una coda che si legge scorrendo è una
+  coda che si guarda il primo giorno. Ora è un interruttore nella barra dell'elenco Clienti.
+  ⚠️ **Filtra nel database, non sulla pagina**: sulle cento righe già scaricate il totale in cima
+  direbbe un numero e la tabella ne mostrerebbe un altro, e l'esportazione in Excel dichiarerebbe un
+  filtro che non ha applicato.
+  ⚠️ **La regola finisce scritta due volte, ed era inevitabile**: `daValutare()` guarda UNA cliente,
+  un filtro che pagina e conta deve diventare una condizione che Postgres sa leggere. Le due stanno
+  una sotto l'altra in `clients/idoneita.ts`, e `idoneita-filtro.spec.ts` le confronta **caso per
+  caso** applicando il frammento Prisma a profili finti — se qualcuno aggiunge un motivo per essere
+  valutate e lo scrive in una sola delle due, il test diventa rosso invece di lasciare la
+  nutrizionista con un elenco che le sembra completo.
+  ⚠️ `serve_visita` resta fuori, come nella pastiglia e nella scheda. E a elenco vuoto la pagina dice
+  «Nessuna cliente in attesa: hanno tutte una decisione scritta»: con quel filtro acceso zero righe è
+  una buona notizia, e «nessun lead con questi filtri» la farebbe leggere come una ricerca sbagliata.
+  Solo nella pagina Clienti: in «Gestione lead» un contatto senza cliente collegata non può essere da
+  valutare, e un filtro che non toglie mai niente insegna a diffidare dei filtri. 4 test nuovi,
+  verificati rossi contro un `isEmpty: true` messo apposta.
+
 - `[Sviluppo]` 🗨️ **Vera — Consegna 2: la chat parla, e non scrive mai senza mostrare prima
   cosa sta per fare.** La conversazione, le due azioni per-cliente e la pagina `/assistente` (chat
   sopra, registro sotto). L'ordine è tutto il progetto in cinque righe: **capisco** (deterministico)

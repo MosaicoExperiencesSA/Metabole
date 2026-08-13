@@ -316,6 +316,8 @@ model Staff {
   clientsPlanHeld       ClientProfile[] @relation("PlanHeldBy")
   // Chi ha dato (o negato) il via libera clinico. `SetNull`: se lascia, resta la decisione.
   idoneitaDecise        ClientProfile[] @relation("IdoneitaDecisaDa")
+  // Chi ha spuntato un lavoro nella pagina «Lavori». `SetNull`: se lascia, la voce resta fatta.
+  lavoriFatti           Lavoro[]        @relation("LavoroFattoDa")
   escalations           Escalation[]    @relation("EscalationAssignee")
   authoredDiets         Diet[]          @relation("DietAuthor")
   approvedDiets         Diet[]          @relation("DietApprover")
@@ -2802,4 +2804,59 @@ model AzioneVera {
   @@index([soggettoId, createdAt])
   @@index([stato])
   @@map("azione_vera")
+}
+
+/**
+ * L'ELENCO DEI LAVORI — la pagina «Lavori» del backoffice (13/8).
+ *
+ * Richiesta di Simone: «una pagina con modifiche e implementazioni, con l'elenco dei lavori da fare,
+ * e una volta fatto mettiamo la spunta — così è tutto registrato ed evidente. Visibile solo ad
+ * admin.»
+ *
+ * ⚠️ Non è un doppione del REGISTRO. Il registro racconta **cosa è stato scritto**, riga per riga e
+ * per sempre; questa tabella risponde a **cosa manca**, e la spunta ci aggiunge quando è stato
+ * chiuso e da chi. Oggi quell'elenco vive sparso fra `metabole-backlog.md`, i `DA_RIPRENDERE` e le
+ * decisioni aperte: il valore non è la casella da spuntare, è avere **un posto solo**.
+ *
+ * ⚠️ Le voci fatte NON si cancellano: restano, in fondo, con la data. Una lista in cui il fatto
+ * sparisce risponde a «cosa resta» e non a «cosa è stato fatto» — che è la domanda vera quando
+ * qualcuno chiede a che punto siamo.
+ */
+model Lavoro {
+  id        String  @id @default(uuid())
+  titolo    String
+  dettaglio String?
+  /**
+   * Il raggruppamento della pagina. Serve soprattutto a distinguere il lavoro FERMO da quello da
+   * fare: «Aspetta Nocanty» e «Aspetta Simone» sono categorie, non un campo in più da aggiornare —
+   * in un elenco misto una decisione clinica in attesa sembra codice non scritto.
+   */
+  categoria String  @default("Da fare")
+  /** Ordine dentro la categoria: più piccolo, più in alto. */
+  ordine    Int     @default(0)
+
+  /**
+   * ⚠️ La chiave del caricamento iniziale dai documenti, e la ragione per cui rilanciare lo script
+   * non duplica niente. `null` per le voci scritte a mano dalla pagina: quelle non vengono da
+   * nessun file e non devono sparire se il file cambia.
+   */
+  chiave String? @unique
+
+  /**
+   * ⚠️ «Questa voce ne blocca altre» — il rosso della pagina. NON vuol dire «importante»: vuol dire
+   * che finché non si chiude, dietro c'è una fila ferma. Se diventasse un modo per dire «urgente»,
+   * in un mese sarebbe tutto rosso e il colore smetterebbe di dire qualcosa.
+   */
+  blocca   Boolean   @default(false)
+  fatto    Boolean   @default(false)
+  /** ⚠️ Si azzerano insieme alla spunta: una voce riaperta che dice ancora «fatta il 13/8» è una riga che fa perdere fiducia in tutta la lista. */
+  fattoIl  DateTime? @map("fatto_il")
+  fattoDaId String?  @map("fatto_da_id")
+  fattoDa   Staff?   @relation("LavoroFattoDa", fields: [fattoDaId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([fatto, categoria, ordine])
+  @@map("lavoro")
 }

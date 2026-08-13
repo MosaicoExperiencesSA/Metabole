@@ -762,6 +762,8 @@ export class CrmController {
     @Query('coachId') coachId?: string,
     @Query('nutriId') nutriId?: string,
     @Query('tipo') tipo?: string,
+    /** «Solo da valutare»: la coda del via libera clinico. Vedi `clients/idoneita.ts`. */
+    @Query('daValutare') daValutare?: string,
     @Query('valueMin') valueMin?: string,
     @Query('valueMax') valueMax?: string,
     @Query('dateFrom') dateFrom?: string,
@@ -775,6 +777,8 @@ export class CrmController {
       stage, listId, search: q,
       page: num(page), pageSize: num(pageSize),
       coachId, nutriId, tipo,
+      // Un parametro assente e un `false` sono la stessa cosa: nessun filtro.
+      daValutare: daValutare === '1' || daValutare === 'true',
       valueMin: num(valueMin), valueMax: num(valueMax),
       dateFrom, dateTo, sortKey, sortDir,
     }, user.sub);

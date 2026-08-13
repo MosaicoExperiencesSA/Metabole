@@ -127,6 +127,18 @@ export const BACKOFFICE_PAGES = [
   // fisso: la matrice non c'entrava niente e il pulsante nel backoffice si vedeva senza alcun
   // controllo. La guardia che legge questa chiave è su `POST /admin/impersonate`.
   'impersonate',
+  /**
+   * LA PAGINA «LAVORI» — l'elenco di cosa manca, con la spunta (13/8, richiesta di Simone).
+   *
+   * ⚠️ Chiave della matrice e non `@Roles('admin')` scritto nel codice, per la ragione raccontata in
+   * testa a questo file: `assignments` era un interruttore acceso nei permessi che non apriva
+   * niente, perché l'endpoint era inchiodato all'admin. Qui la chiave nasce **insieme** alla guardia
+   * che la legge (`@RequirePage('dev_backlog')` su `/admin/lavori`).
+   *
+   * Default: **solo admin**. Il giorno che serve a qualcun altro si accende dalla tabella, senza
+   * un rilascio.
+   */
+  'dev_backlog',
 ] as const;
 
 export type PageKey = (typeof BACKOFFICE_PAGES)[number];
@@ -332,6 +344,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // Solo admin di default. Entrare nell'account di una cliente vuol dire vedere i suoi dati
     // sanitari: si concede a mano, a chi serve, dalla tabella dei permessi.
     impersonate: { view: true, manage: true },
+    // La pagina «Lavori»: di default solo admin, come ha chiesto Simone.
+    dev_backlog: { view: true, manage: true },
   },
 };
 

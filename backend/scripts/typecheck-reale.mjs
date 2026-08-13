@@ -26,32 +26,12 @@
  * COME SI USA:  node scripts/typecheck-reale.mjs
  * Il verde ora è **zero errori**, non «42» e non «32».
  */
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
+import { avviaMirrorPrisma } from './mirror-prisma.mjs';
 
-// Un .gz valido di contenuto qualunque: la CLI lo scompatta e lo salva, non lo esegue.
-const FINTO = gzipSync(Buffer.alloc(1024, 7));
-
-const server = createServer((req, res) => {
-  // I .sha256 NON si servono di proposito: il 404 fa saltare la verifica del checksum, che è
-  // quello che vogliamo (i byte sono finti per costruzione). Vedi PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING.
-  if (req.url?.endsWith('.gz')) {
-    res.writeHead(200, { 'content-type': 'application/gzip', 'content-length': FINTO.length });
-    res.end(FINTO);
-    return;
-  }
-  res.writeHead(404).end();
-});
-
-await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
-const porta = server.address().port;
-
-const env = {
-  ...process.env,
-  PRISMA_ENGINES_MIRROR: `http://127.0.0.1:${porta}`,
-  PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: '1',
-};
+// ⚠️ Il mirror finto vive in `scripts/mirror-prisma.mjs`: lo usa anche `prisma-generate-reale.mjs`,
+// e la stessa trovata scritta in due file è quella che un giorno viene corretta in uno solo.
+const { env, chiudi: chiudiMirror } = await avviaMirrorPrisma();
 
 const passo = (titolo, cmd, args) => {
   console.log(`\n▶ ${titolo}`);
@@ -62,6 +42,10 @@ const passo = (titolo, cmd, args) => {
 let esito = passo('Genero i tipi veri di Prisma (senza motore)', 'npx', ['prisma', 'generate', '--no-engine']);
 if (esito === 0) esito = passo('Type-check (deve dare ZERO errori)', 'npx', ['tsc', '-p', 'tsconfig.build.json', '--noEmit']);
 
-server.close();
+// ⚠️ `--no-engine` aggiorna solo `node_modules/@prisma/client`, che è quello che legge tsc. Jest
+// arriva invece a `node_modules/.prisma/client`: se resta indietro, il type-check è verde e le
+// suite non compilano. `npm run prisma:tipi` allinea tutti e due.
+
+chiudiMirror();
 console.log(esito === 0 ? '\n✅ Type-check pulito: zero errori, con i tipi veri di Prisma.' : '\n❌ Type-check FALLITO: sono gli stessi errori che farebbero fallire il build su Render.');
 process.exit(esito);

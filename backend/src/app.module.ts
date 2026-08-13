@@ -47,6 +47,7 @@ import { PayoutsModule } from './payouts/payouts.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { LavoriModule } from './lavori/lavori.module';
 import { CoachModule } from './coach/coach.module';
 import { NutritionistModule } from './nutritionist/nutritionist.module';
 import { ReferralModule } from './referral/referral.module';
@@ -106,6 +107,7 @@ import { AppUpdatesModule } from './app-updates/app-updates.module';
     DashboardModule,
     TrackingModule,
     AlertsModule,
+    LavoriModule,
     CoachModule,
     NutritionistModule,
     ReferralModule,

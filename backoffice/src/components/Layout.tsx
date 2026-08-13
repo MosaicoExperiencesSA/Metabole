@@ -120,6 +120,8 @@ export const NAV: NavSection[] = [
       { key: 'permissions', label: 'Permessi', to: '/permessi', icon: 'ti-lock-cog' },
       { key: 'engine_config', label: 'Parametri', to: '/parametri', icon: 'ti-adjustments' },
       { key: 'audit_logs', label: 'Log attività', to: '/log', icon: 'ti-history' },
+      // L'elenco dei lavori e lo storico delle consegne: di default solo admin (13/8).
+      { key: 'dev_backlog', label: 'Lavori', to: '/lavori', icon: 'ti-checkup-list' },
     ],
   },
 ];

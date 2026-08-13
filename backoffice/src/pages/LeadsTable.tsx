@@ -138,6 +138,13 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
   const [fCoach, setFCoach] = useState(''); // '' tutti · 'none' non assegnato · else coachId
   const [fNutri, setFNutri] = useState(''); // '' tutti · 'none' non assegnato · else nutriId
   const [fTipo, setFTipo] = useState(''); // '' · client · historical · lead
+  /**
+   * «Solo da valutare»: la coda del via libera clinico (`clients/idoneita.ts`).
+   *
+   * ⚠️ Vive SOLO nella pagina Clienti. In «Gestione lead» un contatto senza cliente collegata non
+   * può essere da valutare, e un filtro che non toglie mai niente insegna a diffidare dei filtri.
+   */
+  const [fDaValutare, setFDaValutare] = useState(false);
   const [fValMin, setFValMin] = useState('');
   const [fValMax, setFValMax] = useState('');
   const [fDateFrom, setFDateFrom] = useState('');
@@ -157,7 +164,7 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
   const sortDir = ord.direzione;
   function clearFilters() {
     setFilter(''); setListFilter(''); setFName(''); setFEmail(''); setFStage(''); setFCoach(''); setFNutri(''); setFTipo('');
-    setFValMin(''); setFValMax(''); setFDateFrom(''); setFDateTo(''); setPage(0);
+    setFValMin(''); setFValMax(''); setFDateFrom(''); setFDateTo(''); setFDaValutare(false); setPage(0);
   }
 
   async function assignCoach(l: Lead, coachStaffId: string) {
@@ -268,6 +275,9 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
     if (fNutri) params.set('nutriId', fNutri);
     // In «Clienti» il tipo non è una scelta: è l'identità della pagina.
     if (soloClienti) params.set('tipo', 'client');
+    // Il filtro lo applica il DATABASE: così il totale in cima e l'Excel dicono la stessa cosa
+    // della tabella. Filtrare le cento righe già scaricate darebbe un totale che non corrisponde.
+    if (soloClienti && fDaValutare) params.set('daValutare', '1');
     else if (fTipo) params.set('tipo', fTipo);
     // In «Lead da assegnare» il filtro sulla coach è inchiodato su «nessuna».
     if (daAssegnare) params.set('coachId', 'none');
@@ -299,7 +309,7 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
 
   // Paginazione + filtri + ordinamento LATO SERVER: si carica solo la pagina corrente.
   // Cambiando un filtro si torna a pagina 0; cambiando pagina si mantiene il filtro.
-  const qkey = JSON.stringify([modo, filter, fName, fEmail, fStage, fCoach, fNutri, fTipo, fValMin, fValMax, fDateFrom, fDateTo, listFilter, sortKey, sortDir]);
+  const qkey = JSON.stringify([modo, filter, fName, fEmail, fStage, fCoach, fNutri, fTipo, fDaValutare, fValMin, fValMax, fDateFrom, fDateTo, listFilter, sortKey, sortDir]);
   useEffect(() => {
     const filtersChanged = prevQkey.current !== qkey;
     prevQkey.current = qkey;
@@ -416,7 +426,26 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
             {allLists.map((l) => <option key={l.id} value={l.id}>{l.name}{l.memberCount != null ? ` (${l.memberCount})` : ''}</option>)}
           </select>
           {can('permissions', 'manage') && <button className="btn ghost" onClick={() => setShowLists(true)}><i className="ti ti-tags" /> Gestisci liste</button>}
-          {(filter || listFilter || fName || fEmail || fStage || fCoach || fNutri || fTipo || fValMin || fValMax || fDateFrom || fDateTo) && (
+          {/*
+            ⚠️ LA CODA DEL VIA LIBERA CLINICO, in un colpo solo.
+            La pastiglia accanto al nome diceva CHI, ma con centinaia di clienti in pagine da cento
+            le da valutare si trovavano scorrendo con l'occhio — e una coda che si legge scorrendo
+            è una coda che si guarda il primo giorno. Qui è un interruttore, e filtra nel database.
+            `serve_visita` resta fuori, come nella pastiglia e nella scheda: chi ha già una
+            decisione non torna in coda.
+          */}
+          {soloClienti && (
+            <button
+              className={fDaValutare ? 'btn' : 'btn ghost'}
+              onClick={() => setFDaValutare((v) => !v)}
+              title={fDaValutare
+                ? 'Sto mostrando solo le clienti che nessuno ha ancora valutato. Premi per rivederle tutte.'
+                : 'Mostra solo le clienti a cui nessuno ha ancora dato il via libera clinico (allergie o patologie dichiarate, e nessuna decisione scritta).'}
+            >
+              <i className="ti ti-stethoscope" /> {fDaValutare ? 'Solo da valutare' : 'Da valutare'}
+            </button>
+          )}
+          {(filter || listFilter || fName || fEmail || fStage || fCoach || fNutri || fTipo || fValMin || fValMax || fDateFrom || fDateTo || fDaValutare) && (
             <button className="btn ghost" onClick={clearFilters} title="Rimuovi tutti i filtri"><i className="ti ti-filter-off" /> Azzera filtri</button>
           )}
           <button className="btn ghost" onClick={esportaExcel} disabled={esportando || searching || total === 0}
@@ -536,7 +565,17 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
               {leads.length === 0 ? (
                 <tr>
                   <td colSpan={canAssignCoach ? 11 : 10} className="empty" style={{ padding: 24, textAlign: 'center' }}>
-                    {searching ? 'Carico…' : 'Nessun lead con questi filtri. Modifica o azzera i filtri qui sopra.'}
+                    {searching
+                      ? 'Carico…'
+                      /*
+                        ⚠️ Con il filtro della coda attivo, zero righe è una BUONA notizia: vuol dire
+                        che nessuna cliente sta aspettando una valutazione. Lasciare «nessun lead con
+                        questi filtri» farebbe leggere come un errore di ricerca la sola schermata
+                        che dice «hai finito».
+                      */
+                      : fDaValutare
+                        ? 'Nessuna cliente in attesa: hanno tutte una decisione scritta.'
+                        : 'Nessun lead con questi filtri. Modifica o azzera i filtri qui sopra.'}
                   </td>
                 </tr>
               ) : leads.map((l) => {

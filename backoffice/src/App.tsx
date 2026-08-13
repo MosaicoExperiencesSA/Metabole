@@ -53,6 +53,7 @@ import { UserDetail } from './pages/UserDetail';
 import { Payments } from './pages/Payments';
 import { Contabilita } from './pages/Contabilita';
 import { Permissions } from './pages/Permissions';
+import { Lavori } from './pages/Lavori';
 import { Pipeline } from './pages/Pipeline';
 import { Provvigioni } from './pages/Provvigioni';
 import { Roles } from './pages/Roles';
@@ -91,6 +92,7 @@ export default function App() {
       <Route path="/utenti/:id" element={<Protected title="Scheda utente" pageKey="users"><UserDetail /></Protected>} />
       <Route path="/ruoli" element={<Protected title="Ruoli" pageKey="roles"><Roles /></Protected>} />
       <Route path="/permessi" element={<Protected title="Permessi" pageKey="permissions"><Permissions /></Protected>} />
+      <Route path="/lavori" element={<Protected title="Lavori" pageKey="dev_backlog"><Lavori /></Protected>} />
 
       {/* Percorso cliente e CRM */}
       <Route path="/clienti" element={<Protected title="Clienti" pageKey="clients"><Clienti /></Protected>} />

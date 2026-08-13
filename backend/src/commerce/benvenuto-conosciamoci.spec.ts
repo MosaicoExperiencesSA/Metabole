@@ -14,6 +14,7 @@ import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
+import { giornoLocale } from '../common/date-only';
 import { MESI_MAX_DATA_INIZIO, isTrialPlan, validaDataInizio } from './piano-prova';
 import { assicuraProvaIniziata, provaAttivata } from './prova-attivata';
 
@@ -28,7 +29,19 @@ import { assicuraProvaIniziata, provaAttivata } from './prova-attivata';
 
 const GIORNO = 86_400_000;
 const oggiSolo = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/**
+ * ⚠️ IL GIORNO SI LEGGE NEL FUSO DELL'AZIENDA, NON IN UTC.
+ *
+ * Qui c'era `d.toISOString().slice(0, 10)`, applicato a date che il prodotto costruisce a
+ * **mezzanotte locale** (`soloGiorno`). A Greenwich le due cose coincidono — ed è per questo che la
+ * CI e Render sono sempre stati verdi — ma su un Mac a Roma (UTC+2) mezzanotte del 16 è le 22:00Z
+ * del 15, e il test leggeva **il giorno prima**: tre rossi il 13/8, tutti su codice che funziona.
+ *
+ * `giornoLocale` è la stessa funzione che usa il prodotto per dire «che giorno è», e non dipende
+ * dal fuso della macchina che esegue i test. Un test che è vero solo a Greenwich non è un test:
+ * è una trappola per chi lo esegue da casa.
+ */
+const iso = giornoLocale;
 
 describe('validaDataInizio (regola pura)', () => {
   const oggi = new Date('2026-08-11T15:30:00.000Z');

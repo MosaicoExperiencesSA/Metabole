@@ -77,6 +77,7 @@ export const PAGE_LABEL: Record<string, string> = {
   change_fasting_window: 'Cambia i pasti del digiuno',
   set_client_password: 'Imposta password cliente',
   impersonate: 'Entra come cliente (sola lettura)',
+  dev_backlog: 'Lavori (elenco e storico)',
 };
 
 export function pageLabel(key: string): string {

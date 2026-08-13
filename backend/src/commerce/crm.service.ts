@@ -8,7 +8,7 @@ import { coachTeamScope } from '../common/coach-team';
 import { avvisaNuovoLeadDaAssegnare } from '../common/avvisa-manager-coach';
 import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
 import { dichiaraSenzaGlutine } from '../menu/senza-glutine';
-import { daValutare } from '../clients/idoneita';
+import { daValutare, filtroDaValutare } from '../clients/idoneita';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { avanzaStatoSeIndietro } from './avanza-stato';
@@ -415,7 +415,7 @@ export class CrmService {
 
   async list(filter: {
     page?: number; pageSize?: number; search?: string; stage?: string; listId?: string;
-    coachId?: string; nutriId?: string; tipo?: string;
+    coachId?: string; nutriId?: string; tipo?: string; daValutare?: boolean;
     valueMin?: number; valueMax?: number; dateFrom?: string; dateTo?: string;
     sortKey?: string; sortDir?: string;
   }, actorUserId?: string) {
@@ -464,6 +464,22 @@ export class CrmService {
     else if (filter.coachId) AND.push({ assignedCoachId: filter.coachId });
     if (filter.nutriId === 'none') AND.push({ NOT: { client: { clientProfile: { assignedNutritionistId: { not: null } } } } });
     else if (filter.nutriId) AND.push({ client: { clientProfile: { assignedNutritionistId: filter.nutriId } } });
+    /**
+     * ⚠️ «SOLO DA VALUTARE» — la coda della nutrizionista, chiesta al database e non alla pagina.
+     *
+     * La pastiglia da sola non risparmiava un'apertura a nessuno: con centinaia di clienti in
+     * pagine da cento, le da valutare si trovavano scorrendo con l'occhio. E una coda che si legge
+     * scorrendo è una coda che si guarda il primo giorno.
+     *
+     * Filtrare qui e non sulle righe già scaricate è la differenza fra un totale in cima che
+     * corrisponde e uno che no — e fra un'esportazione in Excel che applica i filtri che dichiara e
+     * una che ne dichiara uno in più di quelli che ha.
+     *
+     * La condizione arriva da `clients/idoneita.ts`, accanto alla funzione che risponde alla stessa
+     * domanda sulla scheda: se le due divergessero, la nutrizionista guarderebbe una coda che le
+     * sembra completa. C'è un test che le tiene ferme insieme.
+     */
+    if (filter.daValutare) AND.push({ client: { clientProfile: filtroDaValutare() } });
     if (filter.tipo === 'client') AND.push({ stage: 'paid' });
     else if (filter.tipo === 'historical') AND.push({ stage: { not: 'paid' }, historicalPaidCents: { gt: 0 } });
     else if (filter.tipo === 'lead') AND.push({ stage: { not: 'paid' }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
