@@ -168,3 +168,63 @@ describe('DizionarioService.famiglieCheForsePrendono', () => {
     expect(await service.famiglieCheForsePrendono('  ')).toEqual([]);
   });
 });
+
+describe('DizionarioService.famiglieDaAggiornare', () => {
+  const D = (iso: string) => new Date(iso);
+
+  const make2 = (voci: unknown[], ricette: unknown[]) => ({
+    service: make({
+      famigliaAlimento: { findMany: jest.fn().mockResolvedValue(voci) },
+      recipe: { findMany: jest.fn().mockResolvedValue(ricette) },
+    }),
+    letture: { voci, ricette },
+  });
+
+  it('propone quello che è entrato in catalogo dopo', async () => {
+    const { service } = make2(
+      [voce({ membri: ['yogurt greco'], updatedAt: D('2026-07-01') })],
+      [{ id: 'r1', createdAt: D('2026-08-01'), ingredients: [{ name: 'yogurt magro' }] }],
+    );
+    const fuori = await service.famiglieDaAggiornare('lucia');
+    expect(fuori[0].candidati).toEqual(['yogurt magro']);
+  });
+
+  it('⚠️ NON tocca le voci comuni, nemmeno per proporre', async () => {
+    // Allargare una famiglia comune tocca il piatto delle clienti di tutte: una cosa che vale per
+    // tutti si cambia dalla coda delle approvazioni, come «promuovi a comune».
+    const service = make({
+      famigliaAlimento: { findMany: jest.fn().mockResolvedValue([]) },
+      recipe: { findMany: jest.fn() },
+    });
+    await service.famiglieDaAggiornare('lucia');
+    expect((service as unknown as { prisma: { famigliaAlimento: { findMany: jest.Mock } } }).prisma.famigliaAlimento.findMany.mock.calls[0][0].where)
+      .toEqual({ nutrizionistaId: 'lucia', comune: false });
+  });
+
+  it('senza voci sue non legge nemmeno il catalogo', async () => {
+    const recipeFindMany = jest.fn();
+    const service = make({
+      famigliaAlimento: { findMany: jest.fn().mockResolvedValue([]) },
+      recipe: { findMany: recipeFindMany },
+    });
+    expect(await service.famiglieDaAggiornare('lucia')).toEqual([]);
+    expect(recipeFindMany).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ legge solo le ricette entrate dopo la più VECCHIA delle sue voci', async () => {
+    // Leggere tutto il catalogo a ogni apertura di pagina per scartarlo subito dopo è il modo di
+    // rendere lenta proprio la schermata su cui si lavora.
+    const recipeFindMany = jest.fn().mockResolvedValue([]);
+    const service = make({
+      famigliaAlimento: {
+        findMany: jest.fn().mockResolvedValue([
+          voce({ id: 'a', updatedAt: D('2026-07-01') }),
+          voce({ id: 'b', updatedAt: D('2026-08-01') }),
+        ]),
+      },
+      recipe: { findMany: recipeFindMany },
+    });
+    await service.famiglieDaAggiornare('lucia');
+    expect(recipeFindMany.mock.calls[0][0].where.createdAt.gt).toEqual(D('2026-07-01'));
+  });
+});

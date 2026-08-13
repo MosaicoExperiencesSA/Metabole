@@ -20,7 +20,8 @@ export type PassoVera =
   | 'revisione'       // (solo il capo) ti sottopongo una proposta per volta
   | 'motivo_rifiuto'  // (solo il capo) perché la respingi
   | 'richiesta'       // una domanda aperta dal sistema: cosa tolgo dal piatto?
-  | 'richiesta_generale'; // …e vale come regola per tutte?
+  | 'richiesta_generale'  // …e vale come regola per tutte?
+  | 'aggiorna_famiglia'; // in catalogo è entrato qualcosa che forse è di una tua famiglia
 
 export interface StatoVera {
   passo: PassoVera;
@@ -42,6 +43,8 @@ export interface StatoVera {
   tentativi?: number;
   /** La proposta che sto sottoponendo al capo. */
   azioneId?: string;
+  /** La voce di dizionario di cui sto chiedendo se allargarla. */
+  famigliaId?: string;
   /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
   richiestaId?: string;
   termine?: string;
@@ -119,6 +122,27 @@ export const testi = {
 
   famigliaImparata: (famiglia: string, membri: string[]) =>
     `Imparato: per te «${famiglia}» sono ${membri.length} alimenti (${membri.join(', ')}).`,
+
+  /**
+   * ⚠️ La domanda dice **da quando**, e non «ci sono novità».
+   *
+   * «Da quando mi hai insegnato questa parola» spiega in cinque parole perché la sto chiedendo
+   * adesso e perché non l'ho chiesta prima. Senza, sembra che l'agente si sia dimenticato la
+   * risposta — che è esattamente l'impressione da non dare a chi gliel'ha insegnata.
+   */
+  dizionarioInvecchiato: (famiglia: string, candidati: string[]) =>
+    `Una cosa piccola, quando hai un minuto. Da quando mi hai insegnato **«${famiglia}»**, in ` +
+    `catalogo ${candidati.length === 1 ? 'è entrato' : 'sono entrati'}:\n` +
+    candidati.map((c) => `· ${c}`).join('\n') +
+    `\n\n${candidati.length === 1 ? 'Ne fa parte' : 'Ne fanno parte'}? Dimmi quali, separati da ` +
+    'virgola — oppure «nessuno», e non te lo richiedo più.',
+
+  famigliaAllargata: (famiglia: string, aggiunti: string[]) =>
+    `Fatto: «${famiglia}» adesso comprende anche ${aggiunti.join(', ')}. Le regole che l'hanno usata ` +
+    'valgono da subito anche su questi.',
+
+  dizionarioLasciatoComEra: (famiglia: string) =>
+    `Va bene: «${famiglia}» resta com'era, e su questi non ti chiedo più niente.`,
 
   chiediAmbito: (clienteNome: string) =>
     `Vale **solo per ${clienteNome}**, o la estendo a tutte le tue clienti?\n` +

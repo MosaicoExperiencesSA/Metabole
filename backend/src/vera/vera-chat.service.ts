@@ -14,7 +14,7 @@
  * registro smette di raccontare cosa è successo davvero.
  */
 import { Injectable } from '@nestjs/common';
-import { chiaveAlimento, combaciaAlimento } from '../common/nomi-alimento';
+import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
@@ -184,6 +184,8 @@ export class VeraChatService {
         return this.rispondiARichiesta(nutrizionistaId, stato, frase);
       case 'richiesta_generale':
         return this.valePerTutte(nutrizionistaId, stato, frase);
+      case 'aggiorna_famiglia':
+        return this.allargaFamiglia(nutrizionistaId, stato, frase);
       case 'conferma':
       default:
         return this.confermaOAnnulla(nutrizionistaId, stato, frase);
@@ -673,7 +675,97 @@ export class VeraChatService {
       const proposta = await this.sottoponiProssima(userId);
       if (proposta) return proposta;
     }
-    return this.prossimaRichiesta(userId, capo);
+    const richiesta = await this.prossimaRichiesta(userId, capo);
+    if (richiesta) return richiesta;
+    /**
+     * ⚠️ La manutenzione del dizionario è **ultima**, e non per gentilezza: dietro le altre due
+     * code c'è qualcuno che aspetta — una nutrizionista ferma, una cliente il cui piatto oggi non è
+     * filtrato. Qui dietro non c'è nessuno che aspetta: c'è una regola che copre un po' meno di
+     * quello che lei crede. Metterla davanti vorrebbe dire far scendere le cose urgenti sotto una
+     * domanda di ordinaria amministrazione.
+     */
+    return this.manutenzioneDizionario(userId);
+  }
+
+  /**
+   * IL DIZIONARIO CHE INVECCHIA — la domanda che nessuno farebbe mai spontaneamente.
+   *
+   * «Formaggi molli» sono nove nomi spuntati un martedì. Entra la burrata, la lista non la contiene,
+   * e la regola continua a girare **su un elenco vecchio**: nessun errore, nessuna riga rossa. È
+   * l'ultimo guasto silenzioso rimasto, e si chiude solo chiedendo — a lei, nella sua chat, quando
+   * non c'è niente di più urgente.
+   *
+   * ⚠️ **Una famiglia per volta.** Portarne tre insieme trasforma la domanda in un modulo da
+   * compilare, e a un modulo si risponde «va bene tutto» senza leggerlo — cioè si fa entrare nel
+   * dizionario proprio quello che non c'entra.
+   */
+  private async manutenzioneDizionario(userId: string): Promise<EsitoVera | null> {
+    // ⚠️ Sotto `try`: è manutenzione, e sta in fondo a `cosaTiPorto`, che gira **a ogni apertura di
+    // pagina e dopo ogni decisione**. Se questa lettura si rompe, la cosa giusta è che non si veda
+    // — non che la nutrizionista non riesca più a parlare con l'assistente.
+    let invecchiate: Awaited<ReturnType<DizionarioService['famiglieDaAggiornare']>> = [];
+    try {
+      invecchiate = await this.dizionario.famiglieDaAggiornare(userId);
+    } catch {
+      return null;
+    }
+    if (!invecchiate.length) return null;
+    const f = invecchiate[0];
+    return {
+      testo: testi.dizionarioInvecchiato(f.nome, f.candidati),
+      esito: 'in_corso',
+      stato: { passo: 'aggiorna_famiglia', frase: '', famigliaId: f.famigliaId, famiglia: f.nome, proposti: f.candidati },
+    };
+  }
+
+  /**
+   * La risposta: quali di quelli entrano davvero.
+   *
+   * ⚠️ Un «no» **scrive lo stesso** (`lasciaComEra`), e sembra una scrittura inutile: sposta la data
+   * della voce, che è la linea fra il vecchio e il nuovo. Senza, la stessa domanda tornerebbe
+   * identica alla prossima apertura di pagina, per sempre — e una domanda che torna dopo che le hai
+   * risposto è il modo più rapido per insegnare a non leggerla.
+   *
+   * ⚠️ Si tengono solo i nomi che erano fra i proposti. Non per diffidenza: qui lei sta spuntando da
+   * un elenco, non dettando, e un nome scritto a mano in questo passo finirebbe nella famiglia senza
+   * passare dal catalogo — cioè un membro che non corrisponde a nessun alimento vero, che non toglie
+   * niente e che nessuno saprà mai perché è lì.
+   */
+  private async allargaFamiglia(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const famiglia = stato.famiglia ?? '';
+    const proposti = stato.proposti ?? [];
+    const risposta = leggiConferma(frase);
+    const nessuno = risposta === false || /^\s*(nessun[oa]|niente|nulla)\b/i.test(normalizza(frase));
+
+    if (nessuno) {
+      if (stato.famigliaId) await this.dizionario.lasciaComEra(nutrizionistaId, stato.famigliaId).catch(() => undefined);
+      const dopo = await this.cosaTiPorto(nutrizionistaId);
+      return {
+        testo: `${testi.dizionarioLasciatoComEra(famiglia)}${dopo ? `\n\n${dopo.testo}` : ''}`,
+        esito: 'in_corso',
+        stato: dopo?.stato,
+      };
+    }
+
+    const detti = leggiElenco(frase);
+    const scelti = proposti.filter((p) => detti.some((d) => combaciaAlimento(p, d) || combaciaAlimento(d, p)));
+    // «tutti» / «sì» senza elenco: prende quello che ha appena letto, che è corto per costruzione.
+    const membri = scelti.length ? scelti : risposta === true || /^\s*tutt[ie]\b/i.test(normalizza(frase)) ? proposti : [];
+    if (!membri.length) {
+      return { testo: testi.dizionarioInvecchiato(famiglia, proposti), esito: 'in_corso', stato };
+    }
+
+    const voce = await this.dizionario.risolvi(nutrizionistaId, famiglia);
+    await this.dizionario.insegna(nutrizionistaId, {
+      nome: famiglia,
+      membri: [...(voce?.membri ?? []), ...membri],
+    });
+    const dopo = await this.cosaTiPorto(nutrizionistaId);
+    return {
+      testo: `${testi.famigliaAllargata(famiglia, membri)}${dopo ? `\n\n${dopo.testo}` : ''}`,
+      esito: 'scritta',
+      stato: dopo?.stato,
+    };
   }
 
   /** La prossima domanda aperta, scritta com'era: chi sa cosa manca l'ha già formulata. */

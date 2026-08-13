@@ -304,4 +304,13 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 224,
   },
 
+  {
+    chiave: 'vera-dizionario-cibi-diversi',
+    titolo: 'Vera: il dizionario impara le VARIANTI, non i cibi nuovi',
+    dettaglio:
+      'L\'assistente si accorge che in catalogo è entrato «yogurt magro» e chiede se va dentro «formaggi molli», perché condivide la parola-testa con «yogurt greco» che c\'è già. NON si accorge della burrata accanto alla mozzarella: sono due parole diverse per cose simili, e nessuna euristica sui nomi le lega. ⚠️ Scelta voluta — proporre troppo insegna a rispondere di no senza leggere — ma va saputa: il buco si chiude solo con qualcuno che decide, o con una tabella di famiglie merceologiche che oggi non esiste.',
+    categoria: CODICE,
+    ordine: 225,
+  },
+
 ];

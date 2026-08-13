@@ -11,6 +11,12 @@
 
 ## Stato in una riga
 
+**Il dizionario non invecchia più da solo.** L'ultimo guasto silenzioso: «formaggi molli» sono nove
+nomi spuntati un martedì, entra la burrata e la regola continua a girare **su un elenco vecchio**,
+senza nessun errore. Adesso l'assistente se ne accorge e **chiede** — a lei, nella sua chat, quando
+non c'è niente di più urgente. Consegna 4 completa. Type-check **43 = baseline**, backoffice pulito,
+**1692 test**.
+
 **Consegne 3c e 4: il registro dice chi è stato, e l'assistente non marcisce più da solo.** Il
 registro sotto la chat mostra **tutto quello che cambia** sulle sue clienti — lei, Gaia, la cliente
 dall'app, il motore — con la colonna «chi è stato». La pagina ha la sua chiave di permesso
@@ -47,7 +53,7 @@ Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si ri
 | 3a | La coda di Nocanty: approva/respingi, in ordine di rischio | ✅ **scritta** — 13/8/2026 |
 | 3b | Le domande che aspettano una nutrizionista (contratto fra le sessioni) | ✅ **scritta** — 13/8/2026 |
 | 3c | Registro allargato, citazione, chiave di permesso propria | ✅ **scritta** — 13/8/2026 |
-| 4 | Che non marcisca (avviso immediato, rapporto mensile, corpus) | ✅ **scritta** — 13/8/2026 |
+| 4 | Che non marcisca (avviso immediato, rapporto mensile, corpus, dizionario vivo) | ✅ **fatta** — 13/8/2026 |
 | — | Azioni a raggio largo (variante, ricette, regola di dieta) e moduli in dashboard | ⬜ in lista Lavori |
 | — | Cantiere allergie/intolleranze (a parte) | ⬜ da iniziare |
 
@@ -156,7 +162,9 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
 - [x] **Corpus di prova** dal registro e dalla conversazione (`GET /vera/corpus`): le frasi capite
       (che devono continuare a passare) e quelle no (le parole da insegnare)
 - [ ] La spedizione del report il 1° del mese: oggi si apre a mano → in lista Lavori
-- [ ] Manutenzione del dizionario quando nasce un alimento nuovo → in lista Lavori
+- [x] **Manutenzione del dizionario**: cosa è entrato in catalogo da quando ha insegnato una parola
+      → l'assistente lo chiede, una famiglia per volta, **ultima** dopo le code che hanno qualcuno
+      dietro; un «nessuno» sposta la data e la domanda non torna più
 
 ---
 
@@ -187,6 +195,29 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Il dizionario che invecchia: l'ultimo guasto silenzioso (7 file)
+`famiglieCheForsePrendono` sapeva già rispondere a «questo alimento nuovo riguarda qualche
+famiglia?», ma **non la chiamava nessuno**: mancava chi le portasse gli alimenti nuovi. Girata dalla
+parte giusta — non «chi si accorge che è nata la burrata», ma «cosa è entrato da quando mi hai
+insegnato questa parola» — la domanda si può fare da sola.
+⚠️ La fa **l'assistente e non una schermata del catalogo**: chi pubblica una ricetta non sa cosa vuol
+dire «molle» per Lucia, e chiederglielo lì vorrebbe dire far decidere a una persona il vocabolario di
+un'altra — o, più probabilmente, far premere «avanti».
+⚠️ È **ultima** fra le cose che l'assistente porta all'apertura: dietro le altre due code c'è
+qualcuno che aspetta (una nutrizionista ferma, una cliente il cui piatto oggi non è filtrato); qui
+dietro non c'è nessuno.
+⚠️ Il confronto è sulla **parola-testa** («yogurt greco» → *yogurt*), non su una parola qualsiasi in
+comune: condividere l'aggettivo non vuol dire essere lo stesso cibo, e una famiglia che si allarga
+per un aggettivo comincia a togliere piatti che nessuno voleva togliere. Doppia radice, come
+`chiaveLarga`, o «formaggio» e «formaggi» non combacerebbero mai.
+⚠️ Un «**nessuno**» scrive lo stesso: sposta la data della voce. Sembra inutile ed è tutta la
+differenza fra una domanda e un assillo — senza, la stessa domanda tornerebbe identica a ogni
+apertura di pagina, per sempre.
+⚠️ Entrano solo i nomi che erano fra i proposti: lì lei sta spuntando da un elenco, non dettando, e
+un nome scritto a mano diventerebbe un membro che non corrisponde a nessun alimento vero — non toglie
+niente e nessuno saprà mai perché è lì.
+Verifica: type-check **43 = baseline**, backoffice pulito, **1692 test** (+22).
 
 ### 13/8/2026 — Consegne 3c e 4: chi è stato, e il collaudo che si costruisce da solo (22 file)
 **Il registro dice chi è stato.** Sulle sue clienti scrivono in tanti, e quello che le mancava non

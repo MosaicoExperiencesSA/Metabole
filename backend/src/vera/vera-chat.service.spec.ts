@@ -25,7 +25,13 @@ function ultimoAgente(create: jest.Mock): { testo: string; stato?: StatoVera } {
 
 function make(
   over: Record<string, unknown> = {},
-  opzioni: { statoAperto?: StatoVera; profilo?: Record<string, unknown>; coda?: unknown[]; richieste?: unknown[] } = {},
+  opzioni: {
+    statoAperto?: StatoVera;
+    profilo?: Record<string, unknown>;
+    coda?: unknown[];
+    richieste?: unknown[];
+    invecchiate?: unknown[];
+  } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
   const profileUpdate = jest.fn().mockResolvedValue({});
@@ -52,6 +58,11 @@ function make(
   const dizionario = {
     risolvi: jest.fn().mockResolvedValue(null),
     insegna: jest.fn().mockResolvedValue({ id: 'v1' }),
+    // Nessuna famiglia invecchiata se il test non dice altro: la manutenzione del dizionario è
+    // l'ultima coda di `cosaTiPorto`, e senza questa riga si intrometterebbe in mezzo a tutti gli
+    // altri dialoghi.
+    famiglieDaAggiornare: jest.fn().mockResolvedValue(opzioni.invecchiate ?? []),
+    lasciaComEra: jest.fn().mockResolvedValue({ id: 'v1' }),
   } as unknown as DizionarioService;
   const pool = {
     anteprima: jest.fn().mockResolvedValue({
@@ -526,5 +537,82 @@ describe('VeraChatService — le domande che aspettano lei', () => {
     );
     await service.apri('nocanty');
     expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('revisione');
+  });
+});
+
+
+/**
+ * ⚠️ Questa è l'unica volta in cui l'assistente apre bocca per una cosa che non aspetta nessuno.
+ *
+ * «Formaggi molli» sono nove nomi spuntati un martedì: entra la burrata e la regola continua a
+ * girare su un elenco vecchio, senza nessun errore. Si chiude solo chiedendo — e siccome nessuno
+ * sta aspettando questa risposta, la domanda va **ultima** e non deve mai finire davanti a una
+ * cliente il cui piatto oggi non è filtrato.
+ */
+describe('VeraChatService — il dizionario che invecchia', () => {
+  const INVECCHIATA = [{ famigliaId: 'f1', nome: 'formaggi molli', membri: ['mozzarella'], candidati: ['burrata', 'crescenza'] }];
+
+  it('lo chiede all’apertura, quando non c’è niente di più urgente', async () => {
+    const { service, messaggioCreate } = make({}, { invecchiate: INVECCHIATA });
+    await service.apri('lucia');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('formaggi molli');
+    expect(testo).toContain('burrata');
+    expect(stato?.passo).toBe('aggiorna_famiglia');
+  });
+
+  it('⚠️ NON si intromette quando c’è una proposta da approvare', async () => {
+    // Dietro la coda c'è una nutrizionista ferma; dietro questa domanda non c'è nessuno che aspetta.
+    const coda = [{ id: 'a1', frase: 'a tutte niente tonno', nutrizionistaId: 'lucia', soggettoNome: null, dettaglio: {}, conflittoSanitario: false, createdAt: new Date() }];
+    const { service, messaggioCreate } = make({}, { coda, invecchiate: INVECCHIATA });
+    await service.apri('lucia');
+    expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('revisione');
+  });
+
+  it('l’elenco che risponde entra nella famiglia, insieme a quello che c’era già', async () => {
+    const { service, dizionario } = make(
+      {},
+      { statoAperto: { passo: 'aggiorna_famiglia', frase: '', famigliaId: 'f1', famiglia: 'formaggi molli', proposti: ['burrata', 'crescenza'] } },
+    );
+    (dizionario.risolvi as jest.Mock).mockResolvedValue({ id: 'f1', nome: 'formaggi molli', membri: ['mozzarella'] });
+    await service.parla('lucia', 'burrata');
+    expect((dizionario.insegna as jest.Mock).mock.calls[0][1]).toEqual({
+      nome: 'formaggi molli',
+      membri: ['mozzarella', 'burrata'],
+    });
+  });
+
+  it('⚠️ un nome che non era fra i proposti NON entra', async () => {
+    // Qui lei sta spuntando da un elenco, non dettando: un nome scritto a mano finirebbe nella
+    // famiglia senza passare dal catalogo, e sarebbe un membro che non toglie niente.
+    const { service, dizionario, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'aggiorna_famiglia', frase: '', famigliaId: 'f1', famiglia: 'formaggi molli', proposti: ['burrata'] } },
+    );
+    await service.parla('lucia', 'il gorgonzola');
+    expect(dizionario.insegna).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('aggiorna_famiglia');
+  });
+
+  it('⚠️ «nessuno» scrive lo stesso: sposta la data, o la domanda torna per sempre', async () => {
+    // Una domanda che ritorna dopo che le hai risposto è il modo più rapido per insegnare a non
+    // leggerla.
+    const { service, dizionario, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'aggiorna_famiglia', frase: '', famigliaId: 'f1', famiglia: 'formaggi molli', proposti: ['burrata'] } },
+    );
+    await service.parla('lucia', 'nessuno');
+    expect(dizionario.lasciaComEra).toHaveBeenCalledWith('lucia', 'f1');
+    expect(dizionario.insegna).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('resta com\'era');
+  });
+
+  it('«tutti» prende l’elenco intero, che è corto per costruzione', async () => {
+    const { service, dizionario } = make(
+      {},
+      { statoAperto: { passo: 'aggiorna_famiglia', frase: '', famigliaId: 'f1', famiglia: 'formaggi molli', proposti: ['burrata', 'crescenza'] } },
+    );
+    await service.parla('lucia', 'tutti');
+    expect((dizionario.insegna as jest.Mock).mock.calls[0][1].membri).toEqual(['burrata', 'crescenza']);
   });
 });

@@ -17,6 +17,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AuditService } from '../audit/audit.service';
 import { chiaveAlimento, combaciaAlimento, radice } from '../common/nomi-alimento';
 import { PrismaService } from '../prisma/prisma.service';
+import { cercaNuoviMembri, FamigliaInvecchiata, nomiIngredienti } from './dizionario-invecchiato';
 
 export interface VoceDizionario {
   id: string;
@@ -216,6 +217,59 @@ export class DizionarioService {
    * Il confronto è **per parola, con la radice** (`combaciaAlimento`): mai per sottostringa, o
    * «pepe» prende «peperoni».
    */
+  /**
+   * LE FAMIGLIE INVECCHIATE: cosa è entrato in catalogo da quando le ha insegnate.
+   *
+   * È il rovescio di `famiglieCheForsePrendono` — non «chi si accorge che è nata la burrata», ma
+   * «cosa è entrato da quando mi hai insegnato questa parola» — e serve perché la prima non la
+   * chiamava nessuno: mancava chi le portasse gli alimenti nuovi.
+   *
+   * ⚠️ Solo le voci SUE, mai quelle comuni. Allargare una famiglia comune tocca il piatto delle
+   * clienti di tutte, e una cosa che vale per tutti si cambia dalla coda delle approvazioni — è lo
+   * stesso confine che regge «promuovi a comune».
+   */
+  async famiglieDaAggiornare(nutrizionistaId: string, maxRicette = 300): Promise<FamigliaInvecchiata[]> {
+    const mie = (await this.prisma.famigliaAlimento.findMany({
+      where: { nutrizionistaId, comune: false } as never,
+      take: 100,
+    })) as unknown as (VoceDizionario & { updatedAt: Date })[];
+    if (!mie.length) return [];
+
+    // ⚠️ Si leggono solo le ricette entrate dopo la PIÙ VECCHIA delle sue voci: prima di quella
+    // data non c'è niente di nuovo per nessuna famiglia, e leggere tutto il catalogo a ogni
+    // apertura di pagina per scartarlo subito dopo è il modo di rendere lenta la schermata su cui
+    // si lavora.
+    const da = new Date(Math.min(...mie.map((v) => v.updatedAt.getTime())));
+    const ricette = (await this.prisma.recipe.findMany({
+      where: { active: true, createdAt: { gt: da } } as never,
+      orderBy: { createdAt: 'desc' },
+      take: maxRicette,
+      select: { id: true, createdAt: true, ingredients: true },
+    })) as { id: string; createdAt: Date; ingredients: unknown }[];
+    if (!ricette.length) return [];
+
+    return cercaNuoviMembri(
+      mie.map((v) => ({ id: v.id, nome: v.nome, membri: v.membri, aggiornataIl: v.updatedAt })),
+      ricette.map((r) => ({ id: r.id, createdAt: r.createdAt, ingredienti: nomiIngredienti(r.ingredients) })),
+    );
+  }
+
+  /**
+   * «No, nessuno di questi»: la voce si tocca lo stesso.
+   *
+   * ⚠️ Sembra una scrittura inutile e invece è tutta la differenza fra una domanda e un
+   * assillo: `updatedAt` è la linea che separa il vecchio dal nuovo, quindi senza spostarla la
+   * stessa domanda tornerebbe alla prossima apertura di pagina, identica, per sempre. Un no vuol
+   * dire «il dizionario è aggiornato a oggi», ed è giusto che resti scritto.
+   */
+  async lasciaComEra(nutrizionistaId: string, id: string): Promise<{ id: string }> {
+    const voce = (await this.prisma.famigliaAlimento.findUnique({ where: { id } })) as unknown as VoceDizionario | null;
+    if (!voce) throw new NotFoundException('Voce non trovata.');
+    if (voce.nutrizionistaId !== nutrizionistaId) throw new ForbiddenException('Questa voce non è tua.');
+    await this.prisma.famigliaAlimento.update({ where: { id }, data: { nome: voce.nome } as never });
+    return { id };
+  }
+
   async famiglieCheForsePrendono(alimento: string): Promise<VoceDizionario[]> {
     const nome = (alimento ?? '').trim();
     if (!nome) return [];

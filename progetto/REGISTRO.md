@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🤖 **Vera: il dizionario non invecchia più da solo.** «Formaggi molli» sono nove nomi
+  spuntati un martedì: entra in catalogo la burrata, la lista non la contiene, e la regola della
+  nutrizionista continua a esistere e a girare **su un elenco vecchio**. Nessun errore, nessuna riga
+  rossa: copre meno di quello che lei crede, e la differenza si vede solo nel piatto di qualcuno.
+  Ora l'assistente guarda cosa è entrato **da quando** le ha insegnato quella parola e glielo chiede.
+  ⚠️ Lo chiede **lui e non una schermata del catalogo**: chi pubblica una ricetta non sa cosa vuol
+  dire «molle» per Lucia, e chiederglielo lì vorrebbe dire far decidere a una persona il vocabolario
+  di un'altra — o, più probabilmente, far premere «avanti».
+  ⚠️ È **l'ultima** cosa che porta all'apertura: dietro le altre code c'è qualcuno che aspetta, qui
+  dietro no. E **una famiglia per volta**: tre insieme sono un modulo da compilare, e a un modulo si
+  risponde «va bene tutto» senza leggerlo.
+  ⚠️ Il confronto è sulla **parola-testa** («yogurt greco» → *yogurt*) e non su una parola qualsiasi
+  in comune: condividere l'aggettivo non vuol dire essere lo stesso cibo. Doppia radice, come
+  `chiaveLarga`, altrimenti «formaggio» e «formaggi» non combaciano mai.
+  ⚠️ Un «nessuno» **scrive lo stesso**: sposta la data della voce, che è la linea fra il vecchio e il
+  nuovo. Senza, la stessa domanda tornerebbe identica per sempre — ed è il modo più rapido per
+  insegnare a non leggerla.
+  Verifica: type-check 43 = baseline, backoffice pulito, 1692 test.
+
 - `[Sviluppo]` 🤖 **Vera, consegne 3c e 4: il registro dice CHI è stato, e l'assistente smette di
   poter marcire in silenzio.** Il registro sotto la chat non mostra più solo quello che ha fatto
   l'assistente: mostra **tutto quello che è cambiato** sulle sue clienti — lei, Gaia, la cliente

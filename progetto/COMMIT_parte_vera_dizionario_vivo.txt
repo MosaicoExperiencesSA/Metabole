@@ -1,0 +1,51 @@
+PARTE DELLA SESSIONE «Vera» (dizionario vivo) — da unire al messaggio di commit.
+
+⚠️ In `COMMIT.txt` va aggiunta in coda, non al posto di quella di un'altra sessione: il 13/8 quel
+file è stato sovrascritto due volte in un'ora.
+
+=== TITOLO ===
+
+Il dizionario di Vera non invecchia più da solo
+
+=== DESCRIZIONE ===
+
+Chiude la Consegna 4: era l'ultimo guasto silenzioso rimasto.
+
+«Formaggi molli» sono nove nomi, spuntati un martedì. Entra in catalogo la burrata: la lista non la
+contiene, e la regola della nutrizionista continua a esistere, a girare e a NON toglierla. Nessun
+errore, nessuna riga rossa, nessuno che se ne accorga — la regola copre meno di quello che lei crede,
+e la differenza si vede solo nel piatto di qualcuno.
+
+`dizionario.famiglieCheForsePrendono()` sapeva già rispondere alla domanda «questo alimento nuovo
+riguarda qualche famiglia?», ma non la chiamava nessuno: mancava chi le portasse gli alimenti nuovi.
+Girata dalla parte giusta — non «chi si accorge che è nata la burrata», ma «cosa è entrato in
+catalogo da quando mi hai insegnato questa parola» — la domanda si fa da sola.
+
+⚠️ LA FA L'ASSISTENTE, NON UNA SCHERMATA DEL CATALOGO. Chi pubblica una ricetta non è chi ha
+insegnato la parola e non sa cosa vuol dire «molle» per Lucia: chiederglielo lì vorrebbe dire far
+decidere a una persona il vocabolario di un'altra, oppure — più probabilmente — far premere «avanti».
+Chiederlo a lei, nella sua chat, quando non c'è niente di più urgente, è l'unico momento in cui la
+risposta vale qualcosa.
+
+⚠️ È ULTIMA fra le cose che l'assistente porta all'apertura della pagina. Dietro le altre due code
+c'è qualcuno che aspetta — una nutrizionista ferma, una cliente il cui piatto oggi non è filtrato;
+qui dietro non c'è nessuno. E UNA FAMIGLIA PER VOLTA: tre insieme trasformano la domanda in un modulo
+da compilare, e a un modulo si risponde «va bene tutto» senza leggerlo — cioè si fa entrare nel
+dizionario proprio quello che non c'entra.
+
+⚠️ IL CONFRONTO È SULLA PAROLA-TESTA («yogurt greco» → yogurt), non su una parola qualsiasi in
+comune: condividere l'aggettivo non vuol dire essere lo stesso cibo, e una famiglia che si allarga
+per un aggettivo comincia a togliere piatti che nessuno voleva togliere. La radice si applica due
+volte, come in `chiaveLarga`, o «formaggio» e «formaggi» non combaciano mai.
+
+⚠️ UN «NESSUNO» SCRIVE LO STESSO: sposta la data della voce, che è la linea fra il vecchio e il
+nuovo. Sembra una scrittura inutile ed è tutta la differenza fra una domanda e un assillo — senza, la
+stessa domanda tornerebbe identica a ogni apertura di pagina, per sempre.
+
+⚠️ Entrano solo i nomi che erano fra i proposti: lì lei sta spuntando da un elenco, non dettando, e un
+nome scritto a mano diventerebbe un membro che non corrisponde a nessun alimento vero — non toglie
+niente e nessuno saprà mai perché è lì.
+
+Verifica: type-check 43 = baseline, backoffice pulito, 1692 test (+22).
+⛔ Restano `npm run prisma:tipi && npm run typecheck` e `npx jest src/app.module.spec.ts` nel
+terminale del Mac.
