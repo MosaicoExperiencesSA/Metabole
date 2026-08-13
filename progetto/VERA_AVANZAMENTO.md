@@ -11,86 +11,13 @@
 
 ## Stato in una riga
 
-**E i menu già preparati si rifanno.** Il divieto di dieta è completo: quando il capo approva, i
-giorni futuri **non ancora aperti** che contengono quel piatto vengono rifatti, e quelli già letti
-restano come sono — è la regola dell'annulla, e `MenuDay.viewedAt` esiste dalla Consegna 1 per
-questo. ⚠️ Si toccano solo i giorni che contengono **davvero** il piatto vietato: buttare via tutti i
-giorni futuri sarebbe più semplice da scrivere e molto peggio da subire. ⚠️ Sopra il tetto di 200
-clienti la regola resta e il rifacimento si salta, dicendo quante persone sono rimaste indietro.
-**+10 test.**
-
-**Il divieto su una dieta esiste davvero (§6.2).** «Nella mediterranea non deve comparire più il
-tonno» non è più solo una proposta in coda: quando il capo approva, la regola si scrive in
-`ProductRule` (`diet_excluded_terms`, **nessuna migrazione**) e da lì in avanti il pool non propone
-più quei piatti — con la guardia sull'erogazione come seconda rete. ⚠️ Il divieto è una lista di
-**parole**, non di ricette: la ricetta col tonno pubblicata domani ci ricade dentro da sola. ⚠️ Uno
-slot che resterebbe **vuoto non si svuota**: quella cliente resta com'era (decisione di Simone), e
-l'elenco di chi va guardata è il prossimo pezzo insieme al rifacimento dei giorni non ancora aperti.
-**+22 test.**
-
-**📄 Il passaggio di consegne è in `progetto/HANDOFF_Vera_Sessione.md`** — la chat che ha costruito
-Vera si è chiusa il 13/8 perché era diventata troppo lunga. Lì dentro c'è tutto quello che serve per
-riprenderla da un'altra sessione: le regole di lavoro, la mappa dei file, le dodici regole che non si
-negoziano, le trappole già pagate e le due decisioni aperte.
-
-**Le ricette si dettano.** Azioni 4 e 5: «inseriamo una ricetta per il menu keto» e «voglio cambiare
-la ricetta tonno alle olive». Lei scrive il piatto come su un quaderno, i **macro li prende la
-tabella nutrienti** (mai inventati: se un alimento non c'è, la ricetta si ferma e il termine finisce
-fra quelli da aggiungere), e quello che nasce è una **bozza spenta** che accende il capo. Una
-modifica non tocca niente finché non è approvata. Type-check **43 = baseline**, **1733 test**.
-
-**«Aspetta te» adesso si vede dalla home.** Il blocco `b_assistente` sulla home della nutrizionista:
-proposte da approvare, domande aperte, sostituzioni da verificare — e il pulsante per aprire
-l'assistente. ⚠️ È un **blocco** e non un modulo: i moduli funzionano a inclusione, quindi chi ha già
-personalizzato la dashboard non l'avrebbe mai visto.
-
-**Il dizionario non invecchia più da solo.** L'ultimo guasto silenzioso: «formaggi molli» sono nove
-nomi spuntati un martedì, entra la burrata e la regola continua a girare **su un elenco vecchio**,
-senza nessun errore. Adesso l'assistente se ne accorge e **chiede** — a lei, nella sua chat, quando
-non c'è niente di più urgente. Consegna 4 completa. Type-check **43 = baseline**, backoffice pulito,
-**1692 test**.
-
-**Consegne 3c e 4: il registro dice chi è stato, e l'assistente non marcisce più da solo.** Il
-registro sotto la chat mostra **tutto quello che cambia** sulle sue clienti — lei, Gaia, la cliente
-dall'app, il motore — con la colonna «chi è stato». La pagina ha la sua chiave di permesso
-(`nutri_assistant`). Una regola confermata sopra un vincolo sanitario **avvisa i capi il giorno
-stesso**, il report del mese si apre dalla pagina, e le frasi vere (capite e non capite) diventano il
-corpus da rileggere prima di toccare il riconoscitore. Type-check **43 = baseline**, backoffice
-pulito, **1670 test** contro 1627.
-⛔ Restano `npm run prisma:tipi && npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
-
-**Consegna 3b: le domande che aspettano una nutrizionista.** Il contratto con l'altra sessione
-(`CONTRATTO_Vera_Richieste.md`) è implementato: `apriRichiestaVera` è la porta, le domande vivono in
-un **elenco** e non solo in chat, e da una risposta escono **due scritture separate**. Type-check 43 =
-baseline, backoffice pulito, **1621 test** contro 1603.
-⛔ Restano `npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
-
-**Consegna 3a: la coda di Nocanty.** Le proposte «a tutte» adesso si possono approvare — prima non
-c'era modo, e restavano ferme. Type-check 43 = baseline, **+20 test** (1603 contro 1583). Nessuna
-modifica allo schema, nessuna al frontend: tutti e 9 i file sono dentro `backend/src/vera/`.
-⛔ Restano `npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
-
-**Consegna 2 scritta: la chat parla, la pagina c'è.** Type-check 42 = baseline (nessun errore nuovo,
-nessuno nei file di Vera), backoffice pulito, **1545 test verdi** contro 1508 — i 37 in più sono i
-nuovi. ⛔ Restano `npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
-
-**Consegna 1 fatta e verificata.** Type-check reale sul Mac: **zero errori** coi tipi veri di
-Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si risolve all'avvio.
-38 test nuovi verdi, 1439 in totale. Pronta per la push.
-
-| Consegna | Cosa | Stato |
-|---|---|---|
-| — | Specifica e verifica sul codice | ✅ **fatta** — 12/8/2026 |
-| 1 | Le fondamenta (dizionario, `viewedAt`, pool a vuoto, registro) | ✅ **fatta e verificata** — 13/8/2026 |
-| 2 | Vera che parla, due azioni + la pagina | ✅ **scritta** — 13/8/2026 |
-| 3a | La coda di Nocanty: approva/respingi, in ordine di rischio | ✅ **scritta** — 13/8/2026 |
-| 3b | Le domande che aspettano una nutrizionista (contratto fra le sessioni) | ✅ **scritta** — 13/8/2026 |
-| 3c | Registro allargato, citazione, chiave di permesso propria | ✅ **scritta** — 13/8/2026 |
-| 4 | Che non marcisca (avviso immediato, rapporto mensile, corpus, dizionario vivo) | ✅ **fatta** — 13/8/2026 |
-| — | Azioni a raggio largo (variante, ricette, regola di dieta) e moduli in dashboard | ⬜ in lista Lavori |
-| — | Cantiere allergie/intolleranze (a parte) | ⬜ da iniziare |
-
----
+**Il battesimo non si perde più, e le colazioni imparano dolce/salato.** Dagli screenshot di Simone
+(13/8 pomeriggio): lo stato «nome» scadeva con la conversazione e ogni risposta al saluto cadeva su
+«non ci arrivo», per sempre — ora il battesimo è una **condizione sui dati** (`nomeAgente` vuoto) e
+l'estrattore non prende più la prima parola. In parallelo è nato il prerequisito dell'azione 3
+(«a colazione qualcosa di salato»): pagina «Colazioni» nel backoffice dove il sistema propone
+dolce/salato dagli ingredienti e Lucia conferma (`piatto:dolce`/`piatto:salato` su `Recipe.tags`,
+il tag scritto È la conferma). ⚠️ L'azione resta spenta finché le conferme non bastano. **+19+9 test.**
 
 ## Consegna 1 — Le fondamenta
 
@@ -232,6 +159,14 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Battesimo che non scade + Colazioni dolce/salato (14 file)
+Il fix dei tre difetti visti negli screenshot di Simone (battesimo irraggiungibile dopo la scadenza,
+«Ciao» come nome, «annulla» a vuoto trattato da errore) e la finestra della chat a ~640px. E il
+prerequisito dell'azione 3: classificatore `vera/colazioni.ts` che propone e NON indovina (conflitto
+= nessuna proposta), endpoint su `RecipesController`, pagina «Colazioni» con conferme in blocco,
+permesso `colazioni` derivato da `recipes`. Deciso in `Decisioni_Simone_20260813.md` §12: solo lo
+slot colazione — non le 14.000 — e chi non è confermato non partecipa.
 
 ### 13/8/2026 — Passaggio di consegne (2 file)
 `progetto/HANDOFF_Vera_Sessione.md` e tre voci nuove in lista Lavori per le due decisioni che

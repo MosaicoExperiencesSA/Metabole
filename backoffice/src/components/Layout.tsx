@@ -89,6 +89,7 @@ export const NAV: NavSection[] = [
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
       { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
       { key: 'allergens', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
+      { key: 'colazioni', label: 'Colazioni', to: '/colazioni', icon: 'ti-coffee' },
       { key: 'equivalence_groups', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
       // Subito sotto i gruppi di equivalenza perché è da qui che ci si arriva: una riga confermata
       // in questa tabella diventa un gruppo con «Promuovi a regola» (§16.9, 12/8).

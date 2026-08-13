@@ -364,3 +364,63 @@ basta, senza rimettere mano all'elenco.
 «patate», «pomodoro», «limone». Un divieto sui solfiti che porta via l'insalata di pomodoro non
 protegge nessuno: fa smettere di fidarsi dell'elenco, e a quel punto qualcuno lo disattiva. Nel test
 c'è un blocco intero dedicato a **quello che non si toglie**.
+
+---
+
+## 12. Colazioni dolce/salato: propone il sistema, conferma Lucia ✅ DECISO (13/8, in chat)
+
+**Da dove nasce.** L'azione 3 di Vera («a colazione qualcosa di salato») oggi non si può fare:
+niente nel catalogo dice se una ricetta è dolce o salata. E no, **non riguarda tutte le 14.000
+ricette** — solo quelle con `mealSlot = breakfast`, perché sono le uniche che il motore pesca per
+lo slot colazione. La pagina nuova mostra la conta vera, così il numero smette di essere un sospetto.
+
+**La convenzione.** Due tag su `Recipe.tags`: `piatto:dolce` e `piatto:salato`. **Un tag scritto =
+una persona ha confermato.** Nessuna colonna nuova, nessuna migrazione: la proposta del sistema si
+calcola al volo dagli ingredienti e dal nome, la conferma è il tag. È lo stesso patto di
+`allergensReviewed`: una ricetta non revisionata non è considerata classificata.
+
+**Il classificatore propone, non indovina.** Propone solo quando gli indizi vanno tutti da una
+parte; se nome e ingredienti dicono cose diverse — o non dicono niente — la ricetta resta **senza
+proposta** e la decide Lucia. Le parole ambigue (ricotta, pane, yogurt, pancake: stanno in colazioni
+dolci E salate) sono fuori da entrambe le liste, di proposito.
+
+**Chi non è classificato non partecipa.** Quando l'azione si accenderà, una colazione senza tag non
+entra nel giro «salato»: meglio un menu con meno scelta che una colazione sbagliata.
+
+**Chi conferma:** nutrizionista, capo nutrizionista, admin — come gli allergeni. Pagina nuova
+«Colazioni» nel backoffice, permesso derivato da `recipes` (stesso meccanismo di `allergens`),
+conferme anche in blocco, ogni scrittura con audit.
+
+**L'azione di Vera resta SPENTA in questa consegna.** Si accende con l'azione 3, quando una quota
+ragionevole di colazioni salate è confermata. Fino ad allora la risposta onesta dell'assistente è
+«questo non lo so ancora fare».
+
+---
+
+## 13. La campagna allergie va A TUTTI i 48, non solo ai 27 utili ✅ DECISO (13/8, Simone)
+
+La proposta era: i 3 da codificare col dialogo di Gaia, una push-campanello ai 24 che non hanno mai
+risposto, niente ai 21 già a posto. **Simone ha deciso: a tutti i 48** («una push massiva non ci
+costa nulla»). Il costo di attenzione dei 21 è stato messo sul tavolo e la decisione è sua.
+
+Come si traduce, in tre gruppi:
+
+1. **I 3 da codificare** — restano sulla loro strada: `chiedi:allergie`, notifica `allergie_conferma`,
+   tocco → dialogo con Gaia. ⚠️ **Difetto trovato oggi**: `invitaARidichiarare` creava solo la riga
+   in app (la campanella), nessuna push vera al telefono — per una campagna verso gente che l'app
+   magari non la apre da settimane, è la parte che mancava. Corretto nello **script** (non nella
+   funzione, che resta prisma-e-basta apposta): dopo la scrittura vera parte anche la push, con
+   `datiPush` e lo stesso payload.
+2. **I 24 mai risposto** — push `allergie_avviso` che li porta ad aprire l'app: in home trovano la
+   scheda che fa la domanda. Il testo dice cosa troveranno, non fa la domanda nella push.
+3. **I 21 già a posto** — push `allergie_avviso` informativa: le loro dichiarazioni sono registrate
+   e si vedono nel profilo (novità della OTA). Nessuna domanda da rifare.
+
+**Script separato** (`npm run avvisa:allergie`, prova di default, `CONFERMA=1` per mandare):
+la campagna in chat non si tocca — criterio e popolazioni restano in `common/da-ricontattare.ts` e
+`chat/campagna-allergie.ts`. Il nuovo script prende **il complemento** (chi NON è nelle popolazioni
+della campagna) così nessuno riceve due notifiche. Marcatore «già avvisata» = la notifica stessa,
+per tipo, come sempre.
+
+**Ordine domani (14/8, ore 11):** prima `chiedi:allergie` (3 notifiche col dialogo), poi
+`avvisa:allergie` (i 45). Tutti e due prima in prova, letti riga per riga, poi `CONFERMA=1`.

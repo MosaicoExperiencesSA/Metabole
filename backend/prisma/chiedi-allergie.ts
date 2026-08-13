@@ -32,7 +32,10 @@ import { PrismaClient } from '@prisma/client';
 import { EU_ALLERGEN_CODES } from '../src/catalog/allergens';
 import { allergieDaCodificare } from '../src/common/allergie';
 import { MotivoRicontatto, motivoRicontatto } from '../src/common/da-ricontattare';
-import { POPOLAZIONI_IN_CAMPAGNA, invitaARidichiarare } from '../src/chat/campagna-allergie';
+import { POPOLAZIONI_IN_CAMPAGNA, TIPO_NOTIFICA_ALLERGIE, invitaARidichiarare, testoNotifica } from '../src/chat/campagna-allergie';
+import { ConfigService } from '@nestjs/config';
+import { datiPush } from '../src/notifications/dati-push';
+import { PushService } from '../src/notifications/push.service';
 
 const prisma = new PrismaClient();
 
@@ -111,6 +114,7 @@ async function main(): Promise<void> {
     return;
   }
 
+  const push = new PushService(prisma as never, new ConfigService());
   const conto = { inviata: 0, gia_chiesta: 0, fuori_campagna: 0, non_serve: 0 } as Record<string, number>;
   for (const { r, m } of daContattare) {
     // ⚠️ La stessa funzione del prodotto, non una `notification.create` riscritta qui: è lei che sa
@@ -118,6 +122,18 @@ async function main(): Promise<void> {
     // che tiene il freno del «gliel'ho già chiesto».
     const esito = await invitaARidichiarare(prisma as never, r.userId, m, { prova: !conferma });
     conto[esito.esito] = (conto[esito.esito] ?? 0) + 1;
+    /**
+     * ⚠️ LA PUSH VERA (Decisioni 13/8 §13). `invitaARidichiarare` scrive solo la riga in app — la
+     * campanella — e resta così apposta: è prisma-e-basta, usabile ovunque. Ma una campagna verso
+     * gente che l'app non la apre da settimane ha bisogno che il telefono suoni: la push parte da
+     * qui, solo alla scrittura vera (mai su «già chiesta», mai in prova), con lo stesso payload.
+     */
+    if (conferma && esito.esito === 'inviata') {
+      const { title, body } = testoNotifica(m as never);
+      await push.sendToUser(r.userId, title, body, datiPush(TIPO_NOTIFICA_ALLERGIE, {
+        kind: TIPO_NOTIFICA_ALLERGIE, counterpart: 'ai', clientId: r.userId,
+      }));
+    }
     const dettaglio =
       m === 'allergie_da_codificare'
         ? allergieDaCodificare(r.allergies, r.allergiesOther, EU_ALLERGEN_CODES).join(', ')

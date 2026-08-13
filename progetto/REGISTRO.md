@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` ☕ **Colazioni dolci e salate: propone il sistema, conferma Lucia (Decisioni §12).**
+  Nasce dall'azione 3 di Vera («a colazione qualcosa di salato»): il dato non esisteva, e non
+  riguarda 14.000 ricette ma solo lo slot colazione. Convenzione `piatto:dolce`/`piatto:salato` su
+  `Recipe.tags` — il tag scritto È la conferma, la proposta si calcola al volo e non si salva.
+  Classificatore che NON indovina (conflitto = nessuna proposta; ricotta/pane/yogurt/pancake fuori
+  dalle liste di proposito), pagina «Colazioni» nel backoffice con conferme in blocco, endpoint su
+  `RecipesController`, permesso derivato da `recipes`. L'azione di Vera resta spenta finché le
+  conferme non bastano. 19 test nuovi (visti rossi: «torta salata» usciva *dolce* — preso dal test).
+
+- `[Sviluppo]` 🪥 **Vera: il battesimo non si perde più (dagli screenshot di Simone).** Il saluto
+  chiedeva il nome ma lo stato scadeva in 2 ore: dopo, ogni risposta cadeva su «non ci arrivo» e il
+  battesimo restava irraggiungibile per sempre. Ora è una **condizione sui dati** (`nomeAgente`
+  vuoto), non uno stato appeso al messaggio; l'estrattore capisce «ti chiamerò X»/«sarà X»/il nome
+  secco/«scegli tu» e non prende più la prima parola («Ciao ti chiamerò Vera» → si sarebbe chiamata
+  «Ciao»). «Annulla» a vuoto ora lo dice. Finestra della chat a ~640px. 9 test nuovi, 214 di Vera verdi.
+
+- `[Sviluppo]` 📣 **Campagna allergie a TUTTI i 48 (decisione di Simone, Decisioni §13).** La conta
+  su Render: 0 intolleranze ignote, 3 da codificare, 24 mai risposto, 21 a posto. Trovato e chiuso
+  un buco: `chiedi:allergie` scriveva solo la campanella in app, nessuna push al telefono — ora la
+  push parte alla scrittura vera. Script nuovo `avvisa:allergie` per il complemento (24 → portati
+  alla scheda in home; 21 → informativa sul profilo), prova di default, `CONFERMA=1` per mandare.
+  Si lancia il 14/8 alle 11, DOPO Render + OTA; promemoria programmato.
+
 - `[Sviluppo]` 🗣️ **Gaia richiede quello che di un'allergia non sappiamo (§7 dell'handoff).** La
   scheda in home che esce stasera prende chi non ha **mai** risposto; restano fuori due cose che una
   casella da spuntare non sa fare, e per quelle serve parlare: chi ha segnato «Altro» fra le

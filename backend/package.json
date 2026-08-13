@@ -52,6 +52,7 @@
     "assegna:senza-glutine": "ts-node --transpile-only prisma/assegna-senza-glutine.ts",
     "conta:allergie": "ts-node --transpile-only prisma/conta-allergie-da-chiedere.ts",
     "chiedi:allergie": "ts-node --transpile-only prisma/chiedi-allergie.ts",
+    "avvisa:allergie": "ts-node --transpile-only prisma/avvisa-allergie-app.ts",
     "prisma:tipi": "node scripts/prisma-generate-reale.mjs",
     "carica:lavori": "ts-node --transpile-only prisma/carica-lavori.ts",
     "accendi:automazioni": "ts-node --transpile-only prisma/accendi-automazioni.ts",

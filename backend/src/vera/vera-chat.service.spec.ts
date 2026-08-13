@@ -54,7 +54,12 @@ function make(
       update: profileUpdate,
     },
     recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([]) },
-    staff: { updateMany: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ displayName: 'Lucia' }) },
+    staff: {
+      updateMany: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn().mockResolvedValue({ displayName: 'Lucia' }),
+      // Il battesimo è già fatto, salvo nei test che lo mettono alla prova: è una condizione sui dati.
+      findFirst: jest.fn().mockResolvedValue({ nomeAgente: 'Vera' }),
+    },
     ...over,
   } as unknown as PrismaService;
 
@@ -138,6 +143,32 @@ describe('VeraChatService — il primo incontro', () => {
     await service.parla('lucia', 'scegli tu');
     expect((prisma.staff.updateMany as jest.Mock).mock.calls[0][0].data.nomeAgente).toBe('Vera');
     expect(ultimoAgente(messaggioCreate).testo).toContain('Vera');
+  });
+
+  /**
+   * I tre difetti del 13/8 (screenshot di Simone): la risposta al battesimo arrivata DOPO la
+   * scadenza dello stato cadeva su «non ci arrivo», e il battesimo restava irraggiungibile per
+   * sempre; l'estrattore prendeva la prima parola («Ciao»); e «annulla» a vuoto sembrava un errore.
+   */
+  it('risponde al battesimo anche a stato scaduto: comanda il dato, non il messaggio', async () => {
+    const { service, prisma } = make(); // nessuno statoAperto: come dopo la scadenza
+    (prisma.staff.findFirst as jest.Mock).mockResolvedValue({ nomeAgente: null });
+    await service.parla('lucia', 'Ciao ti chiamerò Vera');
+    expect((prisma.staff.updateMany as jest.Mock).mock.calls[0][0].data.nomeAgente).toBe('Vera');
+  });
+
+  it('senza nome ma con una frase di lavoro: il battesimo non tiene in ostaggio', async () => {
+    const { service, prisma } = make({}, { statoAperto: { passo: 'nome', frase: '' } });
+    (prisma.staff.findFirst as jest.Mock).mockResolvedValue({ nomeAgente: null });
+    await service.parla('lucia', 'a Giulia Rossi niente formaggi molli');
+    // Niente battesimo per sbaglio: la frase è lavoro, e il lavoro parte.
+    expect(prisma.staff.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('«annulla» con niente in corso non è un «non ci arrivo»', async () => {
+    const { service, messaggioCreate } = make();
+    await service.parla('lucia', 'ok annulla tutto');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('niente in corso');
   });
 });
 

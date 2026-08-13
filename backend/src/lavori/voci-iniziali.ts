@@ -383,6 +383,31 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 230,
   },
+  // ── 13/8 pomeriggio: colazioni, battesimo di Vera, campagna allergie a tutti ──
+  {
+    chiave: 'colazioni-dolce-salato',
+    titolo: 'Colazioni: la pagina «dolce o salata» è su — servono le conferme di Lucia',
+    dettaglio:
+      'Pagina nuova «Colazioni» nel backoffice (dal menu, sotto Allergeni ricette): il sistema propone dolce/salato dagli ingredienti delle sole ricette di colazione, Lucia conferma — anche in blocco. Il tag scritto È la conferma (`piatto:dolce`/`piatto:salato`), gli incerti restano senza proposta e li decide lei. ⚠️ L\'azione di Vera «a colazione qualcosa di salato» resta SPENTA finché le conferme non bastano: una colazione senza tag non partecipa. Decisione in `Decisioni_Simone_20260813.md` §12.',
+    categoria: CODICE,
+    ordine: 232,
+  },
+  {
+    chiave: 'vera-battesimo-scaduto',
+    titolo: 'Vera: il battesimo non si perde più con la scadenza del dialogo',
+    dettaglio:
+      'Dagli screenshot di Simone (13/8): il saluto chiedeva il nome, ma lo stato scadeva in 2 ore e dopo la scadenza OGNI risposta cadeva su «non ci arrivo» — per sempre. Ora il battesimo è una condizione sui dati (nome non ancora scelto): «ti chiamerò Vera» funziona anche il giorno dopo. E l\'estrattore non prende più la prima parola («Ciao ti chiamerò Vera» l\'avrebbe battezzata «Ciao»). Bonus: «annulla» a vuoto risponde «non c\'era niente in corso». Finestra della chat portata a ~640px.',
+    categoria: CODICE,
+    ordine: 233,
+  },
+  {
+    chiave: 'campagna-allergie-a-tutti',
+    titolo: 'Campagna allergie: push a TUTTI i 48 (decisione Simone) — si lancia il 14/8 alle 11',
+    dettaglio:
+      'Due script, nell\'ordine: `chiedi:allergie` (i 3 da codificare, dialogo con Gaia — ora manda anche la PUSH vera, prima c\'era solo la campanella in app) e il nuovo `avvisa:allergie` (gli altri 45: i 24 mai risposto vengono portati alla scheda in home, i 21 già a posto ricevono l\'informativa sul profilo). Tutti e due prima in prova, letti riga per riga, poi CONFERMA=1. ⚠️ Solo DOPO Render + OTA. Decisione in `Decisioni_Simone_20260813.md` §13.',
+    categoria: SIMONE,
+    ordine: 234,
+  },
   {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',

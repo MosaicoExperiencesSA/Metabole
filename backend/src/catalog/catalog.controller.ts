@@ -17,6 +17,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ArrayMaxSize, IsArray } from 'class-validator';
 import { CatalogService } from './catalog.service';
 import { SetRecipeAllergensDto } from './dto/allergens.dto';
+import { ConfermaColazioniDto, SetColazioneDto } from './dto/colazioni.dto';
 import { CreateDietDto, CreateRecipeDto, UpdateRecipeDto, RejectDietDto, SetDayTemplatesDto, UpdateDietDto, UpdateDietProductDto, SetProductRulesDto, RuleProposalDto, RenameDietDto, CollegaRicettaDto } from './dto/catalog.dto';
 
 /** Diete: il nutrizionista propone, il capo approva. */
@@ -232,6 +233,22 @@ export class RecipesController {
     });
   }
 
+  /** Le colazioni con proposta dolce/salato e stato di conferma (Decisioni 13/8 §12). */
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes')
+  @Get('colazioni')
+  colazioni() {
+    return this.catalog.elencoColazioni();
+  }
+
+  /** La conferma in blocco delle proposte. Massimo 500 per volta. */
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes', 'manage')
+  @Post('colazioni/conferma')
+  confermaColazioni(@Body() dto: ConfermaColazioniDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.confermaColazioni(user.sub, dto.scelte);
+  }
+
   // Dettaglio ricetta: aperto a ogni utente autenticato (cliente inclusa) — NIENTE
   // @RequirePage qui, altrimenti la cliente riceve 403 e la ricetta si apre vuota.
   @Get(':id')
@@ -307,6 +324,14 @@ export class RecipesController {
   }
 
   /** Conferma degli allergeni della ricetta da parte del nutrizionista (reviewed=true). */
+  /** La decisione su una colazione sola: dolce, salato, o `null` per togliere. */
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes', 'manage')
+  @Patch(':id/colazione')
+  setColazione(@Param('id') id: string, @Body() dto: SetColazioneDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.setColazione(user.sub, id, dto.tipo);
+  }
+
   @Roles('nutritionist', 'head_nutritionist', 'admin')
   @RequirePage('recipes')
   @Patch(':id/allergens')

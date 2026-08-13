@@ -99,6 +99,7 @@ export const BACKOFFICE_PAGES = [
   'coach_tasks',        // Attività coach (task generati dal cron: prova, fine piano)
   'equivalence_groups', // Gruppi di equivalenza (da diets_catalog)
   'allergens',          // Allergeni ricette (da recipes)
+  'colazioni',          // Colazioni dolci/salate (da recipes) — Decisioni 13/8 §12
   'roles',              // Ruoli (da permissions)
   'creation_validation', // Pagina guidata Creazione e validazione
   'diet_workspace',      // Gestione dieta: hub ricette/allergeni/gruppi per dieta (da diets_catalog)
@@ -395,6 +396,7 @@ export const INHERIT_DEFAULTS: Record<string, PageKey> = {
   publisher: 'marketing',
   equivalence_groups: 'diets_catalog',
   allergens: 'recipes',
+  colazioni: 'recipes',
   roles: 'permissions',
   creation_validation: 'diets_catalog',
   diet_workspace: 'diets_catalog',

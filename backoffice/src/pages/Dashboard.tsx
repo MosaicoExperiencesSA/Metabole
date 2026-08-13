@@ -87,6 +87,7 @@ export const CATALOG: Shortcut[] = [
   { id: 'publisher', pageKey: 'publisher', to: '/publisher', icon: 'ti-send', label: 'Publisher social', hint: 'Pubblicazioni' },
   { id: 'ricette', pageKey: 'recipes', to: '/ricette', icon: 'ti-tools-kitchen-2', label: 'Catalogo ricette', hint: 'Ricette' },
   { id: 'allergeni', pageKey: 'allergens', to: '/tag-allergeni', icon: 'ti-alert-triangle', label: 'Allergeni ricette', hint: 'Tag allergeni' },
+  { id: 'colazioni', pageKey: 'colazioni', to: '/colazioni', icon: 'ti-coffee', label: 'Colazioni', hint: 'Dolce o salata' },
   { id: 'gruppi_equivalenza', pageKey: 'equivalence_groups', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle', label: 'Gruppi di equivalenza', hint: 'Alternative' },
   { id: 'regole_motore', pageKey: 'engine_rules', to: '/regole-motore', icon: 'ti-adjustments-cog', label: 'Regole motore', hint: 'Regole e preset' },
   { id: 'email_modelli', pageKey: 'email_templates', to: '/email-modelli', icon: 'ti-mail-cog', label: 'Modelli email', hint: 'Template' },

@@ -38,6 +38,7 @@ import {
   SCADENZA_VERA_MS,
   StatoVera,
   testi,
+  estraiNome,
 } from './vera-chat';
 
 interface ClienteTrovata {
@@ -145,6 +146,21 @@ export class VeraChatService {
 
     const intento = capisci(frase);
     if (!intento) {
+      /**
+       * ⚠️ IL BATTESIMO PRIMA DEL «NON CI ARRIVO» (13/8, screenshot di Simone). Lo stato «nome»
+       * scade con la conversazione (`SCADENZA_VERA_MS`), quindi chi risponde alla domanda del nome
+       * sei ore dopo cadeva qui — «Ciao ti chiamerò Vera» → «non ci arrivo» — e il battesimo
+       * diventava irraggiungibile per sempre. La condizione giusta non è lo stato appeso al
+       * messaggio: è il dato (`nomeAgente` vuoto). `estraiNome` non indovina, quindi una frase
+       * qualunque non diventa un nome per sbaglio.
+       */
+      if ((await this.senzaNome(nutrizionistaId)) && estraiNome(frase)) {
+        return this.impostaNome(nutrizionistaId, frase);
+      }
+      // «annulla» con niente in corso: dirlo — «non ci arrivo» sarebbe vero e fuorviante.
+      if (/\b(annulla|lascia stare|lascia perdere|ferma tutto)\b/i.test(frase)) {
+        return { testo: testi.nienteDaAnnullare(), esito: 'in_corso' };
+      }
       // Il capo che scrive «cosa c'è da vedere?» non sta dettando una regola: sta chiedendo la coda.
       // Si prova quella PRIMA di rispondere «non ho capito», che sarebbe vero e inutile.
       const prossima = await this.cosaTiPorto(nutrizionistaId);
@@ -216,18 +232,32 @@ export class VeraChatService {
   // ──────────────────────────────────────────────────────────────── il nome ──
 
   private async impostaNome(nutrizionistaId: string, frase: string): Promise<EsitoVera> {
-    const grezzo = frase.trim();
-    // «scegli tu» → il nome di scorta. Serve: senza, chi non ha voglia di decidere resterebbe
-    // bloccato sulla prima domanda, che è il modo peggiore di cominciare.
-    const scegliTu = /\b(scegli tu|decidi tu|come vuoi|non so)\b/i.test(grezzo);
-    const nome = scegliTu ? 'Vera' : grezzo.split(/[\s,.;]/)[0].slice(0, 30);
-    if (!nome) return { testo: testi.presentazione(), esito: 'in_corso', stato: { passo: 'nome', frase: '' } };
-
+    /**
+     * ⚠️ Non più la prima parola (13/8: «Ciao ti chiamerò Vera» sarebbe diventato «Ciao»).
+     * `estraiNome` accetta solo forme esplicite, il nome secco, o «scegli tu» — e su tutto il
+     * resto NON indovina.
+     */
+    const esito = estraiNome(frase);
+    if (!esito) {
+      // Se invece è una frase di lavoro, il battesimo non la tiene in ostaggio: si lavora.
+      if (capisci(frase)) return this.nuovoGiro(nutrizionistaId, frase);
+      return { testo: testi.nomeNonCapito(), esito: 'in_corso', stato: { passo: 'nome', frase: '' } };
+    }
+    const nome = esito.tipo === 'scegli_tu' ? 'Vera' : esito.nome;
     await this.prisma.staff.updateMany({
       where: { userId: nutrizionistaId } as never,
       data: { nomeAgente: nome } as never,
     });
     return { testo: testi.nomePreso(nome), esito: 'in_corso' };
+  }
+
+  /** Il battesimo è una CONDIZIONE SUI DATI, non uno stato: finché il nome non c'è, resta aperto. */
+  private async senzaNome(nutrizionistaId: string): Promise<boolean> {
+    const s = (await this.prisma.staff.findFirst({
+      where: { userId: nutrizionistaId } as never,
+      select: { nomeAgente: true } as never,
+    })) as { nomeAgente: string | null } | null;
+    return !s?.nomeAgente;
   }
 
   // ────────────────────────────────────────────────────────────── la cliente ─

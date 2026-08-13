@@ -11,6 +11,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
+import { classificaColazione, nomiIngredienti, tagsDopoScelta, tipoConfermato, type TipoColazione } from '../vera/colazioni';
 import { METODI_COTTURA } from '../common/metodi-cottura';
 import { giornateComplete, pastiAttesi } from './giornate-complete';
 import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
@@ -423,6 +424,91 @@ export class CatalogService {
       metadata: { count: clean.length },
     });
     return updated;
+  }
+
+  // ---------- Colazioni dolci e salate (Decisioni 13/8 §12) ----------
+
+  /**
+   * L'elenco per chi conferma: ogni colazione ATTIVA con lo stato confermato (il tag) e la
+   * proposta del sistema, calcolata al volo. ⚠️ Non passa da `getRecipe`, che i tag li toglie
+   * apposta dalle risposte: qui i tag non escono comunque — escono `confermato` e `proposta`.
+   */
+  async elencoColazioni() {
+    const ricette = await this.prisma.recipe.findMany({
+      where: { mealSlot: 'breakfast', active: true },
+      select: { id: true, name: true, kcal: true, tags: true, ingredients: true },
+      orderBy: { name: 'asc' },
+    });
+    const items = ricette.map((r) => {
+      const tags = (r as { tags?: string[] }).tags ?? [];
+      const { proposta, indizi } = classificaColazione(r.name, nomiIngredienti(r.ingredients));
+      return { id: r.id, name: r.name, kcal: r.kcal, confermato: tipoConfermato(tags), proposta, indizi };
+    });
+    return {
+      items,
+      conta: {
+        totale: items.length,
+        confermateSalato: items.filter((i) => i.confermato === 'salato').length,
+        confermateDolce: items.filter((i) => i.confermato === 'dolce').length,
+        // Le già confermate non sono più proposte: la proposta esiste solo dove manca la persona.
+        proposteSalato: items.filter((i) => !i.confermato && i.proposta === 'salato').length,
+        proposteDolce: items.filter((i) => !i.confermato && i.proposta === 'dolce').length,
+        senzaProposta: items.filter((i) => !i.confermato && !i.proposta).length,
+      },
+    };
+  }
+
+  /** Una persona decide: scrive `piatto:dolce`/`piatto:salato`, o toglie la classificazione (`null`). */
+  async setColazione(userId: string, id: string, tipo: TipoColazione | null) {
+    if (tipo !== 'dolce' && tipo !== 'salato' && tipo !== null) {
+      throw new BadRequestException('Tipo colazione non valido: dolce, salato, o null per togliere');
+    }
+    const recipe = await this.prisma.recipe.findUnique({ where: { id }, select: { id: true, tags: true } });
+    if (!recipe) throw new NotFoundException('Ricetta non trovata');
+    const updated = await this.prisma.recipe.update({
+      where: { id },
+      data: { tags: tagsDopoScelta((recipe as { tags?: string[] }).tags, tipo) },
+    });
+    await this.audit.log({
+      action: 'catalog.recipe.colazione.set',
+      actorId: userId,
+      entityType: 'recipe',
+      entityId: id,
+      metadata: { tipo },
+    });
+    return { id: updated.id, confermato: tipo };
+  }
+
+  /**
+   * La conferma in blocco: le proposte che Lucia approva insieme. Chi non esiste più si salta e si
+   * conta — un id sparito non deve far fallire le altre duecento. Un audit solo per il blocco.
+   */
+  async confermaColazioni(userId: string, scelte: { id: string; tipo: TipoColazione }[]) {
+    if (!Array.isArray(scelte) || scelte.length === 0) throw new BadRequestException('Nessuna scelta');
+    if (scelte.length > 500) throw new BadRequestException('Massimo 500 conferme per blocco');
+    if (scelte.some((c) => c.tipo !== 'dolce' && c.tipo !== 'salato')) {
+      throw new BadRequestException('In blocco si conferma solo dolce o salato');
+    }
+    const trovate = await this.prisma.recipe.findMany({
+      where: { id: { in: scelte.map((c) => c.id) } },
+      select: { id: true, tags: true },
+    });
+    const perId = new Map(trovate.map((r) => [r.id, (r as { tags?: string[] }).tags ?? []]));
+    let scritte = 0;
+    for (const scelta of scelte) {
+      const tags = perId.get(scelta.id);
+      if (tags === undefined) continue;
+      await this.prisma.recipe.update({ where: { id: scelta.id }, data: { tags: tagsDopoScelta(tags, scelta.tipo) } });
+      scritte += 1;
+    }
+    await this.audit.log({
+      action: 'catalog.recipe.colazione.blocco',
+      actorId: userId,
+      entityType: 'recipe',
+      entityId: 'blocco',
+      metadata: { scritte, saltate: scelte.length - scritte },
+    });
+    return { scritte, saltate: scelte.length - scritte };
   }
 
   // ---------- Regole del prodotto (Fase F) ----------

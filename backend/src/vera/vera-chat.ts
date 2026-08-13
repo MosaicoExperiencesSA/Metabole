@@ -102,6 +102,14 @@ export const testi = {
     `Da adesso mi chiamo ${nome}. Puoi cominciare quando vuoi: per esempio «a Giulia Rossi niente ` +
     'formaggi molli, solo il grana».',
 
+  nomeNonCapito: () =>
+    'Non ho capito il nome. Dimmelo secco — per esempio: «Vera» — oppure dimmi «scegli tu» e ne ' +
+    'scelgo uno io.',
+
+  nienteDaAnnullare: () =>
+    'Non c\'era niente in corso da annullare: non stavo per scrivere nulla. Ripartiamo quando ' +
+    'vuoi — per esempio «a Giulia Rossi niente formaggi molli».',
+
   nonCapito: (tentativi: number) =>
     tentativi < MAX_TENTATIVI
       ? 'Non ci arrivo. Puoi riscriverla dicendo **su chi** e **cosa** — per esempio «a Giulia Rossi ' +
@@ -332,4 +340,40 @@ export function leggiElenco(testo: string): string[] {
     .split(/\s*,\s*|\s+e\s+|\s+ed\s+|\n/i)
     .map((x) => x.replace(/^[\s·\-–*]+|[\s.;]+$/g, '').trim())
     .filter((x) => x.length >= 2);
+}
+
+// ─────────────────────────────────────────────────────────── il battesimo ────
+
+export type EsitoNome = { tipo: 'scegli_tu' } | { tipo: 'nome'; nome: string };
+
+/**
+ * Il nome dalla risposta al battesimo — o `null`, che vuol dire «questa non è una risposta alla
+ * domanda del nome».
+ *
+ * ⚠️ Nato da un difetto vero (13/8, screenshot di Simone): l'estrattore prendeva la PRIMA parola
+ * della frase, per cui «Ciao ti chiamerò Vera» avrebbe battezzato l'assistente «Ciao». E lo stato
+ * «nome» scadeva con la conversazione (`SCADENZA_VERA_MS`), rendendo il battesimo irraggiungibile
+ * per sempre: per questo il chiamante lo usa come CONDIZIONE SUI DATI (nomeAgente vuoto), non come
+ * stato appeso al messaggio.
+ *
+ * Qui non si indovina: o la frase è una forma esplicita («ti chiamerò X», «sarà X», «ti battezzo
+ * X»...), o è il nome secco (al massimo con un saluto davanti), o è «scegli tu». Tutto il resto è
+ * `null` — meglio richiedere che chiamarsi «Ciao» per sempre.
+ */
+export function estraiNome(frase: string): EsitoNome | null {
+  const f = (frase ?? '').trim();
+  if (!f) return null;
+  if (/\b(scegli tu|decidi tu|come vuoi|fai tu|non so)\b/i.test(f)) return { tipo: 'scegli_tu' };
+
+  const esplicita =
+    /(?:ti\s+chiamer[òo]|ti\s+chiamo|ti\s+chiami|ti\s+battezzo|sar[àa]i?|il\s+tuo\s+nome\s+(?:è|sar[àa]))\s+[«"']?([a-zA-ZÀ-ÿ]{2,30})/i.exec(f);
+  if (esplicita) return { tipo: 'nome', nome: esplicita[1] };
+
+  // Il nome secco, eventualmente con un saluto o un «ok» davanti e la punteggiatura in coda.
+  const secco = f
+    .replace(/^(?:ciao|buongiorno|buonasera|salve|ehi|ok|va bene)[\s,!.]*/i, '')
+    .replace(/[\s!.?«»"']+$/g, '')
+    .trim();
+  if (/^[a-zA-ZÀ-ÿ]{2,30}$/.test(secco)) return { tipo: 'nome', nome: secco };
+  return null;
 }

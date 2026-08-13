@@ -66,6 +66,7 @@ export const PAGE_LABEL: Record<string, string> = {
   food_swaps: 'Sostituzioni',
   nutri_assistant: 'Assistente (Vera)',
   allergens: 'Allergeni ricette',
+  colazioni: 'Colazioni dolci e salate',
   email_templates: 'Modelli email',
   email_log: 'Log email',
   pdf_templates: 'Grafica PDF',

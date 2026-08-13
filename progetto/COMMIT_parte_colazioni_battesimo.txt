@@ -1,0 +1,47 @@
+─── PARTE: Colazioni dolce/salato + battesimo di Vera + campagna a tutti (13/8 pomeriggio) ───
+
+Colazioni dolci e salate, il battesimo di Vera che non si perde, la campagna allergie a tutti
+
+TRE LAVORI IN UNA CONSEGNA, tutti decisi oggi con Simone (Decisioni §12 e §13 + screenshot).
+
+1) COLAZIONI DOLCE/SALATO (Decisioni §12) — il prerequisito dell'azione 3 di Vera.
+Il dato non esisteva: niente diceva se una colazione è dolce o salata. Non riguarda 14.000 ricette:
+solo lo slot colazione. Convenzione `piatto:dolce`/`piatto:salato` su Recipe.tags — il tag scritto È
+la conferma di una persona, la proposta si calcola al volo e non si salva (stesso patto di
+allergensReviewed). Il classificatore NON indovina: conflitto = nessuna proposta («torta salata» ha
+indizi in tutte e due le direzioni e resta da decidere), e ricotta/pane/yogurt/pancake sono fuori
+dalle liste di proposito. Pagina «Colazioni» nel backoffice (sotto Allergeni ricette), conferme
+anche in blocco (max 500), permesso `colazioni` derivato da `recipes`, audit su ogni scrittura.
+⚠️ L'azione di Vera «a colazione qualcosa di salato» resta SPENTA: si accende quando le conferme
+bastano. Il test l'ha guadagnato subito: «torta salata» usciva proposta *dolce* (il femminile
+«salata» non combaciava con l'indizio 'salato') — ora le voci di una parola valgono come prefisso
+di parola, e «insalata» resta fuori.
+
+2) IL BATTESIMO DI VERA (screenshot di Simone). Il saluto chiede il nome, ma lo stato «nome»
+scadeva con la conversazione (2h): la risposta delle 16:06 al saluto delle 09:45 cadeva su «non ci
+arrivo» e il battesimo diventava irraggiungibile PER SEMPRE. Ora è una condizione sui dati
+(`nomeAgente` vuoto), non uno stato appeso al messaggio. E l'estrattore non prende più la prima
+parola: «Ciao ti chiamerò Vera» l'avrebbe battezzata «Ciao» — ora capisce le forme esplicite, il
+nome secco e «scegli tu», e sul resto richiede invece di indovinare. «Ok annulla tutto» a vuoto ora
+risponde «non c'era niente in corso». Finestra della chat: 460px → min(72vh, 640px).
+
+3) CAMPAGNA ALLERGIE A TUTTI I 48 (decisione di Simone, §13). La conta su Render: 0+3+24+21.
+Trovato un buco: `chiedi:allergie` scriveva solo la campanella in app — nessuna push al telefono.
+Ora la push parte alla scrittura vera (mai in prova, mai su «già chiesta»). Script nuovo
+`avvisa:allergie` per il complemento: i 24 mai risposto → push che li porta alla scheda in home;
+i 21 già a posto → informativa sul profilo. Prova di default, CONFERMA=1 per mandare, marcatore
+«già avvisata» = la notifica stessa. ⚠️ Si lancia il 14/8 alle 11, DOPO Render + OTA, nell'ordine:
+chiedi:allergie poi avvisa:allergie.
+
+FILE — backend: vera/colazioni.ts+spec (nuovi), catalog/catalog.service.ts, catalog.controller.ts,
+dto/colazioni.dto.ts (nuovo), catalog/colazioni.service.spec.ts (nuovo), vera/vera-chat.ts,
+vera/vera-chat.service.ts, vera/vera-chat.spec.ts (nuovo), vera/vera-chat.service.spec.ts,
+permissions/pages.ts, lavori/voci-iniziali.ts (3 voci nuove: 232-234), prisma/chiedi-allergie.ts,
+prisma/avvisa-allergie-app.ts (nuovo), package.json (avvisa:allergie).
+Backoffice: pages/Colazioni.tsx (nuova), App.tsx, components/Layout.tsx, lib/labels.ts,
+pages/Dashboard.tsx, pages/Vera.tsx. Docs: Decisioni §12-§13, REGISTRO, VERA_AVANZAMENTO.
+
+TEST: 28 nuovi (13 colazioni pure + 6 servizio + 6 estrattore nome + 3 regressione servizio Vera),
+visti rossi prima di passare. Suite vera/ 220 verdi, catalog+permissions 99 verdi, tsc pulito
+(restano i 2 errori pre-esistenti di approve-diets/dedupe-diets). Nessuna migrazione: zero colonne
+nuove, la convenzione vive nei tag.

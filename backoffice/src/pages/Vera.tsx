@@ -308,7 +308,7 @@ export function Vera() {
       )}
 
       {/* ── la conversazione ─────────────────────────────────────────────── */}
-      <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 460 }}>
+      <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 'min(72vh, 640px)' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messaggi.length === 0 && <div className="empty">Scrivi la prima frase qui sotto.</div>}
           {messaggi.map((m) => {

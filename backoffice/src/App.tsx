@@ -25,6 +25,7 @@ import { Agenti } from './pages/Agenti';
 import { AttivitaCoach } from './pages/AttivitaCoach';
 import { Ricette } from './pages/Ricette';
 import { TagAllergeni } from './pages/TagAllergeni';
+import { Colazioni } from './pages/Colazioni';
 import { GestioneNegozio } from './pages/GestioneNegozio';
 import { Protocolli } from './pages/Protocolli';
 import { ValoriNutrizionali } from './pages/ValoriNutrizionali';
@@ -124,6 +125,7 @@ export default function App() {
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
       <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="recipes"><Ricette /></Protected>} />
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />
+      <Route path="/colazioni" element={<Protected title="Colazioni dolci e salate" pageKey="colazioni"><Colazioni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="equivalence_groups"><GruppiEquivalenza /></Protected>} />
       <Route path="/sostituzioni" element={<Protected title="Sostituzioni" pageKey="food_swaps"><Sostituzioni /></Protected>} />
       <Route path="/assistente" element={<Protected title="Assistente" pageKey="nutri_assistant"><Vera /></Protected>} />
