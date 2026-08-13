@@ -129,7 +129,11 @@ describe('il divieto su una dieta (§6.2)', () => {
 
   it('scrive UNA riga in ProductRule, accesa', async () => {
     const create = jest.fn().mockResolvedValue({});
-    const prisma = { productRule: { findFirst: jest.fn().mockResolvedValue(null), create, update: jest.fn() } };
+    const prisma = {
+      productRule: { findFirst: jest.fn().mockResolvedValue(null), create, update: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
+    };
     const esito = await applicaProposta(prisma as never, proposta as never);
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ dietId: 'd1', enabled: true, params: { termini: ['tonno'] } }) }),
@@ -145,6 +149,8 @@ describe('il divieto su una dieta (§6.2)', () => {
         create: jest.fn(),
         update,
       },
+      recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     };
     await applicaProposta(prisma as never, proposta as never);
     expect(update).toHaveBeenCalledWith(
@@ -159,6 +165,8 @@ describe('il divieto su una dieta (§6.2)', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'pr1', enabled: true, params: { termini: ['tonno'] } }),
         create: jest.fn(), update,
       },
+      recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     };
     const esito = await applicaProposta(prisma as never, proposta as never);
     expect(update).not.toHaveBeenCalled();
@@ -167,8 +175,50 @@ describe('il divieto su una dieta (§6.2)', () => {
 
   it('senza dieta o senza alimento non scrive', async () => {
     const create = jest.fn();
-    const prisma = { productRule: { findFirst: jest.fn(), create, update: jest.fn() } };
+    const prisma = {
+      productRule: { findFirst: jest.fn(), create, update: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
+    };
     await applicaProposta(prisma as never, { ...proposta, soggettoId: null } as never);
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe('i menu già preparati, quando il divieto entra in vigore', () => {
+  const proposta = {
+    id: 'p1', nutrizionistaId: 's1', azione: 'regola_dieta', ambito: 'dieta',
+    soggettoId: 'd1', soggettoNome: 'Mediterranea', dettaglio: { termini: ['tonno'] },
+  };
+  const domani = new Date(Date.now() + 86_400_000);
+
+  function prismaCon(giorni: unknown[]) {
+    const deleteMany = jest.fn().mockResolvedValue({ count: giorni.length });
+    return {
+      deleteMany,
+      prisma: {
+        productRule: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
+        recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Tonno alle olive', ingredients: [] }]) },
+        menuDay: { findMany: jest.fn().mockResolvedValue(giorni), deleteMany },
+      },
+    };
+  }
+
+  it('⚠️ i giorni futuri NON ancora aperti col piatto vietato si rifanno', async () => {
+    const { prisma, deleteMany } = prismaCon([
+      { id: 'g1', clientId: 'c1', date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }] },
+    ]);
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1'] } } });
+    expect(esito.riepilogo).toContain('quelle già lette restano come sono');
+  });
+
+  it('⚠️ un giorno che NON contiene il piatto vietato non si tocca', async () => {
+    const { prisma, deleteMany } = prismaCon([
+      { id: 'g2', clientId: 'c1', date: domani, viewedAt: null, meals: [{ slot: 'cena', recipeId: 'r-altro' }] },
+    ]);
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(deleteMany).not.toHaveBeenCalled();
+    expect(esito.riepilogo).toContain('non ho toccato niente');
   });
 });

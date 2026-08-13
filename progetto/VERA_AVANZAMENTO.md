@@ -11,6 +11,14 @@
 
 ## Stato in una riga
 
+**E i menu già preparati si rifanno.** Il divieto di dieta è completo: quando il capo approva, i
+giorni futuri **non ancora aperti** che contengono quel piatto vengono rifatti, e quelli già letti
+restano come sono — è la regola dell'annulla, e `MenuDay.viewedAt` esiste dalla Consegna 1 per
+questo. ⚠️ Si toccano solo i giorni che contengono **davvero** il piatto vietato: buttare via tutti i
+giorni futuri sarebbe più semplice da scrivere e molto peggio da subire. ⚠️ Sopra il tetto di 200
+clienti la regola resta e il rifacimento si salta, dicendo quante persone sono rimaste indietro.
+**+10 test.**
+
 **Il divieto su una dieta esiste davvero (§6.2).** «Nella mediterranea non deve comparire più il
 tonno» non è più solo una proposta in coda: quando il capo approva, la regola si scrive in
 `ProductRule` (`diet_excluded_terms`, **nessuna migrazione**) e da lì in avanti il pool non propone

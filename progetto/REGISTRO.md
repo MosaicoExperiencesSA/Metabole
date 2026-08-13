@@ -20,6 +20,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🙋 **Chiediamo le allergie a chi non ce le ha mai dette, dentro l'app.** Decisione di
+  Simone: «non fermiamo nessuno; stasera gira un aggiornamento e andiamo a chiedere a tutti quelli
+  che hanno l'app installata». Metà delle clienti — **24 su 48** — ha saltato quella pagina del
+  questionario, e per loro `allergies: []` non vuol dire «non ne ho»: vuol dire che non lo sappiamo.
+  Una **scheda in home**, in cima, che si toglie da sola a chi ha già risposto. ⚠️ Non un popup: il
+  popup intercetta una persona che stava andando a vedere il menù, e la prima reazione a un popup è
+  chiuderlo. ⚠️ **Si può rimandare** — la cosa che uccide questi avvisi è non poterli chiudere.
+  ⚠️ **C'è il campo libero**, non solo i quattordici codici UE: chi ha un'allergia fuori elenco è
+  proprio quella che conta di più. E quello che scrive lì **apre una domanda alla sua nutrizionista**
+  invece di restare una parola che non toglie niente dal piatto — è quello che è successo con
+  «Favismo» e «Carboidrati».
+  ⚠️ **Qui la cliente scrive le allergie e in tutto il resto del prodotto non può**: la regola del §5
+  protegge dalla *correzione*, qui non abbiamo mai *chiesto*. Da cui i due paletti: si risponde **una
+  volta sola** (poi la porta si chiude e lo dice), e si **aggiunge, mai si sostituisce** — una
+  risposta nuova non può far sparire un'allergia registrata da qualcun altro.
+  ⚠️ «Non ne ho» è una risposta e timbra `allergieDichiarateIl`, che è l'unico modo di distinguerla
+  dal silenzio. Scrittura in transazione con l'audit.
+  ⚠️ **Doppione evitato**: l'altra sessione stava costruendo la stessa domanda in chat (§7). Decisione
+  di Simone: stasera esce solo la scheda; il §7 resta il suo lavoro e uscirà con la sua consegna,
+  scrivendo però dalla stessa funzione. 14 test nuovi, verificati rossi prima.
+
+- `[Sviluppo]` 🍽️ **Il divieto di dieta arriva anche ai menu già preparati.** Completa la consegna di
+  poco fa: quando il capo approva, i giorni futuri **non ancora aperti** che contengono davvero quel
+  piatto si rifanno; quelli **già letti restano come sono** — decisione di Simone, ed è la stessa
+  regola dell'annulla (rifare un menu che una cliente ha già aperto, magari dopo la spesa, è la cosa
+  che fa scrivere «l'app è impazzita»).
+  ⚠️ Si toccano **solo i giorni che contengono davvero il piatto**: buttare via tutti i giorni futuri
+  della dieta sarebbe più semplice da scrivere e molto peggio da subire — si rimescolerebbero menu che
+  non c'entrano niente per una regola su un solo alimento.
+  ⚠️ «Rifare» vuol dire **cancellare** quei giorni e lasciare che la consegna li ricomponga con la
+  regola già in vigore: il motore **non** si chiama da dentro l'approvazione, perché
+  `applica-proposta.ts` prende `prisma` e basta di proposito — legarlo al modulo dei menu vorrebbe
+  dire che un problema lì può far fallire un'approvazione.
+  ⚠️ Sopra il tetto di 200 clienti **la regola resta e il rifacimento si salta**, dicendo quante
+  persone sono rimaste indietro: il divieto sui menu nuovi costa zero, è il rifacimento a essere
+  pesante. 10 test nuovi, verificati rossi prima (il giorno già aperto che veniva rifatto lo stesso, e
+  i giorni contati al posto delle persone). Resta l'elenco delle scoperte al capo.
+
 - `[Sviluppo]` 🚫 **La cliente può finalmente leggere cosa non le arriva nel piatto.** Richiesta di
   Simone: due pulsanti nel profilo dell'app — «Cibi assolutamente vietati» (le allergie) e «Cibi da
   evitare» (intolleranze e non graditi). ⚠️ **Il valore non sono i pulsanti, è l'espansione**: oggi

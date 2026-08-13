@@ -8,6 +8,8 @@ import {
 import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { StatoAllergie } from './allergie-chat';
+import { AllergieChatService, EsitoAllergie } from './allergie-chat.service';
 import { rilevaIntentoAltroPiatto } from '../menu/cambio-piatto';
 import { StatoDataInizio, rilevaIntentoDataInizio } from '../menu/data-inizio-chat';
 import { DataInizioChatService, EsitoDataInizio } from '../menu/data-inizio-chat.service';
@@ -51,6 +53,8 @@ export class ChatService {
     private readonly ai: AiService,
     private readonly sostituzione: SostituzioneChatService,
     private readonly dataInizio: DataInizioChatService,
+    /** La ri-domanda sulle allergie: §7 dell'handoff, campagna del 13/8. */
+    private readonly allergie: AllergieChatService,
     /** La banca dati nutrizionale: i numeri che Gaia può dire vengono da qui (11/8). */
     private readonly valori: ValoriNutrizionaliService,
   ) {}
@@ -587,6 +591,20 @@ export class ChatService {
       // I flussi aperti si leggono UNA volta: stanno tutti nel `meta` dello stesso messaggio (il
       // più recente di Gaia), e due letture della stessa riga sono due query per niente.
       const flussi = await this.flussiAperti(threadId);
+      /**
+       * ⚠️ LE ALLERGIE PER PRIME, fra i tre.
+       *
+       * Non è una gerarchia di importanza, è una questione di fraintendimenti: la risposta a «hai
+       * qualche allergia?» è un elenco di alimenti — «i latticini», «le noci» — e un elenco di
+       * alimenti somiglia moltissimo alla richiesta di sostituirne uno. Messa dopo, la risposta
+       * «il latte» aprirebbe un dialogo di sostituzione e l'allergia non verrebbe mai registrata,
+       * senza che niente segnali un errore.
+       *
+       * Aperto ne resta comunque **uno solo alla volta**: lo stato di tutti e tre vive nel `meta`
+       * dello stesso messaggio, e ogni risposta di Gaia lo riscrive da zero.
+       */
+      const daAllergie = await this.gestisciAllergie(clientId, threadId, body, flussi, result.kind);
+      if (daAllergie) return daAllergie;
       // La data di inizio prima della sostituzione: sono due flussi che non possono essere aperti
       // insieme (lo stato vive nello stesso messaggio, e ne scrive uno solo), quindi l'ordine
       // conta solo per l'APERTURA da testo libero — e «vorrei spostare l'inizio del piano» non
@@ -751,13 +769,19 @@ export class ChatService {
    * tabella nuova, nessuna migrazione. Guardare solo l'ultimo, e non il più recente che ne abbia
    * uno, è quello che impedisce a un dialogo abbandonato di risuscitare tre messaggi dopo.
    *
-   * Sono due — la sostituzione (`sost`) e la data di inizio (`dataInizio`) — e può essere aperto
-   * solo uno alla volta, perché ogni risposta di Gaia riscrive quel `meta` da zero.
+   * Sono tre — la sostituzione (`sost`), la data di inizio (`dataInizio`) e la ri-domanda sulle
+   * allergie (`allergie`) — e può essere aperto solo uno alla volta, perché ogni risposta di Gaia
+   * riscrive quel `meta` da zero.
+   *
+   * ⚠️ **Scade dopo un'ora** (`SCADENZA_FLUSSO_MS`). Per le allergie conta più che per gli altri
+   * due: la cliente apre la notifica quando le va, magari il giorno dopo, e a quel punto il
+   * dialogo **si riapre da capo** — non riprende da dove era. È il motivo per cui l'apertura
+   * rilegge il motivo dal profilo invece di fidarsi di quello che c'era scritto nella notifica.
    */
   private async flussiAperti(
     threadId: string,
-  ): Promise<{ sost: StatoSostituzione | null; dataInizio: StatoDataInizio | null }> {
-    const vuoto = { sost: null, dataInizio: null };
+  ): Promise<{ sost: StatoSostituzione | null; dataInizio: StatoDataInizio | null; allergie: StatoAllergie | null }> {
+    const vuoto = { sost: null, dataInizio: null, allergie: null };
     const ultimo = await this.prisma.message.findFirst({
       where: { threadId, senderRole: 'ai' },
       orderBy: { sentAt: 'desc' },
@@ -766,11 +790,106 @@ export class ChatService {
     if (!ultimo) return vuoto;
     // Una conversazione lasciata a metà ieri non è una conversazione in corso.
     if (Date.now() - ultimo.sentAt.getTime() > SCADENZA_FLUSSO_MS) return vuoto;
-    const meta = (ultimo.meta ?? {}) as { sost?: StatoSostituzione; dataInizio?: StatoDataInizio };
+    const meta = (ultimo.meta ?? {}) as {
+      sost?: StatoSostituzione;
+      dataInizio?: StatoDataInizio;
+      allergie?: StatoAllergie;
+    };
     return {
       sost: meta.sost?.passo ? meta.sost : null,
       dataInizio: meta.dataInizio?.passo ? meta.dataInizio : null,
+      allergie: meta.allergie?.passo ? meta.allergie : null,
     };
+  }
+
+  // ---------- La ri-domanda sulle allergie (§7 dell'handoff) ----------
+
+  /**
+   * Apertura dalla notifica «allergie_conferma»: Gaia fa la domanda, così la cliente trova la
+   * conversazione già cominciata invece di un campo di testo vuoto e il dubbio su cosa scrivere.
+   *
+   * POST e non GET perché scrive un messaggio. Chiamarlo due volte ripete solo la domanda — e chi
+   * non ha più niente da dichiarare si sente rispondere che è tutto a posto, non una domanda a cui
+   * ha già risposto.
+   */
+  async avviaAllergie(clientId: string) {
+    const thread = await this.prisma.chatThread.upsert({
+      where: { clientId_counterpart: { clientId, counterpart: 'ai' as never } },
+      create: { clientId, counterpart: 'ai' as never },
+      update: {},
+    });
+    const esito = await this.allergie.apri(clientId);
+    const message = await this.scriviEsitoAllergie(clientId, thread.id, null, esito);
+    return { threadId: thread.id, message, esito: esito.esito };
+  }
+
+  /**
+   * Fa avanzare il dialogo sulle allergie, se ce n'è uno aperto. Non si apre mai da testo libero:
+   * questa domanda la facciamo noi, e la facciamo a chi serve (`common/da-ricontattare.ts`).
+   */
+  private async gestisciAllergie(
+    clientId: string,
+    threadId: string,
+    body: string,
+    flussi: { allergie: StatoAllergie | null },
+    kind: string,
+  ) {
+    if (!flussi.allergie) return null;
+    // Stessa uscita degli altri due dialoghi: una domanda vera, fatta mentre aspettiamo un elenco
+    // di alimenti, deve avere la sua risposta. Vale solo al primo passo — alla conferma la risposta
+    // è «sì» o «no», e non somiglia a una domanda.
+    if (kind === 'faq' && flussi.allergie.passo === 'risposta') return null;
+    const esito = await this.allergie.avanza(clientId, flussi.allergie, body);
+    return this.scriviEsitoAllergie(clientId, threadId, body, esito);
+  }
+
+  /** Scrive la risposta di Gaia con lo stato nel `meta`, e gestisce il passaggio alla persona. */
+  private async scriviEsitoAllergie(
+    clientId: string,
+    threadId: string,
+    body: string | null,
+    esito: EsitoAllergie,
+  ) {
+    const meta: Record<string, unknown> = { kind: 'allergie', esitoAllergie: esito.esito };
+    if (esito.stato) meta.allergie = esito.stato;
+    if (esito.applicata) meta.applicata = esito.applicata;
+
+    if (esito.inoltraA) {
+      meta.routedTo = esito.inoltraA;
+      const target = await this.prisma.chatThread.upsert({
+        where: { clientId_counterpart: { clientId, counterpart: esito.inoltraA as never } },
+        create: { clientId, counterpart: esito.inoltraA as never },
+        update: { lastMessageAt: new Date() },
+      });
+      /**
+       * ⚠️ Qui il messaggio inoltrato si scrive anche quando `body` è vuoto, a differenza degli
+       * altri due flussi.
+       *
+       * Là il passaggio di mano nasce sempre da una frase della cliente. Qui può nascere
+       * dall'apertura — «da noi risulta un'allergia che la tua risposta toglierebbe» — e in quel
+       * caso non c'è nessuna frase sua da girare. Senza questa riga la nutrizionista riceverebbe
+       * la notifica di un thread in cui non c'è scritto niente.
+       */
+      await this.prisma.message.create({
+        data: {
+          threadId: target.id,
+          senderRole: 'client',
+          senderUserId: clientId,
+          body: body || 'Ha risposto alla domanda sulle allergie, ma serve una persona: vedi la chat con Gaia.',
+          meta: { forwardedFrom: 'ai', motivo: 'allergie' } as never,
+        },
+      });
+      await this.notifyCounterpartStaff(clientId, esito.inoltraA);
+    }
+
+    const message = await this.prisma.message.create({
+      data: { threadId, senderRole: 'ai', body: esito.testo, meta: meta as never },
+    });
+    await this.prisma.chatThread.update({ where: { id: threadId }, data: { lastMessageAt: new Date() } });
+    // ⚠️ Nessun audit qui: la riga la scrive `AllergieChatService`, **dentro la stessa transazione**
+    // del profilo. Scriverne una seconda da qui vorrebbe dire due tracce per un fatto solo, e la
+    // seconda sopravvivrebbe anche a una scrittura fallita.
+    return message;
   }
 
   // ---------- Data di inizio piano in chat ----------

@@ -41,15 +41,6 @@ export const VOCI_INIZIALI: Voce[] = [
     blocca: false,
   },
   {
-    chiave: 'vera-regola-dieta-rifai-menu',
-    titolo: 'Vera: rifare i giorni futuri non ancora aperti quando il capo approva un divieto di dieta',
-    dettaglio:
-      'Il divieto vale dal 13/8 per tutti i menu NUOVI (pool filtrato + guardia sull\'erogazione). Restano i giorni GIÀ generati e non ancora aperti: si rifanno, quelli già visti no (decisione di Simone). ⚠️ La funzione che dice quali si possono rifare esiste — `registro.service.menuDaRifare` — e va riusata per dieta, non riscritta. ⚠️ Sopra il tetto di 200 clienti la regola si applica lo stesso e il rifacimento si salta, dicendo quanti giorni sono rimasti indietro.',
-    categoria: CODICE,
-    ordine: 15,
-    blocca: false,
-  },
-  {
     chiave: 'vera-regola-dieta-scoperte',
     titolo: 'Vera: elenco delle clienti che un divieto di dieta lascerebbe senza un pasto',
     dettaglio:

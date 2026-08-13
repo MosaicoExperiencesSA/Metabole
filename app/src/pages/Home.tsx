@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
+import ChiediAllergie from '../components/ChiediAllergie';
 import Sheet from '../components/Sheet';
 import CheckinPopup, { type CheckinValori } from '../components/CheckinPopup';
 import ReferralCard from '../components/ReferralCard';
@@ -308,6 +309,14 @@ export default function Home() {
   return (
     <div className="home">
       <AppHeader title={`Ciao, ${name}`} />
+
+      {/*
+        ⚠️ IN CIMA A TUTTO, e prima del menu: la domanda sulle allergie a chi non ha mai risposto
+        (13/8). Metà delle clienti ha saltato quella pagina del questionario, e per loro un elenco
+        vuoto non vuol dire «non ne ho» — vuol dire che non lo sappiamo. Il componente non mostra
+        niente a chi ha già risposto: sotto la prima riga si toglie da solo.
+      */}
+      <ChiediAllergie />
 
       {/* Fase attuale del percorso (dimagrimento / mantenimento), decisa dallo staff. */}
       {today?.objective && PHASE_BADGE[today.objective] && (

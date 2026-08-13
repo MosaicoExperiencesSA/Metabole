@@ -13,6 +13,7 @@ import {
   StaffThreadsController,
   ThreadsController,
 } from './chat.controller';
+import { AllergieChatService } from './allergie-chat.service';
 import { ChatService } from './chat.service';
 import { ConversationSummaryService } from './conversation-summary.service';
 
@@ -25,7 +26,9 @@ import { ConversationSummaryService } from './conversation-summary.service';
     ThreadsController,
     DiagnosiAvvisoChatController,
   ],
-  providers: [ChatService, ConversationSummaryService],
-  exports: [ChatService, ConversationSummaryService],
+  // `AllergieChatService` vive qui e non in `menu/`: non tocca nessun `MenuDay`, scrive sul profilo
+  // sanitario. Gli altri due dialoghi stanno nel modulo menu perché è lui che scrive i menu.
+  providers: [ChatService, ConversationSummaryService, AllergieChatService],
+  exports: [ChatService, ConversationSummaryService, AllergieChatService],
 })
 export class ChatModule {}

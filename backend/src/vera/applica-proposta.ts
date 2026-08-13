@@ -22,7 +22,8 @@ import { combaciaAlimento } from '../common/nomi-alimento';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
-import { RULE_CODE_ESCLUSIONI, terminiVietati } from './regola-dieta';
+import { type GiornoDaValutare, clientiColpiti, giorniDaRifare } from './menu-da-rifare';
+import { RULE_CODE_ESCLUSIONI, ricetteVietate, terminiVietati } from './regola-dieta';
 
 /** ⚠️ Oltre questo numero di clienti non si scrive: si dice quante sarebbero e si chiede a mano. */
 const MAX_CLIENTI_IN_UNA_VOLTA = 200;
@@ -134,12 +135,54 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
     await prisma.productRule.create({ data: { dietId, ruleCode: RULE_CODE_ESCLUSIONI, enabled: true, params: { termini: tutti } as never } as never });
   }
 
+  /**
+   * ⚠️ I MENU GIÀ PREPARATI — decisione di Simone (13/8): si rifanno **solo i giorni futuri non
+   * ancora aperti**, e solo quelli che contengono davvero il piatto vietato.
+   *
+   * «Rifare» qui vuol dire **cancellare** quei giorni: la consegna li ricompone al giro successivo,
+   * con la regola nuova già in vigore. ⚠️ Non si chiama il motore da dentro l'approvazione — questo
+   * file prende `prisma` e basta, di proposito: legarlo al modulo dei menu vorrebbe dire che un
+   * problema lì dentro può far fallire un'approvazione, e che i test di Vera smettono di girare da
+   * soli.
+   *
+   * ⚠️ Sopra il tetto di clienti **la regola resta**, il rifacimento no (decisione di Simone): il
+   * divieto sui menu nuovi costa zero ed è il motivo per cui la regola esiste; è il rifacimento che
+   * è pesante. E si dice quante persone sono rimaste indietro, invece di far finta di niente.
+   */
+  const ricetteFuori = ricetteVietate(
+    ((await prisma.recipe.findMany({ select: { id: true, name: true, ingredients: true } })) ?? []) as {
+      id: string; name: string; ingredients: unknown;
+    }[],
+    tutti,
+  );
+  const oggi = new Date();
+  const giorni = giorniDaRifare(
+    ((await prisma.menuDay.findMany({
+      where: { dietId, viewedAt: null, date: { gte: new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), oggi.getUTCDate())) } } as never,
+      select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+    })) ?? []) as GiornoDaValutare[],
+    ricetteFuori,
+    oggi,
+  );
+  const persone = clientiColpiti(giorni);
+  const troppe = persone.length > MAX_CLIENTI_IN_UNA_VOLTA;
+  if (giorni.length && !troppe) {
+    await prisma.menuDay.deleteMany({ where: { id: { in: giorni.map((g) => g.id) } } });
+  }
+
+  const coda = !giorni.length
+    ? ' Nessun menu già preparato conteneva quel piatto: non ho toccato niente.'
+    : troppe
+      ? ` ⚠️ I menu già preparati sarebbero ${giorni.length} su ${persone.length} clienti, oltre il tetto di ` +
+        `${MAX_CLIENTI_IN_UNA_VOLTA}: la regola vale lo stesso da adesso, ma quei giorni li ho lasciati come sono.`
+      : ` Ho rifatto ${giorni.length} ${giorni.length === 1 ? 'giornata' : 'giornate'} non ancora aperte ` +
+        `(${persone.length} ${persone.length === 1 ? 'cliente' : 'clienti'}); quelle già lette restano come sono.`;
+
   return {
-    toccate: 0, // la regola vive sulla dieta, non sui profili: non ho scritto su nessuna cliente
+    toccate: persone.length,
     riepilogo:
       `Fatto: su ${p.soggettoNome ?? 'questa dieta'} ${nuovi.length > 1 ? 'i piatti con' : 'il piatto con'} ` +
-      `${nuovi.join(', ')} non entreranno più nei menu nuovi. ` +
-      'I giorni già preparati e non ancora aperti si rifanno dopo, non adesso: quelli che una cliente ha già letto restano come sono.',
+      `${nuovi.join(', ')} non entreranno più nei menu nuovi.` + coda,
   };
 }
 

@@ -119,6 +119,20 @@ export class MyThreadsController {
     return this.chat.avviaSostituzione(user.sub, dto?.data ?? null);
   }
 
+  /**
+   * Apre la ri-domanda sulle allergie (§7 dell'handoff): è quello che chiama l'app quando la
+   * cliente tocca la notifica «allergie_conferma».
+   *
+   * ⚠️ Non prende nessun parametro, e in particolare **non** prende il motivo dalla notifica: lo
+   * rilegge dal profilo. Fra l'invio e il tocco possono passare giorni, e nel frattempo la
+   * nutrizionista può aver già sistemato tutto dalla scheda.
+   */
+  @Post('allergie')
+  @HttpCode(200)
+  avviaAllergie(@CurrentUser() user: AuthUser) {
+    return this.chat.avviaAllergie(user.sub);
+  }
+
   /** Conversazioni passate (riassunti giornalieri) con un interlocutore. */
   @Get(':who/summaries')
   mySummaries(@CurrentUser() user: AuthUser, @Param('who') who: string) {

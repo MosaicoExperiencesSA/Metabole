@@ -11,6 +11,7 @@ import { Test } from '@nestjs/testing';
 import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { DataInizioChatService } from '../menu/data-inizio-chat.service';
+import { AllergieChatService } from './allergie-chat.service';
 import { SostituzioneChatService } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
@@ -74,6 +75,9 @@ function creaServizio(tocca?: (prisma: any) => void) {
       { provide: AiService, useValue: {} },
       { provide: SostituzioneChatService, useValue: {} },
       { provide: DataInizioChatService, useValue: {} },
+      // Il terzo dialogo guidato (§7 dell'handoff allergie): non si apre mai da testo libero — lo
+      // apre la notifica — quindi qui basta che esista.
+      { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
       { provide: ValoriNutrizionaliService, useValue: {} },
     ],
   }).compile();

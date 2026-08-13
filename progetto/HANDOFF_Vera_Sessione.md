@@ -168,15 +168,18 @@ nome diverso — non un'opzione dentro questa.
 **e** `date >= oggi`), come per l'annulla: un menu già letto resta suo. Vedi
 `registro.service.menuDaRifare`, che risponde già a questa domanda e non va riscritto.
 
-### 6.2 Azione 6 — la regola su un tipo di dieta ✅ SCRITTA il 13/8 (resta il rifacimento dei menu)
+### 6.2 Azione 6 — la regola su un tipo di dieta ✅ COMPLETA il 13/8
 
 «Nella mediterranea non deve comparire più il tonno.» L'assistente la riconosce e apre una proposta in coda al capo — e **dal 13/8 l'approvazione applica
 davvero**: la regola vive in `ProductRule` (`diet_excluded_terms`, nessuna migrazione), il pool non
 propone più quei piatti e la guardia dell'erogazione li fermerebbe comunque.
-⚠️ **Resta il rifacimento dei giorni già generati e non ancora aperti** (`vera-regola-dieta-rifai-menu`
-in lista Lavori) e **l'elenco delle clienti che resterebbero scoperte** (`vera-regola-dieta-scoperte`):
-il pool non svuota mai uno slot, ma finché quell'elenco non arriva al capo la regola *sembra*
-applicata a tutte.
+E i **menu già preparati** si rifanno: i giorni futuri **non ancora aperti** che contengono davvero
+quel piatto vengono cancellati e la consegna li ricompone con la regola nuova; quelli già letti
+restano. ⚠️ Sopra il tetto di 200 clienti la regola resta e il rifacimento si salta, dicendo quante
+persone sono rimaste indietro.
+⚠️ **Resta solo l'elenco delle clienti che resterebbero scoperte** (`vera-regola-dieta-scoperte`): il
+pool non svuota mai uno slot, ma finché quell'elenco non arriva al capo la regola *sembra* applicata
+a tutte.
 
 ⚠️ **Verificato sul codice il 13/8: l'esclusione a livello di dieta non esiste.** Le primitive di
 `menu/exclusions.ts` sono agnostiche, ma **ogni** chiamante costruisce le chiavi dal `ClientProfile`

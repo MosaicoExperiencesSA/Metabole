@@ -7,7 +7,11 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { validateObjective } from '../onboarding/objective-validator';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EU_ALLERGEN_CODES } from '../catalog/allergens';
+import { apriRichiestaVera } from '../vera/apri-richiesta';
+import { type RispostaAllergie, dichiarazione, haRisposto } from './dichiara-allergie';
 import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { campiCambiati } from '../common/diff-campi';
@@ -15,6 +19,9 @@ import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 import { toDateOnly } from '../common/date-only';
 import { dietaMostrataPer, nomePerLaCliente } from '../catalog/dieta-mostrata';
+
+/** Il client dentro una transazione: stessa forma usata in `commerce` e `finance`. */
+type PrismaTx = Prisma.TransactionClient;
 
 @Injectable()
 export class ProfileService {
@@ -256,6 +263,72 @@ export class ProfileService {
    * i menu (ultimo giorno erogato), non quello che dovrebbe essere in teoria: se i due
    * non coincidono è un problema da vedere, non da nascondere.
    */
+  /**
+   * LA RISPOSTA ALLA DOMANDA IN APP — «ci dici se hai allergie?» (13/8).
+   *
+   * ⚠️ **Si può rispondere una volta sola.** Se `allergieDichiarateIl` è già valorizzato questa porta
+   * è chiusa: da lì in poi è una correzione, e la fa la nutrizionista col permesso
+   * `change_allergies`. La regola del §5 — la cliente non scrive le allergie — vale per le
+   * correzioni; qui il caso è l'opposto, non abbiamo mai chiesto e nessuno può rispondere per lei.
+   *
+   * ⚠️ **Si scrive in una transazione con l'audit**: è un dato sanitario, e se la riga di audit
+   * fallisse dopo la scrittura resterebbe una modifica senza autore.
+   */
+  async dichiaraAllergie(userId: string, risposta: RispostaAllergie) {
+    if (!haRisposto(risposta)) {
+      throw new BadRequestException('Scegli le tue allergie, oppure «non ne ho»: senza una risposta non posso registrare niente.');
+    }
+    const attuale = (await this.prisma.clientProfile.findUnique({
+      where: { userId },
+      select: { allergies: true, allergieDichiarateIl: true },
+    })) as { allergies: string[]; allergieDichiarateIl: Date | null } | null;
+    if (!attuale) throw new NotFoundException('Profilo non trovato.');
+    if (attuale.allergieDichiarateIl) {
+      // ⚠️ Non è un errore tecnico: è la regola. E si dice a chi la incontra cosa fare adesso.
+      throw new BadRequestException('Le tue allergie sono già registrate. Per cambiarle parlane con la tua nutrizionista: è lei a poterle correggere.');
+    }
+
+    const esito = dichiarazione(attuale.allergies ?? [], risposta, EU_ALLERGEN_CODES);
+    const adesso = new Date();
+    await this.prisma.$transaction(async (tx: PrismaTx) => {
+      await tx.clientProfile.update({
+        where: { userId },
+        data: {
+          allergies: esito.allergie,
+          allergiesOther: esito.allergiesOther,
+          allergieDichiarateIl: adesso,
+        } as never,
+      });
+      await tx.auditLog.create({
+        data: {
+          action: 'profilo.allergie_dichiarate',
+          actorId: userId,
+          entityType: 'client_profile',
+          entityId: userId,
+          metadata: { allergie: esito.allergie, testoLibero: esito.allergiesOther, daApp: true } as never,
+        } as never,
+      });
+    });
+
+    /**
+     * ⚠️ Quello che non sappiamo tradurre diventa una domanda per la nutrizionista, non un silenzio.
+     * «Favismo» in banca dati non toglie un solo piatto: senza questa riga la cliente crederebbe di
+     * essere protetta. `apriRichiestaVera` non lancia mai e non riapre la stessa domanda due volte.
+     */
+    for (const termine of esito.daTradurre) {
+      await apriRichiestaVera(this.prisma, {
+        tipo: 'allergia_da_tradurre',
+        clienteId: userId,
+        testo: `Una cliente ha dichiarato dall'app un'allergia che non so tradurre: «${termine}». Cosa devo togliere dal suo piatto? Se vale come regola generale, dimmelo: la imparo per tutte.`,
+        origine: 'app-allergie',
+        chiave: `allergia:${userId}:${termine.toLowerCase()}`,
+        termine,
+      });
+    }
+
+    return { registrate: esito.allergie.length, daTradurre: esito.daTradurre.length };
+  }
+
   /**
    * I due elenchi del Profilo: «Cibi assolutamente vietati» (le allergie) e «Cibi da evitare»
    * (intolleranze e non graditi), già espansi negli alimenti veri.

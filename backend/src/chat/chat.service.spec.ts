@@ -4,6 +4,7 @@ import { AiService } from '../ai/ai.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { DataInizioChatService } from '../menu/data-inizio-chat.service';
+import { AllergieChatService } from './allergie-chat.service';
 import { SostituzioneChatService } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
@@ -113,6 +114,9 @@ describe('ChatService', () => {
         { provide: AiService, useValue: { assistantEnabled: jest.fn().mockResolvedValue(false), assistantReply: jest.fn().mockResolvedValue(null) } },
         { provide: SostituzioneChatService, useValue: sostituzione },
         { provide: DataInizioChatService, useValue: dataInizio },
+        // Il terzo dialogo guidato (§7 dell'handoff allergie): non si apre mai da testo libero — lo
+        // apre la notifica — quindi qui basta che esista.
+        { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
         /**
          * La banca dati nutrizionale (11/8). Di default risponde «nessun alimento trovato»: la
          * grande maggioranza di questi test non parla di cibo, e un finto che trova sempre qualcosa
@@ -759,6 +763,9 @@ describe('ChatService — quando Gaia inventa un dato nutrizionale', () => {
           },
         },
         { provide: DataInizioChatService, useValue: { apriDaTesto: jest.fn(), avanza: jest.fn() } },
+        // Il terzo dialogo guidato (§7 dell'handoff allergie): non si apre mai da testo libero — lo
+        // apre la notifica — quindi qui basta che esista.
+        { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
         {
           provide: ValoriNutrizionaliService,
           useValue: {
@@ -866,6 +873,9 @@ describe('ChatService — la domanda nutrizionale con la banca dati', () => {
         { provide: AiService, useValue: ai },
         { provide: SostituzioneChatService, useValue: { apri: jest.fn(), apriDaTesto: jest.fn(), avanza: jest.fn(), sostituzioniDiChat: jest.fn().mockResolvedValue([]), correggiCambioInChat: jest.fn() } },
         { provide: DataInizioChatService, useValue: { apriDaTesto: jest.fn(), avanza: jest.fn() } },
+        // Il terzo dialogo guidato (§7 dell'handoff allergie): non si apre mai da testo libero — lo
+        // apre la notifica — quindi qui basta che esista.
+        { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
         { provide: ValoriNutrizionaliService, useValue: valori },
       ],
     }).compile();
@@ -957,6 +967,9 @@ describe('ChatService.eliminaMessaggio', () => {
         { provide: NotificationsService, useValue: { notifyOncePerDay: jest.fn(), notify: jest.fn() } },
         { provide: SostituzioneChatService, useValue: {} },
         { provide: DataInizioChatService, useValue: {} },
+        // Il terzo dialogo guidato (§7 dell'handoff allergie): non si apre mai da testo libero — lo
+        // apre la notifica — quindi qui basta che esista.
+        { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
         { provide: ValoriNutrizionaliService, useValue: {} },
       ],
     }).compile();

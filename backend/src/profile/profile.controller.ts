@@ -35,6 +35,17 @@ export class ProfileController {
   }
 
   /**
+   * «Ci dici se hai allergie?» — la risposta alla scheda in home (13/8).
+   *
+   * ⚠️ Una volta sola: chi ha già risposto riceve un rifiuto che spiega di parlarne con la
+   * nutrizionista. Non è la porta per correggere, è quella per la prima risposta.
+   */
+  @Post('allergie')
+  dichiaraAllergie(@CurrentUser() user: AuthUser, @Body() body: { allergie?: unknown; altro?: unknown; nessuna?: unknown }) {
+    return this.profile.dichiaraAllergie(user.sub, body ?? {});
+  }
+
+  /**
    * COSA NON DEVE ARRIVARLE NEL PIATTO — i due elenchi dietro i pulsanti del Profilo (13/8).
    *
    * ⚠️ Sola lettura, e deve restarlo: le allergie le corregge la nutrizionista (permesso
