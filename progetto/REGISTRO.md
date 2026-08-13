@@ -20,51 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
-- `[Sviluppo]` 🧱 **Vera — Consegna 1: le fondamenta. E il pool a vuoto NON è un menu simulato.**
-  17 file: migrazione additiva `20260812233000_vera_fondamenta` (`menu_day.viewed_at`,
-  `famiglia_alimento`, `azione_vera`), il modulo `src/vera/` — controllo del pool, dizionario,
-  registro con l'annulla — e `segnaVisti` dentro `getMenu`. Niente chat: sono i pezzi su cui la chat
-  poggerà, e servono anche da soli (il controllo del pool serve pure a Regole motore). L'impianto sta
-  in `Metabole_Specifica_Vera_Agente_Nutrizionista.md`, l'avanzamento in `progetto/VERA_AVANZAMENTO.md`.
-  **⚠️ Ho cambiato strada rispetto alla specifica che avevo scritto io.** Diceva «taglia
-  `deliverIfEligible` alla riga 675 e neutralizza le sei scritture collaterali». Letta sul codice non
-  regge: quella funzione ha **una quindicina di uscite anticipate** che non c'entrano niente con la
-  regola da provare (nessun abbonamento, pausa, piano fermato, misure mancanti, fine piano) — una
-  anteprima che risponde «niente» perché la cliente è in vacanza è rumore, e si impara a ignorarlo — e
-  le sei scritture si neutralizzano solo mettendo degli `if` **sul percorso che porta il pasto vero
-  nel piatto di domani**. La domanda di Vera non è «che menu verrebbe fuori»: è **«quanti piatti
-  restano»**, e si risponde con una **funzione pura sopra il catalogo** che non può scrivere per
-  costruzione. Il modo più sicuro perché un'anteprima non salvi niente non è ricordarsi di non
-  salvare: è **non avere Prisma sotto mano**. Filtro con `hitsExclusion`+`recipeHaystack` di
-  `menu/exclusions.ts`, **mai un filtro proprio**, o il numero mostrato diventa una stima che diverge
-  dal motore senza produrre errori. Soglia = `personal_base_min_recipes_per_slot`, **la stessa** della
-  base personale: per questo `MAIN_SLOTS`/`SLOT_LABEL` sono passati in `common/slot-pasto.ts`.
-  **⚠️ Trovato scrivendo i test, e vale oltre Vera**: `chiaveAlimento` **non fa combaciare singolare e
-  plurale**, perché toglie una sola vocale finale — «formaggi molli» dà `formagg moll`, «formaggio
-  molle» dà `formaggi moll`. Senza rimedio l'agente richiederebbe una famiglia **già imparata**, e se
-  lei rispondesse nascerebbe una **seconda voce per la stessa parola**: due significati, di cui uno
-  vecchio, e le regole scritte prima continuerebbero a usare quello senza dirlo a nessuno. Rimedio
-  (`chiaveLarga`, seconda passata) **dentro Vera**, senza toccare `chiaveAlimento`: quella la usano le
-  sostituzioni §16.9 per contare, e renderla più aggressiva accorperebbe righe che non c'entrano —
-  «pepe» e «peperoni» al contrario. La chiave esatta vince comunque sempre.
-  **Il dato «menu già visto» ora esiste.** `getMenu` è l'unico punto in cui i giorni escono verso
-  l'app: si scrive **solo la prima volta**, non si tocca il database quando non c'è niente da segnare,
-  e un errore non impedisce a nessuna cliente di leggere il menu — ma finisce **nei log**, perché una
-  colonna che smette di popolarsi in silenzio farebbe rigenerare menu già letti senza che nessuno
-  capisca perché. `menuDaRifare` guarda `viewedAt: null` **E** `date >= oggi`: per i giorni erogati
-  prima della migrazione il null vuol dire «non lo so», non «non visto».
-  **Verifica**: type-check **33 errori = baseline** (nessuno nuovo, nessuno nei file di Vera; il
-  confronto si fa col diff, mai col totale), **1439 test verdi** contro 1401 — i 38 in più sono i
-  nuovi, e le 44 suite rosse sono le stesse di prima (rumore dello stub Prisma in sandbox).
-  ✅ **Verificato sul Mac**: `npm run typecheck` **zero errori** coi tipi veri di Prisma, e
-  `app.module.spec.ts` **verde** — ogni dipendenza di ogni modulo si risolve all'avvio, che è l'unica
-  prova che `VeraModule` (senza `imports`, perché `PrismaModule`, `AuditModule` e `ConfigParamsModule`
-  sono tutti `@Global`) non farà uscire Render con 1. In sandbox quei due non girano: `prisma
-  generate` non arriva ai binari e resta appeso.
-  ⚠️ **Nota di metodo**: la voce di REGISTRO scritta ieri per la specifica di Vera **è sparita due
-  volte**, riscritta da sessioni parallele che partivano da una copia vecchia del file. Chi scrive qui
-  da un'altra sessione deve **rileggere il file dal Mac subito prima** e verificare con un `grep` che
-  la propria voce ci sia davvero dopo averla scritta.
+- `[Sviluppo]` 🔐 **Le allergie: la nutrizionista le corregge, dalla scheda cliente e dalla scheda
+  lead.** Richiesta di Simone: «nella scheda cliente e scheda lead il nutrizionista li deve leggere e
+  poter modificare, magari mettiamo l'impostazione nei permessi». Nuovo permesso `change_allergies`
+  («Modifica allergie»), di default a nutrizionista, capo nutrizionista e admin.
+  ⚠️ **Flag suo e non «Clienti: gestisci»**, che ce l'ha anche la coach: un'allergia è un blocco
+  duro, e chi ne toglie una decide che da domani quella cliente può trovarsi quell'alimento nel
+  piatto. Il permesso serve a dare la penna a chi può **codificare** un testo libero in codice UE.
+  ⚠️ **Si chiede solo se l'elenco cambia davvero**, come per il tipo di dieta: il form rimanda tutti
+  i campi a ogni salvataggio, e chiederlo alla presenza del campo vorrebbe dire che una coach non
+  riesce più a salvare nemmeno un numero di telefono — con un errore che parla di allergie.
+  ⚠️ **`allergiesOther` si ricalcola qui, e solo qui.** Dedurre il testo libero per differenza dal
+  catalogo UE è la cosa che `common/allergie.ts` evita — ma lì si indovina a posteriori su dati che
+  nessuno ha riletto; qui una nutrizionista ha l'elenco davanti e preme Salva. È il ripopolamento
+  «dalla nutrizionista» previsto quando la colonna è nata. Correggerle vale come **dichiararle**,
+  così la cliente esce da quelle da ricontattare.
+  La **scheda lead** scrive dallo **stesso endpoint** della scheda cliente: un endpoint dedicato
+  sarebbe una seconda strada per lo stesso dato sanitario, ed è il difetto che questo campo ha già
+  avuto due volte. Senza account collegato non si scrive e lo si dice, invece di mostrare un campo
+  che sembra funzionare e non salva niente. Le **intolleranze** restano dov'erano: sono già
+  modificabili anche dalla coach, e restringerle sarebbe una perdita che nessuno ha chiesto.
+  ⚠️ **Correzione a me stesso:** ieri avevo scritto — nel codice e nel messaggio — che «allergie e
+  intolleranze le scrive un solo punto in tutto il codice». Per le allergie era vero; per le
+  **intolleranze no**, stanno in `PROFILE_FIELDS` da prima. Commenti corretti. La regola dell'unione
+  resta, e regge su un motivo migliore: non è «chi può scrivere questo campo», è **«se lo
+  cancelliamo per sbaglio, la cliente se ne accorge e lo rimette?»**. 9 test nuovi, suite **2196**
+  verde.
 
 - `[Sviluppo]` 🔒 **Il questionario può aggiungere le allergie, non cancellarle.** L'`upsert` del
   questionario è **replace, non merge**: se il DTO non porta `allergies`, il ramo `update` scrive

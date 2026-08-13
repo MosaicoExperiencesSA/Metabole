@@ -211,11 +211,41 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 const fldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' };
 
 /** Form di modifica della scheda (anagrafica + questionario). */
-function EditCard({ form, setForm, lockDietType, lockFasting }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean; lockFasting?: boolean }) {
+function EditCard({ form, setForm, lockDietType, lockFasting, lockAllergie }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean; lockFasting?: boolean; lockAllergie?: boolean }) {
   const { regimes, families } = useTaxonomy();
   const up = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const T = (k: string, label: string, type = 'text') => (
     <label style={fldStyle}><span>{label}</span><input className="input" type={type} value={form[k] ?? ''} onChange={(e) => up(k, e.target.value)} /></label>
+  );
+  /**
+   * LE ALLERGIE: campo suo, col suo permesso («Modifica allergie»).
+   *
+   * ⚠️ Non è un campo di testo come gli altri, e il colore lo dice: un'allergia è un blocco duro,
+   * e chi ne toglie una decide che da domani quella cliente può trovarsi quell'alimento nel piatto.
+   * Senza il permesso resta visibile e in sola lettura — vederle serve a chiunque apra la scheda,
+   * scriverle no.
+   */
+  const Allergie = () => (
+    <label
+      style={{ ...fldStyle, gridColumn: '1 / -1' }}
+      title={lockAllergie ? 'Le allergie le corregge chi ha il permesso "Modifica allergie" (nutrizionista o amministrazione).' : undefined}
+    >
+      <span style={{ color: '#8E2F26' }}>
+        Allergie (virgola){lockAllergie && <i className="ti ti-lock" style={{ marginLeft: 4, fontSize: 11 }} />}
+      </span>
+      <input
+        className="input"
+        value={form.allergies ?? ''}
+        disabled={!!lockAllergie}
+        placeholder="latte, frutta_a_guscio, fragole"
+        onChange={(e) => up('allergies', e.target.value)}
+      />
+      <small className="muted" style={{ fontSize: 11, lineHeight: 1.45, marginTop: 3 }}>
+        {lockAllergie
+          ? 'Sola lettura: le corregge la nutrizionista.'
+          : 'Usa i codici dell’elenco UE dove puoi (latte, glutine, uova, pesce, crostacei, molluschi, soia, sesamo, arachidi, frutta_a_guscio, sedano, senape, solfiti, lupini): quelli il motore li espande in tutti i derivati. Quello che scrivi a mano resta segnato come «da codificare» e tiene bloccata la base personale.'}
+      </small>
+    </label>
   );
   // Regime e Stile = TIPO DI DIETA: modificabili solo col permesso "Cambia tipo di dieta".
   const S = (k: string, label: string, opts: [string, string][]) => {
@@ -294,6 +324,7 @@ function EditCard({ form, setForm, lockDietType, lockFasting }: { form: Record<s
           : null}
         {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
         {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
+        {Allergie()}
         {T('intolerances', 'Intolleranze (virgola)')}{T('dislikedFoods', 'Cibi non graditi (virgola)')}
         {T('themeColor', 'Colore app')}
       </div>
@@ -622,6 +653,8 @@ export function ClientDetail() {
   const canFixMeasures = can('fix_measures', 'manage');
   // Cambio data inizio piano (permesso dedicato "Cambia data inizio piano")
   const canChangePlanStart = can('change_plan_start', 'manage');
+  // Le allergie: si vedono sempre, si correggono col permesso «Modifica allergie» (13/8).
+  const puoAllergie = can('change_allergies', 'manage');
 
   /** Sposta la data di inizio del piano: la fine si ricalcola e i menu ripartono da lì. */
   async function changePlanStart() {
@@ -969,6 +1002,7 @@ export function ClientDetail() {
       regime: pr.regime ?? '', dietStyle: pr.dietStyle ?? '', dietFamily: pr.dietFamily ?? '', mealsPerDay: pr.mealsPerDay ? String(pr.mealsPerDay) : '',
       objective: pr.objective ?? 'dimagrimento',
       pathType: pr.pathType ?? '', coachStyle: pr.coachStyle ?? '', character: pr.character ?? '',
+      allergies: (pr.allergies ?? []).join(', '),
       intolerances: (pr.intolerances ?? []).join(', '), dislikedFoods: (pr.dislikedFoods ?? []).join(', '),
       fastingWindow: pr.fastingWindow ?? '',
       themeColor: pr.themeColor ?? '',
@@ -991,6 +1025,10 @@ export function ClientDetail() {
       pathType: f.pathType || undefined, coachStyle: f.coachStyle || undefined, character: f.character || undefined,
       themeColor: f.themeColor || undefined,
       intolerances: list(f.intolerances), dislikedFoods: list(f.dislikedFoods),
+      // ⚠️ Le allergie si mandano SOLO con il permesso. Il backend chiede il permesso solo se
+      // l'elenco è cambiato davvero, quindi non ci sarebbe un 403 — ma mandare un campo che questa
+      // schermata non permette di toccare è un modo per mandarlo per sbaglio.
+      ...(puoAllergie ? { allergies: list(f.allergies) } : {}),
       // Si manda SEMPRE (anche vuota): la stringa vuota è «la decide la dieta», e ometterla
       // renderebbe impossibile togliere una finestra impostata per sbaglio. Il backend la
       // azzera da sé se il percorso non è più digiuno.
@@ -1288,6 +1326,7 @@ export function ClientDetail() {
             form={form}
             setForm={setForm}
             lockDietType={!can('change_diet_type', 'manage')}
+            lockAllergie={!puoAllergie}
             lockFasting={!can('change_fasting_window', 'manage')}
           />
         )}

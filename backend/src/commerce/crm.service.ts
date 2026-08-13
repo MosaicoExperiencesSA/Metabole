@@ -569,6 +569,11 @@ export class CrmService {
         assignedCoach: { select: { id: true, displayName: true } },
         client: {
           select: {
+            // ⚠️ Serve l'id: dalla scheda lead la nutrizionista corregge le allergie, e lo fa
+            // chiamando lo STESSO endpoint della scheda cliente (`PATCH /clients/:id`). Un secondo
+            // endpoint che scrive lo stesso dato sanitario sarebbe una seconda regola da tenere
+            // allineata — e su questo campo è esattamente quello che si sta smettendo di fare.
+            id: true,
             email: true,
             phone: true,
             createdAt: true,
@@ -577,6 +582,13 @@ export class CrmService {
                 name: true,
                 assignedCoach: { select: { displayName: true } },
                 assignedNutritionist: { select: { displayName: true } },
+                // Allergie e intolleranze nella scheda lead (richiesta di Simone, 13/8). Sono lo
+                // stesso dato della scheda cliente, letto dallo stesso posto: se qui comparisse un
+                // elenco diverso da quello di là, nessuna delle due schermate sarebbe credibile.
+                allergies: true,
+                allergiesOther: true,
+                allergieDichiarateIl: true,
+                intolerances: true,
               },
             },
           },

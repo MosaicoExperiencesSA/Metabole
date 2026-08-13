@@ -42,8 +42,10 @@
 >   Finché non c'è, un array vuoto conta come «non risposto», non come «non ne ho».
 > - ⛔ **Il «freno forte»** (§3): non implementato, e non va implementato prima di averlo definito
 >   con la nutrizionista. Nessun comportamento parte da `allergieDichiarateIl`.
-> - ⛔ **Chi può scrivere le allergie** (§5): restano in sola lettura ovunque. La proposta
->   «modificabili da nutritionist e head_nutritionist» aspetta la conferma di Simone.
+> - ✅ **Chi può scrivere le allergie** (§5) — **fatto il 13/8**, confermato da Simone. Permesso
+>   `change_allergies` («Modifica allergie»), di default a nutrizionista, capo nutrizionista e
+>   admin. Modificabili dalla **scheda cliente** e dalla **scheda lead**, che scrivono dallo stesso
+>   endpoint. Le intolleranze restano dov'erano (già dentro «Clienti: gestisci»).
 > - ⛔ **Prima di lanciare la campagna (§7): CONTARE.** Se la popolazione 3 fossero 280 clienti su
 >   315, non è una campagna, è un difetto del questionario da correggere prima.
 >

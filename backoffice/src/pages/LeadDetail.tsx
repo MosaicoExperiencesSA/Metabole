@@ -87,7 +87,16 @@ interface LeadDetailData {
     email: string;
     phone: string | null;
     createdAt: string;
-    clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionist: { displayName: string } | null } | null;
+    id?: string;
+    clientProfile: {
+      name: string | null;
+      assignedCoach: { displayName: string } | null;
+      assignedNutritionist: { displayName: string } | null;
+      allergies?: string[] | null;
+      allergiesOther?: string[] | null;
+      allergieDichiarateIl?: string | null;
+      intolerances?: string[] | null;
+    } | null;
   } | null;
   reminders: Reminder[];
   notes?: LeadNote[];
@@ -120,6 +129,8 @@ export function LeadDetail() {
   const navigate = useNavigate();
   const { can, impersonate, user } = useAuth();
   const canAssignCoach = can('assign_coach', 'manage');
+  // Le allergie: si leggono sempre, si correggono col permesso «Modifica allergie» (13/8).
+  const puoAllergie = can('change_allergies', 'manage');
   const isAdmin = user?.role === 'admin';
 
   const [lead, setLead] = useState<LeadDetailData | null>(null);
@@ -572,6 +583,7 @@ export function LeadDetail() {
             <b>{lead.owner?.displayName ?? '—'}</b>
           </div>
         </div>
+        <BloccoAllergie lead={lead} puoModificare={puoAllergie} onSaved={load} />
       </div>
 
       {/* Note dello staff: editor a sinistra, storico a destra — come la scheda cliente */}
@@ -966,5 +978,123 @@ export function LeadDetail() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * ALLERGIE E INTOLLERANZE NELLA SCHEDA LEAD (richiesta di Simone, 13/8).
+ *
+ * Prima non comparivano: chi lavorava il lead non sapeva di avere davanti una celiaca finché non
+ * apriva la scheda cliente — e per un lead senza account nemmeno quella esisteva.
+ *
+ * ⚠️ Si SCRIVE dallo stesso endpoint della scheda cliente (`PATCH /clients/:id`). Un endpoint
+ * dedicato al lead sarebbe una seconda strada per lo stesso dato sanitario, con le sue regole da
+ * tenere allineate: è il difetto che questo campo ha già avuto due volte.
+ *
+ * ⚠️ E senza un account collegato non si scrive affatto: le allergie stanno sul profilo della
+ * cliente, e un lead che non ha ancora fatto il questionario non ce l'ha. Meglio dirlo che mostrare
+ * un campo che sembra funzionare e non salva niente.
+ */
+function BloccoAllergie({ lead, puoModificare, onSaved }: {
+  lead: LeadDetailData;
+  puoModificare: boolean;
+  onSaved: () => void;
+}) {
+  const profilo = lead.client?.clientProfile ?? null;
+  const userId = lead.client?.id ?? null;
+  const [modifica, setModifica] = useState(false);
+  const [testo, setTesto] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+
+  const allergie = profilo?.allergies ?? [];
+  const daCodificare = profilo?.allergiesOther ?? [];
+  const intolleranze = profilo?.intolerances ?? [];
+  const dichiarate = !!profilo?.allergieDichiarateIl || allergie.length > 0;
+
+  async function salva() {
+    if (!userId) return;
+    setSalvando(true);
+    setErrore(null);
+    try {
+      await api(`/clients/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ allergies: testo.split(',').map((v) => v.trim()).filter(Boolean) }),
+      });
+      setModifica(false);
+      onSaved();
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Non è stato possibile salvare le allergie.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #E6E6E6)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div className="muted" style={{ fontSize: 12, fontWeight: 600 }}>Allergie e intolleranze</div>
+        {puoModificare && userId && !modifica && (
+          <button
+            className="btn ghost"
+            style={{ padding: '2px 9px', fontSize: 11.5 }}
+            onClick={() => { setTesto(allergie.join(', ')); setModifica(true); }}
+          >
+            Correggi allergie
+          </button>
+        )}
+      </div>
+
+      {modifica ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <input
+            className="input"
+            value={testo}
+            placeholder="latte, frutta_a_guscio, fragole"
+            onChange={(e) => setTesto(e.target.value)}
+          />
+          <small className="muted" style={{ fontSize: 11, lineHeight: 1.45 }}>
+            Usa i codici dell’elenco UE dove puoi: quelli il motore li espande in tutti i derivati.
+            Quello che scrivi a mano resta segnato come «da codificare».
+          </small>
+          {errore && <Banner kind="err">{errore}</Banner>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn" style={{ padding: '4px 12px', fontSize: 12 }} disabled={salvando} onClick={salva}>
+              {salvando ? 'Salvo…' : 'Salva'}
+            </button>
+            <button className="btn ghost" style={{ padding: '4px 12px', fontSize: 12 }} disabled={salvando} onClick={() => setModifica(false)}>
+              Annulla
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, fontSize: 13 }}>
+          <div style={{ minWidth: 200 }}>
+            <span className="muted" style={{ fontSize: 11.5 }}>Allergie</span><br />
+            {allergie.length ? (
+              <b style={{ color: '#8E2F26' }}>{allergie.join(', ')}</b>
+            ) : (
+              // ⚠️ «Nessuna» e «non risposto» sono due cose diverse, e per chi si è iscritta prima
+              // del 12/8 non lo sappiamo. Scriverlo è meno peggio che affermare una cosa mai chiesta.
+              <b className="muted">{dichiarate ? 'Nessuna' : 'Non dichiarate'}</b>
+            )}
+            {daCodificare.length > 0 && (
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                da codificare a mano: {daCodificare.join(', ')}
+              </div>
+            )}
+          </div>
+          <div style={{ minWidth: 200 }}>
+            <span className="muted" style={{ fontSize: 11.5 }}>Intolleranze</span><br />
+            <b>{intolleranze.length ? intolleranze.join(', ') : 'Nessuna'}</b>
+          </div>
+          {!profilo && (
+            <div className="muted" style={{ fontSize: 11.5, alignSelf: 'center' }}>
+              Questionario non ancora compilato: il profilo non esiste, non c’è niente da correggere.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

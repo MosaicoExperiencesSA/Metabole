@@ -21,16 +21,23 @@
  *
  * Non si cancella quello che la cliente **non può rimettere da sola**.
  *
- * - **Allergie e intolleranze**: in tutta l'app e in tutto il backoffice **un solo punto** le
- *   scrive, ed è questo. Non stanno nel DTO della PATCH cliente, non in `PROFILE_FIELDS`, non nel
- *   DTO dello staff. Se il questionario le cancella, sono cancellate e basta: nessuna schermata
- *   permette di rimetterle. Quindi qui si fa **unione**, mai sottrazione.
- * - **Cibi non graditi**: quelli sì che li gestisce lei, dal Profilo. Lì il questionario è un
+ * - **Allergie**: la CLIENTE non le tocca da nessuna parte. Fino al 13/8 non le toccava nemmeno lo
+ *   staff — le scriveva solo questo upsert; da allora una nutrizionista può correggerle dalla
+ *   scheda, col permesso «Modifica allergie». Ma è **un'altra persona**: se il questionario le
+ *   cancella, lei non ha nessun modo di rimetterle da sé, e nessuno sa che sono sparite. Unione,
+ *   mai sottrazione.
+ * - **Intolleranze**: la cliente le vede in sola lettura nel Profilo e non le modifica. Dalla
+ *   scheda dello staff sì che si modificano (stanno in `PROFILE_FIELDS`), ma anche qui è **un'altra
+ *   persona**, e nessuno saprebbe di doverlo fare. Stesso trattamento.
+ * - **Cibi non graditi**: quelli li gestisce **lei**, dal Profilo dell'app. Lì il questionario è un
  *   editor legittimo e quello che manda vale — ma se **non manda niente**, non si tocca niente.
  *
+ * Il criterio quindi non è «chi può scrivere questo campo», è: **se lo cancelliamo per sbaglio, la
+ * cliente se ne accorge e lo rimette?** Per i cibi non graditi sì. Per le altre due no.
+ *
  * ⚠️ Conseguenza da conoscere: dal questionario **un'allergia non si toglie più**. Toglierla è una
- * correzione su un dato sanitario, e la fa una nutrizionista — che è già la regola dichiarata
- * altrove, solo che finora era aggirabile per sbaglio. Quando un reinvio prova a togliere qualcosa,
+ * correzione su un dato sanitario, e dal 13/8 la fa una nutrizionista dalla scheda cliente, col
+ * permesso «Modifica allergie» — che è la strada giusta, e finora non esisteva affatto. Quando un reinvio prova a togliere qualcosa,
  * `perse` lo dice: si scrive nell'audit e si risponde alla cliente, invece di sparire nei due sensi.
  */
 

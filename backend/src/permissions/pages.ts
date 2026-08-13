@@ -89,6 +89,22 @@ export const BACKOFFICE_PAGES = [
   'diet_workspace',      // Gestione dieta: hub ricette/allergeni/gruppi per dieta (da diets_catalog)
   'fix_measures',        // Correzione misure del cliente dalla scheda (flag dedicato, richiesta Simone)
   'change_diet_type',    // Cambio del TIPO DI DIETA (regime + stile) dalla scheda cliente (flag dedicato)
+  /**
+   * Modifica delle ALLERGIE dalla scheda cliente e dalla scheda lead (richiesta di Simone, 13/8).
+   *
+   * ⚠️ Flag suo, e non «Clienti: gestisci», per una ragione precisa: un'allergia è un **blocco
+   * duro** (R8) e chi la tocca decide cosa la cliente non troverà mai nel piatto — e, al contrario,
+   * cosa potrebbe trovarci. Fino a oggi le scriveva **un solo punto in tutto il codice**, l'upsert
+   * del questionario; aprirle alla scheda senza un permesso dedicato vorrebbe dire darle a
+   * chiunque abbia accesso ai clienti, coach comprese.
+   *
+   * Il senso è l'opposto: darle a chi può **codificare a mano** un'allergia scritta in testo
+   * libero — cioè le nutrizioniste. Di default: `nutritionist`, `head_nutritionist`, `admin`.
+   *
+   * Le INTOLLERANZE restano dove sono (dentro «Clienti: gestisci»): sono già modificabili oggi,
+   * anche dalla coach, e restringerle sarebbe una perdita di capacità che nessuno ha chiesto.
+   */
+  'change_allergies',
   'change_plan_start',   // Cambio della DATA DI INIZIO del piano dalla scheda cliente (flag dedicato)
   // Quali pasti salta chi fa digiuno intermittente, dalla scheda cliente. Flag dedicato perché
   // cambia gli slot che il motore eroga: chi lo tocca decide se quella cliente domani mattina
@@ -181,6 +197,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clients: { view: true, manage: true },
     fix_measures: { view: true, manage: true }, // corregge le misure inserite male dal cliente
     change_diet_type: { view: true, manage: true }, // cambia il tipo di dieta (regime/stile)
+    // Legge e corregge le allergie: è l'unica che può tradurre un testo libero in codice UE.
+    change_allergies: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true }, // e quali pasti salta nel digiuno
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
     recipes: { view: true, manage: true },
@@ -206,6 +224,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clients: { view: true, manage: true },
     fix_measures: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
+    change_allergies: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
     recipes: { view: true, manage: true },
@@ -292,6 +311,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     withdrawals: { view: true, manage: true },
     fix_measures: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
+    change_allergies: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true },
     change_plan_start: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
     set_client_password: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone

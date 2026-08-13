@@ -12,13 +12,14 @@ import { campiCambiati } from '../common/diff-campi';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
 import { dietaMostrataPer } from '../catalog/dieta-mostrata';
+import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { scostamentoDieta } from './scostamento-dieta';
 import { toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
-const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'intolerances', 'dislikedFoods', 'themeColor', 'fastingWindow', 'activityLevel', 'isStoreReviewer'] as const;
+const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'allergies', 'intolerances', 'dislikedFoods', 'themeColor', 'fastingWindow', 'activityLevel', 'isStoreReviewer'] as const;
 
 /**
  * Scheda cliente per lo staff: aggrega anagrafica, questionario, obiettivo,
@@ -606,6 +607,56 @@ export class ClientsService {
     }
 
     /**
+     * LE ALLERGIE: permesso dedicato «Modifica allergie» (`change_allergies`, 13/8).
+     *
+     * Fino a oggi le scriveva **un solo punto in tutto il codice**, l'upsert del questionario: non
+     * erano in questo DTO, non in `PROFILE_FIELDS`, in nessun DTO dello staff. Simone (13/8): «nella
+     * scheda cliente e scheda lead il nutrizionista li deve leggere e poter modificare, magari
+     * mettiamo l'impostazione nei permessi».
+     *
+     * ⚠️ Flag suo e non «Clienti: gestisci», che ce l'ha anche la coach: un'allergia è un blocco
+     * duro, e chi la toglie decide che quella cliente da domani può trovarsi quell'alimento nel
+     * piatto. Il permesso serve a dare la penna a chi può **codificare** un testo libero in codice
+     * UE — le nutrizioniste.
+     */
+    if (profileData.allergies !== undefined) {
+      /**
+       * ⚠️ Il permesso si chiede solo se l'elenco è CAMBIATO DAVVERO, come per il tipo di dieta.
+       *
+       * Il form della scheda rimanda tutti i campi a ogni salvataggio: chiedere il permesso alla
+       * sola presenza del campo vorrebbe dire che una coach non riesce più a salvare **niente**
+       * della scheda — un 403 su una modifica al numero di telefono, per un campo che non ha
+       * toccato. Il permesso protegge la modifica, non il salvataggio.
+       */
+      const attuali = (await this.prisma.clientProfile.findUnique({
+        where: { userId },
+        select: { allergies: true },
+      })) as { allergies: string[] } | null;
+      const nuove = (profileData.allergies as string[] | null) ?? [];
+      const cambiate = (attuali?.allergies ?? []).join('|') !== nuove.join('|');
+      if (!cambiate) {
+        delete profileData.allergies;
+      } else {
+        const attore = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
+        if (!(await this.roleCanManage(attore?.role ?? '', 'change_allergies'))) {
+          throw new ForbiddenException(
+            'Modificare le allergie richiede il permesso "Modifica allergie": è la nutrizionista a codificarle.',
+          );
+        }
+      /**
+       * ⚠️ `allergiesOther` si RICALCOLA qui, e solo qui.
+       *
+       * Dedurre il testo libero per differenza dal catalogo UE è la cosa che `common/allergie.ts`
+       * evita — ma lì si tratta di indovinare a posteriori su dati vecchi, che nessuno ha riletto.
+       * Qui una nutrizionista ha davanti l'elenco e preme Salva: in quell'istante «quello che non è
+       * un codice UE è testo libero» non è un'ipotesi, è quello che ha appena scritto lei. È
+       * esattamente il ripopolamento «dalla nutrizionista» previsto quando la colonna è nata.
+       */
+        profileData.allergiesOther = nuove.filter((a) => !EU_ALLERGEN_CODES.includes(a));
+      }
+    }
+
+    /**
      * I PASTI DEL DIGIUNO (`fastingWindow`): permesso dedicato «Cambia i pasti del digiuno».
      *
      * Sta a parte dal tipo di dieta perché è una decisione di natura diversa — non cambia il
@@ -675,6 +726,22 @@ export class ClientsService {
         ? (this.prisma.clientProfile.findUnique({ where: { userId } }) as Promise<Record<string, unknown> | null>)
         : Promise.resolve(null),
     ]);
+
+    /**
+     * E la domanda sulle allergie risulta FATTA: una nutrizionista che scrive l'elenco è una
+     * conferma più forte di una casella spuntata nel questionario. Senza, la cliente resterebbe
+     * fra quelle da ricontattare anche dopo che qualcuno se n'è occupato davvero.
+     *
+     * ⚠️ Si timbra solo se l'elenco è **cambiato davvero**, o se non era mai stato timbrato. Il
+     * form della scheda rimanda tutti i campi a ogni salvataggio: timbrare sempre riempirebbe il
+     * log modifiche di righe «Allergie dichiarate il» a ogni Salva, e un log pieno di righe che non
+     * dicono niente è un log che si smette di leggere.
+     */
+    if (profileData.allergies !== undefined && prevProfile) {
+      const prima = ((prevProfile.allergies as string[] | undefined) ?? []).join('|');
+      const dopo = ((profileData.allergies as string[] | null) ?? []).join('|');
+      if (prima !== dopo || !prevProfile.allergieDichiarateIl) profileData.allergieDichiarateIl = new Date();
+    }
 
     const ops: unknown[] = [];
     if (Object.keys(userData).length) ops.push(this.prisma.user.update({ where: { id: userId }, data: userData as never }));

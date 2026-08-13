@@ -57,11 +57,8 @@ L'ordine non è quello in cui è stato scritto il codice:
 
 ### Tre decisioni che bloccano lavoro già scritto
 
-- **Chi può modificare le allergie.** Oggi le scrive **un solo punto** in tutto il codice (l'upsert
-  del questionario): non sono nel DTO della PATCH cliente, non in `PROFILE_FIELDS`, non nel DTO
-  staff. È una protezione voluta, e l'ho lasciata intatta. La proposta dell'handoff è consentirne la
-  modifica a **`nutritionist` e `head_nutritionist`, con audit** — sono le uniche persone che possono
-  codificare un'allergia scritta a mano. **Serve un tuo sì.**
+- ✅ **Chi può modificare le allergie** — **deciso e fatto il 13/8.** Permesso `change_allergies`
+  («Modifica allergie»): nutrizionista, capo nutrizionista, admin. Scheda cliente **e** scheda lead.
 - **La visita obbligatoria in caso di allergia** (§8 dell'handoff). Hai già deciso il principio:
   intolleranza → nessuna visita, allergia → visita medica obbligatoria. Resta aperta la domanda
   meccanica: **una cliente già in piano che ora dichiara un'allergia — il piano si sospende, o

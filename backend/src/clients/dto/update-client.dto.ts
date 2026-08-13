@@ -40,6 +40,15 @@ export class UpdateClientDto {
   @IsOptional() @IsBoolean() isStoreReviewer?: boolean;
   @IsOptional() @IsIn(['daily', 'when_needed', 'on_request']) coachStyle?: string;
   @IsOptional() @IsIn(['follows', 'needs_push', 'perseveres', 'quits']) character?: string;
+  /**
+   * ALLERGIE — richiedono il permesso «Modifica allergie» (`change_allergies`).
+   *
+   * ⚠️ Non stavano in questo DTO, e non era una dimenticanza: fino al 13/8 le scriveva **un solo
+   * punto in tutto il codice**, l'upsert del questionario. Ora si aprono alla scheda perché
+   * qualcuno deve poter **codificare a mano** un'allergia scritta in testo libero — ma dietro un
+   * flag suo, non dentro «Clienti: gestisci», che ce l'ha anche la coach.
+   */
+  @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(60, { each: true }) allergies?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) intolerances?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) dislikedFoods?: string[];
   @IsOptional() @IsString() @MaxLength(9) themeColor?: string;
