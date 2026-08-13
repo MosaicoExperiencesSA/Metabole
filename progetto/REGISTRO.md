@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🐟 **Vera §6.2 — «nella mediterranea niente tonno» adesso si applica davvero.** Era
+  l'ultimo pezzo che toccava la strada che porta il pasto nel piatto: l'assistente riconosceva la
+  frase e apriva la proposta, ma **l'esclusione a livello di dieta non esisteva** — le primitive di
+  `menu/exclusions.ts` sono agnostiche, ma ogni chiamante costruiva le chiavi dal `ClientProfile` e
+  da nient'altro. Ora vive in `ProductRule` (`diet_excluded_terms`), **senza migrazione**, letta a
+  parte e non da `dietRuleOverrides` — che tiene numeri e booleani e scarterebbe una lista di parole.
+  ⚠️ **Il divieto è di PAROLE, non di ricette**: vietare gli id di oggi lascerebbe passare la ricetta
+  col tonno pubblicata domani — è il difetto del dizionario che invecchia, già pagato una volta. E si
+  guarda il **nome e gli ingredienti**, o «insalata di riso» col tonno dentro passerebbe.
+  ⚠️ **Due reti, non una**: il pool non propone più quei piatti (filtro a monte) e `evaluateMeals` li
+  fermerebbe comunque — è il punto obbligato di ogni erogazione.
+  ⚠️ **Uno slot che resterebbe vuoto NON si svuota**: quella cliente resta com'era (decisione di
+  Simone del 13/8: chi resta scoperta si salta e si segnala). Una giornata senza un pasto è peggio
+  del piatto che si voleva togliere.
+  ⚠️ **Riapprovare unisce, non sostituisce**: due approvazioni della stessa cosa non fanno due regole
+  e nessuna cancella l'altra. Restano il **rifacimento dei giorni futuri non ancora aperti** e
+  l'**elenco delle scoperte al capo**, in lista Lavori. 22 test nuovi, verificati rossi prima (il
+  filtro sul solo nome e lo slot a zero che non si segnalava). Suite di Vera e del menu: 842 verdi.
+
 - `[Sviluppo]` 📄 **Vera: passaggio di consegne.** La chat che ha costruito Vera (12-13/8) si è chiusa
   perché era diventata troppo lunga: tutto quello che serve per riprenderla sta in
   `progetto/HANDOFF_Vera_Sessione.md` — le regole di lavoro con Simone, la mappa dei file, le dodici

@@ -11,6 +11,15 @@
 
 ## Stato in una riga
 
+**Il divieto su una dieta esiste davvero (§6.2).** «Nella mediterranea non deve comparire più il
+tonno» non è più solo una proposta in coda: quando il capo approva, la regola si scrive in
+`ProductRule` (`diet_excluded_terms`, **nessuna migrazione**) e da lì in avanti il pool non propone
+più quei piatti — con la guardia sull'erogazione come seconda rete. ⚠️ Il divieto è una lista di
+**parole**, non di ricette: la ricetta col tonno pubblicata domani ci ricade dentro da sola. ⚠️ Uno
+slot che resterebbe **vuoto non si svuota**: quella cliente resta com'era (decisione di Simone), e
+l'elenco di chi va guardata è il prossimo pezzo insieme al rifacimento dei giorni non ancora aperti.
+**+22 test.**
+
 **📄 Il passaggio di consegne è in `progetto/HANDOFF_Vera_Sessione.md`** — la chat che ha costruito
 Vera si è chiusa il 13/8 perché era diventata troppo lunga. Lì dentro c'è tutto quello che serve per
 riprenderla da un'altra sessione: le regole di lavoro, la mappa dei file, le dodici regole che non si

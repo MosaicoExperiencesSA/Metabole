@@ -22,6 +22,7 @@ import { combaciaAlimento } from '../common/nomi-alimento';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
+import { RULE_CODE_ESCLUSIONI, terminiVietati } from './regola-dieta';
 
 /** ⚠️ Oltre questo numero di clienti non si scrive: si dice quante sarebbero e si chiede a mano. */
 const MAX_CLIENTI_IN_UNA_VOLTA = 200;
@@ -88,7 +89,58 @@ export async function applicaProposta(prisma: PrismaService, p: Proposta): Promi
     };
   }
 
+  if (p.azione === 'regola_dieta') {
+    return applicaRegolaDieta(prisma, p, dettaglio.termini ?? []);
+  }
+
   return { toccate: 0, riepilogo: 'Approvata. Nessun effetto automatico per questo tipo di azione.' };
+}
+
+/**
+ * IL DIVIETO SU UNA DIETA — «nella mediterranea non deve comparire più il tonno».
+ *
+ * ⚠️ Scrive **una riga sola** in `ProductRule` per dieta (unique su `[dietId, ruleCode]`), unendo i
+ * termini a quelli già vietati: due approvazioni della stessa cosa non fanno due regole, e nessuna
+ * cancella l'altra. È lo stesso motivo per cui la restrizione su una cliente è idempotente.
+ *
+ * ⚠️ Da qui in avanti il piatto non compare più nei menu **nuovi**: il pool non lo propone e la
+ * guardia dell'erogazione lo fermerebbe comunque. I **giorni già generati e non ancora aperti** si
+ * rifanno in un secondo momento — è la decisione di Simone del 13/8 e il lavoro è in elenco
+ * (`vera-regola-dieta-rifai-menu`): rifare adesso, dentro l'approvazione, vorrebbe dire tenere il
+ * capo davanti a una pagina che lavora su trecento persone senza potergli dire a che punto è.
+ */
+async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: string[]): Promise<EsitoApplicazione> {
+  const puliti = [...new Set(termini.map((t) => (t ?? '').trim().toLowerCase()).filter(Boolean))];
+  const dietId = p.soggettoId;
+  if (!puliti.length || !dietId) {
+    return { toccate: 0, riepilogo: 'Non ho capito su quale dieta e su quale alimento: non ho scritto niente.' };
+  }
+
+  const esistente = (await prisma.productRule.findFirst({
+    where: { dietId, ruleCode: RULE_CODE_ESCLUSIONI },
+    select: { id: true, params: true, enabled: true },
+  })) as { id: string; params: unknown; enabled: boolean } | null;
+
+  const gia = terminiVietati([{ ruleCode: RULE_CODE_ESCLUSIONI, enabled: true, params: esistente?.params }]);
+  const nuovi = puliti.filter((t) => !gia.includes(t));
+  if (esistente && !nuovi.length && esistente.enabled) {
+    return { toccate: 0, riepilogo: `Su ${p.soggettoNome ?? 'questa dieta'} il divieto c'era già: non ho riscritto niente.` };
+  }
+  const tutti = [...gia, ...nuovi];
+
+  if (esistente) {
+    await prisma.productRule.update({ where: { id: esistente.id }, data: { enabled: true, params: { termini: tutti } as never } });
+  } else {
+    await prisma.productRule.create({ data: { dietId, ruleCode: RULE_CODE_ESCLUSIONI, enabled: true, params: { termini: tutti } as never } as never });
+  }
+
+  return {
+    toccate: 0, // la regola vive sulla dieta, non sui profili: non ho scritto su nessuna cliente
+    riepilogo:
+      `Fatto: su ${p.soggettoNome ?? 'questa dieta'} ${nuovi.length > 1 ? 'i piatti con' : 'il piatto con'} ` +
+      `${nuovi.join(', ')} non entreranno più nei menu nuovi. ` +
+      'I giorni già preparati e non ancora aperti si rifanno dopo, non adesso: quelli che una cliente ha già letto restano come sono.',
+  };
 }
 
 async function applicaRestrizione(prisma: PrismaService, p: Proposta, termini: string[]): Promise<EsitoApplicazione> {

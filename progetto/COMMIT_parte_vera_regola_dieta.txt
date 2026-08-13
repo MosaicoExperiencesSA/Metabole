@@ -1,0 +1,44 @@
+PARTE DELLA SESSIONE «Vera» — da unire al messaggio di commit (in COMMIT.txt si AGGIUNGE in coda).
+
+=== VERA §6.2 — «NELLA MEDITERRANEA NIENTE TONNO» ADESSO SI APPLICA DAVVERO ===
+
+Era l'ultimo pezzo aperto che tocca la strada che porta il pasto nel piatto di domani. L'assistente
+riconosceva la frase e apriva la proposta in coda al capo, ma alla fine rispondeva onestamente che
+non la sapeva applicare: ⚠️ l'esclusione a livello di DIETA non esisteva. Le primitive di
+`menu/exclusions.ts` sono agnostiche, ma ogni chiamante costruiva le chiavi dal `ClientProfile` e da
+nient'altro; il divieto per-dieta si è sempre fatto a mano creando una dieta variante.
+
+DOVE VIVE. In `ProductRule` (`{dietId, ruleCode, enabled, params}`), unica su `[dietId, ruleCode]`:
+NESSUNA MIGRAZIONE. ⚠️ Si legge a parte e non da `dietRuleOverrides`, che tiene una mappa di numeri e
+booleani e scarterebbe silenziosamente una lista di parole.
+
+⚠️ IL DIVIETO È DI PAROLE, NON DI RICETTE. Vietare gli id delle ricette di oggi lascerebbe passare la
+ricetta col tonno pubblicata domani — è esattamente il difetto del dizionario che invecchia, già
+pagato una volta. E si guarda il NOME e gli INGREDIENTI: «insalata di riso» col tonno dentro esce.
+
+⚠️ DUE RETI, NON UNA. Il pool non propone più quei piatti (filtro a monte, in `buildScoringContext`)
+e `evaluateMeals` li fermerebbe comunque: è il punto obbligato di ogni erogazione. Una sola delle due
+sarebbe bastata quasi sempre — ed è il «quasi» il problema.
+
+⚠️ UNO SLOT CHE RESTEREBBE VUOTO NON SI SVUOTA. Decisione di Simone (13/8): chi resta scoperta si
+salta e si segnala. Una giornata senza un pasto è peggio del piatto che si voleva togliere.
+
+⚠️ RIAPPROVARE UNISCE, NON SOSTITUISCE: due approvazioni della stessa cosa non fanno due regole, e
+nessuna cancella l'altra.
+
+COSA RESTA, ed è in lista Lavori: il rifacimento dei giorni già generati e NON ancora aperti
+(`vera-regola-dieta-rifai-menu` — la funzione che dice quali si possono rifare esiste già,
+`registro.service.menuDaRifare`, va riusata per dieta e non riscritta) e l'elenco delle clienti che
+resterebbero scoperte (`vera-regola-dieta-scoperte`).
+
+=== LE DUE DECISIONI DEL §6, SCRITTE ===
+
+6.1 la variante di piano = cambiare i pasti dei giorni futuri, senza spostare la cliente di dieta.
+⚠️ Simone (13/8): devono funzionare tutte e tre le frasi — togliere uno slot, cambiare il tipo di
+piatto in uno slot, rifare i numeri del piano. Sono tre meccanismi diversi: è una consegna sua
+(`vera-azione-3-variante-piano`).
+6.2 quando il capo approva si rifanno solo i giorni futuri NON ancora aperti; quelli già visti
+restano. È la regola dell'annulla, e `MenuDay.viewedAt` esiste dalla Consegna 1 proprio per questo.
+
+VERIFICA: 22 test nuovi, tutti visti rossi prima (filtro sul solo nome; slot a zero non segnalato).
+842 test verdi su Vera + menu. Nessuna migrazione, nessuna modifica al frontend.

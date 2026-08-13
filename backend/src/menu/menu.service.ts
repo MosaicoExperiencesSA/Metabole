@@ -9,6 +9,7 @@ import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { eGiornoDiConforto } from './plateau';
+import { RULE_CODE_ESCLUSIONI, ricetteVietate, terminiVietati } from '../vera/regola-dieta';
 // §16.9: una funzione, non un servizio iniettato — vedi il commento in `food-swaps.module.ts`.
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { PushService } from '../notifications/push.service';
@@ -529,8 +530,20 @@ export class MenuService {
     // globali per una singola dieta dalla pagina "Regole motore". Caricati una volta e
     // applicati ai parametri del motore, con il globale come fallback.
     const overrides = await this.dietRuleOverrides(diet.id);
+    /**
+     * ⚠️ IL DIVIETO SULLA DIETA (Vera §6.2, 13/8): «nella mediterranea niente tonno».
+     *
+     * Si legge **a parte** e non da `dietRuleOverrides`, che tiene una mappa di numeri e booleani e
+     * scarterebbe una lista di parole. Vive in `ProductRule`, senza migrazione.
+     */
+    const vietatiDieta = terminiVietati(
+      ((await this.prisma.productRule.findMany?.({
+        where: { dietId: diet.id, ruleCode: RULE_CODE_ESCLUSIONI },
+        select: { ruleCode: true, enabled: true, params: true },
+      })) ?? []) as { ruleCode: string; enabled: boolean; params: unknown }[],
+    );
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
-    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides);
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides, vietatiDieta);
     /**
      * ⚠️ IL GIORNO DI CONFORTO DENTRO IL PLATEAU — decisione di Simone (13/8).
      *
@@ -543,7 +556,7 @@ export class MenuService {
      */
     const ctxConforto =
       agentState === 'plateau_conforto'
-        ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides)
+        ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides, vietatiDieta)
         : null;
     const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
@@ -710,7 +723,7 @@ export class MenuService {
     // della cliente. Se un ingrediente escluso ha una sostituzione sicura → la annoto sul
     // pasto (il piatto si eroga). Se un'INTOLLERANZA non è sostituibile → NON si eroga:
     // blocco + escalation al nutrizionista (la coach la vede via Alert engine).
-    const { violations, subsByRecipe } = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals));
+    const { violations, subsByRecipe } = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals), vietatiDieta);
     if (violations.length) {
       await this.ensureDietBlockedEscalation(clientId, violations);
       return [];
@@ -1192,6 +1205,8 @@ export class MenuService {
     state: AgentState = 'normale',
     objective: string = 'dimagrimento',
     overrides: Map<string, number | boolean> = new Map(),
+    /** I termini vietati SULLA DIETA (Vera §6.2): il pool non li propone proprio. */
+    vietatiDieta: string[] = [],
   ): Promise<{
     slotPool: Map<string, Set<string>>;
     kcalOf: Map<string, number>;
@@ -1258,11 +1273,31 @@ export class MenuService {
     if (poolIds.size === 0) return null;
 
     const [recipes, weights, ratings] = await Promise.all([
-      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[] }[]>,
+      // ⚠️ `name` e `ingredients` servono al divieto di dieta: il termine si cerca nel nome E negli
+      // ingredienti, come per le esclusioni delle clienti. Senza, «insalata di riso» col tonno dentro
+      // passerebbe, e il divieto sarebbe una decorazione.
+      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true, name: true, ingredients: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[]; name: string; ingredients: unknown }[]>,
       this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
       this.prisma.recipeRating.findMany({ where: { clientId }, select: { recipeId: true, stars: true } }) as Promise<{ recipeId: string; stars: number }[]>,
     ]);
 
+    /**
+     * ⚠️ IL FILTRO A MONTE: le ricette vietate dalla dieta escono dal pool, quindi non vengono
+     * nemmeno prese in considerazione. La guardia su `evaluateMeals` resta comunque, perché è il
+     * punto obbligato di ogni erogazione: qui si evita di proporle, lì si evita di servirle.
+     */
+    if (vietatiDieta.length) {
+      const fuori = ricetteVietate(recipes, vietatiDieta);
+      if (fuori.size) {
+        for (const [slot, ids] of slotPool) {
+          const restano = new Set([...ids].filter((id) => !fuori.has(id)));
+          // ⚠️ Uno slot che resterebbe VUOTO non si svuota: quella cliente resta com'era e finisce
+          // nell'elenco di chi va guardata (decisione di Simone, 13/8). Svuotarlo qui vorrebbe dire
+          // una giornata senza un pasto, che è peggio del piatto che si voleva togliere.
+          if (restano.size > 0) slotPool.set(slot, restano);
+        }
+      }
+    }
     const kcalOf = new Map(recipes.map((r) => [r.id, r.kcal]));
     const effOf = new Map(weights.map((w) => [w.recipeId, w.samples > 0 ? w.score / w.samples : 0]));
     const starOf = new Map<string, number>();

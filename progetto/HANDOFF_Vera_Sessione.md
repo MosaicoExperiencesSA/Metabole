@@ -153,21 +153,30 @@ Sono il progetto. Se una modifica ne rompe una, non è una semplificazione: è u
 
 ## 6. Cosa resta — e sono due decisioni, non due compiti
 
-### 6.1 Azione 3 — la variante di piano per una cliente ⛔ decisione di Simone/Lucia
+### 6.1 Azione 3 — la variante di piano per una cliente ✅ deciso
 
-«Creo una variante di dieta per quella cliente» può voler dire due cose molto diverse:
+**Decisione di Simone (13/8): cambiare i pasti dei giorni futuri**, lasciandola sulla sua dieta.
+Scartata l'altra lettura — spostarla su una dieta diversa — perché fa ripartire il piano e cambia
+tutto quello che ha visto finora, ed è già un'azione che esiste nella scheda cliente dietro il
+permesso `change_diet_type`.
 
-- **(a)** cambiare i **pasti dei giorni futuri** di quella persona, lasciandola sulla sua dieta;
-- **(b)** **spostarla** su una dieta diversa o su una variante della sua.
+⚠️ Quindi la variante **non si porta dietro le regole di un'altra dieta**: è una modifica ai piatti,
+non un cambio di percorso. Se un giorno servirà anche l'altra cosa, sarà un'azione diversa con un
+nome diverso — non un'opzione dentro questa.
 
-La (b) fa ripartire il piano e cambia tutto quello che ha visto finora; la (a) no, ma non si porta
-dietro le regole della dieta nuova. ⚠️ È l'unica azione in cui indovinare male non dà nessun errore:
-dà solo un piano diverso da quello che lei voleva.
+⚠️ Si toccano **solo i giorni futuri che la cliente non ha ancora aperto** (`MenuDay.viewedAt` null
+**e** `date >= oggi`), come per l'annulla: un menu già letto resta suo. Vedi
+`registro.service.menuDaRifare`, che risponde già a questa domanda e non va riscritto.
 
-### 6.2 Azione 6 — la regola su un tipo di dieta ⛔ tocca il motore
+### 6.2 Azione 6 — la regola su un tipo di dieta ✅ SCRITTA il 13/8 (resta il rifacimento dei menu)
 
-«Nella mediterranea non deve comparire più il tonno.» Oggi l'assistente la **riconosce** e apre una
-proposta in coda al capo; alla frase risponde onestamente che non la sa ancora applicare.
+«Nella mediterranea non deve comparire più il tonno.» L'assistente la riconosce e apre una proposta in coda al capo — e **dal 13/8 l'approvazione applica
+davvero**: la regola vive in `ProductRule` (`diet_excluded_terms`, nessuna migrazione), il pool non
+propone più quei piatti e la guardia dell'erogazione li fermerebbe comunque.
+⚠️ **Resta il rifacimento dei giorni già generati e non ancora aperti** (`vera-regola-dieta-rifai-menu`
+in lista Lavori) e **l'elenco delle clienti che resterebbero scoperte** (`vera-regola-dieta-scoperte`):
+il pool non svuota mai uno slot, ma finché quell'elenco non arriva al capo la regola *sembra*
+applicata a tutte.
 
 ⚠️ **Verificato sul codice il 13/8: l'esclusione a livello di dieta non esiste.** Le primitive di
 `menu/exclusions.ts` sono agnostiche, ma **ogni** chiamante costruisce le chiavi dal `ClientProfile`
@@ -191,6 +200,13 @@ enabled, params}`, unique su `[dietId, ruleCode]`) con un `ruleCode` nuovo, lett
 proposta al capo». Interpretazione registrata e non smentita: quando il capo approva, si applica
 davvero — con lo stesso freno di tutto il resto (anteprima di quante ricette restano, quante clienti
 tocca, e sopra la soglia non si scrive).
+
+**Decisione di Simone (13/8), seconda parte — cosa succede ai menu già generati.** Quando il capo
+approva la regola: da lì in avanti il piatto non compare più nei menu nuovi, e i giorni futuri che
+**nessuna cliente ha ancora aperto** si possono rifare. ⚠️ Quelli già visti restano come sono —
+rifare un menu che una cliente ha letto, magari dopo aver fatto la spesa, è la cosa che fa scrivere
+«l'app è impazzita». È esattamente la regola dell'annulla, e la funzione che dice quali giorni si
+possono rifare esiste già (`registro.service.menuDaRifare`): va riusata per dieta, non riscritta.
 
 ⚠️ È l'unico pezzo del progetto che tocca il percorso che porta il pasto nel piatto di domani, su
 315 persone. Va fatto con Simone sveglio, non di sera.

@@ -120,3 +120,55 @@ describe('ordinaPerRischio', () => {
     expect(righe[0].conflittoSanitario).toBe(false);
   });
 });
+
+describe('il divieto su una dieta (§6.2)', () => {
+  const proposta = {
+    id: 'p1', nutrizionistaId: 's1', azione: 'regola_dieta', ambito: 'dieta',
+    soggettoId: 'd1', soggettoNome: 'Mediterranea', dettaglio: { termini: ['Tonno'] },
+  };
+
+  it('scrive UNA riga in ProductRule, accesa', async () => {
+    const create = jest.fn().mockResolvedValue({});
+    const prisma = { productRule: { findFirst: jest.fn().mockResolvedValue(null), create, update: jest.fn() } };
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ dietId: 'd1', enabled: true, params: { termini: ['tonno'] } }) }),
+    );
+    expect(esito.riepilogo).toContain('non entreranno più nei menu nuovi');
+  });
+
+  it('⚠️ una seconda approvazione UNISCE i termini, non li sostituisce', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const prisma = {
+      productRule: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'pr1', enabled: true, params: { termini: ['salmone'] } }),
+        create: jest.fn(),
+        update,
+      },
+    };
+    await applicaProposta(prisma as never, proposta as never);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'pr1' }, data: expect.objectContaining({ params: { termini: ['salmone', 'tonno'] } }) }),
+    );
+  });
+
+  it('⚠️ riapprovare la stessa cosa non riscrive niente', async () => {
+    const update = jest.fn();
+    const prisma = {
+      productRule: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'pr1', enabled: true, params: { termini: ['tonno'] } }),
+        create: jest.fn(), update,
+      },
+    };
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(update).not.toHaveBeenCalled();
+    expect(esito.riepilogo).toContain('c\'era già');
+  });
+
+  it('senza dieta o senza alimento non scrive', async () => {
+    const create = jest.fn();
+    const prisma = { productRule: { findFirst: jest.fn(), create, update: jest.fn() } };
+    await applicaProposta(prisma as never, { ...proposta, soggettoId: null } as never);
+    expect(create).not.toHaveBeenCalled();
+  });
+});
