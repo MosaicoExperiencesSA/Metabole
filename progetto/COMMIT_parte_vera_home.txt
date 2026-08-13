@@ -1,0 +1,33 @@
+PARTE DELLA SESSIONE «Vera» (blocco in home) — da unire al messaggio di commit.
+
+=== TITOLO ===
+
+«Aspetta te» si vede dalla home, non solo entrando nell'assistente
+
+=== DESCRIZIONE ===
+
+Richiesta di Simone (13/8): il modulo dell'assistente in dashboard, attivabile e disattivabile dalle
+impostazioni, acceso di default per nutrizionista e capo nutrizionista.
+
+In cima alla home ora c'è quello che aspetta quella persona: proposte da approvare, domande aperte,
+sostituzioni da verificare, e il pulsante per aprire l'assistente. Prima quelle code si vedevano solo
+entrando nella pagina — e una coda che si vede solo entrando è una coda che si guarda quando ci si
+ricorda di entrare.
+
+⚠️ È un BLOCCO e non un modulo, ed è la parte che conta. I moduli della dashboard funzionano a
+inclusione: chi ha già personalizzato ha una lista salvata che non può contenere un id nato oggi,
+quindi proprio le persone che usano di più il backoffice sarebbero le uniche a non vederlo mai. I
+blocchi funzionano a esclusione: si vedono, e chi non li vuole li spegne da Impostazioni → «Blocchi
+della tua home». È la stessa ragione per cui `dashboardBlocksOff` esiste (11/8, il portafoglio).
+
+⚠️ `home: ['nutritionist']` fa da filtro di ruolo da solo: quella home la aprono `nutritionist` e
+`head_nutritionist` e nessun altro. Nessuna mappa di default per ruolo da inventare e da tenere
+allineata.
+
+⚠️ Se non c'è niente da fare, il blocco sparisce invece di dire «zero»: un riquadro che dice zero
+tutti i giorni insegna a non guardarlo. E non c'è nessun contatore di «regole create» — quello è una
+medaglietta, si guarda due volte e poi mai più.
+
+Nessuna modifica al backend: `/vera/aspetta-me` esisteva già dalla Consegna 3c.
+
+Verifica: backoffice `tsc -b` pulito. Nessun test nuovo (è composizione di pezzi già collaudati).

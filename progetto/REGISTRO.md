@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🤖 **Vera: «aspetta te» si vede dalla home.** Le cose che aspettano una persona
+  stavano dentro la pagina dell'assistente, e una coda che si vede solo entrando è una coda che si
+  guarda quando ci si ricorda di entrare. Ora sono in cima alla home della nutrizionista — proposte
+  da approvare, domande aperte, sostituzioni da verificare — con il pulsante per aprire l'assistente.
+  ⚠️ È un **blocco** (`b_assistente`) e non un modulo: i moduli funzionano a inclusione, quindi chi
+  ha già personalizzato la dashboard ha una lista salvata che non può contenere un id nato oggi — e
+  proprio chi usa di più il backoffice sarebbe l'unico a non vederlo mai. Come blocco si vede di
+  default e si spegne da Impostazioni → «Blocchi della tua home», che è quello che ha chiesto Simone.
+  ⚠️ `home: ['nutritionist']` fa da filtro di ruolo da solo: quella home la aprono nutrizionista e
+  capo nutrizionista e nessun altro, quindi nessuna mappa di default per ruolo da inventare.
+  ⚠️ Se non c'è niente da fare il blocco sparisce invece di dire «zero». Nessun cambio al backend:
+  `/vera/aspetta-me` c'era già.
+
 - `[Sviluppo]` 🤖 **Vera: il dizionario non invecchia più da solo.** «Formaggi molli» sono nove nomi
   spuntati un martedì: entra in catalogo la burrata, la lista non la contiene, e la regola della
   nutrizionista continua a esistere e a girare **su un elenco vecchio**. Nessun errore, nessuna riga

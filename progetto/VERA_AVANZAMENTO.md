@@ -11,6 +11,11 @@
 
 ## Stato in una riga
 
+**«Aspetta te» adesso si vede dalla home.** Il blocco `b_assistente` sulla home della nutrizionista:
+proposte da approvare, domande aperte, sostituzioni da verificare — e il pulsante per aprire
+l'assistente. ⚠️ È un **blocco** e non un modulo: i moduli funzionano a inclusione, quindi chi ha già
+personalizzato la dashboard non l'avrebbe mai visto.
+
 **Il dizionario non invecchia più da solo.** L'ultimo guasto silenzioso: «formaggi molli» sono nove
 nomi spuntati un martedì, entra la burrata e la regola continua a girare **su un elenco vecchio**,
 senza nessun errore. Adesso l'assistente se ne accorge e **chiede** — a lei, nella sua chat, quando
@@ -140,7 +145,8 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
 - [x] **Registro allargato**: tutto quello che cambia sulle sue clienti (`AzioneVera` + `AuditLog` +
       `FoodSwap`), fuso in lettura — ⚠️ **nessuna tabella nuova** che le copi
 - [x] «**Quello che aspetta me**» sulla pagina dell'assistente (non «quello che ho fatto»)
-- [ ] **Modulo dashboard di Lucia**: le stesse cose, ma nella dashboard
+- [x] **Modulo dashboard**: le stesse cose in cima alla home, per lei e per il capo — sparisce
+      quando non c'è niente, invece di dire «zero»
 - [x] **La coda di Nocanty**: il suo agente gli sottopone **una proposta per volta**, già istruita
       (chi, quando, la frase originale, cosa comporta), **in ordine di rischio** e non di data;
       ⚠️ **nessuna approvazione in blocco**, e nessun endpoint che la permetta
@@ -148,7 +154,8 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
       proposto**, in modo idempotente e con un tetto di 200; respingere **richiede un motivo**
 - [x] ⚠️ Una nutrizionista **non può approvarsi da sola**: il controllo sta nel servizio, non solo
       nella guardia del controller
-- [ ] **Modulo dashboard di Nocanty**: la sua coda + avvisi immediati
+- [x] **Modulo dashboard di Nocanty**: è lo stesso blocco — la sua home è quella della
+      nutrizionista, e il conteggio delle proposte lo vede solo lui
 
 ---
 
@@ -195,6 +202,20 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — «Aspetta te» dalla home (2 file)
+Il blocco `b_assistente` in cima alla home della nutrizionista, con quello che aspetta lei:
+proposte da approvare, domande aperte, sostituzioni da verificare.
+⚠️ **Blocco e non modulo.** I moduli della dashboard funzionano a **inclusione** — chi ha già
+personalizzato ha una lista salvata che non può contenere un id nato oggi — quindi proprio chi usa di
+più il backoffice sarebbe l'unico a non vederlo mai. I blocchi funzionano a esclusione: si vedono, e
+chi non li vuole li spegne da Impostazioni. È la stessa ragione per cui esiste `dashboardBlocksOff`.
+⚠️ `home: ['nutritionist']` fa da filtro di ruolo da solo: quella home la aprono `nutritionist` e
+`head_nutritionist` e nessun altro. Nessuna mappa di default per ruolo da inventare.
+⚠️ Se non c'è niente da fare il blocco **sparisce**, invece di dire «zero»: un riquadro che dice zero
+tutti i giorni insegna a non guardarlo. E nessun contatore di «regole create» — quello è una
+medaglietta, si guarda due volte e poi mai più.
+Nessuna modifica al backend: l'endpoint `/vera/aspetta-me` c'era già.
 
 ### 13/8/2026 — Il dizionario che invecchia: l'ultimo guasto silenzioso (7 file)
 `famiglieCheForsePrendono` sapeva già rispondere a «questo alimento nuovo riguarda qualche

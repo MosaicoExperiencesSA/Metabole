@@ -19,6 +19,13 @@ interface Dash {
   earningsMonthCents: number;
   earningsTotalCents: number;
 }
+/** Quello che aspetta questa persona nell'assistente: proposte, domande, sostituzioni. */
+interface Aspetta {
+  richieste: number;
+  daApprovare: number;
+  daVerificare: number;
+  capo: boolean;
+}
 interface Patient {
   clientId: string;
   name: string | null;
@@ -177,6 +184,8 @@ export function NutritionistHome() {
       <h1 style={{ marginTop: 0 }}>Ciao {hello} 👋</h1>
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
+
+      {pref.attivo('b_assistente') && can('nutri_assistant') && <AssistenteWidget />}
 
       {pref.attivo('b_portafoglio') && <WalletWidget />}
 
@@ -401,6 +410,48 @@ function Kpi({ label, value, icon, color }: { label: string; value: string; icon
           <div style={{ fontSize: 22, fontWeight: 800, color: color ?? 'var(--ink)', lineHeight: 1.1 }}>{value}</div>
           <span className="muted" style={{ fontSize: 12 }}>{label}</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * QUELLO CHE ASPETTA TE — l'assistente, dalla home.
+ *
+ * ⚠️ Il blocco esiste per una ragione sola: le cose che aspettano una persona stanno **dentro** la
+ * pagina dell'assistente, e una coda che si vede solo entrando è una coda che si guarda quando ci
+ * si ricorda di entrare. Qui si vede prima, cioè quando serve.
+ *
+ * ⚠️ E non c'è nessun numero di «regole create». Un contatore di quello che si è fatto è una
+ * medaglietta: la si guarda due volte e poi mai più. Se non c'è niente da fare, questo blocco
+ * **sparisce** invece di dire «zero» — dire zero ogni giorno è il modo di insegnare a non leggerlo.
+ */
+function AssistenteWidget() {
+  const [a, setA] = useState<Aspetta | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    api<Aspetta>('/vera/aspetta-me')
+      .then((r) => { if (vivo) setA(r); })
+      // Silenzio: è un riquadro accessorio in cima alla home, e un errore rosso qui farebbe
+      // sembrare rotta tutta la pagina per una cosa che non blocca niente.
+      .catch(() => undefined);
+    return () => { vivo = false; };
+  }, []);
+
+  if (!a || (a.richieste === 0 && a.daApprovare === 0 && a.daVerificare === 0)) return null;
+
+  return (
+    <div className="card" style={{ borderLeft: '3px solid var(--gold)' }}>
+      <div className="spread" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <i className="ti ti-sparkles" style={{ color: 'var(--gold)' }} />
+          <b>Aspetta te</b>
+          {a.daApprovare > 0 && <span className="chip amber">{a.daApprovare} da approvare</span>}
+          {a.richieste > 0 && <span className="chip amber">{a.richieste} domande aperte</span>}
+          {a.daVerificare > 0 && <span className="chip">{a.daVerificare} sostituzioni da verificare</span>}
+        </div>
+        <Link className="btn sm" to="/assistente"><i className="ti ti-message-chatbot" /> Apri l'assistente</Link>
       </div>
     </div>
   );

@@ -107,4 +107,17 @@ export const DASHBOARD_BLOCCHI: DashboardBlocco[] = [
   { id: 'b_da_validare', label: 'Da validare', descrizione: 'Decisioni del motore, diete e protocolli in attesa della tua approvazione.', home: ['nutritionist'] },
   { id: 'b_pazienti', label: 'Pazienti', descrizione: 'I pazienti che richiedono attenzione, con escalation e documenti aperti.', home: ['nutritionist'] },
   { id: 'b_regole_motore', label: 'Regole del motore', descrizione: 'Il collegamento alle regole del motore (solo capo nutrizioniste).', home: ['nutritionist'] },
+  /**
+   * ⚠️ L'assistente sta fra i BLOCCHI e non fra i moduli, e la differenza non è cosmetica.
+   *
+   * Simone (13/8) lo vuole «acceso di default per nutrizionista e capo nutrizionista». I moduli
+   * funzionano a inclusione: chi ha già personalizzato la dashboard ha una lista salvata che — per
+   * forza — non contiene un id nato oggi, quindi proprio le persone che usano di più il backoffice
+   * sarebbero le uniche a non vederlo mai. I blocchi funzionano a esclusione: si vedono, e chi non
+   * li vuole li spegne. È la stessa ragione per cui `dashboardBlocksOff` esiste.
+   *
+   * `home: ['nutritionist']` fa da filtro di ruolo da solo: quella home la aprono `nutritionist` e
+   * `head_nutritionist` e nessun altro (`pages/Home.tsx`).
+   */
+  { id: 'b_assistente', label: 'L\'assistente', descrizione: 'Quello che aspetta te: proposte da approvare, domande aperte, sostituzioni da verificare.', home: ['nutritionist'] },
 ];
