@@ -14,6 +14,11 @@ interface Detail {
   };
   profile: any | null;
   /**
+   * Il via libera clinico (13/8). `esito: null` + `daValutare: true` = nessuno l'ha ancora guardata.
+   * ⚠️ `serve_visita` NON è «da valutare»: qualcuno l'ha guardata e ha deciso che la visita serve.
+   */
+  idoneita?: { esito: string | null; decisaIl: string | null; daValutare: boolean };
+  /**
    * La dieta COLLEGATA alla cliente, con la descrizione per esteso. Lo stile («Mediterranea») non
    * basta a dire quale sia: tre diete diverse hanno `style = mediterranean`. Vedi il commento in
    * `clients.service.getDetail`.
@@ -655,8 +660,43 @@ export function ClientDetail() {
   const canChangePlanStart = can('change_plan_start', 'manage');
   // Le allergie: si vedono sempre, si correggono col permesso «Modifica allergie» (13/8).
   const puoAllergie = can('change_allergies', 'manage');
+  // Il via libera clinico: lo dà chi ha «Idoneità a proseguire» (13/8).
+  const puoIdoneita = can('clinical_clearance', 'manage');
 
   /** Sposta la data di inizio del piano: la fine si ricalcola e i menu ripartono da lì. */
+  /**
+   * IL VIA LIBERA CLINICO — «può proseguire» oppure «serve una visita» (13/8).
+   *
+   * ⚠️ La nota è **obbligatoria**, e il motivo va detto a chi la scrive, non solo rifiutato dal
+   * server: la leggerà anche la coach, e fra un mese sarà l'unica cosa che dice perché è stato
+   * deciso così. Finisce nella lista note della cliente — quella che la coach apre già — con autore
+   * e ora.
+   */
+  async function decidiIdoneita(esito: 'idonea' | 'serve_visita') {
+    const titolo = esito === 'idonea' ? 'PUÒ PROSEGUIRE' : 'SERVE UNA VISITA';
+    const nota = prompt(
+      `Valutazione clinica: ${titolo}.\n\nScrivi una nota che spieghi la decisione (almeno 10 caratteri).\nLa vedrà anche la coach nelle note della cliente, con il tuo nome e l'ora.`,
+      '',
+    );
+    if (nota === null) return;
+    setError(null);
+    setNotice(null);
+    try {
+      const esitoRisposta = await api<{ segnalazioniChiuse: number }>(`/clients/${id}/idoneita`, {
+        method: 'POST',
+        body: JSON.stringify({ esito, nota: nota.trim() }),
+      });
+      const coda = esitoRisposta.segnalazioniChiuse
+        ? ` ${esitoRisposta.segnalazioniChiuse} segnalazione/i clinica/e chiusa/e.`
+        : '';
+      setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${coda}`);
+      // Ricarica: la nota nuova deve comparire subito nella lista, o sembra non essere stata salvata.
+      await loadDetail();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Non è stato possibile registrare la valutazione.');
+    }
+  }
+
   async function changePlanStart() {
     const cur = d?.profile?.planStartDate
       ? String(d.profile.planStartDate).slice(0, 10)
@@ -1473,6 +1513,37 @@ export function ClientDetail() {
             <Row label="Pranzo nei feriali" value={lab('weekdayLunch', p.lifestyle?.weekdayLunch)} />
             <Row label="Stile coach" value={lab('coachStyle', p.coachStyle)} />
             <Row label="Carattere" value={lab('character', p.character)} />
+            {/* Il via libera clinico, sopra le allergie: è la risposta alla domanda che le allergie
+                fanno nascere. */}
+            <Row
+              label="Valutazione clinica"
+              value={
+                d?.idoneita?.esito === 'idonea'
+                  ? `Può proseguire${d.idoneita.decisaIl ? ` · ${date(d.idoneita.decisaIl)}` : ''}${p.idoneitaDecisaDa?.displayName ? ` · ${p.idoneitaDecisaDa.displayName}` : ''}`
+                  : d?.idoneita?.esito === 'serve_visita'
+                    ? `Serve una visita${d.idoneita.decisaIl ? ` · ${date(d.idoneita.decisaIl)}` : ''}${p.idoneitaDecisaDa?.displayName ? ` · ${p.idoneitaDecisaDa.displayName}` : ''}`
+                    // ⚠️ «Da valutare» e «nessuno deve valutarla» sono due cose diverse: la prima è
+                    // una cosa da fare, la seconda è il silenzio giusto.
+                    : d?.idoneita?.daValutare
+                      ? 'Da valutare'
+                      : 'Non serve'
+              }
+            />
+            {!!p.idoneitaNota?.body && (
+              // La nota sta nella lista note (la coach la trova lì), ma qui si legge senza cercarla:
+              // è la sola cosa che spiega PERCHÉ è stato deciso così.
+              <Row label="↳ nota" value={p.idoneitaNota.body} />
+            )}
+            {puoIdoneita && (
+              <div style={{ display: 'flex', gap: 8, margin: '2px 0 8px' }}>
+                <button className="btn ghost sm" onClick={() => void decidiIdoneita('idonea')} title="Registra che hai valutato questa cliente e può proseguire. Serve una nota: la vedrà anche la coach.">
+                  <i className="ti ti-check" /> Può proseguire
+                </button>
+                <button className="btn ghost sm" onClick={() => void decidiIdoneita('serve_visita')} title="Registra che serve una visita. Serve una nota: la vedrà anche la coach.">
+                  <i className="ti ti-stethoscope" /> Serve una visita
+                </button>
+              </div>
+            )}
             {/*
               ALLERGIE — non comparivano in nessuna scheda, né qui né in app (punto D dell'handoff
               del 12/8). Sono il dato con la conseguenza più grave dei tre — R8: blocco duro, non

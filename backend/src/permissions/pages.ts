@@ -105,6 +105,17 @@ export const BACKOFFICE_PAGES = [
    * anche dalla coach, e restringerle sarebbe una perdita di capacità che nessuno ha chiesto.
    */
   'change_allergies',
+  /**
+   * IL VIA LIBERA CLINICO dalla scheda cliente: «può proseguire» / «serve una visita» (13/8).
+   *
+   * È la risposta alla domanda di Simone — la nutrizionista non aveva un modo per dirci che ha
+   * valutato una cliente e va bene così. Chiudere la segnalazione non bastava: dopo quattordici
+   * giorni si riapre, e «risolta» non dice cosa ha deciso.
+   *
+   * Flag suo perché è una **valutazione clinica**, non una gestione della scheda: di default
+   * `nutritionist`, `head_nutritionist`, `admin`.
+   */
+  'clinical_clearance',
   'change_plan_start',   // Cambio della DATA DI INIZIO del piano dalla scheda cliente (flag dedicato)
   // Quali pasti salta chi fa digiuno intermittente, dalla scheda cliente. Flag dedicato perché
   // cambia gli slot che il motore eroga: chi lo tocca decide se quella cliente domani mattina
@@ -199,6 +210,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     change_diet_type: { view: true, manage: true }, // cambia il tipo di dieta (regime/stile)
     // Legge e corregge le allergie: è l'unica che può tradurre un testo libero in codice UE.
     change_allergies: { view: true, manage: true },
+    clinical_clearance: { view: true, manage: true }, // dice «può proseguire» o «serve la visita»
     change_fasting_window: { view: true, manage: true }, // e quali pasti salta nel digiuno
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
     recipes: { view: true, manage: true },
@@ -225,6 +237,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     fix_measures: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
     change_allergies: { view: true, manage: true },
+    clinical_clearance: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
     recipes: { view: true, manage: true },
@@ -312,6 +325,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     fix_measures: { view: true, manage: true },
     change_diet_type: { view: true, manage: true },
     change_allergies: { view: true, manage: true },
+    clinical_clearance: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true },
     change_plan_start: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone
     set_client_password: { view: true, manage: true }, // di default solo admin: gli altri li abilita Simone

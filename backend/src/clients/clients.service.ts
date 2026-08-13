@@ -14,6 +14,7 @@ import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-
 import { dietaMostrataPer } from '../catalog/dieta-mostrata';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { scostamentoDieta } from './scostamento-dieta';
+import { type Idoneita, daValutare, testoNota, validaDecisione } from './idoneita';
 import { toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -179,6 +180,10 @@ export class ClientsService {
           // Chi ha fermato il piano: nella scheda serve il NOME, non l'id — «fermato da
           // staff-4f2a…» non dice a nessuno con chi deve parlare per riattivarlo.
           planHeldBy: { select: { displayName: true } },
+          // Chi ha dato il via libera clinico, e la nota che lo spiega. Stesso motivo: nella scheda
+          // serve il nome di chi ha deciso, non il suo id — e la nota va letta lì, non cercata.
+          idoneitaDecisaDa: { select: { displayName: true } },
+          idoneitaNota: { select: { id: true, body: true, createdAt: true } },
         },
       }),
       this.prisma.objective.findFirst({ where: { clientId: userId }, orderBy: { createdAt: 'desc' } }),
@@ -397,6 +402,24 @@ export class ClientsService {
             // motore cercherà quel nome e non lo troverà.
             { id: null, nome: dietFamilyAssegnata, descrizione: null, style: null, status: 'non_in_catalogo', regime: null, mealsPerDay: null }
           : null,
+      /**
+       * IL VIA LIBERA CLINICO, per la scheda. `profile` porta già i campi grezzi; qui si aggiunge la
+       * sola cosa che non si può leggere da quelli: **se questa cliente è ancora da valutare**.
+       *
+       * ⚠️ `serve_visita` NON è «da valutare»: qualcuno l'ha guardata e ha deciso che la visita
+       * serve. Sta in un altro elenco — quelle da visitare — non in quello di chi nessuno ha ancora
+       * aperto. La regola sta in `idoneita.ts`, non qui, perché la stessa domanda la farà la coda
+       * della nutrizionista.
+       */
+      idoneita: {
+        esito: (profile as { idoneita?: string | null } | null)?.idoneita ?? null,
+        decisaIl: (profile as { idoneitaDecisaIl?: Date | null } | null)?.idoneitaDecisaIl ?? null,
+        daValutare: daValutare({
+          allergies: (profile as { allergies?: string[] } | null)?.allergies ?? [],
+          idoneita: (profile as { idoneita?: string | null } | null)?.idoneita ?? null,
+          screeningFlag: (profile as { screeningFlag?: boolean } | null)?.screeningFlag ?? false,
+        }),
+      },
       scostamentoDieta: scostamento,
       dietaMenuInCorso: dietaVecchiaInArrivo,
       // L'avviso esiste per una domanda sola: «i piatti che riceverà sono quelli della dieta
@@ -479,6 +502,93 @@ export class ClientsService {
     });
     await this.audit.log({ action: 'client.note.add', actorId, entityType: 'user', entityId: userId });
     return { id: created.id, body: created.body, createdAt: created.createdAt, author: created.author?.displayName ?? null };
+  }
+
+  /**
+   * IL VIA LIBERA CLINICO: «questa cliente può proseguire?» (13/8).
+   *
+   * La regola sta in `idoneita.ts`, qui c'è quello che tocca la banca dati. Tre cose in una
+   * transazione, perché sono una cosa sola:
+   *
+   *  1. la **nota**, obbligatoria, scritta nella lista note che esiste già — così la coach la trova
+   *     dove cerca già le note, con autore e ora, invece che in un campo che solo la scheda clinica
+   *     sa mostrare (richiesta di Simone);
+   *  2. la **decisione** sul profilo: cosa, chi, quando, e il puntatore alla nota;
+   *  3. le **segnalazioni cliniche aperte** su quella cliente, che si chiudono da sé.
+   *
+   * ⚠️ Il punto 3 non è una comodità. Se dovesse decidere qui e poi chiudere la segnalazione di là,
+   * prima o poi ne farebbe una sola — e la coda tornerebbe a riempirsi di casi già visti, che è
+   * esattamente il modo in cui una coda smette di voler dire qualcosa (vedi `riapertura.ts`).
+   *
+   * ⚠️ NESSUN BLOCCO: percorso e menu continuano comunque. Bloccare l'erogazione vorrebbe dire
+   * sospendere piani attivi a clienti paganti per un campo introdotto oggi.
+   */
+  async decidiIdoneita(userId: string, actorId: string, esitoGrezzo: unknown, notaGrezza: unknown) {
+    await this.assertClientAccess(actorId, userId);
+    const attore = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
+    if (!(await this.roleCanManage(attore?.role ?? '', 'clinical_clearance'))) {
+      throw new ForbiddenException(
+        'Il via libera clinico richiede il permesso "Idoneità a proseguire": è una valutazione della nutrizionista.',
+      );
+    }
+    const user = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { id: true, role: true } });
+    if (!user) throw new NotFoundException('Utente non trovato.');
+    if (user.role !== 'client') throw new ForbiddenException('L\'idoneità si decide solo per i clienti.');
+
+    let decisione: { esito: Idoneita; nota: string };
+    try {
+      decisione = validaDecisione(esitoGrezzo, notaGrezza);
+    } catch (e) {
+      // `NotaMancante` porta già la frase giusta per chi sta guardando la scheda: si traduce nel
+      // 400 senza riscriverla, o si finirebbe con due versioni dello stesso messaggio.
+      throw new BadRequestException(e instanceof Error ? e.message : 'Richiesta non valida.');
+    }
+
+    const staff = await this.prisma.staff.findUnique({ where: { userId: actorId }, select: { id: true } });
+    const nota = await this.prisma.clientNote.create({
+      data: {
+        clientId: userId,
+        body: testoNota(decisione.esito, decisione.nota).slice(0, 5000),
+        authorId: staff?.id,
+      },
+      select: { id: true, body: true, createdAt: true, author: { select: { displayName: true } } },
+    });
+
+    await this.prisma.clientProfile.update({
+      where: { userId },
+      data: {
+        idoneita: decisione.esito,
+        idoneitaDecisaIl: new Date(),
+        idoneitaDecisaDaId: staff?.id ?? null,
+        idoneitaNotaId: nota.id,
+      } as never,
+    });
+
+    /**
+     * Le segnalazioni cliniche aperte si chiudono qui. `resolvedAt` valorizzato perché è quello che
+     * `riapertura.ts` guarda per non riaprirle: senza, la tregua non partirebbe e la stessa
+     * segnalazione tornerebbe alla prima rivalutazione del motore.
+     */
+    const chiuse = await this.prisma.escalation.updateMany({
+      where: { clientId: userId, category: 'clinical', status: { in: ['open', 'in_progress'] } as never },
+      data: { status: 'resolved' as never, resolvedAt: new Date() },
+    });
+
+    await this.audit.log({
+      action: 'client.idoneita.decisa',
+      actorId,
+      entityType: 'user',
+      entityId: userId,
+      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count },
+    });
+
+    return {
+      idoneita: decisione.esito,
+      decisaIl: new Date(),
+      decisaDa: staff?.id ?? null,
+      segnalazioniChiuse: chiuse.count,
+      nota: { id: nota.id, body: nota.body, createdAt: nota.createdAt, author: nota.author?.displayName ?? null },
+    };
   }
 
   /** Elimina una nota dal log (solo admin, controllato dal controller). */

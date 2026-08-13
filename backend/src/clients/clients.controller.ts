@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -13,6 +13,24 @@ class AddNoteDto {
   @MinLength(1)
   @MaxLength(5000)
   body!: string;
+}
+
+/**
+ * Il via libera clinico. ⚠️ La nota è **obbligatoria** e ha un minimo: una decisione clinica senza
+ * una riga che la spieghi è indistinguibile da un clic per sbaglio, e chi la legge fra un mese — la
+ * coach, o un'altra nutrizionista — non saprebbe se la cliente è stata valutata o solo sfiorata col
+ * mouse. Il controllo vero (con la frase giusta da mostrare) sta in `idoneita.ts`: qui è la rete di
+ * sicurezza del DTO.
+ */
+class IdoneitaDto {
+  @IsString()
+  @IsIn(['idonea', 'serve_visita'])
+  esito!: string;
+
+  @IsString()
+  @MinLength(10)
+  @MaxLength(5000)
+  nota!: string;
 }
 
 class TravelDto {
@@ -80,6 +98,23 @@ export class ClientsController {
   @Post(':id/note')
   addNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddNoteDto) {
     return this.clients.addNote(id, user.sub, dto.body);
+  }
+
+  /**
+   * IL VIA LIBERA CLINICO: «può proseguire» / «serve una visita».
+   *
+   * Permesso `clinical_clearance`, controllato nel servizio insieme all'appartenenza della cliente:
+   * qui non c'è `@Roles` fisso, perché quale ruolo lo può fare lo decide la tabella dei permessi —
+   * è il motivo per cui Simone l'ha chiesta lì.
+   *
+   * ⚠️ POST e non PATCH: non modifica un campo, **registra una decisione** — con la nota
+   * obbligatoria che la spiega, l'autore e l'ora. Chiede sempre corpo e nota, anche per confermare
+   * la stessa decisione di prima: una valutazione clinica ripetuta è una valutazione nuova.
+   */
+  @HttpCode(200)
+  @Post(':id/idoneita')
+  decidiIdoneita(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: IdoneitaDto) {
+    return this.clients.decidiIdoneita(id, user.sub, dto.esito, dto.nota);
   }
 
   /** Elimina una nota dal log: solo admin. */

@@ -80,6 +80,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   c'era.**
   ⛔ Restano `npm run typecheck` e `npx jest src/app.module.spec.ts` **nel terminale del Mac**.
 
+- `[Sviluppo]` 🩻 **Il via libera clinico: la nutrizionista può dire «può proseguire», e resta
+  scritto.** Domanda di Simone: «se poi metti Visita obbligatoria e la nutrizionista decide che la
+  cliente può proseguire, come fa a dircelo? Parte il messaggio sorveglianza sanitaria ma lei come fa
+  a dirci ok può proseguire?». La risposta era che **non aveva un modo**.
+  Il canale c'era — screening → segnalazione clinica → lei la chiude — ma ha la forma sbagliata:
+  ⚠️ la tregua di `riapertura.ts` dura **14 giorni** e poi la segnalazione si riapre (giusto per il
+  calo peso, che peggiora; sbagliato per un'allergia, che non passa e il cui via libera non scade su
+  un timer); ⚠️ «risolta» dice uno stato, non **cosa** ha deciso; ⚠️ un flag derivato dalle allergie
+  non si spegne chiudendo una segnalazione, si riaccende da solo per sempre.
+  Ora è una **decisione scritta sulla cliente** — cosa, chi, quando — che **non scade**, e vale per
+  tutta la sorveglianza sanitaria, non solo per le allergie: era la seconda metà della domanda.
+  **La nota è obbligatoria** (richiesta di Simone: «in modo che anche la coach entrando vede la nota
+  del nutrizionista, il campo note esiste già»). Esatto: **non è un campo nuovo**, è una riga della
+  lista note che la coach apre già, con autore e ora. Il profilo ci **punta**, non ne tiene una copia.
+  ⚠️ Minimo 10 caratteri — «ok» non è una spiegazione — e senza nota valida **non si scrive niente**:
+  né la nota, né il profilo, né le segnalazioni.
+  ⚠️ **Un gesto solo, non due**: le segnalazioni cliniche aperte si chiudono da sé, con `resolvedAt`
+  valorizzato. Se dovesse decidere qui e chiudere di là, prima o poi ne farebbe una sola.
+  ⚠️ **Nessun blocco**: percorso e menu continuano. E `serve_visita` **non** è «da valutare» —
+  qualcuno l'ha guardata. Permesso `clinical_clearance`. 18 test nuovi, suite **2310** verde.
+
 - `[Sviluppo]` 🔢 **«Non ho allergie» diventa una risposta, e un conteggio da leggere prima della
   campagna.** Chiude il §3 dell'handoff e prepara il §7.
   **L'opzione «Non ho allergie»** nel questionario: le intolleranze avevano già `'none'`, le allergie

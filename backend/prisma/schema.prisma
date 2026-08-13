@@ -314,6 +314,8 @@ model Staff {
   clientsAsNutritionist ClientProfile[] @relation("AssignedNutritionist")
   // Chi ha bloccato il piano di una cliente: serve a sapere di chi è lo sblocco (§15.2 punto 4).
   clientsPlanHeld       ClientProfile[] @relation("PlanHeldBy")
+  // Chi ha dato (o negato) il via libera clinico. `SetNull`: se lascia, resta la decisione.
+  idoneitaDecise        ClientProfile[] @relation("IdoneitaDecisaDa")
   escalations           Escalation[]    @relation("EscalationAssignee")
   authoredDiets         Diet[]          @relation("DietAuthor")
   approvedDiets         Diet[]          @relation("DietApprover")
@@ -426,6 +428,30 @@ model ClientProfile {
   // spostamento — il testo resta anche dentro `intolerances`, che è l'array che esclude davvero.
   // Nasce perché l'opzione «Altro» del questionario non aveva nessun campo dove scrivere cosa.
   intolerancesOther      String[]   @default([]) @map("intolerances_other")
+  /**
+   * IL VIA LIBERA CLINICO (13/8). `'idonea'` | `'serve_visita'` | `null` = mai valutata.
+   *
+   * Risponde alla domanda di Simone: «la nutrizionista come fa a dirci ok può proseguire?».
+   * Chiudere la segnalazione non bastava — la tregua scade dopo 14 giorni e la segnalazione si
+   * riapre, e «risolta» non dice COSA ha deciso.
+   *
+   * ⚠️ Non scade: una valutazione clinica vale finché non arriva un fatto nuovo.
+   * ⚠️ Nessun blocco parte da qui: percorso e menu continuano comunque.
+   */
+  idoneita               String?    @map("idoneita")
+  idoneitaDecisaIl       DateTime?  @map("idoneita_decisa_il")
+  idoneitaDecisaDaId     String?    @map("idoneita_decisa_da_id")
+  idoneitaDecisaDa       Staff?     @relation("IdoneitaDecisaDa", fields: [idoneitaDecisaDaId], references: [id], onDelete: SetNull)
+  /**
+   * La nota che spiega la decisione. ⚠️ **Obbligatoria**, e non copiata qui: punta alla riga di
+   * `ClientNote`, la lista delle note sulla cliente che esiste già e che ha già autore e data.
+   *
+   * Richiesta di Simone (13/8): «rendere obbligatoria la scrittura di una nota, dove segnamo chi ha
+   * scritto data e ora, in modo che anche la coach entrando vede la nota del nutrizionista».
+   * Scrivendola lì la coach la trova dove cerca già le note, e il testo esiste in un posto solo.
+   */
+  idoneitaNotaId         String?     @map("idoneita_nota_id")
+  idoneitaNota           ClientNote? @relation("IdoneitaNota", fields: [idoneitaNotaId], references: [id], onDelete: SetNull)
   dislikedFoods          String[]   @default([]) @map("disliked_foods")
   // Preferenza della cliente: menu con ricette SEMPLICI (cucina italiana) quando disponibili.
   // Attivabile dall'app. Il generatore menu, se true, alterna alle ricette del piano quelle
@@ -1850,6 +1876,10 @@ model ClientNote {
   authorId  String?  @map("author_id")
   author    Staff?   @relation("ClientNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now()) @map("created_at")
+
+  // La decisione di idoneità che questa nota spiega, se è quella. `SetNull` dall'altra parte: se la
+  // nota sparisce, la decisione resta e si vede che la spiegazione non c'è più.
+  idoneitaDi ClientProfile[] @relation("IdoneitaNota")
 
   @@index([clientId, createdAt])
   @@map("client_note")
