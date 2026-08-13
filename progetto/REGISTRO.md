@@ -20,6 +20,10 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` ☕ **Colazioni, terza passata dalla pagina in uso:** «Selezione → salate/dolci» per
+  le 472 senza proposta (il tipo lo dice chi seleziona), e il filtro dei composti impara i
+  singolari — «pistacchio salato» e «nocciola salata» erano finti conflitti.
+
 - `[Sviluppo]` 🩺 **«Serve la visita» parte in automatico — chiusi gli ultimi due rossi della pagina
   Lavori (Decisioni §15).** I criteri sono la risposta testuale di Nocanty: «allergia dichiarata,
   utilizzo farmaci, problemi sanitari» — cioè `allergies` non vuoto o `screeningFlag`, lo stesso

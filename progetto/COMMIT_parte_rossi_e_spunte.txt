@@ -34,3 +34,11 @@ DA_RIPRENDERE_20260814.md.
 TEST: 8 nuovi visti rossi (4 serve-visita + 4 caricamento voci). Suite riverificate insieme come
 chiede la consegna §7: profile + chat allergie + common/allergie + onboarding = 147 verdi, lavori
 21 verdi.
+
+─── AGGIUNTA (13/8 notte, dalla pagina in uso) ───
+Pagina Colazioni: sulle 472 «senza proposta» il pulsante della selezione non aveva niente da
+confermare. Ora accanto ci sono «Selezione → salate» e «Selezione → dolci»: il tipo lo dice chi
+seleziona, e vale anche sopra una proposta diversa (chi spunta ha guardato). E il filtro dei
+composti impara i SINGOLARI («pistacchio salato», «nocciola salata» — visti in produzione come
+finti conflitti): quelle righe ora propongono giusto. 1 test nuovo, 16 verdi sul classificatore.
+Backoffice: Colazioni.tsx. Backend: vera/colazioni.ts+spec.

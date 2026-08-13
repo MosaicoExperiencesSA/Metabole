@@ -91,7 +91,7 @@ export function classificaColazione(nome: string, ingredienti: readonly string[]
    * cercare gli indizi, lasciando il sostantivo.
    */
   const pulito = testo.replace(
-    /\b(mais|patat[ae]|paprika|peperon[ei]|burro|arachidi|pistacchi|nocciole|mandorl[ae])\s+(?:dolc|salat)[a-zà-ù]*/g,
+    /\b(mais|patat[ae]|paprika|peperon[ei]|burro|arachid[ei]|pistacchi?o?|nocciol[ae]|mandorl[ae]|anacard[oi])\s+(?:dolc|salat)[a-zà-ù]*/g,
     '$1',
   );
   const salato = trovati(pulito, INDIZI_SALATO);

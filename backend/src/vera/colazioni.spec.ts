@@ -52,6 +52,14 @@ describe('classificaColazione', () => {
     expect(r.proposta).not.toBe('dolce');
   });
 
+  it('i composti valgono anche al SINGOLARE: «pistacchio salato» non è un conflitto', () => {
+    // Visto in produzione il 13/8 sera: «Bisotti di farro e pistacchio» usciva in conflitto per
+    // l'indizio 'salat' — l'ingrediente era il pistacchio salato, e il filtro copriva solo i plurali.
+    const r = classificaColazione('Bisotti di Farro e Pistacchio con Tè', ['farro', 'pistacchio salato', 'sciroppo di agave']);
+    expect(r.proposta).toBe('dolce');
+    expect(classificaColazione('Avena con yogurt e frutti di bosco', ['avena', 'nocciola salata', 'miele', 'frutti di bosco']).proposta).toBe('dolce');
+  });
+
   it('«patata dolce» e «burro salato» non decidono niente', () => {
     expect(classificaColazione('Toast con patata dolce e uova', ['patata dolce', 'uova']).proposta).toBe('salato');
     expect(classificaColazione('Pancake al burro salato', ['farina', 'burro salato']).proposta).toBeNull();

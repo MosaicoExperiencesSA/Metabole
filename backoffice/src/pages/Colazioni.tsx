@@ -120,6 +120,21 @@ export function Colazioni() {
    * La conferma della SELEZIONE (richiesta di Simone, 13/8 sera): ogni riga spuntata si conferma
    * con la SUA proposta. Le spuntate senza proposta o già confermate si saltano e si conta.
    */
+  /**
+   * La selezione confermata CON IL TIPO SCELTO (richiesta di Simone, 13/8 sera): sulle righe
+   * «senza proposta» il sistema non ha niente da proporre, quindi il tipo lo dice chi seleziona.
+   * Vale per tutte le righe spuntate, anche sopra una proposta diversa: chi spunta ha guardato.
+   */
+  async function confermaSelezioneCome(tipo: Tipo) {
+    const scelte = rows
+      .filter((r) => selezione.has(r.id) && r.confermato !== tipo)
+      .map((r) => ({ id: r.id, tipo }));
+    const quali = tipo === 'salato' ? 'salate' : 'dolci';
+    if (!scelte.length) { setNotice(`Le righe selezionate sono già tutte ${quali}.`); return; }
+    if (!confirm(`Confermo ${scelte.length} colazioni selezionate come ${quali}?`)) return;
+    await confermaScelte(scelte, `Selezione → ${quali}`);
+  }
+
   async function confermaSelezione() {
     const spuntate = rows.filter((r) => selezione.has(r.id));
     const scelte = spuntate.filter((r) => !r.confermato && r.proposta).map((r) => ({ id: r.id, tipo: r.proposta as Tipo }));
@@ -181,6 +196,16 @@ export function Colazioni() {
           {selezione.size > 0 && (
             <button className="btn sm" disabled={scrivendo} onClick={() => void confermaSelezione()}>
               Conferma la selezione ({selezione.size})
+            </button>
+          )}
+          {selezione.size > 0 && (
+            <button className="btn ghost sm" disabled={scrivendo} title="Le righe spuntate diventano salate, qualunque cosa proponesse il sistema" onClick={() => void confermaSelezioneCome('salato')}>
+              Selezione → salate
+            </button>
+          )}
+          {selezione.size > 0 && (
+            <button className="btn ghost sm" disabled={scrivendo} title="Le righe spuntate diventano dolci, qualunque cosa proponesse il sistema" onClick={() => void confermaSelezioneCome('dolce')}>
+              Selezione → dolci
             </button>
           )}
           {selezione.size > 0 && (
