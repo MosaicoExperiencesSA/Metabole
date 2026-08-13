@@ -84,8 +84,13 @@ describe('i dati che arrivano dalla push', () => {
   });
 
   it('un payload vuoto o storto non fa cadere niente', () => {
-    expect(datiDallaPush(undefined)).toEqual({ threadId: null, clientId: null, visitId: null, counterpart: null });
-    expect(datiDallaPush('non un oggetto')).toEqual({ threadId: null, clientId: null, visitId: null, counterpart: null });
+    // ⚠️ `kind` è nato il 13/8 con la ri-domanda sulle allergie: è la chiave che fa aggiungere
+    // `?intent=` e cominciare il dialogo invece di aprire una chat muta. Sta anche qui perché
+    // questo confronto è sulla forma INTERA, e una chiave nuova lo fa diventare rosso — il che è
+    // esattamente quello che deve fare: chi aggiunge un campo lo vede subito.
+    const vuoto = { threadId: null, clientId: null, visitId: null, counterpart: null, kind: null };
+    expect(datiDallaPush(undefined)).toEqual(vuoto);
+    expect(datiDallaPush('non un oggetto')).toEqual(vuoto);
   });
 
   it('la catena intera: push toccata dalla nutrizionista → la chat giusta', () => {
