@@ -24,6 +24,16 @@ interface Messaggio {
   createdAt: string;
 }
 
+/** Una domanda aperta dal sistema, che aspetta una risposta da chi sa tradurla. */
+interface Richiesta {
+  id: string;
+  tipo: string;
+  clienteNome: string | null;
+  testo: string;
+  origine: string;
+  createdAt: string;
+}
+
 interface Azione {
   id: string;
   frase: string;
@@ -62,6 +72,7 @@ export function Vera() {
 
   const [messaggi, setMessaggi] = useState<Messaggio[]>([]);
   const [azioni, setAzioni] = useState<Azione[]>([]);
+  const [richieste, setRichieste] = useState<Richiesta[]>([]);
   const [testo, setTesto] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -71,7 +82,12 @@ export function Vera() {
   const fine = useRef<HTMLDivElement>(null);
 
   async function caricaRegistro() {
-    setAzioni(await api<Azione[]>('/vera/registro'));
+    const [reg, ric] = await Promise.all([
+      api<Azione[]>('/vera/registro'),
+      api<Richiesta[]>('/vera/richieste'),
+    ]);
+    setAzioni(reg);
+    setRichieste(ric);
   }
 
   async function apri() {
@@ -161,6 +177,37 @@ export function Vera() {
 
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
+
+      {/*
+        ⚠️ Le domande aperte esistono come ELENCO e non solo come messaggi.
+        È l'avvertenza che il contratto fra le due sessioni mette sopra tutte le altre: se vivono
+        solo dentro il dialogo, in due settimane sono una chat lunga in cui le cose scendono e
+        nessuno sa più cosa manca. Qui si vedono a colpo d'occhio, e l'assistente le porta una
+        alla volta nella conversazione qui sotto.
+      */}
+      {richieste.length > 0 && (
+        <div className="card" style={{ marginBottom: 14, borderLeft: '3px solid var(--gold)' }}>
+          <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <i className="ti ti-help-circle" style={{ color: 'var(--gold)' }} />
+            <b>
+              {richieste.length === 1 ? 'Una domanda aspetta te' : `${richieste.length} domande aspettano te`}
+            </b>
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5 }}>
+            {richieste.slice(0, 5).map((r) => (
+              <li key={r.id} style={{ marginBottom: 4 }}>
+                {r.clienteNome && <b>{r.clienteNome}: </b>}
+                {r.testo}
+              </li>
+            ))}
+          </ul>
+          {richieste.length > 5 && (
+            <p className="muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
+              …e altre {richieste.length - 5}. L'assistente te le porta una alla volta qui sotto.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── la conversazione ─────────────────────────────────────────────── */}
       <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 460 }}>

@@ -6,6 +6,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { AmbitoVera, AzioneVeraTipo, RegistroVeraService } from './registro.service';
+import { RichiesteVeraService } from './richieste.service';
 import { VeraChatService } from './vera-chat.service';
 import { AnteprimaPoolDto, InsegnaFamigliaDto, MessaggioVeraDto, RespingiDto, ScriviAzioneDto } from './dto/vera.dto';
 
@@ -33,7 +34,24 @@ export class VeraController {
     private readonly dizionario: DizionarioService,
     private readonly registro: RegistroVeraService,
     private readonly chat: VeraChatService,
+    private readonly richieste: RichiesteVeraService,
   ) {}
+
+  // ---------- le domande che aspettano una nutrizionista ----------
+
+  /**
+   * L'elenco delle domande aperte.
+   *
+   * ⚠️ Esiste come **elenco** e non solo come messaggi in chat, ed è l'avvertenza che il contratto
+   * mette sopra tutte le altre: se le richieste vivono solo dentro il dialogo, in due settimane sono
+   * una chat lunga in cui le cose scendono e nessuno sa più cosa manca. È la stessa ragione per cui
+   * il 13/8 è nata la pagina Lavori invece di fidarsi del REGISTRO.
+   */
+  @Get('richieste')
+  @RequirePage('food_swaps')
+  richiesteAperte(@CurrentUser() user: AuthUser) {
+    return this.richieste.aperte(user.sub, user.role !== 'nutritionist');
+  }
 
   // ---------- la conversazione ----------
 

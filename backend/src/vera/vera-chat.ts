@@ -18,7 +18,9 @@ export type PassoVera =
   | 'conferma'        // ecco cosa sto per fare, e cosa comporta
   | 'ambito'          // solo per questa cliente o per tutte?
   | 'revisione'       // (solo il capo) ti sottopongo una proposta per volta
-  | 'motivo_rifiuto'; // (solo il capo) perché la respingi
+  | 'motivo_rifiuto'  // (solo il capo) perché la respingi
+  | 'richiesta'       // una domanda aperta dal sistema: cosa tolgo dal piatto?
+  | 'richiesta_generale'; // …e vale come regola per tutte?
 
 export interface StatoVera {
   passo: PassoVera;
@@ -40,6 +42,10 @@ export interface StatoVera {
   tentativi?: number;
   /** La proposta che sto sottoponendo al capo. */
   azioneId?: string;
+  /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
+  richiestaId?: string;
+  termine?: string;
+  alimenti?: string[];
 }
 
 /** Cosa il servizio deve fare della risposta di un passo. */
@@ -149,6 +155,39 @@ export const testi = {
     'quindi non lo salto.',
 
   respinta: () => 'Respinta, con il tuo motivo scritto accanto.',
+
+  // ── le domande che aspettano lei ────────────────────────────────────────────
+
+  /**
+   * ⚠️ La domanda si mostra **come l'ha scritta chi sa cosa manca**, senza riscriverla.
+   *
+   * Il contratto dice che il testo lo scrive l'altra parte, «perché è dalla nostra parte che si sa
+   * cosa manca». Riformularlo qui vorrebbe dire due versioni della stessa domanda, e quella che
+   * legge la nutrizionista sarebbe la mia — cioè quella di chi non sa cosa manca.
+   */
+  richiesta: (restanti: number, testo: string) =>
+    `${restanti === 1 ? 'C\'è una domanda' : `Ci sono ${restanti} domande`} che aspettano te.\n\n${testo}\n\n` +
+    '(elencami gli alimenti da togliere, separati da virgola — oppure scrivi «lascia stare»)',
+
+  rispostaScritta: (cliente: string | null, alimenti: string[]) =>
+    alimenti.length
+      ? `Fatto: per ${cliente ?? 'questa cliente'} ho aggiunto alle esclusioni ${alimenti.join(', ')}.`
+      : 'Va bene, non tocco niente sul suo profilo.',
+
+  /**
+   * ⚠️ La domanda «vale per tutte?» si fa SEPARATA, e dopo aver già scritto sulla cliente.
+   *
+   * È il §2 del contratto: da una risposta escono due scritture diverse, e non vanno fuse. Una
+   * traduzione clinica data di fretta su una cliente non deve entrare nel vocabolario di tutte
+   * perché qualcuno ha risposto in fretta a una domanda.
+   */
+  chiediGenerale: (termine: string, alimenti: string[]) =>
+    `Vale come **regola generale**? Cioè: ogni volta che qualcuno scrive «${termine}», devo intendere ` +
+    `${alimenti.join(', ')}?\n(se dici sì non lo applico da solo: lo propongo al capo nutrizionista)`,
+
+  propostaDizionario: (termine: string) =>
+    `L'ho proposta al capo: se la approva, «${termine}» diventa una parola che conosco per tutte. ` +
+    'Fino ad allora resta scritta solo sulla cliente.',
 } as const;
 
 /**

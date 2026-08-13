@@ -20,6 +20,45 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🙋 **Vera — Consegna 3b: le domande che aspettano una nutrizionista.**
+  Implementa `progetto/CONTRATTO_Vera_Richieste.md`, il confine fra le due sessioni. Quando il
+  sistema incontra una parola che **non sa tradurre** — «Favismo», che oggi non toglie un solo piatto
+  perché non compare in nessun ingrediente — non inventa e non blocca: **apre una domanda**, e la
+  domanda arriva a chi sa rispondere.
+  `apriRichiestaVera(prisma, dati)` è una **funzione** e non un servizio da iniettare (come
+  `registra-sostituzione.ts`): chi la chiama sta dentro il percorso che salva un questionario, e
+  legarlo a un modulo di backoffice vorrebbe dire che un problema qui fa fallire il salvataggio di
+  una cliente. **Non lancia mai**, ma l'errore va nei log — una coda che smette di riempirsi in
+  silenzio è peggio di una coda vuota, perché sembra che non ci sia niente da fare.
+  ⚠️ **Idempotente sulla chiave**, ed è il punto: senza, il primo lavoro programmato che gira ogni
+  notte riaprirebbe la stessa domanda ogni notte e in una settimana la coda è illeggibile. La seconda
+  chiamata **non fa niente e non è un errore** — e soprattutto **non rimanda la notifica**.
+  ⚠️ **Le domande vivono in un ELENCO** (`richiesta_vera`), non solo come messaggi in chat. Se
+  vivessero solo nel dialogo, in due settimane sarebbero una chat lunga in cui le cose scendono e
+  nessuno saprebbe più cosa manca: è la stessa ragione per cui il 13/8 è nata la pagina Lavori invece
+  di fidarsi del REGISTRO.
+  ⚠️ **Da una risposta escono DUE scritture, e non si fondono.** Gli alimenti vanno sulle esclusioni
+  di **quella** cliente, subito, **passando da `ClientsService.updateClient`** — il punto unico che
+  controlla `change_allergies`, ricalcola `allergiesOther` e lascia la traccia; una seconda strada
+  per lo stesso dato sanitario è il difetto che questo campo ha già avuto due volte. La parola nel
+  dizionario **di tutte** è invece una **proposta in approvazione**, mai una scrittura diretta:
+  una traduzione clinica data di fretta su una cliente non deve entrare nel vocabolario di tutte
+  perché qualcuno ha risposto in fretta a una domanda.
+  Dettagli che valgono oltre: la domanda si mostra **com'è stata scritta** da chi sa cosa manca
+  (riformularla vorrebbe dire che quella che legge la nutrizionista è la versione di chi NON sa cosa
+  manca); una cliente **senza nutrizionista assegnata** non fa sparire la domanda, la vede il capo;
+  e per il capo **le proposte da approvare vengono prima delle domande** — dietro una proposta c'è
+  una persona ferma.
+  ⚠️ **`ClientsService` arriva per TOKEN e non per `import`** (`useExisting`, stessa istanza):
+  importarlo trascinava mezza applicazione nel grafo di compilazione e i test di Vera smettevano di
+  girare da soli per un errore in un file che non c'entra niente. Un modulo che si può collaudare in
+  isolamento è un modulo che qualcuno collauderà.
+  Aggiunte anche **8 voci alla pagina Lavori** (`carica-lavori.ts`, chiavi `vera-*`): quello che è
+  stato scoperto scrivendo Vera e non è stato fatto.
+  **Verifica**: type-check **43 = baseline**, backoffice `tsc -b` pulito, **1621 test** contro 1603.
+  ⛔ Restano `npm run typecheck` e `npx jest src/app.module.spec.ts` **nel terminale del Mac**, e
+  `CONFERMA=1 npm run carica:lavori` su Render dopo il deploy.
+
 - `[Sviluppo]` 🤝 **Vera diventa la coda delle domande, e il confine fra le due sessioni è scritto.**
   Decisione di Simone: le domande e le richieste arrivano lì, «così la nutrizionista ha le chat con le
   clienti per le risposte base e la chat con Vera che aiuta tutta Metabole ad apprendere».

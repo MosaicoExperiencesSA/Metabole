@@ -11,6 +11,12 @@
 
 ## Stato in una riga
 
+**Consegna 3b: le domande che aspettano una nutrizionista.** Il contratto con l'altra sessione
+(`CONTRATTO_Vera_Richieste.md`) è implementato: `apriRichiestaVera` è la porta, le domande vivono in
+un **elenco** e non solo in chat, e da una risposta escono **due scritture separate**. Type-check 43 =
+baseline, backoffice pulito, **1621 test** contro 1603.
+⛔ Restano `npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
+
 **Consegna 3a: la coda di Nocanty.** Le proposte «a tutte» adesso si possono approvare — prima non
 c'era modo, e restavano ferme. Type-check 43 = baseline, **+20 test** (1603 contro 1583). Nessuna
 modifica allo schema, nessuna al frontend: tutti e 9 i file sono dentro `backend/src/vera/`.
@@ -30,7 +36,8 @@ Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si ri
 | 1 | Le fondamenta (dizionario, `viewedAt`, pool a vuoto, registro) | ✅ **fatta e verificata** — 13/8/2026 |
 | 2 | Vera che parla, due azioni + la pagina | ✅ **scritta** — 13/8/2026 |
 | 3a | La coda di Nocanty: approva/respingi, in ordine di rischio | ✅ **scritta** — 13/8/2026 |
-| 3b | Azioni a raggio largo, registro allargato, moduli in dashboard | ⬜ da iniziare |
+| 3b | Le domande che aspettano una nutrizionista (contratto fra le sessioni) | ✅ **scritta** — 13/8/2026 |
+| 3c | Azioni a raggio largo, registro allargato, moduli in dashboard | ⬜ da iniziare |
 | 4 | Che non marcisca (corpus di prova, rapporto mensile, dizionario vivo) | ⬜ da iniziare |
 | — | Cantiere allergie/intolleranze (a parte) | ⬜ da iniziare |
 
@@ -163,6 +170,24 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Consegna 3b: le domande che aspettano una nutrizionista (16 file)
+Implementa `progetto/CONTRATTO_Vera_Richieste.md`. Quando il sistema incontra una parola che **non sa
+tradurre** — «Favismo», che oggi non toglie un solo piatto perché non compare in nessun ingrediente —
+non inventa e non blocca: apre una domanda. `apriRichiestaVera(prisma, dati)` è una **funzione**, non
+un servizio da iniettare, così chi la chiama sta dentro il percorso del questionario senza legarcisi;
+**non lancia mai**; ed è **idempotente sulla chiave**, che è ciò che la rende richiamabile da un
+lavoro programmato ogni notte senza riempire la coda di doppioni.
+⚠️ Le domande vivono in un **elenco** (`richiesta_vera`) e non solo come messaggi: se vivessero solo
+nel dialogo, in due settimane sarebbero una chat lunga in cui le cose scendono e nessuno saprebbe più
+cosa manca. La stessa ragione per cui è nata la pagina Lavori.
+⚠️ **Da una risposta escono DUE scritture, e non si fondono**: gli alimenti sulla cliente (subito, e
+**passando da `ClientsService.updateClient`**, il punto unico che controlla il permesso e lascia la
+traccia) e la parola nel dizionario di tutte (**proposta in approvazione**, mai scrittura diretta).
+Una traduzione clinica data di fretta su una cliente non entra nel vocabolario di tutte.
+⚠️ `ClientsService` arriva **per token** e non per `import`: importarlo trascinava mezza applicazione
+nel grafo di compilazione e i test di Vera smettevano di girare da soli.
+Verifica: type-check **43 = baseline**, backoffice pulito, **1621 test** contro 1603.
 
 ### 13/8/2026 — Consegna 3a: la coda di Nocanty (9 file, solo `src/vera/`)
 La Consegna 2 sapeva **creare** proposte «in approvazione» e non c'era modo di approvarle: restavano

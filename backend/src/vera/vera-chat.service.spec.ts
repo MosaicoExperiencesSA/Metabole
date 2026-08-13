@@ -2,6 +2,7 @@ import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegistroVeraService } from './registro.service';
+import { RichiesteVeraService } from './richieste.service';
 import { VeraChatService } from './vera-chat.service';
 import { StatoVera } from './vera-chat';
 
@@ -24,7 +25,7 @@ function ultimoAgente(create: jest.Mock): { testo: string; stato?: StatoVera } {
 
 function make(
   over: Record<string, unknown> = {},
-  opzioni: { statoAperto?: StatoVera; profilo?: Record<string, unknown>; coda?: unknown[] } = {},
+  opzioni: { statoAperto?: StatoVera; profilo?: Record<string, unknown>; coda?: unknown[]; richieste?: unknown[] } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
   const profileUpdate = jest.fn().mockResolvedValue({});
@@ -67,8 +68,16 @@ function make(
     respingi: jest.fn().mockResolvedValue({ riga: { id: 'a1' } }),
   } as unknown as RegistroVeraService;
 
+  const richieste = {
+    // Nessuna domanda aperta se il test non dice altro.
+    aperte: jest.fn().mockResolvedValue(opzioni.richieste ?? []),
+    rispondi: jest.fn().mockResolvedValue({ aggiunti: ['fave', 'legumi'], clienteNome: 'Mariastella' }),
+    collega: jest.fn().mockResolvedValue(undefined),
+  } as unknown as RichiesteVeraService;
+
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste),
+    richieste,
     messaggioCreate,
     profileUpdate,
     dizionario,
@@ -397,5 +406,123 @@ describe('VeraChatService — la coda del capo nutrizionista', () => {
     await service.parla('nocanty', 'mah');
     expect(registro.approva).not.toHaveBeenCalled();
     expect(ultimoAgente(messaggioCreate).testo).toContain('nel dubbio la lascio in coda');
+  });
+});
+
+describe('VeraChatService — le domande che aspettano lei', () => {
+  const RICHIESTA = {
+    id: 'r1',
+    tipo: 'allergia_da_tradurre',
+    clienteId: 'c1',
+    clienteNome: 'Mariastella',
+    termine: 'Favismo',
+    testo: 'Mariastella ha dichiarato un’allergia che non so tradurre: «Favismo». Cosa devo togliere dal suo piatto?',
+    origine: 'personal-base',
+    createdAt: new Date('2026-08-13T08:00:00.000Z'),
+  };
+
+  it('porta la domanda ESATTAMENTE com’è stata scritta, senza riformularla', async () => {
+    // Il testo lo scrive chi sa cosa manca. Riscriverlo qui vorrebbe dire che quella che legge la
+    // nutrizionista è la mia versione — cioè quella di chi non sa cosa manca.
+    const { service, messaggioCreate } = make({}, { richieste: [RICHIESTA] });
+    await service.apri('lucia');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('«Favismo»');
+    expect(testo).toContain('Cosa devo togliere dal suo piatto?');
+    expect(stato?.passo).toBe('richiesta');
+  });
+
+  it('la risposta scrive sulla cliente e POI chiede se vale per tutte', async () => {
+    // ⚠️ §2 del contratto: da una risposta escono DUE scritture, e non vanno fuse.
+    const { service, messaggioCreate, richieste } = make(
+      {},
+      {
+        richieste: [RICHIESTA],
+        statoAperto: { passo: 'richiesta', frase: RICHIESTA.testo, richiestaId: 'r1', clienteId: 'c1', clienteNome: 'Mariastella', termine: 'Favismo' },
+      },
+    );
+    await service.parla('lucia', 'fave, legumi');
+    expect((richieste.rispondi as jest.Mock).mock.calls[0][2]).toEqual({
+      alimenti: ['fave', 'legumi'],
+      risposta: 'fave, legumi',
+    });
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('ho aggiunto alle esclusioni fave, legumi');
+    expect(testo).toContain('Vale come **regola generale**?');
+    expect(stato?.passo).toBe('richiesta_generale');
+  });
+
+  it('«sì» NON scrive nel dizionario: apre una proposta per il capo', async () => {
+    // Il vocabolario di tutte le clienti non si allarga con una risposta data fra due visite.
+    const { service, messaggioCreate, registro, richieste } = make(
+      {},
+      {
+        richieste: [],
+        statoAperto: {
+          passo: 'richiesta_generale',
+          frase: RICHIESTA.testo,
+          richiestaId: 'r1',
+          clienteId: 'c1',
+          termine: 'Favismo',
+          alimenti: ['fave', 'legumi'],
+        },
+      },
+    );
+    await service.parla('lucia', 'sì');
+    const scritta = (registro.scrivi as jest.Mock).mock.calls[0][0];
+    expect(scritta.azione).toBe('voce_dizionario');
+    expect(scritta.inApprovazione).toBe(true);
+    expect(scritta.dettaglio).toEqual({ famiglia: 'Favismo', membri: ['fave', 'legumi'] });
+    expect(richieste.collega).toHaveBeenCalledWith('r1', 'a1');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('proposta al capo');
+  });
+
+  it('«no» chiude e basta: resta solo sulla cliente', async () => {
+    const { service, messaggioCreate, registro } = make(
+      {},
+      {
+        richieste: [],
+        statoAperto: { passo: 'richiesta_generale', frase: 'x', richiestaId: 'r1', termine: 'Favismo', alimenti: ['fave'] },
+      },
+    );
+    await service.parla('lucia', 'no');
+    expect(registro.scrivi).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('resta solo sulla cliente');
+  });
+
+  it('«lascia stare» chiude la domanda senza scrivere alimenti', async () => {
+    const { service, richieste } = make(
+      {},
+      {
+        richieste: [],
+        statoAperto: { passo: 'richiesta', frase: 'x', richiestaId: 'r1', clienteId: 'c1', termine: 'Favismo' },
+      },
+    );
+    await service.parla('lucia', 'lascia stare');
+    expect((richieste.rispondi as jest.Mock).mock.calls[0][2].alimenti).toEqual([]);
+  });
+
+  it('⚠️ le proposte da approvare vengono PRIMA delle domande, per il capo', async () => {
+    // Dietro una proposta c'è una nutrizionista ferma; dietro una domanda una cliente il cui piatto
+    // oggi non è filtrato. Le prime bloccano una persona, e vanno per prime.
+    const { service, messaggioCreate } = make(
+      {},
+      {
+        richieste: [RICHIESTA],
+        coda: [
+          {
+            id: 'a1',
+            frase: 'a tutte niente tonno',
+            nutrizionistaId: 'lucia',
+            soggettoNome: null,
+            dettaglio: { termini: ['tonno'] },
+            conflittoSanitario: false,
+            createdAt: new Date('2026-08-13T09:00:00.000Z'),
+          },
+        ],
+      },
+    );
+    await service.apri('nocanty');
+    expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('revisione');
   });
 });

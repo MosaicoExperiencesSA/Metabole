@@ -23,6 +23,7 @@ import { capisci, Intento, IntentoRestrizione, IntentoSostituzione } from './cap
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
+import { RichiesteVeraService } from './richieste.service';
 import {
   EsitoVera,
   leggiAmbito,
@@ -50,6 +51,7 @@ export class VeraChatService {
     private readonly dizionario: DizionarioService,
     private readonly pool: PoolDisponibileService,
     private readonly registro: RegistroVeraService,
+    private readonly richieste: RichiesteVeraService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -83,8 +85,8 @@ export class VeraChatService {
      * ⚠️ Solo se non c'è già un dialogo aperto: interrompere una conferma a metà per infilare una
      * proposta è il modo di far confermare la cosa sbagliata.
      */
-    if (!(await this.statoAperto(nutrizionistaId)) && (await this.ruolo(nutrizionistaId)) !== 'nutritionist') {
-      const prossima = await this.sottoponiProssima(nutrizionistaId);
+    if (!(await this.statoAperto(nutrizionistaId))) {
+      const prossima = await this.cosaTiPorto(nutrizionistaId);
       if (prossima) await this.scriviAgente(nutrizionistaId, prossima.testo, prossima.stato, { esito: prossima.esito });
     }
     return { messaggi: await this.storico(nutrizionistaId) };
@@ -118,10 +120,8 @@ export class VeraChatService {
     if (!intento) {
       // Il capo che scrive «cosa c'è da vedere?» non sta dettando una regola: sta chiedendo la coda.
       // Si prova quella PRIMA di rispondere «non ho capito», che sarebbe vero e inutile.
-      if ((await this.ruolo(nutrizionistaId)) !== 'nutritionist') {
-        const prossima = await this.sottoponiProssima(nutrizionistaId);
-        if (prossima) return prossima;
-      }
+      const prossima = await this.cosaTiPorto(nutrizionistaId);
+      if (prossima) return prossima;
       return { testo: testi.nonCapito(1), esito: 'non_capito', stato: { passo: 'conferma', frase, tentativi: 1 } };
     }
     if (intento.tipo === 'fuori_portata') {
@@ -146,6 +146,10 @@ export class VeraChatService {
         return this.decidiProposta(nutrizionistaId, stato, frase);
       case 'motivo_rifiuto':
         return this.respingiConMotivo(nutrizionistaId, stato, frase);
+      case 'richiesta':
+        return this.rispondiARichiesta(nutrizionistaId, stato, frase);
+      case 'richiesta_generale':
+        return this.valePerTutte(nutrizionistaId, stato, frase);
       case 'conferma':
       default:
         return this.confermaOAnnulla(nutrizionistaId, stato, frase);
@@ -598,7 +602,7 @@ export class VeraChatService {
 
     const attore = { id: attoreId, role: await this.ruolo(attoreId) };
     const esito = await this.registro.approva(attore, stato.azioneId!);
-    const prossima = await this.sottoponiProssima(attoreId);
+    const prossima = await this.cosaTiPorto(attoreId);
     return {
       testo: `${testi.approvata((esito as { riepilogo: string }).riepilogo)}\n\n${prossima?.testo ?? testi.codaVuota()}`.trim(),
       esito: 'scritta',
@@ -613,10 +617,117 @@ export class VeraChatService {
 
     const attore = { id: attoreId, role: await this.ruolo(attoreId) };
     await this.registro.respingi(attore, stato.azioneId!, motivo);
-    const prossima = await this.sottoponiProssima(attoreId);
+    const prossima = await this.cosaTiPorto(attoreId);
     return {
       testo: `${testi.respinta()}\n\n${prossima?.testo ?? testi.codaVuota()}`.trim(),
       esito: 'annullata',
+      stato: prossima?.stato,
+    };
+  }
+
+  /**
+   * COSA TI PORTO quando apro bocca senza che tu me l'abbia chiesto.
+   *
+   * Due code, e l'ordine conta: **prima le proposte da approvare** (dietro c'è una nutrizionista che
+   * aspetta), poi le domande aperte (dietro c'è una cliente il cui piatto oggi non è filtrato).
+   * `null` = non ho niente da dirti, e allora **non dico niente**: un agente che saluta con «non c'è
+   * nulla da fare» ogni volta insegna a non leggerlo.
+   */
+  private async cosaTiPorto(userId: string): Promise<EsitoVera | null> {
+    const capo = (await this.ruolo(userId)) !== 'nutritionist';
+    if (capo) {
+      const proposta = await this.sottoponiProssima(userId);
+      if (proposta) return proposta;
+    }
+    return this.prossimaRichiesta(userId, capo);
+  }
+
+  /** La prossima domanda aperta, scritta com'era: chi sa cosa manca l'ha già formulata. */
+  private async prossimaRichiesta(userId: string, capo: boolean): Promise<EsitoVera | null> {
+    const aperte = await this.richieste.aperte(userId, capo);
+    if (!aperte.length) return null;
+    const r = aperte[0];
+    return {
+      testo: testi.richiesta(aperte.length, r.testo),
+      esito: 'in_corso',
+      stato: {
+        passo: 'richiesta',
+        frase: r.testo,
+        richiestaId: r.id,
+        clienteId: r.clienteId,
+        clienteNome: r.clienteNome ?? undefined,
+        termine: (r as unknown as { termine?: string | null }).termine ?? undefined,
+      },
+    };
+  }
+
+  /**
+   * La PRIMA delle due scritture: gli alimenti finiscono fra le esclusioni di quella cliente.
+   *
+   * ⚠️ Passa da `RichiesteVeraService`, che a sua volta passa da `ClientsService.updateClient`: è il
+   * punto unico che controlla il permesso e lascia la traccia. Scrivere il profilo da qui sarebbe la
+   * seconda strada per lo stesso dato sanitario — il difetto che questo campo ha già avuto due volte.
+   */
+  private async rispondiARichiesta(userId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const lasciaStare = /\b(lascia stare|niente|non so|salta|dopo)\b/i.test(frase.trim());
+    const alimenti = lasciaStare ? [] : leggiElenco(frase);
+    if (!lasciaStare && !alimenti.length) {
+      return { testo: testi.richiesta(1, stato.frase), esito: 'in_corso', stato };
+    }
+
+    const esito = await this.richieste.rispondi(userId, stato.richiestaId!, { alimenti, risposta: frase.trim() });
+    const scritta = testi.rispostaScritta(esito.clienteNome, esito.aggiunti);
+
+    // La seconda scrittura si chiede a parte, e solo se c'è una parola da imparare.
+    if (alimenti.length && stato.termine) {
+      return {
+        testo: `${scritta}\n\n${testi.chiediGenerale(stato.termine, alimenti)}`,
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'richiesta_generale', alimenti },
+      };
+    }
+    const prossima = await this.cosaTiPorto(userId);
+    return { testo: `${scritta}\n\n${prossima?.testo ?? ''}`.trim(), esito: 'scritta', stato: prossima?.stato };
+  }
+
+  /**
+   * La SECONDA scrittura: la parola entra nel dizionario di tutte — ma solo come **proposta**.
+   *
+   * ⚠️ Mai scrittura diretta, nemmeno se a rispondere è il capo. Il vocabolario di tutte le clienti
+   * non si allarga con una risposta data fra due visite: passa dalla coda, come tutto ciò che ha
+   * quel raggio.
+   */
+  private async valePerTutte(userId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const risposta = leggiConferma(frase);
+    if (risposta === null) {
+      return {
+        testo: 'Non ho capito se vale per tutte. Rispondi «sì» o «no» — nel dubbio resta solo sulla cliente.',
+        esito: 'in_corso',
+        stato,
+      };
+    }
+
+    let coda = '';
+    if (risposta === true && stato.termine) {
+      const riga = (await this.registro.scrivi({
+        nutrizionistaId: userId,
+        frase: stato.frase,
+        azione: 'voce_dizionario',
+        ambito: 'catalogo',
+        soggettoTipo: 'user',
+        soggettoId: stato.clienteId ?? null,
+        soggettoNome: stato.clienteNome ?? null,
+        dettaglio: { famiglia: stato.termine, membri: stato.alimenti ?? [] },
+        inApprovazione: true,
+      })) as { id: string };
+      if (stato.richiestaId) await this.richieste.collega(stato.richiestaId, riga.id);
+      coda = testi.propostaDizionario(stato.termine);
+    }
+
+    const prossima = await this.cosaTiPorto(userId);
+    return {
+      testo: [coda, prossima?.testo].filter(Boolean).join('\n\n') || 'Va bene, resta solo sulla cliente.',
+      esito: risposta ? 'in_approvazione' : 'scritta',
       stato: prossima?.stato,
     };
   }

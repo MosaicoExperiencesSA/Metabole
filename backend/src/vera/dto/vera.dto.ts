@@ -33,7 +33,7 @@ export class ScriviAzioneDto {
   @MaxLength(MAX_FRASE)
   frase!: string;
 
-  @IsIn(['restrizione_cliente', 'sostituzione_cliente', 'variante_cliente', 'ricetta_modificata', 'ricetta_nuova', 'regola_dieta'])
+  @IsIn(['restrizione_cliente', 'sostituzione_cliente', 'variante_cliente', 'ricetta_modificata', 'ricetta_nuova', 'regola_dieta', 'voce_dizionario'])
   azione!: string;
 
   @IsIn(['cliente', 'dieta', 'catalogo'])

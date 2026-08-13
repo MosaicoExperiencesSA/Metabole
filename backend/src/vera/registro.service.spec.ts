@@ -4,8 +4,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegistroVeraService } from './registro.service';
 
 const makeAudit = () => ({ log: jest.fn().mockResolvedValue(undefined) }) as unknown as AuditService;
-const make = (prisma: Record<string, unknown>, audit = makeAudit()) =>
-  new RegistroVeraService(prisma as unknown as PrismaService, audit);
+/** Dizionario finto: serve solo alle proposte di tipo «voce_dizionario». */
+const makeDizionario = (over: Record<string, unknown> = {}) =>
+  ({
+    insegna: jest.fn().mockResolvedValue({ id: 'v1' }),
+    promuovi: jest.fn().mockResolvedValue({ id: 'v1', comune: true }),
+    ...over,
+  }) as never;
+
+const make = (prisma: Record<string, unknown>, audit = makeAudit(), dizionario = makeDizionario()) =>
+  new RegistroVeraService(prisma as unknown as PrismaService, audit, dizionario);
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
@@ -187,5 +195,52 @@ describe('RegistroVeraService — la coda del capo', () => {
     const service = make({ azioneVera: { findMany } });
     const coda = (await service.daApprovare()) as unknown as { id: string }[];
     expect(coda.map((r) => r.id)).toEqual(['sanitaria', 'vecchia']);
+  });
+});
+
+describe('RegistroVeraService — una parola nuova nel dizionario di tutte', () => {
+  const proposta = {
+    id: 'a1',
+    stato: 'in_approvazione',
+    frase: 'il favismo vuol dire niente fave e legumi',
+    nutrizionistaId: 'lucia',
+    azione: 'voce_dizionario',
+    ambito: 'catalogo',
+    soggettoId: null,
+    soggettoNome: null,
+    dettaglio: { famiglia: 'favismo', membri: ['fave', 'legumi'] },
+  };
+
+  it('si insegna a nome di CHI l’ha proposta, e poi si promuove', async () => {
+    // ⚠️ Non si scrive la riga a mano: `insegna` sa la chiave larga (singolare/plurale) e il riuso
+    // della voce gemella, `promuovi` sa chi può renderla comune. Riscriverle qui sarebbe una
+    // seconda idea di cosa sia una voce di dizionario.
+    const dizionario = makeDizionario();
+    const service = make(
+      { azioneVera: { findUnique: jest.fn().mockResolvedValue(proposta), update: jest.fn().mockResolvedValue({}) } },
+      makeAudit(),
+      dizionario,
+    );
+    const esito = await service.approva({ id: 'nocanty', role: 'head_nutritionist' }, 'a1');
+    expect((dizionario as unknown as { insegna: jest.Mock }).insegna.mock.calls[0][0]).toBe('lucia');
+    expect((dizionario as unknown as { promuovi: jest.Mock }).promuovi.mock.calls[0][0].id).toBe('nocanty');
+    expect(esito.riepilogo).toContain('«favismo»');
+  });
+
+  it('una proposta senza alimenti non scrive niente', async () => {
+    const dizionario = makeDizionario();
+    const service = make(
+      {
+        azioneVera: {
+          findUnique: jest.fn().mockResolvedValue({ ...proposta, dettaglio: { famiglia: 'favismo', membri: [] } }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+      },
+      makeAudit(),
+      dizionario,
+    );
+    const esito = await service.approva({ id: 'nocanty', role: 'head_nutritionist' }, 'a1');
+    expect((dizionario as unknown as { insegna: jest.Mock }).insegna).not.toHaveBeenCalled();
+    expect(esito.riepilogo).toContain('non ho scritto niente');
   });
 });

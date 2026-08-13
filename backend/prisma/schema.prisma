@@ -2860,3 +2860,61 @@ model Lavoro {
   @@index([fatto, categoria, ordine])
   @@map("lavoro")
 }
+
+/**
+ * LE DOMANDE CHE ASPETTANO UNA NUTRIZIONISTA.
+ *
+ * Nasce dal contratto fra le due sessioni del 13/8 (`progetto/CONTRATTO_Vera_Richieste.md`): quando
+ * il sistema incontra qualcosa che **non sa tradurre** — un'allergia scritta a mano come «Favismo»,
+ * che oggi non toglie un solo piatto perché la parola non compare in nessun ingrediente — non
+ * inventa e non blocca: apre una domanda, e la domanda arriva a chi sa rispondere.
+ *
+ * ## ⚠️ Perché una TABELLA e non solo un messaggio in chat
+ *
+ * È l'avvertenza che il contratto mette sopra tutte le altre, ed è la stessa ragione per cui il 13/8
+ * è nata la pagina Lavori invece di fidarsi del REGISTRO: se le richieste vivono solo come messaggi,
+ * in due settimane sono una chat lunga in cui le cose scendono e **nessuno sa più cosa manca**.
+ * Servono un tipo, un soggetto e uno stato aperta/chiusa che si possano interrogare.
+ *
+ * ## ⚠️ `chiave` unica = si può richiamare all'infinito
+ *
+ * `allergia:<clientId>:<termine normalizzato>`. Senza, il primo lavoro programmato che gira ogni
+ * notte riapre la stessa domanda ogni notte, e in una settimana la coda è illeggibile. La seconda
+ * chiamata con la stessa chiave non fa niente, e **non è un errore**.
+ */
+model RichiestaVera {
+  id              String    @id @default(uuid())
+  /** Idempotenza: `allergia:<clientId>:<termine>`. */
+  chiave          String    @unique
+  /** allergia_da_tradurre | intolleranza_da_tradurre */
+  tipo            String
+  clienteId       String    @map("cliente_id")
+  /** Copiato qui: la richiesta si legge anche per una cliente cancellata. */
+  clienteNome     String?   @map("cliente_nome")
+  /** A chi tocca rispondere. `null` = nessuna nutrizionista assegnata: la vede il capo. */
+  nutrizionistaId String?   @map("nutrizionista_id")
+  /** La domanda già scritta in italiano, pronta da leggere: la scrive chi sa cosa manca. */
+  testo           String
+  /**
+   * La parola che non si sa tradurre («Favismo»). Serve al passo «vale per tutte?»: è quella che
+   * entrerebbe nel dizionario. Se chi apre la richiesta non la passa, si prova a leggerla fra le
+   * virgolette del testo; se non c'è nemmeno lì, la parte «per tutte» si salta e si scrive solo
+   * sulla cliente — che è il ripiego giusto, perché è quello che non sbaglia.
+   */
+  termine         String?
+  /** Chi l'ha aperta: personal-base | scheda-cliente | campagna-allergie | … */
+  origine         String
+  /** aperta | chiusa */
+  stato           String    @default("aperta")
+  risposta        String?
+  chiusaDaId      String?   @map("chiusa_da_id")
+  chiusaIl        DateTime? @map("chiusa_il")
+  /** La riga di registro nata dalla risposta, se ne è nata una. */
+  azioneId        String?   @map("azione_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([nutrizionistaId, stato])
+  @@index([stato, createdAt])
+  @@map("richiesta_vera")
+}

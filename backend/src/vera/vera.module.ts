@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
+import { ClientsModule } from '../clients/clients.module';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
+import { ClientsService } from '../clients/clients.service';
+import { RichiesteVeraService, SCRITTURA_CLIENTE } from './richieste.service';
 import { VeraChatService } from './vera-chat.service';
 import { VeraController } from './vera.controller';
 
@@ -22,8 +25,31 @@ import { VeraController } from './vera.controller';
  * `app.module.spec.ts`, che compila l'applicazione intera.
  */
 @Module({
+  /**
+   * ⚠️ `ClientsModule` serve per una riga sola, ed è una riga del contratto: le esclusioni di una
+   * cliente si scrivono da `ClientsService.updateClient`, che controlla il permesso
+   * `change_allergies` e lascia la traccia. Una seconda strada per lo stesso dato sanitario è il
+   * difetto che questo campo ha già avuto due volte.
+   *
+   * Nessun anello: `ClientsModule` importa auth, menu e notifiche, e nessuno di quelli importa Vera.
+   * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`, che compila l'applicazione intera: Nest
+   * risolve le dipendenze all'AVVIO, non alla compilazione.
+   */
+  imports: [ClientsModule],
   controllers: [VeraController],
-  providers: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService],
-  exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService],
+  providers: [
+    PoolDisponibileService,
+    DizionarioService,
+    RegistroVeraService,
+    VeraChatService,
+    RichiesteVeraService,
+    /**
+     * Il punto unico di scrittura sul profilo di una cliente, legato per token.
+     * ⚠️ `useExisting` e non `useClass`: si vuole **la stessa istanza** che usa il resto
+     * dell'applicazione, non una seconda con la sua cache e i suoi effetti.
+     */
+    { provide: SCRITTURA_CLIENTE, useExisting: ClientsService },
+  ],
+  exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService, RichiesteVeraService],
 })
 export class VeraModule {}

@@ -19,6 +19,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { applicaProposta, ordinaPerRischio, Proposta } from './applica-proposta';
+import { DizionarioService } from './dizionario.service';
 
 export type AzioneVeraTipo =
   | 'restrizione_cliente'
@@ -26,7 +27,9 @@ export type AzioneVeraTipo =
   | 'variante_cliente'
   | 'ricetta_modificata'
   | 'ricetta_nuova'
-  | 'regola_dieta';
+  | 'regola_dieta'
+  /** Una parola che entra nel dizionario di TUTTE: nasce sempre come proposta. */
+  | 'voce_dizionario';
 
 export type AmbitoVera = 'cliente' | 'dieta' | 'catalogo';
 
@@ -50,6 +53,7 @@ export class RegistroVeraService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly dizionario: DizionarioService,
   ) {}
 
   /**
@@ -141,7 +145,9 @@ export class RegistroVeraService {
       throw new BadRequestException('Questa proposta non è in attesa di approvazione: qualcuno l’ha già decisa.');
     }
 
-    const esito = await applicaProposta(this.prisma, riga);
+    const esito = riga.azione === 'voce_dizionario'
+      ? await this.approvaVoceDizionario(attore, riga)
+      : await applicaProposta(this.prisma, riga);
 
     const aggiornata = await this.prisma.azioneVera.update({
       where: { id },
@@ -155,6 +161,30 @@ export class RegistroVeraService {
       metadata: { frase: riga.frase, autoreId: riga.nutrizionistaId, toccate: esito.toccate },
     });
     return { riga: aggiornata, ...esito };
+  }
+
+  /**
+   * Una parola nuova nel dizionario **di tutte**: si insegna a nome di chi l'ha proposta e poi si
+   * promuove.
+   *
+   * ⚠️ Si passa da `insegna` + `promuovi` invece di scrivere la riga a mano: quei due metodi sanno
+   * cose che qui si perderebbero — la chiave larga che fa combaciare singolare e plurale, il
+   * riuso della voce gemella al posto del doppione, e chi resta scritto come autore. Riscriverle
+   * qui vorrebbe dire una seconda idea di cosa sia una voce di dizionario.
+   */
+  private async approvaVoceDizionario(attore: { id: string; role: string }, riga: Proposta) {
+    const d = (riga.dettaglio ?? {}) as { famiglia?: string; membri?: string[] };
+    const famiglia = (d.famiglia ?? '').trim();
+    const membri = (d.membri ?? []).filter(Boolean);
+    if (!famiglia || !membri.length) {
+      return { toccate: 0, riepilogo: 'La proposta non conteneva né la parola né gli alimenti: non ho scritto niente.' };
+    }
+    const voce = await this.dizionario.insegna(riga.nutrizionistaId, { nome: famiglia, membri });
+    await this.dizionario.promuovi(attore, voce.id);
+    return {
+      toccate: 0,
+      riepilogo: `Da adesso «${famiglia}» vuol dire ${membri.join(', ')} per tutte: quando qualcuno la nomina, non la chiedo più.`,
+    };
   }
 
   /**
