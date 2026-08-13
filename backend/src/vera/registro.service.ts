@@ -19,7 +19,12 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { applicaProposta, ordinaPerRischio, Proposta } from './applica-proposta';
+import { avvisaConflittoSanitario } from './avvisa-capo';
+import { casiCapiti, CasoCapito, fraseNonCapite, RigaMessaggio } from './corpus';
 import { DizionarioService } from './dizionario.service';
+import { perimetroClienti } from '../common/perimetro-clienti';
+import { RigaAudit, RigaAzioneVera, RigaFoodSwap, unisciRegistro, VoceRegistro } from './registro-allargato';
+import { componiReport, intervalloMese, ReportMensile, RigaReport } from './report-mensile';
 
 export type AzioneVeraTipo =
   | 'restrizione_cliente'
@@ -88,6 +93,27 @@ export class RegistroVeraService {
       entityId: input.soggettoId ?? undefined,
       metadata: { frase: input.frase, ambito: input.ambito, conflittoSanitario: !!input.conflittoSanitario },
     });
+
+    /**
+     * ⚠️ L'avviso al capo parte SUBITO, e DOPO che la riga è stata scritta.
+     *
+     * Dopo, perché la regola vale comunque — comanda lei, è un medico — e perdere una scrittura
+     * perché non si è riusciti a mandare una notifica sarebbe un guasto peggiore del guasto:
+     * `avvisaConflittoSanitario` infatti non lancia mai. Subito, perché a fine mese quella cliente
+     * ha già mangiato trenta giorni di menu. Il report mensile racconta le stesse righe, ma con un
+     * orologio diverso.
+     */
+    if (input.conflittoSanitario) {
+      await avvisaConflittoSanitario(this.prisma, {
+        id: (riga as unknown as { id: string }).id,
+        frase: input.frase,
+        azione: input.azione,
+        ambito: input.ambito,
+        soggettoNome: input.soggettoNome ?? null,
+        nutrizionistaId: input.nutrizionistaId,
+        vincolo: (input.dettaglio as { vincolo?: string } | null | undefined)?.vincolo ?? null,
+      });
+    }
     return riga;
   }
 
@@ -108,6 +134,70 @@ export class RegistroVeraService {
       } as never,
       orderBy: { createdAt: 'desc' },
       take: Math.min(filtri.limite ?? 100, 500),
+    });
+  }
+
+  /**
+   * TUTTO quello che è cambiato sulle sue clienti, non solo quello che ha fatto lei.
+   *
+   * Tre letture in parallelo e una fusione (`registro-allargato.ts`). ⚠️ Nessuna tabella nuova che
+   * copi le altre: una copia va tenuta allineata per sempre, e il giorno in cui si disallinea nessuno
+   * se ne accorge — un registro sbagliato non produce nessun errore.
+   *
+   * ⚠️ La finestra è di 60 giorni. Non è una scelta di prestazioni: un registro che parte
+   * dall'inizio dei tempi è un registro che non si legge, e la domanda che serve davvero
+   * («cosa è cambiato di recente su questa persona») ha una risposta corta.
+   */
+  async tutto(userId: string, giorni = 60, limite = 200): Promise<VoceRegistro[]> {
+    const da = new Date(Date.now() - giorni * 86_400_000);
+    const perimetro = await perimetroClienti(this.prisma, userId);
+
+    const clienti = (await this.prisma.clientProfile.findMany({
+      where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
+      select: { userId: true, name: true },
+      take: 1000,
+    })) as { userId: string; name: string | null }[];
+    const ids = clienti.map((c) => c.userId);
+    const nomi = new Map(clienti.map((c) => [c.userId, c.name ?? c.userId.slice(0, 8)]));
+    if (!ids.length) return [];
+
+    const [azioni, audit, swap] = await Promise.all([
+      this.prisma.azioneVera.findMany({
+        where: { createdAt: { gte: da }, OR: [{ nutrizionistaId: userId }, { soggettoId: { in: ids } }] } as never,
+        orderBy: { createdAt: 'desc' },
+        take: limite,
+      }) as Promise<unknown> as Promise<RigaAzioneVera[]>,
+      this.prisma.auditLog.findMany({
+        where: { createdAt: { gte: da }, entityId: { in: ids } } as never,
+        orderBy: { createdAt: 'desc' },
+        take: limite,
+      }) as Promise<unknown> as Promise<RigaAudit[]>,
+      this.prisma.foodSwap.findMany({
+        where: { ultimaVoltaIl: { gte: da }, clientId: { in: ids } } as never,
+        orderBy: { ultimaVoltaIl: 'desc' },
+        take: limite,
+      }) as Promise<unknown> as Promise<RigaFoodSwap[]>,
+    ]);
+
+    return unisciRegistro(azioni, audit, swap, nomi, limite);
+  }
+
+  /**
+   * Quante sostituzioni delle sue clienti non ha ancora guardato nessuno.
+   *
+   * ⚠️ Sta qui e non in un contatore suo: è una lettura sulla stessa tabella che il registro
+   * allargato già legge, e un numero che si calcola in due posti diversi prima o poi ne dice due.
+   */
+  async sostituzioniDaVerificare(userId: string): Promise<number> {
+    const perimetro = await perimetroClienti(this.prisma, userId);
+    const clienti = (await this.prisma.clientProfile.findMany({
+      where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
+      select: { userId: true },
+      take: 1000,
+    })) as { userId: string }[];
+    if (!clienti.length) return 0;
+    return this.prisma.foodSwap.count({
+      where: { stato: 'da_verificare', clientId: { in: clienti.map((c) => c.userId) } } as never,
     });
   }
 
@@ -292,5 +382,70 @@ export class RegistroVeraService {
       select: { date: true },
     })) as { date: Date }[];
     return giorni.map((g) => g.date.toISOString().slice(0, 10));
+  }
+
+  // ──────────────────────────────────────── il foglio che legge il capo ──
+
+  /**
+   * IL REPORT DEL MESE (`report-mensile.ts` per il perché, e per cosa ci sta dentro).
+   *
+   * ⚠️ È una lettura: nessuna tabella `report_mensile`. Un report congelato comincia a mentire il
+   * giorno dopo — una riga annullata a settembre resterebbe «attiva» nel report di agosto per
+   * sempre — e chi lo legge non ha modo di accorgersene.
+   */
+  async reportMensile(anno: number, mese: number): Promise<ReportMensile> {
+    if (!Number.isInteger(mese) || mese < 1 || mese > 12) throw new BadRequestException('Mese non valido.');
+    const { dal, al } = intervalloMese(anno, mese);
+
+    const [righe, messaggi] = await Promise.all([
+      this.prisma.azioneVera.findMany({
+        where: { createdAt: { gte: dal, lt: al } } as never,
+        orderBy: { createdAt: 'asc' },
+        take: 2000,
+      }) as Promise<unknown> as Promise<RigaReport[]>,
+      this.prisma.messaggioVera.findMany({
+        where: { createdAt: { gte: dal, lt: al } } as never,
+        orderBy: { createdAt: 'asc' },
+        take: 4000,
+      }) as Promise<unknown> as Promise<RigaMessaggio[]>,
+    ]);
+
+    const autori = [...new Set(righe.map((r) => r.nutrizionistaId))];
+    const staff = autori.length
+      ? ((await this.prisma.user.findMany({
+          where: { id: { in: autori } } as never,
+          select: { id: true, firstName: true, lastName: true, email: true },
+        })) as { id: string; firstName: string | null; lastName: string | null; email: string }[])
+      : [];
+    const nomi = new Map(
+      staff.map((s) => [s.id, [s.firstName, s.lastName].filter(Boolean).join(' ') || s.email]),
+    );
+
+    return componiReport(righe, fraseNonCapite(messaggi, 15), nomi, anno, mese);
+  }
+
+  /**
+   * IL CORPUS: le frasi capite e quelle no, pronte da rileggere prima di un rilascio.
+   *
+   * ⚠️ Non è una statistica da guardare: è materiale di lavoro. Le frasi non capite dicono quali
+   * parole insegnare al dizionario, quelle capite sono i casi che devono continuare a passare
+   * quando qualcuno tocca `capisci.ts`.
+   */
+  async corpus(userId: string, tutte: boolean, giorni = 90): Promise<{ nonCapite: ReturnType<typeof fraseNonCapite>; capite: CasoCapito[] }> {
+    const da = new Date(Date.now() - giorni * 86_400_000);
+    const mio = tutte ? {} : { nutrizionistaId: userId };
+    const [messaggi, righe] = await Promise.all([
+      this.prisma.messaggioVera.findMany({
+        where: { createdAt: { gte: da }, ...mio } as never,
+        orderBy: { createdAt: 'asc' },
+        take: 4000,
+      }) as Promise<unknown> as Promise<RigaMessaggio[]>,
+      this.prisma.azioneVera.findMany({
+        where: { createdAt: { gte: da }, ...mio } as never,
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }) as Promise<unknown> as Promise<{ frase: string; azione: string; ambito: string; stato: string }[]>,
+    ]);
+    return { nonCapite: fraseNonCapite(messaggi), capite: casiCapiti(righe) };
   }
 }

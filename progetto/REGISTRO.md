@@ -20,6 +20,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🤖 **Vera, consegne 3c e 4: il registro dice CHI è stato, e l'assistente smette di
+  poter marcire in silenzio.** Il registro sotto la chat non mostra più solo quello che ha fatto
+  l'assistente: mostra **tutto quello che è cambiato** sulle sue clienti — lei, Gaia, la cliente
+  dall'app, lo staff, il motore — con la colonna «Chi». ⚠️ Non è una tabella nuova: `unisciRegistro`
+  fonde in lettura `AzioneVera`, `AuditLog` e `FoodSwap`, perché una quarta copia va tenuta allineata
+  per sempre e il giorno che si disallinea nessuno se ne accorge — un registro sbagliato non produce
+  nessun errore. ⚠️ Solo le righe dell'assistente si annullano da qui: disfare da questa pagina una
+  scelta della cliente sul suo profilo sarebbe disfarla da una schermata che non è la sua.
+  ⚠️ `profile.update` lo scrive la **cliente dall'app**, `client.update` lo scrive lo **staff**:
+  confonderli vorrebbe dire attribuire alla nutrizionista una cosa che ha fatto la cliente, che è
+  esattamente la domanda a cui quella colonna serve a rispondere.
+  **La pagina ha la sua chiave di permesso** (`nutri_assistant`), come da nota dell'altra sessione e
+  dalla regola di Simone del 13/8: con la chiave delle Sostituzioni le due voci di menu si davano e
+  si toglievano insieme. ⚠️ La chiave nasce insieme alla guardia che la legge — **e** alla riga
+  `can('nutri_assistant', 'manage')` dentro la pagina, che è il posto dove dimenticarsene non produce
+  nessun errore: la pagina si aprirebbe lo stesso.
+  **Il testo incollato è una citazione**: quello che sta dentro `>` o fra tre virgolette si legge,
+  non si esegue. Andava fatto prima di aprire quella porta, non dopo. E **«fuori portata» non è più
+  solo un no**: una regola su un tipo di dieta apre una proposta in coda al capo, invece di finire in
+  un messaggio che scende.
+  **Consegna 4.** (1) Una regola confermata sopra un vincolo sanitario **avvisa i capi il giorno
+  stesso** — la regola si scrive comunque, comanda lei, ma a fine mese quella cliente ha già mangiato
+  trenta giorni di menu; ⚠️ non avvisa l'autrice, che lo sa già: una notifica per una cosa appena
+  fatta da soli insegna a chiudere le notifiche senza leggerle. (2) Il **report del mese** si apre
+  dalla pagina e si ricalcola ogni volta — un report congelato comincia a mentire il giorno dopo —
+  e non conta la produttività: conta **quante regole sono state scavalcate** e **quanto viene
+  annullato**, che è l'unico numero che dice se l'assistente ha smesso di capire. (3) Il **corpus**:
+  le frasi capite (dal registro) e quelle su cui si è fermato (accoppiando i messaggi, così funziona
+  anche sulle conversazioni già avvenute) — l'elenco da rileggere prima di toccare `capisci.ts`.
+  ⚠️ Tolto un doppione in `voci-iniziali.ts`: le voci di Vera c'erano **due volte** con chiavi diverse
+  (le due sessioni hanno trascritto le stesse cose), e al primo `carica:lavori` sarebbero diventate
+  quattro righe doppie in pagina.
+  Verifica: type-check 43 = baseline, backoffice pulito, 1670 test contro 1627.
+
 - `[Sviluppo]` 💬 **La pagina Lavori: le risposte si scrivono lì, e le voci nuove si caricano senza
   shell.** Due richieste di Simone. **Il campo Risposta** — «così posso consultarmi, inserire mano a
   mano, e poi te le esporto al momento giusto»: molte voci aspettano la risposta di qualcun altro, e

@@ -64,6 +64,7 @@ export const PAGE_LABEL: Record<string, string> = {
   coach_tasks: 'Attività coach',
   equivalence_groups: 'Gruppi di equivalenza',
   food_swaps: 'Sostituzioni',
+  nutri_assistant: 'Assistente (Vera)',
   allergens: 'Allergeni ricette',
   email_templates: 'Modelli email',
   email_log: 'Log email',

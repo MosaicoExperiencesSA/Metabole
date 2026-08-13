@@ -34,6 +34,26 @@ interface Richiesta {
   createdAt: string;
 }
 
+/** Una riga del registro allargato: mette insieme assistente, Gaia, cliente e staff. */
+interface Voce {
+  id: string;
+  fonte: 'azione_vera' | 'audit' | 'food_swap';
+  quando: string;
+  origine: 'assistente' | 'gaia' | 'cliente' | 'staff' | 'motore';
+  cosa: string;
+  suChi: string | null;
+  dettaglio: unknown;
+  annullabile: boolean;
+  stato?: string;
+}
+
+interface AspettaMe {
+  richieste: number;
+  daApprovare: number;
+  daVerificare: number;
+  capo: boolean;
+}
+
 interface Azione {
   id: string;
   frase: string;
@@ -64,30 +84,50 @@ const STATO: Record<string, string> = {
 
 const AMBITO: Record<string, string> = { cliente: 'Una cliente', dieta: 'Un tipo di dieta', catalogo: 'Tutte' };
 
+/** Chi ha fatto la modifica: è la colonna che risponde a «chi è stato». */
+const ORIGINE: Record<string, string> = {
+  assistente: 'Assistente',
+  gaia: 'Gaia',
+  cliente: 'La cliente',
+  staff: 'Staff',
+  motore: 'Motore',
+};
+
 const data = (iso: string) => new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export function Vera() {
   const { can } = useAuth();
-  const puoDettare = can('food_swaps', 'manage');
+  // ⚠️ `nutri_assistant` e non `food_swaps`: la chiave è cambiata il 13/8, e questa riga è il posto
+  // dove dimenticarsene non produce nessun errore — la pagina si aprirebbe lo stesso, e sarebbe la
+  // casella delle Sostituzioni a decidere se qui si può dettare.
+  const puoDettare = can('nutri_assistant', 'manage');
 
   const [messaggi, setMessaggi] = useState<Messaggio[]>([]);
   const [azioni, setAzioni] = useState<Azione[]>([]);
   const [richieste, setRichieste] = useState<Richiesta[]>([]);
+  const [tutto, setTutto] = useState<Voce[]>([]);
+  const [vediTutto, setVediTutto] = useState(false);
+  const [aspetta, setAspetta] = useState<AspettaMe | null>(null);
   const [testo, setTesto] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [aperta, setAperta] = useState<Azione | null>(null);
+  const [report, setReport] = useState<{ periodo: string; testo: string } | null>(null);
   const fine = useRef<HTMLDivElement>(null);
 
   async function caricaRegistro() {
-    const [reg, ric] = await Promise.all([
+    const [reg, ric, asp, all] = await Promise.all([
       api<Azione[]>('/vera/registro'),
       api<Richiesta[]>('/vera/richieste'),
+      api<AspettaMe>('/vera/aspetta-me'),
+      api<Voce[]>('/vera/registro/tutto'),
     ]);
     setAzioni(reg);
     setRichieste(ric);
+    setAspetta(asp);
+    setTutto(all);
   }
 
   async function apri() {
@@ -152,6 +192,26 @@ export function Vera() {
     }
   }
 
+  /**
+   * Il report del mese, per chi sorveglia. Si apre a richiesta e non si carica insieme al resto:
+   * è una lettura d'insieme, e mescolarla alla schermata di lavoro la fa scorrere via come tutto
+   * il resto.
+   */
+  async function apriReport(mesePrima: boolean) {
+    const ora = new Date();
+    const d = new Date(Date.UTC(ora.getUTCFullYear(), ora.getUTCMonth() - (mesePrima ? 1 : 0), 1));
+    setError(null);
+    try {
+      setReport(
+        await api<{ periodo: string; testo: string }>(
+          `/vera/report?anno=${d.getUTCFullYear()}&mese=${d.getUTCMonth() + 1}`,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Report non disponibile.');
+    }
+  }
+
   const COLONNE: Colonna<Azione>[] = [
     { chiave: 'quando', titolo: 'Quando', valore: (a) => a.createdAt, esporta: (a) => data(a.createdAt), stile: { width: 120 } },
     { chiave: 'azione', titolo: 'Cosa', valore: (a) => a.azione, filtro: 'scelta', etichetta: (v) => AZIONE[v] ?? v, etichettaTutti: 'Tutte', stile: { width: 150 } },
@@ -173,10 +233,48 @@ export function Vera() {
           te lo traduce in regole vere. Prima di scrivere qualsiasi cosa ti mostra <b>cosa sta per fare</b> e
           quante ricette resterebbero nel piano di quella cliente.
         </p>
+        {/*
+          ⚠️ Il report esiste come pulsante e non solo come email di fine mese: un foglio che arriva
+          una volta al mese in posta è un foglio che si legge il primo mese. Qui è a portata di mano
+          il giorno in cui serve — che di solito è il giorno in cui è successo qualcosa.
+        */}
+        {aspetta?.capo && (
+          <div className="row" style={{ gap: 6 }}>
+            <button className="btn ghost sm" onClick={() => void apriReport(false)}>
+              <i className="ti ti-report" /> Report del mese
+            </button>
+            <button className="btn ghost sm" onClick={() => void apriReport(true)}>Mese scorso</button>
+          </div>
+        )}
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
+
+      {/*
+        ⚠️ «Quello che aspetta me», non «quello che ho fatto».
+        Un contatore delle regole create è una medaglietta: la si guarda due volte e poi mai più.
+        Qui ci sono solo cose che hanno bisogno di una persona.
+      */}
+      {aspetta && (aspetta.richieste > 0 || aspetta.daApprovare > 0 || aspetta.daVerificare > 0) && (
+        <div className="row" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          {aspetta.daApprovare > 0 && (
+            <span className="chip amber">
+              <i className="ti ti-stack-2" /> {aspetta.daApprovare} da approvare
+            </span>
+          )}
+          {aspetta.richieste > 0 && (
+            <span className="chip amber">
+              <i className="ti ti-help-circle" /> {aspetta.richieste} domande aperte
+            </span>
+          )}
+          {aspetta.daVerificare > 0 && (
+            <span className="chip">
+              <i className="ti ti-replace" /> {aspetta.daVerificare} sostituzioni da verificare
+            </span>
+          )}
+        </div>
+      )}
 
       {/*
         ⚠️ Le domande aperte esistono come ELENCO e non solo come messaggi.
@@ -271,6 +369,15 @@ export function Vera() {
         <div className="spread" style={{ padding: '14px 16px', gap: 10, flexWrap: 'wrap' }}>
           <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0 }}>Registro</h2>
+            {/*
+              ⚠️ «Tutto» non è un di più: sulle sue clienti scrivono in tanti — lei, Gaia, la
+              cliente dall'app, il motore — e quello che le manca non è «cosa ho fatto io», è
+              «cosa è cambiato».
+            */}
+            <label className="row" style={{ gap: 6, alignItems: 'center', fontSize: 13 }}>
+              <input type="checkbox" checked={vediTutto} onChange={(e) => setVediTutto(e.target.checked)} />
+              Tutto quello che cambia sulle mie clienti
+            </label>
             <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="azioni" />
             <BottoneExcel tabella={t} />
           </div>
@@ -283,6 +390,35 @@ export function Vera() {
           />
         </div>
 
+        {vediTutto ? (
+          tutto.length === 0 ? (
+            <div className="empty">Negli ultimi due mesi non è cambiato niente sulle tue clienti.</div>
+          ) : (
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th style={{ width: 120 }}>Quando</th>
+                  <th style={{ width: 110 }}>Chi</th>
+                  <th>Cosa</th>
+                  <th style={{ width: 160 }}>Su chi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tutto.map((v) => (
+                  <tr key={`${v.fonte}-${v.id}`}>
+                    <td style={{ whiteSpace: 'nowrap' }}>{data(v.quando)}</td>
+                    <td>
+                      <span className={`chip ${v.origine === 'assistente' ? '' : 'gray'}`}>{ORIGINE[v.origine] ?? v.origine}</span>
+                    </td>
+                    <td style={{ fontSize: 13.5 }}>{v.cosa}</td>
+                    <td>{v.suChi ?? <span className="muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        ) : (
+        <>
         <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">
@@ -322,7 +458,21 @@ export function Vera() {
           </table>
         )}
         <Pager {...t.pager} />
+        </>
+        )}
       </div>
+
+      {report && (
+        <Modal title={`Assistente — ${report.periodo}`} onClose={() => setReport(null)}>
+          <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.55, maxHeight: '60vh', overflowY: 'auto' }}>
+            {report.testo}
+          </div>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            Si ricalcola ogni volta: non è una fotografia salvata, quindi tiene conto anche di quello che è
+            stato annullato dopo.
+          </p>
+        </Modal>
+      )}
 
       {aperta && (
         <Modal title="Com'è nata questa regola" onClose={() => setAperta(null)}>

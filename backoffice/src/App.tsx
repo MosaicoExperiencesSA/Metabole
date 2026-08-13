@@ -126,7 +126,7 @@ export default function App() {
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="equivalence_groups"><GruppiEquivalenza /></Protected>} />
       <Route path="/sostituzioni" element={<Protected title="Sostituzioni" pageKey="food_swaps"><Sostituzioni /></Protected>} />
-      <Route path="/assistente" element={<Protected title="Assistente" pageKey="food_swaps"><Vera /></Protected>} />
+      <Route path="/assistente" element={<Protected title="Assistente" pageKey="nutri_assistant"><Vera /></Protected>} />
       <Route path="/creazione-validazione" element={<Protected title="Creazione e validazione" pageKey="creation_validation"><CreazioneValidazione /></Protected>} />
       <Route path="/gestione-dieta" element={<Protected title="Gestione dieta" pageKey="diet_workspace"><GestioneDieta /></Protected>} />
       <Route path="/valori-nutrizionali" element={<Protected title="Valori nutrizionali" pageKey="nutrient_facts"><ValoriNutrizionali /></Protected>} />

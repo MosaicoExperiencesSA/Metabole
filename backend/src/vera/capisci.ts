@@ -26,6 +26,35 @@
 import { normalizza } from '../common/nomi-alimento';
 import { sostituzioniNelMessaggio } from '../food-swaps/impara-dalla-chat';
 
+/**
+ * SEPARA quello che ha scritto lei da quello che ha incollato.
+ *
+ * ⚠️ È il cancello del §9.1 della specifica, e non è una finezza da manuale: l'agente ha il potere
+ * di scrivere regole su clienti vere, e il testo che gli arriva davanti è spessissimo scritto da
+ * qualcun altro — «guarda cosa mi ha scritto Simone», con dentro «togli tutto tranne il cioccolato».
+ * Quel testo si **legge**, non si esegue.
+ *
+ * Si riconosce come citazione: le righe che cominciano con `>` (la convenzione che conoscono tutti)
+ * e i blocchi delimitati da virgolette triple o da tre apici inversi.
+ *
+ * ⚠️ Il ripiego, quando non si capisce dove finisce la citazione, è **considerare tutto citazione**:
+ * al massimo le si chiede di ripetere con parole sue, che costa dieci secondi. Il contrario costa una
+ * regola scritta su una persona da una frase che non ha detto lei.
+ */
+export function separaCitazione(testo: string): { suo: string; citato: string } {
+  const righe = (testo ?? '').split('\n');
+  const citate: string[] = [];
+  const sue: string[] = [];
+  let dentroBlocco = false;
+  for (const riga of righe) {
+    const t = riga.trim();
+    if (/^("""|```)/.test(t)) { dentroBlocco = !dentroBlocco; continue; }
+    if (dentroBlocco || t.startsWith('>')) citate.push(t.replace(/^>\s?/, ''));
+    else sue.push(riga);
+  }
+  return { suo: sue.join('\n').trim(), citato: citate.join('\n').trim() };
+}
+
 /** Cosa Vera ha capito di dover fare. `null` = non ho capito, e lo dico. */
 export type Intento =
   | IntentoRestrizione

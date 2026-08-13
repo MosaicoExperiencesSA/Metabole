@@ -77,8 +77,8 @@ export const testi = {
   presentazione: () =>
     'Ciao. Sono l\'assistente che scrive per te nei moduli: mi detti a parole cosa vuoi fare e io lo ' +
     'traduco in regole vere, mostrandoti sempre cosa sto per scrivere prima di scriverlo.\n\n' +
-    'La prima cosa la scegli tu: **come vuoi chiamarmi?** (se non ti viene in mente niente, dimmi ' +
-    '«scegli tu»).',
+    'La prima cosa da fare: io non ho un nome. **Ti va di battezzarmi tu?** Dimmi il mio nuovo nome ' +
+    '(se non ti viene in mente niente, dimmi «scegli tu»).',
 
   nomePreso: (nome: string) =>
     `Da adesso mi chiamo ${nome}. Puoi cominciare quando vuoi: per esempio «a Giulia Rossi niente ` +
@@ -155,6 +155,23 @@ export const testi = {
     'quindi non lo salto.',
 
   respinta: () => 'Respinta, con il tuo motivo scritto accanto.',
+
+  /**
+   * ⚠️ Quello che sta dentro un testo incollato si PROPONE, non si esegue.
+   *
+   * Le azioni si eseguono solo da ciò che scrive lei di suo pugno. Il testo che le arriva davanti è
+   * spessissimo scritto da qualcun altro — un messaggio di una cliente, un referto, una mail — e
+   * dentro può esserci una frase che sembra un'istruzione. Chi ha il potere di scrivere regole su
+   * persone vere non deve poter essere comandato da un incollato.
+   */
+  messaInCoda: () =>
+    'L\'ho comunque **messa in coda al capo nutrizionista** con la tua frase, così non si perde: ' +
+    'chi può farla la vede. La trovi qui sotto nel registro, come «in approvazione».',
+
+  dallaCitazione: () =>
+    'Nel testo che hai incollato c\'è qualcosa che sembra una richiesta.\n\n' +
+    '⚠️ **Non l\'ho eseguita**: quello che incolli lo leggo, non lo eseguo. Se vuoi che la faccia, ' +
+    'dimmelo tu con parole tue.',
 
   // ── le domande che aspettano lei ────────────────────────────────────────────
 

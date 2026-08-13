@@ -96,7 +96,7 @@ export const NAV: NavSection[] = [
       // L'assistente della nutrizionista (Vera). Stessa chiave di permesso delle sostituzioni:
       // è lo stesso perimetro — «cosa il motore userà per le clienti» — e moltiplicare le chiavi
       // moltiplica i posti in cui qualcuno dimentica di abilitare qualcosa.
-      { key: 'food_swaps', label: 'Assistente', to: '/assistente', icon: 'ti-message-chatbot' },
+      { key: 'nutri_assistant', label: 'Assistente', to: '/assistente', icon: 'ti-message-chatbot' },
       // Accanto ai gruppi di equivalenza di proposito: sono le due tabelle che decidono cosa Gaia
       // può dire a una cliente su un alimento (11/8).
       { key: 'nutrient_facts', label: 'Valori nutrizionali', to: '/valori-nutrizionali', icon: 'ti-database-search' },

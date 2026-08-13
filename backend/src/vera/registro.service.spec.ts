@@ -50,7 +50,10 @@ describe('RegistroVeraService.scrivi', () => {
 
   it('scrive ANCHE l’audit: registro e audit non si sostituiscono', async () => {
     const audit = makeAudit();
-    const service = make({ azioneVera: { create: jest.fn().mockResolvedValue({ id: 'a1' }) } }, audit);
+    const service = make(
+      { azioneVera: { create: jest.fn().mockResolvedValue({ id: 'a1' }) }, user: { findMany: jest.fn().mockResolvedValue([]) } },
+      audit,
+    );
     await service.scrivi({
       nutrizionistaId: 'lucia',
       frase: 'x',
@@ -63,6 +66,51 @@ describe('RegistroVeraService.scrivi', () => {
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'vera.restrizione_cliente', metadata: expect.objectContaining({ conflittoSanitario: true }) }),
     );
+  });
+
+  it('⚠️ una regola sopra un vincolo sanitario avvisa il capo SUBITO, non a fine mese', async () => {
+    // Decisione di Simone del 12/8: la regola si scrive lo stesso — comanda lei — ma di quella riga
+    // si accorge qualcun altro entro sera. A fine mese quella cliente ha già mangiato trenta giorni
+    // di menu.
+    const createMany = jest.fn().mockResolvedValue({ count: 1 });
+    const service = make({
+      azioneVera: { create: jest.fn().mockResolvedValue({ id: 'a1' }) },
+      user: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'nocanty' }]),
+        findUnique: jest.fn().mockResolvedValue({ firstName: 'Lucia', lastName: 'Verdi' }),
+      },
+      notification: { createMany },
+    });
+    await service.scrivi({
+      nutrizionistaId: 'lucia',
+      frase: 'a Mariastella dai comunque il pane',
+      azione: 'restrizione_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: 'c1',
+      soggettoNome: 'Mariastella',
+      conflittoSanitario: true,
+    });
+    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(createMany.mock.calls[0][0].data[0].userId).toBe('nocanty');
+  });
+
+  it('una regola normale non avvisa nessuno', async () => {
+    const createMany = jest.fn();
+    const service = make({
+      azioneVera: { create: jest.fn().mockResolvedValue({ id: 'a1' }) },
+      user: { findMany: jest.fn().mockResolvedValue([{ id: 'nocanty' }]) },
+      notification: { createMany },
+    });
+    await service.scrivi({
+      nutrizionistaId: 'lucia',
+      frase: 'a Giulia niente tonno',
+      azione: 'restrizione_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: 'c1',
+    });
+    expect(createMany).not.toHaveBeenCalled();
   });
 });
 

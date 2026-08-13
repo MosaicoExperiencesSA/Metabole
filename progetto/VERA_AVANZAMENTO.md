@@ -11,6 +11,15 @@
 
 ## Stato in una riga
 
+**Consegne 3c e 4: il registro dice chi è stato, e l'assistente non marcisce più da solo.** Il
+registro sotto la chat mostra **tutto quello che cambia** sulle sue clienti — lei, Gaia, la cliente
+dall'app, il motore — con la colonna «chi è stato». La pagina ha la sua chiave di permesso
+(`nutri_assistant`). Una regola confermata sopra un vincolo sanitario **avvisa i capi il giorno
+stesso**, il report del mese si apre dalla pagina, e le frasi vere (capite e non capite) diventano il
+corpus da rileggere prima di toccare il riconoscitore. Type-check **43 = baseline**, backoffice
+pulito, **1670 test** contro 1627.
+⛔ Restano `npm run prisma:tipi && npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
+
 **Consegna 3b: le domande che aspettano una nutrizionista.** Il contratto con l'altra sessione
 (`CONTRATTO_Vera_Richieste.md`) è implementato: `apriRichiestaVera` è la porta, le domande vivono in
 un **elenco** e non solo in chat, e da una risposta escono **due scritture separate**. Type-check 43 =
@@ -37,8 +46,9 @@ Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si ri
 | 2 | Vera che parla, due azioni + la pagina | ✅ **scritta** — 13/8/2026 |
 | 3a | La coda di Nocanty: approva/respingi, in ordine di rischio | ✅ **scritta** — 13/8/2026 |
 | 3b | Le domande che aspettano una nutrizionista (contratto fra le sessioni) | ✅ **scritta** — 13/8/2026 |
-| 3c | Azioni a raggio largo, registro allargato, moduli in dashboard | ⬜ da iniziare |
-| 4 | Che non marcisca (corpus di prova, rapporto mensile, dizionario vivo) | ⬜ da iniziare |
+| 3c | Registro allargato, citazione, chiave di permesso propria | ✅ **scritta** — 13/8/2026 |
+| 4 | Che non marcisca (avviso immediato, rapporto mensile, corpus) | ✅ **scritta** — 13/8/2026 |
+| — | Azioni a raggio largo (variante, ricette, regola di dieta) e moduli in dashboard | ⬜ in lista Lavori |
 | — | Cantiere allergie/intolleranze (a parte) | ⬜ da iniziare |
 
 ---
@@ -88,7 +98,8 @@ mai un filtro proprio, o il numero mostrato diventa una stima che diverge dal mo
 - [x] Avviso sui **conflitti con i vincoli sanitari** + conferma registrata
 - [x] Il **nome** chiesto al primo incontro (`staff.nome_agente`)
 - [x] Tetto a due giri di chiarimento, poi si arrende
-- [ ] Contenitore **«citazione»** per il testo incollato → rimandato, vedi sotto
+- [x] Contenitore **«citazione»** per il testo incollato — fatto nella 3c: quello che è dentro `>`
+      o fra `"""` si legge, **non si esegue**
 - [ ] ⛔ Type-check reale e `app.module.spec.ts` **sul Mac**
 
 ### ⚠️ Il riconoscitore è deterministico, non un modello
@@ -120,9 +131,10 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
 - [ ] **Azione 5** — ricetta nuova → coda, macro dalla tabella nutrienti, mai inventati
 - [ ] **Azione 6** — regola su un tipo di dieta → `EquivalenceGroup(productId)` / `ProductRule` /
       `RuleProposal`
-- [ ] **Registro allargato**: tutto quello che cambia sulle sue clienti (`AuditLog` + `FoodSwap` +
-      `Substitution` in `MenuDay.meals`), con filtri per cliente, tipo e periodo
-- [ ] **Modulo dashboard di Lucia**: «quello che aspetta me»
+- [x] **Registro allargato**: tutto quello che cambia sulle sue clienti (`AzioneVera` + `AuditLog` +
+      `FoodSwap`), fuso in lettura — ⚠️ **nessuna tabella nuova** che le copi
+- [x] «**Quello che aspetta me**» sulla pagina dell'assistente (non «quello che ho fatto»)
+- [ ] **Modulo dashboard di Lucia**: le stesse cose, ma nella dashboard
 - [x] **La coda di Nocanty**: il suo agente gli sottopone **una proposta per volta**, già istruita
       (chi, quando, la frase originale, cosa comporta), **in ordine di rischio** e non di data;
       ⚠️ **nessuna approvazione in blocco**, e nessun endpoint che la permetta
@@ -136,10 +148,15 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
 
 ## Consegna 4 — Che non marcisca
 
-- [ ] **Corpus di prova** costruito dal registro, ripassato a ogni rilascio
-- [ ] **Rapporto mensile** a Nocanty (solo ciò che merita attenzione)
-- [ ] **Avviso immediato** sulle regole confermate sopra un vincolo sanitario
-- [ ] Manutenzione del dizionario quando nasce un alimento nuovo
+- [x] **Avviso immediato** ai capi sulle regole confermate sopra un vincolo sanitario — ⚠️ **non**
+      all'autrice, che lo sa già: una notifica per una cosa appena fatta da soli insegna a chiuderle
+      senza leggerle
+- [x] **Rapporto mensile** (`GET /vera/report`, pulsante nella pagina per il capo): non conta la
+      produttività — conta **le righe scavalcate** e **quanto viene annullato**
+- [x] **Corpus di prova** dal registro e dalla conversazione (`GET /vera/corpus`): le frasi capite
+      (che devono continuare a passare) e quelle no (le parole da insegnare)
+- [ ] La spedizione del report il 1° del mese: oggi si apre a mano → in lista Lavori
+- [ ] Manutenzione del dizionario quando nasce un alimento nuovo → in lista Lavori
 
 ---
 
@@ -170,6 +187,41 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Consegne 3c e 4: chi è stato, e il collaudo che si costruisce da solo (22 file)
+**Il registro dice chi è stato.** Sulle sue clienti scrivono in tanti, e quello che le mancava non
+era «cosa ho fatto io»: era «cosa è cambiato». `unisciRegistro` fonde `AzioneVera`, `AuditLog` e
+`FoodSwap` in un elenco solo con la colonna «Chi» (assistente · Gaia · la cliente · staff · motore).
+⚠️ **Nessuna tabella nuova**: una copia va tenuta allineata per sempre, e il giorno che si disallinea
+nessuno se ne accorge — un registro sbagliato non produce nessun errore. ⚠️ Solo le righe
+dell'assistente sono annullabili da qui: disfare da questa pagina una scelta fatta dalla cliente sul
+suo profilo sarebbe disfarla da una schermata che non è la sua. ⚠️ `profile.update` lo scrive **la
+cliente dall'app**, `client.update` lo scrive lo staff: confonderli vorrebbe dire attribuire alla
+nutrizionista una cosa che ha fatto la cliente, ed è esattamente la domanda a cui quella colonna
+serve a rispondere.
+**La pagina ha la sua chiave di permesso** (`nutri_assistant`), come chiesto dall'altra sessione e da
+Simone il 13/8: con la chiave di `Sostituzioni` le due voci di menu si davano e si toglievano
+insieme. ⚠️ La chiave nasce **insieme alla guardia che la legge** — e insieme alla riga
+`can('nutri_assistant', 'manage')` nella pagina, che è il posto dove dimenticarsene non produce
+nessun errore.
+**Il testo incollato è una citazione.** Quello che sta dentro `>` o fra `"""` si legge, non si
+esegue: se contiene qualcosa di azionabile l'assistente lo dice e chiede di dettarlo lei. Andava
+fatto **prima** di aprire quella porta, non dopo.
+**Fuori portata non è più solo un no**: una regola su un tipo di dieta o su una ricetta adesso
+**apre una proposta** in coda al capo invece di finire in un messaggio che scende.
+**Consegna 4 — che non marcisca.** (1) Una regola confermata sopra un vincolo sanitario avvisa i capi
+**il giorno stesso**: la regola si scrive comunque — comanda lei, è un medico — ma di quella riga si
+accorge qualcun altro entro sera, perché a fine mese quella cliente ha già mangiato trenta giorni di
+menu. (2) Il **report del mese** si apre dalla pagina e **si ricalcola ogni volta**: un report
+congelato comincia a mentire il giorno dopo, e chi lo legge non ha modo di accorgersene. Dentro non
+c'è quante regole ha scritto ognuna — c'è **quante sono state scavalcate** e **quanto viene
+annullato**, che è l'unico numero che dice se l'assistente ha smesso di capire. (3) Il **corpus**:
+le frasi capite dal registro e quelle su cui si è fermato, prese accoppiando i messaggi — così
+funziona anche sulle conversazioni già avvenute.
+⚠️ Tolto un doppione in `voci-iniziali.ts`: le voci di Vera c'erano **due volte** con chiavi diverse
+(le due sessioni hanno trascritto le stesse cose), e al primo `carica:lavori` sarebbero diventate
+quattro righe doppie in pagina.
+Verifica: type-check **43 = baseline**, backoffice pulito, **1670 test** contro 1627 (+43, di cui 30 nei file di Vera).
 
 ### 13/8/2026 — Consegna 3b: le domande che aspettano una nutrizionista (16 file)
 Implementa `progetto/CONTRATTO_Vera_Richieste.md`. Quando il sistema incontra una parola che **non sa

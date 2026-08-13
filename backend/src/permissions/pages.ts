@@ -70,6 +70,21 @@ export const BACKOFFICE_PAGES = [
   // chiedono tutte» — e chi promuove una riga a gruppo di equivalenza cambia il MOTORE, non una
   // giornata di menu. `manage` = valida, corregge, scrive a mano, promuove.
   'food_swaps',
+  /**
+   * L'assistente della nutrizionista (Vera): la pagina «Assistente».
+   *
+   * ⚠️ Chiave PROPRIA e non `food_swaps`, che era la scelta di partenza. Il motivo tecnico —
+   * moltiplicare le chiavi moltiplica i posti dove qualcuno dimentica di abilitare qualcosa — resta
+   * vero, ma qui perde contro una regola di prodotto di Simone del 13/8: «tutte le pagine che
+   * aggiungiamo vanno gestite nei permessi, sempre». E in concreto: `Assistente` e `Sostituzioni`
+   * sono due VOCI DIVERSE nel menu, quindi con una chiave sola non si può dare l'una senza l'altra.
+   * Gli altri riusi del repo (`clients`, `crm_leads`) sono un altro caso: stessa pagina, più
+   * schermate.
+   *
+   * `manage` non è un di più: parlarci **scrive** — impara una famiglia, apre una proposta, mette
+   * una regola sul profilo di una persona.
+   */
+  'nutri_assistant',
   // La tabella della copertura (11/8). Chiave PROPRIA e non agganciata a «Creazione e validazione»:
   // quella genera il catalogo, questa dice soltanto dove siamo — e sono due decisioni diverse, perché
   // guardare lo stato serve anche a chi non deve generare niente.
@@ -237,6 +252,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // Le sostituzioni concordate con le clienti: è la SUA tabella. Valida, corregge, scrive righe a
     // mano e promuove a gruppo di equivalenza — che nasce comunque in bozza.
     food_swaps: { view: true, manage: true },
+    // Stessi ruoli che l'assistente aveva via `food_swaps`: nessuno perde niente il giorno del rilascio.
+    nutri_assistant: { view: true, manage: true },
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
   },
@@ -260,6 +277,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     client_conversations: { view: true, manage: true },
     nutrient_facts: { view: true, manage: true },
     food_swaps: { view: true, manage: true },
+    // Stessi ruoli che l'assistente aveva via `food_swaps`: nessuno perde niente il giorno del rilascio.
+    nutri_assistant: { view: true, manage: true },
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista

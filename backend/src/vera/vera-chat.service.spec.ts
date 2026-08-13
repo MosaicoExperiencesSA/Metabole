@@ -87,12 +87,14 @@ function make(
 }
 
 describe('VeraChatService — il primo incontro', () => {
-  it('si presenta e chiede come vuole chiamarlo', async () => {
+  it('si presenta e chiede di essere battezzato', async () => {
     const { service, messaggioCreate, prisma } = make();
     (prisma.messaggioVera.count as jest.Mock).mockResolvedValue(0);
     await service.apri('lucia');
     const { testo, stato } = ultimoAgente(messaggioCreate);
-    expect(testo).toContain('come vuoi chiamarmi');
+    // ⚠️ Agganciato a una parola che resta, non a mezza frase: così il prossimo ritocco di stile
+    // non fa rosso un test.
+    expect(testo).toContain('battezzarmi');
     expect(stato?.passo).toBe('nome');
   });
 

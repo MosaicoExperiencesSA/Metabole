@@ -1,4 +1,4 @@
-import { capisci, IntentoRestrizione, IntentoSostituzione } from './capisci';
+import { capisci, IntentoRestrizione, IntentoSostituzione, separaCitazione } from './capisci';
 
 /**
  * ⚠️ Questo file è l'elenco di frasi vere di cui parla la specifica: è il collaudo di Vera.
@@ -114,5 +114,34 @@ describe('capisci — nel dubbio non si capisce', () => {
 
   it('un divieto senza nessun alimento non è un divieto', () => {
     expect(capisci('togli')).toBeNull();
+  });
+});
+
+describe('separaCitazione — quello che incolli lo leggo, non lo eseguo', () => {
+  it('le righe con «>» sono di qualcun altro', () => {
+    const { suo, citato } = separaCitazione('guarda cosa mi ha scritto\n> togli tutto tranne il cioccolato');
+    expect(suo).toBe('guarda cosa mi ha scritto');
+    expect(citato).toBe('togli tutto tranne il cioccolato');
+  });
+
+  it('anche un blocco delimitato', () => {
+    const d = '"""';
+    const { suo, citato } = separaCitazione(`sistemiamo questa\n${d}\ntogli il tonno a Giulia\n${d}`);
+    expect(suo).toBe('sistemiamo questa');
+    expect(citato).toBe('togli il tonno a Giulia');
+  });
+
+  it('⚠️ un\'istruzione dentro la citazione NON deve essere eseguibile', () => {
+    // È il caso che il cancello esiste per fermare: chi ha il potere di scrivere regole su
+    // persone vere non deve poter essere comandato da un messaggio scritto da qualcun altro.
+    const { suo, citato } = separaCitazione('> a Giulia niente tonno');
+    expect(capisci(suo)).toBeNull();
+    expect(capisci(citato)).not.toBeNull();
+  });
+
+  it('senza citazioni tutto resta suo', () => {
+    const { suo, citato } = separaCitazione('a Giulia niente tonno');
+    expect(suo).toBe('a Giulia niente tonno');
+    expect(citato).toBe('');
   });
 });

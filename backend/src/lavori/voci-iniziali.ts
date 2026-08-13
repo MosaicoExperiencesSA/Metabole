@@ -178,74 +178,16 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 40,
   },
   /**
-   * Le otto voci qui sotto arrivano dalla sessione che costruisce Vera (13/8), che sulla pagina non
-   * può scrivere: l'API sta sul backend e lei non ha accesso. Sono le cose scoperte scrivendo le sue
-   * tre consegne — cioè il tipo di voce che si perde per sempre se non la si scrive subito.
+   * ⚠️ QUI C'ERA UNA SECONDA COPIA delle voci di Vera, trascritta il 13/8 dall'altra sessione mentre
+   * questa scriveva le sue consegne. Le stesse cose con chiavi diverse (`vera-moduli-dashboard` e
+   * `vera-dashboard`, `ai-assistant-enabled` e `vera-ai-assistant-enabled`, …): al primo
+   * `carica:lavori` sarebbero diventate quattro righe doppie in pagina — e «due righe per la stessa
+   * decisione sono il modo in cui una lista comincia a non essere creduta», che è l'avvertenza
+   * scritta proprio sopra quel blocco.
    *
-   * ⚠️ La domanda «cliente già in piano che dichiara un'allergia: piano sospeso o visita in
-   * parallelo?» NON è qui: è la stessa decisione di `decisione-blocco-percorso`, che c'è già. Due
-   * righe per la stessa decisione sono il modo in cui una lista comincia a non essere creduta.
+   * Restano le versioni con il dettaglio lungo, qui sotto: dicono anche PERCHÉ, e una voce che non
+   * dice perché, in tre settimane, non si sa più se è ancora vera.
    */
-  {
-    chiave: 'vera-citazione-testo-incollato',
-    titolo: 'Vera: contenitore «citazione» per il testo incollato',
-    dettaglio:
-      'Rimandato di proposito nella Consegna 2: serve quando l\'agente accetta testi altrui, e oggi esegue solo ciò che la nutrizionista scrive di suo pugno.',
-    categoria: CODICE,
-    ordine: 40,
-  },
-  {
-    chiave: 'vera-moduli-dashboard',
-    titolo: 'Vera: moduli in dashboard «quello che aspetta me» (Lucia e Nocanty)',
-    dettaglio: 'Segnalata dalla sessione che costruisce Vera.',
-    categoria: CODICE,
-    ordine: 50,
-  },
-  {
-    chiave: 'vera-azioni-raggio-largo',
-    titolo: 'Vera: azioni a raggio largo (variante di piano, ricette, regola su un tipo di dieta)',
-    dettaglio: 'Segnalata dalla sessione che costruisce Vera: oggi le azioni sono per-cliente.',
-    categoria: CODICE,
-    ordine: 60,
-  },
-  {
-    chiave: 'vera-registro-allargato',
-    titolo: 'Vera: registro allargato a tutto ciò che cambia sulle sue clienti',
-    dettaglio: 'Segnalata dalla sessione che costruisce Vera.',
-    categoria: CODICE,
-    ordine: 70,
-  },
-  {
-    chiave: 'vera-frase-presentazione',
-    titolo: 'Vera: cambiare la frase di presentazione («ti va di battezzarmi tu?»)',
-    dettaglio: 'Segnalata dalla sessione che costruisce Vera.',
-    categoria: CODICE,
-    ordine: 80,
-  },
-  {
-    chiave: 'vera-modello-seconda-passata',
-    titolo: 'Vera: il modello come seconda passata quando il riconoscitore non capisce',
-    dettaglio:
-      '`capisci.ts` è deterministico e sa dire quando non ha capito. `AiService` può entrare DOPO e mai al posto: quando `capisci` torna null, una proposta — che resta una proposta. Decisione di prodotto, non di codice.',
-    categoria: SIMONE,
-    ordine: 70,
-  },
-  {
-    chiave: 'ai-assistant-enabled',
-    titolo: '`ai_assistant_enabled` è \'false\' in produzione: accenderlo o no',
-    dettaglio:
-      'Il parametro che abilita le risposte generative di Gaia è spento in produzione. Va deciso se accenderlo, e con quali guardie: oggi il filtro in entrata e la guardia in uscita ci sono già.',
-    categoria: SIMONE,
-    ordine: 80,
-  },
-  {
-    chiave: 'dizionario-promossa-a-comune',
-    titolo: 'Voce di dizionario promossa a comune: sovrascrive le personali o convivono?',
-    dettaglio:
-      'Quando una parola imparata su una cliente diventa valida per tutte, cosa succede a chi ne aveva già una sua diversa. ⚠️ Tocca il piatto di persone che non hanno chiesto niente: è materia clinica, non un dettaglio di implementazione.',
-    categoria: NOCANTY,
-    ordine: 70,
-  },
   {
     chiave: 'varianti-3-pasti',
     titolo: 'Generare le varianti a 3 pasti e digiuno per le famiglie esistenti',
@@ -318,6 +260,48 @@ export const VOCI_INIZIALI: Voce[] = [
       'Oggi convivono e la voce personale vince sempre su quella comune — «pasto leggero» non vuol dire la stessa cosa per due nutrizioniste. Va confermato che è il comportamento voluto, o deciso il contrario. Specifica §5.',
     categoria: NOCANTY,
     ordine: 217,
+  },
+
+  // ── Vera, Consegna 4 (13/8): quello che è nato scrivendo l'avviso, il report e il corpus ──
+  {
+    chiave: 'vera-report-invio-mensile',
+    titolo: 'Vera: il report del mese va anche MANDATO, non solo aperto',
+    dettaglio:
+      'Il report c\'è (`GET /vera/report`, pulsante nella pagina Assistente per il capo) e si ricalcola ogni volta. Manca la spedizione del 1° del mese al capo nutrizionista: notifica in-app + email. ⚠️ Finché non parte da solo, lo legge chi si ricorda di aprirlo — cioè, dopo la prima settimana, nessuno.',
+    categoria: CODICE,
+    ordine: 220,
+  },
+  {
+    chiave: 'vera-notifica-conflitto-canale',
+    titolo: 'Vera: l\'avviso di conflitto sanitario oggi è solo in-app',
+    dettaglio:
+      'Una regola confermata sopra un vincolo dichiarato avvisa SUBITO i capi nutrizionisti, ma solo con una notifica dentro il backoffice. Se il capo non entra quel giorno, l\'avviso «subito» diventa un avviso «quando capita». Da decidere se aggiungere l\'email — è una scelta di Simone, non di codice.',
+    categoria: SIMONE,
+    ordine: 221,
+  },
+  {
+    chiave: 'vera-corpus-prima-del-rilascio',
+    titolo: 'Vera: rileggere il corpus PRIMA di toccare `capisci.ts`',
+    dettaglio:
+      '`GET /vera/corpus` restituisce le frasi vere: quelle capite (che devono continuare a passare) e quelle no (le parole da insegnare). ⚠️ È il rituale che tiene in piedi tutto il resto: un traduttore marcisce senza dare nessun errore rosso, e l\'unico modo di accorgersene è un elenco di frasi vere ripassato prima di ogni rilascio. Oggi è un endpoint che nessuno ha ancora l\'abitudine di aprire.',
+    categoria: MANUTENZIONE,
+    ordine: 222,
+  },
+  {
+    chiave: 'vera-dizionario-alimento-nuovo',
+    titolo: 'Vera: quando entra un alimento nuovo in catalogo, il dizionario non lo sa',
+    dettaglio:
+      '«Formaggi molli» è un elenco di alimenti deciso una volta. Il caciotta che entra in catalogo domani non ci finisce dentro, e la regola della nutrizionista smette silenziosamente di coprire quello che copriva. `dizionario.famiglieCheForsePrendono(alimento)` esiste già e risponde alla domanda giusta: manca chi la chiama quando una ricetta o un ingrediente nuovo viene pubblicato, e la domanda alla nutrizionista che ne segue.',
+    categoria: CODICE,
+    ordine: 223,
+  },
+  {
+    chiave: 'vera-lavori-doppioni-caricati',
+    titolo: 'Lavori: spuntare le voci di Vera doppie, se sono già state caricate',
+    dettaglio:
+      'Il 13/8 le voci di Vera sono finite due volte in `voci-iniziali.ts` (due sessioni, chiavi diverse per le stesse cose). Il doppione è stato tolto dal file, ma se `CONFERMA=1 npm run carica:lavori` era già girato in mezzo, in pagina restano `vera-moduli-dashboard`, `ai-assistant-enabled` e `dizionario-promossa-a-comune`: si spuntano dalla pagina, non si cancellano. ⚠️ E NON si rilancia il caricamento per «riallineare».',
+    categoria: MANUTENZIONE,
+    ordine: 224,
   },
 
 ];

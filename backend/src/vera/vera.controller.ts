@@ -22,9 +22,12 @@ import { AnteprimaPoolDto, InsegnaFamigliaDto, MessaggioVeraDto, RespingiDto, Sc
  * proposta, mette una regola sul profilo di una persona. Una nutrizionista in sola lettura può
  * leggere il registro, non dettare.
  *
- * `@RequirePage('food_swaps')` e non una chiave nuova: è lo stesso perimetro — «cosa il motore userà
- * per le clienti» — e moltiplicare le chiavi di permesso significa moltiplicare i posti dove
- * qualcuno dimentica di abilitare qualcosa. `manage` per scrivere, come là.
+ * ⚠️ `nutri_assistant` è una chiave SUA, e prima era `food_swaps`. Il riuso aveva un motivo — meno
+ * chiavi, meno posti dove qualcuno dimentica di abilitare qualcosa — ma perdeva contro una regola di
+ * prodotto data da Simone il 13/8 («tutte le pagine che aggiungiamo vanno gestite nei permessi,
+ * sempre»): con una chiave sola, Assistente e Sostituzioni erano due voci di menu che si davano e si
+ * toglievano insieme, e separarle dopo sarebbe costato un rilascio. `manage` per scrivere, `view`
+ * per leggere.
  */
 @Controller('vera')
 @Roles('admin', 'nutritionist', 'head_nutritionist')
@@ -48,7 +51,7 @@ export class VeraController {
    * il 13/8 è nata la pagina Lavori invece di fidarsi del REGISTRO.
    */
   @Get('richieste')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   richiesteAperte(@CurrentUser() user: AuthUser) {
     return this.richieste.aperte(user.sub, user.role !== 'nutritionist');
   }
@@ -60,20 +63,20 @@ export class VeraController {
    * Idempotente: ricaricare non fa ripetere la presentazione.
    */
   @Post('chat/apri')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   apri(@CurrentUser() user: AuthUser) {
     return this.chat.apri(user.sub);
   }
 
   @Get('chat')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   storico(@CurrentUser() user: AuthUser) {
     return this.chat.storico(user.sub);
   }
 
   /** Un messaggio dettato. La risposta è l'intera conversazione aggiornata. */
   @Post('chat')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   parla(@CurrentUser() user: AuthUser, @Body() dto: MessaggioVeraDto) {
     return this.chat.parla(user.sub, dto.testo);
   }
@@ -87,14 +90,14 @@ export class VeraController {
    * ma resta una lettura, e il test lo verifica.
    */
   @Post('anteprima-pool')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   anteprimaPool(@Body() dto: AnteprimaPoolDto) {
     return this.pool.anteprima(dto.clientId, dto.termini ?? []);
   }
 
   /** Le alternative che esistono DAVVERO in catalogo per quel pasto. Mai inventate. */
   @Get('alternative/:clientId/:slot')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   alternative(@Param('clientId') clientId: string, @Param('slot') slot: string) {
     return this.pool.alternativeInCatalogo(clientId, slot);
   }
@@ -102,48 +105,76 @@ export class VeraController {
   // ---------- il dizionario ----------
 
   @Get('dizionario')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   dizionarioElenco(@CurrentUser() user: AuthUser) {
     return this.dizionario.elenco(user.sub);
   }
 
   /** «Cosa vuol dire per te questa parola?» — `null` è la risposta che fa scattare la domanda. */
   @Get('dizionario/risolvi')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   risolvi(@CurrentUser() user: AuthUser, @Query('nome') nome: string) {
     return this.dizionario.risolvi(user.sub, nome ?? '');
   }
 
   @Post('dizionario')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   insegna(@CurrentUser() user: AuthUser, @Body() dto: InsegnaFamigliaDto) {
     return this.dizionario.insegna(user.sub, dto);
   }
 
   @Delete('dizionario/:id')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   dimentica(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.dizionario.dimentica(user.sub, id);
   }
 
   /** Rende comune una voce: solo il capo nutrizionista, come «promuovi a regola». */
   @Post('dizionario/:id/promuovi')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   promuovi(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.dizionario.promuovi({ id: user.sub, role: user.role }, id);
   }
 
   /** Le famiglie che un alimento nuovo potrebbe riguardare: serve a non far invecchiare il dizionario. */
   @Get('dizionario/candidate')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   candidate(@Query('alimento') alimento: string) {
     return this.dizionario.famiglieCheForsePrendono(alimento ?? '');
   }
 
   // ---------- il registro ----------
 
+  /**
+   * TUTTO quello che è cambiato sulle sue clienti: non solo l'assistente, anche Gaia, la cliente
+   * dall'app e lo staff. È la vista che Simone ha chiesto il 12/8 («direi tutto»).
+   */
+  @Get('registro/tutto')
+  @RequirePage('nutri_assistant')
+  registroTutto(@CurrentUser() user: AuthUser) {
+    return this.registro.tutto(user.sub);
+  }
+
+  /**
+   * «QUELLO CHE ASPETTA ME» — non «quello che ho fatto».
+   *
+   * ⚠️ Un contatore delle regole create è una medaglietta: la si guarda due volte e poi mai più.
+   * Qui ci sono solo cose che hanno bisogno di una persona, e ognuna ha un posto dove andare.
+   */
+  @Get('aspetta-me')
+  @RequirePage('nutri_assistant')
+  async aspettaMe(@CurrentUser() user: AuthUser) {
+    const capo = user.role !== 'nutritionist';
+    const [richieste, daApprovare, daVerificare] = await Promise.all([
+      this.richieste.quante(user.sub, capo),
+      capo ? this.registro.daApprovare().then((r) => r.length) : Promise.resolve(0),
+      this.registro.sostituzioniDaVerificare(user.sub),
+    ]);
+    return { richieste, daApprovare, daVerificare, capo };
+  }
+
   @Get('registro')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   registroElenco(
     @Query('nutrizionistaId') nutrizionistaId?: string,
     @Query('soggettoId') soggettoId?: string,
@@ -162,7 +193,7 @@ export class VeraController {
    * Elencare i campi costa dieci righe e rende impossibile scriverne uno per sbaglio.
    */
   @Post('registro')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   scrivi(@CurrentUser() user: AuthUser, @Body() dto: ScriviAzioneDto) {
     return this.registro.scrivi({
       nutrizionistaId: user.sub,
@@ -180,7 +211,7 @@ export class VeraController {
 
   /** Annulla, e restituisce i giorni non ancora visti che si possono rifare. */
   @Post('registro/:id/annulla')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   annulla(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.registro.annulla(user.sub, id);
   }
@@ -194,21 +225,53 @@ export class VeraController {
    * Simone del 12/8): un «approva tutte» in tre settimane diventa l'unico pulsante che si preme.
    */
   @Get('coda')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   coda() {
     return this.registro.daApprovare();
   }
 
   @Post('registro/:id/approva')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   approva(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.registro.approva({ id: user.sub, role: user.role }, id);
   }
 
   @Post('registro/:id/respingi')
-  @RequirePage('food_swaps', 'manage')
+  @RequirePage('nutri_assistant', 'manage')
   respingi(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RespingiDto) {
     return this.registro.respingi({ id: user.sub, role: user.role }, id, dto.motivo);
+  }
+
+  // ---------- quello che si legge dopo, non mentre si lavora ----------
+
+  /**
+   * IL REPORT DEL MESE, per chi sorveglia (Nocanty: non fa visite, guarda il lavoro degli altri).
+   *
+   * ⚠️ Solo il capo. Non per riservatezza — le righe sono già tutte nel registro — ma perché è un
+   * foglio che confronta persone: darlo a chi ci sta dentro cambia cosa quelle persone dettano.
+   */
+  @Get('report')
+  @Roles('admin', 'head_nutritionist')
+  @RequirePage('nutri_assistant')
+  report(@Query('anno') anno?: string, @Query('mese') mese?: string) {
+    const ora = new Date();
+    return this.registro.reportMensile(
+      Number(anno) || ora.getUTCFullYear(),
+      Number(mese) || ora.getUTCMonth() + 1,
+    );
+  }
+
+  /**
+   * LE FRASI: quelle che non ha capito e quelle che ha capito.
+   *
+   * È il collaudo che si costruisce da solo (`corpus.ts`). Serve a due momenti diversi: le prime
+   * dicono quali parole insegnargli, le seconde sono i casi che devono continuare a passare quando
+   * qualcuno tocca il riconoscitore.
+   */
+  @Get('corpus')
+  @RequirePage('nutri_assistant')
+  corpus(@CurrentUser() user: AuthUser) {
+    return this.registro.corpus(user.sub, user.role !== 'nutritionist');
   }
 
   /**
@@ -216,7 +279,7 @@ export class VeraController {
    * Si chiede PRIMA di scrivere, per mostrarle la conseguenza invece di farle indovinare.
    */
   @Get('menu-da-rifare/:clientId')
-  @RequirePage('food_swaps')
+  @RequirePage('nutri_assistant')
   menuDaRifare(@Param('clientId') clientId: string) {
     return this.registro.menuDaRifare(clientId);
   }

@@ -19,7 +19,7 @@ import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoRestrizione, IntentoSostituzione } from './capisci';
+import { capisci, Intento, IntentoRestrizione, IntentoSostituzione, separaCitazione } from './capisci';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
@@ -115,7 +115,20 @@ export class VeraChatService {
 
   // ───────────────────────────────────────────────────────────── il dialogo ──
 
-  private async nuovoGiro(nutrizionistaId: string, frase: string): Promise<EsitoVera> {
+  private async nuovoGiro(nutrizionistaId: string, fraseIntera: string): Promise<EsitoVera> {
+    /**
+     * ⚠️ PRIMA si separa quello che ha incollato, POI si capisce.
+     *
+     * Le azioni si eseguono solo da ciò che scrive lei di suo pugno. Se dentro il testo incollato
+     * c'è qualcosa di azionabile lo si **dice** e ci si ferma: chi ha il potere di scrivere regole
+     * su persone vere non deve poter essere comandato da un messaggio scritto da qualcun altro.
+     */
+    const { suo, citato } = separaCitazione(fraseIntera);
+    const frase = suo || fraseIntera;
+    if (citato && !capisci(suo) && capisci(citato)) {
+      return { testo: testi.dallaCitazione(), esito: 'arresa' };
+    }
+
     const intento = capisci(frase);
     if (!intento) {
       // Il capo che scrive «cosa c'è da vedere?» non sta dettando una regola: sta chiedendo la coda.
@@ -125,9 +138,30 @@ export class VeraChatService {
       return { testo: testi.nonCapito(1), esito: 'non_capito', stato: { passo: 'conferma', frase, tentativi: 1 } };
     }
     if (intento.tipo === 'fuori_portata') {
-      // ⚠️ Non si ripiega su «allora lo faccio sulla cliente»: fare la cosa sbagliata con sicurezza
-      // è peggio che non farla. Si dice cosa si è capito e cosa manca.
-      return { testo: testi.fuoriPortata(intento.cosa, intento.dettaglio), esito: 'arresa' };
+      /**
+       * ⚠️ Non si ripiega su «allora lo faccio sulla cliente»: fare la cosa sbagliata con sicurezza
+       * è peggio che non farla. Ma nemmeno si butta via: quello che ha detto **va in coda al capo**
+       * come proposta, con la sua frase originale.
+       *
+       * È il modo onesto di dire «non lo so ancora fare»: la richiesta non si perde, e chi ha il
+       * potere di eseguirla la vede. Una regola su un tipo di dieta cambia il menu di centinaia di
+       * clienti — che nasca come proposta e non come azione è la stessa scelta di tutto il resto.
+       */
+      const riga = (await this.registro.scrivi({
+        nutrizionistaId,
+        frase,
+        azione: intento.cosa === 'regola_dieta' ? 'regola_dieta' : 'ricetta_nuova',
+        ambito: intento.cosa === 'regola_dieta' ? 'dieta' : 'catalogo',
+        soggettoTipo: intento.cosa === 'regola_dieta' ? 'diet' : 'recipe',
+        soggettoNome: intento.cosa === 'regola_dieta' ? intento.dettaglio : null,
+        dettaglio: { daFareAMano: true, cosa: intento.cosa, testo: intento.dettaglio },
+        inApprovazione: true,
+      })) as { id: string };
+      return {
+        testo: `${testi.fuoriPortata(intento.cosa, intento.dettaglio)}\n\n${testi.messaInCoda()}`,
+        esito: 'in_approvazione',
+        azioneId: riga.id,
+      };
     }
     return this.risolviCliente(nutrizionistaId, { passo: 'quale_cliente', frase, intento }, intento.cliente ?? '');
   }
