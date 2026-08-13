@@ -80,3 +80,39 @@ describe('avvisaConflittoSanitario', () => {
     await expect(avvisaConflittoSanitario(prisma, RIGA)).resolves.toBe(0);
   });
 });
+
+describe('avvisaConflittoSanitario — anche via EMAIL (decisione di Simone, 13/8 sera)', () => {
+  it('con il postino: una mail a ogni capo, con oggetto e corpo veri', async () => {
+    const { prisma } = make([
+      { id: 'capo-1', email: 'capo1@metabole.eu' },
+      { id: 'capo-2', email: 'capo2@metabole.eu' },
+    ] as never);
+    const send = jest.fn().mockResolvedValue(true);
+    const quanti = await avvisaConflittoSanitario(prisma, RIGA, { send });
+    expect(quanti).toBe(2);
+    expect(send).toHaveBeenCalledTimes(2);
+    const prima = send.mock.calls[0][0];
+    expect(prima.to).toBe('capo1@metabole.eu');
+    expect(prima.subject).toContain('conflitto');
+    expect(prima.html).toContain('Mariastella Conti');
+  });
+
+  it('senza postino tutto funziona come prima: solo la notifica in app', async () => {
+    const { prisma, createMany } = make([{ id: 'capo-1', email: 'capo1@metabole.eu' }] as never);
+    const quanti = await avvisaConflittoSanitario(prisma, RIGA);
+    expect(quanti).toBe(1);
+    expect(createMany).toHaveBeenCalled();
+  });
+
+  it('una mail che fallisce non ferma le altre, e la notifica in app resta', async () => {
+    const { prisma, createMany } = make([
+      { id: 'capo-1', email: 'capo1@metabole.eu' },
+      { id: 'capo-2', email: 'capo2@metabole.eu' },
+    ] as never);
+    const send = jest.fn().mockRejectedValueOnce(new Error('brevo giù')).mockResolvedValue(true);
+    const quanti = await avvisaConflittoSanitario(prisma, RIGA, { send });
+    expect(quanti).toBe(2);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(createMany).toHaveBeenCalled();
+  });
+});

@@ -42,3 +42,13 @@ seleziona, e vale anche sopra una proposta diversa (chi spunta ha guardato). E i
 composti impara i SINGOLARI («pistacchio salato», «nocciola salata» — visti in produzione come
 finti conflitti): quelle righe ora propongono giusto. 1 test nuovo, 16 verdi sul classificatore.
 Backoffice: Colazioni.tsx. Backend: vera/colazioni.ts+spec.
+
+─── AGGIUNTA (la mezz'ora delle voci veloci) ───
+1) Spuntini esclusi in scheda cliente (voce 235, parte backoffice): riga in sola lettura sotto i
+pasti del digiuno — il dato agiva e non si vedeva. 2) Conflitto sanitario anche via EMAIL ai capi:
+MailService @Optional in RegistroVeraService, MailModule in vera.module, `MailMinimo` in
+avvisa-capo (3 test visti rossi: mail per capo, senza postino tutto come prima, una mail giù non
+ferma le altre). 3) Presentazione di Vera senza «battezzarmi». Voci chiuse dal file:
+vera-frase-presentazione, vera-notifica-conflitto-canale.
+File: vera/avvisa-capo.ts+spec, vera/registro.service.ts, vera/vera.module.ts, vera/vera-chat.ts,
+vera/vera-chat.service.spec.ts, lavori/voci-iniziali.ts, backoffice/ClientDetail.tsx.

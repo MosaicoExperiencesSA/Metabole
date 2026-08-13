@@ -132,8 +132,8 @@ describe('VeraChatService — il primo incontro', () => {
     await service.apri('lucia');
     const { testo, stato } = ultimoAgente(messaggioCreate);
     // ⚠️ Agganciato a una parola che resta, non a mezza frase: così il prossimo ritocco di stile
-    // non fa rosso un test.
-    expect(testo).toContain('battezzarmi');
+    // non fa rosso un test. (Il 13/8 sera lo stile è cambiato davvero: via il «battezzarmi».)
+    expect(testo).toContain('nome');
     expect(stato?.passo).toBe('nome');
   });
 

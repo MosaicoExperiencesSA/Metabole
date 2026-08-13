@@ -58,14 +58,29 @@ export function testoAvvisoConflitto(riga: RigaConflitto, autore: string | null)
  * le diceva esattamente questo — e una notifica per una cosa che si è appena fatti da soli è il modo
  * più rapido per insegnare a chiudere le notifiche senza leggerle.
  */
-export async function avvisaConflittoSanitario(prisma: PrismaService, riga: RigaConflitto): Promise<number> {
+/** Il minimo di un postino: così si prova con un finto e non si dipende da MailService. */
+export interface MailMinimo {
+  send(input: { to: string; subject: string; html: string; tags?: string[] }): Promise<boolean>;
+}
+
+export async function avvisaConflittoSanitario(
+  prisma: PrismaService,
+  riga: RigaConflitto,
+  /**
+   * ⚠️ Facoltativo, e ANCHE email quando c'è (decisione di Simone, 13/8 sera): l'avviso solo
+   * in-app vale finché il capo entra nel backoffice quel giorno — «subito» che diventa «quando
+   * capita». Una mail mancata non ferma né le altre né la notifica in app.
+   */
+  mail?: MailMinimo | null,
+): Promise<number> {
   try {
     const capi = (await prisma.user.findMany({
       where: { role: 'head_nutritionist', status: 'active', deletedAt: null } as never,
-      select: { id: true },
+      select: { id: true, email: true },
       take: 20,
     })) as { id: string }[];
-    const destinatari = capi.map((c) => c.id).filter((id) => id !== riga.nutrizionistaId);
+    const daAvvisare = (capi as { id: string; email?: string | null }[]).filter((c) => c.id !== riga.nutrizionistaId);
+    const destinatari = daAvvisare.map((c) => c.id);
     if (!destinatari.length) return 0;
 
     const autore = (await prisma.user.findUnique({
@@ -85,6 +100,23 @@ export async function avvisaConflittoSanitario(prisma: PrismaService, riga: Riga
         sentAt: new Date(),
       })) as never,
     });
+    // L'email, DOPO la notifica in app: se il postino è giù, la campanella c'è comunque.
+    if (mail) {
+      for (const capo of daAvvisare) {
+        if (!capo.email) continue;
+        try {
+          await mail.send({
+            to: capo.email,
+            subject: `⚠️ Vera — conflitto sanitario confermato: ${riga.soggettoNome ?? 'una cliente'}`,
+            html: `<p>${corpo.replace(/\n/g, '<br/>')}</p><p>Il dettaglio è nella pagina Assistente del backoffice.</p>`,
+            tags: ['vera-conflitto-sanitario'],
+          });
+        } catch (e) {
+          logger.warn(`Email del conflitto non partita per ${capo.email}: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    }
+
     return destinatari.length;
   } catch (err) {
     logger.warn(`Avviso di conflitto non mandato (azione=${riga?.id}): ${err instanceof Error ? err.message : String(err)}`);

@@ -20,6 +20,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🕐 **La mezz'ora delle voci veloci (scelte da Simone):** (1) gli **spuntini esclusi
+  da Vera si vedono in scheda cliente** (riga in sola lettura — voce 235, parte backoffice; l'app
+  con la prossima OTA); (2) l'**avviso di conflitto sanitario va anche via EMAIL** ai capi
+  (`MailService` opzionale in `avvisaConflittoSanitario`: una mail giù non ferma né le altre né
+  l'in-app — 3 test visti rossi); (3) la **presentazione di Vera** senza «battezzarmi»: «che nome
+  mi dai?». E la domanda §15.2 punto 1 è stata tradotta per Nocanty: percentuale standard e tetto
+  della correzione calorica.
+
 - `[Sviluppo]` ☕ **Colazioni, terza passata dalla pagina in uso:** «Selezione → salate/dolci» per
   le 472 senza proposta (il tipo lo dice chi seleziona), e il filtro dei composti impara i
   singolari — «pistacchio salato» e «nocciola salata» erano finti conflitti.

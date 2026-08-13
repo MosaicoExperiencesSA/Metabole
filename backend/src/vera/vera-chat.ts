@@ -94,10 +94,12 @@ export const MAX_TENTATIVI = 2;
 
 export const testi = {
   presentazione: () =>
+    // Riscritta il 13/8 sera (voce in Lavori dalla sessione che ha costruito Vera): via il
+    // «battezzarmi», che suonava strano detto a una professionista. La domanda resta la stessa
+    // e `estraiNome` continua a leggerla uguale.
     'Ciao. Sono l\'assistente che scrive per te nei moduli: mi detti a parole cosa vuoi fare e io lo ' +
     'traduco in regole vere, mostrandoti sempre cosa sto per scrivere prima di scriverlo.\n\n' +
-    'La prima cosa da fare: io non ho un nome. **Ti va di battezzarmi tu?** Dimmi il mio nuovo nome ' +
-    '(se non ti viene in mente niente, dimmi «scegli tu»).',
+    'Prima di cominciare: **che nome mi dai?** Scrivilo qui sotto — oppure dimmi «scegli tu».',
 
   nomePreso: (nome: string) =>
     `Da adesso mi chiamo ${nome}. Puoi cominciare quando vuoi: per esempio «a Giulia Rossi niente ` +
@@ -361,8 +363,8 @@ export type EsitoNome = { tipo: 'scegli_tu' } | { tipo: 'nome'; nome: string };
  * per sempre: per questo il chiamante lo usa come CONDIZIONE SUI DATI (nomeAgente vuoto), non come
  * stato appeso al messaggio.
  *
- * Qui non si indovina: o la frase è una forma esplicita («ti chiamerò X», «sarà X», «ti battezzo
- * X»...), o è il nome secco (al massimo con un saluto davanti), o è «scegli tu». Tutto il resto è
+ * Qui non si indovina: o la frase è una forma esplicita («ti chiamerò/chiamerai X», «voglio
+ * chiamarti X», «sarà X», «ti battezzo X»...), o è il nome secco (al massimo con un saluto davanti), o è «scegli tu». Tutto il resto è
  * `null` — meglio richiedere che chiamarsi «Ciao» per sempre.
  */
 export function estraiNome(frase: string): EsitoNome | null {
@@ -371,7 +373,7 @@ export function estraiNome(frase: string): EsitoNome | null {
   if (/\b(scegli tu|decidi tu|come vuoi|fai tu|non so)\b/i.test(f)) return { tipo: 'scegli_tu' };
 
   const esplicita =
-    /(?:ti\s+chiamer[òo]|ti\s+chiamo|ti\s+chiami|ti\s+battezzo|sar[àa]i?|il\s+tuo\s+nome\s+(?:è|sar[àa]))\s+[«"']?([a-zA-ZÀ-ÿ]{2,30})/i.exec(f);
+    /(?:ti\s+chiam[\wà-ù]+|chiamart[\wà-ù]+|ti\s+battezz[\wà-ù]+|battezzart[\wà-ù]+|sar[àa]i?|il\s+tuo\s+nome\s+(?:è|sar[àa]))\s+[«"']?([a-zA-ZÀ-ÿ]{2,30})/i.exec(f);
   if (esplicita) return { tipo: 'nome', nome: esplicita[1] };
 
   // Il nome secco, eventualmente con un saluto o un «ok» davanti e la punteggiatura in coda.

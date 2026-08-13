@@ -15,11 +15,12 @@
  * giusta, ripassato prima di ogni rilascio, e quell'elenco esce da qui: ogni correzione diventa un
  * caso di prova. Il sistema si costruisce il collaudo con gli errori che ha già fatto.
  */
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { applicaProposta, ordinaPerRischio, Proposta } from './applica-proposta';
 import { avvisaConflittoSanitario } from './avvisa-capo';
+import { MailService } from '../mail/mail.service';
 import { casiCapiti, CasoCapito, fraseNonCapite, RigaMessaggio } from './corpus';
 import { DizionarioService } from './dizionario.service';
 import { perimetroClienti } from '../common/perimetro-clienti';
@@ -63,6 +64,9 @@ export class RegistroVeraService {
     private readonly audit: AuditService,
     private readonly dizionario: DizionarioService,
     @Inject(SCRITTURA_RICETTA) private readonly ricette: ScritturaRicetta,
+    // Il postino per l'avviso di conflitto (decisione di Simone, 13/8 sera): l'in-app da solo
+    // vale finché il capo entra quel giorno. `@Optional` così i test esistenti non cambiano.
+    @Optional() private readonly mail: MailService | null = null,
   ) {}
 
   /**
@@ -116,7 +120,7 @@ export class RegistroVeraService {
         soggettoNome: input.soggettoNome ?? null,
         nutrizionistaId: input.nutrizionistaId,
         vincolo: (input.dettaglio as { vincolo?: string } | null | undefined)?.vincolo ?? null,
-      });
+      }, this.mail);
     }
     return riga;
   }

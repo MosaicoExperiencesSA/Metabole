@@ -278,6 +278,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Testo dettato da Simone il 13/8: «La prima cosa da fare.... io non ho un nome, ti va di battezzarmi tu? Dimmi il mio nuovo nome.. (se non ti viene in mente niente, dimmi «scegli tu»)». Sta in vera-chat.ts → testi.presentazione. ⚠️ Cambiandola si rompe un test che cerca «come vuoi chiamarmi»: agganciarlo a una parola che resta.',
     categoria: CODICE,
     ordine: 214,
+    fatta: true, // riscritta il 13/8 sera: via il «battezzarmi»
   },
   {
     chiave: 'vera-modello-seconda-passata',
@@ -320,6 +321,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Una regola confermata sopra un vincolo dichiarato avvisa SUBITO i capi nutrizionisti, ma solo con una notifica dentro il backoffice. Se il capo non entra quel giorno, l\'avviso «subito» diventa un avviso «quando capita». Da decidere se aggiungere l\'email — è una scelta di Simone, non di codice.',
     categoria: SIMONE,
     ordine: 221,
+    fatta: true, // 13/8 sera: email aggiunta accanto all'in-app, deciso da Simone
   },
   {
     chiave: 'vera-corpus-prima-del-rilascio',

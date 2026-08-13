@@ -18,6 +18,14 @@ describe('estraiNome', () => {
     expect(estraiNome('Ciao ti chiamerò Vera')).toEqual({ tipo: 'nome', nome: 'Vera' });
   });
 
+  it('capisce la SECONDA persona — le frasi vere di Nocanty (13/8, 17:34)', () => {
+    // «Ciao ti chiamerai Vera» e «voglio chiamarti Vera»: la prima versione copriva solo
+    // «ti chiamerò», e Nocanty parla all'assistente dandole del tu.
+    expect(estraiNome('Ciao ti chiamerai Vera')).toEqual({ tipo: 'nome', nome: 'Vera' });
+    expect(estraiNome('voglio chiamarti Vera')).toEqual({ tipo: 'nome', nome: 'Vera' });
+    expect(estraiNome('ti chiameremo Gaia')).toEqual({ tipo: 'nome', nome: 'Gaia' });
+  });
+
   it('capisce «sarà X» — il secondo tentativo vero', () => {
     expect(estraiNome('mi hai chiesto il tuo nome, sarà Vera')).toEqual({ tipo: 'nome', nome: 'Vera' });
   });

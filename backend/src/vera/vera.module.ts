@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MailModule } from '../mail/mail.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { CatalogService } from '../catalog/catalog.service';
 import { ClientsModule } from '../clients/clients.module';
@@ -51,7 +52,8 @@ import { VeraController } from './vera.controller';
    * Nessun anello: `CatalogModule` importa solo le notifiche, `NutrientFactsModule` niente.
    * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
    */
-  imports: [ClientsModule, CatalogModule, NutrientFactsModule],
+  // MailModule: il postino dell'avviso di conflitto (13/8 sera). Esporta MailService.
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,

@@ -1516,6 +1516,17 @@ export function ClientDetail() {
               value={p.fastingWindow ? FASTING_WINDOW_LABEL[p.fastingWindow] ?? p.fastingWindow : 'li decide la dieta'}
             />
           )}
+          {/* Gli spuntini tolti da Vera («togli lo spuntino», 13/8): agiscono sul motore e prima
+              non si vedevano da nessuna parte — lo stesso buco che avevano le allergie. Sola
+              lettura: si cambiano dettandolo all'assistente, che rifà i giorni non ancora aperti. */}
+          {((p.pastiEsclusi as string[] | undefined) ?? []).length > 0 && (
+            <Row
+              label="Spuntini esclusi (da Vera)"
+              value={((p.pastiEsclusi as string[]) ?? [])
+                .map((s2: string) => (s2 === 'morning_snack' ? 'spuntino del mattino' : s2 === 'afternoon_snack' ? 'merenda del pomeriggio' : s2))
+                .join(', ')}
+            />
+          )}
             <Row label="Lavoro" value={lab('work', p.lifestyle?.work)} />
             <Row label="Tempo per cucinare" value={lab('cookingTime', p.lifestyle?.cookingTime)} />
             <Row label="Pranzo nei feriali" value={lab('weekdayLunch', p.lifestyle?.weekdayLunch)} />
