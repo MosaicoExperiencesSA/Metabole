@@ -16,7 +16,9 @@ export type PassoVera =
   | 'quale_cliente'   // omonimie: nome e cognome, o email
   | 'quale_famiglia'  // «formaggi molli» non lo conosco: quali sono?
   | 'conferma'        // ecco cosa sto per fare, e cosa comporta
-  | 'ambito';         // solo per questa cliente o per tutte?
+  | 'ambito'          // solo per questa cliente o per tutte?
+  | 'revisione'       // (solo il capo) ti sottopongo una proposta per volta
+  | 'motivo_rifiuto'; // (solo il capo) perché la respingi
 
 export interface StatoVera {
   passo: PassoVera;
@@ -36,6 +38,8 @@ export interface StatoVera {
   proposti?: string[];
   /** Quante volte di fila non ho capito. A due mi arrendo. */
   tentativi?: number;
+  /** La proposta che sto sottoponendo al capo. */
+  azioneId?: string;
 }
 
 /** Cosa il servizio deve fare della risposta di un passo. */
@@ -121,6 +125,30 @@ export const testi = {
   annullato: () => 'Non ho scritto niente. Dimmi pure un\'altra cosa.',
 
   scritta: (riepilogo: string) => `Fatto. ${riepilogo}\nLo trovi qui sotto nel registro, con l'annulla.`,
+
+  // ── la coda del capo nutrizionista ──────────────────────────────────────────
+
+  /**
+   * ⚠️ Si sottopone **una proposta per volta**, e il numero di quelle che restano si dice.
+   *
+   * Dire quante ne restano non è cortesia: senza, chi decide non sa se sta guardando l'unica cosa
+   * della giornata o la prima di venti — e sono due modi di leggere molto diversi.
+   */
+  sottoponi: (restanti: number, chi: string, quando: string, frase: string, riepilogo: string, conflitto: boolean) =>
+    `${restanti === 1 ? 'C\'è una cosa' : `Ci sono ${restanti} cose`} che aspettano te.\n\n` +
+    `**${chi}**, il ${quando}, ha dettato:\n«${frase}»\n\n${riepilogo}` +
+    (conflitto ? '\n\n⚠️ Questa era in conflitto con un vincolo sanitario e lei ha confermato lo stesso.' : '') +
+    '\n\n**Approvi?** (rispondi «sì» per approvare, «no» per respingere)',
+
+  codaVuota: () => 'Non c\'è niente che aspetta te. Quando arriva una proposta te la porto qui.',
+
+  approvata: (riepilogo: string) => `Approvata. ${riepilogo}`,
+
+  chiediMotivo: () =>
+    'Perché la respingi? Il motivo lo legge chi l\'ha proposta, e serve a farle capire cosa cambiare — ' +
+    'quindi non lo salto.',
+
+  respinta: () => 'Respinta, con il tuo motivo scritto accanto.',
 } as const;
 
 /**

@@ -72,9 +72,21 @@ export class VeraChatService {
    */
   async apri(nutrizionistaId: string) {
     const esistenti = await this.prisma.messaggioVera.count({ where: { nutrizionistaId } });
-    if (esistenti > 0) return { messaggi: await this.storico(nutrizionistaId) };
-
-    await this.scriviAgente(nutrizionistaId, testi.presentazione(), { passo: 'nome', frase: '' });
+    if (esistenti === 0) {
+      await this.scriviAgente(nutrizionistaId, testi.presentazione(), { passo: 'nome', frase: '' });
+      return { messaggi: await this.storico(nutrizionistaId) };
+    }
+    /**
+     * Al capo nutrizionista l'agente **porta la coda** quando apre la pagina, invece di aspettare
+     * che se la vada a cercare. È il mestiere opposto: non scrive niente, sottopone.
+     *
+     * ⚠️ Solo se non c'è già un dialogo aperto: interrompere una conferma a metà per infilare una
+     * proposta è il modo di far confermare la cosa sbagliata.
+     */
+    if (!(await this.statoAperto(nutrizionistaId)) && (await this.ruolo(nutrizionistaId)) !== 'nutritionist') {
+      const prossima = await this.sottoponiProssima(nutrizionistaId);
+      if (prossima) await this.scriviAgente(nutrizionistaId, prossima.testo, prossima.stato, { esito: prossima.esito });
+    }
     return { messaggi: await this.storico(nutrizionistaId) };
   }
 
@@ -104,6 +116,12 @@ export class VeraChatService {
   private async nuovoGiro(nutrizionistaId: string, frase: string): Promise<EsitoVera> {
     const intento = capisci(frase);
     if (!intento) {
+      // Il capo che scrive «cosa c'è da vedere?» non sta dettando una regola: sta chiedendo la coda.
+      // Si prova quella PRIMA di rispondere «non ho capito», che sarebbe vero e inutile.
+      if ((await this.ruolo(nutrizionistaId)) !== 'nutritionist') {
+        const prossima = await this.sottoponiProssima(nutrizionistaId);
+        if (prossima) return prossima;
+      }
       return { testo: testi.nonCapito(1), esito: 'non_capito', stato: { passo: 'conferma', frase, tentativi: 1 } };
     }
     if (intento.tipo === 'fuori_portata') {
@@ -124,6 +142,10 @@ export class VeraChatService {
         return this.imparaFamiglia(nutrizionistaId, stato, frase);
       case 'ambito':
         return this.chiudiConAmbito(nutrizionistaId, stato, frase);
+      case 'revisione':
+        return this.decidiProposta(nutrizionistaId, stato, frase);
+      case 'motivo_rifiuto':
+        return this.respingiConMotivo(nutrizionistaId, stato, frase);
       case 'conferma':
       default:
         return this.confermaOAnnulla(nutrizionistaId, stato, frase);
@@ -513,6 +535,103 @@ export class VeraChatService {
       creataDaId: nutrizionistaId,
     });
     return `Al posto di «${intento.from}» userò «${intento.to}».`;
+  }
+
+  // ────────────────────────────────────────────── la coda del capo ──────────
+
+  /**
+   * Prende la prossima proposta in coda e la sottopone, **già istruita**.
+   *
+   * «Già istruita» vuol dire: chi l'ha dettata, quando, **la frase originale**, e cosa comporta. Chi
+   * decide non deve aprire altre cinque schermate per sapere cosa sta approvando — se le deve
+   * aprire, non le apre, e approva a scatola chiusa.
+   */
+  private async sottoponiProssima(attoreId: string): Promise<EsitoVera | null> {
+    const coda = (await this.registro.daApprovare()) as unknown as {
+      id: string;
+      frase: string;
+      nutrizionistaId: string;
+      soggettoNome: string | null;
+      dettaglio: unknown;
+      conflittoSanitario: boolean;
+      createdAt: Date;
+    }[];
+    /**
+     * ⚠️ Coda vuota → `null`, **non** un messaggio «non c'è niente».
+     *
+     * Chi chiama decide cosa farne: all'apertura della pagina non si scrive nulla (un agente che
+     * saluta con «non c'è niente da fare» ogni volta insegna a non leggerlo), e dopo una decisione
+     * si dice che è finita. Se questa funzione rispondesse sempre qualcosa, il capo che detta una
+     * frase non capita si sentirebbe dire «non c'è niente in coda» invece di «non ho capito».
+     */
+    if (!coda.length) return null;
+
+    const p = coda[0];
+    const chi = await this.nomeStaff(p.nutrizionistaId);
+    const quando = p.createdAt.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+    const termini = ((p.dettaglio ?? {}) as { termini?: string[] }).termini ?? [];
+    const riepilogo = termini.length
+      ? `Vuole vietare a tutte le sue clienti: ${termini.join(', ')}.` +
+        (p.soggettoNome ? ` (Nata guardando ${p.soggettoNome}.)` : '')
+      : 'Vuole estendere a tutte le sue clienti quello che aveva deciso per una.';
+
+    return {
+      testo: testi.sottoponi(coda.length, chi, quando, p.frase, riepilogo, p.conflittoSanitario),
+      esito: 'in_corso',
+      stato: { passo: 'revisione', frase: p.frase, azioneId: p.id },
+    };
+  }
+
+  /** Sì = approva e applica; no = chiedi il motivo. Nel dubbio non si fa niente. */
+  private async decidiProposta(attoreId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const risposta = leggiConferma(frase);
+    if (risposta === null) {
+      return {
+        testo: 'Non ho capito se approvi. Rispondi «sì» o «no» — nel dubbio la lascio in coda.',
+        esito: 'in_corso',
+        stato,
+      };
+    }
+    if (risposta === false) {
+      return { testo: testi.chiediMotivo(), esito: 'in_corso', stato: { ...stato, passo: 'motivo_rifiuto' } };
+    }
+
+    const attore = { id: attoreId, role: await this.ruolo(attoreId) };
+    const esito = await this.registro.approva(attore, stato.azioneId!);
+    const prossima = await this.sottoponiProssima(attoreId);
+    return {
+      testo: `${testi.approvata((esito as { riepilogo: string }).riepilogo)}\n\n${prossima?.testo ?? testi.codaVuota()}`.trim(),
+      esito: 'scritta',
+      stato: prossima?.stato,
+      azioneId: stato.azioneId,
+    };
+  }
+
+  private async respingiConMotivo(attoreId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const motivo = (frase ?? '').trim();
+    if (motivo.length < 3) return { testo: testi.chiediMotivo(), esito: 'in_corso', stato };
+
+    const attore = { id: attoreId, role: await this.ruolo(attoreId) };
+    await this.registro.respingi(attore, stato.azioneId!, motivo);
+    const prossima = await this.sottoponiProssima(attoreId);
+    return {
+      testo: `${testi.respinta()}\n\n${prossima?.testo ?? testi.codaVuota()}`.trim(),
+      esito: 'annullata',
+      stato: prossima?.stato,
+    };
+  }
+
+  private async ruolo(userId: string): Promise<string> {
+    const u = (await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } })) as { role: string } | null;
+    return u?.role ?? 'nutritionist';
+  }
+
+  private async nomeStaff(userId: string): Promise<string> {
+    const s = (await this.prisma.staff.findUnique({
+      where: { userId } as never,
+      select: { displayName: true },
+    })) as { displayName: string } | null;
+    return s?.displayName ?? 'Una nutrizionista';
   }
 
   // ──────────────────────────────────────────────────────────────── utilità ──

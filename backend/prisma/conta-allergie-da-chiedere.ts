@@ -120,10 +120,15 @@ async function main(): Promise<void> {
    * Se la terza popolazione è la maggioranza, la conclusione **non** è «mandiamo una notifica a
    * tutte»: è che la pagina delle allergie del questionario non funziona. Una campagna su un
    * difetto di raccolta lo copre invece di chiuderlo, e fra sei mesi si rifà uguale.
+   *
+   * ⚠️ La soglia è «almeno la metà», non «più della metà». Il 13/8 il conto vero è uscito **24 su
+   * 48**: esattamente metà, e con `> 0.5` l'avviso **non è partito** — per una persona. Un allarme
+   * che tace sul caso in cui il numero è così brutto da essere tondo è un allarme che non serve:
+   * chi legge vede l'elenco e conclude «sono solo ventiquattro, facciamo la campagna».
    */
   console.log('==================================================================');
-  if (vive.length && p3.length / vive.length > 0.5) {
-    console.log('  ⚠️ ATTENZIONE: più di METÀ delle clienti non ha mai risposto.');
+  if (vive.length && p3.length * 2 >= vive.length) {
+    console.log('  ⚠️ ATTENZIONE: almeno METÀ delle clienti non ha mai risposto.');
     console.log('  Questo non è il numero di una campagna, è il sintomo di una');
     console.log('  pagina del questionario che non raccoglie. Da sistemare PRIMA:');
     console.log('  chi ha compilato dopo il 13/8 ha l’opzione «Non ho allergie»,');

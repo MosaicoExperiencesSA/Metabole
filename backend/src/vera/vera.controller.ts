@@ -7,7 +7,7 @@ import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { AmbitoVera, AzioneVeraTipo, RegistroVeraService } from './registro.service';
 import { VeraChatService } from './vera-chat.service';
-import { AnteprimaPoolDto, InsegnaFamigliaDto, MessaggioVeraDto, ScriviAzioneDto } from './dto/vera.dto';
+import { AnteprimaPoolDto, InsegnaFamigliaDto, MessaggioVeraDto, RespingiDto, ScriviAzioneDto } from './dto/vera.dto';
 
 /**
  * VERA — la conversazione e le fondamenta su cui poggia.
@@ -165,6 +165,32 @@ export class VeraController {
   @RequirePage('food_swaps', 'manage')
   annulla(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.registro.annulla(user.sub, id);
+  }
+
+  // ---------- la coda del capo nutrizionista ----------
+
+  /**
+   * Le proposte che aspettano il capo, **in ordine di rischio e non di data**.
+   *
+   * ⚠️ Non esiste nessun endpoint di approvazione in blocco, e non è una dimenticanza (decisione di
+   * Simone del 12/8): un «approva tutte» in tre settimane diventa l'unico pulsante che si preme.
+   */
+  @Get('coda')
+  @RequirePage('food_swaps')
+  coda() {
+    return this.registro.daApprovare();
+  }
+
+  @Post('registro/:id/approva')
+  @RequirePage('food_swaps', 'manage')
+  approva(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.registro.approva({ id: user.sub, role: user.role }, id);
+  }
+
+  @Post('registro/:id/respingi')
+  @RequirePage('food_swaps', 'manage')
+  respingi(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RespingiDto) {
+    return this.registro.respingi({ id: user.sub, role: user.role }, id, dto.motivo);
   }
 
   /**

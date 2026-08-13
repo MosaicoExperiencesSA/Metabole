@@ -20,6 +20,53 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🛃 **Vera — Consegna 3a: la coda di Nocanty, una proposta per volta e in ordine
+  di rischio.** La Consegna 2 sapeva **creare** proposte «in approvazione» e non c'era modo di
+  approvarle: restavano ferme. Ora il capo apre la stessa pagina e il suo agente gliele sottopone
+  **una per volta**, già istruite — chi l'ha dettata, quando, **la frase originale**, e cosa comporta.
+  «Già istruita» non è cortesia: se per sapere cosa approva deve aprire altre cinque schermate, non
+  le apre. «Sì» applica; «no» **chiede il motivo**, obbligatorio, perché un no senza spiegazione è la
+  cosa che insegna a smettere di proporre.
+  ⚠️ **Ordine per rischio e non per data**: prima i conflitti sanitari, poi il raggio largo, poi la
+  più vecchia. Una coda cronologica fa arrivare per ultima la cosa più importante.
+  ⚠️ **L'approvazione in blocco non esiste, e non c'è nemmeno l'endpoint** (decisione di Simone del
+  12/8): un «approva tutte» in tre settimane diventa l'unico pulsante che si preme.
+  ⚠️ **Una nutrizionista non può approvarsi da sola**: il controllo del ruolo sta nel **servizio** e
+  non solo nella guardia del controller — è la riga che rende la coda una coda.
+  **Approvare è l'unica azione del progetto che scrive su molte persone in una volta**, ed è il
+  motivo per cui la coda esiste. Il perimetro è quello di **chi ha proposto** e non di chi approva
+  («a tutte» detto da una nutrizionista vuol dire «a tutte le mie»); è **idempotente**, così
+  riapprovare non raddoppia niente e il conteggio resta vero; e **sopra le 200 clienti non scrive** —
+  dice quante sarebbero e si ferma. In ogni caso **conta e racconta** quante ne ha toccate: un'azione
+  che scrive su ottanta profili e risponde «fatto» è un'azione di cui nessuno saprà mai la portata.
+  ⚠️ **Una sostituzione estesa NON diventa un gruppo di equivalenza da qui**: la promozione resta
+  «promuovi a regola» nella tabella delle sostituzioni (§16.9). Una seconda strada per creare gruppi
+  prima o poi decide in modo diverso dalla prima.
+  **Verifica**: type-check **43 = baseline**, **1603 test** contro 1583.
+  ⚠️ **Superficie di collisione zero, ed è voluto**: mentre scrivevo, un'altra sessione aveva
+  modifiche non committate su `schema.prisma` e sui file della pagina Lavori. Tutti e 9 i file stanno
+  dentro `backend/src/vera/` — nessuna migrazione, nessun campo nuovo, nessuna modifica al frontend
+  (la revisione avviene nella chat, che la pagina sa già mostrare).
+  ⛔ Restano `npm run typecheck` e `npx jest src/app.module.spec.ts` **nel terminale del Mac**.
+
+- `[Prodotto]` 🎬 **Le schermate 28-30 dell'app: due decisioni che tolgono lavoro invece di
+  aggiungerlo.** Erano in lista come «servono decisioni». Guardando il codice, una era **già decisa**
+  e l'altra non ha più il problema per cui era nata.
+  **I video di coach e nutrizionista (28-29) restano annullati**: la decisione è di Simone del 17/07,
+  scritta in `metabole-backlog.md`, e il codice è d'accordo — nessun player nell'app, nessun campo
+  video su `Staff`. ⚠️ Era rimasta in lista come un arretrato: una decisione presa che continua a
+  girare fra le cose da fare costa due volte, la prima quando la si ridiscute e la seconda quando
+  qualcuno la fa.
+  **L'«assaggio del menu» (30) non si fa**: nasceva come vetrina prima del paywall, e dall'11/8 il
+  paywall non c'è più — «Conosciamoci» dà un menu **vero**, gratis, per otto giorni. Un assaggio
+  finto davanti a un menu vero è una schermata in più fra la cliente e la sua app.
+  ⚠️ Il dubbio vero era chi sceglie una data lontana e non vede il menu fino a due giorni prima: ma
+  `MenuStatusBanner` nello stato `scheduled` **già le dice** quando parte il piano, quando si sblocca
+  il menu e che può chiedere a Gaia di spostare la data. Verificato nel codice prima di decidere, non
+  dedotto dai documenti. Se un giorno si rifacesse, la forma è scritta: una giornata vera dal motore,
+  e se il motore non ce la fa non si mostra niente. Nessun codice toccato, una voce in meno nella
+  pagina Lavori.
+
 - `[Sviluppo]` 🌍 **Tre test erano veri solo a Greenwich.** Rimessa in piedi la suite, tre casi di
   `benvenuto-conosciamoci.spec.ts` (§16.1, 11/8) fallivano sul Mac di Simone con «Expected
   2026-08-16, Received 2026-08-15» — **su codice che funziona**. L'helper del file faceva

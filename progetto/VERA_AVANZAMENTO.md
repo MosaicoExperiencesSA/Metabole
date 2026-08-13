@@ -11,6 +11,11 @@
 
 ## Stato in una riga
 
+**Consegna 3a: la coda di Nocanty.** Le proposte «a tutte» adesso si possono approvare — prima non
+c'era modo, e restavano ferme. Type-check 43 = baseline, **+20 test** (1603 contro 1583). Nessuna
+modifica allo schema, nessuna al frontend: tutti e 9 i file sono dentro `backend/src/vera/`.
+⛔ Restano `npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
+
 **Consegna 2 scritta: la chat parla, la pagina c'è.** Type-check 42 = baseline (nessun errore nuovo,
 nessuno nei file di Vera), backoffice pulito, **1545 test verdi** contro 1508 — i 37 in più sono i
 nuovi. ⛔ Restano `npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
@@ -24,7 +29,8 @@ Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si ri
 | — | Specifica e verifica sul codice | ✅ **fatta** — 12/8/2026 |
 | 1 | Le fondamenta (dizionario, `viewedAt`, pool a vuoto, registro) | ✅ **fatta e verificata** — 13/8/2026 |
 | 2 | Vera che parla, due azioni + la pagina | ✅ **scritta** — 13/8/2026 |
-| 3 | Azioni a raggio largo, registro allargato, dashboard, pagina di Nocanty | ⬜ da iniziare |
+| 3a | La coda di Nocanty: approva/respingi, in ordine di rischio | ✅ **scritta** — 13/8/2026 |
+| 3b | Azioni a raggio largo, registro allargato, moduli in dashboard | ⬜ da iniziare |
 | 4 | Che non marcisca (corpus di prova, rapporto mensile, dizionario vivo) | ⬜ da iniziare |
 | — | Cantiere allergie/intolleranze (a parte) | ⬜ da iniziare |
 
@@ -110,8 +116,13 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
 - [ ] **Registro allargato**: tutto quello che cambia sulle sue clienti (`AuditLog` + `FoodSwap` +
       `Substitution` in `MenuDay.meals`), con filtri per cliente, tipo e periodo
 - [ ] **Modulo dashboard di Lucia**: «quello che aspetta me»
-- [ ] **Pagina di Nocanty**: stessa interfaccia, agente che sottopone e non scrive; coda ordinata
-      **per rischio**, non per data; ⚠️ **nessuna approvazione in blocco** (deciso 12/8)
+- [x] **La coda di Nocanty**: il suo agente gli sottopone **una proposta per volta**, già istruita
+      (chi, quando, la frase originale, cosa comporta), **in ordine di rischio** e non di data;
+      ⚠️ **nessuna approvazione in blocco**, e nessun endpoint che la permetta
+- [x] Approvare **applica** davvero: la restrizione estesa arriva sulle clienti **di chi ha
+      proposto**, in modo idempotente e con un tetto di 200; respingere **richiede un motivo**
+- [x] ⚠️ Una nutrizionista **non può approvarsi da sola**: il controllo sta nel servizio, non solo
+      nella guardia del controller
 - [ ] **Modulo dashboard di Nocanty**: la sua coda + avvisi immediati
 
 ---
@@ -152,6 +163,21 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Consegna 3a: la coda di Nocanty (9 file, solo `src/vera/`)
+La Consegna 2 sapeva **creare** proposte «in approvazione» e non c'era modo di approvarle: restavano
+ferme. Ora il capo apre la stessa pagina e il suo agente gli sottopone **una proposta per volta**,
+già istruita, **in ordine di rischio** (prima i conflitti sanitari, poi il raggio largo, poi la più
+vecchia). «Sì» approva e applica; «no» **chiede il motivo**, che è obbligatorio — un no senza
+spiegazione è la cosa che insegna a smettere di proporre.
+⚠️ Approvare è **l'unica azione del progetto che scrive su molte persone in una volta**: il perimetro
+è quello di **chi ha proposto** e non di chi approva («a tutte» detto da una nutrizionista vuol dire
+«a tutte le mie»), è idempotente, e sopra le **200 clienti** non scrive — dice quante sarebbero e si
+ferma.
+⚠️ Una sostituzione estesa **non** diventa un gruppo di equivalenza da qui: si scrive la riga
+validata e la promozione resta «promuovi a regola», il gesto che esiste già. Una seconda strada per
+creare gruppi prima o poi decide in modo diverso dalla prima.
+Verifica: type-check **43 = baseline**, **1603 test** contro 1583.
 
 ### 13/8/2026 — Consegna 2: la chat, le due azioni, la pagina (13 file)
 `capisci.ts` (riconoscitore puro, 16 casi), `vera-chat.ts` (stati e frasi), `vera-chat.service.ts`

@@ -176,3 +176,88 @@ seconda è la domanda che ti fai quando qualcuno chiede a che punto siamo.
   con la loro data e la squadra che le ha scritte. ⚠️ Sono un **estratto**, non una copia: il
   registro resta la fonte, la pagina ne è l'indice. Chi vuole il dettaglio vero apre il registro —
   ed è scritto nella pagina, perché una copia parziale che si crede completa è peggio dell'assenza.
+
+---
+
+## 6. Le schermate dell'app 28-30: due decisioni che tolgono lavoro ✅ DECISO
+
+Erano nella lista come «servono decisioni». Guardando il codice, una era già stata decisa e l'altra
+non ha più il problema per cui era nata.
+
+### 6.1 I video di coach e nutrizionista (28-29): restano annullati
+
+Non è una decisione nuova: **l'avevi già presa il 17/07** ed è scritta in `metabole-backlog.md` —
+«il video di presentazione della coach NON si fa». Il codice è d'accordo: nell'app non c'è nessun
+player e in `Staff` non esiste nessun campo video.
+
+⚠️ Era rimasta nella lista dei lavori come se fosse un arretrato. Ora è scritta come **decisione**,
+e nella pagina Lavori non compare: una decisione presa che continua a girare fra le cose da fare
+costa due volte — la prima quando la si ridiscute, la seconda quando qualcuno la fa.
+
+### 6.2 L'«assaggio del menu» (30): non si fa, l'ha superato «Conosciamoci»
+
+La schermata nasceva come vetrina **prima del paywall**: mostrare un piatto a chi non aveva ancora
+pagato. Dall'11/8 quel paywall non c'è più — finito il questionario parte «Conosciamoci» in
+automatico e la cliente ha un menu **vero**, gratis, per otto giorni. Un assaggio finto davanti a un
+menu vero è una schermata in più fra lei e la sua app.
+
+**Il dubbio che restava — e perché non regge.** Chi sceglie una data di inizio lontana non vede il
+menu fino a due giorni prima (`menu_visible_days_before_start`). Ma l'app non tace: `MenuStatusBanner`
+nello stato `scheduled` dice *«Il tuo piano parte il … e il menu si sblocca il … — due giorni prima,
+così hai tempo per la spesa»*, e la invita a chiedere a Gaia se vuole spostare la data. Sa quando,
+sa perché, e ha una strada per cambiare idea: è più di quanto darebbe un assaggio.
+
+**Se un giorno la si rifacesse**, la forma è decisa: **una giornata vera costruita col motore sul suo
+profilo** — colazione, pranzo, cena e spuntini, la stessa logica dei menu veri. ⚠️ E se il motore non
+ce la fa (dieta non ancora assegnata, pool magro) **non si mostra niente**: un assaggio inventato a
+mano è esattamente la cosa che il resto del prodotto evita.
+
+---
+
+## 7. Dopo la conta: si fa il §7, e le tre da codificare vanno a Lucia ✅ DECISO
+
+**I numeri veri (13/8, `npm run conta:allergie` su produzione).** 48 clienti attive con profilo:
+0 intolleranze ignote · **3** allergie da codificare · **24** che non hanno mai risposto · 21 a posto.
+
+⚠️ **24 su 48 è esattamente metà, e l'avviso dello script non è partito per una persona**: la soglia
+era `> 50%`. Corretta in «almeno la metà» (`p3 * 2 >= vive`). Un allarme che tace proprio quando il
+numero è così brutto da venire tondo non serve a niente: chi legge conclude «sono solo ventiquattro».
+
+**Cosa dice davvero quella metà**: non è distrazione delle clienti, è la pagina del questionario che
+non raccoglieva. La correzione è viva dal 13/8 — l'opzione «Non ho allergie» arriva dal server,
+quindi la vedono anche le app non aggiornate, e chi risponde viene timbrata. Il numero deve smettere
+di crescere da solo; si rimisura con lo stesso comando.
+
+### 7.1 Il §7 si fa, completo ✅ DECISO
+
+**Scelta di Simone**, sapendo che la popolazione è di 24 persone e che la falla a monte è già chiusa.
+L'alternativa in campo era il filtro nel backoffice con la coach che chiede a voce; è stata scartata.
+
+⚠️ Quindi il flusso in chat va costruito per **durare**, non per svuotare una lista di ventiquattro
+nomi: è la strada con cui si chiederà una cosa a una cliente ogni volta che serve, e la sua vera
+prova non è quante ne recupera questa settimana.
+
+Vincoli già decisi e non ridiscutibili (dall'handoff §7.2, verificati in codice):
+- si copia **`data-inizio-chat`**, non «Conosciamoci»;
+- lo stato vive nel `meta` dell'ultimo messaggio di Gaia, **uno solo alla volta**: la chiave nuova è
+  la terza e va messa nell'ordine di precedenza;
+- ⚠️ **scade dopo un'ora**: chi apre la notifica il giorno dopo trova un dialogo **riaperto**, non
+  ripreso;
+- ⚠️ niente pulsanti in chat: parser tollerante e **due tentativi, poi passa alla coach**;
+- ⚠️ le risposte libere **si propongono e si fanno confermare**, mai salvate come arrivano; quello
+  che non si riconosce va in `allergiesOther` e lo codifica la nutrizionista (*nel dubbio non si
+  impara*);
+- dato sanitario: **transazione + `audit.log`**, non la forma semplice;
+- la notifica manda **fatti** nel payload, e «gliel'ho già chiesto» si legge dalla notifica stessa;
+- lo script della campagna parte in **prova**, scrive solo con `CONFERMA=1`, e usa la **stessa**
+  funzione della conta (`common/da-ricontattare.ts`).
+
+### 7.2 Le tre da codificare: nota per Lucia ✅ DECISO
+
+Le corregge lei dalla scheda cliente (permesso `change_allergies`, consegnato il 13/8). La nota è in
+`progetto/NOTA_Lucia_Allergie_Da_Codificare.md`.
+
+⚠️ Il fatto che rende la cosa urgente e che nessuno aveva ancora messo per iscritto: **due di quelle
+tre esclusioni oggi non escludono niente.** «Favismo» e «Carboidrati» non compaiono in nessun nome di
+piatto né in nessun ingrediente, quindi la ricerca testuale non trova nulla — è lo stesso difetto di
+`frutta_a_guscio` dell'8/8, ma qui il termine non è traducibile da noi: va tradotto da lei.

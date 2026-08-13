@@ -22,7 +22,10 @@ function ultimoAgente(create: jest.Mock): { testo: string; stato?: StatoVera } {
   return { testo: ultimo.testo, stato: (ultimo.meta ?? {}).stato };
 }
 
-function make(over: Record<string, unknown> = {}, opzioni: { statoAperto?: StatoVera; profilo?: Record<string, unknown> } = {}) {
+function make(
+  over: Record<string, unknown> = {},
+  opzioni: { statoAperto?: StatoVera; profilo?: Record<string, unknown>; coda?: unknown[] } = {},
+) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
   const profileUpdate = jest.fn().mockResolvedValue({});
   const prisma = {
@@ -41,7 +44,7 @@ function make(over: Record<string, unknown> = {}, opzioni: { statoAperto?: Stato
       update: profileUpdate,
     },
     recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([]) },
-    staff: { updateMany: jest.fn().mockResolvedValue({}) },
+    staff: { updateMany: jest.fn().mockResolvedValue({}), findUnique: jest.fn().mockResolvedValue({ displayName: 'Lucia' }) },
     ...over,
   } as unknown as PrismaService;
 
@@ -56,7 +59,13 @@ function make(over: Record<string, unknown> = {}, opzioni: { statoAperto?: Stato
       racconto: 'Questa regola toglie 2 ricette dalle 40 che aveva: ne restano 38.',
     }),
   } as unknown as PoolDisponibileService;
-  const registro = { scrivi: jest.fn().mockResolvedValue({ id: 'a1' }) } as unknown as RegistroVeraService;
+  const registro = {
+    scrivi: jest.fn().mockResolvedValue({ id: 'a1' }),
+    // La coda è vuota se il test non dice altro: chi parla di coda se la prepara.
+    daApprovare: jest.fn().mockResolvedValue(opzioni.coda ?? []),
+    approva: jest.fn().mockResolvedValue({ riepilogo: 'Applicata a 3 clienti su 3.' }),
+    respingi: jest.fn().mockResolvedValue({ riga: { id: 'a1' } }),
+  } as unknown as RegistroVeraService;
 
   return {
     service: new VeraChatService(prisma, dizionario, pool, registro),
@@ -301,5 +310,92 @@ describe('VeraChatService — la scrittura', () => {
     // aver sbagliato è il programma. Qui la traduzione gliel'ho mostrata e lei ha detto sì.
     expect(dati.create.origine).toBe('manuale');
     expect(dati.create.stato).toBe('verificata');
+  });
+});
+
+describe('VeraChatService — la coda del capo nutrizionista', () => {
+  const CODA = [
+    {
+      id: 'a1',
+      frase: 'a tutte le mie niente tonno',
+      nutrizionistaId: 'lucia',
+      soggettoNome: 'Giulia Rossi',
+      dettaglio: { termini: ['tonno'] },
+      conflittoSanitario: true,
+      createdAt: new Date('2026-08-13T08:00:00.000Z'),
+    },
+    {
+      id: 'a2',
+      frase: 'a tutte niente pane',
+      nutrizionistaId: 'lucia',
+      soggettoNome: null,
+      dettaglio: { termini: ['pane'] },
+      conflittoSanitario: false,
+      createdAt: new Date('2026-08-13T09:00:00.000Z'),
+    },
+  ];
+
+  it('all’apertura gli porta la prima proposta, già istruita', async () => {
+    const { service, messaggioCreate } = make({}, { coda: CODA });
+    await service.apri('nocanty');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Ci sono 2 cose che aspettano te');
+    // «Già istruita»: chi l'ha dettata, la frase originale, e cosa comporta.
+    expect(testo).toContain('«a tutte le mie niente tonno»');
+    expect(testo).toContain('tonno');
+    expect(testo).toContain('⚠️'); // il conflitto sanitario si vede subito
+    expect(stato?.passo).toBe('revisione');
+    expect(stato?.azioneId).toBe('a1');
+  });
+
+  it('con la coda vuota NON dice niente all’apertura', async () => {
+    // Un agente che saluta con «non c'è niente da fare» ogni volta insegna a non leggerlo.
+    const { service, messaggioCreate } = make({}, { coda: [] });
+    await service.apri('nocanty');
+    expect(messaggioCreate).not.toHaveBeenCalled();
+  });
+
+  it('«sì» approva e passa subito alla prossima', async () => {
+    const { service, messaggioCreate, registro } = make(
+      {},
+      { coda: CODA, statoAperto: { passo: 'revisione', frase: 'x', azioneId: 'a1' } },
+    );
+    await service.parla('nocanty', 'sì');
+    expect((registro.approva as jest.Mock).mock.calls[0][1]).toBe('a1');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Approvata');
+    expect(testo).toContain('Applicata a 3 clienti su 3');
+    expect(stato?.passo).toBe('revisione'); // la prossima è già lì
+  });
+
+  it('«no» NON respinge subito: prima chiede il motivo', async () => {
+    const { service, messaggioCreate, registro } = make(
+      {},
+      { coda: CODA, statoAperto: { passo: 'revisione', frase: 'x', azioneId: 'a1' } },
+    );
+    await service.parla('nocanty', 'no');
+    expect(registro.respingi).not.toHaveBeenCalled();
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Perché la respingi?');
+    expect(stato?.passo).toBe('motivo_rifiuto');
+  });
+
+  it('il motivo scritto arriva al registro', async () => {
+    const { service, registro } = make(
+      {},
+      { coda: [], statoAperto: { passo: 'motivo_rifiuto', frase: 'x', azioneId: 'a1' } },
+    );
+    await service.parla('nocanty', 'il tonno serve per il ferro');
+    expect((registro.respingi as jest.Mock).mock.calls[0][2]).toBe('il tonno serve per il ferro');
+  });
+
+  it('una risposta ambigua lascia la proposta in coda', async () => {
+    const { service, messaggioCreate, registro } = make(
+      {},
+      { coda: CODA, statoAperto: { passo: 'revisione', frase: 'x', azioneId: 'a1' } },
+    );
+    await service.parla('nocanty', 'mah');
+    expect(registro.approva).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('nel dubbio la lascio in coda');
   });
 });

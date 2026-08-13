@@ -127,13 +127,6 @@ const VOCI: Voce[] = [
     ordine: 40,
   },
   {
-    chiave: 'schermate-app-30-27-28',
-    titolo: 'Schermate app 30 (assaggio menu) e 27-28 (video onboarding)',
-    dettaglio: 'Servono decisioni prima del codice.',
-    categoria: SIMONE,
-    ordine: 50,
-  },
-  {
     chiave: 'whatsapp-numero',
     titolo: 'Numero WhatsApp dedicato, verificato su Meta Business',
     dettaglio:

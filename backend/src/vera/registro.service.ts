@@ -15,9 +15,10 @@
  * giusta, ripassato prima di ogni rilascio, e quell'elenco esce da qui: ogni correzione diventa un
  * caso di prova. Il sistema si costruisce il collaudo con gli errori che ha già fatto.
  */
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { applicaProposta, ordinaPerRischio, Proposta } from './applica-proposta';
 
 export type AzioneVeraTipo =
   | 'restrizione_cliente'
@@ -104,6 +105,104 @@ export class RegistroVeraService {
       orderBy: { createdAt: 'desc' },
       take: Math.min(filtri.limite ?? 100, 500),
     });
+  }
+
+  // ────────────────────────────────────────────────────── la coda del capo ──
+
+  /**
+   * Le proposte che aspettano il capo nutrizionista, **in ordine di rischio**.
+   *
+   * Vedi `ordinaPerRischio`: una coda cronologica fa arrivare per ultima la cosa più importante.
+   */
+  async daApprovare(limite = 50) {
+    const righe = (await this.prisma.azioneVera.findMany({
+      where: { stato: 'in_approvazione' } as never,
+      orderBy: { createdAt: 'asc' },
+      take: Math.min(limite, 200),
+    })) as unknown as { conflittoSanitario: boolean; ambito: string; createdAt: Date }[];
+    return ordinaPerRischio(righe);
+  }
+
+  /**
+   * APPROVA una proposta: la applica e la rende attiva.
+   *
+   * ⚠️ **Una alla volta, e non esiste l'approvazione in blocco** (decisione di Simone del 12/8). Un
+   * pulsante «approva tutte» è comodissimo, e in tre settimane diventa l'unico che si preme: da lì
+   * la validazione torna a essere una formalità, cioè esattamente la cosa che questa coda esiste per
+   * non essere. Se qualcuno un giorno la aggiungerà, la aggiungerà sapendo di toglierla.
+   */
+  async approva(attore: { id: string; role: string }, id: string) {
+    this.soloIlCapo(attore);
+    const riga = (await this.prisma.azioneVera.findUnique({ where: { id } })) as unknown as
+      | (Proposta & { stato: string; frase: string })
+      | null;
+    if (!riga) throw new NotFoundException('Proposta non trovata.');
+    if (riga.stato !== 'in_approvazione') {
+      throw new BadRequestException('Questa proposta non è in attesa di approvazione: qualcuno l’ha già decisa.');
+    }
+
+    const esito = await applicaProposta(this.prisma, riga);
+
+    const aggiornata = await this.prisma.azioneVera.update({
+      where: { id },
+      data: { stato: 'attiva' } as never,
+    });
+    await this.audit.log({
+      action: 'vera.approva',
+      actorId: attore.id,
+      entityType: 'azione_vera',
+      entityId: id,
+      metadata: { frase: riga.frase, autoreId: riga.nutrizionistaId, toccate: esito.toccate },
+    });
+    return { riga: aggiornata, ...esito };
+  }
+
+  /**
+   * RESPINGE una proposta. Il motivo è obbligatorio.
+   *
+   * ⚠️ Un no senza motivo è la cosa che insegna a smettere di proporre. E siccome la proposta resta
+   * in elenco con la sua frase originale, il motivo scritto qui è quello che chi l'ha dettata legge
+   * per capire cosa cambiare — non un adempimento.
+   */
+  async respingi(attore: { id: string; role: string }, id: string, motivo: string) {
+    this.soloIlCapo(attore);
+    const testo = (motivo ?? '').trim();
+    if (testo.length < 3) throw new BadRequestException('Serve un motivo: un no senza spiegazione insegna a non proporre più.');
+
+    const riga = (await this.prisma.azioneVera.findUnique({ where: { id } })) as unknown as
+      | { id: string; stato: string; frase: string; dettaglio: unknown }
+      | null;
+    if (!riga) throw new NotFoundException('Proposta non trovata.');
+    if (riga.stato !== 'in_approvazione') {
+      throw new BadRequestException('Questa proposta non è in attesa di approvazione: qualcuno l’ha già decisa.');
+    }
+
+    const dettaglio = { ...((riga.dettaglio ?? {}) as Record<string, unknown>), motivoRifiuto: testo };
+    const aggiornata = await this.prisma.azioneVera.update({
+      where: { id },
+      data: { stato: 'respinta', dettaglio: dettaglio as never } as never,
+    });
+    await this.audit.log({
+      action: 'vera.respingi',
+      actorId: attore.id,
+      entityType: 'azione_vera',
+      entityId: id,
+      metadata: { frase: riga.frase, motivo: testo },
+    });
+    return { riga: aggiornata };
+  }
+
+  /**
+   * ⚠️ Approva e respinge SOLO il capo nutrizionista.
+   *
+   * Il controllo sta nel servizio e non solo nella guardia del controller di proposito: è la riga
+   * che impedisce a chi propone di approvarsi da solo, ed è l'unica cosa che rende la coda una coda
+   * invece di un passaggio a vuoto.
+   */
+  private soloIlCapo(attore: { role: string }) {
+    if (attore.role !== 'head_nutritionist' && attore.role !== 'admin') {
+      throw new ForbiddenException('Solo il capo nutrizionista può approvare o respingere una proposta.');
+    }
   }
 
   /**

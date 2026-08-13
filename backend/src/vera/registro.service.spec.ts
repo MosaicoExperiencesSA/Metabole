@@ -1,3 +1,4 @@
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegistroVeraService } from './registro.service';
@@ -114,5 +115,77 @@ describe('RegistroVeraService.annulla', () => {
     });
     await service.annulla('lucia', 'a1');
     expect(menuFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('RegistroVeraService — la coda del capo', () => {
+  const inCoda = (over: Record<string, unknown> = {}) => ({
+    id: 'a1',
+    stato: 'in_approvazione',
+    frase: 'a tutte niente tonno',
+    nutrizionistaId: 'lucia',
+    azione: 'restrizione_cliente',
+    ambito: 'catalogo',
+    soggettoId: 'c1',
+    soggettoNome: 'Giulia',
+    dettaglio: { termini: ['tonno'] },
+    ...over,
+  });
+
+  const conCoda = (riga: Record<string, unknown> | null, over: Record<string, unknown> = {}) => ({
+    azioneVera: { findUnique: jest.fn().mockResolvedValue(riga), update: jest.fn().mockResolvedValue({ id: 'a1' }) },
+    user: { findUnique: jest.fn().mockResolvedValue({ role: 'nutritionist' }) },
+    staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-lucia' }) },
+    clientProfile: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+    ...over,
+  });
+
+  it('⚠️ una nutrizionista NON può approvare: è la riga che rende la coda una coda', async () => {
+    // Senza questo controllo nel servizio, chi propone si approverebbe da solo e il passaggio dal
+    // capo sarebbe un passaggio a vuoto.
+    const service = make(conCoda(inCoda()));
+    await expect(service.approva({ id: 'lucia', role: 'nutritionist' }, 'a1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('il capo approva, applica e la riga diventa attiva', async () => {
+    const prisma = conCoda(inCoda());
+    const service = make(prisma);
+    const esito = await service.approva({ id: 'nocanty', role: 'head_nutritionist' }, 'a1');
+    expect((prisma.azioneVera.update as jest.Mock).mock.calls[0][0].data.stato).toBe('attiva');
+    expect(esito).toHaveProperty('riepilogo');
+  });
+
+  it('non si approva due volte', async () => {
+    const service = make(conCoda(inCoda({ stato: 'attiva' })));
+    await expect(service.approva({ id: 'nocanty', role: 'head_nutritionist' }, 'a1')).rejects.toThrow(BadRequestException);
+  });
+
+  it('respingere SENZA motivo non si può', async () => {
+    // Un no senza spiegazione è la cosa che insegna a smettere di proporre.
+    const service = make(conCoda(inCoda()));
+    await expect(service.respingi({ id: 'nocanty', role: 'head_nutritionist' }, 'a1', '  ')).rejects.toThrow(
+      /Serve un motivo/,
+    );
+  });
+
+  it('il motivo del rifiuto resta scritto accanto alla proposta', async () => {
+    const prisma = conCoda(inCoda());
+    const service = make(prisma);
+    await service.respingi({ id: 'nocanty', role: 'head_nutritionist' }, 'a1', 'il tonno serve per il ferro');
+    const dati = (prisma.azioneVera.update as jest.Mock).mock.calls[0][0].data;
+    expect(dati.stato).toBe('respinta');
+    expect(dati.dettaglio.motivoRifiuto).toBe('il tonno serve per il ferro');
+    // Il dettaglio originale non si perde: ci si aggiunge, non lo si sostituisce.
+    expect(dati.dettaglio.termini).toEqual(['tonno']);
+  });
+
+  it('la coda esce in ordine di RISCHIO, non di data', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { id: 'vecchia', conflittoSanitario: false, ambito: 'cliente', createdAt: D('2026-08-01') },
+      { id: 'sanitaria', conflittoSanitario: true, ambito: 'cliente', createdAt: D('2026-08-13') },
+    ]);
+    const service = make({ azioneVera: { findMany } });
+    const coda = (await service.daApprovare()) as unknown as { id: string }[];
+    expect(coda.map((r) => r.id)).toEqual(['sanitaria', 'vecchia']);
   });
 });

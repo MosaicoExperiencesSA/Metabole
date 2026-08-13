@@ -10,6 +10,15 @@ importi di provvigione PER RUOLO in centesimi (coach, manager coach, nutrizionis
 nutrizionista), impostabili dal Negozio. finance.service.generateCommissions li somma e li
 applica (sconti proporzionali, 0 = nessuna). Il vecchio commissionTeam è stato sostituito.
 
+## Assaggio del menu (schermata 30) — SUPERATO (13/8)
+Non si fa (Simone, 13/8). Nasceva come vetrina PRIMA del paywall; dall'11/8 il paywall non c'è più:
+finito il questionario parte «Conosciamoci» in automatico e la cliente ha un menu VERO, gratis, per
+otto giorni. Un assaggio finto davanti a un menu vero è una schermata in più fra lei e la sua app.
+Chi sceglie una data lontana non resta al buio: `MenuStatusBanner` (stato `scheduled`) dice quando
+parte il piano, quando si sblocca il menu e come chiedere a Gaia di spostare la data.
+Se un giorno si rifacesse: una giornata VERA costruita col motore sul suo profilo, e se il motore
+non ce la fa non si mostra niente. Dettagli in `progetto/Decisioni_Simone_20260813.md` §6.
+
 ## Coach — video di presentazione — ANNULLATO (17/07)
 Idea abbandonata (Simone, 17/07): il video di presentazione della coach NON si fa. Non era
 comunque implementato nell'app (nessun player), quindi niente da rimuovere lato codice.
