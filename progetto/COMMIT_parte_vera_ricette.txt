@@ -1,0 +1,52 @@
+PARTE DELLA SESSIONE «Vera» (azioni 4 e 5: le ricette) — da unire al messaggio di commit.
+
+=== TITOLO ===
+
+Le ricette si dettano, e i valori li mette la tabella
+
+=== DESCRIZIONE ===
+
+Vera, azioni 4 e 5. «Inseriamo una ricetta per il menu keto» e «voglio cambiare la ricetta tonno alle
+olive»: lei la scrive come su un quaderno — nome sopra, ingredienti sotto con le quantità, e alla
+fine il pasto e il regime — e l'assistente la legge. Due funzioni pure, 23 casi di prova, nessun
+modello.
+
+⚠️ I VALORI NON SI DETTANO. kcal e macro si sommano dalla tabella nutrienti, che è la stessa da cui
+Gaia cita i valori alle clienti: due idee diverse di «quanto pesa questo cibo» sarebbero due risposte
+diverse alla stessa domanda, fatta da due persone che parlano fra loro.
+
+⚠️ SE UN ALIMENTO NON È IN TABELLA, LA RICETTA SI FERMA e non si stima niente. `Recipe.kcal` è
+obbligatorio e l'unico modo di riempirlo sarebbe indovinarlo — mentre su quei numeri il motore
+calcola la quota proteica delle giornate. Il termine mancante finisce in `NutrientLookupMiss`, cioè
+nell'elenco ordinato di quali alimenti aggiungere per primi: il buco diventa una riga di lavoro
+invece di un episodio.
+
+⚠️ LA RICETTA NUOVA NASCE SPENTA (`active: false`). Una ricetta attiva entra nel motore, e il motore
+non chiede il permesso a nessuno. La accende il capo nutrizionista approvando la proposta — e
+approvare NON conferma gli allergeni, che restano una responsabilità sua e separata: la risposta lo
+dice, perché non lo scopra dal fatto che la ricetta non compare da nessuna parte.
+
+⚠️ LA MODIFICA NON SI SCRIVE AFFATTO. Quella ricetta è già nei piatti di oggi, e applicarla subito li
+cambierebbe stanotte: vive nel dettaglio della proposta e diventa vera all'approvazione. Lì `active`
+viene tolto dai campi — riscrivere `false` su una ricetta viva la farebbe sparire dai menu senza che
+nessuno l'abbia chiesto e senza nessun errore da nessuna parte.
+
+⚠️ Le due approssimazioni sono dette e non nascoste: i millilitri contati come grammi (vero per
+l'acqua, generoso del 9% per l'olio) e quello che non ha un peso — «sale q.b.» — lasciato fuori dal
+conto ed elencato. Un'approssimazione dichiarata è un dato, una nascosta è un errore.
+
+⚠️ `CatalogService` arriva per token (`SCRITTURA_RICETTA`) e non per import, come già
+`ClientsService`: importarlo trascinerebbe mezzo catalogo nel grafo di compilazione dei test di Vera.
+Il servizio è comunque quello, legato con `useExisting`.
+
+`fuori_portata` adesso ha un solo caso rimasto — la regola su un tipo di dieta. Quando resterà a
+zero, quel tipo va tolto e non lasciato lì a fare da parcheggio.
+
+Decisioni di Simone del 13/8: bozza archiviata + coda del capo; macro calcolati dalla tabella, mai
+inventati.
+
+Verifica: type-check 43 = baseline, backoffice pulito, 1733 test contro 1670 (+63).
+⛔ Restano `npm run prisma:tipi && npm run typecheck` e `npx jest src/app.module.spec.ts` nel
+terminale del Mac. ⚠️ Il secondo conta più del solito: `VeraModule` ha due import nuovi
+(`CatalogModule`, `NutrientFactsModule`) e le dipendenze Nest si risolvono all'avvio, non alla
+compilazione.

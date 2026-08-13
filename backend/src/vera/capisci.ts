@@ -59,6 +59,7 @@ export function separaCitazione(testo: string): { suo: string; citato: string } 
 export type Intento =
   | IntentoRestrizione
   | IntentoSostituzione
+  | IntentoRicetta
   | IntentoFuoriPortata;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
@@ -81,7 +82,28 @@ export interface IntentoSostituzione {
 }
 
 /**
+ * «Inseriamo una ricetta per il menu keto» · «voglio cambiare la ricetta tonno alle olive».
+ *
+ * ⚠️ Qui si riconosce **soltanto che si parla di una ricetta**, e se è nuova o da cambiare. Il
+ * contenuto — nome, ingredienti, pesi — non sta in questa frase: arriva dopo, in un messaggio a
+ * parte, e lo legge `ricetta-dettata.ts`. Tenerli separati è ciò che permette di rileggere la
+ * ricetta scritta senza rileggere la frase che l'ha chiesta.
+ */
+export interface IntentoRicetta {
+  tipo: 'ricetta';
+  modo: 'nuova' | 'modifica';
+  /** Il nome del piatto da cambiare, quando l'ha detto nella stessa frase. */
+  nome: string | null;
+  /** Lo stile nominato («per il menu keto»): diventa un tag, mai il regime. */
+  stile: string | null;
+}
+
+/**
  * Ho capito COSA vuole, ma non è una cosa che so ancora fare.
+ *
+ * ⚠️ Dal 13/8 ne è rimasto **uno solo**: la regola su un tipo di dieta. Le ricette c'erano insieme a
+ * lei e adesso si sanno scrivere — quando ne resterà zero, questo tipo va tolto e non lasciato lì a
+ * fare da parcheggio.
  *
  * ⚠️ Serve, e non è un ripiego. «Nella mediterranea niente tonno» è una regola su un TIPO DI DIETA:
  * senza questo caso il riconoscitore la leggerebbe come una restrizione su una cliente di nome
@@ -90,7 +112,7 @@ export interface IntentoSostituzione {
  */
 export interface IntentoFuoriPortata {
   tipo: 'fuori_portata';
-  cosa: 'regola_dieta' | 'ricetta';
+  cosa: 'regola_dieta';
   dettaglio: string;
 }
 
@@ -202,6 +224,33 @@ const DIVIETI: RegExp[] = [
 const ECCEZIONE = /\b(?:ma\s+)?(?:solo|soltanto|tranne|eccetto|a parte)\s+(.+)/iu;
 
 /**
+ * ⚠️ «Cambia» e «crea» non sono la stessa cosa, e distinguerle qui costa una parola.
+ *
+ * Sbagliarle costa molto di più: una modifica letta come ricetta nuova lascia in catalogo la
+ * vecchia — che continua ad andare nei piatti — accanto a una copia corretta che non sostituisce
+ * niente. Nel dubbio (nessun verbo riconosciuto) non si sceglie: si torna `null` e si chiede.
+ */
+const VERBI_NUOVA = /\b(?:crea|creare|inserisci|inserire|inseriamo|aggiungi|aggiungere|aggiungiamo|nuova|scrivi(?:amo)?)\b/iu;
+const VERBI_MODIFICA = /\b(?:modific\w+|cambi\w+|corregg\w+|aggiorn\w+|sistem\w+)\b/iu;
+const STILE_NOMINATO = /\b(?:menu|dieta|diete)\s+(\w+)/iu;
+/** «la ricetta tonno alle olive» → il nome viene dopo la parola «ricetta». */
+const NOME_DOPO_RICETTA = /\bricett[ae]\s+(?:dell?[ao']\s+|di\s+|del\s+)?([^,.;]{3,80})/iu;
+
+function parlaDiRicetta(testo: string): IntentoRicetta | null {
+  if (!/\bricett/iu.test(testo)) return null;
+  const modifica = VERBI_MODIFICA.test(testo);
+  const nuova = VERBI_NUOVA.test(testo);
+  if (!modifica && !nuova) return null;
+
+  // ⚠️ La modifica vince quando ci sono tutti e due i verbi: «cambia la ricetta e scrivine una
+  // nuova» parla comunque di una ricetta che esiste, e trattarla come nuova la lascerebbe viva.
+  const modo = modifica ? 'modifica' : 'nuova';
+  const nome = modo === 'modifica' ? (NOME_DOPO_RICETTA.exec(testo)?.[1] ?? null) : null;
+  const stile = STILE_NOMINATO.exec(testo)?.[1] ?? null;
+  return { tipo: 'ricetta', modo, nome: nome ? nome.trim() : null, stile: stile ? stile.toLowerCase() : null };
+}
+
+/**
  * Traduce una frase in un intento, o restituisce `null`.
  *
  * `null` NON è un fallimento del sistema: è la risposta che fa scattare la domanda. Un agente che
@@ -217,10 +266,9 @@ export function capisci(frase: string): Intento | null {
   const dieta = parlaDiDieta(testo);
   if (dieta) return { tipo: 'fuori_portata', cosa: 'regola_dieta', dettaglio: dieta };
 
-  // 2) Una ricetta nuova o modificata: idem, non in questa consegna.
-  if (/\b(?:crea|inserisci|aggiungi|scrivi|modifica|cambia)\b.{0,20}\bricett/iu.test(testo)) {
-    return { tipo: 'fuori_portata', cosa: 'ricetta', dettaglio: testo };
-  }
+  // 2) Una ricetta: nuova o da cambiare.
+  const ricetta = parlaDiRicetta(testo);
+  if (ricetta) return ricetta;
 
   const cliente = nomePersona(testo);
 

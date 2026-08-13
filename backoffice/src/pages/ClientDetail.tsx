@@ -682,7 +682,7 @@ export function ClientDetail() {
     setError(null);
     setNotice(null);
     try {
-      const esitoRisposta = await api<{ segnalazioniChiuse: number }>(`/clients/${id}/idoneita`, {
+      const esitoRisposta = await api<{ segnalazioniChiuse: number }>(`/admin/clients/${id}/idoneita`, {
         method: 'POST',
         body: JSON.stringify({ esito, nota: nota.trim() }),
       });
@@ -690,10 +690,18 @@ export function ClientDetail() {
         ? ` ${esitoRisposta.segnalazioniChiuse} segnalazione/i clinica/e chiusa/e.`
         : '';
       setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${coda}`);
+      /**
+       * ⚠️ Il banner (di esito o di errore) sta IN CIMA alla pagina, e questo pulsante sta in fondo
+       * alla scheda. Il 13/8 la rotta era sbagliata e il 404 finiva in un banner tre schermate più
+       * su: dal basso sembrava che premere non facesse niente. Vale anche a cose funzionanti — una
+       * decisione clinica registrata senza nessun segno visibile si rifà una seconda volta.
+       */
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       // Ricarica: la nota nuova deve comparire subito nella lista, o sembra non essere stata salvata.
       await loadDetail();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Non è stato possibile registrare la valutazione.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
 

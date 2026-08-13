@@ -13,17 +13,22 @@
  * ventesima volta: il giorno in cui una scrittura passa senza anteprima è il giorno in cui il
  * registro smette di raccontare cosa è successo davvero.
  */
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { perimetroClienti } from '../common/perimetro-clienti';
+import { etichettaSlot } from '../common/slot-pasto';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
+import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoRestrizione, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, Intento, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { DizionarioService } from './dizionario.service';
+import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
+import { cosaManca, leggiRicetta, RicettaDettata } from './ricetta-dettata';
 import { RichiesteVeraService } from './richieste.service';
+import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
 import {
   EsitoVera,
   leggiAmbito,
@@ -44,6 +49,13 @@ interface ClienteTrovata {
 /** Quanti alimenti si propongono quando si chiede «quali sono?». Oltre, l'elenco non si legge. */
 const MAX_PROPOSTI = 20;
 
+/** Come si dicono i regimi in italiano: nell'anteprima si rilegge una frase, non un codice. */
+const ETICHETTA_REGIME: Record<string, string> = {
+  omnivore: 'onnivora',
+  vegetarian: 'vegetariana',
+  vegan: 'vegana',
+};
+
 @Injectable()
 export class VeraChatService {
   constructor(
@@ -52,6 +64,8 @@ export class VeraChatService {
     private readonly pool: PoolDisponibileService,
     private readonly registro: RegistroVeraService,
     private readonly richieste: RichiesteVeraService,
+    private readonly valori: ValoriNutrizionaliService,
+    @Inject(SCRITTURA_RICETTA) private readonly ricette: ScritturaRicetta,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -150,19 +164,20 @@ export class VeraChatService {
       const riga = (await this.registro.scrivi({
         nutrizionistaId,
         frase,
-        azione: intento.cosa === 'regola_dieta' ? 'regola_dieta' : 'ricetta_nuova',
-        ambito: intento.cosa === 'regola_dieta' ? 'dieta' : 'catalogo',
-        soggettoTipo: intento.cosa === 'regola_dieta' ? 'diet' : 'recipe',
-        soggettoNome: intento.cosa === 'regola_dieta' ? intento.dettaglio : null,
+        azione: 'regola_dieta',
+        ambito: 'dieta',
+        soggettoTipo: 'diet',
+        soggettoNome: intento.dettaglio,
         dettaglio: { daFareAMano: true, cosa: intento.cosa, testo: intento.dettaglio },
         inApprovazione: true,
       })) as { id: string };
       return {
-        testo: `${testi.fuoriPortata(intento.cosa, intento.dettaglio)}\n\n${testi.messaInCoda()}`,
+        testo: `${testi.fuoriPortata(intento.dettaglio)}\n\n${testi.messaInCoda()}`,
         esito: 'in_approvazione',
         azioneId: riga.id,
       };
     }
+    if (intento.tipo === 'ricetta') return this.avviaRicetta(nutrizionistaId, intento, frase);
     return this.risolviCliente(nutrizionistaId, { passo: 'quale_cliente', frase, intento }, intento.cliente ?? '');
   }
 
@@ -186,6 +201,12 @@ export class VeraChatService {
         return this.valePerTutte(nutrizionistaId, stato, frase);
       case 'aggiorna_famiglia':
         return this.allargaFamiglia(nutrizionistaId, stato, frase);
+      case 'ricetta_quale':
+        return this.scegliRicetta(nutrizionistaId, stato, frase);
+      case 'ricetta_testo':
+        return this.leggiLaRicetta(nutrizionistaId, stato, frase);
+      case 'ricetta_conferma':
+        return this.scriviLaRicetta(nutrizionistaId, stato, frase);
       case 'conferma':
       default:
         return this.confermaOAnnulla(nutrizionistaId, stato, frase);
@@ -343,6 +364,199 @@ export class VeraChatService {
     const restanti = (stato.famiglieDaChiedere ?? []).filter((f) => f !== famiglia);
     const prossima = await this.preparaAnteprima(nutrizionistaId, { ...stato, famiglieDaChiedere: restanti });
     return { ...prossima, testo: `${testi.famigliaImparata(famiglia, membri)}\n\n${prossima.testo}` };
+  }
+
+
+  // ─────────────────────────────────────────────────────────────── le ricette ─
+
+  /**
+   * AZIONI 4 e 5 — la ricetta nuova e la ricetta cambiata.
+   *
+   * Le due strade non finiscono allo stesso posto, e la differenza è il punto di tutto:
+   *
+   * | | cosa succede al sì | perché |
+   * |---|---|---|
+   * | **nuova** | si scrive in catalogo **spenta** (`active: false`) + proposta in coda | una ricetta spenta non tocca nessuno: esiste, si legge, si corregge |
+   * | **cambiata** | **non si tocca niente**: va tutto nella proposta | quella ricetta è già nei piatti di oggi, e una modifica applicata subito li cambia stanotte |
+   *
+   * ⚠️ Questa asimmetria è voluta e va tenuta: la tentazione è «facciamo uguale», cioè scrivere
+   * anche la modifica come bozza. Ma una bozza-copia di una ricetta viva vuol dire due ricette con
+   * lo stesso nome, di cui una sbagliata, e nessuno che sappia quale sta andando nei piatti.
+   */
+  private async avviaRicetta(nutrizionistaId: string, intento: IntentoRicetta, frase: string): Promise<EsitoVera> {
+    const tags = intento.stile ? [intento.stile] : [];
+    if (intento.modo === 'nuova') {
+      return {
+        testo: testi.chiediRicetta('nuova'),
+        esito: 'in_corso',
+        stato: { passo: 'ricetta_testo', frase, modoRicetta: 'nuova', tagsRicetta: tags },
+      };
+    }
+    if (!intento.nome) {
+      return {
+        testo: 'Quale ricetta vuoi cambiare? Dimmi il nome come compare nel catalogo.',
+        esito: 'in_corso',
+        stato: { passo: 'ricetta_quale', frase },
+      };
+    }
+    return this.cercaRicetta(nutrizionistaId, { passo: 'ricetta_quale', frase }, intento.nome);
+  }
+
+  /**
+   * Quale ricetta. ⚠️ Non si indovina mai, esattamente come per le clienti: zero risultati lo dico,
+   * più d'uno li elenco. Modificare la ricetta sbagliata cambia il piatto di chi non c'entra.
+   */
+  private async cercaRicetta(nutrizionistaId: string, stato: StatoVera, nome: string): Promise<EsitoVera> {
+    const cercato = (nome ?? '').trim();
+    if (cercato.length < 3) {
+      return { testo: 'Dimmi almeno tre lettere del nome, o non so cosa cercare.', esito: 'in_corso', stato };
+    }
+    const trovate = (await this.prisma.recipe.findMany({
+      where: { name: { contains: cercato, mode: 'insensitive' }, active: true } as never,
+      select: { id: true, name: true },
+      take: 6,
+    })) as { id: string; name: string }[];
+
+    if (!trovate.length) return { testo: testi.ricettaNonTrovata(cercato), esito: 'arresa' };
+    if (trovate.length > 1) {
+      return {
+        testo: testi.ricetteOmonime(cercato, trovate.map((r) => r.name)),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'ricetta_quale', candidati: trovate.map((r) => ({ id: r.id, nome: r.name, email: '' })) },
+      };
+    }
+    return {
+      testo: testi.chiediRicetta('modifica', trovate[0].name),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'ricetta_testo', modoRicetta: 'modifica', ricettaId: trovate[0].id },
+    };
+  }
+
+  /** La risposta all'elenco: un numero, o il nome per intero. */
+  private async scegliRicetta(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const candidati = stato.candidati ?? [];
+    const numero = /^\s*(\d+)\s*$/.exec(frase.trim());
+    if (numero && candidati.length) {
+      const scelta = candidati[Number(numero[1]) - 1];
+      if (!scelta) return { testo: testi.ricetteOmonime('', candidati.map((c) => c.nome)), esito: 'in_corso', stato };
+      return {
+        testo: testi.chiediRicetta('modifica', scelta.nome),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'ricetta_testo', modoRicetta: 'modifica', ricettaId: scelta.id, candidati: undefined },
+      };
+    }
+    return this.cercaRicetta(nutrizionistaId, stato, frase);
+  }
+
+  /**
+   * La ricetta come l'ha scritta, letta e messa davanti agli occhi coi valori veri.
+   *
+   * ⚠️ Il testo si **accumula**: quando manca il pasto lei risponde «pranzo» e basta, e quella
+   * parola da sola non è una ricetta. Si tiene tutto quello che ha scritto in questo giro e si
+   * rilegge dall'inizio — è anche il motivo per cui nello stato c'è il testo e non l'oggetto già
+   * costruito.
+   */
+  private async leggiLaRicetta(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const testo = [stato.testoRicetta, frase].filter(Boolean).join('\n');
+    const dopo = { ...stato, testoRicetta: testo };
+    const ricetta = leggiRicetta(testo);
+
+    const manca = cosaManca(ricetta);
+    if (manca.length) return { testo: testi.mancaNellaRicetta(manca), esito: 'in_corso', stato: dopo };
+
+    const macro = await this.macroDiRicetta(ricetta);
+    if (macro.mancanti.length) {
+      /**
+       * ⚠️ Gli alimenti fuori tabella si **segnano** prima di rispondere: `NutrientLookupMiss` è la
+       * tabella che dice quali alimenti aggiungere per primi, ordinati per quante volte sono stati
+       * chiesti. Senza questa riga il buco resta un episodio, e la volta dopo si ricomincia.
+       */
+      for (const m of macro.mancanti) await this.valori.registraMancante(m).catch(() => undefined);
+      return { testo: testi.alimentiFuoriTabella(macro.mancanti), esito: 'in_corso', stato: dopo };
+    }
+
+    return {
+      testo: testi.anteprimaRicetta(
+        ricetta.nome!,
+        etichettaSlot(ricetta.slot!),
+        ETICHETTA_REGIME[ricetta.regime!] ?? ricetta.regime!,
+        ricetta.ingredienti.map((i) => `${i.name}${i.qty ? ` ${i.qty} ${i.unit ?? 'g'}` : ''}`),
+        raccontaMacro(macro),
+        stato.modoRicetta ?? 'nuova',
+      ),
+      esito: 'in_corso',
+      stato: { ...dopo, passo: 'ricetta_conferma' },
+    };
+  }
+
+  /** I valori veri, uno per ingrediente. La ricerca per nome e sinonimi è quella di Gaia. */
+  private async macroDiRicetta(ricetta: RicettaDettata) {
+    const valori = new Map<string, ValorePer100 | null>();
+    for (const i of ricetta.ingredienti) {
+      if (valori.has(i.name)) continue;
+      const v = (await this.valori.cerca(i.name).catch(() => null)) as ValorePer100 | null;
+      valori.set(i.name, v);
+    }
+    return calcolaMacro(ricetta.ingredienti, valori);
+  }
+
+  /** Il sì. Da qui in poi si scrive — e solo da qui. */
+  private async scriviLaRicetta(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const risposta = leggiConferma(frase);
+    if (risposta === null) {
+      return { testo: 'Non ho capito se confermi. Rispondi «sì» o «no».', esito: 'in_corso', stato };
+    }
+    if (risposta === false) return { testo: testi.annullato(), esito: 'annullata' };
+
+    const ricetta = leggiRicetta(stato.testoRicetta ?? '');
+    const macro = await this.macroDiRicetta(ricetta);
+    // ⚠️ Si ricontrolla dopo il sì e non ci si fida dell'anteprima: fra le due c'è passato del tempo,
+    // e nel frattempo qualcuno potrebbe aver corretto la tabella nutrienti. Costa una lettura.
+    if (cosaManca(ricetta).length || macro.mancanti.length) {
+      return { testo: testi.alimentiFuoriTabella(macro.mancanti), esito: 'in_corso', stato };
+    }
+
+    const campi: RicettaDaScrivere = {
+      name: ricetta.nome!,
+      regime: ricetta.regime!,
+      mealSlot: ricetta.slot!,
+      kcal: macro.kcal,
+      ingredients: ricetta.ingredienti.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })),
+      macros: macro.macros,
+      tags: [...new Set([...(stato.tagsRicetta ?? []), ...ricetta.tags])],
+      active: false,
+    };
+
+    if (stato.modoRicetta === 'modifica') {
+      // ⚠️ NON si scrive in catalogo: la ricetta è già nei piatti di oggi. La modifica vive nella
+      // proposta e diventa vera quando il capo approva.
+      const riga = (await this.registro.scrivi({
+        nutrizionistaId,
+        frase: stato.testoRicetta ?? stato.frase,
+        azione: 'ricetta_modificata',
+        ambito: 'catalogo',
+        soggettoTipo: 'recipe',
+        soggettoId: stato.ricettaId ?? null,
+        soggettoNome: campi.name,
+        dettaglio: { campi },
+        inApprovazione: true,
+      })) as { id: string };
+      return { testo: testi.modificaInCoda(campi.name), esito: 'in_approvazione', azioneId: riga.id };
+    }
+
+    const nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
+    const riga = (await this.registro.scrivi({
+      nutrizionistaId,
+      frase: stato.testoRicetta ?? stato.frase,
+      azione: 'ricetta_nuova',
+      ambito: 'catalogo',
+      soggettoTipo: 'recipe',
+      soggettoId: nuova.id,
+      soggettoNome: campi.name,
+      dettaglio: { campi },
+      inApprovazione: true,
+    })) as { id: string };
+    return { testo: testi.ricettaScritta(campi.name), esito: 'in_approvazione', azioneId: riga.id };
   }
 
   // ────────────────────────────────────────────────────────────── l'anteprima ─

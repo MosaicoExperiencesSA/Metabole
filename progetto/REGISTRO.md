@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🤖 **Vera: le ricette si dettano (azioni 4 e 5).** «Inseriamo una ricetta per il menu
+  keto» e «voglio cambiare la ricetta tonno alle olive». Lei la scrive come su un quaderno — nome,
+  ingredienti con le quantità, pasto e regime — e l'assistente la legge con una funzione pura.
+  ⚠️ **I valori non si dettano**: kcal e macro si sommano dalla tabella nutrienti, la stessa da cui
+  Gaia cita i valori alle clienti. Se un alimento non c'è, la ricetta **si ferma**: `Recipe.kcal` è
+  obbligatorio e l'unico modo di riempirlo sarebbe indovinarlo, mentre su quei numeri il motore
+  calcola le giornate. Il termine finisce in `NutrientLookupMiss`, cioè nell'elenco di quali
+  alimenti aggiungere per primi.
+  ⚠️ **La ricetta nuova nasce spenta**: una ricetta attiva entra nel motore, e il motore non chiede
+  il permesso a nessuno. La accende il capo approvando — e approvare non conferma gli allergeni.
+  ⚠️ **La modifica non si scrive**: quella ricetta è già nei piatti di oggi. Vive nella proposta e
+  diventa vera all'approvazione, dove `active` viene tolto dai campi — riscrivere `false` su una
+  ricetta viva la farebbe sparire dai menu senza che nessuno l'abbia chiesto e senza nessun errore.
+  ⚠️ Le approssimazioni si dicono: i millilitri contati come grammi, e «sale q.b.» lasciato fuori dal
+  conto ed elencato.
+  Decisioni di Simone del 13/8: bozza + coda del capo, macro calcolati e mai inventati.
+  Verifica: type-check 43 = baseline, backoffice pulito, 1733 test contro 1670.
+
 - `[Sviluppo]` 🤖 **Vera: «aspetta te» si vede dalla home.** Le cose che aspettano una persona
   stavano dentro la pagina dell'assistente, e una coda che si vede solo entrando è una coda che si
   guarda quando ci si ricorda di entrare. Ora sono in cima alla home della nutrizionista — proposte

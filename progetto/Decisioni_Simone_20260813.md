@@ -261,3 +261,58 @@ Le corregge lei dalla scheda cliente (permesso `change_allergies`, consegnato il
 tre esclusioni oggi non escludono niente.** «Favismo» e «Carboidrati» non compaiono in nessun nome di
 piatto né in nessun ingrediente, quindi la ricerca testuale non trova nulla — è lo stesso difetto di
 `frutta_a_guscio` dell'8/8, ma qui il termine non è traducibile da noi: va tradotto da lei.
+
+---
+
+## 8. Quando comanda l'efficacia e quando comandano le stelle ✅ DECISO
+
+**Risposta di Simone dalla pagina Lavori (13/8):** «se abbiamo un problema di umore vincono le 5
+stelle; se il problema è il peso che non scende o che è aumentato vince l'efficacia».
+
+Non è la manopola che aspettavamo — è meglio: **una regola che cambia da sola** in base a cosa sta
+succedendo a quella cliente. La manopola (`menu_select_w_eff`) resta dov'è, per chi vuole spostare
+l'ago in generale; questa decide **chi comanda oggi**.
+
+### 8.1 «Il peso non scende» = tre pesate consecutive ✅ DECISO
+
+Non tre settimane: **tre pesate registrate di fila**, nessuna più bassa della precedente. Si aggancia
+a quando la cliente si pesa davvero, non al calendario.
+
+⚠️ **Soglia secca, scelta da Simone:** conta solo *fermo o salito*. Un calo di cinquanta grammi
+azzera il contatore.
+**Conseguenza da sapere adesso e non fra un mese:** chi cala pochissimo ma di continuo **non fa mai
+scattare l'efficacia**. È il caso «sto dimagrendo pianissimo», e con questa regola resta com'è. Se un
+giorno risultasse che è proprio quella la cliente da intercettare, si cambia la soglia — non il
+meccanismo.
+
+⚠️ **Cambia il segnale, non lo stato.** Lo stato `plateau` esiste già e già spinge sull'efficacia: da
+oggi si accende su **tre pesate** invece che su **due cicli** (`agent_plateau_cycles`). Due regole per
+la stessa domanda sono la cosa che questo progetto passa il tempo a togliere: la vecchia sparisce.
+
+### 8.2 Quando ci sono tutti e due: vince l'efficacia, ma resta un giorno ✅ DECISO
+
+Umore basso **e** tre pesate ferme insieme: comanda l'efficacia, e **un giorno a settimana** vincono
+le stelle.
+
+⚠️ Il motivo del giorno: togliere ogni piatto amato a chi sta già giù di morale è il modo più rapido
+per farla smettere del tutto — ed è la lezione già scritta nello stato «conforto». Il piano deve
+tornare a funzionare, ma non contro di lei.
+
+**Il giorno è la domenica**, per tutte. Non a rotazione e non calcolato: un giorno fisso lo si può
+dire a voce alla cliente («la domenica vincono i piatti che ami») e la coach può ricordarselo. Un
+giorno che si sposta con la data di inizio del piano sarebbe invisibile a tutti e due.
+
+---
+
+## 9. La scala dei passi ✅ CONFERMATA
+
+**Simone (13/8): sì.** 6.000 sedentaria → 12.000 molto attiva, +5% ogni due settimane, tetto +40%.
+
+⚠️ Il codice **c'era già** (`common/obiettivo-passi.ts`, scritto il 12/8) e aspettava solo questa
+riga: quello che cambia è che l'avvertenza «da confermare con Nocanty» in testa al file non è più
+vera, e va tolta — un file che dichiara di aspettare un permesso che è arrivato fa fermare la
+prossima persona che lo legge.
+
+**Il caso clinico invece non si calcola**: per chi ha problemi cardiaci, articolari o è in
+gravidanza, la base la chiede la nutrizionista **attraverso Vera** (risposta di Simone). È lo stesso
+canale delle allergie che non sappiamo tradurre — vedi `CONTRATTO_Vera_Richieste.md`.

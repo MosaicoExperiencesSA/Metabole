@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
+import { CatalogModule } from '../catalog/catalog.module';
+import { CatalogService } from '../catalog/catalog.service';
 import { ClientsModule } from '../clients/clients.module';
+import { NutrientFactsModule } from '../nutrient-facts/nutrient-facts.module';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
 import { ClientsService } from '../clients/clients.service';
 import { RichiesteVeraService, SCRITTURA_CLIENTE } from './richieste.service';
+import { SCRITTURA_RICETTA } from './scrittura-ricetta';
 import { VeraChatService } from './vera-chat.service';
 import { VeraController } from './vera.controller';
 
@@ -35,7 +39,19 @@ import { VeraController } from './vera.controller';
    * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`, che compila l'applicazione intera: Nest
    * risolve le dipendenze all'AVVIO, non alla compilazione.
    */
-  imports: [ClientsModule],
+  /**
+   * ⚠️ `CatalogModule` per le ricette e `NutrientFactsModule` per i valori: due import, due righe di
+   * contratto.
+   *
+   * Le ricette si scrivono da `CatalogService` (che lascia la traccia in audit) e i valori si
+   * leggono da `ValoriNutrizionaliService` — la stessa funzione che decide cosa risponde Gaia
+   * quando una cliente chiede le calorie di un alimento. Due idee diverse di «quanto pesa questo
+   * cibo» sono due risposte diverse alla stessa domanda, fatta da due persone che parlano fra loro.
+   *
+   * Nessun anello: `CatalogModule` importa solo le notifiche, `NutrientFactsModule` niente.
+   * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
+   */
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,
@@ -49,6 +65,8 @@ import { VeraController } from './vera.controller';
      * dell'applicazione, non una seconda con la sua cache e i suoi effetti.
      */
     { provide: SCRITTURA_CLIENTE, useExisting: ClientsService },
+    /** Il punto unico di scrittura sul catalogo delle ricette. Stessa istanza, stesso audit. */
+    { provide: SCRITTURA_RICETTA, useExisting: CatalogService },
   ],
   exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService, RichiesteVeraService],
 })

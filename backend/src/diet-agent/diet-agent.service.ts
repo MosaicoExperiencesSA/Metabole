@@ -1,10 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PESATE_PER_PLATEAU, pesoNonScende } from '../menu/plateau';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { aGiorno } from '../common/date-only';
 
-export type AgentState = 'normale' | 'conforto' | 'pre_evento' | 'post_evento' | 'plateau' | 'rientro' | 'vacanza';
+export type AgentState =
+  | 'normale'
+  | 'conforto'
+  | 'pre_evento'
+  | 'post_evento'
+  | 'plateau'
+  /**
+   * ⚠️ PLATEAU **E** UMORE BASSO INSIEME — decisione di Simone (13/8): «vince l'efficacia, ma resta
+   * un giorno di conforto a settimana». È uno stato suo e non un flag appeso al plateau perché lo si
+   * deve poter **vedere**: nei log e nella diagnosi «peso fermo» e «peso fermo mentre sta giù» sono
+   * due situazioni che si guardano con occhi diversi.
+   */
+  | 'plateau_conforto'
+  | 'rientro'
+  | 'vacanza';
 
 const DAY = 86_400_000;
 
@@ -41,10 +56,10 @@ export class DietAgentService {
   ) {}
 
   async stateFor(clientId: string): Promise<AgentState> {
-    const [preDays, postDays, plateauCycles, comfortMax, reentryDays, travelMaxDays, returnDays] = await Promise.all([
+    const [preDays, postDays, plateauPesate, comfortMax, reentryDays, travelMaxDays, returnDays] = await Promise.all([
       this.configParams.getNumber('agent_pre_event_days', 3),
       this.configParams.getNumber('agent_post_event_days', 3),
-      this.configParams.getNumber('agent_plateau_cycles', 2),
+      this.configParams.getNumber('agent_plateau_pesate', PESATE_PER_PLATEAU),
       this.configParams.getNumber('agent_comfort_max_days', 3),
       this.configParams.getNumber('agent_reentry_days', 3),
       this.configParams.getNumber('travel_max_days', 30),
@@ -94,16 +109,25 @@ export class DietAgentService {
     });
     if (recentEnded) return 'post_evento';
 
-    // 3. Plateau: ultimi N cicli seguiti senza calo di peso.
-    const cycles = (await this.prisma.cycleFeedback.findMany({
-      where: { clientId, followed: true },
-      orderBy: { cycleEnd: 'desc' },
-      take: plateauCycles,
-      select: { esitoPeso: true },
-    })) as { esitoPeso: string }[];
-    if (cycles.length >= plateauCycles && cycles.every((c) => c.esitoPeso === 'stabile' || c.esitoPeso === 'preso')) {
-      return 'plateau';
-    }
+    /**
+     * 3. PLATEAU — **tre pesate consecutive** senza calo. Risposta di Simone (13/8): «se il problema
+     * è il peso che non scende o che è aumentato vince l'efficacia», e «tre pesi registrati
+     * consecutivi».
+     *
+     * ⚠️ Prima si guardavano i **cicli** (`CycleFeedback.esitoPeso`, due di fila). Il segnale è
+     * cambiato di proposito, e il vecchio **sparisce**: due regole per la stessa domanda sono la
+     * cosa che questo progetto passa il tempo a togliere. Il ciclo dipende da un feedback che
+     * qualcuno deve compilare; la pesata è il fatto.
+     *
+     * ⚠️ Si guarda `plateauPesate` (parametro `agent_plateau_pesate`, 3) e non `plateauCycles`.
+     */
+    const misure = (await this.prisma.measurement.findMany({
+      where: { clientId },
+      orderBy: { date: 'desc' },
+      take: plateauPesate,
+      select: { weightKg: true },
+    })) as { weightKg: number }[];
+    const fermo = pesoNonScende(misure.map((m) => m.weightKg), plateauPesate);
 
     // 4. Conforto / guardrail / rientro — dalla "memoria" dei check-in recenti.
     const lookback = Math.max(comfortMax, reentryDays) + 3;

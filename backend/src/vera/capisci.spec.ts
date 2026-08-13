@@ -32,8 +32,11 @@ describe('capisci — le frasi di Simone', () => {
     expect(i).toEqual({ tipo: 'fuori_portata', cosa: 'regola_dieta', dettaglio: 'mediterranea' });
   });
 
-  it('«inseriamo una ricetta per il menu keto» → fuori portata, non una restrizione', () => {
-    expect(capisci('inserisci una ricetta per il menu keto')?.tipo).toBe('fuori_portata');
+  it('«inseriamo una ricetta per il menu keto» → una ricetta, non una restrizione', () => {
+    // Fino al 13/8 era «fuori portata»: adesso le ricette si sanno scrivere, e questo caso vive
+    // insieme agli altri più sotto. Qui resta perché la cosa da non fare è sempre la stessa —
+    // leggere «keto» come il nome di una cliente.
+    expect(capisci('inserisci una ricetta per il menu keto')?.tipo).toBe('ricetta');
   });
 });
 
@@ -143,5 +146,40 @@ describe('separaCitazione — quello che incolli lo leggo, non lo eseguo', () =>
     const { suo, citato } = separaCitazione('a Giulia niente tonno');
     expect(suo).toBe('a Giulia niente tonno');
     expect(citato).toBe('');
+  });
+});
+
+/**
+ * ⚠️ Il caso che conta è la differenza fra «crea» e «cambia».
+ *
+ * Una modifica letta come ricetta nuova lascia in catalogo la vecchia — che continua ad andare nei
+ * piatti — accanto a una copia corretta che non sostituisce niente. È un difetto che non produce
+ * nessun errore: produce due ricette, e una delle due è sbagliata.
+ */
+describe('capisci — le ricette', () => {
+  it('«inseriamo una ricetta per il menu keto» → ricetta nuova, con lo stile', () => {
+    const i = capisci('inseriamo una ricetta per il menu keto');
+    expect(i).toEqual({ tipo: 'ricetta', modo: 'nuova', nome: null, stile: 'keto' });
+  });
+
+  it('«voglio cambiare la ricetta tonno alle olive» → modifica, col nome del piatto', () => {
+    const i = capisci('voglio cambiare la ricetta tonno alle olive');
+    expect(i).toMatchObject({ tipo: 'ricetta', modo: 'modifica', nome: 'tonno alle olive' });
+  });
+
+  it('⚠️ con tutti e due i verbi vince la MODIFICA', () => {
+    // «cambia la ricetta e scrivine una nuova» parla comunque di una ricetta che esiste: trattarla
+    // come nuova la lascerebbe viva accanto alla copia.
+    expect(capisci('cambia la ricetta tonno alle olive e scrivine una nuova')).toMatchObject({ modo: 'modifica' });
+  });
+
+  it('nominare una ricetta senza chiedere niente NON è un intento', () => {
+    // «questa ricetta è buona» non è un'istruzione: nel dubbio non si capisce.
+    expect(capisci('questa ricetta è buona')).toBeNull();
+  });
+
+  it('una restrizione che nomina un piatto resta una restrizione', () => {
+    const i = capisci('a Giulia Rossi niente tonno');
+    expect(i?.tipo).toBe('restrizione');
   });
 });

@@ -11,6 +11,12 @@
 
 ## Stato in una riga
 
+**Le ricette si dettano.** Azioni 4 e 5: «inseriamo una ricetta per il menu keto» e «voglio cambiare
+la ricetta tonno alle olive». Lei scrive il piatto come su un quaderno, i **macro li prende la
+tabella nutrienti** (mai inventati: se un alimento non c'è, la ricetta si ferma e il termine finisce
+fra quelli da aggiungere), e quello che nasce è una **bozza spenta** che accende il capo. Una
+modifica non tocca niente finché non è approvata. Type-check **43 = baseline**, **1733 test**.
+
 **«Aspetta te» adesso si vede dalla home.** Il blocco `b_assistente` sulla home della nutrizionista:
 proposte da approvare, domande aperte, sostituzioni da verificare — e il pulsante per aprire
 l'assistente. ⚠️ È un **blocco** e non un modulo: i moduli funzionano a inclusione, quindi chi ha già
@@ -138,8 +144,10 @@ Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/no
 ## Consegna 3 — Le azioni a raggio largo
 
 - [ ] **Azione 3** — variante di dieta per una cliente (`MenuDay.meals`)
-- [ ] **Azione 4** — modifica di una ricetta → coda
-- [ ] **Azione 5** — ricetta nuova → coda, macro dalla tabella nutrienti, mai inventati
+- [x] **Azione 4** — modifica di una ricetta → **non si scrive**: vive nella proposta e diventa vera
+      quando il capo approva (quella ricetta è già nei piatti di oggi)
+- [x] **Azione 5** — ricetta nuova → in catalogo **spenta** (`active: false`) + proposta in coda;
+      ⚠️ macro e calorie **dalla tabella nutrienti**, e se un alimento non c'è la ricetta si ferma
 - [ ] **Azione 6** — regola su un tipo di dieta → `EquivalenceGroup(productId)` / `ProductRule` /
       `RuleProposal`
 - [x] **Registro allargato**: tutto quello che cambia sulle sue clienti (`AzioneVera` + `AuditLog` +
@@ -202,6 +210,30 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Le ricette si dettano: azioni 4 e 5 (10 file)
+Lei scrive il piatto come su un quaderno — nome sopra, ingredienti sotto con le quantità, e alla fine
+il pasto e il regime — e l'assistente lo legge (`ricetta-dettata.ts`, funzione pura, 12 casi).
+⚠️ **I valori non si dettano**: kcal e macro si sommano dalla **tabella nutrienti**
+(`macro-da-ingredienti.ts`), che è la stessa da cui Gaia cita i valori alle clienti. Due idee diverse
+di «quanto pesa questo cibo» sarebbero due risposte diverse alla stessa domanda fatta da due persone
+che parlano fra loro.
+⚠️ Se un alimento **non è in tabella la ricetta si ferma**, e non si stima niente: `Recipe.kcal` è
+obbligatorio e l'unico modo di riempirlo sarebbe indovinarlo — mentre su quei numeri il motore
+calcola le giornate. Il termine mancante finisce in `NutrientLookupMiss`, cioè nell'elenco ordinato
+di quali alimenti aggiungere per primi.
+⚠️ **La ricetta nuova nasce spenta** (`active: false`): una ricetta attiva entra nel motore, e il
+motore non chiede il permesso a nessuno. La accende il capo approvando — e approvare **non** conferma
+gli allergeni, che restano una responsabilità sua e separata.
+⚠️ **La modifica non si scrive affatto**: quella ricetta è già nei piatti di oggi, e applicarla
+subito li cambierebbe stanotte. Vive nel `dettaglio` della proposta e diventa vera all'approvazione,
+dove ⚠️ `active` viene tolto dai campi — riscrivere `false` su una ricetta viva la farebbe sparire
+dai menu senza che nessuno l'abbia chiesto.
+⚠️ Le due approssimazioni sono **dette e non nascoste**: i millilitri contati come grammi, e quello
+che non ha un peso («sale q.b.») lasciato fuori dal conto ed elencato.
+`fuori_portata` adesso ha **un solo caso** — la regola su un tipo di dieta: quando resterà a zero,
+quel tipo va tolto e non lasciato lì a fare da parcheggio.
+Verifica: type-check **43 = baseline**, backoffice pulito, **1733 test** contro 1670 (+63).
 
 ### 13/8/2026 — «Aspetta te» dalla home (2 file)
 Il blocco `b_assistente` in cima alla home della nutrizionista, con quello che aspetta lei:

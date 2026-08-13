@@ -15,7 +15,7 @@
  * giusta, ripassato prima di ogni rilascio, e quell'elenco esce da qui: ogni correzione diventa un
  * caso di prova. Il sistema si costruisce il collaudo con gli errori che ha già fatto.
  */
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { applicaProposta, ordinaPerRischio, Proposta } from './applica-proposta';
@@ -25,6 +25,7 @@ import { DizionarioService } from './dizionario.service';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { RigaAudit, RigaAzioneVera, RigaFoodSwap, unisciRegistro, VoceRegistro } from './registro-allargato';
 import { componiReport, intervalloMese, ReportMensile, RigaReport } from './report-mensile';
+import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
 
 export type AzioneVeraTipo =
   | 'restrizione_cliente'
@@ -59,6 +60,7 @@ export class RegistroVeraService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly dizionario: DizionarioService,
+    @Inject(SCRITTURA_RICETTA) private readonly ricette: ScritturaRicetta,
   ) {}
 
   /**
@@ -235,9 +237,10 @@ export class RegistroVeraService {
       throw new BadRequestException('Questa proposta non è in attesa di approvazione: qualcuno l’ha già decisa.');
     }
 
-    const esito = riga.azione === 'voce_dizionario'
-      ? await this.approvaVoceDizionario(attore, riga)
-      : await applicaProposta(this.prisma, riga);
+    const esito =
+      riga.azione === 'voce_dizionario' ? await this.approvaVoceDizionario(attore, riga)
+        : riga.azione === 'ricetta_nuova' || riga.azione === 'ricetta_modificata' ? await this.approvaRicetta(attore, riga)
+          : await applicaProposta(this.prisma, riga);
 
     const aggiornata = await this.prisma.azioneVera.update({
       where: { id },
@@ -275,6 +278,44 @@ export class RegistroVeraService {
       toccate: 0,
       riepilogo: `Da adesso «${famiglia}» vuol dire ${membri.join(', ')} per tutte: quando qualcuno la nomina, non la chiedo più.`,
     };
+  }
+
+  /**
+   * APPROVA una ricetta: la nuova si accende, la modifica si applica.
+   *
+   * ⚠️ Le due strade arrivano qui in due stati diversi, ed è il punto di tutta l'azione 4-5. La
+   * ricetta **nuova** è già in catalogo, spenta: approvarla vuol dire accenderla. La **modifica**
+   * non è stata scritta da nessuna parte — vive nel `dettaglio` della proposta — perché quella
+   * ricetta è nei piatti di oggi e applicarla subito li avrebbe cambiati stanotte.
+   *
+   * ⚠️ `active` si toglie dai campi della modifica. Arriva `false` da come la proposta è stata
+   * costruita, e riscriverlo su una ricetta viva la spegnerebbe: sparirebbe dai menu senza che
+   * nessuno abbia chiesto di toglierla, e senza nessun errore da nessuna parte.
+   *
+   * ⚠️ Approvare NON conferma gli allergeni: `allergensReviewed` resta `false` e `collegaRicetta`
+   * continua a rifiutarsi di metterla in una giornata. È giusto così — sono due responsabilità
+   * diverse — e la frase qui sotto lo dice, perché il capo non lo scopra dal fatto che la ricetta
+   * non compare da nessuna parte.
+   */
+  private async approvaRicetta(attore: { id: string; role: string }, riga: Proposta & { azione: string; soggettoId?: string | null }) {
+    const id = riga.soggettoId ?? null;
+    if (!id) return { toccate: 0, riepilogo: 'La proposta non dice quale ricetta: non ho toccato niente.' };
+
+    if (riga.azione === 'ricetta_nuova') {
+      await this.ricette.updateRecipe(attore.id, id, { active: true });
+      return {
+        toccate: 1,
+        riepilogo:
+          'Ricetta attivata. ⚠️ Prima di poter entrare in una giornata servono ancora gli allergeni ' +
+          'confermati, dalla scheda della ricetta.',
+      };
+    }
+
+    const campi = ((riga.dettaglio ?? {}) as { campi?: RicettaDaScrivere }).campi;
+    if (!campi) return { toccate: 0, riepilogo: 'La proposta non conteneva la ricetta nuova: non ho toccato niente.' };
+    const { active: _spenta, ...daScrivere } = campi;
+    await this.ricette.updateRecipe(attore.id, id, daScrivere);
+    return { toccate: 1, riepilogo: `Ricetta «${campi.name}» aggiornata: da adesso è questa che va nei piatti.` };
   }
 
   /**

@@ -313,4 +313,30 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 225,
   },
 
+  // ── Vera, azioni 4 e 5 fatte il 13/8: quello che è restato fuori ──
+  {
+    chiave: 'vera-azioni-3-e-6',
+    titolo: 'Vera: restano la variante di piano (azione 3) e la regola su un tipo di dieta (azione 6)',
+    dettaglio:
+      'Le ricette (4 e 5) sono fatte. Restano: la VARIANTE di piano per una cliente sola, e la REGOLA su un tipo di dieta — «nella mediterranea non deve comparire più il tonno». ⚠️ Per la seconda oggi il filtro delle esclusioni è SOLO per-cliente: non esiste nessun campo o tabella che dica «in questa dieta questo alimento non compare». Il contenitore più diretto sarebbe `ProductRule` (`{dietId, ruleCode, params}`) con un codice nuovo, letto in `menu.service` dove si costruisce il pool. Decisione di Simone del 13/8: per la cliente si applica, la regola generale va come proposta al capo — e quando lui approva, si applica davvero.',
+    categoria: CODICE,
+    ordine: 226,
+  },
+  {
+    chiave: 'vera-ricetta-allergeni',
+    titolo: 'Vera: la ricetta nuova nasce senza allergeni marcati',
+    dettaglio:
+      'Approvare una ricetta la accende ma NON conferma gli allergeni: `allergensReviewed` resta false, e `collegaRicetta` si rifiuta di metterla in una giornata finché qualcuno non li conferma dalla scheda. È giusto che siano due responsabilità diverse, ma oggi il capo lo scopre dal fatto che la ricetta non compare da nessuna parte. Esiste già `recipeAllergenSuggestions(id)` in catalog: l\'assistente potrebbe proporli al momento dell\'approvazione, restando una proposta.',
+    categoria: CODICE,
+    ordine: 227,
+  },
+  {
+    chiave: 'vera-ricetta-crudo-cotto',
+    titolo: 'Vera: i valori nutrizionali non distinguono crudo e cotto',
+    dettaglio:
+      '`NutrientFact` ha il campo `state` (crudo | bollito | cotto | secco) e fa parte del significato dei numeri: 80 g di riso crudo e 80 g di riso bollito non sono la stessa cosa. La ricerca per nome prende la prima riga che combacia, quindi una ricetta scritta «riso 80 g» può prendere i valori dello stato sbagliato. ⚠️ Sbaglia in eccesso, non in difetto: il crudo pesa più del cotto a parità di grammi. Va deciso se chiederlo alla nutrizionista quando la tabella ha più stati per lo stesso alimento.',
+    categoria: NOCANTY,
+    ordine: 228,
+  },
+
 ];

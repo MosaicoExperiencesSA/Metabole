@@ -3,6 +3,8 @@ import { PoolDisponibileService } from './pool-disponibile.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegistroVeraService } from './registro.service';
 import { RichiesteVeraService } from './richieste.service';
+import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { ScritturaRicetta } from './scrittura-ricetta';
 import { VeraChatService } from './vera-chat.service';
 import { StatoVera } from './vera-chat';
 
@@ -31,6 +33,7 @@ function make(
     coda?: unknown[];
     richieste?: unknown[];
     invecchiate?: unknown[];
+    valori?: Record<string, unknown>;
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -86,8 +89,23 @@ function make(
     collega: jest.fn().mockResolvedValue(undefined),
   } as unknown as RichiesteVeraService;
 
+  /**
+   * La tabella nutrienti finta. ⚠️ Di default NON conosce niente: così un test che scrive una
+   * ricetta deve dire quali valori esistono, e non può passare per caso su numeri inventati.
+   */
+  const valori = {
+    cerca: jest.fn().mockImplementation(async (nome: string) => (opzioni.valori ?? {})[nome] ?? null),
+    registraMancante: jest.fn().mockResolvedValue(undefined),
+  } as unknown as ValoriNutrizionaliService;
+  const ricette = {
+    createRecipe: jest.fn().mockResolvedValue({ id: 'r-nuova' }),
+    updateRecipe: jest.fn().mockResolvedValue({ id: 'r1' }),
+  } as unknown as ScritturaRicetta;
+
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, ricette),
+    valori,
+    ricette,
     richieste,
     messaggioCreate,
     profileUpdate,
@@ -614,5 +632,135 @@ describe('VeraChatService — il dizionario che invecchia', () => {
     );
     await service.parla('lucia', 'tutti');
     expect((dizionario.insegna as jest.Mock).mock.calls[0][1].membri).toEqual(['burrata', 'crescenza']);
+  });
+});
+
+/**
+ * ⚠️ Le azioni 4 e 5. Il caso che conta è che una ricetta NON entri viva in catalogo.
+ *
+ * Una ricetta attiva entra nel motore, e il motore non chiede il permesso a nessuno: quello che
+ * scrive Vera nasce spento e lo accende il capo. E una MODIFICA non si scrive affatto — quella
+ * ricetta è già nei piatti di oggi.
+ */
+describe('VeraChatService — le ricette', () => {
+  const VALORI = {
+    tonno: { name: 'tonno', kcal: 116, protein: 25, carbs: 0, fat: 1 },
+    'olive nere': { name: 'olive', kcal: 235, protein: 2, carbs: 6, fat: 23 },
+  };
+  const RICETTA = 'Tonno alle olive\ntonno 120 g\nolive nere 30 g\npranzo onnivora';
+
+  it('chiede la ricetta invece di indovinarla', async () => {
+    const { service, messaggioCreate } = make();
+    await service.parla('lucia', 'inseriamo una ricetta per il menu keto');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('ricetta_testo');
+    expect(stato?.tagsRicetta).toEqual(['keto']);
+    // ⚠️ Le dice di non dettare i valori: quelli li prende dalla tabella.
+    expect(testo).toContain('tabella nutrienti');
+  });
+
+  it('⚠️ un alimento fuori tabella FERMA la ricetta e viene segnato fra quelli da aggiungere', async () => {
+    // Senza i valori veri l'unico modo di riempire le calorie sarebbe indovinarle, e su quei numeri
+    // il motore calcola le giornate.
+    const { service, messaggioCreate, valori, ricette } = make(
+      {},
+      { statoAperto: { passo: 'ricetta_testo', frase: 'x', modoRicetta: 'nuova' }, valori: VALORI },
+    );
+    await service.parla('lucia', 'Tempeh saltato\ntempeh 100 g\npranzo vegana');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('non è');
+    expect(valori.registraMancante).toHaveBeenCalledWith('tempeh');
+    expect(ricette.createRecipe).not.toHaveBeenCalled();
+  });
+
+  it('quello che manca lo chiede, e non perde quello che le ha già scritto', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'ricetta_testo', frase: 'x', modoRicetta: 'nuova' }, valori: VALORI },
+    );
+    await service.parla('lucia', 'Tonno alle olive\ntonno 120 g\nolive nere 30 g');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('per quale pasto');
+    // ⚠️ Il testo si accumula: alla risposta «pranzo onnivora» la ricetta deve essere ancora tutta lì.
+    expect(stato?.testoRicetta).toContain('tonno 120 g');
+  });
+
+  it('mostra i macro veri prima di scrivere', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'ricetta_testo', frase: 'x', modoRicetta: 'nuova' }, valori: VALORI },
+    );
+    await service.parla('lucia', RICETTA);
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    // 120 g di tonno (116/100) + 30 g di olive (235/100) = 139 + 70,5 → 210
+    expect(testo).toContain('210 kcal');
+    expect(testo).toContain('bozza');
+    expect(stato?.passo).toBe('ricetta_conferma');
+  });
+
+  it('⚠️ al sì la ricetta nasce SPENTA e va in coda', async () => {
+    // Una ricetta attiva entra nel motore, e il motore non chiede il permesso a nessuno.
+    const { service, ricette, registro } = make(
+      {},
+      { statoAperto: { passo: 'ricetta_conferma', frase: 'x', modoRicetta: 'nuova', testoRicetta: RICETTA }, valori: VALORI },
+    );
+    await service.parla('lucia', 'sì');
+    const scritta = (ricette.createRecipe as jest.Mock).mock.calls[0][1];
+    expect(scritta.active).toBe(false);
+    expect(scritta.kcal).toBe(210);
+    expect(scritta.mealSlot).toBe('lunch');
+    expect(scritta.regime).toBe('omnivore');
+    expect((registro.scrivi as jest.Mock).mock.calls[0][0]).toMatchObject({
+      azione: 'ricetta_nuova', inApprovazione: true, soggettoId: 'r-nuova',
+    });
+  });
+
+  it('⚠️ una MODIFICA non tocca il catalogo: vive nella proposta', async () => {
+    // Quella ricetta è già nei piatti di oggi: applicarla subito li cambierebbe stanotte.
+    const { service, ricette, registro, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: { passo: 'ricetta_conferma', frase: 'x', modoRicetta: 'modifica', ricettaId: 'r1', testoRicetta: RICETTA },
+        valori: VALORI,
+      },
+    );
+    await service.parla('lucia', 'sì');
+    expect(ricette.updateRecipe).not.toHaveBeenCalled();
+    expect(ricette.createRecipe).not.toHaveBeenCalled();
+    expect((registro.scrivi as jest.Mock).mock.calls[0][0]).toMatchObject({
+      azione: 'ricetta_modificata', soggettoId: 'r1', inApprovazione: true,
+    });
+    expect(ultimoAgente(messaggioCreate).testo).toContain('resta quella di adesso');
+  });
+
+  it('«no» non scrive niente', async () => {
+    const { service, ricette, registro } = make(
+      {},
+      { statoAperto: { passo: 'ricetta_conferma', frase: 'x', modoRicetta: 'nuova', testoRicetta: RICETTA }, valori: VALORI },
+    );
+    await service.parla('lucia', 'no');
+    expect(ricette.createRecipe).not.toHaveBeenCalled();
+    expect(registro.scrivi).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ quale ricetta non si indovina: se ce ne sono due, le elenca', async () => {
+    // Modificare la ricetta sbagliata cambia il piatto di chi non c'entra.
+    const { service, messaggioCreate } = make({
+      recipe: {
+        count: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Tonno alle olive' }, { id: 'r2', name: 'Tonno alle olive e capperi' }]),
+      },
+    });
+    await service.parla('lucia', 'voglio cambiare la ricetta tonno alle olive');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('ricetta_quale');
+    expect(testo).toContain('capperi');
+  });
+
+  it('se non trova la ricetta lo dice, e non ne inventa una', async () => {
+    const { service, messaggioCreate } = make({
+      recipe: { count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    });
+    await service.parla('lucia', 'voglio cambiare la ricetta pollo al curry');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Non trovo nessuna ricetta');
   });
 });

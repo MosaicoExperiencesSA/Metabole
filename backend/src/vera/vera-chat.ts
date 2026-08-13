@@ -21,7 +21,10 @@ export type PassoVera =
   | 'motivo_rifiuto'  // (solo il capo) perché la respingi
   | 'richiesta'       // una domanda aperta dal sistema: cosa tolgo dal piatto?
   | 'richiesta_generale'  // …e vale come regola per tutte?
-  | 'aggiorna_famiglia'; // in catalogo è entrato qualcosa che forse è di una tua famiglia
+  | 'aggiorna_famiglia'  // in catalogo è entrato qualcosa che forse è di una tua famiglia
+  | 'ricetta_quale'      // quale delle ricette che si chiamano così
+  | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
+  | 'ricetta_conferma';  // ecco cosa scrivo, coi macro veri. Confermi?
 
 export interface StatoVera {
   passo: PassoVera;
@@ -45,6 +48,18 @@ export interface StatoVera {
   azioneId?: string;
   /** La voce di dizionario di cui sto chiedendo se allargarla. */
   famigliaId?: string;
+  /**
+   * LA RICETTA, come l'ha scritta lei, per intero.
+   *
+   * ⚠️ Si tiene il TESTO e non la ricetta già letta: quando manca il pasto o il regime lei risponde
+   * con due parole, e il testo nuovo si appende a questo. Se qui ci fosse l'oggetto già costruito,
+   * la seconda risposta sarebbe una ricetta senza ingredienti che sovrascrive la prima.
+   */
+  testoRicetta?: string;
+  modoRicetta?: 'nuova' | 'modifica';
+  /** La ricetta esistente che sto modificando. */
+  ricettaId?: string;
+  tagsRicetta?: string[];
   /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
   richiestaId?: string;
   termine?: string;
@@ -94,13 +109,10 @@ export const testi = {
       : 'Non ci arrivo nemmeno adesso, e preferisco fermarmi invece di indovinare. Questa la puoi ' +
         'fare dalla scheda della cliente. Quando vuoi ricominciamo con un\'altra frase.',
 
-  fuoriPortata: (cosa: 'regola_dieta' | 'ricetta', dettaglio: string) =>
-    cosa === 'regola_dieta'
-      ? `Ho capito che parli del tipo di dieta (${dettaglio}), non di una singola cliente. Questo ` +
-        'ancora non lo so fare: cambia il menu di tutte le clienti di quella dieta, e deve passare ' +
-        'dall\'approvazione. Se intendevi una cliente sola, dimmi il suo nome.'
-      : 'Ho capito che parli di una ricetta. Questo ancora non lo so fare — le ricette entrano nel ' +
-        'catalogo di tutte, e passano dalla coda «Da validare».',
+  fuoriPortata: (dettaglio: string) =>
+    `Ho capito che parli del tipo di dieta (${dettaglio}), non di una singola cliente. Questo ` +
+    'ancora non lo so fare: cambia il menu di tutte le clienti di quella dieta, e deve passare ' +
+    'dall\'approvazione. Se intendevi una cliente sola, dimmi il suo nome.',
 
   chiediCliente: () =>
     'Su quale cliente? Dimmi nome e cognome, oppure la sua email.',
@@ -143,6 +155,62 @@ export const testi = {
 
   dizionarioLasciatoComEra: (famiglia: string) =>
     `Va bene: «${famiglia}» resta com'era, e su questi non ti chiedo più niente.`,
+
+  // ─────────────────────────────────────────────────────────────── le ricette ─
+
+  chiediRicetta: (modo: 'nuova' | 'modifica', nome?: string) =>
+    (modo === 'modifica'
+      ? `Va bene: riscrivimi **${nome}** com'è adesso, per intero.`
+      : 'Scrivimela pure.') +
+    '\n\nMi serve il **nome del piatto** su una riga, poi gli **ingredienti uno per riga con la ' +
+    'quantità** (per esempio «tonno 120 g»), e alla fine **per quale pasto** e se è **onnivora, ' +
+    'vegetariana o vegana**.\n\n' +
+    'I valori nutrizionali non me li dire: li prendo dalla tabella nutrienti, così sono quelli veri.',
+
+  mancaNellaRicetta: (manca: string[]) =>
+    `Ci siamo quasi, mi manca ${manca.length === 1 ? '' : 'ancora'}:\n` +
+    manca.map((m) => `· ${m}`).join('\n') +
+    '\n\nScrivimi solo quello che manca, il resto me lo ricordo.',
+
+  /**
+   * ⚠️ Gli alimenti fuori tabella FERMANO la ricetta, e la frase deve dire perché — altrimenti
+   * sembra un capriccio. Senza i valori veri l'unico modo di riempire le calorie sarebbe
+   * indovinarle, e su quei numeri il motore calcola le giornate.
+   */
+  alimentiFuoriTabella: (mancanti: string[]) =>
+    `Non posso ancora scriverla: ${mancanti.join(', ')} ${mancanti.length === 1 ? 'non è' : 'non sono'} ` +
+    'nella tabella nutrienti, e i valori non me li invento — il motore ci calcola sopra le giornate.\n\n' +
+    'L\'ho segnat' + (mancanti.length === 1 ? 'o' : 'i') + ' fra gli alimenti da aggiungere: si ' +
+    'inserisc' + (mancanti.length === 1 ? 'e' : 'ono') + ' dalla pagina **Valori nutrizionali**, e ' +
+    'poi la ricetta si scrive in un attimo. Oppure dimmi lo stesso piatto con un ingrediente che ho già.',
+
+  anteprimaRicetta: (
+    nome: string, pasto: string, regime: string, ingredienti: string[], macro: string, modo: 'nuova' | 'modifica',
+  ) =>
+    `Ecco cosa scrivo:\n\n**${nome}** — ${pasto}, ${regime}\n` +
+    ingredienti.map((i) => `· ${i}`).join('\n') +
+    `\n\n${macro}\n\n` +
+    (modo === 'nuova'
+      ? '⚠️ Entra come **bozza**, quindi il motore non la può usare: la attiva il capo nutrizionista ' +
+        'dalla coda. Prima di finire in un menu servirà comunque la conferma degli allergeni.\n\nConfermo?'
+      : '⚠️ Questa ricetta è **già in uso**: la modifica non la applico io — la metto in coda al capo ' +
+        'nutrizionista, e diventa vera quando la approva.\n\nConfermo?'),
+
+  ricettaScritta: (nome: string) =>
+    `Scritta: **${nome}** è in catalogo come bozza e l'ho messa in coda al capo nutrizionista. ` +
+    'Quando la approva diventa attiva; gli allergeni li conferma lui dalla scheda della ricetta.',
+
+  modificaInCoda: (nome: string) =>
+    `Fatto: la modifica di **${nome}** è in coda al capo nutrizionista. Fino a quando non la approva, ` +
+    'la ricetta resta quella di adesso — nessuna cliente si trova il piatto cambiato stanotte.',
+
+  ricettaNonTrovata: (nome: string) =>
+    `Non trovo nessuna ricetta che si chiami «${nome}». Controlla il nome dalla pagina Ricette, ` +
+    'oppure scrivimelo come compare lì.',
+
+  ricetteOmonime: (nome: string, quali: string[]) =>
+    `Di «${nome}» ne ho ${quali.length}:\n${quali.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\n` +
+    'Dimmi il numero, o il nome per intero.',
 
   chiediAmbito: (clienteNome: string) =>
     `Vale **solo per ${clienteNome}**, o la estendo a tutte le tue clienti?\n` +

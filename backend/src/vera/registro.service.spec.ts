@@ -12,8 +12,20 @@ const makeDizionario = (over: Record<string, unknown> = {}) =>
     ...over,
   }) as never;
 
-const make = (prisma: Record<string, unknown>, audit = makeAudit(), dizionario = makeDizionario()) =>
-  new RegistroVeraService(prisma as unknown as PrismaService, audit, dizionario);
+/** Il catalogo finto: due metodi, gli stessi due che l'interfaccia dichiara. */
+const makeRicette = (over: Record<string, unknown> = {}) =>
+  ({
+    createRecipe: jest.fn().mockResolvedValue({ id: 'r1' }),
+    updateRecipe: jest.fn().mockResolvedValue({ id: 'r1' }),
+    ...over,
+  }) as never;
+
+const make = (
+  prisma: Record<string, unknown>,
+  audit = makeAudit(),
+  dizionario = makeDizionario(),
+  ricette = makeRicette(),
+) => new RegistroVeraService(prisma as unknown as PrismaService, audit, dizionario, ricette);
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
@@ -290,5 +302,73 @@ describe('RegistroVeraService — una parola nuova nel dizionario di tutte', () 
     const esito = await service.approva({ id: 'nocanty', role: 'head_nutritionist' }, 'a1');
     expect((dizionario as unknown as { insegna: jest.Mock }).insegna).not.toHaveBeenCalled();
     expect(esito.riepilogo).toContain('non ho scritto niente');
+  });
+});
+
+describe('RegistroVeraService — approvare una ricetta', () => {
+  const proposta = (over: Record<string, unknown> = {}) => ({
+    id: 'a1',
+    stato: 'in_approvazione',
+    azione: 'ricetta_nuova',
+    ambito: 'catalogo',
+    frase: 'Tonno alle olive…',
+    nutrizionistaId: 'lucia',
+    soggettoTipo: 'recipe',
+    soggettoId: 'r1',
+    dettaglio: null,
+    ...over,
+  });
+
+  const makeConProposta = (p: Record<string, unknown>, ricette = makeRicette()) => ({
+    service: make(
+      { azioneVera: { findUnique: jest.fn().mockResolvedValue(p), update: jest.fn().mockResolvedValue({ id: 'a1' }) } },
+      makeAudit(),
+      makeDizionario(),
+      ricette,
+    ),
+    ricette,
+  });
+
+  const CAPO = { id: 'nocanty', role: 'head_nutritionist' };
+
+  it('approvare una ricetta nuova la ACCENDE', async () => {
+    const ricette = makeRicette();
+    const { service } = makeConProposta(proposta(), ricette);
+    const esito = await service.approva(CAPO, 'a1');
+    expect((ricette as unknown as { updateRecipe: jest.Mock }).updateRecipe)
+      .toHaveBeenCalledWith('nocanty', 'r1', { active: true });
+    // ⚠️ Approvare non conferma gli allergeni: sono due responsabilità diverse, e chi approva deve
+    // saperlo dalla risposta invece di scoprirlo dal fatto che la ricetta non compare da nessuna parte.
+    expect((esito as { riepilogo: string }).riepilogo).toContain('allergeni');
+  });
+
+  it('⚠️ approvare una MODIFICA non spegne la ricetta viva', async () => {
+    // `active: false` arriva da come la proposta è stata costruita: riscriverlo su una ricetta in
+    // uso la farebbe sparire dai menu senza che nessuno l'abbia chiesto, e senza nessun errore.
+    const ricette = makeRicette();
+    const { service } = makeConProposta(
+      proposta({
+        azione: 'ricetta_modificata',
+        dettaglio: { campi: { name: 'Tonno alle olive', kcal: 210, active: false, regime: 'omnivore' } },
+      }),
+      ricette,
+    );
+    await service.approva(CAPO, 'a1');
+    const scritti = (ricette as unknown as { updateRecipe: jest.Mock }).updateRecipe.mock.calls[0][2];
+    expect(scritti).not.toHaveProperty('active');
+    expect(scritti.kcal).toBe(210);
+  });
+
+  it('una proposta di modifica senza i campi non tocca niente', async () => {
+    const ricette = makeRicette();
+    const { service } = makeConProposta(proposta({ azione: 'ricetta_modificata', dettaglio: {} }), ricette);
+    const esito = await service.approva(CAPO, 'a1');
+    expect((ricette as unknown as { updateRecipe: jest.Mock }).updateRecipe).not.toHaveBeenCalled();
+    expect((esito as { toccate: number }).toccate).toBe(0);
+  });
+
+  it('una nutrizionista non può approvarsi la ricetta da sola', async () => {
+    const { service } = makeConProposta(proposta());
+    await expect(service.approva({ id: 'lucia', role: 'nutritionist' }, 'a1')).rejects.toThrow(ForbiddenException);
   });
 });
