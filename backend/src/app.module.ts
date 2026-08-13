@@ -40,6 +40,7 @@ import { ProfileModule } from './profile/profile.module';
 import { RolesModule } from './roles/roles.module';
 import { SignalsModule } from './signals/signals.module';
 import { UsersModule } from './users/users.module';
+import { VeraModule } from './vera/vera.module';
 import { PdfModule } from './pdf/pdf.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PayoutsModule } from './payouts/payouts.module';
@@ -78,6 +79,7 @@ import { AppUpdatesModule } from './app-updates/app-updates.module';
     PdfModule,
     AuthModule,
     UsersModule,
+    VeraModule,
     RolesModule,
     PermissionsModule,
     OnboardingModule,

@@ -35,6 +35,7 @@ const baseAnswers = (): SubmitAnswersDto =>
 describe('OnboardingService', () => {
   let service: OnboardingService;
   let prisma: any;
+  let audit: { log: jest.Mock } = { log: jest.fn() };
 
   beforeEach(async () => {
     prisma = {
@@ -80,7 +81,7 @@ describe('OnboardingService', () => {
         OnboardingService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigParamsService, useValue: configParams },
-        { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: AuditService, useValue: audit },
         { provide: PersonalBaseService, useValue: { buildPersonalBase: jest.fn().mockResolvedValue(undefined) } },
         // Serve per la notifica alla coach a questionario completato: qui basta che non esploda.
         { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
@@ -173,6 +174,101 @@ describe('OnboardingService', () => {
       // la popolazione più urgente da ricontattare.
       await service.submitAnswers('u1', { ...baseAnswers(), intolerances: ['other'] });
       expect(prisma.clientProfile.upsert.mock.calls[0][0].update.intolerances).toEqual(['other']);
+    });
+  });
+
+  /**
+   * ⚠️ IL QUESTIONARIO PUÒ AGGIUNGERE, NON PUÒ CANCELLARE (12/8).
+   *
+   * L'upsert è **replace**: il ramo `update` riscrive i campi con quello che arriva. Se il DTO non
+   * porta `allergies`, la riga diventava `allergies: []` — e le allergie **sparivano**. Nessun
+   * errore, nessuna traccia.
+   *
+   * Non è un caso di laboratorio: il questionario si rifà, nessun campo di quella pagina è
+   * obbligatorio, e un'app vecchia manda solo i campi che conosce. E allergie e intolleranze le
+   * scrive **un solo punto in tutto il codice**, questo: cancellate qui, sono cancellate e basta.
+   *
+   * È il terzo campo che questo stesso upsert perdeva — l'8/8 il consenso sanitario, l'11/8 il tipo
+   * di dieta. Stavolta la regola sta fuori (`common/non-perdere.ts`), così vale anche per il quarto.
+   */
+  describe('un reinvio non cancella allergie e intolleranze', () => {
+    const upsert = () => prisma.clientProfile.upsert.mock.calls[0][0];
+    /** Una cliente che ha già dichiarato le sue, e rifà il questionario. */
+    const conProfilo = (over: Record<string, unknown> = {}) => {
+      prisma.clientProfile.findUnique.mockResolvedValue({
+        id: 'p1', userId: 'u1', screeningFlag: false, onboardingCompletedAt: new Date(),
+        dietStyle: 'mediterranean', mealsPerDay: 5, pathType: 'five', regime: 'omnivore',
+        allergies: ['latte', 'uova'], allergiesOther: [], intolerances: ['lattosio'],
+        assignedCoach: { id: 's-c', displayName: 'Marta' },
+        assignedNutritionist: { id: 's-n', displayName: 'Dr.ssa Bini' },
+        ...over,
+      });
+    };
+
+    it('⚠️ pagina saltata (campo assente): le allergie NON si azzerano', async () => {
+      conProfilo();
+      const dto = { ...baseAnswers() };
+      delete (dto as Record<string, unknown>).allergies;
+      await service.submitAnswers('u1', dto);
+      expect(upsert().update.allergies).toEqual(['latte', 'uova']);
+    });
+
+    it('⚠️ e nemmeno le intolleranze', async () => {
+      conProfilo();
+      const dto = { ...baseAnswers() };
+      delete (dto as Record<string, unknown>).intolerances;
+      await service.submitAnswers('u1', dto);
+      expect(upsert().update.intolerances).toEqual(['lattosio']);
+    });
+
+    it('⚠️ manda solo una delle due: l\'altra resta', async () => {
+      conProfilo();
+      await service.submitAnswers('u1', { ...baseAnswers(), allergies: ['latte'] });
+      expect(upsert().update.allergies).toEqual(['latte', 'uova']);
+    });
+
+    it('quello che aggiunge si aggiunge', async () => {
+      conProfilo();
+      await service.submitAnswers('u1', { ...baseAnswers(), allergies: ['latte', 'uova', 'pesce'] });
+      expect(upsert().update.allergies).toEqual(['latte', 'uova', 'pesce']);
+    });
+
+    it('⚠️ non sparisce nei due sensi: resta l\'audit E lo si dice alla cliente', async () => {
+      // Tenerle senza dirlo sarebbe metà lavoro: lei crede di averle tolte, i menu continuano a
+      // escluderle, e la volta dopo che ne parla con la coach nessuna delle due capisce.
+      conProfilo();
+      const dto = { ...baseAnswers() };
+      delete (dto as Record<string, unknown>).allergies;
+      const esito = (await service.submitAnswers('u1', dto)) as { avvisiEsclusioni?: string[] };
+      expect(esito.avvisiEsclusioni?.[0]).toContain('latte');
+      const righe = audit.log.mock.calls.map((c) => c[0].action);
+      expect(righe).toContain('onboarding.esclusioni_non_tolte');
+    });
+
+    it('primo questionario: nessun avviso, nessuna riga di audit', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null);
+      const esito = (await service.submitAnswers('u1', { ...baseAnswers(), allergies: ['latte'] })) as {
+        avvisiEsclusioni?: string[];
+      };
+      expect(esito.avvisiEsclusioni).toBeUndefined();
+      expect(upsert().create.allergies).toEqual(['latte']);
+    });
+
+    it('⚠️ i CIBI NON GRADITI invece si tolgono: quelli li gestisce lei dal Profilo', async () => {
+      // L'asimmetria è voluta. Quello che la cliente può rimettere da sola si può togliere; quello
+      // che nessuna schermata le permette di rimettere, no.
+      conProfilo({ dislikedFoods: ['funghi', 'cavolfiore'] });
+      await service.submitAnswers('u1', { ...baseAnswers(), dislikedFoods: ['funghi'] });
+      expect(upsert().update.dislikedFoods).toEqual(['funghi']);
+    });
+
+    it('⚠️ ma se non manda nemmeno quelli, non si toccano', async () => {
+      // Un\'app vecchia che non conosce il campo non deve cancellare la lista che si è costruita.
+      conProfilo();
+      const dto = { ...baseAnswers() };
+      delete (dto as Record<string, unknown>).dislikedFoods;
+      await service.submitAnswers('u1', dto);
+      expect(upsert().update.dislikedFoods).toBeUndefined();
     });
   });
 

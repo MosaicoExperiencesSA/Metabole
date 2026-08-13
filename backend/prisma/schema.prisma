@@ -1686,6 +1686,11 @@ model MenuDay {
   level        Int      @default(1)
   meals        Json // snapshot [{slot, recipeId, name, kcal}]
   status       String   @default("planned")
+  // §Vera: PRIMA volta che l'app ha restituito questo giorno alla cliente. `null` = non l'ha
+  // ancora visto, ed è l'unico dato che permette di rifare un menu senza cambiarlo sotto i piedi
+  // a chi l'ha gia letto. NON riusare `status`: esiste, ha default "planned" e non lo aggiorna
+  // nessuno — sembra un flag di stato e non lo e.
+  viewedAt     DateTime? @map("viewed_at")
   visibleFrom  DateTime @map("visible_from") @db.Date
   sourceRuleId String?  @map("source_rule_id") // valorizzato dal motore (M5)
   createdAt    DateTime @default(now()) @map("created_at")
@@ -2643,4 +2648,97 @@ model FoodSwap {
   // «Chi chiede di togliere le carote»: la domanda che i gruppi di equivalenza non sanno fare.
   @@index([fromKey])
   @@map("food_swap")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VERA — l'agente discorsivo della nutrizionista.
+// Specifica: Metabole_Specifica_Vera_Agente_Nutrizionista.md. Consegna 1: le fondamenta.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * IL DIZIONARIO: come QUESTA nutrizionista chiama una famiglia di alimenti.
+ *
+ * «Formaggi molli» non esiste in catalogo. Quando lo dice, l'agente non indovina: elenca i formaggi
+ * e le fa spuntare quali sono. Da lì la voce esiste, con quel significato, e la volta dopo non
+ * chiede più. Impara la sua LINGUA, non la nutrizione: il catalogo resta la fonte della verità e
+ * lei fornisce soltanto le etichette.
+ *
+ * È la versione viva di `INTOLERANCE_MAP` (`menu/exclusions.ts`), che fa la stessa cosa ma cablata
+ * nel codice e uguale per tutti.
+ *
+ * ⚠️ `comune` e non `nutrizionistaId = null`: in Postgres due NULL sono distinti, quindi con
+ * l'autore azzerato l'indice unico non impedirebbe due voci comuni con la stessa chiave. Tenendo
+ * l'autore, l'unicità funziona e resta scritto CHI l'ha insegnata — che è metà del valore di questa
+ * tabella. Due nutrizioniste possono promuovere la stessa parola con significati diversi: è un
+ * disaccordo VERO, e va nel rapporto mensile invece che represso da un vincolo.
+ */
+model FamigliaAlimento {
+  id              String    @id @default(uuid())
+  nutrizionistaId String    @map("nutrizionista_id")
+  /** Come l'ha scritta lei, per rimostrargliela con le sue parole. */
+  nome            String
+  /** `chiaveAlimento(nome)`: la forma stabile su cui si cerca. Vedi `common/nomi-alimento.ts`. */
+  chiave          String
+  /** I nomi di alimento che lei ha spuntato. Nomi, non id: la famiglia sopravvive a una ricetta. */
+  membri          String[]  @default([])
+  /** Vera per le voci promosse da un capo: valgono per tutte, ma la SUA batte sempre la comune. */
+  comune          Boolean   @default(false)
+  promossaDaId    String?   @map("promossa_da_id")
+  promossaIl      DateTime? @map("promossa_il")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([nutrizionistaId, chiave])
+  @@index([chiave])
+  @@index([comune])
+  @@map("famiglia_alimento")
+}
+
+/**
+ * IL REGISTRO: cosa ha fatto l'agente, su chi, e la frase da cui è nato.
+ *
+ * Serve a tre cose diverse, e la terza è quella che tiene in piedi il progetto nel tempo:
+ *  1. l'audit (obbligatorio: sono dati sanitari);
+ *  2. l'ANNULLA, che senza la riga non avrebbe su cosa agire;
+ *  3. il COLLAUDO. Un traduttore non deterministico marcisce senza che nessuno se ne accorga: ogni
+ *     correzione della nutrizionista — spunta cambiata, regola annullata, frase riformulata —
+ *     diventa un caso di prova da ripassare a ogni rilascio. Per questo `frase` si conserva
+ *     integrale: senza le frasi vere non esiste collaudo.
+ *
+ * ⚠️ Nessuna relazione Prisma verso `User`: un registro non deve sparire in cascata quando si
+ * archivia chi l'ha scritto. Gli id restano id, e il nome del soggetto è COPIATO nella riga
+ * (`soggettoNome`) così il registro si legge anche per una cliente cancellata.
+ */
+model AzioneVera {
+  id                 String    @id @default(uuid())
+  nutrizionistaId    String    @map("nutrizionista_id")
+  /** La frase come l'ha scritta lei, per intero. Non riassunta, non normalizzata. */
+  frase              String
+  /** restrizione_cliente | sostituzione_cliente | variante_cliente | ricetta | regola_dieta */
+  azione             String
+  /** cliente | dieta | catalogo — il raggio del danno, che è l'unico ordine che conta. */
+  ambito             String
+  soggettoTipo       String    @map("soggetto_tipo") // user | diet | recipe
+  soggettoId         String?   @map("soggetto_id")
+  soggettoNome       String?   @map("soggetto_nome")
+  /** La regola tradotta, nella forma in cui è stata CONFERMATA (non quella proposta). */
+  dettaglio          Json?
+  /** attiva | in_approvazione | annullata | respinta */
+  stato              String    @default("attiva")
+  /**
+   * La regola ha scavalcato un vincolo sanitario e lei ha confermato lo stesso.
+   * Comanda lei — è un medico — ma queste righe si notificano SUBITO e non a fine mese, e restano
+   * scritte: se un domani qualcuno chiede conto di quella scelta, risulta una decisione presa da
+   * una persona informata e non un automatismo.
+   */
+  conflittoSanitario Boolean   @default(false) @map("conflitto_sanitario")
+  annullataDaId      String?   @map("annullata_da_id")
+  annullataIl        DateTime? @map("annullata_il")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([nutrizionistaId, createdAt])
+  @@index([soggettoId, createdAt])
+  @@index([stato])
+  @@map("azione_vera")
 }

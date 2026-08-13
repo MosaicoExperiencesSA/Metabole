@@ -139,12 +139,48 @@ export class MenuService {
       take: MENU_WINDOW_DAYS,
     });
     menuDays.reverse(); // l'app si aspetta i giorni in ordine crescente
+    await this.segnaVisti(menuDays as { id: string; viewedAt: Date | null }[]);
     const blocked = await this.dietBlock(clientId);
     const status = await this.menuStatus(clientId, menuDays.some((d) => d.date.getTime() >= today.getTime()));
     // NB: restituiamo sempre tutti i giorni della finestra (lo STORICO recente resta
     // leggibile anche a piano scaduto). Il "menu di oggi" in dashboard viene nascosto
     // lato app quando `status.state === 'expired'`, ma la cronologia resta consultabile.
     return { delivered, days: menuDays, blocked, status };
+  }
+
+  /**
+   * SEGNA I GIORNI COME VISTI — la riga che rende possibile annullare una regola senza fare danni.
+   *
+   * Il dato «questa cliente ha già visto il menu di domani» non esisteva. `MenuDay.status` c'è, ha
+   * default `'planned'` e non lo aggiorna nessuna riga di questo backend: sembrava il posto giusto e
+   * non lo era. Senza, «rigenera solo i menu non ancora visti» non è implementabile, e l'unica
+   * alternativa sarebbe rifare anche quelli che lei ha già letto — magari dopo aver fatto la spesa.
+   *
+   * Sta QUI perché `getMenu` è l'unico punto in cui i giorni escono verso l'app: un solo posto da
+   * ricordare, invece di un evento da emettere da ogni schermata.
+   *
+   * ⚠️ Tre precauzioni, tutte per lo stesso motivo — questa funzione gira a OGNI apertura dell'app:
+   *  - si scrive solo la PRIMA volta (`viewedAt: null` nel filtro): serve sapere quando l'ha visto,
+   *    non quante volte;
+   *  - se non c'è niente da segnare non si tocca il database, e nel caso normale non c'è niente;
+   *  - un errore qui non deve MAI impedire a una cliente di leggere il suo menu. Il menu è il
+   *    lavoro vero, questa è la cronaca. Ma l'errore si SCRIVE nei log: un catch muto è un mistero,
+   *    e una colonna che smette di popolarsi in silenzio farebbe rigenerare menu già letti senza
+   *    che nessuno capisca perché.
+   */
+  private async segnaVisti(giorni: { id: string; viewedAt: Date | null }[]): Promise<void> {
+    const daSegnare = giorni.filter((g) => !g.viewedAt).map((g) => g.id);
+    if (!daSegnare.length) return;
+    try {
+      await this.prisma.menuDay.updateMany({
+        where: { id: { in: daSegnare }, viewedAt: null } as never,
+        data: { viewedAt: new Date() } as never,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Giorni non segnati come visti (${daSegnare.length}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**

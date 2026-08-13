@@ -116,10 +116,10 @@ In ordine di quanto sono pronti.
 - **L'opzione «nessuna» fra le allergie del questionario** (§3.1). Le intolleranze ce l'hanno già
   (`'none'`). Finché non c'è, un array vuoto conta come «non risposto», non come «non ne ho».
   ⚠️ È una modifica all'app: va con la OTA.
-- ⚠️ **La trappola dell'upsert** (§5 dell'handoff, da verificare e sistemare): l'upsert è **replace,
-  non merge**. Se il DTO non contiene `allergies`, il campo **viene azzerato** — i `consents` invece
-  vengono fusi. Chi rifà il questionario saltando la pagina delle allergie oggi **le perde tutte**.
-  Questo non l'ho toccato, e va guardato prima della prossima OTA del questionario.
+- ✅ **La trappola dell'upsert** — **fatta il 13/8.** Era vera: chi rifaceva il questionario saltando
+  la pagina delle allergie le perdeva tutte. Ora il questionario **aggiunge e non toglie**
+  (`common/non-perdere.ts`), con audit e una schermata che lo dice alla cliente. I cibi non graditi
+  restano modificabili, perché quelli lei li gestisce dal Profilo.
 
 ### Il pezzo grosso: la ri-domanda in chat con Gaia (§7)
 

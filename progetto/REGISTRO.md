@@ -18,6 +18,80 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-13
+
+- `[Sviluppo]` 🧱 **Vera — Consegna 1: le fondamenta. E il pool a vuoto NON è un menu simulato.**
+  17 file: migrazione additiva `20260812233000_vera_fondamenta` (`menu_day.viewed_at`,
+  `famiglia_alimento`, `azione_vera`), il modulo `src/vera/` — controllo del pool, dizionario,
+  registro con l'annulla — e `segnaVisti` dentro `getMenu`. Niente chat: sono i pezzi su cui la chat
+  poggerà, e servono anche da soli (il controllo del pool serve pure a Regole motore). L'impianto sta
+  in `Metabole_Specifica_Vera_Agente_Nutrizionista.md`, l'avanzamento in `progetto/VERA_AVANZAMENTO.md`.
+  **⚠️ Ho cambiato strada rispetto alla specifica che avevo scritto io.** Diceva «taglia
+  `deliverIfEligible` alla riga 675 e neutralizza le sei scritture collaterali». Letta sul codice non
+  regge: quella funzione ha **una quindicina di uscite anticipate** che non c'entrano niente con la
+  regola da provare (nessun abbonamento, pausa, piano fermato, misure mancanti, fine piano) — una
+  anteprima che risponde «niente» perché la cliente è in vacanza è rumore, e si impara a ignorarlo — e
+  le sei scritture si neutralizzano solo mettendo degli `if` **sul percorso che porta il pasto vero
+  nel piatto di domani**. La domanda di Vera non è «che menu verrebbe fuori»: è **«quanti piatti
+  restano»**, e si risponde con una **funzione pura sopra il catalogo** che non può scrivere per
+  costruzione. Il modo più sicuro perché un'anteprima non salvi niente non è ricordarsi di non
+  salvare: è **non avere Prisma sotto mano**. Filtro con `hitsExclusion`+`recipeHaystack` di
+  `menu/exclusions.ts`, **mai un filtro proprio**, o il numero mostrato diventa una stima che diverge
+  dal motore senza produrre errori. Soglia = `personal_base_min_recipes_per_slot`, **la stessa** della
+  base personale: per questo `MAIN_SLOTS`/`SLOT_LABEL` sono passati in `common/slot-pasto.ts`.
+  **⚠️ Trovato scrivendo i test, e vale oltre Vera**: `chiaveAlimento` **non fa combaciare singolare e
+  plurale**, perché toglie una sola vocale finale — «formaggi molli» dà `formagg moll`, «formaggio
+  molle» dà `formaggi moll`. Senza rimedio l'agente richiederebbe una famiglia **già imparata**, e se
+  lei rispondesse nascerebbe una **seconda voce per la stessa parola**: due significati, di cui uno
+  vecchio, e le regole scritte prima continuerebbero a usare quello senza dirlo a nessuno. Rimedio
+  (`chiaveLarga`, seconda passata) **dentro Vera**, senza toccare `chiaveAlimento`: quella la usano le
+  sostituzioni §16.9 per contare, e renderla più aggressiva accorperebbe righe che non c'entrano —
+  «pepe» e «peperoni» al contrario. La chiave esatta vince comunque sempre.
+  **Il dato «menu già visto» ora esiste.** `getMenu` è l'unico punto in cui i giorni escono verso
+  l'app: si scrive **solo la prima volta**, non si tocca il database quando non c'è niente da segnare,
+  e un errore non impedisce a nessuna cliente di leggere il menu — ma finisce **nei log**, perché una
+  colonna che smette di popolarsi in silenzio farebbe rigenerare menu già letti senza che nessuno
+  capisca perché. `menuDaRifare` guarda `viewedAt: null` **E** `date >= oggi`: per i giorni erogati
+  prima della migrazione il null vuol dire «non lo so», non «non visto».
+  **Verifica**: type-check **33 errori = baseline** (nessuno nuovo, nessuno nei file di Vera; il
+  confronto si fa col diff, mai col totale), **1439 test verdi** contro 1401 — i 38 in più sono i
+  nuovi, e le 44 suite rosse sono le stesse di prima (rumore dello stub Prisma in sandbox).
+  ✅ **Verificato sul Mac**: `npm run typecheck` **zero errori** coi tipi veri di Prisma, e
+  `app.module.spec.ts` **verde** — ogni dipendenza di ogni modulo si risolve all'avvio, che è l'unica
+  prova che `VeraModule` (senza `imports`, perché `PrismaModule`, `AuditModule` e `ConfigParamsModule`
+  sono tutti `@Global`) non farà uscire Render con 1. In sandbox quei due non girano: `prisma
+  generate` non arriva ai binari e resta appeso.
+  ⚠️ **Nota di metodo**: la voce di REGISTRO scritta ieri per la specifica di Vera **è sparita due
+  volte**, riscritta da sessioni parallele che partivano da una copia vecchia del file. Chi scrive qui
+  da un'altra sessione deve **rileggere il file dal Mac subito prima** e verificare con un `grep` che
+  la propria voce ci sia davvero dopo averla scritta.
+
+- `[Sviluppo]` 🔒 **Il questionario può aggiungere le allergie, non cancellarle.** L'`upsert` del
+  questionario è **replace, non merge**: se il DTO non porta `allergies`, il ramo `update` scrive
+  `allergies: []` e le allergie della cliente **spariscono** — senza errore e senza traccia. Non è un
+  caso di laboratorio: il questionario si rifà, **nessun campo di quella pagina è obbligatorio**, e
+  un'app vecchia manda solo i campi che conosce.
+  ⚠️ **È il terzo campo che questo stesso upsert perdeva**: l'8/8 il consenso sanitario (sei clienti
+  bloccate al carrello, senza via d'uscita), l'11/8 il tipo di dieta (spostato dallo staff e tornato
+  indietro due volte, in silenzio). Le altre due volte si è sistemato il campo saltato fuori; stavolta
+  la regola sta **fuori**, in `common/non-perdere.ts`, così vale anche per il quarto.
+  **La regola è asimmetrica, ed è voluto: non si cancella quello che la cliente non può rimettere da
+  sola.** Allergie e intolleranze le scrive **un solo punto in tutto il codice** — non stanno nel DTO
+  della PATCH cliente, non in `PROFILE_FIELDS`, non nel DTO staff — quindi lì si fa **unione**, mai
+  sottrazione. I **cibi non graditi** invece li gestisce lei dal Profilo: lì il questionario è un
+  editor legittimo e quello che manda vale, ma se **non manda il campo** non si tocca niente.
+  ⚠️ `undefined` e `[]` sono cose diverse, ed è tutto il punto: «di questo non ti ho detto niente»
+  contro «non ne ho nessuno».
+  ⚠️ **Conseguenza:** dal questionario un'allergia non si toglie più. Era già la regola dichiarata —
+  la correzione su un dato sanitario la fa una nutrizionista — solo che finora era aggirabile per
+  sbaglio.
+  **E non sparisce nei due sensi:** riga di audit `onboarding.esclusioni_non_tolte` per lo staff, e
+  una schermata alla cliente prima di proseguire («Restano registrate: … si tolgono parlando con la
+  tua nutrizionista»). Tenerle senza dirlo sarebbe metà lavoro: lei crede di averle tolte, i menu
+  continuano a escluderle, e la volta dopo che ne parla con la coach nessuna delle due capisce.
+  15 test nuovi, gli 8 sul servizio **verificati rossi** contro il comportamento di prima. Suite
+  **2187** verde, app 50 verdi.
+
 ## 2026-08-12
 
 > ⚠️ Le tre voci qui sotto sotto `2026-08-11` — «Piatto freddo», i gruppi a fisarmonica, «Modifica

@@ -11,12 +11,14 @@
 
 ## Stato in una riga
 
-**Specifica chiusa e verificata sul codice. Nessuna riga di codice ancora scritta.**
+**Consegna 1 scritta e VERIFICATA.** Type-check reale sul Mac: **zero errori** coi tipi veri di
+Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si risolve all'avvio.
+38 test nuovi verdi, 1439 in totale. Pronta per la push.
 
 | Consegna | Cosa | Stato |
 |---|---|---|
 | — | Specifica e verifica sul codice | ✅ **fatta** — 12/8/2026 |
-| 1 | Le fondamenta (dizionario, `viewedAt`, pool a vuoto, registro) | ⬜ da iniziare |
+| 1 | Le fondamenta (dizionario, `viewedAt`, pool a vuoto, registro) | ✅ **fatta e verificata** — 13/8/2026 |
 | 2 | Vera che parla, due azioni + la pagina | ⬜ da iniziare |
 | 3 | Azioni a raggio largo, registro allargato, dashboard, pagina di Nocanty | ⬜ da iniziare |
 | 4 | Che non marcisca (corpus di prova, rapporto mensile, dizionario vivo) | ⬜ da iniziare |
@@ -28,15 +30,32 @@
 
 Nessuna chat. Utile anche da sola: il controllo del pool serve pure alla pagina Regole motore.
 
-- [ ] Tabella **dizionario** (famiglia → alimenti, per nutrizionista, con promozione a comune)
-- [ ] **`MenuDay.viewedAt`** valorizzato in `getMenu` (unico punto di lettura)
-- [ ] **Pool a vuoto**: metodo pubblico estratto da `menu.service.ts`, taglio alla riga 675, sul
-      modello di `simulaKcal` + test «la simulazione non salva niente»
-- [ ] Neutralizzare le scritture collaterali di `deliverIfEligible` (373, 422-432, 483, 651, 692, 717)
-- [ ] **Registro** delle azioni con frase originale e annulla
+- [x] Migrazione additiva `20260812233000_vera_fondamenta`
+- [x] Tabella **dizionario** (`famiglia_alimento`) con promozione a comune
+- [x] **`MenuDay.viewedAt`** valorizzato in `getMenu` (unico punto di lettura)
+- [x] **Controllo del pool** a vuoto — ⚠️ **non** come menu simulato: vedi sotto
+- [x] **Registro** (`azione_vera`) con frase originale e annulla
+- [x] 38 test nuovi, 4 file di spec
+- [x] ⚠️ Type-check reale **sul Mac**: zero errori · `app.module.spec.ts`: verde
+- [ ] Revisore che rilegge prima della push
 
-⚠️ Il rischio del progetto è concentrato qui: le scritture collaterali vanno rese opzionali senza
-rompere il percorso vero. Si fa con un revisore che rilegge.
+### ⚠️ Il pool a vuoto NON taglia `deliverIfEligible`
+
+La specifica diceva «taglio alla riga 675 e neutralizza le sei scritture collaterali». Letta sul
+codice, quella strada non regge:
+
+- `deliverIfEligible` ha **una quindicina di uscite anticipate** che non c'entrano niente con la
+  regola da provare — nessun abbonamento, pausa, piano fermato, misure mancanti, fine piano. Una
+  anteprima che risponde «niente» perché la cliente è in vacanza è rumore, e si impara a ignorarlo.
+- Le sei scritture collaterali si neutralizzano solo mettendo degli `if` **sul percorso che porta il
+  pasto vero nel piatto di domani**, in cambio di un dato che non serve.
+
+La domanda di Vera non è «che menu verrebbe fuori»: è **«quanti piatti restano»**. Si risponde con una
+funzione pura sopra il catalogo (`src/vera/pool-disponibile.ts`), che **non può scrivere per
+costruzione** — il modo più sicuro perché un'anteprima non salvi niente non è ricordarsi di non
+salvare, è non avere Prisma sotto mano. Il pool si costruisce dai `DietDayTemplate` di livello 1 come
+fa `buildScoringContext`, e il filtro usa `hitsExclusion` + `recipeHaystack` di `menu/exclusions.ts`:
+mai un filtro proprio, o il numero mostrato diventa una stima che diverge dal motore senza errori.
 
 ---
 
@@ -111,6 +130,21 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 12/8/2026 — Consegna 1 scritta (17 file, ~1620 righe)
+Migrazione additiva (`menu_day.viewed_at`, `famiglia_alimento`, `azione_vera`), il modulo
+`src/vera/` con i tre pezzi — controllo del pool, dizionario, registro con l'annulla — e `segnaVisti`
+dentro `getMenu`. `MAIN_SLOTS`/`SLOT_LABEL` spostati in `common/slot-pasto.ts`: la soglia e i pasti su
+cui si misura devono essere gli **stessi** con cui la base personale blocca il piano.
+Verifica: **type-check 33 errori = baseline** (nessuno nuovo, e nessuno nei file di Vera), **1439 test
+verdi** contro 1401 del baseline — i 38 in più sono i nuovi, e le 44 suite rosse sono le stesse di
+prima (rumore dello stub Prisma in sandbox).
+⚠️ Trovato scrivendo i test: **`chiaveAlimento` non fa combaciare singolare e plurale** («formaggi
+molli» → `formagg moll`, «formaggio molle» → `formaggi moll`), perché toglie una sola vocale finale.
+Senza rimedio l'agente richiederebbe una famiglia già imparata, e se lei rispondesse nascerebbe una
+**seconda voce per la stessa parola**. Rimedio dentro Vera (`chiaveLarga`, seconda passata), **senza
+toccare** `chiaveAlimento`: quella la usano le sostituzioni per contare, e renderla più aggressiva
+accorperebbe righe che non c'entrano.
 
 ### 12/8/2026 — Specifica e verifica sul codice
 Il discorso con Lucia diventa un documento. Tre scoperte che hanno ridotto il progetto:

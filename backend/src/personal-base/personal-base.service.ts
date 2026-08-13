@@ -7,6 +7,7 @@ import { allergieDaCodificare } from '../common/allergie';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { PrismaService } from '../prisma/prisma.service';
+import { MAIN_SLOTS, SLOT_LABEL } from '../common/slot-pasto';
 
 // R9 — Chiave server per firmare la personalizzazione (seme + certificato). Non è un
 // segreto d'utente: serve a rendere la firma deterministica e verificabile lato server.
@@ -24,15 +25,6 @@ const rankOf = (seed: string, recipeId: string): string => hmac(`${seed}:${recip
 const signMenu = (seed: string, version: number, orderedRecipeIds: string[]): string =>
   hmac(`${seed}|v${version}|${orderedRecipeIds.join(',')}`);
 
-// Slot principali su cui garantiamo la soglia minima di ricette sicure.
-const MAIN_SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
-const SLOT_LABEL: Record<string, string> = {
-  breakfast: 'colazione',
-  lunch: 'pranzo',
-  dinner: 'cena',
-  morning_snack: 'spuntino',
-  afternoon_snack: 'merenda',
-};
 
 // Compatibilità regime: cosa può mangiare un cliente di un dato regime (nesting standard).
 const REGIME_OK: Record<string, string[]> = {

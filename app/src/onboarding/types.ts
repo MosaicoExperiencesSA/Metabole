@@ -61,4 +61,11 @@ export interface OnboardingResult {
    * salva e si spiega perché. Presente solo quando c'è qualcosa da dire.
    */
   avvisiSpezie?: { tipo: 'specifica' | 'generica'; termine: string; titolo: string; testo: string }[];
+  /**
+   * Allergie o intolleranze che il reinvio del questionario avrebbe TOLTO, e che sono rimaste.
+   * Dal questionario si aggiungono, non si tolgono: toglierle è una correzione su un dato
+   * sanitario e la fa la nutrizionista. Va detto, o lei crede di averle tolte e i menu continuano
+   * a escluderle.
+   */
+  avvisiEsclusioni?: string[];
 }
