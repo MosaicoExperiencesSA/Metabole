@@ -353,10 +353,13 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni dopo la fine di un evento in cui l\'agente resta in stato "post-evento" (spinta efficacia per il recupero)',
   },
   {
-    key: 'agent_plateau_cycles',
-    value: '2',
+    key: 'agent_plateau_pesate',
+    value: '3',
     type: 'number',
-    description: 'Cicli consecutivi senza calo peso dopo cui l\'agente passa a stato "plateau"',
+    // ⚠️ Dal 13/8 il segnale sono le PESATE, non i cicli: il ciclo dipende da un feedback che
+    // qualcuno deve compilare, la pesata è il fatto. La chiave vecchia resta a database e non la
+    // legge più nessuno.
+    description: 'Pesate consecutive ferme o in aumento dopo cui l\'agente passa a stato "plateau" (un calo, anche minimo, azzera il conteggio)',
   },
   {
     key: 'agent_comfort_max_days',

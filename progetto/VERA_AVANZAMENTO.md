@@ -11,6 +11,11 @@
 
 ## Stato in una riga
 
+**📄 Il passaggio di consegne è in `progetto/HANDOFF_Vera_Sessione.md`** — la chat che ha costruito
+Vera si è chiusa il 13/8 perché era diventata troppo lunga. Lì dentro c'è tutto quello che serve per
+riprenderla da un'altra sessione: le regole di lavoro, la mappa dei file, le dodici regole che non si
+negoziano, le trappole già pagate e le due decisioni aperte.
+
 **Le ricette si dettano.** Azioni 4 e 5: «inseriamo una ricetta per il menu keto» e «voglio cambiare
 la ricetta tonno alle olive». Lei scrive il piatto come su un quaderno, i **macro li prende la
 tabella nutrienti** (mai inventati: se un alimento non c'è, la ricetta si ferma e il termine finisce
@@ -210,6 +215,14 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Passaggio di consegne (2 file)
+`progetto/HANDOFF_Vera_Sessione.md` e tre voci nuove in lista Lavori per le due decisioni che
+restano (`vera-variante-cosa-significa`, `vera-esclusione-di-dieta`) e per il documento stesso.
+⚠️ La cosa che il documento dice e che questo rapporto non diceva: **l'esclusione a livello di dieta
+non esiste nel motore**. Verificato sul codice — le primitive di `menu/exclusions.ts` sono agnostiche,
+ma ogni chiamante costruisce le chiavi dal `ClientProfile` e da nient'altro. L'azione 6 non è
+agganciare un pezzo che c'è: è aggiungere un concetto al motore che genera i menu di 315 persone.
 
 ### 13/8/2026 — Le ricette si dettano: azioni 4 e 5 (10 file)
 Lei scrive il piatto come su un quaderno — nome sopra, ingredienti sotto con le quantità, e alla fine

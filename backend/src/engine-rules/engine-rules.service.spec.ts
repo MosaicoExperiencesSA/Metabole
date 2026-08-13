@@ -70,7 +70,7 @@ describe('EngineRulesService', () => {
     expect(configParams.update).toHaveBeenCalledWith('menu_select_w_eff', '1.5', 'u1');
 
     prisma.configParam.findUnique.mockResolvedValueOnce(null); // manca (soglia agente)
-    await service.setGlobal('agent_plateau_cycles', 4, 'u1');
+    await service.setGlobal('agent_plateau_pesate', 4, 'u1');
     expect(prisma.configParam.create).toHaveBeenCalled();
   });
 

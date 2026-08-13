@@ -339,4 +339,30 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 228,
   },
 
+  // ── Vera: le due decisioni che restano prima di finirla (13/8) ──
+  {
+    chiave: 'vera-variante-cosa-significa',
+    titolo: 'Vera, azione 3: «una variante di piano per questa cliente» vuol dire cosa?',
+    dettaglio:
+      'Due letture possibili, molto diverse per chi la usa. (a) Cambiare i PASTI dei giorni futuri di quella persona, lasciandola sulla sua dieta. (b) SPOSTARLA su una dieta diversa (o su una variante della sua). ⚠️ La (b) fa ripartire il piano da capo e cambia tutto quello che ha visto finora; la (a) no, ma non si porta dietro le regole della dieta nuova. Serve la risposta di Simone/Lucia prima di scrivere una riga: è l\'unica azione dove indovinare male non dà nessun errore, dà solo un piano diverso da quello che lei voleva.',
+    categoria: SIMONE,
+    ordine: 229,
+  },
+  {
+    chiave: 'vera-esclusione-di-dieta',
+    titolo: 'Vera, azione 6: l\'esclusione a livello di DIETA non esiste nel motore',
+    dettaglio:
+      '«Nella mediterranea non deve comparire più il tonno». ⚠️ Verificato sul codice il 13/8: oggi il filtro delle esclusioni è SOLO per-cliente — `menu/exclusions.ts` è agnostico, ma ogni chiamante costruisce le chiavi dal `ClientProfile` e da nient\'altro. Non esiste nessun campo né tabella che dica «in questa dieta questo alimento non compare»: finora si è fatta una dieta variante a mano («Mediterranea senza glutine») e il divieto vive come TESTO in `RulePreset.clinicalNotes`, che nessun codice legge. Il contenitore più diretto sarebbe `ProductRule` (`{dietId, ruleCode, params}`) con un codice nuovo, letto dove si costruisce il pool (`menu.service.buildScoringContext`) e/o in `evaluateMeals`, che è il punto obbligato di ogni erogazione. ⚠️ È l\'unico pezzo di Vera che tocca il percorso che porta il pasto nel piatto di domani, su 315 clienti: si fa a mente fresca, non di sera.',
+    categoria: CODICE,
+    ordine: 230,
+  },
+  {
+    chiave: 'vera-handoff-sessione',
+    titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
+    dettaglio:
+      'La chat in cui Vera è stata costruita (12-13/8) è diventata troppo lunga. Tutto quello che serve per riprenderla da un\'altra sessione — cosa c\'è, dove sta, le regole di lavoro, le trappole già pagate e le due decisioni aperte — è in `progetto/HANDOFF_Vera_Sessione.md`. ⚠️ Va letto PRIMA di toccare `backend/src/vera/`: metà delle scelte che sembrano strane lì dentro sono difetti già pagati una volta.',
+    categoria: MANUTENZIONE,
+    ordine: 231,
+  },
+
 ];

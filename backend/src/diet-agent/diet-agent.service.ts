@@ -129,6 +129,12 @@ export class DietAgentService {
     })) as { weightKg: number }[];
     const fermo = pesoNonScende(misure.map((m) => m.weightKg), plateauPesate);
 
+    /**
+     * ⚠️ L'ORDINE È CAMBIATO. Prima il plateau tornava SUBITO, prima ancora di guardare l'umore:
+     * così «peso fermo» e «peso fermo mentre sta male» erano indistinguibili, e la decisione di
+     * Simone del 13/8 non si sarebbe potuta applicare. Ora il peso fermo si CALCOLA qui sopra e si
+     * decide dopo aver sentito anche l'umore.
+     */
     // 4. Conforto / guardrail / rientro — dalla "memoria" dei check-in recenti.
     const lookback = Math.max(comfortMax, reentryDays) + 3;
     const checkins = (await this.prisma.dailyCheckin.findMany({
@@ -152,7 +158,19 @@ export class DietAgentService {
           }
           // Guardrail: se il conforto dura troppi giorni di fila si RIENTRA (spinta efficacia),
           // per non lasciare la cliente ferma nei menu "amati"; sotto la soglia → conforto.
-          return streak > comfortMax ? 'rientro' : 'conforto';
+          /**
+           * ⚠️ QUANDO CI SONO TUTTI E DUE — decisione di Simone (13/8): «vince l'efficacia, ma resta
+           * un giorno di conforto a settimana».
+           *
+           * Peso fermo e umore basso insieme non sono né l'uno né l'altro: il piano deve tornare a
+           * funzionare, ma togliere ogni piatto amato a chi sta già giù è il modo più rapido per
+           * farla smettere del tutto. Lo stato lo dice, e il giorno lo mette `menu.service`.
+           *
+           * ⚠️ Il guardrail del conforto lungo (`comfortMax` → `rientro`) resta davanti: se sta giù
+           * da troppi giorni la spinta all'efficacia c'è comunque, e senza il giorno di stelle.
+           */
+          if (streak > comfortMax) return 'rientro';
+          return fermo ? 'plateau_conforto' : 'conforto';
         }
         // Umore risalito: se c'è stato un periodo difficile nella finestra di rientro → rientro.
         const reentryFloor = new Date(today.getTime() - reentryDays * DAY);
@@ -162,6 +180,10 @@ export class DietAgentService {
         if (recentLow) return 'rientro';
       }
     }
+
+
+    // Peso fermo senza segnali di umore: comanda l'efficacia, come prima.
+    if (fermo) return 'plateau';
 
     return 'normale';
   }

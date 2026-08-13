@@ -8,6 +8,7 @@ import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
+import { eGiornoDiConforto } from './plateau';
 // §16.9: una funzione, non un servizio iniettato — vedi il commento in `food-swaps.module.ts`.
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { PushService } from '../notifications/push.service';
@@ -530,6 +531,20 @@ export class MenuService {
     const overrides = await this.dietRuleOverrides(diet.id);
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
     const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides);
+    /**
+     * ⚠️ IL GIORNO DI CONFORTO DENTRO IL PLATEAU — decisione di Simone (13/8).
+     *
+     * Quando il peso è fermo **e** l'umore è basso comanda l'efficacia, ma un giorno a settimana
+     * (la domenica) vincono le stelle. Serve un secondo contesto di punteggio, perché i pesi si
+     * fissano quando il contesto nasce e la generazione fa più giorni in un colpo solo.
+     *
+     * ⚠️ Si costruisce **solo** in quello stato: un secondo giro di query per tutte sarebbe un costo
+     * pagato da chiunque per una regola che riguarda poche persone.
+     */
+    const ctxConforto =
+      agentState === 'plateau_conforto'
+        ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides)
+        : null;
     const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getBool('menu_daycombo_enabled', false),
@@ -552,6 +567,8 @@ export class MenuService {
     const pMax = pickNumOverride(overrides, 'menu_daycombo_protein_max', pMaxG);
     // Selettore per-slot (comportamento base, sempre disponibile come fallback).
     const selector = this.selectorFromContext(ctx, kcalTolPct / 100);
+    // Il selettore del giorno di stelle: esiste solo quando lo stato è `plateau_conforto`.
+    const selectorConforto = ctxConforto ? this.selectorFromContext(ctxConforto, kcalTolPct / 100) : null;
 
     // TARGET KCAL DELLA GIORNATA. Se il "menu a necessità" è attivo e il fabbisogno è
     // calcolabile dal profilo, il target è il fabbisogno; altrimenti si usano le kcal del
@@ -592,10 +609,19 @@ export class MenuService {
       if (planEnd && date.getTime() > planEnd.getTime()) break; // niente giorni oltre la fine piano
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
+      /**
+       * ⚠️ IL GIORNO DI STELLE (decisione di Simone, 13/8): dentro `plateau_conforto`, la domenica
+       * si compone con i pesi del conforto. Negli altri giorni comanda l'efficacia.
+       *
+       * Si cambia il **contesto**, non i pesi: i pesi sono già dentro il punteggio quando il
+       * contesto nasce, e ricalcolarli qui vorrebbe dire tenere la stessa formula in due posti.
+       */
+      const ctxGiorno = ctxConforto && eGiornoDiConforto(date) ? ctxConforto : ctx;
+      const selectorGiorno = ctxGiorno === ctxConforto && selectorConforto ? selectorConforto : selector;
       let chosen: { slot: string; recipeId: string }[] | null = null;
       // I punteggi vanno ricalcolati AD OGNI GIORNO: i piatti scelti per il giorno precedente
       // sono nel frattempo diventati "serviti di recente" (bump) e vanno sfavoriti.
-      const combo = useDayCombo && ctx ? this.dayComboPools(ctx, slotSaltati) : null;
+      const combo = useDayCombo && ctxGiorno ? this.dayComboPools(ctxGiorno, slotSaltati) : null;
       if (combo) {
         chosen = this.dayCombo.compose({
           slots: combo.slots,
@@ -613,14 +639,16 @@ export class MenuService {
         // giornata nella banda, il template va comunque ripulito dei pasti saltati.
         const pasti = (template.meals as { slot: string; recipeId: string }[]) ?? [];
         const pastiFiltrati = pasti.filter((m) => !slotSaltati.has(m.slot));
-        chosen = selector(pastiFiltrati.length > 0 ? pastiFiltrati : pasti);
+        chosen = selectorGiorno(pastiFiltrati.length > 0 ? pastiFiltrati : pasti);
       }
       // VARIETÀ: niente stesso piatto nello stesso slot a meno di `varietyGap` giorni, se il
       // pool della dieta offre un'alternativa entro la tolleranza kcal (bilanciamento salvo).
-      chosen = this.applyVarietyGuard(chosen, slotHistory, ctx, kcalTolPct / 100, varietyGap);
+      chosen = this.applyVarietyGuard(chosen, slotHistory, ctxGiorno, kcalTolPct / 100, varietyGap);
       this.pushSlotHistory(slotHistory, chosen, varietyGap);
       // I piatti di oggi contano come "serviti di recente" per i giorni successivi del ciclo.
-      for (const m of chosen) ctx?.bump(m.recipeId);
+      // ⚠️ Il «servito di recente» si segna su TUTTI E DUE i contesti: se lo si segnasse solo su
+      // quello del giorno, la domenica riproporrebbe i piatti di sabato senza saperlo.
+      for (const m of chosen) { ctx?.bump(m.recipeId); ctxConforto?.bump(m.recipeId); }
       const meals = await this.snapshotMeals(chosen as never);
       daySnapshots.push({ date, meals });
     }
@@ -1207,7 +1235,10 @@ export class MenuService {
     // perché nei log e nelle diagnosi «in vacanza» e «giornata storta» non vanno confusi.
     if (state === 'conforto' || state === 'vacanza') wGrad = wGradBase * boost; // menu più amati
     // plateau / post-evento / rientro → si spinge sull'efficacia (calo/recupero).
-    else if (state === 'plateau' || state === 'post_evento' || state === 'rientro') wEff = wEffBase * boost;
+    // ⚠️ `plateau_conforto` sta QUI e non sopra: peso fermo e umore basso insieme → comanda
+    // l'efficacia (decisione di Simone, 13/8). Il giorno di stelle che le resta lo mette la
+    // composizione della giornata, non i pesi: vedi `giornoDiConforto` più sotto.
+    else if (state === 'plateau' || state === 'plateau_conforto' || state === 'post_evento' || state === 'rientro') wEff = wEffBase * boost;
     // R12 — modulazione da obiettivo della dieta: in MANTENIMENTO l'efficacia (appresa
     // sul calo peso) diventa neutra — niente spinta al deficit, nemmeno dagli stati che
     // la boosterebbero (plateau/post-evento/rientro); resta il gradimento (+ varietà).

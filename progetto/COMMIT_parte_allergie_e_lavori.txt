@@ -86,6 +86,56 @@ dopo il modello `RichiestaVera` dell'altra sessione: non è stata rimessa una co
 6 test nuovi, verificati rossi prima (la risposta svuotata che lasciava chi e quando; le voci fatte
 che finivano nel testo da incollare). Suite dei lavori: 17 verdi.
 
+=== IL VIA LIBERA CLINICO ERA ROTTO IN PRODUZIONE ===
+
+`Cannot POST /api/v1/clients/<id>/idoneita`: la rotta chiamata dalla scheda cliente non aveva il
+prefisso `admin`, che tutte le altre della stessa pagina hanno. Nessuna valutazione è mai arrivata al
+server da quando è stata rilasciata, stamattina.
+
+⚠️ E si vedeva male: il banner d'errore sta IN CIMA alla pagina, il pulsante in fondo alla scheda —
+dal basso sembrava che premere non facesse niente. Ora dopo una decisione la pagina risale al banner,
+anche quando va a buon fine: una decisione clinica registrata senza nessun segno visibile si rifà una
+seconda volta.
+⚠️ La valutazione di Antonella NON è stata registrata: va rifatta.
+
+=== QUANDO COMANDA L'EFFICACIA E QUANDO COMANDANO LE STELLE ===
+
+Risposta di Simone dalla pagina Lavori: «se abbiamo un problema di umore vincono le 5 stelle, se il
+problema è il peso che non scende vince l'efficacia» — e «tre pesi registrati consecutivi».
+
+**Il segnale cambia**: lo stato `plateau` si accendeva su due CICLI senza calo
+(`CycleFeedback.esitoPeso`); ora su **tre PESATE** consecutive ferme o in aumento. Il ciclo dipende da
+un feedback che qualcuno deve compilare, la pesata è il fatto. ⚠️ La regola vecchia sparisce: due
+regole per la stessa domanda sono la cosa che questo progetto passa il tempo a togliere. Il parametro
+`agent_plateau_cycles` diventa `agent_plateau_pesate` (3) nel catalogo e nel seed — una manopola che
+non gira più niente è peggio di una manopola che manca.
+
+⚠️ **Soglia secca, scelta da Simone**: conta solo «fermo o salito», un calo di cinquanta grammi
+azzera il contatore. Conseguenza scritta nel test: chi cala pochissimo ma di continuo non fa mai
+scattare l'efficacia. È voluto, e il giorno che non lo sarà più è quel test a diventare rosso.
+
+**Quando ci sono tutti e due** nasce uno stato suo, `plateau_conforto`: comanda l'efficacia, ma la
+DOMENICA vincono le stelle. ⚠️ Stato e non flag, perché nei log «peso fermo» e «peso fermo mentre sta
+giù» si guardano con occhi diversi. ⚠️ Un giorno fisso e uguale per tutte: lo si può dire alla cliente
+e la coach se lo ricorda — uno che si sposta con la data di inizio sarebbe invisibile a entrambe.
+⚠️ Il guardrail del conforto lungo resta davanti: se sta giù da troppi giorni si spinge l'efficacia
+senza nessun giorno di stelle.
+Nel motore si cambia il CONTESTO del giorno, non i pesi (i pesi vivono già dentro il punteggio), e il
+secondo contesto si costruisce solo in quello stato. ⚠️ Il «servito di recente» si segna su tutti e
+due, o la domenica riproporrebbe i piatti di sabato senza saperlo.
+
+=== LA SCALA DEI PASSI: CONFERMATA ===
+
+Simone: sì. 6.000 sedentaria → 12.000 molto attiva, +5% ogni due settimane, tetto +40%. Il codice
+c'era già dal 12/8 e aspettava questa riga: quello che cambia è l'avvertenza in testa al file, che
+diceva di aspettare un permesso ormai arrivato — un file che dichiara di essere in attesa ferma la
+prossima persona che lo legge.
+⚠️ Il caso clinico non si calcola: cardiopatie, articolazioni, gravidanza passano dalla nutrizionista
+attraverso Vera.
+
+15 test nuovi (9 su `menu/plateau.ts`, 3 sui casi nuovi dell'agente, più quelli riscritti sulle
+pesate), tutti verificati rossi prima: soglia tollerante e giorno di conforto spostato al lunedì.
+
 === ALTRO ===
 
 - `conta:allergie`: la soglia dell'avviso passa da «più della metà» ad «almeno la metà». Il conto

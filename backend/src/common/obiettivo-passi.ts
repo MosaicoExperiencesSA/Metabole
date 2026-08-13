@@ -24,8 +24,15 @@
  * su tre giorni inseriti a caso non è la sua abitudine — è rumore con l'aria di un dato. Si passa
  * alla storia quando i passi arrivano dal telefono, e questo file è il punto in cui aggiungerlo.
  *
- * ⚠️ La scala dei numeri va confermata da Nocanty: per chi ha problemi cardiaci, articolari o è in
- * gravidanza prescrivere passi è materia clinica, non di prodotto.
+ * ## ✅ La scala è CONFERMATA (Simone, 13/8)
+ *
+ * 6.000 sedentaria → 12.000 molto attiva, +5% ogni due settimane, tetto +40%: sono i numeri qui
+ * sotto, e non aspettano più nessuno.
+ *
+ * ⚠️ **Il caso clinico però non si calcola.** Per chi ha problemi cardiaci, articolari o è in
+ * gravidanza la base la chiede la nutrizionista **attraverso Vera** (risposta di Simone): prescrivere
+ * passi a quelle persone è materia clinica, e una formula che lo facesse da sola sarebbe la cosa
+ * sbagliata anche quando azzecca il numero. Vedi `progetto/CONTRATTO_Vera_Richieste.md`.
  */
 
 /** Il punto di partenza per ciascuna fascia di attività del questionario. */

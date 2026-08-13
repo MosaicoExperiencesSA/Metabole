@@ -58,7 +58,11 @@ export const ENGINE_RULES: EngineRule[] = [
   { code: 'menu_state_boost', label: 'Boost dello stato agente', description: 'Moltiplicatore quando l’agente è in uno stato attivo (conforto/plateau/…).', category: 'agente', kind: 'number', default: 1.8, min: 1, max: 4, step: 0.1 },
   { code: 'menu_pre_event_protein_bonus', label: 'Bonus proteico pre-evento', description: 'Spinta sulle ricette proteiche nei giorni pre-evento.', category: 'agente', kind: 'number', default: 0.6, min: 0, max: 2, step: 0.1 },
   { code: 'agent_comfort_max_days', label: 'Durata stato "conforto" (giorni)', description: 'Per quanti giorni l’agente resta in modalità conforto (più gradimento).', category: 'agente', kind: 'number', default: 3, min: 1, max: 14, step: 1, unit: 'giorni' },
-  { code: 'agent_plateau_cycles', label: 'Cicli per rilevare plateau', description: 'Dopo quanti cicli senza calo l’agente considera un plateau.', category: 'agente', kind: 'number', default: 3, min: 1, max: 10, step: 1 },
+  // ⚠️ Dal 13/8 il plateau si legge dalle PESATE e non dai cicli (decisione di Simone: «tre pesi
+  // registrati consecutivi»). La chiave vecchia `agent_plateau_cycles` non la legge più nessuno: una
+  // manopola che non gira niente è peggio di una manopola che manca, perché chi la tocca crede di
+  // aver cambiato qualcosa.
+  { code: 'agent_plateau_pesate', label: 'Pesate senza calo per il plateau', description: 'Quante pesate consecutive ferme o in aumento fanno passare l’agente all’efficacia. Conta solo «fermo o salito»: un calo, anche minimo, azzera il conteggio.', category: 'agente', kind: 'number', default: 3, min: 2, max: 10, step: 1 },
   { code: 'agent_pre_event_days', label: 'Anticipo pre-evento (giorni)', description: 'Quanti giorni prima di un evento attivare la modalità pre-evento.', category: 'agente', kind: 'number', default: 3, min: 1, max: 14, step: 1, unit: 'giorni' },
   { code: 'agent_post_event_days', label: 'Durata post-evento (giorni)', description: 'Per quanti giorni dopo un evento restare in modalità recupero.', category: 'agente', kind: 'number', default: 2, min: 1, max: 14, step: 1, unit: 'giorni' },
   { code: 'agent_reentry_days', label: 'Durata rientro (giorni)', description: 'Per quanti giorni gestire il rientro dopo una pausa.', category: 'agente', kind: 'number', default: 3, min: 1, max: 14, step: 1, unit: 'giorni' },

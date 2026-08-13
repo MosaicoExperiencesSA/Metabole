@@ -1,0 +1,41 @@
+PARTE DELLA SESSIONE «Vera» (passaggio di consegne) — da unire al messaggio di commit.
+
+=== TITOLO ===
+
+Il passaggio di consegne di Vera, e le due decisioni che restano
+
+=== DESCRIZIONE ===
+
+La chat che ha costruito Vera (12-13/8) si è chiusa perché era diventata troppo lunga. Tutto quello
+che serve per riprenderla da un'altra sessione è in progetto/HANDOFF_Vera_Sessione.md:
+
+- come si lavora con Simone (summary e description a ogni push, il rapporto di avanzamento, il
+  registro, la pagina Lavori, il fatto che ⚠️ chiudere un lavoro è spuntarlo e non cancellarlo);
+- la mappa dei file, uno per uno;
+- le dodici regole che non si negoziano — non si indovina mai, prima di scrivere si mostra, quello
+  che vale per più di una persona nasce come proposta e la approva il capo UNA PER VOLTA, la frase
+  originale si conserva, un punto di scrittura solo per ogni dato, i numeri non si inventano, quello
+  che nasce nuovo nasce spento;
+- come si verifica: in sandbox solo la DIFFERENZA dal baseline (il client Prisma è uno stub e ~49
+  suite falliscono anche su main pulito), e sul Mac `app.module.spec.ts`, che è l'unico test che vede
+  un modulo senza il suo import;
+- le trappole già pagate, così nessuno le ripaga: `\b` che in JavaScript è ASCII, `chiaveAlimento`
+  che non fa combaciare singolare e plurale, `title`/`body` delle notifiche dentro `payload`,
+  l'index.lock sulla cartella montata, due sessioni sullo stesso file.
+
+E le due cose che restano, che sono decisioni prima che compiti:
+
+1. AZIONE 3 — «una variante di piano per questa cliente» vuol dire cambiare i pasti dei suoi giorni
+   futuri, o spostarla su una dieta diversa? Sono due cose molto diverse per lei, e indovinare male
+   non dà nessun errore: dà solo un piano diverso da quello che voleva.
+
+2. AZIONE 6 — ⚠️ l'esclusione a livello di DIETA non esiste nel motore. Verificato sul codice: le
+   primitive di menu/exclusions.ts sono agnostiche, ma ogni chiamante costruisce le chiavi dal
+   ClientProfile e da nient'altro; finora il divieto per-dieta si è fatto a mano creando una dieta
+   variante, e vive come TESTO in RulePreset.clinicalNotes, che nessun codice legge. Non è agganciare
+   un pezzo che c'è: è aggiungere un concetto al motore che genera i menu di 315 persone.
+
+Tre voci nuove in lista Lavori: vera-variante-cosa-significa, vera-esclusione-di-dieta,
+vera-handoff-sessione.
+
+Verifica: type-check 43 = baseline, 1733 test (nessun test nuovo: sono documenti e voci di elenco).

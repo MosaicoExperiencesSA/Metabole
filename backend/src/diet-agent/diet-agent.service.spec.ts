@@ -13,7 +13,11 @@ const ago = (n: number) => new Date(Date.now() - n * DAY);
 
 const base = (over: Record<string, unknown> = {}) => ({
   event: { findFirst: jest.fn().mockResolvedValue(null) },
-  cycleFeedback: { findMany: jest.fn().mockResolvedValue([]) },
+  /**
+   * ⚠️ Il plateau si legge dalle PESATE, non più dai cicli (decisione di Simone, 13/8: «tre pesi
+   * registrati consecutivi»). Di default: nessuna misura → nessun plateau.
+   */
+  measurement: { findMany: jest.fn().mockResolvedValue([]) },
   dailyCheckin: { findMany: jest.fn().mockResolvedValue([]) },
   // Modalità viaggio: di default nessuna. `clientProfile` va sempre presente, perché
   // `stateFor` lo legge per primo — senza, ogni test morirebbe prima di arrivare al suo caso.
@@ -47,16 +51,55 @@ describe('DietAgentService.stateFor', () => {
     expect(await make(prisma).stateFor('c1')).toBe('post_evento');
   });
 
-  it('plateau: ultimi cicli senza calo', async () => {
+  it('plateau: tre pesate senza calo (prima erano i cicli)', async () => {
     const prisma = base({
-      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'stabile' }, { esitoPeso: 'preso' }]) },
+      measurement: { findMany: jest.fn().mockResolvedValue([{ weightKg: 70 }, { weightKg: 70 }, { weightKg: 69.8 }]) },
     });
     expect(await make(prisma).stateFor('c1')).toBe('plateau');
   });
 
+  /**
+   * LA DECISIONE DEL 13/8, in tre casi.
+   *
+   * Simone: «se abbiamo un problema di umore vincono le 5 stelle, se il problema è il peso che non
+   * scende vince l'efficacia» — e quando ci sono tutti e due, vince l'efficacia con un giorno di
+   * conforto a settimana.
+   */
+  it('⚠️ peso fermo E umore basso → plateau_conforto, non conforto', async () => {
+    // È il caso che prima non esisteva: il plateau tornava prima ancora di guardare l'umore, e
+    // «peso fermo» e «peso fermo mentre sta male» erano indistinguibili.
+    const prisma = base({
+      measurement: { findMany: jest.fn().mockResolvedValue([{ weightKg: 70 }, { weightKg: 70 }, { weightKg: 70 }]) },
+      dailyCheckin: { findMany: jest.fn().mockResolvedValue([{ mood: 'hard', date: ago(0) }]) },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('plateau_conforto');
+  });
+
+  it('⚠️ il guardrail del conforto lungo resta davanti: niente giorno di stelle', async () => {
+    // Se sta giù da troppi giorni si spinge comunque l'efficacia, e senza il giorno di conforto:
+    // il guardrail esiste proprio per non lasciarla ferma nei menu amati.
+    const prisma = base({
+      measurement: { findMany: jest.fn().mockResolvedValue([{ weightKg: 70 }, { weightKg: 70 }, { weightKg: 70 }]) },
+      dailyCheckin: {
+        findMany: jest.fn().mockResolvedValue([
+          { mood: 'hard', date: ago(0) }, { mood: 'hard', date: ago(1) },
+          { mood: 'hard', date: ago(2) }, { mood: 'hard', date: ago(3) },
+        ]),
+      },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('rientro');
+  });
+
+  it('peso che scende e umore basso → conforto, come prima', async () => {
+    const prisma = base({
+      measurement: { findMany: jest.fn().mockResolvedValue([{ weightKg: 69 }, { weightKg: 70 }, { weightKg: 71 }]) },
+      dailyCheckin: { findMany: jest.fn().mockResolvedValue([{ mood: 'hard', date: ago(0) }]) },
+    });
+    expect(await make(prisma).stateFor('c1')).toBe('conforto');
+  });
+
   it('conforto: umore basso recente sotto la soglia del guardrail', async () => {
     const prisma = base({
-      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'perso' }]) },
       dailyCheckin: { findMany: jest.fn().mockResolvedValue([{ mood: 'hard', date: ago(0) }, { mood: 'hard', date: ago(1) }]) },
     });
     expect(await make(prisma).stateFor('c1')).toBe('conforto');
@@ -65,7 +108,6 @@ describe('DietAgentService.stateFor', () => {
   it('rientro (guardrail): troppi giorni di conforto di fila → si spinge l\'efficacia', async () => {
     // 4 giorni "difficili" consecutivi > comfortMax (3) → rientro.
     const prisma = base({
-      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'perso' }]) },
       dailyCheckin: {
         findMany: jest.fn().mockResolvedValue([
           { mood: 'hard', date: ago(0) },
@@ -80,7 +122,6 @@ describe('DietAgentService.stateFor', () => {
 
   it('rientro (recupero): umore risalito dopo un periodo difficile', async () => {
     const prisma = base({
-      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'perso' }]) },
       dailyCheckin: { findMany: jest.fn().mockResolvedValue([{ mood: 'good', date: ago(0) }, { mood: 'hard', date: ago(1) }]) },
     });
     expect(await make(prisma).stateFor('c1')).toBe('rientro');
@@ -88,7 +129,6 @@ describe('DietAgentService.stateFor', () => {
 
   it('normale: umore buono senza periodi difficili recenti', async () => {
     const prisma = base({
-      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'perso' }]) },
       dailyCheckin: { findMany: jest.fn().mockResolvedValue([{ mood: 'good', date: ago(0) }, { mood: 'ok', date: ago(1) }]) },
     });
     expect(await make(prisma).stateFor('c1')).toBe('normale');
@@ -108,7 +148,7 @@ describe('DietAgentService.stateFor', () => {
     // menu ignorati, non chili persi.
     const prisma = base({
       ...viaggio('in_vacanza'),
-      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'stabile' }, { esitoPeso: 'preso' }]) },
+      measurement: { findMany: jest.fn().mockResolvedValue([{ weightKg: 70 }, { weightKg: 70 }, { weightKg: 69.8 }]) },
     });
     expect(await make(prisma).stateFor('c1')).toBe('vacanza');
   });
@@ -122,7 +162,7 @@ describe('DietAgentService.stateFor', () => {
     // È il caso vero: nessuno azzera `travelState` al rientro.
     const prisma = base({
       ...viaggio('in_vacanza', { start: ago(60), end: ago(40) }),
-      cycleFeedback: { findMany: jest.fn().mockResolvedValue([{ esitoPeso: 'stabile' }, { esitoPeso: 'preso' }]) },
+      measurement: { findMany: jest.fn().mockResolvedValue([{ weightKg: 70 }, { weightKg: 70 }, { weightKg: 69.8 }]) },
     });
     expect(await make(prisma).stateFor('c1')).toBe('plateau');
   });

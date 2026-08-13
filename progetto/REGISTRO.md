@@ -20,6 +20,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 📄 **Vera: passaggio di consegne.** La chat che ha costruito Vera (12-13/8) si è chiusa
+  perché era diventata troppo lunga: tutto quello che serve per riprenderla sta in
+  `progetto/HANDOFF_Vera_Sessione.md` — le regole di lavoro con Simone, la mappa dei file, le dodici
+  regole che non si negoziano, come si verifica (baseline in sandbox, `app.module.spec` sul Mac),
+  le trappole già pagate e le due decisioni aperte. ⚠️ Va letto prima di toccare `backend/src/vera/`:
+  metà delle scelte che lì dentro sembrano strane sono difetti già pagati una volta.
+  In lista Lavori tre voci: `vera-variante-cosa-significa` (cosa vuol dire davvero «una variante per
+  questa cliente»), `vera-esclusione-di-dieta` (⚠️ nel motore l'esclusione per-dieta **non esiste**:
+  oggi il filtro è solo per-cliente) e `vera-handoff-sessione`.
+
+- `[Sviluppo]` ⚖️ **Quando comanda l'efficacia e quando comandano le stelle, e il via libera clinico
+  che non arrivava al server.** Risposta di Simone dalla pagina Lavori — il primo giro completo di
+  quel meccanismo: «se abbiamo un problema di umore vincono le 5 stelle, se il problema è il peso che
+  non scende vince l'efficacia», e «tre pesi registrati consecutivi».
+  **Cambia il segnale**: `plateau` si accendeva su due **cicli** senza calo, ora su **tre pesate**
+  ferme o in aumento. ⚠️ Il ciclo dipende da un feedback che qualcuno deve compilare, la pesata è il
+  fatto — e la regola vecchia **sparisce**: `agent_plateau_cycles` diventa `agent_plateau_pesate` in
+  catalogo e nel seed, perché una manopola che non gira più niente è peggio di una che manca.
+  ⚠️ **Soglia secca** (scelta di Simone fra tre): conta solo «fermo o salito». Chi cala di cinquanta
+  grammi a pesata **non fa mai scattare l'efficacia** — è il caso «sto dimagrendo pianissimo», è
+  voluto, e sta scritto in un test: il giorno che non andrà più bene, è quello a diventare rosso.
+  **Quando ci sono tutti e due** nasce `plateau_conforto`: comanda l'efficacia, ma la **domenica**
+  vincono le stelle. ⚠️ Stato suo e non flag, perché «peso fermo» e «peso fermo mentre sta giù» si
+  guardano con occhi diversi; giorno **fisso e uguale per tutte**, perché uno che si sposta con la
+  data di inizio sarebbe invisibile sia alla cliente sia alla coach. ⚠️ Il guardrail del conforto
+  lungo resta davanti. Nel motore cambia il **contesto** del giorno e non i pesi, e il «servito di
+  recente» si segna su entrambi i contesti — o la domenica riproporrebbe i piatti di sabato.
+  **La scala dei passi è confermata** (6.000 → 12.000, +5% ogni due settimane, tetto +40%): il codice
+  c'era dal 12/8, aspettava solo il sì. ⚠️ Tolta l'avvertenza «da confermare» dal file: uno che
+  dichiara di aspettare un permesso già arrivato ferma la prossima persona che lo legge. Il caso
+  clinico continua a non calcolarsi: passa dalla nutrizionista via Vera.
+  ⚠️ **E il via libera clinico era rotto in produzione da stamattina**: `Cannot POST
+  /api/v1/clients/<id>/idoneita` — mancava il prefisso `admin` che tutte le altre rotte della scheda
+  hanno. Nessuna valutazione è mai arrivata al server. Si vedeva male perché il banner sta in cima e
+  il pulsante in fondo: ora la pagina risale al banner anche quando va bene, perché una decisione
+  clinica senza nessun segno visibile si rifà una seconda volta. La valutazione di Antonella va
+  rifatta. 15 test nuovi, verificati rossi prima.
+
 - `[Sviluppo]` 🤖 **Vera: le ricette si dettano (azioni 4 e 5).** «Inseriamo una ricetta per il menu
   keto» e «voglio cambiare la ricetta tonno alle olive». Lei la scrive come su un quaderno — nome,
   ingredienti con le quantità, pasto e regime — e l'assistente la legge con una funzione pura.
