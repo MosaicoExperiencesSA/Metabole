@@ -438,6 +438,15 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 235,
   },
   {
+    chiave: 'vera-famiglia-a-secco',
+    titolo: 'Vera: «hai la lista dei formaggi molli?» e «crea la lista» funzionano',
+    dettaglio:
+      'Dalla prova di Nocanty (13/8, 17:47): il dizionario delle famiglie esisteva solo DENTRO una regola. Ora la consultazione («hai la lista dei…?» — l\'unica domanda che merita risposta, il filtro delle domande resta per le azioni) mostra l\'elenco, e «crea/rifai la lista dei…» apre l\'apprendimento a secco, che si chiude senza toccare nessuna cliente.',
+    categoria: CODICE,
+    ordine: 236,
+    fatta: true, // consegnata la sera stessa
+  },
+  {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:

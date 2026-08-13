@@ -210,3 +210,17 @@ describe('capisci — i pasti (azione 3, Decisioni 13/8 §14)', () => {
     expect(i?.tipo).toBe('restrizione');
   });
 });
+
+describe('capisci — la famiglia chiesta a secco (Nocanty, 13/8 17:47)', () => {
+  it('«hai la lista dei formaggi molli?» è una consultazione, non una regola', () => {
+    expect(capisci('hai la lista dei formaggi molli?')).toEqual({ tipo: 'famiglia', azione: 'mostra', nome: 'formaggi molli' });
+  });
+
+  it('«crea la lista dei formaggi molli» apre l\'apprendimento', () => {
+    expect(capisci('crea la lista dei formaggi molli')).toEqual({ tipo: 'famiglia', azione: 'crea', nome: 'formaggi molli' });
+  });
+
+  it('la regola su una cliente resta una regola', () => {
+    expect(capisci('a Giulia Rossi niente formaggi molli')?.tipo).toBe('restrizione');
+  });
+});

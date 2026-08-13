@@ -122,6 +122,7 @@ function make(
     dizionario,
     registro,
     prisma,
+    pool,
   };
 }
 
@@ -870,5 +871,40 @@ describe('VeraChatService — i pasti (azione 3, Decisioni 13/8 §14)', () => {
     await service.parla('lucia', 'quello del pomeriggio');
     const { stato: dopo } = ultimoAgente(messaggioCreate);
     expect(dopo?.passo).toBe('conferma');
+  });
+});
+
+describe('VeraChatService — la famiglia chiesta a secco (13/8, 17:47)', () => {
+  it('«hai la lista?» su una famiglia nota: la mostra e basta', async () => {
+    const { service, messaggioCreate, dizionario } = make({}, {});
+    (dizionario as never as { risolvi: jest.Mock }).risolvi.mockResolvedValue({ id: 'v1', membri: ['feta', 'brie', 'gorgonzola'] });
+    await service.parla('lucia', 'hai la lista dei formaggi molli?');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('feta');
+    expect(stato).toBeUndefined(); // nessun dialogo appeso: era una domanda, ha avuto risposta
+  });
+
+  it('su una famiglia ignota chiede l\'elenco, come dentro una regola', async () => {
+    const { service, messaggioCreate } = make();
+    await service.parla('lucia', 'crea la lista dei formaggi molli');
+    const { stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('quale_famiglia');
+    expect(stato?.famiglia).toBe('formaggi molli');
+  });
+
+  it('imparata a secco si chiude lì: niente anteprima su nessuna cliente', async () => {
+    const statoAperto = {
+      passo: 'quale_famiglia' as const,
+      frase: 'crea la lista dei formaggi molli',
+      intento: { tipo: 'famiglia', azione: 'crea', nome: 'formaggi molli' },
+      famiglia: 'formaggi molli',
+      famiglieDaChiedere: ['formaggi molli'],
+    };
+    const { service, messaggioCreate, pool } = make({}, { statoAperto });
+    await service.parla('lucia', 'feta, brie, gorgonzola');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo.toLowerCase()).toContain('formaggi molli');
+    expect(stato).toBeUndefined();
+    expect((pool as never as { anteprima: jest.Mock }).anteprima).not.toHaveBeenCalled();
   });
 });

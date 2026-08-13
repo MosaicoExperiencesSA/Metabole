@@ -21,7 +21,7 @@ import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, Intento, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
@@ -194,6 +194,7 @@ export class VeraChatService {
         azioneId: riga.id,
       };
     }
+    if (intento.tipo === 'famiglia') return this.famigliaASecco(nutrizionistaId, intento, frase);
     if (intento.tipo === 'ricetta') return this.avviaRicetta(nutrizionistaId, intento, frase);
     return this.risolviCliente(nutrizionistaId, { passo: 'quale_cliente', frase, intento }, intento.cliente ?? '');
   }
@@ -383,6 +384,35 @@ export class VeraChatService {
     return [...visti.values()].slice(0, MAX_PROPOSTI);
   }
 
+  /**
+   * LA FAMIGLIA CHIESTA A SECCO (Nocanty, 13/8 17:47): «hai la lista dei formaggi molli?»,
+   * «crea la lista». Riusa il flusso d'apprendimento delle regole (`quale_famiglia`), ma quando
+   * l'elenco arriva si chiude lì: nessuna anteprima, nessuna cliente — era una voce di dizionario.
+   */
+  private async famigliaASecco(nutrizionistaId: string, intento: IntentoFamiglia, frase: string): Promise<EsitoVera> {
+    const nome = intento.nome;
+    const voce = await this.dizionario.risolvi(nutrizionistaId, nome);
+    if (voce && intento.azione === 'mostra') {
+      return {
+        testo:
+          `«${nome}» per me ${voce.membri.length === 1 ? 'è' : 'sono'}: ${voce.membri.join(', ')}.\n\n` +
+          `Se va corretta, dimmi «rifai la lista dei ${nome}» e me la ridetti.`,
+        esito: 'in_corso',
+      };
+    }
+    const proposti = await this.alimentiProposti(nome);
+    const testa = voce
+      ? `«${nome}» oggi per me sono: ${voce.membri.join(', ')}. Dimmi l'elenco NUOVO, separato da virgola — sostituisce quello vecchio.`
+      : intento.azione === 'mostra'
+        ? `«${nome}» non la conosco ancora. Se me la insegni adesso, la uso da subito.\n\n${testi.chiediFamiglia(nome, proposti)}`
+        : testi.chiediFamiglia(nome, proposti);
+    return {
+      testo: testa,
+      esito: 'in_corso',
+      stato: { passo: 'quale_famiglia', frase, intento, famiglia: nome, proposti, famiglieDaChiedere: [nome] },
+    };
+  }
+
   private async imparaFamiglia(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
     const membri = leggiElenco(frase);
     const famiglia = stato.famiglia ?? '';
@@ -394,6 +424,13 @@ export class VeraChatService {
       };
     }
     await this.dizionario.insegna(nutrizionistaId, { nome: famiglia, membri });
+    // La famiglia imparata A SECCO si chiude qui: non c'era nessuna regola in corso.
+    if ((stato.intento as Intento | undefined)?.tipo === 'famiglia') {
+      return {
+        testo: `${testi.famigliaImparata(famiglia, membri)}\n\nDa adesso, quando la nomini in una regola, uso questo elenco.`,
+        esito: 'in_corso',
+      };
+    }
     const restanti = (stato.famiglieDaChiedere ?? []).filter((f) => f !== famiglia);
     const prossima = await this.preparaAnteprima(nutrizionistaId, { ...stato, famiglieDaChiedere: restanti });
     return { ...prossima, testo: `${testi.famigliaImparata(famiglia, membri)}\n\n${prossima.testo}` };

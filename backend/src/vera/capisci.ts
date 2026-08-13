@@ -63,7 +63,8 @@ export type Intento =
   | IntentoSostituzione
   | IntentoRicetta
   | IntentoFuoriPortata
-  | IntentoPasti;
+  | IntentoPasti
+  | IntentoFamiglia;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -92,6 +93,13 @@ export interface IntentoSostituzione {
  * parte, e lo legge `ricetta-dettata.ts`. Tenerli separati è ciò che permette di rileggere la
  * ricetta scritta senza rileggere la frase che l'ha chiesta.
  */
+/** «Hai la lista dei formaggi molli?» / «crea la lista dei formaggi molli» (13/8, Nocanty). */
+export interface IntentoFamiglia {
+  tipo: 'famiglia';
+  azione: 'mostra' | 'crea';
+  nome: string;
+}
+
 export interface IntentoPasti {
   tipo: 'pasti';
   cliente: string | null;
@@ -267,9 +275,21 @@ function parlaDiRicetta(testo: string): IntentoRicetta | null {
  * `null` NON è un fallimento del sistema: è la risposta che fa scattare la domanda. Un agente che
  * indovina quando non ha capito è più pericoloso di uno che chiede.
  */
+/** «Hai la lista dei…?» — sola lettura: è l'unica frase che può essere una domanda. */
+const MOSTRA_FAMIGLIA = /^(?:hai|mostrami|fammi vedere|vedi|dammi|qual è|com'è|cosa c'è (?:in|nella|nei))\b.*?\b(?:lista|elenco|famiglia)\s+(?:dei|delle|degli|di|del)\s+(.{2,60}?)[?.!]*$/i;
+const CREA_FAMIGLIA = /^(?:crea(?:mi)?|fai|facciamo|prepara|costruisci|impara|rifai|aggiorna)\b.*?\b(?:lista|elenco|famiglia)\s+(?:dei|delle|degli|di|del)\s+(.{2,60}?)[?.!]*$/i;
+
 export function capisci(frase: string): Intento | null {
   const testo = (frase ?? '').trim();
-  if (!testo || daScartare(testo)) return null;
+  if (!testo) return null;
+  /**
+   * ⚠️ LA CONSULTAZIONE PRIMA DEL FILTRO DELLE DOMANDE. `daScartare` butta via ogni «?» — e per
+   * le AZIONI è sacrosanto: una domanda non si esegue. Ma «hai la lista dei formaggi molli?» è
+   * una domanda che MERITA risposta (Nocanty, 13/8): mostrare una lista non esegue niente.
+   */
+  const mostraF = MOSTRA_FAMIGLIA.exec(testo);
+  if (mostraF) return { tipo: 'famiglia', azione: 'mostra', nome: mostraF[1].trim().toLowerCase() };
+  if (daScartare(testo)) return null;
 
   // 1) Parla di un tipo di dieta? Allora NON è una regola su una cliente, e non so ancora farla.
   //    Va riconosciuto PRIMA di tutto: «nella mediterranea» contiene una preposizione che il
@@ -289,6 +309,12 @@ export function capisci(frase: string): Intento | null {
   if (sost.length) {
     return { tipo: 'sostituzione', cliente, from: sost[0].from, to: sost[0].to };
   }
+
+  // 3-bis) LA FAMIGLIA A SECCO (Nocanty, 13/8): «hai la lista dei formaggi molli?»,
+  //        «crea la lista dei formaggi molli». Prima esisteva solo DENTRO una regola: chiederla
+  //        fuori faceva «non ci arrivo», che per una lista che il dizionario ha è una bugia.
+  const creaF = CREA_FAMIGLIA.exec(testo);
+  if (creaF) return { tipo: 'famiglia', azione: 'crea', nome: creaF[1].trim().toLowerCase() };
 
   // 4) I PASTI: «togli lo spuntino», «rimetti la merenda» (azione 3, Decisioni 13/8 §14).
   //    ⚠️ PRIMA dei divieti: altrimenti «togli lo spuntino» diventerebbe il divieto dell'alimento

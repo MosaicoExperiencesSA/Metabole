@@ -62,3 +62,10 @@ cron.module, mock in cron.controller.spec). Battesimo in seconda persona («ti c
 ai-assistant-enabled, varianti-3-pasti.
 File: vera/registro.service.ts+spec, vera/vera-chat.ts+spec, cron/cron.module.ts,
 cron/cron.controller.ts+spec, lavori/voci-iniziali.ts.
+
+─── AGGIUNTA 3 (la famiglia a secco, dalla prova di Nocanty) ───
+IntentoFamiglia in capisci.ts: «hai la lista dei X?» (consultazione — passa PRIMA di daScartare,
+unica eccezione al filtro delle domande: mostrare non esegue) e «crea/rifai la lista dei X»
+(apprendimento a secco: riusa quale_famiglia e si chiude senza anteprima). famigliaASecco +
+chiusura dedicata in imparaFamiglia. 7 test visti rossi. Voce 236 (nasce chiusa).
+File: vera/capisci.ts+spec, vera/vera-chat.service.ts+spec, lavori/voci-iniziali.ts.

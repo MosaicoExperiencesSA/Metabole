@@ -20,6 +20,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 📖 **Vera: la famiglia chiesta a secco (dalla prova di Nocanty, 17:47).** «Hai la
+  lista dei formaggi molli?» mostra l'elenco del dizionario — è l'unica domanda che scavalca il
+  filtro «le domande non si eseguono», perché mostrare non esegue niente. «Crea/rifai la lista
+  dei…» apre l'apprendimento fuori da una regola, e quando l'elenco arriva si chiude lì: nessuna
+  anteprima, nessuna cliente. 7 test nuovi visti rossi (302 verdi su Vera, corpus compreso).
+
 - `[Sviluppo]` 📬 **Il report mensile di Vera parte da solo** (voce chiusa): il 1° del mese, ai capi
   nutrizionisti, notifica in app + email col riassunto (azioni scritte, in approvazione, conflitti,
   frasi non capite). Step `veraReportMensile` nel cron giornaliero — il metodo controlla da solo la
