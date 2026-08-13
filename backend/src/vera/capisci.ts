@@ -280,7 +280,15 @@ const MOSTRA_FAMIGLIA = /^(?:hai|mostrami|fammi vedere|vedi|dammi|qual è|com'è
 const CREA_FAMIGLIA = /^(?:crea(?:mi)?|fai|facciamo|prepara|costruisci|impara|rifai|aggiorna)\b.*?\b(?:lista|elenco|famiglia)\s+(?:dei|delle|degli|di|del)\s+(.{2,60}?)[?.!]*$/i;
 
 export function capisci(frase: string): Intento | null {
-  const testo = (frase ?? '').trim();
+  /**
+   * ⚠️ IL SALUTO DAVANTI NON SPIAZZA (Nocanty, 13/8 18:05: «Ciao Vera, hai la lista…?» cadeva su
+   * «non ci arrivo»). La dottoressa parla, non programma: saluto e vocativo si tolgono PRIMA di
+   * leggere. Il vocativo (la parola dopo il saluto) si mangia SOLO se c'è la virgola — «Senti,
+   * a Giulia niente tonno» deve tenersi la sua Giulia.
+   */
+  const testo = (frase ?? '')
+    .trim()
+    .replace(/^(?:ciao|buongiorno|buonasera|salve|ehi|senti|scusa|ok|allora)[\s,!]+(?:[\wà-ÿ]{2,20},\s*)?/iu, '');
   if (!testo) return null;
   /**
    * ⚠️ LA CONSULTAZIONE PRIMA DEL FILTRO DELLE DOMANDE. `daScartare` butta via ogni «?» — e per

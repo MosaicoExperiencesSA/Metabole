@@ -69,3 +69,9 @@ unica eccezione al filtro delle domande: mostrare non esegue) e «crea/rifai la 
 (apprendimento a secco: riusa quale_famiglia e si chiude senza anteprima). famigliaASecco +
 chiusura dedicata in imparaFamiglia. 7 test visti rossi. Voce 236 (nasce chiusa).
 File: vera/capisci.ts+spec, vera/vera-chat.service.ts+spec, lavori/voci-iniziali.ts.
+
+─── AGGIUNTA 4 (il saluto davanti) ───
+«Ciao Vera, hai la lista…?» cadeva su «non ci arrivo»: i riconoscitori ancorati all'inizio frase
+non prevedevano saluto e vocativo. Ora capisci() li toglie prima di leggere — il vocativo solo con
+la virgola, così «Senti, a Giulia niente tonno» non perde la cliente. 3 test.
+File: vera/capisci.ts+spec.

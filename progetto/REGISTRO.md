@@ -20,6 +20,11 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 👋 **Vera: il saluto davanti non spiazza più** («Ciao Vera, hai la lista…?» cadeva
+  su «non ci arrivo» — Nocanty, 18:05). Saluto e vocativo si tolgono prima di leggere, e il
+  vocativo si mangia solo con la virgola: «Senti, a Giulia niente tonno» si tiene la sua Giulia.
+  3 test nuovi (305 verdi su Vera).
+
 - `[Sviluppo]` 📖 **Vera: la famiglia chiesta a secco (dalla prova di Nocanty, 17:47).** «Hai la
   lista dei formaggi molli?» mostra l'elenco del dizionario — è l'unica domanda che scavalca il
   filtro «le domande non si eseguono», perché mostrare non esegue niente. «Crea/rifai la lista

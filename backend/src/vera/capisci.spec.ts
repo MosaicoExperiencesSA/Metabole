@@ -224,3 +224,23 @@ describe('capisci — la famiglia chiesta a secco (Nocanty, 13/8 17:47)', () => 
     expect(capisci('a Giulia Rossi niente formaggi molli')?.tipo).toBe('restrizione');
   });
 });
+
+describe('capisci — il saluto davanti non spiazza (Nocanty, 13/8 18:05)', () => {
+  it('«Ciao Vera, hai la lista…?» è la stessa domanda senza il ciao', () => {
+    expect(capisci('Ciao Vera, hai la lista dei formaggi stagionati?')).toEqual({
+      tipo: 'famiglia', azione: 'mostra', nome: 'formaggi stagionati',
+    });
+  });
+
+  it('vale per le azioni: «Buongiorno Vera, togli la merenda a Giulia»', () => {
+    expect(capisci('Buongiorno Vera, togli la merenda a Giulia')).toEqual({
+      tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: ['afternoon_snack'],
+    });
+  });
+
+  it('ma il nome della CLIENTE non si mangia: «Senti Giulia non deve mangiare tonno»', () => {
+    const i = capisci('Senti, a Giulia niente tonno');
+    expect(i?.tipo).toBe('restrizione');
+    expect((i as { cliente?: string }).cliente).toBe('Giulia');
+  });
+});
