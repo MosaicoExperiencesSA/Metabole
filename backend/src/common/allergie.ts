@@ -1,5 +1,5 @@
 /**
- * LE ALLERGIE DICHIARATE — come si scrivono, una volta sola.
+ * LE ESCLUSIONI DICHIARATE NEL QUESTIONARIO — come si scrivono, una volta sola.
  *
  * Punti B e C dell'handoff (`progetto/HANDOFF_Allergie_Intolleranze.md`). Sta qui e non dentro
  * `onboarding.service` perché lo stesso calcolo servirà al dialogo con Gaia che ri-chiede le
@@ -40,9 +40,10 @@
  * finisce in banca dati come allergene.
  *
  * ⚠️ `'other'` è qui perché fra le ALLERGIE è il gemello inglese di «altro». Fra le INTOLLERANZE
- * invece non si tocca: là non esiste un campo libero associato, quindi quella stringa è l'unica
- * traccia del fatto che la cliente ha un'intolleranza che noi non sappiamo — ed è la popolazione
- * più urgente da ricontattare. Toglierla cancellerebbe la sola cosa che permette di trovarla.
+ * si toglie solo se la cliente ha detto **cosa** c'era dietro: vedi `intolleranzeDichiarate()`.
+ * Finché non l'ha detto, quella stringa è l'unica traccia del fatto che ha un'intolleranza che noi
+ * non sappiamo — ed è la popolazione più urgente da ricontattare. Toglierla senza aver ottenuto la
+ * risposta vorrebbe dire cancellare la domanda invece di rispondere.
  */
 export const NON_ALIMENTI = new Set(['altro', 'other', 'nessuna', 'nessuno', 'none', 'no']);
 
@@ -107,4 +108,56 @@ export function allergieDaCodificare(
   if (marcate.length) return marcate;
   const noti = new Set(codiciNoti.map((c) => c.toLowerCase()));
   return (allergies ?? []).filter((a) => a && !noti.has(a.toLowerCase()));
+}
+
+/**
+ * LE INTOLLERANZE, con il loro campo libero (13/8, §1.3 dell'handoff).
+ *
+ * ## Il difetto
+ *
+ * Il questionario ha l'opzione «Altro» — `'other'` — e **nessun campo dove scrivere cosa**. Chi la
+ * sceglieva si portava in banca dati la stringa `'other'`: non è un alimento, non esclude niente, e
+ * `expandExclusion('other')` andava a cercare quella parola nei nomi dei piatti. Tradotto: **quella
+ * cliente ha un'intolleranza che noi non sappiamo**, e i suoi menu la ignorano.
+ *
+ * Adesso c'è il campo, e `'other'` torna a essere quello che è: un flag d'interfaccia.
+ *
+ * ## ⚠️ Ma `'other'` si toglie SOLO se lei ha scritto cosa
+ *
+ * Se ha spuntato «Altro» senza compilare il campo — o se manda un questionario da un'app vecchia
+ * che quel campo non ce l'ha — la stringa **resta**. È inutile per i menu, ma è l'unica traccia del
+ * fatto che c'è qualcosa che non sappiamo: è così che si trova chi ricontattare. Toglierla senza
+ * aver ottenuto la risposta vorrebbe dire cancellare la domanda invece di rispondere.
+ */
+export const INTOLLERANZA_IGNOTA = 'other';
+
+export interface IntolleranzeDichiarate {
+  /** Tutto quello che va gestito con alternative: codici del questionario **e** testo libero. */
+  intolerances: string[];
+  /** Solo il testo libero. Sottoinsieme di `intolerances`. */
+  intolerancesOther: string[];
+  /** Vero se questo invio dice cosa c'era dietro «Altro»: da qui in poi il flag non serve più. */
+  scioglieIgnota: boolean;
+}
+
+export function intolleranzeDichiarate(
+  scelte: string[] | null | undefined,
+  testoLibero: string[] | null | undefined,
+): IntolleranzeDichiarate {
+  const libere = (testoLibero ?? []).map(pulita).filter(Boolean).filter((v) => !eNonAlimento(v));
+  const scioglieIgnota = libere.length > 0;
+  const spuntate = (scelte ?? [])
+    .map(pulita)
+    .filter(Boolean)
+    // `'none'` è sempre da togliere: è una risposta, non un alimento. `'other'` solo se adesso
+    // sappiamo cosa voleva dire.
+    .filter((v) => v.toLowerCase() !== 'none')
+    .filter((v) => !(scioglieIgnota && v.toLowerCase() === INTOLLERANZA_IGNOTA));
+
+  const intolerances = [...new Set([...spuntate, ...libere])];
+  return {
+    intolerances,
+    intolerancesOther: libere.filter((a) => !spuntate.some((c) => c.toLowerCase() === a.toLowerCase())),
+    scioglieIgnota,
+  };
 }

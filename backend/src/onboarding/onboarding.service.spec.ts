@@ -198,7 +198,7 @@ describe('OnboardingService', () => {
       prisma.clientProfile.findUnique.mockResolvedValue({
         id: 'p1', userId: 'u1', screeningFlag: false, onboardingCompletedAt: new Date(),
         dietStyle: 'mediterranean', mealsPerDay: 5, pathType: 'five', regime: 'omnivore',
-        allergies: ['latte', 'uova'], allergiesOther: [], intolerances: ['lattosio'],
+        allergies: ['latte', 'uova'], allergiesOther: [], intolerances: ['lattosio'], intolerancesOther: [],
         assignedCoach: { id: 's-c', displayName: 'Marta' },
         assignedNutritionist: { id: 's-n', displayName: 'Dr.ssa Bini' },
         ...over,
@@ -252,6 +252,25 @@ describe('OnboardingService', () => {
       };
       expect(esito.avvisiEsclusioni).toBeUndefined();
       expect(upsert().create.allergies).toEqual(['latte']);
+    });
+
+    it('⚠️ L\'UNICA sottrazione ammessa: «other» sparisce quando dice COSA', async () => {
+      // Non si sta perdendo un dato: si sta sostituendo una domanda con la sua risposta. Tenere il
+      // flag «Altro» dopo che l'ha spiegato la lascerebbe per sempre fra quelle da ricontattare
+      // per una cosa che ci ha appena detto.
+      conProfilo({ intolerances: ['lactose', 'other'] });
+      await service.submitAnswers('u1', {
+        ...baseAnswers(), intolerances: ['lactose', 'other'], intolerancesOther: ['i latticini di capra'],
+      });
+      expect(upsert().update.intolerances).toEqual(['lactose', 'i latticini di capra']);
+      expect(upsert().update.intolerancesOther).toEqual(['i latticini di capra']);
+    });
+
+    it('⚠️ ma se NON dice cosa, «other» resta: è l\'unica traccia di quello che non sappiamo', async () => {
+      // È anche il caso di un\'app vecchia, che il campo nuovo non ce l\'ha.
+      conProfilo({ intolerances: ['lactose', 'other'] });
+      await service.submitAnswers('u1', { ...baseAnswers(), intolerances: ['lactose', 'other'] });
+      expect(upsert().update.intolerances).toEqual(['lactose', 'other']);
     });
 
     it('⚠️ i CIBI NON GRADITI invece si tolgono: quelli li gestisce lei dal Profilo', async () => {

@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` ❓ **Chi ha scelto «Altro» fra le intolleranze aveva qualcosa che non sapevamo, e i
+  menu la ignoravano.** Punto §1.3 dell'handoff, l'ultimo dei difetti del questionario. Le
+  intolleranze avevano l'opzione «Altro» e **nessun campo dove scrivere cosa**: chi la sceglieva si
+  portava in banca dati la stringa `'other'` — non è un alimento, non esclude niente, ed
+  `expandExclusion('other')` andava a cercare quella parola nei nomi dei piatti. Cioè: aveva
+  dichiarato un'intolleranza, e i suoi menu la ignoravano.
+  Migrazione additiva `20260813120000_intolleranze_testo_libero` (verificata su PG16 con tutte le
+  precedenti) più il campo nel questionario. ⚠️ Stesso disegno di `allergiesOther`: **marcatore, non
+  spostamento** — il testo resta anche dentro `intolerances`, che è l'array che esclude davvero.
+  ⚠️ **E `'other'` si toglie SOLO se lei ha detto cosa.** Se ha spuntato «Altro» senza compilare — o
+  se il questionario arriva da un'app vecchia — la stringa **resta**: è inutile per i menu, ma è la
+  sola traccia di quello che non sappiamo, ed è così che si trova chi ricontattare. Toglierla senza
+  la risposta vorrebbe dire cancellare la domanda invece di rispondere.
+  ⚠️ È anche **l'unica sottrazione ammessa** dentro la regola di ieri, che di norma non toglie mai
+  niente: qui non si perde un dato, si **sostituisce una domanda con la sua risposta**. Tenere il
+  flag dopo che l'ha spiegato la lascerebbe per sempre fra quelle da ricontattare per una cosa che
+  ci ha appena detto.
+  Nella scheda cliente ora si vede il testo libero e — quando ha scelto «Altro» senza mai dire cosa —
+  una riga esplicita «da chiedere»: prima quella cliente era indistinguibile dalle altre.
+  ⚠️ Il campo nel questionario è il **secondo caso speciale** in `campiVisibili`, gemello di
+  `allergiesOther`: `showIf` confronta con `equals` e non sa guardare dentro un array. Due casi
+  scritti a mano, e sta nel commento — se ne nasce un terzo, va esteso `showIf`. 12 test nuovi,
+  suite **2204** verde.
+
 - `[Sviluppo]` 🔐 **Le allergie: la nutrizionista le corregge, dalla scheda cliente e dalla scheda
   lead.** Richiesta di Simone: «nella scheda cliente e scheda lead il nutrizionista li deve leggere e
   poter modificare, magari mettiamo l'impostazione nei permessi». Nuovo permesso `change_allergies`

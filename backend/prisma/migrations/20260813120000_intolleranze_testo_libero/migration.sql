@@ -1,0 +1,25 @@
+-- INTOLLERANZE: il campo libero che non c'era (13/8). Punto §1.3 dell'handoff.
+--
+-- ## Il difetto
+--
+-- Le intolleranze del questionario hanno l'opzione «Altro» — `'other'` — e **nessun campo libero
+-- associato**. Chi la sceglie si porta in banca dati la stringa `'other'`, che non è un alimento,
+-- non vuol dire niente e non esclude niente: `expandExclusion('other')` va a cercare la parola
+-- «other» nei nomi dei piatti.
+--
+-- Tradotto: **chi ha scelto «Altro» ha un'intolleranza che noi non sappiamo**, e i suoi menu la
+-- ignorano. È la popolazione più urgente da ricontattare di tutto l'handoff — e finora l'unico modo
+-- di trovarla era proprio quella stringa inutile.
+--
+-- Con questa colonna la domanda ha una risposta, e `'other'` torna a essere quello che è: un flag
+-- d'interfaccia, da filtrare.
+--
+-- ⚠️ Come per `allergies_other`, questa è un **marcatore**: il testo libero resta ANCHE dentro
+-- `intolerances`, perché è quell'array che il motore legge per escludere. Spostarlo qui vorrebbe
+-- dire che un'intolleranza dichiarata smette di togliere qualcosa dal menu — che è esattamente il
+-- difetto che si sta chiudendo.
+--
+-- Additiva, nessun backfill: le clienti che hanno `'other'` restano con `'other'`, ed è giusto —
+-- finché nessuno gliel'ha chiesto, quello che hanno è ancora un'incognita, non un dato.
+
+ALTER TABLE "client_profile" ADD COLUMN "intolerances_other" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

@@ -105,11 +105,9 @@ In ordine di quanto sono pronti.
 
 ### Pronti, non bloccati da nessuno
 
-- **`intolerancesOther`** (§1.3 dell'handoff). Le intolleranze hanno l'opzione `'other'` **senza
-  nessun campo libero associato**: chi la sceglie si porta in banca dati la stringa `'other'`, che
-  non vuol dire niente e non esclude niente. **Chi ha scelto «Altro» ha un'intolleranza che noi non
-  sappiamo.** Serve una colonna, un campo nel questionario, e allora `'other'` si può filtrare —
-  oggi **non si filtra apposta**, perché è l'unica traccia per ricontattarla.
+- ✅ **`intolerancesOther`** — **fatto il 13/8.** Colonna, campo nel questionario, riga in scheda.
+  `'other'` si filtra solo quando lei ha detto cosa; senza la risposta resta, ed è così che si trova
+  chi ricontattare.
 - **L'opzione «nessuna» fra le allergie del questionario** (§3.1). Le intolleranze ce l'hanno già
   (`'none'`). Finché non c'è, un array vuoto conta come «non risposto», non come «non ne ho».
   ⚠️ È una modifica all'app: va con la OTA.

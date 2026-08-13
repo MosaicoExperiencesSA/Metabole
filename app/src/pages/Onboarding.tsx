@@ -260,6 +260,12 @@ function campiVisibili(fields: Field[], answers: Record<string, unknown>): Field
     if (f.key === 'allergiesOther') {
       return Array.isArray(answers.allergies) && (answers.allergies as string[]).includes('altro');
     }
+    // ⚠️ Secondo caso speciale, gemello del primo. Sono DUE casi, non uno: `showIf` confronta con
+    // `equals` e non sa guardare dentro un array. Estenderlo sarebbe più pulito; scriverli
+    // entrambi qui è più onesto finché sono due — ma se ne nasce un terzo, va esteso `showIf`.
+    if (f.key === 'intolerancesOther') {
+      return Array.isArray(answers.intolerances) && (answers.intolerances as string[]).includes('other');
+    }
     if (f.showIf) return answers[f.showIf.key] === f.showIf.equals;
     return true;
   });
@@ -452,6 +458,13 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     }
     if (hasOtherAllergy && Array.isArray(a.allergiesOther) && a.allergiesOther.length) dto.allergiesOther = a.allergiesOther;
     if (Array.isArray(a.intolerances) && a.intolerances.length) dto.intolerances = a.intolerances;
+    // Il testo libero delle intolleranze si manda solo se ha davvero spuntato «Altro»: è il server
+    // a decidere cosa farne — qui non si filtra `'other'`, perché se lei NON ha scritto niente
+    // quella stringa è l'unica traccia di un'intolleranza che non conosciamo.
+    if (Array.isArray(a.intolerances) && (a.intolerances as string[]).includes('other')
+        && Array.isArray(a.intolerancesOther) && a.intolerancesOther.length) {
+      dto.intolerancesOther = a.intolerancesOther;
+    }
     if (Array.isArray(a.dislikedFoods) && a.dislikedFoods.length) dto.dislikedFoods = a.dislikedFoods;
     const lifestyle = cleanObj({ work: a.work, cookingTime: a.cookingTime, weekdayLunch: a.weekdayLunch, motivation: a.why });
     if (lifestyle) dto.lifestyle = lifestyle;

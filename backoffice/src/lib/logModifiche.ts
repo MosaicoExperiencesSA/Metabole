@@ -48,6 +48,7 @@ export const CAMPO_LABEL: Record<string, string> = {
   // Le allergie non erano in questo elenco: una loro modifica sarebbe comparsa nel registro col
   // nome tecnico del campo, cioè illeggibile — su un dato sanitario, proprio dove serve leggerlo.
   allergies: 'Allergie', allergiesOther: 'Allergie da codificare',
+  intolerancesOther: 'Intolleranze scritte a mano',
   allergieDichiarateIl: 'Allergie dichiarate il',
   dislikedFoods: 'Cibi non graditi', fastingWindow: 'Pasti che salta',
   activityLevel: 'Livello di attività', themeColor: 'Colore tema',

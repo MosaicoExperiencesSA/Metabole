@@ -1502,6 +1502,14 @@ export function ClientDetail() {
               <Row label="↳ da codificare a mano" value={p.allergiesOther.join(', ')} />
             )}
             <Row label="Intolleranze" value={p.intolerances?.length ? p.intolerances.join(', ') : 'Nessuna'} />
+            {!!p.intolerancesOther?.length && (
+              <Row label="↳ scritte a mano" value={p.intolerancesOther.join(', ')} />
+            )}
+            {p.intolerances?.includes('other') && !p.intolerancesOther?.length && (
+              // ⚠️ Ha spuntato «Altro» e non ha mai detto cosa: ha un'intolleranza che NOI non
+              // sappiamo, e i suoi menu la ignorano. Va chiesto — è la prima persona da richiamare.
+              <Row label="⚠️ Intolleranza non specificata" value="Ha scelto «Altro» senza dire cosa: da chiedere." />
+            )}
             <Row label="Cibi non graditi" value={p.dislikedFoods?.length ? p.dislikedFoods.join(', ') : 'Nessuno'} />
             <Row label="Patologie" value={lab('yesno', p.onboardingAnswers?.health?.hasConditions)} />
             <Row label="Farmaci" value={lab('yesno', p.onboardingAnswers?.health?.takesMedications)} />

@@ -35,9 +35,9 @@
 > - ⛔ **I solfiti** (§1.2): ho messo solo la parola letterale, dichiarato nel codice e in un test.
 >   L'elenco (vino, aceto balsamico, frutta disidratata, salumi…) **lo deve dare Nocanty**: decide
 >   quali piatti si tolgono dal piatto di una cliente, e in eccesso si sbaglia facilmente.
-> - ⛔ **`intolerancesOther`** (§1.3): serve una colonna e un campo nel questionario. Finché non
->   c'è, `'other'` fra le intolleranze **non si filtra** — è l'unica traccia di quello che non
->   sappiamo, ed è la popolazione più urgente del §7.1.
+> - ✅ **`intolerancesOther`** (§1.3) — **fatto il 13/8.** Colonna, campo nel questionario, riga in
+>   scheda. `'other'` si filtra **solo** quando lei ha detto cosa: senza la risposta resta, perché
+>   è la sola traccia di quello che non sappiamo.
 > - ⛔ **L'opzione «nessuna» nel questionario** (§3.1): è una modifica all'app, quindi va con la OTA.
 >   Finché non c'è, un array vuoto conta come «non risposto», non come «non ne ho».
 > - ⛔ **Il «freno forte»** (§3): non implementato, e non va implementato prima di averlo definito

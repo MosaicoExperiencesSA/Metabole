@@ -1,12 +1,12 @@
 /**
- * LE ALLERGIE DICHIARATE — punti B e C dell'handoff.
+ * LE ESCLUSIONI DICHIARATE NEL QUESTIONARIO — punti B, C e §1.3 dell'handoff.
  *
  * I due test che contano sono il primo e l'ultimo: che «altro» non finisca in banca dati come se
  * fosse un alimento, e che il testo libero **resti dentro `allergies`** anche adesso che ha una
  * colonna sua. Il secondo sembra il contrario di quello che si vorrebbe, ed è la cosa che tiene in
  * piedi le esclusioni: sette punti del codice leggono quell'array per togliere i piatti dal menu.
  */
-import { NON_ALIMENTI, allergieDaCodificare, allergieDichiarate } from './allergie';
+import { NON_ALIMENTI, allergieDaCodificare, allergieDichiarate, intolleranzeDichiarate } from './allergie';
 
 const QUANDO = new Date('2026-08-12T10:00:00Z');
 const CODICI_UE = ['glutine', 'latte', 'uova', 'pesce', 'frutta_a_guscio'];
@@ -100,5 +100,54 @@ describe('quali allergie deve ancora codificare il nutrizionista', () => {
     expect(allergieDaCodificare(['latte'], [], CODICI_UE)).toEqual([]);
     expect(allergieDaCodificare([], [], CODICI_UE)).toEqual([]);
     expect(allergieDaCodificare(null, null, CODICI_UE)).toEqual([]);
+  });
+});
+
+/**
+ * LE INTOLLERANZE E IL LORO CAMPO LIBERO (13/8, §1.3 dell'handoff).
+ *
+ * Il test che conta è il secondo: `'other'` si toglie **solo** se lei ha detto cosa. Toglierlo
+ * comunque vorrebbe dire cancellare la domanda invece di rispondere — e quella stringa, inutile
+ * com'è per i menu, è l'unico modo di trovare chi ha un'intolleranza che noi non sappiamo.
+ */
+describe('le intolleranze, e la domanda che «Altro» lasciava aperta', () => {
+  it('«none» via, come già prima', () => {
+    expect(intolleranzeDichiarate(['none'], []).intolerances).toEqual([]);
+    expect(intolleranzeDichiarate(['lactose', 'none'], []).intolerances).toEqual(['lactose']);
+  });
+
+  it('⚠️ «other» RESTA se non ha scritto cosa: è la sola traccia di quello che non sappiamo', () => {
+    // Non esclude niente e non è un alimento — ma è il modo in cui si trova chi ricontattare.
+    // Un questionario da un'app vecchia, che il campo nuovo non ce l'ha, ricade qui.
+    const out = intolleranzeDichiarate(['lactose', 'other'], []);
+    expect(out.intolerances).toEqual(['lactose', 'other']);
+    expect(out.scioglieIgnota).toBe(false);
+  });
+
+  it('⚠️ e sparisce appena lo dice: la domanda è stata sostituita dalla risposta', () => {
+    const out = intolleranzeDichiarate(['lactose', 'other'], ['i latticini di capra']);
+    expect(out.intolerances).toEqual(['lactose', 'i latticini di capra']);
+    expect(out.intolerancesOther).toEqual(['i latticini di capra']);
+    expect(out.scioglieIgnota).toBe(true);
+  });
+
+  it('⚠️ il testo libero resta ANCHE fra le intolleranze: è quell\'array che esclude', () => {
+    // Stesso disegno delle allergie: `intolerancesOther` è un marcatore, non uno spostamento.
+    const out = intolleranzeDichiarate([], ['fichi']);
+    expect(out.intolerances).toContain('fichi');
+    expect(out.intolerancesOther).toEqual(['fichi']);
+  });
+
+  it('non si duplica, e gli spazi non contano', () => {
+    const out = intolleranzeDichiarate(['fichi'], [' fichi ']);
+    expect(out.intolerances).toEqual(['fichi']);
+    expect(out.intolerancesOther).toEqual([]);
+  });
+
+  it('una risposta «altro» vuota non diventa un alimento', () => {
+    // Se scrive «nessuna» nel campo libero non è un'intolleranza: è una risposta.
+    const out = intolleranzeDichiarate(['other'], ['nessuna']);
+    expect(out.intolerances).toEqual(['other']);
+    expect(out.scioglieIgnota).toBe(false);
   });
 });

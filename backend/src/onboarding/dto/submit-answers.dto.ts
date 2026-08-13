@@ -139,6 +139,16 @@ export class SubmitAnswersDto {
   @IsString({ each: true, message: 'Elenco intolleranze non valido.' })
   intolerances?: string[];
 
+  /**
+   * Intolleranze scritte a mano. ⚠️ Non esisteva: l'opzione «Altro» del questionario non aveva
+   * nessun campo dove dire COSA, quindi chi la sceglieva si portava in banca dati la stringa
+   * `'other'` — che non è un alimento e non esclude niente.
+   */
+  @IsOptional()
+  @IsArray({ message: 'Elenco intolleranze non valido.' })
+  @IsString({ each: true, message: 'Elenco intolleranze non valido.' })
+  intolerancesOther?: string[];
+
   @IsOptional()
   @IsArray({ message: 'Elenco dei cibi non graditi non valido.' })
   @IsString({ each: true, message: 'Elenco dei cibi non graditi non valido.' })

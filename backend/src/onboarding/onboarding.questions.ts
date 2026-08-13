@@ -65,6 +65,12 @@ export const ONBOARDING_QUESTIONS = {
         },
         { key: 'allergiesOther', type: 'tags', label: 'Altra allergia non in elenco (la verifica il nutrizionista)' },
         { key: 'intolerances', type: 'multi_choice', options: ['gluten', 'lactose', 'nuts', 'none', 'other'], labels: ['Glutine', 'Lattosio', 'Frutta secca', 'Nessuna', 'Altro'] },
+        /**
+         * ⚠️ Questo campo non c'era, e «Altro» rimandava a niente: chi lo sceglieva si portava in
+         * banca dati la stringa `'other'`, che non è un alimento e non esclude nessun piatto.
+         * Cioè: aveva un'intolleranza, e i suoi menu la ignoravano.
+         */
+        { key: 'intolerancesOther', type: 'tags', label: 'Altra intolleranza non in elenco (la verifica il nutrizionista)' },
       ],
     },
     {
