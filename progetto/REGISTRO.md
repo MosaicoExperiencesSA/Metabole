@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🩺 **«Serve la visita» parte in automatico — chiusi gli ultimi due rossi della pagina
+  Lavori (Decisioni §15).** I criteri sono la risposta testuale di Nocanty: «allergia dichiarata,
+  utilizzo farmaci, problemi sanitari» — cioè `allergies` non vuoto o `screeningFlag`, lo stesso
+  criterio di `daValutare()`. La presa in carico ora parte da TUTTE e tre le strade (questionario,
+  scheda in home, campagna in chat) — prima l'allergia da sola non apriva niente. Paletti: solo se
+  `idoneita` è vuota (una valutazione scritta non si riapre da un automatismo), dedup di
+  `apriSegnalazione`, evento e mai cron. E il «freno forte» è DECISO: non esiste («non fermiamo
+  nessuno»), la campagna copre il buco. 4 test nuovi visti rossi.
+
+- `[Sviluppo]` ✅ **La spunta viaggia col file (richiesta di Simone).** `voci-iniziali.ts` ha il
+  campo `fatta`: il caricamento (pagina E script) SPUNTA le voci esistenti che il file dichiara
+  finite — mai il contrario, una spunta tolta a mano non si riapre da un file. Chiuse dal file:
+  solfiti, deploy, OTA 2.1.8, verifica Mac, §7 ri-domanda, scala passi, peso efficacia, battesimo,
+  soglia visita, freno forte. 4 test nuovi visti rossi.
+
+- `[Sviluppo]` 📦 **OTA 2.1.8, il pezzo mancante:** lo zip non era mai stato copiato in
+  `backend/ota-bundles/` — Render annunciava la versione e i telefoni scaricavano un 404 (gli
+  `ota_error` lo dicevano). Copiato e ripushato; i telefoni si aggiornano al doppio riavvio.
+
+- `[Documenti]` 🥘 **Crudo/cotto: la tabella di Nocanty è arrivata (Decisioni §16).** Default crudo
+  per amidi/legumi/carni/pesci, domanda alla nutrizionista sopra il 30% di scarto, conversion
+  ratio. Sblocca la ricerca per nome dei valori nutrizionali e l'import dell'indice glicemico:
+  codice domani, a mente fresca — tocca i numeri nel piatto.
+
 - `[Sviluppo]` 🥪 **Vera, azione 3 — «togli lo spuntino» (Decisioni §14).** Campo nuovo
   `ClientProfile.pastiEsclusi` (migrazione additiva, solo spuntini: i pasti principali restano su
   `fastingWindow`). Le kcal NON si perdono: gli slot esclusi escono prima della composizione e il

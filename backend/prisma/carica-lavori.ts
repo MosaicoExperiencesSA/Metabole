@@ -51,10 +51,24 @@ async function main() {
 
   let aggiunte = 0;
   let saltate = 0;
+  let spuntate = 0;
   for (const v of tutte) {
     const gia = await prisma.lavoro.findUnique({ where: { chiave: v.chiave }, select: { id: true, titolo: true, fatto: true } });
     if (gia) {
-      // ⚠️ Non si aggiorna: potrebbe essere stata spuntata o riscritta a mano.
+      /**
+       * L'AGGIORNAMENTO DELLO STATO (richiesta di Simone, 13/8 sera): il file può CHIUDERE una
+       * voce ancora aperta — `fatta: true` è la notizia «questa consegna l'ha finita» — ma MAI
+       * riaprirne una spuntata: la pagina resta lo stato vivo. Titolo e testo restano comunque
+       * intoccati: potrebbero essere stati riscritti a mano.
+       */
+      if (v.fatta === true && !gia.fatto) {
+        spuntate++;
+        console.log(`✓ la spunto: il file la dichiara finita  [${v.chiave}]`);
+        if (conferma) {
+          await prisma.lavoro.update({ where: { id: gia.id }, data: datiSpunta(true, null, new Date()) });
+        }
+        continue;
+      }
       saltate++;
       console.log(`· già presente, la lascio com'è  [${v.chiave}]${gia.fatto ? ' (spuntata)' : ''}`);
       continue;
@@ -63,17 +77,18 @@ async function main() {
     const storica = !!v.data;
     if (!storica) console.log(`+ ${v.categoria} — ${v.titolo}`);
     if (conferma) {
-      const { data, ...campi } = v;
+      const { data, fatta, ...campi } = v;
+      const nasceChiusa = storica || fatta === true;
       await prisma.lavoro.create({
-        // ⚠️ Le voci storiche entrano GIÀ SPUNTATE, con la data del registro e senza un nome: chi
-        // le ha scritte è la squadra, ed è nella categoria. Inventare un autore sarebbe peggio.
-        data: { ...campi, fatto: storica, fattoIl: storica ? new Date(`${data}T12:00:00Z`) : null },
+        // ⚠️ Le voci storiche (e quelle che il file dichiara già finite) entrano GIÀ SPUNTATE,
+        // con la data del registro se c'è e senza un nome: chi le ha scritte è la squadra.
+        data: { ...campi, fatto: nasceChiusa, fattoIl: nasceChiusa ? new Date(data ? `${data}T12:00:00Z` : Date.now()) : null },
       });
     }
   }
 
   console.log('');
-  console.log(`Aperte dai documenti: ${VOCI.length} · storiche dal REGISTRO: ${storico.length} · da aggiungere: ${aggiunte} · già presenti: ${saltate}`);
+  console.log(`Aperte dai documenti: ${VOCI.length} · storiche dal REGISTRO: ${storico.length} · da aggiungere: ${aggiunte} · già presenti: ${saltate} · spuntate dal file: ${spuntate}`);
   if (!conferma && aggiunte > 0) console.log('Nessuna scritta: rilancia con CONFERMA=1 se l\'elenco qui sopra ti torna.');
 }
 

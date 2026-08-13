@@ -473,3 +473,23 @@ home, campagna.
 **Il «freno forte» (stessa pagina, stessa sera) è DECISO: non esiste.** «Non fermiamo nessuno»:
 la scheda in home + la campagna chiedono a tutti, e la sorveglianza passa da questa segnalazione.
 La voce rossa si chiude.
+
+---
+
+## 16. Crudo/cotto: la tabella di Nocanty è arrivata ✅ DECISIONE SCIOLTA (13/8 sera) — codice domani
+
+Il PDF «Comparazione nutrizionale crudo/cotto» (44 righe, 6 categorie) risponde alla domanda che
+bloccava due lavori: la ricerca per nome nei valori nutrizionali e l'import dell'indice glicemico.
+
+**La regola che ne esce, nelle sue parole:**
+1. **Default CRUDO** per pasta/riso/cereali, legumi secchi, carni e pesci: nelle ricette culinarie
+   le grammature si intendono a crudo. (Uova e piatti pronti: default cotto; ortaggi: stato esplicito.)
+2. **Quando lo stato cambia i numeri di oltre il 30%**, non si sceglie in silenzio: si chiede alla
+   nutrizionista — è il pattern di Vera che già esiste (propone, non indovina).
+3. **`conversion_ratio`** per convertire cotto→crudo (200 g di riso cotto ≈ 70 g crudo).
+
+**Perché domani e non stasera**: tocca il calcolo dei numeri che finiscono nel piatto (la stessa
+regola dell'azione 6: «si fa a mente fresca, non di sera»). Domani: la regola del default nella
+ricerca per nome di `valori-nutrizionali`, la domanda in `ricetta-dettata` quando l'ambiguità
+supera il 30%, l'import delle 44 righe della tabella (stato esplicito, confermate di default come
+da §10) e a seguire l'indice glicemico che aspettava questa risposta.

@@ -82,6 +82,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Allergia dichiarata → richiesta di visita: il MODO di rispondere ora c\'è (via libera clinico, 13/8), la soglia è materia clinica. Handoff §8.',
     categoria: NOCANTY,
     ordine: 20,
+    fatta: true, // risposta di Nocanty del 13/8: implementata (Decisioni §15)
   },
   {
     chiave: 'nocanty-freno-forte',
@@ -91,6 +92,7 @@ export const VOCI_INIZIALI: Voce[] = [
       '`allergieDichiarateIl` c\'è e si scrive, ma nessun comportamento parte da lì. Forma minima e sicura proposta: personal-base segnala la cliente come da rivedere e nella scheda compare «allergie non confermate». ⚠️ Non bloccare il piano di 315 clienti perché un campo nuovo è vuoto.',
     categoria: NOCANTY,
     ordine: 30,
+    fatta: true, // risposta di Nocanty del 13/8: implementata (Decisioni §15)
   },
   {
     chiave: 'nocanty-scala-passi',

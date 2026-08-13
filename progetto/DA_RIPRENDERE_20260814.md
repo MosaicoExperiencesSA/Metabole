@@ -4,10 +4,14 @@
 > `Decisioni_Simone_20260813.md` (§12-§14 sono di oggi), poi la pagina Lavori. Il dettaglio di Vera
 > sta in `VERA_AVANZAMENTO.md`; le trappole in `HANDOFF_Vera_Sessione.md` e `CLAUDE.md`.
 
-**Suite: 2649 test verdi su 182 suite**, `tsc` a zero (restano i 2 errori pre-esistenti di
+**Suite: 2657 test verdi su 184 suite** (verifica sul Mac in coda), `tsc` a zero (restano i 2 errori pre-esistenti di
 `prisma/approve-diets.ts` e `prisma/dedupe-diets.ts` col tsc completo). Build backoffice pulita.
 
 ## In produzione da ieri sera (13/8)
+
+- **Tutti i rossi della pagina Lavori sono chiusi**: «serve la visita» parte in automatico dalle
+  tre strade (criteri Nocanty §15), il freno forte è deciso (non esiste), il resto era fatto e si
+  spunta col caricamento (`fatta: true` nel file — novità del 13 sera, a senso unico: mai riaprire).
 
 - **OTA 2.1.8**: scheda in home che chiede le allergie, allergie/intolleranze + «Cibi da evitare»/
   «Cibi assolutamente vietati» nel profilo, pezzi inerti della campagna (rotta notifica, intent).
@@ -29,6 +33,11 @@ Shell di Render, nell'ordine, prima in prova e letti riga per riga:
 vale come «già chiesto».
 
 ## Poi, in ordine di valore
+
+0. **Crudo/cotto (Decisioni §16)**: la tabella di Nocanty è arrivata la sera del 13. Da fare a
+   mente fresca: default crudo nella ricerca per nome di `valori-nutrizionali`, domanda in
+   `ricetta-dettata` sopra il 30% di scarto, import delle 44 righe (stato esplicito, confermate),
+   poi l'indice glicemico che aspettava questa risposta.
 
 1. **Lucia sulla pagina Colazioni** (~2180 proposte da confermare, ~470 a mano). Quando le
    conferme bastano, si accende «a colazione qualcosa di salato» (azione 3, frase 2).

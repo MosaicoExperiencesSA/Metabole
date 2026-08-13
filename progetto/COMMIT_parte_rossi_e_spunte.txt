@@ -1,0 +1,36 @@
+─── PARTE: chiusura dei rossi + la spunta che viaggia col file + zip OTA (13/8 tarda sera) ───
+
+I rossi della pagina Lavori si chiudono, e il file di importazione impara le spunte
+
+1) «SERVE LA VISITA» IN AUTOMATICO (Decisioni §15 — la risposta di Nocanty dalla pagina Lavori:
+«allergia dichiarata, utilizzo farmaci, problemi sanitari»). Funzione `clients/serve-visita.ts`:
+criterio = daValutare() (allergie non vuote o screeningFlag — NESSUN criterio nuovo), apre la
+segnalazione clinica via apriSegnalazione (dedup suo) SOLO se `idoneita` è vuota: una valutazione
+scritta non si riapre da un automatismo. Agganciata alle tre strade della dichiarazione:
+onboarding.service (prima l'allergia DA SOLA non apriva niente), profile.service (scheda in home),
+allergie-chat.service (campagna). Evento, mai cron. Chi scrive dalla scheda non fa scattare nulla:
+ha il campo idoneità a un click. E il «freno forte» è DECISO: non esiste, la campagna copre il buco.
+
+2) LA SPUNTA VIAGGIA COL FILE (richiesta di Simone: «quando carico il file aggiornami anche quelle
+fatte»). Campo `fatta` su Voce: il caricamento — pulsante in pagina E script — spunta le voci
+esistenti che il file dichiara finite. A SENSO UNICO: mai riaprire una spunta tolta a mano; titolo
+e testo restano intoccati. Le voci nuove con fatta:true nascono già spuntate. Chiuse dal file:
+solfiti, deploy, ota-2-1-8, vera-verifica-mac, par7-ridomanda-chat, scala-passi, peso-efficacia,
+battesimo, soglia-visita, freno-forte.
+
+3) OTA 2.1.8 — IL PEZZO MANCANTE: lo zip non era in backend/ota-bundles/ (il manifest diceva 2.1.8,
+i telefoni scaricavano un 404, gli ota_error lo raccontavano). Copiato da ota-out/ e pushato.
+
+4) CRUDO/COTTO (Decisioni §16): la tabella di Nocanty è arrivata e scioglie la decisione — default
+crudo per amidi/legumi/carni/pesci, domanda sopra il 30% di scarto, conversion ratio. Il codice
+domani a mente fresca: tocca i numeri nel piatto.
+
+FILE — backend: clients/serve-visita.ts+spec (nuovi), onboarding/onboarding.service.ts,
+profile/profile.service.ts, chat/allergie-chat.service.ts, lavori/voci-iniziali.ts (campo fatta +
+10 spunte), lavori/lavori.service.ts, lavori/lavori.service.spec.ts (nuovo),
+prisma/carica-lavori.ts, ota-bundles/metabole-2.1.8.zip. Docs: Decisioni §15-§16, REGISTRO,
+DA_RIPRENDERE_20260814.md.
+
+TEST: 8 nuovi visti rossi (4 serve-visita + 4 caricamento voci). Suite riverificate insieme come
+chiede la consegna §7: profile + chat allergie + common/allergie + onboarding = 147 verdi, lavori
+21 verdi.

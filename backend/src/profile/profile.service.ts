@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { apriRichiestaVera } from '../vera/apri-richiesta';
+import { apriServeVisita } from '../clients/serve-visita';
 import { type RispostaAllergie, dichiarazione, haRisposto } from './dichiara-allergie';
 import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
@@ -325,6 +326,11 @@ export class ProfileService {
         termine,
       });
     }
+
+    // «Serve la visita» in automatico (criteri Nocanty, Decisioni §15): l'allergia appena
+    // dichiarata mette la cliente davanti a una nutrizionista — se nessuna valutazione è già
+    // scritta. Non lancia mai: la risposta della cliente è già salvata e tale resta.
+    await apriServeVisita(this.prisma, userId, 'scheda-in-home');
 
     return { registrate: esito.allergie.length, daTradurre: esito.daTradurre.length };
   }

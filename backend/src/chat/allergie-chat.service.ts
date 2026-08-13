@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { apriServeVisita } from '../clients/serve-visita';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { NON_ALIMENTI, allergieDaCodificare, allergieDichiarate, intolleranzeDichiarate, INTOLLERANZA_IGNOTA } from '../common/allergie';
@@ -252,6 +253,9 @@ export class AllergieChatService {
 
     try {
       await this.scrivi(clientId, profilo, dati, stato.motivo, lettura);
+      // «Serve la visita» (criteri Nocanty, Decisioni §15): la traduzione appena scritta è una
+      // dichiarazione a tutti gli effetti. Se una valutazione clinica esiste già, non parte niente.
+      await apriServeVisita(this.prisma, clientId, 'campagna-allergie');
     } catch (err) {
       /**
        * ⚠️ Un catch muto qui sarebbe un mistero: la cliente leggerebbe «fatto» e nel profilo non ci
