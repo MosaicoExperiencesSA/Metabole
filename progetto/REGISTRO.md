@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🤝 **Vera diventa la coda delle domande, e il confine fra le due sessioni è scritto.**
+  Decisione di Simone: le domande e le richieste arrivano lì, «così la nutrizionista ha le chat con le
+  clienti per le risposte base e la chat con Vera che aiuta tutta Metabole ad apprendere».
+  Il caso: tre clienti hanno un'allergia scritta a mano che il motore non sa tradurre — ⚠️ e **due di
+  quelle tre oggi non escludono niente**, perché «favismo» e «carboidrati» non compaiono in nessun
+  ingrediente. Non è traducibile da noi.
+  ⚠️ Perché Vera e non una notifica: da **una** risposta escono **due** scritture diverse —
+  l'esclusione su quella cliente (dato sanitario: transazione, audit, permesso `change_allergies`) e
+  la parola imparata **per tutte** (dizionario). Vera è l'unico pezzo che già le distingue: l'ambito
+  si chiede quando la regola nasce, e «a tutte» non scrive, apre una proposta.
+  Il contratto sta in `progetto/CONTRATTO_Vera_Richieste.md`: **una funzione sola**
+  (`apriRichiestaVera`), nessuno scrive nelle tabelle dell'altro — ⚠️ due sessioni sulla stessa
+  tabella con due idee dello stato è il guasto dello schema di stamattina, ma sui dati, e sui dati non
+  c'è `git` che lo faccia vedere. La `chiave` è obbligatoria contro la domanda riaperta ogni notte, e
+  le richieste devono vivere in un **elenco** e non solo dentro il dialogo. ⚠️ Finché non risponde
+  **non si blocca niente**.
+  Nel caricamento della pagina entrano le **otto voci** mandate dalla sessione di Vera, che sulla
+  pagina non può scrivere. ⚠️ La nona no: era la stessa decisione di `decisione-blocco-percorso`, e
+  due righe per la stessa decisione sono il modo in cui una lista smette di essere creduta.
+
 - `[Sviluppo]` 🛃 **Vera — Consegna 3a: la coda di Nocanty, una proposta per volta e in ordine
   di rischio.** La Consegna 2 sapeva **creare** proposte «in approvazione» e non c'era modo di
   approvarle: restavano ferme. Ora il capo apre la stessa pagina e il suo agente gliele sottopone

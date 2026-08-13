@@ -188,6 +188,75 @@ const VOCI: Voce[] = [
     categoria: MANUTENZIONE,
     ordine: 40,
   },
+  /**
+   * Le otto voci qui sotto arrivano dalla sessione che costruisce Vera (13/8), che sulla pagina non
+   * può scrivere: l'API sta sul backend e lei non ha accesso. Sono le cose scoperte scrivendo le sue
+   * tre consegne — cioè il tipo di voce che si perde per sempre se non la si scrive subito.
+   *
+   * ⚠️ La domanda «cliente già in piano che dichiara un'allergia: piano sospeso o visita in
+   * parallelo?» NON è qui: è la stessa decisione di `decisione-blocco-percorso`, che c'è già. Due
+   * righe per la stessa decisione sono il modo in cui una lista comincia a non essere creduta.
+   */
+  {
+    chiave: 'vera-citazione-testo-incollato',
+    titolo: 'Vera: contenitore «citazione» per il testo incollato',
+    dettaglio:
+      'Rimandato di proposito nella Consegna 2: serve quando l\'agente accetta testi altrui, e oggi esegue solo ciò che la nutrizionista scrive di suo pugno.',
+    categoria: CODICE,
+    ordine: 40,
+  },
+  {
+    chiave: 'vera-moduli-dashboard',
+    titolo: 'Vera: moduli in dashboard «quello che aspetta me» (Lucia e Nocanty)',
+    dettaglio: 'Segnalata dalla sessione che costruisce Vera.',
+    categoria: CODICE,
+    ordine: 50,
+  },
+  {
+    chiave: 'vera-azioni-raggio-largo',
+    titolo: 'Vera: azioni a raggio largo (variante di piano, ricette, regola su un tipo di dieta)',
+    dettaglio: 'Segnalata dalla sessione che costruisce Vera: oggi le azioni sono per-cliente.',
+    categoria: CODICE,
+    ordine: 60,
+  },
+  {
+    chiave: 'vera-registro-allargato',
+    titolo: 'Vera: registro allargato a tutto ciò che cambia sulle sue clienti',
+    dettaglio: 'Segnalata dalla sessione che costruisce Vera.',
+    categoria: CODICE,
+    ordine: 70,
+  },
+  {
+    chiave: 'vera-frase-presentazione',
+    titolo: 'Vera: cambiare la frase di presentazione («ti va di battezzarmi tu?»)',
+    dettaglio: 'Segnalata dalla sessione che costruisce Vera.',
+    categoria: CODICE,
+    ordine: 80,
+  },
+  {
+    chiave: 'vera-modello-seconda-passata',
+    titolo: 'Vera: il modello come seconda passata quando il riconoscitore non capisce',
+    dettaglio:
+      '`capisci.ts` è deterministico e sa dire quando non ha capito. `AiService` può entrare DOPO e mai al posto: quando `capisci` torna null, una proposta — che resta una proposta. Decisione di prodotto, non di codice.',
+    categoria: SIMONE,
+    ordine: 70,
+  },
+  {
+    chiave: 'ai-assistant-enabled',
+    titolo: '`ai_assistant_enabled` è \'false\' in produzione: accenderlo o no',
+    dettaglio:
+      'Il parametro che abilita le risposte generative di Gaia è spento in produzione. Va deciso se accenderlo, e con quali guardie: oggi il filtro in entrata e la guardia in uscita ci sono già.',
+    categoria: SIMONE,
+    ordine: 80,
+  },
+  {
+    chiave: 'dizionario-promossa-a-comune',
+    titolo: 'Voce di dizionario promossa a comune: sovrascrive le personali o convivono?',
+    dettaglio:
+      'Quando una parola imparata su una cliente diventa valida per tutte, cosa succede a chi ne aveva già una sua diversa. ⚠️ Tocca il piatto di persone che non hanno chiesto niente: è materia clinica, non un dettaglio di implementazione.',
+    categoria: NOCANTY,
+    ordine: 70,
+  },
   {
     chiave: 'varianti-3-pasti',
     titolo: 'Generare le varianti a 3 pasti e digiuno per le famiglie esistenti',
