@@ -93,6 +93,10 @@ export const NAV: NavSection[] = [
       // Subito sotto i gruppi di equivalenza perché è da qui che ci si arriva: una riga confermata
       // in questa tabella diventa un gruppo con «Promuovi a regola» (§16.9, 12/8).
       { key: 'food_swaps', label: 'Sostituzioni', to: '/sostituzioni', icon: 'ti-replace' },
+      // L'assistente della nutrizionista (Vera). Stessa chiave di permesso delle sostituzioni:
+      // è lo stesso perimetro — «cosa il motore userà per le clienti» — e moltiplicare le chiavi
+      // moltiplica i posti in cui qualcuno dimentica di abilitare qualcosa.
+      { key: 'food_swaps', label: 'Assistente', to: '/assistente', icon: 'ti-message-chatbot' },
       // Accanto ai gruppi di equivalenza di proposito: sono le due tabelle che decidono cosa Gaia
       // può dire a una cliente su un alimento (11/8).
       { key: 'nutrient_facts', label: 'Valori nutrizionali', to: '/valori-nutrizionali', icon: 'ti-database-search' },

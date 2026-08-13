@@ -168,6 +168,24 @@ describe('OnboardingService', () => {
       expect(allergieDi('update')).toEqual(['latte', 'uova']);
     });
 
+    it('⚠️ «Non ho allergie» È UNA RISPOSTA: non lascia allergeni, ma la domanda risulta fatta', async () => {
+      // È il senso dell'opzione aggiunta il 13/8. Senza, `allergies: []` voleva dire due cose
+      // indistinguibili — «non ne ho» e «ho saltato la pagina» — e nessun campo lì è obbligatorio.
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null);
+      await service.submitAnswers('u1', { ...baseAnswers(), allergies: ['nessuna'] });
+      const creato = prisma.clientProfile.upsert.mock.calls[0][0].create;
+      expect(creato.allergies).toEqual([]);
+      expect(creato.allergieDichiarateIl).toBeInstanceOf(Date);
+    });
+
+    it('⚠️ la pagina SALTATA invece resta senza data: è il caso che la colonna distingue', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null);
+      const dto = { ...baseAnswers() };
+      delete (dto as Record<string, unknown>).allergies;
+      await service.submitAnswers('u1', dto);
+      expect(prisma.clientProfile.upsert.mock.calls[0][0].create.allergieDichiarateIl).toBeUndefined();
+    });
+
     it('⚠️ ma «other» fra le INTOLLERANZE resta: è l\'unica traccia di quello che non sappiamo', async () => {
       // Non ha un campo libero associato, quindi quella stringa dice «ha un'intolleranza che noi
       // non conosciamo». Toglierla cancellerebbe la sola cosa che permette di ricontattarla — ed è

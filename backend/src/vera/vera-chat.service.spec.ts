@@ -1,0 +1,305 @@
+import { DizionarioService } from './dizionario.service';
+import { PoolDisponibileService } from './pool-disponibile.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { RegistroVeraService } from './registro.service';
+import { VeraChatService } from './vera-chat.service';
+import { StatoVera } from './vera-chat';
+
+/**
+ * ⚠️ Il test che conta di più qui è che **niente si scrive senza il sì**.
+ *
+ * Tutto il resto della conversazione può essere sgraziato e si corregge; una scrittura che scappa
+ * prima della conferma no, perché arriva nel piatto di una persona e nel registro compare come se
+ * fosse stata decisa.
+ */
+
+const CLIENTE = { id: 'c1', email: 'giulia@x.it', firstName: 'Giulia', lastName: 'Rossi', clientProfile: { name: 'Giulia' } };
+
+/** L'ultimo messaggio scritto dall'agente, con il suo stato. */
+function ultimoAgente(create: jest.Mock): { testo: string; stato?: StatoVera } {
+  const chiamate = create.mock.calls.map((c) => c[0].data).filter((d: { ruolo: string }) => d.ruolo === 'agente');
+  const ultimo = chiamate[chiamate.length - 1];
+  return { testo: ultimo.testo, stato: (ultimo.meta ?? {}).stato };
+}
+
+function make(over: Record<string, unknown> = {}, opzioni: { statoAperto?: StatoVera; profilo?: Record<string, unknown> } = {}) {
+  const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
+  const profileUpdate = jest.fn().mockResolvedValue({});
+  const prisma = {
+    messaggioVera: {
+      create: messaggioCreate,
+      count: jest.fn().mockResolvedValue(1),
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(
+        opzioni.statoAperto ? { meta: { stato: opzioni.statoAperto }, createdAt: new Date() } : null,
+      ),
+    },
+    // `head_nutritionist` → `perimetroClienti` ritorna null: nessun filtro, il test resta sul dialogo.
+    user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }), findMany: jest.fn().mockResolvedValue([CLIENTE]) },
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue(opzioni.profilo ?? { dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia' }),
+      update: profileUpdate,
+    },
+    recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([]) },
+    staff: { updateMany: jest.fn().mockResolvedValue({}) },
+    ...over,
+  } as unknown as PrismaService;
+
+  const dizionario = {
+    risolvi: jest.fn().mockResolvedValue(null),
+    insegna: jest.fn().mockResolvedValue({ id: 'v1' }),
+  } as unknown as DizionarioService;
+  const pool = {
+    anteprima: jest.fn().mockResolvedValue({
+      prima: { totaleRestanti: 40, pastiScoperti: [], slots: [], soglia: 3 },
+      dopo: { totaleRestanti: 38, pastiScoperti: [], slots: [], soglia: 3 },
+      racconto: 'Questa regola toglie 2 ricette dalle 40 che aveva: ne restano 38.',
+    }),
+  } as unknown as PoolDisponibileService;
+  const registro = { scrivi: jest.fn().mockResolvedValue({ id: 'a1' }) } as unknown as RegistroVeraService;
+
+  return {
+    service: new VeraChatService(prisma, dizionario, pool, registro),
+    messaggioCreate,
+    profileUpdate,
+    dizionario,
+    registro,
+    prisma,
+  };
+}
+
+describe('VeraChatService — il primo incontro', () => {
+  it('si presenta e chiede come vuole chiamarlo', async () => {
+    const { service, messaggioCreate, prisma } = make();
+    (prisma.messaggioVera.count as jest.Mock).mockResolvedValue(0);
+    await service.apri('lucia');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('come vuoi chiamarmi');
+    expect(stato?.passo).toBe('nome');
+  });
+
+  it('riaprire la pagina NON fa ripetere la presentazione', async () => {
+    const { service, messaggioCreate } = make();
+    await service.apri('lucia');
+    expect(messaggioCreate).not.toHaveBeenCalled();
+  });
+
+  it('«scegli tu» non lascia bloccati: prende il nome di scorta', async () => {
+    const { service, messaggioCreate, prisma } = make({}, { statoAperto: { passo: 'nome', frase: '' } });
+    await service.parla('lucia', 'scegli tu');
+    expect((prisma.staff.updateMany as jest.Mock).mock.calls[0][0].data.nomeAgente).toBe('Vera');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Vera');
+  });
+});
+
+describe('VeraChatService — quando non capisce', () => {
+  it('lo dice, e non inventa niente', async () => {
+    const { service, messaggioCreate, profileUpdate } = make();
+    await service.parla('lucia', 'ciao come va');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Non ci arrivo');
+    expect(profileUpdate).not.toHaveBeenCalled();
+  });
+
+  it('al secondo tentativo a vuoto si arrende e manda alla pagina', async () => {
+    const { service, messaggioCreate } = make({}, { statoAperto: { passo: 'conferma', frase: 'x', tentativi: 2 } });
+    await service.parla('lucia', 'boh');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('preferisco fermarmi');
+    // Nessuno stato: il giro è chiuso, non resta un dialogo aperto ad aspettare.
+    expect(stato).toBeUndefined();
+  });
+
+  it('una regola su un TIPO DI DIETA non viene applicata a una cliente', async () => {
+    // Il ripiego pericoloso sarebbe «allora lo faccio sull'ultima cliente nominata».
+    const { service, messaggioCreate, profileUpdate } = make();
+    await service.parla('lucia', 'nella dieta mediterranea non deve comparire più il tonno');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('tipo di dieta');
+    expect(profileUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('VeraChatService — chi è la cliente', () => {
+  it('con più omonime chiede cognome o email invece di scegliere', async () => {
+    const { service, messaggioCreate, prisma } = make();
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([CLIENTE, { ...CLIENTE, id: 'c2', lastName: 'Bianchi' }]);
+    await service.parla('lucia', 'a Giulia niente tonno');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('ne ho 2');
+    expect(stato?.passo).toBe('quale_cliente');
+  });
+
+  it('se non trova nessuno lo dice, e non prosegue', async () => {
+    const { service, messaggioCreate, prisma } = make();
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([]);
+    await service.parla('lucia', 'a Ludmilla niente tonno');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Non trovo nessuna cliente');
+  });
+});
+
+describe('VeraChatService — il dizionario', () => {
+  it('una famiglia sconosciuta si chiede, non si indovina', async () => {
+    const { service, messaggioCreate, prisma } = make();
+    (prisma.recipe.count as jest.Mock).mockResolvedValue(0); // non è un alimento del catalogo
+    await service.parla('lucia', 'a Giulia Rossi niente formaggi molli');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Non conosco «formaggi molli»');
+    expect(stato?.passo).toBe('quale_famiglia');
+  });
+
+  it('la risposta viene imparata, e non la richiede più', async () => {
+    const { service, dizionario } = make(
+      {},
+      { statoAperto: { passo: 'quale_famiglia', frase: 'a Giulia niente formaggi molli', famiglia: 'formaggi molli', famiglieDaChiedere: ['formaggi molli'], clienteId: 'c1', clienteNome: 'Giulia Rossi', intento: { tipo: 'restrizione', cliente: 'Giulia', vietati: ['formaggi molli'], tenuti: [] } } },
+    );
+    await service.parla('lucia', 'mozzarella, stracchino e ricotta');
+    expect((dizionario.insegna as jest.Mock).mock.calls[0][1]).toEqual({
+      nome: 'formaggi molli',
+      membri: ['mozzarella', 'stracchino', 'ricotta'],
+    });
+  });
+});
+
+describe('VeraChatService — l\'anteprima e la conferma', () => {
+  const statoDaConfermare = (over: Partial<StatoVera> = {}): StatoVera => ({
+    passo: 'conferma',
+    frase: 'a Giulia Rossi niente tonno',
+    clienteId: 'c1',
+    clienteNome: 'Giulia Rossi',
+    intento: { tipo: 'restrizione', cliente: 'Giulia Rossi', vietati: ['tonno'], tenuti: [] },
+    famiglieDaChiedere: [],
+    ...over,
+  });
+
+  it('mostra la regola tradotta e cosa comporta PRIMA di scrivere', async () => {
+    const { service, messaggioCreate, profileUpdate } = make();
+    await service.parla('lucia', 'a Giulia Rossi niente tonno');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('vieto 1 alimento: tonno');
+    expect(testo).toContain('ne restano 38');
+    expect(testo).toContain('Confermi?');
+    expect(stato?.passo).toBe('conferma');
+    // ⚠️ Il punto di tutto: fin qui non è stato scritto NIENTE.
+    expect(profileUpdate).not.toHaveBeenCalled();
+  });
+
+  it('un «no» non scrive niente', async () => {
+    const { service, messaggioCreate, profileUpdate, registro } = make({}, { statoAperto: statoDaConfermare() });
+    await service.parla('lucia', 'no aspetta');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Non ho scritto niente');
+    expect(profileUpdate).not.toHaveBeenCalled();
+    expect(registro.scrivi).not.toHaveBeenCalled();
+  });
+
+  it('una risposta ambigua NON vale come sì', async () => {
+    const { service, messaggioCreate, profileUpdate } = make({}, { statoAperto: statoDaConfermare() });
+    await service.parla('lucia', 'mah, forse');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('nel dubbio non scrivo niente');
+    expect(profileUpdate).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ «sì» con l\'accento vale come sì (il confine di parola in JS è ASCII)', async () => {
+    // Senza normalizzare gli accenti, `sì\\b` non combacia mai e la risposta più naturale che esista
+    // a «Confermi?» verrebbe letta come «non ho capito». Stesso difetto della «é» di «perché».
+    const { service, messaggioCreate } = make({}, { statoAperto: statoDaConfermare() });
+    await service.parla('lucia', 'sì');
+    expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('ambito');
+  });
+
+  it('dopo il sì chiede l\'ambito, e ancora non scrive', async () => {
+    const { service, messaggioCreate, profileUpdate } = make({}, { statoAperto: statoDaConfermare() });
+    await service.parla('lucia', 'sì');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('o la estendo a tutte');
+    expect(stato?.passo).toBe('ambito');
+    expect(profileUpdate).not.toHaveBeenCalled();
+  });
+
+  it('avvisa quando la regola tocca un vincolo sanitario — ma non blocca', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      { profilo: { dislikedFoods: [], allergies: ['latte'], intolerances: [], name: 'Giulia' } },
+    );
+    await service.parla('lucia', 'a Giulia Rossi niente formaggi ma solo la mozzarella');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('⚠️');
+    expect(testo).toContain('Procedo lo stesso?');
+    // Comanda lei: il dialogo prosegue, non si ferma.
+    expect(stato?.passo).toBe('conferma');
+  });
+});
+
+describe('VeraChatService — la scrittura', () => {
+  const statoAmbito = (over: Partial<StatoVera> = {}): StatoVera => ({
+    passo: 'ambito',
+    frase: 'a Giulia Rossi niente tonno',
+    clienteId: 'c1',
+    clienteNome: 'Giulia Rossi',
+    intento: { tipo: 'restrizione', cliente: 'Giulia Rossi', vietati: ['tonno'], tenuti: [] },
+    ...over,
+  });
+
+  it('«solo per lei» scrive fra i NON GRADITI e lascia la riga nel registro', async () => {
+    const { service, profileUpdate, registro, messaggioCreate } = make({}, { statoAperto: statoAmbito() });
+    await service.parla('lucia', 'solo per lei');
+    // ⚠️ dislikedFoods e non intolerances: un'intolleranza BLOCCA il piano quando il motore non
+    // trova un sostituto sicuro, e una frase dettata non deve poter fermare l'erogazione.
+    expect(profileUpdate.mock.calls[0][0].data.dislikedFoods).toEqual(['tonno']);
+    expect((registro.scrivi as jest.Mock).mock.calls[0][0]).toMatchObject({
+      azione: 'restrizione_cliente',
+      ambito: 'cliente',
+      frase: 'a Giulia Rossi niente tonno',
+    });
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Ho tolto dai suoi menu: tonno');
+  });
+
+  it('non raddoppia una regola già scritta', async () => {
+    const { service, profileUpdate, messaggioCreate } = make(
+      {},
+      { statoAperto: statoAmbito(), profilo: { dislikedFoods: ['tonno'], allergies: [], intolerances: [], name: 'Giulia' } },
+    );
+    await service.parla('lucia', 'ok');
+    expect(profileUpdate).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('già tutti esclusi');
+  });
+
+  it('«a tutte» NON scrive sul profilo: apre una proposta in approvazione', async () => {
+    const { service, profileUpdate, registro, messaggioCreate } = make({}, { statoAperto: statoAmbito() });
+    await service.parla('lucia', 'estendila a tutte');
+    expect(profileUpdate).not.toHaveBeenCalled();
+    expect((registro.scrivi as jest.Mock).mock.calls[0][0]).toMatchObject({ inApprovazione: true, ambito: 'catalogo' });
+    expect(ultimoAgente(messaggioCreate).testo).toContain('approvazione');
+  });
+
+  it('l\'eccezione «ma solo il grana» non finisce fra i vietati', async () => {
+    const { service, profileUpdate } = make(
+      {},
+      {
+        statoAperto: statoAmbito({
+          intento: { tipo: 'restrizione', cliente: 'Giulia', vietati: ['mozzarella', 'grana'], tenuti: ['grana'] },
+        }),
+      },
+    );
+    await service.parla('lucia', 'ok');
+    // Se il grana restasse fra i vietati, la regola direbbe l'esatto contrario di quella dettata —
+    // e sarebbe perfettamente formata.
+    expect(profileUpdate.mock.calls[0][0].data.dislikedFoods).toEqual(['mozzarella']);
+  });
+
+  it('la sostituzione nasce «verificata» e con origine «manuale»', async () => {
+    const { service, prisma } = make(
+      { foodSwap: { upsert: jest.fn().mockResolvedValue({ id: 'f1', volte: 1 }) } },
+      {
+        statoAperto: statoAmbito({
+          frase: 'per Giulia sostituisci il pollo con il tacchino',
+          intento: { tipo: 'sostituzione', cliente: 'Giulia', from: 'pollo', to: 'tacchino' },
+        }),
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    const dati = (prisma as unknown as { foodSwap: { upsert: jest.Mock } }).foodSwap.upsert.mock.calls[0][0];
+    // «manuale» e non «nutrizionista»: quest'ultima vuol dire «letta da una sua frase», dove a poter
+    // aver sbagliato è il programma. Qui la traduzione gliel'ho mostrata e lei ha detto sì.
+    expect(dati.create.origine).toBe('manuale');
+    expect(dati.create.stato).toBe('verificata');
+  });
+});

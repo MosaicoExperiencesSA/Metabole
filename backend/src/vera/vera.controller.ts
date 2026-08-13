@@ -6,16 +6,20 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { AmbitoVera, AzioneVeraTipo, RegistroVeraService } from './registro.service';
-import { AnteprimaPoolDto, InsegnaFamigliaDto, ScriviAzioneDto } from './dto/vera.dto';
+import { VeraChatService } from './vera-chat.service';
+import { AnteprimaPoolDto, InsegnaFamigliaDto, MessaggioVeraDto, ScriviAzioneDto } from './dto/vera.dto';
 
 /**
- * VERA — le fondamenta (consegna 1). Qui NON c'è ancora la chat.
+ * VERA — la conversazione e le fondamenta su cui poggia.
  *
- * Ci sono i tre pezzi su cui la chat poggerà: l'anteprima che dice cosa succede davvero al pool, il
- * dizionario che impara la lingua della nutrizionista, e il registro con l'annulla. Sono utili
- * anche da soli — l'anteprima serve pure alla pagina Regole motore — ed è il motivo per cui questa
- * consegna esiste separata: se si costruisse prima la chat, si vedrebbe subito qualcosa di bello
- * appoggiato sul niente.
+ * La chat (`chat/*`) è la porta; sotto ci sono i tre pezzi che la rendono sicura: l'anteprima che
+ * dice cosa succede davvero al pool, il dizionario che impara la lingua della nutrizionista, e il
+ * registro con l'annulla. Sono stati costruiti PRIMA, e da soli, di proposito: costruendo prima la
+ * chat si sarebbe vista subito una cosa bella appoggiata sul niente.
+ *
+ * ⚠️ La chat è dietro `manage` e non `view`: parlarci **scrive** — impara una famiglia, apre una
+ * proposta, mette una regola sul profilo di una persona. Una nutrizionista in sola lettura può
+ * leggere il registro, non dettare.
  *
  * `@RequirePage('food_swaps')` e non una chiave nuova: è lo stesso perimetro — «cosa il motore userà
  * per le clienti» — e moltiplicare le chiavi di permesso significa moltiplicare i posti dove
@@ -28,7 +32,33 @@ export class VeraController {
     private readonly pool: PoolDisponibileService,
     private readonly dizionario: DizionarioService,
     private readonly registro: RegistroVeraService,
+    private readonly chat: VeraChatService,
   ) {}
+
+  // ---------- la conversazione ----------
+
+  /**
+   * Apre la pagina. Al primo ingresso l'agente si presenta e le chiede come vuole chiamarlo.
+   * Idempotente: ricaricare non fa ripetere la presentazione.
+   */
+  @Post('chat/apri')
+  @RequirePage('food_swaps', 'manage')
+  apri(@CurrentUser() user: AuthUser) {
+    return this.chat.apri(user.sub);
+  }
+
+  @Get('chat')
+  @RequirePage('food_swaps')
+  storico(@CurrentUser() user: AuthUser) {
+    return this.chat.storico(user.sub);
+  }
+
+  /** Un messaggio dettato. La risposta è l'intera conversazione aggiornata. */
+  @Post('chat')
+  @RequirePage('food_swaps', 'manage')
+  parla(@CurrentUser() user: AuthUser, @Body() dto: MessaggioVeraDto) {
+    return this.chat.parla(user.sub, dto.testo);
+  }
 
   // ---------- il freno ----------
 

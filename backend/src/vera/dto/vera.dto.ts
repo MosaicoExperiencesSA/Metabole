@@ -61,3 +61,9 @@ export class ScriviAzioneDto {
   @IsBoolean()
   conflittoSanitario?: boolean;
 }
+
+export class MessaggioVeraDto {
+  @IsString()
+  @MaxLength(MAX_FRASE)
+  testo!: string;
+}

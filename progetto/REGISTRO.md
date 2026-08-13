@@ -20,6 +20,85 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🗨️ **Vera — Consegna 2: la chat parla, e non scrive mai senza mostrare prima
+  cosa sta per fare.** La conversazione, le due azioni per-cliente e la pagina `/assistente` (chat
+  sopra, registro sotto). L'ordine è tutto il progetto in cinque righe: **capisco** (deterministico)
+  → **chiedo** quello che non so → **mostro** la regola tradotta e cosa comporta sul pool →
+  **aspetto il sì** → **scrivo**. ⚠️ Non c'è nessuna scorciatoia che salti il terzo e il quarto
+  passo: il giorno in cui una scrittura passa senza anteprima è il giorno in cui il registro smette
+  di raccontare cosa è successo davvero.
+  **⚠️ Il riconoscitore è deterministico, non un modello.** `capisci.ts` è puro, con 16 casi di
+  prova. Un modello capirebbe più forme, ma qui la cosa che conta non è capire tanto: è **sapere
+  quando non si è capito** — e una funzione pura si collauda con un elenco di frasi vere, che è la
+  sola difesa contro il guasto peggiore (che un giorno l'agente smetta di capire le frasi che
+  capiva, e nessuno sappia dire quando è iniziato). `AiService` c'è già e può entrare **dopo** e
+  **mai al posto**: quando `capisci` torna `null`, una *proposta* — che resta una proposta.
+  ⚠️ **«Nella dieta mediterranea niente tonno» NON diventa una regola su una cliente.** Senza quel
+  caso, «mediterranea» verrebbe letta come nome di persona, o la regola finirebbe sull'ultima
+  cliente nominata. *Dire «non lo so ancora fare» è una risposta; fare la cosa sbagliata con
+  sicurezza non lo è.*
+  **⚠️ Due difetti della stessa famiglia, trovati dai test, e valgono oltre Vera**: in JavaScript il
+  confine di parola **`\b` è ASCII**, quindi dopo la «é» di «perché» e la «ì» di «sì» non c'è nessun
+  confine e `perché\b` / `sì\b` **non combaciano mai**. Il primo faceva finire il motivo clinico
+  («…perché ha il colesterolo alto») **dentro l'elenco degli alimenti da vietare**; il secondo faceva
+  leggere «sì» come «non ho capito» — la risposta più naturale che esista a «Confermi?», cioè la
+  funzione sarebbe stata inutilizzabile al primo uso vero. Rimedio: normalizzare gli accenti prima
+  di confrontare, e per le parole accentate niente `\b`.
+  **La restrizione finisce fra i NON GRADITI, non fra le intolleranze**, ed è una scelta: una
+  intolleranza in quel campo **blocca il piano** quando il motore non trova un sostituto sicuro (R8),
+  e una decisione dettata a voce non deve poter fermare l'erogazione di una cliente. La sostituzione
+  va in `FoodSwap` come riga **`verificata`** con origine **`manuale`** — non `nutrizionista`, che
+  vuol dire «letta da una sua frase» e segnala che a poter aver sbagliato è il programma.
+  L'**ambito** si chiede quando la regola nasce, predefinito «solo per questa cliente»; «a tutte»
+  **non scrive**: apre una proposta in approvazione. Il **conflitto sanitario si ricorda, non
+  blocca** — comanda lei, ma mai in silenzio, e quel sì resta nel registro col suo badge.
+  ⚠️ **Tabella messaggi propria** (`messaggio_vera`) e non `ChatThread`/`Message`: quelle sono le
+  conversazioni **delle clienti**, ci si filtra per `client_id`, e un thread di nutrizionista lì
+  dentro comparirebbe negli elenchi clienti di mezzo backoffice **senza dare nessun errore**. Lo
+  stato del dialogo vive nel `meta` dell'ultimo messaggio, come per i flussi di Gaia; scade dopo
+  **due ore** e non una — una nutrizionista lavora a sessioni, e rifarle dire «quale Giulia?» dopo
+  sessantadue minuti è il dazio che insegna a non usare lo strumento.
+  Nella pagina: bolle con le **variabili del tema** e non colori scritti a mano (il backoffice ha
+  quattro temi, e quelle della chat clienti sono in `#12A386` letterale: si rompono in tre), e una
+  **`textarea`** con Invio=manda — su una riga sola non si rilegge una frase che sta per far
+  scrivere qualcosa a qualcun altro.
+  **Rimandato di proposito**: il contenitore «citazione» per il testo incollato. Serve quando
+  l'agente accetta testi altrui, e oggi esegue solo ciò che lei scrive di suo pugno.
+  **Verifica**: type-check **42 = baseline di main** (nessuno nuovo, nessuno nei file di Vera),
+  backoffice `tsc -b` pulito, **1545 test verdi** contro 1508. ⚠️ Il lavoro è stato **riportato sopra
+  main aggiornato** (dopo i commit sulle allergie) e ricollaudato lì, non sulla copia vecchia.
+  ⚠️ **Ripristinati tre pezzi dello schema che erano spariti.** Il commit sulle allergie (`67041fb`)
+  ha riscritto `prisma/schema.prisma` da una copia vecchia e si è portato via quello che la Consegna 1
+  aveva aggiunto il giorno prima: **`MenuDay.viewedAt`, `model FamigliaAlimento`, `model
+  AzioneVera`**. I file di codice e la migrazione erano intatti: solo lo schema. Sintomo:
+  `Property 'famigliaAlimento' does not exist on type 'PrismaService'` al type-check.
+  Il build su Render l'avrebbe fermato (`nest build` fa lo stesso controllo), quindi non sarebbe
+  arrivato in produzione — ma il tempo si sarebbe perso lì, a deploy partito. **È la seconda volta in
+  due giorni** che una sessione parallela riscrive un file condiviso partendo da una copia vecchia:
+  la prima è stata `REGISTRO.md`, con due voci perse. **Regola: prima di riscrivere `schema.prisma` o
+  `REGISTRO.md`, rileggere il file dal disco e verificare col `grep` che ci sia ancora quello che
+  c'era.**
+  ⛔ Restano `npm run typecheck` e `npx jest src/app.module.spec.ts` **nel terminale del Mac**.
+
+- `[Sviluppo]` 🔢 **«Non ho allergie» diventa una risposta, e un conteggio da leggere prima della
+  campagna.** Chiude il §3 dell'handoff e prepara il §7.
+  **L'opzione «Non ho allergie»** nel questionario: le intolleranze avevano già `'none'`, le allergie
+  no — e senza, `allergies: []` voleva dire due cose indistinguibili. Il server la filtra come non
+  alimento ma **timbra `allergieDichiarateIl`**: quella cliente esce dall'elenco di quelle a cui la
+  domanda va ancora fatta.
+  **`npm run conta:allergie`**, sola lettura — nessun `CONFERMA=1`, perché non c'è niente da
+  confermare. È la conta che il §7.1 chiede **prima** di qualunque campagna: «se la popolazione 3
+  sono 280 clienti su 315, non è una campagna, è un difetto del questionario da correggere prima».
+  ⚠️ Le tre popolazioni si **escludono a vicenda**: ognuna compare una volta sola, nella categoria
+  più urgente. Contarle separatamente darebbe una somma più grande del numero di clienti che
+  esistono — ed è il numero da cui si decide se mandare centinaia di notifiche.
+  ⚠️ Chi il questionario **non l'ha finito** non si ricontatta: non ha saltato la pagina, non ci è
+  ancora arrivata.
+  ⚠️ E se la terza popolazione è la maggioranza, lo script **lo dice**: quella non è una campagna, è
+  il sintomo di una pagina che non raccoglie. La regola sta in `common/da-ricontattare.ts` con 11
+  test, non dentro lo script: chi si riscrive il criterio conta una popolazione e poi ne contatta
+  un'altra. 13 test nuovi, suite **2217** verde.
+
 - `[Sviluppo]` ❓ **Chi ha scelto «Altro» fra le intolleranze aveva qualcosa che non sapevamo, e i
   menu la ignoravano.** Punto §1.3 dell'handoff, l'ultimo dei difetti del questionario. Le
   intolleranze avevano l'opzione «Altro» e **nessun campo dove scrivere cosa**: chi la sceglieva si

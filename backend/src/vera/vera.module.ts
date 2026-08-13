@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
+import { VeraChatService } from './vera-chat.service';
 import { VeraController } from './vera.controller';
 
 /**
@@ -22,7 +23,7 @@ import { VeraController } from './vera.controller';
  */
 @Module({
   controllers: [VeraController],
-  providers: [PoolDisponibileService, DizionarioService, RegistroVeraService],
-  exports: [PoolDisponibileService, DizionarioService, RegistroVeraService],
+  providers: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService],
+  exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService],
 })
 export class VeraModule {}

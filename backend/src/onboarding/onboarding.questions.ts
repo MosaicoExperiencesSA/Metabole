@@ -60,8 +60,19 @@ export const ONBOARDING_QUESTIONS = {
           label: 'Allergie — le evito sempre, anche tracce e derivati',
           // I 14 allergeni UE (allineati al backend src/catalog/allergens.ts): il motore
           // esclusioni può filtrare in sicurezza solo se arrivano codificate come le ricette.
-          options: ['glutine', 'crostacei', 'uova', 'pesce', 'arachidi', 'soia', 'latte', 'frutta_a_guscio', 'sedano', 'senape', 'sesamo', 'solfiti', 'lupini', 'molluschi', 'altro'],
-          labels: ['Glutine', 'Crostacei', 'Uova', 'Pesce', 'Arachidi', 'Soia', 'Latte e derivati', 'Frutta a guscio', 'Sedano', 'Senape', 'Sesamo', 'Solfiti', 'Lupini', 'Molluschi', 'Altro'],
+          /**
+           * ⚠️ «NESSUNA» IN FONDO ALL'ELENCO (13/8, §3 dell'handoff).
+           *
+           * Le intolleranze ce l'avevano già (`'none'`), le allergie no — e senza, `allergies: []`
+           * voleva dire due cose indistinguibili: «non ne ho» e «ho saltato la pagina». Nessun
+           * campo qui è obbligatorio, quindi ci si passa sopra senza rispondere.
+           *
+           * Con l'opzione, «non ne ho» diventa **una risposta**: il server la filtra come non
+           * alimento (sta in `NON_ALIMENTI`) ma timbra `allergieDichiarateIl`, e quella cliente
+           * esce dall'elenco di quelle a cui la domanda va ancora fatta.
+           */
+          options: ['glutine', 'crostacei', 'uova', 'pesce', 'arachidi', 'soia', 'latte', 'frutta_a_guscio', 'sedano', 'senape', 'sesamo', 'solfiti', 'lupini', 'molluschi', 'nessuna', 'altro'],
+          labels: ['Glutine', 'Crostacei', 'Uova', 'Pesce', 'Arachidi', 'Soia', 'Latte e derivati', 'Frutta a guscio', 'Sedano', 'Senape', 'Sesamo', 'Solfiti', 'Lupini', 'Molluschi', 'Non ho allergie', 'Altro'],
         },
         { key: 'allergiesOther', type: 'tags', label: 'Altra allergia non in elenco (la verifica il nutrizionista)' },
         { key: 'intolerances', type: 'multi_choice', options: ['gluten', 'lactose', 'nuts', 'none', 'other'], labels: ['Glutine', 'Lattosio', 'Frutta secca', 'Nessuna', 'Altro'] },

@@ -11,7 +11,11 @@
 
 ## Stato in una riga
 
-**Consegna 1 scritta e VERIFICATA.** Type-check reale sul Mac: **zero errori** coi tipi veri di
+**Consegna 2 scritta: la chat parla, la pagina c'è.** Type-check 42 = baseline (nessun errore nuovo,
+nessuno nei file di Vera), backoffice pulito, **1545 test verdi** contro 1508 — i 37 in più sono i
+nuovi. ⛔ Restano `npm run typecheck` e `app.module.spec.ts` **nel terminale del Mac**.
+
+**Consegna 1 fatta e verificata.** Type-check reale sul Mac: **zero errori** coi tipi veri di
 Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si risolve all'avvio.
 38 test nuovi verdi, 1439 in totale. Pronta per la push.
 
@@ -19,7 +23,7 @@ Prisma. `app.module.spec.ts`: **verde** — ogni dipendenza di ogni modulo si ri
 |---|---|---|
 | — | Specifica e verifica sul codice | ✅ **fatta** — 12/8/2026 |
 | 1 | Le fondamenta (dizionario, `viewedAt`, pool a vuoto, registro) | ✅ **fatta e verificata** — 13/8/2026 |
-| 2 | Vera che parla, due azioni + la pagina | ⬜ da iniziare |
+| 2 | Vera che parla, due azioni + la pagina | ✅ **scritta** — 13/8/2026 |
 | 3 | Azioni a raggio largo, registro allargato, dashboard, pagina di Nocanty | ⬜ da iniziare |
 | 4 | Che non marcisca (corpus di prova, rapporto mensile, dizionario vivo) | ⬜ da iniziare |
 | — | Cantiere allergie/intolleranze (a parte) | ⬜ da iniziare |
@@ -61,17 +65,35 @@ mai un filtro proprio, o il numero mostrato diventa una stima che diverge dal mo
 
 ## Consegna 2 — Vera che parla, due azioni sole
 
-- [ ] La **pagina dedicata**: chat sopra, registro sotto
-- [ ] **Azione 1** — restrizione su una cliente (`dislikedFoods` / `intolerances`)
-- [ ] **Azione 2** — sostituzione su una cliente (si appoggia a `FoodSwap`, che esiste)
-- [ ] Disambiguazione della cliente (nome e cognome o email, mai indovinare)
-- [ ] Il **dizionario che chiede** invece di indovinare
-- [ ] Anteprima: regola tradotta **+ controllo del pool** con le vie d'uscita calcolate
-- [ ] Domanda sull'ambito («solo per questa cliente o a tutte?», predefinito: solo questa)
-- [ ] Avviso sui **conflitti con i vincoli sanitari** + conferma registrata
-- [ ] Contenitore **«citazione»** per il testo incollato
-- [ ] Il **nome** chiesto al primo incontro (campo sul profilo della nutrizionista)
-- [ ] Tetto a due giri di chiarimento, poi si arrende
+- [x] La **pagina dedicata** (`/assistente`): chat sopra, registro sotto, stessa schermata
+- [x] **Azione 1** — restrizione su una cliente → `dislikedFoods`
+- [x] **Azione 2** — sostituzione su una cliente → `FoodSwap`, riga `verificata`, origine `manuale`
+- [x] Disambiguazione della cliente (nel perimetro della nutrizionista, mai indovinare)
+- [x] Il **dizionario che chiede** invece di indovinare
+- [x] Anteprima: regola tradotta **+ controllo del pool**
+- [x] Domanda sull'ambito (predefinito: solo per questa cliente; «a tutte» → in approvazione)
+- [x] Avviso sui **conflitti con i vincoli sanitari** + conferma registrata
+- [x] Il **nome** chiesto al primo incontro (`staff.nome_agente`)
+- [x] Tetto a due giri di chiarimento, poi si arrende
+- [ ] Contenitore **«citazione»** per il testo incollato → rimandato, vedi sotto
+- [ ] ⛔ Type-check reale e `app.module.spec.ts` **sul Mac**
+
+### ⚠️ Il riconoscitore è deterministico, non un modello
+
+`capisci.ts` è una funzione pura con 16 casi di prova. Un modello capirebbe più forme, ma qui la
+cosa che conta non è capire tanto: è **sapere quando non si è capito**. E una funzione pura si
+collauda con un elenco di frasi vere — che è la sola difesa contro il guasto peggiore, cioè che un
+giorno l'agente smetta di capire le frasi che capiva e nessuno sappia dire quando è iniziato.
+
+Il modello (`AiService`, Anthropic, già in casa) può entrare **dopo** e **mai al posto**: quando
+`capisci` torna `null`, chiedergli una *proposta* — che resta una proposta, mostrata e confermata
+come tutte le altre. La scrittura non cambia mai strada.
+
+### Rimandato di proposito
+
+Il contenitore **«citazione»** per il testo incollato: serve quando l'agente accetta testi altrui, e
+oggi l'unica cosa che esegue è ciò che lei scrive di suo pugno in questa pagina. Va fatto **prima**
+di dargli in pasto messaggi delle clienti.
 
 Da riusare senza riscrivere: `impara-dalla-chat.ts` (riconoscimento), `common/nomi-alimento`
 (confronto per parola con la radice), `registra-sostituzione.ts` (scrittura).
@@ -130,6 +152,18 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 — Consegna 2: la chat, le due azioni, la pagina (13 file)
+`capisci.ts` (riconoscitore puro, 16 casi), `vera-chat.ts` (stati e frasi), `vera-chat.service.ts`
+(il giro: capisco → chiedo → mostro → aspetto il sì → scrivo), la pagina `/assistente` e la tabella
+`messaggio_vera`. Verifica: type-check **42 = baseline**, backoffice pulito, **1545 test** contro
+1508.
+⚠️ Due difetti della stessa famiglia, trovati dai test: in JavaScript il **confine di parola `\b` è
+ASCII**, quindi `perché\b` e `sì\b` non combaciano **mai**. Il primo faceva finire il motivo clinico
+(«…perché ha il colesterolo alto») dentro l'elenco degli alimenti da vietare; il secondo faceva
+leggere «sì» come «non ho capito» — cioè la risposta più naturale che esista alla domanda
+«Confermi?». Rimedio: normalizzare gli accenti prima di confrontare, e per le parole accentate niente
+`\b`.
 
 ### 12/8/2026 — Consegna 1 scritta (17 file, ~1620 righe)
 Migrazione additiva (`menu_day.viewed_at`, `famiglia_alimento`, `azione_vera`), il modulo
