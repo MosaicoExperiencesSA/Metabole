@@ -80,6 +80,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   c'era.**
   ⛔ Restano `npm run typecheck` e `npx jest src/app.module.spec.ts` **nel terminale del Mac**.
 
+- `[Sviluppo]` 🔔 **La coda: chi non ha ancora avuto il via libera clinico si vede nell'elenco.**
+  Completa la consegna precedente (§8 dell'handoff: «la cliente in coda nella lista della
+  nutrizionista, con il motivo»). Il via libera si poteva **dare**, ma nessuno sapeva **su chi**: per
+  scoprirlo bisognava aprire le schede una per una, ed è proprio il caso in cui non aprirne una ha
+  una conseguenza. Una porta senza campanello.
+  Pastiglia **«da valutare»** nell'elenco Clienti, accanto a «senza glutine», col **motivo** nel
+  titolo — «allergie dichiarate» e «patologie o farmaci» non si guardano con la stessa fretta.
+  ⚠️ La regola è la **stessa** della scheda (`clients/idoneita.ts`), importata e non riscritta, con un
+  test che tiene ferme le due risposte insieme: se l'elenco contasse diversamente, la nutrizionista
+  aprirebbe una «da valutare» e ci troverebbe «non serve» — e smetterebbe di fidarsi dell'elenco.
+  ⚠️ `serve_visita` **non** compare fra le da valutare: qualcuno l'ha già guardata.
+  ⚠️ Il conto sta in `crm.service` e **non** in `clients.service.listClients`: l'elenco Clienti è
+  servito dalla lista CRM (tabelle unificate), mentre `/admin/clients` ormai alimenta solo un
+  selettore dentro Sostituzioni — ed è il primo posto in cui l'avevo messo. Nessuna migrazione.
+  Suite **2310** verde.
+
 - `[Sviluppo]` 🩻 **Il via libera clinico: la nutrizionista può dire «può proseguire», e resta
   scritto.** Domanda di Simone: «se poi metti Visita obbligatoria e la nutrizionista decide che la
   cliente può proseguire, come fa a dircelo? Parte il messaggio sorveglianza sanitaria ma lei come fa

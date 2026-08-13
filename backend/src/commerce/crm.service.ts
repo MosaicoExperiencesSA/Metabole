@@ -8,6 +8,7 @@ import { coachTeamScope } from '../common/coach-team';
 import { avvisaNuovoLeadDaAssegnare } from '../common/avvisa-manager-coach';
 import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
 import { dichiaraSenzaGlutine } from '../menu/senza-glutine';
+import { daValutare } from '../clients/idoneita';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { avanzaStatoSeIndietro } from './avanza-stato';
@@ -526,6 +527,10 @@ export class CrmService {
                   allergies: true,
                   intolerances: true,
                   dislikedFoods: true,
+                  // Idem per «da valutare»: stessa query, e senza queste due la nutrizionista
+                  // dovrebbe aprire le schede una per una per sapere su chi deve decidere.
+                  idoneita: true,
+                  screeningFlag: true,
                 },
               },
             },
@@ -552,11 +557,41 @@ export class CrmService {
     const memberships = (r.listMemberships as { list: unknown }[] | undefined) ?? [];
     const { listMemberships, ...rest } = r;
     void listMemberships;
-    const profilo = (r.client as { clientProfile?: { allergies?: string[]; intolerances?: string[]; dislikedFoods?: string[] } | null } | null)?.clientProfile ?? null;
+    const profilo = (r.client as {
+      clientProfile?: {
+        allergies?: string[]; intolerances?: string[]; dislikedFoods?: string[];
+        idoneita?: string | null; screeningFlag?: boolean | null;
+      } | null;
+    } | null)?.clientProfile ?? null;
     const senzaGlutine = profilo
       ? dichiaraSenzaGlutine([...(profilo.allergies ?? []), ...(profilo.intolerances ?? []), ...(profilo.dislikedFoods ?? [])])
       : false;
-    return { ...rest, senzaGlutine, lists: memberships.map((m) => m.list) };
+    /**
+     * ⚠️ «QUESTA VA ANCORA VALUTATA» — §8 dell'handoff: «la cliente in coda nella lista della
+     * nutrizionista, con il motivo».
+     *
+     * Senza questa riga il via libera clinico è una porta senza campanello: la decisione si può
+     * prendere, ma nessuno sa **su chi** va presa se non aprendo le schede una per una. Ed è
+     * proprio il caso in cui non aprire una scheda ha una conseguenza.
+     *
+     * ⚠️ La regola è la stessa della scheda (`clients/idoneita.ts`), importata e non riscritta: se
+     * l'elenco contasse in modo diverso, la nutrizionista aprirebbe una cliente segnata «da
+     * valutare» e ci troverebbe scritto «non serve» — e a quel punto smetterebbe di fidarsi
+     * dell'elenco, che è il modo in cui un elenco muore.
+     */
+    const valutare = profilo ? daValutare(profilo) : false;
+    return {
+      ...rest,
+      senzaGlutine,
+      daValutare: valutare,
+      // Il motivo: è quello che le fa decidere se aprirla adesso o dopo.
+      motivoValutazione: !valutare
+        ? null
+        : (profilo?.allergies ?? []).length
+          ? 'allergie dichiarate'
+          : 'patologie o farmaci dichiarati',
+      lists: memberships.map((m) => m.list),
+    };
   }
 
   /** Scheda di un singolo lead: anagrafica, storico stati, promemoria collegati. */

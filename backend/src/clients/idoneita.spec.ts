@@ -82,3 +82,28 @@ describe('chi è ancora DA VALUTARE', () => {
     expect(daValutare({})).toBe(false);
   });
 });
+
+/**
+ * LA CODA: la stessa regola vista dall'elenco, non una seconda.
+ *
+ * §8 dell'handoff: «la cliente in coda nella lista della nutrizionista, con il motivo». Senza,
+ * il via libera clinico è una porta senza campanello — la decisione si può prendere, ma non si sa
+ * su chi, se non aprendo le schede una per una.
+ */
+describe('l\'elenco e la scheda devono dire la stessa cosa', () => {
+  it('⚠️ una cliente segnata «da valutare» in elenco deve esserlo anche nella scheda', () => {
+    // Se le due contassero in modo diverso, la nutrizionista aprirebbe una cliente segnata «da
+    // valutare» e ci troverebbe scritto «non serve» — e a quel punto smetterebbe di fidarsi
+    // dell'elenco, che è il modo in cui un elenco muore.
+    const casi = [
+      { allergies: ['latte'], idoneita: null, screeningFlag: false },
+      { allergies: [], idoneita: null, screeningFlag: true },
+      { allergies: ['latte'], idoneita: 'idonea', screeningFlag: true },
+      { allergies: ['latte'], idoneita: 'serve_visita', screeningFlag: false },
+      { allergies: [], idoneita: null, screeningFlag: false },
+    ];
+    // Una funzione sola: è il punto. Il test tiene fermo che ci sia UNA risposta per caso.
+    for (const c of casi) expect(daValutare(c)).toBe(daValutare({ ...c }));
+    expect(casi.map((c) => daValutare(c))).toEqual([true, true, false, false, false]);
+  });
+});

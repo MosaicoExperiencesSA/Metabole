@@ -36,6 +36,9 @@ interface Lead {
   lists: CrmList[];
   /** Ha dichiarato il glutine (allergie + intolleranze + cibi non graditi, calcolato dal server). */
   senzaGlutine?: boolean;
+  /** Nessuno ha ancora dato il via libera clinico a questa cliente. Vedi `clients/idoneita.ts`. */
+  daValutare?: boolean;
+  motivoValutazione?: string | null;
   client: { email: string; clientProfile: { name: string | null; assignedCoach: { displayName: string } | null; assignedNutritionistId: string | null; assignedNutritionist: { id: string; displayName: string } | null } | null } | null;
 }
 interface Coach { id: string; displayName: string }
@@ -552,6 +555,23 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
                         dieta dedicata**. Unificando le due tabelle sarebbe sparita: qui resta, e
                         resta dov'era — dentro la cella del nome, non come colonna.
                       */}
+                      {/*
+                        ⚠️ «Da valutare»: nessuno ha ancora detto se questa cliente può proseguire.
+                        Prima di questa pastiglia la decisione si poteva prendere ma non si sapeva
+                        su CHI: bisognava aprire le schede una per una, ed è proprio il caso in cui
+                        non aprirne una ha una conseguenza. Il titolo porta il motivo, perché
+                        «allergie dichiarate» e «patologie o farmaci» non si guardano con la stessa
+                        fretta.
+                      */}
+                      {soloClienti && l.daValutare && (
+                        <span
+                          className="chip"
+                          style={{ marginRight: 6, fontSize: 10.5, background: '#FDF0E3', color: '#8A5A12', border: '1px solid #E9C48A' }}
+                          title={`Nessuno ha ancora valutato se può proseguire${l.motivoValutazione ? ` — ${l.motivoValutazione}` : ''}. Si decide dalla scheda cliente.`}
+                        >
+                          da valutare
+                        </span>
+                      )}
                       {soloClienti && l.senzaGlutine && (
                         <span
                           className="chip"
