@@ -1,0 +1,36 @@
+PARTE «APP — i due elenchi nel profilo» — da unire al messaggio di commit (in COMMIT.txt si AGGIUNGE
+in coda, non al posto delle altre).
+
+=== LA CLIENTE PUÒ FINALMENTE LEGGERE COSA NON LE ARRIVA NEL PIATTO ===
+
+Richiesta di Simone (13/8): due pulsanti nel profilo dell'app, «Cibi assolutamente vietati» (le
+allergie) e «Cibi da evitare» (intolleranze e cibi non graditi), e dentro l'elenco vero.
+
+⚠️ Il valore non sono i pulsanti: è l'ESPANSIONE. Oggi una cliente sceglie «frutta a guscio» e non sa
+cosa vuol dire per il suo piatto; adesso legge *noci, mandorle, nocciole, pistacchi, anacardi,
+pinoli, macadamia, pecan* — le stesse parole con cui il motore le toglie i piatti. E fa da controllo:
+se ci vede dentro qualcosa che non c'entra, lo dice alla nutrizionista.
+
+⚠️ LE PAROLE LE DÀ IL SERVER (`GET /me/esclusioni`), che le costruisce con `menu/exclusions.ts`. Se
+l'app se ne tenesse una copia, il giorno che la mappa cambia la cliente leggerebbe un elenco e ne
+mangerebbe un altro — è il difetto che questo campo ha già avuto due volte.
+
+⚠️ UNA VOCE CHE NESSUNO SA TRADURRE SI MOSTRA LO STESSO, VUOTA. «Favismo» e «Carboidrati» esistono in
+banca dati e oggi non tolgono niente, perché quelle parole non compaiono in nessun ingrediente.
+Nasconderle vorrebbe dire far sparire alla cliente una cosa che ha dichiarato lei; mostrarle come le
+altre le farebbe credere di essere protetta. Escono con l'elenco vuoto e la riga «la tua
+nutrizionista la sta traducendo negli alimenti da togliere» (decisione di Simone).
+
+⚠️ E c'è una riga che non si toglie mai: «questo elenco NON è il permesso di mangiare tutto il
+resto». Un elenco fa credere di essere completo, e l'esclusione viaggia su due strade — i tag
+allergene delle ricette e la ricerca testuale negli ingredienti.
+
+⚠️ Sola lettura, e deve restarlo: le allergie le corregge la nutrizionista col permesso
+`change_allergies`. Dal popup dei «da evitare» si rimanda al campo dei non graditi, che è l'unico dei
+tre che la cliente gestisce da sé.
+
+ORDINE DI RILASCIO OBBLIGATO: l'endpoint deve essere in PRODUZIONE prima della OTA, o l'app
+aggiornata chiama una rotta che non esiste e i due pulsanti danno errore.
+
+6 test nuovi, verificati rossi prima (il termine mostrato come traduzione di sé stesso; «altro» e
+«nessuna» finiti nell'elenco degli alimenti). Nessuna migrazione.

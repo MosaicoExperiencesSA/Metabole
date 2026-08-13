@@ -32,6 +32,15 @@ export const DATI = 'Dati e catalogo';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'tabella-ig-import',
+    titolo: 'Importare la tabella dell\'indice glicemico del capo nutrizionista (~94 alimenti)',
+    dettaglio:
+      'PDF del 13/8 (Linus Pauling / International Tables 2008): IG con min e max, affidabilità, macro per 100 g, stato e fonte. ⚠️ Nessuna migrazione: `NutrientFact` ha già tutti i campi. Simone: si carica CONFERMATO di default (`verifiedById` = capo nutrizionista, `verifiedAt` valorizzato), perché «vuoti = da confermare» e finirebbe in una coda che nessuno ha chiesto. ⚠️ Prima va sciolto il crudo/cotto: la tabella dà la pasta BOLLITA (158 kcal), e una ricetta che dice «80 g di spaghetti» a crudo sbaglia di due volte e mezzo.',
+    categoria: DATI,
+    ordine: 20,
+    blocca: false,
+  },
+  {
     chiave: 'vera-regola-dieta-rifai-menu',
     titolo: 'Vera: rifare i giorni futuri non ancora aperti quando il capo approva un divieto di dieta',
     dettaglio:

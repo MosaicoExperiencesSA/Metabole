@@ -6,6 +6,7 @@ import AppHeader from '../components/AppHeader';
 import BrandPicker from '../components/BrandPicker';
 import WaterUnitPicker from '../components/WaterUnitPicker';
 import NotificationPrefs from '../components/NotificationPrefs';
+import Sheet from '../components/Sheet';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
 import { DIET_INFO, DIET_INFO_FONTI } from '../onboarding/dietInfo';
 
@@ -478,6 +479,9 @@ function ExcludedFoods() {
   // perché. Qui va anche tolta la pastiglia aggiunta in modo ottimistico.
   const [avviso, setAvviso] = useState<{ titolo: string; testo: string } | null>(null);
 
+  /** Quale dei due elenchi è aperto: 'vietati' (allergie) o 'evitare' (intolleranze + non graditi). */
+  const [elenco, setElenco] = useState<'vietati' | 'evitare' | null>(null);
+
   useEffect(() => {
     api<{ dislikedFoods: string[] | null; intolerances: string[] | null; allergies: string[] | null; allergieDichiarateIl: string | null }>('/me/client-profile')
       .then((p) => {
@@ -591,6 +595,22 @@ function ExcludedFoods() {
           <i className="ti ti-shield-check" style={{ fontSize: 12, verticalAlign: '-1px' }} /> Intolleranze registrate: <b>{intol.join(', ')}</b> — per cambiarle parlane con la tua coach o nutrizionista.
         </p>
       )}
+      {/*
+        ⚠️ I DUE ELENCHI VERI (richiesta di Simone, 13/8).
+        Sopra c'è quello che ha DICHIARATO; qui sotto cosa comporta davvero nel piatto. Una cliente
+        sceglie «frutta a guscio» e non sa che vuol dire noci, mandorle, nocciole, pistacchi: il
+        valore non sono i pulsanti, è l'espansione — le stesse parole con cui il motore le toglie i
+        piatti. E fa da controllo: se ci vede dentro qualcosa che non c'entra, lo dice.
+      */}
+      <div className="row" style={{ gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+        <button className="btn ghost" style={{ fontSize: 12.5 }} onClick={() => setElenco('vietati')}>
+          <i className="ti ti-ban" style={{ color: '#C0392B' }} /> Cibi assolutamente vietati
+        </button>
+        <button className="btn ghost" style={{ fontSize: 12.5 }} onClick={() => setElenco('evitare')}>
+          <i className="ti ti-alert-circle" style={{ color: '#C98A2E' }} /> Cibi da evitare
+        </button>
+      </div>
+      {elenco && <ElencoEsclusi quale={elenco} onClose={() => setElenco(null)} />}
     </div>
   );
 }
@@ -1579,5 +1599,97 @@ function ConsensoCard() {
         </div>
       )}
     </div>
+  );
+}
+
+interface VoceEsclusa {
+  voce: string;
+  alimenti: string[];
+  motivo: 'allergia' | 'intolleranza' | 'non_gradito';
+}
+
+/**
+ * L'ELENCO DI COSA NON LE ARRIVA NEL PIATTO — e cosa vuol dire davvero (13/8).
+ *
+ * ⚠️ Le parole le dà il **server** (`GET /me/esclusioni`), che le costruisce con la stessa funzione
+ * con cui il motore toglie i piatti. Se questa schermata se ne tenesse una copia, il giorno che la
+ * mappa cambia la cliente leggerebbe un elenco e ne mangerebbe un altro.
+ *
+ * ⚠️ **Una voce senza alimenti non si nasconde**: «Favismo» oggi non toglie niente perché quella
+ * parola non compare in nessun ingrediente. Sparire vorrebbe dire farle perdere una cosa che ha
+ * dichiarato lei; mostrarla come le altre le farebbe credere di essere protetta. Si mostra, e si dice
+ * che la nutrizionista la sta traducendo.
+ *
+ * ⚠️ E c'è una riga che non si toglie: **questo elenco non è il permesso di mangiare tutto il resto.**
+ */
+function ElencoEsclusi({ quale, onClose }: { quale: 'vietati' | 'evitare'; onClose: () => void }) {
+  const [dati, setDati] = useState<{ vietati: VoceEsclusa[]; daEvitare: VoceEsclusa[] } | null>(null);
+  const [errore, setErrore] = useState(false);
+
+  useEffect(() => {
+    api<{ vietati: VoceEsclusa[]; daEvitare: VoceEsclusa[] }>('/me/esclusioni')
+      .then(setDati)
+      .catch(() => setErrore(true));
+  }, []);
+
+  const vietati = quale === 'vietati';
+  const voci = (vietati ? dati?.vietati : dati?.daEvitare) ?? [];
+
+  return (
+    <Sheet onClose={onClose}>
+      <h3 style={{ margin: '0 0 4px' }}>
+        <i className={`ti ${vietati ? 'ti-ban' : 'ti-alert-circle'}`} style={{ color: vietati ? '#C0392B' : '#C98A2E' }} />{' '}
+        {vietati ? 'Cibi assolutamente vietati' : 'Cibi da evitare'}
+      </h3>
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+        {vietati
+          ? 'Le tue allergie. Li teniamo fuori dai menu sempre, tracce e derivati compresi.'
+          : 'Le tue intolleranze e i cibi che non ami: al loro posto il menu propone qualcos’altro.'}
+      </p>
+
+      {errore && <p className="muted" style={{ fontSize: 12.5 }}>Non riesco a caricare l’elenco. Riprova fra poco.</p>}
+      {!errore && !dati && <p className="muted" style={{ fontSize: 12.5 }}>Un momento…</p>}
+
+      {dati && voci.length === 0 && (
+        <p className="muted" style={{ fontSize: 12.5 }}>
+          {vietati
+            ? 'Non risulta nessuna allergia. Se ne hai una, dillo alla tua nutrizionista: è la prima cosa che teniamo fuori dai menu.'
+            : 'Non c’è ancora niente qui. I cibi che non ti piacciono puoi aggiungerli tu, più sotto nel profilo.'}
+        </p>
+      )}
+
+      {voci.map((v) => (
+        <div key={`${v.motivo}-${v.voce}`} style={{ padding: '10px 0', borderTop: '1px solid var(--line, #ece7de)' }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>
+            {v.voce}
+            {!vietati && (
+              <span className="muted" style={{ fontWeight: 400, fontSize: 11.5 }}>
+                {' '}· {v.motivo === 'intolleranza' ? 'ti fa stare male' : 'non ti piace'}
+              </span>
+            )}
+          </div>
+          {v.alimenti.length > 0 ? (
+            <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>{v.alimenti.join(', ')}</div>
+          ) : (
+            <div className="muted" style={{ fontSize: 12, marginTop: 2, fontStyle: 'italic' }}>
+              La tua nutrizionista la sta traducendo negli alimenti da togliere.
+            </div>
+          )}
+        </div>
+      ))}
+
+      {vietati && voci.length > 0 && (
+        <p className="muted" style={{ fontSize: 11.5, marginTop: 12 }}>
+          ⚠️ Questo elenco non è il permesso di mangiare tutto il resto: se ti accorgi che manca
+          qualcosa, dillo alla tua nutrizionista.
+        </p>
+      )}
+      {!vietati && (
+        <p className="muted" style={{ fontSize: 11.5, marginTop: 12 }}>
+          I cibi che non ti piacciono li gestisci tu, più sotto nel profilo. Le intolleranze invece le
+          corregge la nutrizionista.
+        </p>
+      )}
+    </Sheet>
   );
 }

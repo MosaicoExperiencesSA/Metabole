@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🚫 **La cliente può finalmente leggere cosa non le arriva nel piatto.** Richiesta di
+  Simone: due pulsanti nel profilo dell'app — «Cibi assolutamente vietati» (le allergie) e «Cibi da
+  evitare» (intolleranze e non graditi). ⚠️ **Il valore non sono i pulsanti, è l'espansione**: oggi
+  una cliente sceglie «frutta a guscio» e non sa cosa comporta nel piatto; ora legge noci, mandorle,
+  nocciole, pistacchi — **le stesse parole con cui il motore toglie i piatti**. E fa da controllo: se
+  ci vede dentro qualcosa che non c'entra, lo dice alla nutrizionista.
+  ⚠️ Le parole le dà il **server** (`GET /me/esclusioni`, che usa `menu/exclusions.ts`): se l'app se
+  ne tenesse una copia, il giorno che la mappa cambia la cliente leggerebbe un elenco e ne mangerebbe
+  un altro.
+  ⚠️ **Una voce che nessuno sa tradurre si mostra lo stesso, vuota**: «Favismo» e «Carboidrati» oggi
+  non tolgono niente perché quelle parole non compaiono in nessun ingrediente. Nasconderle le
+  farebbe sparire una cosa che ha dichiarato lei; mostrarle piene le farebbe credere di essere
+  protetta. Escono con la riga «la tua nutrizionista la sta traducendo».
+  ⚠️ E resta scritto che **l'elenco non è il permesso di mangiare tutto il resto**: l'esclusione
+  viaggia su due strade, e un elenco fa sempre credere di essere completo.
+  ⚠️ **Ordine di rilascio obbligato**: l'endpoint in produzione PRIMA della OTA, o i due pulsanti
+  danno errore su un'app aggiornata. 6 test nuovi, verificati rossi prima. Nessuna migrazione.
+
 - `[Sviluppo]` 🐟 **Vera §6.2 — «nella mediterranea niente tonno» adesso si applica davvero.** Era
   l'ultimo pezzo che toccava la strada che porta il pasto nel piatto: l'assistente riconosceva la
   frase e apriva la proposta, ma **l'esclusione a livello di dieta non esisteva** — le primitive di

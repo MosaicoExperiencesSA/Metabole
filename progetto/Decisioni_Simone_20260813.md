@@ -316,3 +316,28 @@ prossima persona che lo legge.
 **Il caso clinico invece non si calcola**: per chi ha problemi cardiaci, articolari o è in
 gravidanza, la base la chiede la nutrizionista **attraverso Vera** (risposta di Simone). È lo stesso
 canale delle allergie che non sappiamo tradurre — vedi `CONTRATTO_Vera_Richieste.md`.
+
+---
+
+## 10. La tabella dell'indice glicemico del capo nutrizionista ✅ DECISO
+
+**Simone (13/8):** «questo elenco va caricato e confermato di default: lo ha preparato il capo
+nutrizionista.»
+
+Il PDF (Linus Pauling Institute / International Tables 2008) porta ~94 alimenti con indice glicemico
+(valore, minimo, massimo, affidabilità), macro per 100 g, stato (crudo/bollito/cotto/essiccato) e
+fonte.
+
+⚠️ **Si incastra senza migrazione**: `NutrientFact` ha già `glycemicIndex`, `glycemicIndexMin`,
+`glycemicIndexMax`, `glycemicIndexReliability`, `state`, `source` e i valori per 100 g. Non è un
+formato da inventare: è quello che aspettava dei dati.
+
+**«Confermato di default»** vuol dire `verifiedById` = il capo nutrizionista e `verifiedAt` valorizzati
+all'import: in `NutrientFact` «vuoti = da confermare», quindi caricarli senza firma li lascerebbe in
+una coda di verifica che nessuno ha chiesto.
+
+⚠️ **La trappola da non ignorare: crudo o cotto.** La tabella dà la pasta **bollita** (158 kcal/100 g),
+non cruda (~350). Se una ricetta dettata dice «80 g di spaghetti» intendendo il peso a crudo, il
+conto esce sbagliato di due volte e mezzo. Per questo la colonna `state` va importata e usata, e
+l'ambiguità va risolta **prima** di far dipendere le ricette da questi numeri — è il lavoro
+`vera-ricetta-crudo-cotto`, che era già in lista e adesso ha un motivo urgente.
