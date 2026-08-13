@@ -12,6 +12,7 @@ import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { EngineService } from '../engine/engine.service';
 import { VisitsService } from '../health-area/visits.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
+import { RegistroVeraService } from '../vera/registro.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PauseService } from '../pause/pause.service';
 import { PlanReportService } from '../reports/plan-report.service';
@@ -73,6 +74,8 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: AgentOrchestratorService, useValue: { enqueueDaily: jest.fn().mockResolvedValue({ queued: 0 }) } },
         { provide: CoachTasksService, useValue: { generateDaily: jest.fn().mockResolvedValue({ created: 0 }) } },
         { provide: MonitoringService, useValue: monitoring },
+        // Il report mensile di Vera: nei test non è mai il 1° del mese.
+        { provide: RegistroVeraService, useValue: { spedisciReportMensile: jest.fn().mockResolvedValue({ inviato: false, motivo: 'non è il primo del mese' }) } },
         { provide: PauseService, useValue: { surveillanceTick: jest.fn().mockResolvedValue({ visti: 0 }) } },
         // «Percorso concluso» a +7 giorni dalla fine del piano (richiesta delle coach, 8/8).
         { provide: CrmService, useValue: { chiudiPercorsiConclusi: jest.fn().mockResolvedValue({ esaminati: 0, spostati: 0 }) } },

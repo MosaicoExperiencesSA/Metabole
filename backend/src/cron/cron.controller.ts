@@ -10,6 +10,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { AgentOrchestratorService } from '../agents/agent-orchestrator.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
+import { RegistroVeraService } from '../vera/registro.service';
 import { PauseService } from '../pause/pause.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
@@ -50,6 +51,7 @@ export class CronController {
     private readonly agentOrchestrator: AgentOrchestratorService,
     private readonly coachTasks: CoachTasksService,
     private readonly monitoring: MonitoringService,
+    private readonly registroVera: RegistroVeraService,
     private readonly pause: PauseService,
     private readonly crm: CrmService,
     private readonly privacy: PrivacyService,
@@ -96,6 +98,9 @@ export class CronController {
     await step('coachTasks', () => this.coachTasks.generateDaily());
     // Monitoraggio post-percorso: scadenze, trigger di rientro, congelamenti, richieste misure.
     await step('monitoring', () => this.monitoring.dailyTick());
+    // Il report mensile di Vera: parte SOLO il 1° del mese (il metodo controlla da solo la data
+    // ed è idempotente — la notifica del mese fa da marcatore). Notifica in app + email ai capi.
+    await step('veraReportMensile', () => this.registroVera.spedisciReportMensile());
     // Sorveglianza durante le pause vacanza: peso di riferimento, promemoria misure e
     // avviso alla coach se il peso sale oltre soglia. Nessuna proposta commerciale.
     await step('pauseWatch', () => this.pause.surveillanceTick());

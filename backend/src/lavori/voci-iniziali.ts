@@ -237,6 +237,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Il codice è pronto dal 17/7: restano i DATI. Si aprono le famiglie nel wizard, si spuntano «3 pasti» e «Digiuno intermittente», «Genera tutte le varianti» (aggiunge solo le mancanti), poi validare e pubblicare. Le vecchie diete «Digiuno intermittente (16:8)» a 5 pasti vanno archiviate a mano.',
     categoria: DATI,
     ordine: 10,
+    fatta: true, // risposta di Simone in pagina: generate, il team ci sta lavorando (due settimane per variante)
   },
   // ── Vera, l'assistente della nutrizionista (consegne 1-3a + contratto richieste, 12-13/8) ──
   {
@@ -295,6 +296,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Il parametro spegne il ramo AI della chat con le clienti. Vera non ne dipende (il suo riconoscitore è deterministico), ma finché è spento non si può appoggiare niente al modello — compresa la seconda passata qui sopra.',
     categoria: SIMONE,
     ordine: 216,
+    fatta: true, // acceso da Simone il 13/8 sera dalla pagina Parametri (con AI_API_KEY su Render)
   },
   {
     chiave: 'vera-dizionario-comune-conflitto',
@@ -313,6 +315,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Il report c\'è (`GET /vera/report`, pulsante nella pagina Assistente per il capo) e si ricalcola ogni volta. Manca la spedizione del 1° del mese al capo nutrizionista: notifica in-app + email. ⚠️ Finché non parte da solo, lo legge chi si ricorda di aprirlo — cioè, dopo la prima settimana, nessuno.',
     categoria: CODICE,
     ordine: 220,
+    fatta: true, // il 1° del mese ai capi, notifica + email — cron 'veraReportMensile' (13/8 sera)
   },
   {
     chiave: 'vera-notifica-conflitto-canale',

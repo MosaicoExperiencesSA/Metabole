@@ -25,7 +25,7 @@ import { casiCapiti, CasoCapito, fraseNonCapite, RigaMessaggio } from './corpus'
 import { DizionarioService } from './dizionario.service';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { RigaAudit, RigaAzioneVera, RigaFoodSwap, unisciRegistro, VoceRegistro } from './registro-allargato';
-import { componiReport, intervalloMese, ReportMensile, RigaReport } from './report-mensile';
+import { componiReport, intervalloMese, ReportMensile, RigaReport, nomeMese } from './report-mensile';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
 
 export type AzioneVeraTipo =
@@ -440,6 +440,65 @@ export class RegistroVeraService {
    * giorno dopo — una riga annullata a settembre resterebbe «attiva» nel report di agosto per
    * sempre — e chi lo legge non ha modo di accorgersene.
    */
+  /**
+   * IL REPORT DEL MESE PARTE DA SOLO (voce in Lavori, chiusa il 13/8 sera): il 1° del mese, ai
+   * capi nutrizionisti, notifica in app + email. Finché lo apriva solo chi si ricordava, dopo la
+   * prima settimana non lo apriva nessuno.
+   *
+   * ⚠️ Idempotente: il cron può girare due volte — la notifica del mese fa da marcatore.
+   * ⚠️ Senza postino (o senza email) la notifica in app parte comunque.
+   */
+  async spedisciReportMensile(adesso: Date = new Date()): Promise<{ inviato: boolean; motivo?: string }> {
+    if (adesso.getUTCDate() !== 1) return { inviato: false, motivo: 'non è il primo del mese' };
+    // Il mese PRIMA: il 1° settembre si racconta agosto.
+    const prec = new Date(Date.UTC(adesso.getUTCFullYear(), adesso.getUTCMonth() - 1, 1));
+    const anno = prec.getUTCFullYear();
+    const mese = prec.getUTCMonth() + 1;
+
+    const gia = await this.prisma.notification.findFirst({
+      where: {
+        type: 'vera_report_mensile',
+        AND: [{ payload: { path: ['anno'], equals: anno } }, { payload: { path: ['mese'], equals: mese } }],
+      } as never,
+      select: { id: true },
+    });
+    if (gia) return { inviato: false, motivo: 'già spedito' };
+
+    const report = await this.reportMensile(anno, mese);
+    const capi = (await this.prisma.user.findMany({
+      where: { role: 'head_nutritionist', status: 'active', deletedAt: null } as never,
+      select: { id: true, email: true },
+      take: 20,
+    })) as { id: string; email: string | null }[];
+
+    const titolo = `Vera — il report di ${nomeMese(anno, mese)} è pronto`;
+    const corpo =
+      `${report.totali.scritte} azioni scritte, ${report.totali.inApprovazione} in approvazione, ` +
+      `${report.totali.conflitti} conflitti sanitari, ${report.totali.nonCapite} frasi non capite. ` +
+      'Il dettaglio è nella pagina Assistente.';
+
+    for (const capo of capi) {
+      await this.prisma.notification.create({
+        data: {
+          userId: capo.id,
+          type: 'vera_report_mensile',
+          channel: 'inapp',
+          payload: { title: titolo, body: corpo, kind: 'vera_report_mensile', anno, mese },
+          scheduledFor: adesso,
+          sentAt: adesso,
+        } as never,
+      });
+      if (this.mail && capo.email) {
+        try {
+          await this.mail.send({ to: capo.email, subject: titolo, html: `<p>${corpo}</p>`, tags: ['vera-report-mensile'] });
+        } catch {
+          /* una mail giù non ferma il giro: la campanella in app c'è comunque */
+        }
+      }
+    }
+    return { inviato: true };
+  }
+
   async reportMensile(anno: number, mese: number): Promise<ReportMensile> {
     if (!Number.isInteger(mese) || mese < 1 || mese > 12) throw new BadRequestException('Mese non valido.');
     const { dal, al } = intervalloMese(anno, mese);

@@ -20,6 +20,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 📬 **Il report mensile di Vera parte da solo** (voce chiusa): il 1° del mese, ai capi
+  nutrizionisti, notifica in app + email col riassunto (azioni scritte, in approvazione, conflitti,
+  frasi non capite). Step `veraReportMensile` nel cron giornaliero — il metodo controlla da solo la
+  data ed è idempotente (la notifica del mese fa da marcatore). 4 test visti rossi. E l'estrattore
+  del battesimo capisce la SECONDA persona («ti chiamerai Vera», «voglio chiamarti Vera» — le frasi
+  vere di Nocanty) + baco sulle accentate. Chiuse nel file anche: ai-assistant (acceso da Simone da
+  Parametri), varianti-3-pasti (generate, risposta in pagina).
+
 - `[Sviluppo]` 🕐 **La mezz'ora delle voci veloci (scelte da Simone):** (1) gli **spuntini esclusi
   da Vera si vedono in scheda cliente** (riga in sola lettura — voce 235, parte backoffice; l'app
   con la prossima OTA); (2) l'**avviso di conflitto sanitario va anche via EMAIL** ai capi

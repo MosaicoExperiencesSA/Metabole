@@ -372,3 +372,49 @@ describe('RegistroVeraService — approvare una ricetta', () => {
     await expect(service.approva({ id: 'lucia', role: 'nutritionist' }, 'a1')).rejects.toThrow(ForbiddenException);
   });
 });
+
+describe('RegistroVeraService.spedisciReportMensile — il 1° del mese, da solo (13/8 sera)', () => {
+  const prismaBase = (over: Record<string, unknown> = {}) => ({
+    azioneVera: { findMany: jest.fn().mockResolvedValue([]) },
+    messaggioVera: { findMany: jest.fn().mockResolvedValue([]) },
+    user: { findMany: jest.fn().mockResolvedValue([{ id: 'capo-1', email: 'capo@metabole.eu' }]) },
+    notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'n1' }) },
+    ...over,
+  });
+  const conMail = (prisma: Record<string, unknown>, mail: unknown) =>
+    new RegistroVeraService(prisma as unknown as PrismaService, makeAudit(), makeDizionario(), makeRicette(), mail as never);
+
+  it('il 1° del mese: il report del mese PRIMA, notifica in app + email a ogni capo', async () => {
+    const prisma = prismaBase();
+    const mail = { send: jest.fn().mockResolvedValue(true) };
+    const esito = await conMail(prisma, mail).spedisciReportMensile(D('2026-09-01'));
+    expect(esito.inviato).toBe(true);
+    expect((prisma.notification as { create: jest.Mock }).create).toHaveBeenCalled();
+    expect(mail.send).toHaveBeenCalledTimes(1);
+    expect(mail.send.mock.calls[0][0].subject.toLowerCase()).toContain('agosto');
+  });
+
+  it('gli altri giorni non parte niente', async () => {
+    const prisma = prismaBase();
+    const mail = { send: jest.fn() };
+    const esito = await conMail(prisma, mail).spedisciReportMensile(D('2026-09-15'));
+    expect(esito.inviato).toBe(false);
+    expect((prisma.notification as { create: jest.Mock }).create).not.toHaveBeenCalled();
+    expect(mail.send).not.toHaveBeenCalled();
+  });
+
+  it('già spedito questo mese (il cron può rigirare): non si duplica', async () => {
+    const prisma = prismaBase({ notification: { findFirst: jest.fn().mockResolvedValue({ id: 'gia' }), create: jest.fn() } });
+    const mail = { send: jest.fn() };
+    const esito = await conMail(prisma, mail).spedisciReportMensile(D('2026-09-01'));
+    expect(esito.inviato).toBe(false);
+    expect((prisma.notification as { create: jest.Mock }).create).not.toHaveBeenCalled();
+  });
+
+  it('senza postino la notifica in app parte comunque', async () => {
+    const prisma = prismaBase();
+    const esito = await conMail(prisma, null).spedisciReportMensile(D('2026-09-01'));
+    expect(esito.inviato).toBe(true);
+    expect((prisma.notification as { create: jest.Mock }).create).toHaveBeenCalled();
+  });
+});

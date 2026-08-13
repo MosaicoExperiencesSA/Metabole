@@ -52,3 +52,13 @@ ferma le altre). 3) Presentazione di Vera senza «battezzarmi». Voci chiuse dal
 vera-frase-presentazione, vera-notifica-conflitto-canale.
 File: vera/avvisa-capo.ts+spec, vera/registro.service.ts, vera/vera.module.ts, vera/vera-chat.ts,
 vera/vera-chat.service.spec.ts, lavori/voci-iniziali.ts, backoffice/ClientDetail.tsx.
+
+─── AGGIUNTA 2 (ultimo giro della serata) ───
+Report mensile di Vera SPEDITO da solo: RegistroVeraService.spedisciReportMensile (1° del mese,
+mese precedente, capi nutrizionisti, notifica in app + email; idempotente, senza postino parte
+comunque l'in-app — 4 test visti rossi), step 'veraReportMensile' nel cron (VeraModule importato in
+cron.module, mock in cron.controller.spec). Battesimo in seconda persona («ti chiamerai Vera»,
+«voglio chiamarti Vera») + fix accentate in estraiNome. Voci chiuse dal file: report-invio-mensile,
+ai-assistant-enabled, varianti-3-pasti.
+File: vera/registro.service.ts+spec, vera/vera-chat.ts+spec, cron/cron.module.ts,
+cron/cron.controller.ts+spec, lavori/voci-iniziali.ts.
