@@ -45,3 +45,9 @@ TEST: 28 nuovi (13 colazioni pure + 6 servizio + 6 estrattore nome + 3 regressio
 visti rossi prima di passare. Suite vera/ 220 verdi, catalog+permissions 99 verdi, tsc pulito
 (restano i 2 errori pre-esistenti di approve-diets/dedupe-diets). Nessuna migrazione: zero colonne
 nuove, la convenzione vive nei tag.
+
+─── AGGIUNTA (13/8 sera, dalla pagina in produzione) ───
+«Mais dolce» aveva proposto DOLCI le acciughe marinate: nei composti (mais dolce, patata dolce,
+burro salato, arachidi salate…) l'aggettivo descrive l'ingrediente, non il piatto. Ora i composti
+si tolgono PRIMA di cercare gli indizi; aggiunte acciughe/alici fra gli indizi salati. 2 test nuovi
+visti rossi. I numeri veri della pagina: 2653 colazioni, ~967 proposte salate, ~1204 dolci.

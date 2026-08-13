@@ -41,7 +41,7 @@ export type TipoColazione = 'dolce' | 'salato';
 export const INDIZI_SALATO: readonly string[] = [
   'uovo', 'uova', 'albume', 'frittata', 'omelette',
   'prosciutto', 'bresaola', 'tacchino', 'speck', 'salmone', 'tonno', 'sgombro',
-  'formaggio', 'parmigiano', 'grana padano', 'feta', 'hummus',
+  'formaggio', 'parmigiano', 'grana padano', 'feta', 'hummus', 'acciug', 'alici',
   'avocado', 'pomodor', 'olive', 'rucola', 'salat',
 ];
 
@@ -84,8 +84,18 @@ export interface PropostaColazione {
  */
 export function classificaColazione(nome: string, ingredienti: readonly string[]): PropostaColazione {
   const testo = [nome, ...ingredienti].map(minuscolo).filter(Boolean).join(' | ');
-  const salato = trovati(testo, INDIZI_SALATO);
-  const dolce = trovati(testo, INDIZI_DOLCE);
+  /**
+   * ⚠️ I COMPOSTI NON PARLANO DEL PIATTO (13/8 sera, visto in produzione appena aperta la pagina):
+   * «mais dolce» aveva proposto DOLCI le acciughe marinate. In «mais dolce», «patata dolce»,
+   * «burro salato» l'aggettivo descrive l'ingrediente, non la colazione: si toglie prima di
+   * cercare gli indizi, lasciando il sostantivo.
+   */
+  const pulito = testo.replace(
+    /\b(mais|patat[ae]|paprika|peperon[ei]|burro|arachidi|pistacchi|nocciole|mandorl[ae])\s+(?:dolc|salat)[a-zà-ù]*/g,
+    '$1',
+  );
+  const salato = trovati(pulito, INDIZI_SALATO);
+  const dolce = trovati(pulito, INDIZI_DOLCE);
   if (salato.length > 0 && dolce.length === 0) return { proposta: 'salato', indizi: salato };
   if (dolce.length > 0 && salato.length === 0) return { proposta: 'dolce', indizi: dolce };
   return { proposta: null, indizi: [...salato, ...dolce] };

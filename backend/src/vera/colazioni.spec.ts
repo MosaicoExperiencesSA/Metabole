@@ -46,6 +46,17 @@ describe('classificaColazione', () => {
     expect(classificaColazione('Insalata di frutta', ['frutta mista']).proposta).toBeNull();
   });
 
+  it('«mais dolce» non rende dolci le acciughe: i composti non parlano del piatto', () => {
+    // Il caso vero del 13/8 sera, visto in produzione appena aperta la pagina.
+    const r = classificaColazione('Acciughe marinate con insalata di cicoria e mais', ['acciughe', 'cicoria', 'mais dolce']);
+    expect(r.proposta).not.toBe('dolce');
+  });
+
+  it('«patata dolce» e «burro salato» non decidono niente', () => {
+    expect(classificaColazione('Toast con patata dolce e uova', ['patata dolce', 'uova']).proposta).toBe('salato');
+    expect(classificaColazione('Pancake al burro salato', ['farina', 'burro salato']).proposta).toBeNull();
+  });
+
   it('senza nessun indizio: nessuna proposta, nessun indizio', () => {
     const r = classificaColazione('Bowl energetica', ['semi di chia', 'latte di mandorla']);
     expect(r.proposta).toBeNull();

@@ -43,6 +43,12 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   alla scheda in home; 21 → informativa sul profilo), prova di default, `CONFERMA=1` per mandare.
   Si lancia il 14/8 alle 11, DOPO Render + OTA; promemoria programmato.
 
+- `[Sviluppo]` ☕ **Correzione al classificatore delle colazioni, dal primo sguardo in produzione:**
+  «mais dolce» aveva proposto *dolci* le acciughe marinate. I composti (mais dolce, patata dolce,
+  burro salato…) ora si tolgono prima di cercare gli indizi; acciughe/alici aggiunte ai salati.
+  2 test visti rossi. I numeri: **2653 colazioni**, ~967 proposte salate, ~1204 dolci, ~480 da
+  decidere a mano.
+
 - `[Sviluppo]` 🗣️ **Gaia richiede quello che di un'allergia non sappiamo (§7 dell'handoff).** La
   scheda in home che esce stasera prende chi non ha **mai** risposto; restano fuori due cose che una
   casella da spuntare non sa fare, e per quelle serve parlare: chi ha segnato «Altro» fra le
